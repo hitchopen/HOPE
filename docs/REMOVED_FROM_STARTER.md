@@ -17,13 +17,13 @@ git show 3fb0054:<path>          # e.g. git show 3fb0054:hope_ws/src/hope_planne
 
 | Dropped | Replaced by |
 |---------|-------------|
-| `hope_planner/calibration.py`, `test/test_calibration.py` (fit drag `k`, restitution `C_h`/`C_v` from CSV; CLI `hope_calibrate`) | `hope_training/ball_physics_fit/` — `stage1_segments.py` + `stage2_fits.py` fit the same constants and write [`configs/ball_physics.yaml`](../../configs/ball_physics.yaml), with `falsify/` checks. Note the old fallback defaults (`k=0.5, C_h=0.75, C_v=0.85`) **contradict** the current fitted values, and its CLI printed `drag_k`/`restitution_h`/`restitution_v` keys that no longer exist. |
+| `hope_planner/calibration.py`, `test/test_calibration.py` (fit drag `k`, restitution `C_h`/`C_v` from CSV; CLI `hope_calibrate`) | `hope_training/ball_physics_fit/` — `stage1_segments.py` + `stage2_fits.py` fit the same constants and write [`configs/ball_physics.yaml`](../configs/ball_physics.yaml), with `falsify/` checks. Note the old fallback defaults (`k=0.5, C_h=0.75, C_v=0.85`) **contradict** the current fitted values, and its CLI printed `drag_k`/`restitution_h`/`restitution_v` keys that no longer exist. |
 | `hope_planner/split_calibration_csv.py` + test (split a mixed CSV into per-trajectory CSVs, mm→m inference) | `hope_training/ball_physics_fit/extract_canonical.py` — same three jobs (time rebase, mm→m autodetect, gap split) plus `--scale`/`--z-offset`/`--gap-s`/`--min-rows`. |
-| `hope_bringup/config/avatar_pro_vrpn.yaml`, `launch/avatar_pro_hope_bridge.launch.py`, `launch/avatar_pro_vrpn_relay.launch.py`, `scripts/avatar_pro_vrpn_relay` | The vendored [`hope_ws/src/vrpn_mocap/`](../../hope_ws/src/vrpn_mocap) driver plus `hope_bringup/launch/hope_bringup.launch.py`, which runs `scripts/pose_to_posearray` to build the same `/poses` PoseArray (ball at index 0, matching `ball_pose_index: 0`). |
+| `hope_bringup/config/avatar_pro_vrpn.yaml`, `launch/avatar_pro_hope_bridge.launch.py`, `launch/avatar_pro_vrpn_relay.launch.py`, `scripts/avatar_pro_vrpn_relay` | The vendored [`hope_ws/src/vrpn_mocap/`](../hope_ws/src/vrpn_mocap) driver plus `hope_bringup/launch/hope_bringup.launch.py`, which runs `scripts/pose_to_posearray` to build the same `/poses` PoseArray (ball at index 0, matching `ball_pose_index: 0`). |
 | `scripts/probe_metric.py` (probe raw strike pass rates vs the logged curriculum metric) | `scripts/evaluate.py` + `utils/success_metric.py`. The entire metric vocabulary it probed (`strike_composite_success_exact`, the ref-perturb curriculum, `strike_success_*_thresh`) was removed; `success_rate` is now the single reported number. |
 | `scripts/rsl_rl/cli_args.py`, `scripts/rsl_rl/{train,play}.py` (pre-Hydra argparse plumbing) | `cfg/algo/ppo.yaml` + `utils/ppo_cfg.py::runner_kwargs`, driven by `scripts/train.py` / `scripts/play.py` via Hydra. |
 | `cfg/task/TrackingFlat.yaml` (selected `Tracking-Flat-AgibotA3-v0`) | `cfg/task/HOPEPingPong.yaml` (`HOPE-PingPong-AgibotA3-v0`), the one registered tracking task. |
-| `scripts/create_smoke_motion.py`, `sample_motions/README.md` (generate a stand-still clip so the pipeline runs) | The committed placeholder clips `hope_training/motions/preprocessed/hope_{forehand,backhand}.npz` with their YAML sidecars, plus [`docs/REPLACE_MOTIONS.md`](../REPLACE_MOTIONS.md). |
+| `scripts/create_smoke_motion.py`, `sample_motions/README.md` (generate a stand-still clip so the pipeline runs) | The committed placeholder clips `hope_training/motions/preprocessed/hope_{forehand,backhand}.npz` with their YAML sidecars, plus [`docs/REPLACE_MOTIONS.md`](REPLACE_MOTIONS.md). |
 
 ## `docs/interfaces/` — folded into the current docs
 
@@ -32,10 +32,10 @@ repository does not carry two contracts that can drift apart:
 
 | Dropped | Folded into |
 |---------|-------------|
-| `docs/interfaces/policy_io.md` | [`docs/POLICY_INTERFACE.md`](../POLICY_INTERFACE.md) — the 111-D observation / 31-D action contract. |
-| `docs/interfaces/ros_topics.md` | [`docs/PLANNER_INTERFACE.md`](../PLANNER_INTERFACE.md) and [`mocap/README.md`](../../mocap/README.md). Note the old file described the removed VRPN *relay*, not the current `pose_to_posearray` path. |
-| `docs/interfaces/joint_order.md` | [`A3_ASSETS.md`](../../A3_ASSETS.md), which points at the canonical `hope_training/config/joint_order_agibot_a3.yaml`. |
-| `docs/interfaces/frames.md` | [`mocap/README.md`](../../mocap/README.md). Its two facts that had survived only in code — the world origin (near-side left corner of the table *surface*) and `z = 0` being the playing surface with the floor at `z = -0.76 m` — were written back into that contract, sourced from `tasks/table_tennis/geometry.py`. |
+| `docs/interfaces/policy_io.md` | [`docs/POLICY_INTERFACE.md`](POLICY_INTERFACE.md) — the 111-D observation / 31-D action contract. |
+| `docs/interfaces/ros_topics.md` | [`docs/PLANNER_INTERFACE.md`](PLANNER_INTERFACE.md) and [`mocap/README.md`](../mocap/README.md). Note the old file described the removed VRPN *relay*, not the current `pose_to_posearray` path. |
+| `docs/interfaces/joint_order.md` | [`A3_ASSETS.md`](../A3_ASSETS.md), which points at the canonical `hope_training/config/joint_order_agibot_a3.yaml`. |
+| `docs/interfaces/frames.md` | [`mocap/README.md`](../mocap/README.md). Its two facts that had survived only in code — the world origin (near-side left corner of the table *surface*) and `z = 0` being the playing surface with the floor at `z = -0.76 m` — were written back into that contract, sourced from `tasks/table_tennis/geometry.py`. |
 
 ## Removed with the Weights & Biases dependency
 
@@ -69,7 +69,7 @@ naive port would mis-shape the 111-D actor contract that
 ## Known gap — not yet replaced
 
 **`scripts/csv_to_npz.py`** (retargeted motion CSV → the `.npz` the tracking task
-consumes) has **no replacement**. [`docs/REPLACE_MOTIONS.md`](../REPLACE_MOTIONS.md)
+consumes) has **no replacement**. [`docs/REPLACE_MOTIONS.md`](REPLACE_MOTIONS.md)
 asks you to bring your own retargeted motions, but the repository currently ships
 no converter for them.
 

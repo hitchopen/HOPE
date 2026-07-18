@@ -62,7 +62,7 @@ camera counts, network addresses, and calibration recordings are deployment deta
 supply for your own environment.
 
 For a worked example of one such environment, see the preserved arena design document —
-[MOCAP_SYSTEM_DESIGN.md](MOCAP_SYSTEM_DESIGN.md) ([中文](MOCAP_SYSTEM_DESIGN_ZH.md)). It
+[HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md](HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md) ([中文](HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup_ZH.md)). It
 covers the OptiTrack/Motive configuration, camera layout, tracked-object taxonomy,
 `base_link` marker placement, and ball-tracking choices used for the original HOPE arena.
 It predates this stack, so treat the contract above as authoritative where the two differ.

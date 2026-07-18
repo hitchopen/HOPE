@@ -1,7 +1,7 @@
 # Roadmap
 
 Scope and direction for HOPE. For what the focused rewrite removed and
-why, see [`docs/reference/REMOVED_FROM_STARTER.md`](docs/reference/REMOVED_FROM_STARTER.md).
+why, see [`docs/REMOVED_FROM_STARTER.md`](docs/REMOVED_FROM_STARTER.md).
 
 ## Shipped
 
@@ -35,7 +35,7 @@ constants are documented examples meant to be replaced — see
 - **A motion converter.** [`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md)
   asks teams to bring their own retargeted clips, but no retargeted-CSV → `.npz`
   tool ships today. This is the clearest gap; revival steps are recorded in
-  [`docs/reference/REMOVED_FROM_STARTER.md`](docs/reference/REMOVED_FROM_STARTER.md).
+  [`docs/REMOVED_FROM_STARTER.md`](docs/REMOVED_FROM_STARTER.md).
 - **Performance-tuned reference motions.** The two clips under
   `hope_training/motions/preprocessed/` are physically-neutral placeholders.
 - **Validated reward defaults and training recipes**, so `success_rate` is

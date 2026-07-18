@@ -5,10 +5,10 @@ v0.2 — 2026-04-02
 > **Preserved reference document.** This predates the current HOPE
 > stack and describes the broader G1/A3 deployment architecture; it is kept for
 > design background, safety rationale, and provenance. The shipped deploy paths
-> are [`a3_deploy/`](../../a3_deploy) (clean-room ONNX reference runner) and
-> [`agibot/code_deployment/`](../../agibot/code_deployment) (Agibot's A3
-> body-drive example) — see [`docs/RUN_ON_AGIBOT.md`](../RUN_ON_AGIBOT.md) for
-> the current procedure. Index: [`docs/reference/README.md`](README.md).
+> are [`a3_deploy/`](a3_deploy) (clean-room ONNX reference runner) and
+> [`agibot/code_deployment/`](agibot/code_deployment) (Agibot's A3
+> body-drive example) — see [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) for
+> the current procedure. Index: [`REFERENCE_DOCS.md`](REFERENCE_DOCS.md).
 
 ## Overview
 

@@ -9,7 +9,7 @@ planner derivation, and the deployment/safety rationale. They are kept for
 design context and provenance.
 
 If you want to *run* something, do not start here. Start at
-[`README.md`](../../README.md), then [`docs/QUICKSTART.md`](../QUICKSTART.md).
+[`README.md`](README.md), then [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
 
 ## Where the current contracts live
 
@@ -18,16 +18,16 @@ docs win:
 
 | Topic | Current, authoritative |
 |-------|------------------------|
-| Observation / action contract | [`docs/POLICY_INTERFACE.md`](../POLICY_INTERFACE.md) |
-| Planner pipeline and `RacketCommand` | [`docs/PLANNER_INTERFACE.md`](../PLANNER_INTERFACE.md) |
-| Training the policy | [`docs/TRAIN_POLICY.md`](../TRAIN_POLICY.md) |
-| Running on the A3 (sim and real) | [`docs/RUN_ON_AGIBOT.md`](../RUN_ON_AGIBOT.md) |
-| Mocap frames and topics | [`mocap/README.md`](../../mocap/README.md) |
-| Asset map / joint order | [`A3_ASSETS.md`](../../A3_ASSETS.md) |
+| Observation / action contract | [`docs/POLICY_INTERFACE.md`](docs/POLICY_INTERFACE.md) |
+| Planner pipeline and `RacketCommand` | [`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md) |
+| Training the policy | [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md) |
+| Running on the A3 (sim and real) | [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) |
+| Mocap frames and topics | [`mocap/README.md`](mocap/README.md) |
+| Asset map / joint order | [`A3_ASSETS.md`](A3_ASSETS.md) |
 
 ## What the rewrite dropped
 
-[REMOVED_FROM_STARTER.md](REMOVED_FROM_STARTER.md) records every file the
+[REMOVED_FROM_STARTER.md](docs/REMOVED_FROM_STARTER.md) records every file the
 HOPE rewrite removed — what it was, what replaced it, and how to
 retrieve it. It also lists the one **known gap** (a retargeted-CSV → `.npz`
 motion converter) and the exact steps to revive it.
@@ -36,18 +36,18 @@ motion converter) and the exact steps to revive it.
 
 | Document | Scope | Version |
 |----------|-------|---------|
-| [RACKET_PLANNER_DESIGN.md](RACKET_PLANNER_DESIGN.md) | Ball state estimation, trajectory prediction, and racket target planning (Stages 1–3 of the HITTER framework), in the HOPE canonical frame | v0.1 |
-| [WBC_TRAINING_DESIGN.md](WBC_TRAINING_DESIGN.md) | SMPL-X motion acquisition, GMR retargeting, and the BeyondMimic RL pipeline for whole-body control (Stage 4), with the original dual-backend Isaac Lab / mjlab plan | v0.5 |
-| [HARDWARE_DEPLOYMENT_DESIGN.md](HARDWARE_DEPLOYMENT_DESIGN.md) | Real-robot deployment architecture for G1 (`legged_control2`) and A3 (AimRT): ONNX inference, ROS 2 node graph, PD tuning, and safety procedures | v0.2 |
-| [../../mocap/MOCAP_SYSTEM_DESIGN.md](../../mocap/MOCAP_SYSTEM_DESIGN.md) · [ZH](../../mocap/MOCAP_SYSTEM_DESIGN_ZH.md) | OptiTrack/ROS 2 arena configuration, coordinate frames, tracked-object taxonomy, `base_link` marker setup, and ball tracking | v0.4 |
+| [HOPE_7DOF_Racket_Model_based_Planner_Reference_Setup.md](HOPE_7DOF_Racket_Model_based_Planner_Reference_Setup.md) | Ball state estimation, trajectory prediction, and racket target planning (Stages 1–3 of the HITTER framework), in the HOPE canonical frame | v0.1 |
+| [HOPE_WBC_Simulation_Training_Reference_Setup.md](HOPE_WBC_Simulation_Training_Reference_Setup.md) | SMPL-X motion acquisition, GMR retargeting, and the BeyondMimic RL pipeline for whole-body control (Stage 4), with the original dual-backend Isaac Lab / mjlab plan | v0.5 |
+| [HOPE_Hardware_Deployment_Reference_Setup.md](HOPE_Hardware_Deployment_Reference_Setup.md) | Real-robot deployment architecture for G1 (`legged_control2`) and A3 (AimRT): ONNX inference, ROS 2 node graph, PD tuning, and safety procedures | v0.2 |
+| [mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md) · [ZH](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup_ZH.md) | OptiTrack/ROS 2 arena configuration, coordinate frames, tracked-object taxonomy, `base_link` marker setup, and ball tracking | v0.4 |
 
-The three system design documents preserved in this directory
+The three system design documents preserved at the repository root
 (RACKET_PLANNER / WBC_TRAINING / HARDWARE_DEPLOYMENT) each carry a **Section 0
 prologue** listing their implementation differences from the original HITTER
 work (see [References](#references)); the mocap pair documents its differences
 inline instead.
 
-The mocap documents stay under [`mocap/`](../../mocap) next to the frame/topic
+The mocap documents stay under [`mocap/`](mocap/) next to the frame/topic
 contract they elaborate on, and next to the `two_ball_types.jpeg` figure they
 embed.
 
@@ -55,8 +55,8 @@ embed.
 
 | Document | Language |
 |----------|----------|
-| [HOPE_AI_Challenge_2026_Rules_EN.docx](../../HOPE_AI_Challenge_2026_Rules_EN.docx) | English |
-| [HOPE_AI_Challenge_2026_Rules_ZH.docx](../../HOPE_AI_Challenge_2026_Rules_ZH.docx) | 中文 |
+| [HOPE_AI_Challenge_2026_Rules_EN.docx](HOPE_AI_Challenge_2026_Rules_EN.docx) | English |
+| [HOPE_AI_Challenge_2026_Rules_ZH.docx](HOPE_AI_Challenge_2026_Rules_ZH.docx) | 中文 |
 
 ### A rule that shapes the whole design
 

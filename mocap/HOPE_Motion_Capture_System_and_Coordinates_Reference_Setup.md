@@ -7,7 +7,7 @@
 > frame and topic contract is [`mocap/README.md`](README.md); the live driver
 > shipped in this repo is the vendored
 > [`hope_ws/src/vrpn_mocap/`](../hope_ws/src/vrpn_mocap). Index:
-> [`docs/reference/README.md`](../docs/reference/README.md).
+> [`REFERENCE_DOCS.md`](../REFERENCE_DOCS.md).
 
 ---
 

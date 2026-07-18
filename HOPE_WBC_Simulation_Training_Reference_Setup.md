@@ -6,9 +6,9 @@ v0.5 — 2026-03-25
 > stack (it describes a broader dual-backend Isaac Lab / mjlab plan) and is kept
 > for design background and provenance. Where it disagrees with the shipped
 > code, the authoritative training path is
-> [`docs/TRAIN_POLICY.md`](../TRAIN_POLICY.md) and the policy contract is
-> [`docs/POLICY_INTERFACE.md`](../POLICY_INTERFACE.md). Index:
-> [`docs/reference/README.md`](README.md).
+> [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md) and the policy contract is
+> [`docs/POLICY_INTERFACE.md`](docs/POLICY_INTERFACE.md). Index:
+> [`REFERENCE_DOCS.md`](REFERENCE_DOCS.md).
 
 ## Overview
 
