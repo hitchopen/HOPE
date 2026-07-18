@@ -1,6 +1,6 @@
 # Policy interface
 
-The HOPE PingPong policy is a single feed-forward actor network shared by forehand and
+The HOPE policy is a single feed-forward actor network shared by forehand and
 backhand. It runs at **50 Hz**. This document is the authoritative contract for its inputs,
 outputs, and the joint ordering — training, the exported ONNX, and any deployment backend
 must all agree with it.

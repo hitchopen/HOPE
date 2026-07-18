@@ -1,6 +1,6 @@
 # Clean-room reference runner (`a3_deploy_onnx_ref_pingpong`)
 
-A from-scratch Python implementation of the public HOPE PingPong deploy contract.
+A from-scratch Python implementation of the public HOPE deploy contract.
 It exists to document the contract **executably** and to run the exported policy
 against the shipped MuJoCo sim. It contains none of the vendor runner's source,
 tuned constants, or gates.

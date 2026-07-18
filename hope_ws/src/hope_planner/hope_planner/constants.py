@@ -1,4 +1,4 @@
-"""Physical constants and tuning parameters for the HOPE PingPong planner.
+"""Physical constants and tuning parameters for the HOPE planner.
 
 Frame convention (matching ``configs/ball_physics.yaml``): +x forward (toward
 the opponent), +y left, +z up (right-handed); z = 0 is the table surface and

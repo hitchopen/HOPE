@@ -1,6 +1,6 @@
 # Roadmap
 
-Scope and direction for HOPE PingPong. For what the focused rewrite removed and
+Scope and direction for HOPE. For what the focused rewrite removed and
 why, see [`docs/reference/REMOVED_FROM_STARTER.md`](docs/reference/REMOVED_FROM_STARTER.md).
 
 ## Shipped

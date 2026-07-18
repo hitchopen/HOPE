@@ -3,7 +3,7 @@
 <package format="3">
   <name>hope_bringup</name>
   <version>0.0.0</version>
-  <description>Bringup launch files and configuration for the HOPE PingPong ROS 2 stack.</description>
+  <description>Bringup launch files and configuration for the HOPE ROS 2 stack.</description>
   <maintainer email="maintainer@example.com">HOPE Maintainers</maintainer>
   <license>Apache-2.0</license>
 

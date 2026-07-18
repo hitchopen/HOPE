@@ -19,7 +19,7 @@ setup(
     zip_safe=True,
     maintainer="HOPE Maintainers",
     maintainer_email="maintainer@example.com",
-    description="HOPE PingPong no-spin model-based racket planner.",
+    description="HOPE no-spin model-based racket planner.",
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={

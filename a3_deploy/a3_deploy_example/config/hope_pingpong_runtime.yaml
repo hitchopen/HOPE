@@ -1,4 +1,4 @@
-# HOPE PingPong runtime configuration -- clean 111-D reference deploy.
+# HOPE runtime configuration -- clean 111-D reference deploy.
 #
 # Read by the clean-room reference runner (a3_deploy_onnx_ref_pingpong). Every
 # relative path resolves against THIS file's directory.

@@ -1,5 +1,5 @@
 # =============================================================================
-# HOPE PingPong training environment.
+# HOPE training environment.
 #
 # SOURCE this (do not execute) inside your GPU/Isaac shell before running the
 # training / play / export scripts:

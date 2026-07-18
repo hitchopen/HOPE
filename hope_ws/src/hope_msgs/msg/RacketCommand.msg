@@ -1,4 +1,4 @@
-# Racket target command published by the HOPE PingPong planner.
+# Racket target command published by the HOPE planner.
 #
 # One task_id is created per incoming ball. Pre-strike updates keep the same
 # task_id and increase task_revision. swing_side is chosen once per task_id and

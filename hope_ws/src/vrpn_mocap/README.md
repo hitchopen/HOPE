@@ -53,14 +53,14 @@ ros2 topic echo /vrpn_mocap/<tracker>/pose_id_<N> --once
 Raw topics live under the `/vrpn_mocap` namespace: `pose` per tracker with
 `multi_sensor: false`, or `pose_id_<N>` per sensor with `multi_sensor: true`
 (the bundled `client.launch.yaml` forces the latter, so a tracker named `ball`
-publishes `/vrpn_mocap/ball/pose_id_0`). The HOPE PingPong planner consumes a
+publishes `/vrpn_mocap/ball/pose_id_0`). The HOPE planner consumes a
 `geometry_msgs/PoseArray` with the ball at `ball_pose_index`; map or relay your
 tracker's ball pose onto that topic.
 
 ## Runtime
 
 The `hope_bringup` package provides launch files that start this client
-together with the HOPE PingPong planner.
+together with the HOPE planner.
 
 ## License
 

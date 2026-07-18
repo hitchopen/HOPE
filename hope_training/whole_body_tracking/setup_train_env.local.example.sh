@@ -1,4 +1,4 @@
-# Local Isaac paths for HOPE PingPong. Copy this file to
+# Local Isaac paths for HOPE. Copy this file to
 # setup_train_env.local.sh and edit the values for your machine. The copied file
 # is git-ignored and is auto-sourced by setup_train_env.sh if present.
 #

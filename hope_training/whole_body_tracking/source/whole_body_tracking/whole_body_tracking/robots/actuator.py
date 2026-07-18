@@ -2,7 +2,7 @@
 
 An :class:`~isaaclab.actuators.ImplicitActuator` whose position/velocity/effort setpoints are lagged
 by a configurable number of physics steps, drawn uniformly in ``[min_delay, max_delay]`` at each
-reset. Not used by the default HOPE PingPong task (which uses a plain implicit actuator); provided as
+reset. Not used by the default HOPE task (which uses a plain implicit actuator); provided as
 a drop-in for anyone who wants to randomize actuation latency.
 """
 

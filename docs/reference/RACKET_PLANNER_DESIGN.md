@@ -2,7 +2,7 @@
 
 v0.1 — 2026-03-19
 
-> **Preserved reference document.** This predates the current HOPE PingPong
+> **Preserved reference document.** This predates the current HOPE
 > stack and is kept for design background and provenance. Where it disagrees
 > with the shipped code, the authoritative planner contract is
 > [`docs/PLANNER_INTERFACE.md`](../PLANNER_INTERFACE.md). Index:

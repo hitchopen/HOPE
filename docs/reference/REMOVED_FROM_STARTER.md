@@ -1,6 +1,6 @@
 # What the rewrite dropped, and why
 
-The HOPE PingPong rewrite narrowed the repository to one robot (Agibot A3) and
+The HOPE rewrite narrowed the repository to one robot (Agibot A3) and
 one unified forehand/backhand policy. That narrowing removed files that existed
 in the earlier starter. This page records **what each one was, why it is not
 here, and what replaced it**, so nothing is silently lost.

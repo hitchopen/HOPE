@@ -1,4 +1,4 @@
-"""The single HOPE PingPong actor-observation contract.
+"""The single HOPE actor-observation contract.
 
 One contract, ``hope_pingpong`` (111 dims), pinned so training, ONNX export, the reference runner and
 the planner all agree on the exact term order, dimensions and deploy sources. This module is pure

@@ -1,4 +1,4 @@
-"""Play a trained HOPE PingPong policy in the Isaac Lab viewer.
+"""Play a trained HOPE policy in the Isaac Lab viewer.
 
 Loads a LOCAL checkpoint and runs the policy in-sim. No Weights & Biases, and no export coupling —
 exporting the ONNX policy is a separate step (scripts/export_onnx.py).

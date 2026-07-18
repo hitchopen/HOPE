@@ -1,4 +1,4 @@
-"""Task implementations for the HOPE PingPong Agibot A3 environment.
+"""Task implementations for the HOPE Agibot A3 environment.
 
 Importing the sub-packages runs their Gym registrations. ``table_tennis`` provides the shared
 no-spin ball / table world; ``tracking`` provides the whole-body policy task

@@ -1,4 +1,4 @@
-"""ROS 2 node for the HOPE PingPong no-spin racket planner.
+"""ROS 2 node for the HOPE no-spin racket planner.
 
 Subscribes to the mocap ball stream (``geometry_msgs/PoseArray`` on the
 configured poses topic, ball at ``ball_pose_index``), estimates the ball
@@ -111,7 +111,7 @@ class HOPEPlannerNode(Node):
             RacketCommand, str(self.get_parameter("command_topic").value), command_qos)
 
         self.get_logger().info(
-            f"HOPE PingPong planner started: x_hit={config.x_hit:.3f} m, "
+            f"HOPE planner started: x_hit={config.x_hit:.3f} m, "
             f"landing={config.target_land[:2]}, split_y={self._split_y:.3f} m, "
             f"solve_period={self._solve_period:.3f} s, ball_pose_index={self._ball_index}")
 

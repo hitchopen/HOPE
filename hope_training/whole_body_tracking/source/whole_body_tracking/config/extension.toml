@@ -7,10 +7,10 @@ version = "0.1.0"
 category = "isaaclab"
 readme = "README.md"
 
-title = "HOPE PingPong Whole-Body Tracking"
+title = "HOPE Whole-Body Tracking"
 author = "Intelligent Racing Inc. (dba Hitch Interactive)"
 maintainer = "Intelligent Racing Inc. (dba Hitch Interactive)"
-description = "Isaac Lab extension for training the HOPE PingPong whole-body policy on the Agibot A3."
+description = "Isaac Lab extension for training the HOPE whole-body policy on the Agibot A3."
 repository = "https://github.com/hitch-interactive/hope_pingpong"
 keywords = ["isaaclab", "reinforcement-learning", "humanoid", "table-tennis", "agibot-a3"]
 

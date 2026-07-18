@@ -1,4 +1,4 @@
-"""Export a trained HOPE PingPong checkpoint to a deployable ONNX policy + manifest.
+"""Export a trained HOPE checkpoint to a deployable ONNX policy + manifest.
 
 Loads a local checkpoint, rebuilds the policy, and writes:
 

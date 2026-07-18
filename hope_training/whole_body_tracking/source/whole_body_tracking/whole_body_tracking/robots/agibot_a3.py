@@ -1,4 +1,4 @@
-"""Agibot A3 robot configuration for the HOPE PingPong whole-body task.
+"""Agibot A3 robot configuration for the HOPE whole-body task.
 
 31 controllable DOF (hands excluded): waist yaw/roll/pitch (3), neck yaw/pitch (2), each arm 7
 (shoulder pitch/roll/yaw, elbow, wrist roll/pitch/yaw), each leg 6 (hip pitch/roll/yaw, knee,

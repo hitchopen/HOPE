@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Intelligent Racing Inc. (dba Hitch Interactive)
 # SPDX-License-Identifier: Apache-2.0
-"""Clean-room reference runner for the HOPE PingPong 111-D deploy contract.
+"""Clean-room reference runner for the HOPE 111-D deploy contract.
 
 This package is authored from scratch against the public observation / action /
 RacketCommand contract. It is NOT the vendor deploy runner and contains none of

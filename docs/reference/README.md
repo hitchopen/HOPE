@@ -3,7 +3,7 @@
 Preserved HOPE background: the original system design documents and the
 competition rules. **This is background, not the current contract.**
 
-These documents predate the focused HOPE PingPong stack and describe the
+These documents predate the focused HOPE stack and describe the
 broader HOPE program — the full G1/A3 architecture, the mocap arena build, the
 planner derivation, and the deployment/safety rationale. They are kept for
 design context and provenance.
@@ -28,7 +28,7 @@ docs win:
 ## What the rewrite dropped
 
 [REMOVED_FROM_STARTER.md](REMOVED_FROM_STARTER.md) records every file the
-HOPE PingPong rewrite removed — what it was, what replaced it, and how to
+HOPE rewrite removed — what it was, what replaced it, and how to
 retrieve it. It also lists the one **known gap** (a retargeted-CSV → `.npz`
 motion converter) and the exact steps to revive it.
 

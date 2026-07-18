@@ -1,4 +1,4 @@
-"""Hydra training entry for the HOPE PingPong Agibot A3 policy.
+"""Hydra training entry for the HOPE Agibot A3 policy.
 
 Single task, single algo. Build the ``HOPE-PingPong-AgibotA3-v0`` environment (111-D actor
 observation, privileged critic, 50 Hz control, ``wrap_teleport: false``), a rsl_rl PPO runner, and

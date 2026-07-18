@@ -1,4 +1,4 @@
-"""Minimal rsl_rl PPO runner glue for HOPE PingPong training.
+"""Minimal rsl_rl PPO runner glue for HOPE training.
 
 The base ``rsl_rl.runners.OnPolicyRunner`` already writes periodic (every ``save_interval``) and final
 local checkpoints. This subclass only replaces the logging writer with a local, offline no-op sink so

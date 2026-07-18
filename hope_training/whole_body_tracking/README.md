@@ -1,6 +1,6 @@
-# HOPE PingPong — whole-body training (Agibot A3)
+# HOPE — whole-body training (Agibot A3)
 
-This Isaac Lab extension trains the **HOPE PingPong** whole-body policy for the
+This Isaac Lab extension trains the **HOPE** whole-body policy for the
 [Agibot A3](https://www.zhiyuan-robot.com/) humanoid (31 actuated DOF): a single feed-forward actor,
 shared by forehand and backhand, that runs at **50 Hz** and drives a table-tennis swing.
 
@@ -114,7 +114,7 @@ python tests/test_table_tennis_geometry.py  # ITTF table geometry
   `prepare_a3_isaac_asset.py`.
 - `cfg/` — Hydra configs: `train.yaml` / `play.yaml`, `algo/ppo.yaml`, `base/*`, `task/HOPEPingPong.yaml`.
 - `source/whole_body_tracking/whole_body_tracking/`
-  - `tasks/tracking/` — the HOPE PingPong task, actor observation contract, and MDP terms.
+  - `tasks/tracking/` — the HOPE task, actor observation contract, and MDP terms.
   - `tasks/table_tennis/` — the no-spin ball / ITTF table world and its geometry.
   - `robots/` — the Agibot A3 articulation configuration.
   - `utils/` — `exporter.py` (ONNX + manifest), `success_metric.py` (the `success_rate` core),

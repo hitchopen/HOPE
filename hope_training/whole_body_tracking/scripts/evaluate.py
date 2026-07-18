@@ -1,4 +1,4 @@
-"""Evaluate a trained HOPE PingPong policy in-sim and report ``success_rate`` (the only metric).
+"""Evaluate a trained HOPE policy in-sim and report ``success_rate`` (the only metric).
 
 Runs the policy across many parallel environments, detects each strike (the reference clock reaching
 the strike frame), and rolls out the no-spin outgoing ball to decide whether the return succeeded

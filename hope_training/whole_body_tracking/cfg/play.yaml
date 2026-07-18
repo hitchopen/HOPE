@@ -1,5 +1,5 @@
 # =============================================================================
-# Hydra config for playing a trained HOPE PingPong policy in-sim.
+# Hydra config for playing a trained HOPE policy in-sim.
 #
 # Usage:
 #   python scripts/play.py task=HOPEPingPong algo=ppo num_envs=4 \

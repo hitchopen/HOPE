@@ -1,6 +1,6 @@
 # ball_physics_fit — no-spin ball-physics fitting
 
-Fits the simplified, **no-spin** table-tennis ball model used by HOPE PingPong
+Fits the simplified, **no-spin** table-tennis ball model used by HOPE
 from real ball-capture data, and writes the constants that go into
 [`configs/ball_physics.yaml`](../../configs/ball_physics.yaml).
 

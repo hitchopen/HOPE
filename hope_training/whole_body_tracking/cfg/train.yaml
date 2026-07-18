@@ -1,5 +1,5 @@
 # =============================================================================
-# Main Hydra config for HOPE PingPong Agibot A3 training.
+# Main Hydra config for HOPE Agibot A3 training.
 #
 # Usage:
 #   python scripts/train.py task=HOPEPingPong algo=ppo headless=true

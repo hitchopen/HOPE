@@ -2,7 +2,7 @@
 
 **v0.4** — 2026-06-17
 
-> **Preserved reference document.** This predates the current HOPE PingPong
+> **Preserved reference document.** This predates the current HOPE
 > stack and is kept for arena-build background and provenance. The authoritative
 > frame and topic contract is [`mocap/README.md`](README.md); the live driver
 > shipped in this repo is the vendored

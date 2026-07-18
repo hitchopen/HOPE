@@ -2,7 +2,7 @@
 
 v0.2 — 2026-04-02
 
-> **Preserved reference document.** This predates the current HOPE PingPong
+> **Preserved reference document.** This predates the current HOPE
 > stack and describes the broader G1/A3 deployment architecture; it is kept for
 > design background, safety rationale, and provenance. The shipped deploy paths
 > are [`a3_deploy/`](../../a3_deploy) (clean-room ONNX reference runner) and

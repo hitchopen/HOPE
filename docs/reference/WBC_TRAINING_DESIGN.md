@@ -2,7 +2,7 @@
 
 v0.5 — 2026-03-25
 
-> **Preserved reference document.** This predates the current HOPE PingPong
+> **Preserved reference document.** This predates the current HOPE
 > stack (it describes a broader dual-backend Isaac Lab / mjlab plan) and is kept
 > for design background and provenance. Where it disagrees with the shipped
 > code, the authoritative training path is

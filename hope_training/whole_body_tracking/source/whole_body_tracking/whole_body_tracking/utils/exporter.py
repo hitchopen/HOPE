@@ -1,6 +1,6 @@
 # Copyright (c) 2025, Intelligent Racing Inc. (dba Hitch Interactive).
 # SPDX-License-Identifier: Apache-2.0
-"""Export a trained HOPE PingPong actor to a single-output ONNX policy + a JSON manifest.
+"""Export a trained HOPE actor to a single-output ONNX policy + a JSON manifest.
 
 The exported graph is a plain feed-forward actor:
 

@@ -2,7 +2,7 @@
 
 **v0.4** — 2026-06-17
 
-> **存档参考文档。** 本文档早于当前的 HOPE PingPong 技术栈,保留用于场地搭建背景与技术沿革。
+> **存档参考文档。** 本文档早于当前的 HOPE 技术栈,保留用于场地搭建背景与技术沿革。
 > 现行的坐标系与话题契约以 [`mocap/README.md`](README.md) 为准;仓库内实际使用的驱动为
 > vendored 的 [`hope_ws/src/vrpn_mocap/`](../hope_ws/src/vrpn_mocap)。索引见
 > [`docs/reference/README.md`](../docs/reference/README.md)。

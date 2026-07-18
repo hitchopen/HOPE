@@ -1,6 +1,6 @@
 # Third-party notices
 
-HOPE PingPong is licensed under Apache-2.0 (see [LICENSE](LICENSE)). It redistributes the
+HOPE is licensed under Apache-2.0 (see [LICENSE](LICENSE)). It redistributes the
 third-party materials listed below, each under its own license. This file covers only material
 that is actually included in this repository.
 
@@ -14,7 +14,7 @@ that is actually included in this repository.
 - Origin: Derived from BeyondMimic (`HybridRobotics/whole_body_tracking`), an Isaac Lab
   motion-tracking reinforcement-learning extension.
 
-The HOPE PingPong training package is a fork/derivative of the BeyondMimic
+The HOPE training package is a fork/derivative of the BeyondMimic
 `whole_body_tracking` project, adapted to the table-tennis task. The upstream MIT license text
 is retained in `hope_training/whole_body_tracking/LICENCE`. The SMPL-X → robot retargeting and
 video → SMPL-X extraction stages referenced in the docs use GMR (`YanjieZe/GMR`, MIT) and GVHMR

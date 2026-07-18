@@ -1,4 +1,4 @@
-"""Base scene + simulation scaffolding for the HOPE PingPong tracking task.
+"""Base scene + simulation scaffolding for the HOPE tracking task.
 
 The scene is a flat ground plane with the robot and a full-body contact sensor. The concrete task
 (managers, robot wiring, motion clips, rewards) lives in ``config/agibot_a3/hope_env_cfg.py``.

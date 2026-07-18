@@ -3,7 +3,7 @@ import gymnasium as gym
 from . import agents, hope_env_cfg
 
 ##
-# Register the single public HOPE PingPong task.
+# Register the single public HOPE task.
 ##
 gym.register(
     id="HOPE-PingPong-AgibotA3-v0",

@@ -1,6 +1,6 @@
 # Copyright (c) 2025, Intelligent Racing Inc. (dba Hitch Interactive).
 # SPDX-License-Identifier: Apache-2.0
-"""MuJoCo sim-to-sim evaluation of the exported HOPE PingPong ONNX policy.
+"""MuJoCo sim-to-sim evaluation of the exported HOPE ONNX policy.
 
 This drives the exported ``hope_pingpong.onnx`` (single layout: observation[1, 111]
 -> raw_action[1, 31], no observation normalization) through the SAME 111-D

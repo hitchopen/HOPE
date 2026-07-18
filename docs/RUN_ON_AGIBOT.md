@@ -1,6 +1,6 @@
 # Running on the Agibot A3
 
-The deploy side of HOPE PingPong lives under [`a3_deploy/`](../a3_deploy).
+The deploy side of HOPE lives under [`a3_deploy/`](../a3_deploy).
 **`a3_deploy/`** is a revised fork of the official AgiBot A3 deploy stack. The proprietary
 vendor runner is **not** redistributed in this repository; instead you get:
 
@@ -72,7 +72,7 @@ reference runner this is the `AimrtSimBridge` seam, which documents the exact
 `NotImplementedError` until you connect your vendor AimRT typesupport — it never fakes success).
 
 Vendor hard joint limits, motor protection, communication timeouts, and physical e-stop remain
-entirely your robot backend's responsibility. HOPE PingPong does not probe, score, certify, or
+entirely your robot backend's responsibility. HOPE does not probe, score, certify, or
 bypass those mechanisms.
 
 ## ActionAdapter (shared with training)

@@ -1,6 +1,6 @@
 # Motion capture interface
 
-HOPE PingPong drives its planner from an external motion-capture system that streams
+HOPE drives its planner from an external motion-capture system that streams
 **ball** (and optionally **robot base**) positions into ROS 2. This document defines the
 generic frame and topic contract the rest of the stack expects. It is deliberately
 vendor-neutral — any optical/VRPN motion-capture rig that can publish the topics below will

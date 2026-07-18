@@ -1,8 +1,8 @@
 # =============================================================================
-# HOPE PingPong whole-body task (Agibot A3) — the single training task.
+# HOPE whole-body task (Agibot A3) — the single training task.
 #
 # Selected with `task=HOPEPingPong`. Composes the shared env / sim / randomization bases
-# (cfg/base/*) and sets the HOPE PingPong knobs below. The detailed reward weights, racket-target
+# (cfg/base/*) and sets the HOPE knobs below. The detailed reward weights, racket-target
 # sampling boxes, and domain-randomization defaults live in the environment configuration
 # (HOPEPingPongEnvCfg, in the tasks/tracking package) — this file carries only the launcher-level
 # knobs and an optional `overrides` map for tuning.

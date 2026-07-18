@@ -3,7 +3,7 @@
 <package format="3">
   <name>hope_planner</name>
   <version>0.0.0</version>
-  <description>HOPE PingPong no-spin model-based racket planner: ball state estimation, trajectory prediction, and racket target planning.</description>
+  <description>HOPE no-spin model-based racket planner: ball state estimation, trajectory prediction, and racket target planning.</description>
   <maintainer email="maintainer@example.com">HOPE Maintainers</maintainer>
   <license>Apache-2.0</license>
 

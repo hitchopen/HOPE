@@ -1,4 +1,4 @@
-"""Generic HOPE PingPong bringup: motion capture -> planner.
+"""Generic HOPE bringup: motion capture -> planner.
 
 Starts the racket planner and its ball source. By default it launches the
 ``vrpn_mocap`` VRPN client (configurable server address, default ``localhost``)

@@ -1,4 +1,4 @@
-"""HOPE PingPong observation terms.
+"""HOPE observation terms.
 
 The actor (policy) observation is exactly the ``hope_pingpong`` contract (111 dims). Most
 terms are standard proprioception from ``isaaclab.envs.mdp`` (base_ang_vel, joint_pos_rel,

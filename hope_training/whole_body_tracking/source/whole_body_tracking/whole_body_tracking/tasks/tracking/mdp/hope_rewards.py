@@ -1,4 +1,4 @@
-"""HOPE PingPong reward terms.
+"""HOPE reward terms.
 
 The public task uses eleven reward terms. Eight are defined here; three (upright balance,
 action smoothness, joint-limit regularization) are standard ``isaaclab.envs.mdp`` terms wired in the

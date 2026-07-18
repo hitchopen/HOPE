@@ -1,4 +1,4 @@
-"""Top-level HOPE PingPong planner pipeline.
+"""Top-level HOPE planner pipeline.
 
 Call :meth:`HOPEPlanner.update` with each ball position at the motion-capture
 sample rate; it estimates the ball state, predicts the no-spin trajectory to

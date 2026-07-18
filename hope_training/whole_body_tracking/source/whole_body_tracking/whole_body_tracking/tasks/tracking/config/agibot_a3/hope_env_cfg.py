@@ -1,4 +1,4 @@
-"""Agibot A3 — the single HOPE PingPong whole-body task.
+"""Agibot A3 — the single HOPE whole-body task.
 
 One environment config, :class:`HOPEPingPongEnvCfg`, wiring:
 
@@ -292,7 +292,7 @@ class EventCfg:
 
 @configclass
 class HOPEPingPongEnvCfg(ManagerBasedRLEnvCfg):
-    """The single public HOPE PingPong task (gym id ``HOPE-PingPong-AgibotA3-v0``)."""
+    """The single public HOPE task (gym id ``HOPE-PingPong-AgibotA3-v0``)."""
 
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     observations: ObservationsCfg = ObservationsCfg()

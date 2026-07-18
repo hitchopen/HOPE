@@ -1,11 +1,11 @@
-"""The HOPE PingPong action term.
+"""The HOPE action term.
 
 :class:`ClampedJointPositionAction` is a 31-D joint-position residual action:
 
     q_des = default_q + raw_action * action_scale
 
 followed by a deterministic clamp of the position targets (a numeric transform, not a rejection
-gate — it emits no failure status). When ``position_clamp`` is configured (the HOPE PingPong task
+gate — it emits no failure status). When ``position_clamp`` is configured (the HOPE task
 sets it from the shared deploy ``action_adapter.yaml``) the clamp bounds are those exact per-joint
 values, so training and deployment clamp identically; without it the term falls back to the
 articulation's soft joint limits. The policy still emits 31 raw values, but the two passive head

@@ -1,4 +1,4 @@
-# Canonical shared ActionAdapter configuration (HOPE PingPong, 31-DOF Agibot A3).
+# Canonical shared ActionAdapter configuration (HOPE, 31-DOF Agibot A3).
 #
 # This is the ONE file that both the training package and the reference deploy
 # runner read, so the raw-action -> joint-target mapping is defined in exactly one

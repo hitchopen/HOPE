@@ -1,4 +1,4 @@
-"""HOPE PingPong whole-body tracking task (single public task).
+"""HOPE whole-body tracking task (single public task).
 
 Importing this package registers the Gym environment ``HOPE-PingPong-AgibotA3-v0``.
 """

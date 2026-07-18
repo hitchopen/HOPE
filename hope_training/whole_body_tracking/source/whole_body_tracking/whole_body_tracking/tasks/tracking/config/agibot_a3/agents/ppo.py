@@ -1,4 +1,4 @@
-"""PPO runner configuration for the HOPE PingPong task (rsl_rl).
+"""PPO runner configuration for the HOPE task (rsl_rl).
 
 Self-contained example hyperparameters. Observation normalization is OFF (raw observations) so the
 exported ONNX and the reference runner consume the raw 111-D observation directly. Tune freely.

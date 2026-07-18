@@ -1,4 +1,4 @@
-"""HOPE PingPong model-based racket planner.
+"""HOPE model-based racket planner.
 
 Pure-Python core (constants, estimator, predictor, target planner, contact
 model, quaternion utilities, pipeline) with a thin ROS 2 node wrapper in

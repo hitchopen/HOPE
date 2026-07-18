@@ -1,4 +1,4 @@
-"""Publish the HOPE PingPong world-frame static transforms from config."""
+"""Publish the HOPE world-frame static transforms from config."""
 
 from pathlib import Path
 

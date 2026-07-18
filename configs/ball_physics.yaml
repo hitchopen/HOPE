@@ -1,5 +1,5 @@
 # =============================================================================
-# HOPE PingPong — no-spin ball physics (single source of truth)
+# HOPE — no-spin ball physics (single source of truth)
 # =============================================================================
 # Read at runtime by ALL of:
 #   * training     (whole_body_tracking table_tennis task: ball.py / geometry.py)

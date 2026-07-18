@@ -1,7 +1,7 @@
 # a3_deploy / a3_deploy_example
 
 **`a3_deploy/` is a revised fork of the official AgiBot A3 deploy code.** This
-directory documents the public HOPE PingPong deploy contract and ships a
+directory documents the public HOPE deploy contract and ships a
 **clean-room reference runner** that implements it. It is not the vendor deploy
 runner.
 

@@ -1,4 +1,4 @@
-# Extending HOPE PingPong
+# Extending HOPE
 
 Everything shipped here — motions, reward, action adapter, side selector, physics, policy — is a
 clean, documented example meant to be replaced. This page lists the extension points and the exact

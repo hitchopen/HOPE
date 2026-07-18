@@ -1,4 +1,4 @@
-"""HOPE PingPong whole-body tracking extension for Isaac Lab.
+"""HOPE whole-body tracking extension for Isaac Lab.
 
 Importing this package registers the Gym environments (via :mod:`whole_body_tracking.tasks`).
 """
