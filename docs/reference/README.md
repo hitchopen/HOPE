@@ -55,8 +55,8 @@ embed.
 
 | Document | Language |
 |----------|----------|
-| [HOPE_AI_Challenge_2026_Rules_EN.docx](HOPE_AI_Challenge_2026_Rules_EN.docx) | English |
-| [HOPE_AI_Challenge_2026_Rules_ZH.docx](HOPE_AI_Challenge_2026_Rules_ZH.docx) | 中文 |
+| [HOPE_AI_Challenge_2026_Rules_EN.docx](../../HOPE_AI_Challenge_2026_Rules_EN.docx) | English |
+| [HOPE_AI_Challenge_2026_Rules_ZH.docx](../../HOPE_AI_Challenge_2026_Rules_ZH.docx) | 中文 |
 
 ### A rule that shapes the whole design
 
