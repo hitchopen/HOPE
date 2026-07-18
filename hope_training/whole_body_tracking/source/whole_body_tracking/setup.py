@@ -17,7 +17,7 @@ INSTALL_REQUIRES = [
     "pyyaml",
     # HOPEOnPolicyRunner overrides OnPolicyRunner._prepare_logging_writer, which exists in the
     # rsl_rl 3.x line only — earlier releases would silently keep their default W&B/TB wiring.
-    "rsl-rl-lib>=3.0.0",
+    "rsl-rl-lib>=3.0.0,<4",
 ]
 
 setup(

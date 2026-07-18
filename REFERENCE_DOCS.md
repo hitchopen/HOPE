@@ -9,7 +9,7 @@ planner derivation, and the deployment/safety rationale. They are kept for
 design context and provenance.
 
 If you want to *run* something, do not start here. Start at
-[`README.md`](README.md), then [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
+[`README.md`](README.md), then [`QUICKSTART_A3_ISAAC.md`](QUICKSTART_A3_ISAAC.md).
 
 ## Where the current contracts live
 
