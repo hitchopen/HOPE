@@ -94,6 +94,6 @@ For the record, these *were* brought back and adapted to the current tree:
 | File | Adaptation |
 |------|-----------|
 | `setup_train_env.local.example.sh` | `HOPE_ISAAC_PYTHON`/`HOPE_ISAACLAB_ROOT` → `ISAAC_PYTHON`/`ISAACLAB_ROOT`; W&B lines dropped. `setup_train_env.sh` auto-sources the copied file, so the example was a documented gap. |
-| `assets/README.md` | URDF source path updated to `a3_deploy/URDF/`. |
+| `assets/README.md` | Command path updated to `hope_training/whole_body_tracking/scripts/`; source-path note now covers the bundled `agibot/URDF/` default and the `a3_deploy/URDF/` user-supplied override. |
 | `scripts/play_table_tennis.py` | `--magnus` removed (`BallAerodynamicsCfg` has no Magnus term and `ServeConfig` is explicitly no-spin). The only Isaac scene-visualization entry point that needs no checkpoint. |
 | `hope_planner/bag_to_csv.py` | Registered as `hope_bag_to_csv` in `setup.py`; `rosbag2_py` / `rosidl_runtime_py` declared in `package.xml`. It is the capture front end whose `t,x,y,z` output feeds `ball_physics_fit`. |

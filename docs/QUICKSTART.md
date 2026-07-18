@@ -23,16 +23,19 @@ python -m pip install -e source/whole_body_tracking
 python -m pip install hydra-core omegaconf     # used by the Hydra entry points
 ```
 
-## 2. Supply the A3 robot asset
+## 2. Prepare the A3 robot asset
 
-The A3 URDF/meshes are not redistributed. Place your own A3 ping-pong URDF package under
-`a3_deploy/URDF/` (see [`a3_deploy/URDF/README.md`](../a3_deploy/URDF/README.md)),
-then build the Isaac asset:
+The starter ships the Agibot-provided A3 ping-pong URDF package under
+`agibot/URDF/A3T2.5-URDF-std-pingpang/` (vendor material, no OSS license — see
+[`A3_ASSETS.md`](../A3_ASSETS.md)); the asset-prep step uses it by default:
 
 ```bash
-python hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py \
-    --source-root a3_deploy/URDF/<your_a3_package> --force
+python hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --force
 ```
+
+To use your own vendor-supplied copy instead, place it under `a3_deploy/URDF/`
+(see [`a3_deploy/URDF/README.md`](../a3_deploy/URDF/README.md)) and add
+`--source-root a3_deploy/URDF/<your_a3_package>`.
 
 ## 3. Train the unified policy
 
@@ -84,7 +87,7 @@ or real mocap source, then start the runner in `--planner` mode so it consumes t
 ```bash
 cd hope_ws && colcon build && source install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true   # mocap-free smoke test
-# (real mocap: hope_bringup.launch.py mocap_server:=<host> ball_pose_topic:=/vrpn_mocap/<tracker>/pose
+# (real mocap: hope_bringup.launch.py mocap_server:=<host> ball_pose_topic:=/vrpn_mocap/<tracker>/pose_id_0
 #  — the pose_to_posearray adapter turns the per-tracker PoseStamped into the planner's /poses)
 
 # in another terminal (same ROS env sourced):

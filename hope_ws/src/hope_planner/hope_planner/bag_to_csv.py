@@ -2,7 +2,10 @@
 
 This helper is intentionally small and practical:
 
-- Input: a rosbag2 directory recorded from `/ball/point`
+- Input: a rosbag2 directory recorded from the standard bringup's ``/poses``
+  (``geometry_msgs/PoseArray``, ball at ``--ball-index``, default 0 — so
+  calibration capture is simply ``ros2 bag record /poses``); a legacy
+  ``geometry_msgs/PointStamped`` topic (e.g. ``/ball/point``) is also accepted.
 - Output: one CSV with columns `t,x,y,z`
 - Time source: message header stamp if present, otherwise bag receive time
 - Storage plugin: auto-detect `mcap` vs `sqlite3`
@@ -15,7 +18,7 @@ import csv
 from pathlib import Path
 import re
 
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, PoseArray
 from rclpy.serialization import deserialize_message
 from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
 from rosidl_runtime_py.utilities import get_message
@@ -57,7 +60,7 @@ def _check_bag_files_look_real(bag_dir: Path) -> None:
         )
 
 
-def bag_point_topic_to_csv(bag_path: str, topic: str, output_csv: str) -> int:
+def bag_point_topic_to_csv(bag_path: str, topic: str, output_csv: str, ball_index: int = 0) -> int:
     bag_dir = Path(bag_path)
     if not bag_dir.exists():
         raise RuntimeError(f"Bag path does not exist: {bag_path}")
@@ -88,15 +91,25 @@ def bag_point_topic_to_csv(bag_path: str, topic: str, output_csv: str) -> int:
         if current_topic != topic:
             continue
         msg = deserialize_message(data, msg_type)
-        if not isinstance(msg, PointStamped):
-            raise RuntimeError(f"Topic {topic!r} is {topic_types[topic]!r}, expected PointStamped")
+        if isinstance(msg, PoseArray):
+            # The standard bringup stream: ball at poses[ball_index] (pose_to_posearray contract).
+            if len(msg.poses) <= ball_index:
+                continue  # frame without the ball slot (e.g. adapter still warming up)
+            point = msg.poses[ball_index].position
+        elif isinstance(msg, PointStamped):
+            point = msg.point
+        else:
+            raise RuntimeError(
+                f"Topic {topic!r} is {topic_types[topic]!r}; expected geometry_msgs/PoseArray "
+                "(the standard /poses stream) or geometry_msgs/PointStamped."
+            )
 
         if msg.header.stamp.sec != 0 or msg.header.stamp.nanosec != 0:
             t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         else:
             t = bag_time_ns * 1e-9
 
-        rows.append((t, msg.point.x, msg.point.y, msg.point.z))
+        rows.append((t, point.x, point.y, point.z))
 
     if not rows:
         raise RuntimeError(f"No messages found on topic {topic!r} in bag {bag_path!r}")
@@ -113,18 +126,26 @@ def bag_point_topic_to_csv(bag_path: str, topic: str, output_csv: str) -> int:
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
-        description="Convert a rosbag2 /ball/point stream into HOPE calibration CSV (t,x,y,z)."
+        description="Convert a rosbag2 ball stream (/poses PoseArray or a PointStamped topic) "
+        "into HOPE calibration CSV (t,x,y,z)."
     )
     parser.add_argument("--bag", required=True, help="Path to rosbag2 directory.")
     parser.add_argument(
         "--topic",
-        default="/ball/point",
-        help="PointStamped topic to export. Default: /ball/point",
+        default="/poses",
+        help="Topic to export: geometry_msgs/PoseArray (the standard bringup /poses stream) or a "
+        "geometry_msgs/PointStamped topic. Default: /poses",
+    )
+    parser.add_argument(
+        "--ball-index",
+        type=int,
+        default=0,
+        help="PoseArray slot carrying the ball (matches the planner's ball_pose_index). Default: 0",
     )
     parser.add_argument("--output", required=True, help="Output CSV path.")
     args = parser.parse_args(argv)
 
-    count = bag_point_topic_to_csv(args.bag, args.topic, args.output)
+    count = bag_point_topic_to_csv(args.bag, args.topic, args.output, ball_index=args.ball_index)
     print(f"Wrote {count} rows to {args.output}")
 
 

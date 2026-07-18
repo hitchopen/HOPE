@@ -413,15 +413,15 @@ with a parameter file:
 `vrpn_mocap` discovers every VRPN sender and publishes a `geometry_msgs/PoseStamped` per sender, and — with `multi_sensor: true` — per sensor index, under the `/vrpn_mocap` namespace:
 
 ```
-/vrpn_mocap/<sender>/pose<sensor_id>      geometry_msgs/PoseStamped
+/vrpn_mocap/<sender>/pose_id_<sensor_id>      geometry_msgs/PoseStamped
 ```
 
-Assign and record fixed VRPN **sender names** for **PPT**, **P1**, **P2** in CMTracker so the planner and WBC subscribe to the right topics. Each rigid body is a single-sensor sender, so it appears as `pose0` carrying full `pose.position` + `pose.orientation` (a 6-DOF measurement):
+Assign and record fixed VRPN **sender names** for **PPT**, **P1**, **P2** in CMTracker so the planner and WBC subscribe to the right topics. Each rigid body is a single-sensor sender, so it appears as `pose_id_0` carrying full `pose.position` + `pose.orientation` (a 6-DOF measurement):
 
 ```
-/vrpn_mocap/PPT/pose0
-/vrpn_mocap/P1/pose0
-/vrpn_mocap/P2/pose0
+/vrpn_mocap/PPT/pose_id_0
+/vrpn_mocap/P1/pose_id_0
+/vrpn_mocap/P2/pose_id_0
 ```
 
 Add a small ROS 2 relay node to merge these into the single `/poses` `PoseArray` and to (re)broadcast `world → PPT`, `world → P1`, `world → P2` on `/tf`, matching Section 6.4 exactly.
@@ -431,13 +431,13 @@ Add a small ROS 2 relay node to merge these into the single `/poses` `PoseArray`
 The ball is a **marker**, not a rigid body, so Chingmu delivers it as a **sensor ID under a shared marker sender** — it has no dedicated sender name. With `multi_sensor: true` (Section 6.5.1), `vrpn_mocap` exposes it as a per-sensor topic:
 
 ```
-/vrpn_mocap/<marker_sender>/pose<ball_sensor_id>   geometry_msgs/PoseStamped
+/vrpn_mocap/<marker_sender>/pose_id_<ball_sensor_id>   geometry_msgs/PoseStamped
 # pose.position is the valid ball position [x, y, z]; pose.orientation is identity and ignored
 ```
 
 Confirm the marker sender name and the ball's sensor index with Chingmu, and verify with `ros2 topic list`. The ball must be the **single** unlabeled marker required by Section 5 — stray markers would share the marker sender and make the sensor index ambiguous.
 
-For the planner, subscribe to that topic and use only the position fields. A trivial relay republishes it as `geometry_msgs/PointStamped` on `/ball/point` (or inserts it into the shared `/poses` array if a single-topic interface is preferred):
+For the planner, subscribe to that topic and use only the position fields. The shipped stack does exactly this with the `hope_bringup` `pose_to_posearray` node, which aggregates the tracker topic(s) into the shared `/poses` `PoseArray` the planner (and the calibration recorder `hope_bag_to_csv`, via `ros2 bag record /poses`) consume. Alternatively a trivial relay can republish it as `geometry_msgs/PointStamped` on `/ball/point`:
 
 ```python
 # ball_pose_to_point.py  (ROS 2, sketch)
@@ -450,7 +450,7 @@ class BallRelay(Node):
         super().__init__('ball_pose_to_point')
         self.pub = self.create_publisher(PointStamped, '/ball/point', 10)
         self.create_subscription(
-            PoseStamped, '/vrpn_mocap/<marker_sender>/pose<ball_sensor_id>', self.cb, 10)
+            PoseStamped, '/vrpn_mocap/<marker_sender>/pose_id_<ball_sensor_id>', self.cb, 10)
 
     def cb(self, msg: PoseStamped):
         out = PointStamped()
@@ -481,13 +481,13 @@ Verify the handedness of the source frame empirically before trusting any conver
 | VRPN streaming | ✅ Enabled | Single stream carries rigid bodies **and** markers |
 | VRPN port | 3883 (default) | Match the `port` param of the ROS 2 client |
 | ROS 2 client | `vrpn_mocap`, `multi_sensor: true` | libmotioncapture VRPN backend is unsuitable — it drops sensor IDs |
-| Rigid bodies (PPT, P1, P2) | Each a distinct VRPN **sender name** | Each → `/vrpn_mocap/<name>/pose0` (6-DOF) |
-| Ball | A **marker = sensor ID** under a shared sender | → `/vrpn_mocap/<marker_sender>/pose<id>` (position valid, orientation identity) |
+| Rigid bodies (PPT, P1, P2) | Each a distinct VRPN **sender name** | Each → `/vrpn_mocap/<name>/pose_id_0` (6-DOF) |
+| Ball | A **marker = sensor ID** under a shared sender | → `/vrpn_mocap/<marker_sender>/pose_id_<id>` (position valid, orientation identity) |
 | Single marker only | No stray markers in volume | Extra markers make the ball's sensor index ambiguous |
 | Up axis | **Z** | Aligns with ROS 2 Z-up; else convert per 6.5.3 |
 | Server / Linux host subnet | Same LAN subnet | Plain UDP, as in Section 6.1 |
 
-Once the ROS 2 client is running, `ros2 topic list` shows a `/vrpn_mocap/<sender>/pose<id>` per object (relay into `/poses` + `/tf` and `/ball/point` as desired, per Section 6.4), and the planner and WBC require no vendor-specific changes.
+Once the ROS 2 client is running, `ros2 topic list` shows a `/vrpn_mocap/<sender>/pose_id_<id>` per object (relay into `/poses` + `/tf` and `/ball/point` as desired, per Section 6.4), and the planner and WBC require no vendor-specific changes.
 
 ---
 

@@ -69,10 +69,12 @@ class HOPEPlannerNode(Node):
         table = load_table_params(physics_path, y_max=float(self.get_parameter("table_y_max").value))
         config = PlannerConfig(
             x_hit=float(self.get_parameter("x_hit").value),
+            # Landing target z = ball radius: the outgoing arc is solved for the ball
+            # CENTROID reaching table contact, matching the bounce-plane convention.
             target_land=np.array([
                 float(self.get_parameter("target_land_x").value),
                 float(self.get_parameter("target_land_y").value),
-                0.0,
+                physics.radius,
             ]),
             delta_t_flight=float(self.get_parameter("delta_t_flight").value),
             max_predict_time=float(self.get_parameter("max_predict_time").value),

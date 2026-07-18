@@ -61,7 +61,7 @@ def _resolve_motion_sources(cfg) -> list[str]:
         if not pathlib.Path(clip).is_file():
             raise FileNotFoundError(
                 f"motion clip not found: {clip}\nProvide your own clips or the placeholder clips "
-                "under hope_training/motions/preprocessed/ (see hope_training/motions/REPLACE_MOTIONS.md)."
+                "under hope_training/motions/preprocessed/ (see docs/REPLACE_MOTIONS.md)."
             )
     return resolved
 
@@ -214,6 +214,25 @@ def _run(cfg):
     # 5) build env, (optionally) record video, wrap for rsl_rl.
     render_mode = "rgb_array" if cfg.video else None
     env = gym.make(task_id, cfg=env_cfg, render_mode=render_mode)
+
+    # HARD GATE (train time): the articulation's joint enumeration fixes the obs/action column
+    # order of everything this run learns. It must equal the canonical deploy joint order — the
+    # same check export_onnx.py applies — so a permuted asset fails BEFORE training, not after a
+    # full run when the stale checkpoint meets the export gate.
+    from whole_body_tracking.utils.action_adapter_config import load_joint_order
+
+    _joint_names = list(env.unwrapped.scene["robot"].data.joint_names)
+    _expected_order = list(load_joint_order())
+    if _joint_names != _expected_order:
+        raise RuntimeError(
+            "Articulation joint order does not match the canonical deploy joint order "
+            "(hope_training/config/joint_order_agibot_a3.yaml).\n"
+            f"  articulation: {_joint_names}\n"
+            f"  canonical:    {_expected_order}\n"
+            "Fix your A3 URDF/USD so its joint enumeration matches the canonical order before "
+            "training (a policy trained on a permuted enumeration cannot be deployed)."
+        )
+    print("[train.py] joint-order gate: articulation matches the canonical deploy order.", flush=True)
 
     # Validate the 111-D actor observation contract when the task declares one (guarded import).
     expected_contract = cfg.task.get("actor_obs_contract")

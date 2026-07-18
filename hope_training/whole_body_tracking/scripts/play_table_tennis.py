@@ -5,16 +5,16 @@ and steps the simulation holding the robot's default standing pose (zero action)
 physics (ball flight, drag, table/net bounce) and the scene layout before training a policy.
 
 Run inside your Isaac Lab GPU environment after ``source setup_train_env.sh`` (which defines
-``hope_isaac_py``, the Isaac Python launcher with the working-tree PYTHONPATH):
+``isaac_py``, the Isaac Python launcher with the working-tree PYTHONPATH):
 
     # interactive window (default: 1 env, robot free-standing, aerodynamics on)
-    hope_isaac_py scripts/play_table_tennis.py
+    isaac_py scripts/play_table_tennis.py
 
     # several courts at once
-    hope_isaac_py scripts/play_table_tennis.py --num_envs 9
+    isaac_py scripts/play_table_tennis.py --num_envs 9
 
     # pin the robot upright (stable view of the ball physics while no balance policy exists)
-    hope_isaac_py scripts/play_table_tennis.py --fix_base
+    isaac_py scripts/play_table_tennis.py --fix_base
 
     # compare flight with/without aerodynamic drag
     isaac_py scripts/play_table_tennis.py --disable_aero

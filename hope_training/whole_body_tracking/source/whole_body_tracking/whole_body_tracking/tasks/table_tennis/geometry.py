@@ -147,6 +147,12 @@ class BounceMaterials:
     net_restitution: float = float(_CFG["contact"]["net"]["restitution"])
     net_static_friction: float = float(_CFG["contact"]["net"]["static_friction"])
     net_dynamic_friction: float = float(_CFG["contact"]["net"]["dynamic_friction"])
+    # Paddle (the racket link on the robot articulation). Applied by the A3 env cfg via a startup
+    # material event on the racket body, so the effective ball<->paddle normal restitution equals
+    # this measured value (the ball material is neutral and combines multiplicatively).
+    paddle_restitution: float = float(_CFG["contact"]["paddle"]["restitution"])
+    paddle_static_friction: float = float(_CFG["contact"]["paddle"]["static_friction"])
+    paddle_dynamic_friction: float = float(_CFG["contact"]["paddle"]["dynamic_friction"])
 
 
 @dataclass

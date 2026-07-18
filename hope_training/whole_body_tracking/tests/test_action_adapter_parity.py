@@ -11,7 +11,11 @@ This test loads the deploy ``ActionAdapter`` and the training-side
 constants plus equivalent decode outputs for representative raw actions (zero, +/-1,
 random, and clamp-saturating extremes).
 
-Pure NumPy + PyYAML — runs without Isaac / torch / onnxruntime.
+Scope note: the decode-parity leg exercises the deploy adapter against the training
+LOADER's reference ``decode`` (the same residual+clamp formula), not the live Isaac
+action term — that term needs torch/Isaac and applies the identical constants via
+``hope_env_cfg`` (position_clamp / scale / default_q wiring), which these tests pin at
+the constants level. Pure NumPy + PyYAML — runs without Isaac / torch / onnxruntime.
 
 Run:  python tests/test_action_adapter_parity.py   (or pytest)
 """

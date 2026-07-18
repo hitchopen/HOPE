@@ -40,9 +40,15 @@ constants are documented examples meant to be replaced — see
   `hope_training/motions/preprocessed/` are physically-neutral placeholders.
 - **Validated reward defaults and training recipes**, so `success_rate` is
   reproducible from a clean clone.
-- **Ball and table physics in the MuJoCo scene.** The bundled MJCF is
-  robot-only, so the sim path validates policy execution and joint control but
-  not rally outcomes; `success_rate` is measured in Isaac.
+- **Ball and table physics in the reference runner's MuJoCo scene.** The MJCF
+  bundled with the deploy runner is robot-only, so that interactive sim path
+  validates policy execution and joint control but not rally outcomes. The
+  authoritative `success_rate` already comes from
+  `hope_training/whole_body_tracking/scripts/mujoco_eval_onnx.py`, which builds
+  a full MuJoCo ball + table + net scene around the same robot model
+  (`scripts/evaluate.py` is only a fast in-Isaac analytic estimate); this
+  roadmap item is about folding that rally physics into the interactive runner
+  scene too.
 - **A real-robot deployment checklist** with reproduced dry-run, joint-order,
   command-scale, low-gain, e-stop, and safe-halt verification.
 - **CI** for the non-Isaac checks, and optional GPU smoke jobs.

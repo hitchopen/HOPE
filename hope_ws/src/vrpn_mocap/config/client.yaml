@@ -1,4 +1,4 @@
-/vrpn_mocap/client_node:
+/vrpn_mocap/vrpn_mocap_client_node:
   ros__parameters:
     server: localhost
     port: 3883
@@ -6,3 +6,7 @@
     update_freq: 100.
     refresh_freq: 1.
     multi_sensor: false
+    # Stamp poses with the VRPN server's capture time instead of ROS receipt time.
+    # Enable ONLY if the mocap host and ROS host clocks are synchronized (NTP/PTP);
+    # otherwise the clock offset skews every stamp. false = receipt time.
+    use_vrpn_timestamps: false

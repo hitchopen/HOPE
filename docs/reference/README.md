@@ -41,9 +41,11 @@ motion converter) and the exact steps to revive it.
 | [HARDWARE_DEPLOYMENT_DESIGN.md](HARDWARE_DEPLOYMENT_DESIGN.md) | Real-robot deployment architecture for G1 (`legged_control2`) and A3 (AimRT): ONNX inference, ROS 2 node graph, PD tuning, and safety procedures | v0.2 |
 | [../../mocap/MOCAP_SYSTEM_DESIGN.md](../../mocap/MOCAP_SYSTEM_DESIGN.md) · [ZH](../../mocap/MOCAP_SYSTEM_DESIGN_ZH.md) | OptiTrack/ROS 2 arena configuration, coordinate frames, tracked-object taxonomy, `base_link` marker setup, and ball tracking | v0.4 |
 
-Each system design document carries a **Section 0 prologue** listing its
-implementation differences from the original HITTER work (see
-[References](#references)).
+The three system design documents preserved in this directory
+(RACKET_PLANNER / WBC_TRAINING / HARDWARE_DEPLOYMENT) each carry a **Section 0
+prologue** listing their implementation differences from the original HITTER
+work (see [References](#references)); the mocap pair documents its differences
+inline instead.
 
 The mocap documents stay under [`mocap/`](../../mocap) next to the frame/topic
 contract they elaborate on, and next to the `two_ball_types.jpeg` figure they

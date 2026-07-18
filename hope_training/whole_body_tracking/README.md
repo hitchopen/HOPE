@@ -27,13 +27,16 @@ python -m pip install hydra-core omegaconf
 Optionally `source setup_train_env.sh` (in the GPU/Isaac shell) to put the working-tree source first on
 `PYTHONPATH` and get an `isaac_py` launcher.
 
-## Robot asset (you supply the URDF)
+## Robot asset (bundled URDF)
 
-The A3 URDF and meshes are **not** redistributed here. Place your own A3 ping-pong URDF package under
-`a3_deploy/URDF/` (see [`a3_deploy/URDF/README.md`](../../a3_deploy/URDF/README.md)),
-then generate the Isaac asset:
+The starter ships the Agibot-provided A3 ping-pong URDF package under
+`agibot/URDF/A3T2.5-URDF-std-pingpang/` (vendor material, no OSS license — see
+[`A3_ASSETS.md`](../../A3_ASSETS.md)); the asset-prep step uses it by default. To use your own
+vendor-supplied copy, place it under `a3_deploy/URDF/` (see
+[`a3_deploy/URDF/README.md`](../../a3_deploy/URDF/README.md)) and pass `--source-root`:
 
 ```bash
+python scripts/prepare_a3_isaac_asset.py --force
 python scripts/prepare_a3_isaac_asset.py --source-root a3_deploy/URDF/<your_a3_package> --force
 python scripts/prepare_a3_isaac_asset.py --check   # verify the prepared asset
 ```
@@ -44,7 +47,7 @@ Training imitates two reference clips (clip 0 = forehand, clip 1 = backhand). Th
 `hope_training/motions/preprocessed/` (`hope_forehand.npz` + `hope_backhand.npz`) are **reference
 examples only** — short, smooth, physically-neutral placeholder trajectories that let imports and
 shape checks pass. **They are not performance-tuned; replace them with your own recorded clips**
-before training a real policy (see `hope_training/motions/REPLACE_MOTIONS.md`).
+before training a real policy (see `docs/REPLACE_MOTIONS.md`).
 
 ## Train
 

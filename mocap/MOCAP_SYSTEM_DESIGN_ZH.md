@@ -411,15 +411,15 @@ ros2 launch vrpn_mocap client.launch.yaml server:=CHINGMU_SERVER_IP port:=3883
 `vrpn_mocap` 会发现每一个 VRPN 发送方，为每个发送方发布一个 `geometry_msgs/PoseStamped`；当 `multi_sensor: true` 时，再为每个传感器索引各发布一个，统一位于 `/vrpn_mocap` 命名空间下：
 
 ```
-/vrpn_mocap/<sender>/pose<sensor_id>      geometry_msgs/PoseStamped
+/vrpn_mocap/<sender>/pose_id_<sensor_id>      geometry_msgs/PoseStamped
 ```
 
-请在 CMTracker 中为 **PPT**、**P1**、**P2** 分配并记录固定的 VRPN **发送方名称**，以便规划器与 WBC 订阅正确的话题。每个刚体都是单传感器发送方，因此显示为 `pose0`，携带完整的 `pose.position` + `pose.orientation`（即 6 自由度测量）：
+请在 CMTracker 中为 **PPT**、**P1**、**P2** 分配并记录固定的 VRPN **发送方名称**，以便规划器与 WBC 订阅正确的话题。每个刚体都是单传感器发送方，因此显示为 `pose_id_0`，携带完整的 `pose.position` + `pose.orientation`（即 6 自由度测量）：
 
 ```
-/vrpn_mocap/PPT/pose0
-/vrpn_mocap/P1/pose0
-/vrpn_mocap/P2/pose0
+/vrpn_mocap/PPT/pose_id_0
+/vrpn_mocap/P1/pose_id_0
+/vrpn_mocap/P2/pose_id_0
 ```
 
 增加一个小的 ROS 2 中继节点，将这些位姿合并到单一的 `/poses` `PoseArray` 中，并在 `/tf` 上（重新）广播 `world → PPT`、`world → P1`、`world → P2`，使其与第 6.4 节完全一致。
@@ -429,13 +429,13 @@ ros2 launch vrpn_mocap client.launch.yaml server:=CHINGMU_SERVER_IP port:=3883
 球体是 **marker（标记点）** 而非刚体，因此青瞳将其作为**某个共享 marker 发送方下的一个传感器 ID** 传输——它没有专属的发送方名称。当 `multi_sensor: true` 时（第 6.5.1 节），`vrpn_mocap` 会将其暴露为一个按传感器索引的话题：
 
 ```
-/vrpn_mocap/<marker_sender>/pose<ball_sensor_id>   geometry_msgs/PoseStamped
+/vrpn_mocap/<marker_sender>/pose_id_<ball_sensor_id>   geometry_msgs/PoseStamped
 # pose.position 为有效的球体位置 [x, y, z]；pose.orientation 为单位四元数，忽略
 ```
 
 请向青瞳确认该 marker 发送方名称及球体的传感器索引，并用 `ros2 topic list` 核实。球体必须是第 5 节所要求的**唯一**未标记 marker——游离 marker 会与之共用同一 marker 发送方，使传感器索引产生歧义。
 
-对于规划器，订阅该话题并仅使用其位置字段即可。一个简单的中继可将其重新发布为 `/ball/point` 上的 `geometry_msgs/PointStamped`（或在偏好单话题接口时插入共享的 `/poses` 数组）：
+对于规划器，订阅该话题并仅使用其位置字段即可。随仓库提供的 `hope_bringup` `pose_to_posearray` 节点正是这样做的：它把 tracker 话题聚合成共享的 `/poses` `PoseArray`，供规划器（以及标定录制工具 `hope_bag_to_csv`，配合 `ros2 bag record /poses`）直接消费。也可以用一个简单的中继将其重新发布为 `/ball/point` 上的 `geometry_msgs/PointStamped`：
 
 ```python
 # ball_pose_to_point.py  （ROS 2，示意）
@@ -448,7 +448,7 @@ class BallRelay(Node):
         super().__init__('ball_pose_to_point')
         self.pub = self.create_publisher(PointStamped, '/ball/point', 10)
         self.create_subscription(
-            PoseStamped, '/vrpn_mocap/<marker_sender>/pose<ball_sensor_id>', self.cb, 10)
+            PoseStamped, '/vrpn_mocap/<marker_sender>/pose_id_<ball_sensor_id>', self.cb, 10)
 
     def cb(self, msg: PoseStamped):
         out = PointStamped()
@@ -479,13 +479,13 @@ z_ros =  y_mocap
 | VRPN 流式 | ✅ 启用 | 单一数据流同时承载刚体**与**标记点 |
 | VRPN 端口 | 3883（默认） | 需与 ROS 2 客户端的 `port` 参数匹配 |
 | ROS 2 客户端 | `vrpn_mocap`，`multi_sensor: true` | libmotioncapture 的 VRPN 后端不适用——它会丢弃传感器 ID |
-| 刚体（PPT、P1、P2） | 各自一个独立的 VRPN **发送方名称** | 各自 → `/vrpn_mocap/<name>/pose0`（6 自由度） |
-| 球体 | 某共享发送方下的一个 **marker = 传感器 ID** | → `/vrpn_mocap/<marker_sender>/pose<id>`（位置有效，姿态为单位四元数） |
+| 刚体（PPT、P1、P2） | 各自一个独立的 VRPN **发送方名称** | 各自 → `/vrpn_mocap/<name>/pose_id_0`（6 自由度） |
+| 球体 | 某共享发送方下的一个 **marker = 传感器 ID** | → `/vrpn_mocap/<marker_sender>/pose_id_<id>`（位置有效，姿态为单位四元数） |
 | 仅单个 marker | 跟踪体积内无游离 marker | 多余 marker 会使球体的传感器索引产生歧义 |
 | 向上轴（Up axis） | **Z** | 与 ROS 2 Z 轴向上对齐；否则按 6.5.3 转换 |
 | 服务器 / Linux 主机子网 | 同一 LAN 子网 | 纯 UDP，如第 6.1 节 |
 
-ROS 2 客户端运行后，`ros2 topic list` 会为每个物体显示一个 `/vrpn_mocap/<sender>/pose<id>`（可按需中继为第 6.4 节的 `/poses` + `/tf` 及 `/ball/point`），且规划器与 WBC 无需任何厂商专属改动。
+ROS 2 客户端运行后，`ros2 topic list` 会为每个物体显示一个 `/vrpn_mocap/<sender>/pose_id_<id>`（可按需中继为第 6.4 节的 `/poses` + `/tf` 及 `/ball/point`），且规划器与 WBC 无需任何厂商专属改动。
 
 ---
 

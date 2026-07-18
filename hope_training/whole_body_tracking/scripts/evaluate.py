@@ -7,8 +7,21 @@ are merged into one number:
 
     success_rate = successful_return_tasks / incoming_balls_that_entered_a_strike_task
 
-Emits only a machine-readable ``{"success_rate": <float>}`` to stdout (and optionally to --json-out).
-No thresholds, no exit-code changes, no other metrics.
+Scoring contract (kept consistent with the shared ``success_metric`` module):
+
+* positions are mapped from the sim world into the TABLE frame the metric expects (origin at the
+  near-side left corner of the table surface, x in [0, length], y in [-width, 0], z = 0 at the
+  surface) using the same table placement the training command term uses for its return shaping
+  (``table_near_x`` / ``table_surface_z`` / station-centred y);
+* the outgoing ball leaves with the racket's ACHIEVED velocity at the strike frame (not the
+  commanded target velocity);
+* strikes that coincide with an environment reset (time-out / fall) are excluded — a reset re-seeds
+  the reference clock, which is not a swing.
+
+This remains the fast in-Isaac estimate; the authoritative physical number comes from
+``mujoco_eval_onnx.py`` (real simulated ball). Emits only a machine-readable
+``{"success_rate": <float>}`` to stdout (and optionally to --json-out). No thresholds, no exit-code
+changes, no other metrics.
 
 Usage:
     python scripts/evaluate.py --checkpoint logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt \
@@ -115,20 +128,31 @@ def main() -> int:
 
         # The racket-target command term exposes the per-strike quantities we score. Attribute names
         # are read defensively (see COUPLING NOTES in the report): the command must expose the racket
-        # target position / velocity (world), the achieved racket position (world), the time-to-strike,
-        # and the swing side. env_origins map sim-world positions into the per-court table frame.
+        # target position (world), the achieved racket position AND velocity (world), the
+        # time-to-strike, and the swing side.
         cmd = base_env.command_manager.get_term("racket_target")
         env_origins = base_env.scene.env_origins  # (N, 3)
 
+        # Table placement in the ENV-LOCAL frame — the same constants the command term's return
+        # shaping uses (tasks/tracking/mdp/hope_commands.py _evaluate_return). The shared
+        # success-metric TABLE frame has its origin at the near-side LEFT (+y) corner of the table
+        # surface: x_table = x_env - table_near_x, y_table = y_env - (station_y + width/2),
+        # z_table = z_env - table_surface_z. Placement (near_x / surface_z / station y) comes from
+        # the command cfg; table DIMENSIONS come from the same TableGeometry the scoring uses
+        # (configs/ball_physics.yaml), so a re-fitted table width keeps the two in agreement.
+        table_near_x = float(cmd.cfg.table_near_x)
+        table_surface_z = float(cmd.cfg.table_surface_z)
+        table_half_w = 0.5 * float(table.width)
+
         def read_state():
             target_pos = _first_attr(cmd, ["racket_target_pos_w", "target_pos_w", "racket_target_w"])
-            target_vel = _first_attr(cmd, ["racket_target_vel_w", "target_vel_w"])
             racket_pos = _first_attr(cmd, ["racket_pos_w", "achieved_racket_pos_w", "current_racket_pos_w"])
+            racket_vel = _first_attr(cmd, ["racket_lin_vel_w", "racket_vel_w", "achieved_racket_vel_w"])
             tts = _first_attr(cmd, ["time_to_strike", "tts"])
             swing = _first_attr(cmd, ["swing_side", "swing_sign"])
             missing = [n for n, v in [
-                ("racket_target_pos_w", target_pos), ("racket_target_vel_w", target_vel),
-                ("racket_pos_w", racket_pos), ("time_to_strike", tts), ("swing_side", swing)]
+                ("racket_target_pos_w", target_pos), ("racket_pos_w", racket_pos),
+                ("racket_lin_vel_w", racket_vel), ("time_to_strike", tts), ("swing_side", swing)]
                 if v is None]
             if missing:
                 raise AttributeError(
@@ -136,23 +160,35 @@ def main() -> int:
                     f"term (missing: {missing}). Expose these tensors on the command term (world frame, "
                     "shape (N,3) for positions/velocities, (N,) for tts/swing) or adjust read_state()."
                 )
-            return target_pos, target_vel, racket_pos, tts, swing
+            return target_pos, racket_pos, racket_vel, tts, swing
+
+        def to_table_frame(pos_w_row, e):
+            """Sim-world position -> the shared metric's table frame for env ``e``."""
+            p = (pos_w_row - env_origins[e]).cpu().numpy().astype(float)
+            station_y = float((cmd.fixed_station_w[e, 1] - env_origins[e, 1]).item())
+            p[0] -= table_near_x
+            p[1] -= station_y + table_half_w   # table centred on the station: left edge -> y = 0
+            p[2] -= table_surface_z
+            return p
 
         obs, _ = env.get_observations()
         prev_tts = read_state()[3].clone()
         for _ in range(args.num_steps):
             with torch.inference_mode():
                 actions = policy(obs)
-                obs, _, _, _ = env.step(actions)
-            target_pos, target_vel, racket_pos, tts, swing = read_state()
+                obs, _, dones, _ = env.step(actions)
+            target_pos, racket_pos, racket_vel, tts, swing = read_state()
             # A strike happens when the reference clock crosses the strike frame (tts: >0 -> <=0).
-            struck = (prev_tts > 0.0) & (tts <= 0.0)
+            # Environments that RESET this step are excluded: a time-out/fall reset re-seeds the
+            # clock, and counting it would contaminate the denominator with non-swings.
+            reset_now = dones.reshape(-1).to(dtype=torch.bool, device=tts.device)
+            struck = (prev_tts > 0.0) & (tts <= 0.0) & (~reset_now)
             idx = struck.nonzero(as_tuple=False).flatten().tolist()
             for e in idx:
-                tp = (target_pos[e] - env_origins[e]).cpu().numpy()
-                rp = (racket_pos[e] - env_origins[e]).cpu().numpy()
-                tv = target_vel[e].cpu().numpy()
-                outcome = evaluate_return(tp, rp, tv, physics, table, contact_radius=args.contact_radius)
+                tp = to_table_frame(target_pos[e], e)
+                rp = to_table_frame(racket_pos[e], e)
+                rv = racket_vel[e].cpu().numpy().astype(float)  # achieved racket velocity at strike
+                outcome = evaluate_return(tp, rp, rv, physics, table, contact_radius=args.contact_radius)
                 accumulator.add(outcome)
             prev_tts = tts.clone()
 

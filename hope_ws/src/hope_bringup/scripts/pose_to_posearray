@@ -18,15 +18,19 @@ Parameters:
   * ``frame_id``      — override for the output frame id ("" keeps the trigger
                         message's own frame id).
 
-The output header stamp is the trigger message's capture stamp (passed through,
-never re-stamped) so the planner's velocity estimate uses source timing. Slots
-whose topic has not delivered yet are identity poses; the trigger slot always
-carries real data.
+The output header stamp is the trigger message's own header stamp, passed
+through without re-stamping. NOTE: the vendored VRPN driver stamps each pose at
+ROS-side RECEIPT time (``get_clock()->now()``), not at mocap capture time, so
+network/polling jitter is present in the stamps the planner's velocity fit
+consumes. If your capture pipeline provides true capture stamps upstream, this
+adapter preserves them. Slots whose topic has not delivered yet are identity
+poses; the trigger slot always carries real data.
 
 With the shipped ``client.launch.yaml`` (``multi_sensor: true``) VRPN topics get
-an ``_id_<N>`` suffix, e.g. ``/vrpn_mocap/ball/pose_id_0`` — point
-``input_topics`` (or the ``ball_pose_topic`` launch argument) at the topic your
-tracker actually publishes (``ros2 topic list | grep vrpn``).
+an ``_id_<N>`` suffix — a tracker named ``ball`` publishes
+``/vrpn_mocap/ball/pose_id_0`` (hence the default below). Point ``input_topics``
+(or the ``ball_pose_topic`` launch argument) at the topic your tracker actually
+publishes (``ros2 topic list | grep vrpn``).
 """
 
 import rclpy
@@ -39,7 +43,7 @@ class PoseToPoseArray(Node):
     def __init__(self, **node_kwargs):
         # node_kwargs (e.g. context / parameter_overrides) support embedding in tests.
         super().__init__("pose_to_posearray", **node_kwargs)
-        self.declare_parameter("input_topics", ["/vrpn_mocap/ball/pose"])
+        self.declare_parameter("input_topics", ["/vrpn_mocap/ball/pose_id_0"])
         self.declare_parameter("trigger_index", 0)
         self.declare_parameter("output_topic", "/poses")
         self.declare_parameter("frame_id", "")
@@ -93,7 +97,7 @@ class PoseToPoseArray(Node):
 
     def _publish(self, trigger_msg: PoseStamped) -> None:
         out = PoseArray()
-        out.header.stamp = trigger_msg.header.stamp   # capture time, passed through
+        out.header.stamp = trigger_msg.header.stamp   # trigger stamp, passed through unmodified
         out.header.frame_id = self._frame or trigger_msg.header.frame_id
         out.poses = [
             (m.pose if m is not None else Pose()) for m in self._latest

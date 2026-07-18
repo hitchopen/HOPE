@@ -22,8 +22,9 @@ runner.
 - The proprietary AgiBot A3 C++ deploy runner and the vendor real-time backend.
   These are **not redistributed** here. Real-robot execution uses **your own
   licensed AgiBot vendor deploy package**.
-- The exported policy binary (`hope_pingpong.onnx`) and the A3 URDF/meshes — see
-  `models/README.md` and `../URDF/README.md`.
+- The exported policy binary (`hope_pingpong.onnx`) — see `models/README.md`.
+  (The A3 URDF/meshes ship with the starter under `agibot/URDF/`; `../URDF/README.md`
+  describes the optional user-supplied override location.)
 
 ## The public contract (what any runner must satisfy)
 

@@ -16,7 +16,7 @@ Nothing here executes real-robot control on your behalf.
 | Item | Why | Where it goes |
 |------|-----|---------------|
 | A trained policy `hope_pingpong.onnx` | the actor network | `a3_deploy/a3_deploy_example/models/` (see [export](TRAIN_POLICY.md)) |
-| The A3 URDF/meshes (`A3T2.5-URDF-std-pingpang`) | not redistributed (no upstream OSS license) | `a3_deploy/URDF/` — see its `README.md` |
+| The A3 URDF/meshes (`A3T2.5-URDF-std-pingpang`) | shipped with the starter under `agibot/URDF/` (Agibot-provided vendor material, **no OSS license** — see `A3_ASSETS.md`); or supply your own copy under `a3_deploy/URDF/` (see its `README.md`) | used as-is by the asset-prep step |
 | Your own AgiBot vendor deploy package | required for the **real robot** path only | referenced by `run_pingpong_real.sh` |
 
 The MuJoCo simulation ships with a runnable `a3_pingpong` model, so the **simulation path needs

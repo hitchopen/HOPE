@@ -47,6 +47,9 @@ namespace vrpn_mocap
     mainloop_timer_ = this->create_wall_timer(1s / update_freq, std::bind(&Client::MainLoop, this));
 
     this->declare_parameter("sensor_data_qos", true);
+    // Stamp with the VRPN server's capture time instead of ROS receipt time (see tracker.hpp;
+    // requires the mocap host clock to be synchronized with the ROS host).
+    this->declare_parameter("use_vrpn_timestamps", false);
   }
 
   std::string Client::ParseHost()

@@ -126,8 +126,10 @@ class PlannerConfig:
     # Racket planning
     x_hit: float = 0.0            # fixed virtual hitting-plane x coordinate (m)
     target_land: np.ndarray = field(
-        default_factory=lambda: np.array([2.055, -0.7625, 0.0])
-    )                             # fixed landing target (opponent-half centre)
+        default_factory=lambda: np.array([2.055, -0.7625, 0.02])
+    )                             # fixed landing target (opponent-half centre); z = ball radius,
+                                  # the CENTROID height at table contact (same convention as the
+                                  # bounce planes everywhere else)
     delta_t_flight: float = 0.5   # desired post-strike flight time (s)
     C_r: float = 0.654            # paddle normal restitution
     racket_radius: float = 0.075  # m, paddle radius

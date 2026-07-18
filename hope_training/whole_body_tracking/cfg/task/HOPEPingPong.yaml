@@ -24,7 +24,7 @@ defaults:
 
 # Reference motion clips (repo-root-relative). These are PLACEHOLDER examples only — short, smooth,
 # non-performant synthetic trajectories provided so imports and shape checks pass. Replace them with
-# your own recorded forehand / backhand clips (see hope_training/motions/REPLACE_MOTIONS.md).
+# your own recorded forehand / backhand clips (see docs/REPLACE_MOTIONS.md).
 #   clip 0 = forehand, clip 1 = backhand. Override on the CLI with motion_file= / motion_file_2=.
 motion_file: hope_training/motions/preprocessed/hope_forehand.npz
 motion_file_2: hope_training/motions/preprocessed/hope_backhand.npz

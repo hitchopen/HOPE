@@ -10,8 +10,10 @@ The planner subscribes to ``poses_topic`` (a ``geometry_msgs/PoseArray`` with
 the ball at ``ball_pose_index``, default 0). The VRPN client publishes one
 ``PoseStamped`` topic per tracker, so the ``pose_to_posearray`` node aggregates
 the configured tracker topic(s) into that PoseArray — set ``ball_pose_topic`` to
-your ball tracker's pose topic (check with ``ros2 topic list | grep vrpn``; with
-``multi_sensor: true`` VRPN configs the topic carries an ``_id_<N>`` suffix).
+your ball tracker's pose topic (check with ``ros2 topic list | grep vrpn``).
+The bundled ``client.launch.yaml`` forces ``multi_sensor: true``, and in that
+mode the driver names every pose topic ``pose_id_<N>`` — hence the default
+``/vrpn_mocap/ball/pose_id_0`` for a tracker named ``ball``.
 ``fake_ball_publisher`` publishes the PoseArray form directly.
 
 Examples::
@@ -56,7 +58,9 @@ def generate_launch_description():
     )
 
     # Real-mocap adapter: per-tracker PoseStamped -> the planner's /poses PoseArray
-    # (ball at index 0, capture stamps passed through).
+    # (ball at index 0; the trigger message's header stamp is passed through unmodified —
+    # with the vendored VRPN driver that is ROS-side receipt time unless use_vrpn_timestamps
+    # is enabled).
     # NOTE the nested list [[ball_pose_topic]]: launch_ros collapses a FLAT list of
     # substitutions into one concatenated string, which would violate the node's
     # STRING_ARRAY parameter type; the list-of-lists form evaluates to a string array.
@@ -96,9 +100,11 @@ def generate_launch_description():
             "use_fake_ball", default_value="false",
             description="Publish a synthetic /poses ball stream instead of starting vrpn_mocap."),
         DeclareLaunchArgument(
-            "ball_pose_topic", default_value="/vrpn_mocap/ball/pose",
-            description="The ball tracker's PoseStamped topic aggregated into /poses "
-                        "(with multi_sensor VRPN configs this may carry an _id_<N> suffix)."),
+            "ball_pose_topic", default_value="/vrpn_mocap/ball/pose_id_0",
+            description="The ball tracker's PoseStamped topic aggregated into /poses. The bundled "
+                        "VRPN client runs with multi_sensor:=true, which names topics "
+                        "pose_id_<N>; a tracker named 'ball' therefore publishes "
+                        "/vrpn_mocap/ball/pose_id_0."),
         vrpn_client,
         pose_adapter,
         fake_ball,

@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 """Prepare (or verify) the Agibot A3 ping-pong URDF as an Isaac Lab asset.
 
-**You supply the URDF.** The A3 URDF + meshes are not redistributed with this repository. Place your
-own Agibot A3 ping-pong URDF package under ``a3_deploy/URDF/`` in this layout::
+The starter ships the Agibot-provided A3 ping-pong URDF package under
+``agibot/URDF/A3T2.5-URDF-std-pingpang/`` (vendor material, no OSS license — see ``A3_ASSETS.md``),
+and this script uses it as the default source. To use your OWN vendor-supplied copy instead, place
+it under ``a3_deploy/URDF/`` (see ``a3_deploy/URDF/README.md``) in this layout and point
+``--source-root`` at it::
 
     a3_deploy/URDF/<your_a3_package>/
         urdf/<robot>.urdf
         meshes/*.STL
 
-(see ``a3_deploy/URDF/README.md``). This script copies the meshes and rewrites the URDF's
-``package://.../meshes/*.STL`` references to repo-relative ``../meshes/*.STL`` so Isaac Lab can load the
-model without ROS package resolution. The generated asset is written under the training package's
-``assets/agibot_a3`` directory (git-ignored; regenerate it locally).
+This script copies the meshes and rewrites the URDF's ``package://.../meshes/*.STL`` references to
+repo-relative ``../meshes/*.STL`` so Isaac Lab can load the model without ROS package resolution.
+The generated asset is written under the training package's ``assets/agibot_a3`` directory
+(git-ignored; regenerate it locally).
 
-Usage:
-    python scripts/prepare_a3_isaac_asset.py --source-root a3_deploy/URDF/<your_a3_package>
-    python scripts/prepare_a3_isaac_asset.py --check     # verify an already-prepared asset
+Usage (from the repo root):
+    python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --force
+    python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py \\
+        --source-root a3_deploy/URDF/<your_a3_package>   # use your own copy
+    python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --check
 """
 
 from __future__ import annotations
@@ -35,7 +40,13 @@ def _repo_root() -> pathlib.Path:
 
 
 REPO_ROOT = _repo_root()
-DEFAULT_SOURCE_ROOT = REPO_ROOT / "a3_deploy" / "URDF" / "agibot_a3_pingpong"
+# Source URDF package: the Agibot-provided A3 ping-pong package shipped with the starter under
+# agibot/URDF/ when present, else a user-supplied copy under a3_deploy/URDF/ (see its README).
+_SOURCE_CANDIDATES = (
+    REPO_ROOT / "agibot" / "URDF" / "A3T2.5-URDF-std-pingpang",
+    REPO_ROOT / "a3_deploy" / "URDF" / "agibot_a3_pingpong",
+)
+DEFAULT_SOURCE_ROOT = next((p for p in _SOURCE_CANDIDATES if p.is_dir()), _SOURCE_CANDIDATES[0])
 DEFAULT_OUTPUT_ROOT = (
     REPO_ROOT
     / "hope_training"

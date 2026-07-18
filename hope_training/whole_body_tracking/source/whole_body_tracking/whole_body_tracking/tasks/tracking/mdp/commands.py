@@ -291,6 +291,12 @@ class MotionCommand(CommandTerm):
         if len(rsi_ids) == 0:
             return
         self._sample_clip_and_start(rsi_ids, at_segment_start=False)
+        # RSI drops the robot onto a RANDOM MID-CLIP frame with matching (noised) velocities. A
+        # pre-swing hold would freeze the reference at that dynamic mid-swing frame while the robot
+        # keeps its initialized momentum — a corrupted, unlearnable target. Holds only make sense
+        # when the reference sits at a swing's first frame (stand starts and wraps), so RSI resets
+        # advance the clock immediately.
+        self.hold_counter[rsi_ids] = 0
 
         root_pos = self.body_pos_w[:, 0].clone()
         root_ori = self.body_quat_w[:, 0].clone()

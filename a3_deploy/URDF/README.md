@@ -1,12 +1,16 @@
-# A3 URDF / meshes — not redistributed
+# A3 URDF / meshes — optional user-supplied copy
 
 The Agibot A3 URDF description and its mesh assets (`A3T2.5-URDF-std-pingpang`) are
-the robot vendor's hardware CAD-derived geometry. They carry **no upstream
-open-source license**, so this public repository **does not redistribute them**.
-This directory is a placeholder plus these instructions: you supply your own copy
-of the A3 model.
+the robot vendor's hardware CAD-derived geometry and carry **no open-source
+license**. This repository ships the **Agibot-provided** package with the starter
+under `agibot/URDF/A3T2.5-URDF-std-pingpang/` (see `A3_ASSETS.md` at the repo
+root), and the asset-prep tooling uses that copy by default.
 
-## What you provide
+This directory is an **optional override location**: if you prefer (or are
+required) to use your own vendor-supplied copy of the A3 model instead of the
+bundled one, place it here and point the tooling at it with `--source-root`.
+
+## What you provide (optional)
 
 Obtain the `A3T2.5-URDF-std-pingpang` package from your Agibot A3 robot vendor /
 robot support materials and place it here so the tree looks like:
@@ -34,10 +38,10 @@ you invoke the tools.
 ## What consumes it
 
 - **Training asset preparation.** The training package's asset-prep step
-  (`prepare_a3_isaac_asset.py`) reads the URDF and meshes from this directory to
-  build the Isaac Lab robot asset. Because the URDF is not shipped, that step is
-  documented to require the model you place here; point it at
-  `a3_deploy/URDF/A3T2.5-URDF-std-pingpang/urdf/URDF-JOINT-LINK.urdf`.
+  (`prepare_a3_isaac_asset.py`) reads a source URDF package and builds the Isaac
+  Lab robot asset. By default it uses the bundled
+  `agibot/URDF/A3T2.5-URDF-std-pingpang/`; to use the copy you place HERE
+  instead, pass `--source-root a3_deploy/URDF/<your_a3_package>`.
 - **The MuJoCo sim.** `a3_deploy/A3_MuJoCo_Sim` uses its own `a3_pingpong`
   MJCF and a bundled copy of the robot meshes, so it runs **without** this URDF
   directory. Note, however, that the sim's bundled STL meshes are the **same**

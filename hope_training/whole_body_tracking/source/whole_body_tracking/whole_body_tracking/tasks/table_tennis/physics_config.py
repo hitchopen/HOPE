@@ -99,9 +99,12 @@ DEFAULTS: dict = {
             "dynamic_friction": 0.50,
         },
         "paddle": {
-            "restitution": 0.654,       # measured ball<->paddle normal restitution (used by the
-                                        # racket-link material, set on the robot asset, and by the
-                                        # planner / evaluator; not applied to a scene prim here)
+            "restitution": 0.654,       # measured ball<->paddle normal restitution. Applied to the
+                                        # racket LINK by the A3 table-tennis env cfg (a startup
+                                        # material event on the racket body); also used by the
+                                        # planner / analytic evaluator.
+            "static_friction": 0.60,
+            "dynamic_friction": 0.60,
         },
     },
 }

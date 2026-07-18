@@ -47,11 +47,13 @@ ros2 launch vrpn_mocap client.launch.yaml server:=<MOCAP_SERVER_IP> port:=3883
 
 ```
 ros2 topic list
-ros2 topic echo /vrpn_mocap/<server>/pose_<id> --once
+ros2 topic echo /vrpn_mocap/<tracker>/pose_id_<N> --once
 ```
 
-Raw topics live under the `/vrpn_mocap` namespace (e.g.
-`/vrpn_mocap/<server>/pose_0`). The HOPE PingPong planner consumes a
+Raw topics live under the `/vrpn_mocap` namespace: `pose` per tracker with
+`multi_sensor: false`, or `pose_id_<N>` per sensor with `multi_sensor: true`
+(the bundled `client.launch.yaml` forces the latter, so a tracker named `ball`
+publishes `/vrpn_mocap/ball/pose_id_0`). The HOPE PingPong planner consumes a
 `geometry_msgs/PoseArray` with the ball at `ball_pose_index`; map or relay your
 tracker's ball pose onto that topic.
 

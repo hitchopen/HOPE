@@ -100,6 +100,11 @@ namespace vrpn_mocap
     const bool multi_sensor_;
     const std::string frame_id_;
     const bool sensor_data_qos_;
+    // Stamp messages with the VRPN server's capture time (tracker msg_time) instead of
+    // ROS-side receipt time. The server clock is a FOREIGN clock domain: enable only when
+    // the mocap host and the ROS host are synchronized (e.g. NTP/PTP), otherwise stamps
+    // will be skewed by the clock offset. Default false = receipt time (jitter, no skew).
+    const bool use_vrpn_timestamps_;
     const std::shared_ptr<vrpn_Connection> connection_;
 
     vrpn_Tracker_Remote vrpn_tracker_;

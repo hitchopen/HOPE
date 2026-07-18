@@ -333,9 +333,9 @@ The `a3_pingpong` MJCF references robot mesh assets under
 `meshes/collision_optimized/` (convex collision STL). These are the A3 T2.5 robot's
 hardware CAD-derived geometry. They are distributed here as part of this
 Mulan-licensed package so the model loads and runs out of the box. Note that these
-are the same physical-robot mesh assets used by the A3 URDF description (which the
-public `hope_pingpong` repository does not redistribute — see
-`a3_deploy/URDF/README.md`). If you fork or redistribute this simulation,
+are the same physical-robot mesh assets used by the A3 URDF description (shipped
+with the starter under `agibot/URDF/` as Agibot-provided vendor material without an
+OSS license — see `A3_ASSETS.md` and `a3_deploy/URDF/README.md`). If you fork or redistribute this simulation,
 confirm the mesh assets are covered by your intended license terms for your robot
 platform. The MJCF is a drop-in target: point it at your own A3 meshes if you carry
 a different asset license.

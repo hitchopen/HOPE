@@ -53,6 +53,7 @@ namespace vrpn_mocap
         multi_sensor_(declare_parameter("multi_sensor", false)),
         frame_id_(declare_parameter("frame_id", "world")),
         sensor_data_qos_(declare_parameter("sensor_data_qos", true)),
+        use_vrpn_timestamps_(declare_parameter("use_vrpn_timestamps", false)),
         vrpn_tracker_(name_.c_str())
   {
     Init();
@@ -70,6 +71,7 @@ namespace vrpn_mocap
         multi_sensor_(base_node.get_parameter("multi_sensor").as_bool()),
         frame_id_(base_node.get_parameter("frame_id").as_string()),
         sensor_data_qos_(base_node.get_parameter("sensor_data_qos").as_bool()),
+        use_vrpn_timestamps_(base_node.get_parameter("use_vrpn_timestamps").as_bool()),
         vrpn_tracker_(name_.c_str(), connection.get())
   {
     Init();
@@ -96,6 +98,20 @@ namespace vrpn_mocap
 
   void Tracker::MainLoop() { vrpn_tracker_.mainloop(); }
 
+  namespace
+  {
+    // VRPN reports capture time as a struct timeval in the SERVER clock domain.
+    // Built from 64-bit nanoseconds so a post-2038 time_t cannot narrow negative
+    // (the (int32 sec, uint32 nsec) rclcpp::Time constructor throws on negatives).
+    rclcpp::Time StampFromVrpn(const timeval &tv)
+    {
+      const int64_t nanoseconds =
+          static_cast<int64_t>(tv.tv_sec) * 1000000000ll +
+          static_cast<int64_t>(tv.tv_usec) * 1000ll;
+      return rclcpp::Time(nanoseconds);
+    }
+  } // namespace
+
   void VRPN_CALLBACK Tracker::HandlePose(void *data, const vrpn_TRACKERCB tracker_pose)
   {
     Tracker *tracker = static_cast<Tracker *>(data);
@@ -107,7 +123,9 @@ namespace vrpn_mocap
     // populate message
     PoseStamped msg;
     msg.header.frame_id = tracker->frame_id_;
-    msg.header.stamp = tracker->get_clock()->now();
+    msg.header.stamp = tracker->use_vrpn_timestamps_
+                           ? StampFromVrpn(tracker_pose.msg_time)
+                           : tracker->get_clock()->now();
 
     msg.pose.position.x = tracker_pose.pos[0];
     msg.pose.position.y = tracker_pose.pos[1];
@@ -132,7 +150,9 @@ namespace vrpn_mocap
     // populate message
     TwistStamped msg;
     msg.header.frame_id = tracker->frame_id_;
-    msg.header.stamp = tracker->get_clock()->now();
+    msg.header.stamp = tracker->use_vrpn_timestamps_
+                           ? StampFromVrpn(tracker_twist.msg_time)
+                           : tracker->get_clock()->now();
 
     msg.twist.linear.x = tracker_twist.vel[0];
     msg.twist.linear.y = tracker_twist.vel[1];
@@ -161,7 +181,9 @@ namespace vrpn_mocap
     // populate message
     AccelStamped msg;
     msg.header.frame_id = tracker->frame_id_;
-    msg.header.stamp = tracker->get_clock()->now();
+    msg.header.stamp = tracker->use_vrpn_timestamps_
+                           ? StampFromVrpn(tracker_accel.msg_time)
+                           : tracker->get_clock()->now();
 
     msg.accel.linear.x = tracker_accel.acc[0];
     msg.accel.linear.y = tracker_accel.acc[1];
