@@ -1,79 +1,54 @@
 # Policy IO
 
-This file records the stable public contract for the starter branch. Exact
-tensor sizes can change if you edit the Isaac Lab environment config, but the
-high-level contract should stay consistent.
+Compact summary of the policy input/output contract. The authoritative document
+is [POLICY_INTERFACE.md](../POLICY_INTERFACE.md) — training, the exported ONNX,
+and any deployment backend must agree with it.
 
-## Training Motion File
+| Property | Value |
+|----------|-------|
+| Observation | `float32[111]` |
+| Action | `float32[31]` raw joint-position residual |
+| Control rate | 50 Hz |
+| Observation normalization | **none** (raw observation fed directly) |
+| ONNX signature | `observation[1, 111] -> raw_action[1, 31]` |
+| Joint order | 31 DOF, see [joint_order.md](joint_order.md) |
+| Export | `hope_pingpong.onnx` + `policy_manifest.json` (contract name `hope_pingpong`), via `scripts/export_onnx.py` |
 
-`scripts/train.py` accepts:
+## Observation (111 dims)
 
-```bash
-motion_file=/path/to/motion.npz
-```
+Assembled in this exact order every tick (full per-slice table in
+[POLICY_INTERFACE.md](../POLICY_INTERFACE.md#observation-111-dims)):
 
-The `.npz` must contain:
+| Slice | Terms |
+|-------|-------|
+| `[0:96]` | Proprioception: `base_ang_vel` (3), `joint_pos` (31), `joint_vel` (31), `last_action` (31). |
+| `[96:103]` | `projected_gravity` (3), `base_forward_xy` (2), `fixed_station_error_xy` (2). |
+| `[103:111]` | Racket target: `racket_target_rel_base` (3), `racket_target_vel_w` (3), `time_to_strike` (1), `swing_side` (1, forehand `+1` / backhand `-1`). |
 
-- `fps`
-- `joint_pos`
-- `joint_vel`
-- `body_pos_w`
-- `body_quat_w`
-- `body_lin_vel_w`
-- `body_ang_vel_w`
+The policy has no reference-motion stream, no ball state, and no spin inputs.
 
-`scripts/create_smoke_motion.py` generates a tiny local file with this schema.
+## Action (31 dims) and applied-action head zeroing
 
-## Actions
+Each tick the actor emits `raw_action[31]`. The two passive head columns
+(indices 3, 4) are **zeroed** to form the *applied action*, which is:
 
-The A3 starter policy outputs joint position targets for the active A3 joint
-order in `docs/interfaces/joint_order.md`. The Isaac Lab articulation applies
-these through configured implicit actuators.
-
-## Observations
-
-The tracking task includes robot proprioception and motion-reference command
-features from the BeyondMimic-style environment. The ping-pong task additionally
-contains racket target command terms. See the Isaac Lab env configs under:
-
-```text
-hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/
-```
-
-## A3 Deployment Reference IO
-
-The optional Agibot A3 deployment example under `agibot/code_deployment/` includes
-an ONNX runtime reference. It is not required for the Isaac Lab smoke-training
-path, but it documents the policy/runtime contract used by the A3 body-drive
-example.
-
-The reference deployment code builds a 1570-float `obs_dict` input:
+1. fed back as next tick's `last_action` (so those two dims are always 0 —
+   exactly as training zeroes them), and
+2. passed through the **ActionAdapter** to produce 31 joint-position targets
+   (the head is held at its default angle):
 
 ```text
-[   0 ..  579]  command_multi_future_nonflat
-[ 580 ..  639]  motion_anchor_ori_b_mf_nonflat
-[ 640 ..  669]  base_ang_vel over 10 history steps
-[ 670 ..  959]  joint_pos over 10 history steps
-[ 960 .. 1249]  joint_vel over 10 history steps
-[1250 .. 1539]  previous actions over 10 history steps
-[1540 .. 1569]  gravity_dir over 10 history steps
+q_des = default_q + raw_action * action_scale
+q_des = clamp(q_des, q_min, q_max)     # deterministic numeric transform
 ```
 
-The deployment backend exposes a 31-DOF A3 command/state layout, including neck
-joints. The reference policy view is 29 DOF and skips neck/head joints. The
-deployment helper expands 29-DOF policy outputs back into the 31-DOF backend
-layout before publishing body-drive commands.
+The adapter constants live in **one** shared config,
+[`a3_deploy/a3_deploy_example/config/action_adapter.yaml`](../../a3_deploy/a3_deploy_example/config/action_adapter.yaml),
+read by both training and the reference deploy runner — edit it in one place.
+The shipped values are neutral examples; tune them for your robot.
 
-Teams can replace the included Agibot reference motions, tokenizer metadata,
-and exported policy artifacts with their own trained policies when moving
-beyond the Isaac smoke path.
+## Continuous operation
 
-## Logging
-
-The public smoke command uses:
-
-```bash
-logger=tensorboard
-```
-
-WandB registry/artifact logging is optional.
+The policy runs continuous rallies: between incoming balls the robot state and
+`last_action` are never reset — no teleport, no history clear. Recovery between
+strikes is in-place recentring and balance only.

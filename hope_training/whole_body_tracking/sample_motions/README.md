@@ -1,15 +1,17 @@
 # Sample Motions
 
-Generated `.npz` files in this directory are ignored by git.
+Scratch directory for your own motion clips (`.npz`).
 
-Create the smoke clip with:
+The shipped reference clips live at [`hope_training/motions/preprocessed/`](../../motions/preprocessed/)
+(`hope_forehand` / `hope_backhand`, each an `.npz` with a `.yaml` sidecar). They are
+physically-neutral placeholders: replace them with real retargeted swings before training a policy
+you intend to deploy. The expected `.npz` arrays and `.yaml` metadata are documented in
+[`docs/REPLACE_MOTIONS.md`](../../../docs/REPLACE_MOTIONS.md).
+
+Point training at clips in this directory (clip 0 = forehand, clip 1 = backhand):
 
 ```bash
-hope_isaac_py scripts/create_smoke_motion.py \
-  --headless \
-  --frames 120 \
-  --output sample_motions/agibot_a3_smoke_stand.npz
+python scripts/train.py task=HOPEPingPong algo=ppo headless=true \
+    motion_file=sample_motions/my_forehand.npz \
+    motion_file_2=sample_motions/my_backhand.npz
 ```
-
-The smoke clip is only for pipeline verification. Replace it with a retargeted
-ping-pong motion before running meaningful training.
