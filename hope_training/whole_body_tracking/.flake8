@@ -1,5 +1,3 @@
-# copied from https://github.com/isaac-sim/IsaacLab/blob/main/.flake8
-
 [flake8]
 show-source=True
 statistics=True

@@ -1,13 +1,13 @@
 # =============================================================================
-# Hydra eval/export config for HOPE Agibot A3 WBC.
+# Hydra config for playing a trained HOPE PingPong policy in-sim.
 #
 # Usage:
-#   python scripts/play.py task=HOPEPingPong algo=ppo num_envs=2 \
-#       checkpoint=logs/rsl_rl/agibot_a3_hope/<run>/model_*.pt
+#   python scripts/play.py task=HOPEPingPong algo=ppo num_envs=4 \
+#       checkpoint=logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
 #
-# Loads the trained policy from a local checkpoint or optional WandB run, runs it, and
-# exports policy.onnx next to the checkpoint. Without wandb_path or checkpoint it
-# falls back to the latest local checkpoint under logs/rsl_rl/<experiment>/.
+# Loads a LOCAL checkpoint and runs the policy in the viewer. Without `checkpoint`, the latest
+# local checkpoint under logs/rsl_rl/<experiment>/ is used. Export is a separate step
+# (scripts/export_onnx.py) — play.py does not export.
 # =============================================================================
 
 defaults:
@@ -17,12 +17,13 @@ defaults:
 
 headless: false
 device: cuda:0
-num_envs: 2
+num_envs: 4
 
-wandb_path: null      # optional <entity>/<project>/<run_id> trained run to load
-checkpoint: null      # explicit local model_*.pt path (takes precedence over wandb_path / latest-local)
-registry_name: null   # motion override for the local-checkpoint path (falls back to task.registry_name)
-motion_file: null     # explicit motion .npz override
+checkpoint: null       # explicit local model_*.pt path (else: latest local checkpoint)
+
+# Reference motion clips (null -> the task's placeholder clips).
+motion_file: null      # clip 0 (forehand)
+motion_file_2: null    # clip 1 (backhand)
 
 video: false
 video_length: 200

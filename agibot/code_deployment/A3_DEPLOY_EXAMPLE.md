@@ -151,7 +151,7 @@ HDU
   |
   | 机器人内部网络
   v
-MDU: 10.42.10.12
+MDU: <mdu_ip>
   |
   | 本机 iceoryx transport + hal_ethercat
   v
@@ -164,7 +164,7 @@ body-drive state / command topics
 | --- | --- |
 | 开发机 | 编译 `dist/a3_deploy_rockchip/`，通过 SSH/rsync 传包。 |
 | HDU | 作为跳板机；`<hdu_wifi_ip>` 由现场 Wi-Fi 网络分配。 |
-| MDU | 默认机器人内网地址 `10.42.10.12`，Rockchip 包在 MDU 上运行。 |
+| MDU | 默认机器人内网地址 `<mdu_ip>`，Rockchip 包在 MDU 上运行。 |
 | transport | Rockchip/MDU 默认 `iceoryx`。 |
 | 运行目录 | 建议 `/agibot/a3_deploy`，团队可按现场规范替换。 |
 
@@ -480,13 +480,13 @@ bash scripts/build_a3_deploy_pkg.sh --arch rockchip --jobs 20
 通过 HDU 跳板把包同步到 MDU。`<hdu_wifi_ip>` 替换成现场 HDU Wi-Fi 地址：
 
 ```bash
-ssh -J agi@<hdu_wifi_ip> agi@10.42.10.12 \
+ssh -J agi@<hdu_wifi_ip> agi@<mdu_ip> \
   'mkdir -p /agibot/a3_deploy'
 
 rsync -azP \
   -e "ssh -J agi@<hdu_wifi_ip>" \
   dist/a3_deploy_rockchip/ \
-  agi@10.42.10.12:/agibot/a3_deploy/
+  agi@<mdu_ip>:/agibot/a3_deploy/
 ```
 
 源路径 `dist/a3_deploy_rockchip/` 末尾的 `/` 表示把包内文件同步到 `/agibot/a3_deploy/`。如果去掉末尾 `/`，目标目录下会多一层 `a3_deploy_rockchip`。
@@ -494,7 +494,7 @@ rsync -azP \
 MDU 终端 A 关闭系统服务并手动启动 EtherCAT：
 
 ```bash
-ssh -J agi@<hdu_wifi_ip> agi@10.42.10.12
+ssh -J agi@<hdu_wifi_ip> agi@<mdu_ip>
 
 sudo systemctl stop agibot_pm
 source /agibot/software/v0/entry/env/env.sh
@@ -505,7 +505,7 @@ bash scripts/hal_ethercat/start_hal_ethercat.sh
 等待 `hal_ethercat` 启动完成后，MDU 终端 B 进入部署目录。可选检查二进制架构；如果现场需要用 ROS 2 CLI 查看 topic，再 source message overlay：
 
 ```bash
-ssh -J agi@<hdu_wifi_ip> agi@10.42.10.12
+ssh -J agi@<hdu_wifi_ip> agi@<mdu_ip>
 
 cd /agibot/a3_deploy
 file ./a3_deploy_onnx_ref

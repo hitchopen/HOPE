@@ -1,26 +1,24 @@
-"""Manager-based Isaac Lab environment for a standard table-tennis match scene.
+"""Manager-based Isaac Lab environment for a table-tennis match scene.
 
-This builds the full competition scene in the **HOPE world frame** (see :mod:`.geometry`): floor, table,
-net (+ posts), a dynamic ITTF ball, and an (abstract) humanoid robot. PhysX integrates gravity and
-resolves all rigid-body contacts (ball<->table / net / floor / racket); the missing aerodynamic drag is
-added per physics substep by :class:`.table_tennis_env.TableTennisEnv` using :mod:`.ball`.
+This builds the scene in the world frame (see :mod:`.geometry`): floor, table, net (+ posts), a dynamic
+ball, and an (abstract) humanoid robot. PhysX integrates gravity and resolves all rigid-body contacts
+(ball<->table / net / floor / racket); the missing aerodynamic drag is added per physics substep by
+:class:`.table_tennis_env.TableTennisEnv` using :mod:`.ball` (no-spin quadratic drag).
 
 The configuration is intentionally **modular**:
 
-* :mod:`.geometry` owns every dimension / landmark / material constant (one place to retune).
+* :mod:`.geometry` owns every dimension / landmark / material constant (all read from
+  ``configs/ball_physics.yaml``).
 * the ``build_*`` helpers below each construct one scene asset, so the ball model, table geometry, and
   decorations can be swapped independently (e.g. replace the box table with a USD table asset).
 * the robot is left ``MISSING`` here and filled by a robot-specific subclass
   (:mod:`.config.agibot_a3.table_tennis_env_cfg`), so the same scene/MDP works for any humanoid.
-* observations / rewards / events / terminations are standard Isaac Lab managers, ready to be extended
-  with real match logic (return success, ball-over-net, serve rules, ...) without touching the scene.
-
-This is a first-pass *physics + visualization* scene that is already a valid ``ManagerBasedRLEnv`` (so RL
-training can be layered on later); the reward/termination terms are deliberately minimal placeholders.
+* observations / rewards / events / terminations are standard Isaac Lab managers.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -45,6 +43,19 @@ from .geometry import BounceMaterials, OutOfBoundsBox, ServeConfig
 # Scene asset builders (modular — one helper per prim, driven by geometry constants).
 ##
 
+# Visual-only realistic table+net mesh (third-party, MIT-licensed; see
+# table_usd/LICENSE-PACE-ICRA2026-MIT.txt). We point at the *base* layer, which carries pure geometry +
+# materials and NO PhysX colliders, so it is overlaid for looks only — bounce physics still comes
+# entirely from the cuboid colliders below. The USD lives in the version-controlled ``table_usd/`` dir
+# and is resolved relative to this module so the task stays importable wherever the repo is checked out.
+_TABLE_USD_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "table_usd",
+    "table",
+    "configuration",
+    "ping_pong_table_urdf_base.usd",
+)
+
 
 def _surface_material(restitution: float, static_friction: float, dynamic_friction: float) -> sim_utils.RigidBodyMaterialCfg:
     """PhysX contact material with multiplicative combine, so ball<->surface restitution is the product
@@ -59,7 +70,7 @@ def _surface_material(restitution: float, static_friction: float, dynamic_fricti
 
 
 def build_floor_cfg(mats: BounceMaterials) -> AssetBaseCfg:
-    """Global static floor at HOPE z = -0.76 (= -TABLE_HEIGHT). Shared by every environment."""
+    """Global static floor at world z = -TABLE_HEIGHT. Shared by every environment."""
     return AssetBaseCfg(
         prim_path="/World/floor",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, geometry.FLOOR_Z - 0.05)),
@@ -74,13 +85,17 @@ def build_floor_cfg(mats: BounceMaterials) -> AssetBaseCfg:
     )
 
 
-def build_table_top_cfg(mats: BounceMaterials) -> AssetBaseCfg:
-    """The blue table top. Its top face sits exactly at HOPE z = 0 (the world-frame table surface)."""
+def build_table_top_cfg(mats: BounceMaterials, visible: bool = True) -> AssetBaseCfg:
+    """The blue table top. Its top face sits exactly at world z = 0 (the table surface).
+
+    ``visible=False`` keeps the collider but hides the box geometry, so a realistic USD mesh can be
+    overlaid on top without z-fighting against the plain cuboid."""
     return AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=geometry.table_top_center()),
         spawn=sim_utils.CuboidCfg(
             size=geometry.table_top_size(),
+            visible=visible,
             collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
             physics_material=_surface_material(
                 mats.table_restitution, mats.table_static_friction, mats.table_dynamic_friction
@@ -90,13 +105,16 @@ def build_table_top_cfg(mats: BounceMaterials) -> AssetBaseCfg:
     )
 
 
-def build_net_cfg(mats: BounceMaterials) -> AssetBaseCfg:
-    """Thin collidable net slab across the table at x = NET_X, spanning the table width + overhang."""
+def build_net_cfg(mats: BounceMaterials, visible: bool = True) -> AssetBaseCfg:
+    """Thin collidable net slab across the table at x = NET_X, spanning the table width + overhang.
+
+    ``visible=False`` keeps the collider but hides the slab so the USD net mesh can stand in for it."""
     return AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Net",
         init_state=AssetBaseCfg.InitialStateCfg(pos=geometry.net_center()),
         spawn=sim_utils.CuboidCfg(
             size=geometry.net_size(),
+            visible=visible,
             collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
             physics_material=_surface_material(
                 mats.net_restitution, mats.net_static_friction, mats.net_dynamic_friction
@@ -107,8 +125,8 @@ def build_net_cfg(mats: BounceMaterials) -> AssetBaseCfg:
 
 
 def build_ball_cfg(mats: BounceMaterials) -> RigidObjectCfg:
-    """The dynamic ITTF ball (40 mm, 2.7 g). PhysX handles gravity + contacts; drag is added per
-    substep by the environment. ``linear_damping`` is 0 so PhysX does not double-count drag."""
+    """The dynamic 40 mm ball. PhysX handles gravity + contacts; no-spin drag is added per substep by
+    the environment. ``linear_damping`` is 0 so PhysX does not double-count drag when it is enabled."""
     return RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Ball",
         # Default spawn over the P2 half; the serve-reset event overrides this on every reset.
@@ -120,9 +138,7 @@ def build_ball_cfg(mats: BounceMaterials) -> RigidObjectCfg:
                 linear_damping=0.0,
                 angular_damping=0.0,
                 max_linear_velocity=1000.0,  # m/s
-                max_angular_velocity=1.0e5,  # deg/s (PhysX uses deg/s here, NOT rad/s); ~1745 rad/s, covers ball spin
                 max_depenetration_velocity=10.0,
-                enable_gyroscopic_forces=True,
                 solver_position_iteration_count=16,
                 solver_velocity_iteration_count=4,
             ),
@@ -136,21 +152,24 @@ def build_ball_cfg(mats: BounceMaterials) -> RigidObjectCfg:
     )
 
 
-def build_net_post_cfg(prim_path: str, y: float) -> AssetBaseCfg:
-    """Visual-only net post (no collision) at one end of the net."""
+def build_net_post_cfg(prim_path: str, y: float, visible: bool = True) -> AssetBaseCfg:
+    """Visual-only net post (no collision) at one end of the net. ``visible=False`` hides it (the USD
+    mesh already models the posts)."""
     post_h = geometry.NET_HEIGHT + 0.02
     return AssetBaseCfg(
         prim_path=prim_path,
         init_state=AssetBaseCfg.InitialStateCfg(pos=(geometry.NET_X, y, post_h / 2.0)),
         spawn=sim_utils.CuboidCfg(
             size=(0.02, 0.02, post_h),
+            visible=visible,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.85, 0.85)),
         ),
     )
 
 
-def build_center_line_cfg() -> AssetBaseCfg:
-    """Visual-only white center line running along the table length (doubles center line)."""
+def build_center_line_cfg(visible: bool = True) -> AssetBaseCfg:
+    """Visual-only white center line running along the table length. ``visible=False`` hides it (the USD
+    mesh already paints the lines)."""
     return AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/CenterLine",
         init_state=AssetBaseCfg.InitialStateCfg(
@@ -158,8 +177,35 @@ def build_center_line_cfg() -> AssetBaseCfg:
         ),
         spawn=sim_utils.CuboidCfg(
             size=(geometry.TABLE_LENGTH, geometry.LINE_WIDTH, geometry.LINE_THICKNESS),
+            visible=visible,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.95, 0.95)),
         ),
+    )
+
+
+def build_table_usd_visual_cfg() -> AssetBaseCfg:
+    """Realistic table+net+posts USD mesh, overlaid as a **visual only** prim on the invisible cuboid
+    colliders. No physics is spawned from it (the base USD layer carries no PhysX colliders, and we pass
+    no collision/rigid props), so PhysX ignores it and the cuboids remain the single source of bounce
+    physics.
+
+    Frame alignment: the USD models the floor at its local z = 0, the playing surface at z = TABLE_HEIGHT
+    and the net top above it, centered horizontally at its local (x, y) = (0, 0). Translating its local
+    origin to the world floor point directly under the table center —
+    ``(TABLE_LENGTH/2, -TABLE_WIDTH/2, FLOOR_Z)`` — lands the mesh's playing surface exactly on world
+    z = 0 and its net plane on x = NET_X, matching the cuboids. Orientation is identity (both frames are
+    Z-up with table length along X).
+
+    NOTE: the USD mesh is slightly wider than the ITTF/cuboid table, so the visual table is a touch wider
+    than its collider — purely cosmetic, bounces follow the cuboids. This asset is visual sugar; for
+    large-scale headless training you may drop it (set ``scene.table_visual = None``) to save memory."""
+    return AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/TableVisual",
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(geometry.TABLE_CENTER[0], geometry.TABLE_CENTER[1], geometry.FLOOR_Z),
+            rot=(1.0, 0.0, 0.0, 0.0),
+        ),
+        spawn=sim_utils.UsdFileCfg(usd_path=_TABLE_USD_PATH),
     )
 
 
@@ -173,20 +219,27 @@ _MATS = BounceMaterials()
 
 @configclass
 class TableTennisSceneCfg(InteractiveSceneCfg):
-    """Full table-tennis court in the HOPE frame. Robot is filled by a robot-specific subclass.
+    """Full table-tennis court in the world frame. Robot is filled by a robot-specific subclass.
 
-    Each environment is an independent court whose local origin coincides with the HOPE origin (the
+    Each environment is an independent court whose local origin coincides with the world origin (the
     near-side left corner of the table surface, at table-surface height). The floor is global; the
     table, net, lines, ball and robot are cloned per environment.
     """
 
-    # Static world.
+    # Static world. The table / net / posts / center line are kept as **invisible cuboid colliders**
+    # (visible=False) so they still own all bounce physics, while the realistic USD mesh (table_visual)
+    # is overlaid for looks. The floor stays visible (the USD models only the table, not the ground).
     floor: AssetBaseCfg = build_floor_cfg(_MATS)
-    table: AssetBaseCfg = build_table_top_cfg(_MATS)
-    net: AssetBaseCfg = build_net_cfg(_MATS)
-    net_post_left: AssetBaseCfg = build_net_post_cfg("{ENV_REGEX_NS}/NetPostLeft", 0.0 + geometry.NET_OVERHANG)
-    net_post_right: AssetBaseCfg = build_net_post_cfg("{ENV_REGEX_NS}/NetPostRight", -geometry.TABLE_WIDTH - geometry.NET_OVERHANG)
-    center_line: AssetBaseCfg = build_center_line_cfg()
+    table: AssetBaseCfg = build_table_top_cfg(_MATS, visible=False)
+    net: AssetBaseCfg = build_net_cfg(_MATS, visible=False)
+    net_post_left: AssetBaseCfg = build_net_post_cfg("{ENV_REGEX_NS}/NetPostLeft", 0.0 + geometry.NET_OVERHANG, visible=False)
+    net_post_right: AssetBaseCfg = build_net_post_cfg(
+        "{ENV_REGEX_NS}/NetPostRight", -geometry.TABLE_WIDTH - geometry.NET_OVERHANG, visible=False
+    )
+    center_line: AssetBaseCfg = build_center_line_cfg(visible=False)
+
+    # Visual-only realistic table+net mesh overlaid on the invisible colliders above.
+    table_visual: AssetBaseCfg = build_table_usd_visual_cfg()
 
     # Dynamic ball.
     ball: RigidObjectCfg = build_ball_cfg(_MATS)
@@ -226,7 +279,10 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Robot proprioception + ball state. A reasonable starting point for a returner policy."""
+    """Robot proprioception + ball state. A reasonable starting point for a returner policy.
+
+    The ball terms are scene/critic signals (privileged), not the deployed actor observation.
+    """
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -296,13 +352,15 @@ class EventCfg:
 
 @configclass
 class RewardsCfg:
-    """Minimal placeholder rewards so the RewardManager is valid. Extend with real match objectives
-    (return-over-net, landing-in-bounds, ball-tracking) in this class."""
+    """Example rewards for a returner policy. Extend with more match objectives (racket-to-ball
+    tracking, net crossing, ...) as the policy is developed."""
 
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
-    # Example ball-aware term: small bonus while the ball is in flight above the table surface.
+    # Small bonus while the ball is in flight above the table surface.
     ball_in_play = RewTerm(func=mdp.ball_above_surface, weight=0.05)
+    # Bonus for the ball bouncing on the opponent (P2) half near the surface — the return objective.
+    ball_opponent_half = RewTerm(func=mdp.ball_bounce_opponent_half, weight=1.0)
 
 
 @configclass
@@ -348,19 +406,20 @@ class TableTennisEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
-    # Ball aerodynamics (applied per physics substep by TableTennisEnv).
-    ball_aerodynamics: BallAerodynamicsCfg = BallAerodynamicsCfg()
+    # No-spin ball drag (applied per physics substep by TableTennisEnv). Coefficients come from
+    # configs/ball_physics.yaml. Set enabled=False to fly on PhysX gravity + contacts alone.
+    ball_aerodynamics: BallAerodynamicsCfg = BallAerodynamicsCfg.from_physics_config(enabled=True)
 
     def __post_init__(self):
         # General.
         self.decimation = 4
         self.episode_length_s = 8.0
-        # Simulation — 400 Hz physics + PhysX CCD keep the fast, light ball from tunnelling through
-        # the thin racket blade / net, including at struck-return speeds (15-25 m/s, where dt alone is
-        # not enough); 100 Hz control. The aero callback runs at the 400 Hz physics rate. CCD is a
-        # scene-level PhysX flag (there is no per-rigid-body CCD field in this Isaac Lab version).
-        self.sim.dt = 0.0025
+        # Simulation — a high physics rate + PhysX CCD keep the fast, light ball from tunnelling through
+        # the thin racket blade / net, including at struck-return speeds where dt alone is not enough;
+        # the drag callback runs at the physics rate. CCD is a scene-level PhysX flag.
+        self.sim.dt = 0.0025  # 400 Hz physics
         self.sim.render_interval = self.decimation
+        self.sim.gravity = (0.0, 0.0, -geometry.GRAVITY)
         self.sim.physx.enable_ccd = True
         self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
         # Default contact material (only used by colliders that do not set their own).

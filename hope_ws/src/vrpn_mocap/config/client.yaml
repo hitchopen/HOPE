@@ -1,0 +1,8 @@
+/vrpn_mocap/client_node:
+  ros__parameters:
+    server: localhost
+    port: 3883
+    frame_id: world
+    update_freq: 100.
+    refresh_freq: 1.
+    multi_sensor: false

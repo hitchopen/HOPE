@@ -1,6 +1,7 @@
-"""
-Python module serving as a project/extension template.
+"""HOPE PingPong whole-body tracking extension for Isaac Lab.
+
+Importing this package registers the Gym environments (via :mod:`whole_body_tracking.tasks`).
 """
 
-# Register Gym environments.
-from .tasks import *
+# Register the Gym environments on import.
+from .tasks import *  # noqa: F401,F403

@@ -1,18 +1,20 @@
 # =============================================================================
-# HOPE ping-pong WBC task (Agibot A3) — racket-target tracking.
+# HOPE PingPong whole-body task (Agibot A3) — the single training task.
 #
-# Selected with `task=HOPEPingPong`. Composes the shared env/sim/randomization
-# bases (cfg/base/*) and overrides the HOPE-specific knobs below. A key present
-# here overrides the code default; a missing key keeps the code default.
+# Selected with `task=HOPEPingPong`. Composes the shared env / sim / randomization bases
+# (cfg/base/*) and sets the HOPE PingPong knobs below. The detailed reward weights, racket-target
+# sampling boxes, and domain-randomization defaults live in the environment configuration
+# (HOPEPingPongEnvCfg, in the tasks/tracking package) — this file carries only the launcher-level
+# knobs and an optional `overrides` map for tuning.
+#
+# Actor observation: 111-D (contract `hope_pingpong`). Action: 31-D raw joint-position residual.
+# Control rate: 50 Hz. Forehand + backhand are learned by one policy (swing_side is an observation).
 # =============================================================================
 
 name: HOPEPingPong
 gym_task: HOPE-PingPong-AgibotA3-v0
-experiment_name: agibot_a3_hope
-
-# Optional WandB motion registry for a reference clip. The public quickstart passes
-# motion_file=... and does not require this registry.
-registry_name: ${oc.env:WANDB_REGISTRY_ORG,your-wandb-org}/wandb-registry-motions/hope_forehand
+experiment_name: hope_pingpong
+actor_obs_contract: hope_pingpong
 
 defaults:
   - /base/env_base@_here_
@@ -20,76 +22,28 @@ defaults:
   - /base/randomization_base@_here_
   - _self_
 
-# env / sim / domain_rand are inherited from the base files above; override here, e.g.:
-# env:
-#   num_envs: 2048
+# Reference motion clips (repo-root-relative). These are PLACEHOLDER examples only — short, smooth,
+# non-performant synthetic trajectories provided so imports and shape checks pass. Replace them with
+# your own recorded forehand / backhand clips (see hope_training/motions/REPLACE_MOTIONS.md).
+#   clip 0 = forehand, clip 1 = backhand. Override on the CLI with motion_file= / motion_file_2=.
+motion_file: hope_training/motions/preprocessed/hope_forehand.npz
+motion_file_2: hope_training/motions/preprocessed/hope_backhand.npz
 
-# ---- reward weights / kernel std -----------------------------------------
-# Starter values bias the task toward racket/base alignment while keeping motion
-# imitation as a soft prior. Tune these for your own retargeted motions.
-rewards:
-  racket_position_weight: 16.0
-  racket_position_std: 0.30
-  racket_velocity_weight: 4.0
-  racket_velocity_std: 0.5
-  racket_normal_weight: 4.0
-  racket_normal_std: 0.5
-  base_position_weight: 6.0
-  base_position_std: 0.3
+env:
+  # Episode of several swings / rallies. A clip wrap resamples the racket target but does NOT teleport
+  # the robot, so the policy learns continuous between-swing recovery.
+  episode_length_s: 10.0
 
-  # ---- motion imitation prior (the 6 motion_* terms; base weights sum ≈5.0) ----
-  # motion_scale multiplies all six motion weights at once. 1.0 = unchanged;
-  # lower = weaker imitation. Raise it if the policy becomes unstable.
-  motion_scale: 0.4
-  # per-term override also available (applied before motion_scale), e.g.:
-  #   motion_body_pos_weight: 1.0   motion_body_pos_std: 0.3   motion_body_ori_weight: ...
-  #   motion_body_lin_vel_weight/_std   motion_body_ang_vel_weight/_std
-  #   motion_global_anchor_pos_weight/_std   motion_global_anchor_ori_weight/_std
+motion:
+  # Do not teleport the robot state on clip wrap: the robot pose / joint state / last action carry
+  # across swings so recovery is learned. (Required by the continuous multi-rally lifecycle.)
+  wrap_teleport: false
 
-  # ---- penalties / regularization (negative weights; energy, smoothness, safety) ----
-  joint_torques_weight: -0.00001  # joint torque L2 (energy)
-  action_rate_weight: -0.1        # base -0.1; action smoothness (more negative = smoother but slower)
-  joint_limit_weight: -10.0       # base -10.0; penalty near joint limits (keep strong for safety)
-  undesired_contacts_weight: -0.1 # base -0.1; non-foot/hand body contacts
-
-# ---- racket target sampling ----------------------------------------------
-# Validate these starter ranges against your A3 right-arm reachability before
-# long training runs. Keep targets inside the real workspace.
-racket:
-  strike_phase: 0.46              # fraction of the clip where the paddle meets the ball
-  strike_window_s: 0.15
-  strike_success_pos_thresh: 0.075  # m
-  strike_success_vel_thresh: 0.5     # m/s; exact-strike velocity acceptance
-  strike_success_normal_thresh_deg: 15.0  # deg; exact-strike racket-normal acceptance
-
-  # reference_perturbed samples around the reference racket state at strike time
-  # and widens through curriculum. This is a starter default, not a guaranteed
-  # competition-quality target distribution.
-  target_mode: reference_perturbed
-  ref_perturb_pos: [0.08, 0.10, 0.08]
-  ref_perturb_vel: [0.6, 0.6, 0.5]
-  ref_perturb_normal: 0.20
-  ref_perturb_curriculum_steps: 30000   # control steps to ramp perturbation start->full (~1250 iters)
-  ref_perturb_curriculum_start: 0.15    # fraction of the final perturbation at step 0
-  ref_perturb_success_gated: true       # widen only after the conditional exact-strike composite rate clears threshold
-  ref_perturb_advance_threshold: 0.30
-  ref_perturb_advance_rate: 1.0e-5
-  exact_success_decay: 0.99
-  exact_success_min_count: 50.0
-
-  # --- legacy "uniform" box (ignored when target_mode=reference_perturbed) -----------------------
-  pos_x_range: [0.25, 0.55]
-  pos_y_range: [-0.45, 0.45]
-  pos_z_range: [0.70, 1.15]
-  vel_x_range: [1.5, 4.0]
-  vel_y_range: [-1.0, 1.0]
-  vel_z_range: [0.0, 1.5]
-
-  # base_target is coupled to the racket target. These ranges are jitter around
-  # that coupled point, not the whole base workspace.
-  base_target_x_range: [-0.10, 0.10]
-  base_target_y_range: [-0.10, 0.10]
-  normal_mode: velocity           # "velocity" (n = v/|v|) or "sampled"  (uniform mode only)
-  forehand_on_negative_y: true    # right arm holds the paddle
-  mount_normal_axis: 1            # racket-local +Y is the face normal (red/hitting face)
-  mount_normal_sign: 1.0          # +1 = red/forehand face; use -1 for the black face (backhand-only policy)
+# Optional environment-cfg overrides applied by scripts/train.py as dotted paths onto the parsed
+# env cfg. Use this to tune without editing Python. Unknown paths are skipped with a warning.
+# Example (uncomment and edit):
+# overrides:
+#   rewards.racket_position.weight: 12.0
+#   rewards.racket_velocity.weight: 8.0
+#   commands.racket_target.pos_z_range: [0.70, 1.05]
+overrides: {}

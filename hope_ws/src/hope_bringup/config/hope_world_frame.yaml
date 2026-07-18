@@ -1,18 +1,20 @@
 hope_world:
+  # Frame names published as static transforms by hope_world.launch.py.
   frames:
     world: world
-    table_rigid_body: PPT
-    p1_mocap: P1
-    p1_base_link: P1_base_link
-    p2_mocap: P2
-    p2_base_link: P2_base_link
+    robot_mocap: robot_mocap          # the robot's mocap marker-cluster frame
+    robot_base_link: robot_base_link  # the robot URDF base_link
     table_center: table_center
-    p1_half_center: p1_half_center
-    p2_half_center: p2_half_center
+    robot_half_center: robot_half_center
+    opponent_half_center: opponent_half_center
     net_center: net_center
     floor_origin: floor_origin
     virtual_hit_plane: virtual_hit_plane
 
+  # ITTF regulation table dimensions (m). World frame: +x forward (toward the
+  # opponent), +y left, +z up; z = 0 at the table surface; origin at the
+  # near-side left table corner, so the table occupies x in [0, length],
+  # y in [-width, 0].
   table_m:
     length: 2.74
     width: 1.525
@@ -21,24 +23,21 @@ hope_world:
 
   landmarks_m:
     table_center: [1.37, -0.7625, 0.0]
-    p1_half_center: [0.685, -0.7625, 0.0]
-    p2_half_center: [2.055, -0.7625, 0.0]
+    robot_half_center: [0.685, -0.7625, 0.0]
+    opponent_half_center: [2.055, -0.7625, 0.0]
     net_center: [1.37, -0.7625, 0.0]
     floor_origin: [0.0, 0.0, -0.76]
 
   planner:
+    # Fixed virtual hit-plane x (m); publish it as a frame for visualization.
     x_hit: 0.0
 
   mocap_to_base_link:
-    # TODO(measure): static transform from each robot's mocap marker-cluster frame
-    # (the P1/P2 rigid body the mocap reports) to the robot URDF base_link.
-    # HOW TO GET: rigidly mount the marker plate, then measure the translation
-    # (xyz, metres) and orientation (rpy, radians) from the marker-cluster origin
-    # to base_link with a CAD model or a tape-measure + level; refine by comparing
-    # FK-predicted base_link against the mocap reading while the robot stands still.
-    # Until measured, [0,0,0] means "marker cluster == base_link" (only correct if
-    # the markers are exactly at base_link).
-    p1_xyz: [0.0, 0.0, 0.0]   # TODO: measured P1 marker-cluster -> base_link translation (m)
-    p1_rpy: [0.0, 0.0, 0.0]   # TODO: measured P1 marker-cluster -> base_link rotation (rad)
-    p2_xyz: [0.0, 0.0, 0.0]   # TODO: measured P2 marker-cluster -> base_link translation (m)
-    p2_rpy: [0.0, 0.0, 0.0]   # TODO: measured P2 marker-cluster -> base_link rotation (rad)
+    # Static transform from the robot's mocap marker-cluster frame to its URDF
+    # base_link. Measure the translation (xyz, m) and rotation (rpy, rad) from
+    # the marker-cluster origin to base_link (CAD or tape-measure + level), then
+    # refine by comparing FK-predicted base_link against the mocap reading while
+    # the robot stands still. Until measured, [0,0,0] means "marker cluster ==
+    # base_link" (only correct if the markers are exactly at base_link).
+    xyz: [0.0, 0.0, 0.0]   # TODO: measured marker-cluster -> base_link translation (m)
+    rpy: [0.0, 0.0, 0.0]   # TODO: measured marker-cluster -> base_link rotation (rad)

@@ -1,0 +1,6 @@
+# The repo root .gitattributes routes *.usd / *.png through git-lfs. This small (~0.7 MB) table+net
+# visual bundle must be a plain git blob instead: it is a hard runtime dependency of the table_tennis
+# task, so it must always be present after a clone even on machines without git-lfs (an LFS pointer file
+# would make Isaac Sim fail to load the mesh). Override the LFS filter for everything in this folder.
+*.usd -filter -diff -merge -text
+*.png -filter -diff -merge -text

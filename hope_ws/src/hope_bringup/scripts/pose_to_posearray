@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Adapt per-tracker PoseStamped topics into the planner's PoseArray input.
+
+The vrpn_mocap client publishes one ``geometry_msgs/PoseStamped`` topic per
+tracker (e.g. ``/vrpn_mocap/ball/pose``), but the planner consumes a single
+``geometry_msgs/PoseArray`` on ``/poses`` with the ball at ``ball_pose_index``
+(default 0). This node bridges the two: it caches the latest pose from each
+configured input topic and, whenever the trigger topic (the ball) updates,
+publishes a PoseArray whose slot *i* is input topic *i*'s latest pose.
+
+Parameters:
+  * ``input_topics``  — ordered list of PoseStamped topics; the list order IS the
+                        PoseArray index order, so keep the ball first (matching
+                        the planner's ``ball_pose_index: 0``).
+  * ``trigger_index`` — which input topic triggers a publish (default 0, the
+                        ball, so the output rate equals the ball sample rate).
+  * ``output_topic``  — the PoseArray topic (default ``/poses``).
+  * ``frame_id``      — override for the output frame id ("" keeps the trigger
+                        message's own frame id).
+
+The output header stamp is the trigger message's capture stamp (passed through,
+never re-stamped) so the planner's velocity estimate uses source timing. Slots
+whose topic has not delivered yet are identity poses; the trigger slot always
+carries real data.
+
+With the shipped ``client.launch.yaml`` (``multi_sensor: true``) VRPN topics get
+an ``_id_<N>`` suffix, e.g. ``/vrpn_mocap/ball/pose_id_0`` — point
+``input_topics`` (or the ``ball_pose_topic`` launch argument) at the topic your
+tracker actually publishes (``ros2 topic list | grep vrpn``).
+"""
+
+import rclpy
+from geometry_msgs.msg import Pose, PoseArray, PoseStamped
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+
+
+class PoseToPoseArray(Node):
+    def __init__(self, **node_kwargs):
+        # node_kwargs (e.g. context / parameter_overrides) support embedding in tests.
+        super().__init__("pose_to_posearray", **node_kwargs)
+        self.declare_parameter("input_topics", ["/vrpn_mocap/ball/pose"])
+        self.declare_parameter("trigger_index", 0)
+        self.declare_parameter("output_topic", "/poses")
+        self.declare_parameter("frame_id", "")
+
+        topics = [str(t) for t in self.get_parameter("input_topics").value]
+        if not topics:
+            raise ValueError("input_topics must list at least one PoseStamped topic")
+        self._trigger = int(self.get_parameter("trigger_index").value)
+        if not 0 <= self._trigger < len(topics):
+            raise ValueError(
+                f"trigger_index {self._trigger} out of range for {len(topics)} input topic(s)"
+            )
+        self._frame = str(self.get_parameter("frame_id").value)
+        self._latest: list = [None] * len(topics)
+
+        # Input QoS matches the VRPN client's SensorDataQoS publisher (best effort).
+        in_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+        # Output QoS matches the planner's mocap subscription (best effort, latest only).
+        out_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        self._pub = self.create_publisher(
+            PoseArray, str(self.get_parameter("output_topic").value), out_qos
+        )
+        self._subs = [
+            self.create_subscription(
+                PoseStamped, topic, self._make_callback(i), in_qos
+            )
+            for i, topic in enumerate(topics)
+        ]
+        self.get_logger().info(
+            f"aggregating {topics} -> {self.get_parameter('output_topic').value} "
+            f"(trigger index {self._trigger})"
+        )
+
+    def _make_callback(self, index: int):
+        def _cb(msg: PoseStamped) -> None:
+            self._latest[index] = msg
+            if index == self._trigger:
+                self._publish(msg)
+
+        return _cb
+
+    def _publish(self, trigger_msg: PoseStamped) -> None:
+        out = PoseArray()
+        out.header.stamp = trigger_msg.header.stamp   # capture time, passed through
+        out.header.frame_id = self._frame or trigger_msg.header.frame_id
+        out.poses = [
+            (m.pose if m is not None else Pose()) for m in self._latest
+        ]
+        self._pub.publish(out)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = PoseToPoseArray()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

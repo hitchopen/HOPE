@@ -21,22 +21,14 @@ sections = [
 ]
 extra_standard_library = [
     "numpy",
-    "h5py",
-    "open3d",
     "torch",
-    "tensordict",
-    "bpy",
-    "matplotlib",
     "gymnasium",
-    "gym",
     "scipy",
-    "hid",
     "yaml",
-    "prettytable",
     "toml",
-    "trimesh",
-    "tqdm",
-    "psutil",
+    "onnx",
+    "onnxruntime",
+    "mujoco",
 ]
 known_thirdparty = [
     "isaacsim.core.api",
@@ -45,17 +37,14 @@ known_thirdparty = [
     "omni.kit.*",
     "warp",
     "carb",
-    "Semantics",
 ]
 known_isaaclabparty = [
     "isaaclab",
     "isaaclab_tasks",
     "isaaclab_assets",
-    "isaaclab_mimic",
-    "isaaclab_rl"
+    "isaaclab_rl",
 ]
 
-# Modify the following to include the package names of your first-party code
 known_firstparty = "whole_body_tracking"
 known_local_folder = "config"
 
@@ -74,12 +63,9 @@ pythonVersion = "3.10"
 pythonPlatform = "Linux"
 enableTypeIgnoreComments = true
 
-# This is required as the CI pre-commit does not download the module (i.e. numpy, torch, prettytable)
-# Therefore, we have to ignore missing imports
+# The CI pre-commit does not install heavy modules (numpy, torch, ...), so ignore missing imports.
 reportMissingImports = "none"
-# This is required to ignore for type checks of modules with stubs missing.
-reportMissingModuleSource = "none" # -> most common: prettytable in mdp managers
-
-reportGeneralTypeIssues = "none"       # -> raises 218 errors (usage of literal MISSING in dataclasses)
-reportOptionalMemberAccess = "warning" # -> raises 8 errors
+reportMissingModuleSource = "none"
+reportGeneralTypeIssues = "none"
+reportOptionalMemberAccess = "warning"
 reportPrivateUsage = "warning"

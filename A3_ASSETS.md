@@ -63,8 +63,13 @@ The A3 active-policy joint order is documented in:
 
 ```text
 hope_training/config/joint_order_agibot_a3.yaml
-docs/interfaces/joint_order.md
 ```
+
+It is mirrored in code by `whole_body_tracking.robots.agibot_a3.AGIBOT_A3_JOINT_NAMES`
+and, on the deploy side, by
+`a3_deploy/a3_deploy_example/reference/a3_deploy_onnx_ref_pingpong/joint_order.py`.
+See [docs/POLICY_INTERFACE.md](docs/POLICY_INTERFACE.md) for the full
+observation/action contract that consumes it.
 
 Use that order for retargeted CSV columns and policy action/observation
 contracts unless you intentionally change the robot configuration.

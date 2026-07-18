@@ -1,0 +1,6 @@
+# Runtime dependencies for the clean-room reference runner.
+# Install with:  pip install -r requirements.txt
+numpy>=1.23
+pyyaml>=6.0
+onnxruntime>=1.16      # CPU inference for the exported actor
+mujoco>=3.1            # in-process MuJoCo bridge (default sim backend)

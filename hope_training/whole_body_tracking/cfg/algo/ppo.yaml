@@ -1,15 +1,12 @@
 # =============================================================================
-# PPO hyperparameters for the Agibot A3 WBC tasks (BeyondMimic / rsl_rl).
+# PPO hyperparameters for the HOPE PingPong Agibot A3 task (rsl_rl).
 #
 # Selected on the command line with `algo=ppo`:
-#   python scripts/train.py task=HOPEPingPong algo=ppo headless=true \
-#       motion_file=sample_motions/agibot_a3_smoke_stand.npz logger=tensorboard
+#   python scripts/train.py task=HOPEPingPong algo=ppo headless=true
 #
-# Edit the values here to tune. This same file is the single source of truth for
-# both the Hydra `scripts/train.py` and the legacy `scripts/rsl_rl/train.py`.
-#
-# Confirmed-from-HITTER [H]: PPO, actor/critic MLP [512,256,128], 50 Hz.
-# Everything else follows the BeyondMimic G1 defaults; tune freely.
+# This file is the single source of truth for the PPO settings: both the Hydra
+# `scripts/train.py` and the gym task's runner cfg (agents/ppo.py) read it via
+# `whole_body_tracking.utils.ppo_cfg`. Edit the values here to tune.
 # =============================================================================
 
 name: ppo
@@ -17,15 +14,18 @@ name: ppo
 runner:
   # ---- training schedule (EDIT) -------------------------------------------
   num_steps_per_env: 24        # rollout length per env before each PPO update
-  max_iterations: 30000      # total PPO iterations; quickstart overrides to 3
+  max_iterations: 50000        # total PPO iterations (the user can override on the CLI)
   # -------------------------------------------------------------------------
-  save_interval: 100           # checkpoint every N iterations
-  empirical_normalization: true
+  save_interval: 500           # write a periodic local checkpoint every N iterations
+  # The observation fed to the policy is RAW (no normalization) — see the policy manifest
+  # (`observation_normalization: none`) and PLANNER/POLICY interface docs. Keep this false so the
+  # exported ONNX is a direct obs -> action graph that the deployment backend can feed raw obs.
+  empirical_normalization: false
 
 policy:
   # ---- actor / critic networks (EDIT) -------------------------------------
-  actor_hidden_dims: [512, 256, 128]   # HITTER [H]
-  critic_hidden_dims: [512, 256, 128]  # HITTER [H]
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
   activation: elu              # elu, relu, tanh, leaky_relu, gelu, selu
   init_noise_std: 1.0          # initial action exploration std
   # -------------------------------------------------------------------------
@@ -35,7 +35,7 @@ algorithm:
   learning_rate: 0.001         # initial LR
   schedule: adaptive           # "adaptive" (KL-based) or "fixed"
   desired_kl: 0.01             # target KL for the adaptive schedule
-  entropy_coef: 0.004          # exploration bonus
+  entropy_coef: 0.01           # exploration bonus
   num_learning_epochs: 5       # gradient epochs per update
   num_mini_batches: 4          # minibatches per epoch
   # -------------------------------------------------------------------------

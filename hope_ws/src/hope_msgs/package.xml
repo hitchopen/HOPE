@@ -3,7 +3,7 @@
 <package format="3">
   <name>hope_msgs</name>
   <version>0.0.0</version>
-  <description>Shared ROS 2 interface definitions for the HOPE ping-pong stack.</description>
+  <description>Shared ROS 2 interface definitions for the HOPE PingPong stack.</description>
   <maintainer email="maintainer@example.com">HOPE Maintainers</maintainer>
   <license>Apache-2.0</license>
 

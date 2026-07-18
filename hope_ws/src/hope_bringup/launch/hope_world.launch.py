@@ -1,3 +1,5 @@
+"""Publish the HOPE PingPong world-frame static transforms from config."""
+
 from pathlib import Path
 
 import yaml
@@ -33,17 +35,17 @@ def generate_launch_description():
     config = _load_world_config()
     frames = config["frames"]
     landmarks = config["landmarks_m"]
-    offsets = config["mocap_to_base_link"]
+    offset = config["mocap_to_base_link"]
     x_hit = config["planner"]["x_hit"]
 
+    world = frames["world"]
     nodes = [
-        _static_tf(frames["world"], frames["table_center"], landmarks["table_center"], [0.0, 0.0, 0.0]),
-        _static_tf(frames["world"], frames["p1_half_center"], landmarks["p1_half_center"], [0.0, 0.0, 0.0]),
-        _static_tf(frames["world"], frames["p2_half_center"], landmarks["p2_half_center"], [0.0, 0.0, 0.0]),
-        _static_tf(frames["world"], frames["net_center"], landmarks["net_center"], [0.0, 0.0, 0.0]),
-        _static_tf(frames["world"], frames["floor_origin"], landmarks["floor_origin"], [0.0, 0.0, 0.0]),
-        _static_tf(frames["world"], frames["virtual_hit_plane"], [x_hit, 0.0, 0.0], [0.0, 0.0, 0.0]),
-        _static_tf(frames["p1_mocap"], frames["p1_base_link"], offsets["p1_xyz"], offsets["p1_rpy"]),
-        _static_tf(frames["p2_mocap"], frames["p2_base_link"], offsets["p2_xyz"], offsets["p2_rpy"]),
+        _static_tf(world, frames["table_center"], landmarks["table_center"], [0.0, 0.0, 0.0]),
+        _static_tf(world, frames["robot_half_center"], landmarks["robot_half_center"], [0.0, 0.0, 0.0]),
+        _static_tf(world, frames["opponent_half_center"], landmarks["opponent_half_center"], [0.0, 0.0, 0.0]),
+        _static_tf(world, frames["net_center"], landmarks["net_center"], [0.0, 0.0, 0.0]),
+        _static_tf(world, frames["floor_origin"], landmarks["floor_origin"], [0.0, 0.0, 0.0]),
+        _static_tf(world, frames["virtual_hit_plane"], [x_hit, 0.0, 0.0], [0.0, 0.0, 0.0]),
+        _static_tf(frames["robot_mocap"], frames["robot_base_link"], offset["xyz"], offset["rpy"]),
     ]
     return LaunchDescription(nodes)

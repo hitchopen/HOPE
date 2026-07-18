@@ -1,0 +1,79 @@
+# HOPE PingPong reference motion clip — hope_backhand
+#
+# LICENSE / PROVENANCE: reference example only; replace with your own motion.
+# This is a tiny synthetic, physically-neutral placeholder (NOT performance-tuned) provided so the
+# motion loader and shape checks work out of the box. See REPLACE_MOTIONS for how to swap it.
+
+name: hope_backhand
+swing_side: -1          # forehand = +1, backhand = -1
+fps: 50
+frame_count: 80
+frame_time_s: 0.02
+duration_s: 1.6
+
+# Phase structure (frame indices). The clip covers ready -> strike -> follow-through -> recover.
+strike_frame: 40
+strike_phase: 0.506329     # fraction of the clip at the strike
+ready_interval_frames: [0, 10]
+follow_through_end_frame: 62
+recover_end_frame: 79
+
+# Canonical 31-DOF joint order (index 0..30). Training, ONNX, runner and planner share this order.
+joint_order:
+  - waist_yaw_joint
+  - waist_roll_joint
+  - waist_pitch_joint
+  - head_yaw_joint
+  - head_pitch_joint
+  - left_shoulder_pitch_joint
+  - left_shoulder_roll_joint
+  - left_shoulder_yaw_joint
+  - left_elbow_joint
+  - left_wrist_roll_joint
+  - left_wrist_pitch_joint
+  - left_wrist_yaw_joint
+  - right_shoulder_pitch_joint
+  - right_shoulder_roll_joint
+  - right_shoulder_yaw_joint
+  - right_elbow_joint
+  - right_wrist_roll_joint
+  - right_wrist_pitch_joint
+  - right_wrist_yaw_joint
+  - left_hip_pitch_joint
+  - left_hip_roll_joint
+  - left_hip_yaw_joint
+  - left_knee_joint
+  - left_ankle_pitch_joint
+  - left_ankle_roll_joint
+  - right_hip_pitch_joint
+  - right_hip_roll_joint
+  - right_hip_yaw_joint
+  - right_knee_joint
+  - right_ankle_pitch_joint
+  - right_ankle_roll_joint
+
+# Tracked bodies stored in body_pos_w/body_quat_w (index order; index 0 = root, index 7 = anchor).
+tracked_bodies:
+  - pelvis_link
+  - left_hip_roll_Link
+  - left_knee_Link
+  - left_ankle_roll_Link
+  - right_hip_roll_Link
+  - right_knee_Link
+  - right_ankle_roll_Link
+  - torso_Link
+  - left_shoulder_roll_Link
+  - left_elbow_Link
+  - left_wrist_yaw_Link
+  - right_shoulder_roll_Link
+  - right_elbow_Link
+  - right_wrist_yaw_Link
+anchor_body: torso_Link
+root_body: pelvis_link
+
+# Racket mount + public blade convention.
+racket_link: right_wrist_yaw_Link            # the paddle is mounted on the right wrist
+racket_body: pingpang_red_Link               # racket-center body, if present in the asset
+mount_offset_xyz: [0.21, 0.032, 0.032]       # wrist -> racket center, wrist local frame (m)
+blade_normal_axis: y                         # racket-local +Y is the blade face normal
+blade_normal_sign: -1 (black/backhand face)

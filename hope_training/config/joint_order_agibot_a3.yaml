@@ -1,7 +1,9 @@
 # Agibot A3 controllable joint order (31 DOF).
-# Source: order of <joint> hinges in GMR/assets/agibot_a3/a3_mocap.xml,
-# which is the order GMR writes dof_pos and the order training/ONNX/SDK must share.
-# VERIFY against the real A3 SDK (`ros2 topic echo /joint_states --once`) before deployment.
+# This is the canonical joint order shared by training, the exported ONNX policy,
+# and any deployment backend. dof_pos / dof_vel / action vectors are all written in
+# this order.
+# VERIFY against your real A3 SDK (e.g. `ros2 topic echo /joint_states --once`) before
+# deploying to hardware.
 # count: 31
 joint_order:
   - waist_yaw_joint

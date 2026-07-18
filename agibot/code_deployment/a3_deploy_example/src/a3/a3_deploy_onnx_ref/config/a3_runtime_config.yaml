@@ -175,7 +175,7 @@ teleop:
 smpl_zmq:
   enabled: true
   # Source-tree default is for local x86 simulation. The A3 package builder
-  # rewrites this to the fixed HDU address 10.42.10.10 for rockchip/thor
+  # rewrites this to the fixed HDU address <hdu_ip> for rockchip/thor
   # packages when it still sees a localhost-style value, because the Pico
   # sender listens on the HDU while the policy runs on a robot compute target.
   host: localhost

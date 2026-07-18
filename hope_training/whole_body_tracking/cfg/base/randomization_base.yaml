@@ -1,7 +1,6 @@
-# Shared domain randomization, composed into tasks via `defaults: [/base/randomization_base@_here_]`.
-# Friction / CoM / external pushes / observation noise are always-on in the env cfg; these are the
+# Shared domain randomization, composed into the task via `defaults: [/base/randomization_base@_here_]`.
+# Friction / center-of-mass / observation noise are configured in the environment cfg; these are the
 # extra knobs the trainer applies. Set a range to null to disable that randomization.
 domain_rand:
-  link_mass_range: [0.85, 1.15]   # +/-15%, randomize_rigid_body_mass (scale)
-  pd_gain_range: [0.8, 1.2]       # +/-20%, randomize_actuator_gains (scale); null disables
-                                  # (HITTER keeps PD fixed -> set to null to match the paper)
+  link_mass_range: [0.9, 1.1]   # +/-10% link-mass scale -> events.link_mass (randomize_rigid_body_mass)
+  pd_gain_range: null           # null DISABLES events.pd_gains; set e.g. [0.8, 1.2] to randomize

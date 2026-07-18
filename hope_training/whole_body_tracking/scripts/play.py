@@ -1,154 +1,92 @@
-"""Hydra eval/export entry for HOPE Agibot A3 WBC.
+"""Play a trained HOPE PingPong policy in the Isaac Lab viewer.
 
-    python scripts/play.py task=HOPEPingPong algo=ppo num_envs=2 \
-        checkpoint=logs/rsl_rl/agibot_a3_hope/<run>/model_*.pt
+Loads a LOCAL checkpoint and runs the policy in-sim. No Weights & Biases, and no export coupling —
+exporting the ONNX policy is a separate step (scripts/export_onnx.py).
 
-Loads a trained policy from a local checkpoint or optional WandB run, runs it,
-and exports policy.onnx next to the checkpoint.
+Usage:
+    python scripts/play.py task=HOPEPingPong num_envs=4 \
+        checkpoint=logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
 """
 
-import os
+import pathlib
 import sys
-
-# allow `from train import _apply_task_overrides` (sibling script; no isaaclab imported at its top)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import hydra
 from omegaconf import OmegaConf
 
-from train import _apply_task_overrides
+
+def _repo_root() -> pathlib.Path:
+    here = pathlib.Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "hope_training").is_dir():
+            return parent
+    return here.parents[2]
 
 
-def _run_play(cfg, simulation_app):
-    import pathlib
+def _resolve_motion_path(value: str) -> str:
+    p = pathlib.Path(str(value))
+    if p.is_file():
+        return str(p.resolve())
+    rooted = _repo_root() / value
+    return str(rooted.resolve()) if rooted.is_file() else str(rooted)
+
+
+def _resolve_motion_sources(cfg) -> list[str]:
+    primary = cfg.motion_file if cfg.motion_file is not None else cfg.task.get("motion_file")
+    secondary = cfg.motion_file_2 if cfg.motion_file_2 is not None else cfg.task.get("motion_file_2")
+    clips = [c for c in (primary, secondary) if c is not None]
+    return [_resolve_motion_path(c) for c in clips]
+
+
+def _run(cfg, simulation_app):
+    import os
 
     import gymnasium as gym
     import torch
 
-    from rsl_rl.runners import OnPolicyRunner
-
-    from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
     from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
 
-    import whole_body_tracking.tasks  # noqa: F401  -- registers the gym tasks
-    from whole_body_tracking.utils.exporter import attach_onnx_metadata, export_motion_policy_as_onnx
+    import whole_body_tracking.tasks  # noqa: F401
+    from whole_body_tracking.utils.my_on_policy_runner import HOPEOnPolicyRunner
     from whole_body_tracking.utils.ppo_cfg import runner_kwargs
 
     task_id = str(cfg.task.gym_task)
-    num_envs = int(cfg.num_envs) if cfg.num_envs is not None else int(cfg.task.env.num_envs)
+    num_envs = int(cfg.num_envs)
 
     env_cfg = parse_env_cfg(task_id, device=str(cfg.device), num_envs=num_envs)
-    _apply_task_overrides(env_cfg, cfg.task)
-    env_cfg.sim.device = str(cfg.device)
+    motion_files = _resolve_motion_sources(cfg)
+    if motion_files:
+        env_cfg.commands.motion.motion_file = motion_files if len(motion_files) > 1 else motion_files[0]
+    if cfg.task.get("motion") is not None and cfg.task.motion.get("wrap_teleport") is not None:
+        env_cfg.commands.motion.wrap_teleport = bool(cfg.task.motion.wrap_teleport)
 
-    agent_cfg = RslRlOnPolicyRunnerCfg(**runner_kwargs(OmegaConf.to_container(cfg.algo, resolve=True), str(cfg.task.experiment_name)))
-    agent_cfg.device = str(cfg.device)
-
-    log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-
-    # resolve the checkpoint + reference motion
-    wandb_path = cfg.wandb_path
-    checkpoint = cfg.get("checkpoint", None)
-    if wandb_path and not checkpoint:
-        import wandb
-
-        wandb_path = str(wandb_path)
-        run_path = "/".join(wandb_path.split("/")[:-1]) if "model" in wandb_path else wandb_path
-        api = wandb.Api()
-        wandb_run = api.run(run_path)
-        files = [f.name for f in wandb_run.files() if "model" in f.name]
-        fname = wandb_path.split("/")[-1] if "model" in wandb_path else max(
-            files, key=lambda x: int(x.split("_")[1].split(".")[0])
-        )
-        wandb_run.file(str(fname)).download("./logs/rsl_rl/temp", replace=True)
-        resume_path = f"./logs/rsl_rl/temp/{fname}"
-        print(f"[INFO] Loading model checkpoint from: {run_path}/{fname}")
-        if cfg.motion_file is not None:
-            env_cfg.commands.motion.motion_file = str(cfg.motion_file)
-        else:
-            art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
-            if art is not None:
-                env_cfg.commands.motion.motion_file = str(pathlib.Path(art.download()) / "motion.npz")
-            else:
-                print("[WARN] No motion artifact in the run; pass motion_file=... if replay fails.")
+    # resolve the checkpoint: explicit path, else latest local checkpoint under logs/rsl_rl/<exp>/.
+    experiment_name = str(cfg.task.experiment_name)
+    if cfg.checkpoint is not None:
+        resume_path = os.path.abspath(str(cfg.checkpoint))
     else:
-        if checkpoint:
-            resume_path = str(checkpoint)
-        else:
-            resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-        print(f"[INFO] Loading model checkpoint from: {resume_path}")
-        reg = cfg.registry_name if cfg.registry_name is not None else cfg.task.get("registry_name")
-        if cfg.motion_file is not None:
-            env_cfg.commands.motion.motion_file = str(cfg.motion_file)
-        elif reg is not None:
-            import wandb
+        log_root = os.path.abspath(os.path.join("logs", "rsl_rl", experiment_name))
+        resume_path = get_checkpoint_path(log_root, ".*", ".*")
+    print(f"[play.py] loading checkpoint: {resume_path}", flush=True)
 
-            reg = str(reg)
-            if ":" not in reg:
-                reg += ":latest"
-            art = wandb.Api().artifact(reg)
-            env_cfg.commands.motion.motion_file = str(pathlib.Path(art.download()) / "motion.npz")
-
-    render_mode = "rgb_array" if cfg.video else None
-    env = gym.make(task_id, cfg=env_cfg, render_mode=render_mode)
-    log_dir = os.path.dirname(resume_path)
+    env = gym.make(task_id, cfg=env_cfg, render_mode=None)
     env = RslRlVecEnvWrapper(env)
 
-    ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-    ppo_runner.load(resume_path)
-    policy = ppo_runner.get_inference_policy(device=env.unwrapped.device)
+    algo = OmegaConf.to_container(cfg.algo, resolve=True)
+    from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg
 
-    # export the policy to ONNX next to the checkpoint
-    export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-    export_motion_policy_as_onnx(
-        env.unwrapped, ppo_runner.alg.policy,
-        normalizer=getattr(ppo_runner.alg.policy, "actor_obs_normalizer", None),
-        path=export_model_dir, filename="policy.onnx",
-    )
-    attach_onnx_metadata(env.unwrapped, str(wandb_path) if wandb_path else "none", export_model_dir)
-    print(f"[INFO] Exported ONNX policy to: {export_model_dir}")
+    agent_cfg = RslRlOnPolicyRunnerCfg(**runner_kwargs(algo, experiment_name))
+    agent_cfg.device = str(cfg.device)
+    runner = HOPEOnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+    runner.load(resume_path)
+    policy = runner.get_inference_policy(device=env.unwrapped.device)
 
-    # Manual video capture: grab env.render() each step and encode to mp4 with imageio
-    # (imageio-ffmpeg). Avoids gym RecordVideo's vec-env / flush quirks and reports exactly
-    # how many frames were captured so a black/empty render is obvious instead of silent.
-    frames = []
-    # This rsl_rl/IsaacLab version returns a TensorDict from get_observations() (NOT an (obs, extras)
-    # tuple) and the inference policy consumes the whole TensorDict — mirror the runner's rollout loop.
-    obs = env.get_observations().to(agent_cfg.device)
-    timestep = 0
+    obs, _ = env.get_observations()
     while simulation_app.is_running():
         with torch.inference_mode():
             actions = policy(obs)
-            obs, _, _, _ = env.step(actions.to(env.unwrapped.device))
-        if cfg.video:
-            frame = env.unwrapped.render()
-            if frame is not None:
-                frames.append(frame)
-            timestep += 1
-            if timestep >= int(cfg.video_length):
-                break
-        # non-video: keep stepping until the Isaac Sim window is closed (live viewing)
-
-    if cfg.video:
-        import numpy as np
-
-        video_dir = os.path.join(log_dir, "videos", "play")
-        os.makedirs(video_dir, exist_ok=True)
-        video_path = os.path.join(video_dir, "play.mp4")
-        valid = [np.asarray(f) for f in frames if f is not None and getattr(f, "size", 0) > 0]
-        print(f"[INFO] captured {len(frames)} frames ({len(valid)} non-empty)", flush=True)
-        if valid:
-            import imageio
-
-            imageio.mimsave(video_path, valid, fps=30)
-            print(f"[INFO] wrote video -> {video_path}", flush=True)
-        else:
-            print(
-                "[ERROR] env.render() returned no usable frames. Check that AppLauncher got "
-                "enable_cameras=True (it ties to video) and render_mode='rgb_array'.",
-                flush=True,
-            )
-
+            obs, _, _, _ = env.step(actions)
     env.close()
 
 
@@ -160,18 +98,10 @@ def main(cfg):
     sys.argv = sys.argv[:1]
     from isaaclab.app import AppLauncher
 
-    app_launcher = AppLauncher(
-        headless=bool(cfg.headless), device=str(cfg.device), enable_cameras=bool(cfg.video)
-    )
+    app_launcher = AppLauncher(headless=bool(cfg.headless), device=str(cfg.device))
     simulation_app = app_launcher.app
     try:
-        _run_play(cfg, simulation_app)
-    except Exception:
-        import traceback
-
-        traceback.print_exc()
-        sys.stderr.flush()
-        sys.stdout.flush()
+        _run(cfg, simulation_app)
     finally:
         simulation_app.close()
 

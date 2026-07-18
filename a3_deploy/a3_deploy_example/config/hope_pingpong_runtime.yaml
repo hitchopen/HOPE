@@ -1,0 +1,47 @@
+# HOPE PingPong runtime configuration -- clean 111-D reference deploy.
+#
+# Read by the clean-room reference runner (a3_deploy_onnx_ref_pingpong). Every
+# relative path resolves against THIS file's directory.
+#
+# Single observation/action path only: 111-D observation, 31-D action, no
+# observation normalization, one control rate. There are no model/experiment
+# codenames, playback, or admission-control settings here.
+
+contract: hope_pingpong
+control_hz: 50.0                 # 50 Hz control loop
+observation_normalization: none  # raw observation (must stay 'none')
+passive_neck: true               # hold head_yaw/head_pitch at their default angle
+
+policy:
+  # Place your exported actor here (obs[1,111] -> raw_action[1,31]).
+  # Override on the command line with --onnx.
+  onnx_path: ../models/hope_pingpong.onnx
+  joint_order: agibot_a3         # informational; the canonical order lives in joint_order.py
+
+action_adapter:
+  # The shared adapter config (also read by the training package).
+  config_path: action_adapter.yaml
+
+simulation:
+  # The a3_pingpong MJCF shipped with this repo (loaded directly by the MuJoCo
+  # bridge; no build step needed). Point --model-xml elsewhere to use your own.
+  model_xml_path: ../../A3_MuJoCo_Sim/aimrt_mujoco_sim/src/models/bin/cfg/model/a3_pingpong/a3_pingpong.xml
+  # EXAMPLE simulation PD gains used by the MuJoCo bridge to realize joint-position
+  # targets on the model's torque actuators. These are NOT vendor deploy gains --
+  # they only exist so the reference runs against the sim; tune for your robot.
+  pd_gains:
+    groups:
+      waist: {kp: 200.0, kd: 5.0}
+      neck:  {kp: 20.0,  kd: 1.0}
+      arm:   {kp: 40.0,  kd: 2.0}
+      leg:   {kp: 200.0, kd: 5.0}
+
+lifecycle:
+  # Example continuous-rally timing (ready -> swing -> follow-through -> recovery).
+  follow_through_s: 0.6
+  recovery_s: 0.8
+  ready_time_to_strike: 1.0
+  # Base-relative ready reach the racket goal holds while idle (example values).
+  ready_reach_x: 0.40
+  ready_reach_y: 0.20
+  ready_reach_z: -0.05

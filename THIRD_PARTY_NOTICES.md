@@ -1,112 +1,93 @@
-# Third-Party Notices
+# Third-party notices
 
-This repository is licensed under Apache-2.0 at the root. Some starter
-materials are adapted from or designed to interoperate with third-party
-software and robot assets. Keep the notices below when redistributing this
-starter.
+HOPE PingPong is licensed under Apache-2.0 (see [LICENSE](LICENSE)). It redistributes the
+third-party materials listed below, each under its own license. This file covers only material
+that is actually included in this repository.
 
-## Agibot A3 Reference Materials
+---
 
-Path:
+## whole_body_tracking training framework (BeyondMimic)
 
-```text
-agibot/
-```
+- Location: `hope_training/whole_body_tracking/`
+- License: MIT
+- Copyright: Copyright (c) 2024, The Isaac Lab Project Developers
+- Origin: Derived from BeyondMimic (`HybridRobotics/whole_body_tracking`), an Isaac Lab
+  motion-tracking reinforcement-learning extension.
 
-This directory contains Agibot-provided A3 reference materials, including URDF
-packages, the MuJoCo/AimRT simulation reference, and the A3 deployment example.
-These files retain their in-tree copyright notices and license declarations;
-the repository root Apache-2.0 license does not remove or replace those
-notices.
+The HOPE PingPong training package is a fork/derivative of the BeyondMimic
+`whole_body_tracking` project, adapted to the table-tennis task. The upstream MIT license text
+is retained in `hope_training/whole_body_tracking/LICENCE`. The SMPL-X → robot retargeting and
+video → SMPL-X extraction stages referenced in the docs use GMR (`YanjieZe/GMR`, MIT) and GVHMR
+respectively; those tools are not redistributed here.
 
-The Isaac Lab quickstart uses:
+---
 
-```text
-agibot/URDF/A3T2.5-URDF-std-pingpang/
-```
+## vrpn_mocap
 
-That package metadata declares license `BSD` in `package.xml`.
+- Location: `hope_ws/src/vrpn_mocap/`
+- License: MIT
+- Copyright: Copyright (c) 2022 Alvin Sun
+- Origin: VRPN motion-capture client for ROS 2 (ChingMu VRPN ROS 2 plugin).
 
-## Isaac Lab / BeyondMimic Starter
+The MIT license text is retained in `hope_ws/src/vrpn_mocap/LICENSE`. This package is vendored
+so the planner can be brought up against a VRPN motion-capture server; it is otherwise
+unmodified except for documentation links.
 
-Path:
+---
 
-```text
-hope_training/whole_body_tracking/
-```
+## AimRT MuJoCo simulation
 
-This starter package is adapted from Isaac Lab-style whole-body tracking code
-and carries the MIT notice in `hope_training/whole_body_tracking/LICENCE`.
-The file spelling follows the upstream package. HOPE-specific A3, table-tennis,
-quickstart, and smoke-test changes are part of this public starter branch.
+- Location: `a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/`
+- License: Mulan Permissive Software License, Version 2 (Mulan PSL v2)
+- Origin: AgiBot AimRT-based MuJoCo simulation.
 
-Related upstreams:
+The Mulan PSL v2 license text is retained in
+`a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/LICENSE`. As published, this package bundles:
 
-- `HybridRobotics/whole_body_tracking`
-- NVIDIA Isaac Lab
+- **`joint_msgs`** (AgiBot ROS/AimRT message definitions), distributed under the same Mulan
+  PSL v2 license as part of the simulation package.
+- The **`a3_pingpong` MuJoCo model and meshes**, which are AgiBot A3 robot CAD geometry
+  distributed as part of this Mulan-licensed simulation package. This is the runnable robot
+  model shipped with the repository. The equivalent standalone URDF/meshes are **not**
+  redistributed here (see `a3_deploy/URDF/README.md`).
 
-## ROS / Mocap Workspace
+---
 
-Path:
+## Table + net USD asset
 
-```text
-hope_ws/
-```
+- Location: `hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/table_tennis/table_usd/`
+- License: MIT
+- Copyright: Copyright (c) 2026 purdue-tracelab
+- Origin: A table-tennis table + net USD mesh used to build the training scene.
 
-The HOPE ROS workspace skeleton is provided for optional mocap/planner
-integration. It depends on ROS 2 packages and can use `vrpn_mocap`, but the
-upstream `vrpn_mocap` package is not vendored in this starter. Teams that need
-live VRPN should install or clone it separately in their ROS 2 workspace and
-follow that package's own license.
+The MIT license text is retained alongside the asset in
+`table_usd/LICENSE-PACE-ICRA2026-MIT.txt`.
 
-## Agibot A3 Deployment Example
+---
 
-Path:
+## Agibot A3 materials (`agibot/`)
 
-```text
-agibot/code_deployment/
-```
+- Location: `agibot/`
+- Origin: Agibot A3 robot deployment example, URDF/meshes, AimRT MuJoCo simulation, and
+  open-source hardware add-ons.
 
-This directory contains the Agibot-provided A3 deployment example for HOPE,
-including source code, configs, runtime examples, and the third-party material
-that Agibot provided with the example. The `thirdparty/joint_msgs/` ROS message
-package declares `Mulan PSL v2` in its `package.xml`.
+The `agibot/` tree contains Agibot A3 robot materials, each component under its own terms:
 
-The deployment example also includes or references small third-party helper
-components:
+- `agibot/A3_MuJoCo_Sim/aimrt_mujoco_sim/` — the AimRT MuJoCo simulation, under the **Mulan
+  Permissive Software License, Version 2 (Mulan PSL v2)**, retained in its `LICENSE`.
+- `agibot/code_deployment/` — the A3 deploy example. It bundles third-party runtime SDKs (for
+  example Unitree SDK2, ONNX Runtime, RKNN runtime, RapidJSON), each governed by its own license
+  retained in-tree alongside the respective component. The Agibot-authored deploy sources carry
+  `Agibot Inc.` copyright headers and are included under Agibot's terms.
+- `agibot/pku/` — open-source hardware (hip marker shell, wrist racket adapter); see its README.
+- `agibot/URDF/` — Agibot A3 URDF and meshes, carrying Agibot's copyright.
 
-- `src/TRTInference/picosha2.h`: MIT license notice in file.
-- `src/a3/a3_deploy_onnx_ref/include/xml.h`: MIT license notice in file.
-- `src/a3/a3_deploy_onnx_ref/include/cnpy.h` and `src/.../src/cnpy.cpp`: MIT
-  license notice in file.
-- `cmake/FindTensorRT.cmake`: MIT-style permission notice in file.
+---
 
-Some build paths can fetch optional dependencies such as AimRT, fmt, GoogleTest,
-or MuJoCo. Review those upstream build files before enabling them in CI.
+## Runtime dependencies (not redistributed)
 
-## Agibot MuJoCo / AimRT Reference
-
-Path:
-
-```text
-agibot/A3_MuJoCo_Sim/aimrt_mujoco_sim/
-```
-
-This Agibot-provided reference project includes its own `LICENSE`, which is
-Mulan Permissive Software License, Version 2. It also contains nested CI and
-build files from the upstream-style project. The upstream workflow files are
-preserved as reference material under:
-
-```text
-agibot/A3_MuJoCo_Sim/aimrt_mujoco_sim/github_workflows_reference/
-```
-
-They are intentionally not placed under a `.github/workflows/` path in this
-repository. Public network-fetched CMake dependencies in the Agibot reference
-paths are pinned with `URL_HASH` where they are fetched by this tree.
-
-The Agibot bundle keeps separate URDF and MuJoCo mesh layouts. Some visual
-meshes are therefore duplicated across those package layouts so each upstream
-path can still be used in its native form. Do not replace them with symlinks
-unless the MuJoCo XML and Isaac/URDF loading paths are verified on the target
-platforms.
+The training, planner, evaluation, and reference-runner code depend on third-party Python and
+ROS 2 packages (for example NumPy, PyYAML, PyTorch, Isaac Lab, ONNX Runtime, MuJoCo, rclpy).
+These are installed from their own distribution channels and are **not** redistributed in this
+repository; each remains under its own license. See the per-component `requirements*.txt` and
+`package.xml` files.

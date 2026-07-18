@@ -1,14 +1,16 @@
 """Single source of truth for the Agibot A3 PPO runner cfg, built from ``cfg/algo/ppo.yaml``.
 
-The PPO hyperparameters live in ``cfg/algo/ppo.yaml`` at the training-repo root. Two places build the rsl_rl runner cfg from it via
-:func:`runner_kwargs`, so they never drift:
+The PPO hyperparameters live in ``cfg/algo/ppo.yaml`` at the training-repo root (the file the user
+tunes). Two places build the rsl_rl runner cfg from it via :func:`runner_kwargs`, so they never drift:
 
 * the Hydra entry ``scripts/train.py`` (passes the Hydra-merged ``cfg.algo`` dict), and
-* the gym-registry class ``config/.../agents/ppo.py`` (used by the legacy ``scripts/rsl_rl/train.py``;
-  loads the YAML via :func:`load_ppo_params`).
+* the gym task's runner-cfg class ``tasks/tracking/config/agibot_a3/agents/ppo.py`` (builds the runner
+  cfg exposed as the task's ``rsl_rl_cfg_entry_point``; loads the YAML via :func:`load_ppo_params`).
 
-Set ``WBT_AGIBOT_A3_PPO_CFG=/abs/path.yaml`` to point at a different file.
+Set ``WBT_PPO_CFG=/abs/path.yaml`` to point at a different file.
 """
+
+from __future__ import annotations
 
 import os
 
@@ -19,7 +21,7 @@ from isaaclab_rl.rsl_rl import RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
 
 def find_ppo_yaml() -> str | None:
     """Locate cfg/algo/ppo.yaml: env-var override, else walk up from this file to the repo root."""
-    env = os.environ.get("WBT_AGIBOT_A3_PPO_CFG")
+    env = os.environ.get("WBT_PPO_CFG")
     if env:
         return env
     d = os.path.dirname(os.path.abspath(__file__))
@@ -39,8 +41,8 @@ def load_ppo_params(path: str | None = None) -> dict:
     path = path or find_ppo_yaml()
     if path is None or not os.path.isfile(path):
         raise FileNotFoundError(
-            "Could not locate cfg/algo/ppo.yaml (training-repo root). "
-            "Set WBT_AGIBOT_A3_PPO_CFG to its absolute path."
+            "Could not locate cfg/algo/ppo.yaml (training-repo root). Set WBT_PPO_CFG to its "
+            "absolute path."
         )
     with open(path) as f:
         return yaml.safe_load(f)

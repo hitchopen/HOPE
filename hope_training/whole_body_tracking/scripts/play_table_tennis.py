@@ -16,12 +16,11 @@ Run inside your Isaac Lab GPU environment after ``source setup_train_env.sh`` (w
     # pin the robot upright (stable view of the ball physics while no balance policy exists)
     hope_isaac_py scripts/play_table_tennis.py --fix_base
 
-    # compare flight with/without aerodynamic drag, or enable Magnus (spin) lift
-    hope_isaac_py scripts/play_table_tennis.py --disable_aero
-    hope_isaac_py scripts/play_table_tennis.py --magnus 0.1
+    # compare flight with/without aerodynamic drag
+    isaac_py scripts/play_table_tennis.py --disable_aero
 
-This uses the standard Isaac Lab ``AppLauncher`` standalone pattern (no Hydra/wandb), so it runs without
-a trained checkpoint.
+This uses the standard Isaac Lab ``AppLauncher`` standalone pattern (no Hydra), so it runs without
+a trained checkpoint. The shipped ball model is no-spin, so there is no Magnus option.
 """
 
 from __future__ import annotations
@@ -34,9 +33,6 @@ parser = argparse.ArgumentParser(description="Visualize the HOPE table-tennis sc
 parser.add_argument("--num_envs", type=int, default=1, help="Number of parallel courts to spawn.")
 parser.add_argument("--fix_base", action="store_true", help="Pin the robot pelvis (stable visualization).")
 parser.add_argument("--disable_aero", action="store_true", help="Disable ball aerodynamic drag.")
-parser.add_argument(
-    "--magnus", type=float, default=None, help="Magnus (spin lift) coefficient; also adds serve spin."
-)
 parser.add_argument("--steps", type=int, default=0, help="Stop after N control steps (0 = run until window closed).")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -65,10 +61,6 @@ def main() -> None:
         env_cfg.scene.robot.spawn.fix_base = True
     if args_cli.disable_aero:
         env_cfg.ball_aerodynamics.enabled = False
-    if args_cli.magnus is not None:
-        env_cfg.ball_aerodynamics.magnus_coefficient = float(args_cli.magnus)
-        # Give the served ball some spin so the Magnus term is actually exercised.
-        env_cfg.events.serve_ball.params["serve_cfg"].spin_range = (-150.0, 150.0)
 
     env = gym.make(task_id, cfg=env_cfg)
     print(f"[play_table_tennis] launched '{task_id}' with {env.unwrapped.num_envs} env(s).")

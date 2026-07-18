@@ -1,25 +1,19 @@
-"""Ping-pong ball aerodynamics model.
+"""Ping-pong ball aerodynamics — no-spin quadratic drag.
 
 PhysX already integrates gravity and resolves rigid-body contacts (table / net / floor / racket) with
 restitution + friction. What PhysX does **not** model is aerodynamics: a 40 mm ball is light enough that
-air drag noticeably bends its flight. This module supplies that missing force so the simulated flight
-matches the model the HOPE planner was calibrated against.
+air drag noticeably bends its flight. This module supplies that missing force.
 
-Drag model (matches ``hope_planner.constants.BallPhysics`` / the planner's flight integrator):
+The model is **no-spin**: the only aerodynamic force is quadratic drag opposing the velocity,
 
-    a_drag = -k * |v| * v          (k = 0.5 s/m, fit from recorded trajectories)
+    a_drag = -k * |v| * v          (k in 1/m, from configs/ball_physics.yaml)
     F_drag = m * a_drag = -m * k * |v| * v
 
-The planner **neglects spin**, so the Magnus (lift) term is **off by default**. It is provided as an
-opt-in extension for higher-fidelity flight:
-
-    a_magnus = k_magnus * (omega x v)
-    F_magnus = m * k_magnus * (omega x v)
-
-Everything here is expressed in the **world frame** and is pure ``torch`` (no Isaac imports) so it can be
-unit-tested without a simulator. The environment is responsible for reading the ball state, calling
-:func:`compute_aero_wrench`, rotating the wrench into the body frame if its physics API expects
-body-frame forces, and writing it to the sim each physics substep.
+There is no spin, angular velocity, or Magnus/lift term anywhere in this model. Everything is expressed
+in the **world frame** and is pure ``torch`` (no Isaac imports) so it can be unit-tested without a
+simulator. The environment reads the ball velocity, calls :func:`compute_drag_force`, rotates the force
+into the body frame if its physics API expects body-frame forces, and writes it to the sim each physics
+substep.
 """
 
 from __future__ import annotations
@@ -28,44 +22,48 @@ from dataclasses import dataclass
 
 import torch
 
+from .physics_config import load_ball_physics
+
 
 @dataclass
 class BallAerodynamicsCfg:
-    """Configuration for the per-substep ball aerodynamic force field."""
+    """Configuration for the per-substep no-spin drag force field."""
 
     enabled: bool = True
     """Master switch. If False, the ball flies on PhysX gravity + contacts alone (still a valid scene)."""
 
-    drag_coefficient: float = 0.5
-    """Quadratic drag coefficient ``k`` (s/m). a_drag = -k|v|v. HOPE-calibrated default is 0.5."""
-
-    magnus_coefficient: float = 0.0
-    """Magnus/lift coefficient ``k_magnus``. a_magnus = k_magnus (omega x v). 0 disables spin lift
-    (the planner neglects spin; enable only for higher-fidelity flight studies)."""
+    drag_coefficient: float = 0.1261
+    """Quadratic drag coefficient ``k`` (1/m). a_drag = -k|v|v. Overridden by ``configs/ball_physics.yaml``
+    (``drag.k``) via :meth:`from_physics_config`."""
 
     linear_velocity_clip: float = 50.0
     """Safety clip on |v| (m/s) used when computing drag, so a numerical blowup can't inject huge forces."""
 
+    @classmethod
+    def from_physics_config(cls, enabled: bool = True) -> "BallAerodynamicsCfg":
+        """Build a config with the drag coefficient / clip read from ``configs/ball_physics.yaml``."""
+        drag = load_ball_physics()["drag"]
+        return cls(
+            enabled=enabled,
+            drag_coefficient=float(drag["k"]),
+            linear_velocity_clip=float(drag["velocity_clip"]),
+        )
 
-def compute_aero_wrench(
+
+def compute_drag_force(
     lin_vel_w: torch.Tensor,
-    ang_vel_w: torch.Tensor,
     mass: float,
     cfg: BallAerodynamicsCfg,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Aerodynamic force (and zero torque) on the ball, in the **world frame**.
+) -> torch.Tensor:
+    """Aerodynamic drag force on the ball, in the **world frame**. Shape ``(N, 3)``.
 
     Args:
         lin_vel_w: ``(N, 3)`` ball linear velocity in the world frame (m/s).
-        ang_vel_w: ``(N, 3)`` ball angular velocity in the world frame (rad/s).
         mass: ball mass (kg).
         cfg: aerodynamics configuration.
 
     Returns:
-        ``(force_w, torque_w)``, each ``(N, 3)`` in the world frame. Torque is always zero: this model
-        adds no aerodynamic spin-decay term, so any served spin is non-decaying during flight (the ball
-        rigid body uses ``angular_damping = 0``). The torque slot exists only for a uniform wrench
-        interface.
+        ``(N, 3)`` world-frame drag force (N), opposing the velocity. No spin / Magnus term exists.
     """
     speed_raw = torch.linalg.norm(lin_vel_w, dim=-1, keepdim=True)
     speed = torch.clamp(speed_raw, max=cfg.linear_velocity_clip)
@@ -74,11 +72,4 @@ def compute_aero_wrench(
     vel_clipped = lin_vel_w * (speed / torch.clamp(speed_raw, min=1e-8))
 
     # Quadratic drag, opposing velocity.
-    force = -mass * cfg.drag_coefficient * speed * vel_clipped
-
-    # Optional Magnus lift from spin (uses the true, unclipped velocity).
-    if cfg.magnus_coefficient != 0.0:
-        force = force + mass * cfg.magnus_coefficient * torch.cross(ang_vel_w, lin_vel_w, dim=-1)
-
-    torque = torch.zeros_like(force)
-    return force, torque
+    return -mass * cfg.drag_coefficient * speed * vel_clipped

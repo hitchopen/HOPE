@@ -18,9 +18,9 @@ def ball_out_of_bounds(
     bounds: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("ball"),
 ) -> torch.Tensor:
-    """True when the ball leaves the axis-aligned play volume (``bounds`` in the HOPE frame). Shape ``(N,)``."""
+    """True when the ball leaves the axis-aligned play volume (``bounds`` in the world frame). Shape ``(N,)``."""
     ball: RigidObject = env.scene[asset_cfg.name]
-    p = ball.data.root_pos_w - env.scene.env_origins  # HOPE-frame position
+    p = ball.data.root_pos_w - env.scene.env_origins  # world-frame position
     x, y, z = p[:, 0], p[:, 1], p[:, 2]
     bx, by, bz = bounds["x"], bounds["y"], bounds["z"]
     return (
@@ -33,7 +33,7 @@ def robot_base_too_low(
     minimum_height: float,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """True when the robot base (pelvis) drops below ``minimum_height`` in the HOPE frame. Shape ``(N,)``."""
+    """True when the robot base (pelvis) drops below ``minimum_height`` in the world frame. Shape ``(N,)``."""
     robot: Articulation = env.scene[asset_cfg.name]
-    z_hope = robot.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
-    return z_hope < minimum_height
+    z_world = robot.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
+    return z_world < minimum_height

@@ -1,38 +1,48 @@
 # Roadmap
 
-## v1 Public Starter
+Scope and direction for HOPE PingPong. For what the focused rewrite removed and
+why, see [`docs/reference/REMOVED_FROM_STARTER.md`](docs/reference/REMOVED_FROM_STARTER.md).
 
-- Keep the existing HOPE reference documents and rules.
-- Add A3 ping-pong URDF/meshes and the Isaac Lab starter task.
-- Provide one-command asset preparation for Isaac Lab.
-- Provide a local smoke motion generator.
-- Run `TrackingFlat` PPO smoke training with TensorBoard and no WandB
-  requirement.
-- Include Agibot-provided A3 reference materials under `agibot/`, including URDF
-  variants, the MuJoCo/AimRT simulation reference, and the A3 deployment
-  example.
+## Shipped
 
-## Optional: ROS and Mocap
+- One unified forehand/backhand policy for the Agibot A3 (31 actuated DOF),
+  with automatic per-ball side selection and continuous multi-rally play.
+- A fixed station and base heading; legs used only for in-place balance and
+  recovery.
+- A single no-spin ball model fitted from real data
+  ([`configs/ball_physics.yaml`](configs/ball_physics.yaml)), shared by
+  training, planner, and eval.
+- Isaac Lab + PPO training, actor-only ONNX export, and one public metric,
+  `success_rate`.
+- Two deploy paths: the clean-room reference runner in
+  [`a3_deploy/`](a3_deploy) and Agibot's own example under
+  [`agibot/code_deployment/`](agibot/code_deployment).
+- A ROS 2 workspace ([`hope_ws/`](hope_ws)) with the planner, `RacketCommand`,
+  and the vendored `vrpn_mocap` driver, wired end to end into the reference
+  runner via `--planner`.
 
-- Keep the ROS 2 Jazzy workspace skeleton under `hope_ws/`.
-- Keep motion-capture reference docs under `mocap/`.
-- Do not vendor the upstream `vrpn_mocap` package in v1. Teams that need live
-  VRPN should install or clone it separately into their ROS 2 workspace.
-- Treat real arena calibration, OptiTrack deployment, and live planner wiring as
-  integration work for each team.
+## Out of scope, by design
 
-## Optional: MuJoCo
+Station movement, footstep planning, locomotion, ball spin, motion
+retiming/TOPP, opponent adaptation, and shot strategy. Also excluded: internal
+shadow/gate/debug/replay machinery, failure checks, and checkpoint promotion.
+The shipped motions, rewards, action adapter, side selector, and physics
+constants are documented examples meant to be replaced — see
+[`docs/EXTENDING_HOPE_PINGPONG.md`](docs/EXTENDING_HOPE_PINGPONG.md).
 
-- Keep the Agibot-provided MuJoCo/AimRT reference project under
-  `agibot/A3_MuJoCo_Sim/`.
-- Treat it as an optional reference path; the validated v1 onboarding flow is
-  Isaac Lab setup and smoke training.
-- Do not claim a public MuJoCo RL backend in v1.
+## Next
 
-## Future Work
-
-- Retargeted public forehand/backhand motion examples.
-- Better reward defaults and validated training recipes.
-- Full real-robot deployment gate docs with reproduced dry-run, joint-order,
-  command-scale, low-gain, emergency-stop, and safe-halt verification.
-- CI for non-Isaac checks and optional GPU smoke jobs.
+- **A motion converter.** [`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md)
+  asks teams to bring their own retargeted clips, but no retargeted-CSV → `.npz`
+  tool ships today. This is the clearest gap; revival steps are recorded in
+  [`docs/reference/REMOVED_FROM_STARTER.md`](docs/reference/REMOVED_FROM_STARTER.md).
+- **Performance-tuned reference motions.** The two clips under
+  `hope_training/motions/preprocessed/` are physically-neutral placeholders.
+- **Validated reward defaults and training recipes**, so `success_rate` is
+  reproducible from a clean clone.
+- **Ball and table physics in the MuJoCo scene.** The bundled MJCF is
+  robot-only, so the sim path validates policy execution and joint control but
+  not rally outcomes; `success_rate` is measured in Isaac.
+- **A real-robot deployment checklist** with reproduced dry-run, joint-order,
+  command-scale, low-gain, e-stop, and safe-halt verification.
+- **CI** for the non-Isaac checks, and optional GPU smoke jobs.

@@ -1,0 +1,244 @@
+# Copyright (c) 2026, AgiBot Inc.
+# All rights reserved.
+
+aimrt:
+  plugin:
+    plugins:
+      - name: iceoryx_plugin
+        path: ./libaimrt_iceoryx_plugin.so
+        options:
+          shm_init_size: 2048
+      - name: ros2_plugin
+        path: ./libaimrt_ros2_plugin.so
+        options:
+          node_name: a3_pingpong_mujoco_sim
+          executor_type: SingleThreaded
+
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+
+  executor:
+    executors:
+      - name: gui_thread
+        type: simple_thread
+      - name: sim_thread
+        type: asio_thread
+        options:
+          thread_num: 1
+      - name: work_thread_pool
+        type: asio_thread
+        options:
+          thread_num: 4
+
+  channel:
+    backends:
+      - type: iceoryx
+      - type: ros2
+        options:
+          pub_topics_options:
+            - topic_name: "/sim/a3/pelvis_pose"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/sim/a3/pelvis_twist"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/sim/a3/right_racket_pose"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/tf"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 100
+                reliability: reliable
+                durability: volatile
+          sub_topics_options:
+            - topic_name: "/sim/a3/reset"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+
+    pub_topics_options:
+      - topic_name: "/body_drive/(.*)"
+        enable_backends: [iceoryx]
+      - topic_name: "/sim/a3/(.*)"
+        enable_backends: [ros2]
+      - topic_name: "/tf"
+        enable_backends: [ros2]
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]
+
+    sub_topics_options:
+      - topic_name: "/body_drive/(.*)"
+        enable_backends: [iceoryx]
+      - topic_name: "/sim/a3/reset"
+        enable_backends: [ros2]
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]
+
+  module:
+    pkgs:
+      - path: ../lib/libmujoco_sim_pkg.so
+        enable_modules: [MujocoSimModule]
+    modules:
+      - name: MujocoSimModule
+        log_lvl: INFO
+
+MujocoSimModule:
+  simulation_model_path: ./cfg/model/a3_pingpong/a3_pingpong.xml
+  sim_executor: sim_thread
+  gui_executor: gui_thread
+  default_tracking_camera_body: torso_Link
+  default_camera_distance: 3.2
+
+  joint_groups:
+    waist: &waist_joints
+      - {name: waist_yaw_joint, bind_joint: waist_yaw_joint}
+      - {name: waist_roll_joint, bind_joint: waist_roll_joint}
+      - {name: waist_pitch_joint, bind_joint: waist_pitch_joint}
+    neck: &neck_joints
+      - {name: head_yaw_joint, bind_joint: head_yaw_joint}
+      - {name: head_pitch_joint, bind_joint: head_pitch_joint}
+    arm: &arm_joints
+      - {name: left_shoulder_pitch_joint, bind_joint: left_shoulder_pitch_joint}
+      - {name: left_shoulder_roll_joint, bind_joint: left_shoulder_roll_joint}
+      - {name: left_shoulder_yaw_joint, bind_joint: left_shoulder_yaw_joint}
+      - {name: left_elbow_joint, bind_joint: left_elbow_joint}
+      - {name: left_wrist_roll_joint, bind_joint: left_wrist_roll_joint}
+      - {name: left_wrist_pitch_joint, bind_joint: left_wrist_pitch_joint}
+      - {name: left_wrist_yaw_joint, bind_joint: left_wrist_yaw_joint}
+      - {name: right_shoulder_pitch_joint, bind_joint: right_shoulder_pitch_joint}
+      - {name: right_shoulder_roll_joint, bind_joint: right_shoulder_roll_joint}
+      - {name: right_shoulder_yaw_joint, bind_joint: right_shoulder_yaw_joint}
+      - {name: right_elbow_joint, bind_joint: right_elbow_joint}
+      - {name: right_wrist_roll_joint, bind_joint: right_wrist_roll_joint}
+      - {name: right_wrist_pitch_joint, bind_joint: right_wrist_pitch_joint}
+      - {name: right_wrist_yaw_joint, bind_joint: right_wrist_yaw_joint}
+    leg: &leg_joints
+      - {name: left_hip_pitch_joint, bind_joint: left_hip_pitch_joint}
+      - {name: left_hip_roll_joint, bind_joint: left_hip_roll_joint}
+      - {name: left_hip_yaw_joint, bind_joint: left_hip_yaw_joint}
+      - {name: left_knee_joint, bind_joint: left_knee_joint}
+      - {name: left_ankle_pitch_joint, bind_joint: left_ankle_pitch_joint}
+      - {name: left_ankle_roll_joint, bind_joint: left_ankle_roll_joint}
+      - {name: right_hip_pitch_joint, bind_joint: right_hip_pitch_joint}
+      - {name: right_hip_roll_joint, bind_joint: right_hip_roll_joint}
+      - {name: right_hip_yaw_joint, bind_joint: right_hip_yaw_joint}
+      - {name: right_knee_joint, bind_joint: right_knee_joint}
+      - {name: right_ankle_pitch_joint, bind_joint: right_ankle_pitch_joint}
+      - {name: right_ankle_roll_joint, bind_joint: right_ankle_roll_joint}
+
+  subscriber_options:
+    - topic: /body_drive/waist_joint_command
+      type: body_drive_joint_actuator
+      options:
+        joints: *waist_joints
+    - topic: /body_drive/neck_joint_command
+      type: body_drive_joint_actuator
+      options:
+        joints: *neck_joints
+    - topic: /body_drive/arm_joint_command
+      type: body_drive_joint_actuator
+      options:
+        joints: *arm_joints
+    - topic: /body_drive/leg_joint_command
+      type: body_drive_joint_actuator
+      options:
+        joints: *leg_joints
+    - topic: /sim/a3/reset
+      type: sim_reset_ros2
+      options: {}
+
+  publisher_options:
+    - topic: /body_drive/waist_joint_state
+      frequency: 500
+      executor: work_thread_pool
+      type: body_drive_joint_sensor
+      options:
+        joints: *waist_joints
+    - topic: /body_drive/neck_joint_state
+      frequency: 500
+      executor: work_thread_pool
+      type: body_drive_joint_sensor
+      options:
+        joints: *neck_joints
+    - topic: /body_drive/arm_joint_state
+      frequency: 500
+      executor: work_thread_pool
+      type: body_drive_joint_sensor
+      options:
+        joints: *arm_joints
+    - topic: /body_drive/leg_joint_state
+      frequency: 500
+      executor: work_thread_pool
+      type: body_drive_joint_sensor
+      options:
+        joints: *leg_joints
+    - topic: /body_drive/pelvis_imu/data
+      frequency: 500
+      executor: work_thread_pool
+      type: imu_sensor_ros2
+      options:
+        bind_site: imu_in_pelvis
+        bind_framequat: pelvis_imu_quat
+        bind_gyro: pelvis_imu_gyro
+        bind_accelerometer: pelvis_imu_accel
+    - topic: /body_drive/torso_imu/data
+      frequency: 500
+      executor: work_thread_pool
+      type: imu_sensor_ros2
+      options:
+        bind_site: imu_in_torso
+        bind_framequat: torso_imu_quat
+        bind_gyro: torso_imu_gyro
+        bind_accelerometer: torso_imu_accel
+    - topic: /sim/a3/pelvis_pose
+      frequency: 100
+      executor: work_thread_pool
+      type: pose_sensor_ros2
+      options:
+        frame_id: odom
+        bind_framepos: pelvis_framepos
+        bind_framequat: pelvis_framequat
+    - topic: /sim/a3/pelvis_twist
+      frequency: 100
+      executor: work_thread_pool
+      type: twist_sensor_ros2
+      options:
+        frame_id: odom
+        bind_linear_vel: pelvis_framelinvel
+        bind_angular_vel: pelvis_frameangvel
+    - topic: /sim/a3/right_racket_pose
+      frequency: 100
+      executor: work_thread_pool
+      type: pose_sensor_ros2
+      options:
+        frame_id: odom
+        bind_framepos: right_racket_framepos
+        bind_framequat: right_racket_framequat
+    - topic: /tf
+      frequency: 100
+      executor: work_thread_pool
+      type: odometry_ros2
+      options:
+        frame_id: odom
+        child_frame_id: pelvis_link
+        bind_framepos: pelvis_framepos
+        bind_framequat: pelvis_framequat

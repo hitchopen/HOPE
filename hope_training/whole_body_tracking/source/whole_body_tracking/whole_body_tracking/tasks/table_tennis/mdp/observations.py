@@ -1,4 +1,8 @@
-"""Observation terms for the table-tennis environment (ball state in the robot base frame)."""
+"""Observation terms for the table-tennis environment (ball state in the robot base frame).
+
+These ball terms are scene / critic (privileged) signals for training the returner policy; they are not
+part of the deployed actor observation.
+"""
 
 from __future__ import annotations
 

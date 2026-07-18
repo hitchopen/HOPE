@@ -1,78 +1,68 @@
 # =============================================================================
-# HOPE WBC training environment. SOURCE this inside your GPU/Isaac shell before
-# running scripts/train.py / scripts/play.py:
+# HOPE PingPong training environment.
 #
-#   cd /path/to/HOPE/hope_training/whole_body_tracking
+# SOURCE this (do not execute) inside your GPU/Isaac shell before running the
+# training / play / export scripts:
+#
+#   cd hope_training/whole_body_tracking
 #   source setup_train_env.sh
 #
-# It (1) sets the PYTHONPATH that lets Isaac's bundled python see hydra/omegaconf
-# plus isaaclab/isaaclab_rl, (2) defines the `hope_isaac_py` launcher, and
-# (3) exposes optional WandB placeholders for teams that choose to use it.
+# It (1) puts the working-tree package source first on PYTHONPATH (so local edits
+# win over any installed copy) and (2) defines an `isaac_py` launcher that runs
+# your Isaac Sim Python with that PYTHONPATH. There is no external logging or
+# experiment-tracking setup — training writes local checkpoints only.
 #
-# MUST be SOURCED, not executed (`./setup_train_env.sh` would set everything in a
-# subshell that then exits, leaving your shell unchanged). Re-source it in every
-# new terminal. Safe to re-source. Idempotent.
-#
-# ---------------------------------------------------------------------------
-# SITE-SPECIFIC PATHS — EDIT THESE FOR YOUR MACHINE.
-# This is a public branch, so the values below are PLACEHOLDERS, not a working
-# install. Set them to match your own Isaac Sim / Isaac Lab install in ONE of:
-#   1. your shell profile / the GPU environment (export ... before sourcing), or
-#   2. a git-ignored `setup_train_env.local.sh` next to this file (auto-sourced
-#      below) — recommended, keeps machine paths out of git.
-# A from-scratch Isaac Sim / Isaac Lab install is not vendored here; follow the
-# upstream Isaac Lab install guide for your OS and GPU driver. Typical values are:
-#   HOPE_ISAAC_PYTHON   = <isaacsim>/python.sh
-#   HOPE_ISAACLAB_ROOT  = <IsaacLab checkout containing source/isaaclab*>
-#   HOPE_ISAAC_VENV_SITE= site-packages providing hydra/omegaconf (if Isaac's
-#                         python lacks them)
+# Point ISAAC_PYTHON / ISAACLAB_ROOT at your install if the defaults do not match
+# (e.g. export them in setup_train_env.local.sh, which is auto-sourced if present).
+# Safe to re-source; idempotent.
 # =============================================================================
 
-# Absolute path to this script's dir (.../hope_training/whole_body_tracking), so
-# sourcing works from any cwd and any clone location.
+# Directory of this script (.../hope_training/whole_body_tracking), so sourcing works from any cwd.
 _WBT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Optional git-ignored local override (real machine paths + optional WandB identity).
+# Optional machine-specific override (git-ignored).
 if [ -f "${_WBT_DIR}/setup_train_env.local.sh" ]; then
   # shellcheck disable=SC1091
   source "${_WBT_DIR}/setup_train_env.local.sh"
 fi
 
-# --- site-specific defaults (overridden by exports above or the local file) ---
-: "${HOPE_ISAAC_PYTHON:=/opt/isaacsim/python.sh}"      # EDIT: your Isaac Sim python.sh
-: "${HOPE_ISAACLAB_ROOT:=/opt/IsaacLab}"               # EDIT: Isaac Lab checkout (has source/isaaclab*)
-: "${HOPE_ISAAC_VENV_SITE:=}"                          # EDIT (optional): venv site-packages with hydra/omegaconf
-
-# Training PYTHONPATH: this package source comes FIRST so the working tree wins over any stale
-# site-packages install. Then append optional venv deps (hydra/omegaconf) and the four Isaac Lab
-# source dirs. isaaclab_rl is required for training (replay/csv_to_npz did not need it).
-_il="${HOPE_ISAACLAB_ROOT}/source"
-HOPE_WBT_PYTHONPATH="${_WBT_DIR}/source/whole_body_tracking"
-if [ -n "${HOPE_ISAAC_VENV_SITE}" ]; then
-  HOPE_WBT_PYTHONPATH="${HOPE_WBT_PYTHONPATH}:${HOPE_ISAAC_VENV_SITE}"
+# Isaac Sim python launcher: honor a valid preset, else fall back to a common default.
+if [ -n "${ISAAC_PYTHON:-}" ] && [ ! -x "${ISAAC_PYTHON}" ]; then
+  echo "[hope] ISAAC_PYTHON='${ISAAC_PYTHON}' is not executable here -> re-probing."
+  unset ISAAC_PYTHON
 fi
-HOPE_WBT_PYTHONPATH="${HOPE_WBT_PYTHONPATH}:${_il}/isaaclab:${_il}/isaaclab_tasks:${_il}/isaaclab_assets:${_il}/isaaclab_rl"
-export HOPE_WBT_PYTHONPATH
-export HOPE_ISAAC_PYTHON
+if [ -z "${ISAAC_PYTHON:-}" ]; then
+  if [ -x "${HOME}/isaacsim/python.sh" ]; then
+    ISAAC_PYTHON="${HOME}/isaacsim/python.sh"
+  elif command -v python >/dev/null 2>&1; then
+    ISAAC_PYTHON="$(command -v python)"
+  else
+    ISAAC_PYTHON="/opt/isaacsim/python.sh"
+  fi
+fi
+export ISAAC_PYTHON
 
-# Launch Isaac's python with the training PYTHONPATH. The `${VAR:-<default>}` form
-# guards against an empty PYTHONPATH (the `ModuleNotFoundError: No module named
-# 'hydra'` cause) if only the function got redefined in a fresh shell.
-hope_isaac_py () {
-  PYTHONPATH="${HOPE_WBT_PYTHONPATH}" "${HOPE_ISAAC_PYTHON:-/opt/isaacsim/python.sh}" "$@"
+# Isaac Lab source root (used only to extend PYTHONPATH when Isaac Lab is a source checkout rather
+# than an installed package). Leave ISAACLAB_ROOT unset if Isaac Lab is pip-installed.
+_extra_paths=""
+if [ -n "${ISAACLAB_ROOT:-}" ] && [ -d "${ISAACLAB_ROOT}/source" ]; then
+  _il="${ISAACLAB_ROOT}/source"
+  _extra_paths=":${_il}/isaaclab:${_il}/isaaclab_tasks:${_il}/isaaclab_assets:${_il}/isaaclab_rl"
+fi
+
+# Working-tree package source FIRST so local edits win over any installed copy.
+export HOPE_PYTHONPATH="${_WBT_DIR}/source/whole_body_tracking${_extra_paths}"
+
+# Run Isaac's python with the training PYTHONPATH.
+isaac_py () {
+  PYTHONPATH="${HOPE_PYTHONPATH}${PYTHONPATH:+:$PYTHONPATH}" "${ISAAC_PYTHON}" "$@"
 }
 
-# WandB is optional. The public quickstart uses logger=tensorboard and motion_file=...
-# without these values. Set them only if you use WandB logging or a motion registry.
-export WANDB_ENTITY="${WANDB_ENTITY:-your-wandb-team}"          # team (run logging)
-export WANDB_REGISTRY_ORG="${WANDB_REGISTRY_ORG:-your-wandb-org}"  # org  (motion registry)
-export WANDB_PROJECT="${WANDB_PROJECT:-hope_wbc}"
-
-unset _WBT_DIR _il
+unset _WBT_DIR _il _extra_paths
 
 echo "[hope] training env ready."
-echo "[hope]   hope_isaac_py -> ${HOPE_ISAAC_PYTHON} (+ hydra/omegaconf + isaaclab_rl)"
-echo "[hope]   WANDB_ENTITY=$WANDB_ENTITY  WANDB_REGISTRY_ORG=$WANDB_REGISTRY_ORG  WANDB_PROJECT=$WANDB_PROJECT"
-if [ ! -x "${HOPE_ISAAC_PYTHON}" ]; then
-  echo "[hope]   WARNING: HOPE_ISAAC_PYTHON='${HOPE_ISAAC_PYTHON}' is not executable — edit the site-specific paths (see header)."
+echo "[hope]   isaac_py -> ${ISAAC_PYTHON}"
+echo "[hope]   run:  isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true"
+if [ ! -x "${ISAAC_PYTHON}" ]; then
+  echo "[hope]   WARNING: ISAAC_PYTHON='${ISAAC_PYTHON}' is not executable — set it in setup_train_env.local.sh."
 fi

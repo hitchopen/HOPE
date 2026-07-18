@@ -3,16 +3,18 @@
 <package format="3">
   <name>hope_planner</name>
   <version>0.0.0</version>
-  <description>HOPE model-based ping-pong planner (Stages 1-3): ball state estimation, trajectory prediction, and racket target planning.</description>
+  <description>HOPE PingPong no-spin model-based racket planner: ball state estimation, trajectory prediction, and racket target planning.</description>
   <maintainer email="maintainer@example.com">HOPE Maintainers</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>diagnostic_msgs</depend>
   <depend>hope_msgs</depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- hope_bag_to_csv: rosbag2 /ball/point export feeding hope_training/ball_physics_fit -->
+  <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 

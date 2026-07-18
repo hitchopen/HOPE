@@ -1,4 +1,4 @@
-"""Launch the HOPE model-based planner node with the default config."""
+"""Launch the HOPE PingPong planner node with the default config."""
 
 from pathlib import Path
 

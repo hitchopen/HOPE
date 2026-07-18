@@ -1,34 +1,37 @@
-"""Gym-registry PPO runner cfg classes for the Agibot A3 WBC tasks.
+"""PPO runner configuration for the HOPE PingPong task (rsl_rl).
 
-These back the registry ``rsl_rl_cfg_entry_point`` used by the legacy ``scripts/rsl_rl/train.py``.
-The hyperparameters come from ``cfg/algo/ppo.yaml`` (the same file the Hydra ``scripts/train.py``
-uses) via :mod:`whole_body_tracking.utils.ppo_cfg`, so there is one source of truth. Tune by
-editing ``cfg/algo/ppo.yaml`` (or set ``WBT_AGIBOT_A3_PPO_CFG``).
+Self-contained example hyperparameters. Observation normalization is OFF (raw observations) so the
+exported ONNX and the reference runner consume the raw 111-D observation directly. Tune freely.
 """
 
 from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg
-
-from whole_body_tracking.utils.ppo_cfg import load_ppo_params, runner_kwargs
-
-# NOTE: experiment_name is the logs/rsl_rl/<name>/ directory. It is hardcoded here for the legacy
-# scripts/rsl_rl/train.py path and ALSO set in cfg/task/*.yaml (experiment_name:) for the Hydra
-# scripts/train.py path. Keep the two in sync — "agibot_a3_flat" / "agibot_a3_hope" — or the two
-# entry points will write checkpoints into different directories.
-_KW = runner_kwargs(load_ppo_params(), "agibot_a3_flat")
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
 
 
 @configclass
-class AgibotA3FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = _KW["num_steps_per_env"]
-    max_iterations = _KW["max_iterations"]
-    save_interval = _KW["save_interval"]
-    experiment_name = _KW["experiment_name"]
-    empirical_normalization = _KW["empirical_normalization"]
-    policy = _KW["policy"]
-    algorithm = _KW["algorithm"]
-
-
-@configclass
-class HOPEAgibotA3PPORunnerCfg(AgibotA3FlatPPORunnerCfg):
-    experiment_name = "agibot_a3_hope"
+class HOPEPingPongPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    num_steps_per_env = 24
+    max_iterations = 50000
+    save_interval = 500
+    experiment_name = "hope_pingpong"
+    empirical_normalization = False  # raw observations (observation_normalization: none)
+    policy = RslRlPpoActorCriticCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+    )
+    algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )

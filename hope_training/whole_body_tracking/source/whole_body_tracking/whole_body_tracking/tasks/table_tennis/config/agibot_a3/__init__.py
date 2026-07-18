@@ -3,7 +3,7 @@ import gymnasium as gym
 from . import table_tennis_env_cfg
 
 ##
-# Register the Agibot A3 table-tennis match environment.
+# Register the Agibot A3 table-tennis scene environment.
 ##
 
 gym.register(

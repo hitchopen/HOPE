@@ -1,5 +1,5 @@
-# Shared simulation defaults, composed into tasks via `defaults: [/base/sim_base@_here_]`.
-# Control frequency = 1 / (dt * decimation) = 1 / (0.005 * 4) = 50 Hz (HITTER).
+# Shared simulation defaults, composed into the task via `defaults: [/base/sim_base@_here_]`.
+# Control frequency = 1 / (dt * decimation) = 1 / (0.005 * 4) = 50 Hz.
 sim:
   dt: 0.005        # physics timestep (200 Hz)
   decimation: 4    # policy decimation -> 50 Hz control

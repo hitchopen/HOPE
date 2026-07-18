@@ -1,0 +1,125 @@
+# Canonical shared ActionAdapter configuration (HOPE PingPong, 31-DOF Agibot A3).
+#
+# This is the ONE file that both the training package and the reference deploy
+# runner read, so the raw-action -> joint-target mapping is defined in exactly one
+# place. Training loads it directly (whole_body_tracking.utils.action_adapter_config
+# resolves this path at task-config time and wires default_q / action_scale / clamp
+# into the articulation and action term); there is NO separate training copy.
+# Parity is asserted by hope_training/whole_body_tracking/tests/test_action_adapter_parity.py.
+#
+# Transform (deterministic; not a rejection filter, emits no status):
+#     q_des = default_q + raw_action * action_scale
+#     q_des = clip(q_des, joint_position_clamp.lower, joint_position_clamp.upper)
+#
+# ALL VALUES BELOW ARE NEUTRAL EXAMPLES -- tune them for your robot.
+#   * default_q : a plausible upright A3 stand (slight hip/knee bend, arms down and
+#                 slightly out, waist and head at zero). Not performance-tuned.
+#   * action_scale : a single uniform residual scale. Ship a per-joint list only
+#                    after you have tuned it for your hardware.
+#   * joint_position_clamp : the A3 model's mechanical joint ranges, used as a
+#                    deterministic safety clamp. Vendor hard limits / motor
+#                    protection / e-stop remain the robot backend's responsibility.
+#
+# head_yaw_joint / head_pitch_joint are passive at deploy (held at their default);
+# they still occupy their action columns so every vector here is length 31.
+
+action_scale: 0.25   # uniform example residual scale
+
+default_q:            # rad, example neutral upright stand
+  waist_yaw_joint: 0.0
+  waist_roll_joint: 0.0
+  waist_pitch_joint: 0.0
+  head_yaw_joint: 0.0
+  head_pitch_joint: 0.0
+  left_shoulder_pitch_joint: 0.20
+  left_shoulder_roll_joint: 0.15
+  left_shoulder_yaw_joint: 0.0
+  left_elbow_joint: 0.30
+  left_wrist_roll_joint: 0.0
+  left_wrist_pitch_joint: 0.0
+  left_wrist_yaw_joint: 0.0
+  right_shoulder_pitch_joint: 0.20
+  right_shoulder_roll_joint: -0.15
+  right_shoulder_yaw_joint: 0.0
+  right_elbow_joint: 0.30
+  right_wrist_roll_joint: 0.0
+  right_wrist_pitch_joint: 0.0
+  right_wrist_yaw_joint: 0.0
+  left_hip_pitch_joint: -0.15
+  left_hip_roll_joint: 0.0
+  left_hip_yaw_joint: 0.0
+  left_knee_joint: 0.30
+  left_ankle_pitch_joint: -0.15
+  left_ankle_roll_joint: 0.0
+  right_hip_pitch_joint: -0.15
+  right_hip_roll_joint: 0.0
+  right_hip_yaw_joint: 0.0
+  right_knee_joint: 0.30
+  right_ankle_pitch_joint: -0.15
+  right_ankle_roll_joint: 0.0
+
+joint_position_clamp:  # rad; example limits = the A3 model mechanical joint ranges
+  lower:
+    waist_yaw_joint: -2.61799
+    waist_roll_joint: -0.349066
+    waist_pitch_joint: -0.488692
+    head_yaw_joint: -1.0472
+    head_pitch_joint: -0.436332
+    left_shoulder_pitch_joint: -2.87979
+    left_shoulder_roll_joint: -0.0872665
+    left_shoulder_yaw_joint: -2.79253
+    left_elbow_joint: -0.959931
+    left_wrist_roll_joint: -2.79253
+    left_wrist_pitch_joint: -1.62316
+    left_wrist_yaw_joint: -1.62316
+    right_shoulder_pitch_joint: -2.87979
+    right_shoulder_roll_joint: -2.61799
+    right_shoulder_yaw_joint: -2.79253
+    right_elbow_joint: -0.959931
+    right_wrist_roll_joint: -2.79253
+    right_wrist_pitch_joint: -1.62316
+    right_wrist_yaw_joint: -1.62316
+    left_hip_pitch_joint: -2.51327
+    left_hip_roll_joint: -0.523599
+    left_hip_yaw_joint: -2.72271
+    left_knee_joint: -0.122173
+    left_ankle_pitch_joint: -0.907571
+    left_ankle_roll_joint: -0.349066
+    right_hip_pitch_joint: -2.51327
+    right_hip_roll_joint: -1.6057
+    right_hip_yaw_joint: -2.72271
+    right_knee_joint: -0.122173
+    right_ankle_pitch_joint: -0.907571
+    right_ankle_roll_joint: -0.349066
+  upper:
+    waist_yaw_joint: 2.61799
+    waist_roll_joint: 0.349066
+    waist_pitch_joint: 0.418879
+    head_yaw_joint: 1.0472
+    head_pitch_joint: 0.261799
+    left_shoulder_pitch_joint: 2.87979
+    left_shoulder_roll_joint: 2.61799
+    left_shoulder_yaw_joint: 2.79253
+    left_elbow_joint: 1.74533
+    left_wrist_roll_joint: 2.79253
+    left_wrist_pitch_joint: 1.62316
+    left_wrist_yaw_joint: 1.62316
+    right_shoulder_pitch_joint: 2.87979
+    right_shoulder_roll_joint: 0.0872665
+    right_shoulder_yaw_joint: 2.79253
+    right_elbow_joint: 1.74533
+    right_wrist_roll_joint: 2.79253
+    right_wrist_pitch_joint: 1.62316
+    right_wrist_yaw_joint: 1.62316
+    left_hip_pitch_joint: 2.93215
+    left_hip_roll_joint: 1.6057
+    left_hip_yaw_joint: 2.72271
+    left_knee_joint: 2.49582
+    left_ankle_pitch_joint: 0.523599
+    left_ankle_roll_joint: 0.349066
+    right_hip_pitch_joint: 2.93215
+    right_hip_roll_joint: 0.523599
+    right_hip_yaw_joint: 2.72271
+    right_knee_joint: 2.49582
+    right_ankle_pitch_joint: 0.523599
+    right_ankle_roll_joint: 0.349066

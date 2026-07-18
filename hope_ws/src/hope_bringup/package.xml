@@ -3,7 +3,7 @@
 <package format="3">
   <name>hope_bringup</name>
   <version>0.0.0</version>
-  <description>Bringup assets for the HOPE ROS 2 stack, including the canonical world frame.</description>
+  <description>Bringup launch files and configuration for the HOPE PingPong ROS 2 stack.</description>
   <maintainer email="maintainer@example.com">HOPE Maintainers</maintainer>
   <license>Apache-2.0</license>
 
@@ -15,12 +15,12 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
-  <!-- External optional dependency: install IMRCLab/vrpn_mocap separately when
-       using the live VRPN mocap launch path. It is not vendored in this starter. -->
   <exec_depend>vrpn_mocap</exec_depend>
+  <exec_depend>hope_planner</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

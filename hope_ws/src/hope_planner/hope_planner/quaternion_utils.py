@@ -1,9 +1,7 @@
 """Racket-normal-to-quaternion conversion.
 
 The face normal defines paddle tilt (2 DOF) but not roll about the face axis.
-The constrain_up option aligns the paddle handle (local Y) with world -Z.
-
-See HOPE_7DOF_Racket_Model_based_Planner_Reference_Setup.md, Section 8.
+The ``constrain_up`` option aligns the paddle handle (local Y) with world -Z.
 """
 
 import numpy as np
@@ -50,7 +48,7 @@ def normal_to_quaternion(n_racket: np.ndarray, constrain_up: bool = False) -> np
     if not constrain_up:
         return q
 
-    # Constrain roll: align paddle handle (local Y) with world -Z
+    # Constrain roll: align paddle handle (local Y) with world -Z.
     R = _quat_to_matrix(q)
     current_y = R @ np.array([0.0, 1.0, 0.0])
     down = np.array([0.0, 0.0, -1.0])

@@ -1,70 +1,41 @@
-.DS_Store
+# Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
 *.egg-info/
+*.egg
+.eggs/
 build/
 dist/
-.codex-tmp/
-.vscode/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 
-# ROS 2 workspace outputs.
+# Isaac Lab / training outputs
+logs/
+outputs/
+checkpoints/
+*.pt
+*.pth
+
+# Exported policies (regenerate with scripts/export_onnx.py)
+*.onnx
+!**/tests/**/*.onnx
+
+# ROS 2 workspace build artifacts
 hope_ws/build/
 hope_ws/install/
 hope_ws/log/
-/log/
 
-# Isaac/training outputs.
-hope_training/whole_body_tracking/logs/
-hope_training/whole_body_tracking/outputs/
-hope_training/whole_body_tracking/output/
-hope_training/whole_body_tracking/runs/
-hope_training/whole_body_tracking/videos/
-hope_training/whole_body_tracking/recordings/
-hope_training/whole_body_tracking/wandb/
-hope_training/whole_body_tracking/.neptune/
-hope_training/whole_body_tracking/artifacts/
-hope_training/whole_body_tracking/sample_motions/*.npz
+# Generated / downloaded robot assets (see docs/RUN_ON_AGIBOT.md)
+hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/**/*.usd
+a3_deploy/URDF/A3*/
 
-# Generated local Isaac asset derived from agibot/URDF.
-hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/agibot_a3/
-
-# Local machine paths.
-hope_training/whole_body_tracking/setup_train_env.local.sh
-
-# Local-only assets and external reference repos. These are not pinned public
-# starter dependencies.
-external_repos/
-vendor_assets/
-
-hope_ws/src/vrpn_mocap/
-
-# Model artifacts and generated datasets.
-*.onnx
-*.pt
-*.pth
-*.ckpt
-*.rknn
-*.engine
-*.trt
-*.npz
-*.zarr
-*.pkl
-*.csv
-*.tmp
-*.log
-
-# Source authoring spreadsheets outside agibot/ are not part of the public starter
-# runtime.
-*.xlsx
-
-# Agibot-provided A3 materials under agibot/ are tracked as public reference
-# assets/examples, including their source tooling and small runtime examples.
-!agibot/**/*.csv
-!agibot/**/*.xlsx
-!agibot/**/*.onnx
-!agibot/**/*.rknn
-!agibot/**/*.engine
-!agibot/**/*.trt
-!agibot/**/*.npz
-!agibot/**/*.pkl
+# OS / editor
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/

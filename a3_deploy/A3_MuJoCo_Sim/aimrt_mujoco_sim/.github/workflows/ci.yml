@@ -1,0 +1,54 @@
+name: CI/CD Workflow
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'document/**'
+    branches:
+      - '*'
+      - '**'
+  push:
+    branches:
+      - '*'
+      - '**'
+  release:
+    types: [published]
+
+jobs:
+  check:
+    uses: ./.github/workflows/cppcheck.yml
+    with:
+      platform: ubuntu-22.04
+
+  test:
+    uses: ./.github/workflows/test-workflow.yml
+    with:
+      run_platform: ${{ matrix.platform }}
+      image_name: ${{ matrix.image }}
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            image: ubuntu:jammy
+          - platform: ubuntu-22.04-arm
+            image: ubuntu:jammy
+    needs:
+      - check
+
+  build:
+    uses: ./.github/workflows/build-workflow.yml
+    with:
+      run_platform: ${{ matrix.platform }}
+      image_name: ${{ matrix.image }}
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            image: ubuntu:jammy
+          - platform: ubuntu-22.04-arm
+            image: ubuntu:jammy
+    needs:
+      - test
+
+
+

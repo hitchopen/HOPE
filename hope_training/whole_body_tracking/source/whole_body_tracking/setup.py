@@ -1,27 +1,25 @@
-"""Installation script for the 'whole_body_tracking' python package."""
+"""Installation script for the ``whole_body_tracking`` Isaac Lab extension."""
 
 import os
+
 import toml
+from setuptools import setup
 
-from setuptools import find_packages, setup
-
-# Obtain the extension data from the extension.toml file
+# Read the extension metadata (single source of truth for version / author / description).
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
-# Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-# Minimum dependencies required prior to installation
+# Minimum runtime dependencies (Isaac Lab itself is provided by the base install).
 INSTALL_REQUIRES = [
-    "onnx",
-    "PyYAML",
     "psutil",
+    "onnx",
     "onnxscript",
+    "pyyaml",
 ]
 
-# Installation operation
 setup(
     name="whole_body_tracking",
-    packages=find_packages(),
+    packages=["whole_body_tracking"],
     author=EXTENSION_TOML_DATA["package"]["author"],
     maintainer=EXTENSION_TOML_DATA["package"]["maintainer"],
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -29,13 +27,13 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     install_requires=INSTALL_REQUIRES,
-    license="MIT",
+    license="Apache-2.0",
     include_package_data=True,
     python_requires=">=3.10",
     classifiers=[
+        "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
-        "Isaac Sim :: 2023.1.1",
         "Isaac Sim :: 4.0.0",
     ],
     zip_safe=False,

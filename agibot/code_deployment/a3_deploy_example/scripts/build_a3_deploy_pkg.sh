@@ -13,7 +13,7 @@ Options:
   --runtime-cfg PATH   Source A3 runtime YAML. Defaults to the repo A3 config.
   --smpl-zmq-host HOST Override packaged smpl_zmq.host. By default x86_64 uses
                        localhost, while rockchip and thor use the fixed HDU
-                       address 10.42.10.10 when the source config still has a
+                       address <hdu_ip> when the source config still has a
                        localhost-style host.
   --jobs N             Parallel build jobs. Defaults to nproc.
   --inside-docker      Internal flag used by the arm64 builder containers.
@@ -925,8 +925,8 @@ if isinstance(smpl_zmq_cfg, dict):
     elif arch in ("rockchip", "thor") and is_localhost(smpl_zmq_cfg.get("host")):
         # Arm deploy targets connect to the Pico sender on the HDU via the
         # robot's fixed internal HDU address.
-        set_nested(cfg, ["smpl_zmq", "host"], "10.42.10.10")
-        print(f"packaged smpl_zmq.host default for {arch}: 10.42.10.10")
+        set_nested(cfg, ["smpl_zmq", "host"], "<hdu_ip>")
+        print(f"packaged smpl_zmq.host default for {arch}: <hdu_ip>")
     elif arch == "x86_64" and is_localhost(smpl_zmq_cfg.get("host")):
         set_nested(cfg, ["smpl_zmq", "host"], "localhost")
 

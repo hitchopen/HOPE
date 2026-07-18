@@ -1,6 +1,6 @@
-# Shared environment defaults, composed into tasks via `defaults: [/base/env_base@_here_]`.
+# Shared environment defaults, composed into the task via `defaults: [/base/env_base@_here_]`.
 # Override per-task under the task's own `env:` block (or on the CLI: env.num_envs=2048).
 env:
-  num_envs: 4096          # parallel environments (BeyondMimic uses ~4096)
+  num_envs: 4096          # parallel environments
   env_spacing: 2.5        # spacing between env origins (m)
-  episode_length_s: 10.0  # episode length (HITTER: 10 s, several swings per episode)
+  episode_length_s: 10.0  # episode length (several swings / rallies per episode)

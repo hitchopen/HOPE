@@ -1,0 +1,5 @@
+# Dependencies for the no-spin ball-physics fitting pipeline.
+#   pip install -r requirements-ballfit.txt
+numpy>=1.24
+scipy>=1.10
+matplotlib>=3.7      # only for the optional falsify/ and *_selfcheck plots

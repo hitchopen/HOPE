@@ -1,12 +1,14 @@
 # =============================================================================
-# Main Hydra config for HOPE Agibot A3 WBC training.
+# Main Hydra config for HOPE PingPong Agibot A3 training.
 #
 # Usage:
-#   python scripts/train.py task=HOPEPingPong algo=ppo headless=true \
-#       logger=tensorboard motion_file=sample_motions/agibot_a3_smoke_stand.npz
+#   python scripts/train.py task=HOPEPingPong algo=ppo headless=true
 #
-# Pick the task/algo YAML with `task=...` / `algo=...`; override any field on the
-# CLI (e.g. num_envs=2048 max_iterations=20000 seed=1 task.rewards.racket_position_weight=5).
+# Override any field on the CLI, e.g.:
+#   python scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1
+#
+# There is a single task (HOPEPingPong) and a single algo (ppo). Tune training by editing
+# cfg/task/HOPEPingPong.yaml (env / reward / racket / DR) and cfg/algo/ppo.yaml (PPO).
 # =============================================================================
 
 defaults:
@@ -18,23 +20,30 @@ headless: true
 device: cuda:0
 seed: 0
 
-# Override the task defaults when set (null -> use the task/algo YAML value).
+# When set, these override the task/algo defaults (null -> use the task/algo YAML value).
 num_envs: null
 max_iterations: null
-registry_name: null     # falls back to task.registry_name when null
-motion_file: null        # local .npz path; preferred for public smoke runs
+
+# Reference motion clips. null -> use the two placeholder clips configured in cfg/task/HOPEPingPong.yaml
+# (hope_forehand.npz + hope_backhand.npz). Pass local .npz paths to use your own clips:
+#   motion_file=/abs/hope_forehand.npz motion_file_2=/abs/hope_backhand.npz
+motion_file: null       # clip 0 (forehand)
+motion_file_2: null     # clip 1 (backhand)
+
+# Optional run-name suffix on the local log directory (logs/rsl_rl/<experiment>/<timestamp>_<run_name>).
 run_name: null
 
-# logging
-logger: tensorboard     # tensorboard | wandb | neptune
-log_project_name: hope_wbc
+# Resume: load weights + optimizer from a prior LOCAL checkpoint and CONTINUE training (the iteration
+# counter continues from the checkpoint). null -> fresh initialization. Example:
+#   checkpoint_path=logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
+checkpoint_path: null
 
-# video capture (off by default)
+# Video capture (off by default).
 video: false
 video_length: 200
 video_interval: 2000
 
-# keep the working directory at the launch dir so logs/ lands next to the legacy script's logs
+# Keep the working directory at the launch dir so logs/ lands next to the run.
 hydra:
   job:
     chdir: false

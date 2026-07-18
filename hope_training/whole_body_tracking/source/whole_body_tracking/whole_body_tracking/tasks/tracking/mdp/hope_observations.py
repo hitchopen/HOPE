@@ -1,17 +1,11 @@
-"""HOPE racket-target observation terms.
+"""HOPE PingPong observation terms.
 
-These wrap :class:`RacketTargetCommand`. The actor (policy) group should use only the *desired*
-quantities the planner provides at deploy time (HITTER actor observation, Table I):
+The actor (policy) observation is exactly the ``hope_pingpong`` contract (111 dims). Most
+terms are standard proprioception from ``isaaclab.envs.mdp`` (base_ang_vel, joint_pos_rel,
+joint_vel_rel, projected_gravity); the goal/target terms below wrap :class:`RacketTargetCommand`, and
+``last_action`` reads the action term's deploy-faithful applied action.
 
-* :func:`racket_target_pos_b`  — desired racket position relative to base (3)
-* :func:`racket_target_vel_w`  — desired racket velocity in world frame (3)
-* :func:`time_to_strike`       — time remaining until strike (1)
-* :func:`base_target_pos_b`    — desired base XY position relative to base (2)
-
-The desired racket *normal* and the *actual* racket state are privileged/critic-only or used by
-the reward; they are intentionally NOT in the HITTER actor observation (the racket is never sensed
-on hardware). :func:`swing_type` is provided for a unified forehand+backhand policy variant; the
-HOPE default trains separate policies and does not need it.
+The privileged terms at the bottom (actual racket FK state, desired racket normal) are CRITIC-ONLY.
 """
 
 from __future__ import annotations
@@ -31,35 +25,53 @@ def _cmd(env: ManagerBasedRLEnv, command_name: str) -> RacketTargetCommand:
     return env.command_manager.get_term(command_name)
 
 
-# --- actor (policy) observations: desired targets only ------------------------------------ #
-def racket_target_pos_b(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    return _cmd(env, command_name).racket_target_pos_b()
+# --- actor (policy) terms --------------------------------------------------------- #
+def base_forward_xy(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Base forward unit vector e_base,x, world XY (2)."""
+    return _cmd(env, command_name).base_forward_xy()
+
+
+def fixed_station_error_xy(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Fixed startup station XY minus current base XY, world frame (2). In-place recentring feedback."""
+    return _cmd(env, command_name).fixed_station_error_xy()
+
+
+def racket_target_rel_base(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Target racket position minus base position, world frame (3)."""
+    return _cmd(env, command_name).racket_target_rel_base_w()
 
 
 def racket_target_vel_w(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Desired racket velocity, world frame (3)."""
     return _cmd(env, command_name).racket_target_vel_w
 
 
 def time_to_strike(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Remaining time until the strike, s (1)."""
     return _cmd(env, command_name).time_to_strike.unsqueeze(-1)
 
 
-def base_target_pos_b(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    return _cmd(env, command_name).base_target_pos_b()
-
-
-def swing_type(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Forehand (+1) / backhand (-1). Only needed for a unified (single) policy."""
+def swing_side(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Forehand (+1) / backhand (-1), locked per swing (1)."""
     return _cmd(env, command_name).swing_sign.unsqueeze(-1)
 
 
-# --- privileged (critic) observations: desired normal + actual racket state --------------- #
-def racket_target_normal_w(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    return _cmd(env, command_name).racket_target_normal_w
+def applied_last_action(env: ManagerBasedRLEnv, action_name: str = "joint_pos") -> torch.Tensor:
+    """Previous tick's applied raw action (31), including the zeroed passive-head columns.
+
+    Reads the action term's deploy-faithful ``applied_raw_actions`` rather than Isaac Lab's global
+    ``last_action`` so the passive-head zeroing is reflected in the feedback the actor sees.
+    """
+    action_term = env.action_manager.get_term(action_name)
+    applied = getattr(action_term, "applied_raw_actions", None)
+    if applied is None:
+        raise RuntimeError(f"Action term {action_name!r} does not expose applied_raw_actions")
+    return applied
 
 
+# --- privileged (critic-only) terms --------------------------------------------------------- #
 def racket_pos_b(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Actual racket position relative to base (FK). Privileged — not sensed on hardware."""
+    """Actual racket position relative to the base (FK, yaw-heading frame). Privileged."""
     cmd = _cmd(env, command_name)
     return quat_rotate_inverse(yaw_quat(cmd.base_quat_w), cmd.racket_pos_w - cmd.base_pos_w)
 
@@ -74,7 +86,14 @@ def racket_normal_w(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     return _cmd(env, command_name).racket_normal_w
 
 
+def racket_target_normal_w(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Desired racket face normal, world frame. Privileged (reward target only)."""
+    return _cmd(env, command_name).racket_target_normal_w
+
+
 def episode_time_left(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Time remaining in the episode (seconds). HITTER critic privileged input."""
-    left = (env.max_episode_length - env.episode_length_buf).float() * env.step_dt
-    return left.unsqueeze(-1)
+    """Time remaining in the episode (s). Privileged critic input."""
+    buf = getattr(env, "episode_length_buf", None)
+    if buf is None:
+        return torch.zeros(env.num_envs, 1, device=env.device)
+    return ((env.max_episode_length - buf).float() * env.step_dt).unsqueeze(-1)

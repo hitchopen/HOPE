@@ -1,134 +1,63 @@
-import math
-import os
+"""Minimal rsl_rl PPO runner glue for HOPE PingPong training.
 
-import torch
-from rsl_rl.env import VecEnv
-from rsl_rl.runners.on_policy_runner import OnPolicyRunner
+The base ``rsl_rl.runners.OnPolicyRunner`` already writes periodic (every ``save_interval``) and final
+local checkpoints. This subclass only replaces the logging writer with a local, offline no-op sink so
+training pulls in **no** Weights & Biases / TensorBoard / external logging service, and adds no gate,
+lineage, receipt, or ONNX-export coupling (export is a separate script). Per-iteration console
+progress from rsl_rl is preserved; the only shipped machine-readable metric is ``success_rate`` from
+``scripts/evaluate.py``.
+"""
 
-from isaaclab_rl.rsl_rl import export_policy_as_onnx
+from __future__ import annotations
 
-from whole_body_tracking.utils.exporter import attach_onnx_metadata, export_motion_policy_as_onnx
-
-
-class MyOnPolicyRunner(OnPolicyRunner):
-    def save(self, path: str, infos=None):
-        """Save the model and training information."""
-        super().save(path, infos)
-        if self.logger_type in ["wandb"]:
-            import wandb
-
-            policy_path = path.split("model")[0]
-            filename = policy_path.split("/")[-2] + ".onnx"
-            export_policy_as_onnx(
-                self.alg.policy,
-                normalizer=getattr(self.alg.policy, "actor_obs_normalizer", None),
-                path=policy_path,
-                filename=filename,
-            )
-            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
-            wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
+from rsl_rl.runners import OnPolicyRunner
 
 
-class MotionOnPolicyRunner(OnPolicyRunner):
-    def __init__(
-        self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu", registry_name: str = None
-    ):
-        super().__init__(env, train_cfg, log_dir, device)
-        self.registry_name = registry_name
+class _LocalNullWriter:
+    """A local, offline stand-in for rsl_rl's summary writer.
 
-    def save(self, path: str, infos=None):
-        """Save the model and training information."""
-        super().save(path, infos)
-        if self.logger_type in ["wandb"]:
-            import wandb
+    Implements the small surface rsl_rl calls on ``self.writer`` (``add_scalar``, ``log_config``,
+    ``save_model``, ``save_file``, ``stop``/``flush``) as no-ops, and returns a no-op for anything
+    else, so training never depends on TensorBoard or Weights & Biases. Checkpoints are still written
+    locally by the runner's ``save()``.
+    """
 
-            policy_path = path.split("model")[0]
-            filename = policy_path.split("/")[-2] + ".onnx"
-            # rsl_rl moved obs normalization onto the policy (actor_obs_normalizer); the runner no
-            # longer has self.obs_normalizer. Fall back to None (-> Identity in the exporter) if absent.
-            export_motion_policy_as_onnx(
-                self.env.unwrapped,
-                self.alg.policy,
-                normalizer=getattr(self.alg.policy, "actor_obs_normalizer", None),
-                path=policy_path,
-                filename=filename,
-            )
-            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
-            wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
+    def __init__(self, *args, **kwargs) -> None:
+        pass
 
-            # link the artifact registry to this run
-            if self.registry_name is not None:
-                wandb.run.use_artifact(self.registry_name)
-                self.registry_name = None
+    def add_scalar(self, *args, **kwargs) -> None:
+        pass
 
-    def log(self, locs: dict, width: int = 80, pad: int = 35) -> None:
-        super().log(locs, width=width, pad=pad)
-        if self.disable_logs or self.writer is None:
-            return
-        self._log_live_metrics(locs["it"])
+    def log_config(self, *args, **kwargs) -> None:
+        pass
 
-    def _log_live_metrics(self, step: int) -> None:
-        """Log current manager state means every PPO iteration for richer dashboards."""
-        env = self.env.unwrapped
+    def save_model(self, *args, **kwargs) -> None:
+        pass
 
-        if hasattr(env, "command_manager"):
-            for term_name in env.command_manager.active_terms:
-                term = env.command_manager.get_term(term_name)
-                for metric_name, metric_value in term.metrics.items():
-                    self._log_scalar(f"Live/{term_name}/{metric_name}", self._mean_tensor(metric_value), step)
-                if hasattr(term, "command_counter"):
-                    self._log_scalar(
-                        f"Live/{term_name}/command_counter", self._mean_tensor(term.command_counter), step
-                    )
+    def save_file(self, *args, **kwargs) -> None:
+        pass
 
-        if hasattr(env, "reward_manager"):
-            self._log_scalar("Live/Reward/total", self._mean_tensor(getattr(env, "reward_buf", None)), step)
-            for idx, term_name in enumerate(env.reward_manager.active_terms):
-                self._log_scalar(
-                    f"Live/Reward/{term_name}", self._mean_tensor(env.reward_manager._step_reward[:, idx]), step
-                )
+    def stop(self, *args, **kwargs) -> None:
+        pass
 
-        if hasattr(env, "termination_manager"):
-            tm = env.termination_manager
-            self._log_scalar("Live/Termination/done_rate", self._mean_tensor(tm.dones), step)
-            self._log_scalar("Live/Termination/terminated_rate", self._mean_tensor(tm.terminated), step)
-            self._log_scalar("Live/Termination/timeout_rate", self._mean_tensor(tm.time_outs), step)
-            for term_name in tm.active_terms:
-                self._log_scalar(f"Live/Termination/{term_name}", self._mean_tensor(tm.get_term(term_name)), step)
+    def flush(self, *args, **kwargs) -> None:
+        pass
 
-        if hasattr(env, "action_manager"):
-            action = getattr(env.action_manager, "action", None)
-            prev_action = getattr(env.action_manager, "prev_action", None)
-            if action is not None:
-                action_abs = torch.abs(action)
-                self._log_scalar("Live/Action/mean_abs", self._mean_tensor(action_abs), step)
-                self._log_scalar("Live/Action/max_abs", self._mean_tensor(torch.max(action_abs, dim=-1).values), step)
-            if action is not None and prev_action is not None:
-                action_delta_abs = torch.abs(action - prev_action)
-                self._log_scalar("Live/Action/delta_mean_abs", self._mean_tensor(action_delta_abs), step)
-                self._log_scalar(
-                    "Live/Action/delta_max_abs",
-                    self._mean_tensor(torch.max(action_delta_abs, dim=-1).values),
-                    step,
-                )
+    def close(self, *args, **kwargs) -> None:
+        pass
 
-        self._log_scalar("Live/Env/episode_length", self._mean_tensor(env.episode_length_buf), step)
-        self._log_scalar("Live/Env/common_step_counter", float(getattr(env, "common_step_counter", 0)), step)
-
-    @staticmethod
-    def _mean_tensor(value):
-        if value is None:
-            return None
-        if isinstance(value, torch.Tensor):
-            if value.numel() == 0:
-                return None
-            return value.float().mean().item()
-        try:
-            return float(value)
-        except (TypeError, ValueError):
+    def __getattr__(self, _name):
+        # Any other writer method (across rsl_rl versions) becomes a no-op.
+        def _noop(*args, **kwargs):
             return None
 
-    def _log_scalar(self, tag: str, value, step: int) -> None:
-        if value is None or not math.isfinite(float(value)):
-            return
-        self.writer.add_scalar(tag, float(value), step)
+        return _noop
+
+
+class HOPEOnPolicyRunner(OnPolicyRunner):
+    """rsl_rl OnPolicyRunner with local-only, offline logging (no W&B / TensorBoard)."""
+
+    def _prepare_logging_writer(self) -> None:
+        if self.log_dir is not None and self.writer is None and not self.disable_logs:
+            self.logger_type = "local"
+            self.writer = _LocalNullWriter(log_dir=self.log_dir)

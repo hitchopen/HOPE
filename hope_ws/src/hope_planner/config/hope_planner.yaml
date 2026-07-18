@@ -1,21 +1,48 @@
 hope_planner:
   ros__parameters:
-    ball_rigid_body_name: "pingpong_ball"
-    # ball_pose_index: which slot in the /poses PoseArray is the ball.
-    # HOW TO GET: with the avatar_pro relay this is 0 (pose_array_order starts with
-    # "ball"). Confirm against your live stream: `ros2 topic echo /poses --once`
-    # and count the ball's index. TODO: confirm against your live /poses.
+    # --- Topics / frames ---
+    poses_topic: "/poses"          # mocap ball stream (geometry_msgs/PoseArray)
+    command_topic: "/racket/command"
+    frame_id: "world"
+    # Which slot in the /poses PoseArray is the ball (PoseArray carries no names;
+    # publish the ball first, or set this to its index). Confirm against your
+    # live stream, e.g. `ros2 topic echo /poses --once`.
     ball_pose_index: 0
-    x_hit: 0.0              # virtual hit plane X (m); ~0.0 = HOPE origin end of table
-    target_land_x: 2.055   # opponent half-center X (fixed by table geometry)
-    target_land_y: -0.7625 # opponent half-center Y (fixed by table geometry)
-    delta_t_flight: 0.5    # desired return flight time (s); tune for your robot
-    # TODO(calibrate): drag + restitution. Defaults are reasonable starting points
-    # from the HITTER paper. HOW TO GET: record >=15 ball trajectories with the
-    # mocap, export to CSV (t,x,y,z), then run
-    #   ros2 run hope_planner hope_calibrate traj1.csv ... traj15.csv
-    # and paste the printed values here.
-    drag_k: 0.8781         # Calibrated from salvaged traj01 split into 15 toss chunks.
-    restitution_h: 0.8527  # Calibrated from salvaged traj01 split into 15 toss chunks.
-    restitution_v: 0.8518  # Calibrated from salvaged traj01 split into 15 toss chunks.
-    restitution_racket: 0.88  # TODO: calibrate (ball-racket restitution)
+
+    # --- Strike plane ---
+    # Fixed virtual hitting-plane x (m). Set to your robot placement + reach so
+    # the incoming ball crosses this plane in front of the robot. Example only.
+    x_hit: 0.2
+
+    # --- Forehand / backhand selection ---
+    # The side is chosen once per incoming ball by splitting the predicted
+    # lateral (y) crossing at swing_side_split_y: y below the split -> FOREHAND,
+    # at/above -> BACKHAND. Default splits at the table centreline; tune to your
+    # robot's lateral position and reach.
+    swing_side_split_y: -0.7625
+    # Optional small hysteresis band (m) around the split so a ball arriving near
+    # the boundary does not flip the side between consecutive rallies. 0 disables.
+    swing_side_hysteresis_y: 0.04
+
+    # --- Fixed landing target (opponent half) ---
+    target_land_x: 2.055           # opponent half-centre x (= table length * 3/4)
+    target_land_y: -0.7625         # opponent half-centre y (= -table width / 2)
+    # Desired post-strike flight time (s). Shapes the demanded racket speed; tune
+    # to your policy's reachable racket-velocity envelope.
+    delta_t_flight: 0.5
+
+    # --- Solve / prediction ---
+    # Every mocap sample feeds the estimator; the predict+plan solve runs at most
+    # every solve_period_s (<= 50 Hz). 0.0 solves on every sample.
+    solve_period_s: 0.02
+    max_predict_time: 2.0          # forward prediction horizon (s)
+
+    # --- Table placement ---
+    # Table's +y edge in the play frame (table occupies y in [y_max - width, y_max]).
+    table_y_max: 0.0
+
+    # --- Ball physics ---
+    # No-spin drag / restitution / gravity / geometry are read from
+    # configs/ball_physics.yaml. Leave empty to auto-discover it by walking up
+    # from the package, or set an explicit path.
+    ball_physics_path: ""
