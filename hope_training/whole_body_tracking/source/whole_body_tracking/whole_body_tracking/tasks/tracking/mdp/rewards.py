@@ -1,7 +1,7 @@
 """Motion-imitation reward helpers (exponential tracking kernels).
 
-Shared by the single ``sample_imitation`` reward term (``hope_rewards.py``) and by the fall
-terminations (``terminations.py``), which need the tracked-body index helper.
+These are the dense BeyondMimic-style tracking terms used to keep the humanoid on the reference
+motion while the ping-pong racket rewards shape the strike.
 """
 
 from __future__ import annotations
@@ -22,6 +22,18 @@ def _get_body_indexes(command: MotionCommand, body_names: list[str] | None) -> l
     return [i for i, name in enumerate(command.cfg.body_names) if (body_names is None) or (name in body_names)]
 
 
+def motion_global_anchor_position_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    error = torch.sum(torch.square(command.anchor_pos_w - command.robot_anchor_pos_w), dim=-1)
+    return torch.exp(-error / std**2)
+
+
+def motion_global_anchor_orientation_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    error = quat_error_magnitude(command.anchor_quat_w, command.robot_anchor_quat_w) ** 2
+    return torch.exp(-error / std**2)
+
+
 def motion_relative_body_position_error_exp(
     env: ManagerBasedRLEnv, command_name: str, std: float, body_names: list[str] | None = None
 ) -> torch.Tensor:
@@ -29,6 +41,28 @@ def motion_relative_body_position_error_exp(
     idx = _get_body_indexes(command, body_names)
     error = torch.sum(
         torch.square(command.body_pos_relative_w[:, idx] - command.robot_body_pos_w[:, idx]), dim=-1
+    )
+    return torch.exp(-error.mean(-1) / std**2)
+
+
+def motion_global_body_linear_velocity_error_exp(
+    env: ManagerBasedRLEnv, command_name: str, std: float, body_names: list[str] | None = None
+) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    idx = _get_body_indexes(command, body_names)
+    error = torch.sum(
+        torch.square(command.body_lin_vel_w[:, idx] - command.robot_body_lin_vel_w[:, idx]), dim=-1
+    )
+    return torch.exp(-error.mean(-1) / std**2)
+
+
+def motion_global_body_angular_velocity_error_exp(
+    env: ManagerBasedRLEnv, command_name: str, std: float, body_names: list[str] | None = None
+) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    idx = _get_body_indexes(command, body_names)
+    error = torch.sum(
+        torch.square(command.body_ang_vel_w[:, idx] - command.robot_body_ang_vel_w[:, idx]), dim=-1
     )
     return torch.exp(-error.mean(-1) / std**2)
 

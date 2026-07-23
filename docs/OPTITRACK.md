@@ -182,13 +182,14 @@ For bag replay, record `/optitrack/poses` at a live session
 
 ## Camera rate and the planner's `fit_window`
 
-The planner's velocity fit uses `fit_window` **samples** (default 31 ≈ 103 ms
-at a 300 Hz rig). The window is rate-coupled: keep it at ≥ ~100 ms of samples,
-i.e. `round(31 × rate / 300)`. OptiTrack rigs commonly stream **360 Hz** →
-set `fit_window: 37` in
+The planner's velocity fit uses `fit_window` **samples**, so the effective time
+window is coupled to camera rate. On the 360 Hz Motive captures validated on
+2026-07-23, 67 samples worked better than the older 100 ms heuristic for
+50-500 ms ahead prediction; the shipped runtime config uses `fit_window: 67` in
 [`hope_planner.yaml`](../hope_ws/src/hope_planner/config/hope_planner.yaml)
-(or pass `-p fit_window:=37`). The camera rate is a venue fact — read it from
-Motive, don't infer it from `ros2 topic hz` (receive-side drops read low).
+(or pass `-p fit_window:=67`). Recheck this when the mocap rate, ball, or table
+changes. The camera rate is a venue fact — read it from Motive, don't infer it
+from `ros2 topic hz` (receive-side drops read low).
 
 ## Multi-machine DDS (laptop bridge topology)
 
@@ -221,4 +222,4 @@ whitelist derived from the route to each peer) and sets
 | `/P1/pose` positions in the hundreds | Millimetre feed → `position_scale:=0.001`. |
 | `/poses` pauses while `/P1/pose` keeps updating | By design: the ball left the volume / lost tracking; the relay never re-emits a stale ball (protects the planner's velocity fit). |
 | `optitrack_mct_relay` exits with an import error | The vendored interfaces package isn't built/sourced — build the workspace, or use the VRPN backend. |
-| Planner predictions lag/noisy at 360 Hz | Scale `fit_window` with the camera rate (see above). |
+| Planner predictions lag/noisy at 360 Hz | Check the real trajectory validation; the current Motive data favours `fit_window` around 67 samples (see above). |

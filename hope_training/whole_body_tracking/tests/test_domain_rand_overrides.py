@@ -18,7 +18,9 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
+import tempfile
 import types
+from pathlib import Path
 from types import SimpleNamespace
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -136,10 +138,97 @@ def test_default_task_yaml_knobs_resolve_against_real_event_names():
     env_cfg = SimpleNamespace(events=_events_cfg())
     applied: list = []
     train._apply_domain_rand(env_cfg, dr, applied)
-    # link_mass_range [0.9, 1.1] applies; pd_gain_range null disables.
-    assert env_cfg.events.link_mass.params["mass_distribution_params"] == (0.9, 1.1)
-    assert env_cfg.events.pd_gains is None
+    # Old HOPE defaults apply: link_mass +/-15%, PD gains +/-20%.
+    assert env_cfg.events.link_mass.params["mass_distribution_params"] == (0.85, 1.15)
+    assert env_cfg.events.pd_gains.params["stiffness_distribution_params"] == (0.8, 1.2)
+    assert env_cfg.events.pd_gains.params["damping_distribution_params"] == (0.8, 1.2)
     assert len(applied) == 2
+
+
+def test_motion_manifest_resolves_many_clips_and_metadata():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        clips = []
+        for idx in range(3):
+            clip = root / f"clip_{idx}.npz"
+            clip.write_bytes(b"placeholder")
+            clips.append(clip)
+        manifest = root / "manifest.tsv"
+        manifest.write_text(
+            "output\tframes\tstrike_frame\tstrike_phase\tswing_side\t"
+            "racket_pos_x_lo\tracket_pos_x_hi\tracket_pos_y_lo\tracket_pos_y_hi\t"
+            "racket_pos_z_lo\tracket_pos_z_hi\n"
+            f"{clips[0]}\t40\t10\t0.256410256\t1\t0.40\t0.50\t-0.30\t-0.20\t1.10\t1.20\n"
+            f"{clips[1]}\t50\t20\t0.408163265\t1\t0.45\t0.55\t-0.25\t-0.15\t1.15\t1.25\n"
+            f"{clips[2]}\t60\t30\t0.508474576\t-1\t0.50\t0.60\t0.15\t0.25\t1.20\t1.30\n",
+            encoding="utf-8",
+        )
+        cfg = SimpleNamespace(motion_manifest=str(manifest))
+
+        files, metadata = train._resolve_motion_plan(cfg)
+
+        assert files == [str(path.resolve()) for path in clips]
+        assert [m["swing_side"] for m in metadata] == [1.0, 1.0, -1.0]
+        assert [round(m["strike_phase"], 6) for m in metadata] == [0.25641, 0.408163, 0.508475]
+        assert metadata[0]["racket_pos_range"] == ((0.40, 0.50), (-0.30, -0.20), (1.10, 1.20))
+
+
+def test_motion_metadata_applies_per_clip_timing_and_side_boxes():
+    forehand_box = ((0.45, 0.55), (-0.55, -0.15), (0.70, 1.00))
+    backhand_box = ((0.45, 0.55), (0.15, 0.55), (0.85, 1.15))
+    forehand_vel = ((1.0, 2.0), (0.5, 1.5), (0.2, 1.0))
+    backhand_vel = ((1.5, 2.5), (-1.5, -0.5), (0.0, 0.7))
+    racket = SimpleNamespace(
+        strike_phase_per_clip=(0.5, 0.5),
+        swing_side_per_clip=(),
+        mount_normal_sign_per_clip=(1.0, -1.0),
+        racket_pos_range_per_clip=(forehand_box, backhand_box),
+        racket_vel_range_per_clip=(forehand_vel, backhand_vel),
+    )
+    env_cfg = SimpleNamespace(commands=SimpleNamespace(racket_target=racket))
+    metadata = [
+        {"strike_phase": 0.25, "swing_side": 1.0},
+        {"strike_phase": 0.50, "swing_side": 1.0},
+        {"strike_phase": 0.75, "swing_side": -1.0},
+    ]
+    applied: list = []
+
+    train._apply_motion_metadata(env_cfg, ["a.npz", "b.npz", "c.npz"], metadata, applied)
+
+    assert racket.strike_phase_per_clip == (0.25, 0.50, 0.75)
+    assert racket.swing_side_per_clip == (1.0, 1.0, -1.0)
+    assert racket.mount_normal_sign_per_clip == (1.0, 1.0, -1.0)
+    assert racket.racket_pos_range_per_clip == (forehand_box, forehand_box, backhand_box)
+    assert racket.racket_vel_range_per_clip == (forehand_vel, forehand_vel, backhand_vel)
+    assert any("strike_phase_per_clip" in line for line in applied)
+
+
+def test_motion_metadata_explicit_target_boxes_override_side_defaults():
+    default_forehand_box = ((0.45, 0.55), (-0.55, -0.15), (0.70, 1.00))
+    default_backhand_box = ((0.45, 0.55), (0.15, 0.55), (0.85, 1.15))
+    explicit_a = ((0.50, 0.58), (-0.22, -0.14), (1.25, 1.33))
+    explicit_b = ((0.62, 0.70), (-0.10, -0.02), (1.34, 1.42))
+    explicit_vel_a = ((0.8, 1.1), (2.0, 2.4), (1.4, 1.8))
+    explicit_vel_b = ((0.9, 1.2), (2.1, 2.5), (1.5, 1.9))
+    racket = SimpleNamespace(
+        strike_phase_per_clip=(),
+        swing_side_per_clip=(),
+        mount_normal_sign_per_clip=(),
+        racket_pos_range_per_clip=(default_forehand_box, default_backhand_box),
+        racket_vel_range_per_clip=None,
+    )
+    env_cfg = SimpleNamespace(commands=SimpleNamespace(racket_target=racket))
+    metadata = [
+        {"strike_phase": 0.25, "swing_side": 1.0, "racket_pos_range": explicit_a, "racket_vel_range": explicit_vel_a},
+        {"strike_phase": 0.50, "swing_side": 1.0, "racket_pos_range": explicit_b, "racket_vel_range": explicit_vel_b},
+    ]
+    applied: list = []
+
+    train._apply_motion_metadata(env_cfg, ["a.npz", "b.npz"], metadata, applied)
+
+    assert racket.racket_pos_range_per_clip == (explicit_a, explicit_b)
+    assert racket.racket_vel_range_per_clip == (explicit_vel_a, explicit_vel_b)
+    assert any("racket_pos_range_per_clip = from motion metadata" in line for line in applied)
 
 
 def main() -> int:

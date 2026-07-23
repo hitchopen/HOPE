@@ -25,7 +25,7 @@ action_adapter:
 simulation:
   # The a3_pingpong MJCF shipped with this repo (loaded directly by the MuJoCo
   # bridge; no build step needed). Point --model-xml elsewhere to use your own.
-  model_xml_path: ../../A3_MuJoCo_Sim/aimrt_mujoco_sim/src/models/bin/cfg/model/a3_pingpong/a3_pingpong.xml
+  model_xml_path: ../../../agibot/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/models/bin/cfg/model/a3_pingpong/a3_pingpong.xml
   # EXAMPLE simulation PD gains used by the MuJoCo bridge to realize joint-position
   # targets on the model's torque actuators. These are NOT vendor deploy gains --
   # they only exist so the reference runs against the sim; tune for your robot.
@@ -35,6 +35,38 @@ simulation:
       neck:  {kp: 20.0,  kd: 1.0}
       arm:   {kp: 40.0,  kd: 2.0}
       leg:   {kp: 200.0, kd: 5.0}
+    joints:
+      waist_yaw_joint: {kp: 85.0, kd: 3.0}
+      waist_roll_joint: {kp: 50.0, kd: 2.0}
+      waist_pitch_joint: {kp: 50.0, kd: 2.0}
+      head_yaw_joint: {kp: 40.0, kd: 2.0}
+      head_pitch_joint: {kp: 40.0, kd: 2.0}
+      left_shoulder_pitch_joint: {kp: 40.0, kd: 3.0}
+      left_shoulder_roll_joint: {kp: 40.0, kd: 3.0}
+      left_shoulder_yaw_joint: {kp: 30.0, kd: 2.0}
+      left_elbow_joint: {kp: 30.0, kd: 2.0}
+      left_wrist_roll_joint: {kp: 30.0, kd: 2.0}
+      left_wrist_pitch_joint: {kp: 20.0, kd: 2.0}
+      left_wrist_yaw_joint: {kp: 20.0, kd: 2.0}
+      right_shoulder_pitch_joint: {kp: 40.0, kd: 3.0}
+      right_shoulder_roll_joint: {kp: 40.0, kd: 3.0}
+      right_shoulder_yaw_joint: {kp: 30.0, kd: 2.0}
+      right_elbow_joint: {kp: 30.0, kd: 2.0}
+      right_wrist_roll_joint: {kp: 30.0, kd: 2.0}
+      right_wrist_pitch_joint: {kp: 20.0, kd: 2.0}
+      right_wrist_yaw_joint: {kp: 20.0, kd: 2.0}
+      left_hip_pitch_joint: {kp: 80.0, kd: 3.0}
+      left_hip_roll_joint: {kp: 120.0, kd: 4.0}
+      left_hip_yaw_joint: {kp: 80.0, kd: 3.0}
+      left_knee_joint: {kp: 250.0, kd: 8.0}
+      left_ankle_pitch_joint: {kp: 50.0, kd: 2.0}
+      left_ankle_roll_joint: {kp: 50.0, kd: 2.0}
+      right_hip_pitch_joint: {kp: 80.0, kd: 3.0}
+      right_hip_roll_joint: {kp: 120.0, kd: 4.0}
+      right_hip_yaw_joint: {kp: 80.0, kd: 3.0}
+      right_knee_joint: {kp: 250.0, kd: 8.0}
+      right_ankle_pitch_joint: {kp: 50.0, kd: 2.0}
+      right_ankle_roll_joint: {kp: 50.0, kd: 2.0}
 
 lifecycle:
   # Example continuous-rally timing (ready -> swing -> follow-through -> recovery).

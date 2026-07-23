@@ -72,6 +72,15 @@ class StepResult:
     """
 
     ball_racket_contact: bool = False
+    contact_substep: int | None = None
+    contact_time_offset_s: float | None = None
+    contact_pos_w: np.ndarray | None = None
+    contact_normal_w: np.ndarray | None = None
+    contact_dist: float | None = None
+    contact_ball_pos_pre_w: np.ndarray | None = None
+    contact_ball_vel_pre_w: np.ndarray | None = None
+    contact_ball_pos_post_w: np.ndarray | None = None
+    contact_ball_vel_post_w: np.ndarray | None = None
     # Each net-plane (x = net_x) crossing during the step: (z_table_at_crossing, x_sign)
     # where x_sign = +1 if the ball moved in +x (outgoing toward the opponent).
     net_crossings: list = field(default_factory=list)
@@ -340,6 +349,20 @@ class PingPongRealPhysicsScene:
         self._mj.mj_objectVelocity(self.model, d, self._mj.mjtObj.mjOBJ_SITE, self._racket_sid, res, 0)
         return pos, res[3:6].copy()
 
+    def racket_site_pose(self):
+        """Return (pos_w, vel_w, xmat_w) for the racket site."""
+        d = self.data
+        pos, vel = self.racket_site_state()
+        xmat = d.site_xmat[self._racket_sid].reshape(3, 3).copy()
+        return pos, vel, xmat
+
+    def racket_geom_pose(self):
+        """Return (pos_w, xmat_w) for the physical racket collision geom."""
+        d = self.data
+        pos = d.geom_xpos[self._racket_gid].copy()
+        xmat = d.geom_xmat[self._racket_gid].reshape(3, 3).copy()
+        return pos, xmat
+
     def base_pos_w(self) -> np.ndarray:
         return self.data.qpos[self._base_qadr:self._base_qadr + 3].copy()
 
@@ -376,12 +399,14 @@ class PingPongRealPhysicsScene:
         result = StepResult()
         surface_table = self.ball_radius
 
-        for _ in range(self._substeps):
+        for substep in range(self._substeps):
             self._apply_pd()
             self._apply_ball_drag()
             p_before = d.qpos[self._ball_qadr:self._ball_qadr + 3].copy()
+            v_before = d.qvel[self._ball_vadr:self._ball_vadr + 3].copy()
             mj.mj_step(m, d)
             p_after = d.qpos[self._ball_qadr:self._ball_qadr + 3].copy()
+            v_after = d.qvel[self._ball_vadr:self._ball_vadr + 3].copy()
 
             # real ball<->racket contact this sub-step
             if not result.ball_racket_contact:
@@ -389,6 +414,15 @@ class PingPongRealPhysicsScene:
                     con = d.contact[c]
                     if {con.geom1, con.geom2} == {self._ball_gid, self._racket_gid}:
                         result.ball_racket_contact = True
+                        result.contact_substep = int(substep)
+                        result.contact_time_offset_s = float((substep + 1) * m.opt.timestep)
+                        result.contact_pos_w = np.asarray(con.pos, dtype=np.float64).copy()
+                        result.contact_normal_w = np.asarray(con.frame[:3], dtype=np.float64).copy()
+                        result.contact_dist = float(con.dist)
+                        result.contact_ball_pos_pre_w = p_before.copy()
+                        result.contact_ball_vel_pre_w = v_before.copy()
+                        result.contact_ball_pos_post_w = p_after.copy()
+                        result.contact_ball_vel_post_w = v_after.copy()
                         break
 
             # net-plane (x = net_x) crossing, evaluated in the table frame

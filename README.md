@@ -92,7 +92,7 @@ The competition rulebooks ship at the repository root:
 | [ROADMAP.md](ROADMAP.md) | What is shipped, what is out of scope by design, and what comes next. |
 | `HOPE_*_Reference_Setup.md` | Preserved system design documents (planner / WBC training / hardware deployment). |
 | `HOPE_AI_Challenge_2026_Rules_EN.docx`, `..._ZH.docx` | Challenge rulebooks (English / 中文). |
-| `configs/` | The shared no-spin ball model ([ball_physics.yaml](configs/ball_physics.yaml)) used by training, planner, and eval. |
+| `configs/` | The shared no-spin ball model ([ball_physics.yaml](configs/ball_physics.yaml)) used by training, planner, and eval; planner launch config may apply planner-only field overrides. |
 | `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with task cfg, train/export/eval scripts), placeholder motion clips (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
 | `hope_ws/` | ROS 2 workspace: `hope_planner` (no-spin planner), `hope_bringup` (launch files, `pose_to_posearray` / `optitrack_mct_relay` adapters, fake-ball publishers), `hope_msgs` (`RacketCommand.msg`), and the vendored mocap drivers (`vrpn_mocap` for VRPN rigs, `motion_capture_tracking` for OptiTrack/NatNet). |
 | `a3_deploy/` | Public deploy contract and clean-room reference runner (`a3_deploy_example/`), the MuJoCo/AimRT simulation fork (`A3_MuJoCo_Sim/`), and the optional user-supplied URDF override location (`URDF/`). |

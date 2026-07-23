@@ -114,11 +114,11 @@ class PlannerConfig:
 
     # State estimation
     poly_order: int = 2           # polynomial fit order
-    fit_window: int = 31          # number of position samples in the velocity fit
-                                  # (~103 ms at a 300 Hz rig). COUPLED to the mocap rate:
-                                  # keep the window >= ~100 ms of samples, i.e.
-                                  # round(31 * rate / 300) — e.g. an OptiTrack rig at
-                                  # 360 Hz -> 37. Also a ROS parameter of hope_planner_node.
+    fit_window: int = 67          # number of position samples in the velocity fit
+                                  # (~186 ms at the 360 Hz OptiTrack captures validated on
+                                  # 2026-07-23). COUPLED to the mocap rate: tune this in
+                                  # samples so the time span stays near the validated window.
+                                  # Also a ROS parameter of hope_planner_node.
     mocap_hz: float = 300.0       # documentation constant (not consumed anywhere): nominal
                                   # motion-capture sample rate. The actual rate is a property
                                   # of the rig; the rate-coupled knob is fit_window above.
@@ -127,7 +127,7 @@ class PlannerConfig:
     dt_integrate: float = 0.001   # integration time step (s)
     max_predict_time: float = 2.0  # forward prediction horizon (s)
     bounce_z_tol: float = 0.005   # z threshold for a point-ball bounce dip (m)
-    bounce_center_z_max: float = 0.05  # local-minimum height for a centre-tracked bounce (m)
+    bounce_center_z_max: float = 0.11  # local-minimum height for a centre-tracked bounce (m)
 
     # Racket planning
     x_hit: float = 0.0            # fixed virtual hitting-plane x coordinate (m)

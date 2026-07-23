@@ -67,6 +67,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--motion-file-2", default="hope_training/motions/preprocessed/hope_backhand.npz", help="Backhand clip."
     )
+    parser.add_argument(
+        "--motion-manifest",
+        default=None,
+        help="TSV manifest with motion clips and optional strike/racket-target metadata.",
+    )
     return parser.parse_args()
 
 
@@ -107,10 +112,12 @@ def main() -> int:
             TableGeometry,
             evaluate_return,
         )
+        from train import _apply_motion_metadata, _resolve_motion_plan
 
         env_cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs)
-        clips = [_resolve_motion_path(c) for c in (args.motion_file, args.motion_file_2) if c]
+        clips, motion_metadata = _resolve_motion_plan(args)
         env_cfg.commands.motion.motion_file = clips if len(clips) > 1 else clips[0]
+        _apply_motion_metadata(env_cfg, clips, motion_metadata, [])
 
         env = gym.make(args.task, cfg=env_cfg, render_mode=None)
         base_env = env.unwrapped

@@ -68,6 +68,65 @@ def load_joint_order(path: str | None = None) -> tuple[str, ...]:
 
 
 @dataclass(frozen=True)
+class JointOrderMapping:
+    """Permutation between the deploy-canonical joint order and an articulation order."""
+
+    canonical: tuple[str, ...]
+    articulation: tuple[str, ...]
+    canonical_to_articulation: tuple[int, ...]
+    articulation_to_canonical: tuple[int, ...]
+
+    @property
+    def is_identity(self) -> bool:
+        return self.canonical == self.articulation
+
+
+def resolve_joint_order_mapping(
+    articulation_joint_names: tuple[str, ...] | list[str],
+    canonical_joint_names: tuple[str, ...] | list[str] | None = None,
+) -> JointOrderMapping:
+    """Validate and resolve the canonical <-> articulation joint-order permutation.
+
+    ``canonical_to_articulation[i]`` is the articulation column for canonical column ``i``.
+    Indexing an articulation-order tensor with this permutation returns canonical order; passing it
+    as Isaac Lab ``joint_ids`` lets canonical-order values be written to the correct articulation
+    DOFs.
+    """
+
+    canonical = tuple(canonical_joint_names or load_joint_order())
+    articulation = tuple(str(n) for n in articulation_joint_names)
+    if len(set(canonical)) != len(canonical):
+        raise ValueError("canonical joint names must be unique")
+    if len(articulation) != len(canonical):
+        raise ValueError(
+            f"articulation exposes {len(articulation)} joints but canonical order has {len(canonical)}"
+        )
+    if len(set(articulation)) != len(articulation):
+        raise ValueError("articulation joint names must be unique")
+
+    canonical_set = set(canonical)
+    articulation_set = set(articulation)
+    missing = [name for name in canonical if name not in articulation_set]
+    extra = [name for name in articulation if name not in canonical_set]
+    if missing or extra:
+        raise ValueError(
+            "articulation joint set does not match the canonical deploy joint set.\n"
+            f"  missing_from_articulation: {missing}\n"
+            f"  extra_in_articulation: {extra}"
+        )
+
+    art_index = {name: i for i, name in enumerate(articulation)}
+    canonical_to_articulation = tuple(art_index[name] for name in canonical)
+    articulation_to_canonical = tuple(canonical.index(name) for name in articulation)
+    return JointOrderMapping(
+        canonical=canonical,
+        articulation=articulation,
+        canonical_to_articulation=canonical_to_articulation,
+        articulation_to_canonical=articulation_to_canonical,
+    )
+
+
+@dataclass(frozen=True)
 class ActionAdapterConfig:
     """The shared adapter constants, resolved into canonical joint order."""
 

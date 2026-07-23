@@ -32,10 +32,9 @@ def _resolve_motion_path(value: str) -> str:
 
 
 def _resolve_motion_sources(cfg) -> list[str]:
-    primary = cfg.motion_file if cfg.motion_file is not None else cfg.task.get("motion_file")
-    secondary = cfg.motion_file_2 if cfg.motion_file_2 is not None else cfg.task.get("motion_file_2")
-    clips = [c for c in (primary, secondary) if c is not None]
-    return [_resolve_motion_path(c) for c in clips]
+    from train import _resolve_motion_plan
+
+    return _resolve_motion_plan(cfg)
 
 
 def _run(cfg, simulation_app):
@@ -55,9 +54,12 @@ def _run(cfg, simulation_app):
     num_envs = int(cfg.num_envs)
 
     env_cfg = parse_env_cfg(task_id, device=str(cfg.device), num_envs=num_envs)
-    motion_files = _resolve_motion_sources(cfg)
+    motion_files, motion_metadata = _resolve_motion_sources(cfg)
     if motion_files:
         env_cfg.commands.motion.motion_file = motion_files if len(motion_files) > 1 else motion_files[0]
+        from train import _apply_motion_metadata
+
+        _apply_motion_metadata(env_cfg, motion_files, motion_metadata, [])
     if cfg.task.get("motion") is not None and cfg.task.motion.get("wrap_teleport") is not None:
         env_cfg.commands.motion.wrap_teleport = bool(cfg.task.motion.wrap_teleport)
 
@@ -70,7 +72,20 @@ def _run(cfg, simulation_app):
         resume_path = get_checkpoint_path(log_root, ".*", ".*")
     print(f"[play.py] loading checkpoint: {resume_path}", flush=True)
 
-    env = gym.make(task_id, cfg=env_cfg, render_mode=None)
+    render_mode = "rgb_array" if bool(cfg.video) else None
+    env = gym.make(task_id, cfg=env_cfg, render_mode=render_mode)
+    if bool(cfg.video):
+        video_folder = os.path.abspath(
+            str(cfg.video_folder) if cfg.video_folder is not None else os.path.join("outputs", "play_videos")
+        )
+        env = gym.wrappers.RecordVideo(
+            env,
+            video_folder=video_folder,
+            step_trigger=lambda step: step == 0,
+            video_length=int(cfg.video_length),
+            disable_logger=True,
+            name_prefix="hope_play",
+        )
     env = RslRlVecEnvWrapper(env)
 
     algo = OmegaConf.to_container(cfg.algo, resolve=True)
@@ -83,11 +98,18 @@ def _run(cfg, simulation_app):
     policy = runner.get_inference_policy(device=env.unwrapped.device)
 
     obs, _ = env.get_observations()
-    while simulation_app.is_running():
-        with torch.inference_mode():
-            actions = policy(obs)
-            obs, _, _, _ = env.step(actions)
-    env.close()
+    steps = 0
+    max_steps = int(cfg.video_length) if bool(cfg.video) else None
+    try:
+        while simulation_app.is_running():
+            with torch.inference_mode():
+                actions = policy(obs)
+                obs, _, _, _ = env.step(actions)
+            steps += 1
+            if max_steps is not None and steps >= max_steps:
+                break
+    finally:
+        env.close()
 
 
 @hydra.main(version_base=None, config_path="../cfg", config_name="play")
@@ -98,7 +120,9 @@ def main(cfg):
     sys.argv = sys.argv[:1]
     from isaaclab.app import AppLauncher
 
-    app_launcher = AppLauncher(headless=bool(cfg.headless), device=str(cfg.device))
+    app_launcher = AppLauncher(
+        headless=bool(cfg.headless), device=str(cfg.device), enable_cameras=bool(cfg.video)
+    )
     simulation_app = app_launcher.app
     try:
         _run(cfg, simulation_app)

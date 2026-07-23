@@ -29,6 +29,8 @@ max_iterations: null
 #   motion_file=/abs/hope_forehand.npz motion_file_2=/abs/hope_backhand.npz
 motion_file: null       # clip 0 (forehand)
 motion_file_2: null     # clip 1 (backhand)
+motion_files: []        # optional explicit list of .npz clips; overrides motion_file/motion_file_2
+motion_manifest: null   # optional TSV with output/strike_phase/swing_side columns; overrides all above
 
 # Optional run-name suffix on the local log directory (logs/rsl_rl/<experiment>/<timestamp>_<run_name>).
 run_name: null

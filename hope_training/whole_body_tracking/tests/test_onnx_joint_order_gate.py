@@ -1,10 +1,10 @@
 """The deploy runner must reject an ONNX whose embedded joint order is permuted.
 
-The exporter hard-gates the articulation enumeration against the canonical joint order
-and embeds it in the ONNX metadata; ``OnnxPolicy`` re-validates that metadata at load
-time so a previously exported (or foreign) policy with a different column order can
-never drive the robot with silently permuted joints. Models without the metadata key
-(e.g. hand-authored test actors) load unchecked.
+The exporter embeds the canonical deploy joint order in the ONNX metadata regardless
+of Isaac's internal articulation enumeration; ``OnnxPolicy`` re-validates that metadata
+at load time so a previously exported (or foreign) policy with a different column order
+can never drive the robot with silently permuted joints. Models without the metadata
+key (e.g. hand-authored test actors) load unchecked.
 
 Skipped automatically when ``onnx`` / ``onnxruntime`` are unavailable.
 """

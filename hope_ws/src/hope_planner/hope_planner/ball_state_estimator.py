@@ -59,7 +59,7 @@ class BallStateEstimator:
         self._bounce_detected = False
         z_pp, z_p, z_c = self._z_hist
         tol = self.config.bounce_z_tol
-        center_max = getattr(self.config, "bounce_center_z_max", 0.05)
+        center_max = getattr(self.config, "bounce_center_z_max", 0.11)
         if z_pp is not None and z_p is not None and z_c is not None:
             legacy_dip = z_pp > tol and z_p <= tol and z_c > tol
             center_min = z_p <= center_max and z_pp > z_p and z_c > z_p

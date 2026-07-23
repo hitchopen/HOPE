@@ -21,8 +21,9 @@ mocap ball positions (/poses)
   at **at most 50 Hz**.
 - The first timestamped sample seeds position; a second sample at a different timestamp
   enables the velocity estimate; after that the planner publishes directly.
-- The ball model is no-spin: state is `[x, y, z, vx, vy, vz]` with gravity, measured drag, and
-  measured table/paddle restitution from `configs/ball_physics.yaml`. There is no spin
+- The ball model is no-spin: state is `[x, y, z, vx, vy, vz]` with gravity, drag, and
+  table/paddle restitution from `configs/ball_physics.yaml`, optionally overridden for the
+  planner by `hope_planner.yaml` (`drag_k`, `table_c_h`, `table_c_v`). There is no spin
   estimation, no Magnus force, and no per-side adaptive strike plane.
 
 ## Continuous rallies
@@ -92,4 +93,5 @@ data is insufficient it simply has not published yet.
 `hope_ws/src/hope_planner/config/hope_planner.yaml` holds the public parameters: the fixed
 strike-plane position, `swing_side_split_y` (and hysteresis), the fixed opponent-half landing
 target, the prediction horizon, and the solve rate. Ball physics is read from the shared
-`configs/ball_physics.yaml`.
+`configs/ball_physics.yaml`; planner-only drag/table-bounce overrides can be set in the same
+YAML without changing the training physics config.

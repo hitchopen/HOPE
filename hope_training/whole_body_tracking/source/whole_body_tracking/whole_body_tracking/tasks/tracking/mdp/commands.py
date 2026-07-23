@@ -50,6 +50,8 @@ from isaaclab.utils.math import (
     yaw_quat,
 )
 
+from whole_body_tracking.utils.action_adapter_config import load_joint_order, resolve_joint_order_mapping
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -106,6 +108,14 @@ class MotionCommand(CommandTerm):
         super().__init__(cfg, env)
 
         self.robot: Articulation = env.scene[cfg.asset_name]
+        self.joint_order_mapping = resolve_joint_order_mapping(
+            self.robot.data.joint_names, canonical_joint_names=load_joint_order()
+        )
+        self.canonical_joint_names = self.joint_order_mapping.canonical
+        self.canonical_joint_ids = tuple(self.joint_order_mapping.canonical_to_articulation)
+        self._canonical_joint_ids_tensor = torch.tensor(
+            self.canonical_joint_ids, dtype=torch.long, device=self.device
+        )
         self.robot_anchor_body_index = self.robot.body_names.index(self.cfg.anchor_body_name)
         self.motion_anchor_body_index = self.cfg.body_names.index(self.cfg.anchor_body_name)
         # Articulation indices of the tracked bodies (for reading the robot's own body states).
@@ -114,6 +124,16 @@ class MotionCommand(CommandTerm):
         )
 
         self.motion = MotionLoader(self.cfg.motion_file, len(self.cfg.body_names), device=self.device)
+        if self.motion.joint_pos.shape[1] != len(self.canonical_joint_names):
+            raise ValueError(
+                f"motion joint_pos has {self.motion.joint_pos.shape[1]} columns but canonical order has "
+                f"{len(self.canonical_joint_names)}"
+            )
+        if self.motion.joint_vel.shape[1] != len(self.canonical_joint_names):
+            raise ValueError(
+                f"motion joint_vel has {self.motion.joint_vel.shape[1]} columns but canonical order has "
+                f"{len(self.canonical_joint_names)}"
+            )
 
         self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._multiseg = self.motion.num_segments > 1
@@ -121,6 +141,9 @@ class MotionCommand(CommandTerm):
         self.clip_id = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         # "This env just started a new swing this step" — consumed by the racket-target command.
         self.just_resampled = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        # Age since the last true reset or wrap resample. This is separate from
+        # env.episode_length_buf because rsl_rl may randomize that buffer at train start.
+        self.steps_since_resample = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         # Pre-swing hold: while hold_counter > 0 the reference clock is frozen at the swing's first
         # frame ("waiting for the ball"); ``in_hold`` is exposed for rewards.
         self.hold_counter = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -151,7 +174,7 @@ class MotionCommand(CommandTerm):
         # During the hold the reference is the default stand pose (a frozen, settled "ready"), not the
         # clip's first-frame windup transient.
         jp = self.motion.joint_pos[self.time_steps]
-        dq = self.robot.data.default_joint_pos
+        dq = self.robot.data.default_joint_pos.index_select(-1, self._canonical_joint_ids_tensor)
         return torch.where(self.in_hold[:, None], dq, jp)
 
     @property
@@ -188,11 +211,11 @@ class MotionCommand(CommandTerm):
     # --- robot state (tracked bodies) --------------------------------------------------------- #
     @property
     def robot_joint_pos(self) -> torch.Tensor:
-        return self.robot.data.joint_pos
+        return self.robot.data.joint_pos.index_select(-1, self._canonical_joint_ids_tensor)
 
     @property
     def robot_joint_vel(self) -> torch.Tensor:
-        return self.robot.data.joint_vel
+        return self.robot.data.joint_vel.index_select(-1, self._canonical_joint_ids_tensor)
 
     @property
     def robot_body_pos_w(self) -> torch.Tensor:
@@ -255,6 +278,7 @@ class MotionCommand(CommandTerm):
         if len(env_ids) == 0:
             return
         env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
+        self.steps_since_resample[env_ids] = 0
 
         # Pre-swing hold (freeze the reference at the swing's first frame for U[lo, hi] control steps).
         lo, hi = self.cfg.hold_steps_range
@@ -318,9 +342,14 @@ class MotionCommand(CommandTerm):
         joint_pos = self.joint_pos.clone()
         joint_vel = self.joint_vel.clone()
         joint_pos += sample_uniform(*self.cfg.joint_position_range, joint_pos.shape, joint_pos.device)
-        limits = self.robot.data.soft_joint_pos_limits[rsi_ids]
+        limits = self.robot.data.soft_joint_pos_limits.index_select(1, self._canonical_joint_ids_tensor)[rsi_ids]
         joint_pos[rsi_ids] = torch.clip(joint_pos[rsi_ids], limits[:, :, 0], limits[:, :, 1])
-        self.robot.write_joint_state_to_sim(joint_pos[rsi_ids], joint_vel[rsi_ids], env_ids=rsi_ids)
+        self.robot.write_joint_state_to_sim(
+            joint_pos[rsi_ids],
+            joint_vel[rsi_ids],
+            joint_ids=self.canonical_joint_ids,
+            env_ids=rsi_ids,
+        )
         self.robot.write_root_state_to_sim(
             torch.cat(
                 [root_pos[rsi_ids], root_ori[rsi_ids], root_lin_vel[rsi_ids], root_ang_vel[rsi_ids]], dim=-1
@@ -332,6 +361,7 @@ class MotionCommand(CommandTerm):
         held = self.in_hold
         self.hold_counter = torch.clamp(self.hold_counter - 1, min=0)
         self.time_steps += (~held).long()
+        self.steps_since_resample += (~held).long()
 
         if self._multiseg:
             seg_end = self.motion.seg_start[self.clip_id] + self.motion.seg_len[self.clip_id]

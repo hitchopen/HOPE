@@ -28,6 +28,7 @@ policy:
   critic_hidden_dims: [512, 256, 128]
   activation: elu              # elu, relu, tanh, leaky_relu, gelu, selu
   init_noise_std: 1.0          # initial action exploration std
+  noise_std_type: log          # log keeps the learned exploration std positive during long runs
   # -------------------------------------------------------------------------
 
 algorithm:

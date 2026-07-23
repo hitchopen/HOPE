@@ -14,6 +14,38 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
+def _asset_joint_names(asset: Articulation) -> list[str]:
+    names = getattr(asset.data, "joint_names", None)
+    if names is None:
+        names = getattr(asset, "joint_names", None)
+    if names is None:
+        raise RuntimeError("joint default randomization requires the articulation's resolved joint names")
+    return list(names)
+
+
+def _action_columns_for_asset_joints(
+    action_term,
+    asset: Articulation,
+    joint_ids: torch.Tensor | slice,
+) -> torch.Tensor:
+    """Map articulation joint ids to action columns by exact joint name."""
+    action_joint_names = getattr(action_term, "_joint_names", None)
+    if action_joint_names is None:
+        raise RuntimeError("joint default randomization requires the action term's resolved joint names")
+    action_index = {name: i for i, name in enumerate(action_joint_names)}
+    asset_names = _asset_joint_names(asset)
+    if isinstance(joint_ids, slice):
+        selected_names = asset_names[joint_ids]
+    else:
+        selected_names = [asset_names[int(i)] for i in joint_ids.detach().cpu().tolist()]
+    missing = [name for name in selected_names if name not in action_index]
+    if missing:
+        raise RuntimeError(
+            f"joint default randomization selected joints that are not driven by the joint_pos action: {missing}"
+        )
+    return torch.tensor([action_index[name] for name in selected_names], dtype=torch.long, device=asset.device)
+
+
 def randomize_joint_default_pos(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
@@ -32,17 +64,23 @@ def randomize_joint_default_pos(
     if asset_cfg.joint_ids == slice(None):
         joint_ids = slice(None)
     else:
-        joint_ids = torch.tensor(asset_cfg.joint_ids, dtype=torch.int, device=asset.device)
+        joint_ids = torch.tensor(asset_cfg.joint_ids, dtype=torch.long, device=asset.device)
 
     if pos_distribution_params is not None:
         pos = asset.data.default_joint_pos.to(asset.device).clone()
         pos = _randomize_prop_by_op(
             pos, pos_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
         )[env_ids][:, joint_ids]
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        asset.data.default_joint_pos[env_ids, joint_ids] = pos
-        env.action_manager.get_term("joint_pos")._offset[env_ids, joint_ids] = pos
+        asset_env_ids = env_ids[:, None] if not isinstance(joint_ids, slice) else env_ids
+        asset.data.default_joint_pos[asset_env_ids, joint_ids] = pos
+
+        # ``joint_ids`` are articulation columns. The HOPE action term may expose the same joints in
+        # deploy-canonical order, so its ``_offset`` must be scattered by action column, not by
+        # articulation id.
+        action_term = env.action_manager.get_term("joint_pos")
+        action_cols = _action_columns_for_asset_joints(action_term, asset, joint_ids)
+        action_env_ids = env_ids[:, None]
+        action_term._offset[action_env_ids, action_cols] = pos
 
 
 def randomize_rigid_body_com(

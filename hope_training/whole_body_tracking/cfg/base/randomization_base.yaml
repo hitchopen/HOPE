@@ -2,5 +2,5 @@
 # Friction / center-of-mass / observation noise are configured in the environment cfg; these are the
 # extra knobs the trainer applies. Set a range to null to disable that randomization.
 domain_rand:
-  link_mass_range: [0.9, 1.1]   # +/-10% link-mass scale -> events.link_mass (randomize_rigid_body_mass)
-  pd_gain_range: null           # null DISABLES events.pd_gains; set e.g. [0.8, 1.2] to randomize
+  link_mass_range: [0.85, 1.15] # old HOPE +/-15% link-mass scale -> events.link_mass
+  pd_gain_range: [0.8, 1.2]     # old HOPE +/-20% actuator gain scale -> events.pd_gains

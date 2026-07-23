@@ -20,10 +20,14 @@ from whole_body_tracking.robots.agibot_a3 import A3_RACKET_BODY, A3_WRIST_BODY, 
 from whole_body_tracking.tasks.table_tennis import geometry
 from whole_body_tracking.tasks.table_tennis.geometry import BounceMaterials
 from whole_body_tracking.tasks.table_tennis.table_tennis_env_cfg import TableTennisEnvCfg
-from whole_body_tracking.utils.action_adapter_config import load_action_adapter_config
+from whole_body_tracking.utils.action_adapter_config import load_action_adapter_config, load_joint_order
 
 # Pelvis height above the floor in the A3 standing keyframe (= AGIBOT_A3_CFG init z).
 A3_STAND_PELVIS_HEIGHT: float = float(AGIBOT_A3_CFG.init_state.pos[2])
+
+
+def _a3_joint_entity() -> SceneEntityCfg:
+    return SceneEntityCfg("robot", joint_names=list(load_joint_order()), preserve_order=True)
 
 
 @configclass
@@ -48,7 +52,13 @@ class AgibotA3TableTennisEnvCfg(TableTennisEnvCfg):
         # Shared action adapter (same file the deploy runner reads): action scale + default pose.
         adapter = load_action_adapter_config()
         robot.init_state.joint_pos = adapter.default_q_by_name()
+        self.actions.joint_pos.joint_names = list(adapter.joint_names)
+        self.actions.joint_pos.preserve_order = True
         self.actions.joint_pos.scale = adapter.action_scale_by_name()
+        self.observations.policy.joint_pos.params = {"asset_cfg": _a3_joint_entity()}
+        self.observations.policy.joint_vel.params = {"asset_cfg": _a3_joint_entity()}
+        self.observations.critic.joint_pos.params = {"asset_cfg": _a3_joint_entity()}
+        self.observations.critic.joint_vel.params = {"asset_cfg": _a3_joint_entity()}
 
         # Racket-face contact material. The articulation spawns with the default (zero-restitution)
         # material, which would make the paddle dead against the neutral multiply-combine ball; this

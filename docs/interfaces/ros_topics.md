@@ -105,11 +105,12 @@ Notes:
   calibration-only `Table` asset and restart the relay before competition so a
   stale `Table` pose is not re-emitted.
 - **Rates** — OptiTrack rigs commonly stream 360 Hz (vs the 300 Hz VRPN
-  default). The planner's `fit_window` is coupled to the rate
-  (`round(31 × rate / 300)`, ≥ ~100 ms of samples — 360 Hz → 37); see
-  [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read
-  below the camera rate under receive-side drops; that is normal for a
-  best-effort sensor stream.
+  default). The planner's `fit_window` is sample-based and must be checked
+  against real prediction error; the current Motive validation favours 67
+  samples at 360 Hz, which is in the shipped config. See
+  [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read below
+  the camera rate under receive-side drops; that is normal for a best-effort
+  sensor stream.
 
 ## `hope_msgs/RacketCommand`
 

@@ -66,8 +66,8 @@ module layout, the design, and the integration seams.
 ## Configuration
 
 - `config/action_adapter.yaml` — the **shared** ActionAdapter (also read by the
-  training package). Neutral example `default_q`, uniform `action_scale`, and
-  example joint clamp limits. **Tune for your robot.**
+  training package). It ships the original stable HOPE A3 `default_q` and
+  per-joint `action_scale`, plus the A3 joint clamp limits.
 - `config/hope_pingpong_runtime.yaml` — the clean 111-D runtime config: control
   rate, `observation_normalization: none`, ONNX path, ActionAdapter path, MuJoCo
   model path, and **example** simulation PD gains (used only to drive the sim's

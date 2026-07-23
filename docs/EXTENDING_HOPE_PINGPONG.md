@@ -52,14 +52,16 @@ policy observation — keep both in agreement.
 
 ## Bring your own ball physics
 
-The no-spin ball model is a single config fit from real data:
+The no-spin ball model starts from a single config fit from real data:
 
 - Config: `configs/ball_physics.yaml` (read by training, planner, and eval).
 - Fitting code + data format: `hope_training/ball_physics_fit/` (with a small sample capture).
 
 Re-fit the constants from your own captured trajectories and copy the results into
-`configs/ball_physics.yaml`; all three consumers pick them up. The model stays no-spin —
-`[x, y, z, vx, vy, vz]` only.
+`configs/ball_physics.yaml`; all three consumers pick them up. For planner-only field tuning,
+`hope_ws/src/hope_planner/config/hope_planner.yaml` can override drag/table-bounce terms
+without changing the training physics config. The model stays no-spin — `[x, y, z, vx, vy, vz]`
+only.
 
 ## Bring your own policy
 

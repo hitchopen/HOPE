@@ -24,9 +24,11 @@ checkpoint: null       # explicit local model_*.pt path (else: latest local chec
 # Reference motion clips (null -> the task's placeholder clips).
 motion_file: null      # clip 0 (forehand)
 motion_file_2: null    # clip 1 (backhand)
+motion_manifest: null  # TSV manifest; takes precedence over motion_file / motion_file_2
 
 video: false
 video_length: 200
+video_folder: null
 
 hydra:
   job:

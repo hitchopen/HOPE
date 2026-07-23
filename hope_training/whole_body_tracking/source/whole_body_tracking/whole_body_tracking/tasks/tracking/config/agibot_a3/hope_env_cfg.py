@@ -19,6 +19,7 @@ Control runs at 50 Hz. The motion clips default to the placeholder examples unde
 from __future__ import annotations
 
 import os
+import re
 
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -34,13 +35,43 @@ import whole_body_tracking.tasks.tracking.mdp as mdp
 from whole_body_tracking.robots.agibot_a3 import (
     A3_ANCHOR_BODY,
     A3_FEET_BODIES,
+    A3_HAND_BODIES,
+    A3_WRIST_BODY,
     A3_TRACKED_BODIES,
     A3_UPPER_TRACKED,
     AGIBOT_A3_CFG,
     AGIBOT_A3_PASSIVE_HEAD_JOINT_NAMES,
 )
 from whole_body_tracking.tasks.tracking.tracking_env_cfg import MySceneCfg
-from whole_body_tracking.utils.action_adapter_config import load_action_adapter_config
+from whole_body_tracking.utils.action_adapter_config import load_action_adapter_config, load_joint_order
+
+
+A3_CANONICAL_JOINT_ORDER = tuple(load_joint_order())
+A3_RACKET_FREE_BODIES = (A3_WRIST_BODY,)
+A3_MOTION_PRIOR_BODIES = tuple(name for name in A3_TRACKED_BODIES if name not in A3_RACKET_FREE_BODIES)
+A3_SWING_PRIOR_BODIES = tuple(name for name in A3_UPPER_TRACKED if name not in A3_RACKET_FREE_BODIES)
+A3_SOFT_RACKET_PRIOR_BODIES = tuple(A3_RACKET_FREE_BODIES)
+A3_REFERENCE_RESET_BODIES = tuple(A3_FEET_BODIES)
+A3_ALLOWED_CONTACT_BODIES = tuple(A3_FEET_BODIES) + tuple(A3_HAND_BODIES) + (
+    "right_hand_pingpang_Link",
+    "pingpang_red_Link",
+    "pingpang_black_Link",
+    "pingbang_ball_Link",
+)
+
+
+def _exclude_body_names_pattern(body_names: tuple[str, ...]) -> str:
+    """Regex matching every body except the explicitly allowed contact bodies."""
+    return "^" + "".join(f"(?!{re.escape(name)}$)" for name in body_names) + ".+$"
+
+
+def _a3_joint_entity() -> SceneEntityCfg:
+    """SceneEntityCfg that resolves A3 joints in the public deploy-canonical order."""
+    return SceneEntityCfg(
+        "robot",
+        joint_names=list(A3_CANONICAL_JOINT_ORDER),
+        preserve_order=True,
+    )
 
 
 def _find_motion_clip(name: str) -> str:
@@ -73,10 +104,10 @@ class CommandsCfg:
         anchor_body_name=A3_ANCHOR_BODY,
         body_names=A3_TRACKED_BODIES,
         motion_file=[FOREHAND_CLIP, BACKHAND_CLIP],  # clip 0 = forehand, clip 1 = backhand
-        wrap_teleport=False,
-        stand_start_prob=0.25,
+        wrap_teleport=True,
+        stand_start_prob=0.0,
         stand_start_min_hold=25,
-        hold_steps_range=(0, 100),
+        hold_steps_range=(0, 0),
         pose_range={"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01),
                     "roll": (-0.1, 0.1), "pitch": (-0.1, 0.1), "yaw": (-0.2, 0.2)},
         velocity_range={"x": (-0.5, 0.5), "y": (-0.5, 0.5), "z": (-0.2, 0.2),
@@ -102,6 +133,11 @@ class CommandsCfg:
             ((1.0, 2.0), (0.5, 1.5), (0.2, 1.0)),    # forehand
             ((1.5, 2.5), (-1.5, -0.5), (0.0, 0.7)),  # backhand
         ),
+        racket_velocity_mode="ballistic_landing",
+        contact_approach_mode="target_velocity",
+        ballistic_flight_time_range=(0.45, 0.75),
+        ballistic_land_x_range=(2.05, 2.95),
+        ballistic_land_y_range=(-0.45, 0.45),
         feet_body_names=tuple(A3_FEET_BODIES),
     )
 
@@ -112,7 +148,8 @@ class ActionsCfg:
 
     joint_pos = mdp.ClampedJointPositionActionCfg(
         asset_name="robot",
-        joint_names=[".*"],
+        joint_names=list(A3_CANONICAL_JOINT_ORDER),
+        preserve_order=True,
         use_default_offset=True,
         passive_joint_names=AGIBOT_A3_PASSIVE_HEAD_JOINT_NAMES,
     )
@@ -126,8 +163,16 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         # Order is fixed — it is the hope_pingpong observation contract.
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel,
+            params={"asset_cfg": _a3_joint_entity()},
+            noise=Unoise(n_min=-0.01, n_max=0.01),
+        )
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            params={"asset_cfg": _a3_joint_entity()},
+            noise=Unoise(n_min=-0.5, n_max=0.5),
+        )
         last_action = ObsTerm(func=mdp.applied_last_action, params={"action_name": "joint_pos"})
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
         base_forward_xy = ObsTerm(
@@ -151,8 +196,8 @@ class ObservationsCfg:
     class CriticCfg(ObsGroup):
         # Actor terms (noise-free) ...
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _a3_joint_entity()})
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _a3_joint_entity()})
         last_action = ObsTerm(func=mdp.applied_last_action, params={"action_name": "joint_pos"})
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         base_forward_xy = ObsTerm(func=mdp.base_forward_xy, params={"command_name": "racket_target"})
@@ -183,55 +228,167 @@ class ObservationsCfg:
 
 @configclass
 class RewardsCfg:
-    """The eleven reward terms. Weights/stds are illustrative examples — tune them."""
+    """Ping-pong rewards plus the old dense whole-body tracking prior."""
 
-    # 1. upright / balance
+    # Dense tracking prior from the upstream pre-rewrite task.
+    motion_global_anchor_pos = RewTerm(
+        func=mdp.motion_global_anchor_position_error_exp,
+        weight=0.5,
+        params={"command_name": "motion", "std": 0.3},
+    )
+    motion_global_anchor_ori = RewTerm(
+        func=mdp.motion_global_anchor_orientation_error_exp,
+        weight=0.5,
+        params={"command_name": "motion", "std": 0.4},
+    )
+    motion_body_pos = RewTerm(
+        func=mdp.motion_relative_body_position_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 0.3, "body_names": list(A3_MOTION_PRIOR_BODIES)},
+    )
+    motion_body_ori = RewTerm(
+        func=mdp.motion_relative_body_orientation_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 0.4, "body_names": list(A3_MOTION_PRIOR_BODIES)},
+    )
+    motion_body_lin_vel = RewTerm(
+        func=mdp.motion_global_body_linear_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 1.0, "body_names": list(A3_MOTION_PRIOR_BODIES)},
+    )
+    motion_body_ang_vel = RewTerm(
+        func=mdp.motion_global_body_angular_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 3.14, "body_names": list(A3_MOTION_PRIOR_BODIES)},
+    )
+    undesired_contacts = RewTerm(
+        func=mdp.undesired_contacts,
+        weight=-0.1,
+        params={
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=[_exclude_body_names_pattern(A3_ALLOWED_CONTACT_BODIES)],
+            ),
+            "threshold": 1.0,
+        },
+    )
+
+    # Ping-pong task shaping.
+    alive = RewTerm(func=mdp.is_alive, weight=0.1)
     upright = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
-    # 2. forehand/backhand sample imitation (upper body, swing-gated)
     imitation = RewTerm(
         func=mdp.sample_imitation,
         weight=1.0,
-        params={"command_name": "motion", "std_pos": 0.3, "std_ori": 0.4, "body_names": A3_UPPER_TRACKED},
+        params={"command_name": "motion", "std_pos": 0.3, "std_ori": 0.4, "body_names": list(A3_SWING_PRIOR_BODIES)},
     )
-    # 3. racket position (strike window)
+    racket_wrist_motion_pos = RewTerm(
+        func=mdp.wrist_motion_pos_release,
+        weight=0.10,
+        params={
+            "motion_command_name": "motion",
+            "racket_command_name": "racket_target",
+            "std": 0.65,
+            "body_names": list(A3_SOFT_RACKET_PRIOR_BODIES),
+            "release_window_s": 0.22,
+        },
+    )
+    racket_wrist_motion_ori = RewTerm(
+        func=mdp.wrist_motion_ori_release,
+        weight=0.05,
+        params={
+            "motion_command_name": "motion",
+            "racket_command_name": "racket_target",
+            "std": 1.0,
+            "body_names": list(A3_SOFT_RACKET_PRIOR_BODIES),
+            "release_window_s": 0.22,
+        },
+    )
     racket_position = RewTerm(
-        func=mdp.racket_position, weight=4.0, params={"command_name": "racket_target", "std": 0.12}
+        func=mdp.racket_position, weight=6.0, params={"command_name": "racket_target", "std": 0.24}
     )
-    # 4. racket velocity (strike window)
     racket_velocity = RewTerm(
-        func=mdp.racket_velocity, weight=2.0, params={"command_name": "racket_target", "std": 0.6}
+        func=mdp.racket_velocity, weight=2.0, params={"command_name": "racket_target", "std": 2.5}
     )
-    # 5. simplified blade direction (strike window)
+    impact_outgoing_velocity = RewTerm(
+        func=mdp.impact_outgoing_velocity, weight=0.75, params={"command_name": "racket_target", "std": 3.0}
+    )
     blade_direction = RewTerm(
-        func=mdp.racket_blade_direction, weight=1.0, params={"command_name": "racket_target", "std": 0.3}
+        func=mdp.racket_blade_direction, weight=0.35, params={"command_name": "racket_target", "std": 0.8}
     )
-    # 6. actual ball contact (one-shot at strike)
-    ball_contact = RewTerm(func=mdp.ball_contact, weight=2.0, params={"command_name": "racket_target"})
-    # 7. net crossing (one-shot at strike)
-    net_cross = RewTerm(func=mdp.ball_net_cross, weight=2.0, params={"command_name": "racket_target"})
-    # 8. opponent-half first bounce (one-shot at strike)
-    opponent_bounce = RewTerm(func=mdp.ball_opponent_bounce, weight=4.0, params={"command_name": "racket_target"})
-    # 9. in-place follow-through / recovery
+    soft_ball_contact = RewTerm(
+        func=mdp.soft_ball_contact,
+        weight=8.0,
+        params={
+            "command_name": "racket_target",
+            "pos_std": 0.18,
+            "approach_speed": 0.10,
+            "approach_std": 0.75,
+            "normal_speed": 0.0,
+            "normal_std": 0.75,
+            "window_s": 0.22,
+        },
+    )
+    ball_contact = RewTerm(func=mdp.ball_contact, weight=4.0, params={"command_name": "racket_target"})
+    net_cross = RewTerm(func=mdp.ball_net_cross, weight=1.0, params={"command_name": "racket_target"})
+    opponent_bounce = RewTerm(func=mdp.ball_opponent_bounce, weight=2.0, params={"command_name": "racket_target"})
     follow_through_recovery = RewTerm(
         func=mdp.follow_through_recovery,
-        weight=1.0,
+        weight=0.8,
         params={"command_name": "racket_target", "std": 0.5, "station_std": 0.3},
     )
-    # 10. action smoothness
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
-    # 11. joint-limit regularization
+    recovery_health = RewTerm(
+        func=mdp.recovery_health,
+        weight=1.0,
+        params={
+            "command_name": "racket_target",
+            "height_std": 0.12,
+            "upright_std": 0.35,
+            "lin_vel_std": 0.35,
+            "ang_vel_std": 1.0,
+            "station_std": 0.25,
+        },
+    )
+    termination_penalty = RewTerm(
+        func=mdp.is_terminated_term,
+        weight=-10.0,
+        params={"term_keys": ["base_too_low", "base_tilted", "anchor_pos", "anchor_ori", "ee_body_pos"]},
+    )
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     joint_limit = RewTerm(
-        func=mdp.joint_pos_limits, weight=-10.0, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])}
+        func=mdp.joint_pos_limits, weight=-10.0, params={"asset_cfg": _a3_joint_entity()}
     )
 
 
 @configclass
 class TerminationsCfg:
-    """Time-out and physical-fall resets (ordinary env lifecycle, not a gate)."""
+    """Physical safety resets plus moderately relaxed reference-divergence resets."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_tilted = DoneTerm(func=mdp.base_tilted, params={"threshold": 0.8})
-    base_too_low = DoneTerm(func=mdp.base_too_low, params={"min_height": 0.5})
+    base_too_low = DoneTerm(
+        func=mdp.base_too_low,
+        params={"asset_cfg": SceneEntityCfg("robot"), "min_height": 0.55, "min_steps": 25},
+    )
+    base_tilted = DoneTerm(
+        func=mdp.base_tilted,
+        params={"asset_cfg": SceneEntityCfg("robot"), "threshold": 0.85, "min_steps": 25},
+    )
+    anchor_pos = DoneTerm(
+        func=mdp.bad_anchor_pos_z_only,
+        params={"command_name": "motion", "threshold": 0.35, "min_steps": 75},
+    )
+    anchor_ori = DoneTerm(
+        func=mdp.bad_anchor_ori,
+        params={"asset_cfg": SceneEntityCfg("robot"), "command_name": "motion", "threshold": 0.95, "min_steps": 75},
+    )
+    ee_body_pos = DoneTerm(
+        func=mdp.bad_motion_body_pos_z_only,
+        params={
+            "command_name": "motion",
+            "threshold": 0.35,
+            "body_names": list(A3_REFERENCE_RESET_BODIES),
+            "min_steps": 75,
+        },
+    )
 
 
 @configclass
@@ -262,7 +419,7 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "mass_distribution_params": (0.9, 1.1),
+            "mass_distribution_params": (0.85, 1.15),
             "operation": "scale",
             "distribution": "uniform",
             "recompute_inertia": True,
@@ -272,7 +429,7 @@ class EventCfg:
         func=mdp.randomize_joint_default_pos,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
+            "asset_cfg": _a3_joint_entity(),
             "pos_distribution_params": (-0.01, 0.01),
             "operation": "add",
         },
@@ -281,9 +438,9 @@ class EventCfg:
         func=mdp.randomize_actuator_gains,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
-            "stiffness_distribution_params": (0.9, 1.1),
-            "damping_distribution_params": (0.9, 1.1),
+            "asset_cfg": _a3_joint_entity(),
+            "stiffness_distribution_params": (0.8, 1.2),
+            "damping_distribution_params": (0.8, 1.2),
             "operation": "scale",
             "distribution": "log_uniform",
         },

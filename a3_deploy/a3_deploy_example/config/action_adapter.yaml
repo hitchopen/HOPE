@@ -11,11 +11,10 @@
 #     q_des = default_q + raw_action * action_scale
 #     q_des = clip(q_des, joint_position_clamp.lower, joint_position_clamp.upper)
 #
-# ALL VALUES BELOW ARE NEUTRAL EXAMPLES -- tune them for your robot.
-#   * default_q : a plausible upright A3 stand (slight hip/knee bend, arms down and
-#                 slightly out, waist and head at zero). Not performance-tuned.
-#   * action_scale : a single uniform residual scale. Ship a per-joint list only
-#                    after you have tuned it for your hardware.
+# Values below are the original stable HOPE A3 starter configuration.
+#   * default_q : old HOPE reset/action-offset stand pose.
+#   * action_scale : old HOPE per-joint residual scale computed as
+#                    0.25 * effort_limit / stiffness.
 #   * joint_position_clamp : the A3 model's mechanical joint ranges, used as a
 #                    deterministic safety clamp. Vendor hard limits / motor
 #                    protection / e-stop remain the robot backend's responsibility.
@@ -23,40 +22,71 @@
 # head_yaw_joint / head_pitch_joint are passive at deploy (held at their default);
 # they still occupy their action columns so every vector here is length 31.
 
-action_scale: 0.25   # uniform example residual scale
+action_scale:
+  waist_yaw_joint: 0.6470588235294118
+  waist_roll_joint: 0.23
+  waist_pitch_joint: 0.59
+  head_yaw_joint: 0.0375
+  head_pitch_joint: 0.0375
+  left_shoulder_pitch_joint: 0.375
+  left_shoulder_roll_joint: 0.375
+  left_shoulder_yaw_joint: 0.2
+  left_elbow_joint: 0.2
+  left_wrist_roll_joint: 0.2
+  left_wrist_pitch_joint: 0.075
+  left_wrist_yaw_joint: 0.075
+  right_shoulder_pitch_joint: 0.375
+  right_shoulder_roll_joint: 0.375
+  right_shoulder_yaw_joint: 0.2
+  right_elbow_joint: 0.2
+  right_wrist_roll_joint: 0.2
+  right_wrist_pitch_joint: 0.075
+  right_wrist_yaw_joint: 0.075
+  left_hip_pitch_joint: 0.6875
+  left_hip_roll_joint: 0.4583333333333333
+  left_hip_yaw_joint: 0.6875
+  left_knee_joint: 0.32
+  left_ankle_pitch_joint: 0.591
+  left_ankle_roll_joint: 0.27375
+  right_hip_pitch_joint: 0.6875
+  right_hip_roll_joint: 0.4583333333333333
+  right_hip_yaw_joint: 0.6875
+  right_knee_joint: 0.32
+  right_ankle_pitch_joint: 0.591
+  right_ankle_roll_joint: 0.27375
 
-default_q:            # rad, example neutral upright stand
+default_q:            # rad, old HOPE A3 starter stand
   waist_yaw_joint: 0.0
   waist_roll_joint: 0.0
   waist_pitch_joint: 0.0
   head_yaw_joint: 0.0
   head_pitch_joint: 0.0
-  left_shoulder_pitch_joint: 0.20
-  left_shoulder_roll_joint: 0.15
+  left_shoulder_pitch_joint: 0.3
+  left_shoulder_roll_joint: 0.12
   left_shoulder_yaw_joint: 0.0
-  left_elbow_joint: 0.30
+  left_elbow_joint: 0.8
   left_wrist_roll_joint: 0.0
   left_wrist_pitch_joint: 0.0
   left_wrist_yaw_joint: 0.0
-  right_shoulder_pitch_joint: 0.20
-  right_shoulder_roll_joint: -0.15
+  right_shoulder_pitch_joint: 0.3
+  right_shoulder_roll_joint: -0.12
   right_shoulder_yaw_joint: 0.0
-  right_elbow_joint: 0.30
+  right_elbow_joint: 0.8
   right_wrist_roll_joint: 0.0
   right_wrist_pitch_joint: 0.0
   right_wrist_yaw_joint: 0.0
-  left_hip_pitch_joint: -0.15
-  left_hip_roll_joint: 0.0
-  left_hip_yaw_joint: 0.0
-  left_knee_joint: 0.30
-  left_ankle_pitch_joint: -0.15
-  left_ankle_roll_joint: 0.0
-  right_hip_pitch_joint: -0.15
-  right_hip_roll_joint: 0.0
-  right_hip_yaw_joint: 0.0
-  right_knee_joint: 0.30
-  right_ankle_pitch_joint: -0.15
-  right_ankle_roll_joint: 0.0
+  left_hip_pitch_joint: -0.1311
+  left_hip_roll_joint: 0.0056
+  left_hip_yaw_joint: -0.0348
+  left_knee_joint: 0.2468
+  left_ankle_pitch_joint: -0.1204
+  left_ankle_roll_joint: -0.0078
+  right_hip_pitch_joint: -0.1311
+  right_hip_roll_joint: -0.0056
+  right_hip_yaw_joint: 0.0348
+  right_knee_joint: 0.2468
+  right_ankle_pitch_joint: -0.1204
+  right_ankle_roll_joint: 0.0078
 
 joint_position_clamp:  # rad; example limits = the A3 model mechanical joint ranges
   lower:

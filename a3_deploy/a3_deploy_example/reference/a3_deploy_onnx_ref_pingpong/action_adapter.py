@@ -8,9 +8,9 @@ plus a clamp). It is NOT a rejection filter and emits no failure status:
     q_des = default_q + raw_action * action_scale
     q_des = clip(q_des, clamp_lower, clamp_upper)
 
-The SAME configuration file drives training and this reference runner, so a user
-tunes the mapping in exactly one place. The shipped constants are neutral EXAMPLE
-values (see ``config/action_adapter.yaml``) and must be tuned for a real robot.
+The SAME configuration file drives training and this reference runner, so the
+mapping is tuned in exactly one place. The shipped constants are the original
+stable HOPE A3 starter values (see ``config/action_adapter.yaml``).
 
 Vendor hard limits, motor protection, and e-stop remain the responsibility of the
 robot backend; this transform neither probes nor bypasses them.
@@ -29,8 +29,8 @@ from .joint_order import JOINT_NAMES, NUM_JOINTS
 
 @dataclass
 class ActionAdapter:
-    default_q: np.ndarray     # (31,) neutral/upright joint positions, rad
-    action_scale: np.ndarray  # (31,) per-column residual scale (uniform in the example)
+    default_q: np.ndarray     # (31,) HOPE A3 starter joint positions, rad
+    action_scale: np.ndarray  # (31,) per-column residual scale
     clamp_lower: np.ndarray   # (31,) lower joint-position clamp, rad
     clamp_upper: np.ndarray   # (31,) upper joint-position clamp, rad
 

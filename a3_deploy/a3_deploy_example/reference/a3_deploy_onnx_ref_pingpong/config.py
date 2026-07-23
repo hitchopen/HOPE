@@ -17,7 +17,7 @@ import numpy as np
 import yaml
 
 from .action_adapter import ActionAdapter
-from .joint_order import NUM_JOINTS
+from .joint_order import JOINT_NAMES, NUM_JOINTS
 from .lifecycle import LifecycleConfig
 
 # Index ranges of the four joint groups (used to expand example PD gains).
@@ -98,7 +98,12 @@ def _resolve(base: Path, rel: str) -> Path:
 
 
 def _expand_pd_gains(spec: dict) -> tuple[np.ndarray, np.ndarray]:
-    """Expand per-group example gains into length-31 kp/kd arrays."""
+    """Expand example gains into length-31 kp/kd arrays.
+
+    ``groups`` preserves the original compact runtime config. ``joints`` may then
+    override exact joint names, which is useful for matching the Isaac A3 actuator
+    groups more closely in the MuJoCo bridge.
+    """
     kp = np.zeros(NUM_JOINTS, dtype=np.float64)
     kd = np.zeros(NUM_JOINTS, dtype=np.float64)
     groups = spec.get("groups", {})
@@ -109,4 +114,11 @@ def _expand_pd_gains(spec: dict) -> tuple[np.ndarray, np.ndarray]:
         for i in rng:
             kp[i] = float(g["kp"])
             kd[i] = float(g["kd"])
+    name_to_idx = {name: i for i, name in enumerate(JOINT_NAMES)}
+    for name, g in (spec.get("joints", {}) or {}).items():
+        if name not in name_to_idx:
+            raise ValueError(f"simulation.pd_gains.joints contains unknown joint '{name}'")
+        i = name_to_idx[name]
+        kp[i] = float(g["kp"])
+        kd[i] = float(g["kd"])
     return kp, kd

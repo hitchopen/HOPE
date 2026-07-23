@@ -117,18 +117,20 @@ A3_HAND_BODIES = ["left_wrist_yaw_Link", "right_wrist_yaw_Link"]
 # the motion YAML sidecar.
 ##
 A3_WRIST_BODY = "right_wrist_yaw_Link"          # last actuated link of the paddle arm
-A3_RACKET_BODY = "pingpang_red_Link"            # racket-center body (if present in the asset)
-# Example offset wrist_yaw -> racket center, in the wrist_yaw local frame (meters). Replace with the
-# value from your own asset.
-A3_MOUNT_OFFSET = (0.21, 0.032, 0.032)
+A3_RACKET_BODY = "pingpang_red_Link"            # racket-center body (coincident with pingbang_ball_Link)
+# Offset wrist_yaw -> racket center, in the wrist_yaw local frame (meters). From the URDF
+# pingbang_ball_joint origin; right_hand_pingpang_joint is xyz=0 rpy=0 so this equals the
+# offset from right_wrist_yaw_Link directly.
+A3_MOUNT_OFFSET = (0.210211399202899, 0.0320784994676765, 0.0320358706296689)
 
 
 ##
 # Articulation configuration.
 #
-# All actuator groups use an implicit PD drive. The example gains, effort/velocity limits and armature
-# below are placeholders in the right ballpark for a ~1.3 m humanoid — replace them with your robot's
-# real values (they change the sim-to-real transfer and the effective action scale).
+# Effort/velocity limits come from joints.txt. PD gains (stiffness=Kp,
+# damping=Kd) and armature values follow the A3 starter reference values. The
+# shared action adapter uses the old HOPE per-joint scale
+# 0.25 * effort_limit / stiffness.
 ##
 AGIBOT_A3_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
@@ -155,21 +157,28 @@ AGIBOT_A3_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        # EXAMPLE neutral standing pose (slight hip/knee bend, arms in a ready posture, waist/neck 0).
-        # Used both as the reset pose and as the action offset (use_default_offset=True).
+        # Old HOPE standing pose used both as the reset pose and as the action offset
+        # (use_default_offset=True). Pelvis Z 1.0684 m is the A3 starter stand height
+        # for this leg pose; waist, neck, shoulder_yaw, and wrists stay at 0.
         # NOTE: HOPEPingPongEnvCfg OVERRIDES this dict with the exact per-joint default_q from the
         # SHARED deploy config (a3_deploy/a3_deploy_example/config/action_adapter.yaml) — that
         # file is the single source of truth for the default pose; the values here are a matching
         # fallback for uses outside the task cfg. Edit the shared YAML, not this dict.
-        pos=(0.0, 0.0, 1.0),
+        pos=(0.0, 0.0, 1.0684),
         joint_pos={
-            ".*_hip_pitch_joint": -0.15,
-            ".*_knee_joint": 0.30,
-            ".*_ankle_pitch_joint": -0.15,
-            ".*_shoulder_pitch_joint": 0.20,
-            "left_shoulder_roll_joint": 0.15,
-            "right_shoulder_roll_joint": -0.15,
-            ".*_elbow_joint": 0.30,
+            ".*_hip_pitch_joint": -0.1311,
+            ".*_knee_joint": 0.2468,
+            ".*_ankle_pitch_joint": -0.1204,
+            "left_hip_roll_joint": 0.0056,
+            "right_hip_roll_joint": -0.0056,
+            "left_hip_yaw_joint": -0.0348,
+            "right_hip_yaw_joint": 0.0348,
+            "left_ankle_roll_joint": -0.0078,
+            "right_ankle_roll_joint": 0.0078,
+            ".*_shoulder_pitch_joint": 0.3,
+            "left_shoulder_roll_joint": 0.12,
+            "right_shoulder_roll_joint": -0.12,
+            ".*_elbow_joint": 0.8,
         },
         joint_vel={".*": 0.0},
     ),
@@ -202,19 +211,19 @@ AGIBOT_A3_CFG = ArticulationCfg(
                 ".*_knee_joint": 8.0,
             },
             armature={
-                ".*_hip_yaw_joint": 0.066,
-                ".*_hip_roll_joint": 0.066,
-                ".*_hip_pitch_joint": 0.066,
-                ".*_knee_joint": 0.120,
+                ".*_hip_yaw_joint": 0.06646569891,
+                ".*_hip_roll_joint": 0.06646569891,
+                ".*_hip_pitch_joint": 0.06646569891,
+                ".*_knee_joint": 0.1203404,
             },
         ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
-            effort_limit_sim={".*_ankle_pitch_joint": 118.0, ".*_ankle_roll_joint": 55.0},
+            effort_limit_sim={".*_ankle_pitch_joint": 118.2, ".*_ankle_roll_joint": 54.75},
             velocity_limit_sim={".*_ankle_pitch_joint": 10.8, ".*_ankle_roll_joint": 19.3},
             stiffness=50.0,
             damping=2.0,
-            armature={".*_ankle_pitch_joint": 0.064, ".*_ankle_roll_joint": 0.020},
+            armature={".*_ankle_pitch_joint": 0.06444060531, ".*_ankle_roll_joint": 0.02012630058},
         ),
         "waist": ImplicitActuatorCfg(
             joint_names_expr=["waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"],
@@ -222,7 +231,11 @@ AGIBOT_A3_CFG = ArticulationCfg(
             velocity_limit_sim={"waist_yaw_joint": 12.0, "waist_roll_joint": 22.7, "waist_pitch_joint": 9.2},
             stiffness={"waist_yaw_joint": 85.0, "waist_roll_joint": 50.0, "waist_pitch_joint": 50.0},
             damping={"waist_yaw_joint": 3.0, "waist_roll_joint": 2.0, "waist_pitch_joint": 2.0},
-            armature={"waist_yaw_joint": 0.066, "waist_roll_joint": 0.015, "waist_pitch_joint": 0.088},
+            armature={
+                "waist_yaw_joint": 0.06646569891,
+                "waist_roll_joint": 0.01462087613,
+                "waist_pitch_joint": 0.08820859156,
+            },
         ),
         "head": ImplicitActuatorCfg(
             joint_names_expr=["head_yaw_joint", "head_pitch_joint"],
@@ -230,7 +243,7 @@ AGIBOT_A3_CFG = ArticulationCfg(
             velocity_limit_sim=12.7,
             stiffness=40.0,
             damping=2.0,
-            armature={"head_yaw_joint": 0.0008, "head_pitch_joint": 0.0008},
+            armature={"head_yaw_joint": 0.0008100893338, "head_pitch_joint": 0.0008100893338},
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -279,13 +292,13 @@ AGIBOT_A3_CFG = ArticulationCfg(
                 ".*_wrist_yaw_joint": 2.0,
             },
             armature={
-                ".*_shoulder_pitch_joint": 0.012,
-                ".*_shoulder_roll_joint": 0.012,
-                ".*_shoulder_yaw_joint": 0.005,
-                ".*_elbow_joint": 0.005,
-                ".*_wrist_roll_joint": 0.005,
-                ".*_wrist_pitch_joint": 0.0008,
-                ".*_wrist_yaw_joint": 0.0008,
+                ".*_shoulder_pitch_joint": 0.01208336871,
+                ".*_shoulder_roll_joint": 0.01208336871,
+                ".*_shoulder_yaw_joint": 0.004967351303,
+                ".*_elbow_joint": 0.004967351303,
+                ".*_wrist_roll_joint": 0.004967351303,
+                ".*_wrist_pitch_joint": 0.0008100893338,
+                ".*_wrist_yaw_joint": 0.0008100893338,
             },
         ),
     },

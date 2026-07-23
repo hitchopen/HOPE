@@ -31,13 +31,15 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_mul, sample_uniform
 
+from whole_body_tracking.tasks.tracking.mdp.ballistics import (
+    GRAVITY as _GRAVITY,
+    ballistic_velocity_from_landing as _ballistic_velocity_from_landing,
+    ballistic_z_at_x as _ballistic_z_at_x,
+)
 from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-_GRAVITY = 9.81
-
 
 class RacketTargetCommand(CommandTerm):
     """Samples desired racket/station targets and computes the actual racket state by FK."""
@@ -76,6 +78,7 @@ class RacketTargetCommand(CommandTerm):
         self.racket_target_vel_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.racket_target_normal_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.racket_target_normal_w[:, 2] = 1.0
+        self.incoming_ball_vel_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.swing_sign = torch.ones(self.num_envs, device=self.device)
 
         # Actual racket state (FK), world frame.
@@ -99,9 +102,16 @@ class RacketTargetCommand(CommandTerm):
         self.ball_contact = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.ball_net_cross = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.ball_on_opponent = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.impact_ball_out_vel_w = torch.zeros(self.num_envs, 3, device=self.device)
+        self.impact_ball_out_error = torch.zeros(self.num_envs, device=self.device)
 
         # Per-clip strike phase / target boxes (resolved lazily once the motion term is available).
         self._strike_phase_per_clip = None
+        self._swing_side_per_clip = (
+            torch.tensor([float(s) for s in cfg.swing_side_per_clip], device=self.device)
+            if cfg.swing_side_per_clip
+            else None
+        )
         self._pos_box = _boxes_to_tensor(cfg.racket_pos_range_per_clip, self.device)  # (C,3,2) or None
         self._vel_box = _boxes_to_tensor(cfg.racket_vel_range_per_clip, self.device)
         self._mount_sign_per_clip = (
@@ -189,14 +199,35 @@ class RacketTargetCommand(CommandTerm):
         pos[:, 1] = station[:, 1] + pos[:, 1]
         self.racket_target_pos_w[env_ids] = pos
 
-        vel = sample_uniform(vel_box[..., 0], vel_box[..., 1], (n, 3), self.device)
+        if self.cfg.racket_velocity_mode == "range":
+            vel = sample_uniform(vel_box[..., 0], vel_box[..., 1], (n, 3), self.device)
+        elif self.cfg.racket_velocity_mode == "ballistic_landing":
+            vel = self._sample_ballistic_target_velocity(env_ids, pos, station)
+        else:
+            raise ValueError(f"Unsupported racket_velocity_mode: {self.cfg.racket_velocity_mode}")
         self.racket_target_vel_w[env_ids] = vel
 
-        # Simplified blade-direction target = the target-velocity direction (no-spin impact model).
-        self.racket_target_normal_w[env_ids] = vel / (torch.norm(vel, dim=-1, keepdim=True) + 1e-6)
+        incoming_vel = self._sample_incoming_ball_velocity(env_ids, pos)
+        self.incoming_ball_vel_w[env_ids] = incoming_vel
 
-        # Swing side follows the imitated clip (0 = forehand -> +1, 1 = backhand -> -1).
-        if motion._multiseg:
+        # Desired blade normal: normal impulse direction that turns the nominal incoming ball into
+        # the desired outgoing ball velocity. This is still a no-spin approximation, but it avoids
+        # the old over-coupling "face normal == outgoing velocity direction" that produced large
+        # MuJoCo lateral rebounds.
+        normal = vel - incoming_vel
+        self.racket_target_normal_w[env_ids] = normal / (torch.norm(normal, dim=-1, keepdim=True) + 1e-6)
+
+        # Swing side follows per-clip metadata when provided. The historical two-clip default remains
+        # clip 0 = forehand, everything else = backhand for compatibility with older configs.
+        if self._swing_side_per_clip is not None and motion._multiseg:
+            if self._swing_side_per_clip.shape[0] != motion.motion.num_segments:
+                raise ValueError(
+                    "RacketTargetCommandCfg.swing_side_per_clip length "
+                    f"({self._swing_side_per_clip.shape[0]}) must match motion clips "
+                    f"({motion.motion.num_segments})."
+                )
+            self.swing_sign[env_ids] = self._swing_side_per_clip[clip]
+        elif motion._multiseg:
             self.swing_sign[env_ids] = torch.where(clip == 0, 1.0, -1.0)
         else:
             self.swing_sign[env_ids] = 1.0
@@ -207,6 +238,93 @@ class RacketTargetCommand(CommandTerm):
             return per_clip[clip]
         shared = torch.tensor(shared_range, dtype=torch.float32, device=self.device)  # (3, 2)
         return shared.unsqueeze(0).expand(len(clip), 3, 2)
+
+    def _sample_ballistic_target_velocity(
+        self,
+        env_ids: torch.Tensor,
+        target_pos_w: torch.Tensor,
+        station_xy_w: torch.Tensor,
+    ) -> torch.Tensor:
+        """Sample a target velocity that is self-consistent with the simplified return evaluator."""
+        n = len(env_ids)
+        origins = self._env.scene.env_origins[env_ids]
+        p0 = target_pos_w - origins
+        center_y = station_xy_w[:, 1] - origins[:, 1]
+
+        x_lo, x_hi = (float(v) for v in self.cfg.ballistic_land_x_range)
+        y_lo, y_hi = (float(v) for v in self.cfg.ballistic_land_y_range)
+        t_lo, t_hi = (float(v) for v in self.cfg.ballistic_flight_time_range)
+        net_x = float(self.cfg.table_near_x) + float(self.cfg.net_x)
+        net_top = float(self.cfg.table_surface_z) + float(self.cfg.net_height) + float(self.cfg.net_margin)
+
+        out = torch.zeros((n, 3), dtype=torch.float32, device=self.device)
+        resolved = torch.zeros(n, dtype=torch.bool, device=self.device)
+        attempts = max(int(self.cfg.ballistic_sample_attempts), 1)
+
+        for _ in range(attempts):
+            flight_time = sample_uniform(t_lo, t_hi, (n,), self.device)
+            land_x = sample_uniform(x_lo, x_hi, (n,), self.device)
+            land_y = center_y + sample_uniform(y_lo, y_hi, (n,), self.device)
+            land_xy = torch.stack((land_x, land_y), dim=-1)
+            candidate = _ballistic_velocity_from_landing(
+                p0, land_xy, flight_time, float(self.cfg.table_surface_z)
+            )
+            t_net = (net_x - p0[:, 0]) / candidate[:, 0].clamp_min(1.0e-3)
+            z_net = _ballistic_z_at_x(p0, candidate, net_x)
+            valid = (
+                (candidate[:, 0] > float(self.cfg.ballistic_min_forward_speed))
+                & (t_net > 0.0)
+                & (z_net > net_top)
+            )
+            take = (~resolved) & valid
+            out[take] = candidate[take]
+            resolved |= take
+            if bool(torch.all(resolved)):
+                break
+
+        if not bool(torch.all(resolved)):
+            flight_time = torch.full((n,), 0.5 * (t_lo + t_hi), dtype=torch.float32, device=self.device)
+            land_x = torch.full((n,), 0.5 * (x_lo + x_hi), dtype=torch.float32, device=self.device)
+            land_y = center_y
+            land_xy = torch.stack((land_x, land_y), dim=-1)
+            fallback = _ballistic_velocity_from_landing(
+                p0, land_xy, flight_time, float(self.cfg.table_surface_z)
+            )
+            out[~resolved] = fallback[~resolved]
+        return out
+
+    def _sample_incoming_ball_velocity(self, env_ids: torch.Tensor, target_pos_w: torch.Tensor) -> torch.Tensor:
+        """Nominal incoming ball velocity at the strike point.
+
+        The actor does not observe this extra signal; it is used only to shape the critic/rewards
+        around a more realistic moving-racket impact model. The distribution mirrors the MuJoCo
+        evaluator's serve geometry closely enough to make the desired racket face normal meaningful.
+        """
+        n = len(env_ids)
+        origins = self._env.scene.env_origins[env_ids]
+        x_lo, x_hi = (float(v) for v in self.cfg.incoming_origin_x_range)
+        y_lo, y_hi = (float(v) for v in self.cfg.incoming_origin_y_jitter_range)
+        z_lo, z_hi = (float(v) for v in self.cfg.incoming_origin_z_above_table_range)
+        t_lo, t_hi = (float(v) for v in self.cfg.incoming_flight_time_range)
+
+        origin = torch.zeros((n, 3), dtype=torch.float32, device=self.device)
+        origin[:, 0] = origins[:, 0] + float(self.cfg.table_near_x) + sample_uniform(x_lo, x_hi, (n,), self.device)
+        origin[:, 1] = target_pos_w[:, 1] + sample_uniform(y_lo, y_hi, (n,), self.device)
+        origin[:, 2] = origins[:, 2] + float(self.cfg.table_surface_z) + sample_uniform(z_lo, z_hi, (n,), self.device)
+
+        flight_time = sample_uniform(t_lo, t_hi, (n,), self.device)
+        accel = torch.tensor([0.0, 0.0, -_GRAVITY], dtype=torch.float32, device=self.device)
+        v0 = (target_pos_w - origin) / flight_time.unsqueeze(-1) - 0.5 * accel * flight_time.unsqueeze(-1)
+        return v0 + accel * flight_time.unsqueeze(-1)
+
+    def _moving_racket_impact_velocity(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Approximate no-spin ball velocity after contact with a moving racket plane."""
+        normal = self.racket_normal_w / (torch.norm(self.racket_normal_w, dim=-1, keepdim=True) + 1e-6)
+        rel_in = self.incoming_ball_vel_w - self.racket_lin_vel_w
+        rel_n = torch.sum(rel_in * normal, dim=-1, keepdim=True)
+        rel_t = rel_in - rel_n * normal
+        rel_out = float(self.cfg.paddle_tangent_retain) * rel_t - float(self.cfg.paddle_restitution) * rel_n * normal
+        return self.racket_lin_vel_w + rel_out, rel_n.squeeze(-1)
 
     def _resample_command(self, env_ids: Sequence[int]):
         if len(env_ids) == 0:
@@ -279,15 +397,32 @@ class RacketTargetCommand(CommandTerm):
 
         pos_err = torch.norm(self.racket_pos_w - self.racket_target_pos_w, dim=-1)
         self.racket_target_distance = pos_err
-        # contact requires the racket to be near the target AND moving toward it.
-        to_target = self.racket_target_pos_w - self.racket_pos_w
-        to_target_dir = to_target / (torch.norm(to_target, dim=-1, keepdim=True) + 1e-6)
-        approach = torch.sum(self.racket_lin_vel_w * to_target_dir, dim=-1)
+        # Contact requires the racket to be near the target and moving through the strike.  The
+        # target-velocity mode avoids a singular "toward the target point" test when the racket is
+        # already at the contact point.
+        if self.cfg.contact_approach_mode == "target_velocity":
+            approach_dir = self.racket_target_vel_w / (torch.norm(self.racket_target_vel_w, dim=-1, keepdim=True) + 1e-6)
+        elif self.cfg.contact_approach_mode == "target_point":
+            to_target = self.racket_target_pos_w - self.racket_pos_w
+            approach_dir = to_target / (torch.norm(to_target, dim=-1, keepdim=True) + 1e-6)
+        else:
+            raise ValueError(f"Unsupported contact_approach_mode: {self.cfg.contact_approach_mode}")
+        approach = torch.sum(self.racket_lin_vel_w * approach_dir, dim=-1)
         contact = exact & (pos_err < self.cfg.contact_radius) & (approach > self.cfg.min_approach_speed)
 
-        # Outgoing ballistic arc from the strike point (env-local frame) at the racket velocity.
+        if self.cfg.return_model == "racket_velocity":
+            out_vel = self.racket_lin_vel_w
+        elif self.cfg.return_model == "moving_racket_impact":
+            out_vel, rel_normal_speed = self._moving_racket_impact_velocity()
+            contact = contact & ((-rel_normal_speed) > float(self.cfg.min_normal_closing_speed))
+        else:
+            raise ValueError(f"Unsupported return_model: {self.cfg.return_model}")
+        self.impact_ball_out_vel_w = out_vel
+        self.impact_ball_out_error = torch.norm(out_vel - self.racket_target_vel_w, dim=-1)
+
+        # Outgoing ballistic arc from the strike point (env-local frame) at the predicted ball velocity.
         p0 = self.racket_pos_w - self._env.scene.env_origins
-        v = self.racket_lin_vel_w
+        v = out_vel
         x0, y0, z0 = p0[:, 0], p0[:, 1], p0[:, 2]
         vx, vy, vz = v[:, 0], v[:, 1], v[:, 2]
 
@@ -382,6 +517,8 @@ class RacketTargetCommandCfg(CommandTermCfg):
     mount_normal_sign: float = 1.0
     # Per-clip striking-face sign (forehand and backhand strike with opposite faces), e.g. (1.0, -1.0).
     mount_normal_sign_per_clip: tuple = ()
+    # Per-clip swing side exposed to the actor: forehand +1, backhand -1.
+    swing_side_per_clip: tuple = ()
 
     # --- fixed station (startup constant) ---
     station_nominal_offset_xy: tuple[float, float] = (0.0, 0.0)
@@ -399,6 +536,7 @@ class RacketTargetCommandCfg(CommandTermCfg):
     # x/y are STATION-RELATIVE (fixed striking plane in front + swing-side band), z is absolute height.
     racket_pos_range: tuple = ((0.45, 0.55), (-0.35, 0.35), (0.7, 1.1))
     racket_vel_range: tuple = ((1.0, 2.5), (-1.5, 1.5), (0.0, 1.0))
+    racket_velocity_mode: str = "range"  # range | ballistic_landing
     # Optional per-clip boxes (indexed by clip_id 0=forehand, 1=backhand). None -> shared boxes above.
     racket_pos_range_per_clip: tuple | None = None
     racket_vel_range_per_clip: tuple | None = None
@@ -406,6 +544,15 @@ class RacketTargetCommandCfg(CommandTermCfg):
     # --- no-spin return evaluation (example table placement in the env frame; tune to your scene) ---
     contact_radius: float = 0.095   # racket radius + ball radius
     min_approach_speed: float = 0.3  # racket must be moving into the target this fast to "contact"
+    contact_approach_mode: str = "target_point"  # target_point | target_velocity
+    return_model: str = "moving_racket_impact"  # racket_velocity | moving_racket_impact
+    paddle_restitution: float = 0.654
+    paddle_tangent_retain: float = 0.85
+    min_normal_closing_speed: float = 0.2
+    incoming_origin_x_range: tuple = (1.9, 2.4)
+    incoming_origin_y_jitter_range: tuple = (-0.15, 0.15)
+    incoming_origin_z_above_table_range: tuple = (0.15, 0.35)
+    incoming_flight_time_range: tuple = (0.75, 1.0)
     table_near_x: float = 0.5       # x of the robot's own table end (robot sits behind it)
     table_surface_z: float = 0.76   # table surface height above the env origin
     table_length: float = 2.74      # ITTF table length (+x)
@@ -413,3 +560,8 @@ class RacketTargetCommandCfg(CommandTermCfg):
     net_x: float = 1.37             # net plane from the near edge
     net_height: float = 0.1525      # net height above the surface
     net_margin: float = 0.02        # required clearance above the net top
+    ballistic_flight_time_range: tuple = (0.45, 0.75)
+    ballistic_land_x_range: tuple = (2.05, 2.95)
+    ballistic_land_y_range: tuple = (-0.45, 0.45)
+    ballistic_min_forward_speed: float = 0.3
+    ballistic_sample_attempts: int = 8

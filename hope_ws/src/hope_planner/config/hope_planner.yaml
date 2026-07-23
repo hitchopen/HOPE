@@ -36,17 +36,26 @@ hope_planner:
     # every solve_period_s (<= 50 Hz). 0.0 solves on every sample.
     solve_period_s: 0.02
     max_predict_time: 2.0          # forward prediction horizon (s)
-    # Velocity-fit window IN SAMPLES — coupled to the mocap sample rate (keep
-    # the window >= ~100 ms of samples). 31 ≈ 103 ms at a 300 Hz rig; for other
-    # rates use round(31 * rate / 300) — e.g. an OptiTrack rig at 360 Hz -> 37.
-    fit_window: 31
+    # Velocity-fit window IN SAMPLES. Real 360 Hz Motive captures from
+    # /mnt/ssd/zxl/拍1动捕数据.zip and 拍2动捕数据.zip validated best at 67
+    # samples for 50-500 ms ahead prediction.
+    fit_window: 67
+    # Bounce detection for centre-tracked balls. The 40 mm ball centre is near
+    # z=0.02 m at contact; real captures had enough noise/curvature that 0.11 m
+    # caught table bounces more consistently than the older 0.05 m threshold.
+    bounce_center_z_max: 0.11
 
     # --- Table placement ---
     # Table's +y edge in the play frame (table occupies y in [y_max - width, y_max]).
     table_y_max: 0.0
 
     # --- Ball physics ---
-    # No-spin drag / restitution / gravity / geometry are read from
-    # configs/ball_physics.yaml. Leave empty to auto-discover it by walking up
-    # from the package, or set an explicit path.
+    # No-spin gravity / geometry are read from configs/ball_physics.yaml. Leave
+    # empty to auto-discover it by walking up from the package, or set an
+    # explicit path.
     ball_physics_path: ""
+    # Planner-only overrides fitted against the 2026-07-21 Motive trajectories.
+    # These do not modify the shared ball_physics.yaml used by training.
+    drag_k: 0.18
+    table_c_h: 0.80
+    table_c_v: 0.95

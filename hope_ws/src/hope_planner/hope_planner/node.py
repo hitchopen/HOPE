@@ -49,12 +49,12 @@ class HOPEPlannerNode(Node):
         self.declare_parameter("target_land_y", -0.7625)  # fixed landing target y (m)
         self.declare_parameter("delta_t_flight", 0.5)     # desired post-strike flight time (s)
         self.declare_parameter("max_predict_time", 2.0)   # prediction horizon (s)
-        # Velocity-fit window IN SAMPLES — coupled to the mocap sample rate. Keep
-        # the window >= ~100 ms of samples; 31 ≈ 103 ms at a 300 Hz rig (the
-        # default). A faster rig must scale it up or the time window silently
-        # shrinks (e.g. an OptiTrack rig at 360 Hz: 31 samples ≈ 86 ms; use
-        # round(31 * rate / 300) = 37).
-        self.declare_parameter("fit_window", 31)
+        # Velocity-fit window IN SAMPLES — coupled to the mocap sample rate. The
+        # bundled 360 Hz Motive captures validated best at 67 samples for
+        # 50-500 ms ahead prediction.
+        self.declare_parameter("fit_window", 67)
+        self.declare_parameter("bounce_z_tol", 0.005)
+        self.declare_parameter("bounce_center_z_max", 0.11)
         # Push every mocap sample into the estimator; run the predict+plan solve
         # at most every solve_period_s (<= 50 Hz). 0.0 = solve on every sample.
         self.declare_parameter("solve_period_s", 0.02)
@@ -62,6 +62,11 @@ class HOPEPlannerNode(Node):
         self.declare_parameter("table_y_max", 0.0)
         # Optional explicit path to configs/ball_physics.yaml ("" = auto-discover).
         self.declare_parameter("ball_physics_path", "")
+        # Planner-only physics overrides. Negative values leave the shared
+        # configs/ball_physics.yaml constants untouched.
+        self.declare_parameter("drag_k", -1.0)
+        self.declare_parameter("table_c_h", -1.0)
+        self.declare_parameter("table_c_v", -1.0)
 
         self._ball_index = int(self.get_parameter("ball_pose_index").value)
         self._frame_id = str(self.get_parameter("frame_id").value)
@@ -71,6 +76,14 @@ class HOPEPlannerNode(Node):
 
         physics_path = str(self.get_parameter("ball_physics_path").value) or None
         physics = load_ball_physics(physics_path)
+        for param_name, attr_name in (
+            ("drag_k", "k"),
+            ("table_c_h", "C_h"),
+            ("table_c_v", "C_v"),
+        ):
+            override = float(self.get_parameter(param_name).value)
+            if override >= 0.0:
+                setattr(physics, attr_name, override)
         paddle = load_paddle_params(physics_path)
         table = load_table_params(physics_path, y_max=float(self.get_parameter("table_y_max").value))
         config = PlannerConfig(
@@ -85,6 +98,8 @@ class HOPEPlannerNode(Node):
             delta_t_flight=float(self.get_parameter("delta_t_flight").value),
             max_predict_time=float(self.get_parameter("max_predict_time").value),
             fit_window=int(self.get_parameter("fit_window").value),
+            bounce_z_tol=float(self.get_parameter("bounce_z_tol").value),
+            bounce_center_z_max=float(self.get_parameter("bounce_center_z_max").value),
             C_r=paddle["C_r"],
             paddle_a_t=paddle["paddle_a_t"],
             paddle_b_t=paddle["paddle_b_t"],
@@ -120,6 +135,8 @@ class HOPEPlannerNode(Node):
         self.get_logger().info(
             f"HOPE planner started: x_hit={config.x_hit:.3f} m, "
             f"landing={config.target_land[:2]}, split_y={self._split_y:.3f} m, "
+            f"fit_window={config.fit_window}, bounce_center_z_max={config.bounce_center_z_max:.3f} m, "
+            f"ball_physics=(k={physics.k:.4f}, C_h={physics.C_h:.3f}, C_v={physics.C_v:.3f}), "
             f"solve_period={self._solve_period:.3f} s, ball_pose_index={self._ball_index}")
 
     def _select_side(self, intercept_y: float) -> int:

@@ -30,20 +30,20 @@ motion_file: hope_training/motions/preprocessed/hope_forehand.npz
 motion_file_2: hope_training/motions/preprocessed/hope_backhand.npz
 
 env:
-  # Episode of several swings / rallies. A clip wrap resamples the racket target but does NOT teleport
-  # the robot, so the policy learns continuous between-swing recovery.
+  # Long enough to include strike, follow-through, recovery, and the next swing.
   episode_length_s: 10.0
 
 motion:
-  # Do not teleport the robot state on clip wrap: the robot pose / joint state / last action carry
-  # across swings so recovery is learned. (Required by the continuous multi-rally lifecycle.)
+  # Continuous-rally lifecycle: when a clip wraps, do not teleport onto the next reference frame.
+  # This is harder than isolated-swing training, but it is required for MuJoCo/deploy continuous
+  # eval where bad postures carry into the next ball.
   wrap_teleport: false
 
 # Optional environment-cfg overrides applied by scripts/train.py as dotted paths onto the parsed
 # env cfg. Use this to tune without editing Python. Unknown paths are skipped with a warning.
-# Example (uncomment and edit):
-# overrides:
-#   rewards.racket_position.weight: 12.0
-#   rewards.racket_velocity.weight: 8.0
-#   commands.racket_target.pos_z_range: [0.70, 1.05]
-overrides: {}
+overrides:
+  # Give the policy an explicit ready/recovery window between swings. These are control steps at
+  # 50 Hz, so [20, 40] is about 0.4-0.8 s.
+  commands.motion.hold_steps_range: [20, 40]
+  commands.motion.stand_start_prob: 0.25
+  commands.motion.stand_start_min_hold: 30

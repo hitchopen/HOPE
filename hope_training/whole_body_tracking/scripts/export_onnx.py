@@ -52,6 +52,11 @@ def parse_args() -> argparse.Namespace:
         default="hope_training/motions/preprocessed/hope_backhand.npz",
         help="Backhand clip (only needed so the env instantiates).",
     )
+    parser.add_argument(
+        "--motion-manifest",
+        default=None,
+        help="TSV manifest with motion clips and optional strike/racket-target metadata.",
+    )
     parser.add_argument("--experiment-name", default="hope_pingpong", help="rsl_rl experiment name.")
     return parser.parse_args()
 
@@ -81,28 +86,38 @@ def main() -> int:
         from whole_body_tracking.utils.exporter import export_policy
         from whole_body_tracking.utils.my_on_policy_runner import HOPEOnPolicyRunner
         from whole_body_tracking.utils.ppo_cfg import load_ppo_params, runner_kwargs
+        from train import _apply_motion_metadata, _resolve_motion_plan
 
         env_cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs)
-        clips = [_resolve_motion_path(c) for c in (args.motion_file, args.motion_file_2) if c]
+        clips, motion_metadata = _resolve_motion_plan(args)
         env_cfg.commands.motion.motion_file = clips if len(clips) > 1 else clips[0]
+        _apply_motion_metadata(env_cfg, clips, motion_metadata, [])
 
         env = gym.make(args.task, cfg=env_cfg, render_mode=None)
         joint_names = list(env.unwrapped.scene["robot"].data.joint_names)
-        # HARD GATE: the articulation's joint enumeration (which fixes the obs
-        # joint_pos/joint_vel/last_action slices and all 31 action columns of the
-        # exported ONNX) must equal the canonical deploy joint order. If your asset
-        # enumerates differently, every column would be silently permuted at deploy.
-        from whole_body_tracking.utils.action_adapter_config import load_joint_order
+        # JOINT-ORDER GATE: the exported ONNX contract is canonical. The live Isaac
+        # articulation may enumerate differently as long as the env has an explicit
+        # canonical<->articulation permutation and the joint set matches exactly.
+        from whole_body_tracking.utils.action_adapter_config import load_joint_order, resolve_joint_order_mapping
 
         expected_order = list(load_joint_order())
-        if joint_names != expected_order:
+        try:
+            mapping = resolve_joint_order_mapping(joint_names, canonical_joint_names=expected_order)
+        except ValueError as exc:
             raise RuntimeError(
-                "Articulation joint order does not match the canonical deploy joint order "
+                "Articulation joint set does not match the canonical deploy joint set "
                 "(hope_training/config/joint_order_agibot_a3.yaml).\n"
                 f"  articulation: {joint_names}\n"
                 f"  canonical:    {expected_order}\n"
-                "Fix your A3 URDF/USD so its joint enumeration matches the canonical order "
-                "(or update the canonical order everywhere: training, planner, deploy runner)."
+                "Fix your A3 URDF/USD or canonical config before exporting."
+            ) from exc
+        if mapping.is_identity:
+            print("[export_onnx] joint-order gate: articulation matches the canonical deploy order.", flush=True)
+        else:
+            print(
+                "[export_onnx] joint-order gate: using canonical->articulation permutation "
+                f"{list(mapping.canonical_to_articulation)}",
+                flush=True,
             )
         env = RslRlVecEnvWrapper(env)
 
@@ -112,7 +127,7 @@ def main() -> int:
         runner.load(checkpoint)
 
         onnx_path, manifest_path = export_policy(
-            runner.alg.policy, output_dir, joint_names=joint_names, onnx_filename=args.onnx_name
+            runner.alg.policy, output_dir, joint_names=expected_order, onnx_filename=args.onnx_name
         )
         print(f"[export_onnx] wrote {onnx_path}", flush=True)
         print(f"[export_onnx] wrote {manifest_path}", flush=True)

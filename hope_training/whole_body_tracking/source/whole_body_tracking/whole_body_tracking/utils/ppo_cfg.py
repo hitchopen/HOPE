@@ -59,6 +59,7 @@ def runner_kwargs(params: dict, experiment_name: str) -> dict:
         empirical_normalization=bool(r["empirical_normalization"]),
         policy=RslRlPpoActorCriticCfg(
             init_noise_std=float(p["init_noise_std"]),
+            noise_std_type=str(p.get("noise_std_type", "scalar")),
             actor_hidden_dims=[int(x) for x in p["actor_hidden_dims"]],
             critic_hidden_dims=[int(x) for x in p["critic_hidden_dims"]],
             activation=str(p["activation"]),
