@@ -1,0 +1,44 @@
+# =============================================================================
+# HOPE whole-body task (Unitree G1) — the G1 training task (parallel to HOPEPingPong / A3).
+#
+# Selected with `task=HOPEPingPongG1`. Composes the shared env / sim / randomization bases
+# (cfg/base/*) and sets the HOPE knobs below. Detailed reward weights, racket-target sampling
+# boxes, and domain-randomization defaults live in the environment configuration
+# (G1HOPEPingPongEnvCfg, in the tasks/tracking package) — this file carries only the launcher-level
+# knobs and an optional `overrides` map for tuning.
+#
+# Actor observation: 105-D (contract `hope_pingpong_g1`). Action: 29-D raw joint-position residual.
+# Control rate: 50 Hz. Forehand + backhand are learned by one policy (swing_side is an observation).
+# =============================================================================
+
+name: HOPEPingPongG1
+gym_task: HOPE-PingPong-UnitreeG1-v0
+experiment_name: hope_pingpong_g1
+actor_obs_contract: hope_pingpong_g1
+
+defaults:
+  - /base/env_base@_here_
+  - /base/sim_base@_here_
+  - /base/randomization_base@_here_
+  - _self_
+
+# Reference motion clips (repo-root-relative). These are PLACEHOLDER examples only — short, smooth,
+# non-performant synthetic G1 trajectories provided so imports and shape checks pass. Replace them
+# with your own recorded forehand / backhand clips (see docs/REPLACE_MOTIONS.md).
+#   clip 0 = forehand, clip 1 = backhand. Override on the CLI with motion_file= / motion_file_2=.
+motion_file: hope_training/motions/preprocessed/hope_g1_forehand.npz
+motion_file_2: hope_training/motions/preprocessed/hope_g1_backhand.npz
+
+env:
+  # Episode of several swings / rallies. A clip wrap resamples the racket target but does NOT teleport
+  # the robot, so the policy learns continuous between-swing recovery.
+  episode_length_s: 10.0
+
+motion:
+  # Do not teleport the robot state on clip wrap: the robot pose / joint state / last action carry
+  # across swings so recovery is learned. (Required by the continuous multi-rally lifecycle.)
+  wrap_teleport: false
+
+# Optional environment-cfg overrides applied by scripts/train.py as dotted paths onto the parsed
+# env cfg. Use this to tune without editing Python. Unknown paths are skipped with a warning.
+overrides: {}

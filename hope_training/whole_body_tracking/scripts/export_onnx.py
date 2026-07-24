@@ -92,16 +92,16 @@ def main() -> int:
         # joint_pos/joint_vel/last_action slices and all 31 action columns of the
         # exported ONNX) must equal the canonical deploy joint order. If your asset
         # enumerates differently, every column would be silently permuted at deploy.
-        from whole_body_tracking.utils.action_adapter_config import load_joint_order
+        from whole_body_tracking.utils.action_adapter_config import load_joint_order_for_dof
 
-        expected_order = list(load_joint_order())
+        expected_tuple, canon_file = load_joint_order_for_dof(len(joint_names))
+        expected_order = list(expected_tuple)
         if joint_names != expected_order:
             raise RuntimeError(
-                "Articulation joint order does not match the canonical deploy joint order "
-                "(hope_training/config/joint_order_agibot_a3.yaml).\n"
+                f"Articulation joint order does not match the canonical deploy joint order ({canon_file}).\n"
                 f"  articulation: {joint_names}\n"
                 f"  canonical:    {expected_order}\n"
-                "Fix your A3 URDF/USD so its joint enumeration matches the canonical order "
+                "Fix your URDF/USD so its joint enumeration matches the canonical order "
                 "(or update the canonical order everywhere: training, planner, deploy runner)."
             )
         env = RslRlVecEnvWrapper(env)

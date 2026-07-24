@@ -1,0 +1,42 @@
+# Unitree G1 controllable joint order (29 DOF).
+# This is the canonical joint order shared by training, the exported ONNX policy,
+# and any deployment backend. dof_pos / dof_vel / action vectors are all written in
+# this order.
+#
+# It is the Isaac-native articulation enumeration for the G1 racket USD (breadth-first
+# by kinematic-tree depth, left/right interleaved with the waist chain), so the export
+# gate in scripts/export_onnx.py passes with NO column remap. G1 has NO head joints.
+# VERIFY against your real G1 SDK (e.g. `ros2 topic echo /joint_states --once`) before
+# deploying to hardware; if the built articulation enumerates differently, the gate
+# prints the real order — paste it here (this file is the single source of truth).
+# count: 29
+joint_order:
+  - left_hip_pitch_joint
+  - right_hip_pitch_joint
+  - waist_yaw_joint
+  - left_hip_roll_joint
+  - right_hip_roll_joint
+  - waist_roll_joint
+  - left_hip_yaw_joint
+  - right_hip_yaw_joint
+  - waist_pitch_joint
+  - left_knee_joint
+  - right_knee_joint
+  - left_shoulder_pitch_joint
+  - right_shoulder_pitch_joint
+  - left_ankle_pitch_joint
+  - right_ankle_pitch_joint
+  - left_shoulder_roll_joint
+  - right_shoulder_roll_joint
+  - left_ankle_roll_joint
+  - right_ankle_roll_joint
+  - left_shoulder_yaw_joint
+  - right_shoulder_yaw_joint
+  - left_elbow_joint
+  - right_elbow_joint
+  - left_wrist_roll_joint
+  - right_wrist_roll_joint
+  - left_wrist_pitch_joint
+  - right_wrist_pitch_joint
+  - left_wrist_yaw_joint
+  - right_wrist_yaw_joint

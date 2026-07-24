@@ -36,7 +36,9 @@ ACTION_ADAPTER_CONFIG = "a3_deploy/a3_deploy_example/config/action_adapter.yaml"
 JOINT_ORDER_CONFIG = "hope_training/config/joint_order_agibot_a3.yaml"
 
 # The public 111-D observation layout (docs/POLICY_INTERFACE.md §Observation). Recorded in the
-# manifest for documentation; it is fixed by the contract.
+# manifest for documentation; it is fixed by the contract. This module-level constant is the A3
+# (31-DOF) layout; ``observation_layout_for(n)`` derives the same layout for any DOF count N
+# (obs_dim = 18 + 3*N), so the exporter serves the G1 (29-DOF -> 105-D) target too.
 OBSERVATION_LAYOUT = [
     {"name": "base_ang_vel", "slice": [0, 3], "dim": 3},
     {"name": "joint_pos", "slice": [3, 34], "dim": 31},
@@ -50,6 +52,58 @@ OBSERVATION_LAYOUT = [
     {"name": "time_to_strike", "slice": [109, 110], "dim": 1},
     {"name": "swing_side", "slice": [110, 111], "dim": 1},
 ]
+
+# Fixed (DOF-independent) observation tail width: projected_gravity(3) + base_forward_xy(2) +
+# fixed_station_error_xy(2) + racket_target_rel_base(3) + racket_target_vel_w(3) + time_to_strike(1)
+# + swing_side(1) = 15; plus base_ang_vel(3) at the head -> obs_dim = 18 + 3*N.
+_OBS_FIXED_TAIL = 15
+
+
+def obs_dim_for(num_joints: int) -> int:
+    """Actor observation dim for a robot with ``num_joints`` DOF (A3: 111, G1: 105)."""
+    return 3 + 3 * int(num_joints) + _OBS_FIXED_TAIL
+
+
+def contract_name_for(num_joints: int) -> str:
+    """Contract name recorded in the manifest ('hope_pingpong' for 31 DOF, else '..._g1')."""
+    return CONTRACT_NAME if int(num_joints) == 31 else f"{CONTRACT_NAME}_g1"
+
+
+def joint_order_source_for(num_joints: int) -> str:
+    """Repo-relative joint-order YAML path recorded in the manifest, by DOF count."""
+    if int(num_joints) == 31:
+        return JOINT_ORDER_CONFIG
+    return "hope_training/config/joint_order_unitree_g1.yaml"
+
+
+def action_adapter_config_for(num_joints: int) -> str:
+    """Repo-relative action-adapter YAML path recorded in the manifest, by DOF count."""
+    if int(num_joints) == 31:
+        return ACTION_ADAPTER_CONFIG
+    return "g1_deploy/g1_deploy_example/config/action_adapter.yaml"
+
+
+def observation_layout_for(num_joints: int) -> list[dict]:
+    """Build the contiguous observation layout for ``num_joints`` DOF."""
+    n = int(num_joints)
+    terms = [
+        ("base_ang_vel", 3),
+        ("joint_pos", n),
+        ("joint_vel", n),
+        ("last_action", n),
+        ("projected_gravity", 3),
+        ("base_forward_xy", 2),
+        ("fixed_station_error_xy", 2),
+        ("racket_target_rel_base", 3),
+        ("racket_target_vel_w", 3),
+        ("time_to_strike", 1),
+        ("swing_side", 1),
+    ]
+    layout, offset = [], 0
+    for name, dim in terms:
+        layout.append({"name": name, "slice": [offset, offset + dim], "dim": dim})
+        offset += dim
+    return layout
 
 
 def _build_exporter_module(actor_critic, normalizer=None):
@@ -102,14 +156,19 @@ def export_policy_as_onnx(
     os.makedirs(path, exist_ok=True)
     exporter = _build_exporter_module(actor_critic, normalizer).to("cpu").eval()
 
-    if exporter.in_features != OBS_DIM or exporter.out_features != ACTION_DIM:
+    # Derive the expected dims from the actor's own action width (N = out_features), so the same
+    # exporter validates both A3 (31 -> 111) and G1 (29 -> 105).
+    action_dim = exporter.out_features
+    expected_obs_dim = obs_dim_for(action_dim)
+    if exporter.in_features != expected_obs_dim:
         raise ValueError(
             f"actor shape {exporter.in_features} -> {exporter.out_features} does not match the "
-            f"public contract {OBS_DIM} -> {ACTION_DIM}. Refusing to export a non-contract policy."
+            f"public contract {expected_obs_dim} -> {action_dim} (obs_dim = 18 + 3*action_dim). "
+            "Refusing to export a non-contract policy."
         )
 
     onnx_path = os.path.join(path, filename)
-    dummy_obs = torch.zeros(1, OBS_DIM)
+    dummy_obs = torch.zeros(1, expected_obs_dim)
     torch.onnx.export(
         exporter,
         dummy_obs,
@@ -150,24 +209,42 @@ def build_manifest(
     observation_normalization: str = "none",
     onnx_filename: str = "hope_pingpong.onnx",
 ) -> dict:
-    """Assemble the ``policy_manifest.json`` dictionary for the exported policy."""
+    """Assemble the ``policy_manifest.json`` dictionary for the exported policy.
+
+    Dims / layout / contract name are derived from ``len(joint_names)`` so the manifest is correct
+    for both A3 (31 -> 111) and G1 (29 -> 105). Falls back to the A3 defaults when the joint order
+    cannot be resolved.
+    """
     if joint_names is None:
         joint_names = _default_joint_order()
+    if joint_names:
+        n = len(joint_names)
+        obs_dim, action_dim = obs_dim_for(n), n
+        contract_name = contract_name_for(n)
+        observation_layout = observation_layout_for(n)
+        joint_order_source = joint_order_source_for(n)
+        action_adapter_config = action_adapter_config_for(n)
+    else:
+        obs_dim, action_dim = OBS_DIM, ACTION_DIM
+        contract_name = CONTRACT_NAME
+        observation_layout = OBSERVATION_LAYOUT
+        joint_order_source = JOINT_ORDER_CONFIG
+        action_adapter_config = ACTION_ADAPTER_CONFIG
     manifest = {
-        "contract_name": CONTRACT_NAME,
+        "contract_name": contract_name,
         "onnx_file": onnx_filename,
-        "obs_dim": OBS_DIM,
-        "action_dim": ACTION_DIM,
+        "obs_dim": obs_dim,
+        "action_dim": action_dim,
         "control_rate_hz": CONTROL_RATE_HZ,
         "observation_normalization": observation_normalization,
         "onnx_signature": {
-            "input": {"name": "observation", "shape": [1, OBS_DIM], "dtype": "float32"},
-            "output": {"name": "raw_action", "shape": [1, ACTION_DIM], "dtype": "float32"},
+            "input": {"name": "observation", "shape": [1, obs_dim], "dtype": "float32"},
+            "output": {"name": "raw_action", "shape": [1, action_dim], "dtype": "float32"},
         },
-        "observation_layout": OBSERVATION_LAYOUT,
-        "joint_order_source": JOINT_ORDER_CONFIG,
+        "observation_layout": observation_layout,
+        "joint_order_source": joint_order_source,
         "joint_order": list(joint_names) if joint_names else None,
-        "action_adapter_config": ACTION_ADAPTER_CONFIG,
+        "action_adapter_config": action_adapter_config,
     }
     return manifest
 
@@ -200,13 +277,22 @@ def attach_onnx_metadata(onnx_path: str, joint_names: list[str] | None = None,
 
     if joint_names is None:
         joint_names = _default_joint_order()
+    if joint_names:
+        n = len(joint_names)
+        obs_dim, action_dim = obs_dim_for(n), n
+        contract_name = contract_name_for(n)
+        action_adapter_config = action_adapter_config_for(n)
+    else:
+        obs_dim, action_dim = OBS_DIM, ACTION_DIM
+        contract_name = CONTRACT_NAME
+        action_adapter_config = ACTION_ADAPTER_CONFIG
     meta = {
-        "contract_name": CONTRACT_NAME,
-        "obs_dim": str(OBS_DIM),
-        "action_dim": str(ACTION_DIM),
+        "contract_name": contract_name,
+        "obs_dim": str(obs_dim),
+        "action_dim": str(action_dim),
         "control_rate_hz": str(CONTROL_RATE_HZ),
         "observation_normalization": observation_normalization,
-        "action_adapter_config": ACTION_ADAPTER_CONFIG,
+        "action_adapter_config": action_adapter_config,
         "joint_order": ",".join(joint_names) if joint_names else "",
     }
     model = onnx.load(onnx_path)

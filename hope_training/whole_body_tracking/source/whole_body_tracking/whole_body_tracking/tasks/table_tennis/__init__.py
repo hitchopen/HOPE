@@ -7,3 +7,4 @@ Robot-specific environments and Gym registrations live under :mod:`.config` (e.g
 """
 
 from .config import agibot_a3  # noqa: F401  — runs gym.register(...) on import
+from .config import unitree_g1  # noqa: F401  — runs gym.register(...) on import

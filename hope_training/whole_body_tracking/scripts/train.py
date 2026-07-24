@@ -219,18 +219,19 @@ def _run(cfg):
     # order of everything this run learns. It must equal the canonical deploy joint order — the
     # same check export_onnx.py applies — so a permuted asset fails BEFORE training, not after a
     # full run when the stale checkpoint meets the export gate.
-    from whole_body_tracking.utils.action_adapter_config import load_joint_order
+    from whole_body_tracking.utils.action_adapter_config import load_joint_order_for_dof
 
     _joint_names = list(env.unwrapped.scene["robot"].data.joint_names)
-    _expected_order = list(load_joint_order())
+    _expected_tuple, _canon_file = load_joint_order_for_dof(len(_joint_names))
+    _expected_order = list(_expected_tuple)
     if _joint_names != _expected_order:
         raise RuntimeError(
-            "Articulation joint order does not match the canonical deploy joint order "
-            "(hope_training/config/joint_order_agibot_a3.yaml).\n"
+            f"Articulation joint order does not match the canonical deploy joint order ({_canon_file}).\n"
             f"  articulation: {_joint_names}\n"
             f"  canonical:    {_expected_order}\n"
-            "Fix your A3 URDF/USD so its joint enumeration matches the canonical order before "
-            "training (a policy trained on a permuted enumeration cannot be deployed)."
+            "Fix the URDF/USD so its joint enumeration matches the canonical order before "
+            f"training, or paste the articulation order above into {_canon_file} (single source of "
+            "truth). A policy trained on a permuted enumeration cannot be deployed."
         )
     print("[train.py] joint-order gate: articulation matches the canonical deploy order.", flush=True)
 

@@ -168,7 +168,7 @@ licensed Agibot vendor deploy package, the real robot
 
 **Racket tracking is prohibited.** The motion capture system tracks exactly three categories of objects: the ping-pong table origin frame (PPT), each humanoid's `base_link` (P1, P2), and the ball. No reflective markers may be placed on the racket, the robot's hand, or the wrist link. Each robot must infer its paddle's 6-DOF pose through forward kinematics from its own `base_link` + joint encoders. This is a deliberate competition constraint that tests autonomous paddle control through the robot's internal body model.
 
-**One robot, end to end.** The preserved reference design documents discuss both Unitree G1 and Agibot Expedition A3 paths. The shipped stack targets the A3 (31 actuated DOF) end to end: Isaac Lab training of one unified forehand/backhand policy (`HOPE-PingPong-AgibotA3-v0`), MuJoCo evaluation with real ball physics, and a clean-room deploy reference runner, alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
+**Two robots, one task.** The shipped stack targets the Agibot A3 (31 DOF) end to end — Isaac Lab training of one unified forehand/backhand policy (`HOPE-PingPong-AgibotA3-v0`), MuJoCo evaluation with real ball physics, and a clean-room deploy reference runner — alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference. The **Unitree G1 (29 DOF)** is added in parallel (`HOPE-PingPong-UnitreeG1-v0`): the G1 is structurally the A3 minus its two passive neck joints, so the same task machinery drives both. The G1 path ships training + ONNX export (105-D obs / 29-D action) and the deploy contract + reference runner under `g1_deploy/`; its MuJoCo evaluator is the one remaining follow-up. See [docs/RUN_ON_G1.md](docs/RUN_ON_G1.md).
 
 **Open-source training stack.** The WBC training pipeline is built entirely on open-source code: [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting, and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. The HITTER paper's trained weights are not released; all training starts from scratch, and the bundled motion clips are placeholders to be replaced with your own retargeted swings ([docs/REPLACE_MOTIONS.md](docs/REPLACE_MOTIONS.md)).
 
@@ -177,7 +177,7 @@ licensed Agibot vendor deploy package, the real robot
 | Robot | DOF | Status |
 |-------|-----|--------|
 | Agibot Expedition A3 | 31 actuated | Shipped end-to-end path: Isaac Lab training, ONNX export, MuJoCo evaluation, deploy reference runner, plus the Agibot vendor deploy example. |
-| Unitree G1 | 29 | Discussed in the preserved reference design documents (`HOPE_*_Reference_Setup.md`) only; no shipped code path. |
+| Unitree G1 | 29 actuated | Shipped in parallel: Isaac Lab training (`task=HOPEPingPongG1`, gym id `HOPE-PingPong-UnitreeG1-v0`), ONNX export (105-D obs / 29-D action), and the deploy contract + reference runner (`g1_deploy/g1_deploy_example/`). The MuJoCo real-ball evaluator (needs a G1 MJCF) is the remaining follow-up. See [docs/RUN_ON_G1.md](docs/RUN_ON_G1.md). |
 
 ## Coordinate Frame Convention
 

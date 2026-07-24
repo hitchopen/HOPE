@@ -83,8 +83,42 @@ HOPE_PINGPONG = ActorObservationContract(
     ),
 )
 
-# One contract only; keyed for lookup convenience.
-CONTRACTS = {HOPE_PINGPONG.name: HOPE_PINGPONG}
+def _build_contract(name: str, num_joints: int) -> ActorObservationContract:
+    """Build the HOPE actor observation contract for a robot with ``num_joints`` DOF.
+
+    Layout is identical to A3's; only the three joint-width terms (joint_pos / joint_vel /
+    last_action) scale with N, so total = 3 + 3*N + 15 = 18 + 3*N (A3: 111, G1: 105).
+    """
+    n = int(num_joints)
+    return ActorObservationContract(
+        name=name,
+        total_dim=18 + 3 * n,
+        terms=(
+            ActorObservationTerm("base_ang_vel", 3, "imu", "pelvis angular velocity in the body frame"),
+            ActorObservationTerm("joint_pos", n, "encoders", "joint position offset from default (q - default_q)"),
+            ActorObservationTerm("joint_vel", n, "encoders", "joint velocities"),
+            ActorObservationTerm("last_action", n, "runtime_state", "previous tick's applied raw action"),
+            ActorObservationTerm("projected_gravity", 3, "imu", "gravity direction in the base frame"),
+            ActorObservationTerm("base_forward_xy", 2, "imu", "base forward unit vector e_base,x, world XY"),
+            ActorObservationTerm(
+                "fixed_station_error_xy", 2, "runtime_state",
+                "fixed startup station XY minus current base XY, world frame",
+            ),
+            ActorObservationTerm(
+                "racket_target_rel_base", 3, "planner", "target racket position minus base position, world frame"
+            ),
+            ActorObservationTerm("racket_target_vel_w", 3, "planner", "desired racket velocity, world frame"),
+            ActorObservationTerm("time_to_strike", 1, "planner", "time remaining until the strike"),
+            ActorObservationTerm("swing_side", 1, "planner", "forehand (+1) / backhand (-1), locked per task"),
+        ),
+    )
+
+
+# Unitree G1 (29 DOF) actor contract: same terms, 105 dims.
+HOPE_PINGPONG_G1 = _build_contract("hope_pingpong_g1", 29)
+
+# Contracts keyed by name for lookup convenience.
+CONTRACTS = {HOPE_PINGPONG.name: HOPE_PINGPONG, HOPE_PINGPONG_G1.name: HOPE_PINGPONG_G1}
 
 
 def resolve_actor_observation_contract(name: str | None) -> ActorObservationContract | None:

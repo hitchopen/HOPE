@@ -50,3 +50,40 @@ column, so the order is checked at three points:
 If your A3 asset enumerates joints differently, fix the URDF/USD (or update the
 canonical order everywhere at once); do not remap columns ad hoc. Verify against
 the real robot before deploying, e.g. `ros2 topic echo /joint_states --once`.
+
+## Unitree G1 joint order (parallel target)
+
+The G1 is the A3 minus its two passive neck joints: **29 controllable DOF, no head.**
+The canonical G1 order is the Isaac-native articulation enumeration of the G1 racket USD
+(breadth-first by kinematic-tree depth, left/right interleaved with the waist chain), so the
+export gate passes with **no remap**. The source of truth is
+[`hope_training/config/joint_order_unitree_g1.yaml`](../../hope_training/config/joint_order_unitree_g1.yaml),
+mirrored by the deploy runner in
+[`g1_deploy_onnx_ref_pingpong/joint_order.py`](../../g1_deploy/g1_deploy_example/reference/g1_deploy_onnx_ref_pingpong/joint_order.py).
+
+```text
+ 0  left_hip_pitch_joint        15  left_shoulder_roll_joint
+ 1  right_hip_pitch_joint       16  right_shoulder_roll_joint
+ 2  waist_yaw_joint             17  left_ankle_roll_joint
+ 3  left_hip_roll_joint         18  right_ankle_roll_joint
+ 4  right_hip_roll_joint        19  left_shoulder_yaw_joint
+ 5  waist_roll_joint            20  right_shoulder_yaw_joint
+ 6  left_hip_yaw_joint          21  left_elbow_joint
+ 7  right_hip_yaw_joint         22  right_elbow_joint
+ 8  waist_pitch_joint           23  left_wrist_roll_joint
+ 9  left_knee_joint             24  right_wrist_roll_joint
+10  right_knee_joint            25  left_wrist_pitch_joint
+11  left_shoulder_pitch_joint   26  right_wrist_pitch_joint
+12  right_shoulder_pitch_joint  27  left_wrist_yaw_joint
+13  left_ankle_pitch_joint      28  right_wrist_yaw_joint
+14  right_ankle_pitch_joint
+```
+
+- There are **no passive columns** (`HEAD_INDICES = ()`); the vector length is 29.
+- The racket is mounted on the right wrist (`right_wrist_yaw_link`).
+- The observation `joint_pos`/`joint_vel`/`last_action` slices are 29-wide, the ONNX output is
+  `raw_action[29]`, and the actor observation is **105-D** (`18 + 3*29`).
+- The train / export joint-order gate selects this file automatically by DOF count (29). If the
+  built G1 articulation enumerates differently, the gate prints the real order — paste it into the
+  YAML (single source of truth). This order differs from the user's *grouped* deploy convention;
+  HOPE's own runner maps by name via the ONNX `joint_order` metadata, so both are self-consistent.

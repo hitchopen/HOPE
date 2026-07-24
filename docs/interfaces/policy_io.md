@@ -52,3 +52,22 @@ The shipped values are neutral examples; tune them for your robot.
 The policy runs continuous rallies: between incoming balls the robot state and
 `last_action` are never reset — no teleport, no history clear. Recovery between
 strikes is in-place recentring and balance only.
+
+## Unitree G1 variant (parallel target)
+
+The G1 is the A3 minus its two passive neck joints, so the same contract applies with the DOF
+count scaled from 31 to 29 (`obs_dim = 18 + 3*N`):
+
+| Property | A3 | G1 |
+|----------|----|----|
+| Observation | `float32[111]` | `float32[105]` |
+| Action | `float32[31]` | `float32[29]` |
+| ONNX signature | `[1,111] -> [1,31]` | `[1,105] -> [1,29]` |
+| Contract name | `hope_pingpong` | `hope_pingpong_g1` |
+| Passive columns | head idx 3,4 (zeroed) | **none** |
+| Joint order | [joint_order.md](joint_order.md) (31) | [joint_order.md](joint_order.md#unitree-g1-joint-order-parallel-target) (29) |
+| Shared adapter | `a3_deploy/.../action_adapter.yaml` | `g1_deploy/g1_deploy_example/config/action_adapter.yaml` |
+
+The observation term order is identical; only the three joint-width terms (`joint_pos`,
+`joint_vel`, `last_action`) change from 31 to 29. Because the G1 has no passive neck, there is no
+head-zeroing step — the applied action equals the raw action.

@@ -28,11 +28,17 @@ from dataclasses import dataclass
 import numpy as np
 import yaml
 
-# Repo-root-relative locations of the two shared contract files.
+# Repo-root-relative locations of the two shared contract files (A3, the default).
 SHARED_ADAPTER_RELPATH = os.path.join(
     "a3_deploy", "a3_deploy_example", "config", "action_adapter.yaml"
 )
 JOINT_ORDER_RELPATH = os.path.join("hope_training", "config", "joint_order_agibot_a3.yaml")
+
+# Same pair for the Unitree G1 (29 DOF) parallel target.
+G1_SHARED_ADAPTER_RELPATH = os.path.join(
+    "g1_deploy", "g1_deploy_example", "config", "action_adapter.yaml"
+)
+G1_JOINT_ORDER_RELPATH = os.path.join("hope_training", "config", "joint_order_unitree_g1.yaml")
 
 
 def _find_upward(relpath: str, start: str | None = None) -> str:
@@ -51,19 +57,49 @@ def _find_upward(relpath: str, start: str | None = None) -> str:
     )
 
 
-def find_shared_action_adapter_config() -> str:
-    """Absolute path of the canonical shared ``action_adapter.yaml``."""
-    return _find_upward(SHARED_ADAPTER_RELPATH)
+def find_shared_action_adapter_config(relpath: str = SHARED_ADAPTER_RELPATH) -> str:
+    """Absolute path of a shared ``action_adapter.yaml`` (default: A3's)."""
+    return _find_upward(relpath)
 
 
-def load_joint_order(path: str | None = None) -> tuple[str, ...]:
-    """The canonical 31-joint order from ``hope_training/config/joint_order_agibot_a3.yaml``."""
+def load_g1_joint_order() -> tuple[str, ...]:
+    """The canonical Unitree G1 29-joint order (native articulation enumeration)."""
+    return load_joint_order(_find_upward(G1_JOINT_ORDER_RELPATH), expected_len=29)
+
+
+def load_g1_action_adapter_config() -> "ActionAdapterConfig":
+    """Parse the G1 shared adapter YAML against the G1 29-joint order."""
+    return load_action_adapter_config(
+        path=find_shared_action_adapter_config(G1_SHARED_ADAPTER_RELPATH),
+        joint_names=load_g1_joint_order(),
+    )
+
+
+def load_joint_order_for_dof(num_joints: int) -> tuple[tuple[str, ...], str]:
+    """Canonical order + repo-relative source path for a robot with ``num_joints`` DOF.
+
+    Lets the train / export joint-order gate select the right robot's canonical file from the
+    built articulation's DOF count (G1: 29, A3: 31) without coupling to the task string.
+    """
+    if num_joints == 29:
+        return load_g1_joint_order(), G1_JOINT_ORDER_RELPATH
+    return load_joint_order(), JOINT_ORDER_RELPATH
+
+
+def load_joint_order(path: str | None = None, expected_len: int | None = None) -> tuple[str, ...]:
+    """The canonical joint order from a ``joint_order_*.yaml`` (default: A3's 31-DOF file).
+
+    Pass ``path`` to load a different robot's order (e.g. the G1 29-DOF file) and, optionally,
+    ``expected_len`` to assert a specific DOF count. Names must always be unique.
+    """
     path = path or _find_upward(JOINT_ORDER_RELPATH)
     with open(path, "r", encoding="utf-8") as fh:
         doc = yaml.safe_load(fh)
     order = tuple(str(n) for n in doc["joint_order"])
-    if len(order) != 31 or len(set(order)) != 31:
-        raise ValueError(f"joint order must list 31 unique joints, got {len(order)}")
+    if len(set(order)) != len(order):
+        raise ValueError(f"joint order must list unique joints, got duplicates in {order}")
+    if expected_len is not None and len(order) != expected_len:
+        raise ValueError(f"joint order must list {expected_len} joints, got {len(order)}")
     return order
 
 

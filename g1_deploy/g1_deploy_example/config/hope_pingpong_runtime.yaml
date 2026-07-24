@@ -1,0 +1,49 @@
+# HOPE runtime configuration -- clean 105-D Unitree G1 reference deploy.
+#
+# Read by the clean-room reference runner (g1_deploy_onnx_ref_pingpong). Every
+# relative path resolves against THIS file's directory.
+#
+# Single observation/action path only: 105-D observation, 29-D action, no
+# observation normalization, one control rate. There are no model/experiment
+# codenames, playback, or admission-control settings here.
+
+contract: hope_pingpong_g1
+control_hz: 50.0                 # 50 Hz control loop
+observation_normalization: none  # raw observation (must stay 'none')
+passive_neck: false              # the G1 has no neck (no held columns)
+
+policy:
+  # Place your exported actor here (obs[1,105] -> raw_action[1,29]).
+  # Override on the command line with --onnx.
+  onnx_path: ../models/hope_pingpong_g1.onnx
+  joint_order: unitree_g1        # informational; the canonical order lives in joint_order.py
+
+action_adapter:
+  # The shared adapter config (also read by the training package).
+  config_path: action_adapter.yaml
+
+simulation:
+  # TODO: a G1 ping-pong MJCF (with a racket collision geom + racket site + a pelvis free-joint and
+  # gyro sensor for sim_bridge.py) is NOT shipped yet — the MuJoCo real-ball path is the deferred
+  # follow-up. Point --model-xml at your G1 MJCF (e.g. adapted from
+  # TTRL-ICRA2026/Beyondmimic_Deploy_G1/mjmodel.xml) to run the in-process sim.
+  model_xml_path: ../models/g1_pingpong.xml
+  # EXAMPLE simulation PD gains used by the MuJoCo bridge to realize joint-position
+  # targets on the model's torque actuators. These are NOT vendor deploy gains --
+  # they only exist so the reference runs against the sim; tune for your robot.
+  # NOTE: no 'neck' group (the G1 has no head).
+  pd_gains:
+    groups:
+      waist: {kp: 200.0, kd: 5.0}
+      arm:   {kp: 40.0,  kd: 2.0}
+      leg:   {kp: 200.0, kd: 5.0}
+
+lifecycle:
+  # Example continuous-rally timing (ready -> swing -> follow-through -> recovery).
+  follow_through_s: 0.6
+  recovery_s: 0.8
+  ready_time_to_strike: 1.0
+  # Base-relative ready reach the racket goal holds while idle (example values).
+  ready_reach_x: 0.40
+  ready_reach_y: 0.20
+  ready_reach_z: -0.05
