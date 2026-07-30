@@ -39,7 +39,8 @@ Examples::
 
     # OptiTrack/Motive rig (mocap_server = the Motive PC IP):
     ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack \\
-        mocap_server:=192.168.1.100
+        mocap_server:=192.168.1.100 \\
+        mocap_network_latency_ms:=<MEASURED_ONE_WAY_MS>
 
     # No mocap, synthetic ball for a smoke test:
     ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true
@@ -60,6 +61,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     mocap_backend = LaunchConfiguration("mocap_backend")
     mocap_server = LaunchConfiguration("mocap_server")
+    mocap_network_latency_ms = LaunchConfiguration("mocap_network_latency_ms")
     mocap_port = LaunchConfiguration("mocap_port")
     use_fake_ball = LaunchConfiguration("use_fake_ball")
     ball_pose_topic = LaunchConfiguration("ball_pose_topic")
@@ -123,7 +125,11 @@ def generate_launch_description():
                 FindPackageShare("hope_bringup"), "launch", "optitrack_hope_bridge.launch.py"
             ])
         ),
-        launch_arguments={"hostname": mocap_server, "start_world": "false"}.items(),
+        launch_arguments={
+            "hostname": mocap_server,
+            "start_world": "false",
+            "network_latency_ms": mocap_network_latency_ms,
+        }.items(),
         condition=optitrack_selected,
     )
 
@@ -160,6 +166,10 @@ def generate_launch_description():
             description="VRPN motion-capture server port (vrpn backend only; NatNet "
                         "uses its own command port, fixed at 1510 in the vendored "
                         "driver, and auto-negotiates the data port)."),
+        DeclareLaunchArgument(
+            "mocap_network_latency_ms", default_value="0.0",
+            description="OptiTrack only: measured one-way NatNet network/host receive "
+                        "latency in ms for acquisition-time timestamp compensation."),
         DeclareLaunchArgument(
             "use_fake_ball", default_value="false",
             description="Publish a synthetic /poses ball stream instead of starting "

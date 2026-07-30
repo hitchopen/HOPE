@@ -54,6 +54,64 @@ cd a3_deploy/a3_deploy_example/reference
 python -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
 ```
 
+### Required mocap bringup: align P1 to A3 `pelvis_link`
+
+Before using a newly installed A3 pelvis marker shell, perform the one-time P1
+calibration and save its constant 6-DOF `P1 → pelvis_link` transform to a
+persistent JSON file. The mocap system supplies the dynamic `world → P1`
+pose from the P1 rigid-body markers. Calibration additionally requires an
+**independent full-6DOF** `geometry_msgs/PoseStamped` measurement of
+`world → pelvis_link`, for example on `/a3/calibration/pelvis_pose`. The
+calibrator synchronizes those two pose topics and estimates their constant
+relative transform; it does not consume a `Table` topic or TF.
+
+The checked-in A3 hardware bridge publishes `/body_drive/pelvis_imu/data`, but
+an IMU does not provide absolute pelvis translation. It therefore is **not** a
+producer for `/a3/calibration/pelvis_pose`. Before real-robot calibration, the
+A3 integration must bridge an independent external 6-DOF tracker or state
+estimator to that topic with `header.frame_id: world` and timestamps in the
+same clock domain as `/P1/pose`. The MuJoCo-only
+`/sim/a3/pelvis_pose` publisher may be used for simulation validation after
+both inputs have been expressed in its `odom` frame; it is not a hardware
+producer. Do not run `p1_pelvis_tf_publisher` while collecting calibration,
+and never construct the reference pose from `P1`, because either would make
+the measurement circular.
+
+Collect while moving the pelvis smoothly through at least 0.10 m translation
+and 10 degrees rotation for at least one second. Residual RMS alone only tests
+repeatability; the calibrator separately gates measured motion excitation,
+timestamp uniqueness, and pair skew so a stationary capture cannot pass.
+OptiTrack uses latency-compensated local-ROS acquisition timestamps; both
+sources must use the same acquisition-time epoch.
+
+```bash
+cd hope_ws && colcon build --packages-select hope_bringup && source install/setup.bash
+ros2 run hope_bringup p1_pelvis_calibrator \
+  --p1-topic /P1/pose \
+  --pelvis-topic /a3/calibration/pelvis_pose \
+  --reference-frame world \
+  --pelvis-frame pelvis_link \
+  --p1-frame P1 \
+  --output calibration/p1_to_pelvis.json
+```
+
+At normal runtime, load that JSON to publish the constant `P1 → pelvis_link` TF:
+
+```bash
+ros2 run hope_bringup p1_pelvis_tf_publisher \
+  --calibration-file calibration/p1_to_pelvis.json
+```
+
+The resulting chain is `world → P1 → pelvis_link`; the first transform remains
+the live mocap measurement, while only the second is static. An optional
+alternative is to absorb the saved correction into Motive's P1 pivot
+definition. If that is done, disable the static publisher and verify by
+rerunning calibration that the correction is approximately identity. Never
+apply both corrections. The `Table` asset may be enabled separately for arena
+setup when needed; this tool does not use it, and competition must not stream it.
+See [mocap/README.md](mocap/README.md#calibrating-a-humanoid-p1-body-to-pelvis_link)
+and [docs/OPTITRACK.md](docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link).
+
 The bundled motion clips under `hope_training/motions/preprocessed/` are
 **reference-only placeholders** — replace them with real forehand/backhand clips
 ([docs/REPLACE_MOTIONS.md](docs/REPLACE_MOTIONS.md)) before training a policy you
@@ -65,7 +123,7 @@ install → train → export → evaluate → run loop, and
 
 | Document | Description | Version |
 |----------|-------------|---------|
-| [Motion Capture System Reference Setup](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md) | OptiTrack/NatNet and Chingmu/VRPN ROS 2 arena configuration, coordinate frames, competition rigid bodies (`Ball`, `P1`, `P2`; `Table` for calibration only), humanoid `base_link` marker setup, and streaming pipelines | v0.7 |
+| [Motion Capture System Reference Setup](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md) | OptiTrack/NatNet and Chingmu/VRPN ROS 2 arena configuration, coordinate frames, competition rigid bodies (`Ball`, `P1`, `P2`; `Table` for calibration only), robot root-frame registration, and streaming pipelines | v0.7 |
 | [7DOF Racket Model-based Planner Reference Setup](HOPE_7DOF_Racket_Model_based_Planner_Reference_Setup.md) | Ball state estimation, trajectory prediction, and racket target planning (Stages 1–3 of the HITTER framework), reimplemented in the HOPE canonical frame | v0.1 |
 | [WBC Simulation Training Reference Setup](HOPE_WBC_Simulation_Training_Reference_Setup.md) | SMPL-X motion acquisition, GMR retargeting, BeyondMimic RL training pipeline for whole-body control (Stage 4), with dual-backend support for Isaac Lab and mjlab | v0.5 |
 | [Hardware Deployment Reference Setup](HOPE_Hardware_Deployment_Reference_Setup.md) | Platform-specific real-robot deployment paths (including `legged_control2` and AimRT): ONNX inference, ROS 2 node graph, PD gain tuning, safety procedures, and competition workflow | v0.2 |
@@ -144,7 +202,7 @@ The competition rulebooks ship at the repository root:
                     │                              │
                     │  Receives:                   │
                     │   • RacketCommand            │
-                    │   • base_link pose (mocap)   │
+                    │   • robot root pose          │
                     │   • Joint encoders           │
                     │                              │
                     │  Outputs:                    │
@@ -183,7 +241,7 @@ licensed Agibot vendor deploy package, the real robot
 
 ## Key Design Decisions
 
-**Racket tracking is prohibited.** During competition the motion capture system streams the named rigid bodies `Ball`, `P1`, and `P2` — the ball and the two humanoid `base_link` bodies. The table is a calibrated static world origin (a `Table` asset is used during setup only and appears only in training-data recordings). The ball stream contains position `(x, y, z)` and orientation, represented in ROS 2 as a quaternion `(qx, qy, qz, qw)`. Pitch, yaw, and roll are derived views, not fields carried by `geometry_msgs/Pose`. No reflective markers may be placed on the racket, the robot's hand, or the wrist link. Each robot must infer its paddle's 6-DOF pose through forward kinematics from its own `base_link` + joint encoders. This is a deliberate competition constraint that tests autonomous paddle control through the robot's internal body model.
+**Racket tracking is prohibited.** During competition the motion capture system streams the named rigid bodies `Ball`, `P1`, and `P2` — the ball and the two humanoid marker-cluster frames. A calibrated static transform maps each P1/P2 frame to that robot's declared URDF root frame (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). The table is a calibrated static world origin (a `Table` asset is used during setup only and appears only in training-data recordings). The ball stream contains position `(x, y, z)` and orientation, represented in ROS 2 as a quaternion `(qx, qy, qz, qw)`. Pitch, yaw, and roll are derived views, not fields carried by `geometry_msgs/Pose`. No reflective markers may be placed on the racket, the robot's hand, or the wrist link. Each robot must infer its paddle's 6-DOF pose through forward kinematics from its declared root frame plus joint encoders. This is a deliberate competition constraint that tests autonomous paddle control through the robot's internal body model.
 
 **Implementation scope.** The preserved reference documents include robot-specific integration examples; the code currently shipped in this repository implements the Agibot A3 (31 actuated DOF) path end to end: Isaac Lab training of one unified forehand/backhand policy (`HOPE-PingPong-AgibotA3-v0`), MuJoCo evaluation with real ball physics, and a clean-room deploy reference runner, alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
 

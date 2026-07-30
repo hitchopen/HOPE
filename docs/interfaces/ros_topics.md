@@ -30,7 +30,7 @@ NatNet driver + relay — the `/poses` hop and everything below it are identical
 /optitrack/poses                       motion_capture_tracking_interfaces/NamedPoseArray
         |  optitrack_mct_relay (hope_bringup)
         v
-/poses (+ /ball/point, /{table,P1,P2}/pose, TF)
+/poses (+ /ball/point, /{P1,P2}/pose, TF; Table is setup-only opt-in)
 ```
 
 ## Topics
@@ -56,7 +56,7 @@ Notes per hop:
   updates, publishes a `PoseArray` whose slot *i* is input topic *i*'s latest
   pose (including its quaternion), trigger stamp passed through unmodified. The
   input order is `Ball` first (default bringup aggregates only the ball), then `P1`, `P2`
-  when robot bases are aggregated; `Table` is never streamed in competition. The planner reads the ball at
+  when marker-cluster poses are aggregated; `Table` is never streamed in competition. The planner reads the ball at
   `ball_pose_index` (default 0). With `use_fake_ball:=true`,
   `fake_ball_publisher` publishes this form directly.
 - **`/racket/command`** — the planner feeds every mocap sample to its estimator
@@ -68,8 +68,14 @@ Notes per hop:
 
 ## OptiTrack backend
 
-`ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack mocap_server:=<MOTIVE_PC_IP>`
-(or the standalone `optitrack_hope_bridge.launch.py`) swaps the mocap source
+```bash
+ros2 launch hope_bringup hope_bringup.launch.py \
+  mocap_backend:=optitrack \
+  mocap_server:=<MOTIVE_PC_IP> \
+  mocap_network_latency_ms:=<MEASURED_ONE_WAY_MS>
+```
+
+(Or use the standalone `optitrack_hope_bridge.launch.py`.) This swaps the mocap source
 while keeping the `/poses` contract byte-identical. Operational guide:
 [docs/OPTITRACK.md](../OPTITRACK.md).
 
@@ -78,7 +84,8 @@ while keeping the `/poses` contract byte-identical. Operational guide:
 | `/optitrack/poses` | `motion_capture_tracking_interfaces/NamedPoseArray` | vendored `motion_capture_tracking` driver → `optitrack_mct_relay` | sensor-data (best-effort, volatile, keep-last 1) |
 | `/poses` | `geometry_msgs/PoseArray` | `optitrack_mct_relay` → `hope_planner` | best-effort, volatile, keep-last 1 |
 | `/ball/point` | `geometry_msgs/PointStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
-| `/table/pose`, `/P1/pose`, `/P2/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
+| `/P1/pose`, `/P2/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
+| `/table/pose` | `geometry_msgs/PoseStamped` | setup/recording only when `publish_table:=true`; no publisher is created by the competition-default relay | best-effort, volatile, keep-last 1 |
 
 Notes:
 
@@ -92,18 +99,22 @@ Notes:
   HOPE contract — an unremapped driver breaks the planner with a DDS type
   mismatch. The driver's raw TF is likewise remapped to `/optitrack/tf` /
   `/optitrack/tf_static` so the relay stays the only
-  `world → ball/Table/P1/P2` TF authority; `/optitrack/pointCloud` carries the
+  `world → Ball/P1/P2` TF authority (and setup-only `Table` only when explicitly
+  enabled); `/optitrack/pointCloud` carries the
   unlabeled-marker cloud (diagnostics only — the ball is a rigid-body asset,
-  never reconstructed from the cloud).
+  never reconstructed from the cloud). The supplied driver uses
+  `ros_latency_compensated` timestamps: local ROS receipt time minus NatNet's
+  Camera/Motive latency and the measured `mocap_network_latency_ms`; neither
+  bare receipt-time `ros` nor the unrelated Motive `camera` epoch is suitable
+  for moving cross-sensor calibration.
 - **`/poses`** — published by the relay ONLY on frames that contain the ball
   entry (an occluded ball is omitted by the driver), so a stale ball position
   is never re-emitted at rigid-body timestamps — the same
   ball-triggered publishing the VRPN path gets from `pose_to_posearray`.
-  Order is `["ball", "Table", "P1", "P2"]` (ball first, matching the planner's
-  default `ball_pose_index: 0`); absent objects are skipped. NOTE: a body seen
-  once keeps its last pose in the array (no staleness pruning) — disable the
-  calibration-only `Table` asset and restart the relay before competition so a
-  stale `Table` pose is not re-emitted.
+  Competition order is `["ball", "P1", "P2"]` (ball first, matching the
+  planner's default `ball_pose_index: 0`); absent objects are skipped.
+  `publish_table` defaults to `false`, so even an accidentally active Motive
+  Table asset creates no `/table/pose` publisher, Table TF, or `/poses` entry.
 - **Rates** — OptiTrack rigs commonly stream 360 Hz (vs the 300 Hz VRPN
   default). The planner's `fit_window` is coupled to the rate
   (`round(31 × rate / 300)`, ≥ ~100 ms of samples — 360 Hz → 37); see

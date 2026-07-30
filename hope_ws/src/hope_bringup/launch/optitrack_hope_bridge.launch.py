@@ -3,21 +3,22 @@
 Chain:  Motive (NatNet UDP, cmd port 1510)  -->  motion_capture_tracking_node
         (vendored, namespace /optitrack; poses/tf remapped to /optitrack/*)
         --> optitrack_mct_relay
-        --> /poses, /tf, /ball/point, /{table,P1,P2}/pose  --> hope_planner
+        --> /poses, /tf, /ball/point, /{P1,P2}/pose  --> hope_planner
 
 OptiTrack sibling of the VRPN path (``vrpn_mocap`` + ``pose_to_posearray``,
 wired by ``hope_bringup.launch.py``); both feed the identical ``/poses``
 contract (ball at index 0), so everything downstream is unchanged. This launch
 starts the mocap side only — run the planner via ``hope_bringup.launch.py``
 (``mocap_backend:=optitrack`` includes this file), or separately.
-Also starts the static HOPE world frame (table landmarks + mocap->base_link).
+Also starts the static HOPE arena-landmark frames. Robot marker-to-root
+transforms are loaded separately from their calibration records.
 
 The remaps are LOAD-BEARING, not cosmetic:
   * the driver's `poses` topic is motion_capture_tracking_interfaces/
     NamedPoseArray -- on the bare /poses name it would collide with the HOPE
     /poses contract (geometry_msgs/PoseArray) as a DDS type mismatch;
   * the driver broadcasts /tf with raw body names (P1/Table/...) which would
-    fight the relay's world->P1/Table transforms and the hope_world statics.
+    fight the relay's world->P1/P2 transforms and the hope_world statics.
 
 Before running against a live rig (see docs/OPTITRACK.md):
   * hostname -> the Motive PC IP on the arena LAN.
@@ -50,6 +51,8 @@ def generate_launch_description():
     start_mocap_node = LaunchConfiguration("start_mocap_node")
     start_world = LaunchConfiguration("start_world")
     position_scale = LaunchConfiguration("position_scale")
+    publish_table = LaunchConfiguration("publish_table")
+    network_latency_ms = LaunchConfiguration("network_latency_ms")
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -75,8 +78,19 @@ def generate_launch_description():
             description="Uniform position conversion applied by the relay. Motive "
                         "streams metres -> 1.0 (use 0.001 only for a millimetre feed).",
         ),
+        DeclareLaunchArgument(
+            "publish_table", default_value="false",
+            description="Setup/recording only: relay the Table asset to /table/pose, "
+                        "/poses, and TF. Must remain false in competition.",
+        ),
+        DeclareLaunchArgument(
+            "network_latency_ms", default_value="0.0",
+            description="Measured one-way NatNet network/host receive latency in ms, "
+                        "subtracted when mapping exposure time into the ROS clock epoch.",
+        ),
 
-        # Static HOPE world frame: table landmarks + mocap->base_link offsets.
+        # Static HOPE arena-landmark frames. P1/P2-to-robot-root transforms
+        # are separate calibrated authorities.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(launch_dir / "hope_world.launch.py")),
             condition=IfCondition(start_world),
@@ -95,7 +109,13 @@ def generate_launch_description():
             condition=IfCondition(start_mocap_node),
             parameters=[
                 str(mct_config_path),
-                {"hostname": hostname, "type": mocap_type},
+                {
+                    "hostname": hostname,
+                    "type": mocap_type,
+                    "topics.network_latency_ms": ParameterValue(
+                        network_latency_ms, value_type=float
+                    ),
+                },
             ],
             remappings=[
                 # `poses`/`pointCloud` are relative and already resolve under
@@ -107,7 +127,8 @@ def generate_launch_description():
         ),
 
         # Relay: /optitrack/poses -> HOPE-standard topics (the relay is the
-        # only /tf authority for ball/Table/P1/P2).
+        # only /tf authority for Ball/P1/P2. Table output is opt-in for a
+        # separate setup/recording session and is off by default.
         Node(
             package="hope_bringup",
             executable="optitrack_mct_relay",
@@ -115,7 +136,10 @@ def generate_launch_description():
             output="screen",
             parameters=[
                 str(relay_config_path),
-                {"position_scale": ParameterValue(position_scale, value_type=float)},
+                {
+                    "position_scale": ParameterValue(position_scale, value_type=float),
+                    "publish_table": ParameterValue(publish_table, value_type=bool),
+                },
             ],
         ),
     ])

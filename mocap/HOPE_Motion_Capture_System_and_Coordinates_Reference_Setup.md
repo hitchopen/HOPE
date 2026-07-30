@@ -95,7 +95,7 @@ During competition the motion capture system streams the named rigid bodies **`B
 
 **Rationale:**
 
-1. **Forward kinematics inference.** The humanoid must infer its paddle's 6-DOF pose (position and orientation) from its own proprioceptive state — joint encoder readings plus the tracked `base_link` position — using forward kinematics through its arm kinematic chain. This tests the robot's internal body model accuracy, which is a core competency for any real-world manipulation task.
+1. **Forward kinematics inference.** The humanoid must infer its paddle's 6-DOF pose (position and orientation) from its own proprioceptive state — joint encoder readings plus its declared URDF root pose (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3) — using forward kinematics through its arm kinematic chain. Motion capture tracks the P1/P2 marker cluster; a calibrated static transform maps that marker frame to the robot root. This tests the robot's internal body model accuracy, which is a core competency for any real-world manipulation task.
 
 2. **No external sensing of end-effector.** In this architecture, the whole-body controller (WBC) receives a desired racket state `(p_intercept, v_racket, n_racket, t_strike)` from the planner and uses its RL policy to drive the 7-DOF arm to achieve that state. The controller never receives measured racket pose from the motion capture system. The racket's actual position is an emergent property of the robot's joint configuration, not an externally measured quantity.
 
@@ -105,40 +105,40 @@ During competition the motion capture system streams the named rigid bodies **`B
 
 **Enforcement:** During competition setup, referees verify that no retroreflective material is present on the racket, the robot's hand, or the wrist link beyond the last tracked rigid-body marker on the robot's torso/pelvis.
 
-**Cross-references:** The companion *HOPE 7DOF Racket Model-based Planner Reference Setup* (Section 0.1) documents that the planner outputs a desired racket state without any racket pose feedback. The companion *HOPE WBC Simulation Training Reference Setup* (Section 2.8 — Racket Mount Kinematics) documents the complete FK chain from `base_link` through the 7-DOF arm to the 3D-printed fixed racket mount, including the `T_mount` calibration procedure that ensures the simulation model matches the physical bracket.
+**Cross-references:** The companion *HOPE 7DOF Racket Model-based Planner Reference Setup* (Section 0.1) documents that the planner outputs a desired racket state without any racket pose feedback. The companion *HOPE WBC Simulation Training Reference Setup* (Section 2.8 — Racket Mount Kinematics) documents the complete FK chain from the declared robot root frame through the 7-DOF arm to the 3D-printed fixed racket mount, including the `T_mount` calibration procedure that ensures the simulation model matches the physical bracket.
 
 ### 3.2  Tracked Objects Summary
 
 | Object ID | Asset type | What is tracked | Markers | Tracking mode |
 |-----------|-----------|-----------------|---------|---------------|
 | **Table** | Rigid body (setup/calibration only — **not streamed in competition**; poses appear only in training data) | Ping-pong table frame and world origin | ≥ 4 asymmetric on table outer frame | Vendor 6-DOF |
-| **P1** | Rigid body (vendor-tracked) | Player 1 humanoid `base_link` | ≥ 4 asymmetric on torso/pelvis plate | Vendor 6-DOF |
-| **P2** | Rigid body (vendor-tracked) | Player 2 humanoid `base_link` | ≥ 4 asymmetric on torso/pelvis plate | Vendor 6-DOF |
+| **P1** | Rigid body (vendor-tracked) | Player 1 marker-cluster frame; statically calibrated to its declared robot root | ≥ 4 asymmetric on torso/pelvis plate | Vendor 6-DOF |
+| **P2** | Rigid body (vendor-tracked) | Player 2 marker-cluster frame; statically calibrated to its declared robot root | ≥ 4 asymmetric on torso/pelvis plate | Vendor 6-DOF |
 | **Ball** | Rigid body (vendor-tracked) | Ping-pong ball center pose | Vendor-qualified rigid-body pattern/constellation | Vendor 6-DOF |
 
 No other objects should carry unregistered retroreflective patterns within the tracking volume during play. Give every rigid body a unique asymmetric signature and stable asset name so the vendor solver cannot swap asset identities.
 
 ---
 
-## 4  Setup of the Humanoid base_link Markers
+## 4  Setup of the Humanoid Root-Frame Markers
 
-In this reference design, the humanoid infers its paddle's 6-DOF pose using **forward kinematics from `base_link`** through the arm's kinematic chain. Therefore, the only spatial anchor the motion capture system provides for each robot is its `base_link` location.
+In this reference design, the humanoid infers its paddle's 6-DOF pose using **forward kinematics from its declared URDF root frame** through the arm's kinematic chain. Motion capture supplies the P1/P2 marker-cluster pose, and a calibrated static transform maps it to that root (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3).
 
-### 4.1  base_link Convention — General Principles
+### 4.1  Robot Root-Frame Convention — General Principles
 
-There is no universal standard for where a humanoid robot's `base_link` is defined. The convention varies by manufacturer, URDF authoring choices, and the robot's intended control architecture. However, three common patterns have emerged across the industry:
+There is no universal name or location for a humanoid robot's URDF root frame. A platform may call it `base_link`, `pelvis`, `pelvis_link`, or something else. The convention varies by manufacturer, URDF authoring choices, and the robot's intended control architecture. However, three common patterns have emerged across the industry:
 
-**Pattern A — Pelvis root (most common for bipedal locomotion).** The `base_link` is the pelvis link, located at the center of the hip plate where the leg kinematic chains branch downward and the torso chain branches upward. This is a common choice for RL-trained locomotion controllers because the pelvis is the most stable reference during walking — it is the floating-base frame in whole-body dynamics. The Unitree G1, Unitree H1, Boston Dynamics Atlas, and Agility Digit are examples of this pattern.
+**Pattern A — Pelvis root (most common for bipedal locomotion).** The declared root is the pelvis link, located at the center of the hip plate where the leg kinematic chains branch downward and the torso chain branches upward. This is a common choice for RL-trained locomotion controllers because the pelvis is the most stable reference during walking — it is the floating-base frame in whole-body dynamics. Unitree G1 uses the exact URDF link name `pelvis`; Agibot A3 uses `pelvis_link`.
 
-**Pattern B — Torso/chest root.** Some platforms place `base_link` at the upper torso or chest, above the waist joint(s). This is less common for bipedal locomotion (the pelvis is more dynamically stable) but can appear in manipulation-focused configurations where the arms are the primary concern and the legs are treated as a mobile base subsystem.
+**Pattern B — Torso/chest root.** Some platforms place their declared root at the upper torso or chest, above the waist joint(s). This is less common for bipedal locomotion (the pelvis is more dynamically stable) but can appear in manipulation-focused configurations where the arms are the primary concern and the legs are treated as a mobile base subsystem.
 
-**Pattern C — Waist joint root.** A compromise where `base_link` sits at the waist joint itself — the interface between legs and torso. In many simple designs this is co-located with the pelvis origin (Pattern A). In robots with multi-DOF waist articulation, the waist joint is above the pelvis, and choosing it as `base_link` places the root between the two subsystems.
+**Pattern C — Waist joint root.** A compromise where the declared root sits at the waist joint itself — the interface between legs and torso. In many simple designs this is co-located with the pelvis origin (Pattern A). In robots with multi-DOF waist articulation, the waist joint is above the pelvis, and choosing it as the root places it between the two subsystems.
 
 **For the HOPE competition, the critical requirement is:**
 
-> The `base_link` must be the root of the forward kinematics chain that reaches the paddle-holding hand. The planner outputs a desired racket state in the world frame; the robot's WBC must compute the arm joint trajectory from `base_link` to the paddle that achieves it.
+> The declared robot root frame must anchor the forward kinematics chain that reaches the paddle-holding hand. The planner outputs a desired racket state in the world frame; the robot's WBC must compute the arm joint trajectory from that root to the paddle.
 
-This means the complete FK chain is: `world → base_link (from mocap) → waist joints → shoulder → elbow → wrist → paddle tip (from joint encoders)`. Every joint between `base_link` and the paddle must be instrumented with encoders whose readings are available to the robot's control software.
+The complete spatial chain is: `world → P1/P2 (live mocap) → declared robot root (calibrated static TF) → waist joints → shoulder → elbow → wrist → paddle tip (joint encoders)`. Every joint between the declared root and the paddle must be instrumented with encoders whose readings are available to the robot's control software.
 
 ### 4.2  Unitree G1
 
@@ -146,7 +146,8 @@ The Unitree G1 is one robot-specific integration example; the same registration 
 
 | Property | Value |
 |----------|-------|
-| `base_link` location | **Pelvis** — center of lower torso at the waist, approximately at the intersection of the two hip yaw joint axes |
+| Declared URDF root link | **`pelvis`** |
+| Declared URDF root location | **Pelvis** — center of lower torso at the waist, approximately at the intersection of the two hip yaw joint axes |
 | Pattern | A (pelvis root) |
 | Standing pelvis height | ~0.78 m above floor (z ≈ +0.02 m in HOPE frame) |
 | Robot overall height | 1.27–1.32 m |
@@ -160,7 +161,7 @@ The Unitree G1 is one robot-specific integration example; the same registration 
 The kinematic tree branches from the pelvis:
 
 ```
-pelvis (base_link)
+pelvis (declared URDF root)
 ├── left_hip_yaw_joint  → left leg (6 DOF)
 ├── right_hip_yaw_joint → right leg (6 DOF)
 └── waist_yaw_joint     → torso → shoulder → elbow → wrist (7 DOF per arm)
@@ -174,54 +175,49 @@ The Expedition A3 is an athletic humanoid by Agibot (Zhiyuan Robotics).
 
 | Property | Value |
 |----------|-------|
-| `base_link` location | **To be confirmed** — likely pelvis (Pattern A), but the flexible waist may warrant Pattern C |
+| Declared URDF root link | **`pelvis_link`** — confirmed from the A3 URDF |
 | Standing height | Full-size (~1.75 m, estimated from video) |
 | Weight | Not publicly disclosed |
 | Total DOF | Not publicly disclosed; described as "highly anthropomorphic full-body degrees of freedom" |
 | Arm DOF | Not publicly disclosed (7 DOF per arm expected, based on Agibot platform lineage) |
 | Waist DOF | **Multi-DOF flexible waist** — a key distinguishing feature engineered to mirror the human range of motion, enabling rotation and swaying for complex whole-body movements |
-| URDF source | Not publicly available as of March 2026 |
+| URDF source | Repository paths `agibot/URDF/a3_t2d5/urdf/model.urdf` and `agibot/URDF/A3T2.5-URDF-std-pingpang/urdf/URDF-JOINT-LINK.urdf` |
 | Middleware | **AimRT** (Agibot's native C++20 runtime); supports ROS 2 protocol bridging |
 
 **Key considerations:**
 
-1. **Flexible waist implications.** The A3's multi-DOF flexible waist is specifically engineered for the kind of torso rotation and weight transfer that table tennis demands. However, if the waist has 2–3 DOF (pitch, roll, yaw), the choice of where `base_link` sits relative to the waist joints significantly affects the FK chain length. For ping-pong, the waist DOFs contribute directly to racket positioning (waist rotation extends the arm's effective reach and angle), so `base_link` should ideally be **below** the waist (Pattern A) to include waist DOFs in the paddle FK chain.
+1. **Flexible waist implications.** A3's root `pelvis_link` sits below the articulated waist, so the waist joints remain part of the forward-kinematics chain to the paddle. This is important for table-tennis torso rotation, weight transfer, and reach.
 
-2. **Vendor coordination.** Teams planning to use the A3 for HOPE should coordinate directly with Agibot to obtain the URDF and confirm the `base_link` convention, `base_link` height, and the complete joint chain from `base_link` to the paddle-holding hand. The open-source Agibot X1 training repository (`github.com/AgibotTech/agibot_x1_train`) contains URDF files under `resources/robots/` and may serve as a reference for Agibot's kinematic tree conventions.
+2. **Kinematic-chain validation.** Teams using A3 should validate the supplied URDF revision, standing `pelvis_link` height, and complete joint chain from `pelvis_link` to the paddle-holding hand against the deployed robot.
 
 3. **Middleware bridging.** The A3 runs on AimRT natively, not ROS 2. AimRT supports ROS 2 as one of several communication protocols (alongside HTTP, gRPC, MQTT, and Zenoh). For the HOPE architecture, two integration approaches are available:
-   - **Approach 1 (recommended):** Run the HOPE planner as a ROS 2 node; bridge the `RacketCommand` topic into AimRT where the A3's native WBC consumes it. The `base_link` pose from motion capture still flows through ROS 2 → AimRT.
+   - **Approach 1 (recommended):** Run the HOPE planner as a ROS 2 node; bridge the `RacketCommand` topic into AimRT where the A3's native WBC consumes it. The `pelvis_link` pose, obtained from `world → P1 → pelvis_link`, flows through ROS 2 → AimRT.
    - **Approach 2:** Run the planner within AimRT directly, subscribing to the motion capture data via AimRT's ROS 2 protocol support.
+
+4. **A3 P1 registration and current marker status.** The v2 CAD table and the physical `a3_hip_marker_shell_p1_mocap_balls_0702.x_t` shell define all ten marker centres `f1`–`f5`, `b1`–`b5`; a physical mocap experiment confirmed that all ten points are visible. The complete set has a nominal centroid of `[-0.0024, 0, -0.1490] m` in `pelvis_link`. Create the P1 Motive asset from all ten markers. After aligning P1 axes to `pelvis_link` (`+X` forward, `+Y` left, `+Z` up), the CAD cross-check for its centroid-to-pelvis pivot translation is `[+0.0024, 0, +0.1490] m` (`[+2.4, 0, +149.0] mm`). Centroid data alone does **not** establish orientation. During one-time bringup, use `p1_pelvis_calibrator` to compare mocap `/P1/pose` (`world → P1`) with an independently produced, acquisition-time-synchronized, full-6DOF `world → pelvis_link` `PoseStamped`; the tool does not use `Table`, because a common Table transform cancels exactly. The current A3 hardware bridge provides pelvis IMU data but no absolute pelvis translation, so a real-hardware integration must supply the independent `/a3/calibration/pelvis_pose` source from external metrology or a state estimator before this procedure can run. Collect while translating and rotating the pelvis: the tool separately gates motion excitation and timing coverage because a low residual RMS measures consistency, not observability. Save the installed plate's full 6-DOF `P1 → pelvis_link` correction. At normal bringup, `p1_pelvis_tf_publisher` loads this JSON as a static TF. Its live result supersedes the CAD nominal value. Absorbing the correction into Motive's P1 pivot is an optional alternative; never use it together with the ROS 2 static TF. The tool and validation procedure are documented in [`docs/OPTITRACK.md`](../docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link).
 
 ### 4.4  Competition Registration Requirements
 
 Each team must declare the following during HOPE competition registration. This information is needed to verify that the motion capture system, planner, and WBC are correctly integrated for their specific humanoid platform.
 
-| Item | Description | Example (Unitree G1) |
+| Item | Description | Example (Agibot A3) |
 |------|-------------|---------------------|
-| **Robot model** | Manufacturer and model designation | Unitree G1 EDU |
-| **`base_link` URDF link name** | The exact link name in the URDF that corresponds to `base_link` | `pelvis` |
-| **`base_link` physical location** | Description of where the link origin sits on the physical robot | Center of hip plate, at intersection of hip yaw axes |
-| **`base_link` pattern** | Which convention (A/B/C from Section 4.1) | Pattern A (pelvis root) |
-| **Standing `base_link` height** | Height of `base_link` origin above the floor when standing in nominal pose | 0.78 m (z ≈ +0.02 m in HOPE frame) |
-| **Mocap-to-URDF static offset** | Translation [dx, dy, dz] from the mocap marker cluster centroid to the URDF `base_link` origin | [0.0, 0.0, −0.03] m (markers on outer shell, 3 cm above pelvis origin) |
-| **Arm DOF count** | Number of actuated joints from `base_link` to paddle grip, including waist | 1 waist + 7 arm = 8 DOF |
-| **Middleware** | ROS 2 native, AimRT with ROS 2 bridge, or other | ROS 2 native |
-| **URDF availability** | Public URL or "provided to organizers under NDA" | `github.com/unitreerobotics/unitree_ros` |
+| **Robot model** | Manufacturer and model designation | Agibot Expedition A3 |
+| **Declared URDF root link** | Exact root link name used by the controller | `pelvis_link` |
+| **Root-frame physical location** | Description of where the root origin sits on the physical robot | Center of hip plate, at intersection of hip yaw axes |
+| **Root-frame pattern** | Which convention (A/B/C from Section 4.1) | Pattern A (pelvis root) |
+| **Standing root height** | Height of the root origin above the floor in nominal stance | Team-measured value |
+| **Mocap-to-root static transform** | Full 6-DOF transform from the P1/P2 marker-cluster frame to the declared URDF root | Calibrated value; `P1 → pelvis_link` on A3 |
+| **Arm DOF count** | Number of actuated joints from the declared root to paddle grip, including waist | Platform-specific |
+| **Middleware** | ROS 2 native, AimRT with ROS 2 bridge, or other | AimRT with ROS 2 bridge |
+| **URDF availability** | Public URL or "provided to organizers under NDA" | Repository path under `agibot/URDF/` |
 
-The static offset (mocap-to-URDF) is published as a `static_transform_publisher` in the team's launch file:
+The calibrated mocap-to-URDF offset is saved in JSON and published at bringup.
+For A3 the resulting chain is `world → P1 → pelvis_link`:
 
-```python
-Node(
-    package='tf2_ros',
-    executable='static_transform_publisher',
-    arguments=[
-        '--x', '0.0', '--y', '0.0', '--z', '-0.03',
-        '--roll', '0', '--pitch', '0', '--yaw', '0',
-        '--frame-id', 'P1_mocap',
-        '--child-frame-id', 'P1_base_link'
-    ],
-)
+```bash
+ros2 run hope_bringup p1_pelvis_tf_publisher \
+  --calibration-file calibration/p1_to_pelvis.json
 ```
 
 ### 4.5  What the Robot Knows vs. What Motion Capture Provides
@@ -229,9 +225,9 @@ Node(
 | Information | Source | Used by |
 |-------------|--------|---------|
 | Ball 6-DOF pose: position `[x, y, z]` + quaternion `[qx, qy, qz, qw]` at the capture rate | Motion capture → ROS 2 topic | Planner uses position (Stages 1–3); orientation is preserved for validation and future spin-aware estimation |
-| Humanoid `base_link` 6-DOF pose | Motion capture → ROS 2 topic | WBC (Stage 4) for base position commands |
+| Humanoid root-frame 6-DOF pose (`pelvis_link` on A3) | Live P1/P2 pose composed with the calibrated static transform | WBC (Stage 4) for root position commands |
 | `Table` rigid-body pose | Setup/calibration sessions and training-data recordings only — **no competition stream** | Arena calibration (world-origin verification) |
-| Paddle 6-DOF pose | **Forward kinematics** from joint encoders + `base_link` | WBC internal state; **not** from motion capture |
+| Paddle 6-DOF pose | **Forward kinematics** from joint encoders + declared robot root | WBC internal state; **not** from motion capture |
 | Paddle desired state | Planner output (Stage 3) | WBC (Stage 4) as tracking target |
 
 ---
@@ -318,7 +314,8 @@ name would collide with the planner's `geometry_msgs/PoseArray` DDS type.
 ### 6.2  OptiTrack / NatNet Path
 
 In Motive, define the competition assets `Ball`, `P1`, and `P2` as rigid bodies, with the
-`Ball` pivot at the ball center and `P1`/`P2` pivots at the declared `base_link` frames. The
+`Ball` pivot at the ball center. Keep `P1`/`P2` as marker-cluster rigid-body frames and
+calibrate a static transform from each one to its robot's declared URDF root. The
 `Table` asset is used only in a separate setup/calibration or training-recording session
 (Section 2.3); disable or omit it before competition streaming.
 
@@ -337,16 +334,20 @@ Start the complete planner path with the Motive PC address:
 
 ```bash
 ros2 launch hope_bringup hope_bringup.launch.py \
-  mocap_backend:=optitrack mocap_server:=MOTIVE_PC_IP
+  mocap_backend:=optitrack \
+  mocap_server:=MOTIVE_PC_IP \
+  mocap_network_latency_ms:=MEASURED_ONE_WAY_MS
 ```
 
 The chain is `Motive → motion_capture_tracking_node → /optitrack/poses →
 optitrack_mct_relay → /poses`. The driver publishes one `NamedPoseArray` per camera frame;
 the relay maps names according to `config/optitrack_relay.yaml`, scales positions only if
-configured otherwise, and preserves the quaternion. The default driver configuration stamps
-with ROS receipt time (`topics.header_time: ros`). The legacy Motive VRPN port 3883 is not part
-of this connection. See [`docs/OPTITRACK.md`](../docs/OPTITRACK.md) for build, launch, and
-diagnostic details.
+configured otherwise, and preserves the quaternion. The default driver configuration uses
+`topics.header_time: ros_latency_compensated`: it maps exposure time into the local ROS epoch
+by subtracting NatNet Camera/Motive latencies and the measured one-way network/host latency
+from receipt time. Bare `ros` is arrival time; bare `camera` is the Motive host's unrelated
+clock epoch. The legacy Motive VRPN port 3883 is not part of this connection. See
+[`docs/OPTITRACK.md`](../docs/OPTITRACK.md) for build, launch, and diagnostic details.
 
 ### 6.3  Chingmu / VRPN Path
 
@@ -416,7 +417,7 @@ Confirm all of the following:
 - `position` is in metres, `orientation` is finite and unit length, and the Ball pivot is at its geometric center.
 - The message `frame_id` and axes match the HOPE world frame. **Landmark validation is mandatory before play** for every vendor and installation: place the `Ball` asset at surveyed landmarks (e.g. the net-center line `x = 1.37, y = −0.7625, z = 0.02`) and confirm the streamed coordinates match Section 2.1. This catches an incorrect Up Axis, shifted origin, mirrored frame, or accidental double transform.
 - Occlusion produces a **dropout**, not a frozen or all-zero pose. On the NatNet path, a missing `Ball` entry causes the relay to pause `/poses`; consumers must not substitute a stale pose.
-- The shipped NatNet driver (`topics.header_time: ros`) and the default VRPN client use receipt time. If `topics.header_time: camera` or `use_vrpn_timestamps: true` is selected, synchronize the mocap server and ROS host with NTP/PTP.
+- The shipped NatNet config uses `ros_latency_compensated` plus measured `mocap_network_latency_ms`; do not use bare receipt-time `ros` or mix the Motive `camera` epoch directly with ROS. A VRPN vendor timestamp requires a verified NTP/PTP or equivalent clock mapping.
 - `/poses` index order matches the planner configuration. The current no-spin planner reads the Ball position while the full quaternion remains in the message and bag recording.
 
 ---
@@ -431,7 +432,7 @@ Motion Capture System (360 Hz)                         Humanoid (proprioceptive)
   ├── Ball 6-DOF rigid-body pose ──▶ HOPE Planner      │
   │      (planner currently uses xyz)  Stages 1–3       │
   │                                        ▼              │
-  └── P1 base_link 6-DOF ──────────▶ WBC (Stage 4) ◀── RacketCommand
+  └── P1 marker 6-DOF ──▶ robot root TF ──▶ WBC (Stage 4) ◀── RacketCommand
                                            │              (p_intercept,
                                            │               v_racket,
                                            ▼               n_racket,
@@ -441,7 +442,7 @@ Motion Capture System (360 Hz)                         Humanoid (proprioceptive)
                                            ▼
                                      Paddle pose
                                      (inferred via FK from
-                                      base_link + joint encoders,
+                                      robot root + joint encoders,
                                       NOT measured by mocap)
 ```
 
@@ -455,12 +456,12 @@ The HOPE motion capture reference system defines four named rigid-body assets; o
 
 1. **`Ball`** — the ping-pong ball as a vendor-tracked 6-DOF rigid body. ROS 2 receives position plus quaternion orientation; the current no-spin planner uses position only.
 2. **`Table`** — a setup/calibration-only asset anchoring the world frame origin (legacy arena notes may call this `PPT`); it appears in training-data recordings but is **not** streamed during competition.
-3. **`P1`** — the Player 1 humanoid `base_link` rigid body.
-4. **`P2`** — the Player 2 humanoid `base_link` rigid body.
+3. **`P1`** — the Player 1 humanoid marker-cluster rigid body.
+4. **`P2`** — the Player 2 humanoid marker-cluster rigid body.
 
-The `base_link` definition varies by manufacturer (Section 4); each team declares its robot-specific mapping at registration.
+Each team declares its robot-specific URDF root frame and provides the calibrated static transform from P1/P2 to that root (Section 4). For A3 this mapping is `P1 → pelvis_link`.
 
-**The paddle/racket is never tracked by the motion capture system.** Each humanoid must infer its own paddle pose through forward kinematics from joint encoders and the tracked `base_link`. This is the fundamental sensing architecture: external perception (ball trajectory) feeds the model-based planner, while internal proprioception (joint states + `base_link`) drives the whole-body controller that positions the paddle. See the companion *HOPE WBC Simulation Training Reference Setup* (Section 2.8) for the complete forward kinematics chain from `base_link` through the 7-DOF arm to the 3D-printed racket mount.
+**The paddle/racket is never tracked by the motion capture system.** Each humanoid must infer its own paddle pose through forward kinematics from joint encoders and its declared robot root pose. This is the fundamental sensing architecture: external perception (ball trajectory) feeds the model-based planner, while internal proprioception (joint states + robot root pose) drives the whole-body controller that positions the paddle. See the companion *HOPE WBC Simulation Training Reference Setup* (Section 2.8) for the complete forward kinematics chain from the robot root through the 7-DOF arm to the 3D-printed racket mount.
 
 ---
 

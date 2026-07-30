@@ -45,12 +45,14 @@ duplicated by hand.
 
 ## Mocap frame
 
-The arena motion-capture stream streams the named rigid bodies — `Ball`,
-`P1`, and `P2` — in the same world frame during competition (a `Table` asset exists for
-calibration only and is not streamed). Each ROS 2 pose contains
-position `(x, y, z)` and quaternion orientation `(qx, qy, qz, qw)`; the current
-no-spin planner consumes only the Ball position. The robot's base yaw comes from
-the robot IMU, not from mocap. The authoritative mocap frame
+The arena motion-capture stream carries the named rigid bodies — `Ball`, `P1`,
+and `P2` — in the same world frame during competition (a `Table` asset exists
+for calibration only and is not streamed). P1/P2 are marker-cluster frames; a
+calibrated static transform maps each one to its robot's declared URDF root
+(`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). Each ROS 2 pose contains position `(x, y, z)` and
+quaternion orientation `(qx, qy, qz, qw)`; the current no-spin planner consumes
+only the Ball position. The robot's control-facing root yaw comes from the
+robot IMU, not from mocap. The authoritative mocap frame
 and topic contract is [`mocap/README.md`](../../mocap/README.md); the preserved
 arena design document
 [`mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md`](../../mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md)

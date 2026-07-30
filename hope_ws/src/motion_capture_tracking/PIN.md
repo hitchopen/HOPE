@@ -66,8 +66,6 @@ License: MIT (upstream `LICENSE` kept in this directory).
    latest-only drain hook: renames self-heal in ~1-2 s without a bridge
    restart.
 
-No other source-code (`.cpp/.hpp/.msg`) changes.
-
 7. **`src/motion_capture_tracking_node.cpp` warn throttle (2026-07-21, review
    finding)**: the per-frame `RCLCPP_WARN` for an untracked tracker body
    (line ~321) became `RCLCPP_WARN_THROTTLE(…, 2000 ms)` — an object out of
@@ -80,7 +78,17 @@ No other source-code (`.cpp/.hpp/.msg`) changes.
    host. No functional change for HOPE bringup, which passes its own
    parameter file.
 
-9. **`deps/libmotioncapture/src/optitrack.cpp` model-definition type mask +
+9. **`src/motion_capture_tracking_node.cpp` acquisition-time mapping
+   (2026-07-30)**: add `topics.header_time=ros_latency_compensated`, which
+   stamps each frame in the local ROS epoch as receive time minus NatNet's
+   per-frame Camera + Motive processing latencies and a deployment-measured
+   `topics.network_latency_ms`. Bare `ros` is arrival time and biases moving
+   cross-sensor calibration; bare `camera` is the Motive host's unrelated
+   high-resolution-clock epoch. The mapping avoids both failure modes without
+   pretending the remaining one-way network latency can be inferred from a
+   single UDP packet.
+
+10. **`deps/libmotioncapture/src/optitrack.cpp` model-definition type mask +
    bounded handshake (2026-07-30, field finding vs Motive 3.1.0.4 / NatNet
    4.1)**: Motive silently DROPS a payload-less `NAT_REQUEST_MODELDEF` — it
    replies only when a 4-byte descriptor-type bitmask follows the 4-byte
@@ -98,6 +106,8 @@ No other source-code (`.cpp/.hpp/.msg`) changes.
    `hope_bringup/scripts/natnet_preflight.py`, which distinguishes this
    condition from an unreachable Motive or a wrong-interface multicast join
    without needing ROS.
+
+No other source-code (`.cpp/.hpp/.msg`) changes.
 
 ## Re-pin procedure
 
@@ -123,7 +133,9 @@ rm -rf hope_ws/src/motion_capture_tracking/deps/libmotioncapture/deps/{vrpn,pybi
 - Params actually read by the node (the upstream `config/cfg.yaml` example
   contains stale `topics.tf.reference_frame/child_frame_fmt` keys the node
   ignores): `type`, `hostname`, `topics.frame_id`, `topics.header_time`
-  (`ros`=arrival time, `camera`=vendor clock), `topics.poses.version`,
+  (`ros`=arrival time, `camera`=vendor clock,
+  `ros_latency_compensated`=local ROS receive time minus NatNet Camera/Motive
+  latency and `topics.network_latency_ms`), `topics.poses.version`,
   `topics.poses.qos.mode` (`none`=reliable depth-1 | `sensor`=SensorDataQoS
   keep-last-1 + deadline), `topics.poses.qos.deadline` (Hz),
   `topics.tf.child_frame_id` (fmt string, default `{}`), `logfilepath`, plus

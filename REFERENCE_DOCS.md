@@ -39,7 +39,7 @@ motion converter) and the exact steps to revive it.
 | [HOPE_7DOF_Racket_Model_based_Planner_Reference_Setup.md](HOPE_7DOF_Racket_Model_based_Planner_Reference_Setup.md) | Ball state estimation, trajectory prediction, and racket target planning (Stages 1–3 of the HITTER framework), in the HOPE canonical frame | v0.1 |
 | [HOPE_WBC_Simulation_Training_Reference_Setup.md](HOPE_WBC_Simulation_Training_Reference_Setup.md) | SMPL-X motion acquisition, GMR retargeting, and the BeyondMimic RL pipeline for whole-body control (Stage 4), with the original dual-backend Isaac Lab / mjlab plan | v0.5 |
 | [HOPE_Hardware_Deployment_Reference_Setup.md](HOPE_Hardware_Deployment_Reference_Setup.md) | Real-robot deployment architecture for G1 (`legged_control2`) and A3 (AimRT): ONNX inference, ROS 2 node graph, PD tuning, and safety procedures | v0.2 |
-| [mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md) · [ZH](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup_ZH.md) | OptiTrack/ROS 2 arena configuration, coordinate frames, tracked-object taxonomy, `base_link` marker setup, and ball tracking | v0.4 |
+| [mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup.md) · [ZH](mocap/HOPE_Motion_Capture_System_and_Coordinates_Reference_Setup_ZH.md) | OptiTrack/ROS 2 arena configuration, coordinate frames, tracked-object taxonomy, robot root-frame registration, and ball tracking | v0.4 |
 
 The three system design documents preserved at the repository root
 (RACKET_PLANNER / WBC_TRAINING / HARDWARE_DEPLOYMENT) each carry a **Section 0
@@ -61,11 +61,14 @@ embed.
 ### A rule that shapes the whole design
 
 **Racket tracking is prohibited.** Motion capture tracks exactly three
-categories: the table origin frame (PPT), each humanoid's `base_link` (P1, P2),
-and the ball. No markers on the racket, hand, or wrist link. Each robot must
-infer its paddle's 6-DOF pose by forward kinematics from its own `base_link`
-plus joint encoders. This constraint is why the policy contract exposes joint
-state rather than a measured racket pose.
+categories: the table origin frame (PPT), each humanoid's marker-cluster rigid
+body (P1, P2), and the ball. A calibrated static transform maps P1/P2 to the
+robot's declared URDF root frame (`pelvis` on Unitree G1; `pelvis_link` on
+Agibot A3). No markers are placed
+on the racket, hand, or wrist link. Each robot must infer its paddle's 6-DOF
+pose by forward kinematics from that root frame plus joint encoders. This
+constraint is why the policy contract exposes joint state rather than a
+measured racket pose.
 
 ## References
 

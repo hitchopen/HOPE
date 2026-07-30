@@ -14,9 +14,9 @@ v0.2 — 2026-04-02
 
 This document describes how to deploy trained HOPE ping-pong WBC policies onto physical humanoid hardware — the Unitree G1 or Agibot Expedition A3. It is the final step in the HOPE pipeline, consuming the ONNX policy exported from simulation training (see companion *HOPE WBC Simulation Training Reference Setup*, Section 5) and connecting it to the live motion capture system (see companion *HOPE Motion Capture System Reference Setup*) and the real-time planner (see companion *HOPE 7DOF Racket Model-based Planner Reference Setup*).
 
-The deployment architecture is a ROS 2 Jazzy graph running on the robot's onboard computer or a tethered workstation. The policy runs ONNX CPU inference at 50 Hz, reads joint encoder feedback and `base_link` pose from the motion capture system, receives racket target commands from the planner, and outputs 29-DOF (G1) or equivalent-DOF (A3) joint position commands that are converted to torques by a PD controller on the robot's actuator bus.
+The deployment architecture is a ROS 2 Jazzy graph running on the robot's onboard computer or a tethered workstation. The policy runs ONNX CPU inference at 50 Hz, reads joint encoder feedback and the declared robot root pose (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3), receives racket target commands from the planner, and outputs 29-DOF (G1) or equivalent-DOF (A3) joint position commands that are converted to torques by a PD controller on the robot's actuator bus. Motion capture supplies the P1/P2 marker-cluster pose, which is composed with its calibrated static transform to obtain the robot root pose.
 
-> **HOPE Racket Tracking Prohibition.** During competition the motion-capture stream contains the ball and humanoid base links (P1/P2); the `Table`/PPT asset is used only during setup and calibration to establish the surveyed world origin. The racket is NEVER tracked. The deployed policy infers its paddle state via forward kinematics from `base_link` + joint encoders through the fixed wrist mount (see WBC Training doc Section 2.8).
+> **HOPE Racket Tracking Prohibition.** During competition the motion-capture stream contains the ball and humanoid marker-cluster rigid bodies (P1/P2); calibrated static transforms map P1/P2 to the robots' declared URDF root frames (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). The `Table`/PPT asset is used only during setup and calibration to establish the surveyed world origin. The racket is NEVER tracked. The deployed policy infers its paddle state via forward kinematics from the robot root frame plus joint encoders through the fixed wrist mount (see WBC Training doc Section 2.8).
 
 ---
 
@@ -68,7 +68,7 @@ The deployment runs as a ROS 2 Jazzy graph. All nodes run on a single machine (t
 │  │                      │   │                               │             │
 │  │  Subscribes:         │   │  Subscribes:                  │             │
 │  │   /ball/point        │   │   /racket/command             │             │
-│  │   /P1/pose           │   │   /P1/pose (base_link)       │             │
+│  │   /P1/pose           │   │   robot root pose            │             │
 │  │                      │   │   Joint encoder feedback      │             │
 │  │  Publishes:          │   │                               │             │
 │  │   /racket/command    │──▶│  ONNX inference (50 Hz)       │             │
@@ -201,7 +201,7 @@ The MuJoCo simulation should show the G1 model performing the trained swing moti
 1. ☐ Robot is powered on and standing in a stable position
 2. ☐ 3D-printed racket mount is securely attached to the right wrist link
 3. ☐ Racket is mounted and the `T_mount` transform matches the simulation model (see WBC Training doc Section 2.8)
-4. ☐ Table/PPT calibration has been verified; the motion-capture system is tracking the robot base_link (P1) and ball
+4. ☐ Table/PPT calibration has been verified; the motion-capture system is tracking the robot marker cluster (P1) and ball, and the calibrated P1-to-root transform is active
 5. ☐ The mocap bridge (`optitrack_hope_bridge.launch.py`: vendored `motion_capture_tracking` driver + `optitrack_mct_relay`) is publishing `/P1/pose` and `/ball/point`
 6. ☐ HOPE planner node is running and publishing `/racket/command`
 7. ☐ E-stop (Unitree RC joystick button B) has been tested
@@ -271,7 +271,7 @@ The `MotionTrackingController` class constructs the observation vector at each c
 - Joint positions and velocities (from robot encoders via `unitree_systems`)
 - Base angular velocity and projected gravity (from onboard IMU)
 - Previous action (the joint position targets from the last control step — standard RL observation for temporal smoothness)
-- `base_link` pose (from motion capture via `/P1/pose` subscription)
+- Robot root pose (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3), obtained by composing `/P1/pose` with the calibrated static transform
 - Racket target command: desired base XY position, desired racket position relative to base, desired racket velocity in world frame, time to strike (from planner via `/racket/command` subscription)
 - Reference motion: target joint positions and velocities at the current and future timesteps, reference base angular velocity (extracted from the ONNX model's embedded 50 Hz reference trajectory via the `forward()` function)
 
@@ -319,7 +319,7 @@ This approach reuses the same ONNX inference logic from `motion_tracking_control
 
 - **Joint mapping**: Replace G1 joint names with A3 joint names in the controller configuration
 - **PD gains**: Set A3-specific stiffness and damping per joint (from Agibot's actuator datasheets)
-- **Base_link transform**: Apply the A3's `base_link` offset (different from G1's pelvis location)
+- **Root-frame transform**: Apply the calibrated `P1 → pelvis_link` transform for A3
 - **`T_mount` transform**: The A3's racket mount geometry will differ from the G1's
 
 The Agibot X1/X2 AimDK already provides ROS 2 standard interfaces for joint control, following the `/aimdk_msgs/` message conventions. The A3 (Expedition series) is expected to follow the same pattern.
@@ -340,7 +340,7 @@ class HopeWbcModule : public aimrt::ModuleBase {
     
     void OnJointState(const JointStateMsg& msg) {
         // Build observation vector (same structure as training)
-        auto obs = BuildObservation(msg, base_link_pose_, racket_command_);
+        auto obs = BuildObservation(msg, robot_root_pose_, racket_command_);
         
         // Run ONNX inference
         auto action = onnx_session_.Run(obs);
@@ -441,9 +441,9 @@ The planner and WBC controller should use this QoS for all subscriptions. Using 
 | Robot falls immediately when policy activates | Gravity/mass mismatch between sim and real | Verify URDF inertial params; start with lower Kp |
 | Swing never reaches the ball | PD gains too low on real hardware | Increase Kp by 10% increments |
 | Arm oscillates during swing | Kd too low; actuator backlash not modeled | Increase Kd; add low-pass filter on action output |
-| Robot drifts sideways during play | IMU bias not calibrated; base_link mocap offset wrong | Re-calibrate IMU; verify mocap marker offset |
+| Robot drifts sideways during play | IMU bias not calibrated; P1-to-root mocap offset wrong | Re-calibrate IMU; verify the calibrated marker-to-root transform |
 | Ball contact but no return | `T_mount` mismatch between sim and real | Re-measure the physical racket mount transform |
-| Forehand/backhand selection wrong | Base_link Y offset from table center incorrect | Verify robot placement relative to table origin |
+| Forehand/backhand selection wrong | Robot-root Y offset from table center incorrect | Verify robot placement relative to table origin |
 
 ### 5.2  Observation Noise Matching
 
@@ -451,7 +451,7 @@ The training environment adds observation noise to simulate real sensor imperfec
 
 - **Joint encoder noise**: Unitree G1 encoders are ±0.01 rad — well within typical training noise of ±0.05 rad
 - **IMU noise**: Onboard IMU angular velocity noise ~0.01 rad/s — within training noise of ±0.2 rad/s
-- **Mocap base_link noise**: OptiTrack at 360 Hz provides sub-mm accuracy — much better than the ±5 mm training noise
+- **Mocap robot-root noise**: OptiTrack at 360 Hz provides sub-mm marker tracking; include calibration uncertainty when comparing it with the ±5 mm training noise
 - **Latency**: The ~10–15 ms total latency is within the 1-step (20 ms) observation delay modeled in training
 
 If any real sensor is noisier than the training distribution, the policy may degrade. The fix is to retrain with increased noise parameters in the domain randomization config.
@@ -463,7 +463,7 @@ If any real sensor is noisier than the training distribution, the policy may deg
 A typical HOPE competition match follows this sequence:
 
 1. **Setup** (5 min): Position robot at the table, power on, verify mocap tracking, attach racket
-2. **Calibration** (2 min): Verify `base_link` and `T_mount` in OptiTrack; confirm planner receives `/ball/point`
+2. **Calibration** (2 min): Verify P1 tracking, the P1-to-root transform (`P1 → pelvis_link` on A3), and `T_mount`; confirm the planner receives `/ball/point`
 3. **Pre-flight** (1 min): Run through the pre-flight checklist (Section 2.5)
 4. **Warm-up** (30 s): Activate policy in standby; toss a test ball to verify planner + WBC connectivity
 5. **Match**: Press `R1 + A` (G1) to activate the WBC; opponent serves

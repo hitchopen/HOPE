@@ -12,7 +12,7 @@ v0.1 — 2026-03-19
 
 This document provides a reference implementation of the model-based planner (Stages 1–3) for computing the desired 7-DOF racket state — interception position, velocity, and face orientation — for a humanoid ping-pong player. The planner operates within the HOPE canonical world frame defined in the companion document *HOPE Motion Capture System Reference Setup for Ping-Pong Arena*.
 
-The planner consumes ball position data from the HOPE motion capture system and produces a `RacketCommand` message specifying where and how the humanoid's paddle must arrive to return the ball. Per the HOPE racket exclusion policy, the paddle's actual pose is **never measured by the motion capture system**; the motion capture system tracks only three categories of objects — the table origin frame (PPT), humanoid base_links (P1, P2), and the ping-pong ball. Each humanoid must achieve the commanded racket state through its own forward kinematics from `base_link` + joint encoders and whole-body controller. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1 — Racket Exclusion Policy) and *HOPE WBC Simulation Training Reference Setup* (Section 2.8 — Racket Mount Kinematics).
+The planner consumes ball position data from the HOPE motion capture system and produces a `RacketCommand` message specifying where and how the humanoid's paddle must arrive to return the ball. Per the HOPE racket exclusion policy, the paddle's actual pose is **never measured by the motion capture system**; the motion capture system tracks only three categories of objects — the table origin frame (PPT), humanoid marker-cluster rigid bodies (P1, P2), and the ping-pong ball. A calibrated static transform maps each P1/P2 frame to its robot's declared URDF root frame (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). Each humanoid must achieve the commanded racket state through its own forward kinematics from that root frame plus joint encoders and its whole-body controller. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1 — Racket Exclusion Policy) and *HOPE WBC Simulation Training Reference Setup* (Section 2.8 — Racket Mount Kinematics).
 
 ---
 
@@ -56,7 +56,7 @@ The following aspects are outside the scope of this planner reference:
 - **Strategic target selection** — The planner always aims for the opponent's half-center. No game-state-dependent target variation.
 - **Whole-body controller (Stage 4)** — Each HOPE team provides their own controller.
 - **Forehand/backhand selection** — Swing type is a WBC decision (e.g., based on the sign of the ball's Y position relative to the robot), not a planner output.
-- **Racket pose measurement** — Per the HOPE racket exclusion policy, the paddle is never tracked by the motion capture system. The motion capture system provides exactly three categories of tracking: the table origin frame (PPT), each humanoid's `base_link` (P1/P2), and the ball. The planner outputs a desired racket state; achieving it is the robot's responsibility via forward kinematics from `base_link` + joint encoders. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1) for the exclusion policy and enforcement, and *HOPE WBC Simulation Training Reference Setup* (Section 2.8) for the fixed wrist mount kinematics that make this work.
+- **Racket pose measurement** — Per the HOPE racket exclusion policy, the paddle is never tracked by the motion capture system. The motion capture system provides exactly three categories of tracking: the table origin frame (PPT), each humanoid's marker-cluster rigid body (P1/P2), and the ball. A calibrated static transform maps P1/P2 to the robot's declared URDF root frame (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). The planner outputs a desired racket state; achieving it is the robot's responsibility via forward kinematics from that root frame plus joint encoders. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1) for the exclusion policy and enforcement, and *HOPE WBC Simulation Training Reference Setup* (Section 2.8) for the fixed wrist mount kinematics that make this work.
 
 ---
 
@@ -975,7 +975,7 @@ Motion Capture System (360 Hz)                         Humanoid (proprioceptive)
   │                                     Stages 1–3       │
   ├── PPT 6-DOF ──▶ origin validation     │              │
   │                                        ▼              │
-  └── P1 base_link 6-DOF ──────────▶ WBC (Stage 4) ◀── RacketCommand
+  └── P1 marker 6-DOF ──▶ robot root TF ──▶ WBC (Stage 4) ◀── RacketCommand
                                            │              (p_intercept,
                                            │               v_racket,
                                            ▼               n_racket,

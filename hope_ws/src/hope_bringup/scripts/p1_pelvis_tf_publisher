@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Publish the calibrated static ``P1 -> pelvis_link`` TF from JSON."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import sys
+from pathlib import Path
+from typing import Sequence
+
+
+def _finite_vector(value: object, length: int, field: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != length:
+        raise ValueError(f"{field} must be a JSON array of length {length}")
+    result = [float(component) for component in value]
+    if not all(math.isfinite(component) for component in result):
+        raise ValueError(f"{field} contains a non-finite value")
+    return result
+
+
+def load_calibration(path: Path) -> tuple[str, str, list[float], list[float]]:
+    """Load and validate the calibrator's ``p1_to_pelvis`` JSON object."""
+    document = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        transform = document["p1_to_pelvis"]
+        parent = transform["parent_frame"]
+        child = transform["child_frame"]
+        translation = _finite_vector(transform["translation_m"], 3, "translation_m")
+        quaternion = _finite_vector(transform["quaternion_xyzw"], 4, "quaternion_xyzw")
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"invalid p1_to_pelvis calibration document: missing {exc}") from exc
+
+    if not isinstance(parent, str) or not parent:
+        raise ValueError("parent_frame must be a non-empty string")
+    if not isinstance(child, str) or not child:
+        raise ValueError("child_frame must be a non-empty string")
+    if parent == child:
+        raise ValueError("parent_frame and child_frame must differ")
+
+    norm = math.sqrt(sum(component * component for component in quaternion))
+    if norm < 1e-12:
+        raise ValueError("quaternion_xyzw must have non-zero norm")
+    quaternion = [component / norm for component in quaternion]
+    return parent, child, translation, quaternion
+
+
+def _parse_arguments(arguments: Sequence[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
+    parser = argparse.ArgumentParser(
+        description="Publish the static P1 -> pelvis_link TF saved by p1_pelvis_calibrator."
+    )
+    parser.add_argument(
+        "--calibration-file",
+        type=Path,
+        required=True,
+        help="p1_to_pelvis JSON file written by p1_pelvis_calibrator",
+    )
+    return parser.parse_known_args(arguments)
+
+
+def main() -> int:
+    args, ros_arguments = _parse_arguments()
+    try:
+        parent, child, translation, quaternion = load_calibration(args.calibration_file)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Cannot load P1 calibration: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        import rclpy
+        from geometry_msgs.msg import TransformStamped
+        from rclpy.node import Node
+        from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
+    except ImportError as exc:
+        print(f"ROS 2 dependencies are unavailable: {exc}", file=sys.stderr)
+        return 2
+
+    class P1PelvisStaticPublisher(Node):
+        def __init__(self) -> None:
+            super().__init__("p1_pelvis_tf_publisher")
+            self.broadcaster = StaticTransformBroadcaster(self)
+            transform = TransformStamped()
+            transform.header.stamp = self.get_clock().now().to_msg()
+            transform.header.frame_id = parent
+            transform.child_frame_id = child
+            transform.transform.translation.x = translation[0]
+            transform.transform.translation.y = translation[1]
+            transform.transform.translation.z = translation[2]
+            transform.transform.rotation.x = quaternion[0]
+            transform.transform.rotation.y = quaternion[1]
+            transform.transform.rotation.z = quaternion[2]
+            transform.transform.rotation.w = quaternion[3]
+            self.broadcaster.sendTransform(transform)
+            self.get_logger().info(
+                f"publishing calibrated static TF {parent} -> {child} from {args.calibration_file}"
+            )
+
+    rclpy.init(args=ros_arguments)
+    node = P1PelvisStaticPublisher()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

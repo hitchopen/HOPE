@@ -59,6 +59,7 @@ int main(int argc, char **argv)
   node->declare_parameter<std::string>("hostname", "localhost");
   node->declare_parameter<std::string>("topics.frame_id", "world");
   node->declare_parameter<std::string>("topics.header_time", "ros");
+  node->declare_parameter<double>("topics.network_latency_ms", 0.0);
   node->declare_parameter<uint8_t>("topics.poses.version", 1);
   node->declare_parameter<std::string>("topics.poses.qos.mode", "none");
   node->declare_parameter<double>("topics.poses.qos.deadline", 100.0);
@@ -70,6 +71,20 @@ int main(int argc, char **argv)
   std::string motionCaptureHostname = node->get_parameter("hostname").as_string();
   std::string frame_id = node->get_parameter("topics.frame_id").as_string();
   std::string header_time = node->get_parameter("topics.header_time").as_string();
+  double network_latency_ms = node->get_parameter("topics.network_latency_ms").as_double();
+  if (network_latency_ms < 0.0) {
+    throw std::runtime_error("topics.network_latency_ms must be non-negative");
+  }
+  if (
+    motionCaptureType == "optitrack" &&
+    header_time == "ros_latency_compensated" &&
+    network_latency_ms == 0.0)
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "topics.network_latency_ms is 0.0; measure the deployed one-way "
+      "NatNet network/host latency before moving cross-sensor calibration");
+  }
   uint8_t poses_version = node->get_parameter("topics.poses.version").as_int();
   std::string poses_qos = node->get_parameter("topics.poses.qos.mode").as_string();
   double poses_deadline = node->get_parameter("topics.poses.qos.deadline").as_double();
@@ -230,8 +245,30 @@ int main(int argc, char **argv)
     rclcpp::Time time;
     if (header_time == "ros") {
       time = node->now();
+    } else if (header_time == "ros_latency_compensated") {
+      // Put the exposure estimate in the local ROS clock epoch without using
+      // Motive's unrelated high-resolution-clock epoch. NatNet >= 3 reports
+      // camera and Motive processing latency for every frame. The remaining
+      // one-way network/host receive latency is a measured deployment
+      // parameter (zero by default), not something inferable from one UDP
+      // packet.
+      double latency_seconds = network_latency_ms * 1e-3;
+      const auto& reported_latencies = mocap->latency();
+      if (reported_latencies.empty() && motionCaptureType == "optitrack") {
+        throw std::runtime_error(
+          "ros_latency_compensated requires NatNet per-frame latency data "
+          "(NatNet 3 or newer)");
+      }
+      for (const auto& latency : reported_latencies) {
+        latency_seconds += latency.value();
+      }
+      time = node->now() - rclcpp::Duration::from_seconds(latency_seconds);
     } else if (header_time == "camera") {
       time = rclcpp::Time(mocap->timeStamp() * 1000);
+    } else {
+      throw std::runtime_error(
+        "Unknown topics.header_time '" + header_time +
+        "' (expected ros, ros_latency_compensated, or camera)");
     }
 
     auto pointcloud = mocap->pointCloud();

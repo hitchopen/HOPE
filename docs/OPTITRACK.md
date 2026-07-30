@@ -23,7 +23,7 @@ Motive (NatNet UDP)
 /optitrack/poses                             motion_capture_tracking_interfaces/NamedPoseArray
       |  optitrack_mct_relay (hope_bringup)  (one message per camera frame, objects by name)
       v
-/poses (ball at index 0), /ball/point, /table/pose, /P1/pose, /P2/pose, TF
+/poses (ball at index 0), /ball/point, /P1/pose, /P2/pose, TF
       |  hope_planner
       v
 /racket/command
@@ -35,6 +35,13 @@ the HOPE `/poses` contract (`geometry_msgs/PoseArray`) as a DDS type mismatch �
 and its raw `/tf` (body names verbatim) would fight the relay's transforms.
 `optitrack_hope_bridge.launch.py` enforces both remaps; the relay is the only
 `/poses`/TF authority.
+
+The relay parameter `publish_table` defaults to `false`. Therefore the normal
+competition launch creates no `/table/pose` publisher and emits no Table TF or
+Table entry in `/poses`, even if the Motive asset was accidentally left active.
+For a separate arena setup or data-recording session only, the standalone
+bridge may be launched with `publish_table:=true`; stop it and return to the
+default before competition.
 
 The vendored driver is [IMRCLab
 motion_capture_tracking](https://github.com/IMRCLab/motion_capture_tracking)
@@ -119,6 +126,123 @@ Note: the "VRPN port 3883" Motive also exposes is its legacy VRPN broadcast —
 NOT used by this backend (NatNet cmd 1510; the data port and
 unicast-vs-multicast are auto-negotiated from the server response).
 
+### Acquisition timestamps
+
+The supplied OptiTrack config uses
+`topics.header_time: ros_latency_compensated`. For every frame the driver
+computes a local-ROS-epoch exposure estimate:
+
+```text
+ROS receipt time
+  - NatNet Camera latency
+  - NatNet Motive processing latency
+  - measured one-way network/host latency
+```
+
+Set `topics.network_latency_ms` from the deployed isolated LAN measurement;
+half of a demonstrably symmetric RTT is only an initial estimate, while packet
+capture or hardware timestamping is preferable. Do not use `header_time: ros`
+for moving cross-sensor calibration: a fixed 5 ms path delay becomes 2.5 mm
+of invisible position bias at 0.5 m/s. Do not substitute
+`header_time: camera`: it preserves the Motive interval but uses the Motive
+host's unrelated high-resolution-clock epoch. The pelvis reference producer
+must independently map its own acquisition time into the same ROS epoch.
+
+### Calibrating P1 to an A3 `pelvis_link`
+
+Do this only in a **setup/calibration session**. The calibrator does not require
+the `Table` rigid body; `Table` remains disabled in competition. The normal
+deployment keeps Motive's dynamic `world → P1` rigid-body pose and adds the
+calibrated constant `P1 → pelvis_link` static TF at ROS 2 bringup.
+Introducing `Table` as a common intermediate would cancel exactly in every
+relative-pose sample and add a setup/competition asset difference without
+adding calibration information.
+
+The tool below observes the raw `/P1/pose` and an **independent, real-time**
+full-6DOF pelvis `PoseStamped` at matching timestamps. Both message headers
+must name the same reference frame (`world` by default), and both poses may
+change while A3 moves. The pelvis message must not be derived from `/P1/pose`
+or any descendant of it, or the calibration would be circular. In particular,
+do not run `p1_pelvis_tf_publisher` during calibration. At each synchronized
+pair the tool estimates the same constant transform and then robustly averages
+it:
+
+```text
+^P1 T_pelvis_link = (^world T_P1)^-1 · ^world T_pelvis_link
+```
+
+There is deliberately no default pelvis topic. The checked-in A3 hardware
+bridge publishes `/body_drive/pelvis_imu/data`, but that IMU has no absolute
+translation and is not a full-pose producer. For a real A3, first bridge an
+independent external 6-DOF tracker or state estimator to a topic such as
+`/a3/calibration/pelvis_pose`, using `geometry_msgs/PoseStamped`,
+`header.frame_id: world`, and the same clock domain as `/P1/pose`. The existing
+`/sim/a3/pelvis_pose` producer is MuJoCo-only and uses `odom`; it is valid for a
+simulation check only if the P1 input is also expressed in `odom`.
+
+Build and source the workspace, start both pose producers, then run:
+
+```bash
+ros2 run hope_bringup p1_pelvis_calibrator \
+  --p1-topic /P1/pose \
+  --pelvis-topic /a3/calibration/pelvis_pose \
+  --reference-frame world \
+  --pelvis-frame pelvis_link \
+  --p1-frame P1 \
+  --output calibration/p1_to_pelvis.json
+```
+
+It verifies that both topics have publishers, collects 200 synchronized samples
+by default and accepts pairs within 2 ms. It rejects skewed/outlier pairs and
+fails if either header frame is wrong or if the accepted residual exceeds
+3 mm RMS or 1 degree RMS. Residual RMS measures consistency only, so a separate
+excitation gate requires both accepted trajectories to cover at least 0.10 m,
+10 degrees, and 1 second, with strictly increasing and at least 90% unique
+timestamps and at least a 50 Hz accepted rate. A stationary capture therefore
+cannot pass merely because every repeated sample agrees.
+The JSON records measured pair skew, timestamp coverage, and motion spans; it
+does not claim to verify source independence, which cannot be inferred from
+two pose topics. A missing pelvis producer fails after the discovery timeout
+instead of being counted as 200 TF misses. Writing the JSON record is required.
+It also contains the constant `p1_to_pelvis` transform, residual quality
+metrics, optional Motive-pivot registration values, and the CAD cross-check.
+Load it during normal bringup:
+
+```bash
+ros2 run hope_bringup p1_pelvis_tf_publisher \
+  --calibration-file calibration/p1_to_pelvis.json
+```
+
+This creates `P1 → pelvis_link`; together with the live NatNet result, the TF
+chain is `world → P1 → pelvis_link`. Check it with:
+
+```bash
+ros2 run tf2_ros tf2_echo world P1
+ros2 run tf2_ros tf2_echo P1 pelvis_link
+```
+
+The first transform must move with the robot; the second must stay constant.
+As an optional alternative, absorb the correction into Motive: rotate the P1
+pivot axes to the reported `pelvis_link` axes, enter the reported local
+Translation Offset, save the asset profile, restart streaming, and rerun the
+calibrator. The measured correction should then be approximately identity. In
+that configuration, do not run `p1_pelvis_tf_publisher`; doing so would apply
+the correction twice.
+
+The v2 CAD table and the current
+`a3_hip_marker_shell_p1_mocap_balls_0702.x_t` shell define all ten markers
+(`f1`–`f5`, `b1`–`b5`), and a physical mocap experiment confirmed that all ten
+points are visible. The default tool configuration therefore uses the complete
+ten-marker set, whose centroid is `[-0.0024, 0, -0.1490] m` in `pelvis_link`.
+If its axes are already aligned, the current-shell CAD cross-check is a Motive
+pivot translation of `[+2.4, 0, +149.0] mm`. The live calibration result
+remains authoritative because it captures the installed marker plate and its
+actual orientation.
+Marker stream order and per-marker topic names do not affect this tool: it
+consumes the solved 6-DOF `/P1/pose`, while its CAD centroid calculation is
+order-independent. Only an offline reconstruction directly from individual
+marker coordinates would require a verified marker-ID-to-CAD correspondence.
+
 ## Bringup
 
 ### Preflight (before launch, no ROS required)
@@ -144,14 +268,18 @@ One command for mocap + planner (`mocap_server` = the Motive PC IP):
 
 ```bash
 ros2 launch hope_bringup hope_bringup.launch.py \
-  mocap_backend:=optitrack mocap_server:=<MOTIVE_PC_IP>
+  mocap_backend:=optitrack \
+  mocap_server:=<MOTIVE_PC_IP> \
+  mocap_network_latency_ms:=<MEASURED_ONE_WAY_MS>
 ```
 
 Or start the mocap side alone (also publishes the static HOPE world frame):
 
 ```bash
 ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
-  hostname:=<MOTIVE_PC_IP> position_scale:=1.0
+  hostname:=<MOTIVE_PC_IP> \
+  position_scale:=1.0 \
+  network_latency_ms:=<MEASURED_ONE_WAY_MS>
 ```
 
 `hostname` is a REQUIRED argument with no default — venue values are passed
@@ -219,7 +347,9 @@ Motive LAN to the robot's network. Where DDS multicast discovery does not work
 ```bash
 # Laptop (runs the bridge; peers with the robot host):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <ROBOT_HOST_IP> -- \
-  ros2 launch hope_bringup optitrack_hope_bridge.launch.py hostname:=<MOTIVE_PC_IP>
+  ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
+    hostname:=<MOTIVE_PC_IP> \
+    network_latency_ms:=<MEASURED_ONE_WAY_MS>
 
 # Robot host (peers with the laptop):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <LAPTOP_IP> -- \

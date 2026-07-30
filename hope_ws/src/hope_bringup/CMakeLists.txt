@@ -18,9 +18,16 @@ install(PROGRAMS
   scripts/fake_optitrack_publisher
   scripts/mocap_rate_probe.py
   scripts/natnet_preflight.py
+  scripts/p1_pelvis_calibrator
+  scripts/p1_pelvis_tf_publisher
   scripts/optitrack_mct_relay
   scripts/pose_to_posearray
   scripts/with_fastdds_unicast.sh
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(FILES
+  scripts/p1_pelvis_calibration_impl.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -33,6 +40,8 @@ if(BUILD_TESTING)
   ament_add_pytest_test(pose_to_posearray_test test/test_pose_to_posearray.py
     TIMEOUT 60
   )
+  ament_add_pytest_test(p1_pelvis_calibrator_test test/test_p1_pelvis_calibrator.py)
+  ament_add_pytest_test(p1_pelvis_tf_publisher_test test/test_p1_pelvis_tf_publisher.py)
 endif()
 
 ament_package()

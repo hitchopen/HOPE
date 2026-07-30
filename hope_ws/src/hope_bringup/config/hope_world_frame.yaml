@@ -2,8 +2,6 @@ hope_world:
   # Frame names published as static transforms by hope_world.launch.py.
   frames:
     world: world
-    robot_mocap: robot_mocap          # the robot's mocap marker-cluster frame
-    robot_base_link: robot_base_link  # the robot URDF base_link
     table_center: table_center
     robot_half_center: robot_half_center
     opponent_half_center: opponent_half_center
@@ -31,13 +29,3 @@ hope_world:
   planner:
     # Fixed virtual hit-plane x (m); publish it as a frame for visualization.
     x_hit: 0.0
-
-  mocap_to_base_link:
-    # Static transform from the robot's mocap marker-cluster frame to its URDF
-    # base_link. Measure the translation (xyz, m) and rotation (rpy, rad) from
-    # the marker-cluster origin to base_link (CAD or tape-measure + level), then
-    # refine by comparing FK-predicted base_link against the mocap reading while
-    # the robot stands still. Until measured, [0,0,0] means "marker cluster ==
-    # base_link" (only correct if the markers are exactly at base_link).
-    xyz: [0.0, 0.0, 0.0]   # TODO: measured marker-cluster -> base_link translation (m)
-    rpy: [0.0, 0.0, 0.0]   # TODO: measured marker-cluster -> base_link rotation (rad)

@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""ROS 2 executable wrapper for the unambiguously named implementation module."""
+
+from p1_pelvis_calibration_impl import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

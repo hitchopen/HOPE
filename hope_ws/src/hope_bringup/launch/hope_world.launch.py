@@ -35,7 +35,6 @@ def generate_launch_description():
     config = _load_world_config()
     frames = config["frames"]
     landmarks = config["landmarks_m"]
-    offset = config["mocap_to_base_link"]
     x_hit = config["planner"]["x_hit"]
 
     world = frames["world"]
@@ -46,6 +45,5 @@ def generate_launch_description():
         _static_tf(world, frames["net_center"], landmarks["net_center"], [0.0, 0.0, 0.0]),
         _static_tf(world, frames["floor_origin"], landmarks["floor_origin"], [0.0, 0.0, 0.0]),
         _static_tf(world, frames["virtual_hit_plane"], [x_hit, 0.0, 0.0], [0.0, 0.0, 0.0]),
-        _static_tf(frames["robot_mocap"], frames["robot_base_link"], offset["xyz"], offset["rpy"]),
     ]
     return LaunchDescription(nodes)

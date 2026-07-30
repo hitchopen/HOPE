@@ -6,8 +6,8 @@ The vendored ``motion_capture_tracking`` node (hope_ws/src/motion_capture_tracki
 see its PIN.md) depacketizes NatNet from Motive and publishes ONE NamedPoseArray
 per camera frame carrying every tracked object:
 
-* Motive-native rigid bodies (``P1``/``P2``/``Table``) under their Motive asset
-  names, and
+* Motive-native rigid bodies (``P1``/``P2`` and setup-only ``Table``) under
+  their Motive asset names, and
 * the ping-pong ball as a Motive rigid-body asset named ``Ball``. The HOPE
   standard requires the ball to be tracked as a strict 6-DOF rigid body
   (marker dots added to a standard ball — verified workable on both OptiTrack
@@ -16,8 +16,9 @@ per camera frame carrying every tracked object:
 This relay maps those named entries onto the HOPE-standard topics the planner
 consumes: ``/poses`` (geometry_msgs/PoseArray, ball at index 0 — the
 hope_planner input contract, same as ``pose_to_posearray`` produces on the
-VRPN side), plus ``/ball/point``, ``/table/pose``, ``/P1/pose``, ``/P2/pose``
-and TF. Compared with the VRPN adapter:
+VRPN side), plus ``/ball/point``, ``/P1/pose``, ``/P2/pose`` and TF.
+``Table`` output is disabled by default and must never be enabled in a
+competition launch. Compared with the VRPN adapter:
 
 * no runtime topic discovery -- the driver already names everything; mapping
   is a pure name lookup;
@@ -81,9 +82,10 @@ class OptitrackMctRelay(Node):
         self.declare_parameter("p2_pose_topic", "/P2/pose")
         self.declare_parameter("ball_point_topic", "/ball/point")
         self.declare_parameter("poses_topic", "/poses")
-        self.declare_parameter("pose_array_order", ["ball", "Table", "P1", "P2"])
+        self.declare_parameter("pose_array_order", ["ball", "P1", "P2"])
         self.declare_parameter("publish_tf", True)
         self.declare_parameter("publish_pose_array", True)
+        self.declare_parameter("publish_table", False)
         # Warn (throttled) when frames keep arriving without a ball entry for
         # this long -- ball out of the volume / tracker lost the marker.
         self.declare_parameter("ball_stale_warn_s", 2.0)
@@ -99,7 +101,10 @@ class OptitrackMctRelay(Node):
         self._world_frame = str(self.get_parameter("world_frame").value)
         self._publish_tf = bool(self.get_parameter("publish_tf").value)
         self._publish_pose_array = bool(self.get_parameter("publish_pose_array").value)
+        self._publish_table = bool(self.get_parameter("publish_table").value)
         self._pose_array_order = [str(item) for item in self.get_parameter("pose_array_order").value]
+        if self._publish_table and "Table" not in self._pose_array_order:
+            self._pose_array_order.append("Table")
         self._stale_warn_s = float(self.get_parameter("ball_stale_warn_s").value)
         self._position_scale = float(self.get_parameter("position_scale").value)
         if self._position_scale != 1.0:
@@ -108,11 +113,12 @@ class OptitrackMctRelay(Node):
                 "Motive normally streams metres -> 1.0)")
 
         self._name_to_key = {
-            self._table_object: "Table",
             self._p1_object: "P1",
             self._p2_object: "P2",
             self._ball_object: "ball",
         }
+        if self._publish_table:
+            self._name_to_key[self._table_object] = "Table"
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -135,9 +141,6 @@ class OptitrackMctRelay(Node):
             PointStamped, str(self.get_parameter("ball_point_topic").value), sensor_qos
         )
         self._pose_publishers = {
-            "Table": self.create_publisher(
-                PoseStamped, str(self.get_parameter("table_pose_topic").value), sensor_qos
-            ),
             "P1": self.create_publisher(
                 PoseStamped, str(self.get_parameter("p1_pose_topic").value), sensor_qos
             ),
@@ -145,6 +148,10 @@ class OptitrackMctRelay(Node):
                 PoseStamped, str(self.get_parameter("p2_pose_topic").value), sensor_qos
             ),
         }
+        if self._publish_table:
+            self._pose_publishers["Table"] = self.create_publisher(
+                PoseStamped, str(self.get_parameter("table_pose_topic").value), sensor_qos
+            )
 
         input_topic = str(self.get_parameter("input_poses_topic").value)
         self._sub = self.create_subscription(
@@ -152,8 +159,8 @@ class OptitrackMctRelay(Node):
         )
         self.get_logger().info(
             f"relaying {input_topic} (NamedPoseArray) -> HOPE topics; objects: "
-            f"ball='{self._ball_object}' Table='{self._table_object}' "
-            f"P1='{self._p1_object}' P2='{self._p2_object}'"
+            f"ball='{self._ball_object}' P1='{self._p1_object}' P2='{self._p2_object}'; "
+            f"setup-only Table output={'enabled' if self._publish_table else 'disabled'}"
         )
 
     # ---- message handling ------------------------------------------------

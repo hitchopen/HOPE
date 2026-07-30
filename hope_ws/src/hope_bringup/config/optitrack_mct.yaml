@@ -39,9 +39,15 @@
 
     topics:
       frame_id: "world"
-      # "ros" = stamp with arrival time (same convention as the vendored VRPN
-      # client's default; the planner polyfits against header.stamp).
-      header_time: "ros"
+      # Estimate exposure time in the LOCAL ROS clock epoch: receipt time minus
+      # NatNet's per-frame Camera + Motive processing latencies and the measured
+      # one-way network/host latency below. Do not use bare "ros" (arrival-time
+      # motion bias) or "camera" (Motive's unrelated high-resolution epoch).
+      header_time: "ros_latency_compensated"
+      # Measure on the deployed isolated LAN. Half of a symmetric ping RTT is a
+      # starting estimate; packet capture/hardware timestamping is preferable.
+      # A wrong constant value becomes a motion-dependent calibration bias.
+      network_latency_ms: 0.0
       poses:
         version: 1        # NamedPoseArray; the HOPE relay consumes v1
         qos:
