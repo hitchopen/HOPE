@@ -3,6 +3,9 @@
 #include <boost/asio.hpp>
 #include <chrono>
 #include <iostream>
+#include <stdexcept>
+#include <sys/socket.h>
+#include <sys/time.h>
 
 using boost::asio::ip::udp;
 
@@ -29,6 +32,28 @@ namespace libmotioncapture {
   constexpr int NAT_REQUEST_MODELDEF  = 4;
   constexpr int NAT_MODELDEF          = 5;
   constexpr int NAT_KEEPALIVE         = 10;
+
+  // HOPE patch (2026-07-30; verified against Motive 3.1.0.4 / NatNet 4.1 at the
+  // venue): Motive silently DROPS a payload-less NAT_REQUEST_MODELDEF -- 6/6
+  // requests went unanswered. It replies only when a 4-byte descriptor-type
+  // bitmask follows the 4-byte header. Masks with undefined bits set (0x7f,
+  // 0xff, ~0) are dropped too, so request exactly the two descriptor types
+  // parseModelDef() consumes. Measured: 0x1 -> 3 datasets, 0x2 -> 2 datasets
+  // (Ball, P1), 0x3 -> 5 datasets / 1083 B.
+  constexpr int32_t MODELDEF_TYPES    = 0x3;  // bit0 MarkerSet | bit1 RigidBody
+
+  // Upper bound on each connect-time handshake receive. Before this patch both
+  // waits were unbounded blocking receives, so the unanswered MODELDEF above
+  // deadlocked the constructor: the node never reached create_publisher(), and
+  // every HOPE topic stayed silent with no error logged anywhere.
+  constexpr int HANDSHAKE_TIMEOUT_S   = 5;
+  constexpr int HANDSHAKE_ATTEMPTS    = 3;
+
+  PACK(struct sModelDefRequest {
+    uint16_t iMessage;
+    uint16_t nDataBytes;
+    int32_t types;
+  });
 
   /**
    * \brief Unpack number of bytes of data for a given data type. 
@@ -331,27 +356,64 @@ namespace libmotioncapture {
       uint8_t MulticastGroupAddress[4];
     } sResponse;
 
-    sRequest connectCmd = {NAT_CONNECT, 0};
-    socket_cmd.send_to(boost::asio::buffer(&connectCmd, sizeof(connectCmd)), endpoint_cmd);
-
-    // HOPE patch (see PIN.md): the NAT_CONNECT above registers this command
+    // HOPE patch (see PIN.md): the NAT_CONNECT below registers this command
     // socket as a unicast client, so Motive starts streaming FRAMEOFDATA to
     // it immediately — the replies awaited here can interleave with (larger)
     // frame packets. Receive into a full-size buffer and discard until the
     // expected message id arrives; receiving a frame into the small response
     // struct would throw boost::asio message_size and kill the node.
-    sResponse response;
     udp::endpoint sender_endpoint;
     std::vector<char> reply(MAX_PACKETSIZE);
     size_t reply_length = 0;
     uint16_t reply_id = 0;
-    do {
-      reply_length = socket_cmd.receive_from(
-          boost::asio::buffer(reply.data(), reply.size()), sender_endpoint);
-      if (reply_length >= 2) {
-        memcpy(&reply_id, reply.data(), 2);
+
+    // HOPE patch (2026-07-30): bound the wait so an unresponsive Motive fails
+    // loudly instead of hanging the node forever (see HANDSHAKE_TIMEOUT_S).
+    {
+      struct timeval tv;
+      tv.tv_sec = HANDSHAKE_TIMEOUT_S;
+      tv.tv_usec = 0;
+      ::setsockopt(socket_cmd.native_handle(), SOL_SOCKET, SO_RCVTIMEO,
+                   &tv, sizeof(tv));
+    }
+
+    auto await_reply = [&](uint16_t expected, const void *request,
+                           size_t request_len, const char *what) {
+      for (int attempt = 0; attempt < HANDSHAKE_ATTEMPTS; ++attempt) {
+        socket_cmd.send_to(boost::asio::buffer(request, request_len),
+                           endpoint_cmd);
+        auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::seconds(HANDSHAKE_TIMEOUT_S);
+        while (std::chrono::steady_clock::now() < deadline) {
+          boost::system::error_code ec;
+          reply_length = socket_cmd.receive_from(
+              boost::asio::buffer(reply.data(), reply.size()),
+              sender_endpoint, 0, ec);
+          if (ec) {
+            break;  // receive timeout -> re-send the request
+          }
+          if (reply_length >= 2) {
+            memcpy(&reply_id, reply.data(), 2);
+            if (reply_id == expected) {
+              return;
+            }
+          }
+        }
+        std::cerr << "[optitrack] no " << what << " from " << hostname
+                  << " (attempt " << attempt + 1 << "/" << HANDSHAKE_ATTEMPTS
+                  << "), retrying" << std::endl;
       }
-    } while (reply_length < 2 || reply_id != NAT_SERVERINFO);
+      throw std::runtime_error(
+          std::string("NatNet handshake failed: no ") + what + " from " +
+          hostname + " after " + std::to_string(HANDSHAKE_ATTEMPTS) +
+          " attempts");
+    };
+
+    sRequest connectCmd = {NAT_CONNECT, 0};
+    await_reply(NAT_SERVERINFO, &connectCmd, sizeof(connectCmd),
+                "NAT_SERVERINFO");
+
+    sResponse response;
     memcpy(&response, reply.data(),
            std::min(reply_length, sizeof(response)));
 
@@ -372,21 +434,15 @@ namespace libmotioncapture {
 
     uint16_t port_data = response.DataPort;
 
-    // query model def
-    sRequest modelDefCmd = {NAT_REQUEST_MODELDEF, 0};
-    socket_cmd.send_to(boost::asio::buffer(&modelDefCmd, sizeof(modelDefCmd)), endpoint_cmd);
-    std::vector<char> modelDef(MAX_PACKETSIZE);
-    // HOPE patch (see PIN.md): same interleave hazard as above — without the
-    // message-id filter this can "parse" a frame packet, which fails silently
-    // and leaves EVERY streamed rigid body with an empty name.
-    do {
-      reply_length = socket_cmd.receive_from(
-          boost::asio::buffer(modelDef.data(), modelDef.size()), sender_endpoint);
-      if (reply_length >= 2) {
-        memcpy(&reply_id, modelDef.data(), 2);
-      }
-    } while (reply_length < 2 || reply_id != NAT_MODELDEF);
-    modelDef.resize(reply_length);
+    // query model def. The 4-byte MODELDEF_TYPES mask is MANDATORY on Motive
+    // 3.1 / NatNet 4.1 -- without it the request is silently dropped. The
+    // message-id filter inside await_reply() also guards the interleave hazard
+    // described above: without it we could "parse" a frame packet, which fails
+    // silently and leaves EVERY streamed rigid body with an empty name.
+    sModelDefRequest modelDefCmd = {NAT_REQUEST_MODELDEF, sizeof(int32_t),
+                                    MODELDEF_TYPES};
+    await_reply(NAT_MODELDEF, &modelDefCmd, sizeof(modelDefCmd), "NAT_MODELDEF");
+    std::vector<char> modelDef(reply.begin(), reply.begin() + reply_length);
     pImpl->parseModelDef(modelDef.data());
 
     // connect to data port to receive mocap data
@@ -830,10 +886,12 @@ namespace libmotioncapture {
     }
     if (unnamed_body &&
         ka_now - pImpl->last_modeldef_request > std::chrono::seconds(1)) {
-      const uint16_t request_modeldef[2] = {NAT_REQUEST_MODELDEF, 0};
+      // Same mandatory 4-byte type mask as the connect-time request.
+      sModelDefRequest request_modeldef = {NAT_REQUEST_MODELDEF,
+                                           sizeof(int32_t), MODELDEF_TYPES};
       boost::system::error_code md_ec;
       pImpl->socket.send_to(
-          boost::asio::buffer(request_modeldef, sizeof(request_modeldef)),
+          boost::asio::buffer(&request_modeldef, sizeof(request_modeldef)),
           pImpl->cmd_endpoint, 0, md_ec);
       pImpl->last_modeldef_request = ka_now;
     }

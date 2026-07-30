@@ -121,6 +121,25 @@ unicast-vs-multicast are auto-negotiated from the server response).
 
 ## Bringup
 
+### Preflight (before launch, no ROS required)
+
+```bash
+ros2 run hope_bringup natnet_preflight.py --hostname <MOTIVE_PC_IP>
+# or directly: ./hope_ws/src/hope_bringup/scripts/natnet_preflight.py --hostname <MOTIVE_PC_IP>
+```
+
+`natnet_preflight.py` speaks the NatNet command protocol itself and separates
+the failure modes that all look identical from the ROS side (every HOPE topic
+silent): Motive unreachable / streaming disabled, Motive ignoring the
+model-definition request (see the vendored driver's PIN.md patch #9 — on
+Motive 3.1 / NatNet 4.1 this used to hang the driver's constructor before it
+created any publisher), and frames not reaching this host (wrong interface,
+multicast routed out a VPN tunnel, firewall). It also verifies the `Ball` and
+`P1` assets are in the model definition and gates on the measured frame rate
+(`--min-hz`, default 250). Exit code 0 means the bridge should come up.
+
+### Launch
+
 One command for mocap + planner (`mocap_server` = the Motive PC IP):
 
 ```bash
@@ -215,7 +234,8 @@ whitelist derived from the route to each peer) and sets
 
 | Symptom | Cause / fix |
 |---|---|
-| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`, firewall on UDP 1510/1511, or not on the Motive LAN. `ping` the Motive PC first. |
+| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`, firewall on UDP 1510/1511, or not on the Motive LAN. `ping` the Motive PC first. Run `natnet_preflight.py --hostname <MOTIVE_PC_IP>` to pinpoint the failing stage. |
+| `/optitrack/poses` exists with `Publisher count: 0`, nothing logged | Pre-patch-#9 driver hung in its constructor: Motive 3.1 / NatNet 4.1 silently drops payload-less model-definition requests. Fixed in the vendored driver (type-mask request + bounded handshake — it now retries and then exits with an error instead of hanging); `natnet_preflight.py` reports this Motive behavior explicitly. |
 | Objects stream but nothing relayed | Motive asset names don't match `optitrack_relay.yaml` (`P1`/`P2`/`Table`/`Ball`, case-sensitive). Check `ros2 topic echo --once /optitrack/poses`. |
 | Rigid bodies stream with empty names | Fixed by vendored patch #6 (self-heals in ~1–2 s); if persistent, restart the bridge. |
 | `/P1/pose` positions in the hundreds | Millimetre feed → `position_scale:=0.001`. |

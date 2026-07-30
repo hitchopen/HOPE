@@ -80,6 +80,25 @@ No other source-code (`.cpp/.hpp/.msg`) changes.
    host. No functional change for HOPE bringup, which passes its own
    parameter file.
 
+9. **`deps/libmotioncapture/src/optitrack.cpp` model-definition type mask +
+   bounded handshake (2026-07-30, field finding vs Motive 3.1.0.4 / NatNet
+   4.1)**: Motive silently DROPS a payload-less `NAT_REQUEST_MODELDEF` — it
+   replies only when a 4-byte descriptor-type bitmask follows the 4-byte
+   header. Masks with undefined bits set (0x7f, 0xff, ~0) are dropped too, so
+   the request carries exactly the two descriptor types `parseModelDef()`
+   consumes (`MODELDEF_TYPES = 0x3`: bit0 MarkerSet | bit1 RigidBody). Before
+   this patch the constructor's model-definition wait was an unbounded
+   blocking receive, so the unanswered request deadlocked the node before
+   `create_publisher()` — `/optitrack/poses` existed with 0 publishers and no
+   error was logged anywhere. Both connect-time waits (NAT_SERVERINFO,
+   NAT_MODELDEF) now use a 5 s receive timeout with 3 send/await attempts and
+   throw `std::runtime_error` on exhaustion, so an unresponsive Motive fails
+   loudly instead of hanging forever. The patch #6 1 Hz self-heal re-request
+   carries the same mask. Pre-launch triage lives in
+   `hope_bringup/scripts/natnet_preflight.py`, which distinguishes this
+   condition from an unreachable Motive or a wrong-interface multicast join
+   without needing ROS.
+
 ## Re-pin procedure
 
 ```bash
