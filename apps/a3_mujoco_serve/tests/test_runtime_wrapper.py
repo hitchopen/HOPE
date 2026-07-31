@@ -17,6 +17,7 @@ COMMON = RUNTIME_ROOT / "scripts" / "a3_app_common.sh"
 RUNNER_SOURCE = RUNTIME_ROOT / "src" / "a3_serve_vendor_arm_main.cpp"
 MOTION = APP_ROOT / "assets" / "validated" / "serve_policy.csv"
 MANIFEST = APP_ROOT / "assets" / "validated" / "serve_vendor_arm.json"
+REGISTRY = APP_ROOT / "config" / "approved_motions.json"
 
 
 def run_sourced(script: str, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -131,6 +132,9 @@ def test_lean_runtime_contract_is_machine_readable() -> None:
     assert runtime["runtime_state_freshness_stops_runner"] is False
     assert runtime["tracking_error_stops_runner"] is False
     assert runtime["ready_quality_wait_enabled"] is False
+    assert runtime["all_real_modes_require_interactive_tty"] is True
+    assert runtime["package_reverified_immediately_before_real_commands"] is True
+    assert runtime["hardware_approval_required_for_real_commands"] is True
     assert timeline["ready_settle_hold_s"] == 0.5
     assert timeline["stroke_speed_scale"] == 1.0
     assert timeline["stroke_reach_scale"] == 1.0
@@ -187,11 +191,8 @@ def test_wrapper_uses_only_documented_process_manager_handoff() -> None:
     assert "timeout 15s ros2 topic echo" in wrapper
     assert "within fifteen seconds" in wrapper
     assert "rm -rf" not in wrapper
-    assert (
-        "serve_vendor_arm_stop_runner\n"
-        "  if ! serve_vendor_arm_restore"
-        in wrapper
-    )
+    assert "if ! serve_vendor_arm_stop_runner; then" in wrapper
+    assert "set +e" in wrapper[wrapper.index("serve_vendor_arm_cleanup() {") :]
     assert main.count("serve_vendor_arm_wait_for_state_sample") == 1
     real_path = main[main.index("serve_vendor_arm_prepare_runtime") :]
     for redundant_real_check in (
@@ -229,6 +230,8 @@ def test_package_manifest_rejects_tampering_and_untracked_files(
         "motions/serve_policy.csv": b"motion\n",
         "config/serve_vendor_arm_manifest.json": b"{}\n",
         "config/serve_vendor_arm_build.env": b"build\n",
+        "config/serve_vendor_arm_qualification.json": b"{}\n",
+        "config/approved_motions.json": b"{}\n",
     }
     for relative, payload in required.items():
         path = package / relative
@@ -421,7 +424,6 @@ serve_vendor_arm_main --hold-only --confirm-real-commands
         "PROCESS",
         "TOPICS",
         "STATE",
-        "TTY",
     ):
         assert removed_real_probe not in result.stdout
     assert_output_order(
@@ -430,6 +432,7 @@ serve_vendor_arm_main --hold-only --confirm-real-commands
         "STACK",
         "ACTION",
         "IDLE",
+        "TTY",
         "LAUNCH:hold-only",
         "PREARMED",
         "STOP_APP",
@@ -438,6 +441,78 @@ serve_vendor_arm_main --hold-only --confirm-real-commands
         "START_APP",
     )
     assert "custom arm takeover PASS" in result.stdout
+
+
+def test_default_validated_inputs_pass_builder_qualification() -> None:
+    result = subprocess.run(
+        ["bash", str(BUILD), "--verify-inputs-only"],
+        cwd=APP_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "qualification: approved" in result.stdout
+    assert "input verification PASS" in result.stdout
+
+
+def test_default_build_packages_the_included_csv_without_rewriting_it() -> None:
+    build = BUILD.read_text(encoding="utf-8")
+    assert 'MOTION="${APP_ROOT}/assets/validated/serve_policy.csv"' in build
+    assert (
+        'install -m 0644 "${MOTION}" '
+        '"${DIST_DIR}/motions/serve_policy.csv"'
+    ) in build
+    assert hashlib.sha256(MOTION.read_bytes()).hexdigest() == (
+        "2a7de3f1c97a300069899c139c9eb96e94fd61d3419701d5e44ef37b2bf6641d"
+    )
+
+
+def test_cpp_joint_tables_are_compile_time_bound_to_csv_order() -> None:
+    runner = RUNNER_SOURCE.read_text(encoding="utf-8")
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert "constexpr std::array<ArmJointContract, 14> kArmJointContracts" in runner
+    assert "consteval bool ArmJointContractsMatchCsvOrder()" in runner
+    assert "static_assert(ArmJointContractsMatchCsvOrder()" in runner
+    assert manifest["joint_order"] == [
+        "left_shoulder_pitch_joint",
+        "left_shoulder_roll_joint",
+        "left_shoulder_yaw_joint",
+        "left_elbow_joint",
+        "left_wrist_roll_joint",
+        "left_wrist_pitch_joint",
+        "left_wrist_yaw_joint",
+        "right_shoulder_pitch_joint",
+        "right_shoulder_roll_joint",
+        "right_shoulder_yaw_joint",
+        "right_elbow_joint",
+        "right_wrist_roll_joint",
+        "right_wrist_pitch_joint",
+        "right_wrist_yaw_joint",
+    ]
+
+
+def test_approval_registry_is_an_independent_pinned_trust_anchor() -> None:
+    digest = hashlib.sha256(REGISTRY.read_bytes()).hexdigest()
+    build = BUILD.read_text(encoding="utf-8")
+    common = COMMON.read_text(encoding="utf-8")
+    assert digest in build
+    assert digest in common
+    assert "EXPECTED_APPROVAL_REGISTRY_SHA256" in build
+    assert "EXPECTED_APPROVAL_REGISTRY_SHA256" in common
+
+
+def test_cleanup_is_errexit_proof_and_still_attempts_restore() -> None:
+    probe = r'''
+log() { printf '%s\n' "$1"; }
+serve_vendor_arm_stop_runner() { log STOP_FAILED; return 1; }
+serve_vendor_arm_restore() { log RESTORE_ATTEMPTED; return 0; }
+trap serve_vendor_arm_cleanup EXIT
+false
+'''
+    result = run_sourced(probe)
+    assert result.returncode != 0
+    assert_output_order(result.stdout, "STOP_FAILED", "RESTORE_ATTEMPTED")
 
 
 def test_real_runtime_hot_path_has_no_observation_stop_gates() -> None:

@@ -3,17 +3,20 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from copy import deepcopy
 
 import numpy as np
 import pytest
 
-from a3_serve.config import default_config_path, load_config
+from a3_serve.config import ConfigError, default_config_path, load_config
 from a3_serve.constants import (
     DEFAULT_MODEL_XML,
     RIGHT_ARM_JOINTS,
     VALIDATED_FRAME_COUNT,
 )
 from a3_serve.csvio import MotionCsv, sha256_file
+from a3_serve.pipeline import generate
+from a3_serve.qualification import PROFILE_NAME, qualify
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +59,88 @@ def test_validated_manifest_binds_csv_and_demo_reference() -> None:
     assert manifest["evidence"]["hardware_status"] == (
         "executable_and_safe_on_Agibot_A3"
     )
+
+
+def test_validated_csv_passes_fixed_profile_and_is_approved() -> None:
+    result = qualify(
+        APP_ROOT / "assets/validated/serve_policy.csv",
+        APP_ROOT / "assets/validated/serve_vendor_arm.json",
+        APP_ROOT / "config/approved_motions.json",
+    )
+    assert result["status"] == "approved"
+    assert result["approval_id"] == "a3-pr18-serve-policy"
+    assert result["safety_profile"] == PROFILE_NAME
+    assert result["safety_checks"] == "pass"
+    assert result["motion"]["sha256"] == (
+        "2a7de3f1c97a300069899c139c9eb96e94fd61d3419701d5e44ef37b2bf6641d"
+    )
+    assert result["metrics"]["max_source_stroke_speed_rad_s"] < 5.2
+    assert result["metrics"]["max_command_velocity_limit_ratio"] < 0.5
+
+
+def test_safe_unregistered_motion_is_candidate_not_implicitly_approved(
+    tmp_path: Path,
+) -> None:
+    source = APP_ROOT / "assets/validated/serve_policy.csv"
+    candidate = tmp_path / "candidate.csv"
+    payload = bytearray(source.read_bytes())
+    # Change a root translation digit. Root values are not sent by this
+    # arm-only runtime, but the byte change gives the candidate a new identity.
+    first_newline = payload.index(b"\n")
+    data_offset = first_newline + 1
+    payload[data_offset] = ord("1") if payload[data_offset] != ord("1") else ord("2")
+    candidate.write_bytes(payload)
+    manifest_path = tmp_path / "manifest.json"
+    manifest = json.loads(
+        (APP_ROOT / "assets/validated/serve_vendor_arm.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest["source"]["sha256"] = sha256_file(candidate)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = qualify(
+        candidate,
+        manifest_path,
+        APP_ROOT / "config/approved_motions.json",
+    )
+    assert result["safety_checks"] == "pass"
+    assert result["status"] == "candidate"
+
+
+def test_config_cannot_relax_fixed_safety_or_break_timing(tmp_path: Path) -> None:
+    raw = json.loads(default_config_path().read_text(encoding="utf-8"))
+    config_root = default_config_path().parent
+    raw["model"]["xml"] = str((config_root / raw["model"]["xml"]).resolve())
+    raw["source"]["template_csv"] = str(
+        (config_root / raw["source"]["template_csv"]).resolve()
+    )
+    raw["physics"]["source_reference"] = str(
+        (config_root / raw["physics"]["source_reference"]).resolve()
+    )
+    relaxed = deepcopy(raw)
+    relaxed["safety"]["max_source_joint_speed_rad_s"] = 5.200001
+    relaxed_path = tmp_path / "relaxed.json"
+    relaxed_path.write_text(json.dumps(relaxed), encoding="utf-8")
+    with pytest.raises(ConfigError, match="may not exceed"):
+        load_config(relaxed_path)
+
+    bad_timing = deepcopy(raw)
+    bad_timing["timing"]["return_end_frame"] = bad_timing["timing"][
+        "follow_end_frame"
+    ]
+    bad_timing_path = tmp_path / "bad_timing.json"
+    bad_timing_path.write_text(json.dumps(bad_timing), encoding="utf-8")
+    with pytest.raises(ConfigError, match="strictly ordered"):
+        load_config(bad_timing_path)
+
+
+def test_generator_refuses_validated_asset_directory() -> None:
+    with pytest.raises(RuntimeError, match="may not overwrite"):
+        generate(
+            default_config_path(),
+            APP_ROOT / "assets/validated/attempted-overwrite",
+        )
 
 
 @pytest.mark.skipif(

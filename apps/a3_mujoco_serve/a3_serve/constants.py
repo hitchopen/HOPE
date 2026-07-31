@@ -91,3 +91,13 @@ VALIDATED_STROKE_START_FRAME = 1848
 VALIDATED_STRIKE_FRAME = 1860
 VALIDATED_LAST_STROKE_FRAME = 3876
 
+# Non-relaxable A3 high-level arm safety profile.  A task configuration may
+# request stricter limits, but it may not raise these values.  The values are
+# the existing PR #18 runtime limits; keeping them here prevents a generated
+# manifest from declaring its own, weaker hardware envelope.
+A3_SAFETY_PROFILE = "a3_high_level_arm_v1"
+A3_MAX_PREPARE_STEP_RAD = 0.03
+A3_MAX_PREPARE_SPEED_RAD_S = 3.0
+A3_MAX_SOURCE_STROKE_STEP_RAD = 0.026
+A3_MAX_SOURCE_STROKE_SPEED_RAD_S = 5.2
+A3_MAX_COMMAND_VELOCITY_LIMIT_RATIO = 0.5

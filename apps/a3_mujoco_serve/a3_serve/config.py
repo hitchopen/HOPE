@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .constants import (
+    A3_MAX_SOURCE_STROKE_SPEED_RAD_S,
     APP_ROOT,
     DEFAULT_MODEL_XML,
     VALIDATED_FRAME_COUNT,
@@ -77,9 +78,13 @@ def load_config(path: str | Path) -> dict[str, Any]:
             raise ConfigError(
                 f"timing.{key} must remain {required!r} for the validated runtime contract"
             )
+    for key in ("follow_end_frame", "return_end_frame"):
+        if not isinstance(timing.get(key), int):
+            raise ConfigError(f"timing.{key} must be an integer")
     if not (
         0 < timing["ready_frame"] < timing["stroke_start_frame"]
-        < timing["strike_frame"] < timing["frame_count"]
+        < timing["strike_frame"] < timing["follow_end_frame"]
+        < timing["return_end_frame"] < timing["frame_count"]
     ):
         raise ConfigError("timing frames are not strictly ordered")
 
@@ -112,12 +117,39 @@ def load_config(path: str | Path) -> dict[str, Any]:
         if not isinstance(value, list) or not value:
             raise ConfigError(f"planner.{grid} must be a non-empty list")
         planner[grid] = [float(item) for item in value]
+    preimpact_seconds = float(planner.get("preimpact_seconds", 0.0))
+    expected_preimpact_seconds = (
+        timing["strike_frame"] - timing["stroke_start_frame"]
+    ) / float(timing["source_hz"])
+    if abs(preimpact_seconds - expected_preimpact_seconds) > 1.0e-12:
+        raise ConfigError(
+            "planner.preimpact_seconds must equal the stroke-start-to-impact "
+            f"interval ({expected_preimpact_seconds:.12g} s)"
+        )
 
     ik = _require(payload, "ik", dict)
     if float(ik.get("damping", 0.0)) <= 0.0:
         raise ConfigError("ik.damping must be positive")
     if int(ik.get("max_iterations", 0)) <= 0:
         raise ConfigError("ik.max_iterations must be positive")
+
+    safety = _require(payload, "safety", dict)
+    configured_speed = float(safety.get("max_source_joint_speed_rad_s", 0.0))
+    if configured_speed <= 0.0:
+        raise ConfigError("safety.max_source_joint_speed_rad_s must be positive")
+    if configured_speed > A3_MAX_SOURCE_STROKE_SPEED_RAD_S:
+        raise ConfigError(
+            "safety.max_source_joint_speed_rad_s may not exceed the fixed A3 "
+            f"profile limit {A3_MAX_SOURCE_STROKE_SPEED_RAD_S}"
+        )
+    if safety.get("fail_on_self_collision") is not True:
+        raise ConfigError("safety.fail_on_self_collision must remain true")
+    if safety.get("require_full_replay_legal") is not True:
+        raise ConfigError("safety.require_full_replay_legal must remain true")
+    if not isinstance(safety.get("collision_scan_stride"), int) or int(
+        safety["collision_scan_stride"]
+    ) <= 0:
+        raise ConfigError("safety.collision_scan_stride must be a positive integer")
 
     payload["_config_path"] = str(config_path)
     return payload

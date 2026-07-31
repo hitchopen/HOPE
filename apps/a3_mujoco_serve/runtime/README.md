@@ -28,8 +28,10 @@ bash runtime/scripts/build_a3_app.sh --jobs 2
 
 The isolated result is `dist/a3_serve_vendor_arm/`. Copy that whole directory
 to a new directory on the MDU; do not overwrite the normal vendor deployment.
-The package manifest binds the runner, wrapper, trajectory and runtime
-contract by SHA-256.
+The package manifest binds the runner, wrapper, trajectory, runtime contract,
+qualification result and approval registry by SHA-256. The default build must
+print `qualification: approved`; its motion hash remains the PR #18 hash shown
+above.
 
 ## Operator flow
 
@@ -62,6 +64,16 @@ Immediately before custom publication, the wrapper prearms the runner, asks
 the vendor process manager to stop only `motion_player`, verifies publisher
 handoff, and releases the runner with `SIGUSR1`. It stops the custom publisher
 before automatically restarting `motion_player` on exit or failure.
+
+The wrapper rehashes the complete package and requires an `approved`
+qualification immediately before every real mode. The former
+`A3_VENDOR_ARM_QUICK_DEPLOY=1` shortcut is deprecated and no longer skips this
+audit. A motion that passes offline gates but is absent from
+`approved_motions.json` remains a `candidate`: read-only preflight works, while
+all command-publishing modes fail closed.
+The registry itself has a hash trust anchor in both the builder and runtime;
+adding a future approved hash therefore requires an explicit reviewed code
+change rather than an adjacent manifest edit.
 
 ## Safety and evidence boundary
 

@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from .constants import (
+    A3_SAFETY_PROFILE,
     ARM_JOINTS,
     CSV_COLUMNS,
     JOINT_NAMES,
@@ -109,6 +110,7 @@ def write_generation_manifest(
     model_path: str | Path,
     physics_reference_path: str | Path,
     config_path: str | Path,
+    timing: dict[str, Any],
     result: dict[str, Any],
 ) -> Path:
     """Write the artifact identity consumed by the generalized MDU build."""
@@ -147,10 +149,16 @@ def write_generation_manifest(
             "vendor_keeps_ownership_of": ["waist", "legs", "neck"],
         },
         "timeline": {
-            "ready_source_frame": 1600,
-            "stroke_source_start_frame": 1848,
-            "nominal_strike_source_frame": 1860,
+            "ready_source_frame": int(timing["ready_frame"]),
+            "stroke_source_start_frame": int(timing["stroke_start_frame"]),
+            "nominal_strike_source_frame": int(timing["strike_frame"]),
+            "follow_end_source_frame": int(timing["follow_end_frame"]),
+            "return_end_source_frame": int(timing["return_end_frame"]),
             "source_stride": 2,
+        },
+        "safety_profile": {
+            "name": A3_SAFETY_PROFILE,
+            "limits_are_non_relaxable": True,
         },
         "planning_result": result,
         "evidence": {

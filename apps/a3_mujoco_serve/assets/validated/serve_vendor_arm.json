@@ -1,6 +1,10 @@
 {
   "schema_version": 3,
   "artifact_name": "a3_serve_vendor_arm",
+  "safety_profile": {
+    "name": "a3_high_level_arm_v1",
+    "limits_are_non_relaxable": true
+  },
   "source": {
     "path": "assets/validated/serve_policy.csv",
     "sha256": "2a7de3f1c97a300069899c139c9eb96e94fd61d3419701d5e44ef37b2bf6641d",
@@ -121,7 +125,9 @@
     "runtime_state_freshness_stops_runner": false,
     "tracking_error_stops_runner": false,
     "ready_quality_wait_enabled": false,
-    "serve_only_requires_interactive_tty": true,
+    "all_real_modes_require_interactive_tty": true,
+    "package_reverified_immediately_before_real_commands": true,
+    "hardware_approval_required_for_real_commands": true,
     "motion_player_auto_restore": true
   },
   "offline_validation": {

@@ -5,10 +5,14 @@ usage() {
   cat <<'EOF'
 Usage:
   runtime/scripts/build_a3_app.sh [--jobs N] [--motion CSV] [--manifest JSON]
-                                  [--dist DIRECTORY]
+                                  [--dist DIRECTORY] [--verify-inputs-only]
 
 Builds the high-level A3 arm runner and binds it to one generated or validated
 CSV plus its manifest.  The default artifact is the PR #18 validated serve.
+
+Every input is checked against the fixed A3 safety profile. A source-controlled
+approval registry determines whether the resulting package is approved for
+real commands or is a candidate restricted to read-only preflight.
 
 Run this natively on the AArch64 MDU after sourcing the installed vendor ROS 2
 environment. MuJoCo and IK run offboard before this build; no ONNX, RKNN,
@@ -40,6 +44,10 @@ DIST_DIR="${APP_ROOT}/dist/a3_serve_vendor_arm"
 RUNNER="${BUILD_DIR}/out/a3_serve_vendor_arm_runner"
 MOTION="${APP_ROOT}/assets/validated/serve_policy.csv"
 MANIFEST="${APP_ROOT}/assets/validated/serve_vendor_arm.json"
+APPROVAL_REGISTRY="${APP_ROOT}/config/approved_motions.json"
+QUALIFICATION_TOOL="${APP_ROOT}/a3_serve/qualification.py"
+readonly EXPECTED_APPROVAL_REGISTRY_SHA256="646ae47419f388d889638d9b24b19cb772472ee0dbc910f1d992ac2d8a4bdea7"
+VERIFY_INPUTS_ONLY=0
 
 if command -v nproc >/dev/null 2>&1; then
   JOBS="$(nproc)"
@@ -65,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       DIST_DIR="${2:-}"
       shift 2
       ;;
+    --verify-inputs-only)
+      VERIFY_INPUTS_ONLY=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -79,11 +91,15 @@ done
 
 [[ "${JOBS}" =~ ^[1-9][0-9]*$ ]] ||
   die "--jobs must be a positive integer"
-command -v cmake >/dev/null 2>&1 || die "cmake is required"
-command -v install >/dev/null 2>&1 || die "install is required"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 [[ -f "${MOTION}" ]] || die "serve CSV is missing: ${MOTION}"
 [[ -f "${MANIFEST}" ]] || die "serve manifest is missing: ${MANIFEST}"
+[[ -f "${APPROVAL_REGISTRY}" ]] ||
+  die "approved-motion registry is missing: ${APPROVAL_REGISTRY}"
+[[ "$(sha256_file "${APPROVAL_REGISTRY}")" == "${EXPECTED_APPROVAL_REGISTRY_SHA256}" ]] ||
+  die "approved-motion registry does not match the reviewed runtime trust anchor"
+[[ -f "${QUALIFICATION_TOOL}" ]] ||
+  die "qualification tool is missing: ${QUALIFICATION_TOOL}"
 EXPECTED_MOTION_SHA256="$(
   python3 - "${MANIFEST}" <<'PY'
 import json
@@ -99,6 +115,35 @@ PY
 )" || die "cannot read source.sha256 from manifest"
 [[ "$(sha256_file "${MOTION}")" == "${EXPECTED_MOTION_SHA256}" ]] ||
   die "serve CSV SHA does not match manifest source.sha256"
+
+mkdir -p "${BUILD_DIR}/qualification"
+QUALIFICATION="${BUILD_DIR}/qualification/serve_vendor_arm_qualification.json"
+python3 "${QUALIFICATION_TOOL}" \
+  --motion "${MOTION}" \
+  --manifest "${MANIFEST}" \
+  --registry "${APPROVAL_REGISTRY}" \
+  --output "${QUALIFICATION}" \
+  >/dev/null || die "motion failed the fixed A3 qualification profile"
+QUALIFICATION_STATUS="$(
+  python3 - "${QUALIFICATION}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    value = json.load(stream)["status"]
+if value not in ("approved", "candidate"):
+    raise SystemExit("invalid qualification status")
+print(value)
+PY
+)" || die "cannot read qualification status"
+echo "[build-serve-vendor-arm] qualification: ${QUALIFICATION_STATUS}"
+if [[ "${VERIFY_INPUTS_ONLY}" -eq 1 ]]; then
+  echo "[build-serve-vendor-arm] input verification PASS; no executable was built"
+  exit 0
+fi
+
+command -v cmake >/dev/null 2>&1 || die "cmake is required"
+command -v install >/dev/null 2>&1 || die "install is required"
 
 if [[ -f /agibot/software/v0/entry/env/env.sh ]]; then
   set +u
@@ -128,6 +173,12 @@ install -m 0644 "${MOTION}" "${DIST_DIR}/motions/serve_policy.csv"
 install -m 0644 \
   "${MANIFEST}" \
   "${DIST_DIR}/config/serve_vendor_arm_manifest.json"
+install -m 0644 \
+  "${QUALIFICATION}" \
+  "${DIST_DIR}/config/serve_vendor_arm_qualification.json"
+install -m 0644 \
+  "${APPROVAL_REGISTRY}" \
+  "${DIST_DIR}/config/approved_motions.json"
 
 SOURCE_GIT_SHA="unknown"
 if git -C "${APP_ROOT}" rev-parse --verify HEAD >/dev/null 2>&1; then
@@ -143,6 +194,7 @@ SERVE_VENDOR_ARM_BUILD_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 SERVE_VENDOR_ARM_BUILD_MACHINE=$(uname -m)
 SERVE_VENDOR_ARM_BINARY_SHA256=$(sha256_file "${DIST_DIR}/a3_serve_vendor_arm_runner")
 SERVE_VENDOR_ARM_MOTION_SHA256=$(sha256_file "${DIST_DIR}/motions/serve_policy.csv")
+SERVE_VENDOR_ARM_QUALIFICATION_STATUS=${QUALIFICATION_STATUS}
 EOF
 
 PACKAGE_MANIFEST="${DIST_DIR}/config/serve_vendor_arm_package.sha256"
@@ -165,4 +217,7 @@ while read -r expected relative || [[ -n "${expected}${relative}" ]]; do
 done <"${PACKAGE_MANIFEST}"
 
 echo "[build-serve-vendor-arm] package: ${DIST_DIR}"
+if [[ "${QUALIFICATION_STATUS}" != "approved" ]]; then
+  echo "[build-serve-vendor-arm] candidate package: real-command modes are disabled"
+fi
 echo "[build-serve-vendor-arm] next: cd ${DIST_DIR} && ./run_a3_app.sh"

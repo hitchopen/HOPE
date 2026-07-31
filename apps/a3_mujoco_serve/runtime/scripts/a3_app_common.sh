@@ -13,7 +13,11 @@ SERVE_SCRIPT_MOTION="${SERVE_SCRIPT_DEPLOY_DIR}/motions/serve_policy.csv"
 SERVE_VENDOR_ARM_MANIFEST="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_manifest.json"
 SERVE_VENDOR_ARM_BUILD_BINDINGS="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_build.env"
 SERVE_VENDOR_ARM_PACKAGE_MANIFEST="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_package.sha256"
+SERVE_VENDOR_ARM_QUALIFICATION="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_qualification.json"
+SERVE_VENDOR_ARM_APPROVAL_REGISTRY="${SERVE_SCRIPT_DEPLOY_DIR}/config/approved_motions.json"
 SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256=""
+SERVE_VENDOR_ARM_QUALIFICATION_STATUS=""
+readonly SERVE_VENDOR_ARM_EXPECTED_APPROVAL_REGISTRY_SHA256="646ae47419f388d889638d9b24b19cb772472ee0dbc910f1d992ac2d8a4bdea7"
 
 serve_script_die() {
   echo "[serve-vendor-arm] ERROR: $*" >&2
@@ -74,6 +78,81 @@ serve_vendor_arm_verify_motion_identity() {
       "serve CSV SHA mismatch: expected ${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}, got ${actual}"
 }
 
+serve_vendor_arm_verify_qualification() {
+  local requirement="${1:-allow-candidate}"
+  [[ "${requirement}" == "allow-candidate" || "${requirement}" == "approved" ]] ||
+    serve_script_die "internal qualification requirement is invalid"
+  [[ -f "${SERVE_VENDOR_ARM_QUALIFICATION}" ]] ||
+    serve_script_die "qualification record is missing: ${SERVE_VENDOR_ARM_QUALIFICATION}"
+  [[ -f "${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}" ]] ||
+    serve_script_die "approval registry is missing: ${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}"
+  [[ "$(serve_script_sha256 "${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}")" == \
+     "${SERVE_VENDOR_ARM_EXPECTED_APPROVAL_REGISTRY_SHA256}" ]] ||
+    serve_script_die \
+      "approval registry does not match the reviewed runtime trust anchor"
+  SERVE_VENDOR_ARM_QUALIFICATION_STATUS="$(
+    python3 - \
+      "${SERVE_VENDOR_ARM_QUALIFICATION}" \
+      "${SERVE_SCRIPT_MOTION}" \
+      "${SERVE_VENDOR_ARM_MANIFEST}" \
+      "${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}" \
+      "${requirement}" <<'PY'
+import hashlib
+import json
+import sys
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+qualification_path, motion_path, manifest_path, registry_path, requirement = sys.argv[1:]
+try:
+    with open(qualification_path, encoding="utf-8") as stream:
+        qualification = json.load(stream)
+    with open(registry_path, encoding="utf-8") as stream:
+        registry = json.load(stream)
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"invalid qualification assets: {exc}")
+if qualification.get("schema_version") != 1:
+    raise SystemExit("qualification schema mismatch")
+if qualification.get("safety_profile") != "a3_high_level_arm_v1":
+    raise SystemExit("qualification safety profile mismatch")
+if qualification.get("safety_checks") != "pass":
+    raise SystemExit("motion did not pass the fixed safety profile")
+if qualification.get("motion", {}).get("sha256") != sha256(motion_path):
+    raise SystemExit("qualification motion identity mismatch")
+if qualification.get("manifest_sha256") != sha256(manifest_path):
+    raise SystemExit("qualification manifest identity mismatch")
+if qualification.get("approval_registry_sha256") != sha256(registry_path):
+    raise SystemExit("qualification approval-registry identity mismatch")
+status = qualification.get("status")
+if status not in ("approved", "candidate"):
+    raise SystemExit("invalid qualification status")
+if status == "approved":
+    motion_sha = qualification["motion"]["sha256"]
+    approval_id = qualification.get("approval_id")
+    matches = [
+        entry
+        for entry in registry.get("motions", [])
+        if isinstance(entry, dict)
+        and entry.get("sha256") == motion_sha
+        and entry.get("status") == "approved"
+        and entry.get("approval_id") == approval_id
+    ]
+    if len(matches) != 1:
+        raise SystemExit("approved motion has no unique registry record")
+if requirement == "approved" and status != "approved":
+    raise SystemExit("candidate motion is restricted to read-only preflight")
+print(status)
+PY
+  )" || serve_script_die "motion qualification verification failed"
+}
+
 serve_vendor_arm_verify_package_manifest() {
   local actual=""
   local expected=""
@@ -89,6 +168,8 @@ serve_vendor_arm_verify_package_manifest() {
     "motions/serve_policy.csv"
     "config/serve_vendor_arm_manifest.json"
     "config/serve_vendor_arm_build.env"
+    "config/serve_vendor_arm_qualification.json"
+    "config/approved_motions.json"
   )
 
   [[ -f "${SERVE_VENDOR_ARM_PACKAGE_MANIFEST}" ]] ||
@@ -168,6 +249,7 @@ serve_script_prepare_mdu() {
 
   serve_vendor_arm_verify_package_manifest
   serve_vendor_arm_verify_motion_identity
+  serve_vendor_arm_verify_qualification allow-candidate
   motion_sha="${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}"
 
   inference_artifact="$(
@@ -198,5 +280,5 @@ serve_script_prepare_mdu() {
 
   cd "${SERVE_SCRIPT_DEPLOY_DIR}"
   echo \
-    "[serve-vendor-arm] PACKAGE PASS: runner_sha=$(serve_script_sha256 "${SERVE_VENDOR_ARM_RUNNER}") csv_sha=${motion_sha}"
+    "[serve-vendor-arm] PACKAGE PASS: runner_sha=$(serve_script_sha256 "${SERVE_VENDOR_ARM_RUNNER}") csv_sha=${motion_sha} qualification=${SERVE_VENDOR_ARM_QUALIFICATION_STATUS}"
 }

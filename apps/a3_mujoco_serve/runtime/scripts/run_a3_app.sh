@@ -32,9 +32,9 @@ Default and --preflight-only are read-only. They validate the package,
 trajectory, robot action, arm topics, and motion_player state. They neither
 stop motion_player nor create an arm command publisher.
 
-A3_VENDOR_ARM_QUICK_DEPLOY=1 only shortens the default read-only preflight for
-an isolated field directory. Real modes always use the lean runtime path; run
-the no-argument preflight once after each deploy for package/ELF/topic audit.
+Every invocation rechecks the package and qualification records. Candidate
+motions may use read-only preflight, but real modes require a motion listed as
+approved in the package's source-controlled approval registry.
 
 --hold-only captures and holds the measured 14-joint arm state for three
 seconds, exits, and restores motion_player.
@@ -582,60 +582,12 @@ serve_vendor_arm_offline_validate() {
 }
 
 serve_vendor_arm_prepare_deploy() {
-  local machine=""
-  local active_runner_pids=""
-  local elf_description=""
-  local dependency_report=""
-  if [[ "${A3_VENDOR_ARM_QUICK_DEPLOY:-0}" != "1" ]]; then
-    serve_script_prepare_mdu
-    return
+  if [[ "${A3_VENDOR_ARM_QUICK_DEPLOY:-0}" == "1" ]]; then
+    echo \
+      "[serve-vendor-arm] A3_VENDOR_ARM_QUICK_DEPLOY is deprecated; running the full package audit" \
+      >&2
   fi
-
-  serve_vendor_arm_verify_motion_identity
-
-  machine="$(uname -m)"
-  [[ "${machine}" == "aarch64" || "${machine}" == "arm64" ]] ||
-    serve_script_die \
-      "quick vendor-arm deploy requires aarch64; got ${machine}"
-  [[ -f /agibot/software/v0/entry/env/env.sh ]] ||
-    serve_script_die "vendor ROS environment is missing"
-  [[ -x "${SERVE_VENDOR_ARM_RUNNER}" ]] ||
-    serve_script_die "vendor-arm runner is missing or not executable"
-  [[ -f "${SERVE_SCRIPT_MOTION}" ]] ||
-    serve_script_die "serve CSV is missing: ${SERVE_SCRIPT_MOTION}"
-  command -v file >/dev/null ||
-    serve_script_die "file is required for quick-deploy ELF verification"
-  command -v ldd >/dev/null ||
-    serve_script_die "ldd is required for quick-deploy dependency verification"
-  command -v taskset >/dev/null ||
-    serve_script_die "taskset is unavailable"
-
-  active_runner_pids="$(serve_script_active_runner_pids)"
-  [[ -z "${active_runner_pids}" ]] ||
-    serve_script_die \
-      "another serve runner is active; pids=${active_runner_pids//$'\n'/,}"
-
-  set +u
-  # shellcheck disable=SC1091
-  source /agibot/software/v0/entry/env/env.sh
-  set -u
-  export LD_LIBRARY_PATH="${SERVE_SCRIPT_DEPLOY_DIR}:${LD_LIBRARY_PATH:-}"
-
-  elf_description="$(LC_ALL=C LANG=C file "${SERVE_VENDOR_ARM_RUNNER}")"
-  grep -Eq 'ELF 64-bit.*(ARM aarch64|aarch64)' \
-    <<<"${elf_description}" ||
-    serve_script_die \
-      "quick-deploy runner is not an AArch64 ELF: ${elf_description}"
-  dependency_report="$(
-    LC_ALL=C LANG=C ldd "${SERVE_VENDOR_ARM_RUNNER}" 2>&1
-  )" ||
-    serve_script_die "ldd could not inspect the quick-deploy runner"
-  ! grep -Fq 'not found' <<<"${dependency_report}" ||
-    serve_script_die "quick-deploy runner has unresolved dependencies"
-
-  cd "${SERVE_SCRIPT_DEPLOY_DIR}"
-  echo \
-    "[serve-vendor-arm] QUICK DEPLOY PASS: runner_sha=$(serve_script_sha256 "${SERVE_VENDOR_ARM_RUNNER}") csv_sha=$(serve_script_sha256 "${SERVE_SCRIPT_MOTION}")"
+  serve_script_prepare_mdu
 }
 
 serve_vendor_arm_prepare_runtime() {
@@ -648,7 +600,12 @@ serve_vendor_arm_prepare_runtime() {
     serve_script_die "vendor-arm runner is missing or not executable"
   [[ -f "${SERVE_SCRIPT_MOTION}" ]] ||
     serve_script_die "serve CSV is missing: ${SERVE_SCRIPT_MOTION}"
+  # Real commands recheck every packaged file immediately before the handoff.
+  # This closes the preflight-to-execution replacement window and also makes a
+  # stale QUICK_DEPLOY setting harmless.
+  serve_vendor_arm_verify_package_manifest
   serve_vendor_arm_verify_motion_identity
+  serve_vendor_arm_verify_qualification approved
   motion_sha="${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}"
 
   active_runner_pids="$(serve_script_active_runner_pids)"
@@ -663,7 +620,7 @@ serve_vendor_arm_prepare_runtime() {
   export LD_LIBRARY_PATH="${SERVE_SCRIPT_DEPLOY_DIR}:${LD_LIBRARY_PATH:-}"
   cd "${SERVE_SCRIPT_DEPLOY_DIR}"
   echo \
-    "[serve-vendor-arm] LEAN RUNTIME: motion_sha=${motion_sha}; package audit is delegated to preflight/deploy"
+    "[serve-vendor-arm] REAL PACKAGE PASS: motion_sha=${motion_sha} qualification=${SERVE_VENDOR_ARM_QUALIFICATION_STATUS}"
 }
 
 serve_vendor_arm_require_real_tty() {
@@ -677,6 +634,12 @@ serve_vendor_arm_require_real_tty() {
 
 serve_vendor_arm_launch_runner() {
   local mode="$1"
+  # Final identity/approval check at the actual process boundary.  The earlier
+  # runtime audit provides diagnostics; this check closes its replacement
+  # window before the executable is started.
+  serve_vendor_arm_verify_package_manifest
+  serve_vendor_arm_verify_motion_identity
+  serve_vendor_arm_verify_qualification approved
   [[ -z "${SERVE_VENDOR_ARM_HANDOFF_DIR}" ]] ||
     serve_script_die "internal handoff directory already exists"
   SERVE_VENDOR_ARM_HANDOFF_DIR="$(
@@ -833,12 +796,18 @@ serve_vendor_arm_restore() {
 serve_vendor_arm_cleanup() {
   local original_status="$?"
   local final_status="${original_status}"
-  [[ "${SERVE_VENDOR_ARM_CLEANUP_ACTIVE}" -eq 0 ]] || return
-  SERVE_VENDOR_ARM_CLEANUP_ACTIVE=1
+  # Neutralize all traps before any command that could fail or receive a
+  # second signal. Cleanup must continue after a dead SSH pty or diagnostic
+  # write failure so motion_player restoration is always attempted.
   trap - EXIT
   trap '' HUP INT TERM
+  set +e
+  [[ "${SERVE_VENDOR_ARM_CLEANUP_ACTIVE}" -eq 0 ]] || return
+  SERVE_VENDOR_ARM_CLEANUP_ACTIVE=1
 
-  serve_vendor_arm_stop_runner
+  if ! serve_vendor_arm_stop_runner; then
+    final_status=1
+  fi
   if ! serve_vendor_arm_restore; then
     final_status=1
   fi
@@ -931,17 +900,13 @@ serve_vendor_arm_main() {
     return 0
   fi
 
-  # Real execution stays lean: the runner repeats CSV validation before
-  # creating ROS entities and performs the exact-name state/publisher prearm.
-  # Expensive package, ldd, topic-QoS and ros2-echo audits remain available in
-  # the default read-only preflight, not in the command path.
+  # Real execution repeats package identity, approval, CSV validation and the
+  # exact-name state/publisher prearm immediately before command publication.
   serve_vendor_arm_prepare_runtime
   serve_vendor_arm_require_vendor_stack
   serve_vendor_arm_verify_action
   serve_vendor_arm_require_motion_player_idle
-  if [[ "${mode}" == "serve-only" ]]; then
-    serve_vendor_arm_require_real_tty
-  fi
+  serve_vendor_arm_require_real_tty
   echo \
     "[serve-vendor-arm] REAL ${mode}: agibot_pm, motion_control, and HAL stay active."
   echo \

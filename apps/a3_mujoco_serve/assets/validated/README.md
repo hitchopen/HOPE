@@ -15,3 +15,7 @@ The video is retained as a visual reference source. The manifest-bound CSV and
 runtime remain the machine-verifiable execution artifacts. A newly generated
 CSV is a different artifact and must complete its own A3 qualification before
 real execution.
+
+The source-controlled `../../config/approved_motions.json` entry binds this
+hardware approval to the CSV SHA-256. The build also recomputes the fixed A3
+safety profile; approval never bypasses numerical validation.

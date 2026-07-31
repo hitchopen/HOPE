@@ -61,6 +61,7 @@ from PR #18.
 |---|---|
 | `a3_serve/` | Physics search, SO(3) math, DLS IK, replay, CSV export and CLI. |
 | `config/serve.json` | Reproducible physics, targets, timing, IK and validation gates. |
+| `config/approved_motions.json` | Source-controlled hardware approvals keyed by CSV SHA-256. |
 | `assets/validated/` | Fully A3-tested PR #18 CSV, runtime contract and demo reference video. |
 | `runtime/` | Native-MDU C++ high-level arm runner, guarded wrapper and build script. |
 | `tests/` | Portable solver/export/runtime tests plus an optional MuJoCo model smoke test. |
@@ -135,7 +136,20 @@ bash runtime/scripts/build_a3_app.sh \
 For the A3-validated PR #18 reference, omit `--motion` and `--manifest`; the
 build defaults to `assets/validated/`. The result is
 `dist/a3_serve_vendor_arm/`. Its package manifest binds the executable,
-runtime scripts, CSV and motion manifest by SHA-256.
+runtime scripts, CSV, motion manifest, fixed-profile qualification record and
+approval registry by SHA-256. The default PR #18 CSV is reported as `approved`
+and real modes remain enabled. A different CSV can pass the fixed safety
+profile and be packaged as a `candidate`, but real modes remain disabled until
+its SHA-256 receives a reviewed approval-registry entry. The runtime pins the
+reviewed registry hash, so changing the CSV and its adjacent manifest together
+cannot manufacture hardware approval.
+
+Check the complete input qualification without compiling the AArch64
+executable:
+
+```bash
+bash runtime/scripts/build_a3_app.sh --verify-inputs-only
+```
 
 Run the packaged app using the procedure in [runtime/README.md](runtime/README.md).
 The default invocation is read-only preflight. Real modes retain PR #18's
@@ -165,8 +179,10 @@ work and renewed qualification.
 
 A new generated CSV is a new motion application. It inherits the checked
 transport and handoff implementation, but not the PR #18 trajectory's hardware
-validation. Review its report, run the read-only MDU preflight, and qualify it
-through the project's normal supported-robot procedure before execution.
+validation. The builder first applies the non-relaxable
+`a3_high_level_arm_v1` envelope. A passing external artifact is a read-only
+`candidate`; after robot qualification, add its hash and approval scope to the
+source-controlled registry through review to enable real execution.
 
 ## Scope and licensing
 

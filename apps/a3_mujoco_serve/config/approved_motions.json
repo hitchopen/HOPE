@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "safety_profile": "a3_high_level_arm_v1",
+  "motions": [
+    {
+      "approval_id": "a3-pr18-serve-policy",
+      "sha256": "2a7de3f1c97a300069899c139c9eb96e94fd61d3419701d5e44ef37b2bf6641d",
+      "status": "approved",
+      "basis": "Exact PR #18 CSV and retained high-level runtime hardware-validated on Agibot A3",
+      "scope": "A3 high-level 14-arm runtime with the retained PR #18 operator procedure"
+    }
+  ]
+}

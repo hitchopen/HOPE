@@ -71,51 +71,6 @@ constexpr auto kHandoffSignalTimeout = std::chrono::seconds(30);
 constexpr auto kHandoffGraphTimeout = std::chrono::milliseconds(500);
 constexpr auto kHandoffStateFreshness = std::chrono::seconds(1);
 
-constexpr std::array<std::string_view, 14> kArmJointNames = {
-    "left_shoulder_pitch_joint",
-    "left_shoulder_roll_joint",
-    "left_shoulder_yaw_joint",
-    "left_elbow_joint",
-    "left_wrist_roll_joint",
-    "left_wrist_pitch_joint",
-    "left_wrist_yaw_joint",
-    "right_shoulder_pitch_joint",
-    "right_shoulder_roll_joint",
-    "right_shoulder_yaw_joint",
-    "right_elbow_joint",
-    "right_wrist_roll_joint",
-    "right_wrist_pitch_joint",
-    "right_wrist_yaw_joint",
-};
-
-// The A3 v3.0 high-level motion-control limits.  These are intentionally not
-// the broader low-level URDF limits.
-constexpr ArmVector kArmPositionLo = {
-    -2.967, -1.588, -2.793, -1.047, -0.576, -1.623, -2.793,
-    -2.967, -1.588, -2.793, -1.047, -0.576, -1.623, -2.793,
-};
-constexpr ArmVector kArmPositionHi = {
-    2.967, 1.588, 2.793, 2.444, 0.576, 1.623, 2.793,
-    2.967, 1.588, 2.793, 2.444, 0.576, 1.623, 2.793,
-};
-// URDF velocity limits in the same 14-axis order. The original-timing stroke
-// remains below half of every active joint's stored actuator limit.
-constexpr ArmVector kArmVelocityLimit = {
-    13.613568165555769, 13.613568165555769, 15.707963267948966,
-    15.707963267948966, 15.707963267948966, 12.775810124598491,
-    12.775810124598491, 13.613568165555769, 13.613568165555769,
-    15.707963267948966, 15.707963267948966, 15.707963267948966,
-    12.775810124598491, 12.775810124598491,
-};
-
-// The source left-wrist roll exceeds the high-level API limit before READY.
-// Freeze left-wrist roll at its measured entry value.  The remaining thirteen
-// arm axes follow the source.
-constexpr std::array<bool, 14> kSourceActive = {
-    true, true, true, true, false, true, true,
-    true, true, true, true, true, true, true,
-};
-
 constexpr std::array<std::string_view, 6> kRootColumns = {
     "root_translateX", "root_translateY", "root_translateZ",
     "root_rotateX", "root_rotateY", "root_rotateZ",
@@ -154,6 +109,109 @@ constexpr std::array<std::string_view, 31> kCsvJointNames = {
     "right_ankle_pitch_joint",
     "right_ankle_roll_joint",
 };
+
+struct ArmJointContract {
+  std::string_view name;
+  std::size_t csv_joint_index;
+  double position_lo;
+  double position_hi;
+  double velocity_limit;
+  bool source_active;
+};
+
+// Keep each name, CSV mapping and safety limit in one record so those fields
+// cannot drift through edits to parallel positional arrays.  These are A3 v3
+// high-level limits, not the broader low-level URDF position limits.
+constexpr std::array<ArmJointContract, 14> kArmJointContracts = {{
+    {"left_shoulder_pitch_joint", 5, -2.967, 2.967,
+     13.613568165555769, true},
+    {"left_shoulder_roll_joint", 6, -1.588, 1.588,
+     13.613568165555769, true},
+    {"left_shoulder_yaw_joint", 7, -2.793, 2.793,
+     15.707963267948966, true},
+    {"left_elbow_joint", 8, -1.047, 2.444, 15.707963267948966, true},
+    // Source left-wrist roll exceeds the high-level limit before READY, so it
+    // remains frozen at its measured entry value.
+    {"left_wrist_roll_joint", 9, -0.576, 0.576,
+     15.707963267948966, false},
+    {"left_wrist_pitch_joint", 10, -1.623, 1.623,
+     12.775810124598491, true},
+    {"left_wrist_yaw_joint", 11, -2.793, 2.793,
+     12.775810124598491, true},
+    {"right_shoulder_pitch_joint", 12, -2.967, 2.967,
+     13.613568165555769, true},
+    {"right_shoulder_roll_joint", 13, -1.588, 1.588,
+     13.613568165555769, true},
+    {"right_shoulder_yaw_joint", 14, -2.793, 2.793,
+     15.707963267948966, true},
+    {"right_elbow_joint", 15, -1.047, 2.444,
+     15.707963267948966, true},
+    {"right_wrist_roll_joint", 16, -0.576, 0.576,
+     15.707963267948966, true},
+    {"right_wrist_pitch_joint", 17, -1.623, 1.623,
+     12.775810124598491, true},
+    {"right_wrist_yaw_joint", 18, -2.793, 2.793,
+     12.775810124598491, true},
+}};
+
+consteval auto ArmJointNames() {
+  std::array<std::string_view, kArmJointContracts.size()> values{};
+  for (std::size_t joint = 0; joint < values.size(); ++joint) {
+    values[joint] = kArmJointContracts[joint].name;
+  }
+  return values;
+}
+
+consteval auto ArmPositionLo() {
+  ArmVector values{};
+  for (std::size_t joint = 0; joint < values.size(); ++joint) {
+    values[joint] = kArmJointContracts[joint].position_lo;
+  }
+  return values;
+}
+
+consteval auto ArmPositionHi() {
+  ArmVector values{};
+  for (std::size_t joint = 0; joint < values.size(); ++joint) {
+    values[joint] = kArmJointContracts[joint].position_hi;
+  }
+  return values;
+}
+
+consteval auto ArmVelocityLimits() {
+  ArmVector values{};
+  for (std::size_t joint = 0; joint < values.size(); ++joint) {
+    values[joint] = kArmJointContracts[joint].velocity_limit;
+  }
+  return values;
+}
+
+consteval auto SourceActive() {
+  std::array<bool, kArmJointContracts.size()> values{};
+  for (std::size_t joint = 0; joint < values.size(); ++joint) {
+    values[joint] = kArmJointContracts[joint].source_active;
+  }
+  return values;
+}
+
+constexpr auto kArmJointNames = ArmJointNames();
+constexpr auto kArmPositionLo = ArmPositionLo();
+constexpr auto kArmPositionHi = ArmPositionHi();
+constexpr auto kArmVelocityLimit = ArmVelocityLimits();
+constexpr auto kSourceActive = SourceActive();
+
+consteval bool ArmJointContractsMatchCsvOrder() {
+  for (std::size_t joint = 0; joint < kArmJointContracts.size(); ++joint) {
+    const auto expected_csv_index = joint < 7 ? 5 + joint : 12 + joint - 7;
+    const auto& contract = kArmJointContracts[joint];
+    if (contract.csv_joint_index != expected_csv_index) return false;
+    if (contract.name != kCsvJointNames[contract.csv_joint_index]) return false;
+  }
+  return true;
+}
+
+static_assert(ArmJointContractsMatchCsvOrder(),
+              "A3 arm contracts must match the SDK CSV header order");
 
 struct Arguments {
   std::string motion_csv{"motions/serve_policy.csv"};

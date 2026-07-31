@@ -10,6 +10,8 @@ import numpy as np
 
 from .config import load_config
 from .constants import (
+    A3_MAX_SOURCE_STROKE_SPEED_RAD_S,
+    APP_ROOT,
     HIGH_LEVEL_ARM_HI,
     HIGH_LEVEL_ARM_LO,
     JOINT_NAMES,
@@ -79,6 +81,12 @@ def generate(config_path: str | Path, output_directory: str | Path) -> dict[str,
     config = load_config(config_path)
     config_path = Path(config["_config_path"])
     output_directory = Path(output_directory).expanduser().resolve()
+    validated_assets = (APP_ROOT / "assets" / "validated").resolve()
+    if output_directory == validated_assets or validated_assets in output_directory.parents:
+        raise RuntimeError(
+            "generation output may not overwrite or create files under "
+            f"{validated_assets}"
+        )
     output_directory.mkdir(parents=True, exist_ok=True)
 
     template = MotionCsv.load(config["source"]["template_csv"])
@@ -130,9 +138,15 @@ def generate(config_path: str | Path, output_directory: str | Path) -> dict[str,
         arm[:, active_mask] > HIGH_LEVEL_ARM_HI[active_mask] + 1.0e-12
     ):
         raise RuntimeError("generated active arm trajectory exceeds high-level A3 limits")
-    if ik.max_joint_speed_rad_s > float(config["safety"]["max_source_joint_speed_rad_s"]):
+    configured_speed_limit = float(
+        config["safety"]["max_source_joint_speed_rad_s"]
+    )
+    effective_speed_limit = min(
+        configured_speed_limit, A3_MAX_SOURCE_STROKE_SPEED_RAD_S
+    )
+    if ik.max_joint_speed_rad_s > effective_speed_limit:
         raise RuntimeError(
-            "generated right-arm speed exceeds configured source limit: "
+            "generated right-arm speed exceeds the effective A3 source limit: "
             f"{ik.max_joint_speed_rad_s:.6f} rad/s"
         )
 
@@ -205,6 +219,7 @@ def generate(config_path: str | Path, output_directory: str | Path) -> dict[str,
         model_path=config["model"]["xml"],
         physics_reference_path=physics["source_reference"],
         config_path=config_path,
+        timing=timing,
         result=result,
     )
     report = output_directory / "validation_report.json"
