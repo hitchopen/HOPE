@@ -9,27 +9,20 @@ import subprocess
 from pathlib import Path
 
 
-A3_ROOT = Path(__file__).resolve().parents[1]
-WRAPPER = A3_ROOT / "scripts" / "run_serve_vendor_arm.sh"
-BUILD = A3_ROOT / "scripts" / "build_serve_vendor_arm_pkg.sh"
-COMMON = A3_ROOT / "scripts" / "serve_vendor_arm_common.sh"
-RUNNER_SOURCE = (
-    A3_ROOT
-    / "src/a3/a3_deploy_onnx_ref/src/a3_deploy"
-    / "a3_serve_vendor_arm_main.cpp"
-)
-MOTION = A3_ROOT / "assets/a3_runtime/serve/motions/serve_policy.csv"
-MANIFEST = (
-    A3_ROOT
-    / "assets/a3_runtime/serve/manifests"
-    / "serve_vendor_arm.json"
-)
+APP_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_ROOT = APP_ROOT / "runtime"
+WRAPPER = RUNTIME_ROOT / "scripts" / "run_a3_app.sh"
+BUILD = RUNTIME_ROOT / "scripts" / "build_a3_app.sh"
+COMMON = RUNTIME_ROOT / "scripts" / "a3_app_common.sh"
+RUNNER_SOURCE = RUNTIME_ROOT / "src" / "a3_serve_vendor_arm_main.cpp"
+MOTION = APP_ROOT / "assets" / "validated" / "serve_policy.csv"
+MANIFEST = APP_ROOT / "assets" / "validated" / "serve_vendor_arm.json"
 
 
 def run_sourced(script: str, *arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c", f'source "$1"; shift; {script}', "_", str(WRAPPER), *arguments],
-        cwd=A3_ROOT,
+        cwd=APP_ROOT,
         check=False,
         capture_output=True,
         text=True,
@@ -124,10 +117,10 @@ def test_lean_runtime_contract_is_machine_readable() -> None:
     metrics = manifest["offline_metrics"]
 
     assert manifest["schema_version"] == 3
-    assert (
-        'SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256="'
-        f'{manifest["source"]["sha256"]}"'
-    ) in wrapper
+    assert "serve_vendor_arm_verify_motion_identity" in wrapper
+    assert 'json.load(stream)["source"]["sha256"]' in COMMON.read_text(
+        encoding="utf-8"
+    )
     assert ownership["exclusive_command_publisher_at_handoff_required"] is True
     assert ownership["runtime_graph_exclusivity_rechecked"] is False
     assert runtime["initial_state_exact_name_mapping_required"] is True
@@ -218,7 +211,7 @@ def test_wrapper_uses_only_documented_process_manager_handoff() -> None:
         "serve_vendor_arm_release_runner",
         "serve_vendor_arm_wait_runner_started",
     )
-    assert "run_serve_vendor_arm.sh" in build
+    assert "run_a3_app.sh" in build
     assert "run_serve_vendor_arm_real.sh" not in build
     assert "run_serve_vendor_arm_shadow.sh" not in build
     assert "a3_serve_script_runner" not in build
@@ -231,8 +224,8 @@ def test_package_manifest_rejects_tampering_and_untracked_files(
     package = tmp_path / "a3_serve_vendor_arm"
     required = {
         "a3_serve_vendor_arm_runner": b"runner\n",
-        "run_serve_vendor_arm.sh": b"wrapper\n",
-        "serve_vendor_arm_common.sh": b"common\n",
+        "run_a3_app.sh": b"wrapper\n",
+        "a3_app_common.sh": b"common\n",
         "motions/serve_policy.csv": b"motion\n",
         "config/serve_vendor_arm_manifest.json": b"{}\n",
         "config/serve_vendor_arm_build.env": b"build\n",
@@ -258,7 +251,7 @@ serve_vendor_arm_verify_package_manifest
 
     accepted = subprocess.run(
         ["bash", "-c", 'source "$1"; shift; ' + probe, "_", str(COMMON), str(package)],
-        cwd=A3_ROOT,
+        cwd=APP_ROOT,
         check=False,
         capture_output=True,
         text=True,
@@ -271,7 +264,7 @@ serve_vendor_arm_verify_package_manifest
     )
     tampered = subprocess.run(
         ["bash", "-c", 'source "$1"; shift; ' + probe, "_", str(COMMON), str(package)],
-        cwd=A3_ROOT,
+        cwd=APP_ROOT,
         check=False,
         capture_output=True,
         text=True,
@@ -285,7 +278,7 @@ serve_vendor_arm_verify_package_manifest
     (package / "unexpected.txt").write_text("extra\n", encoding="utf-8")
     untracked = subprocess.run(
         ["bash", "-c", 'source "$1"; shift; ' + probe, "_", str(COMMON), str(package)],
-        cwd=A3_ROOT,
+        cwd=APP_ROOT,
         check=False,
         capture_output=True,
         text=True,

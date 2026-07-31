@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
-source "${SCRIPT_DIR}/serve_vendor_arm_common.sh"
+source "${SCRIPT_DIR}/a3_app_common.sh"
 
 readonly SERVE_VENDOR_ARM_PROCESS_MANAGER_PORT="50080"
 readonly SERVE_VENDOR_ARM_PROCESS_MANAGER_JSON="http://127.0.0.1:50080/json"
@@ -12,7 +12,6 @@ readonly SERVE_VENDOR_ARM_MOTION_PLAYER_RPC="http://127.0.0.1:56444/rpc/aimdk.pr
 readonly SERVE_VENDOR_ARM_ACTION_RPC="http://127.0.0.1:56322/rpc/aimdk.protocol.MotionControlActionService/GetAction"
 readonly SERVE_VENDOR_ARM_STATE_TOPIC="/motion/control/arm_joint_state"
 readonly SERVE_VENDOR_ARM_COMMAND_TOPIC="/motion/control/arm_joint_command"
-readonly SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256="2a7de3f1c97a300069899c139c9eb96e94fd61d3419701d5e44ef37b2bf6641d"
 
 SERVE_VENDOR_ARM_RUNNER_PID=""
 SERVE_VENDOR_ARM_HANDOFF_DIR=""
@@ -23,11 +22,11 @@ SERVE_VENDOR_ARM_CLEANUP_ACTIVE=0
 serve_vendor_arm_usage() {
   cat <<'EOF'
 Usage:
-  run_serve_vendor_arm.sh
-  run_serve_vendor_arm.sh --preflight-only
-  run_serve_vendor_arm.sh --hold-only --confirm-real-commands
-  run_serve_vendor_arm.sh --prepare-only --confirm-real-commands
-  run_serve_vendor_arm.sh --serve-only --confirm-real-commands
+  run_a3_app.sh
+  run_a3_app.sh --preflight-only
+  run_a3_app.sh --hold-only --confirm-real-commands
+  run_a3_app.sh --prepare-only --confirm-real-commands
+  run_a3_app.sh --serve-only --confirm-real-commands
 
 Default and --preflight-only are read-only. They validate the package,
 trajectory, robot action, arm topics, and motion_player state. They neither
@@ -592,6 +591,8 @@ serve_vendor_arm_prepare_deploy() {
     return
   fi
 
+  serve_vendor_arm_verify_motion_identity
+
   machine="$(uname -m)"
   [[ "${machine}" == "aarch64" || "${machine}" == "arm64" ]] ||
     serve_script_die \
@@ -647,10 +648,8 @@ serve_vendor_arm_prepare_runtime() {
     serve_script_die "vendor-arm runner is missing or not executable"
   [[ -f "${SERVE_SCRIPT_MOTION}" ]] ||
     serve_script_die "serve CSV is missing: ${SERVE_SCRIPT_MOTION}"
-  motion_sha="$(serve_script_sha256 "${SERVE_SCRIPT_MOTION}")"
-  [[ "${motion_sha}" == "${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}" ]] ||
-    serve_script_die \
-      "serve CSV identity mismatch: expected=${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256} actual=${motion_sha}"
+  serve_vendor_arm_verify_motion_identity
+  motion_sha="${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}"
 
   active_runner_pids="$(serve_script_active_runner_pids)"
   [[ -z "${active_runner_pids}" ]] ||

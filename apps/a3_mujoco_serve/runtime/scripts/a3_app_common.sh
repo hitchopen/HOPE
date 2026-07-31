@@ -8,11 +8,12 @@ SERVE_SCRIPT_DEPLOY_DIR="$(
   cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
 )"
 SERVE_VENDOR_ARM_RUNNER="${SERVE_SCRIPT_DEPLOY_DIR}/a3_serve_vendor_arm_runner"
-SERVE_VENDOR_ARM_WRAPPER="${SERVE_SCRIPT_DEPLOY_DIR}/run_serve_vendor_arm.sh"
+SERVE_VENDOR_ARM_WRAPPER="${SERVE_SCRIPT_DEPLOY_DIR}/run_a3_app.sh"
 SERVE_SCRIPT_MOTION="${SERVE_SCRIPT_DEPLOY_DIR}/motions/serve_policy.csv"
 SERVE_VENDOR_ARM_MANIFEST="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_manifest.json"
 SERVE_VENDOR_ARM_BUILD_BINDINGS="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_build.env"
 SERVE_VENDOR_ARM_PACKAGE_MANIFEST="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_package.sha256"
+SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256=""
 
 serve_script_die() {
   echo "[serve-vendor-arm] ERROR: $*" >&2
@@ -41,16 +42,50 @@ serve_script_active_runner_pids() {
   done
 }
 
+serve_vendor_arm_manifest_motion_sha() {
+  python3 - "${SERVE_VENDOR_ARM_MANIFEST}" <<'PY'
+import json
+import re
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        value = json.load(stream)["source"]["sha256"]
+except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"invalid serve manifest: {exc}")
+if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+    raise SystemExit("manifest source.sha256 is not a lowercase SHA-256")
+print(value)
+PY
+}
+
+serve_vendor_arm_verify_motion_identity() {
+  local actual=""
+  [[ -f "${SERVE_VENDOR_ARM_MANIFEST}" ]] ||
+    serve_script_die "serve manifest is missing: ${SERVE_VENDOR_ARM_MANIFEST}"
+  command -v python3 >/dev/null 2>&1 ||
+    serve_script_die "python3 is required to verify the serve manifest"
+  SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256="$(
+    serve_vendor_arm_manifest_motion_sha
+  )" || serve_script_die "cannot read serve manifest motion identity"
+  actual="$(serve_script_sha256 "${SERVE_SCRIPT_MOTION}")"
+  [[ "${actual}" == "${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}" ]] ||
+    serve_script_die \
+      "serve CSV SHA mismatch: expected ${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}, got ${actual}"
+}
+
 serve_vendor_arm_verify_package_manifest() {
   local actual=""
   local expected=""
   local relative=""
   local path=""
-  local -A seen=()
+  # Newline-delimited exact path set.  Avoid Bash-4 associative arrays because
+  # contributors also run the read-only package tests on macOS Bash 3.2.
+  local seen=$'\n'
   local -a required=(
     "a3_serve_vendor_arm_runner"
-    "run_serve_vendor_arm.sh"
-    "serve_vendor_arm_common.sh"
+    "run_a3_app.sh"
+    "a3_app_common.sh"
     "motions/serve_policy.csv"
     "config/serve_vendor_arm_manifest.json"
     "config/serve_vendor_arm_build.env"
@@ -67,7 +102,7 @@ serve_vendor_arm_verify_package_manifest() {
       serve_script_die "invalid package-manifest path: ${relative}"
     [[ "${relative}" != /* && "${relative}" != *".."* ]] ||
       serve_script_die "unsafe package-manifest path: ${relative}"
-    [[ -z "${seen[${relative}]+x}" ]] ||
+    [[ "${seen}" != *$'\n'"${relative}"$'\n'* ]] ||
       serve_script_die "duplicate package-manifest path: ${relative}"
     path="${SERVE_SCRIPT_DEPLOY_DIR}/${relative}"
     [[ -f "${path}" ]] ||
@@ -75,11 +110,11 @@ serve_vendor_arm_verify_package_manifest() {
     actual="$(serve_script_sha256 "${path}")"
     [[ "${actual}" == "${expected}" ]] ||
       serve_script_die "package SHA mismatch: ${relative}"
-    seen["${relative}"]=1
+    seen+="${relative}"$'\n'
   done <"${SERVE_VENDOR_ARM_PACKAGE_MANIFEST}"
 
   for relative in "${required[@]}"; do
-    [[ -n "${seen[${relative}]+x}" ]] ||
+    [[ "${seen}" == *$'\n'"${relative}"$'\n'* ]] ||
       serve_script_die "package manifest omits required file: ${relative}"
   done
 
@@ -87,7 +122,7 @@ serve_vendor_arm_verify_package_manifest() {
     relative="${path#"${SERVE_SCRIPT_DEPLOY_DIR}/"}"
     [[ "${relative}" == "config/serve_vendor_arm_package.sha256" ]] &&
       continue
-    [[ -n "${seen[${relative}]+x}" ]] ||
+    [[ "${seen}" == *$'\n'"${relative}"$'\n'* ]] ||
       serve_script_die "unmanifested package file: ${relative}"
   done < <(find "${SERVE_SCRIPT_DEPLOY_DIR}" -type f -print0)
 }
@@ -131,11 +166,9 @@ serve_script_prepare_mdu() {
       "another vendor-arm runner is active; pids=${active_runner_pids}"
   fi
 
-  motion_sha="$(serve_script_sha256 "${SERVE_SCRIPT_MOTION}")"
-  [[ "${motion_sha}" == "${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}" ]] ||
-    serve_script_die \
-      "serve CSV SHA mismatch: expected ${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}, got ${motion_sha}"
   serve_vendor_arm_verify_package_manifest
+  serve_vendor_arm_verify_motion_identity
+  motion_sha="${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}"
 
   inference_artifact="$(
     find "${SERVE_SCRIPT_DEPLOY_DIR}" -type f \

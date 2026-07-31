@@ -10,12 +10,12 @@ instead you get:
 2. an **integration seam** for wiring the same contract into your own licensed AgiBot vendor
    deploy package on the real robot.
 
-Nothing under `a3_deploy/` executes real-robot control on your behalf. The
-separate Agibot-provided reference tree under `agibot/code_deployment/` also
-contains an optional, experimental
-[fixed vendor-arm serve](../agibot/code_deployment/a3_deploy_example/SERVE_SCRIPT_DEPLOY.md).
-That route uses Agibot's installed high-level motion-control stack and is not
-part of the clean-room policy runner or a certified hardware path.
+Nothing under `a3_deploy/` executes real-robot control on your behalf. A
+separate, self-contained
+[MuJoCo-to-A3 serve application](../apps/a3_mujoco_serve/README.md) uses the
+installed high-level motion-control stack. Its exact PR #18 reference artifact
+was fully tested, executable, and safe on A3; newly generated motions require their own
+qualification.
 
 ## What you need to supply
 
@@ -24,7 +24,7 @@ part of the clean-room policy runner or a certified hardware path.
 | A trained policy `hope_pingpong.onnx` | the actor network | `a3_deploy/a3_deploy_example/models/` (see [export](TRAIN_POLICY.md)) |
 | The A3 URDF/meshes (`A3T2.5-URDF-std-pingpang`) | shipped with the starter under `agibot/URDF/` (Agibot-provided vendor material, **no OSS license** — see `A3_ASSETS.md`); or supply your own copy under `a3_deploy/URDF/` (see its `README.md`) | used as-is by the asset-prep step |
 | Your own AgiBot vendor deploy package | required for the **real robot** path only | referenced by `run_pingpong_real.sh` |
-| Agibot vendor environment on the MDU | required only for the optional fixed vendor-arm serve | see the [isolated serve package](../agibot/code_deployment/a3_deploy_example/SERVE_SCRIPT_DEPLOY.md) |
+| Agibot vendor environment on the MDU | required only for the high-level arm serve application | see the [self-contained application](../apps/a3_mujoco_serve/README.md) |
 
 The MuJoCo simulation ships with a runnable `a3_pingpong` model, so the **simulation path needs
 no extra assets**.
@@ -82,8 +82,9 @@ Vendor hard joint limits, motor protection, communication timeouts, and physical
 entirely your robot backend's responsibility. HOPE does not probe, score, certify, or
 bypass those mechanisms.
 
-The optional fixed vendor-arm serve is a separate integration example in the
-Agibot-provided tree. It does not implement the 111-D observation / 31-D
+The separate [`apps/a3_mujoco_serve/`](../apps/a3_mujoco_serve/README.md)
+workflow implements deterministic MuJoCo planning, DLS IK and high-level
+14-arm CSV replay. It does not implement the 111-D observation / 31-D learned
 policy contract described in this section.
 
 ## ActionAdapter (shared with training)

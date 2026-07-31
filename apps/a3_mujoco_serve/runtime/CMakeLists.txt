@@ -14,7 +14,7 @@ set(
 
 add_executable(
   a3_serve_vendor_arm_runner
-  ../src/a3_deploy/a3_serve_vendor_arm_main.cpp
+  src/a3_serve_vendor_arm_main.cpp
 )
 target_link_libraries(
   a3_serve_vendor_arm_runner

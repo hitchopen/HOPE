@@ -39,6 +39,9 @@ hope_training/whole_body_tracking/setup_train_env.local.sh
 # Local research notes
 /research/
 
+# Repository-local temporary files
+/tmp/
+
 # OS / editor
 .DS_Store
 *.swp

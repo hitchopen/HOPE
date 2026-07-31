@@ -13,7 +13,7 @@ The rest of the repository is organized into four layers:
 |-------|---------------------|---------|
 | Required path | `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py`, `agibot/URDF/A3T2.5-URDF-std-pingpang/`, `hope_training/whole_body_tracking/` | Prepare the A3 Isaac asset, train the unified forehand/backhand policy (`task=HOPEPingPong`), export `hope_pingpong.onnx`, and evaluate `success_rate`. |
 | Stable public contracts | `A3_ASSETS.md`, `docs/interfaces/`, `docs/POLICY_INTERFACE.md`, `docs/PLANNER_INTERFACE.md` | Frame conventions, joint order, the 111-D observation / 31-D action policy IO, ROS topics, `RacketCommand`, and asset expectations that stay stable when you integrate your own code. |
-| Deploy and simulation references | `a3_deploy/`, `agibot/` | The public deploy contract and clean-room reference runner (`a3_deploy/a3_deploy_example/`), the MuJoCo/AimRT simulation fork, and the Agibot-provided A3 materials (URDF variants, vendor deploy example). |
+| Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app, the public deploy contract and clean-room policy runner, and Agibot-provided A3 materials. |
 | Background material | `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The ROS 2 mocap/planner workspace for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
 A fresh clone contains only tracked files. Generated Isaac assets, training logs,
@@ -154,6 +154,7 @@ The competition rulebooks ship at the repository root:
 | `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with task cfg, train/export/eval scripts), placeholder motion clips (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
 | `hope_ws/` | ROS 2 workspace: `hope_planner` (no-spin planner), `hope_bringup` (launch files, `pose_to_posearray` / `optitrack_mct_relay` adapters, fake-ball publishers), `hope_msgs` (`RacketCommand.msg`), and the vendored mocap drivers (`vrpn_mocap` for VRPN rigs, `motion_capture_tracking` for OptiTrack/NatNet). |
 | `a3_deploy/` | Public deploy contract and clean-room reference runner (`a3_deploy_example/`), the MuJoCo/AimRT simulation fork (`A3_MuJoCo_Sim/`), and the optional user-supplied URDF override location (`URDF/`). |
+| [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
 | `agibot/` | Agibot-provided A3 bundle: the racket-equipped source URDF (`URDF/A3T2.5-URDF-std-pingpang/`), the vendor deploy example (`code_deployment/`), the MuJoCo/AimRT simulation reference (`A3_MuJoCo_Sim/`), and mounting hardware models (`pku/`). |
 | `mocap/` | Motion-capture frame/topic contract ([mocap/README.md](mocap/README.md)) and the preserved mocap reference documents (EN/ZH). |
 

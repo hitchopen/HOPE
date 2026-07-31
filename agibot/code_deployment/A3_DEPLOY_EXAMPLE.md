@@ -6,14 +6,11 @@
 
 ## 可选固定发球链路
 
-`a3_deploy_example/` 还包含一个独立的实验性固定发球包。它不加载模型或
-planner，只通过厂商高层 motion-control 接口发布 14 个手臂关节命令；腰、腿和
-颈部仍由厂商栈控制。其源码、固定 CSV、独立构建脚本、只读 preflight、进程
-所有权交接和证据边界见
-[`a3_deploy_example/SERVE_SCRIPT_DEPLOY.md`](a3_deploy_example/SERVE_SCRIPT_DEPLOY.md)。
-
-这不是经过认证的实机部署方案，也不替代本文件后续的仿真、dry-run、安全绳、
-急停和现场人工审批要求。
+MuJoCo 物理搜索、DLS IK、CSV exporter 和厂商高层 motion-control 运行时现已
+统一收拢到 [`../../apps/a3_mujoco_serve/`](../../apps/a3_mujoco_serve/README.md)。
+该应用只发布 14 个手臂关节命令；腰、腿和颈部仍由厂商栈控制。PR #18 的固定
+CSV 与运行时已经在 A3 上完整测试，确认可执行且安全；重新生成的动作仍须单独
+完成实机审核。
 
 ## 目录结构
 

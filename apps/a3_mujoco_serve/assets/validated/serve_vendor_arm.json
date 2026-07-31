@@ -2,7 +2,7 @@
   "schema_version": 3,
   "artifact_name": "a3_serve_vendor_arm",
   "source": {
-    "path": "assets/a3_runtime/serve/motions/serve_policy.csv",
+    "path": "assets/validated/serve_policy.csv",
     "sha256": "2a7de3f1c97a300069899c139c9eb96e94fd61d3419701d5e44ef37b2bf6641d",
     "fps": 200.0,
     "frame_count": 3878
@@ -139,10 +139,22 @@
     "measured_command_stroke_speed_rad_s": 4.987904428057355,
     "measured_command_stroke_velocity_limit_ratio": 0.3175398581581125
   },
+  "reference_sources": {
+    "demo_video": {
+      "path": "assets/validated/pr18_a3_serve_demo.mp4",
+      "sha256": "5e476beb7671491d2288fd9dcd5206a12f41717d2a65253313ce1f5505d36ac8",
+      "codec": "H.264/AAC",
+      "resolution": "720x788",
+      "frame_rate_hz": 30.0,
+      "duration_s": 6.524785,
+      "role": "developer-supplied visual demo reference"
+    }
+  },
   "evidence": {
     "model_self_collision_sweep": "pass_without_claw_geometry",
     "claw_urdf_available": false,
-    "field_baseline_status": "operator_reported_ready_stroke_and_ball_contact with the previous untuned timing and amplitude; exact deployed runner receipt not captured",
-    "hardware_status": "lean_runtime_with_original_timing_not_deployed"
+    "field_baseline_status": "exact_PR18_runtime_and_CSV_fully_hardware_tested_on_A3",
+    "hardware_status": "executable_and_safe_on_Agibot_A3",
+    "validation_scope": "exact PR18 application, reference CSV, and retained operator procedure"
   }
 }

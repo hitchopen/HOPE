@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "model": {
+    "xml": "../../../a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/models/bin/cfg/model/a3_pingpong/a3_pingpong.xml",
+    "racket_site": "right_racket",
+    "racket_geom": "right_racket_collision",
+    "racket_normal_axis": 1
+  },
+  "source": {
+    "template_csv": "../assets/validated/serve_policy.csv",
+    "description": "PR #18 A3-validated full-joint SDK CSV used as the non-right-arm template"
+  },
+  "timing": {
+    "source_hz": 200.0,
+    "frame_count": 3878,
+    "ready_frame": 1600,
+    "stroke_start_frame": 1848,
+    "strike_frame": 1860,
+    "follow_end_frame": 1900,
+    "return_end_frame": 2400
+  },
+  "physics": {
+    "source_reference": "../../../configs/ball_physics.yaml",
+    "gravity": 9.81,
+    "ball": {
+      "mass": 0.0027,
+      "radius": 0.02
+    },
+    "drag": {
+      "k": 0.1261,
+      "velocity_clip": 50.0
+    },
+    "contact": {
+      "table": {
+        "restitution": 0.9215,
+        "dynamic_friction": 0.4
+      },
+      "paddle": {
+        "restitution": 0.654,
+        "dynamic_friction": 0.6
+      },
+      "net": {
+        "restitution": 0.1,
+        "dynamic_friction": 0.5
+      },
+      "floor": {
+        "restitution": 0.4,
+        "dynamic_friction": 0.8
+      }
+    },
+    "table": {
+      "length": 2.74,
+      "width": 1.525,
+      "height": 0.76,
+      "thickness": 0.05,
+      "near_edge_x_mujoco": 0.3
+    },
+    "net": {
+      "height": 0.1525,
+      "x_position": 1.37,
+      "overhang": 0.15,
+      "thickness": 0.01
+    }
+  },
+  "planner": {
+    "incoming_ball_velocity_world": [0.0, 0.0, -1.0],
+    "first_bounce_target_table": [1.0, -0.75, 0.02],
+    "second_bounce_target_table": [2.1, -0.75, 0.02],
+    "speed_m_s": [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5],
+    "elevation_deg": [-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0, 25.0],
+    "azimuth_deg": [-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0],
+    "max_racket_speed_m_s": 1.65,
+    "preimpact_seconds": 0.06,
+    "racket_contact_gap_m": 0.002,
+    "flight_duration_s": 3.0,
+    "require_legal": true
+  },
+  "ik": {
+    "damping": 0.05,
+    "orientation_weight": 0.35,
+    "max_iterations": 50,
+    "max_step_rad": 0.01,
+    "position_tolerance_m": 0.0002,
+    "rotation_tolerance_rad": 0.002,
+    "posture_gain": 0.005,
+    "fail_on_unconverged": true
+  },
+  "safety": {
+    "max_source_joint_speed_rad_s": 5.2,
+    "collision_scan_stride": 10,
+    "fail_on_self_collision": true,
+    "require_full_replay_legal": true
+  }
+}
