@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+
+# Fail-closed package checks shared by the fixed vendor-arm serve wrapper.
+# In the built package this file, the runner and the wrapper all live at the
+# package root.
+
+SERVE_SCRIPT_DEPLOY_DIR="$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)"
+SERVE_VENDOR_ARM_RUNNER="${SERVE_SCRIPT_DEPLOY_DIR}/a3_serve_vendor_arm_runner"
+SERVE_VENDOR_ARM_WRAPPER="${SERVE_SCRIPT_DEPLOY_DIR}/run_a3_app.sh"
+SERVE_SCRIPT_MOTION="${SERVE_SCRIPT_DEPLOY_DIR}/motions/serve_policy.csv"
+SERVE_VENDOR_ARM_MANIFEST="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_manifest.json"
+SERVE_VENDOR_ARM_BUILD_BINDINGS="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_build.env"
+SERVE_VENDOR_ARM_PACKAGE_MANIFEST="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_package.sha256"
+SERVE_VENDOR_ARM_QUALIFICATION="${SERVE_SCRIPT_DEPLOY_DIR}/config/serve_vendor_arm_qualification.json"
+SERVE_VENDOR_ARM_APPROVAL_REGISTRY="${SERVE_SCRIPT_DEPLOY_DIR}/config/approved_motions.json"
+SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256=""
+SERVE_VENDOR_ARM_QUALIFICATION_STATUS=""
+readonly SERVE_VENDOR_ARM_EXPECTED_APPROVAL_REGISTRY_SHA256="646ae47419f388d889638d9b24b19cb772472ee0dbc910f1d992ac2d8a4bdea7"
+
+serve_script_die() {
+  echo "[serve-vendor-arm] ERROR: $*" >&2
+  exit 1
+}
+
+serve_script_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    serve_script_die "sha256sum or shasum is required"
+  fi
+}
+
+serve_script_active_runner_pids() {
+  local executable=""
+  local proc_dir=""
+  for proc_dir in /proc/[0-9]*; do
+    [[ -d "${proc_dir}" ]] || continue
+    executable="$(readlink "${proc_dir}/exe" 2>/dev/null || true)"
+    executable="${executable% (deleted)}"
+    [[ "${executable##*/}" == "a3_serve_vendor_arm_runner" ]] || continue
+    printf '%s\n' "${proc_dir#/proc/}"
+  done
+}
+
+serve_vendor_arm_manifest_motion_sha() {
+  python3 - "${SERVE_VENDOR_ARM_MANIFEST}" <<'PY'
+import json
+import re
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        value = json.load(stream)["source"]["sha256"]
+except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"invalid serve manifest: {exc}")
+if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+    raise SystemExit("manifest source.sha256 is not a lowercase SHA-256")
+print(value)
+PY
+}
+
+serve_vendor_arm_verify_motion_identity() {
+  local actual=""
+  [[ -f "${SERVE_VENDOR_ARM_MANIFEST}" ]] ||
+    serve_script_die "serve manifest is missing: ${SERVE_VENDOR_ARM_MANIFEST}"
+  command -v python3 >/dev/null 2>&1 ||
+    serve_script_die "python3 is required to verify the serve manifest"
+  SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256="$(
+    serve_vendor_arm_manifest_motion_sha
+  )" || serve_script_die "cannot read serve manifest motion identity"
+  actual="$(serve_script_sha256 "${SERVE_SCRIPT_MOTION}")"
+  [[ "${actual}" == "${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}" ]] ||
+    serve_script_die \
+      "serve CSV SHA mismatch: expected ${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}, got ${actual}"
+}
+
+serve_vendor_arm_verify_qualification() {
+  local requirement="${1:-allow-candidate}"
+  [[ "${requirement}" == "allow-candidate" || "${requirement}" == "approved" ]] ||
+    serve_script_die "internal qualification requirement is invalid"
+  [[ -f "${SERVE_VENDOR_ARM_QUALIFICATION}" ]] ||
+    serve_script_die "qualification record is missing: ${SERVE_VENDOR_ARM_QUALIFICATION}"
+  [[ -f "${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}" ]] ||
+    serve_script_die "approval registry is missing: ${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}"
+  [[ "$(serve_script_sha256 "${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}")" == \
+     "${SERVE_VENDOR_ARM_EXPECTED_APPROVAL_REGISTRY_SHA256}" ]] ||
+    serve_script_die \
+      "approval registry does not match the reviewed runtime trust anchor"
+  SERVE_VENDOR_ARM_QUALIFICATION_STATUS="$(
+    python3 - \
+      "${SERVE_VENDOR_ARM_QUALIFICATION}" \
+      "${SERVE_SCRIPT_MOTION}" \
+      "${SERVE_VENDOR_ARM_MANIFEST}" \
+      "${SERVE_VENDOR_ARM_APPROVAL_REGISTRY}" \
+      "${requirement}" <<'PY'
+import hashlib
+import json
+import sys
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+qualification_path, motion_path, manifest_path, registry_path, requirement = sys.argv[1:]
+try:
+    with open(qualification_path, encoding="utf-8") as stream:
+        qualification = json.load(stream)
+    with open(registry_path, encoding="utf-8") as stream:
+        registry = json.load(stream)
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"invalid qualification assets: {exc}")
+if qualification.get("schema_version") != 1:
+    raise SystemExit("qualification schema mismatch")
+if qualification.get("safety_profile") != "a3_high_level_arm_v1":
+    raise SystemExit("qualification safety profile mismatch")
+if qualification.get("safety_checks") != "pass":
+    raise SystemExit("motion did not pass the fixed safety profile")
+if qualification.get("motion", {}).get("sha256") != sha256(motion_path):
+    raise SystemExit("qualification motion identity mismatch")
+if qualification.get("manifest_sha256") != sha256(manifest_path):
+    raise SystemExit("qualification manifest identity mismatch")
+if qualification.get("approval_registry_sha256") != sha256(registry_path):
+    raise SystemExit("qualification approval-registry identity mismatch")
+status = qualification.get("status")
+if status not in ("approved", "candidate"):
+    raise SystemExit("invalid qualification status")
+if status == "approved":
+    motion_sha = qualification["motion"]["sha256"]
+    approval_id = qualification.get("approval_id")
+    matches = [
+        entry
+        for entry in registry.get("motions", [])
+        if isinstance(entry, dict)
+        and entry.get("sha256") == motion_sha
+        and entry.get("status") == "approved"
+        and entry.get("approval_id") == approval_id
+    ]
+    if len(matches) != 1:
+        raise SystemExit("approved motion has no unique registry record")
+if requirement == "approved" and status != "approved":
+    raise SystemExit("candidate motion is restricted to read-only preflight")
+print(status)
+PY
+  )" || serve_script_die "motion qualification verification failed"
+}
+
+serve_vendor_arm_verify_package_manifest() {
+  local actual=""
+  local expected=""
+  local relative=""
+  local path=""
+  # Newline-delimited exact path set.  Avoid Bash-4 associative arrays because
+  # contributors also run the read-only package tests on macOS Bash 3.2.
+  local seen=$'\n'
+  local -a required=(
+    "a3_serve_vendor_arm_runner"
+    "run_a3_app.sh"
+    "a3_app_common.sh"
+    "motions/serve_policy.csv"
+    "config/serve_vendor_arm_manifest.json"
+    "config/serve_vendor_arm_build.env"
+    "config/serve_vendor_arm_qualification.json"
+    "config/approved_motions.json"
+  )
+
+  [[ -f "${SERVE_VENDOR_ARM_PACKAGE_MANIFEST}" ]] ||
+    serve_script_die \
+      "package manifest is missing: ${SERVE_VENDOR_ARM_PACKAGE_MANIFEST}"
+
+  while read -r expected relative || [[ -n "${expected}${relative}" ]]; do
+    [[ "${expected}" =~ ^[0-9a-f]{64}$ ]] ||
+      serve_script_die "invalid package-manifest digest"
+    [[ "${relative}" =~ ^[A-Za-z0-9._+/-]+$ ]] ||
+      serve_script_die "invalid package-manifest path: ${relative}"
+    [[ "${relative}" != /* && "${relative}" != *".."* ]] ||
+      serve_script_die "unsafe package-manifest path: ${relative}"
+    [[ "${seen}" != *$'\n'"${relative}"$'\n'* ]] ||
+      serve_script_die "duplicate package-manifest path: ${relative}"
+    path="${SERVE_SCRIPT_DEPLOY_DIR}/${relative}"
+    [[ -f "${path}" ]] ||
+      serve_script_die "package file is missing: ${relative}"
+    actual="$(serve_script_sha256 "${path}")"
+    [[ "${actual}" == "${expected}" ]] ||
+      serve_script_die "package SHA mismatch: ${relative}"
+    seen+="${relative}"$'\n'
+  done <"${SERVE_VENDOR_ARM_PACKAGE_MANIFEST}"
+
+  for relative in "${required[@]}"; do
+    [[ "${seen}" == *$'\n'"${relative}"$'\n'* ]] ||
+      serve_script_die "package manifest omits required file: ${relative}"
+  done
+
+  while IFS= read -r -d '' path; do
+    relative="${path#"${SERVE_SCRIPT_DEPLOY_DIR}/"}"
+    [[ "${relative}" == "config/serve_vendor_arm_package.sha256" ]] &&
+      continue
+    [[ "${seen}" == *$'\n'"${relative}"$'\n'* ]] ||
+      serve_script_die "unmanifested package file: ${relative}"
+  done < <(find "${SERVE_SCRIPT_DEPLOY_DIR}" -type f -print0)
+}
+
+serve_script_prepare_mdu() {
+  local active_runner_pids=""
+  local elf_description=""
+  local inference_artifact=""
+  local ldd_output=""
+  local machine=""
+  local motion_sha=""
+
+  machine="$(uname -m)"
+  [[ "${machine}" == "aarch64" || "${machine}" == "arm64" ]] ||
+    serve_script_die \
+      "MDU must be arm64/aarch64; uname -m returned '${machine}'"
+  [[ -f /agibot/software/v0/entry/env/env.sh ]] ||
+    serve_script_die \
+      "vendor environment is missing: /agibot/software/v0/entry/env/env.sh"
+  command -v taskset >/dev/null 2>&1 ||
+    serve_script_die "taskset is unavailable"
+  command -v file >/dev/null 2>&1 ||
+    serve_script_die "file is required for ELF verification"
+  command -v ldd >/dev/null 2>&1 ||
+    serve_script_die "ldd is required for dependency verification"
+  [[ -x "${SERVE_VENDOR_ARM_RUNNER}" ]] ||
+    serve_script_die "vendor-arm runner is missing or not executable"
+  [[ -x "${SERVE_VENDOR_ARM_WRAPPER}" ]] ||
+    serve_script_die "vendor-arm wrapper is missing or not executable"
+  [[ -f "${SERVE_SCRIPT_MOTION}" ]] ||
+    serve_script_die "serve CSV is missing: ${SERVE_SCRIPT_MOTION}"
+  [[ -f "${SERVE_VENDOR_ARM_MANIFEST}" ]] ||
+    serve_script_die "serve manifest is missing: ${SERVE_VENDOR_ARM_MANIFEST}"
+  [[ -f "${SERVE_VENDOR_ARM_BUILD_BINDINGS}" ]] ||
+    serve_script_die "build identity is missing: ${SERVE_VENDOR_ARM_BUILD_BINDINGS}"
+
+  active_runner_pids="$(serve_script_active_runner_pids)"
+  if [[ -n "${active_runner_pids}" ]]; then
+    active_runner_pids="${active_runner_pids//$'\n'/,}"
+    serve_script_die \
+      "another vendor-arm runner is active; pids=${active_runner_pids}"
+  fi
+
+  serve_vendor_arm_verify_package_manifest
+  serve_vendor_arm_verify_motion_identity
+  serve_vendor_arm_verify_qualification allow-candidate
+  motion_sha="${SERVE_VENDOR_ARM_EXPECTED_MOTION_SHA256}"
+
+  inference_artifact="$(
+    find "${SERVE_SCRIPT_DEPLOY_DIR}" -type f \
+      \( -name '*.onnx' -o -name '*.rknn' -o -name '*.engine' \) \
+      -print -quit
+  )"
+  if [[ -n "${inference_artifact}" ]]; then
+    serve_script_die "inference artifacts are not allowed in this fixed-motion package"
+  fi
+
+  set +u
+  # shellcheck disable=SC1091
+  source /agibot/software/v0/entry/env/env.sh
+  set -u
+  export LD_LIBRARY_PATH="${SERVE_SCRIPT_DEPLOY_DIR}:${LD_LIBRARY_PATH:-}"
+
+  elf_description="$(LC_ALL=C LANG=C file "${SERVE_VENDOR_ARM_RUNNER}")"
+  [[ "${elf_description}" == *"ELF 64-bit"* &&
+     ( "${elf_description}" == *"ARM aarch64"* ||
+       "${elf_description}" == *"aarch64"* ) ]] ||
+    serve_script_die \
+      "vendor-arm runner is not an AArch64 ELF: ${elf_description}"
+  ldd_output="$(LC_ALL=C LANG=C ldd "${SERVE_VENDOR_ARM_RUNNER}" 2>&1)" ||
+    serve_script_die "ldd could not inspect the vendor-arm runner"
+  [[ "${ldd_output}" != *"not found"* ]] ||
+    serve_script_die "vendor-arm runner has unresolved dependencies"
+
+  cd "${SERVE_SCRIPT_DEPLOY_DIR}"
+  echo \
+    "[serve-vendor-arm] PACKAGE PASS: runner_sha=$(serve_script_sha256 "${SERVE_VENDOR_ARM_RUNNER}") csv_sha=${motion_sha} qualification=${SERVE_VENDOR_ARM_QUALIFICATION_STATUS}"
+}

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hope-a3-mujoco-serve"
+version = "0.1.0"
+description = "MuJoCo-to-A3 deterministic ping-pong serve workflow"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+  "mujoco>=3.2,<4",
+  "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+hope-a3-serve = "a3_serve.cli:main"
+
+[tool.setuptools]
+packages = ["a3_serve"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+

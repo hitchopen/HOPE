@@ -15,6 +15,7 @@ material for teams studying deployment or optional MuJoCo/AimRT simulation.
 | `hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/agibot_a3/` | Generated locally | Derived Isaac-ready copy. It is ignored by git and can be regenerated. |
 | `hope_training/config/joint_order_agibot_a3.yaml` | Yes | Canonical public A3 policy joint order. |
 | `agibot/code_deployment/` | No | Agibot A3 deployment example for ONNX policy runtime and body-drive I/O. |
+| `apps/a3_mujoco_serve/` | No | Self-contained [MuJoCo → DLS IK → CSV → high-level A3 application](apps/a3_mujoco_serve/README.md), including the fully A3-tested PR #18 reference motion and [demo video](apps/a3_mujoco_serve/assets/validated/pr18_a3_serve_demo.mp4). |
 | `agibot/A3_MuJoCo_Sim/` | No | Agibot MuJoCo/AimRT simulation reference. Not required for Isaac smoke training. |
 
 ## Source URDF
@@ -84,7 +85,9 @@ agibot/code_deployment/
 
 This area is optional for the Isaac quickstart. It is useful after teams have
 exported policies and want to study Agibot's body-drive state/command topics,
-runtime configuration, and deployment packaging examples.
+runtime configuration, and deployment packaging examples. The high-level
+fixed/generated serve workflow is consolidated separately under
+[`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md).
 
 ## MuJoCo / AimRT Reference
 

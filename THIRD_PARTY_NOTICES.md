@@ -100,6 +100,16 @@ The `agibot/` tree contains Agibot A3 robot materials, each component under its 
 - `agibot/pku/` — open-source hardware (hip marker shell, wrist racket adapter); see its README.
 - `agibot/URDF/` — Agibot A3 URDF and meshes, carrying Agibot's copyright.
 
+The high-level A3 arm runner consolidated under
+`apps/a3_mujoco_serve/runtime/src/` retains its original `AgiBot Inc.`
+copyright header and terms. Consolidation into the HOPE application does not
+relicense that source. The new planner, IK, exporter, tests and documentation
+around it are HOPE contributions under Apache-2.0.
+
+The developer-supplied PR #18 visual demo is retained at
+`apps/a3_mujoco_serve/assets/validated/pr18_a3_serve_demo.mp4` as project
+reference material; it is not third-party runtime code.
+
 ---
 
 ## Runtime dependencies (not redistributed)
