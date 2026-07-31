@@ -4,6 +4,17 @@
 
 实机运行前请先完成仿真、台架、安全绳、急停和低增益验证。建议先运行 `--dry-run` 或 `run_a3_probe.sh`，确认状态接收和推理延迟稳定后再发布关节命令。
 
+## 可选固定发球链路
+
+`a3_deploy_example/` 还包含一个独立的实验性固定发球包。它不加载模型或
+planner，只通过厂商高层 motion-control 接口发布 14 个手臂关节命令；腰、腿和
+颈部仍由厂商栈控制。其源码、固定 CSV、独立构建脚本、只读 preflight、进程
+所有权交接和证据边界见
+[`a3_deploy_example/SERVE_SCRIPT_DEPLOY.md`](a3_deploy_example/SERVE_SCRIPT_DEPLOY.md)。
+
+这不是经过认证的实机部署方案，也不替代本文件后续的仿真、dry-run、安全绳、
+急停和现场人工审批要求。
+
 ## 目录结构
 
 ```text

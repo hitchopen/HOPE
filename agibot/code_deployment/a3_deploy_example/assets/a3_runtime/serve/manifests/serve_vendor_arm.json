@@ -1,0 +1,148 @@
+{
+  "schema_version": 3,
+  "artifact_name": "a3_serve_vendor_arm",
+  "source": {
+    "path": "assets/a3_runtime/serve/motions/serve_policy.csv",
+    "sha256": "2a7de3f1c97a300069899c139c9eb96e94fd61d3419701d5e44ef37b2bf6641d",
+    "fps": 200.0,
+    "frame_count": 3878
+  },
+  "transport": {
+    "kind": "ros2_vendor_motion_control",
+    "state_topic": "/motion/control/arm_joint_state",
+    "command_topic": "/motion/control/arm_joint_command",
+    "message_type": "sensor_msgs/msg/JointState",
+    "publish_hz": 100.0,
+    "state_qos": "keep_last_10_best_effort_volatile",
+    "command_qos": "keep_last_10_reliable_transient_local",
+    "command_joint_count": 14,
+    "source_active_joint_count": 13,
+    "source_active_joint_group": "both_arms_except_left_wrist_roll",
+    "frozen_at_entry_joints": ["left_wrist_roll_joint"],
+    "vendor_keeps_ownership_of": ["waist", "legs", "neck"]
+  },
+  "joint_order": [
+    "left_shoulder_pitch_joint",
+    "left_shoulder_roll_joint",
+    "left_shoulder_yaw_joint",
+    "left_elbow_joint",
+    "left_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+    "right_shoulder_pitch_joint",
+    "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint",
+    "right_elbow_joint",
+    "right_wrist_roll_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint"
+  ],
+  "left_ready": {
+    "source_frame": 1600,
+    "source_time_s": 8.0,
+    "source_position_rad": [
+      -2.349278763211,
+      0.088690937063,
+      -1.661299044750,
+      0.361370976689,
+      -1.202271595859,
+      0.106357068748,
+      0.048605522682
+    ],
+    "command_override": {
+      "left_wrist_roll_joint": "entry_measured"
+    },
+    "command_ready_note": "The six numeric non-roll joints use source_position_rad; left_wrist_roll_joint remains at its measured entry value.",
+    "hold_after_ready": true
+  },
+  "right_ready": {
+    "source_frame": 1600,
+    "source_time_s": 8.0,
+    "source_position_rad": [
+      -0.748675272197,
+      -1.213752936998,
+      1.518042012141,
+      -0.386453974269,
+      0.144348425952,
+      0.043259013870,
+      0.099875990990
+    ],
+    "hold_after_ready": true
+  },
+  "timeline": {
+    "entry_to_source_frame_0_blend_s": 3.0,
+    "source_ready_s": 8.0,
+    "source_stride": 2,
+    "command_ready_frames": 801,
+    "ready_settle_hold_s": 0.5,
+    "prepare_only_supported": true,
+    "stroke_implemented": true,
+    "stroke_source_start_frame": 1848,
+    "nominal_strike_source_frame": 1860,
+    "stroke_speed_scale": 1.0,
+    "stroke_reach_scale": 1.0,
+    "command_stroke_frames": 1015,
+    "trigger_hold_s": 1.0,
+    "trigger_to_nominal_strike_s": 1.06
+  },
+  "ownership": {
+    "agibot_pm": "active",
+    "required_action": "MotionControlAction_MOTION",
+    "required_action_status": "MotionControlActionStatus_RUNNING",
+    "motion_player_before_handoff": "MotionCommandStatus_IDLE",
+    "handoff_stop": "POST http://127.0.0.1:50080/json/stop_app",
+    "handoff_start": "POST http://127.0.0.1:50080/json/start_app",
+    "handoff_prearm": "cache fresh exact-name state while motion_player remains sole publisher",
+    "handoff_release": "SIGUSR1 after motion_player process and listener are down",
+    "motion_player_during_custom_publish": "process_stopped",
+    "exclusive_command_publisher_at_handoff_required": true,
+    "runtime_graph_exclusivity_rechecked": false,
+    "standalone_hal": false
+  },
+  "operator_contract": {
+    "default_mode": "preflight_only",
+    "hold_only": "--hold-only --confirm-real-commands",
+    "prepare_only": "--prepare-only --confirm-real-commands",
+    "serve_only": "--serve-only --confirm-real-commands",
+    "serve_trigger": "Space after both arms reach READY",
+    "prepare_exit": "Ctrl-C",
+    "motion_player_auto_restore": true,
+    "robot_gripper_command": false
+  },
+  "runtime_contract": {
+    "default_mode": "offline_validation_no_ros_publisher",
+    "initial_state_exact_name_mapping_required": true,
+    "initial_state_freshness_required": true,
+    "handoff_cached_state_max_age_ms": 1000,
+    "handoff_vendor_graph_clear_timeout_ms": 500,
+    "post_takeover_state_resume_timeout_ms": 100,
+    "foreign_command_collision_stops_runner": true,
+    "command_gap_stops_runner": false,
+    "runtime_state_freshness_stops_runner": false,
+    "tracking_error_stops_runner": false,
+    "ready_quality_wait_enabled": false,
+    "serve_only_requires_interactive_tty": true,
+    "motion_player_auto_restore": true
+  },
+  "offline_validation": {
+    "finite_values_required": true,
+    "high_level_api_position_limits_required": true,
+    "left_wrist_roll_high_level_limit_rad": 0.576,
+    "max_prepare_step_rad": 0.03,
+    "max_prepare_speed_rad_s": 3.0,
+    "max_source_stroke_step_rad": 0.026,
+    "max_source_stroke_speed_rad_s": 5.2,
+    "max_scaled_stroke_velocity_limit_ratio": 0.5
+  },
+  "offline_metrics": {
+    "measured_command_stroke_step_rad": 0.04987904428057355,
+    "measured_command_stroke_speed_rad_s": 4.987904428057355,
+    "measured_command_stroke_velocity_limit_ratio": 0.3175398581581125
+  },
+  "evidence": {
+    "model_self_collision_sweep": "pass_without_claw_geometry",
+    "claw_urdf_available": false,
+    "field_baseline_status": "operator_reported_ready_stroke_and_ball_contact with the previous untuned timing and amplitude; exact deployed runner receipt not captured",
+    "hardware_status": "lean_runtime_with_original_timing_not_deployed"
+  }
+}

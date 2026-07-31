@@ -14,7 +14,7 @@ material for teams studying deployment or optional MuJoCo/AimRT simulation.
 | `hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py` | Yes | Copies the source URDF package into the Isaac Lab Python package and rewrites mesh paths for local loading. |
 | `hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/agibot_a3/` | Generated locally | Derived Isaac-ready copy. It is ignored by git and can be regenerated. |
 | `hope_training/config/joint_order_agibot_a3.yaml` | Yes | Canonical public A3 policy joint order. |
-| `agibot/code_deployment/` | No | Agibot A3 deployment example for ONNX policy runtime and body-drive I/O. |
+| `agibot/code_deployment/` | No | Agibot A3 deployment example for ONNX policy runtime, body-drive I/O, and an optional experimental [fixed vendor-arm serve](agibot/code_deployment/a3_deploy_example/SERVE_SCRIPT_DEPLOY.md). |
 | `agibot/A3_MuJoCo_Sim/` | No | Agibot MuJoCo/AimRT simulation reference. Not required for Isaac smoke training. |
 
 ## Source URDF
@@ -84,7 +84,9 @@ agibot/code_deployment/
 
 This area is optional for the Isaac quickstart. It is useful after teams have
 exported policies and want to study Agibot's body-drive state/command topics,
-runtime configuration, and deployment packaging examples.
+runtime configuration, and deployment packaging examples. It also contains a
+narrow fixed-motion vendor-arm serve example; that route is real-robot
+experimental code, not an Isaac dependency or a certified deployment path.
 
 ## MuJoCo / AimRT Reference
 
