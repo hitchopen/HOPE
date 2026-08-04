@@ -54,6 +54,22 @@ cd a3_deploy/a3_deploy_example/reference
 python -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
 ```
 
+### Humanoid clock synchronization
+
+Live humanoid and mocap integration requires compatible, monotonic timestamps
+across the robot computer, internal boards, sensors, and external tracking
+pipeline. Clock drift or mixed clock domains can corrupt state estimation,
+latency measurement, recording, and strike timing even when ROS 2 topics appear
+healthy. Each robot platform must document and verify its complete time path.
+
+For Agibot A3, see the [chrony quick start](agibot/ntp_sync/README.md) and the
+[full clock synchronization plan](docs/HOPE_A3_Clock_Synchronization_Improvement_Plan.pdf).
+The A3 approach disciplines the HDU system clock while preserving its internal
+PTP distribution and offline startup. Internet/NTP loss does not block normal
+A3 applications; strict clock qualification applies only to coordination with
+a separate mocap system. Motive/NatNet timestamps still require an explicit
+mapping into the robot/ROS clock domain.
+
 ### Required mocap bringup: align P1 to A3 `pelvis_link`
 
 Before using a newly installed A3 pelvis marker shell, perform the one-time P1

@@ -1,2 +1,5 @@
 # CAD exchange assets. Keep opaque in PR diffs and whitespace checks.
 *.x_t binary linguist-generated=true
+
+# Generated documents. Review rendered output instead of binary internals.
+*.pdf binary

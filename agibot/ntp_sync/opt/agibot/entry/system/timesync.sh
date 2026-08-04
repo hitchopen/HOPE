@@ -111,6 +111,26 @@ chrony_preflight() {
     return 1
 }
 
+chrony_runtime_status() {
+    local tracking
+
+    if ! systemctl is-active --quiet chrony.service; then
+        log "$NTP_LOG" "WARNING: chrony is inactive; continuing offline-capable A3 internal time distribution"
+        return 0
+    fi
+    tracking=$(chronyc tracking 2>&1) || {
+        log "$NTP_LOG" "WARNING: chrony status is unavailable; continuing offline-capable A3 internal time distribution: $tracking"
+        return 0
+    }
+    if grep -q '^Leap status[[:space:]]*:[[:space:]]*Normal' <<<"$tracking" &&
+       chronyc -n sources 2>/dev/null | grep -q '^\^\*'; then
+        log "$NTP_LOG" "chrony is synchronized; external UTC coordination may run after strict preflight"
+    else
+        log "$NTP_LOG" "WARNING: UTC is unqualified; normal A3 operation continues, but external mocap coordination is prohibited"
+    fi
+    return 0
+}
+
 ensure_killed() {
     local process_name=$1
     local log_file=$2
@@ -137,11 +157,13 @@ if [[ -e "$POLICY_FILE" ]]; then
     source "$POLICY_FILE"
 fi
 
-# Synchronous systemd ExecStartPre entry point. This is required because the
-# vendor run_agibot.sh launches the normal timesync.sh path in the background.
 if [[ "${1:-}" == "--preflight" ]]; then
     chrony_preflight
     exit $?
+fi
+if [[ "${1:-}" == "--runtime-status" ]]; then
+    chrony_runtime_status
+    exit 0
 fi
 
 # Stop conflicting vendor services, but never stop or disable chrony.
@@ -179,7 +201,9 @@ while true; do
     sleep 2
 done
 
-chrony_preflight || exit 1
+# External UTC is not required for the robot's existing internal time domain.
+# Strict qualification is an explicit gate for external mocap workflows only.
+chrony_runtime_status
 
 if pgrep -x ptp4l >/dev/null; then
     ensure_killed "ptp4l" "$PTP4L_LOG"
