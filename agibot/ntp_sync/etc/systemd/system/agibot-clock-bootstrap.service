@@ -2,7 +2,8 @@
 Description=Qualify A3 system time before the distributed robot time domain
 Wants=network-online.target
 After=network-online.target
-Before=chrony.service agibot_roudi.service agibot_pm.service
+Before=chrony.service agibot-hdu-ptp4l.service agibot-hdu-phc2sys.service
+Before=agibot_roudi.service agibot_pm.service
 Before=agibot_top.service agibot_ui.service
 
 [Service]
@@ -13,4 +14,3 @@ RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
-

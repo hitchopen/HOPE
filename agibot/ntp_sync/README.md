@@ -1,155 +1,162 @@
-# Agibot A3 Chrony Quick Start
+# Agibot A3 Clock Synchronization Quick Start
 
-This is the self-contained installation path for replacing `ntp2rtc.py` with
-continuous `chrony` discipline on an A3 HDU. Stage the complete `ntp_sync`
-directory on the robot first, then run the A3 commands from
-`~/HOPE/agibot/ntp_sync` in one terminal.
+This package replaces `ntp2rtc.py` with continuous `chrony` discipline on the
+HDU and hardens the existing HDU-to-MDU PTP path. It does not synchronize
+Motive, change the robot's timestamp architecture, or require Internet access
+for normal A3 operation.
 
-> **Offline behavior is preserved.** A3 applications and the existing internal
-> board/sensor synchronization continue to start without Internet or NTP.
-> Offline UTC is reported as unqualified; only coordination with a separate
-> mocap system must wait for the additional qualification in the
-> [full plan](../../docs/HOPE_A3_Clock_Synchronization_Improvement_Plan.pdf).
+> **Important correction:** the previous package still launched `ptp4l` and
+> `phc2sys` as detached children of `agibot_pm` and did not supervise MDU
+> `phc2sys`. A temporary PHC disappearance could therefore leave MDU
+> `CLOCK_REALTIME` drifting even after `ptp4l` relocked. This revision assigns
+> every HDU and MDU clock worker to a restartable systemd service.
 
-The change keeps the current direction:
+The preserved clock direction is:
 
 ```text
-chrony -> HDU CLOCK_REALTIME -> phc2sys -> eth_hdu PHC
-  -> ptp4l -> A3 boards and synchronized sensors
+chrony -> HDU CLOCK_REALTIME
+  -> agibot-hdu-phc2sys -> eth_hdu PHC
+  -> agibot-hdu-ptp4l -> eth_mdu PHC
+  -> agibot-mdu-phc2sys -> MDU CLOCK_REALTIME
 ```
 
-It does not synchronize Motive, change A3's internal PTP design, or add an
-Internet dependency to robot startup.
+## 0. Choose the clock-correction mode
 
-## 0. Stage the complete package on A3
+Both modes install and use the same supervised HDU and MDU PTP services. The
+only difference is how chrony initially corrects HDU `CLOCK_REALTIME`.
 
-If the HOPE repository is not already on the robot, run the following from the
-HOPE repository root on the operator workstation. Set the target explicitly.
-An approved fleet deployment method may be used instead of `scp`, but do not
-transfer only this README.
+### Option A: hard clock reset before play (recommended)
+
+This is a one-time clock **step**, not a robot reboot. It removes a large UTC
+offset in seconds and is the preferred competition-preparation path.
+
+> **WARNING:** a clock step can invalidate timers and timestamp assumptions.
+> Physically support and secure the robot, disable motion and external
+> commands, and stop HDU and MDU robot services before running it. Never step
+> the clock while the robot is standing or executing a policy.
+
+After the step, continuous chrony returns to the 100 ppm runtime limit. Chrony's
+skew estimate can still need several poll intervals to settle before external
+mocap is qualified.
+
+### Option B: slow runtime synchronization
+
+Use this when a clock step is not permitted. Chrony continuously slews at no
+more than 100 ppm while A3 remains operational. A 0.3-second correction takes
+about 50 minutes, so power on roughly one hour before external mocap use.
+
+Without Internet, A3 applications still start and the internal HDU/MDU time
+domain continues in holdover. UTC is unqualified until an NTP source returns.
+
+## 1. Stage and verify the complete package
+
+From the operator workstation, stage the complete directory:
 
 ```bash
-test -f agibot/ntp_sync/MANIFEST.sha256
+cd /path/to/HOPE
 A3_HOST=REPLACE_WITH_A3_ADDRESS
-test "$A3_HOST" != REPLACE_WITH_A3_ADDRESS || {
-  echo 'Set A3_HOST to the target robot hostname or address'; false;
-}
+test "$A3_HOST" != REPLACE_WITH_A3_ADDRESS
 ssh "agi@$A3_HOST" 'mkdir -p ~/HOPE/agibot'
 scp -r agibot/ntp_sync "agi@$A3_HOST:~/HOPE/agibot/"
 ```
 
-The remaining commands run on the A3 terminal. Staging files does not install
-them or change any robot service.
-
-## 1. Verify the package and inspect this A3
+Run the remaining commands on the HDU terminal. The audited internal MDU
+address is the default; override it for robots with a different inventory.
 
 ```bash
 cd ~/HOPE/agibot/ntp_sync
 export PKG_ROOT="$PWD"
+export MDU_HOST="${MDU_HOST:-10.42.10.12}"
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-test -f "$PKG_ROOT/MANIFEST.sha256"
-sha256sum -c MANIFEST.sha256
 
-MISSING=()
+sha256sum -c MANIFEST.sha256
+hostname | grep -qx hdu
+ssh -o BatchMode=yes "agi@$MDU_HOST" 'hostname' | grep -qx mdu
+ip link show eth_hdu
+ssh -o BatchMode=yes "agi@$MDU_HOST" 'ip link show eth_mdu'
+```
+
+Every manifest entry must say `OK`. Stop if either board identity or internal
+interface differs.
+
+## 2. Verify or install required packages
+
+Do not assume package presence. Chrony is required only on HDU; both boards need
+`linuxptp` and `ethtool`.
+
+```bash
+HDU_MISSING=()
 for PACKAGE in chrony ethtool linuxptp; do
   dpkg-query -W -f='${db:Status-Status}\n' "$PACKAGE" 2>/dev/null | \
-    grep -qx installed || MISSING+=("$PACKAGE")
+    grep -qx installed || HDU_MISSING+=("$PACKAGE")
 done
-printf 'Missing packages: %s\n' "${MISSING[*]:-none}"
-
-export CHRONY_WAS_ACTIVE=0 CHRONY_WAS_ENABLED=0 CHRONY_WAS_MASKED=0
-systemctl is-active --quiet chrony.service && CHRONY_WAS_ACTIVE=1
-systemctl is-enabled --quiet chrony.service && CHRONY_WAS_ENABLED=1
-test "$(systemctl is-enabled chrony.service 2>/dev/null)" = masked && CHRONY_WAS_MASKED=1
-
-test -e /opt/agibot/entry/system/timesync.sh
-ip link show eth_hdu
-grep -q 'ntp2rtc.py' /opt/agibot/entry/system/timesync.sh
-grep -q 'ptp4l' /opt/agibot/entry/system/timesync.sh
-grep -q 'phc2sys' /opt/agibot/entry/system/timesync.sh
-```
-
-Every manifest entry must say `OK`. Stop if `eth_hdu` or any of the three stock
-launcher tokens is absent. Package presence is detected per robot; nothing here
-assumes chrony is installed or missing.
-
-## 2. Put the robot in a supported maintenance state
-
-Disable motion, recording, and external commands. Record the active services so
-the procedure restores only the original running set:
-
-```bash
-export ACTIVE_STATE=/tmp/agibot-time-active-services
-: > "$ACTIVE_STATE"
-for SERVICE in agibot_roudi agibot_top agibot_ui agibot_pm; do
-  systemctl is-active --quiet "$SERVICE" && printf '%s\n' "$SERVICE" >> "$ACTIVE_STATE"
-done
-cat "$ACTIVE_STATE"
-
-sudo systemctl stop agibot_pm || true
-sudo systemctl stop agibot_ui agibot_top agibot_roudi || true
-sudo pkill -TERM -x phc2sys || true
-sudo pkill -TERM -x ptp4l || true
-sudo pkill -TERM -f '/ntp2rtc.py' || true
-sudo systemctl mask --now chrony.service 2>/dev/null || true
-sleep 2
-
-if pgrep -a -f '[n]tp2rtc.py|[c]hronyd|[p]tp4l|[p]hc2sys'; then
-  echo 'STOP: a time process is still active'
-  false
+if ((${#HDU_MISSING[@]})); then
+  sudo apt-get update
+  sudo apt-get install --no-install-recommends --no-upgrade "${HDU_MISSING[@]}"
 fi
-```
 
-## 3. Install dependencies and optionally back up
-
-```bash
-if ((${#MISSING[@]})); then
-  if ! sudo apt-get update || \
-     ! sudo apt-get install --no-install-recommends --no-upgrade "${MISSING[@]}"; then
-    echo 'Dependency installation failed; restoring the previous running state.'
-    ((CHRONY_WAS_MASKED)) || sudo systemctl unmask chrony.service
-    ((CHRONY_WAS_ENABLED)) && sudo systemctl enable chrony.service
-    ((CHRONY_WAS_ACTIVE)) && sudo systemctl start chrony.service
-    while IFS= read -r SERVICE; do sudo systemctl start "$SERVICE"; done < "$ACTIVE_STATE"
-    exit 1
+ssh -t "agi@$MDU_HOST" '
+  MISSING=()
+  for PACKAGE in ethtool linuxptp; do
+    dpkg-query -W -f="\${db:Status-Status}\n" "$PACKAGE" 2>/dev/null |
+      grep -qx installed || MISSING+=("$PACKAGE")
+  done
+  if ((${#MISSING[@]})); then
+    sudo apt-get update
+    sudo apt-get install --no-install-recommends --no-upgrade "${MISSING[@]}"
   fi
-fi
-for TOOL in /usr/sbin/chronyd /usr/bin/chronyc /usr/sbin/ethtool \
-  /usr/sbin/ptp4l /usr/sbin/phc2sys; do
-  test -x "$TOOL" || { echo "Missing executable: $TOOL"; false; }
-done
-/usr/sbin/ethtool -T eth_hdu
+'
+
+for TOOL in chronyd chronyc ethtool ptp4l phc2sys; do command -v "$TOOL"; done
+sudo ethtool -T eth_hdu
+ssh "agi@$MDU_HOST" 'command -v ethtool ptp4l phc2sys; sudo ethtool -T eth_mdu'
 ```
 
-`eth_hdu` must report a PTP hardware clock and hardware transmit, receive, and
-raw-clock timestamping. If any package is missing and cannot be installed while
-offline, stop maintenance and leave the stock files unchanged.
+Both interfaces must report a PTP hardware clock and hardware transmit,
+receive, and raw-clock timestamping. If missing packages cannot be installed
+offline, stop without changing the stock files.
 
-Optional quick backup:
+## 3. Secure the robot and stop timestamp consumers
+
+Complete this section for initial installation and before Option A.
+
+```bash
+export HDU_ACTIVE_STATE=/tmp/agibot-time-hdu-active-services
+export MDU_ACTIVE_STATE=/tmp/agibot-time-mdu-active-services
+: > "$HDU_ACTIVE_STATE"
+for SERVICE in agibot_roudi agibot_top agibot_ui agibot_pm; do
+  systemctl is-active --quiet "$SERVICE" && printf '%s\n' "$SERVICE" >> "$HDU_ACTIVE_STATE"
+done
+
+ssh "agi@$MDU_HOST" 'rm -f /tmp/agibot-time-mdu-active-services; touch /tmp/agibot-time-mdu-active-services; for SERVICE in agibot_roudi agibot_top agibot_ui agibot_pm; do systemctl is-active --quiet "$SERVICE" && printf "%s\n" "$SERVICE" >> /tmp/agibot-time-mdu-active-services; done'
+
+sudo systemctl stop agibot_pm agibot_ui agibot_top agibot_roudi 2>/dev/null || true
+ssh "agi@$MDU_HOST" 'sudo systemctl stop agibot_pm agibot_ui agibot_top agibot_roudi 2>/dev/null || true'
+
+sudo systemctl stop agibot-hdu-phc2sys.service agibot-hdu-ptp4l.service 2>/dev/null || true
+sudo pkill -TERM -x phc2sys 2>/dev/null || true
+sudo pkill -TERM -x ptp4l 2>/dev/null || true
+sudo pkill -TERM -f '/ntp2rtc.py' 2>/dev/null || true
+ssh "agi@$MDU_HOST" 'sudo systemctl stop agibot-mdu-phc2sys.service agibot-mdu-ptp4l.service 2>/dev/null || true; sudo pkill -TERM -x phc2sys 2>/dev/null || true; sudo pkill -TERM -x ptp4l 2>/dev/null || true'
+sudo systemctl stop chrony.service 2>/dev/null || true
+```
+
+Optional backup:
 
 ```bash
 BACKUP="/var/backups/agibot-time/$(date -u +%Y%m%dT%H%M%SZ)"
 sudo install -d -o root -g root -m 0700 "$BACKUP/rootfs"
-BACKUP_ITEMS=(opt/agibot/entry/system/timesync.sh)
-if sudo test -e /etc/chrony/chrony.conf; then
-  BACKUP_ITEMS+=(etc/chrony/chrony.conf)
-fi
-if ! (
-  set -o pipefail
-  sudo tar -C / -cpf - "${BACKUP_ITEMS[@]}" |
-    sudo tar -C "$BACKUP/rootfs" -xpf -
-); then
-  echo 'Backup failed; do not continue.'
-  false
-fi
-sudo test -f "$BACKUP/rootfs/opt/agibot/entry/system/timesync.sh"
+HDU_BACKUP=(opt/agibot/entry/system/timesync.sh)
+sudo test -e /etc/chrony/chrony.conf && HDU_BACKUP+=(etc/chrony/chrony.conf)
+(set -o pipefail; sudo tar -C / -cpf - "${HDU_BACKUP[@]}" | sudo tar -C "$BACKUP/rootfs" -xpf -)
 sudo ln -sfn "$BACKUP" /var/backups/agibot-time/latest
+
+ssh "agi@$MDU_HOST" 'BACKUP="/var/backups/agibot-time/$(date -u +%Y%m%dT%H%M%SZ)"; sudo install -d -o root -g root -m 0700 "$BACKUP/rootfs/opt/agibot/entry/system"; sudo cp -a /opt/agibot/entry/system/timesync.sh "$BACKUP/rootfs/opt/agibot/entry/system/"; sudo ln -sfn "$BACKUP" /var/backups/agibot-time/latest'
 ```
 
-Use the PDF procedure when a complete fleet backup and tested rollback are
-required.
+## 4. Install the common hardening
 
-## 4. Install and validate the reviewed files
+Install HDU configuration and supervised clock workers:
 
 ```bash
 for REGION in china us europe; do
@@ -158,268 +165,172 @@ for REGION in china us europe; do
     "/etc/agibot-time/regions/$REGION/chrony.sources"
 done
 
-for REL in etc/chrony/chrony.conf etc/chrony/chrony-bootstrap.conf \
-  etc/default/agibot-timesync etc/default/agibot-clock-bootstrap \
+for REL in \
+  etc/chrony/chrony.conf \
+  etc/chrony/chrony-bootstrap.conf \
+  etc/default/agibot-timesync \
+  etc/default/agibot-clock-bootstrap \
   etc/systemd/system/agibot-clock-bootstrap.service \
+  etc/systemd/system/agibot-hdu-ptp4l.service \
+  etc/systemd/system/agibot-hdu-phc2sys.service \
   etc/systemd/system/chrony.service.d/agibot-controls.conf \
   etc/systemd/system/agibot_pm.service.d/20-clock-ordering.conf; do
   sudo install -D -o root -g root -m 0644 "$PKG_ROOT/$REL" "/$REL"
 done
 
-for REL in usr/local/sbin/agibot-time-region \
-  usr/local/sbin/agibot-clock-bootstrap; do
+for REL in usr/local/sbin/agibot-time-region usr/local/sbin/agibot-clock-bootstrap; do
   sudo install -D -o root -g root -m 0755 "$PKG_ROOT/$REL" "/$REL"
 done
 
 VENDOR_UID=$(sudo stat -Lc %u /opt/agibot/entry/system/timesync.sh)
 VENDOR_GID=$(sudo stat -Lc %g /opt/agibot/entry/system/timesync.sh)
 VENDOR_MODE=$(sudo stat -Lc %a /opt/agibot/entry/system/timesync.sh)
-sudo install -D -o "$VENDOR_UID" -g "$VENDOR_GID" -m "$VENDOR_MODE" \
+sudo install -o "$VENDOR_UID" -g "$VENDOR_GID" -m "$VENDOR_MODE" \
   "$PKG_ROOT/opt/agibot/entry/system/timesync.sh" \
   /opt/agibot/entry/system/timesync.sh
 
+sudo systemctl disable --now agibot_timesync.service 2>/dev/null || true
+sudo systemctl daemon-reload
+sudo systemctl enable agibot-hdu-ptp4l.service agibot-hdu-phc2sys.service
+```
+
+Install the MDU workers and replace its detached launcher:
+
+```bash
+ssh "agi@$MDU_HOST" 'mkdir -p /tmp/hope-mdu-time'
+scp "$PKG_ROOT/mdu/etc/systemd/system/agibot-mdu-ptp4l.service" \
+    "$PKG_ROOT/mdu/etc/systemd/system/agibot-mdu-phc2sys.service" \
+    "$PKG_ROOT/mdu/opt/agibot/entry/system/timesync.sh" \
+    "agi@$MDU_HOST:/tmp/hope-mdu-time/"
+
+ssh "agi@$MDU_HOST" '
+  set -e
+  VENDOR_UID=$(sudo stat -Lc %u /opt/agibot/entry/system/timesync.sh)
+  VENDOR_GID=$(sudo stat -Lc %g /opt/agibot/entry/system/timesync.sh)
+  VENDOR_MODE=$(sudo stat -Lc %a /opt/agibot/entry/system/timesync.sh)
+  sudo install -o root -g root -m 0644 /tmp/hope-mdu-time/agibot-mdu-ptp4l.service /etc/systemd/system/agibot-mdu-ptp4l.service
+  sudo install -o root -g root -m 0644 /tmp/hope-mdu-time/agibot-mdu-phc2sys.service /etc/systemd/system/agibot-mdu-phc2sys.service
+  sudo install -o "$VENDOR_UID" -g "$VENDOR_GID" -m "$VENDOR_MODE" /tmp/hope-mdu-time/timesync.sh /opt/agibot/entry/system/timesync.sh
+  sudo systemctl disable --now agibot_timesync.service 2>/dev/null || true
+  sudo systemctl daemon-reload
+  sudo systemctl enable agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service
+'
+
 sudo bash -n /opt/agibot/entry/system/timesync.sh
 sudo bash -n /usr/local/sbin/agibot-clock-bootstrap
-sudo bash -n /usr/local/sbin/agibot-time-region
-sudo /usr/sbin/chronyd -p -f /etc/chrony/chrony.conf >/dev/null
-sudo /usr/sbin/chronyd -p -f /etc/chrony/chrony-bootstrap.conf >/dev/null
-sudo systemctl daemon-reload
-
-grep -Fx 'After=chrony.service' \
-  /etc/systemd/system/agibot_pm.service.d/20-clock-ordering.conf
-if systemctl cat agibot_pm.service | grep -q 'timesync.sh --preflight'; then
-  echo 'STOP: normal A3 startup must not be gated on NTP'
-  false
-fi
+sudo chronyd -p -f /etc/chrony/chrony.conf >/dev/null
+sudo chronyd -p -f /etc/chrony/chrony-bootstrap.conf >/dev/null
+ssh "agi@$MDU_HOST" 'sudo bash -n /opt/agibot/entry/system/timesync.sh; systemd-analyze verify /etc/systemd/system/agibot-mdu-ptp4l.service /etc/systemd/system/agibot-mdu-phc2sys.service'
 ```
 
-The continuous configuration has no `makestep`, caps `maxslewrate` at 100 ppm,
-and does not load DHCP-provided time sources. The `agibot_pm` drop-in contains
-ordering only, with no `Wants`, `Requires`, or `ExecStartPre` gate.
+The four workers use `Restart=always` with no start-rate limit. If a PHC
+temporarily disappears, an exited worker is retried until the device returns.
+The application services have ordering only and are never success-gated on NTP
+or PTP lock, preserving offline A3 startup behavior.
 
-## 5. Select the region and enable continuous chrony
+## 5. Option A activation: hard clock reset
 
-China is the default. Select only one profile:
+Confirm again that the robot is supported, motion is disabled, and both boards'
+application services are stopped. Approved NTP must be reachable.
 
 ```bash
-EXTRA_SOURCES=$(sudo find /etc/chrony/sources.d -maxdepth 1 \
-  -name '*.sources' ! -name 'hope-approved.sources' -print 2>/dev/null)
-test -z "$EXTRA_SOURCES" || { printf 'STOP: unexpected sources:\n%s\n' "$EXTRA_SOURCES"; false; }
-
 sudo /usr/local/sbin/agibot-time-region china
-# sudo /usr/local/sbin/agibot-time-region us
-# sudo /usr/local/sbin/agibot-time-region europe
+# Use "us" or "europe" instead when appropriate.
 
-sudo systemctl disable --now agibot-clock-bootstrap.service
-sudo systemctl unmask chrony.service
-sudo systemctl enable --now chrony.service
-
-if chronyc waitsync 15 0.010 5 2; then
-  echo 'UTC is qualified for external coordination'
-else
-  echo 'UTC is unqualified; standalone A3 remains available'
-fi
-chronyc tracking
-chronyc sources -v
-sudo /opt/agibot/entry/system/timesync.sh --runtime-status
-```
-
-The bootstrap service stays disabled in normal operation. An unavailable NTP
-source is not an installation failure and cannot block A3 startup.
-
-## 6. Restore the original service set and verify
-
-```bash
-while IFS= read -r SERVICE; do sudo systemctl start "$SERVICE"; done < "$ACTIVE_STATE"
-sleep 5
-
-systemctl is-active chrony
-while IFS= read -r SERVICE; do systemctl is-active "$SERVICE"; done < "$ACTIVE_STATE"
-mapfile -t CHRONY_PIDS < <(pgrep -x chronyd)
-test "${#CHRONY_PIDS[@]}" -ge 1
-test "${#CHRONY_PIDS[@]}" -le 2
-CHRONY_MAIN=$(systemctl show chrony.service -p MainPID --value)
-CHRONY_CGROUP=$(systemctl show chrony.service -p ControlGroup --value)
-printf '%s\n' "${CHRONY_PIDS[@]}" | grep -qx "$CHRONY_MAIN"
-for PID in "${CHRONY_PIDS[@]}"; do
-  grep -Fxq "0::$CHRONY_CGROUP" "/proc/$PID/cgroup"
-done
-! pgrep -a -f '[n]tp2rtc.py'
-if grep -qx agibot_pm "$ACTIVE_STATE"; then
-  pgrep -a -x ptp4l | grep -F -- '-i eth_hdu -2 -E'
-  pgrep -a -x phc2sys | grep -F -- '-s CLOCK_REALTIME -c eth_hdu'
-fi
-sudo /opt/agibot/entry/system/timesync.sh --runtime-status
-sudo journalctl -u chrony -u agibot_pm --since '-10 minutes' --no-pager
-```
-
-Expected: one main `chronyd` plus at most one Debian privilege-separated helper,
-with every PID in `chrony.service`; no `ntp2rtc.py`; unchanged `ptp4l` and
-`phc2sys` directions; and all previously active A3 services restored. With
-Internet, chrony should eventually show `Leap status: Normal` and a selected
-`^*` source. Without Internet, A3 remains operational and UTC is simply
-unqualified.
-
-## 7. Choose the operating option
-
-All supported options keep the continuous configuration at `maxslewrate 100`.
-Choose one according to whether external mocap must be ready immediately.
-
-| Option | Use | A3 behavior without Internet |
-|---|---|---|
-| A. Normal continuous chrony | Default standalone operation | Starts normally; UTC remains unqualified |
-| B. Supervised bootstrap | Recommended competition preparation | Run only when approved NTP is reachable |
-| C. Controlled boot bootstrap | Correct before services on one planned boot | May delay that boot; A3 still starts after failure |
-| D. Early power-on and slew | No clock step is permitted | Starts normally and converges when NTP is available |
-
-### Option A: normal offline-capable operation
-
-This is the installed default. Chrony disciplines the clock when NTP is
-available, but neither chrony synchronization nor Internet reachability gates
-the A3 application chain.
-
-Activate or restore this option:
-
-```bash
-sudo systemctl disable --now agibot-clock-bootstrap.service
-sudo systemctl unmask chrony.service
-sudo systemctl enable --now chrony.service
-sudo /opt/agibot/entry/system/timesync.sh --runtime-status
-```
-
-Use this profile for ordinary A3 operation. Do not start external mocap
-coordination while the status says UTC is unqualified.
-
-### Option B: supervised bootstrap before competition (recommended)
-
-The bootstrap steps the full offset while A3 applications and downstream time
-distribution are stopped. Use it when approved NTP is reachable and immediate
-mocap qualification is preferable to waiting for a long slew.
-
-After a step, clock offset can be small while chrony's skew estimate still needs
-several NTP poll intervals to settle. The audited Wi-Fi path used approximately
-64-second polls and needed about 12 minutes to fall below the provisional 5 ppm
-gate, so the strict examples allow up to 20 minutes rather than failing after
-two minutes.
-
-Support the robot, disable motion, recording, and external commands, then run:
-
-```bash
-BOOTSTRAP_STATE=/tmp/agibot-bootstrap-active-services
-: > "$BOOTSTRAP_STATE"
-for SERVICE in agibot_roudi agibot_top agibot_ui agibot_pm; do
-  systemctl is-active --quiet "$SERVICE" && \
-    printf '%s\n' "$SERVICE" >> "$BOOTSTRAP_STATE"
-done
-
-sudo systemctl stop agibot_pm || true
-sudo systemctl stop agibot_ui agibot_top agibot_roudi || true
-sudo pkill -TERM -x phc2sys || true
-sudo pkill -TERM -x ptp4l || true
 sudo systemctl disable agibot-clock-bootstrap.service
 sudo systemctl stop chrony.service
-sleep 2
-
-MOCAP_TIME_READY=0
+BOOTSTRAP_OK=0
 if sudo systemctl restart agibot-clock-bootstrap.service && \
    sudo test -e /run/agibot-time/bootstrap-qualified; then
-  sudo systemctl start chrony.service
-  if chronyc waitsync 600 0.010 5 2 && \
-     sudo /opt/agibot/entry/system/timesync.sh --preflight; then
-    MOCAP_TIME_READY=1
-  fi
+  BOOTSTRAP_OK=1
 else
-  echo 'Bootstrap failed; restoring standalone A3 with UTC unqualified.'
-  sudo systemctl start chrony.service
+  echo 'Hard clock reset failed; continuing only in UTC-unqualified mode.'
 fi
 
-while IFS= read -r SERVICE; do sudo systemctl start "$SERVICE"; done \
-  < "$BOOTSTRAP_STATE"
+sudo systemctl start chrony.service
+sudo systemctl start agibot-hdu-ptp4l.service agibot-hdu-phc2sys.service
+ssh "agi@$MDU_HOST" 'sudo systemctl start agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service'
+
+MOCAP_TIME_READY=0
+if test "$BOOTSTRAP_OK" -eq 1 && \
+   chronyc waitsync 600 0.010 5 2 && \
+   sudo /opt/agibot/entry/system/timesync.sh --preflight && \
+   ssh "agi@$MDU_HOST" 'systemctl is-active --quiet agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service'; then
+  MOCAP_TIME_READY=1
+fi
 printf 'MOCAP_TIME_READY=%s\n' "$MOCAP_TIME_READY"
 ```
 
-`MOCAP_TIME_READY=1` qualifies only the A3 clock layer. Complete the PDF's
-board/sensor and Motive/NatNet latency gates before play. A value of `0` does
-not prevent standalone A3 operation; it prohibits external mocap coordination.
+If the bootstrap command fails, do not repeat it with robot services running.
+Start chrony and all four clock workers as shown above; standalone A3 remains
+available with UTC unqualified.
 
-### Option C: bootstrap during one controlled boot
-
-This option orders bootstrap before `chrony`, `agibot_roudi`, `agibot_top`,
-`agibot_ui`, and `agibot_pm`. Use it only for a planned online boot. Enabling it
-persistently would add an NTP wait to every offline boot.
-
-Activate it immediately before the planned reboot:
+After an authorized operator confirms the robot is clear to resume:
 
 ```bash
-sudo systemctl enable agibot-clock-bootstrap.service
-sudo reboot
+while IFS= read -r SERVICE; do sudo systemctl start "$SERVICE"; done < "$HDU_ACTIVE_STATE"
+ssh "agi@$MDU_HOST" 'while IFS= read -r SERVICE; do sudo systemctl start "$SERVICE"; done < /tmp/agibot-time-mdu-active-services'
 ```
 
-After reconnecting, disable it first so the next boot returns to Option A, then
-inspect the result:
+## 6. Option B activation: slow runtime synchronization
+
+This path never steps the running clock. It starts the same supervised internal
+distribution chain, then lets chrony converge at `maxslewrate 100`.
 
 ```bash
-sudo systemctl disable agibot-clock-bootstrap.service
-if sudo test -e /run/agibot-time/bootstrap-qualified && \
-   chronyc waitsync 600 0.010 5 2 && \
-   sudo /opt/agibot/entry/system/timesync.sh --preflight; then
-  echo 'A3 clock layer is ready for external mocap qualification.'
-else
-  echo 'Bootstrap did not qualify UTC; standalone A3 remains available.'
-fi
-```
-
-If NTP is unavailable, the network-online wait plus bootstrap timeout can delay
-startup, but bootstrap does not become an `agibot_pm` success dependency. Do
-not leave this service enabled after the controlled boot.
-
-### Option D: power on early and converge by slew
-
-Use this when clock stepping is not approved. A 0.3-second correction at
-100 ppm takes approximately 50 minutes, so allow about one hour before external
-mocap use. A3 applications may run during convergence.
-
-Activate the normal profile, then wait in an operator terminal:
-
-```bash
+sudo /usr/local/sbin/agibot-time-region china
 sudo systemctl disable --now agibot-clock-bootstrap.service
 sudo systemctl unmask chrony.service
 sudo systemctl enable --now chrony.service
+sudo systemctl start agibot-hdu-ptp4l.service agibot-hdu-phc2sys.service
+ssh "agi@$MDU_HOST" 'sudo systemctl start agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service'
+
+while IFS= read -r SERVICE; do sudo systemctl start "$SERVICE"; done < "$HDU_ACTIVE_STATE"
+ssh "agi@$MDU_HOST" 'while IFS= read -r SERVICE; do sudo systemctl start "$SERVICE"; done < /tmp/agibot-time-mdu-active-services'
+
+sudo /opt/agibot/entry/system/timesync.sh --runtime-status
+chronyc tracking
+chronyc sources -v
+```
+
+A3 can operate while chrony converges or while NTP is unavailable. Before
+external mocap use, wait separately:
+
+```bash
 chronyc waitsync 0 0.010 5 2
 sudo /opt/agibot/entry/system/timesync.sh --preflight
 ```
 
-The zero retry limit makes `waitsync` wait indefinitely for less than 10 ms
-remaining correction and less than 5 ppm skew. Interrupting that terminal wait
-does not stop A3, but external mocap remains unqualified.
+Do not raise continuous `maxslewrate` to 1000 ppm. A one-time secured clock
+step is preferable to distributing a 0.1% runtime rate error through every
+board and timestamp consumer.
 
-### Unsupported production option: faster continuous slew
-
-Do not permanently raise `maxslewrate` to 1000 ppm. It can distribute a 0.1%
-clock-rate change through `phc2sys`, the PHC, PTP clients, and adjusted Linux
-timers while the robot is running. Use Option B to correct a large startup
-offset before timestamp consumers start. Any higher-slew experiment belongs in
-the PDF's supported, motion-disabled bench validation process.
-
-## 8. Confirm one cold boot
+## 7. Verify persistence and incident hardening
 
 ```bash
-sudo reboot
-# Reconnect after boot:
-systemctl is-active chrony
-systemctl is-enabled agibot-clock-bootstrap.service | grep -qx disabled
-if systemctl is-enabled --quiet agibot_pm.service; then
-  systemctl is-active agibot_pm.service
-fi
-sudo /opt/agibot/entry/system/timesync.sh --runtime-status
-chronyc tracking
-chronyc sources -v
+systemctl is-enabled agibot-hdu-ptp4l.service agibot-hdu-phc2sys.service
+systemctl is-active agibot-hdu-ptp4l.service agibot-hdu-phc2sys.service
+systemctl show agibot-hdu-ptp4l.service agibot-hdu-phc2sys.service -p MainPID -p NRestarts
+pgrep -a -x ptp4l
+pgrep -a -x phc2sys
+
+ssh "agi@$MDU_HOST" '
+  systemctl is-enabled agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service
+  systemctl is-active agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service
+  systemctl show agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service -p MainPID -p NRestarts
+  pgrep -a -x ptp4l
+  pgrep -a -x phc2sys
+  journalctl -b --no-pager -u agibot-mdu-ptp4l.service -u agibot-mdu-phc2sys.service -n 40
+'
 ```
 
-An unavailable NTP source must not make an enabled A3 application service fail.
-For routine status, use `--runtime-status`; do not place `--preflight` in the A3
-startup chain.
+There must be exactly one `ptp4l` and one `phc2sys` process per board, each in
+its named systemd cgroup. A later PHC error may increment `NRestarts`, but the
+service must return to `active (running)`. Confirm one cold boot before play;
+an unavailable NTP source must not prevent enabled A3 application services from
+starting.
 
-Before using a separate mocap system, follow the PDF's strict UTC preflight,
-NatNet timestamp-domain, latency, board/sensor, supervised re-step, and rollback
-procedures. Those task-level gates do not change standalone A3 operation.
+`MOCAP_TIME_READY=1` qualifies only the A3 clock layer. Defer Motive/NatNet
+latency, timestamp-domain, board/sensor acceptance, rollback, and the runner's
+mandatory official-stand behavior for invalid target/base data to the
+[full plan](../../docs/HOPE_A3_Clock_Synchronization_Improvement_Plan.pdf).
