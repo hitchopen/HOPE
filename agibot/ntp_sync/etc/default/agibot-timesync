@@ -1,0 +1,3 @@
+# Default is fail closed. Set to 1 only under a signed holdover procedure.
+AGIBOT_ALLOW_UNQUALIFIED_TIME=0
+

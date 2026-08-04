@@ -1,0 +1,5786 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<<
+/Producer (pypdf)
+/Title (Agibot A3 Platform Time Synchronization Improvement Plan v1\0565)
+/Author (HOPE AI Challenge \057 Codex)
+/Subject (Fleet\055safe chrony discipline preserving A3 inter\055board and sensor synchronization)
+/Keywords (Agibot A3 chrony NTP PTP time synchronization v1\0565)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 27
+/Kids [ 4 0 R 11 0 R 14 0 R 16 0 R 18 0 R 20 0 R 27 0 R 34 0 R 39 0 R 45 0 R 51 0 R 53 0 R 55 0 R 57 0 R 59 0 R 64 0 R 70 0 R 76 0 R 82 0 R 88 0 R 94 0 R 100 0 R 106 0 R 112 0 R 118 0 R 124 0 R 130 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+/Outlines 138 0 R
+>>
+endobj
+4 0 obj
+<<
+/Contents 5 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font <<
+/F1 6 0 R
+/F1-0 7 0 R
+/F2 8 0 R
+/F2-0 9 0 R
+/F3 10 0 R
+>>
+/ProcSet [ /ImageB /ImageC /ImageI /PDF /Text ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Annots [ ]
+/Parent 2 0 R
+>>
+endobj
+5 0 obj
+<<
+/Length 7881
+>>
+stream
+q
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+Q
+q
+1 0 0 1 51.02362 739.8425 cm
+Q
+q
+1 0 0 1 51.02362 720.8425 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 2 Tm /F2 14 Tf 16 TL (AGIBOT A3) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 708.3386 cm
+Q
+q
+1 0 0 1 51.02362 640.3386 cm
+q
+BT 1 0 0 1 0 40 Tm 34 TL /F2 28 Tf .090196 .196078 .301961 rg (Platform Time Synchronization) Tj  T* (Improvement Plan) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 614.3386 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Executive decision for high-speed ping-pong operation) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 596.1654 cm
+Q
+q
+1 0 0 1 58.02362 560.7654 cm
+q
+.933333 .956863 .964706 rg
+n 0 35.4 479.2283 -35.4 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 14.7 Tm /F1 8.7 Tf 11.7 TL (Recommendation: replace the stock ntp2rtc system-clock path with governed chrony discipline, while preserving the) Tj T* (working HDU-to-PHC, inter-board PTP, and sensor synchronization chain.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+0 .529412 .603922 RG
+.9 w
+n 0 35.4 m 479.2283 35.4 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 35.4 l S
+n 479.2283 0 m 479.2283 35.4 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 549.4268 cm
+Q
+q
+1 0 0 1 51.02362 530.4268 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Executive summary: benefit versus operational risk) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 387.2268 cm
+q
+.090196 .196078 .301961 rg
+n 0 139.2 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 98 445.0394 -24.5 re f*
+.956863 .968627 .972549 rg
+n 0 49 445.0394 -24.5 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 126.5 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Key improvement benefit) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 126.5 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Risk if A3 plays using the stock clock stack) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 102 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL (The running HDU clock is continuously disciplined using fractional NTP) Tj T* (measurements and delay-aware filtering.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 102 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL (ntp2rtc updates the RTC but does not discipline the running clock; error) Tj T* (can grow between boots and during long sessions.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 77.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL (A 100 ppm runtime slew cap and no continuous makestep protect the) Tj T* (distributed A3 time rate.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 77.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL (An uncontrolled step or fast correction can propagate through) Tj T* (phc2sys/PTP, disturbing board, sensor, recorder, and controller timelines.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL (Explicit UTC and internal-sync gates expose whether timestamps are) Tj T* (trustworthy now.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 53 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL -0.086932 Tw (ROS data may look valid while clock offset, age, or ordering is wrong; stale) Tj T* 0 Tw (or out-of-sequence observations may go undetected.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 28.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL (Supervised re-step provides bounded recovery from a bad RTC or long) Tj T* (offline boot.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 28.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL (Slew-only recovery can take hours or days; without a runbook the robot) Tj T* (may remain unusable or be operated before time is qualified.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 12.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.45 Tf 8.25 TL (Motive remains data-only, so mocap availability cannot alter A3 clocks.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.05 Tm /F1 6.45 Tf 8.25 TL -0.047739 Tw (Assuming common NTP servers explicitly synchronize Motive capture time) Tj T* 0 Tw (to A3 can hide Wi-Fi delay and timestamp-domain error.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 139.2 m 445.0394 139.2 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 139.2 l S
+n 445.0394 0 m 445.0394 139.2 l S
+n 0 122.5 m 445.0394 122.5 l S
+n 0 98 m 445.0394 98 l S
+n 0 73.5 m 445.0394 73.5 l S
+n 0 49 m 445.0394 49 l S
+n 0 24.5 m 445.0394 24.5 l S
+n 222.5197 0 m 222.5197 139.2 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 368.2268 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Why this matters during ping-pong) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 342.0268 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.85 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Ball interception and racket contact depend on consistent measurement age, ordering, and latency across vision/mocap, robot) Tj T* 8 0 Td (state, and control outputs.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 317.5268 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.85 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Clock-domain error can make observations appear earlier or later than they are, bias velocity prediction, and make strike or balance) Tj T* 8 0 Td (corrections late, inconsistent, or difficult to diagnose.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 293.0268 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.85 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- This is a credible control-risk pathway, not proof that clock synchronization caused a specific balance loss. Confirm causality with) Tj T* 8 0 Td (synchronized timestamp traces, controller deadlines, and fall-event logs.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 274.0268 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (What changes and what does not) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 228.1268 cm
+q
+.090196 .196078 .301961 rg
+n 0 41.9 445.0394 -16.7 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 29.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Changes) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 29.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Protected unchanged behavior) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.4 Tm /F1 6.8 Tf 8.6 TL (chrony owns HDU CLOCK_REALTIME; approved NTP sources;) Tj T* (monitored holdover; supervised bootstrap/re-step.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 227.5197 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.4 Tm /F1 6.8 Tf 8.6 TL (phc2sys direction, active ptp4l E2E behavior, board sync, sensor sync,) Tj T* (and application timestamp contracts.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 41.9 m 445.0394 41.9 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 41.9 l S
+n 445.0394 0 m 445.0394 41.9 l S
+n 0 25.2 m 445.0394 25.2 l S
+n 222.5197 0 m 222.5197 41.9 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 219.6228 cm
+Q
+q
+1 0 0 1 58.02362 184.2228 cm
+q
+.933333 .956863 .964706 rg
+n 0 35.4 479.2283 -35.4 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 14.7 Tm /F1 8.7 Tf 11.7 TL (Operational rule: do not permit motion unless both UTC qualification and internal board/sensor synchronization pass.) Tj T* (Mocap quality is a separate task-level gate.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.760784 .286275 .078431 RG
+.9 w
+n 0 35.4 m 479.2283 35.4 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 35.4 l S
+n 479.2283 0 m 479.2283 35.4 l S
+Q
+Q
+Q
+ 
+
+Q
+
+q
+0.0 0.0 595.2756 841.8898 re
+W
+n
+1 0 0 1 0 0 cm
+BT
+/F1-0 12 Tf
+14.4 TL
+ET
+1 1 1 rg
+n
+391.1811 36.85039 m
+538.5827 36.85039 l
+541.7167 36.85039 544.252 39.3857 544.252 42.51969 c
+544.252 68.0315 l
+544.252 71.16548 541.7167 73.70079 538.5827 73.70079 c
+391.1811 73.70079 l
+388.0471 73.70079 385.5118 71.16548 385.5118 68.0315 c
+385.5118 42.51969 l
+385.5118 39.3857 388.0471 36.85039 391.1811 36.85039 c
+h
+f*
+0 0.529412 0.603922 rg
+BT
+/F2-0 10 Tf
+12 TL
+ET
+BT
+1 0 0 1 413.2069 59.52756 Tm
+(AUTHORITATIVE v1\0565) Tj
+T*
+ET
+0.372549 0.435294 0.498039 rg
+BT
+/F1-0 6.7 Tf
+8.04 TL
+ET
+BT
+1 0 0 1 411.0675 48.18898 Tm
+(Canonical package\072 agibot\057ntp\137sync) Tj
+T*
+ET
+Q
+
+
+endstream
+endobj
+6 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+7 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+8 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+9 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+10 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+11 0 obj
+<<
+/Contents 12 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+12 0 obj
+<<
+/Length 6514
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 521.4352 20.40945 Tm (Page 2) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (1. Design Goals, Scope, and Invariants) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Goals) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 727.7661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Continuously discipline the HDU system clock with chrony and expose accuracy, uncertainty, and source health.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 714.3661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Preserve A3 inter-board, PHC/PTP, sensor, and application timestamp behavior.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 700.9661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Keep system-clock operation independent of Motive, NatNet, and venue mocap availability.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 681.9661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Scope and non-goals) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 602.8661 cm
+q
+.090196 .196078 .301961 rg
+n 0 75.1 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 41.8 445.0394 -25.2 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 62.4 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Domain) Tj T* ET
+Q
+Q
+q
+1 0 0 1 109.8819 62.4 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (In scope) Tj T* ET
+Q
+Q
+q
+1 0 0 1 296.9685 62.4 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Out of scope) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 45.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (HDU clock) Tj T* ET
+Q
+Q
+q
+1 0 0 1 109.8819 45.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (NTP governance, chrony, RTC, bootstrap qualification) Tj T* ET
+Q
+Q
+q
+1 0 0 1 296.9685 45.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Motive host time and capture-time estimation) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 29.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Internal A3) Tj T* ET
+Q
+Q
+q
+1 0 0 1 109.8819 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 10.4 Tm /F1 6.8 Tf 8.6 TL (Preserve phc2sys, ptp4l, board and sensor) Tj T* (synchronization) Tj T* ET
+Q
+Q
+q
+1 0 0 1 296.9685 29.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Unvalidated PTP redesign) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (ROS 2/NatNet) Tj T* ET
+Q
+Q
+q
+1 0 0 1 109.8819 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Timestamp-domain boundary and fault isolation) Tj T* ET
+Q
+Q
+q
+1 0 0 1 296.9685 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Setting platform time from mocap) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 75.1 m 445.0394 75.1 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 75.1 l S
+n 445.0394 0 m 445.0394 75.1 l S
+n 0 58.4 m 445.0394 58.4 l S
+n 0 41.8 m 445.0394 41.8 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 104.8819 0 m 104.8819 75.1 l S
+n 291.9685 0 m 291.9685 75.1 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 583.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Invariants) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 446.9661 cm
+q
+.090196 .196078 .301961 rg
+n 0 132.9 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 99.6 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 66.4 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 33.2 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 120.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (ID) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 120.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Requirement) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 103.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (I-1) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 103.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (chrony is the only runtime owner of HDU CLOCK_REALTIME.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (I-2) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (No continuous makestep; steps occur only before protected services or during supervised maintenance.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (I-3) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Preserve CLOCK_REALTIME -> eth_hdu PHC -> internal-board direction.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (I-4) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Continuous added slew is capped at 100 ppm.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (I-5) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Every required board and safety-critical sensor passes pre/post comparison.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (I-6) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Motive/NatNet cannot control chrony, PHC, PTP, RTC, or clock_settime.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (I-7) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (No production deployment before evidence and owner sign-off.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 132.9 m 445.0394 132.9 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 132.9 l S
+n 445.0394 0 m 445.0394 132.9 l S
+n 0 116.2 m 445.0394 116.2 l S
+n 0 99.6 m 445.0394 99.6 l S
+n 0 83 m 445.0394 83 l S
+n 0 66.4 m 445.0394 66.4 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 51.02362 0 m 51.02362 132.9 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+13 0 obj
+<<
+/F1 6 0 R
+/F2 8 0 R
+/F3 10 0 R
+>>
+endobj
+14 0 obj
+<<
+/Contents 15 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+15 0 obj
+<<
+/Length 5686
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 521.4352 20.40945 Tm (Page 3) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (2. Verified Live A3 Baseline) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 735.1661 cm
+q
+.933333 .956863 .964706 rg
+n 0 23.7 479.2283 -23.7 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 3 Tm /F1 8.7 Tf 11.7 TL (Read-only inspection on 2026-08-04; no live configuration, service, or clock was changed.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+0 .529412 .603922 RG
+.9 w
+n 0 23.7 m 479.2283 23.7 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 23.7 l S
+n 479.2283 0 m 479.2283 23.7 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 716.1661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Active ownership path) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 701.0661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- HDU runs Debian 12 on aarch64.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 687.6661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- agibot_pm starts /opt/agibot/entry/system/timesync.sh; this is the production owner path.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 674.2661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- The script disables chrony and other time services, sets NTP off, starts ntp2rtc.py, then launches ptp4l and phc2sys.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 58.02362 645.0661 cm
+q
+.94902 .960784 .964706 rg
+n 0 26.9 479.2283 -26.9 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 8.45 Tm /F3 6.45 Tf 7.45 TL (ptp4l -i eth_hdu -2 -E -m) Tj T* (phc2sys -s CLOCK_REALTIME -c eth_hdu -w -O 0 -S 10 -m) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 26.9 m 479.2283 26.9 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 26.9 l S
+n 479.2283 0 m 479.2283 26.9 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 626.0661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Second path and configuration discrepancy) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 610.9661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- agibot_timesync.service exists but is disabled/inactive; enabling it would create a second path.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 542.1661 cm
+q
+.090196 .196078 .301961 rg
+n 0 66.5 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 33.2 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 53.8 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Item) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 53.8 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Observed) Tj T* ET
+Q
+Q
+q
+1 0 0 1 279.9606 53.8 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Decision) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Active ptp4l) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (-E, E2E; no -f) Tj T* ET
+Q
+Q
+q
+1 0 0 1 279.9606 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Preserve exactly in Phase 1.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (/etc/timesync/ptp_master.conf) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (delay_mechanism P2P) Tj T* ET
+Q
+Q
+q
+1 0 0 1 279.9606 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Inactive; do not enable in this change.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (phc2sys) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (CLOCK_REALTIME source, eth_hdu sink) Tj T* ET
+Q
+Q
+q
+1 0 0 1 279.9606 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Preserve direction and arguments.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 66.5 m 445.0394 66.5 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 66.5 l S
+n 445.0394 0 m 445.0394 66.5 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 119.0551 0 m 119.0551 66.5 l S
+n 274.9606 0 m 274.9606 66.5 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 523.1661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Evidence and unknowns) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 508.0661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- A short phc2sys log sample showed approximately -143 ns to +157 ns; this is a short observation, not a long-term guarantee.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 494.6661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Per-sensor mechanisms and limits remain a mandatory owner inventory.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 58.02362 468.6661 cm
+q
+.933333 .956863 .964706 rg
+n 0 23.7 479.2283 -23.7 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 3 Tm /F1 8.7 Tf 11.7 TL (Phase 1 replaces only the HDU NTP/system-clock owner; it does not redesign the working internal time chain.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.760784 .286275 .078431 RG
+.9 w
+n 0 23.7 m 479.2283 23.7 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 23.7 l S
+n 479.2283 0 m 479.2283 23.7 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+16 0 obj
+<<
+/Contents 17 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+17 0 obj
+<<
+/Length 7357
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 521.4352 20.40945 Tm (Page 4) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (3. Required Platform Time Architecture) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Permitted control direction) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 704.5161 cm
+q
+.94902 .960784 .964706 rg
+n 0 34.35 479.2283 -34.35 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 15.9 Tm /F3 6.45 Tf 7.45 TL (Approved NTP sources -> chrony -> HDU CLOCK_REALTIME) Tj T* (  -> phc2sys -> eth_hdu PHC -> ptp4l -> A3 boards / MDU) Tj T* (  -> existing sensor synchronization and timestamp conversion) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 34.35 m 479.2283 34.35 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 34.35 l S
+n 479.2283 0 m 479.2283 34.35 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 685.5161 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Layer ownership) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 565.2161 cm
+q
+.090196 .196078 .301961 rg
+n 0 116.3 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 83 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 49.8 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 16.6 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Layer) Tj T* ET
+Q
+Q
+q
+1 0 0 1 95.70866 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Owner) Tj T* ET
+Q
+Q
+q
+1 0 0 1 223.2677 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Contract) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (UTC reference) Tj T* ET
+Q
+Q
+q
+1 0 0 1 95.70866 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Approved NTP set) Tj T* ET
+Q
+Q
+q
+1 0 0 1 223.2677 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (One documented leap policy; no DHCP injection.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (HDU clock) Tj T* ET
+Q
+Q
+q
+1 0 0 1 95.70866 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (chrony.service) Tj T* ET
+Q
+Q
+q
+1 0 0 1 223.2677 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Slew-only, maxslewrate 100, no runtime step.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (HDU PHC) Tj T* ET
+Q
+Q
+q
+1 0 0 1 95.70866 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Vendor phc2sys) Tj T* ET
+Q
+Q
+q
+1 0 0 1 223.2677 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (CLOCK_REALTIME source; eth_hdu sink.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Boards) Tj T* ET
+Q
+Q
+q
+1 0 0 1 95.70866 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Vendor ptp4l and clients) Tj T* ET
+Q
+Q
+q
+1 0 0 1 223.2677 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Preserve active E2E mode, domain, roles, and lock.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Sensors) Tj T* ET
+Q
+Q
+q
+1 0 0 1 95.70866 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Firmware/drivers/current conversion) Tj T* ET
+Q
+Q
+q
+1 0 0 1 223.2677 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Monotonic, named domain, owner limits.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Applications) Tj T* ET
+Q
+Q
+q
+1 0 0 1 95.70866 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (ROS 2/robot software) Tj T* ET
+Q
+Q
+q
+1 0 0 1 223.2677 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Consume declared domains; no clock ownership.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 116.3 m 445.0394 116.3 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 116.3 l S
+n 445.0394 0 m 445.0394 116.3 l S
+n 0 99.6 m 445.0394 99.6 l S
+n 0 83 m 445.0394 83 l S
+n 0 66.4 m 445.0394 66.4 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 90.70866 0 m 90.70866 116.3 l S
+n 218.2677 0 m 218.2677 116.3 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 546.2161 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Motive is a separate data path) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 515.3161 cm
+q
+.94902 .960784 .964706 rg
+n 0 26.9 479.2283 -26.9 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 8.45 Tm /F3 6.45 Tf 7.45 TL (Motive Windows -> NatNet -> ROS 2 adapter -> observations) Tj T* (NO path to chrony / CLOCK_REALTIME / PHC / ptp4l / sensor clocks) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 26.9 m 479.2283 26.9 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 26.9 l S
+n 479.2283 0 m 479.2283 26.9 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 504.2161 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Capture-time mapping is optional application logic carrying age and uncertainty; it never feeds platform time.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 485.2161 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Separate health conclusions) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 431.3161 cm
+q
+.090196 .196078 .301961 rg
+n 0 49.9 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 16.6 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 37.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (State) Tj T* ET
+Q
+Q
+q
+1 0 0 1 126.8898 37.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Meaning) Tj T* ET
+Q
+Q
+q
+1 0 0 1 316.811 37.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Does not prove) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (UTC-qualified) Tj T* ET
+Q
+Q
+q
+1 0 0 1 126.8898 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (HDU meets external accuracy/uncertainty gates.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 316.811 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Internal board/sensor coherence.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Internally synchronized) Tj T* ET
+Q
+Q
+q
+1 0 0 1 126.8898 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (PHC/PTP/boards/sensors meet relative-time gates.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 316.811 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Absolute UTC correctness.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 49.9 m 445.0394 49.9 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 49.9 l S
+n 445.0394 0 m 445.0394 49.9 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 121.8898 0 m 121.8898 49.9 l S
+n 311.811 0 m 311.811 49.9 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+18 0 obj
+<<
+/Contents 19 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+19 0 obj
+<<
+/Length 6732
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 521.4352 20.40945 Tm (Page 5) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (4. Board and Sensor Synchronization Preservation) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 723.4661 cm
+q
+.933333 .956863 .964706 rg
+n 0 35.4 479.2283 -35.4 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 14.7 Tm /F1 8.7 Tf 11.7 TL (The existing fact that A3 boards and sensors are synchronized is a protected platform contract, not an implementation to) Tj T* (replace.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+0 .529412 .603922 RG
+.9 w
+n 0 35.4 m 479.2283 35.4 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 35.4 l S
+n 479.2283 0 m 479.2283 35.4 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 704.4661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Mandatory inventory) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 595.0661 cm
+q
+.090196 .196078 .301961 rg
+n 0 105.4 445.0394 -25.4 re f*
+.956863 .968627 .972549 rg
+n 0 64 445.0394 -16 re f*
+.956863 .968627 .972549 rg
+n 0 32 445.0394 -16 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 92.7 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Object/family) Tj T* ET
+Q
+Q
+q
+1 0 0 1 98.54331 84 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 10.4 Tm /F2 7 Tf 8.7 TL (Native clock and timestamp) Tj T* (point) Tj T* ET
+Q
+Q
+q
+1 0 0 1 217.5984 92.7 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Conversion/sync path) Tj T* ET
+Q
+Q
+q
+1 0 0 1 336.6535 92.7 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Owner limits and failure action) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 68 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (HDU/MDU/boards) Tj T* ET
+Q
+Q
+q
+1 0 0 1 98.54331 68 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (PHC, system clock, or device counter) Tj T* ET
+Q
+Q
+q
+1 0 0 1 217.5984 68 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (PTP role, offset, domain) Tj T* ET
+Q
+Q
+q
+1 0 0 1 336.6535 68 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (offset, jitter, lock, role change) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 52 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Cameras/vision) Tj T* ET
+Q
+Q
+q
+1 0 0 1 98.54331 52 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Exposure/frame/driver timestamp) Tj T* ET
+Q
+Q
+q
+1 0 0 1 217.5984 52 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Trigger, PTP, or driver mapping) Tj T* ET
+Q
+Q
+q
+1 0 0 1 336.6535 52 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (age, drops, reset, alignment) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 36 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (IMU) Tj T* ET
+Q
+Q
+q
+1 0 0 1 98.54331 36 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Sample counter and driver stamp) Tj T* ET
+Q
+Q
+q
+1 0 0 1 217.5984 36 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Device sync or host mapping) Tj T* ET
+Q
+Q
+q
+1 0 0 1 336.6535 36 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (monotonicity, drift, jitter) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Force/contact) Tj T* ET
+Q
+Q
+q
+1 0 0 1 98.54331 20 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Sample/bus time) Tj T* ET
+Q
+Q
+q
+1 0 0 1 217.5984 20 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Firmware or driver conversion) Tj T* ET
+Q
+Q
+q
+1 0 0 1 336.6535 20 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (cycle alignment, timeout) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Joint/motor feedback) Tj T* ET
+Q
+Q
+q
+1 0 0 1 98.54331 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Board timestamp and bus cycle) Tj T* ET
+Q
+Q
+q
+1 0 0 1 217.5984 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (Internal board domain) Tj T* ET
+Q
+Q
+q
+1 0 0 1 336.6535 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.2 Tf 8 TL (period, offset, duplicate/backward) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 105.4 m 445.0394 105.4 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 105.4 l S
+n 445.0394 0 m 445.0394 105.4 l S
+n 0 80 m 445.0394 80 l S
+n 0 64 m 445.0394 64 l S
+n 0 48 m 445.0394 48 l S
+n 0 32 m 445.0394 32 l S
+n 0 16 m 445.0394 16 l S
+n 93.54331 0 m 93.54331 105.4 l S
+n 212.5984 0 m 212.5984 105.4 l S
+n 331.6535 0 m 331.6535 105.4 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 576.0661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Required evidence) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 549.8661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.85 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Capture at least 30 minutes before and after under equivalent load; report median, p95, p99, maximum offset, jitter, dropout, role) Tj T* 8 0 Td (changes, and discontinuities.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 536.4661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Test cold boot, NTP loss/return, chronyd failure, client disconnect, sensor reset, and supervised re-step.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 517.4661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Blocking failures) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 502.3661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Incomplete inventory or unsigned sensor limits.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 488.9661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- UTC passes but internal synchronization fails: motion prohibited.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 475.5661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Internal synchronization passes but UTC fails: explicit holdover/unqualified state.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 58.02362 449.5661 cm
+q
+.933333 .956863 .964706 rg
+n 0 23.7 479.2283 -23.7 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 3 Tm /F1 8.7 Tf 11.7 TL (Acceptance requires both upstream accuracy and downstream board/sensor coherence.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.760784 .286275 .078431 RG
+.9 w
+n 0 23.7 m 479.2283 23.7 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 23.7 l S
+n 479.2283 0 m 479.2283 23.7 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+20 0 obj
+<<
+/Contents 21 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 22 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+21 0 obj
+<<
+/Length 5779
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.1 Tf 8.52 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 521.7521 20.40945 Tm (Page 6) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4.5 Tm /F2 19.5 Tf 24 TL (5. NTP Source Governance and Regional Profiles) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 724.2661 cm
+q
+.933333 .956863 .964706 rg
+n 0 34.6 479.2283 -34.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 14.2 Tm /F1 8.4 Tf 11.3 TL (China is the default. The operator may switch among the approved china, us, and europe profiles only while robot) Tj T* (applications are stopped. Exactly one region is loaded; profiles are never mixed.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+0 .529412 .603922 RG
+.9 w
+n 0 34.6 m 479.2283 34.6 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 34.6 l S
+n 479.2283 0 m 479.2283 34.6 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 705.2661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Approved official endpoints) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 586.5161 cm
+q
+.090196 .196078 .301961 rg
+n 0 114.75 445.0394 -16.5 re f*
+.956863 .968627 .972549 rg
+n 0 65.5 445.0394 -32.75 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 102.25 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 6.8 Tf 8.5 TL (Region) Tj T* ET
+Q
+Q
+q
+1 0 0 1 107.0472 102.25 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 6.8 Tf 8.5 TL (Three endpoints) Tj T* ET
+Q
+Q
+q
+1 0 0 1 294.1339 102.25 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 6.8 Tf 8.5 TL (Official authority/source) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 86 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (China) Tj /F3 6.55 Tf 8.25 TL (nnnn) Tj /F1 6.55 Tf 8.25 TL T* ET
+Q
+Q
+q
+1 0 0 1 107.0472 69.5 cm
+q
+BT 1 0 0 1 0 18.2 Tm 8.25 TL /F1 6.55 Tf .121569 .176471 .239216 rg (ntp1.aliyun.com) Tj  T* (ntp2.aliyun.com) Tj  T* (ntp3.aliyun.com) Tj T* ET
+Q
+Q
+q
+1 0 0 1 294.1339 86 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Alibaba Cloud public NTP; IPv4 only) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (US) Tj T* ET
+Q
+Q
+q
+1 0 0 1 107.0472 36.75 cm
+q
+BT 1 0 0 1 0 18.2 Tm 8.25 TL /F1 6.55 Tf .121569 .176471 .239216 rg (time-a-g.nist.gov) Tj  T* (time-b-g.nist.gov) Tj  T* (time-c-g.nist.gov) Tj T* ET
+Q
+Q
+q
+1 0 0 1 294.1339 53.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (NIST Internet Time Service) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Europe) Tj T* ET
+Q
+Q
+q
+1 0 0 1 107.0472 4 cm
+q
+BT 1 0 0 1 0 18.2 Tm 8.25 TL /F1 6.55 Tf .121569 .176471 .239216 rg (ptbtime1.ptb.de) Tj  T* (ptbtime2.ptb.de) Tj  T* (ptbtime3.ptb.de) Tj T* ET
+Q
+Q
+q
+1 0 0 1 294.1339 20.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (PTB legal-time service) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 114.75 m 445.0394 114.75 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 114.75 l S
+n 445.0394 0 m 445.0394 114.75 l S
+n 0 98.25 m 445.0394 98.25 l S
+n 0 65.5 m 445.0394 65.5 l S
+n 0 32.75 m 445.0394 32.75 l S
+n 102.0472 0 m 102.0472 114.75 l S
+n 289.1339 0 m 289.1339 114.75 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 567.5161 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Region selection and operating rules) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 500.0661 cm
+q
+.94902 .960784 .964706 rg
+n 0 63.45 479.2283 -63.45 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 45.15 Tm /F4 6.3 Tf 7.35 TL (sudo systemctl stop agibot_pm agibot_top agibot_ui) Tj T* (sudo /usr/local/sbin/agibot-time-region china   # default) Tj T* (sudo /usr/local/sbin/agibot-time-region us) Tj T* (sudo /usr/local/sbin/agibot-time-region europe) Tj T* (sudo /usr/local/sbin/agibot-time-region --show) Tj T* (chronyc tracking) Tj T* (chronyc sources -v) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 63.45 m 479.2283 63.45 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 63.45 l S
+n 479.2283 0 m 479.2283 63.45 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 478.4661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.5 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- The selector atomically changes /etc/agibot-time/current and reloads sources with chronyc; UTC and internal synchronization must) Tj T* 8 0 Td (requalify after a switch.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 465.3661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.7 Tm /F1 8.1 Tf 10.8 TL -8 0 Td -0.090845 Tw (- Public NTP is unauthenticated. 'Approved' does not remove the network trust boundary, and the profiles do not use chrony's trust option.) Tj T* 0 Tw 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 441.4661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.5 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- Continuous and bootstrap configs omit leapsectz; leap behavior follows the single active profile. Revalidate provider policy before a) Tj T* 8 0 Td (scheduled leap event.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 422.4661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Official source references) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 392.3661 cm
+q
+BT 1 0 0 1 0 19.2 Tm 8.7 TL /F1 6.9 Tf .121569 .176471 .239216 rg (Alibaba: https://help.aliyun.com/en/ecs/user-guide/alibaba-cloud-ntp-server/) Tj  T* (NIST: https://tf.nist.gov/tf-cgi/servers.cgi/en-en/) Tj  T* (PTB: https://www.ptb.de/cms/fileadmin/internet/fachabteilungen/abteilung_8/8.5_metrologische_informationstechnik/8.51/PTB-8.51-MB09-ZS-EN-V09.pdf) Tj T* ET
+Q
+Q
+ 
+
+endstream
+endobj
+22 0 obj
+<<
+/F1 23 0 R
+/F2 24 0 R
+/F3 25 0 R
+/F4 26 0 R
+>>
+endobj
+23 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+24 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+25 0 obj
+<<
+/BaseFont /ZapfDingbats
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+26 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F4
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+27 0 obj
+<<
+/Contents 28 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 29 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+28 0 obj
+<<
+/Length 5404
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.1 Tf 8.52 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 521.7521 20.40945 Tm (Page 7) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4.5 Tm /F2 19.5 Tf 24 TL (6. Continuous Chrony Configuration) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (/etc/chrony/chrony.conf - single-region profile) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 609.2661 cm
+q
+.94902 .960784 .964706 rg
+n 0 129.6 479.2283 -129.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 111.3 Tm /F3 6.3 Tf 7.35 TL (sourcedir /etc/chrony/sources.d) Tj T* (keyfile /etc/chrony/chrony.keys) Tj T* (driftfile /var/lib/chrony/chrony.drift) Tj T* (ntsdumpdir /var/lib/chrony) Tj T* (logdir /var/log/chrony) Tj T* (rtcsync) Tj T*  T* (minsources 2) Tj T* (maxupdateskew 100.0) Tj T* (maxslewrate 100) Tj T* (corrtimeratio 3) Tj T* (logchange 0.1) Tj T* (log tracking statistics) Tj T*  T* (# Leap handling follows the single selected regional source profile.) Tj T* (# Absent by design: makestep, allow, local, and /run/chrony-dhcp.) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 129.6 m 479.2283 129.6 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 129.6 l S
+n 479.2283 0 m 479.2283 129.6 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 590.2661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Controls) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 472.2661 cm
+q
+.090196 .196078 .301961 rg
+n 0 114 445.0394 -16.5 re f*
+.956863 .968627 .972549 rg
+n 0 81.25 445.0394 -16.25 re f*
+.956863 .968627 .972549 rg
+n 0 48.75 445.0394 -16.25 re f*
+.956863 .968627 .972549 rg
+n 0 16.25 445.0394 -16.25 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 101.5 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 6.8 Tf 8.5 TL (Directive) Tj T* ET
+Q
+Q
+q
+1 0 0 1 141.063 101.5 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 6.8 Tf 8.5 TL (Purpose for A3) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 85.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (sourcedir /etc/chrony/sources.d) Tj T* ET
+Q
+Q
+q
+1 0 0 1 141.063 85.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Loads only the stable hope-approved.sources link and supports chronyc reload sources.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 69 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (minsources 2) Tj T* ET
+Q
+Q
+q
+1 0 0 1 141.063 69 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (One reachable source cannot control the clock alone.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 52.75 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (maxslewrate 100) Tj T* ET
+Q
+Q
+q
+1 0 0 1 141.063 52.75 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Caps runtime added rate so phc2sys/PTP cannot distribute a large rate error.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 36.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (corrtimeratio 3) Tj T* ET
+Q
+Q
+q
+1 0 0 1 141.063 36.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Makes correction-time behavior explicit.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL /F4 6.55 Tf 8.25 TL (n) Tj /F1 6.55 Tf 8.25 TL ( makestep) Tj T* ET
+Q
+Q
+q
+1 0 0 1 141.063 20.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Protects live board, sensor, recorder, and control timelines.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL /F4 6.55 Tf 8.25 TL (n) Tj /F1 6.55 Tf 8.25 TL ( leapsectz) Tj T* ET
+Q
+Q
+q
+1 0 0 1 141.063 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Avoids an extra assumption about regional-provider leap handling.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 114 m 445.0394 114 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 114 l S
+n 445.0394 0 m 445.0394 114 l S
+n 0 97.5 m 445.0394 97.5 l S
+n 0 81.25 m 445.0394 81.25 l S
+n 0 65 m 445.0394 65 l S
+n 0 48.75 m 445.0394 48.75 l S
+n 0 32.5 m 445.0394 32.5 l S
+n 0 16.25 m 445.0394 16.25 l S
+n 136.063 0 m 136.063 114 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 453.2661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Service supervision) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 378.4661 cm
+q
+.94902 .960784 .964706 rg
+n 0 70.8 479.2283 -70.8 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 52.5 Tm /F3 6.3 Tf 7.35 TL ([Unit]) Tj T* (After=agibot-clock-bootstrap.service) Tj T* (StartLimitIntervalSec=60) Tj T* (StartLimitBurst=3) Tj T*  T* ([Service]) Tj T* (Restart=on-failure) Tj T* (RestartSec=5) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 70.8 m 479.2283 70.8 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 70.8 l S
+n 479.2283 0 m 479.2283 70.8 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 367.6661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.7 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- Any additional *.sources file beside hope-approved.sources makes preflight fail.) Tj T* 8 0 Td ET
+Q
+Q
+ 
+
+endstream
+endobj
+29 0 obj
+<<
+/F1 30 0 R
+/F2 31 0 R
+/F3 32 0 R
+/F4 33 0 R
+>>
+endobj
+30 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+31 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+32 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+33 0 obj
+<<
+/BaseFont /ZapfDingbats
+/Name /F4
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+34 0 obj
+<<
+/Contents 35 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 36 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+35 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 2320
+>>
+stream
+Gau0DD0+Gi')q<+Z/<jY#pBq/De<lVFdu+mI#[Eif7*>,,Ufo@!JUaE\8smK]-&P"NpXtj`u[mnqn>2)qZ%\Iq!6VZX9SH.%?%\:GT>9<GQA1[I0&NsPKtW#O*MS<^]Ha]Bn5)Tiqb+2S!.hhbWK'oY`OpHE53D'#X.<j5N7d70hZ!2[t`@U+'.R/JE<Z@ecqF(X=@Wch:Ae_CC)*O<46YO.Xr83e-b'a9ri2C/X<#tlL1tV%G'Fa8Lt44KVMLd&@uQW/:kuoStPkf-Ye)gBA<r*W$)QN`ktq\"Wuo+rIDFb(l,Gs].TQKOD<Q^JXZk;eSX!/X_pdaU>JMOnQ6(s_\kRWgr+17Cn,3N>$Y,`LK]qb80q4^!HlUshR@O&hY]4uYo#\8:Kr[8KOhON-Zn$C!le*UOsonJe`9RdFhKU5L*(;l2Y3p4N?7b9a9\.rA+>k;QdYm;E/TY'R),V8.Y1JJe*tq!n4SUQpL`bFeHXm*Auu]2Fm"=/#;RWiN#\t5QSJ0t#?Vm68OVH5&A&OrW,Ncg,_@.6)<ZheNbu3;MXO;F]C-f2Sneq_GBf\hNZf=$3m\b<cUhis@m2K</J<qq!Zj9>3k]7'b0)HB6pZLK_<O[Z)],+RMtI7Bl`*=!/9GA;@irS!]j#T&SWWT^?i\OVenrGjFon1#L<)[!JD!PV?USL&l'kT-MX*mo^XaVD,n/AZ*K3`4OaSF@'ID$S433)lfZHVT)KH9Zdk8.OBA+DN/.E;qY$q"c/K"<&YQnG-0Dt\V:!G(2TP[hb)1ciJHDq@ed7*`b8[^bb)]<u\iZ<3Ro9lpF%rM!gI5($gmtNVPI4aZ2W;D5!/^ufC&;!SdU&JEPQ:6Y(MUnYTf!e8[O/$t5+A+@\pLs91(IjcZ]bk2E!TPS^(Yo`,TupM#a?`S1=k.RbS-s9KS?pN"e:D,66[l1+O*MF.*t`RR37tUL7sJ@t_6CaU;u`tP[T?Nt)jft45+_P&P&\_DDknW[(^@BgaBRI[W'iSq"l4CQ*<q&<H6YM=X6hl@.uUF_C^kJ)`*DQS*\A)#X>%su+;"CQmi'Srcl(6"^4?`*DRFbE'ek@;07pU<X\]s9W2uK2`j)nB,2Zt#qTM6is#CG(0OiEaH(T[ANR9CF&2Fq]!6:!OjUX@oQ@tHXa7qeoJoMqTOrQ+8a"?Aj1\M2no9i`DKENNJd*Eq]I:[;765t5cY]`@@%*a2LCLe/?kS>phq>=*JEZVR69B3d+g8^F/Crc-8Sj.3u#S@6Y1SP5iLP^3`WbA?]$+&bTrDA3,RQEpIDAINN;7Uq2Q6u9Ao]3m1bZ)q\j'[SX!3&"nle#=rpU,ZF$3j/"2eD\ZBt.e/Pl+[!Gl-98:Q<JFF>UAY%+LALCePLAMe8Gu9GfHT=:9gOcW7q2$lr.nGp*LO%)oSDdo"2PC+L5Q^7rbUPafB-Uo$b3K^iAH\=NGs[4p7K3OdR$]D-@=n#OY'ji.)pJ'Pn+#=u27g?(PW(4F>QS>aO;8bhoRbj![@?;s;.eVtQnKs`IuWZ8<Q/dp'.:H3K0^6]OORHGD@)jEfk=CO+4n.ir9KlJ>YVpg'`@0[[W.lRf(h<HK1pnHOfZVOA#&^(0(.7#UNr,R73p%&MYV3Rm(KZUAMMD?^H!nBo*QO4tu(]_9L%_@msq[ugh6Ha&%n6<eF]n3A"o34MG\C0%XBWAf$pT8pN>lM<J`N<W?G:=pRNOUUAdZj;g*<pQ\aMlL:7s\pN?+mF*[XCD:ViglKF>e1ukHV-%%o"_s[-_SS<mKBkD,5e83tUUid'fi<>:X?=[QP%>c3Ng#:qO_BW(/jhkf5Kbn5jkY)rrFDc<f+<B`qHQ@3]9+n\?-9g!Dp7_Vj;=o/W]2:RB['8Z(N'2^!PNlW[hg59Nl-jF;53H&K.8a;T"%"mDQ-k/7tYio@YI_nub_AYIi\?M5:95>J2X+aZ(Vk3Ztbd+9KM:jn=)Meon"]E7)kc)\r-0$,r4@61sMq%FKQB<<:NODB7`7fK0YCkbV$"fL+mp\9NQU/lJjAkO5'8kLmM6"O\=Z=t6<lCp5K7WY6kWDseh8O9OD.F]GWnFDO>W,IKJ*7)8"A7N_?]ROUK_X9]?eHQ[73_aI!\l3*f]mmA$n?,0Ve_2l"WMk]J^S_g7DD6&2A[nn`'%]^NJq'rpoLol?2*C`'K_ruc4d4O\s8,K1m&L`U(P2,4@X:[-?#9ac,B#T]7q[s)K*@nFh@7k%iDCeOK9<+pYN\V&f5dg#@X)5V*@">.j'f&=aI]=40hI:GJC=rQ"@b!#4*[d0G+$#sf_/0<'sj;=5?7%s$u$MQrW!T8BV5~>
+endstream
+endobj
+36 0 obj
+<<
+/F1 37 0 R
+/F2 38 0 R
+>>
+endobj
+37 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+38 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+39 0 obj
+<<
+/Contents 40 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 41 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+40 0 obj
+<<
+/Length 5294
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.1 Tf 8.52 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 521.7521 20.40945 Tm (Page 9) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4.5 Tm /F2 19.5 Tf 24 TL (8. Boot Bootstrap and Qualification Markers) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Bootstrap configuration) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 668.0661 cm
+q
+.94902 .960784 .964706 rg
+n 0 70.8 479.2283 -70.8 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 52.5 Tm /F3 6.3 Tf 7.35 TL (sourcedir /etc/chrony/sources.d) Tj T* (driftfile /var/lib/chrony/chrony.drift) Tj T* (makestep 0.001 1) Tj T* (maxsamples 1) Tj T* (minsources 2) Tj T* (maxupdateskew 100.0) Tj T* (logdir /var/log/chrony) Tj T* (logchange 0.1) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 70.8 m 479.2283 70.8 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 70.8 l S
+n 479.2283 0 m 479.2283 70.8 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 649.0661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Regional and file qualification) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 634.2661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.7 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- The A.1 script accepts only a stable link resolving into china/us/europe and requires exactly one *.sources file in sources.d.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 621.1661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.7 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- The active profile is root-owned, not group/world writable, and contains exactly three non-placeholder server entries.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 602.1661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Bounded execution and markers) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 527.3661 cm
+q
+.94902 .960784 .964706 rg
+n 0 70.8 479.2283 -70.8 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 52.5 Tm /F3 6.3 Tf 7.35 TL (# /etc/default/agibot-clock-bootstrap) Tj T* (BOOTSTRAP_TIMEOUT_S=30       # measured venue value; 5..150) Tj T*  T* (install -d -o root -g root -m 0755 /run/agibot-time) Tj T* (chronyd -p -f /etc/chrony/chrony-bootstrap.conf) Tj T* (timeout --signal=TERM "$\(\(BOOTSTRAP_TIMEOUT_S + 5\)\)s" \\) Tj T* (  chronyd -q -t "$BOOTSTRAP_TIMEOUT_S" \\) Tj T* (  -f /etc/chrony/chrony-bootstrap.conf) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 70.8 m 479.2283 70.8 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 70.8 l S
+n 479.2283 0 m 479.2283 70.8 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 445.8661 cm
+q
+.090196 .196078 .301961 rg
+n 0 81.5 445.0394 -16.5 re f*
+.956863 .968627 .972549 rg
+n 0 48.75 445.0394 -16.25 re f*
+.956863 .968627 .972549 rg
+n 0 16.25 445.0394 -16.25 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 69 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 6.8 Tf 8.5 TL (Marker) Tj T* ET
+Q
+Q
+q
+1 0 0 1 163.7402 69 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 6.8 Tf 8.5 TL (Condition and meaning) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 52.75 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (bootstrap-qualified) Tj T* ET
+Q
+Q
+q
+1 0 0 1 163.7402 52.75 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Created after chronyd -q succeeds and before hwclock; RTC failure does not remove it.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 36.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (rtc-updated) Tj T* ET
+Q
+Q
+q
+1 0 0 1 163.7402 36.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Created only after hwclock --systohc --utc succeeds.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (runtime qualification) Tj T* ET
+Q
+Q
+q
+1 0 0 1 163.7402 20.25 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Continuous chrony gates currently pass.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (internal-sync qualification) Tj T* ET
+Q
+Q
+q
+1 0 0 1 163.7402 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.7 Tm /F1 6.55 Tf 8.25 TL (Board and sensor gates currently pass.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 81.5 m 445.0394 81.5 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 81.5 l S
+n 445.0394 0 m 445.0394 81.5 l S
+n 0 65 m 445.0394 65 l S
+n 0 48.75 m 445.0394 48.75 l S
+n 0 32.5 m 445.0394 32.5 l S
+n 0 16.25 m 445.0394 16.25 l S
+n 158.7402 0 m 158.7402 81.5 l S
+Q
+Q
+Q
+q
+1 0 0 1 58.02362 422.5661 cm
+q
+.933333 .956863 .964706 rg
+n 0 23.3 479.2283 -23.3 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 2.9 Tm /F1 8.4 Tf 11.3 TL (The complete A.1 script is on page 16 and in the package; do not assemble it from this page.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.760784 .286275 .078431 RG
+.9 w
+n 0 23.3 m 479.2283 23.3 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 23.3 l S
+n 479.2283 0 m 479.2283 23.3 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+41 0 obj
+<<
+/F1 42 0 R
+/F2 43 0 R
+/F3 44 0 R
+>>
+endobj
+42 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+43 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+44 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+45 0 obj
+<<
+/Contents 46 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 47 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+46 0 obj
+<<
+/Length 4341
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.1 Tf 8.52 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 517.8045 20.40945 Tm (Page 10) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4.5 Tm /F2 19.5 Tf 24 TL (9. Systemd Ordering and Supervised Re-step) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Boot ordering) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 616.6161 cm
+q
+.94902 .960784 .964706 rg
+n 0 122.25 479.2283 -122.25 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 103.95 Tm /F3 6.3 Tf 7.35 TL ([Unit]) Tj T* (Description=Qualify A3 system time before the distributed robot time domain) Tj T* (Wants=network-online.target) Tj T* (After=network-online.target) Tj T* (Before=chrony.service agibot_roudi.service agibot_pm.service) Tj T* (Before=agibot_top.service agibot_ui.service) Tj T*  T* ([Service]) Tj T* (Type=oneshot) Tj T* (ExecStart=/usr/local/sbin/agibot-clock-bootstrap) Tj T* (TimeoutStartSec=180s) Tj T* (RemainAfterExit=yes) Tj T*  T* ([Install]) Tj T* (WantedBy=multi-user.target) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 122.25 m 479.2283 122.25 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 122.25 l S
+n 479.2283 0 m 479.2283 122.25 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 597.6161 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Synchronous agibot_pm gate) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 544.8661 cm
+q
+.94902 .960784 .964706 rg
+n 0 48.75 479.2283 -48.75 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 30.45 Tm /F3 6.3 Tf 7.35 TL ([Unit]) Tj T* (After=chrony.service) Tj T*  T* ([Service]) Tj T* (ExecStartPre=/opt/agibot/entry/system/timesync.sh --preflight) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 48.75 m 479.2283 48.75 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 48.75 l S
+n 479.2283 0 m 479.2283 48.75 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 534.0661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.7 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- After=chrony.service orders only; it adds no Wants= or Requires= dependency.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 510.1661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.5 Tm /F1 8.1 Tf 10.8 TL -8 0 Td -0.050891 Tw (- ExecStartPre synchronously runs --preflight from the complete timesync.sh, compensating for run_agibot.sh launching its normal path in) Tj T* 0 Tw 8 0 Td (the background.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 486.2661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.5 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- By default preflight requires active chrony, a valid profile, Leap status Normal, and a ^* selected source.) Tj T* 8 0 Td (AGIBOT_ALLOW_UNQUALIFIED_TIME=1 requires a signed holdover procedure.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 467.2661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3.2 Tm /F2 12.8 Tf 16 TL (Region switch and re-step) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 452.4661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.7 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- The selector refuses a switch while agibot_pm is active; afterward it reloads/refreshes sources and all qualification gates rerun.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 428.5661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.5 Tm /F1 8.1 Tf 10.8 TL -8 0 Td (- Large-offset re-step still stops applications, chrony, and downstream distribution, requires two-person approval, and requalifies every) Tj T* 8 0 Td (layer before motion.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 391.6661 cm
+q
+.933333 .956863 .964706 rg
+n 0 34.6 479.2283 -34.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 14.2 Tm /F1 8.4 Tf 11.3 TL (A background timesync.sh failure is not a safety gate; only the synchronous systemd ExecStartPre exit status blocks) Tj T* (agibot_pm.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.760784 .286275 .078431 RG
+.9 w
+n 0 34.6 m 479.2283 34.6 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 34.6 l S
+n 479.2283 0 m 479.2283 34.6 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+47 0 obj
+<<
+/F1 48 0 R
+/F2 49 0 R
+/F3 50 0 R
+>>
+endobj
+48 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+49 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+50 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+51 0 obj
+<<
+/Contents 52 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+52 0 obj
+<<
+/Length 7158
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 517.432 20.40945 Tm (Page 11) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (10. End-to-End Acceptance Criteria) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Layered acceptance) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 593.3661 cm
+q
+.090196 .196078 .301961 rg
+n 0 145.5 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 112.7 445.0394 -16.1 re f*
+.956863 .968627 .972549 rg
+n 0 80.5 445.0394 -16.1 re f*
+.956863 .968627 .972549 rg
+n 0 48.3 445.0394 -16.1 re f*
+.956863 .968627 .972549 rg
+n 0 16.1 445.0394 -16.1 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 132.8 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Layer) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 132.8 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Pass criteria) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 116.7 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (chrony) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 116.7 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Approved sources; maxslewrate 100; corrtimeratio 3; no runtime step or DHCP source.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 100.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (HDU clock) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 100.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Selected source, Leap Normal, correction/delay/dispersion/skew within limits.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 84.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Clock rate) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 84.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (No step; CLOCK_REALTIME versus MONOTONIC_RAW within cap plus measured tolerance.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 68.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (PHC) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 68.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (phc2sys direction unchanged; distribution no worse than baseline.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 52.3 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Boards) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 52.3 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (One master; expected clients locked; no role/domain/mechanism regression.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 36.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Sensors) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 36.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Monotonic timestamps in intended domain; offset/jitter/age/dropout pass.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.1 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Applications) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 20.1 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (No backward/duplicate stamps, timeout storms, corruption, or instability.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Mocap independence) Tj T* ET
+Q
+Q
+q
+1 0 0 1 124.0551 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.3 Tf 8.1 TL (Motive disconnect/restart has zero effect on A3 clock and sync processes.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 145.5 m 445.0394 145.5 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 145.5 l S
+n 445.0394 0 m 445.0394 145.5 l S
+n 0 128.8 m 445.0394 128.8 l S
+n 0 112.7 m 445.0394 112.7 l S
+n 0 96.6 m 445.0394 96.6 l S
+n 0 80.5 m 445.0394 80.5 l S
+n 0 64.4 m 445.0394 64.4 l S
+n 0 48.3 m 445.0394 48.3 l S
+n 0 32.2 m 445.0394 32.2 l S
+n 0 16.1 m 445.0394 16.1 l S
+n 119.0551 0 m 119.0551 145.5 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 574.3661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Required comparison) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 548.1661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.85 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- At least 30 minutes pre/post under equivalent load; report median, p95, p99, maximum offset, jitter, dropouts, role changes, and) Tj T* 8 0 Td (discontinuities.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 529.1661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Provisional gates to replace with owner limits) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 425.4661 cm
+q
+.090196 .196078 .301961 rg
+n 0 99.7 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 66.4 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 33.2 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 87 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Metric) Tj T* ET
+Q
+Q
+q
+1 0 0 1 152.4016 87 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Provisional rule) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (remaining correction) Tj T* ET
+Q
+Q
+q
+1 0 0 1 152.4016 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (10 ms example only.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (chrony skew) Tj T* ET
+Q
+Q
+q
+1 0 0 1 152.4016 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (5 ppm example only; characterize on venue Wi-Fi.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (phc2sys offset) Tj T* ET
+Q
+Q
+q
+1 0 0 1 152.4016 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Post-change p99/max do not regress.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (board offset) Tj T* ET
+Q
+Q
+q
+1 0 0 1 152.4016 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Use vendor/A3 limit per client.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (sensor alignment) Tj T* ET
+Q
+Q
+q
+1 0 0 1 152.4016 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Use fusion/control limit per family.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 99.7 m 445.0394 99.7 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 99.7 l S
+n 445.0394 0 m 445.0394 99.7 l S
+n 0 83 m 445.0394 83 l S
+n 0 66.4 m 445.0394 66.4 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 147.4016 0 m 147.4016 99.7 l S
+Q
+Q
+Q
+q
+1 0 0 1 58.02362 401.7661 cm
+q
+.933333 .956863 .964706 rg
+n 0 23.7 479.2283 -23.7 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 3 Tm /F1 8.7 Tf 11.7 TL (No single synchronized flag is sufficient; prove upstream accuracy and downstream coherence separately.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+0 .529412 .603922 RG
+.9 w
+n 0 23.7 m 479.2283 23.7 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 23.7 l S
+n 479.2283 0 m 479.2283 23.7 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+53 0 obj
+<<
+/Contents 54 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+54 0 obj
+<<
+/Length 7803
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 517.432 20.40945 Tm (Page 12) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (11. Recovery Timing and Fault Injection) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (100 ppm recovery math) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 727.7661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 2.75 Tm /F1 8.35 Tf 11.1 TL (A 100 ppm slew corrects at most 0.0001 seconds per elapsed second. It protects the distributed rate but makes large correction slow.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 641.6661 cm
+q
+.090196 .196078 .301961 rg
+n 0 83.1 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 49.8 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 16.6 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 70.4 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Offset) Tj T* ET
+Q
+Q
+q
+1 0 0 1 101.378 70.4 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Best-case time) Tj T* ET
+Q
+Q
+q
+1 0 0 1 254.4488 70.4 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Action) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (10 ms) Tj T* ET
+Q
+Q
+q
+1 0 0 1 101.378 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (100 s) Tj T* ET
+Q
+Q
+q
+1 0 0 1 254.4488 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Remain gated.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (0.3 s) Tj T* ET
+Q
+Q
+q
+1 0 0 1 101.378 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (50 min) Tj T* ET
+Q
+Q
+q
+1 0 0 1 254.4488 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Operational re-step decision.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (2 s) Tj T* ET
+Q
+Q
+q
+1 0 0 1 101.378 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (5 h 33 min) Tj T* ET
+Q
+Q
+q
+1 0 0 1 254.4488 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Normally supervised re-step.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (30 s) Tj T* ET
+Q
+Q
+q
+1 0 0 1 101.378 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (83 h 20 min \(3.47 d\)) Tj T* ET
+Q
+Q
+q
+1 0 0 1 254.4488 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Supervised re-step required.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 83.1 m 445.0394 83.1 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 83.1 l S
+n 445.0394 0 m 445.0394 83.1 l S
+n 0 66.4 m 445.0394 66.4 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 96.37795 0 m 96.37795 83.1 l S
+n 249.4488 0 m 249.4488 83.1 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 622.6661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Fault matrix) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 442.9661 cm
+q
+.090196 .196078 .301961 rg
+n 0 175.7 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 143.1 445.0394 -15.9 re f*
+.956863 .968627 .972549 rg
+n 0 111.3 445.0394 -15.9 re f*
+.956863 .968627 .972549 rg
+n 0 79.5 445.0394 -15.9 re f*
+.956863 .968627 .972549 rg
+n 0 47.7 445.0394 -15.9 re f*
+.956863 .968627 .972549 rg
+n 0 15.9 445.0394 -15.9 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 163 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Scenario) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 163 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Required result) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 147.1 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (NTP unavailable at boot) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 147.1 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Bounded delay; holdover only; UTC unqualified.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 131.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Silent UDP/123 drop) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 131.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Exit at measured timeout.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 115.3 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (NTP returns with large offset) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 115.3 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (No runtime step; 100 ppm cap; recovery estimate shown.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 99.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (chronyd crashes) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 99.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Restart within 5 s; repeated failures alarm.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 83.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (RTC write fails) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 83.5 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Runtime marker remains; RTC marker absent.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 67.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (DHCP offers NTP) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 67.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (No source added.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 51.7 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Motive restarts) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 51.7 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (No A3 clock or sync change.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 35.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (PTP client disconnects) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 35.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Affected board alarm; no unintended GM takeover.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 19.9 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Sensor timestamp resets) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 19.9 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Discontinuity detected; approved inhibit/degrade action.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (Supervised re-step) Tj T* ET
+Q
+Q
+q
+1 0 0 1 138.2283 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.1 Tf 7.9 TL (All layers stop and requalify before motion.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 175.7 m 445.0394 175.7 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 175.7 l S
+n 445.0394 0 m 445.0394 175.7 l S
+n 0 159 m 445.0394 159 l S
+n 0 143.1 m 445.0394 143.1 l S
+n 0 127.2 m 445.0394 127.2 l S
+n 0 111.3 m 445.0394 111.3 l S
+n 0 95.4 m 445.0394 95.4 l S
+n 0 79.5 m 445.0394 79.5 l S
+n 0 63.6 m 445.0394 63.6 l S
+n 0 47.7 m 445.0394 47.7 l S
+n 0 31.8 m 445.0394 31.8 l S
+n 0 15.9 m 445.0394 15.9 l S
+n 133.2283 0 m 133.2283 175.7 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 423.9661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Offline boot timing) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 408.8661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Measure five online boots, five immediate DNS failures, and five silent firewall drops before accepting the timeout.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 395.4661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- The supported venue parameter is 5..150 seconds with a 180-second unit ceiling.) Tj T* 8 0 Td ET
+Q
+Q
+ 
+
+endstream
+endobj
+55 0 obj
+<<
+/Contents 56 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+56 0 obj
+<<
+/Length 8319
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 517.432 20.40945 Tm (Page 13) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (12. Monitoring, Rollout, and Rollback) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 742.8661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Continuous monitoring) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 624.9661 cm
+q
+.090196 .196078 .301961 rg
+n 0 113.9 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 81 445.0394 -16.2 re f*
+.956863 .968627 .972549 rg
+n 0 48.6 445.0394 -16.2 re f*
+.956863 .968627 .972549 rg
+n 0 16.2 445.0394 -16.2 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 101.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Domain) Tj T* ET
+Q
+Q
+q
+1 0 0 1 118.3858 101.2 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Monitor) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 85 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (NTP/HDU) Tj T* ET
+Q
+Q
+q
+1 0 0 1 118.3858 85 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (tracking, sources, sourcestats, restart count, identity, correction, skew, dispersion) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 68.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (PHC) Tj T* ET
+Q
+Q
+q
+1 0 0 1 118.3858 68.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (phc2sys offset/frequency/delay distribution and arguments) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 52.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (PTP boards) Tj T* ET
+Q
+Q
+q
+1 0 0 1 118.3858 52.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (roles, changes, offset, mechanism, domain, reachability, duplicate owners) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 36.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (Sensors) Tj T* ET
+Q
+Q
+q
+1 0 0 1 118.3858 36.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (native state, counters, monotonicity, offset/jitter/age, drops, resets) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (Applications) Tj T* ET
+Q
+Q
+q
+1 0 0 1 118.3858 20.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (backward stamps, timeout bursts, ordering, control anomalies) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (Independence) Tj T* ET
+Q
+Q
+q
+1 0 0 1 118.3858 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.4 Tf 8.2 TL (Motive changes produce zero platform-clock events) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 113.9 m 445.0394 113.9 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 113.9 l S
+n 445.0394 0 m 445.0394 113.9 l S
+n 0 97.2 m 445.0394 97.2 l S
+n 0 81 m 445.0394 81 l S
+n 0 64.8 m 445.0394 64.8 l S
+n 0 48.6 m 445.0394 48.6 l S
+n 0 32.4 m 445.0394 32.4 l S
+n 0 16.2 m 445.0394 16.2 l S
+n 113.3858 0 m 113.3858 113.9 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 605.9661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Rollout) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 485.6661 cm
+q
+.090196 .196078 .301961 rg
+n 0 116.3 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 83 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 49.8 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 16.6 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Phase) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Change) Tj T* ET
+Q
+Q
+q
+1 0 0 1 260.1181 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Exit gate) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (0) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Inventory and baseline) Tj T* ET
+Q
+Q
+q
+1 0 0 1 260.1181 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (All mechanisms and limits recorded.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (1A) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Install disabled files) Tj T* ET
+Q
+Q
+q
+1 0 0 1 260.1181 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (No active owner change.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (1B) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Bench migration) Tj T* ET
+Q
+Q
+q
+1 0 0 1 260.1181 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Layered tests and fault matrix pass.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (1C) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Venue Wi-Fi rehearsal) Tj T* ET
+Q
+Q
+q
+1 0 0 1 260.1181 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (NTP policy, timeout, holdover approved.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (1D) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Production rollout in physical safe state) Tj T* ET
+Q
+Q
+q
+1 0 0 1 260.1181 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Cold boots, soak, sign-off complete.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (2) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.02362 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Optional PTP service refactor) Tj T* ET
+Q
+Q
+q
+1 0 0 1 260.1181 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Separate board/sensor compatibility change.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 116.3 m 445.0394 116.3 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 116.3 l S
+n 445.0394 0 m 445.0394 116.3 l S
+n 0 99.6 m 445.0394 99.6 l S
+n 0 83 m 445.0394 83 l S
+n 0 66.4 m 445.0394 66.4 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 51.02362 0 m 51.02362 116.3 l S
+n 255.1181 0 m 255.1181 116.3 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 466.6661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Rollback trigger and procedure) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 440.4661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 13.85 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Any board/sensor regression, rate violation, discontinuity, duplicate owner, role/direction change, instability, or source-governance) Tj T* 8 0 Td (failure.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 381.4661 cm
+q
+.94902 .960784 .964706 rg
+n 0 56.7 479.2283 -56.7 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+%PreformattedPara
+.372549 .435294 .498039 rg
+BT 1 0 0 1 0 38.25 Tm /F3 6.45 Tf 7.45 TL (sudo systemctl stop agibot_pm agibot_roudi agibot_top agibot_ui) Tj T* (sudo systemctl stop chrony agibot-clock-bootstrap) Tj T* (sudo systemctl disable chrony agibot-clock-bootstrap) Tj T* (# Restore signed vendor script, units, and configuration.) Tj T* (sudo systemctl daemon-reload) Tj T* (sudo systemctl start agibot_roudi agibot_top agibot_ui agibot_pm) Tj T* ET
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.4 w
+n 0 56.7 m 479.2283 56.7 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 56.7 l S
+n 479.2283 0 m 479.2283 56.7 l S
+Q
+Q
+Q
+q
+1 0 0 1 58.02362 357.7661 cm
+q
+.933333 .956863 .964706 rg
+n 0 23.7 479.2283 -23.7 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 3 Tm /F1 8.7 Tf 11.7 TL (Rollback restores prior behavior but not accepted continuous UTC discipline; mark external-time correlation unqualified.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+0 .529412 .603922 RG
+.9 w
+n 0 23.7 m 479.2283 23.7 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 23.7 l S
+n 479.2283 0 m 479.2283 23.7 l S
+Q
+Q
+Q
+ 
+
+endstream
+endobj
+57 0 obj
+<<
+/Contents 58 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 13 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+58 0 obj
+<<
+/Length 6894
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+.372549 .435294 .498039 rg
+BT /F1 7.2 Tf 8.64 TL ET
+BT 1 0 0 1 51.02362 807.874 Tm (HOPE / Agibot A3 Platform Time Synchronization Improvement Plan) Tj T* ET
+.658824 .745098 .8 RG
+.4 w
+n 51.02362 802.2047 m 544.252 802.2047 l S
+n 51.02362 34.01575 m 544.252 34.01575 l S
+BT 1 0 0 1 51.02362 20.40945 Tm (Authoritative v1.5 | 2026-08-04 | Controlled maintenance procedure) Tj T* ET
+BT 1 0 0 1 517.432 20.40945 Tm (Page 14) Tj T* ET
+Q
+q
+1 0 0 1 51.02362 766.8661 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 4 Tm /F2 20 Tf 24 TL (13. Motive and ROS 2 Boundary) Tj T* ET
+Q
+Q
+q
+1 0 0 1 58.02362 723.4661 cm
+q
+.933333 .956863 .964706 rg
+n 0 35.4 479.2283 -35.4 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 7 6 cm
+q
+.090196 .196078 .301961 rg
+BT 1 0 0 1 0 14.7 Tm /F1 8.7 Tf 11.7 TL (Motive is an external observation system. It may affect behavior through data, but cannot affect A3 clock discipline or the) Tj T* (internal board/sensor time domain.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+0 .529412 .603922 RG
+.9 w
+n 0 35.4 m 479.2283 35.4 l S
+n 0 0 m 479.2283 0 l S
+n 0 0 m 0 35.4 l S
+n 479.2283 0 m 479.2283 35.4 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 704.4661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Required separation) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 584.1661 cm
+q
+.090196 .196078 .301961 rg
+n 0 116.3 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 83 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 49.8 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 16.6 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Question) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 103.6 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Answer) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Must Windows be PTP GM?) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 87 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (No. A3 does not follow Motive by PTP.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Must A3 and Windows share NTP?) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (No. It may aid diagnosis but is not an A3 dependency.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Can NatNet discipline A3?) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (No clock_settime, chrony, PTP, PHC, or RTC control from mocap.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (How should ROS stamp data?) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Use a documented consumer domain; preserve native Motive metadata.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Capture-time mapping allowed?) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Yes as isolated application estimate with age/uncertainty.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Does mocap quality gate system time?) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (No. It may gate the ping-pong task only.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 116.3 m 445.0394 116.3 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 116.3 l S
+n 445.0394 0 m 445.0394 116.3 l S
+n 0 99.6 m 445.0394 99.6 l S
+n 0 83 m 445.0394 83 l S
+n 0 66.4 m 445.0394 66.4 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 150.2362 0 m 150.2362 116.3 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 565.1661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Message semantics) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 461.4661 cm
+q
+.090196 .196078 .301961 rg
+n 0 99.7 445.0394 -16.7 re f*
+.956863 .968627 .972549 rg
+n 0 66.4 445.0394 -16.6 re f*
+.956863 .968627 .972549 rg
+n 0 33.2 445.0394 -16.6 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+q
+1 0 0 1 5 87 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Field) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 87 cm
+q
+1 1 1 rg
+BT 1 0 0 1 0 1.7 Tm /F2 7 Tf 8.7 TL (Meaning) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (header.stamp) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 70.4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Documented A3/relay-domain time.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (motive_frame_number) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 53.8 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Native identity for loss/reordering.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (motive_native_timestamp) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 37.2 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Preserved native counter; not claimed as A3 time.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (receive_timestamp) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 20.6 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Adapter receive time for age/jitter.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 5 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (capture_time_estimate) Tj T* ET
+Q
+Q
+q
+1 0 0 1 155.2362 4 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 0 1.8 Tm /F1 6.8 Tf 8.6 TL (Optional mapped estimate with age/uncertainty.) Tj T* ET
+Q
+Q
+q
+1 J
+1 j
+.658824 .745098 .8 RG
+.35 w
+n 0 99.7 m 445.0394 99.7 l S
+n 0 0 m 445.0394 0 l S
+n 0 0 m 0 99.7 l S
+n 445.0394 0 m 445.0394 99.7 l S
+n 0 83 m 445.0394 83 l S
+n 0 66.4 m 445.0394 66.4 l S
+n 0 49.8 m 445.0394 49.8 l S
+n 0 33.2 m 445.0394 33.2 l S
+n 0 16.6 m 445.0394 16.6 l S
+n 150.2362 0 m 150.2362 99.7 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.02362 442.4661 cm
+q
+0 .529412 .603922 rg
+BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Failure isolation) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.02362 427.3661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Disconnect Motive, stop/restart it and NatNet, inject malformed stamps and delay/reordering.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 413.9661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Prove chronyd, CLOCK_REALTIME rate, phc2sys, ptp4l, board lock, and sensor synchronization remain unchanged.) Tj T* 8 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.02362 400.5661 cm
+q
+.121569 .176471 .239216 rg
+BT 1 0 0 1 10 2.75 Tm /F1 8.35 Tf 11.1 TL -8 0 Td (- Mocap-specific capture-time estimation belongs to HOPE integration, not A3 system-clock service.) Tj T* 8 0 Td ET
+Q
+Q
+ 
+
+endstream
+endobj
+59 0 obj
+<<
+/Contents 60 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 61 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+60 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 2726
+>>
+stream
+GauHMlVlRu'*$6ad3#nN/DK_WpB_,IjsgaTR,&:^7AW,T4JUh9C`/P>qr=k+O,XV?0]9N=)3<R9]%+Pr^W$BYs%N)'AH6?Ncp*q+;HP2Pg;J`b=1D?PrB)9i7iaYk@Ts<OCjZH$@0KK0N])eX@`h\7ETh!L'$Ldea!:ks>RJ4(&`:KS1H>C,lM:R(3*l&c+lLk%lSK;I;.Zui)2"F!4BbfTcMnOb?KCT%/$%[$ALnX<B)W<Cr.)a>OqVgUhkqlfB0/T@"7b@)k9C]@i@#f=VM#kr#8oM09rKjmQ,:dbWauj]F?F1i[=9L#DEAaoLi!:'UX"&:LilR7JYM$X\2T6Hs2>l*eI5e@C`Jr]\YtBBAMI^=cNVM04CWhRN*+k7CiI$!2q4IN9Ldg?_\E:&)(bS(0mb(;kISTU>naK/O;`[Y"tgJb0K`='-&:Ue;R8:kRj]W[-OOH.^F):3@2u%r^c-G_f`QW_F]m4!!d0+`&lp_L9mm(O*lAFoj][cl,Pec@B[_Nc"qYKbBTC#"A#&[MC_i_XCq*B2XfGu2.^*%7i[<[pMr8iEGZ0ikbB9a\'5ZDH.%^s;kpiitr,P1,a7W^G8:V69iNp3`h+HrBekq@8e(/e.*co-D_;V2D<e0pQ.n;t+i9;SXL=.=607U/MZn]*bBa3b:94K]5f)am>Gkf]t&<JPsANR;<g(s2\c[?=VNtY?e#d\=#oK@T9Z+<NGDF4KS_E5=`+-W.RMf.#9>h_&c:c)[hd%/rcE*GOV[ufB?;9V)$GUXc<Gd<h-P7$J`O,#=8Hh:/R/CPfSj8!GAE\6<or.E;6Ccstcd83mqB2p?VP,'Q_#Z]6uF&@Ci0hs,U_t,9n@TERECJbcp>lT-,$%#p^0]kBrCU+I2oOr>1jEt'ad9T[;`^CZ!,+JYiS.`ID4MsTX0b\q3$!N->NRb,A7q@J^7'U(int2Raq]grT4?7s*od"&"4]:hL[W/(_%R]83D$,9D/h79%JH7O_LLae7f6[uMd>;>.Q=*$]f1f:<-W;*VF&"1@"K"t%lO%fFq5mQrU+$HIk^hsb>F0$oQ+Dqib6eP9QYB4M?rGJ6RIHI.]n`aLQe'I"*&GYa9R@E\ZR&s9>Wa'^Da#m:n.$[$+4'+&'&BKg1FVhd&WuD/_X\GQ796*B6!Z<I`:a4a;U4EqXuCkZmiYQd='_pg-(0c'EhCT8/eEuAad5G9#;HlC&iDjGQH,p5N]3kqBse5qZu0<i+P7f?BlCW()6[f^h8[&#hC@g8kDfICS81juZO'R%E:a.r,)u-(=,2?r;i9hT@HB8:,J6#7ptGu%LmY8:>sp9,W<J*567XdBiQF,iSR?/5h6@<ZGhp_\,#fpQFqW[XjJ`ok7?'?=Irhk*^K4UqDREo)T@I%h4&D4\Z44,Q*V*Y&AeX)0XW1B/btY]fZgj9ZLK7n6b%,H@dkFZKKhO+1!KN55%@>IYaV###E4l`sXK'UT61Q],s'o-b_/`N4TrS[0VlHeGdInKS_ul/WH>SV<%OUSubd7Jb=$s9>d?Eg^8-^DmU/N!DeVfHh$I/ZPNB8>MRfa:`3eF@i#:)1p3BH1Pe[QooQJ^Db4DI(t*gPGsCDh.^5BrXeqp*&"90R9[hSN9Un;(TDXSPE,iP'p2qh*J>Lm+V1@D4SSY8bq",eMl%&''0f[r@f,A[i0-4>!!=b%@(4#VHqF+(-Zg=b"fk2+pSo55MP+1"4EiQKp*%o`ilb%?mHPl!_2ZoKc3Q@BuQ*<5$`1M3OY/Mr)>4Q^\/+aT\_c-8tf_SAulJ`(VF%kHuG5iZ>jMd>I8W?8[l&=frqF_7%oH>VFBu_#!0P##_lrPmZ=C6gl52XWJT*81Bi-"cfllQO.1>B0=fA7O1,'UNO'\N2KC1@8cR/J+n)egqR?VME-'hicVV?hg$jON2j'`A)pqYr(bNmFVIB1?aS_9N'R:7NHT<@rFlD1N0AhRp?e`)M4RK"^<k$&pjn!I'\,g:Mb(=6]cfgT/[BK&Mpq%p2R/oLSXW4X2.9]^+&l(_[ru]K/'j^"YD:+?Q'f_'V'rs8)X.;<97;Bu]>71s\PG=XXM_J<g@f_$ZaX23=Aq;&JVWdm/WDdB*]M_V4N+T2)]^fg"q+ec@.TpJ2Pl:QG;(l`Nu5;qhn8htQn_m$c;9H]e'EY)>!)Sk2tQjT0.!i5%)I2cp>&lilb/SgY5bZURFAI:)bB&9)H#8Ohih>gi-;9mgT&SdUg=p[9)SJlPJYKnmISlB&s0gXIigC-/&Ec*DdHuci?#Vr<TG(c@CI_#)mNJnS5N-\PP+2ng2;X(/?at(G#Htmg@$S><S;PBi2s$57dO,4VrX%@7?)MVnfrnF:Pac@7/chH>8=N)fILW1Gpb%S2E3>WAIl0s=_gG>S.`hY\l28VLqT,R5;k@#&6$]dT\rZ,8S-O^k4U9@[$<kUpACiR9I1Fk9$&+g;78]lgsiheUn/<6f!%&23QA!C`:9^d_BM_uW!]MA0T_T0IAftYl_r'90Yt'](.gN[+7p4Qe6.6eVHLetMZf@D#D;*Zp'eE+R\V=:]mrrE>G.tS/!D:jgk-L'f[T7?0/Z&PF1JE0)7YPpUY>b?7/eCHP=O.`m5i<kR.H!]68du$VQ/^R;SU\grDOPOEd!%+JF'KG#'K+Nj[C`#a3i3QlGjK-H,dhS52O<14aB#oFXiSO#Da@&VD@pSA+*$LfooamG\$7`jgi&8Ae*s>gT&47NrB:_1_8a~>
+endstream
+endobj
+61 0 obj
+<<
+/F1 62 0 R
+/F2 63 0 R
+>>
+endobj
+62 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+63 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+64 0 obj
+<<
+/Contents 65 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 66 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+65 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 2366
+>>
+stream
+Gat%$CK'!/')g+ZkVXVFUa/U=CtTAtXqsct/HUqE[3%*g'(X[UcjS)(_@>jMhk&52"CgiUU9Gq<5>LsC3A[rN)ZK!\dgZ;+[@qZCK5Q4Q!o6gMYYS\:Dr#90?-DH"6Vu$FcPW,G4WJ.k+XHBUgrWH:mPRgf7dbs4HCge-X.%H')_fViF^SY5!8>2Y:FFM?n_1U3(lZ'\oc:JuOoT;O+E6if\sjrP^&L.;MaBB0iZu)_!=9XQ$pT:@*UGq\8aZ6V!s;D'Aks?U5TRZ,b8.sEfF$`qL2(D!"Te6h;`/mL,9JOKe#oZbHI(kJVWB%?g/ON7WMVR1H_Rrgau3,V0nb!Oi*KK3n:VQH?dT(8B&_'D'XB"TIBnOAnNo]3-ZfZ&N@nA2$'EB2A]+L]R&$$blDt<UIECRicIj_$<kkgJqL'CIRSTn@eF[/k<;b)oCg*1_lM6\0,rJ@r,j?9fTF^kk$4K4Zp,J((\Fb6c=N,<4fI)Wn&W-JM;9[HJ@G].H)6EpTL1V>:1_!F01?>._8!Y%4.o9O%-paQ)i+kOZKfgp&,Z2LEkTRkkhr#elM%]u6'/*tt#:@>dLK1s.6gs\f"mB"EZuf+R"GSpD+u<1K6`/mIa;0r9%L'5'-$I7K*?SAdNhCeJAFY6qdlT!Q3dua7*I?b"SSVDJn^4I:@TVGV4Xd8`mE;G`k"rrRMCCIZ[qTOXFND'R(k?<0<PoYq6/d"oJ^rVC-A#96>Lu7`7O\R2<XX49cb!mXpqh.j,Km'M3<)?!Uj9>YWgWIZbGci`e\`+L3k"u[LH"85TpqcsrnjT+JMJB_"L/c,Q/h\ZE'"LKH4-0MPY\/dqmV^O0CS8A\.TV2/Ul2Y-cB.WU&PCRk@_i1%Uj6Fkg3i=--_/`KrZt'l$%,r3BNa9e6H^P-8)"WZEoBsU,]F)ZDF!SIiW&Xq/UM)[[<VXgKC2>&.GD?PE7XO@Y<:[jEQ&tC?N-ofU:6%DfDZV\378JMkcKhW0=$NSFO#S\'+=+ammL6B[k`brAnM/jXt\'Drm*mX._HKE,dm$6DqD=_H\CHQO]4lKVoookO&'MJ=h@YCQa4bTXcOK'PQn#[16#);,p]%qi8tbiGSYa\O=>,,D(f?d$i0jkHfRJ<of%V5aSR+a$!JA_(A]Z:GUNW)Ltr%^kYB@3lE9MUqs)^:f[jQ&%CKn)P3ON"+XG1;<ijN>^5SaG7kJf;$b'cJ=UtTidLsOW=/1C+rI%Na;qE/3G=6GBdJ0:iAeJI/YH#GPjGWs2LZ(CGIRmjLVYmO/Bg*m@ESBN]IK,JP:2DP%oM=>iIPoq2[u&%43FUm>b2omPRsW)CIgg3W$nJLiJ!*ApH_r6&rA>>f(jLiRY;@uO\2?TONg)5g_Sa;<,B62fkAIGTSiD_1gfg=!HXD]@D'RLotD7!B#tEJWQVG3H&0\>"dL!7rt/Y8""b3#06D5+.AZ!<5(D<1V>nQ(U^;q-$P0U/308O]n3Js$BirFnA:fL4c^Z+.#%t]L8d[k_j47BS33d-AY3F/9FHs]jpbZp$\<X6h#g*t9D&1X7!pM=M%nfeE24$,ckI)B(l9EnHJo<]_IubWF=W>knT3Ii@eP'PUPT#VuhhVF=CN3E`GbP;6FcCG!Wo9GVf*Ob%R^fU!kLJ*HN?+AP?XN8!P2)6hHLc&W#$+bTb3?V@PS0Uu9V*KI,5PRI97Geb%Ip_u63q+i-(I!444pAN,P/I'pABmB1n.07a+oktf1?Dj[Pgc#qZqT`q+DFh1OGS:E.+j6.j:"%'bhT(Du0Qe+nBAm\`udsa^uLULA8Kp+ms3=lsFUa:f+YNr5pNCpGmAF`FX+!cc4FfII_N$IVCGfp.&EU\N[b;<\X@Xrk-[DiUt6^RdBRh2G+j3'Y&r\+n/P8h!qD+6BdmJINIH^$le(\p1XYUY>jji,Uq.K9&'u&n/+b,T#4Oq71$818aDR0+"8E8EX&cua;t8OUYrTLiR+`'&7goYXXqT0al\:kPg\??fBN'8+s.td;:V(;TZG0AF:&2+cT%']SM8"lTPRf>q==]V[n`.RNA2U6"nep`=<gBQH*pnJkO#-aI=r[1<41hhT]hK3:iD>oBOjnN?TA@++eNHVC'k>FQ>sqKY1:IFQ;lcmd^(?E2mmM';Gs-M=&W7:E_%$b`jZ"04?,?pin1FTasp""Q(m7B:5FGh@IkV-M;345o6VXN`=V_FM%FN/]LnUh-N'a#p149a*;7EtG'7p"AY5S-+Zg-jb/j.(T*IbAq;KaRVO>1adnCf$(TRhsE&P[kb[':":/6R<L1IN9F^ho"h*gagRhClZ>_g`)6^b!&iVjkt^]3oO&_UAi:q_)Cg[+).r_b!NBXPmLA13j&"SsJE@-__9W#rJ~>
+endstream
+endobj
+66 0 obj
+<<
+/F1 67 0 R
+/F2 68 0 R
+/F3 69 0 R
+>>
+endobj
+67 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+68 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+69 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+70 0 obj
+<<
+/Contents 71 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 72 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+71 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1837
+>>
+stream
+GauHKD/\/e&H88.EF/o\786DhonL:)S0ciDUg9F6fS?1L'T'9O8u+pR8NlF\mmnn5S2sBmDN,7]UlONL4SS?j#7j&5Hfc'Yd/p2C555g-9CNg-YW.E%`PGmd,`$0U;BRLrC!,p,9tVSP]fP?n`Pf6d&e`WA'u'27"%&W)1l*P*?;-M!pT<BCfAA5V?jcLj\5igr!F1kW=Xm^n6<"r-2DSWT-,nc0&PBoC<GQ`p.kZgHPX!%E""[d2P=QB7#t:t*(4'Zr,_=-G%T*,Y"$&Q7''c_=.L6n:1`T5TE&AC?)"IMX%S*82PSN"e)YFC-;AM=Jk,hc:/I\Y._r8T_+oHs*1n&[2`+(e%=\5Ag=n2Wo9M!'4-?BZ1A'U!5o9";[VkO,Q4CmW^MepAKO%2k"@*Cg`0TI??7$3P8[NY<AcVGc.q!_a7>%!,7+&[T="s`PtkpZd#[D/%n*A@udFj4J@5/Eb^3E9@*_r7!7V:rF-c*\/,/2th6@f'/8FJP?1`1dZ[80UG>V4T1O&3;4n.ihrk:+:R3Um,SPc>%%&^(EAT=Fm8L+:8b@qh&fbQ?meeo*ht_/G:9gKs]#cO!#!9S.\GX!%.Ytk-05Qi45u!M;`eV4$)HNh:XN9p9Yno1q0F0N8_`EVR&dUD<lj#,Z3`Y!(,\WcpYe[SKH_f+bb2cBDCF?DfRFERn9qFD,uPU`hm"IBah2\fS$lFC2bkB%Y[1BM<bp7!j-9b3f-1+W"+1RR7YlO,WE2)J".oi$H\.HoST,(B"g*,59b10%\C4IhiL$4O?$WlY>ne_qic.kmR?heP?u&'qYlpaggB*m]tN\X\#rnNC-GRZ2f#hOn`1A0Y>B-nS$n<JQ7C5'Blble[+g%mj4),koc<V3]:n7aCY[VoT$R>Q)tMtWP$<]&+.[clB"$[CY&\0\0j.Yng[R9WN]+5D/WH.)B[T%f%b^k$rdX\u2\&rm[V5)A3_$JQ)nkidVS-9gOjsBthE7&$&JE8Fq7\HX"37K0[]42;K+p.ZD1gUdp`F.#0T8R#6mf]<Cr?Enpq9g\Tf9iddQj.Zq]Yi>8ib+eMb9?m"J*9K8djRugEU[elGh&"7l'Cn2_KfKS1HHnNc)D>=8%16l]CJ'56@Dq57,:Rao*%t"<KsM(rRZGHlI[jQK:BrJnlN2ON@RG\uUW<Z<*H>_QCi+J?\6O=D"/Dd2's^pj8d(L:3+i%[_IDNCOO>co<L7S#Y37oKC0>7;o'ZFZ?dqSTQi)ehENABM0dTl`XjOcAs2,FV@P;k#c^i1q+).@["cI"G1R0AdB2Urm@%$[U`ZPKtD?OXLQB0b[cc9H7V`]["Y;Or@gQ?pb@BJ#=;965J!a+_Ms_g;p*,r_fZm3B6?:k8V/^U!Y-S302'ABM*1stcG8NKMiB?;QD3FLA;KAK@Rg#.2O1.gDZfqOkZ1$Vc=e%PD$?+C?HliLSXs(<82kls*Js2NFtF$2ZaSKD$V%IYK`@7`YPBd28hS(tg1#Ae9\%5N'6PgN6"#7Dh$mEN9#DM%)QWN^n!Y`E\P48QCeI$9m03a8[R)(u?oQLe@>+kfrNZgB.ekfI&F=A`J*M[0PPOaL'2fPf3pjC):jDZFB]8ER\H7^9'\p,M>im"'Bm=NL?G]m2"h'h4.<[?'-L59G\[G_S7eAo_nj'sugE"[[@/l=4_^L@nqts(hXBi:,l\<_thro@!*@9t$\]jI+j0:MoNtk3eqf>bUn533LJHhED<KM@r<5T)3#I_&L/ri`tVLg[K%G:;VYHPICDF]8hk6n'\(+^\soc+nEG7mUoMWH%eUVM(AReB/74>NWp2guC!N[4A*kTJ67-li-mH7ECO~>
+endstream
+endobj
+72 0 obj
+<<
+/F1 73 0 R
+/F2 74 0 R
+/F3 75 0 R
+>>
+endobj
+73 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+74 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+75 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+76 0 obj
+<<
+/Contents 77 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 78 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+77 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1812
+>>
+stream
+Gasaos)Xo('`U=G`N.CX8]q/cMGD4;GfJf\c07[#mEO<m#V;*"@(Bi+8X')@I>\4SQ_`.DAG:NJ][-J\Qsek(bcb=]n9+j/W<jo*70'2R/6GSRZoIi(5[$'_><O*0X%dpVhKrP'eH9f6:ak#8<*ESUVM,e'R"^1$8IX><;!8fUl.Tf0L??,4C]ld-Y/3ga@F0U/jN<"2(`$Q(@"+Si/&@G=+'41ZJT71e^0r`hUlnE3@.=C9a3#([[(BV$W,/MOoX[<!E,g&On?3@cIG^8c_m1G?[Ug')hHPkF^+\3GLgdaZp7>s.UdUg_N>f_jH<*+gD6T<V/jbEA2[hSkBu<)+d#M^[28d:d+]"ol;8dj<h(XsBE>+B6`oo.,/_FBS'lV0cJPI]OB'pB9Zb*.+!H[rT6G(\ih+l#/>cX)-4i?W/JDeDNOgLF#1lITeASG6lGG:^-0RN)7!&Q?fjrdB$ieKHH+;dkD7SGQs@;3Yuo.1?($j5+F=U!ILcn)a5blFK<%-s!sYf\Bm%TJA5&eo*Cp"J)N,+TaAF7+fLL_NL`W!j&kA1Lb+?UCJ)*e:X\qB+XWFCW@\8^2D`>J[[.Q>H\sL_-+AKkRn+8WM3:Y1U1I6$`m6Agki7#PYEq\QCTUg]T.`F!Ct-Ld@DZS%"*CaOF)&Fe24==@6uFXe+?\P/[9(A-A-rJ?K-P(h!W8/E5:>$3jQ_@D\;N6m-^_Eofo$2jg)ih_3o/8@X&C_T6^'k4'^\@Z=:b/uuK1e\*ZT@!6Q_?7)p]OD%d!HtGrZcfuC8hRrJ3Fgl03k:f1Zg9IpG^p8<?dV]H"@K?Q;NXq*(oPX5e7a<S;LXi/<)qrG=@j[Q]/$?hc1%jsa9XA"3Z1!O_c!a9<6!jJ+Kg\qpi=GcrR-9lS[X&?hrL/L\_)<IK7^<3Gk'GdMKb/:92V9h\([%>]S`Y\uEHo%>B3aN#ETf,Snqk@c::Ib<0B1hi<?1ot60jlHOAEr%Q$?QY4;"G'7gR;*fWZoNLH3?dZtD%WW>37*NkeA:(f$sGhjo\Q@'UWAO#4s9-<JL8?UMEq./Ln,>.L,amkEjH1+#:kK>o&D;\llO<4ZHr.EDFV%%Y4FdN;N>4<HBhC@u/e%n5L;R*Qk6g@D0Hp\.dR+a.HdAMQDi:<"+Kg10qKr(<<UjD1U8o>+doOuj[[7e8f$apfFKiA!iJlIUp7G%rMfq-n;,lRP6Q*q3+1nYm*ZI&HM;ESd)7G2o:lIPFbbqR(X#..>FW?"rAN+L7R.fj\PfSnR3?^S^U?8EZW-:URX!GXZO)>`A\"3V2LUM]i^0e!]k#D/JJSc3',=`7J'QAX]+Na/Ddkopq5'dFid@hRT"K(PRPpiL6cF?*Gi\coppPF>=ndasf!^IB8'D,koihBc<M$hbFuf/>dnX+5_SC31,Y#a.j;<`RQmsBog#<Kn,IUa[<29O7=lmb9OMIXTO$V6#_S<StkFO^M[(qZW.j`b"=/QkRHHE,?lda2sBQEb7Gr:\odK,dEjM!LC+='nUtNbMIeGm_0-7(S#9)kHa.qXG^Q('I[sNK1XIBK\1;$<d-Gm[6Ou';==#'QY=SFX:Y&AGpD)dP<1FI;K:;UWrN>e`i7FP4]lD"+\e?4G(W+t;;5i3d&Y.%7O;F[?NqS&0[V&r!J,Tj[J2-0h_r#sErYJ8270;UM60uo+W<R5!6"BklKGZQ>%0uPVb0"S9U@.I!/!:`J'//1Z]$c-OTmLHLME^lbFKms^'7Yk1]LNrXYjXS%?cmi8hj;r%=j%I4hOT5:b4\8(*Dh*07V18Ob3hhaDsg!lKnFjUlRb9-~>
+endstream
+endobj
+78 0 obj
+<<
+/F1 79 0 R
+/F2 80 0 R
+/F3 81 0 R
+>>
+endobj
+79 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+80 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+81 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+82 0 obj
+<<
+/Contents 83 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 84 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+83 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1704
+>>
+stream
+GatU3CNnK%&H0nXQp]^)dA(8!oDg9'.<105*[_Lmqo-&b74b*"d`SW0NbeO,GBP9cGf5FP3!O.?1O&!,hH<OFpbqeX&-KQ`6K=%3V?OjdQo;3XGQuu4mA`XET&nUA+El5=g,=Dh>I<&f0rl%Y4CY<r/`KmO/t=U'#EDBSeT<BV;3/(HZl?p!T=o[i)UOn++1[&"'DdhEVd..o$tBM)[n/7i4:2&ZA]PO0)lJ9pZ^<%:X\945p^)[FaqJcc<m*g/T'amJ$V1X0V_s-W;bO.)/RhT3K,>T_-C.RJMVu.YZtU1g3hB8Q=q7O.]0`hPZ"_s9FDRM%S9#97KRV2(g*@0`isNseBZm&,5+M+1$6DWP!jNgoOsPPi0YeM-2H^;d$#e'-k)Z7#2/dnm`kZCl[X:?c[Ldbf93SK6,1h]Mg88K:"bIiG_k]0?UKLE.QDJ"'mA09l65Sqe.9O/8%Q\=HP"GEP3X!?WdtgR"Y?;e6>Kp&9aDgDL10Xjh)k(VDTMZi3b-2A4McF@l>G.G'.RE#g?*A,UMRY/jn+\/uL6uG,'pW2nO_bLPba4E!!M=s,3rBJ,Quop^Rq\:NMatVU>h_&c=GRNZDaH:MLdY`0nPnR>MNYCLBi&BoFE.9a%Yf$/JY->H#CZg)0ObT*i9On#87Xb^^`,D$NFE<;.rH<ZD'iE@W'j*?R@<]#J.s6Pi$40T%JYOkN$V0m&i26W49dh?-*T&DNV<)d-6*XNQ`6VrQXBhi1+=!KC9h:`#Gq8L$o-t\IRCi@`)`!ggW&5/b9XO`2FVq7l.P@Vp8H8FK%hj.__VP+f-Zg6C4]:k?m*pn)V(]db%">?>H8I=V/HkajmC[6?qOIIM=Dh`r\r>C73S7LioM.<eN)!qmjKH]dK!Vd=.DihbZL:Hb!^th"Df(I7InO,U7aUnjcYN00[??*f/X__rMM_@n,5C/l(6Mcne1BZiGQnFDK:K4h[fVEZefC:lJ9:L2`M$&=@nT^1DJ6b-U_D6=d<,0Am(MFNa^D_Q@6U166osA9g#L?j`u*]2o=;=-ea8/h%!k8W$9l.0CUcP)fe;g#a6hWot<ZcoPO'qGgPacl]#9n-@S<@MHc7aQJITkhqGN[T"]t3"Ad^j52>i/q:<idQ)p3[O)VHsr)>VaaVIZt-BOfC,s0B>9]biQ!KUf@YVpIf8)XTI@4XC)\eZe!4JgIaTkdU)#)+FoLFI0C0qW,r>9oV$AWHue*ORd=/-Veq"oDFNfk<cMcBRVO&%__Gc:N6XY.J$IjOpm.%j[/4JB`?r@01Cg)381*;.j!q56\^"$0nH'JHW4Wn&<7cQD3j.bKHZ>M/+Ff,JWWLo7Fj'2TcFSA$9Vg%!Dg!V^b0X,F5.f0OA;#lsog9f8+<Aq#t8iUWe1Ib1KLt+%*1[,.rFBUOrPn3Hd&0:1:oRA5Jf27WJFKUiEb(Mu/R2jmJJ8l&.bY+*;Ns<>bDB]<t4Vq+uj507R;TGN)n(-VlF_F4:q7.07V*IOLJN5WW9$Q%Ia2`0CQ";iZ<s@LJ14fj'OI;"<s3I-Mb$r89ASP-$pVdME@$]WA-:[=J0]K/JBU@2.P@0Wl07_lOU,McCPtlq(GuCdf)U$W#.jJ#q<<!NS#H)\:(GY^V(6k&'OC!%Tt)5,N%g(b/!IR,nMO0Dt_>ps5T'2ANF`;oM<,UISU5.W]]KR'*WpXP.OZK762TIpBtV-N~>
+endstream
+endobj
+84 0 obj
+<<
+/F1 85 0 R
+/F2 86 0 R
+/F3 87 0 R
+>>
+endobj
+85 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+86 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+87 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+88 0 obj
+<<
+/Contents 89 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 90 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+89 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1872
+>>
+stream
+Gat=+D,]1K&H9tYfL`V(AM/l%pa)WqDUK<1gn[1YS_afp).>%P>=UHSbfdEmn$c17-RM**7j,XrCA6Coh\6D-^8QI@AcT#id+YB_>o8TQHGkHp!;;-d<u[qU]"Zc"ijF3DleuKcj0ZFk-6)'?OAL"u6[Z@*Kc@BUi)AXFmD+F9'9Z+HH=sJTqpFpT[%K?L/u=;/)idjoa&:/iR*7O[hMGpGUe(Jn3fsL?ZV8JV53"sK8auk:T4#0G/<Ra:FBh3KHG7kq!9q;@_$7ckfat3m?/dnO#W(s5O1>23;@9>&U2>rNe.;Kmd;$dZ53/0u&C9Te^@eU0kc%O<7d/GDXsro".n[<;e*/\0%j0Y!Tp8;M*lEp_6?Bt2_uY:FG[)Z2ia0kJo&l[.R^HW`iOH16j?:M!%:L(VU_<kF@r4QtF<0'EJDcn1,&(oc8B[+C.Q'=tNO8CbTO%0h(gNOI>J2TJ,#3$L8'mf0Q?(7//^I=?B;<sT3Z57pk;?WX6hB(JBFYT;AXJ5u^asQ_2,J/L<hSrXc.?>5M?HR+mpqrI';S`?7cg"6,bMq6nte1M6&rcCJ+3X!OE>-W)g/,%?n'GVn3RK#7>,@P5"+*o,ShWDWgK-;6b3J4dkR;*JGV:024S]CR(uCV=:4(6jcJQ=Cg",uc:/"_94kb8Xs(:>Y*Io+Ra5.fSe3ZV`j/F&TnbX5nl4HG;]I,hE5aXh0ii<!HHJ)6>E"QLpC^pA6L"^hNl@i>,Xnk9JPu"nWjo"PB;p^)n_8K_3/O2h7*id3UD8VkYNoS@D<cE/dgI2>Ttk/U&7Wn8(NtZ$G1t:o(XS<7p4d'W009\e/@TNIX;863n;XiJNYOKiKk^0$6dNKqc'BNk\gQH!L2Bio2YhcR`+0dN5Dnbn$(qY9m)HNg;_j)aiYaSVi;)74c8*JG2&,l>fhS-DM!nSRD""Gh*#cKSF*RBC<F\rX(4ArrU]E^[>Z6PF[RK%AckMROi$4hGqeI_Ef.Bjq.JB1+h=G^ch1#@O"AR\'"0%eUA+OYa4;o1[1nZR)CbmfO9oOoGnu=(,RZbH/k:)Hc?K'!=6"<W5acKHU(ao&,3]f\3]n?=MUZ&.1(`[rDI5lWSTf;3(p\3O)LAc=C%G9Kj#&V/p`=KQMZ$16@5<RT'Bq'n[BnSl^mUp5H,s&^AQJ&e]_h[3?Ag+;aQHjis<2MBf.%&-OIl_]oc/-RadE.ERA;J3^K?DtBU_6no;r6t@O9-"1,">O*/>6-AX79'-]9]0kHJ0`!E]c,RS=";<^30DV^>*eIF=+%McUWT3q!KJW5Q]a^R=;HRl.1#rVP^>(o2N@k7TNMH@%"3q&NpcTKl1Gk<6HgKJ`O:3Y0B0gKaXQ,OS,P``lX!$I/OE)lM0(a4QVCQ?!$ZHDm3I_p:C:[A=_X\$N<;*Xg%@=#:@]96PkebaJ_U98aJlnKW9'+i4LeUhY$k).6H8P&,&bb#A^'%cFie)Kr:&k'C0XXHXtt9RN//aNs>PAIp&I8b5E5/-T2a)PhNE^rtlCHjguP-XN<fiClH"uljJ#\.dfPrgR9>155f$DIg5_5VeJ!LdH@eom^BWc0L<^[8/Lm1\JX;5_fPX#*`Wir5%>\,<OZOB@)20S+GRR6*h@&Y$/bddHYGb>n>^3j$&M@c`NP.e@0=($&M%m>8?QbkK58-V8Hl+*UH):pI7dXnVJshJfe;]^Wa2e`VPg<1RdE`f>SAEg@9#7>X[T#b6?emUjpf#Wb]#tJa^hCnM=l67N@M3eV@CK+DblII'jq4GSrIR$-lpLA\k]J'IY#[/KA`VZRVDlYMj'Z:@S4lsf.T,GMX^rNI<taZ7s0r^/[$qkb5D-k\S&#13ONFr0"W>#Ye'T&"WRIC1ZZga~>
+endstream
+endobj
+90 0 obj
+<<
+/F1 91 0 R
+/F2 92 0 R
+/F3 93 0 R
+>>
+endobj
+91 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+92 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+93 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+94 0 obj
+<<
+/Contents 95 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 96 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+95 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1896
+>>
+stream
+Gatm;D0+E#&H;*)Z,;[U:9-`CoE%eI.<0;n9*,.B:<%Mq=ZSgQhCK\e1s(79Sg<r;E8n6Y!MRuum^(6G]6>YGj',*h/J$di"<-G1-kn"L:fO1+U^u;'_9E!p)H9Yi5h)Z#gF?Oa/\0PhBQ9+c15I,T[>7;Y<VSi$*,#\ABiCqVOq#hpd&mUDD[4041n_0oXo]*(-4F1Dc\';kM;p<-DgZ=<"hsT;adp5&Sejl4/b>@U`D$:K-D+`;9R%bmenS&MAZ2'QD?4Ifkfj.F?Q]&Shipr?28B;g<=.2J6S=>@;k#8!(!Y)t;tD.eF^Jf]-E>j%[3W3+MD'V'i<]CJ_6$$\pkgl+0$,\:<q5<'n9G_X0!iAM*M5.FoIU7aUW)S"`(Jug]HMb[3iR?CRL9=!.4t@GRdD4SFIfd\>sYTHUiK[?g,]fCOpr\=.;kDE;C,*JPpB*Ck7j/hpcSkN,fW\/%%2#qGL.KMNYf9c1O./22qTB*FX$7t9oI%,@/HXsZij)-,-hXKOQ`'CPjX':&t4HiPtA^T.4Co,@,;'q1O"piNYrRA6BQL!;rfIgTL(=;FaErkE(IQFn>9#Ne$0T$6WX^##XsF1r'!NFM+A8<$<BT!;DMqoOHM.G.lok$_pN#:^bU>^FN\c7m^N[q(sJd,)En[E!dGpqGp=7qDPKoNhSbq0NDa9iKW07$MBKhCA%5ucYQcmmY[BYQ9TDfjUVHuG1c_d%e0a_[*:*\'J8_EK'3l-U!^Ghp$>8%GW]8)=2)E0Yq"gLC9O]Ls;,o@HPao\#g6PUm,kY,V<=LtId)T]s2mDF02;3`3<YM9F!!AWR4-1-)7H[P/KNjm(X0$:B1u[iD0OgcYQlP-Vl-1;lZU.![HX`ch2FSW3afc!r,1FQfd@\+YmeGo9W#"r#F_ae]QPN"un5lX?Cb$$VTTjVGM4%?o'(6+B6"UNF+):I%>LOD'?%/g\Fn3(n04tcop_J'.<@!f+F;[Z]=ZMH$qJ80p7",!U>4HWc"\ot2L2)4h+1sm5YH_1\OWBjhXbGpLo,nG^IfZEbKC-V>Pq28B:'did=>"!X;["Qk;m:fE#VbqAM`>i4E95rEIEsQfA+l*e1"EU$n(F-kq5k\4\_1M$]bH`gjhUQrie2j#>XQ.t_R8(!A$MG?HE7>C["7r\J*"8op_OMM6+VVNJ+-N`2#B7[8>\uI?$AEq]GpS$^R=cOT+>8ZVal\!Gn@J.9m434<Mmh+odbFC0t!X:mV"EoS\WgP's(Y%iT=akU(*@3V[\l[T#cU!W:+-K'fOJ%cJbG_4SlKBP*48,JO9PGDp?@0Mmdcj#1iIh`PkCgRMIuq]R4lG9C9o0%cPBb(UZCSr^HUI0^XCel+uf)+D,#5^pDhUYlpZu(ojP.Zd,fHWn6]65)FmKR[880qQYg!ne(6)9GD"l@'6=/`D.%HWPn_7(LCi@ce%2;F%ts]L6B#<ZJa:LRTGO8nBHFA^-gb+!m?l)SV$=h2AP3@K2p<.q=d=OILKZPn7A;q&@r9t:OB^2R!JX,_g":P=U.9'p?"B:9ns+#p\S[k1),m8glR]JnR`QrmcHQg,o9`cM+jdTEsgBd\:\=]Jta:Qkrd1NnaniRG*8V7^9NrT.e]tgpt`a+*024/s4!rZim&)9T&ZkNpite00oKqs=dO<J$Z&k;_@Ms50Jan5pR@aBZ"nmN_/rk;68V'r[H@<(%_mZ/T!*,aM<7-3goW6$SAUQ4-18Ua6='S6#cFS#oM6Q@0\tZ:Nl1ck:`mD7UZ5/1+7WI%<G"#X4Ztjl&'k0ANOk[p-u"c<X/t=Wl1$qQ1BUM`pFTK/bcX5Mi#,'(MZ_Q1`,I`>SE'P9b4#-$r;Aj$q:X+F:5@LnqA2mHh+H#Sb-5-A>FMtWgkXr"#QFe&)@kU~>
+endstream
+endobj
+96 0 obj
+<<
+/F1 97 0 R
+/F2 98 0 R
+/F3 99 0 R
+>>
+endobj
+97 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+98 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+99 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+100 0 obj
+<<
+/Contents 101 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 102 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+101 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1847
+>>
+stream
+GauHJ>BA7_'RnB33->=V$sH:Sag/d:).O(tRn8QKqEgR./?S:CBdHf\&=;nDHWF$\$(R:cVTJV-osoJISZ;o@r`eK2QiK7@62.2Z(5:EC/;H2=4+Ydqn)GIo4mG'l&BAsnn)1,$2f0YtEj&O7Lo%NU`20jWra=7d>`5!!mSW2;*pJ#b2h?V=c6ae"_I1LKWIf[1P;lBs<$j<Z$%qiW#Zibrr3&BU<5:K8A9u3--Bsf1O(%`'Ar#(Rl+-aV79#l=RXQ>L+/Z78&H8RjdI^->2'!2?E#j^1[rE,"GuN49LhXDkgCW0\C!g3fUF'tShf6iO%19L8-!(BNMSYQH>e!'+g,$se@640;9SJXD*4#p6J.'=a+@69Wa,i`DA<#o_]HMbO3b`l/"A8r`2H4!mbe?C,om3FklWG'?*E(?F/\_Mnhb4PPZh:(nLXb%RL-nQ\h3Sg,?[lD_/JI/POC_*Rr#,bBYENKO;[d!:/5Ff.PQk%U71cK3"`-+SLGkfn5]i<#*g.RV)5Z5@Z3f?;6Hq8mHPIsg_/(D8K.1#6h?4\![#diG7&C>5ZgU1I4lUC:ZDcmY0_[0&kBIaRMNH3>f9iN1S<V">-WLJ@`%OCc='PmDF&4@k&R,B,X9c[R3<OGa'L@Qa!m,tN0J4PC$SEPMCSNCZG*ui#OLq4\CZqp>2kg,/D^(*NKH:$UG\2e;BJnNGa7BV6I2`UnK^KY3HY-u6>M>BG?A<@/_6$cL>j^^j6o&&WJPn%f">]b=G-RmfZ<Yh]e&qr^=ClgOM!:54rE@82#V#m/%VkDa*oA`(1:O["5(Z)EkJ992@@S)FAAp[n+e6h)O>D1$6hUZ2`I`jbP@?@2LF<T>SZ-1Q+UsX!9!d*sJK%Cf*$Z3gR_Xgq"?*>(MBFQ..u/gP'+")L`?^VVCmiaQn/-dkOW`fP6BDbtq7Mg"JqT$jgAplM%:#7WI/PX+ENfW\MfORnqNL9u5@WgLeVMWm_(c&M*!tGe=Z\sJj7=.IZ/&!f<8HagQL@PL66es-/;`;q,0TWDhNX7jk!.*gp`l)JcoW^fR^(\]:1hfqB$2;T[-M>Lhj`4kc*]-]i"m$2HZN'=Tg-YZI:#(*Z1pDphZ*2q:c6:(gE-#t[3XtmebHss*LdMSL<'ilYO<AnY3.W&plCHP.X/,:@MYtC@LL-ZX\^ak0tqM"G7PD"B+a;g#7<?]K!67Eearf)<.#s11K8=A.>Ne=>?j$bId,.gkg"g.eZ:XP1'P[R'e*ZU__K'h9`d)o.jXLmGW@`D3?GWYVP@5QZd[+^g"G`%dq(#q<^XL#_erIXH"UW%pguQ-S^&i``i"=QO:M^JE?K,[#K,6icV[WR>`..h\roY7?"$YcJumaf,>t.X=s3KT/e0KT_rm"f^qVj70!VVh"Utl0Kc(:$3hts3CjH6]LRj`;-?3I"^n^bh#Pl>mGQ]$$K4b^/99`_'bdPdDQT!s+o[@C5DC<",kHkTWP,["Ce^<pd`IVPc'Q`dFN!6e2En^WkX;eFFXsgM!gt[FC"`(1Kg<SH^?jP8_luh7B4"[DAJrWA&f.t%P=8:JP@.N6iNdZ)GI)c]l6@7t`J$tAr0-*#9L5o^+CMRiaof=L)L)Z)!9B3H*/pPPI]%A+<)8?0(IDc2#hBOJR7EP[5aW+i[2Lnh7N_=&Z?EZ9.%mmoMK!'$PMeEJk.=>(T2lrN>(q6D=>69S)<-bZGW<=qgQ0&`.EnnPX<9g$O2Tp`WSK[<(Yp<:'mU/L)&B"9FE-@_WQWZXmpU#\d><")@\Os1KZ?+i-)!%=!d]f&,FfC[=l;[*92p/eFs&D\h\%ts"`Pt<E%_c_g1duVLQ`WY5?srGAs2n\n~>
+endstream
+endobj
+102 0 obj
+<<
+/F1 103 0 R
+/F2 104 0 R
+/F3 105 0 R
+>>
+endobj
+103 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+104 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+105 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+106 0 obj
+<<
+/Contents 107 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 108 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+107 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1880
+>>
+stream
+Gau0BD,]1Y&H9tYfK(9C)P-OR)28Y3E>i#D31t@SK5!eG-X2FL&uQD'1]7%98[=G:8M]ZI%t6P+m68/Zm#)&t^9m/g8-*%C0RU!RVLo\9AeGci1RNDK2`nrsFNYX)0b$btRJ8d_<FZ/Z^=->-LaI&N`6t,ZpcrU'=;k%Z_q)Y(*TB,Y2hh2hn#$g9_K[,/B*-'W9G:c$),J),;[O<k(+a^MibuPe1BsakcEg`D;C81b3rn_*GgE34@U$"9,:^a@e<(-WL%F2F&H6^*F`$G4=%rotYY:8E<p(l^Mls!e&ll7XX!?=>8^VCXkpeF<O_Ih0ND$OtGUsF&/VRDg=E'$.\uhp6U71l;,\)F=8O>d8rKmo6HkoOD*s3FIS9E]R=i:$6BV]9XlH^pC7d%o!bh3)ONboH][Pc::9W:'N[?1n$hc'i5B#pTJP>\NZL.Nj>_q-q_,PaJ(]ctJq36s#]j0(-`kY@Qo<)@g.o-@O?=W2>n7t)S<*jG%Y9YCO&"X7*(4<uhj9\1A:15Oe=_OD9Im2?[Yi1/(=@kMF]"-ISj@>),j*AYPs4*Va*gVC'FMqD2PWKB2=&PEid;gt0qC.h5o??6^;"f=("]'^K01^BO;oR'02<8X%!VH-gl[^+Jm*O)?IVc-?%%JW9:&5i<h.)#M>BXWi%=$\QOd],uD&r@#)ng]M1H9Bgp5+bb.XD2N>MQGk>/I(O.lsF(N'#@tb\M/Q7/%E3DaH$uOUiB8MC_"_-6YOHMpNL9I"Yq0aZN-S_*F5uR;!8?tmHSL/6<jN.5/=Ku.+sd2n6Ta&H$\8plM%ZoJhqd_[bW=Cnd7J]pPGn[`o6\0Xj.FGgGZZbSsB+jRIMPUV6&D:LE=]#bs@a#YkRnRj^F;K!Bn*,H<sEs96o^]f=c(kd$il=D&bKLa'6f=Isj"b=U5;;2.0&WqA"o9=b0[o8ti]Ca]*oV#53pVd+OAN]I^q3o?$W@HntNiG1+;!m+I,u`_HOuj9_PfA4]=;CS3G7O+j2OTS/tK<H:?m2kMOt%ao/a754A70!5K5\Z:@O?c.V*,]$nI2#ifYljH_]jQ$(3jIQ&0m.B*UK[D+!h7\#.E'K+@b[O#]orZ%O9`@*G>,d1+;S\aOK<A`8PMUoNooq`!p4cG@B;,l'"A"/POF2:qI,^^r3N6q+7ZT5hPkC2CUY6.#0ISs%`jelm)]DpL;7o1\:An#+hmcM3Hgm6M#*3f/AFsYt%21*%nkRK4q?fc_=R+X+eiCh6F36c\cnV`n\d9ko%#V%sUYbk6Gdht,DFtGO8Bu3#7^.*a^Ng)\MqO%\>1X"3bq'U16I6Fi#4#H,gea6)18\/T9d$[%idbo<>:gDZYpAqY`r0AI8B*>5oT@l?Vo<-2ZZXEUgF[.-H+nIoUN[nd<69#M5Dc-P@o5"4q5RGHcU*`Z")!&af9st&@6n%I;fD(3[$:GV5m@j#KAZ5!oCj'!G-n+?_lYquf-NG&3mZ=4Z.bQ388VH&iN^qK1@3:;r\(=gHQ3C,g]qBMj%,1Pmj4:&&bg_dcudO<E>30uXoK@O*>)uY"p>q9qK`ci\.D_gZ)1,AB:ua_j+X_@^r8&E_*Tnk"j;U9a?5ZUYb1)M*)oRL;5H4iEEELJrY33d^Vn`8[1W;G@MC$(/M&/_<uUbhnOUVViICE3dL<49;/!SrHH=6c*6YJH#V2\to*UT804=WG^3S0D21LN#Q.ImO0`hrM)i?+I\9n.dVl"8/S(q_tHK"goX(N+O`<($+EZ^0XOjB<sS57/.hG+W.:aO1*jro\IGZ?L:!L^g)],%^Dh8VEjQ.0HV]VDqbof:+5Gm*S20>-8nHRT,<qQ^Zb+sV45$!NV:^MO*^+15a(FCCbOf/U$:A:r^Bo+1YVd0K~>
+endstream
+endobj
+108 0 obj
+<<
+/F1 109 0 R
+/F2 110 0 R
+/F3 111 0 R
+>>
+endobj
+109 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+110 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+111 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+112 0 obj
+<<
+/Contents 113 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 114 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+113 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1436
+>>
+stream
+Gau0BD/\/e&H;*)E<maFm3%:\p"H)Agb*HQ243..)`II!/^_!FM,YqHNS!O3mjK]pS>9rp@5)MTe@dtgpY=.[;#L+EDcQm$T7Qab#G8hK$%>,@R(\(Bg$%IPN+3V-.?IpWZ8B?S:$=P?]c-Q91%DAH6:07=i=!DE&Gh'cEPrun0hGi]>J]"Y?`3)F_.6OsP_$pnVBn/oV(7oJQ%7&[bgot>i\,0V-/kc%enQEZ+cVbOO(%__Al#KU&qroo&60^'1eiKGnF"g4iI;cfTl3C;%:Z7Y$j+;__,1N*6d]m=W#s%<5]hKd73;kr;%h54#eS_9X][/[(kfU8Yjk9j2^lKdQR4<oE:ZCfUK(HS*%G8c,:&VD!/rWGH)nn,]H_?^5Di3r]M82o!"/u\Dm<pK&B7R8Oson+f!_A2V1'<`_&jS*d`-IrpEfM,e-JV.`-]VA:[R`d?.fj_:$Pp']XW\&_/QEc'Lom!U+Y!)X3sD*@`^FT*!(C'>/1?h-kOQWj<9AAAW5FI2(!,M$8joZ7QXGV]+B_[gi0aRU(M]Ma;$i#fi;5YQT75fU+E+ETIW-<@#c\c"t_>6DZ9DMn?SFWLK+,o%jUEN5E:?J#Jq$/ijju9Oa)Z8a$/06)'ru%qj!70F+\:2C/r*^o?!%0kKo$dj$"^d$)qsl_@i^HZPJXBM&hcL&l``@;&GpJ.i1f`OY=b;oPoP(6@qQEBol4dH:Ne,Y!Gan0Vh\V+tS3TVhD<c%.8#:"Y?:)BP7)o%=Hkua7]VreoM7np#SlTYcZ1[L5`\+?^WU'*;X0;UcfsCQCJs?6gW2QO-d2p`UqjJr!_mE^hr$lk7=J2nsT+'\Ss2$4;@PVq;fLJn#+K,]FEKLU8(6=nST8U"t,LVg)3!*.u8#Di1sF9h6$R`SOCrh$EuFCQR0.%\-fU[iT@<>[/q7F$7ENqB2=l=_*quZX23oU\i&*l7LaUB2E``)&+nFg[Z(laB2LQH-:tQCMTKJT=Vs#5okh]d?p<He!9d)n+V%7*f_A(N"!)1WY#?<ii4d=kOX%\fs3u;t%L8m4BD^oF_>aWFr?'Xh=Pg&8LeN=H9]gK,bdLkLVW@;pgKX6OYBsi+=S^.*kj8dnnHB;E,(1ljS[`ISmj8!7?FAJ_6&j]*P\*2JZ4[+&T.c5TQc2gjoD34`IVa_pK)7X>b@cl25>SQ#n='3#4u]C3IhTE0;750>Ml2nDWO?doMhMoc4I(-cZ/Aaa*<=0F(9K%.#)$+uV+Oi*1>eY([&B\641$ks!RCK6\i)EPYb/(Y%GGU+DK*>PY[^iHeq2YU\Dl4U%Z@3nb'ri#Z12@_:&S')k/(G^6=sFI8f)M8bdBH^Ri=&m4_0u4`m&a_6bHH2O_o$s]8^QdIctg%[Ju3C&-)XLkB:<9LRGh;f_sL."*O*j*Z`]Sd=KYs`nkk\)#XQ@g=b3~>
+endstream
+endobj
+114 0 obj
+<<
+/F1 115 0 R
+/F2 116 0 R
+/F3 117 0 R
+>>
+endobj
+115 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+116 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+117 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+118 0 obj
+<<
+/Contents 119 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 120 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+119 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1267
+>>
+stream
+GatU2D/\/e&H;*)E<s!1/KgLXhD&Dge#(s4'h_d">C_9e.7]@cBdE)rKn'#\Zm*\uZNMZb>7u))4jP/;Nb1QH_u+H#!*m`VqN_0B0J@uG,_Gh6E&jQg1Eg2Lj!Y-FKe^mu]]L(@F3r*%%n[.LW/S[-8)Xj,'?#i+*[Vj^RZ]3j^C?_5qWHBT9OYB2DH[FS&?]bVb>pPUY8R_>2laC<XfB)A>I=feCHC:SAL!I_QKfd?^VKc4@j4L7AK4^H;,$Qi8-Y^C9i1i('/eq7K[V?'#3%$T4<?*)n9Jgg7YJ',NCTk`Ou#69)Q+jTGng/.Ah/5_lH5jn[=gC^0l56h-NVHn)WAU"<a"80[9PsA.V5FhWfV`c(36\.EYR@2)s32*aT:.]=A%NA#kAT%lptQR,U?"qL3r<rPie4l#n[$..4-WgO0%5:2O$[!4N[4I#F<"!'"BTRo3'[:[A^gVN*nV>=%b(&NU5qRj*,47D,lJ1RKHurV+#bWN<4*"L36$"X>8(^7"p:)U(HST2;*i'V[q45Ks2cbZnt[a/%($<;;A97&8Hd*7b3if:3;*r#-K\7g&d$FK=cU.%)"bLq*((&ZT,eh?tg7M$j]ANW99jh:=>\JL4-@C1.lR?qjg\a$]EP3lF)7>Qa8Um0#>WGf01S\$>C9KV(3Abp/XL''R!"jC1o\a7q93`.s9=LGNA9RZ9F:.$VAKq3:\JqQul[HOh4(3ojK6RM\pU=6toCUcU%p6"YHEq25/n"INC3.j5\#_\`Z^2G&0BLC$D'l=:?+S0:nOcq^aLogugD6e`f^^G"Q!`!R,<+Js?toI^kcYrr'%$ksDsJQ)`I>?!CCLL=i^'%(9BEH8Tfu\_.fMS&3`QR/m-S`\jZd5o\h,#lBhcne8q/]tPOaV[.L>HQURA__,q]id8ai/frtlTKQ^,/-nI`s6c>,m7F#sLaRP.UooXcL<N`IHlqJ&dg=lKWFZ<cJ=qQ3b'%%E@_9h-@b]QgWjgf$_,9'IVcbUC5CoHF`q4)F;sFd2cq"tV_-t)6kkqg&hX!M=G>sk%#\,#[5TfU)DO4:;n.>NNFh2lI\F@le)37>E@t65V5#l0:5j]TB$3F/+!I+gt[F!AA5;,`,&@`:KGWqnD_\?c5(-#"V>iM@^*9GMeD"aUT\At`F+=EeK>J]@\_-T?c_Q>eS3UW?1<TWY9:q4V5HWV2I!Q9u,5GY4e"LZnFn`Vr]O5DVjs(>o1ZH[jDp+*bi-uK<NhU-seH>#CG3pl@1s1m\[Q2\g'~>
+endstream
+endobj
+120 0 obj
+<<
+/F1 121 0 R
+/F2 122 0 R
+/F3 123 0 R
+>>
+endobj
+121 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+122 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+123 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+124 0 obj
+<<
+/Contents 125 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 126 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+125 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1380
+>>
+stream
+Gat=*gMYb*&:O:S%"_bA/KfqHFkt##\8Bsf-)d;XhZ>>GM2KhSUe4L%]u\7_k[I1[S0hMI[NolGB4fGJaFN9h])SQ/GeF1Q*<X;iPl^K4#HPVtCc2)F,P.#o?4=cAq`OTA*_1;nK=RBZ8g.WF<^_=!B]0.7*;GIh4qBV@1aGqSG"Xgnn8W^X/hCo2CMdK7LLhWFVG.At]TdBG<QWs.Q2`@NXqgk@<^q"<.@"`reOs"mL=N?U'++RbieT)VHl>L?,.Mk^6hk#$C?h9%:;%32n3)hOJ$N%hj]$?i&^($uT8;p%>1$iRECr>3H[ZdcU9SKNEf8:'&iP^DE/,&gE+n</%q"1,AW8;LR6i?CAYg"hOao/512Vu?KQl>`o1.3MJ[_JcOhcU+asX:D",((oO=1AOf"*F^N@Bbf+S\Go9\R.-AOB&BSf/[7S@J#IYdf,,J9Spk>u[(gC&SPW"N)[h6<X\6AQ@r2=/CVUGpX/.*rnA4c/TIN'M-D&j<4hkAXksb2(*b^$8joZ#!F@I_n!,u'im;ZOgR$8>i!1!k5&7,[k6$+W3h:0baYkN:1H[n0:r9.LEmr4a#NYmC^Cj]?H@Y97#E,T6ffT[Te^GE^9]4sCpC^@8fD-#!h%F^>b!D&StA;#PE,-k&\,3Z!dkbu$^o(?[U;cuIVJ@6a)#MnNOi-dX2=NLheJsW,`ftY%C,[L,9bg^&pl@PCj/SBg:J0L/elj97@7s7]J(\&7rrX("X>1;25?`,E=ahX`Q7e[A*5oV^\.<ld`Al?KuLj4!of'q11l[Qd4UdWQBiO-r>%tobh%b3J,[.ZmAI#6\k+c2'5<T0>Au?:2o<(AnXHP%75o-)M_iAlJKnqlf)AVqCCMXQ;uQZ*^Y9WD28H3MACu&afEBoM#&B`3Ug=Gs#=#;DKtF6]eDM$M<&%S2XEJ_tLEKjg1:),hD/EkK:&l8V/k8Rj@,3l#<a"<)b+=-YiTb0]#`gHklV;mV3P+Hp,dorR,&M[cs&A+Jalk(rG:sVd-AT2pYbmP<YcHNk.)8uV?(?Q=%B=QfdDb]fD<2MQ,tF26?An,9K&^5@5p%<8jol7SJL3s^P?[2g1LF?2Wr;WSe"c`7!_44Wo)BEnd)'j'%\Vl#4MUI%JmD#,EAn3b5'CY(_8^F=Xf6Yd&b'eNZ-S;?+WRG(*$?::g>7;,;_9Ac?%]o%>^]lV1/,oK;Em;fYBNA,`C)Kq;bL9mYk/SoI<j7HRJ*beit"^e:'YfRP=gJ"W'f?9=?L+ERbRA?5??8uAF01uJ(2W&oia:$OYpTMlUj44lHX)m):kEX+6l##r@[Y?Atga@,EO";JH!@AkO5#RpYWH#r5&mnrMd%"r(QhJ_(n0<SOab[pSkc4p)ag\8m;~>
+endstream
+endobj
+126 0 obj
+<<
+/F1 127 0 R
+/F2 128 0 R
+/F3 129 0 R
+>>
+endobj
+127 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+128 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+129 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+130 0 obj
+<<
+/Contents 131 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/Font 132 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+131 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1499
+>>
+stream
+GatU2=`<%S&:XAW(^)^Z((_e>3ij+/JCD*MDN?Vo*u5,Y0G86/O[t2#gj7p$^I-+um'rN!Kje12kP42t2tFf&O5Kl4"i0p:gt+ab'IHcJ!trE14cCc%],hj.1^k!>_'#OFJH*a<)^M(h]sUa3I&f+M+^JmBJ\Q@>qS].]Lr.MsaY62r"e<:)F>3t97Pf%Z%#bC0OY\dn\q#Vc3*\%H3nHu]J!gm@_RlPlC;C91NKo`(@IajSc`AK,Ku5'&<,iIqaUlN)0&Q:4rqE#NqPJpl5n!pM5sT,9fui9R.lmrlkD+'0&`%>-d:8kINs&c%KM?9Xg<>ft#,*\0/:8)I$70BHGXKLZE:HgtUK*oW$jn>WiKD<I"3-`!XOb#thOZ[MT8-28]Nq`Z#9%ec5%Dk*+cN1P%&:na>2,3dM<?5u&H)'-9\R97rH1^1D/09MET4^0i$\5D$FFN+ZVakGR>E">+rF'Pk1jp#`QML<RjsE)&Q>!aC(Js:BE@Kco75IG_`f=XFr@.N5Re"TJjR_Z?_\AN8`0\0/7XDpV</NE$R'/%M7L?/l)dBX0UYp[NHrtW-n(&<qWT4id[2;lr;"hQ,J4Y<*!NSXKHa:sE<qhm\:s5.j_/RuLDVVo2dCCJ%(<rNWraooUK8PW;":o,Gi'lfAQ0!2biBD69\=7!Qo)RY73sYB8jb1KV>;fa?f7s$QK.&hYmf6hKL++I,mb1pZe]^i@/kl3CI4.a%D*j@'11r&!01?!%b#&RY;*V`!8hRdUKc=%G`<lRIejkLg\]5(L5`ZU&(&HOLOM'&_7C'\[Nh8"%.RdbH*$:)!V1t$"db_.c1mOR\T(b>/WN+XWK9h4=kT"B/+)IKA[u%$#e<f(EU22d;9Dj-ZgnnhXYWK=)-67*QGqGfFjjN0]I],,D9Z+!3Z!si%6H16V.uRllB_q/eaI2C>-!fN`km=9MT!c2Q.i$//amG?MlGX&1KSjV]WMbSA3rMB!MFpOW>D_=o,Ld]0Y6D]A>QGXgI.Nhh_fKDi6_aiAGBThC0;E\UaAV&-s1U"Ro3Fm`$+c';T<sT,W9qN=LJfV"OBS>j0(,n?@MbGce%^-dJ<\0X$<1\T?TC>^d1GBP:,OgQ[aLq=>u:n;sso^NL1gMA4OIK.B@\<HdCIRLu#`G=R0<YK`d;$_-p_)??C:+jMt5\ARnRk'34(8,r+FY<Qf2iBih)\J`BQOIBR6%Ak2H>]$G>JVfN"hQ[BtOGH:coW#<>31u)t/]_/rJ_+rGAE'+jUbIh<Kcg#(s+9HE"a'Q;[\N-En<7Q5'dp7A;38'SR;C?1T:(CN:eDRu8iNt83s5eP+%J1P1/*JW^iVL,![]@O[*P3/M?Fh^N\)UlRG)E/HNWpLG@bHKoLH*jhB4&'H1U1*8@Cgoh`M:r+@OkL)1bZ[RQIns/.B,5iW\%5Z.SUfAX)ae01j"%gJ[R4BJ)U.Vs1b_Fj0mSL>e=fZ:[L"**-chb?:V4EEl?>fjo`<s!)nT';Z~>
+endstream
+endobj
+132 0 obj
+<<
+/F1 133 0 R
+/F2 134 0 R
+/F3 135 0 R
+>>
+endobj
+133 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+134 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+135 0 obj
+<<
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+/Name /F3
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+136 0 obj
+<<
+/D [ 4 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+137 0 obj
+<<
+/A 136 0 R
+/Title (Executive Summary)
+/Parent 138 0 R
+/Count 0
+/Next 140 0 R
+>>
+endobj
+138 0 obj
+<<
+/First 137 0 R
+/Count 20
+/Last 176 0 R
+>>
+endobj
+139 0 obj
+<<
+/D [ 11 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+140 0 obj
+<<
+/A 139 0 R
+/Title (1\056 Design Goals\054 Scope\054 and Invariants)
+/Prev 137 0 R
+/Parent 138 0 R
+/Count 0
+/Next 142 0 R
+>>
+endobj
+141 0 obj
+<<
+/D [ 14 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+142 0 obj
+<<
+/A 141 0 R
+/Title (2\056 Verified Live A3 Baseline)
+/Prev 140 0 R
+/Parent 138 0 R
+/Count 0
+/Next 144 0 R
+>>
+endobj
+143 0 obj
+<<
+/D [ 16 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+144 0 obj
+<<
+/A 143 0 R
+/Title (3\056 Required Platform Time Architecture)
+/Prev 142 0 R
+/Parent 138 0 R
+/Count 0
+/Next 146 0 R
+>>
+endobj
+145 0 obj
+<<
+/D [ 18 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+146 0 obj
+<<
+/A 145 0 R
+/Title (4\056 Board and Sensor Synchronization Preservation)
+/Prev 144 0 R
+/Parent 138 0 R
+/Count 0
+/Next 148 0 R
+>>
+endobj
+147 0 obj
+<<
+/D [ 20 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+148 0 obj
+<<
+/A 147 0 R
+/Title (5\056 NTP Source Governance and Regional Profiles)
+/Prev 146 0 R
+/Parent 138 0 R
+/Count 0
+/Next 150 0 R
+>>
+endobj
+149 0 obj
+<<
+/D [ 27 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+150 0 obj
+<<
+/A 149 0 R
+/Title (6\056 Continuous Chrony Configuration)
+/Prev 148 0 R
+/Parent 138 0 R
+/Count 0
+/Next 152 0 R
+>>
+endobj
+151 0 obj
+<<
+/D [ 34 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+152 0 obj
+<<
+/A 151 0 R
+/Title (7\056 Replace ntp2rtc Without Replacing Internal Sync)
+/Prev 150 0 R
+/Parent 138 0 R
+/Count 0
+/Next 154 0 R
+>>
+endobj
+153 0 obj
+<<
+/D [ 39 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+154 0 obj
+<<
+/A 153 0 R
+/Title (8\056 Boot Bootstrap and Qualification Markers)
+/Prev 152 0 R
+/Parent 138 0 R
+/Count 0
+/Next 156 0 R
+>>
+endobj
+155 0 obj
+<<
+/D [ 45 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+156 0 obj
+<<
+/A 155 0 R
+/Title (9\056 Systemd Ordering and Supervised Re\055step)
+/Prev 154 0 R
+/Parent 138 0 R
+/Count 0
+/Next 158 0 R
+>>
+endobj
+157 0 obj
+<<
+/D [ 51 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+158 0 obj
+<<
+/A 157 0 R
+/Title (10\056 End\055to\055End Acceptance Criteria)
+/Prev 156 0 R
+/Parent 138 0 R
+/Count 0
+/Next 160 0 R
+>>
+endobj
+159 0 obj
+<<
+/D [ 53 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+160 0 obj
+<<
+/A 159 0 R
+/Title (11\056 Recovery Timing and Fault Injection)
+/Prev 158 0 R
+/Parent 138 0 R
+/Count 0
+/Next 162 0 R
+>>
+endobj
+161 0 obj
+<<
+/D [ 55 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+162 0 obj
+<<
+/A 161 0 R
+/Title (12\056 Monitoring\054 Rollout\054 and Rollback)
+/Prev 160 0 R
+/Parent 138 0 R
+/Count 0
+/Next 164 0 R
+>>
+endobj
+163 0 obj
+<<
+/D [ 57 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+164 0 obj
+<<
+/A 163 0 R
+/Title (13\056 Motive and ROS 2 Boundary)
+/Prev 162 0 R
+/Parent 138 0 R
+/Count 0
+/Next 166 0 R
+>>
+endobj
+165 0 obj
+<<
+/D [ 59 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+166 0 obj
+<<
+/A 165 0 R
+/Title (14\056 Review Disposition\054 References\054 and Sign\055off)
+/Prev 164 0 R
+/Parent 138 0 R
+/Count 0
+/Next 168 0 R
+>>
+endobj
+167 0 obj
+<<
+/D [ 64 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+168 0 obj
+<<
+/A 167 0 R
+/Title (Appendix A\056 Complete Deployment Artifacts)
+/Prev 166 0 R
+/Parent 138 0 R
+/Count 0
+/Next 170 0 R
+>>
+endobj
+169 0 obj
+<<
+/D [ 76 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+170 0 obj
+<<
+/A 169 0 R
+/Title (A\0566 Complete Modified timesync\056sh)
+/Prev 168 0 R
+/Parent 138 0 R
+/Count 0
+/Next 172 0 R
+>>
+endobj
+171 0 obj
+<<
+/D [ 100 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+172 0 obj
+<<
+/A 171 0 R
+/Title (A\0567 Regional NTP Profiles and Selector)
+/Prev 170 0 R
+/Parent 138 0 R
+/Count 0
+/Next 174 0 R
+>>
+endobj
+173 0 obj
+<<
+/D [ 112 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+174 0 obj
+<<
+/A 173 0 R
+/Title (A\0568 Backup and Baseline)
+/Prev 172 0 R
+/Parent 138 0 R
+/Count 0
+/Next 176 0 R
+>>
+endobj
+175 0 obj
+<<
+/D [ 124 0 R /Fit ]
+/S /GoTo
+>>
+endobj
+176 0 obj
+<<
+/A 175 0 R
+/Title (A\0569 Rollback)
+/Prev 174 0 R
+/Parent 138 0 R
+/Count 0
+>>
+endobj
+xref
+0 177
+0000000000 65535 f 
+0000000015 00000 n 
+0000000332 00000 n 
+0000000580 00000 n 
+0000000647 00000 n 
+0000000913 00000 n 
+0000008846 00000 n 
+0000008953 00000 n 
+0000009060 00000 n 
+0000009172 00000 n 
+0000009284 00000 n 
+0000009390 00000 n 
+0000009592 00000 n 
+0000016159 00000 n 
+0000016212 00000 n 
+0000016414 00000 n 
+0000022153 00000 n 
+0000022355 00000 n 
+0000029765 00000 n 
+0000029967 00000 n 
+0000036752 00000 n 
+0000036954 00000 n 
+0000042786 00000 n 
+0000042852 00000 n 
+0000042960 00000 n 
+0000043073 00000 n 
+0000043157 00000 n 
+0000043263 00000 n 
+0000043465 00000 n 
+0000048922 00000 n 
+0000048988 00000 n 
+0000049096 00000 n 
+0000049209 00000 n 
+0000049315 00000 n 
+0000049399 00000 n 
+0000049601 00000 n 
+0000052014 00000 n 
+0000052058 00000 n 
+0000052166 00000 n 
+0000052279 00000 n 
+0000052481 00000 n 
+0000057828 00000 n 
+0000057883 00000 n 
+0000057991 00000 n 
+0000058104 00000 n 
+0000058210 00000 n 
+0000058412 00000 n 
+0000062806 00000 n 
+0000062861 00000 n 
+0000062969 00000 n 
+0000063082 00000 n 
+0000063188 00000 n 
+0000063390 00000 n 
+0000070601 00000 n 
+0000070803 00000 n 
+0000078659 00000 n 
+0000078861 00000 n 
+0000087233 00000 n 
+0000087435 00000 n 
+0000094382 00000 n 
+0000094584 00000 n 
+0000097403 00000 n 
+0000097447 00000 n 
+0000097555 00000 n 
+0000097668 00000 n 
+0000097870 00000 n 
+0000100329 00000 n 
+0000100384 00000 n 
+0000100492 00000 n 
+0000100605 00000 n 
+0000100711 00000 n 
+0000100913 00000 n 
+0000102843 00000 n 
+0000102898 00000 n 
+0000103006 00000 n 
+0000103119 00000 n 
+0000103225 00000 n 
+0000103427 00000 n 
+0000105332 00000 n 
+0000105387 00000 n 
+0000105495 00000 n 
+0000105608 00000 n 
+0000105714 00000 n 
+0000105916 00000 n 
+0000107713 00000 n 
+0000107768 00000 n 
+0000107876 00000 n 
+0000107989 00000 n 
+0000108095 00000 n 
+0000108297 00000 n 
+0000110262 00000 n 
+0000110317 00000 n 
+0000110425 00000 n 
+0000110538 00000 n 
+0000110644 00000 n 
+0000110846 00000 n 
+0000112835 00000 n 
+0000112890 00000 n 
+0000112998 00000 n 
+0000113111 00000 n 
+0000113217 00000 n 
+0000113422 00000 n 
+0000115363 00000 n 
+0000115422 00000 n 
+0000115531 00000 n 
+0000115645 00000 n 
+0000115752 00000 n 
+0000115957 00000 n 
+0000117931 00000 n 
+0000117990 00000 n 
+0000118099 00000 n 
+0000118213 00000 n 
+0000118320 00000 n 
+0000118525 00000 n 
+0000120055 00000 n 
+0000120114 00000 n 
+0000120223 00000 n 
+0000120337 00000 n 
+0000120444 00000 n 
+0000120649 00000 n 
+0000122010 00000 n 
+0000122069 00000 n 
+0000122178 00000 n 
+0000122292 00000 n 
+0000122399 00000 n 
+0000122604 00000 n 
+0000124078 00000 n 
+0000124137 00000 n 
+0000124246 00000 n 
+0000124360 00000 n 
+0000124467 00000 n 
+0000124672 00000 n 
+0000126265 00000 n 
+0000126324 00000 n 
+0000126433 00000 n 
+0000126547 00000 n 
+0000126654 00000 n 
+0000126704 00000 n 
+0000126804 00000 n 
+0000126866 00000 n 
+0000126917 00000 n 
+0000127061 00000 n 
+0000127112 00000 n 
+0000127240 00000 n 
+0000127291 00000 n 
+0000127429 00000 n 
+0000127480 00000 n 
+0000127628 00000 n 
+0000127679 00000 n 
+0000127825 00000 n 
+0000127876 00000 n 
+0000128010 00000 n 
+0000128061 00000 n 
+0000128211 00000 n 
+0000128262 00000 n 
+0000128405 00000 n 
+0000128456 00000 n 
+0000128601 00000 n 
+0000128652 00000 n 
+0000128792 00000 n 
+0000128843 00000 n 
+0000128982 00000 n 
+0000129033 00000 n 
+0000129176 00000 n 
+0000129227 00000 n 
+0000129356 00000 n 
+0000129407 00000 n 
+0000129564 00000 n 
+0000129615 00000 n 
+0000129756 00000 n 
+0000129807 00000 n 
+0000129943 00000 n 
+0000129995 00000 n 
+0000130133 00000 n 
+0000130185 00000 n 
+0000130308 00000 n 
+0000130360 00000 n 
+trailer
+<<
+/Size 177
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+130458
+%%EOF

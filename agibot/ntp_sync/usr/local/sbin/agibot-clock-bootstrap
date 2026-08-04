@@ -1,0 +1,73 @@
+#!/bin/bash
+
+set -Eeuo pipefail
+umask 022
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+readonly CONF=/etc/chrony/chrony-bootstrap.conf
+readonly SOURCES=/etc/chrony/sources.d/hope-approved.sources
+readonly REGION_ROOT=/etc/agibot-time/regions
+readonly DEFAULTS=/etc/default/agibot-clock-bootstrap
+readonly STATE_DIR=/run/agibot-time
+readonly QUALIFIED="$STATE_DIR/bootstrap-qualified"
+readonly RTC_UPDATED="$STATE_DIR/rtc-updated"
+
+log()  { logger -t agibot-clock-bootstrap -- "$*"; printf '%s\n' "$*"; }
+fail() { log "ERROR: $*"; exit 1; }
+
+validate_file() {
+  local file=$1 perm
+  [[ -f "$file" ]] || fail "missing regular file: $file"
+  [[ $(stat -Lc %u "$file") -eq 0 ]] || fail "not root-owned: $file"
+  perm=$(stat -Lc %a "$file")
+  (( (8#$perm & 8#022) == 0 )) || fail "group/world writable: $file"
+}
+
+[[ $EUID -eq 0 ]] || fail "must run as root"
+install -d -o root -g root -m 0755 "$STATE_DIR"
+rm -f "$QUALIFIED" "$RTC_UPDATED"
+
+validate_file "$CONF"
+validate_file "$SOURCES"
+target=$(readlink -f "$SOURCES")
+case "$target" in
+  "$REGION_ROOT"/china/chrony.sources|\
+  "$REGION_ROOT"/us/chrony.sources|\
+  "$REGION_ROOT"/europe/chrony.sources) ;;
+  *) fail "unapproved regional source target: $target" ;;
+esac
+
+mapfile -t source_files < <(compgen -G '/etc/chrony/sources.d/*.sources' || true)
+[[ ${#source_files[@]} -eq 1 && "${source_files[0]}" == "$SOURCES" ]] ||
+  fail "/etc/chrony/sources.d must contain only hope-approved.sources"
+[[ $(grep -Ec '^[[:space:]]*server[[:space:]]+' "$SOURCES" || true) -eq 3 ]] ||
+  fail "selected regional profile must contain exactly three servers"
+grep -Eq 'site\.example|REPLACE_ME' "$SOURCES" && fail "placeholder NTP source"
+
+if [[ -e "$DEFAULTS" ]]; then
+  validate_file "$DEFAULTS"
+  # shellcheck source=/etc/default/agibot-clock-bootstrap
+  source "$DEFAULTS"
+fi
+: "${BOOTSTRAP_TIMEOUT_S:=30}"
+[[ $BOOTSTRAP_TIMEOUT_S =~ ^[0-9]+$ ]] || fail "timeout is not an integer"
+(( BOOTSTRAP_TIMEOUT_S >= 5 && BOOTSTRAP_TIMEOUT_S <= 150 )) ||
+  fail "timeout must be within 5..150 seconds"
+
+systemctl is-active --quiet chrony.service && fail "continuous chrony is already active"
+chronyd -p -f "$CONF" >/dev/null || fail "bootstrap configuration rejected"
+outer_timeout=$((BOOTSTRAP_TIMEOUT_S + 5))
+if timeout --signal=TERM "${outer_timeout}s" \
+    chronyd -q -t "$BOOTSTRAP_TIMEOUT_S" -f "$CONF"; then
+  touch "$QUALIFIED"
+else
+  fail "approved network time was not applied"
+fi
+
+if command -v hwclock >/dev/null 2>&1 && hwclock --systohc --utc; then
+  touch "$RTC_UPDATED"
+else
+  log "WARNING: RTC update failed; runtime qualification remains valid"
+fi
+log "bootstrap-qualified; rtc_updated=$([[ -e $RTC_UPDATED ]] && echo yes || echo no)"
+

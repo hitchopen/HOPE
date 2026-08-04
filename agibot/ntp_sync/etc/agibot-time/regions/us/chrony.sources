@@ -1,0 +1,6 @@
+# Region: United States
+# Authority: NIST Internet Time Service. Do not add sources from another region.
+server time-a-g.nist.gov iburst minpoll 6 maxpoll 9 maxdelay 0.30
+server time-b-g.nist.gov iburst minpoll 6 maxpoll 9 maxdelay 0.30
+server time-c-g.nist.gov iburst minpoll 6 maxpoll 9 maxdelay 0.30
+

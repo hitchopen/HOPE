@@ -1,0 +1,7 @@
+# Region: China (default)
+# Authority: Alibaba Cloud public NTP service, official ECS documentation.
+# Public service is IPv4-only. Do not add sources from another region.
+server ntp1.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.30
+server ntp2.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.30
+server ntp3.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.30
+
