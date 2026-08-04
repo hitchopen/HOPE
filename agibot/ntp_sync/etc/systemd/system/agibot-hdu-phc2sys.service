@@ -1,0 +1,17 @@
+[Unit]
+Description=Discipline the HDU PHC from the HDU system clock
+Documentation=man:phc2sys(8)
+Requires=agibot-hdu-ptp4l.service
+After=chrony.service agibot-hdu-ptp4l.service agibot-clock-bootstrap.service
+Before=agibot_pm.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=LC_ALL=C
+ExecStart=/usr/sbin/phc2sys -s CLOCK_REALTIME -c eth_hdu -w -O 0 -S 10 -m
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

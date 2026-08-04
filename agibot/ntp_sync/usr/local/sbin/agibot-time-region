@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -Eeuo pipefail
+export LC_ALL=C
+
+REGION_ROOT="/etc/agibot-time/regions"
+CURRENT_LINK="/etc/agibot-time/current"
+ACTIVE_LINK="/etc/chrony/sources.d/hope-approved.sources"
+
+fail() {
+    logger -t agibot-time-region -- "ERROR: $*"
+    printf 'ERROR: %s\n' "$*" >&2
+    exit 1
+}
+
+show_region() {
+    local target
+    target=$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)
+    [[ -n "$target" ]] || fail "no active region"
+    basename "$target"
+}
+
+if [[ "${1:-}" == "--show" ]]; then
+    show_region
+    exit 0
+fi
+
+[[ $EUID -eq 0 ]] || fail "must run as root"
+region=${1:-china}
+case "$region" in
+    china|us|europe) ;;
+    *) fail "region must be china, us, or europe" ;;
+esac
+
+systemctl is-active --quiet agibot_pm.service &&
+    fail "stop agibot_pm.service before switching regions"
+
+target="$REGION_ROOT/$region"
+profile="$target/chrony.sources"
+[[ -f "$profile" ]] || fail "missing profile: $profile"
+[[ $(stat -Lc %u "$profile") -eq 0 ]] || fail "profile is not root-owned"
+perm=$(stat -Lc %a "$profile")
+(( (8#$perm & 8#022) == 0 )) || fail "profile is group/world writable"
+[[ $(grep -Ec '^[[:space:]]*server[[:space:]]+' "$profile" || true) -eq 3 ]] ||
+    fail "profile must contain exactly three servers"
+grep -Eq 'site\.example|REPLACE_ME' "$profile" && fail "profile contains a placeholder"
+
+install -d -o root -g root -m 0755 /etc/agibot-time /etc/chrony/sources.d
+tmp_link="$CURRENT_LINK.new.$$"
+trap 'rm -f "$tmp_link"' EXIT
+ln -s "$target" "$tmp_link"
+mv -Tf "$tmp_link" "$CURRENT_LINK"
+trap - EXIT
+
+if [[ ! -L "$ACTIVE_LINK" ]]; then
+    ln -s /etc/agibot-time/current/chrony.sources "$ACTIVE_LINK"
+fi
+[[ $(readlink "$ACTIVE_LINK") == "/etc/agibot-time/current/chrony.sources" ]] ||
+    fail "unexpected active source link: $ACTIVE_LINK"
+
+logger -t agibot-time-region -- "selected region=$region profile=$profile"
+printf 'Selected region: %s\n' "$region"
+
+if systemctl is-active --quiet chrony.service; then
+    chronyc reload sources
+    chronyc online
+    chronyc refresh
+    chronyc sources -v
+fi
+
+printf '%s\n' "UTC is unqualified until chrony and internal board/sensor gates pass."
+

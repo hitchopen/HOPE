@@ -1,0 +1,6 @@
+# Region: Europe
+# Authority: PTB legal-time NTP service. Do not add sources from another region.
+server ptbtime1.ptb.de iburst minpoll 6 maxpoll 9 maxdelay 0.30
+server ptbtime2.ptb.de iburst minpoll 6 maxpoll 9 maxdelay 0.30
+server ptbtime3.ptb.de iburst minpoll 6 maxpoll 9 maxdelay 0.30
+

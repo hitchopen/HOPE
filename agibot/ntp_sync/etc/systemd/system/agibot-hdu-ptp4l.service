@@ -1,0 +1,16 @@
+[Unit]
+Description=Agibot HDU PTP master on eth_hdu
+Documentation=man:ptp4l(8)
+After=sys-subsystem-net-devices-eth_hdu.device agibot-clock-bootstrap.service
+Before=agibot-hdu-phc2sys.service agibot_pm.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=LC_ALL=C
+ExecStart=/usr/sbin/ptp4l -i eth_hdu -2 -E -m
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

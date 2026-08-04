@@ -1,0 +1,2 @@
+# Strict external-time preflight fails closed. Normal A3 operation remains offline-capable.
+AGIBOT_ALLOW_UNQUALIFIED_TIME=0
