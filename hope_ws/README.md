@@ -1,0 +1,56 @@
+# HOPE ROS 2 workspace
+
+`hope_ws` contains the HOPE planner, HOPE message contract, and source-specific
+relays that convert external mocap data into the canonical `/poses` interface.
+It builds independently from both raw motion-capture drivers.
+
+```bash
+cd hope_ws
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install
+source install/setup.bash
+```
+
+## OptiTrack input
+
+The raw OptiTrack adapter lives in the sibling `NatNet2ROS2` workspace and is
+built/launched separately. `hope_ws` never connects to Motive directly; its
+`optitrack_mct_relay` subscribes to
+`/optitrack/poses` (`motion_capture_tracking_interfaces/NamedPoseArray`) and
+publishes the HOPE-standard `/poses` and related topics.
+
+The host running that relay needs local message type support. Source the
+adapter workspace before the HOPE overlay:
+
+```bash
+source NatNet2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
+```
+
+See [`../NatNet2ROS2/README.md`](../NatNet2ROS2/README.md) and
+[`../docs/OPTITRACK.md`](../docs/OPTITRACK.md) for the complete two-workspace
+bringup.
+
+## VRPN input
+
+The ChingMu/VRPN client lives in the sibling `VRPN2ROS2` workspace. Start it
+independently, then launch only the HOPE aggregator and planner:
+
+```bash
+# Terminal 1
+source VRPN2ROS2/install/setup.bash
+ros2 launch vrpn_mocap client.launch.yaml \
+  server:=<CHINGMU_SERVER_IP> port:=3883
+
+# Terminal 2
+source VRPN2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py \
+  mocap_backend:=vrpn \
+  ball_pose_topic:=/vrpn_mocap/Ball/pose_id_0
+```
+
+`pose_to_posearray` preserves the incoming `PoseStamped` header. See
+[`../VRPN2ROS2/README.md`](../VRPN2ROS2/README.md) for the strict source-time
+and NTP epoch requirements.

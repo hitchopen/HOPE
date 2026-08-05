@@ -2,9 +2,9 @@
 """Relay motion_capture_tracking (OptiTrack/NatNet) output into the HOPE mocap interface.
 
 OptiTrack counterpart of the VRPN path (``vrpn_mocap`` + ``pose_to_posearray``).
-The vendored ``motion_capture_tracking`` node (hope_ws/src/motion_capture_tracking,
-see its PIN.md) depacketizes NatNet from Motive and publishes ONE NamedPoseArray
-per camera frame carrying every tracked object:
+The independently built ``NatNet2ROS2`` workspace depacketizes NatNet from
+Motive and publishes ONE NamedPoseArray per camera frame carrying every tracked
+object:
 
 * Motive-native rigid bodies (``P1``/``P2`` and setup-only ``Table``) under
   their Motive asset names, and
@@ -33,11 +33,9 @@ competition launch. Compared with the VRPN adapter:
 re-emitted at rigid-body timestamps -- the planner's velocity polyfit relies
 on this, exactly like the ball-triggered publishing of ``pose_to_posearray``.
 
-The mct node itself must be launched with its ``poses`` topic remapped to
-``input_poses_topic`` (default ``/optitrack/poses``) and ``/tf`` remapped away
-(e.g. ``/optitrack/tf``): its raw output would otherwise collide with the HOPE
-``/poses`` contract (different message type!) and double-publish TF frames.
-``optitrack_hope_bridge.launch.py`` wires this up.
+The standalone adapter launch owns the ``/optitrack`` namespace and raw TF
+remaps. ``optitrack_hope_bridge.launch.py`` starts only this relay and the
+optional HOPE world frame; it never starts the NatNet driver.
 """
 
 from __future__ import annotations
@@ -283,8 +281,8 @@ def main(args=None) -> None:
     except ImportError as exc:
         raise SystemExit(
             "optitrack_mct_relay needs motion_capture_tracking_interfaces "
-            "(vendored in hope_ws/src/motion_capture_tracking_interfaces). "
-            "Build and source the workspace overlay, or use the VRPN "
+            "from the independent NatNet2ROS2 workspace. Install/source that "
+            "interface package on this host, or use the VRPN "
             f"backend instead. Import error: {exc}"
         )
 

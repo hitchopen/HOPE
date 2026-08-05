@@ -5,9 +5,9 @@
 > **Arena reference document.** This records the reference arena configuration
 > and the shipped transport paths. The authoritative frame and topic contract is
 > [`mocap/README.md`](README.md). The live paths
-> shipped in this repo are the vendored OptiTrack/NatNet driver
-> (`motion_capture_tracking` + `optitrack_mct_relay`) and the vendored VRPN
-> client for Chingmu. Index:
+> shipped in this repo are the independent OptiTrack/NatNet adapter workspace
+> (`NatNet2ROS2`) plus the HOPE `optitrack_mct_relay`, and the independent
+> `VRPN2ROS2` client for Chingmu. Index:
 > [`REFERENCE_DOCS.md`](../REFERENCE_DOCS.md).
 
 ---
@@ -302,8 +302,8 @@ Chingmu cameras → CMTracker/MCServer → VRPN → vrpn_mocap
 
 | System | Vendor payload | ROS 2 bridge | ROS 2 result |
 |--------|----------------|--------------|--------------|
-| **OptiTrack / Motive** | NatNet rigid-body frames for `Ball`, `P1`, and `P2`: asset name, position vector, and quaternion | vendored `motion_capture_tracking` in namespace `/optitrack`, then `optitrack_mct_relay` | `/optitrack/poses` is `NamedPoseArray` (`header` plus `{string name, geometry_msgs/Pose pose}` entries); relay produces HOPE `/poses`, `/ball/point`, optional `/P1/pose` and `/P2/pose`, and TF |
-| **Chingmu** | VRPN tracker report for a named CMTracker rigid body: sender name, sensor index, position vector, and quaternion | vendored `vrpn_mocap`, then `pose_to_posearray` | `/vrpn_mocap/<sender>/pose_id_<sensor_id>` as `geometry_msgs/PoseStamped`; adapter copies the complete pose to `/poses` |
+| **OptiTrack / Motive** | NatNet rigid-body frames for `Ball`, `P1`, and `P2`: asset name, position vector, and quaternion | independently built `NatNet2ROS2` in namespace `/optitrack`, then `optitrack_mct_relay` from `hope_ws` | `/optitrack/poses` is `NamedPoseArray` (`header` plus `{string name, geometry_msgs/Pose pose}` entries); relay produces HOPE `/poses`, `/ball/point`, optional `/P1/pose` and `/P2/pose`, and TF |
+| **Chingmu** | VRPN tracker report for a named CMTracker rigid body: sender name, sensor index, position vector, and quaternion | independently built `VRPN2ROS2`, then `pose_to_posearray` from `hope_ws` | `/vrpn_mocap/<sender>/pose_id_<sensor_id>` as `geometry_msgs/PoseStamped`; adapter copies the complete pose and source header to `/poses` |
 
 `(pitch, yaw, roll)` is an operator-facing representation. Both paths carry orientation as a
 quaternion and preserve it end-to-end. `PoseArray` has no per-pose name field, so `Ball` must
@@ -326,48 +326,71 @@ The expected Motive settings are:
 | NatNet | ✅ Enabled | Required by the shipped OptiTrack backend; Motive's VRPN Streaming Engine is not used by this path |
 | Up Axis | **Z** | Matches the HOPE ROS 2 REP 103 world frame; validate at landmarks before play |
 | Delivery | Unicast preferred | The client connects to the Motive PC; NatNet negotiates stream details with the server |
-| Command port | UDP 1510 (normally) | The vendored driver uses NatNet's command channel and obtains data-port details from Motive; permit the negotiated UDP data traffic through the firewall |
+| Command port | UDP 1510 (normally) | The independent adapter uses NatNet's command channel and obtains data-port details from Motive; permit the negotiated UDP data traffic through the firewall |
 | Rigid Bodies | `Ball`, `P1`, `P2` in competition; `Table` only during calibration | Names are case-sensitive and are passed through verbatim to the relay |
 | Ball | 6-DOF rigid-body asset named `Ball` | Set its pivot to the geometric ball center; a tracking loss removes the `Ball` entry and pauses `/poses`, rather than republishing a stale ball |
 
-Start the complete planner path with the Motive PC address:
+Start the independent adapter with the Motive PC address, then start HOPE:
 
 ```bash
-ros2 launch hope_bringup hope_bringup.launch.py \
-  mocap_backend:=optitrack \
-  mocap_server:=MOTIVE_PC_IP \
-  mocap_network_latency_ms:=MEASURED_ONE_WAY_MS
+source NatNet2ROS2/install/setup.bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py hostname:=MOTIVE_PC_IP
+
+source NatNet2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
 The chain is `Motive → motion_capture_tracking_node → /optitrack/poses →
 optitrack_mct_relay → /poses`. The driver publishes one `NamedPoseArray` per camera frame;
 the relay maps names according to `config/optitrack_relay.yaml`, scales positions only if
-configured otherwise, and preserves the quaternion. The default driver configuration uses
-`topics.header_time: ros_latency_compensated`: it maps exposure time into the local ROS epoch
-by subtracting NatNet Camera/Motive latencies and the measured one-way network/host latency
-from receipt time. Bare `ros` is arrival time; bare `camera` is the Motive host's unrelated
-clock epoch. The legacy Motive VRPN port 3883 is not part of this connection. See
+configured otherwise, and preserves the quaternion. The default driver uses
+`topics.header_time: camera_utc`: NatNet echo synchronization maps Motive's
+`CameraMidExposureTimestamp` QPC tick into the adapter monotonic clock, then the driver
+subtracts its measured age from the adapter's Chrony-disciplined ROS system time/Unix epoch.
+Bare `ros` is arrival time; bare `camera` is the Motive host's unrelated clock epoch. The
+legacy Motive VRPN port 3883 is not part of this connection. See
 [`docs/OPTITRACK.md`](../docs/OPTITRACK.md) for build, launch, and diagnostic details.
 
 ### 6.3  Chingmu / VRPN Path
 
-In CMTracker/MCServer, define the ball as a rigid body and assign a stable VRPN sender name such as `Ball`. The Ball is no longer handled as an unlabeled marker under a shared sender. Set the streaming up axis to **Z** (Section 2.2) so no software frame conversion is needed. Run the vendored native ROS 2 VRPN client against the Chingmu server:
+In CMTracker/MCServer, define the ball as a rigid body and assign a stable VRPN sender name such as `Ball`. The Ball is no longer handled as an unlabeled marker under a shared sender. Set the streaming up axis to **Z** (Section 2.2) so no software frame conversion is needed. Build and run the independent `VRPN2ROS2` workspace against the Chingmu server:
 
 ```bash
+cd VRPN2ROS2
+colcon build --symlink-install
+source install/setup.bash
 ros2 launch vrpn_mocap client.launch.yaml server:=CHINGMU_SERVER_IP port:=3883
 ```
 
 ```yaml
-/vrpn_mocap_client:
+/vrpn_mocap/vrpn_mocap_client_node:
   ros__parameters:
     server: "CHINGMU_SERVER_IP"
     port: 3883
     frame_id: "world"
     multi_sensor: true
-    use_vrpn_timestamps: false  # set true only when server and ROS clocks are synchronized
-    update_freq: 100.0
+    use_vrpn_timestamps: true
+    validate_vrpn_timestamps: true
+    max_vrpn_timestamp_age_ms: 100.0
+    max_vrpn_future_skew_ms: 5.0
+    update_freq: 500.0             # poll above the 300-360 Hz source stream
     refresh_freq: 1.0
 ```
+
+The 500 Hz client polling rate intentionally exceeds the expected 300–360 Hz
+VRPN source rate. VRPN drains the reports currently available on each mainloop
+call, but polling at the former 100 Hz could leave the oldest report queued for
+nearly 10 ms; 500 Hz reduces the ideal polling term to about 2 ms.
+
+This preserves the VRPN server-supplied Unix `timeval`; VRPN itself performs no
+cross-host clock conversion. The CMTracker/MCServer and adapter hosts must use
+the same NTP/PTP absolute epoch. The strict bounds fail closed on stale,
+future, relative-epoch, or malformed values. Passing the live probe in
+[`VRPN2ROS2/README.md`](../VRPN2ROS2/README.md) proves epoch/age consistency,
+but not that proprietary CMTracker software stamped camera exposure. That
+last provenance claim needs a vendor/SDK statement or hardware-trigger/frame
+comparison.
 
 The client auto-discovers VRPN tracker senders. Its pose callback maps `vrpn_TRACKERCB.pos[0:3]` directly to `PoseStamped.pose.position` and `quat[0:4]` directly to `PoseStamped.pose.orientation.{x,y,z,w}`. With `multi_sensor: true`, typical single-sensor rigid bodies appear as:
 
@@ -417,7 +440,7 @@ Confirm all of the following:
 - `position` is in metres, `orientation` is finite and unit length, and the Ball pivot is at its geometric center.
 - The message `frame_id` and axes match the HOPE world frame. **Landmark validation is mandatory before play** for every vendor and installation: place the `Ball` asset at surveyed landmarks (e.g. the net-center line `x = 1.37, y = −0.7625, z = 0.02`) and confirm the streamed coordinates match Section 2.1. This catches an incorrect Up Axis, shifted origin, mirrored frame, or accidental double transform.
 - Occlusion produces a **dropout**, not a frozen or all-zero pose. On the NatNet path, a missing `Ball` entry causes the relay to pause `/poses`; consumers must not substitute a stale pose.
-- The shipped NatNet config uses `ros_latency_compensated` plus measured `mocap_network_latency_ms`; do not use bare receipt-time `ros` or mix the Motive `camera` epoch directly with ROS. A VRPN vendor timestamp requires a verified NTP/PTP or equivalent clock mapping.
+- The shipped NatNet config uses `camera_utc` with NatNet echo synchronization and rejects excessive mapping uncertainty; do not use bare receipt-time `ros` or mix the Motive `camera` epoch directly with ROS. The adapter host's Chrony/PTP clock must also pass qualification. The VRPN path must pass its own strict NTP epoch/age probe; camera-exposure provenance remains a separate hardware/vendor gate.
 - `/poses` index order matches the planner configuration. The current no-spin planner reads the Ball position while the full quaternion remains in the message and bag recording.
 
 ---
@@ -469,7 +492,7 @@ Each team declares its robot-specific URDF root frame and provides the calibrate
 
 - Su, Z., Zhang, B., Rahmanian, N., Gao, Y., Liao, Q., Regan, C., Sreenath, K., & Sastry, S. S. (2025). HITTER: A HumanoId Table TEnnis Robot via Hierarchical Planning and Learning. *arXiv:2508.21043v2*.
 - HITTER project page: https://humanoid-table-tennis.github.io/
-- motion_capture_tracking (vendored in-tree as the supported OptiTrack/NatNet backend — `hope_ws/src/motion_capture_tracking/`, exact pins and local patches in its PIN.md; publishes `NamedPoseArray`, bridged to the `/poses` contract by `optitrack_mct_relay`; upstream: https://github.com/IMRCLab/motion_capture_tracking)
+- motion_capture_tracking (vendored inside the independent OptiTrack/NatNet workspace — `NatNet2ROS2/src/motion_capture_tracking/`, exact pins and local patches in its PIN.md; publishes `NamedPoseArray`, bridged to the `/poses` contract by the `hope_ws` `optitrack_mct_relay`; upstream: https://github.com/IMRCLab/motion_capture_tracking)
 - OptiTrack Motive VRPN Streaming Engine (rigid bodies only; default port 3883): https://docs.optitrack.com/motive-ui-panes/settings/settings-streaming
 - VRPN protocol: https://github.com/vrpn/vrpn
 - 青瞳视觉 (CHINGMU) motion capture: https://www.chingmu.com/ (EN: https://en.chingmu.com/) — VRPN/LiveStream streaming, C/C++/C#/Python/ROS SDKs

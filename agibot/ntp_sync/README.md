@@ -330,7 +330,10 @@ service must return to `active (running)`. Confirm one cold boot before play;
 an unavailable NTP source must not prevent enabled A3 application services from
 starting.
 
-`MOCAP_TIME_READY=1` qualifies only the A3 clock layer. Defer Motive/NatNet
-latency, timestamp-domain, board/sensor acceptance, rollback, and the runner's
-mandatory official-stand behavior for invalid target/base data to the
+`MOCAP_TIME_READY=1` qualifies only the A3 clock layer. The OptiTrack adapter
+now maps Motive QPC capture ticks into its own Chrony-disciplined ROS system
+time with NatNet echo synchronization, but that adapter must independently
+pass `natnet_preflight.py` and its clock-uncertainty gate. Defer remaining
+board/sensor acceptance, rollback, and the runner's mandatory official-stand
+behavior for invalid target/base data to the
 [full plan](../../docs/HOPE_A3_Clock_Synchronization_Improvement_Plan.pdf).

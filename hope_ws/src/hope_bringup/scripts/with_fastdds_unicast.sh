@@ -21,14 +21,14 @@ Options:
   -h, --help               Show this help.
 
 Example for the OptiTrack laptop-bridge topology:
-  # Laptop: Motive bridge -> robot host over the laptop Wi-Fi route.
+  # Laptop: independently built NatNet2ROS2 adapter -> robot host.
   with_fastdds_unicast.sh --peer <ROBOT_HOST_IP> -- \
-    ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
+    ros2 launch motion_capture_tracking natnet2ros2.launch.py \
       hostname:=<MOTIVE_PC_IP>
 
-  # Robot host: laptop as the only DDS peer.
+  # Robot host: source NatNet2ROS2 interfaces, then run the HOPE relay/planner.
   with_fastdds_unicast.sh --peer <LAPTOP_IP> -- \
-    ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=false ...
+    ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 
 When the venue Wi-Fi changes, replace only the peer IPs. The wrapper derives
 each local interface and address from the active route; no XML edit is needed.

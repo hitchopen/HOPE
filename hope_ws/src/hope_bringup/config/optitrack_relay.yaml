@@ -1,11 +1,9 @@
 optitrack_mct_relay:
   ros__parameters:
-    # NOTE: the Motive PC hostname/IP is a launch arg of
-    # optitrack_hope_bridge.launch.py (hostname), NOT here. The mct driver
-    # config (rigid bodies, single-marker ball tracker) lives in
-    # optitrack_mct.yaml.
+    # NOTE: the Motive PC hostname/IP and raw driver configuration belong to
+    # the independently launched NatNet2ROS2 workspace, NOT this relay.
     #
-    # Where the vendored motion_capture_tracking node publishes its
+    # Where the independent NatNet2ROS2 adapter publishes its
     # NamedPoseArray after the launch-file remap. Raw driver topics live under
     # /optitrack/* on purpose -- the bare /poses name is the HOPE contract
     # (geometry_msgs/PoseArray) that THIS relay produces.
@@ -20,10 +18,8 @@ optitrack_mct_relay:
                            # streamed during competition)
     p1_object: "P1"        # our robot's marker-cluster rigid body (standardized)
     p2_object: "P2"        # opponent marker-cluster rigid body (standardized)
-    # Ball entry name in the NamedPoseArray. MODE A (rigid-body ball): the
-    # Motive rigid-body ASSET name. MODE B (single-marker): the
-    # librigidbodytracker body name from optitrack_mct.yaml. Either way the
-    # standardized name is Ball; the relay does not care which mode produced it.
+    # Ball entry name in the NamedPoseArray. HOPE requires a Motive-native
+    # strict 6-DOF rigid-body asset; the standardized asset name is Ball.
     ball_object: "Ball"
 
     # Unit conversion for every relayed position (poses, ball point, TF). THE

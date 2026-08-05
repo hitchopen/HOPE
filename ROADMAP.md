@@ -17,9 +17,10 @@ why, see [`docs/REMOVED_FROM_STARTER.md`](docs/REMOVED_FROM_STARTER.md).
 - Two deploy paths: the clean-room reference runner in
   [`a3_deploy/`](a3_deploy) and Agibot's own example under
   [`agibot/code_deployment/`](agibot/code_deployment).
-- A ROS 2 workspace ([`hope_ws/`](hope_ws)) with the planner, `RacketCommand`,
-  and the vendored `vrpn_mocap` driver, wired end to end into the reference
-  runner via `--planner`.
+- Independent raw-mocap workspaces ([`NatNet2ROS2/`](NatNet2ROS2) and
+  [`VRPN2ROS2/`](VRPN2ROS2)) plus a ROS 2 planner/relay workspace
+  ([`hope_ws/`](hope_ws)), wired end to end into the reference runner via
+  `--planner`.
 
 ## Out of scope, by design
 

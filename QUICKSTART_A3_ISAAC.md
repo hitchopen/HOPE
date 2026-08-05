@@ -175,8 +175,12 @@ mocap, then start the runner in `--planner` mode so it consumes the planner's
 cd hope_ws && colcon build && source install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true
 # real mocap instead:
-#   ros2 launch hope_bringup hope_bringup.launch.py mocap_server:=<host> \
-#       ball_pose_topic:=/vrpn_mocap/ball/pose_id_0
+#   cd VRPN2ROS2 && colcon build --symlink-install && source install/setup.bash
+#   ros2 launch vrpn_mocap client.launch.yaml server:=<host> port:=3883
+#   # In a second terminal, source both overlays and start HOPE:
+#   source VRPN2ROS2/install/setup.bash && source hope_ws/install/setup.bash
+#   ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=vrpn \
+#       ball_pose_topic:=/vrpn_mocap/Ball/pose_id_0
 
 # Terminal 2 (same ROS env sourced): the runner consuming /racket/command
 cd a3_deploy/a3_deploy_example/reference

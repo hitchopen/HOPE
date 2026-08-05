@@ -1,0 +1,40 @@
+/vrpn_mocap/vrpn_mocap_client_node:
+  ros__parameters:
+    server: localhost
+    port: 3883
+    frame_id: world
+    # Poll faster than the expected 300-360 Hz server stream. VRPN drains all
+    # currently queued reports on each mainloop call, but a 100 Hz poll timer
+    # can add nearly 10 ms of client-side queue age to the oldest report. At
+    # 500 Hz the ideal polling contribution is bounded to about 2 ms.
+    update_freq: 500.
+    refresh_freq: 1.
+    multi_sensor: false
+    # Preserve the VRPN packet's server-supplied timeval instead of re-stamping
+    # on receipt. VRPN itself does no server/client clock conversion, so both
+    # the CMTracker/MCServer host and this adapter host MUST be disciplined to
+    # the same NTP/PTP epoch. This proves server-report time, not by itself the
+    # proprietary camera exposure-time provenance.
+    use_vrpn_timestamps: true
+
+    # Fail closed when the server timeval is not plausible in this adapter
+    # host's RCL_SYSTEM_TIME/Unix epoch. The 100 ms old-age value is a generous
+    # bring-up ceiling, NOT a competition setting. After measuring the wired
+    # venue, reduce it to just above observed high-percentile transport age.
+    validate_vrpn_timestamps: true
+    max_vrpn_timestamp_age_ms: 100.0
+    max_vrpn_future_skew_ms: 5.0
+
+    # Track min(receipt_system_time - source_stamp) in a steady-clock sliding
+    # window. This proxy detects a change in server-clock offset or minimum
+    # one-way delay; it does not synchronize clocks or separate the two.
+    min_age_monitor_window_ms: 5000.0
+    min_age_monitor_warmup_samples: 100
+    max_vrpn_min_age_shift_ms: 5.0
+
+    # A runtime self-reference cannot detect an offset already present at
+    # startup. For competition, commission expected_vrpn_min_age_ms from a
+    # known-good, wired, NTP-verified run and enable this fail-closed check.
+    validate_expected_vrpn_min_age: false
+    expected_vrpn_min_age_ms: 0.0
+    max_expected_vrpn_min_age_error_ms: 5.0

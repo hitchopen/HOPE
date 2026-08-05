@@ -7,10 +7,10 @@ backend-agnostic:
 
 | Backend | Venue software | Driver → adapter |
 |---|---|---|
-| `vrpn` (default) | Any VRPN server (e.g. ChingMu/Avatar Pro CMTracker, VRPN TCP 3883) | vendored [`vrpn_mocap`](../hope_ws/src/vrpn_mocap/README.md) → `pose_to_posearray` |
-| `optitrack` | OptiTrack Motive (NatNet UDP, cmd port 1510) | vendored [`motion_capture_tracking`](../hope_ws/src/motion_capture_tracking/PIN.md) → `optitrack_mct_relay` |
+| `vrpn` (default) | Any VRPN server (e.g. ChingMu/Avatar Pro CMTracker, VRPN TCP 3883) | independent [`VRPN2ROS2`](../VRPN2ROS2/README.md) → `pose_to_posearray` |
+| `optitrack` | OptiTrack Motive (NatNet UDP, cmd port 1510) | independent [`NatNet2ROS2`](../NatNet2ROS2/README.md) → `optitrack_mct_relay` |
 
-This document covers the `optitrack` backend. The VRPN path is unchanged and
+This document covers the `optitrack` backend. The VRPN path is independent and
 documented in [interfaces/ros_topics.md](interfaces/ros_topics.md) and
 [mocap/README.md](../mocap/README.md).
 
@@ -18,7 +18,7 @@ documented in [interfaces/ros_topics.md](interfaces/ros_topics.md) and
 
 ```text
 Motive (NatNet UDP)
-      |  motion_capture_tracking_node        (vendored driver, namespace /optitrack)
+      |  NatNet2ROS2 workspace               (independent driver, namespace /optitrack)
       v
 /optitrack/poses                             motion_capture_tracking_interfaces/NamedPoseArray
       |  optitrack_mct_relay (hope_bringup)  (one message per camera frame, objects by name)
@@ -33,8 +33,8 @@ The driver's raw topics stay under `/optitrack/*` **on purpose**: its `poses`
 topic is a `NamedPoseArray` — on the bare `/poses` name it would collide with
 the HOPE `/poses` contract (`geometry_msgs/PoseArray`) as a DDS type mismatch —
 and its raw `/tf` (body names verbatim) would fight the relay's transforms.
-`optitrack_hope_bridge.launch.py` enforces both remaps; the relay is the only
-`/poses`/TF authority.
+`natnet2ros2.launch.py` enforces both raw-driver remaps; the HOPE relay is the
+only `/poses`/HOPE-TF authority.
 
 The relay parameter `publish_table` defaults to `false`. Therefore the normal
 competition launch creates no `/table/pose` publisher and emits no Table TF or
@@ -43,23 +43,23 @@ For a separate arena setup or data-recording session only, the standalone
 bridge may be launched with `publish_table:=true`; stop it and return to the
 default before competition.
 
-The vendored driver is [IMRCLab
+The driver in the independent `NatNet2ROS2` workspace is [IMRCLab
 motion_capture_tracking](https://github.com/IMRCLab/motion_capture_tracking)
 pinned at v1.0.9 with its `libmotioncapture`/`librigidbodytracker` submodules
 materialized, non-OptiTrack vendor SDKs removed, and NatNet unicast fixes
 applied — the complete provenance and patch list is in
-[`hope_ws/src/motion_capture_tracking/PIN.md`](../hope_ws/src/motion_capture_tracking/PIN.md).
+[`NatNet2ROS2/src/motion_capture_tracking/PIN.md`](../NatNet2ROS2/src/motion_capture_tracking/PIN.md).
 It uses the **open-source NatNet depacketizer**, so it runs on any platform
 (including aarch64) with no closed-source NatNet SDK.
 
 ## Build
 
-The two vendored packages build with the workspace:
+Build and source the adapter workspace independently:
 
 ```bash
-cd hope_ws
+cd NatNet2ROS2
 rosdep install --from-paths src --ignore-src -r -y   # PCL, Eigen, fmt, Boost, ...
-colcon build
+colcon build --symlink-install
 source install/setup.bash
 ```
 
@@ -79,11 +79,10 @@ Building with a uv/conda Python shim earlier on `PATH` can make CMake's
 `No module named 'em'`; in that case build with
 `--cmake-args -DPython3_EXECUTABLE=/usr/bin/python3`.
 
-VRPN-only builds stay possible: `hope_bringup` intentionally declares **no**
-manifest dependency on the vendored driver (the OptiTrack scripts import its
-message lazily and fail with an actionable error), so
-`colcon build --packages-skip motion_capture_tracking motion_capture_tracking_interfaces`
-builds everything else unchanged.
+Build `hope_ws` separately. It intentionally has **no build dependency** on
+the NatNet driver; the OptiTrack scripts import its message lazily. A machine
+that runs `optitrack_mct_relay` must nevertheless have the independent
+`motion_capture_tracking_interfaces` package installed and sourced at runtime.
 
 ## Motive-side checklist
 
@@ -102,7 +101,7 @@ In Motive's Data Streaming pane:
   the table asset is setup/calibration-only; older notes call it `PPT`) — the
   driver streams Motive asset names verbatim and the relay maps by name.
   Assets created/renamed while the bridge runs self-heal in ~1–2 s (the
-  vendored driver re-requests the model definition when an unnamed body
+  pinned adapter driver re-requests the model definition when an unnamed body
   streams, PIN.md patch #6); restart the bridge only as a fallback.
 - **Ball — strict 6-DOF rigid-body asset (the only supported mode):** the
   HOPE standard requires the ball to be tracked as a strict 6-DOF rigid body
@@ -117,7 +116,7 @@ In Motive's Data Streaming pane:
   and re-acquisition per the mocap reference §5.4 acceptance checks.
   Single-marker / unlabeled-point ball tracking (the retired ≤ v0.4 design)
   does **not** meet the spec and is not supported by this bringup — the
-  `librigidbodytracker` machinery in the vendored driver is deliberately left
+  `librigidbodytracker` machinery in the adapter driver is deliberately left
   unconfigured.
 - Units stream in **metres** → `position_scale:=1.0` (default). Sanity check:
   `/P1/pose` reading hundreds means a millimetre feed → `0.001`.
@@ -128,25 +127,59 @@ unicast-vs-multicast are auto-negotiated from the server response).
 
 ### Acquisition timestamps
 
-The supplied OptiTrack config uses
-`topics.header_time: ros_latency_compensated`. For every frame the driver
-computes a local-ROS-epoch exposure estimate:
+The supplied OptiTrack config uses `topics.header_time: camera_utc`. At startup
+the driver exchanges NatNet `NAT_ECHOREQUEST`/`NAT_ECHORESPONSE` packets and
+selects the minimum-RTT samples to map Motive's high-resolution QPC ticks into
+the adapter host's monotonic clock. For every frame it then computes:
 
 ```text
-ROS receipt time
-  - NatNet Camera latency
-  - NatNet Motive processing latency
-  - measured one-way network/host latency
+capture age = adapter monotonic now
+              - map(CameraMidExposureTimestamp)
+capture UTC = adapter RCL_SYSTEM_TIME now - capture age
 ```
 
-Set `topics.network_latency_ms` from the deployed isolated LAN measurement;
-half of a demonstrably symmetric RTT is only an initial estimate, while packet
-capture or hardware timestamping is preferable. Do not use `header_time: ros`
-for moving cross-sensor calibration: a fixed 5 ms path delay becomes 2.5 mm
-of invisible position bias at 0.5 m/s. Do not substitute
+Run the adapter on a **wired** arena network. NatNet's echo response supplies
+Motive's request-receive tick but no server-transmit tick. Consequently,
+systematic request/response path asymmetry can bias the midpoint estimate by
+up to `minimum echo RTT / 2`. The implementation includes that amount in its
+uncertainty rather than treating it as zero, but it remains a bias; Wi-Fi can
+silently consume most of the 2 ms mapping budget and is not a qualified
+competition path.
+
+The runtime filter rejects isolated echoes more than 0.25 ms above its RTT
+floor. To recover from a permanent route/link regime change, ten consecutive
+valid higher-RTT responses (approximately five seconds at the 500 ms refresh
+period) rebase the floor to the lowest RTT in that run. Rebase does not weaken
+the safety gate: the new RTT/2 and the complete pre-filter offset correction
+are charged to mapping uncertainty, and publication remains stopped if the
+result exceeds the configured limit.
+
+`RCL_SYSTEM_TIME` is the Unix epoch supplied by `CLOCK_REALTIME` and must pass
+the deployment Chrony qualification. `max_clock_sync_uncertainty_ms` and
+`max_capture_age_ms` reject unsafe frames. The old
+`ros_latency_compensated`/`network_latency_ms` path remains only as an explicit
+legacy fallback; it cannot measure one-way network delay. Do not use
+`header_time: ros` for moving cross-sensor calibration: a fixed 5 ms path delay
+becomes 2.5 mm of invisible position bias at 0.5 m/s. Do not substitute
 `header_time: camera`: it preserves the Motive interval but uses the Motive
 host's unrelated high-resolution-clock epoch. The pelvis reference producer
 must independently map its own acquisition time into the same ROS epoch.
+
+`max_clock_sync_uncertainty_ms: 2.0` is **not** the complete mocap-to-A3
+alignment number. It covers the Motive↔adapter mapping plus the local
+system-clock read bracket. The adapter-host NTP error and the A3 UTC/PTP error
+are separate terms. For example, if those two deployment gates each allow
+10 ms, the conservative layered bound is `10 + 2 + 10 = 22 ms`, not 2 ms.
+
+If an older Motive does not answer NatNet echo, `camera_utc` fails startup by
+design. An operator may explicitly launch with `header_time:=ros` only for a
+diagnostic or application that does not require moving cross-sensor alignment;
+receipt time is not a degraded-but-equivalent form of acquisition time.
+
+This implements the same timing principle as OptiTrack's documented
+`NatNetClient::SecondsSinceHostTimestamp(CameraMidExposureTimestamp)`; the
+open-source backend implements the echo wire protocol directly so it also
+works on the A3 adapter's aarch64 platform.
 
 ### Calibrating P1 to an A3 `pelvis_link`
 
@@ -255,36 +288,37 @@ ros2 run hope_bringup natnet_preflight.py --hostname <MOTIVE_PC_IP>
 `natnet_preflight.py` speaks the NatNet command protocol itself and separates
 the failure modes that all look identical from the ROS side (every HOPE topic
 silent): Motive unreachable / streaming disabled, Motive ignoring the
-model-definition request (see the vendored driver's PIN.md patch #9 — on
+model-definition request (see the adapter driver's PIN.md patch #9 — on
 Motive 3.1 / NatNet 4.1 this used to hang the driver's constructor before it
-created any publisher), and frames not reaching this host (wrong interface,
-multicast routed out a VPN tunnel, firewall). It also verifies the `Ball` and
-`P1` assets are in the model definition and gates on the measured frame rate
-(`--min-hz`, default 250). Exit code 0 means the bridge should come up.
+created any publisher), NatNet echo clock synchronization unavailable, and
+frames not reaching this host (wrong interface, multicast routed out a VPN
+tunnel, firewall). It reports the minimum echo RTT / midpoint uncertainty,
+verifies the `Ball` and `P1` assets in the model definition, and gates on the
+measured frame rate (`--min-hz`, default 250). Exit code 0 means the bridge
+should come up.
 
 ### Launch
 
-One command for mocap + planner (`mocap_server` = the Motive PC IP):
+Start the raw adapter from its own workspace:
 
 ```bash
-ros2 launch hope_bringup hope_bringup.launch.py \
-  mocap_backend:=optitrack \
-  mocap_server:=<MOTIVE_PC_IP> \
-  mocap_network_latency_ms:=<MEASURED_ONE_WAY_MS>
+source NatNet2ROS2/install/setup.bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=<MOTIVE_PC_IP>
 ```
 
-Or start the mocap side alone (also publishes the static HOPE world frame):
+Then start the independently built HOPE relay and planner. Source the adapter
+first so this host has `NamedPoseArray` type support:
 
 ```bash
-ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
-  hostname:=<MOTIVE_PC_IP> \
-  position_scale:=1.0 \
-  network_latency_ms:=<MEASURED_ONE_WAY_MS>
+source NatNet2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
 `hostname` is a REQUIRED argument with no default — venue values are passed
-explicitly, never baked in. Driver config (ball tracker modes, body names):
-[`config/optitrack_mct.yaml`](../hope_ws/src/hope_bringup/config/optitrack_mct.yaml).
+explicitly to the adapter, never baked in. Driver/timestamp config:
+[`hope_optitrack.yaml`](../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml).
 Relay config (name → topic mapping, scale):
 [`config/optitrack_relay.yaml`](../hope_ws/src/hope_bringup/config/optitrack_relay.yaml).
 
@@ -314,9 +348,9 @@ ros2 launch hope_bringup optitrack_mct_relay.launch.py   # relay under test
 ros2 topic echo /poses
 ```
 
-A driver-level no-hardware test also exists: `mocap_type:=mock` on
-`optitrack_hope_bridge.launch.py` runs the real driver code with a static mock
-backend instead of NatNet. Caveat: mock streams only bodies defined in a
+A driver-level no-hardware test also exists: launch `natnet2ros2.launch.py`
+with `mocap_type:=mock header_time:=ros`; this runs the real driver code with a
+static mock backend instead of NatNet. Caveat: mock streams only bodies defined in a
 `rigid_bodies` block, which the shipped config deliberately has none of (the
 ball is a Motive rigid-body asset, not a tracker body) — with the default
 config mock emits empty frames. For bench work just use
@@ -325,7 +359,7 @@ locally (mock uses only each body's `initial_position`).
 
 For bag replay, record `/optitrack/poses` at a live session
 (`ros2 bag record /optitrack/poses`) and replay it against
-`optitrack_mct_relay.launch.py` (`start_mocap_node:=false` on the full bridge).
+`optitrack_mct_relay.launch.py`; the raw adapter stays stopped during replay.
 
 ## Camera rate and the planner's `fit_window`
 
@@ -345,13 +379,12 @@ Motive LAN to the robot's network. Where DDS multicast discovery does not work
 `with_fastdds_unicast.sh` to use explicit unicast peers:
 
 ```bash
-# Laptop (runs the bridge; peers with the robot host):
+# Laptop (runs the independent raw adapter; peers with the robot host):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <ROBOT_HOST_IP> -- \
-  ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
-    hostname:=<MOTIVE_PC_IP> \
-    network_latency_ms:=<MEASURED_ONE_WAY_MS>
+  ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+    hostname:=<MOTIVE_PC_IP>
 
-# Robot host (peers with the laptop):
+# Robot host (sources the interface package, then runs HOPE relay + planner):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <LAPTOP_IP> -- \
   ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack ...
 ```
@@ -365,10 +398,10 @@ whitelist derived from the route to each peer) and sets
 | Symptom | Cause / fix |
 |---|---|
 | Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`, firewall on UDP 1510/1511, or not on the Motive LAN. `ping` the Motive PC first. Run `natnet_preflight.py --hostname <MOTIVE_PC_IP>` to pinpoint the failing stage. |
-| `/optitrack/poses` exists with `Publisher count: 0`, nothing logged | Pre-patch-#9 driver hung in its constructor: Motive 3.1 / NatNet 4.1 silently drops payload-less model-definition requests. Fixed in the vendored driver (type-mask request + bounded handshake — it now retries and then exits with an error instead of hanging); `natnet_preflight.py` reports this Motive behavior explicitly. |
+| `/optitrack/poses` exists with `Publisher count: 0`, nothing logged | Pre-patch-#9 driver hung in its constructor: Motive 3.1 / NatNet 4.1 silently drops payload-less model-definition requests. Fixed in the pinned adapter driver (type-mask request + bounded handshake — it now retries and then exits with an error instead of hanging); `natnet_preflight.py` reports this Motive behavior explicitly. |
 | Objects stream but nothing relayed | Motive asset names don't match `optitrack_relay.yaml` (`P1`/`P2`/`Table`/`Ball`, case-sensitive). Check `ros2 topic echo --once /optitrack/poses`. |
 | Rigid bodies stream with empty names | Fixed by vendored patch #6 (self-heals in ~1–2 s); if persistent, restart the bridge. |
 | `/P1/pose` positions in the hundreds | Millimetre feed → `position_scale:=0.001`. |
 | `/poses` pauses while `/P1/pose` keeps updating | By design: the ball left the volume / lost tracking; the relay never re-emits a stale ball (protects the planner's velocity fit). |
-| `optitrack_mct_relay` exits with an import error | The vendored interfaces package isn't built/sourced — build the workspace, or use the VRPN backend. |
+| `optitrack_mct_relay` exits with an import error | `motion_capture_tracking_interfaces` from NatNet2ROS2 is not installed/sourced on the HOPE host. Source that workspace (or install the interface package), or use the VRPN backend. |
 | Planner predictions lag/noisy at 360 Hz | Scale `fit_window` with the camera rate (see above). |

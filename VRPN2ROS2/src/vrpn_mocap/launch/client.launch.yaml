@@ -1,0 +1,32 @@
+launch:
+
+- arg:
+    name: "server"
+    default: "localhost"
+- arg:
+    name: "port"
+    default: "3883"
+- arg:
+    name: "update_freq"
+    default: "500.0"
+
+- node:
+    pkg: "vrpn_mocap"
+    namespace: "vrpn_mocap"
+    exec: "client_node"
+    name: "vrpn_mocap_client_node"
+    param:
+    -
+      from: "$(find-pkg-share vrpn_mocap)/config/client.yaml"
+    -
+      name: "server"
+      value: "$(var server)"
+    -
+      name: "port"
+      value: "$(var port)"
+    -
+      name: "multi_sensor"
+      value: true
+    -
+      name: "update_freq"
+      value: "$(var update_freq)"

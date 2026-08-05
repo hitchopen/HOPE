@@ -28,6 +28,12 @@ checkpoints/
 hope_ws/build/
 hope_ws/install/
 hope_ws/log/
+NatNet2ROS2/build/
+NatNet2ROS2/install/
+NatNet2ROS2/log/
+VRPN2ROS2/build/
+VRPN2ROS2/install/
+VRPN2ROS2/log/
 
 # Generated / downloaded robot assets (see docs/RUN_ON_AGIBOT.md)
 hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/**/*.usd

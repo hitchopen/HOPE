@@ -14,7 +14,7 @@ The rest of the repository is organized into four layers:
 | Required path | `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py`, `agibot/URDF/A3T2.5-URDF-std-pingpang/`, `hope_training/whole_body_tracking/` | Prepare the A3 Isaac asset, train the unified forehand/backhand policy (`task=HOPEPingPong`), export `hope_pingpong.onnx`, and evaluate `success_rate`. |
 | Stable public contracts | `A3_ASSETS.md`, `docs/interfaces/`, `docs/POLICY_INTERFACE.md`, `docs/PLANNER_INTERFACE.md` | Frame conventions, joint order, the 111-D observation / 31-D action policy IO, ROS topics, `RacketCommand`, and asset expectations that stay stable when you integrate your own code. |
 | Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app, the public deploy contract and clean-room policy runner, and Agibot-provided A3 materials. |
-| Background material | `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The ROS 2 mocap/planner workspace for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
+| Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
 A fresh clone contains only tracked files. Generated Isaac assets, training logs,
 checkpoints, exported `.onnx` files, and ROS build artifacts are git-ignored and
@@ -54,23 +54,43 @@ cd a3_deploy/a3_deploy_example/reference
 python -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
 ```
 
-### Humanoid clock synchronization
+## ROS 2 motion-capture adapters and shared NTP time
 
-Live humanoid and mocap integration requires compatible, monotonic timestamps
-across the robot computer, internal boards, sensors, and external tracking
-pipeline. Clock drift or mixed clock domains can corrupt state estimation,
-latency measurement, recording, and strike timing even when ROS 2 topics appear
-healthy. Each robot platform must document and verify its complete time path.
+HOPE provides two independently built ROS 2 motion-capture adapters:
+[NatNet2ROS2](NatNet2ROS2/README.md#ros-2-ntp-timestamp-estimation) for
+OptiTrack Motive/NatNet and
+[VRPN2ROS2](VRPN2ROS2/README.md#ros-2-ntp-timestamp-estimation-and-validation)
+for Chingmu CMTracker/MCServer. Both paths express every accepted ROS 2 header
+timestamp in the adapter host computer's NTP-disciplined
+`RCL_SYSTEM_TIME`/Unix epoch. Here “world clock” means absolute UTC/Unix wall
+clock, not the ROS `world` coordinate frame.
 
-For Agibot A3, see the [chrony quick start](agibot/ntp_sync/README.md) and the
+| Adapter | Source timestamp | Conversion into the adapter host world clock | Trust requirement |
+|---|---|---|---|
+| **NatNet2ROS2** | Motive `CameraMidExposureTimestamp` in the Motive QPC domain | NatNet echo exchanges estimate the QPC-to-adapter-steady-clock mapping; the measured capture age is subtracted from the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`. Motive's Windows wall clock is not used for this conversion. | Mapping age and uncertainty must pass the configured gates. |
+| **VRPN2ROS2** | CMTracker/MCServer report `timeval` | The source seconds/microseconds are decoded as Unix time and validated against the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`; absolute-age and sliding minimum-age gates detect invalid or changed timing regimes. | The VRPN server host must already share the same NTP epoch; VRPN itself does not synchronize clocks. |
+
+The adapter computer and the humanoid robot computer **must be synchronized to
+the same approved NTP server or equivalent common time source before live
+mocap control**. Matching ROS message types or plausible-looking timestamps is
+not evidence of synchronization. For the VRPN path, the CMTracker/MCServer host
+must also be NTP-disciplined because its wall-clock `timeval` is carried on the
+wire. NatNet's QPC mapping avoids depending on the Motive Windows wall clock,
+but the adapter host and robot must still share UTC so the resulting ROS stamp
+can be compared with robot state and future execution time.
+
+The Agibot A3 implementation is under
+[`agibot/ntp_sync/`](agibot/ntp_sync/README.md). Chrony disciplines the A3 HDU
+system clock, and the supervised HDU-to-MDU PTP chain distributes that time to
+the internal controller. See also the
 [full clock synchronization plan](docs/HOPE_A3_Clock_Synchronization_Improvement_Plan.pdf).
-The A3 approach disciplines the HDU system clock while preserving its internal
-PTP distribution and offline startup. Internet/NTP loss does not block normal
-A3 applications; strict clock qualification applies only to coordination with
-a separate mocap system. Motive/NatNet timestamps still require an explicit
-mapping into the robot/ROS clock domain.
+Internet/NTP loss does not block ordinary offline A3 applications, but the
+robot is not qualified for external-mocap strike timing until both the adapter
+and A3 clock-health gates pass. Clock drift or mixed domains can corrupt state
+estimation, latency measurement, recording, calibration, and strike timing
+even while ROS 2 topics appear healthy.
 
-### Required mocap bringup: align P1 to A3 `pelvis_link`
+## Required mocap bringup: align P1 to A3 `pelvis_link`
 
 Before using a newly installed A3 pelvis marker shell, perform the one-time P1
 calibration and save its constant 6-DOF `P1 → pelvis_link` transform to a
@@ -97,8 +117,9 @@ Collect while moving the pelvis smoothly through at least 0.10 m translation
 and 10 degrees rotation for at least one second. Residual RMS alone only tests
 repeatability; the calibrator separately gates measured motion excitation,
 timestamp uniqueness, and pair skew so a stationary capture cannot pass.
-OptiTrack uses latency-compensated local-ROS acquisition timestamps; both
-sources must use the same acquisition-time epoch.
+OptiTrack uses NatNet echo-mapped `camera_utc` acquisition timestamps in the
+adapter host's NTP-disciplined ROS epoch; both calibration sources must use
+that same acquisition-time epoch.
 
 ```bash
 cd hope_ws && colcon build --packages-select hope_bringup && source install/setup.bash
@@ -168,7 +189,9 @@ The competition rulebooks ship at the repository root:
 | `HOPE_AI_Challenge_2026_Rules_EN.docx`, `..._ZH.docx` | Challenge rulebooks (English / 中文). |
 | `configs/` | The shared no-spin ball model ([ball_physics.yaml](configs/ball_physics.yaml)) used by training, planner, and eval. |
 | `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with task cfg, train/export/eval scripts), placeholder motion clips (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
-| `hope_ws/` | ROS 2 workspace: `hope_planner` (no-spin planner), `hope_bringup` (launch files, `pose_to_posearray` / `optitrack_mct_relay` adapters, fake-ball publishers), `hope_msgs` (`RacketCommand.msg`), and the vendored mocap drivers (`vrpn_mocap` for VRPN rigs, `motion_capture_tracking` for OptiTrack/NatNet). |
+| `NatNet2ROS2/` | Independent ROS 2 workspace for the OptiTrack/Motive NatNet adapter, named-pose interfaces, acquisition-time mapping, and driver tests. Build and launch it separately from `hope_ws`. |
+| `VRPN2ROS2/` | Independent ROS 2 workspace for the ChingMu/VRPN client, strict server-time/NTP validation, and raw per-tracker `PoseStamped` topics. |
+| `hope_ws/` | ROS 2 workspace: `hope_planner` (no-spin planner), `hope_bringup` (HOPE-side `pose_to_posearray` / `optitrack_mct_relay` adapters and fake-ball publishers), and `hope_msgs` (`RacketCommand.msg`). Raw acquisition lives in the two sibling adapter workspaces. |
 | `a3_deploy/` | Public deploy contract and clean-room reference runner (`a3_deploy_example/`), the MuJoCo/AimRT simulation fork (`A3_MuJoCo_Sim/`), and the optional user-supplied URDF override location (`URDF/`). |
 | [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
 | `agibot/` | Agibot-provided A3 bundle: the racket-equipped source URDF (`URDF/A3T2.5-URDF-std-pingpang/`), the vendor deploy example (`code_deployment/`), the MuJoCo/AimRT simulation reference (`A3_MuJoCo_Sim/`), and mounting hardware models (`pku/`). |
@@ -185,7 +208,7 @@ The competition rulebooks ship at the repository root:
                       │ NatNet                            │ VRPN
                       ▼                                   ▼
        ┌──────────────────────────────┐   ┌──────────────────────────────┐
-       │ motion_capture_tracking      │   │ vendored vrpn_mocap          │
+       │ NatNet2ROS2 (standalone)     │   │ VRPN2ROS2 (standalone)       │
        │ /optitrack/poses             │   │ /vrpn_mocap/<name>/          │
        │   (NamedPoseArray)           │   │   pose_id_<N> (PoseStamped)  │
        └──────────────┬───────────────┘   └──────────────┬───────────────┘
@@ -243,10 +266,11 @@ During competition the motion-capture stream carries the named rigid bodies `Bal
 uses only the ball position, while the full pose is preserved for validation and future
 spin-aware estimation.
 
-> The diagram shows both supported source paths: **Chingmu/VRPN** uses
-> `vrpn_mocap` + `pose_to_posearray` (the default `mocap_backend:=vrpn`),
-> while **OptiTrack/Motive uses NatNet** through the vendored
-> `motion_capture_tracking` driver plus `optitrack_mct_relay`
+> The diagram shows both supported source paths: **Chingmu/VRPN** uses the
+> independent `VRPN2ROS2` client + `pose_to_posearray` (the default
+> `mocap_backend:=vrpn`),
+> while **OptiTrack/Motive uses NatNet** through the independently built
+> `NatNet2ROS2` driver plus the `hope_ws` `optitrack_mct_relay`
 > (`mocap_backend:=optitrack`). Both feed the identical `/poses` contract, so
 > everything below that hop is unchanged. See
 > [docs/OPTITRACK.md](docs/OPTITRACK.md).
@@ -294,7 +318,7 @@ Each piece has its own dependencies — install only what the step you are on ne
 - **Training / export**: NVIDIA Isaac Sim + Isaac Lab (with `rsl_rl`), Python 3.10, PyTorch, CUDA GPU
 - **MuJoCo evaluation / reference runner**: `mujoco`, `onnxruntime`, `numpy` (no GPU needed)
 - **Planner workspace**: ROS 2 Jazzy (`rclpy`), `numpy`, `pyyaml`
-- **Real arena**: OptiTrack Motive streams **NatNet** through the vendored `motion_capture_tracking` driver and `optitrack_mct_relay` (`mocap_backend:=optitrack`; set Motive **Up Axis = Z** and see [docs/OPTITRACK.md](docs/OPTITRACK.md)). Chingmu CMTracker/MCServer streams **VRPN** through `vrpn_mocap` and `pose_to_posearray` (`mocap_backend:=vrpn`). In either case configure the named 6-DOF competition rigid bodies `Ball`, `P1`, and `P2`; `Table` is calibration-only and is not streamed during competition.
+- **Real arena**: OptiTrack Motive streams **NatNet** through the independently built/launched `NatNet2ROS2` workspace and the HOPE-side `optitrack_mct_relay` (`mocap_backend:=optitrack`; set Motive **Up Axis = Z** and see [docs/OPTITRACK.md](docs/OPTITRACK.md)). Chingmu CMTracker/MCServer streams **VRPN** through the independent `VRPN2ROS2` workspace and HOPE-side `pose_to_posearray` (`mocap_backend:=vrpn`). In either case configure the named 6-DOF competition rigid bodies `Ball`, `P1`, and `P2`; `Table` is calibration-only and is not streamed during competition.
 
 ## Related Repositories
 

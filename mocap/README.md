@@ -59,24 +59,38 @@ mocap root-yaw estimate as advisory unless a robot integration contract says oth
 
 The planner consumes every incoming mocap sample for its estimator but runs its
 (more expensive) trajectory solve at **at most 50 Hz**. For OptiTrack, HOPE
-configures `topics.header_time: ros_latency_compensated`: the driver maps each
-frame into the local ROS epoch as receipt time minus NatNet's per-frame Camera
-and Motive processing latencies and the deployment-measured
-`topics.network_latency_ms`. Bare `ros` is receipt time and creates a
-velocity-proportional spatial bias; bare `camera` is Motive's high-resolution
-clock in a different epoch and must not be mixed directly with ROS stamps. The
-independent pelvis source must likewise stamp at acquisition in the same ROS
-epoch. For VRPN, enable vendor timestamps only with a verified NTP/PTP or
-equivalent clock mapping.
+configures `topics.header_time: camera_utc`. The driver uses NatNet echo clock
+synchronization to map Motive's `CameraMidExposureTimestamp` QPC tick into the
+adapter's monotonic clock, then subtracts that measured age from
+`RCL_SYSTEM_TIME`—the Unix epoch disciplined by Chrony on the Linux adapter.
+Bare `ros` is receipt time and creates a velocity-proportional spatial bias;
+bare `camera` is Motive's high-resolution clock in a different epoch and must
+not be mixed directly with ROS stamps. The independent pelvis source must
+likewise stamp at acquisition in the same ROS epoch. The independent
+`VRPN2ROS2` deployment preserves the VRPN server report `timeval` and rejects
+samples that do not agree with the adapter's NTP-disciplined system clock
+within configured bounds. It also monitors the sliding minimum of total age for
+runtime shifts and can compare it with a commissioned expected minimum. Those
+checks validate an operating regime; they do not synchronize the server clock
+or distinguish its offset from one-way transport delay. The proprietary
+server's camera-exposure timestamp semantics still require vendor documentation
+or a hardware-trigger comparison.
 
 ## Bringing up mocap
 
 HOPE ships two source-specific paths that converge at the identical planner interface:
 
-| Venue system | Vendor transport | Raw ROS 2 message | HOPE adapter |
-|---|---|---|---|
-| **OptiTrack Motive** | **NatNet UDP** (not VRPN) | `/optitrack/poses`, `motion_capture_tracking_interfaces/NamedPoseArray` | `optitrack_mct_relay` → `/poses` |
-| **Chingmu CMTracker/MCServer** | **VRPN** | `/vrpn_mocap/<sender>/pose_id_<sensor_id>`, `geometry_msgs/PoseStamped` | `pose_to_posearray` → `/poses` |
+| Venue system | Vendor transport | Raw ROS 2 message | HOPE adapter | Timestamp trust model |
+|---|---|---|---|---|
+| **OptiTrack Motive** | **NatNet UDP** (not VRPN) | `/optitrack/poses`, `motion_capture_tracking_interfaces/NamedPoseArray` | `optitrack_mct_relay` → `/poses` | Motive `CameraMidExposureTimestamp` mapped to adapter time by measured echo clock synchronization, with mapping uncertainty; acquisition-event semantics. |
+| **Chingmu CMTracker/MCServer** | **VRPN** | `/vrpn_mocap/<sender>/pose_id_<sensor_id>`, `geometry_msgs/PoseStamped` | `pose_to_posearray` → `/poses` | Server report `timeval` trusted only after absolute-age, sliding-minimum, NTP, and optional commissioned-baseline checks; camera exposure → report delay remains unknown. |
+
+Both backends can publish numerically compatible Unix/ROS timestamps, but they
+do not yet represent a proven identical physical event. Switching between
+NatNet camera-mid-exposure time and VRPN server-report time is therefore not
+timing-neutral; preserve the unknown exposure-to-report interval in estimator
+and strike-time error budgets until Chingmu supplies vendor evidence or a
+hardware-trigger measurement.
 
 ### OptiTrack / Motive: NatNet
 
@@ -86,7 +100,7 @@ port (normally UDP 1510); the driver obtains the data-port and unicast/multicast
 the server response. Motive's legacy VRPN stream on port 3883 is **not used** by this backend.
 
 ```text
-Motive NatNet → motion_capture_tracking_node (namespace /optitrack)
+Motive NatNet → NatNet2ROS2 workspace (namespace /optitrack)
              → /optitrack/poses (NamedPoseArray)
              → optitrack_mct_relay → /poses (PoseArray, Ball at index 0)
 ```
@@ -184,13 +198,17 @@ If the Motive pivot is corrected, do **not** run the static publisher, because
 that would apply the offset twice. See the complete
 [OptiTrack setup procedure](../docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link).
 
-Launch it with:
+Build and launch the raw adapter independently, then launch the HOPE relay and
+planner:
 
 ```bash
-ros2 launch hope_bringup hope_bringup.launch.py \
-  mocap_backend:=optitrack \
-  mocap_server:=<MOTIVE_PC_IP> \
-  mocap_network_latency_ms:=<MEASURED_ONE_WAY_MS>
+source NatNet2ROS2/install/setup.bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=<MOTIVE_PC_IP>
+
+source NatNet2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
 The `Table` asset may be recorded through this relay during a separate setup/calibration
@@ -201,15 +219,42 @@ full operational guide in [`docs/OPTITRACK.md`](../docs/OPTITRACK.md).
 ### Chingmu / CMTracker: VRPN
 
 CMTracker/MCServer serves the named rigid bodies as VRPN trackers directly. Configure it to
-stream Z-up so no software frame conversion is needed. The vendored ROS 2 client
-(`hope_ws/src/vrpn_mocap`, MIT licensed) publishes one `PoseStamped` topic per tracker (with
-`multi_sensor: true`), and `hope_bringup/pose_to_posearray` copies the complete pose —
-including its quaternion — into `/poses`.
+stream Z-up so no software frame conversion is needed. The independent ROS 2 client
+([`VRPN2ROS2`](../VRPN2ROS2/README.md), MIT licensed) publishes one `PoseStamped` topic per
+tracker (with `multi_sensor: true`), and `hope_bringup/pose_to_posearray` copies the complete
+pose—including its quaternion and source header—into `/poses`.
 
 ```text
 CMTracker/MCServer VRPN → /vrpn_mocap/<sender>/pose_id_<sensor_id> (PoseStamped)
                          → pose_to_posearray → /poses (PoseArray, Ball at index 0)
 ```
+
+The checked-in VRPN client polls at 500 Hz, above the typical 300–360 Hz
+source stream. Keep its `update_freq` at or above the measured venue stream
+rate so client socket/polling delay does not consume the tightened timestamp
+age budget.
+
+Build and launch the adapter separately, then start HOPE from a second terminal:
+
+```bash
+cd VRPN2ROS2
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch vrpn_mocap client.launch.yaml \
+  server:=<CHINGMU_SERVER_IP> port:=3883
+
+# Separate terminal
+source VRPN2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py \
+  mocap_backend:=vrpn \
+  ball_pose_topic:=/vrpn_mocap/Ball/pose_id_0
+```
+
+Before play, run the `vrpn_timestamp_probe.py` acceptance gate documented in
+[`VRPN2ROS2/README.md`](../VRPN2ROS2/README.md). The 100 ms old-age default is
+only for bring-up: tune it to the wired venue measurements and enable the
+commissioned expected-minimum gate before competition.
 
 Topic and asset names are case-sensitive. Configure them for the actual name shown by Motive
 or CMTracker instead of assuming that `Ball` and `ball` are interchangeable.
