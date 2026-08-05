@@ -32,6 +32,7 @@ hope_ws/log/
 # Generated / downloaded robot assets (see docs/RUN_ON_AGIBOT.md)
 hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/**/*.usd
 a3_deploy/URDF/A3*/
+/foxglove/urdf/
 
 # Machine-local Isaac paths (copied from setup_train_env.local.example.sh)
 hope_training/whole_body_tracking/setup_train_env.local.sh

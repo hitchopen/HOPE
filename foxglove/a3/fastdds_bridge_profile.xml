@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bridge-side FastDDS profile: UDPv4 only, same interface whitelist as the
+     vendor participants (10.42.10.10). Avoids shared-memory transport
+     version mismatches between the vendor's bundled FastDDS and the Jazzy
+     build, while still discovering all vendor participants on-host. -->
+<dds>
+  <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <transport_descriptors>
+      <transport_descriptor>
+        <transport_id>bridge_udp</transport_id>
+        <type>UDPv4</type>
+        <interfaceWhiteList>
+          <address>10.42.10.10</address>
+        </interfaceWhiteList>
+      </transport_descriptor>
+    </transport_descriptors>
+    <participant profile_name="bridge_participant" is_default_profile="true">
+      <rtps>
+        <useBuiltinTransports>false</useBuiltinTransports>
+        <userTransports>
+          <transport_id>bridge_udp</transport_id>
+        </userTransports>
+      </rtps>
+    </participant>
+  </profiles>
+</dds>

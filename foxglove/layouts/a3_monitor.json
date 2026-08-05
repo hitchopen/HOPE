@@ -1,0 +1,253 @@
+{
+  "configById": {
+    "3D!a3tf": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 5,
+        "phi": 60,
+        "thetaOffset": 45,
+        "target": [0, 0, 0],
+        "targetOffset": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "pelvis_link",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": true,
+          "axisScale": 0.25,
+          "lineWidth": 2
+        }
+      },
+      "transforms": {},
+      "topics": {
+        "/agivslam/localization/odometry": {
+          "visible": true,
+          "type": "arrow",
+          "arrowScale": [0.4, 0.1, 0.1],
+          "color": "#00e5ff"
+        }
+      },
+      "layers": {
+        "grid-hope": {
+          "instanceId": "grid-hope",
+          "layerId": "foxglove.Grid",
+          "visible": true,
+          "label": "Grid",
+          "frameId": "",
+          "size": 10,
+          "divisions": 20,
+          "lineWidth": 1,
+          "color": "#248eff44",
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "order": 1
+        },
+        "urdf-a3": {
+          "instanceId": "urdf-a3",
+          "layerId": "foxglove.Urdf",
+          "visible": true,
+          "label": "A3 URDF",
+          "sourceType": "url",
+          "url": "http://localhost:8000/REPLACE_WITH_URDF_FILE.urdf",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 2
+        }
+      }
+    },
+    "Plot!ntpoffset": {
+      "title": "NTP offset (A3 vs UTC)",
+      "paths": [
+        {
+          "value": "/hope/ntp/offset_ms.data",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "offset (ms)"
+        },
+        {
+          "value": "/hope/ntp/root_dispersion_ms.data",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "root dispersion (ms)"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 120
+    },
+    "Plot!ntpskew": {
+      "title": "NTP skew (gate: 5 ppm)",
+      "paths": [
+        {
+          "value": "/hope/ntp/skew_ppm.data",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "skew (ppm)"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 120
+    },
+    "Plot!mocaprtt": {
+      "title": "A3 <-> mocap host network RTT",
+      "paths": [
+        {
+          "value": "/hope/mocap/rtt_ms.data",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "RTT (ms)"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 120
+    },
+    "Indicator!utc": {
+      "path": "/hope/ntp/gate_pass.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "NTP: NO DATA",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#2e7d32",
+          "label": "MOCAP TIME READY"
+        },
+        {
+          "operator": "=",
+          "rawValue": "false",
+          "color": "#c62828",
+          "label": "MOCAP TIME NOT READY"
+        }
+      ]
+    },
+    "RawMessages!pelvistext": {
+      "topicPath": "/hope/pelvis/text.data",
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "expansion": "all"
+    },
+    "RawMessages!pelvispose": {
+      "topicPath": "/hope/pelvis/pose",
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "expansion": "all"
+    },
+    "Indicator!mocap": {
+      "path": "/hope/mocap/reachable.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "MOCAP: NO DATA",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#2e7d32",
+          "label": "MOCAP LINK UP"
+        },
+        {
+          "operator": "=",
+          "rawValue": "false",
+          "color": "#c62828",
+          "label": "MOCAP UNREACHABLE"
+        }
+      ]
+    },
+    "Indicator!joints": {
+      "path": "/hope/joints/fresh.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "JOINTS: NO DATA",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#2e7d32",
+          "label": "JOINT DATA FRESH"
+        },
+        {
+          "operator": "=",
+          "rawValue": "false",
+          "color": "#c62828",
+          "label": "JOINT DATA STALE"
+        }
+      ]
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "3D!a3tf",
+      "second": {
+        "direction": "row",
+        "first": "RawMessages!pelvistext",
+        "second": "RawMessages!pelvispose",
+        "splitPercentage": 55
+      },
+      "splitPercentage": 72
+    },
+    "second": {
+      "direction": "column",
+      "first": {
+        "direction": "column",
+        "first": "Plot!ntpoffset",
+        "second": "Plot!ntpskew",
+        "splitPercentage": 50
+      },
+      "second": {
+        "direction": "column",
+        "first": "Plot!mocaprtt",
+        "second": {
+          "direction": "row",
+          "first": "Indicator!utc",
+          "second": {
+            "direction": "row",
+            "first": "Indicator!mocap",
+            "second": "Indicator!joints",
+            "splitPercentage": 50
+          },
+          "splitPercentage": 34
+        },
+        "splitPercentage": 60
+      },
+      "splitPercentage": 50
+    },
+    "splitPercentage": 55
+  }
+}
