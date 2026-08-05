@@ -1,0 +1,77 @@
+/motion_capture_tracking:
+  ros__parameters:
+    # one of "optitrack", "optitrack_closed_source", "vicon", "qualisys", "nokov", "vrpn", "motionanalysis"
+    type: "optitrack"
+    # Specify the hostname or IP of the computer running the motion capture software
+    hostname: "MOCAP_PC_IP"  # HOPE patch #8: placeholder (upstream example had a lab IP).
+                             # The standalone adapter does NOT use this example;
+                             # see config/hope_optitrack.yaml and
+                             # launch/natnet2ros2.launch.py.
+
+    # The information will always be broadcasted via tf2
+    # Specify additional settings for the /poses topic here
+    topics:
+      frame_id: "mocap"
+      # camera_utc requires the OptiTrack backend and maps Motive QPC ticks into
+      # the adapter host's NTP/PTP-disciplined ROS system-time epoch.
+      header_time: "ros" # one of ros, camera_utc, ros_latency_compensated, camera
+      max_clock_sync_uncertainty_ms: 2.0
+      max_capture_age_ms: 100.0
+      poses:
+        version: 2
+        qos:
+          mode: "none" # one of "none" or "sensor"
+          deadline: 100.0 # Hz
+      tf:
+        reference_frame: "mocap"
+        child_frame_fmt: "%s_mocap"
+
+    # If desired, log the pointcloud to a binary log file for analysis with libRigidBodyTracker
+    # Use "" to disable.
+    logfilepath: ''
+
+    # Define the placement of spherical markers on rigid bodies, in the local coordinate frame.
+    marker_configurations:
+      default: # for standard Crazyflie
+        offset: [0.0, 0.0, 0.0]
+        points:
+          p0: [   0.0,    0.0, 0.022]  # top
+          p1: [-0.042,  0.042, 0.0  ]  # back left   (M3)
+          p2: [-0.042, -0.042, 0.0  ]  # back right  (M2)
+          p3: [ 0.042, -0.042, 0.0  ]  # front right (M1)
+      default_single_marker:
+        offset: [0.0, -0.01, -0.04]
+        points:
+          p0: [0.0177184,0.0139654,0.0557585]
+      medium_frame:
+        offset: [0.0, 0.0, -0.03]
+        points:
+          p0: [-0.00896228,-0.000716753,0.0716129]
+          p1: [-0.0156318,0.0997402,0.0508162]
+          p2: [0.0461693,-0.0881012,0.0380672]
+          p3: [-0.0789959,-0.0269793,0.0461144]
+      big_frame:
+        offset: [0.0, 0.0, -0.06]
+        points:
+          p0: [0.0558163,-0.00196302,0.0945539]
+          p1: [-0.0113941,0.00945842,0.0984811]
+          p2: [-0.0306277,0.0514879,0.0520456]
+          p3: [0.0535816,-0.0400775,0.0432799]
+
+    # Define the first-order dynamic limits
+    dynamics_configurations:
+      default:
+        max_velocity: [2, 2, 3] # m/s
+        max_angular_velocity: [20, 20, 10] # rad/s
+        max_roll: 1.4 #rad
+        max_pitch: 1.4 #rad
+        max_fitness_score: 0.001
+
+    # Define your rigid bodies to track with known initial position guess, name of the marker and name of the dynamics
+    # from the above settings.
+    rigid_bodies:
+      crazyflie:
+        initial_position: [0,0,0]
+        marker: "default"
+        # marker: "default_single_marker"
+        dynamics: "default"

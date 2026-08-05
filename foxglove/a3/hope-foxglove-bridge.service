@@ -1,0 +1,21 @@
+[Unit]
+Description=HOPE Foxglove WebSocket bridge (read-only A3 monitoring)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agi
+Environment=ROS_DOMAIN_ID=232
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+  source /home/agi/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash && \
+  ros2 run foxglove_bridge foxglove_bridge \
+    --ros-args --params-file /etc/hope-foxglove/bridge_params.yaml'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

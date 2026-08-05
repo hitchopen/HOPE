@@ -2,8 +2,8 @@
 
 Feeds a live or recorded /optitrack/poses (NamedPoseArray) stream through
 optitrack_mct_relay without starting the NatNet driver or the world frame.
-Pairs with ``fake_optitrack_publisher`` for a no-hardware smoke test; use
-``optitrack_hope_bridge.launch.py`` for the full live bringup.
+Pairs with ``fake_optitrack_publisher`` for a no-hardware smoke test. The
+independent NatNet2ROS2 workspace supplies the live stream.
 """
 
 from pathlib import Path

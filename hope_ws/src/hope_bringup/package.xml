@@ -15,15 +15,16 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
-  <exec_depend>vrpn_mocap</exec_depend>
   <exec_depend>hope_planner</exec_depend>
+  <!-- VRPN2ROS2 is an independently built/launched workspace. The VRPN
+       relay consumes only standard geometry_msgs/PoseStamped, so hope_ws has
+       no build or runtime package dependency on vrpn_mocap. -->
   <!-- The OptiTrack backend (optitrack_mct_relay / optitrack_hope_bridge /
-       fake_optitrack_publisher) additionally needs the vendored
-       motion_capture_tracking + motion_capture_tracking_interfaces packages
-       from this workspace. INTENTIONALLY not declared as a dependency: those
-       scripts import the msg lazily and fail with an actionable error, so
-       VRPN-only builds (colcon build with the two packages skipped) stay
-       possible without them.
+       fake_optitrack_publisher) additionally needs the independently built
+       NatNet2ROS2 workspace's motion_capture_tracking_interfaces package at
+       runtime. INTENTIONALLY not declared as a dependency: those scripts
+       import the msg lazily and fail with an actionable error, so hope_ws
+       remains independently buildable for VRPN-only deployments.
        soft-dep: motion_capture_tracking_interfaces (OptiTrack backend only) -->
 
   <test_depend>ament_lint_auto</test_depend>

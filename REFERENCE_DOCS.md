@@ -23,6 +23,7 @@ docs win:
 | Training the policy | [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md) |
 | Running on the A3 (sim and real) | [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) |
 | Mocap frames and topics | [`mocap/README.md`](mocap/README.md) |
+| Raw mocap adapters / clock acceptance | [`NatNet2ROS2/README.md`](NatNet2ROS2/README.md) · [`VRPN2ROS2/README.md`](VRPN2ROS2/README.md) |
 | Asset map / joint order | [`A3_ASSETS.md`](A3_ASSETS.md) |
 
 ## What the rewrite dropped

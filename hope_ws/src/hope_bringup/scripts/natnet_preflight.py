@@ -8,7 +8,8 @@ modes that all look identical from the ROS side (every HOPE topic silent):
 
   1. Motive unreachable / streaming disabled  -> no NAT_SERVERINFO;
   2. Motive answers NAT_CONNECT but ignores NAT_REQUEST_MODELDEF;
-  3. handshake fine, but no FRAMEOFDATA reaches this host (wrong interface,
+  3. Motive does not support the NatNet echo exchange required for camera_utc;
+  4. handshake fine, but no FRAMEOFDATA reaches this host (wrong interface,
      multicast routed out a VPN tunnel, firewall).
 
 Mode 2 is why this script exists. On 2026-07-30 a venue Motive (3.1.0.4 /
@@ -26,7 +27,8 @@ socket's IP_ADD_MEMBERSHIP lets the kernel pick the interface by route. When a
 VPN default route wins over the arena NIC, the join lands on the tunnel and no
 frames arrive. This probe compares the two routes and fails loudly.
 
-Exit codes: 0 = the bridge should come up, 1 = it will hang or see no data.
+Exit codes: 0 = the bridge should come up, 1 = it cannot start or publish
+camera_utc data safely.
 """
 
 import argparse
@@ -42,6 +44,8 @@ NAT_SERVERINFO = 1
 NAT_REQUEST_MODELDEF = 4
 NAT_MODELDEF = 5
 NAT_FRAMEOFDATA = 7
+NAT_ECHOREQUEST = 12
+NAT_ECHORESPONSE = 13
 
 # Must match MODELDEF_TYPES in deps/libmotioncapture/src/optitrack.cpp.
 # bit0 = MarkerSet, bit1 = RigidBody. Masks with undefined bits set (0x7f,
@@ -111,6 +115,39 @@ def ask_modeldef(host: str, port: int, payload: bytes, wait: float = 3.0):
         sock.close()
 
 
+def clock_sync_samples(host: str, port: int, count: int = 10):
+    """Return NatNet echo RTTs, or fewer entries when responses are missing."""
+    sock, info = natnet_connect(host, port)
+    samples = []
+    try:
+        if info is None:
+            return samples
+        sock.settimeout(0.1)
+        for _ in range(count):
+            token = time.monotonic_ns()
+            sent = time.monotonic()
+            sock.sendto(struct.pack('<HHQ', NAT_ECHOREQUEST, 8, token),
+                        (host, port))
+            deadline = sent + 0.1
+            while time.monotonic() < deadline:
+                try:
+                    data, _ = sock.recvfrom(65535)
+                except socket.timeout:
+                    break
+                received = time.monotonic()
+                if len(data) < 20:
+                    continue
+                message_id, payload_size, echoed, server_ticks = \
+                    struct.unpack_from('<HHQQ', data)
+                if (message_id == NAT_ECHORESPONSE and payload_size >= 16
+                        and echoed == token):
+                    samples.append((received - sent, server_ticks))
+                    break
+        return samples
+    finally:
+        sock.close()
+
+
 def modeldef_assets(packet: bytes):
     """Asset names in a model definition, ignoring per-marker labels.
 
@@ -172,7 +209,12 @@ def main() -> int:
     parser.add_argument('--min-hz', type=float, default=250.0)
     parser.add_argument('--max-loss', type=float, default=20.0,
                         help='percent of frame numbers allowed to go missing')
+    parser.add_argument('--max-clock-sync-uncertainty-ms', type=float,
+                        default=2.0,
+                        help='maximum NatNet echo midpoint uncertainty')
     args = parser.parse_args()
+    if args.max_clock_sync_uncertainty_ms <= 0.0:
+        parser.error('--max-clock-sync-uncertainty-ms must be positive')
 
     blockers = []
     print('== NatNet preflight: %s:%d ==' % (args.hostname, args.port_command))
@@ -197,6 +239,7 @@ def main() -> int:
     app_version = '.'.join(str(b) for b in info[260:264])
     nat_version = '.'.join(str(b) for b in info[264:268])
     data_port, is_multicast = struct.unpack_from('<H?', info, 276)
+    high_res_clock_frequency = struct.unpack_from('<Q', info, 268)[0]
     group = '.'.join(str(b) for b in info[279:283])
     print('  PASS NAT_CONNECT    : %s %s, NatNet %s'
           % (app, app_version, nat_version))
@@ -206,6 +249,26 @@ def main() -> int:
     if is_multicast:
         print('  NOTE Motive is in MULTICAST; docs/OPTITRACK.md recommends '
               'Unicast (venue switches handle it better).')
+
+    echo_samples = clock_sync_samples(args.hostname, args.port_command)
+    if len(echo_samples) >= 5 and high_res_clock_frequency > 0:
+        min_rtt = min(sample[0] for sample in echo_samples)
+        midpoint_uncertainty_ms = min_rtt * 500.0
+        clock_ok = (midpoint_uncertainty_ms
+                    <= args.max_clock_sync_uncertainty_ms)
+        print('  %s CLOCK SYNC     : %d echoes, min RTT %.3f ms, '
+              'midpoint uncertainty <= %.3f ms (limit %.3f ms)'
+              % ('PASS' if clock_ok else 'FAIL', len(echo_samples),
+                 min_rtt * 1e3, midpoint_uncertainty_ms,
+                 args.max_clock_sync_uncertainty_ms))
+        if not clock_ok:
+            blockers.append('NatNet clock-sync midpoint uncertainty exceeds '
+                            'the camera_utc publication limit')
+    else:
+        print('  FAIL CLOCK SYNC     : %d/10 echo replies, QPC frequency %d'
+              % (len(echo_samples), high_res_clock_frequency))
+        blockers.append('camera_utc cannot map Motive QPC to adapter time; '
+                        'NatNet echo clock synchronization is unavailable')
 
     bare = ask_modeldef(args.hostname, args.port_command, b'')
     masked = ask_modeldef(args.hostname, args.port_command,

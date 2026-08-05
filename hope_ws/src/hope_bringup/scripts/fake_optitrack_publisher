@@ -142,8 +142,8 @@ def main(args=None):
     except ImportError as exc:
         raise SystemExit(
             "fake_optitrack_publisher needs motion_capture_tracking_interfaces "
-            "(vendored in hope_ws/src/motion_capture_tracking_interfaces); build "
-            f"and source the workspace overlay. Import error: {exc}"
+            "from the independent NatNet2ROS2 workspace; install/source that "
+            f"interface package on this host. Import error: {exc}"
         )
 
     rclpy.init(args=args)

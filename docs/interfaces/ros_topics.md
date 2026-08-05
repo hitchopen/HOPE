@@ -2,13 +2,12 @@
 
 The live control path is a short chain: mocap ball poses in, one racket command
 out. The authoritative planner contract is
-[PLANNER_INTERFACE.md](../PLANNER_INTERFACE.md); bring-up is
-`cd hope_ws && colcon build && source install/setup.bash`, then
-`ros2 launch hope_bringup hope_bringup.launch.py` (`use_fake_ball:=true` for a
-mocap-less smoke test).
+[PLANNER_INTERFACE.md](../PLANNER_INTERFACE.md). The raw VRPN client and HOPE
+planner/relay are independent workspaces; build and launch them separately
+(`use_fake_ball:=true` remains available for a mocap-less smoke test).
 
 ```text
-/vrpn_mocap/<tracker>/pose_id_<N>      geometry_msgs/PoseStamped   (vendored vrpn_mocap client)
+/vrpn_mocap/<tracker>/pose_id_<N>      geometry_msgs/PoseStamped   (independent VRPN2ROS2)
         |  pose_to_posearray (hope_bringup)
         v
 /poses                                 geometry_msgs/PoseArray     (Ball at index 0; P1/P2 optional)
@@ -21,8 +20,8 @@ mocap-less smoke test).
 ```
 
 The chain above shows the default **VRPN backend**. With
-`mocap_backend:=optitrack` the first two hops are replaced by the vendored
-NatNet driver + relay — the `/poses` hop and everything below it are identical
+`mocap_backend:=optitrack` the first two hops are replaced by the independently
+built NatNet2ROS2 adapter + HOPE relay — the `/poses` hop and everything below it are identical
 (see [the OptiTrack backend](#optitrack-backend) below and
 [docs/OPTITRACK.md](../OPTITRACK.md)):
 
@@ -43,14 +42,17 @@ NatNet driver + relay — the `/poses` hop and everything below it are identical
 
 Notes per hop:
 
-- **`/vrpn_mocap/<tracker>/pose_id_<N>`** — the vendored
-  [`vrpn_mocap`](../../hope_ws/src/vrpn_mocap/README.md) client publishes one
+- **`/vrpn_mocap/<tracker>/pose_id_<N>`** — the independent
+  [`VRPN2ROS2`](../../VRPN2ROS2/README.md) client publishes one
   `PoseStamped` topic per tracker. The bundled `client.launch.yaml` forces
   `multi_sensor: true`, which suffixes topics with `_id_<N>` — a tracker named
-  `ball` publishes `/vrpn_mocap/ball/pose_id_0` (the default `ball_pose_topic`
-  launch argument). Header stamps are ROS-side **receipt time** unless the
-  driver's `use_vrpn_timestamps` parameter is enabled, so network jitter is
-  present in the stamps the planner's velocity fit consumes.
+  `Ball` publishes `/vrpn_mocap/Ball/pose_id_0` (the default
+  `ball_pose_topic` launch argument). The deployment config enables
+  `use_vrpn_timestamps` and rejects source stamps outside a strict age/future
+  bound against the adapter host's NTP-disciplined system clock. Thus ROS
+  preserves the VRPN server report `timeval` rather than receipt time. VRPN
+  does not prove which camera event a proprietary server associates with that
+  value; exposure-time provenance remains a vendor/hardware acceptance item.
 - **`/poses`** — `pose_to_posearray` caches the latest pose from each configured
   input topic and, whenever the trigger topic (the ball, `trigger_index` 0)
   updates, publishes a `PoseArray` whose slot *i* is input topic *i*'s latest
@@ -66,22 +68,47 @@ Notes per hop:
   The reference runner's `--planner` mode subscribes with the matching reliable
   QoS and hands the newest command to the 50 Hz control loop.
 
+## VRPN backend
+
+```bash
+# Terminal 1: raw VRPN client
+cd VRPN2ROS2
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch vrpn_mocap client.launch.yaml \
+  server:=<CHINGMU_SERVER_IP> port:=3883
+
+# Terminal 2: HOPE adapter + planner
+source VRPN2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py \
+  mocap_backend:=vrpn \
+  ball_pose_topic:=/vrpn_mocap/Ball/pose_id_0
+```
+
+Run the timestamp acceptance probe from the VRPN workspace README before using
+the stream for trajectory estimation.
+
 ## OptiTrack backend
 
 ```bash
-ros2 launch hope_bringup hope_bringup.launch.py \
-  mocap_backend:=optitrack \
-  mocap_server:=<MOTIVE_PC_IP> \
-  mocap_network_latency_ms:=<MEASURED_ONE_WAY_MS>
+source NatNet2ROS2/install/setup.bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=<MOTIVE_PC_IP>
+
+# In the HOPE terminal, source both installs for NamedPoseArray type support.
+source NatNet2ROS2/install/setup.bash
+source hope_ws/install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
-(Or use the standalone `optitrack_hope_bridge.launch.py`.) This swaps the mocap source
-while keeping the `/poses` contract byte-identical. Operational guide:
+The two workspaces build and launch independently while keeping the `/poses`
+contract byte-identical. Operational guide:
 [docs/OPTITRACK.md](../OPTITRACK.md).
 
 | Topic | Type | From → to | QoS |
 |-------|------|-----------|-----|
-| `/optitrack/poses` | `motion_capture_tracking_interfaces/NamedPoseArray` | vendored `motion_capture_tracking` driver → `optitrack_mct_relay` | sensor-data (best-effort, volatile, keep-last 1) |
+| `/optitrack/poses` | `motion_capture_tracking_interfaces/NamedPoseArray` | independent NatNet2ROS2 driver → `optitrack_mct_relay` | sensor-data (best-effort, volatile, keep-last 1) |
 | `/poses` | `geometry_msgs/PoseArray` | `optitrack_mct_relay` → `hope_planner` | best-effort, volatile, keep-last 1 |
 | `/ball/point` | `geometry_msgs/PointStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
 | `/P1/pose`, `/P2/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
@@ -93,20 +120,20 @@ Notes:
   object by name (Motive rigid-body assets verbatim: `Ball` — a strict 6-DOF
   rigid body per the HOPE spec — plus `P1`/`P2`; a `Table` asset appears only
   in setup/calibration sessions and is never streamed in competition, see
-  [`optitrack_mct.yaml`](../../hope_ws/src/hope_bringup/config/optitrack_mct.yaml)).
+  [`hope_optitrack.yaml`](../../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml)).
   ⚠ deliberately remapped AWAY from the bare `/poses` name by
-  `optitrack_hope_bridge.launch.py`: same name, DIFFERENT message type than the
+  `natnet2ros2.launch.py`: same name, DIFFERENT message type than the
   HOPE contract — an unremapped driver breaks the planner with a DDS type
   mismatch. The driver's raw TF is likewise remapped to `/optitrack/tf` /
   `/optitrack/tf_static` so the relay stays the only
   `world → Ball/P1/P2` TF authority (and setup-only `Table` only when explicitly
   enabled); `/optitrack/pointCloud` carries the
   unlabeled-marker cloud (diagnostics only — the ball is a rigid-body asset,
-  never reconstructed from the cloud). The supplied driver uses
-  `ros_latency_compensated` timestamps: local ROS receipt time minus NatNet's
-  Camera/Motive latency and the measured `mocap_network_latency_ms`; neither
-  bare receipt-time `ros` nor the unrelated Motive `camera` epoch is suitable
-  for moving cross-sensor calibration.
+  never reconstructed from the cloud). The supplied driver uses `camera_utc`:
+  NatNet echo synchronization maps `CameraMidExposureTimestamp` from Motive QPC
+  into the adapter's monotonic clock, then into its Chrony-disciplined ROS
+  system-time/Unix epoch. Neither bare receipt-time `ros` nor the unrelated
+  Motive `camera` epoch is suitable for moving cross-sensor calibration.
 - **`/poses`** — published by the relay ONLY on frames that contain the ball
   entry (an occluded ball is omitted by the driver), so a stale ball position
   is never re-emitted at rigid-body timestamps — the same

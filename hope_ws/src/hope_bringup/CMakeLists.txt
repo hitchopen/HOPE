@@ -42,6 +42,10 @@ if(BUILD_TESTING)
   )
   ament_add_pytest_test(p1_pelvis_calibrator_test test/test_p1_pelvis_calibrator.py)
   ament_add_pytest_test(p1_pelvis_tf_publisher_test test/test_p1_pelvis_tf_publisher.py)
+  ament_add_pytest_test(
+    natnet_preflight_clock_sync_test
+    test/test_natnet_preflight_clock_sync.py
+  )
 endif()
 
 ament_package()

@@ -24,32 +24,35 @@ respectively; those tools are not redistributed here.
 
 ## vrpn_mocap
 
-- Location: `hope_ws/src/vrpn_mocap/`
+- Location: `VRPN2ROS2/src/vrpn_mocap/`
 - License: MIT
 - Copyright: Copyright (c) 2022 Alvin Sun
 - Origin: VRPN motion-capture client for ROS 2 (ChingMu VRPN ROS 2 plugin).
 
-The MIT license text is retained in `hope_ws/src/vrpn_mocap/LICENSE`. This package is vendored
-so the planner can be brought up against a VRPN motion-capture server; it is otherwise
-unmodified except for documentation links.
+The MIT license text is retained in `VRPN2ROS2/src/vrpn_mocap/LICENSE`. This
+package is vendored so the planner can be brought up against a VRPN
+motion-capture server. Local changes add HOPE topic/QoS behavior, preservation
+and strict validation of the server-provided timestamp, an operational
+timestamp probe, tests, and standalone-workspace documentation; see
+`VRPN2ROS2/src/vrpn_mocap/PIN.md`.
 
 ---
 
 ## motion_capture_tracking (IMRCLab)
 
-- Location: `hope_ws/src/motion_capture_tracking/`, `hope_ws/src/motion_capture_tracking_interfaces/`
+- Location: `NatNet2ROS2/src/motion_capture_tracking/`, `NatNet2ROS2/src/motion_capture_tracking_interfaces/`
 - License: MIT
 - Copyright: Copyright (c) 2021 Wolfgang Hönig (submodules: (c) 2016 USC-ACTLab, (c) 2014 whoenig)
 - Origin: OptiTrack/NatNet motion-capture driver for ROS 2
   (`IMRCLab/motion_capture_tracking`, v1.0.9), with its `libmotioncapture` and
   `librigidbodytracker` submodules materialized in-tree.
 
-The MIT license text is retained in `hope_ws/src/motion_capture_tracking/LICENSE` (and in
+The MIT license text is retained in `NatNet2ROS2/src/motion_capture_tracking/LICENSE` (and in
 `deps/libmotioncapture/LICENSE` / `deps/librigidbodytracker/LICENSE`). This package is vendored
 so the planner can be brought up against an OptiTrack/Motive rig via the open-source NatNet
 depacketizer. Local modifications: non-OptiTrack vendor SDK trees removed, non-OptiTrack
 backends disabled, and NatNet unicast/model-definition fixes applied — the complete
-provenance and patch list is `hope_ws/src/motion_capture_tracking/PIN.md`.
+provenance and patch list is `NatNet2ROS2/src/motion_capture_tracking/PIN.md`.
 
 ---
 
