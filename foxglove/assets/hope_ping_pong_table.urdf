@@ -1,0 +1,114 @@
+<?xml version="1.0"?>
+<!--
+  Visualization-only standard table-tennis table for Foxglove.
+
+  HOPE world convention:
+    origin: near-side left corner of the playing surface (P1 view)
+    +X:     toward P2, along the 2.740 m length
+    +Y:     left from P1; therefore the table occupies Y=[-1.525, 0]
+    +Z:     up; the playing surface is Z=0 and the floor is Z=-0.760
+
+  This asset has no collision or dynamics and must never be used for planning.
+-->
+<robot name="hope_standard_ping_pong_table">
+  <material name="table_blue"><color rgba="0.02 0.23 0.46 1.0"/></material>
+  <material name="edge_white"><color rgba="0.96 0.96 0.96 1.0"/></material>
+  <material name="frame_dark"><color rgba="0.08 0.10 0.12 1.0"/></material>
+  <material name="net_dark"><color rgba="0.03 0.04 0.05 0.72"/></material>
+  <material name="axis_red"><color rgba="0.90 0.08 0.08 1.0"/></material>
+  <material name="axis_green"><color rgba="0.08 0.75 0.18 1.0"/></material>
+  <material name="axis_blue"><color rgba="0.08 0.30 0.95 1.0"/></material>
+
+  <!-- The root link is the HOPE world frame at the table-surface corner. -->
+  <link name="world"/>
+
+  <link name="hope_tabletop">
+    <visual>
+      <geometry><box size="2.740 1.525 0.030"/></geometry>
+      <material name="table_blue"/>
+    </visual>
+  </link>
+  <joint name="world_to_hope_tabletop" type="fixed">
+    <parent link="world"/><child link="hope_tabletop"/>
+    <origin xyz="1.370 -0.7625 -0.015" rpy="0 0 0"/>
+  </joint>
+
+  <link name="hope_center_line">
+    <visual>
+      <geometry><box size="2.720 0.010 0.002"/></geometry>
+      <material name="edge_white"/>
+    </visual>
+  </link>
+  <joint name="world_to_hope_center_line" type="fixed">
+    <parent link="world"/><child link="hope_center_line"/>
+    <origin xyz="1.370 -0.7625 0.001" rpy="0 0 0"/>
+  </joint>
+
+  <link name="hope_net">
+    <visual>
+      <geometry><box size="0.010 1.525 0.1525"/></geometry>
+      <material name="net_dark"/>
+    </visual>
+  </link>
+  <joint name="world_to_hope_net" type="fixed">
+    <parent link="world"/><child link="hope_net"/>
+    <origin xyz="1.370 -0.7625 0.07625" rpy="0 0 0"/>
+  </joint>
+
+  <link name="hope_leg_near_left">
+    <visual><geometry><box size="0.060 0.060 0.730"/></geometry><material name="frame_dark"/></visual>
+  </link>
+  <joint name="world_to_hope_leg_near_left" type="fixed">
+    <parent link="world"/><child link="hope_leg_near_left"/>
+    <origin xyz="0.350 -0.250 -0.395" rpy="0 0 0"/>
+  </joint>
+
+  <link name="hope_leg_near_right">
+    <visual><geometry><box size="0.060 0.060 0.730"/></geometry><material name="frame_dark"/></visual>
+  </link>
+  <joint name="world_to_hope_leg_near_right" type="fixed">
+    <parent link="world"/><child link="hope_leg_near_right"/>
+    <origin xyz="0.350 -1.275 -0.395" rpy="0 0 0"/>
+  </joint>
+
+  <link name="hope_leg_far_left">
+    <visual><geometry><box size="0.060 0.060 0.730"/></geometry><material name="frame_dark"/></visual>
+  </link>
+  <joint name="world_to_hope_leg_far_left" type="fixed">
+    <parent link="world"/><child link="hope_leg_far_left"/>
+    <origin xyz="2.390 -0.250 -0.395" rpy="0 0 0"/>
+  </joint>
+
+  <link name="hope_leg_far_right">
+    <visual><geometry><box size="0.060 0.060 0.730"/></geometry><material name="frame_dark"/></visual>
+  </link>
+  <joint name="world_to_hope_leg_far_right" type="fixed">
+    <parent link="world"/><child link="hope_leg_far_right"/>
+    <origin xyz="2.390 -1.275 -0.395" rpy="0 0 0"/>
+  </joint>
+
+  <!-- A 0.40 m RGB axis triad makes the HOPE orientation visually explicit. -->
+  <link name="hope_axis_x">
+    <visual><geometry><cylinder radius="0.010" length="0.400"/></geometry><material name="axis_red"/></visual>
+  </link>
+  <joint name="world_to_hope_axis_x" type="fixed">
+    <parent link="world"/><child link="hope_axis_x"/>
+    <origin xyz="0.200 0 0" rpy="0 1.57079632679 0"/>
+  </joint>
+
+  <link name="hope_axis_y">
+    <visual><geometry><cylinder radius="0.010" length="0.400"/></geometry><material name="axis_green"/></visual>
+  </link>
+  <joint name="world_to_hope_axis_y" type="fixed">
+    <parent link="world"/><child link="hope_axis_y"/>
+    <origin xyz="0 0.200 0" rpy="-1.57079632679 0 0"/>
+  </joint>
+
+  <link name="hope_axis_z">
+    <visual><geometry><cylinder radius="0.010" length="0.400"/></geometry><material name="axis_blue"/></visual>
+  </link>
+  <joint name="world_to_hope_axis_z" type="fixed">
+    <parent link="world"/><child link="hope_axis_z"/>
+    <origin xyz="0 0 0.200" rpy="0 0 0"/>
+  </joint>
+</robot>

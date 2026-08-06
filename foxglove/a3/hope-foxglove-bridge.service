@@ -1,5 +1,5 @@
 [Unit]
-Description=HOPE Foxglove WebSocket bridge (read-only A3 monitoring)
+Description=HOPE Foxglove bridge (monitoring plus E-stop-only service)
 After=network-online.target
 Wants=network-online.target
 
