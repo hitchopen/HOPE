@@ -53,4 +53,6 @@ ros2 launch hope_bringup hope_bringup.launch.py \
 
 `pose_to_posearray` preserves the incoming `PoseStamped` header. See
 [`../VRPN2ROS2/README.md`](../VRPN2ROS2/README.md) for the strict source-time
-and NTP epoch requirements.
+and NTP epoch requirements. VRPN2ROS2 validates every source report and caps
+each raw ROS output topic/sensor at 200 Hz by default; this bringup selects a
+21-sample planner fit window for an approximately 100 ms estimator horizon.

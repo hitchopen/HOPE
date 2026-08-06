@@ -48,6 +48,7 @@ namespace vrpn_mocap
     mainloop_timer_ = this->create_wall_timer(1s / update_freq, std::bind(&Client::MainLoop, this));
 
     this->declare_parameter("sensor_data_qos", true);
+    this->declare_parameter("output_rate_hz", 200.0);
     // Stamp with the VRPN server's report time instead of ROS receipt time (see tracker.hpp;
     // requires the mocap host clock to be synchronized with the ROS host). Camera-exposure
     // provenance is a separate vendor/hardware acceptance item.

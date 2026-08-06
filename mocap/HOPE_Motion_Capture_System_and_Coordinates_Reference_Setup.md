@@ -375,6 +375,7 @@ ros2 launch vrpn_mocap client.launch.yaml server:=CHINGMU_SERVER_IP port:=3883
     max_vrpn_timestamp_age_ms: 100.0
     max_vrpn_future_skew_ms: 5.0
     update_freq: 500.0             # poll above the 300-360 Hz source stream
+    output_rate_hz: 200.0          # cap each ROS output topic/sensor; 0 = unlimited
     refresh_freq: 1.0
 ```
 
@@ -382,6 +383,9 @@ The 500 Hz client polling rate intentionally exceeds the expected 300–360 Hz
 VRPN source rate. VRPN drains the reports currently available on each mainloop
 call, but polling at the former 100 Hz could leave the oldest report queued for
 nearly 10 ms; 500 Hz reduces the ideal polling term to about 2 ms.
+Every report still passes the timestamp gates; after validation, the separate
+`output_rate_hz` limiter caps each pose, velocity, and acceleration ROS topic
+per sensor at 200 Hz by default while preserving the selected server timestamp.
 
 This preserves the VRPN server-supplied Unix `timeval`; VRPN itself performs no
 cross-host clock conversion. The CMTracker/MCServer and adapter hosts must use
@@ -400,7 +404,7 @@ The client auto-discovers VRPN tracker senders. Its pose callback maps `vrpn_TRA
 /vrpn_mocap/Ball/pose_id_0   geometry_msgs/PoseStamped
 ```
 
-Actual names and capitalization come from CMTracker and are case-sensitive. If CMTracker assigns a sensor index other than zero, use that published index rather than rewriting it. `multi_sensor: true` is a safe default and prevents collisions if a sender exposes more than one sensor.
+Actual names and capitalization come from CMTracker and are case-sensitive. If CMTracker assigns a sensor index other than zero, use that published index rather than rewriting it. The adapter accepts indices 0–255 and rejects values outside that range before allocating topic state; normal rigid bodies use index 0. `multi_sensor: true` is a safe default and prevents collisions if a sender exposes more than one sensor.
 
 Configure `hope_bringup/pose_to_posearray` with the Ball topic first to preserve the planner's default `ball_pose_index: 0`. The adapter publishes `/poses` but does not create `/tf`; add a `tf2_ros` broadcaster if the deployment also requires named transforms.
 

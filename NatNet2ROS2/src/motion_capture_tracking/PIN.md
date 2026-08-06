@@ -79,8 +79,9 @@ License: MIT (upstream `LICENSE` kept in this directory).
    HOPE clock configuration/remaps and made an unsafe entry point look
    supported. `natnet2ros2.launch.py`, which always loads
    `config/hope_optitrack.yaml`, is the only installed launch entry point. It
-   exposes `header_time:=camera_utc|ros`; `ros` is an explicit diagnostic-only
-   fallback for a Motive version without NatNet echo support.
+   exposes `header_time:=camera_utc|ros` and the output-rate cap; `ros` is an
+   explicit diagnostic-only fallback for a Motive version without NatNet echo
+   support.
 
 9. **`src/motion_capture_tracking_node.cpp` acquisition-time mapping
    (2026-07-30)**: add `topics.header_time=ros_latency_compensated`, which
@@ -141,6 +142,20 @@ License: MIT (upstream `LICENSE` kept in this directory).
     documentation requires a wired adapter path and distinguishes this 2 ms
     mapping term from the two hosts' clock errors.
 
+12. **Coherent ROS 2 output downsampling (2026-08-05)**: add
+    `topics.output_rate_hz`, default 180 Hz and exposed by the supported launch
+    file. Every NatNet frame still services the backend, clock mapping, and
+    timestamp gates; every valid frame also reaches logging and the optional
+    point-cloud tracker. A monotonic deadline selects at most one valid frame
+    per output period, then publishes that same frame on `poses`, `pointCloud`,
+    and TF without changing its acquisition timestamp. Missed periods never
+    produce catch-up bursts; `0.0` disables the cap. Pure limiter tests live in
+    `test/test_output_rate_limiter.cpp`.
+
+    Maintenance note: this implementation is the behavioral reference for the
+    intentionally duplicated VRPN2ROS2 limiter. Port limiter fixes and matching
+    tests to both independently built workspaces in the same change.
+
 ## Re-pin procedure
 
 ```bash
@@ -170,6 +185,8 @@ rm -rf NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/deps/{vrpn,
   CameraMidExposureTimestamp in the adapter host's ROS system-time/Unix epoch,
   `ros_latency_compensated`=legacy local ROS receive time minus NatNet
   Camera/Motive latency and `topics.network_latency_ms`),
+  `topics.output_rate_hz` (maximum coherent ROS output rate; default 180 Hz,
+  `0.0`=every valid source frame),
   `topics.max_clock_sync_uncertainty_ms`, `topics.max_capture_age_ms`,
   `topics.poses.version`,
   `topics.poses.qos.mode` (`none`=reliable depth-1 | `sensor`=SensorDataQoS

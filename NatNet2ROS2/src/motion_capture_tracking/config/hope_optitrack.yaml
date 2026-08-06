@@ -1,9 +1,9 @@
 # Deployment parameters for the standalone NatNet2ROS2 OptiTrack adapter.
 # Wildcard header: this file is passed ONLY to that node (namespace /optitrack)
-# by natnet2ros2.launch.py. The launch file overrides `hostname`, exposes an
-# explicit `header_time` safety/diagnostic choice, and remaps the driver's
-# absolute /tf topics under /optitrack. Its relative poses and pointCloud
-# topics resolve under the /optitrack namespace automatically.
+# by natnet2ros2.launch.py. The launch file overrides `hostname`, exposes the
+# explicit `header_time` safety/diagnostic choice and `output_rate_hz`, and
+# remaps the driver's absolute /tf topics under /optitrack. Its relative poses
+# and pointCloud topics resolve under the /optitrack namespace automatically.
 #
 # ---- BALL: strict 6-DOF rigid body (HOPE spec) ------------------------------
 # The ball is a Motive rigid-body ASSET named exactly `Ball`, streamed like
@@ -41,6 +41,11 @@
 
     topics:
       frame_id: "world"
+      # Cap all raw ROS 2 outputs (poses, pointCloud, and TF) coherently while
+      # still receiving and validating every NatNet source frame. The selected
+      # frame keeps its acquisition timestamp; no averaging or re-stamping is
+      # performed. Set 0.0 for the native valid-frame rate.
+      output_rate_hz: 180.0
       # Convert NatNet CameraMidExposureTimestamp from Motive's QPC domain into
       # this adapter host's absolute ROS system-time/Unix epoch. The driver uses
       # NatNet echo clock synchronization; on Linux that epoch is CLOCK_REALTIME
@@ -63,8 +68,10 @@
       poses:
         version: 1        # NamedPoseArray; the HOPE relay consumes v1
         qos:
-          mode: "sensor"  # SensorDataQoS keep-last-1: right for a 300-360 Hz feed
-          deadline: 100.0 # Hz (publisher deadline QoS)
+          mode: "sensor"  # SensorDataQoS keep-last-1
+          # Publisher deadline frequency. Keep this below output_rate_hz (or
+          # adjust/disable it when selecting an output rate at or below 100 Hz).
+          deadline: 100.0 # Hz
       tf:
         child_frame_id: "{}"  # raw body names; /tf is remapped to /optitrack/tf
 

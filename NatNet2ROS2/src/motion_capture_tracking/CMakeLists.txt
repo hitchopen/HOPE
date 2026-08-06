@@ -72,6 +72,14 @@ target_include_directories(motion_capture_tracking_node PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_compile_features(motion_capture_tracking_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
+if(BUILD_TESTING)
+  enable_testing()
+  add_executable(test_output_rate_limiter test/test_output_rate_limiter.cpp)
+  target_include_directories(test_output_rate_limiter PRIVATE include)
+  target_compile_features(test_output_rate_limiter PRIVATE cxx_std_17)
+  add_test(NAME output_rate_limiter COMMAND test_output_rate_limiter)
+endif()
+
 install(TARGETS motion_capture_tracking_node
   DESTINATION lib/${PROJECT_NAME})
 

@@ -115,13 +115,14 @@ class PlannerConfig:
     # State estimation
     poly_order: int = 2           # polynomial fit order
     fit_window: int = 31          # number of position samples in the velocity fit
-                                  # (~103 ms at a 300 Hz rig). COUPLED to the mocap rate:
-                                  # keep the window >= ~100 ms of samples, i.e.
-                                  # round(31 * rate / 300) — e.g. an OptiTrack rig at
-                                  # 360 Hz -> 37. Also a ROS parameter of hope_planner_node.
+                                  # (~103 ms at a 300 Hz ROS input). COUPLED to the
+                                  # adapter output rate: keep >= ~100 ms, i.e.
+                                  # round(31 * rate / 300). NatNet2ROS2's 180 Hz
+                                  # default -> 19; VRPN2ROS2's 200 Hz -> 21.
+                                  # Also a ROS node parameter.
     mocap_hz: float = 300.0       # documentation constant (not consumed anywhere): nominal
-                                  # motion-capture sample rate. The actual rate is a property
-                                  # of the rig; the rate-coupled knob is fit_window above.
+                                  # planner input rate. The actual rate is a property of
+                                  # the source/adapter; fit_window is coupled to it.
 
     # Trajectory prediction
     dt_integrate: float = 0.001   # integration time step (s)

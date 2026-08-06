@@ -27,11 +27,15 @@ ros2 launch vrpn_mocap client.launch.yaml server:=<MOCAP_SERVER_IP> port:=3883
 - `server` -- VRPN server IP/hostname (default: `localhost`)
 - `port` -- VRPN server port (default: `3883`)
 - `update_freq` -- VRPN client polling frequency (default: `500.0` Hz)
+- `output_rate_hz` -- maximum ROS output rate per topic/sensor (default:
+  `200.0` Hz; `0.0` publishes every accepted report)
 
 `config/client.yaml` parameters:
 
 - `update_freq` (double) -- VRPN socket/mainloop polling frequency (default:
   `500.`; keep it at or above the measured server stream rate)
+- `output_rate_hz` (double) -- maximum pose, velocity, and acceleration
+  publication rate per sensor (default: `200.0`; `0.0` disables limiting)
 - `refresh_freq` (double) -- frequency of dynamically adding newly tracked objects (default: `1.`)
 - `sensor_data_qos` (bool) -- use best-effort QoS for the VRPN data stream; set to `false` for the reliable system-default QoS (default: `true`)
 - `multi_sensor` (bool) -- set to `true` if more than one sensor (frame) reports on the same object (default: `false`)
@@ -58,7 +62,13 @@ It does, however, publish reports in polling bursts: a 100 Hz timer adds an
 ideal 0–10 ms wait before callback dispatch, whereas the checked-in 500 Hz
 setting reduces that term to approximately 0–2 ms. OS scheduling and overload
 can add more, and UDP socket overflow can still lose reports. Measure the
-accepted source rate and age distribution rather than assuming losslessness.
+observed output rate and age distribution rather than assuming losslessness.
+
+`output_rate_hz` is the separate ROS/DDS traffic control. Every received report
+still passes timestamp and minimum-age validation; only accepted publications
+are limited. Published messages retain the original VRPN server timestamp.
+Sensor indices outside 0–255 are rejected before any limiter or publisher
+vector is resized; normal HOPE rigid-body topics use sensor index 0.
 
 ## Inspect the data stream
 

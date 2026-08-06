@@ -9,6 +9,9 @@ launch:
 - arg:
     name: "update_freq"
     default: "500.0"
+- arg:
+    name: "output_rate_hz"
+    default: "200.0"
 
 - node:
     pkg: "vrpn_mocap"
@@ -30,3 +33,6 @@ launch:
     -
       name: "update_freq"
       value: "$(var update_freq)"
+    -
+      name: "output_rate_hz"
+      value: "$(var output_rate_hz)"

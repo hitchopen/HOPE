@@ -36,9 +36,11 @@ hope_planner:
     # every solve_period_s (<= 50 Hz). 0.0 solves on every sample.
     solve_period_s: 0.02
     max_predict_time: 2.0          # forward prediction horizon (s)
-    # Velocity-fit window IN SAMPLES — coupled to the mocap sample rate (keep
-    # the window >= ~100 ms of samples). 31 ≈ 103 ms at a 300 Hz rig; for other
-    # rates use round(31 * rate / 300) — e.g. an OptiTrack rig at 360 Hz -> 37.
+    # Velocity-fit window IN SAMPLES — coupled to the planner's ROS input rate
+    # (keep the window >= ~100 ms of samples). 31 ≈ 103 ms at 300 Hz; for other
+    # rates use round(31 * rate / 300). NatNet2ROS2 defaults to 180 Hz -> 19.
+    # VRPN2ROS2 defaults to 200 Hz -> 21. hope_bringup selects the matching
+    # backend-specific value.
     fit_window: 31
 
     # --- Table placement ---
