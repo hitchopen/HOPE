@@ -16,6 +16,8 @@ set(BUILD_SHARED_LIBS ON)
 
 rosidl_generate_interfaces(
   ${PROJECT_NAME}
+  "msg/Gate3BallCommand.msg"
+  "msg/Gate3BallState.msg"
   "msg/SimReset.msg"
   DEPENDENCIES
   geometry_msgs

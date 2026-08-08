@@ -1,6 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <mujoco model="A3T2.5_pingpong_0519">
   <compiler angle="radian" meshdir="meshes" autolimits="true" />
+  <size nuserdata="16" />
   <option timestep="0.001" gravity="0 0 -9.81" noslip_iterations="3" noslip_tolerance="1e-6" />
   <statistic center="0 0 1.25" extent="1.15" />
   <visual>
@@ -95,7 +96,20 @@
     <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2" />
   </asset>
   <worldbody>
-    <geom name="floor" size="300 300 0.125" type="plane" material="groundplane" conaffinity="7" friction="1.5 0.005 0.0001" />
+    <!-- Collision bits: robot=1, Gate3 ball=2, floor=4.  The floor still
+         collides with the robot through its conaffinity=1, but neither of the
+         two bitmask directions matches the ball.  A miss therefore cannot
+         bounce on the laboratory floor as though it were a table landing. -->
+    <geom name="floor" size="300 300 0.125" type="plane" material="groundplane"
+          contype="4" conaffinity="1" friction="1.5 0.005 0.0001" />
+    <geom name="gate3_table_visual" type="box" pos="1.37 -0.7625 0.745"
+          size="1.37 0.7625 0.015" rgba="0.05 0.25 0.65 0.75" />
+    <geom name="gate3_table_collision" type="box" pos="1.37 -0.7625 0.750"
+          size="1.37 0.7625 0.010" contype="0" conaffinity="2"
+          friction="0.25 0.001 0.0001" rgba="0 0 0 0" />
+    <geom name="gate3_net_collision" type="box" pos="1.37 -0.7625 0.83625"
+          size="0.006 0.7625 0.07625" contype="0" conaffinity="2"
+          friction="0.1 0.001 0.0001" rgba="0.9 0.9 0.9 0.75" />
     <light pos="0 0 10" dir="0 0 -1" directional="true" />
     <light name="spotlight" target="pelvis_link" pos="0 -1 2" dir="0 0 -1" mode="targetbodycom" />
     <camera name="torso_follow" mode="targetbodycom" target="torso_Link" pos="2.2 -2.6 1.45" fovy="45" />
@@ -173,6 +187,39 @@
                           <geom type="mesh" rgba="1 1 1 1" mesh="left_hand_Link" />
                           <geom name="left_wrist_yaw_collision" class="collision" type="mesh" mesh="collision_left_wrist_yaw_Link" />
                           <geom name="left_hand_collision" class="collision" type="mesh" mesh="collision_left_hand_Link" />
+                          <!-- Conservative oriented bounding box of the rigid
+                               left hand.  It is collision-disabled and exists
+                               only for deterministic hand/racket clearance
+                               qualification; unlike mesh-to-mesh distance
+                               queries, box distance is stable across frames. -->
+                          <geom name="left_hand_clearance_proxy" type="box"
+                                pos="0.127568 -0.008587 0.016489"
+                                quat="-0.52071908 0.39954140 0.37757930 0.65318617"
+                                size="0.0612 0.0849 0.0306"
+                                contype="0" conaffinity="0"
+                                rgba="0 0 0 0" />
+                          <!--
+                            Ball-only support on the ANATOMICAL PALMAR side of the rigid hand.
+                            Rendered A/B wrist-roll comparison established that the B surface
+                            (the -Z side of the hand OBB) is the palm.  This proxy and site use
+                            that confirmed surface, with local +Z as its outward normal.  The
+                            generator separately locks the wrist to the B IK branch so a normal-
+                            only solve cannot return to the dorsal-up configuration.
+                            contype=0/conaffinity=2 keeps this thin proxy from changing
+                            robot/floor self-collision while still allowing the Gate3 ball
+                            (contype=2) to contact it.
+                          -->
+                          <geom name="left_palm_ball_support" type="box"
+                                pos="0.124199 -0.034743 -0.001075"
+                                quat="-0.39954140 -0.52071908 0.65318617 -0.37757930"
+                                size="0.045 0.055 0.003"
+                                contype="0" conaffinity="2"
+                                friction="0.60 0.001 0.0001"
+                                solref="0.002 1" rgba="0 0 0 0" />
+                          <site name="left_palm" type="ellipsoid"
+                                pos="0.123813 -0.037471 -0.002261"
+                                quat="-0.39954140 -0.52071908 0.65318617 -0.37757930"
+                                size="0.006 0.006 0.003" rgba="0.2 1 0.2 0.55" />
                         </body>
                       </body>
                     </body>
@@ -222,6 +269,13 @@
                           <geom name="right_hand_finger_collision" class="collision" type="capsule" fromto="0.095 0.042 -0.085 0.145 0.043 -0.025" size="0.012" />
                           <geom name="right_hand_thumb_collision" class="collision" type="capsule" fromto="0.086 -0.010 -0.072 0.135 -0.006 -0.025" size="0.011" />
                           <geom name="right_racket_collision" class="collision" type="mesh" mesh="collision_right_racket_face" pos="0.206194 0.025474 0.028020" />
+                          <!-- Conservative box around the 162 x 14 x 162 mm
+                               racket-face collision mesh.  Diagnostic only. -->
+                          <geom name="right_racket_clearance_proxy" type="box"
+                                pos="0.206194 0.025474 0.028020"
+                                size="0.082 0.008 0.082"
+                                contype="0" conaffinity="0"
+                                rgba="0 0 0 0" />
                           <geom name="right_racket_handle_collision" class="collision" type="capsule" fromto="0.060 0.019 -0.095 0.150 0.023 -0.015" size="0.018" />
                           <site name="right_racket" size="0.001" pos="0.21021 0.032078 0.032036" rgba="0 0 0 0" />
                         </body>
@@ -310,6 +364,20 @@
           </body>
         </body>
       </body>
+    </body>
+    <!-- Keep this body after pelvis_link: several existing reset/driver paths
+         intentionally rely on the robot free joint being the first qpos block. -->
+    <body name="gate3_ball" pos="100 0 -10">
+      <freejoint name="gate3_ball_free_joint" />
+      <!-- Venue ball is the 3.4 g retro-reflective match ball used by the
+           production planner fit; hollow-sphere I = 2/3 m r^2. -->
+      <inertial pos="0 0 0" mass="0.0034"
+                diaginertia="0.000000906667 0.000000906667 0.000000906667" />
+      <geom name="gate3_ball_collision" type="sphere" size="0.020"
+            mass="0.0034" contype="2" conaffinity="1"
+            friction="0.20 0.001 0.0001" solref="0.002 1"
+            rgba="1.0 0.45 0.05 1" />
+      <site name="gate3_ball_site" size="0.003" rgba="1 0.45 0.05 1" />
     </body>
   </worldbody>
   <actuator>
@@ -451,8 +519,22 @@
     <accelerometer name="torso_imu_accel" site="imu_in_torso" noise="0.001" />
     <framepos name="right_racket_framepos" objtype="site" objname="right_racket" />
     <framequat name="right_racket_framequat" objtype="site" objname="right_racket" noise="0" />
+    <framepos name="left_palm_framepos" objtype="site" objname="left_palm" />
+    <framequat name="left_palm_framequat" objtype="site" objname="left_palm" noise="0" />
   </sensor>
   <contact>
+    <!-- Gate3 ball contacts use stable, critically damped constraints.  The
+         venue/planner restitution law is applied explicitly on each physical
+         table-contact rising edge in MujocoSimModule. -->
+    <pair geom1="gate3_ball_collision" geom2="gate3_table_collision"
+          condim="3" friction="0.25 0.001 0.0001" solref="0.002 1" />
+    <pair geom1="gate3_ball_collision" geom2="gate3_net_collision"
+          condim="3" friction="0.10 0.001 0.0001" solref="0.002 0.3" />
+    <pair geom1="gate3_ball_collision" geom2="right_racket_collision"
+          condim="3" friction="0.20 0.001 0.0001" solref="0.002 1" />
+    <pair geom1="gate3_ball_collision" geom2="left_palm_ball_support"
+          condim="3" friction="0.60 0.001 0.0001" solref="0.002 1" />
+
     <!-- Arm and head adjacent-body excludes, matching the GR00T A3 MuJoCo asset. -->
     <exclude body1="torso_Link" body2="left_shoulder_roll_Link" />
     <exclude body1="torso_Link" body2="right_shoulder_roll_Link" />
@@ -485,6 +567,6 @@
     <exclude body1="right_knee_Link" body2="right_ankle_roll_Link" />
   </contact>
   <keyframe>
-    <key name="stand" qpos="-0.0416378 0.000359049 1.06839 0.999997532 -0.000261961877 0.00217491898 0.000370300827 -1.51611e-07 0.000163394 0.0136787 -0.169416 0 0.295233 0.112098 -0.00281121 0.807255 0.000113008 0.00777573 -0.000782062 0.295264 -0.112059 0.00283697 0.807309 -0.000126059 0.00798594 0.000788832 -0.131545 0.00801605 -0.035203 0.251534 -0.129267 -0.00961262 -0.131429 -0.00755653 0.0351273 0.251558 -0.129385 0.0101591" />
+    <key name="stand" qpos="-0.0416378 0.000359049 1.06839 0.999997532 -0.000261961877 0.00217491898 0.000370300827 -1.51611e-07 0.000163394 0.0136787 -0.169416 0 0.295233 0.112098 -0.00281121 0.807255 0.000113008 0.00777573 -0.000782062 0.295264 -0.112059 0.00283697 0.807309 -0.000126059 0.00798594 0.000788832 -0.131545 0.00801605 -0.035203 0.251534 -0.129267 -0.00961262 -0.131429 -0.00755653 0.0351273 0.251558 -0.129385 0.0101591 100 0 -10 1 0 0 0" />
   </keyframe>
 </mujoco>

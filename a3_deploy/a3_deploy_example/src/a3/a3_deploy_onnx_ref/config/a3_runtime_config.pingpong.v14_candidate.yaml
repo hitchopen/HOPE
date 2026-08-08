@@ -1,0 +1,17 @@
+# Explicit simulation-only candidate config for an evaluated-and-exported RallyV14 model.
+# The native loader requires training_recipe=rally_v14 and the YAML-derived V14 stability
+# metadata.  This path must never be repointed to a V13 artifact.
+onnx:
+  model_path: ../../../../assets/a3_runtime/models/model_v14_candidate.onnx
+  backend: no_rknn
+
+policy_driver:
+  policy_hz: 50.0
+
+obs_debug:
+  loc_mode: perfect_tracking
+
+backend:
+  aimrt_cfg_path: a3_aimrt_config.pingpong_iceoryx.yaml
+  sync_mode: min_skew_pair
+  sync_hz: 100.0

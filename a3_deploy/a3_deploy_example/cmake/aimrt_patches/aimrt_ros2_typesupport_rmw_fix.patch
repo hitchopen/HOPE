@@ -1,0 +1,107 @@
+--- a/src/interface/aimrt_module_ros2_interface/util/ros2_type_support.h
++++ b/src/interface/aimrt_module_ros2_interface/util/ros2_type_support.h
+@@ -3,6 +3,7 @@
+
+ #pragma once
+
++#include <array>
+ #include <cstring>
+ #include <string>
+
+@@ -13,8 +14,10 @@
+
+ #include "rclcpp/rclcpp.hpp"
+ #include "rclcpp/serialization.hpp"
++#include "rcutils/error_handling.h"
+ #include "rosidl_runtime_cpp/message_type_support_decl.hpp"
+ #include "rosidl_runtime_cpp/traits.hpp"
++#include "rosidl_typesupport_cpp/message_type_support_dispatch.hpp"
+ #include "yaml_convert.h"
+
+ namespace aimrt {
+@@ -22,6 +25,34 @@
+ template <typename T>
+ concept Ros2MsgType = rosidl_generator_traits::is_message<T>::value;
+
++namespace detail {
++
++inline const rosidl_message_type_support_t* ResolveRmwMessageTypeSupport(
++    const rosidl_message_type_support_t* type_support) noexcept {
++  if (type_support == nullptr) {
++    return nullptr;
++  }
++
++  constexpr std::array<const char*, 4> kCandidates = {
++      "rosidl_typesupport_fastrtps_cpp",
++      "rosidl_typesupport_introspection_cpp",
++      "rosidl_typesupport_fastrtps_c",
++      "rosidl_typesupport_introspection_c",
++  };
++
++  for (const char* identifier : kCandidates) {
++    const rosidl_message_type_support_t* resolved =
++        rosidl_typesupport_cpp::get_message_typesupport_handle_function(type_support, identifier);
++    if (resolved != nullptr) {
++      return resolved;
++    }
++  }
++
++  return type_support;
++}
++
++}  // namespace detail
++
+ template <Ros2MsgType MsgType>
+ const aimrt_type_support_base_t* GetRos2MessageTypeSupport() {
+   static const aimrt_string_view_t kChannelRos2SerializationTypesSupportedList[] = {
+@@ -50,11 +81,16 @@
+         try {
+           static const rosidl_message_type_support_t* ts_ptr =
+               rosidl_typesupport_cpp::get_message_type_support_handle<MsgType>();
++          static const rosidl_message_type_support_t* rmw_ts_ptr =
++              detail::ResolveRmwMessageTypeSupport(ts_ptr);
+
+           if (aimrt::util::ToStdStringView(serialization_type) == "ros2") {
+             aimrt_buffer_array_with_allocator_t bawa{.buffer_array = buffer_array, .allocator = allocator};
+             Ros2RclSerializedMessageAdapter serialized_msg_adapter(&bawa);
+-            rcl_ret_t ret = rmw_serialize(msg, ts_ptr, serialized_msg_adapter.GetRclSerializedMessage());
++            rcl_ret_t ret = rmw_serialize(msg, rmw_ts_ptr, serialized_msg_adapter.GetRclSerializedMessage());
++            if (ret != RMW_RET_OK) {
++              rcutils_reset_error();
++            }
+
+             return (ret == RMW_RET_OK);
+           }
+@@ -93,6 +129,8 @@
+         try {
+           static const rosidl_message_type_support_t* ts_ptr =
+               rosidl_typesupport_cpp::get_message_type_support_handle<MsgType>();
++          static const rosidl_message_type_support_t* rmw_ts_ptr =
++              detail::ResolveRmwMessageTypeSupport(ts_ptr);
+
+           if (aimrt::util::ToStdStringView(serialization_type) == "ros2") {
+             if (buffer_array_view.len == 1) {
+@@ -100,7 +138,10 @@
+               serialized_msg.buffer = const_cast<uint8_t*>(static_cast<const uint8_t*>(buffer_array_view.data[0].data));
+               serialized_msg.buffer_length = buffer_array_view.data[0].len;
+               serialized_msg.buffer_capacity = buffer_array_view.data[0].len;
+-              rcl_ret_t ret = rmw_deserialize(&serialized_msg, ts_ptr, msg);
++              rcl_ret_t ret = rmw_deserialize(&serialized_msg, rmw_ts_ptr, msg);
++              if (ret != RMW_RET_OK) {
++                rcutils_reset_error();
++              }
+               return (ret == RMW_RET_OK);
+             }
+
+@@ -123,7 +164,10 @@
+               serialized_msg.buffer = buffer;
+               serialized_msg.buffer_length = total_size;
+               serialized_msg.buffer_capacity = total_size;
+-              rcl_ret_t ret = rmw_deserialize(&serialized_msg, ts_ptr, msg);
++              rcl_ret_t ret = rmw_deserialize(&serialized_msg, rmw_ts_ptr, msg);
++              if (ret != RMW_RET_OK) {
++                rcutils_reset_error();
++              }
+               return (ret == RMW_RET_OK);
+             }
+           } else if (aimrt::util::ToStdStringView(serialization_type) == "json") {

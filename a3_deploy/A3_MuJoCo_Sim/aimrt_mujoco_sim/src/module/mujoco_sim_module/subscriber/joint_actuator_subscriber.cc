@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
+#include <string_view>
 #include "mujoco_sim_module/common/xmodel_reader.h"
 
 namespace YAML {
@@ -215,6 +217,13 @@ void BodyDriveJointActuatorSubscriber::Initialize(YAML::Node options_node) {
   InitializeBase(options_node);
   latest_targets_.resize(joint_num_);
   ctrl_buffer_.resize(joint_num_, 0.0);
+  implicit_pd_ = std::string_view(std::getenv("A3_MUJOCO_PD_MODE")
+                                      ? std::getenv("A3_MUJOCO_PD_MODE") : "explicit") == "implicit";
+  base_passive_damping_.resize(joint_num_, 0.0);
+  for (size_t joint_idx = 0; joint_idx < joint_num_; ++joint_idx) {
+    const int dof = actuator_bind_joint_sensor_addr_vec_[joint_idx].vel_addr;
+    base_passive_damping_[joint_idx] = m_->dof_damping[dof];
+  }
 
   AIMRT_CHECK_ERROR_THROW(aimrt::channel::Subscribe<joint_msgs::msg::JointCommand>(
                               subscriber_,
@@ -275,11 +284,23 @@ void BodyDriveJointActuatorSubscriber::ApplyCtrlData() {
       ctrl_buffer_[joint_idx] = command.velocity;
     } else if (joint_actuator_type_vec_[joint_idx] == "motor") {
       const double state_position = d_->qpos[actuator_bind_joint_sensor_addr_vec_[joint_idx].pos_addr];
-      const double state_velocity = d_->qvel[actuator_bind_joint_sensor_addr_vec_[joint_idx].vel_addr];
+      const int dof = actuator_bind_joint_sensor_addr_vec_[joint_idx].vel_addr;
+      const double state_velocity = d_->qvel[dof];
 
-      ctrl_buffer_[joint_idx] = command.effort +
-                                command.stiffness * (command.position - state_position) +
-                                command.damping * (command.velocity - state_velocity);
+      if (implicit_pd_) {
+        // Isaac-faithful diagnostic: preserve the MJCF plant damping and add the runner's
+        // message kd to MuJoCo's implicit damping solve. The normal AGI path remains the
+        // explicit torque formula below. dq_des is zero in the policy runner, but retain
+        // its feed-forward kd*dq_des term for a complete command contract.
+        m_->dof_damping[dof] = base_passive_damping_[joint_idx] + command.damping;
+        ctrl_buffer_[joint_idx] = command.effort +
+                                  command.stiffness * (command.position - state_position) +
+                                  command.damping * command.velocity;
+      } else {
+        ctrl_buffer_[joint_idx] = command.effort +
+                                  command.stiffness * (command.position - state_position) +
+                                  command.damping * (command.velocity - state_velocity);
+      }
     } else {
       AIMRT_WARN("Invalid joint actuator type '{}'.", joint_actuator_type_vec_[joint_idx]);
     }

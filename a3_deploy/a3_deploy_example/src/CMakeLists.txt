@@ -1,0 +1,6 @@
+if(ENABLE_TRT_INFERENCE)
+  add_subdirectory(TRTInference)
+else()
+  message(STATUS "Skipping TRTInference target (ENABLE_TRT_INFERENCE=OFF)")
+endif()
+add_subdirectory(a3)

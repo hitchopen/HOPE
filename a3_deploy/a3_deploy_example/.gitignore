@@ -1,0 +1,37 @@
+# Ignore GitHub workflows and CI/CD files.
+.github/
+
+# Build and package outputs.
+/build/
+/build-*/
+/cmake-build-*/
+/dist/
+/install/
+/target/
+
+# CMake / Ninja generated files that may appear in source builds.
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+DartConfiguration.tcl
+Testing/
+build.ninja
+.ninja_deps
+.ninja_log
+Makefile
+
+# Logs and local caches.
+/log/
+/logs/
+.cache/
+
+# Python caches.
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Generated inference artifacts.
+*.trt
+*.engine

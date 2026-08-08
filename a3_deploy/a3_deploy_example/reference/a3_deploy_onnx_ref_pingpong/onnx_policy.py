@@ -4,11 +4,19 @@
 
 The exported policy is a single-input, single-output network:
 
-    observation[1, 111]  ->  raw_action[1, 31]
+    observation[1, 110]  ->  raw_action[1, 31]
 
 No observation normalization is applied (the observation is raw). The runner zeroes
 the passive head columns of ``raw_action`` to form the applied action, which is fed
 back as the next tick's ``last_action`` and passed through the ActionAdapter.
+
+Load-time gates (mirrored by the exporter's manifest):
+  * the trailing input/output dims must be OBS_DIM (110) / NUM_JOINTS (31);
+  * an embedded ``joint_order`` metadata string must equal the canonical order;
+  * an embedded ``contract`` metadata string must equal ``hitter_pure``.
+Models without the metadata keys (e.g. hand-authored test actors) load unchecked.
+The metadata validators are module-level pure functions so they are unit-testable
+without onnxruntime.
 """
 
 from __future__ import annotations
@@ -17,8 +25,43 @@ from pathlib import Path
 
 import numpy as np
 
-from .observation import OBS_DIM
+from .observation import CONTRACT_NAME, OBS_DIM
 from .joint_order import JOINT_NAMES, NUM_JOINTS
+
+
+def validate_embedded_joint_order(embedded: str) -> None:
+    """Reject a non-empty embedded ``joint_order`` that mismatches the canonical order.
+
+    If the exporter embedded the joint order, it must equal the canonical order
+    this runner assumes for every obs/action column — a mismatch means every joint
+    column would be silently permuted. An empty string (metadata absent) passes.
+    """
+    if not embedded:
+        return
+    embedded_names = tuple(embedded.split(","))
+    if embedded_names != tuple(JOINT_NAMES):
+        raise ValueError(
+            "ONNX metadata joint_order does not match this runner's canonical "
+            f"joint order.\n  onnx:      {list(embedded_names)}\n"
+            f"  canonical: {list(JOINT_NAMES)}\n"
+            "Re-export the policy from an asset whose articulation enumerates "
+            "joints in the canonical order (joint_order_agibot_a3.yaml)."
+        )
+
+
+def validate_embedded_contract(embedded: str) -> None:
+    """Reject a non-empty embedded ``contract`` that is not the 110-D hitter_pure.
+
+    An empty string (metadata absent) passes.
+    """
+    if not embedded:
+        return
+    if embedded != CONTRACT_NAME:
+        raise ValueError(
+            f"ONNX metadata contract '{embedded}' does not match this runner's "
+            f"observation contract '{CONTRACT_NAME}' ({OBS_DIM}-D). Export the "
+            "policy from a task using the hitter_pure actor observation contract."
+        )
 
 
 class OnnxPolicy:
@@ -45,22 +88,9 @@ class OnnxPolicy:
         self._validate_shape(inputs[0].shape, OBS_DIM, "observation input")
         self._validate_shape(outputs[0].shape, NUM_JOINTS, "raw_action output")
 
-        # If the exporter embedded the joint order, it must equal the canonical order
-        # this runner assumes for every obs/action column — a mismatch means every
-        # joint column would be silently permuted. Models without the metadata key
-        # (e.g. hand-authored test actors) are accepted unchecked.
         meta = self._sess.get_modelmeta().custom_metadata_map or {}
-        embedded = meta.get("joint_order", "")
-        if embedded:
-            embedded_names = tuple(embedded.split(","))
-            if embedded_names != tuple(JOINT_NAMES):
-                raise ValueError(
-                    "ONNX metadata joint_order does not match this runner's canonical "
-                    f"joint order.\n  onnx:      {list(embedded_names)}\n"
-                    f"  canonical: {list(JOINT_NAMES)}\n"
-                    "Re-export the policy from an asset whose articulation enumerates "
-                    "joints in the canonical order (joint_order_agibot_a3.yaml)."
-                )
+        validate_embedded_joint_order(meta.get("joint_order", ""))
+        validate_embedded_contract(meta.get("contract", ""))
 
     @staticmethod
     def _validate_shape(shape, expected_last: int, what: str) -> None:

@@ -1,0 +1,17 @@
+# Explicit simulation-only candidate config for an evaluated-and-exported RallyV15 model.
+# The native loader requires the paired rally_v15 runtime/training recipe, rewritten 118-D actor,
+# position-receipt localization, finite HUGWBC gait, and YAML-stamped bounded-q_des contract.
+onnx:
+  model_path: ../../../../assets/a3_runtime/models/model_v15_candidate.onnx
+  backend: no_rknn
+
+policy_driver:
+  policy_hz: 50.0
+
+obs_debug:
+  loc_mode: perfect_tracking
+
+backend:
+  aimrt_cfg_path: a3_aimrt_config.pingpong_iceoryx.yaml
+  sync_mode: min_skew_pair
+  sync_hz: 100.0

@@ -1,0 +1,80 @@
+# Copyright (c) 2026, AgiBot Inc. All rights reserved.
+#
+# AimRT runtime configuration for A3 deploy on ADU-style cross-board transport.
+# Body-drive state/command topics use ROS2. This lets the deploy process run on
+# ADU while body-drive publishers/subscribers live on another board.
+
+aimrt:
+  plugin:
+    plugins:
+      - name: ros2_plugin
+        path: libaimrt_ros2_plugin.so
+        options:
+          node_name: a3_deploy_onnx_ref
+          executor_type: MultiThreaded
+          executor_thread_num: 2
+
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+      - type: rotate_file
+        options:
+          path: /tmp/a3_deploy_logs
+          filename: a3_deploy.log
+          max_file_size_m: 32
+          max_file_num: 4
+
+  executor:
+    executors:
+      - name: aimrt_callback_pool
+        type: asio_thread
+        options:
+          thread_num: 2
+
+  channel:
+    backends:
+      - type: ros2
+        options:
+          pub_topics_options:
+            - topic_name: "/body_drive/waist_joint_command"
+              qos: &ros2_qos
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/body_drive/leg_joint_command"
+              qos: *ros2_qos
+            - topic_name: "/body_drive/arm_joint_command"
+              qos: *ros2_qos
+            - topic_name: "/body_drive/neck_joint_command"
+              qos: *ros2_qos
+          sub_topics_options:
+            - topic_name: "/body_drive/waist_joint_state"
+              use_serialized: false
+              qos: *ros2_qos
+            - topic_name: "/body_drive/leg_joint_state"
+              use_serialized: false
+              qos: *ros2_qos
+            - topic_name: "/body_drive/arm_joint_state"
+              use_serialized: false
+              qos: *ros2_qos
+            - topic_name: "/body_drive/neck_joint_state"
+              use_serialized: false
+              qos: *ros2_qos
+            - topic_name: "/body_drive/pelvis_imu/data"
+              use_serialized: false
+              qos: *ros2_qos
+            - topic_name: "/body_drive/torso_imu/data"
+              use_serialized: false
+              qos: *ros2_qos
+            - topic_name: "/ta/whole_body_command"
+              use_serialized: false
+              qos: *ros2_qos
+
+    pub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [ros2]
+    sub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [ros2]

@@ -1,21 +1,21 @@
-# HOPE runtime configuration -- clean 111-D reference deploy.
+# HOPE runtime configuration -- clean 110-D `hitter_pure` reference deploy.
 #
 # Read by the clean-room reference runner (a3_deploy_onnx_ref_pingpong). Every
 # relative path resolves against THIS file's directory.
 #
-# Single observation/action path only: 111-D observation, 31-D action, no
+# Single observation/action path only: 110-D observation, 31-D action, no
 # observation normalization, one control rate. There are no model/experiment
 # codenames, playback, or admission-control settings here.
 
-contract: hope_pingpong
+contract: hitter_pure
 control_hz: 50.0                 # 50 Hz control loop
 observation_normalization: none  # raw observation (must stay 'none')
 passive_neck: true               # hold head_yaw/head_pitch at their default angle
 
 policy:
-  # Place your exported actor here (obs[1,111] -> raw_action[1,31]).
+  # Place your exported actor here (obs[1,110] -> raw_action[1,31]).
   # Override on the command line with --onnx.
-  onnx_path: ../models/hope_pingpong.onnx
+  onnx_path: ../models/policy.onnx
   joint_order: agibot_a3         # informational; the canonical order lives in joint_order.py
 
 action_adapter:

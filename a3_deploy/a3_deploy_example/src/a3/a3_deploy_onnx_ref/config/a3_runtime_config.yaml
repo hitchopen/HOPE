@@ -1,0 +1,301 @@
+# Copyright (c) 2026, AgiBot Inc. All rights reserved.
+# 对应 notes/a3_pr9_spec.md §2 (config/a3_runtime_config.yaml)
+#
+# Runtime configuration for `a3_deploy_onnx_ref --runtime-cfg=<this file>`.
+# Paths below are relative to the a3_deploy_example root where possible, so a
+# tracked-only `a3_deploy_example` archive can still build/package without the
+# original training workspace.
+#
+# Keys marked REQUIRED must be present; OPTIONAL keys fall back to built-in
+# defaults documented above each key.
+
+# -----------------------------------------------------------------------------
+# ONNX policy runtime
+# -----------------------------------------------------------------------------
+onnx:
+  # OPTIONAL. Runtime graph mode:
+  #   monolithic       — single ONNX path per source:
+  #                      model_path obs_dict[1,1570] for A3,
+  #                      smpl_model_path obs_dict[1,1770] for SMPL,
+  #                      a3_fast_model_path obs_dict[1,1570] for A3-fast TA.
+  #   encoder_decoder — compatibility path for local ORT/CPU
+  #                      encoder.onnx + decoder.onnx pipeline.
+  mode: monolithic
+
+  # REQUIRED. A3 monolithic ONNX policy: obs_dict[1,1570] -> action[1,29].
+  model_path: assets/a3_runtime/models/model_step_098000_a3.onnx
+
+  # OPTIONAL. SMPL monolithic ONNX policy: obs_dict[1,1770] -> action[1,29].
+  # When set with smpl_zmq.enabled=true, manual teleop key `2` selects this
+  # policy while preserving the existing SMPL ZMQ/fallback/stale behavior.
+  smpl_model_path: assets/a3_runtime/models/model_step_026000_smpl.onnx
+
+  # OPTIONAL. A3-fast monolithic ONNX policy: obs_dict[1,1570] -> action[1,29].
+  # It consumes the same /ta/whole_body_command tokenizer as key `1`, but uses
+  # the teleop.fast_* latency/window settings. If omitted, key `3` is rejected.
+  a3_fast_model_path: assets/a3_runtime/models/model_step_098000_a3_fast.onnx
+
+  # OPTIONAL. Explicit RKNN models used when backend is rknn or when building a
+  # Rockchip package. ONNX paths above are still used for x86 ORT CPU bring-up.
+  rknn_model_path: assets/a3_runtime/rknn_models/model_step_098000_a3.rknn
+  smpl_rknn_model_path: assets/a3_runtime/rknn_models/model_step_026000_smpl.rknn
+  a3_fast_rknn_model_path: assets/a3_runtime/rknn_models/model_step_098000_a3_fast.rknn
+
+  # OPTIONAL. Source-switch smoothing ticks. In monolithic mode this blends raw
+  # actions after switching between A3 and SMPL. In encoder_decoder mode this
+  # keeps the older encoded-token transition behavior.
+  token_transition_ticks: 15
+
+  # OPTIONAL. Policy runtime backend for direct/local runs. Keep ort_cpu here
+  # for x86 testing with the ONNX models above. Rockchip package builds
+  # automatically stage matching `.rknn` files and rewrite packaged config to
+  # backend: rknn.
+  # Options: ort_cpu, trt, rknn.
+  backend: ort_cpu
+
+  # OPTIONAL. RKNN NPU core selection when backend: rknn. Options:
+  # auto, all, 0, 1, 2, 0_1, 0_1_2.
+  rknn_core_mask: auto
+
+  # OPTIONAL. ORT CPU thread counts. Keep 1/1 first for deterministic bring-up;
+  # tune later only after measuring policy-loop latency on the target board.
+  intra_op_num_threads: 1
+  inter_op_num_threads: 1
+
+  # OPTIONAL. Use FP16 inference for TensorRT only. ORT CPU ignores this.
+  fp16: false
+
+# -----------------------------------------------------------------------------
+# Reference motion.
+# A3 deployment loads flat CSV motions directly and generates the 640-float
+# tokenizer prefix online, using the current robot root orientation for
+# motion_anchor_ori_b_mf_nonflat.
+# -----------------------------------------------------------------------------
+reference_motion:
+  # Optional folder of flat A3 CSV files. When set and non-empty, all *.csv
+  # files are preloaded at startup in lexicographic filename order and can be
+  # switched at runtime with the keyboard.
+  motion_dir: assets/a3_runtime/motions
+
+  # Independent direction-key clips. These are NOT appended to the normal
+  # playback library, so prev/next navigation and the selected playback pointer only see
+  # reference_motion.motion_dir.
+  remote_motion_dir: assets/a3_runtime/remote_motions
+
+  # Fallback single CSV path. This keeps the old one-motion config working and
+  # is used when motion_dir is omitted.
+  csv_path: assets/a3_runtime/motions/neutral_walk_180_R_003__A098_M.csv
+
+  # Standing tokenizer used while MOTION mode is idle, before a normal/remote
+  # clip starts, and after a one-shot clip finishes.
+  idle_csv_path: assets/a3_runtime/teleop_motions/BMD_0319_a3_filtered_20260319_164305__stand_Skeleton0.csv
+  initial_index: 0
+
+  keyboard_shortcuts:
+    arrow_up: remote_forward_short
+    arrow_down: remote_backward_short
+    arrow_left: remote_turn_left_45
+    arrow_right: remote_turn_right_45
+
+  # Raw flat A3 CSVs are 120Hz. Training conversion uses
+  # --fps_source 120 --fps 30, i.e. keep every 4th row, then the motion_lib
+  # loader resamples that 30Hz reference to the 50Hz policy timeline.
+  source_fps: 30.0
+  csv_frame_stride: 4
+  target_fps: 50.0
+  future_frame_skip: 5
+
+  # OPTIONAL. What to do when the policy asks for a tick beyond the last
+  # reference frame. Options:
+  #   hold_last  — repeat the final slice indefinitely (safe for terminal
+  #                "hold pose" semantics) [DEFAULT]
+  #   wrap       — modulo back to start (for looped motions like walk_cycle)
+  #   stop       — At() returns nullptr; BuildObsDict zeroes the tokenizer
+  #                prefix (policy will drift; for debugging only)
+  #
+  # Manual real-robot bring-up plays the selected CSV once and holds the final
+  # reference frame. Use --auto-start plus on_end: wrap only for loop-debug.
+  on_end: hold_last
+
+# -----------------------------------------------------------------------------
+# Teleop reference.
+# TELEOP mode subscribes to /ta/whole_body_command and converts it into the same
+# 640-float tokenizer prefix used by reference_motion. ONNX is always called in
+# TELEOP; before this buffer has usable data, the tokenizer target comes from a
+# real standing CSV reference clip, with a static default-stand target as the
+# final fallback.
+# -----------------------------------------------------------------------------
+teleop:
+  enabled: true
+  topic: /ta/whole_body_command
+  delay_ms: 940.0
+  future_frame_skip: 5
+  # Low-latency TA path used by manual teleop source key `3` when
+  # onnx.a3_fast_model_path is configured.
+  fast_delay_ms: 220.0
+  fast_future_frame_skip: 1
+  stale_behavior: hold_last
+  stale_warn_ms: 250.0
+  # Align each new TA stream segment's pelvis yaw to the current robot IMU yaw.
+  # This prevents first-connect / reconnect absolute TA yaw jumps from turning
+  # the robot, while preserving online yaw changes within a continuous segment.
+  yaw_offset_compensation: true
+  max_frames: 512
+
+  # No-data/buffering fallback for the first moments after entering TELEOP.
+  # This clip was selected from base_model_data_flat_ground_csv_good because it
+  # has very small root drift and joint variance compared with the other
+  # stand/idle candidates.
+  fallback_reference:
+    enabled: true
+    csv_path: assets/a3_runtime/teleop_motions/BMD_0319_a3_filtered_20260319_164305__stand_Skeleton0.csv
+    source_fps: 30.0
+    target_fps: 50.0
+    csv_frame_stride: 4
+    future_frame_skip: 5
+    fast_future_frame_skip: 1
+    on_end: hold_last
+
+  # Used only if fallback_reference is disabled or cannot produce a tokenizer.
+  # The raw policy output can be out-of-distribution for a perfectly static
+  # target, so that last-resort command is kept inside a small safety envelope
+  # around a3_default_angles. Set fallback_policy_blend to 1.0 to use the full
+  # ONNX output during static fallback, or 0.0 for pure default-stand q_des.
+  fallback_policy_blend: 0.25
+  fallback_max_delta_rad: 0.08
+  fallback_use_pd_stand_gains: false
+
+# -----------------------------------------------------------------------------
+# SMPL ZMQ reference stream.
+# Used by manual TELEOP source key "2". In monolithic mode this feeds the SMPL
+# ONNX policy; in encoder_decoder mode it feeds the SMPL encoder branch.
+# Reuses the A3 packed ZMQ protocol: smpl_joints, body_quat/body_quat_w,
+# joint_pos, joint_vel, smpl_pose, frame_index.
+# -----------------------------------------------------------------------------
+smpl_zmq:
+  enabled: true
+  # Source-tree default is for local x86 simulation. The A3 package builder
+  # rewrites this to the fixed HDU address 10.42.10.10 for rockchip/thor
+  # packages when it still sees a localhost-style value, because the Pico
+  # sender listens on the HDU while the policy runs on a robot compute target.
+  host: localhost
+  port: 5556
+  topic: pose
+  conflate: true
+  verbose: false
+  # "isaaclab" means joint_pos is already in training order; "mujoco" means
+  # A3 29-DOF policy view and will be permuted before selecting wrist joints.
+  joint_order: isaaclab
+
+# -----------------------------------------------------------------------------
+# Policy driver (RT loop settings) — see include/a3_deploy/a3_policy_driver.hpp
+# -----------------------------------------------------------------------------
+policy_driver:
+  # OPTIONAL. Set false for backend-only transport bring-up. In that mode the
+  # executable starts the backend/sync path but never loads ONNX/tokenizer,
+  # never measures infer latency, and never publishes joint commands. Use
+  # `--probe` / run_a3_probe.sh for receive/sync plus infer latency probing
+  # with command publishing disabled.
+  policy_enabled: true
+
+  # OPTIONAL. RT loop frequency. Training used 50Hz; changing this invalidates
+  # the reference motion bin (which was dumped at dt=0.02s).
+  policy_hz: 50.0
+
+  # The policy timer is phase-aligned to the synced state by default. Advanced
+  # overrides, normally omitted: phase_align_to_sync, sync_ready_offset_ms.
+  phase_align_to_sync: true
+  sync_ready_offset_ms: 0.3
+
+  # OPTIONAL. Used only with --auto-start: PD-stand ticks before the first
+  # policy tick. Normal real-robot startup is manual PASSIVE -> PD_STAND ->
+  # POLICY, controlled by keyboard.
+  warmup_ticks: 150
+
+  # OPTIONAL. Manual PD_STAND ramp duration in policy-driver ticks.
+  # motion_control_a3 uses iter_max=3000 at 1kHz, i.e. about 3 seconds; at
+  # 50Hz that is 150 ticks. Re-pressing "s" restarts from measured q.
+  pd_stand_ticks: 150
+
+  watchdog:
+    # OPTIONAL. Max allowed wall-clock age (ms) of the cached RobotState
+    # before the watchdog declares the frame "stale" and triggers safe-halt.
+    # Default in code: 50ms (2.5× sync period at 200Hz).
+    max_frame_age_ms: 50.0
+
+    # OPTIONAL. Max consecutive sync ticks with aligned=false before the
+    # watchdog trips ChronicUnaligned (default in code: 5). Raised to 10 here
+    # for mujoco_sim which can stutter on startup before the aligner stabilises.
+    max_unaligned_frames: 10
+
+  rt:
+    # OPTIONAL. SCHED_FIFO priority for the RT thread. 0 = no RT scheduling
+    # (process runs as SCHED_OTHER). Typical range on a PREEMPT_RT kernel
+    # with CAP_SYS_NICE: 70-90. Setting 80 gives headroom above cyclictest
+    # (70) but below the AimRT executor (85).
+    #
+    # For first bring-up on a non-RT kernel or without CAP_SYS_NICE, set
+    # this to 0 to avoid "Failed to set sched_fifo priority" warnings.
+    sched_fifo_priority: 0
+
+    # OPTIONAL. Pin the RT thread to this CPU. -1 = no affinity (scheduler
+    # decides). On a dev workstation with no isolcpus boot parameter,
+    # leave -1. On RK3588 MDU set to the perf cluster's last core (e.g. 7).
+    cpu_affinity: -1
+
+# -----------------------------------------------------------------------------
+# AimRT backend wiring (sync + pub/sub config)
+# -----------------------------------------------------------------------------
+backend:
+  # REQUIRED. Path to the AimRT YAML. We ship a reference config alongside
+  # this file — edit `a3_aimrt_config.yaml` if you need to tweak iceoryx
+  # pool sizes, logging level, or add a ros2 bridge for foxglove/rviz.
+  aimrt_cfg_path: src/a3/a3_deploy_onnx_ref/config/a3_aimrt_config.yaml
+
+  # OPTIONAL. Backend-only gate for transport bring-up. Equivalent to passing
+  # --dry-run on the command line: no ONNX load, no infer latency measurement,
+  # no command publishing. Keep false when using --probe.
+  dry_run: false
+
+  # Default sync path:
+  #   - fixed sync tick at 2x policy_hz (100Hz when policy_hz=50)
+  #   - each tick picks the newest low-skew joint group + IMU group
+  #   - the 50Hz policy timer is aligned just after that synced state
+  #   - sync phase is auto-calibrated from observed joint/IMU arrival timing
+  # No timing field is normally needed here.
+
+  # Advanced sync overrides, normally omitted:
+  # phase_ms, auto_phase, sync_mode, sync_hz, sync_ready_after_input_ms,
+  # sync_release_margin_ms, max_group_pair_skew_ms, max_group_internal_skew_ms,
+  # group_pair_search_depth, max_sample_age_ms, max_backtrack, align_delay_ms,
+  # max_skew_ms.
+  sync_release_margin_ms: 0.25
+  max_group_internal_skew_ms: 0.05
+  max_group_pair_skew_ms: 1.0
+
+# -----------------------------------------------------------------------------
+# Diagnostics
+# -----------------------------------------------------------------------------
+logging:
+  # Binary dump layout per policy tick:
+  #   obs[1570 f32], raw_action[29 f32], q_des[29 f64],
+  #   jp_mujoco[29 f64], jv_mujoco[29 f64], gdir[3 f64], bav[3 f64]
+  # Defaults to 0 in code.
+  dump_ticks: 0
+  dump_path: /tmp/a3_deploy_dump.bin
+
+  # Human-readable stderr prints for the first N policy ticks.
+  debug_print_ticks: 0
+
+  # Print a lightweight progress line every N driver frames while the policy
+  # loop is running. transport + ready + infer matches total on the same
+  # policy samples. Rollback sync modes may also split ready into sync_wait and
+  # policy_wait. Set to 0 to disable command-line [frames] logs.
+  frame_log_interval: 500
+
+  # Debug-only: add wall-clock sleep after each policy Infer() call, before
+  # decoding/publishing the action. This is included in
+  # infer_ms(min/avg/max), so it can emulate slower onboard inference while
+  # running sim2deploy locally.
+  artificial_infer_delay_ms: 0.0
+  artificial_infer_delay_jitter_ms: 0.0
