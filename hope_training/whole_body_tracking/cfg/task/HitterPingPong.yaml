@@ -463,7 +463,6 @@ motion_file: ../motions/preprocessed/hope_forehand.npz
 motion_file_2: ../motions/preprocessed/hope_backhand.npz
 checkpoint_export_onnx: false
 build_contract:
-  source_manifest: analysis/hitter_pingpong_build_sources.json
   baseline: HitterV11@ad63118b803a36b378d9489d8ab0609b363677ea:V14
   actor_observation_dim: 110
   action_dim: 31

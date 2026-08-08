@@ -50,8 +50,8 @@ source/whole_body_tracking/whole_body_tracking/assets/*
 !source/whole_body_tracking/whole_body_tracking/assets/__init__.py
 
 # V17 r12's physical tuple bank is a recipe input, not a generated run artifact.
-# Keep the broad asset/NPZ ignores above, but allow only this SHA-pinned bank and
-# its receipt so a checkout cannot silently lose 25% of the training question bank.
+# Keep the broad asset/NPZ ignores above, but allow this bank and its receipt so
+# a checkout cannot silently lose 25% of the training question bank.
 !assets/
 assets/*
 !assets/venue_tuple/

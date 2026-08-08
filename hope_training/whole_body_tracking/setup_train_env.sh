@@ -8,9 +8,9 @@
 #   source setup_train_env.sh
 #
 # It (1) puts the working-tree package source first on PYTHONPATH (so local edits
-# win over any installed copy) and (2) defines an `isaac_py` launcher that runs
-# your Isaac Sim Python with that PYTHONPATH. There is no external logging or
-# experiment-tracking setup — training writes local checkpoints only.
+# win over any installed copy) and (2) defines a `hope_isaac_py` launcher that
+# runs your Isaac Sim Python with that PYTHONPATH. There is no external logging
+# or experiment-tracking setup — training writes local checkpoints only.
 #
 # Point ISAAC_PYTHON / ISAACLAB_ROOT at your install if the defaults do not match
 # (e.g. export them in setup_train_env.local.sh, which is auto-sourced if present).
@@ -54,15 +54,20 @@ fi
 export HOPE_PYTHONPATH="${_WBT_DIR}/source/whole_body_tracking${_extra_paths}"
 
 # Run Isaac's python with the training PYTHONPATH.
-isaac_py () {
+hope_isaac_py () {
   PYTHONPATH="${HOPE_PYTHONPATH}${PYTHONPATH:+:$PYTHONPATH}" "${ISAAC_PYTHON}" "$@"
+}
+
+# Backward-compatible short alias retained for early public-branch users.
+isaac_py () {
+  hope_isaac_py "$@"
 }
 
 unset _WBT_DIR _il _extra_paths
 
 echo "[hope] training env ready."
-echo "[hope]   isaac_py -> ${ISAAC_PYTHON}"
-echo "[hope]   run:  isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true"
+echo "[hope]   hope_isaac_py -> ${ISAAC_PYTHON}"
+echo "[hope]   run:  hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true"
 if [ ! -x "${ISAAC_PYTHON}" ]; then
   echo "[hope]   WARNING: ISAAC_PYTHON='${ISAAC_PYTHON}' is not executable — set it in setup_train_env.local.sh."
 fi

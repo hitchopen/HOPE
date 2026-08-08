@@ -10,7 +10,7 @@ upstream `argparse` entries, HOPE drives training through **Hydra** entry points
 - The `HitterPingPong` task maps to the gym task `HOPE-HitterPingPong-AgibotA3-v0` (`experiment_name agibot_a3_hitter_pingpong`).
 - Overrides are layered from the `cfg/` tree: `cfg/task` (env/task), `cfg/algo` (PPO), `cfg/base` (shared defaults).
 - `HitterPingPong` trains one unified HITTER-style policy: clip 0 = forehand, clip 1 = backhand, on the 110-D `hitter_pure` actor contract (no swing-side observation — the side is inferred outside the policy).
-- Local video-generated `.npz` clips are first-class inputs: pass `motion_file=...` plus `motion_file_2=...` to train without touching WandB. Registry paths remain useful for shared/internal runs (`registry_name` = forehand, `registry_name_2` = backhand).
+- Local video-generated `.npz` clips are first-class inputs: pass `motion_file=...` plus `motion_file_2=...`; the HOPE launcher does not require a remote artifact registry.
 
 **The authoritative guides are [docs/TRAIN_POLICY.md](../../docs/TRAIN_POLICY.md) and
 [QUICKSTART_A3_ISAAC.md](../../QUICKSTART_A3_ISAAC.md).**
@@ -24,7 +24,7 @@ A from-scratch Isaac Sim/Lab install is out of scope here — follow the upstrea
 - Extra pip deps NOT in `setup.py` `install_requires` (must be importable in the Isaac Lab python):
   `hydra` and `omegaconf`.
 - `source setup_train_env.sh` (must be **sourced**, in the GPU/Isaac shell) to get the `hope_isaac_py`
-  launcher and `WANDB_*` exports. Edit its site-specific paths, or provide an (git-ignored)
+  launcher. Edit its site-specific paths, or provide a (git-ignored)
   `setup_train_env.local.sh` override that it auto-sources.
 
 ### A3 asset and motions
@@ -37,17 +37,12 @@ A from-scratch Isaac Sim/Lab install is out of scope here — follow the upstrea
   `--robot agibot_a3`) → convert the retargeted trajectory into the documented `.npz` + `.yaml`
   schema ([docs/REPLACE_MOTIONS.md](../../docs/REPLACE_MOTIONS.md)) → train directly with
   `motion_file=...` / `motion_file_2=...`.
-- WandB identities must differ when you use the optional registry path: `WANDB_ENTITY` (team, run logging) vs
-  `WANDB_REGISTRY_ORG` (org, motion registry) — if they match, registry reads fail. Use placeholders
-  `your-wandb-team` / `your-wandb-org`.
 - `HitterPingPong.yaml` pins the recipe: the `hitter_pure` racket-target mode,
   forehand/backhand-conditioned target ranges, per-clip strike phases, and the continuous-rally
   settings. Keep local clip order aligned with `strike_phase_per_clip`: `motion_file` = forehand,
   `motion_file_2` = backhand.
 - Train against forehand/backhand clips expressed in the corrected **HOPE +X** world frame
-  ([docs/REPLACE_MOTIONS.md](../../docs/REPLACE_MOTIONS.md)). If you use the optional WandB
-  registry path instead, make sure the aliases resolve to the same corrected clips before
-  launching a long run.
+  ([docs/REPLACE_MOTIONS.md](../../docs/REPLACE_MOTIONS.md)).
 - `max_iterations` defaults to a train-forever sentinel — pass `max_iterations=` on the CLI and stop
   manually when `strike_success` plateaus.
 
@@ -57,8 +52,8 @@ A from-scratch Isaac Sim/Lab install is out of scope here — follow the upstrea
 
 > The sections below are the **upstream BeyondMimic (Unitree G1) baseline** documentation, retained
 > for reference. For the HOPE Agibot A3 ping-pong workflow, use the section above plus
-> `docs/TRAIN_POLICY.md`; the HOPE path writes local `.npz` files first and treats WandB
-> registry upload as optional. The upstream helper/entry scripts referenced below
+> `docs/TRAIN_POLICY.md`; the HOPE path consumes local `.npz` files. The upstream
+> helper/entry scripts referenced below
 > (`csv_to_npz.py`, `replay_npz.py`, `scripts/rsl_rl/*`) ship in the **upstream repository**,
 > not in this fork — produce HOPE clips per `docs/REPLACE_MOTIONS.md` instead.
 

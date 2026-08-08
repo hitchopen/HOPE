@@ -3670,6 +3670,7 @@ class RacketTargetCommand(CommandTerm):
         )
         # SHA pinning is optional: validate only when the task config carries
         # the expected digests (the public config ships without them).
+        sha_pin_status = "disabled"
         expected_sha = str(
             getattr(self.cfg, "venue_tuple_bank_sha256", "") or ""
         ).strip().lower()
@@ -3680,6 +3681,7 @@ class RacketTargetCommand(CommandTerm):
                     "V17 physical tuple bank SHA256 mismatch: "
                     f"expected={expected_sha}, actual={actual_sha}, path={path}"
                 )
+            sha_pin_status = "verified"
         receipt_path = self._resolve_venue_tuple_bank_path(
             str(self.cfg.venue_tuple_bank_receipt_path)
         )
@@ -3785,7 +3787,7 @@ class RacketTargetCommand(CommandTerm):
         self._venue_tuple_bank_receipt_path = str(receipt_path)
         print(
             "[RacketTargetCommand] physical tuple bank ON: "
-            f"path={path}, sha256={actual_sha}, FH={counts[0]}, BH={counts[1]}, "
+            f"path={path}, sha_pin={sha_pin_status}, FH={counts[0]}, BH={counts[1]}, "
             f"mix={float(self.cfg.venue_tuple_final_mix_prob):.3f}",
             flush=True,
         )
@@ -11324,8 +11326,9 @@ class RacketTargetCommandCfg(CommandTermCfg):
     venue_tuple_enabled: bool = False
     venue_tuple_final_mix_prob: float = 0.0
     # Legacy revisions sampled the fast mirror-law tuple online and multiplied its probability by
-    # recovery coverage.  V17-r12 instead uses a SHA-pinned high-fidelity bank at a fixed balanced
-    # probability, independent of every performance/curriculum signal.
+    # recovery coverage.  V17-r12 instead uses a high-fidelity bank at a fixed balanced
+    # probability, independent of every performance/curriculum signal. Private recipes may pin
+    # its digest; the public recipe relies on the schema and numerical checks above.
     venue_tuple_mix_mode: str = "recovery_scaled_online_v1"
     venue_tuple_bank_path: str = ""
     venue_tuple_bank_sha256: str = ""

@@ -75,12 +75,11 @@ or your Isaac Lab is a source checkout, create the git-ignored local override
 
 ```bash
 # setup_train_env.local.sh
-export HOPE_ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
-export HOPE_ISAACLAB_ROOT=/absolute/path/to/IsaacLab   # source checkouts only
+export ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
+export ISAACLAB_ROOT=/absolute/path/to/IsaacLab   # source checkouts only
 ```
 
-It also exports optional `WANDB_*` defaults — Weights & Biases is an optional sharing layer,
-never a requirement; local `.npz` motions and local checkpoints are first-class.
+The public setup does not configure external logging; motions and checkpoints remain local.
 
 ## 4. Smoke Checks
 
@@ -111,12 +110,12 @@ python -m pytest tests/ -q
 > deploy — the proven internal line trained on real `*_v12fix` clips that are not shipped.
 
 ```bash
-python scripts/train.py task=HitterPingPong algo=ppo headless=true \
+hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
 
 # common overrides
-python scripts/train.py task=HitterPingPong algo=ppo headless=true \
+hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true \
     num_envs=4096 max_iterations=20000 seed=1 \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
@@ -128,8 +127,7 @@ continuous rallies — no teleport between swings. It is the only shipped task; 
 lives in `cfg/task/HitterPingPong.yaml` — see
 [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md). Checkpoints are written locally to
 `logs/rsl_rl/<experiment_name>/<timestamp>/`; resume with `checkpoint_path=<...>/model_<N>.pt`.
-Motions can also come from an optional W&B registry
-(`registry_name=<entity>/wandb-registry-motions/<name>`) instead of `motion_file=`.
+Motion clips are selected through the local `motion_file=` / `motion_file_2=` overrides.
 
 ## 6. Evaluate in Isaac
 

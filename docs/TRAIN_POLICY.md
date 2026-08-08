@@ -45,16 +45,15 @@ deployed policy.
 ```bash
 cd hope_training/whole_body_tracking
 source setup_train_env.sh        # defines the hope_isaac_py launcher
-python scripts/train.py task=HitterPingPong algo=ppo headless=true \
+hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
 ```
 
 Everything is a Hydra override: `num_envs=4096`, `max_iterations=20000`, `seed=1`,
 `checkpoint_path=<run>/model_<N>.pt` (resume), or any dotted config path. Local `.npz` clips via
-`motion_file=` / `motion_file_2=` are first-class; the Weights & Biases motion registry is an
-**optional** sharing layer (`registry_name=<entity>/wandb-registry-motions/<name>`), never a
-requirement. The shipped clips are placeholders — see
+`motion_file=` / `motion_file_2=` are first-class and require no external artifact registry. The
+shipped clips are placeholders — see
 [REPLACE_MOTIONS.md](REPLACE_MOTIONS.md).
 
 ## Reward terms
@@ -106,10 +105,9 @@ rehearsal and gate sweeps above. See [POLICY_INTERFACE.md](POLICY_INTERFACE.md).
 ## Checkpoints and logging
 
 Checkpoints are written locally to `logs/rsl_rl/<experiment_name>/<timestamp>/` (a periodic
-checkpoint every `save_interval` iterations and a final one). W&B run logging is available but
-optional (`setup_train_env.sh` exports overridable `WANDB_*` defaults; local runs can use
-`logger=tensorboard`). Checkpoint selection is yours to do with the evaluators above — nothing
-auto-promotes a checkpoint.
+checkpoint every `save_interval` iterations and a final one). The public launcher uses local
+TensorBoard logging and does not upload runs or checkpoints. Checkpoint selection is yours to do
+with the evaluators above — nothing auto-promotes a checkpoint.
 
 ## Configuration
 
