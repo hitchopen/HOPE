@@ -5,20 +5,31 @@ version = "0.1.0"
 
 # Description
 category = "isaaclab"
-readme = "README.md"
+readme  = "README.md"
 
-title = "HOPE Whole-Body Tracking"
-author = "Intelligent Racing Inc. (dba Hitch Interactive)"
-maintainer = "Intelligent Racing Inc. (dba Hitch Interactive)"
-description = "Isaac Lab extension for training the HOPE whole-body policy on the Agibot A3."
-repository = "https://github.com/hitch-interactive/hope_pingpong"
-keywords = ["isaaclab", "reinforcement-learning", "humanoid", "table-tennis", "agibot-a3"]
+title = "Extension Template"
+author = "Isaac Lab Project Developers"
+maintainer = "Isaac Lab Project Developers"
+description="Extension Template for Isaac Lab"
+repository = "https://github.com/isaac-sim/IsaacLabExtensionTemplate.git"
+keywords = ["extension", "template", "isaaclab"]
 
 [dependencies]
 "isaaclab" = {}
 "isaaclab_assets" = {}
+"isaaclab_mimic" = {}
 "isaaclab_rl" = {}
 "isaaclab_tasks" = {}
+# NOTE: Add additional dependencies here
 
 [[python.module]]
 name = "whole_body_tracking"
+
+[isaaclab_settings]
+# TODO: Uncomment and list any apt dependencies here.
+#       If none, leave it commented out.
+# apt_deps = ["example_package"]
+# TODO: Uncomment and provide path to a ros_ws
+#       with rosdeps to be installed. If none,
+#       leave it commented out.
+# ros_ws = "path/from/extension_root/to/ros_ws"

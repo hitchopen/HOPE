@@ -24,7 +24,7 @@ This remains the fast in-Isaac estimate; the authoritative physical number comes
 changes, no other metrics.
 
 Usage:
-    python scripts/evaluate.py --checkpoint logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt \
+    python scripts/evaluate.py --checkpoint logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt \
         --num-envs 256 --num-steps 4000
 """
 
@@ -54,13 +54,13 @@ def _resolve_motion_path(value: str) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--checkpoint", required=True, help="Local checkpoint (.pt) to evaluate.")
-    parser.add_argument("--task", default="HOPE-PingPong-AgibotA3-v0", help="Gym task id.")
+    parser.add_argument("--task", default="HOPE-HitterPingPong-AgibotA3-v0", help="Gym task id.")
     parser.add_argument("--num-envs", type=int, default=256, help="Parallel environments.")
     parser.add_argument("--num-steps", type=int, default=4000, help="Policy steps to roll out.")
     parser.add_argument("--device", default="cuda:0", help="Compute device.")
     parser.add_argument("--contact-radius", type=float, default=0.10, help="Racket-to-target contact gate (m).")
     parser.add_argument("--json-out", default=None, help="Also write {'success_rate': ...} to this file.")
-    parser.add_argument("--experiment-name", default="hope_pingpong", help="rsl_rl experiment name.")
+    parser.add_argument("--experiment-name", default="agibot_a3_hitter_pingpong", help="rsl_rl experiment name.")
     parser.add_argument(
         "--motion-file", default="hope_training/motions/preprocessed/hope_forehand.npz", help="Forehand clip."
     )
@@ -98,7 +98,9 @@ def main() -> int:
         from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
         from isaaclab_tasks.utils import parse_env_cfg
 
-        import whole_body_tracking.tasks  # noqa: F401
+        import importlib
+
+        importlib.import_module("whole_body_tracking.tasks")  # registers the gym tasks
         from whole_body_tracking.utils.my_on_policy_runner import HOPEOnPolicyRunner
         from whole_body_tracking.utils.ppo_cfg import load_ppo_params, runner_kwargs
         from whole_body_tracking.utils.success_metric import (
@@ -133,15 +135,16 @@ def main() -> int:
         cmd = base_env.command_manager.get_term("racket_target")
         env_origins = base_env.scene.env_origins  # (N, 3)
 
-        # Table placement in the ENV-LOCAL frame — the same constants the command term's return
-        # shaping uses (tasks/tracking/mdp/hope_commands.py _evaluate_return). The shared
-        # success-metric TABLE frame has its origin at the near-side LEFT (+y) corner of the table
-        # surface: x_table = x_env - table_near_x, y_table = y_env - (station_y + width/2),
-        # z_table = z_env - table_surface_z. Placement (near_x / surface_z / station y) comes from
-        # the command cfg; table DIMENSIONS come from the same TableGeometry the scoring uses
-        # (configs/ball_physics.yaml), so a re-fitted table width keeps the two in agreement.
-        table_near_x = float(cmd.cfg.table_near_x)
-        table_surface_z = float(cmd.cfg.table_surface_z)
+        # Table placement in the ENV-LOCAL frame — the same constants the command term's virtual
+        # ball / return shaping uses (tasks/tracking/mdp/hope_commands.py, ``vb_table_near_x`` /
+        # ``vb_table_surface_z``). The shared success-metric TABLE frame has its origin at the
+        # near-side LEFT (+y) corner of the table surface: x_table = x_env - table_near_x,
+        # y_table = y_env - (station_y + width/2), z_table = z_env - table_surface_z. Placement
+        # (near_x / surface_z / station y) comes from the command cfg; table DIMENSIONS come from
+        # the same TableGeometry the scoring uses (configs/ball_physics.yaml), so a re-fitted
+        # table width keeps the two in agreement.
+        table_near_x = float(cmd.cfg.vb_table_near_x)
+        table_surface_z = float(cmd.cfg.vb_table_surface_z)
         table_half_w = 0.5 * float(table.width)
 
         def read_state():
@@ -149,10 +152,10 @@ def main() -> int:
             racket_pos = _first_attr(cmd, ["racket_pos_w", "achieved_racket_pos_w", "current_racket_pos_w"])
             racket_vel = _first_attr(cmd, ["racket_lin_vel_w", "racket_vel_w", "achieved_racket_vel_w"])
             tts = _first_attr(cmd, ["time_to_strike", "tts"])
-            swing = _first_attr(cmd, ["swing_side", "swing_sign"])
+            swing = _first_attr(cmd, ["swing_sign"])
             missing = [n for n, v in [
                 ("racket_target_pos_w", target_pos), ("racket_pos_w", racket_pos),
-                ("racket_lin_vel_w", racket_vel), ("time_to_strike", tts), ("swing_side", swing)]
+                ("racket_lin_vel_w", racket_vel), ("time_to_strike", tts), ("swing_sign", swing)]
                 if v is None]
             if missing:
                 raise AttributeError(
@@ -165,7 +168,8 @@ def main() -> int:
         def to_table_frame(pos_w_row, e):
             """Sim-world position -> the shared metric's table frame for env ``e``."""
             p = (pos_w_row - env_origins[e]).cpu().numpy().astype(float)
-            station_y = float((cmd.fixed_station_w[e, 1] - env_origins[e, 1]).item())
+            # base_target_pos_w is the commanded base station (world xy) of env e.
+            station_y = float((cmd.base_target_pos_w[e, 1] - env_origins[e, 1]).item())
             p[0] -= table_near_x
             p[1] -= station_y + table_half_w   # table centred on the station: left edge -> y = 0
             p[2] -= table_surface_z

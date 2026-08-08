@@ -4,8 +4,8 @@ Loads a LOCAL checkpoint and runs the policy in-sim. No Weights & Biases, and no
 exporting the ONNX policy is a separate step (scripts/export_onnx.py).
 
 Usage:
-    python scripts/play.py task=HOPEPingPong num_envs=4 \
-        checkpoint=logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
+    python scripts/play.py task=HitterPingPong num_envs=4 \
+        checkpoint=logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt
 """
 
 import pathlib
@@ -47,7 +47,9 @@ def _run(cfg, simulation_app):
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
     from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
 
-    import whole_body_tracking.tasks  # noqa: F401
+    import importlib
+
+    importlib.import_module("whole_body_tracking.tasks")  # registers the gym tasks
     from whole_body_tracking.utils.my_on_policy_runner import HOPEOnPolicyRunner
     from whole_body_tracking.utils.ppo_cfg import runner_kwargs
 
