@@ -11,7 +11,7 @@ The rest of the repository is organized into four layers:
 
 | Layer | What to read or run | Purpose |
 |-------|---------------------|---------|
-| Required path | `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/` (incl. `scripts/prepare_a3_isaac_asset.py`), `agibot/URDF/A3T2.5-URDF-std-pingpang/` | Prepare the A3 Isaac asset, train the deploy-grade rally policy (`task=HitterPingPong`), export the ONNX policy, and evaluate it in Isaac and MuJoCo. |
+| Required path | `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/` (incl. `scripts/prepare_a3_isaac_asset.py`), `agibot/URDF/A3T2.5-URDF-std-pingpang/` | Prepare the A3 Isaac asset, train the deploy-grade rally policy (`task=HOPEPingPong`), export the ONNX policy, and evaluate it in Isaac and MuJoCo. |
 | Stable public contracts | `A3_ASSETS.md`, `docs/interfaces/`, `docs/POLICY_INTERFACE.md`, `docs/PLANNER_INTERFACE.md` | Frame conventions, joint order, the 110-D `hitter_pure` observation / 31-D action policy IO, ROS topics incl. the schema-tagged flat wire, `RacketCommand`, and asset expectations that stay stable when you integrate your own code. |
 | Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/`, `docs/RUN_ON_AGIBOT.md` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app; the native C++ deploy runner with its gate/rehearsal scripts (`a3_deploy/a3_deploy_example/`) and the MuJoCo/AimRT simulation fork with the real ball plant (`a3_deploy/A3_MuJoCo_Sim/`); and Agibot-provided A3 materials. |
 | Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace (Python + C++ planners) for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
@@ -31,7 +31,7 @@ python3 scripts/prepare_a3_isaac_asset.py --force
 #    The bundled clips are schema placeholders — swap in real forehand/backhand clips
 #    (docs/REPLACE_MOTIONS.md) before training a policy you intend to deploy.
 source setup_train_env.sh        # defines the `isaac_py` launcher for the Isaac Sim Python
-python scripts/train.py task=HitterPingPong algo=ppo headless=true \
+python scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
 

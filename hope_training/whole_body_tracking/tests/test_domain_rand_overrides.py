@@ -192,7 +192,7 @@ def test_hitter_pingpong_task_yaml_resolves_the_a3_message_recipe():
 
     with open(os.path.join(_ROOT, "cfg", "base", "randomization_base.yaml")) as f:
         dr = yaml.safe_load(f)["domain_rand"]
-    with open(os.path.join(_ROOT, "cfg", "task", "HitterPingPong.yaml")) as f:
+    with open(os.path.join(_ROOT, "cfg", "task", "HOPEPingPong.yaml")) as f:
         task_dr = yaml.safe_load(f)["domain_rand"]
     dr.update(task_dr)  # Hydra-style leaf merge of the task over the base
     assert dr["pd_mode"] == "a3_message_passive_nominal_cohort_v1"

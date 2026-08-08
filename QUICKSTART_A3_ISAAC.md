@@ -110,12 +110,12 @@ python -m pytest tests/ -q
 > deploy — the proven internal line trained on real `*_v12fix` clips that are not shipped.
 
 ```bash
-hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true \
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
 
 # common overrides
-hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true \
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     num_envs=4096 max_iterations=20000 seed=1 \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
@@ -124,7 +124,7 @@ hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true \
 `HitterPingPong` (gym id `HOPE-HitterPingPong-AgibotA3-v0`) is the deploy-grade recipe
 validated on real A3 hardware: a **110-D `hitter_pure` observation**, 31-D raw action, 50 Hz,
 continuous rallies — no teleport between swings. It is the only shipped task; its full recipe
-lives in `cfg/task/HitterPingPong.yaml` — see
+lives in `cfg/task/HOPEPingPong.yaml` — see
 [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md). Checkpoints are written locally to
 `logs/rsl_rl/<experiment_name>/<timestamp>/`; resume with `checkpoint_path=<...>/model_<N>.pt`.
 Motion clips are selected through the local `motion_file=` / `motion_file_2=` overrides.

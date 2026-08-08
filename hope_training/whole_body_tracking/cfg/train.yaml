@@ -2,17 +2,17 @@
 # Main Hydra config for HOPE Agibot A3 training.
 #
 # Usage:
-#   python scripts/train.py task=HitterPingPong algo=ppo headless=true
+#   python scripts/train.py task=HOPEPingPong algo=ppo headless=true
 #
 # Override any field on the CLI, e.g.:
-#   python scripts/train.py task=HitterPingPong num_envs=2048 max_iterations=20000 seed=1
+#   python scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1
 #
-# There is a single task (HitterPingPong) and a single algo (ppo). Tune training by editing
-# cfg/task/HitterPingPong.yaml (env / reward / racket / DR) and cfg/algo/ppo.yaml (PPO).
+# There is a single task config (HOPEPingPong) and a single algo (ppo). Tune training by editing
+# cfg/task/HOPEPingPong.yaml (env / reward / racket / DR) and cfg/algo/ppo.yaml (PPO).
 # =============================================================================
 
 defaults:
-  - task: HitterPingPong
+  - task: HOPEPingPong
   - algo: ppo
   - _self_
 
@@ -24,7 +24,7 @@ seed: 0
 num_envs: null
 max_iterations: null
 
-# Reference motion clips. null -> use the two placeholder clips configured in cfg/task/HitterPingPong.yaml
+# Reference motion clips. null -> use the two placeholder clips configured in cfg/task/HOPEPingPong.yaml
 # (hope_forehand.npz + hope_backhand.npz). Pass local .npz paths to use your own clips:
 #   motion_file=/abs/hope_forehand.npz motion_file_2=/abs/hope_backhand.npz
 motion_file: null       # clip 0 (forehand)

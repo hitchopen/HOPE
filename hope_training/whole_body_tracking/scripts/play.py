@@ -4,7 +4,7 @@ Loads a LOCAL checkpoint and runs the policy in-sim. No Weights & Biases, and no
 exporting the ONNX policy is a separate step (scripts/export_onnx.py).
 
 Usage:
-    python scripts/play.py task=HitterPingPong num_envs=4 \
+    python scripts/play.py task=HOPEPingPong num_envs=4 \
         checkpoint=logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt
 """
 

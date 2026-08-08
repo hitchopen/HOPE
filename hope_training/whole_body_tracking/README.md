@@ -6,7 +6,7 @@ This package is the BeyondMimic motion-tracking trainer (upstream G1 docs below)
 to train an [Agibot A3](../../agibot/) (31 actuated DOF) ping-pong swing policy. Unlike the
 upstream `argparse` entries, HOPE drives training through **Hydra** entry points:
 
-- `scripts/train.py` and `scripts/play.py` with `task=HitterPingPong algo=ppo`.
+- `scripts/train.py` and `scripts/play.py` with `task=HOPEPingPong algo=ppo`.
 - The `HitterPingPong` task maps to the gym task `HOPE-HitterPingPong-AgibotA3-v0` (`experiment_name agibot_a3_hitter_pingpong`).
 - Overrides are layered from the `cfg/` tree: `cfg/task` (env/task), `cfg/algo` (PPO), `cfg/base` (shared defaults).
 - `HitterPingPong` trains one unified HITTER-style policy: clip 0 = forehand, clip 1 = backhand, on the 110-D `hitter_pure` actor contract (no swing-side observation — the side is inferred outside the policy).
@@ -37,7 +37,7 @@ A from-scratch Isaac Sim/Lab install is out of scope here — follow the upstrea
   `--robot agibot_a3`) → convert the retargeted trajectory into the documented `.npz` + `.yaml`
   schema ([docs/REPLACE_MOTIONS.md](../../docs/REPLACE_MOTIONS.md)) → train directly with
   `motion_file=...` / `motion_file_2=...`.
-- `HitterPingPong.yaml` pins the recipe: the `hitter_pure` racket-target mode,
+- `HOPEPingPong.yaml` pins the recipe: the `hitter_pure` racket-target mode,
   forehand/backhand-conditioned target ranges, per-clip strike phases, and the continuous-rally
   settings. Keep local clip order aligned with `strike_phase_per_clip`: `motion_file` = forehand,
   `motion_file_2` = backhand.

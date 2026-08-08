@@ -7,13 +7,13 @@ a final one). There is no Weights & Biases, no external logging service, no gate
 machinery.
 
 Usage:
-    python scripts/train.py task=HitterPingPong algo=ppo headless=true
+    python scripts/train.py task=HOPEPingPong algo=ppo headless=true
 
 Override any field on the CLI, e.g.:
-    python scripts/train.py task=HitterPingPong num_envs=2048 max_iterations=20000 seed=1 \
+    python scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1 \
         motion_file=/abs/hope_forehand.npz motion_file_2=/abs/hope_backhand.npz
 
-Tune training by editing cfg/task/HitterPingPong.yaml and cfg/algo/ppo.yaml.
+Tune training by editing cfg/task/HOPEPingPong.yaml and cfg/algo/ppo.yaml.
 """
 
 import os
@@ -56,7 +56,7 @@ def _resolve_motion_sources(cfg) -> list[str]:
     if not resolved:
         raise RuntimeError(
             "No motion clip configured. Set motion_file (and motion_file_2) on the CLI or in "
-            "cfg/task/HitterPingPong.yaml."
+            "cfg/task/HOPEPingPong.yaml."
         )
     for clip in resolved:
         if not pathlib.Path(clip).is_file():

@@ -67,7 +67,7 @@ unset _WBT_DIR _il _extra_paths
 
 echo "[hope] training env ready."
 echo "[hope]   hope_isaac_py -> ${ISAAC_PYTHON}"
-echo "[hope]   run:  hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true"
+echo "[hope]   run:  hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true"
 if [ ! -x "${ISAAC_PYTHON}" ]; then
   echo "[hope]   WARNING: ISAAC_PYTHON='${ISAAC_PYTHON}' is not executable — set it in setup_train_env.local.sh."
 fi

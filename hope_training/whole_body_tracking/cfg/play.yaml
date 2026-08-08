@@ -2,7 +2,7 @@
 # Hydra config for playing a trained HOPE policy in-sim.
 #
 # Usage:
-#   python scripts/play.py task=HitterPingPong algo=ppo num_envs=4 \
+#   python scripts/play.py task=HOPEPingPong algo=ppo num_envs=4 \
 #       checkpoint=logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
 #
 # Loads a LOCAL checkpoint and runs the policy in the viewer. Without `checkpoint`, the latest
@@ -11,7 +11,7 @@
 # =============================================================================
 
 defaults:
-  - task: HitterPingPong
+  - task: HOPEPingPong
   - algo: ppo
   - _self_
 

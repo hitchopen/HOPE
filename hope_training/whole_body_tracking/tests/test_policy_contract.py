@@ -23,7 +23,7 @@ _TRACKING = os.path.join(
 _JOINT_ORDER_YAML = os.path.abspath(
     os.path.join(_ROOT, "..", "config", "joint_order_agibot_a3.yaml")
 )
-_TASK_YAML = os.path.join(_ROOT, "cfg", "task", "HitterPingPong.yaml")
+_TASK_YAML = os.path.join(_ROOT, "cfg", "task", "HOPEPingPong.yaml")
 _REFERENCE_DIR = os.path.join(_REPO, "a3_deploy", "a3_deploy_example", "reference")
 
 

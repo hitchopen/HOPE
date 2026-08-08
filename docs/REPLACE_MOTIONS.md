@@ -78,7 +78,7 @@ arrays by forward kinematics on the prepared A3 asset; any tool that emits the s
 Point training at the clips either by placing them at the default paths, or via the CLI:
 
 ```bash
-python scripts/train.py task=HitterPingPong \
+python scripts/train.py task=HOPEPingPong \
     motion_file=/path/to/your_forehand.npz \
     motion_file_2=/path/to/your_backhand.npz
 ```

@@ -8,7 +8,7 @@ covers the design; exact commands and the package layout are in the
 
 ## The task
 
-The shipped task is a Hydra YAML, `cfg/task/HitterPingPong.yaml`, composed on top of the shared
+The shipped task is a Hydra YAML, `cfg/task/HOPEPingPong.yaml`, composed on top of the shared
 `cfg/base/*.yaml` defaults:
 
 - **`HitterPingPong`** (gym id `HOPE-HitterPingPong-AgibotA3-v0`) — the deploy-grade recipe
@@ -45,7 +45,7 @@ deployed policy.
 ```bash
 cd hope_training/whole_body_tracking
 source setup_train_env.sh        # defines the hope_isaac_py launcher
-hope_isaac_py scripts/train.py task=HitterPingPong algo=ppo headless=true \
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
 ```
@@ -60,7 +60,7 @@ shipped clips are placeholders — see
 
 Reward term functions live in `tasks/tracking/mdp/hope_rewards.py`; the task YAML composes and
 weights them. The recipe is deliberately documented in its own YAML
-(`cfg/task/HitterPingPong.yaml`): the complete question bank, rewards, and
+(`cfg/task/HOPEPingPong.yaml`): the complete question bank, rewards, and
 domain randomization, plus a behavior-identical affine q_des clamp, a joint-acceleration
 regularizer, the 25% physical tuple bank, and deploy-faithful mocap observations. Tune weights by
 editing the task YAML — **the YAML overrides Python config defaults**, so edit the YAML, not the
@@ -111,7 +111,7 @@ with the evaluators above — nothing auto-promotes a checkpoint.
 
 ## Configuration
 
-- `cfg/task/HitterPingPong.yaml` — the task recipe: motion clip sources, contract selection
+- `cfg/task/HOPEPingPong.yaml` — the task recipe: motion clip sources, contract selection
   (`actor_obs_contract`), rewards/DR recipe, and episode length.
 - `cfg/algo/ppo.yaml` — PPO (`empirical_normalization: false`, i.e. raw observations), iteration and
   save intervals.

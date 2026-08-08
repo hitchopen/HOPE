@@ -13,9 +13,9 @@ schema and the CLI to point training at them are in
 ## Compose your own task
 
 Tasks are Hydra YAMLs under `hope_training/whole_body_tracking/cfg/task/`, layered with a
-`defaults:` chain — the shipped `HitterPingPong.yaml` composes the shared `cfg/base/*` defaults
-and states the full recipe. To experiment, add a new YAML that inherits `HitterPingPong` (start
-it with `defaults: [HitterPingPong, _self_]`) and override fields (reward weights, DR ranges,
+`defaults:` chain — the shipped `HOPEPingPong.yaml` composes the shared `cfg/base/*` defaults
+and states the full recipe. To experiment, add a new YAML that inherits `HOPEPingPong` (start
+it with `defaults: [HOPEPingPong, _self_]`) and override fields (reward weights, DR ranges,
 question-bank mix, `gym_task` id). **The task YAML overrides the Python env-cfg** — when a
 value exists in both, edit the YAML. The base dataclasses live in
 `hope_training/.../tasks/tracking/config/agibot_a3/hope_env_cfg.py`.
