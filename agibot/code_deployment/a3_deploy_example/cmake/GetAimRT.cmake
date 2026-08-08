@@ -7,18 +7,11 @@ message(STATUS "get aimrt ...")
 
 set(_gs_default_aimrt_download_url
     "https://github.com/AimRT/AimRT/archive/refs/tags/v1.6.0.tar.gz")
-set(_gs_default_aimrt_download_hash
-    "SHA256=f9ee3c3d70dd987f2170aa9325e5fc431b979a861f451b42c86d77f53e53de99")
 if(NOT DEFINED aimrt_DOWNLOAD_URL
     OR NOT aimrt_DOWNLOAD_URL STREQUAL "${_gs_default_aimrt_download_url}")
   set(aimrt_DOWNLOAD_URL
       "${_gs_default_aimrt_download_url}"
       CACHE STRING "AimRT source archive URL" FORCE)
-endif()
-if(NOT DEFINED aimrt_DOWNLOAD_URL_HASH)
-  set(aimrt_DOWNLOAD_URL_HASH
-      "${_gs_default_aimrt_download_hash}"
-      CACHE STRING "AimRT source archive SHA256" FORCE)
 endif()
 message(STATUS "AimRT download URL: ${aimrt_DOWNLOAD_URL}")
 
@@ -35,7 +28,6 @@ else()
   FetchContent_Declare(
     aimrt
     URL ${aimrt_DOWNLOAD_URL}
-    URL_HASH ${aimrt_DOWNLOAD_URL_HASH}
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     PATCH_COMMAND ${CMAKE_COMMAND} -P ${aimrt_PATCH_SCRIPT}
     OVERRIDE_FIND_PACKAGE)

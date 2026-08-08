@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
 // Near-verbatim port of aimrl_sdk::RingBuffer (see
-// Agibot's internal AimRL SDK ring-buffer helper.
+// /home/agiuser/code/rl_deploy/aimrl_sdk/src/aimrl_sdk/cpp/ring_buffer.hpp).
 // Upstream is MIT-licensed; copyright belongs to the original authors. This
 // file only renames the namespace to a3_sync and adds a small header comment.
 //

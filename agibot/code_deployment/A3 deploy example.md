@@ -4,14 +4,6 @@
 
 实机运行前请先完成仿真、台架、安全绳、急停和低增益验证。建议先运行 `--dry-run` 或 `run_a3_probe.sh`，确认状态接收和推理延迟稳定后再发布关节命令。
 
-## 可选固定发球链路
-
-MuJoCo 物理搜索、DLS IK、CSV exporter 和厂商高层 motion-control 运行时现已
-统一收拢到 [`../../apps/a3_mujoco_serve/`](../../apps/a3_mujoco_serve/README.md)。
-该应用只发布 14 个手臂关节命令；腰、腿和颈部仍由厂商栈控制。PR #18 的固定
-CSV 与运行时已经在 A3 上完整测试，确认可执行且安全；重新生成的动作仍须单独
-完成实机审核。
-
 ## 目录结构
 
 ```text
@@ -159,7 +151,7 @@ HDU
   |
   | 机器人内部网络
   v
-MDU: <mdu_ip>
+MDU: 10.42.10.12
   |
   | 本机 iceoryx transport + hal_ethercat
   v
@@ -172,7 +164,7 @@ body-drive state / command topics
 | --- | --- |
 | 开发机 | 编译 `dist/a3_deploy_rockchip/`，通过 SSH/rsync 传包。 |
 | HDU | 作为跳板机；`<hdu_wifi_ip>` 由现场 Wi-Fi 网络分配。 |
-| MDU | 默认机器人内网地址 `<mdu_ip>`，Rockchip 包在 MDU 上运行。 |
+| MDU | 默认机器人内网地址 `10.42.10.12`，Rockchip 包在 MDU 上运行。 |
 | transport | Rockchip/MDU 默认 `iceoryx`。 |
 | 运行目录 | 建议 `/agibot/a3_deploy`，团队可按现场规范替换。 |
 
@@ -180,7 +172,7 @@ MDU 上的 `hal_ethercat` 负责关节和 IMU 信息收发；部署程序通过 
 
 ## RobotIOBackend 基础说明
 
-策略侧建议只依赖 `RobotIOBackend`，不要直接依赖 AimRT、ROS 2、iceoryx 或具体 topic。完整接口、字段语义、同步算法和自定义策略伪代码见 [README_robot_io_backend.md](README_robot_io_backend.md)。
+策略侧建议只依赖 `RobotIOBackend`，不要直接依赖 AimRT、ROS 2、iceoryx 或具体 topic。完整接口、字段语义、同步算法和自定义策略伪代码见 [README_robot_io_backend.md](../../a3_deploy/a3_deploy_example/README_robot_io_backend.md)。
 
 基础生命周期：
 
@@ -219,7 +211,7 @@ CreateBackend("a3")
 
 当前 backend 默认同步策略是 `min_skew_pair`。主程序在 `backend.sync_mode` 省略时使用 `min_skew_pair`，在 `backend.sync_hz` 省略时使用 `policy_driver.policy_hz * 2`，因此当前默认是 policy `50 Hz`、sync `100 Hz`。
 
-`min_skew_pair` 会先分别组成 joint group 和 IMU group，再选择最新、低 skew 的一对 group 输出 `RobotState`；`sync_aligned` 主要由 `max_group_pair_skew_ms` 判定。启动时若六路 topic ready，backend 会自动校准 sync phase，让同步线程在输入到齐后短暂等待再释放 state。更细的算法和参数含义见 [README_robot_io_backend.md](README_robot_io_backend.md#默认同步策略)。
+`min_skew_pair` 会先分别组成 joint group 和 IMU group，再选择最新、低 skew 的一对 group 输出 `RobotState`；`sync_aligned` 主要由 `max_group_pair_skew_ms` 判定。启动时若六路 topic ready，backend 会自动校准 sync phase，让同步线程在输入到齐后短暂等待再释放 state。更细的算法和参数含义见 [README_robot_io_backend.md](../../a3_deploy/a3_deploy_example/README_robot_io_backend.md#默认同步策略)。
 
 当前 runtime YAML 只显式覆盖了几个同步参数：
 
@@ -488,13 +480,13 @@ bash scripts/build_a3_deploy_pkg.sh --arch rockchip --jobs 20
 通过 HDU 跳板把包同步到 MDU。`<hdu_wifi_ip>` 替换成现场 HDU Wi-Fi 地址：
 
 ```bash
-ssh -J agi@<hdu_wifi_ip> agi@<mdu_ip> \
+ssh -J agi@<hdu_wifi_ip> agi@10.42.10.12 \
   'mkdir -p /agibot/a3_deploy'
 
 rsync -azP \
   -e "ssh -J agi@<hdu_wifi_ip>" \
   dist/a3_deploy_rockchip/ \
-  agi@<mdu_ip>:/agibot/a3_deploy/
+  agi@10.42.10.12:/agibot/a3_deploy/
 ```
 
 源路径 `dist/a3_deploy_rockchip/` 末尾的 `/` 表示把包内文件同步到 `/agibot/a3_deploy/`。如果去掉末尾 `/`，目标目录下会多一层 `a3_deploy_rockchip`。
@@ -502,7 +494,7 @@ rsync -azP \
 MDU 终端 A 关闭系统服务并手动启动 EtherCAT：
 
 ```bash
-ssh -J agi@<hdu_wifi_ip> agi@<mdu_ip>
+ssh -J agi@<hdu_wifi_ip> agi@10.42.10.12
 
 sudo systemctl stop agibot_pm
 source /agibot/software/v0/entry/env/env.sh
@@ -513,7 +505,7 @@ bash scripts/hal_ethercat/start_hal_ethercat.sh
 等待 `hal_ethercat` 启动完成后，MDU 终端 B 进入部署目录。可选检查二进制架构；如果现场需要用 ROS 2 CLI 查看 topic，再 source message overlay：
 
 ```bash
-ssh -J agi@<hdu_wifi_ip> agi@<mdu_ip>
+ssh -J agi@<hdu_wifi_ip> agi@10.42.10.12
 
 cd /agibot/a3_deploy
 file ./a3_deploy_onnx_ref
