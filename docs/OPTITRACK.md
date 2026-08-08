@@ -24,9 +24,9 @@ Motive (NatNet UDP)
       |  optitrack_mct_relay (hope_bringup)  (one message per camera frame, objects by name)
       v
 /poses (ball at index 0), /ball/point, /P1/pose, /P2/pose, TF
-      |  hope_planner
+      |  hope_planner (or hope_planner_cpp)
       v
-/racket/command
+/racket/command + /racket/command_flat
 ```
 
 The driver's raw topics stay under `/optitrack/*` **on purpose**: its `poses`
@@ -275,6 +275,17 @@ Marker stream order and per-marker topic names do not affect this tool: it
 consumes the solved 6-DOF `/P1/pose`, while its CAD centroid calculation is
 order-independent. Only an offline reconstruction directly from individual
 marker coordinates would require a verified marker-ID-to-CAD correspondence.
+
+An alternative, venue-proven route is `p1_marker_cad_calibrator`, which needs
+no independent pelvis pose producer: it registers the Motive asset's live
+marker layout (ModelDef) directly against the hip-shell CAD at
+`agibot/pku/hip_marker_shell/` and writes a fail-closed receipt under
+`hope_ws/calibration_receipts/`; the approved transform is then pinned by SHA
+in the `mocap_to_base_link` block of
+[`hope_world_frame.yaml`](../hope_ws/src/hope_bringup/config/hope_world_frame.yaml).
+Use **one** route per calibration — the pose-pair calibrator above or the
+marker-CAD registration — never both on top of each other (see
+[interfaces/frames.md](interfaces/frames.md)).
 
 ## Bringup
 
