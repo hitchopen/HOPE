@@ -1,0 +1,57 @@
+# SIM PROFILE overlay for hope_planner.yaml — AGI MuJoCo closed-loop (Gate 3).
+# Layered on top of hope_planner.yaml as a second --params-file (pp_planner_closedloop.sh / runbook §7).
+# Convention: sim world == table world, robot at origin, ground-truth pelvis pose
+# available on /sim/a3/pelvis_pose. Keep every sim-only deviation HERE (the base yaml
+# stays the arena/hardware truth); never edit the installed tree.
+hope_planner:
+  ros__parameters:
+    # Ball physics MUST match fake_ball_publisher's defaults (drag 0.15 / rest 0.85) —
+    # the base yaml keeps the arena-fit placeholders. Mismatch -> predicted ball dies
+    # before the hit plane -> strike plans at floor level -> target gate rejects all.
+    drag_k: 0.15
+    restitution_h: 0.85
+    restitution_v: 0.85
+    # softer returns: keeps the demanded racket speed near the trained ~2.2 m/s envelope
+    delta_t_flight: 0.7
+    # ADAPTIVE hit plane from the sim ground-truth pelvis pose (sim world == table frame).
+    # LEGACY multi-swing rally: this overlay RE-ENABLES follow-mode (the base yaml now defaults
+    # it OFF, 2026-07-09). This is the legacy 175/177 sim rehearsal (pp_planner_closedloop.sh);
+    # the +x march below is its known artifact. ⚠ The x-LOCKED 110-D Gate 3 (pp_gate3_rally.sh)
+    # loads this overlay too but OVERRIDES with -p x_hit_follow_robot:=false — do NOT rely on
+    # this default for an x-locked policy (follow-mode deletes the x anchor -> drift-fall).
+    x_hit_follow_robot: true
+    robot_pose_topic: "/sim/a3/pelvis_pose"
+    x_hit_offset: 0.67
+    # WIDE follow-the-robot clamp: the plane tracks the post-lunge drift so subsequent
+    # serves stay reachable (multi-swing rally). This is why the sim robot MARCHES +x
+    # across serves — a SIM-ONLY artifact of this window; the ARENA clamp ([0.0,0.35],
+    # hope_planner.yaml) bounds the plane hard on hardware.
+    # ⚠ FIXED-PLANE EXPERIMENT (2026-07-06, [0.95,1.05] = box center for the x=0.33
+    # spawn): 5/6 + 5/6 with a REPEATABLE point-2 recovery fall, vs 6/6 wide on the
+    # same protocol (cumulative wide record 28/28). Attribution is NOT clean (the
+    # serve-cycle alignment shifts between configs — point durations differ — so the
+    # falling point draws a different serve); do NOT re-enable the fixed plane without
+    # a serve-aligned A/B AND a station-gated engage (177: block engage while
+    # |base - (cmd_xy - reach)| is large — post-lunge shallow-reach engages are the
+    # documented 2026-07-05 fall mode). True y-only footwork = the Phase-2 retrain
+    # (HITTER fixed plane + narrow x-box), not a planner-side clamp.
+    # ⚠ do NOT pin the plane BELOW the box center either (0.58-edge/0.63 tried
+    # 2026-07-05: shallower strike -> unrecoverable follow-through).
+    x_hit_min: 0.55
+    x_hit_max: 2.20
+    # static fallback while no robot pose has arrived yet
+    x_hit: 0.65
+    # Sim harness centers the table on the robot (robot at y=0): table y in [-0.7825, +0.7825].
+    # Without this the predictor uses the ARENA band [-1.545,+0.02] and every backhand serve
+    # is off-table: no bounce modeled -> dead-ball plans -> zero backhand engages (2026-07-05).
+    table_y_max: 0.7825
+    # Return AIM POINT for the same centered table. The base yaml's -0.7625 is the ARENA
+    # convention (table at y<=0); left un-overridden it aims every return at the sim
+    # table's right EDGE, which skews the demanded racket vy NEGATIVE on forehand
+    # (-0.30 vs the trained [+0.96,+1.96] box — wrong sign). 0.0 = opponent half
+    # centerline in the centered sim frame (2026-07-06 fix; the 2026-07-05 table_y_max
+    # override fixed only the PREDICTOR band, not the aim).
+    target_land_y: 0.0
+    # Sim feeds (/sim/a3/pelvis_pose + fake_ball) are ALREADY floor-origin (the policy
+    # frame) -> no output z shift. The arena yaml sets 0.76 (mocap z=0 at table surface).
+    policy_z_offset: 0.0
