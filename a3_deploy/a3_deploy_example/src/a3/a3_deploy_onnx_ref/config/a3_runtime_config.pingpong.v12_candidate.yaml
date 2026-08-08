@@ -1,0 +1,20 @@
+# Explicit simulation-only candidate config for an evaluated-and-exported RallyV12 model.
+#
+# The file is intentionally checked in before a model exists. Do not repoint it to a V11 model:
+# the native loader requires training_recipe=rally_v12 plus all three residual metadata fields.
+# After deterministic eval selects a V12 checkpoint, export/stage it at the path below and rebuild
+# the package with this config. This is not a promoted champion or hardware-approved artifact.
+onnx:
+  model_path: ../../../../assets/a3_runtime/models/model_v12_candidate.onnx
+  backend: no_rknn
+
+policy_driver:
+  policy_hz: 50.0
+
+obs_debug:
+  loc_mode: perfect_tracking
+
+backend:
+  aimrt_cfg_path: a3_aimrt_config.pingpong_iceoryx.yaml
+  sync_mode: min_skew_pair
+  sync_hz: 100.0

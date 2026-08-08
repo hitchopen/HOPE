@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Runtime configuration loader for the reference runner.
 
-Reads ``config/hope_pingpong_runtime.yaml`` (the clean 111-D runtime config) and
-resolves the ActionAdapter, the example simulation PD gains, and the lifecycle
-timing into ready-to-use arrays. All relative paths in the YAML are resolved
-against the YAML file's own directory.
+Reads ``config/hope_pingpong_runtime.yaml`` (the clean 110-D ``hitter_pure``
+runtime config) and resolves the ActionAdapter, the example simulation PD gains,
+and the lifecycle timing into ready-to-use arrays. All relative paths in the YAML
+are resolved against the YAML file's own directory.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import yaml
 from .action_adapter import ActionAdapter
 from .joint_order import NUM_JOINTS
 from .lifecycle import LifecycleConfig
+from .observation import CONTRACT_NAME
 
 # Index ranges of the four joint groups (used to expand example PD gains).
 _GROUP_RANGES = {
@@ -39,6 +40,7 @@ class RuntimeConfig:
     sim_kd: np.ndarray
     lifecycle: LifecycleConfig
     passive_neck: bool = True
+    contract: str = CONTRACT_NAME
     config_dir: Path = field(default_factory=Path)
 
     @property
@@ -56,6 +58,13 @@ class RuntimeConfig:
         if norm != "none":
             raise ValueError(
                 f"observation_normalization must be 'none' (raw obs), got '{norm}'"
+            )
+
+        contract = str(doc.get("contract", CONTRACT_NAME))
+        if contract != CONTRACT_NAME:
+            raise ValueError(
+                f"runtime config contract must be '{CONTRACT_NAME}' (the 110-D "
+                f"observation layout this runner implements), got '{contract}'"
             )
 
         control_hz = float(doc.get("control_hz", 50.0))
@@ -88,6 +97,7 @@ class RuntimeConfig:
             sim_kd=sim_kd,
             lifecycle=lifecycle,
             passive_neck=bool(doc.get("passive_neck", True)),
+            contract=contract,
             config_dir=cfg_dir,
         )
 

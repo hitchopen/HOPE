@@ -1,8 +1,9 @@
 # HOPE ROS 2 workspace
 
-`hope_ws` contains the HOPE planner, HOPE message contract, and source-specific
-relays that convert external mocap data into the canonical `/poses` interface.
-It builds independently from both raw motion-capture drivers.
+`hope_ws` contains the HOPE planners, the HOPE message contract, and
+source-specific relays that convert external mocap data into the canonical
+`/poses` interface. It builds independently from both raw motion-capture
+drivers.
 
 ```bash
 cd hope_ws
@@ -10,6 +11,22 @@ rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 source install/setup.bash
 ```
+
+## What's inside
+
+| Member | Role |
+|--------|------|
+| `src/hope_planner` | Python planner (reference implementation) with venue presets (`config/hope_planner.yaml`, `.hitter_pure`, `.rally_v17_r10`, `.sim`) and the `planner_imitate` fake-planner for mocap-less bring-up. |
+| `src/hope_planner_cpp` | C++ planner — the low-latency hardware line (`config/model21800_hardware.yaml`, `/planner/diagnostics`). Publishes the same wire contract as the Python planner. |
+| `src/hope_msgs` | `RacketCommand` (position, velocity, normal, strike timing, outgoing ball velocity, validity/feasibility flags) — the field-by-field contract is [`docs/PLANNER_INTERFACE.md`](../docs/PLANNER_INTERFACE.md). |
+| `src/hope_bringup` | Launch files, mocap relays (`optitrack_mct_relay`, `pose_to_posearray`), the world-frame contract `config/hope_world_frame.yaml` (`table_p1_to_p2_v1`), preflight/probe scripts, and the P1 calibration tools (`p1_pelvis_calibrator`, `p1_marker_cad_calibrator`, `p1_pelvis_tf_publisher`). |
+| `calibration_receipts/` | Fail-closed calibration receipts (world origin, P1 marker-CAD registrations) that `hope_world_frame.yaml` pins by SHA — see [`docs/interfaces/frames.md`](../docs/interfaces/frames.md). |
+
+Bring-up documentation lives next to this file:
+[`BRINGUP_TUTORIAL.md`](BRINGUP_TUTORIAL.md) (dry-run walkthrough),
+[`SMOKE_TEST.md`](SMOKE_TEST.md) (no-hardware build/launch check), and
+[`SHADOW_MODE.md`](SHADOW_MODE.md) (run against the real robot's state,
+publish nothing).
 
 ## OptiTrack input
 

@@ -1,8 +1,8 @@
 """Regression tests for the shared table-tennis geometry (ITTF dims / landmarks).
 
-Pure Python (no Isaac). The geometry module uses a package-relative import of its physics-config
-loader, so the modules are loaded under a synthetic package to resolve it without importing the full
-Isaac Lab extension.
+Pure Python (no Isaac). The current ``geometry`` module is fully standalone (dataclasses
+only — its old package-relative physics-config import is gone), so it is loaded directly
+by file path without importing the Isaac Lab extension package.
 
 Run:  python tests/test_table_tennis_geometry.py
 """
@@ -13,28 +13,23 @@ import importlib.util
 import math
 import os
 import sys
-import types
 
 _PKG_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
     "source", "whole_body_tracking", "whole_body_tracking", "tasks", "table_tennis",
 )
-_PKG = "ttpkg"
 
 
-def _load_package():
-    pkg = types.ModuleType(_PKG)
-    pkg.__path__ = [_PKG_DIR]
-    sys.modules[_PKG] = pkg
-    for name in ("physics_config", "geometry"):
-        spec = importlib.util.spec_from_file_location(f"{_PKG}.{name}", os.path.join(_PKG_DIR, f"{name}.py"))
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[f"{_PKG}.{name}"] = mod
-        spec.loader.exec_module(mod)
-    return sys.modules[f"{_PKG}.geometry"]
+def _load_geometry():
+    path = os.path.join(_PKG_DIR, "geometry.py")
+    spec = importlib.util.spec_from_file_location("tt_geometry", path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 
-geometry = _load_package()
+geometry = _load_geometry()
 
 
 def test_table_dimensions_match_ittf():

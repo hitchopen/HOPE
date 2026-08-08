@@ -1,0 +1,14 @@
+# Transport/localization config shared by MuJoCo and hardware. Policy-owned
+# values (model, step_dt, joint map, default q, action scale/clip, Kp/Kd and
+# ordered observations) live in a Unitree-style policy directory supplied via
+# --policy-dir at source-tree launch/package time. The packaged config records
+# only the staged relative path "policy", never a checkpoint-specific source
+# path.
+
+obs_debug:
+  loc_mode: external_base
+
+backend:
+  aimrt_cfg_path: a3_aimrt_config.pingpong_iceoryx.yaml
+  sync_mode: min_skew_pair
+  sync_hz: 100.0

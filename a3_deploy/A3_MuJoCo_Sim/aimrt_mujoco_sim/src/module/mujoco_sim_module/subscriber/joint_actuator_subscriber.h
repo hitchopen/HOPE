@@ -120,6 +120,8 @@ class BodyDriveJointActuatorSubscriber : public JointActuatorSubscriberBase {
   std::mutex target_mutex_;
   std::vector<JointCommandTarget> latest_targets_;
   std::vector<double> ctrl_buffer_;
+  std::vector<double> base_passive_damping_;
+  bool implicit_pd_ = false;
   bool has_targets_ = false;
 };
 #endif

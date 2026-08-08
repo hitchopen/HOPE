@@ -1,0 +1,41 @@
+# Pure-iceoryx AimRT config for the ping-pong runner (NO ros2_plugin).
+# The prebuilt libaimrt_ros2_plugin.so is ABI-mismatched with the box's jazzy
+# rclcpp (undefined symbol rclcpp::QOSEventHandlerBase). We don't use the teleop
+# (/ta/whole_body_command) ros2 path (scripted racket targets only), so the
+# ros2_plugin is removed. All body-drive state/command topics are iceoryx, which
+# matches the iceoryx-only sim cfg (a3_t2d0_iceoryx_cfg.yaml).
+aimrt:
+  plugin:
+    plugins:
+      - name: iceoryx_plugin
+        path: libaimrt_iceoryx_plugin.so
+        options:
+          shm_init_size: 2048
+
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+      - type: rotate_file
+        options:
+          path: /tmp/a3_deploy_logs
+          filename: a3_deploy_pingpong.log
+          max_file_size_m: 32
+          max_file_num: 4
+
+  executor:
+    executors:
+      - name: aimrt_callback_pool
+        type: asio_thread
+        options:
+          thread_num: 2
+
+  channel:
+    backends:
+      - type: iceoryx
+    pub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]
+    sub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]

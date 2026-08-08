@@ -1,95 +1,114 @@
-# ball_physics_fit — no-spin ball-physics fitting
+# ball_physics_fit — venue ball-physics fitting pipeline
 
-Fits the simplified, **no-spin** table-tennis ball model used by HOPE
-from real ball-capture data, and writes the constants that go into
-[`configs/ball_physics.yaml`](../../configs/ball_physics.yaml).
+Fits the flight + contact model of `docs/ball_physics_low_speed_validation.md`
+(Sony-Ace family: `a = g − k_d|v|v + k_m(ω×v)`, angle-dependent tangential-impulse
+contacts) on the 2026-07-03 venue mocap dataset (Avatar Pro, 300 Hz, C3D exports:
+15-marker ball rigid body + two 4-marker paddles + table markers). This replaces the
+Mac-local-only `~/Desktop/Hope/Record` workspace as the fitting toolchain of record.
 
-The model has two parts, both linear-velocity only (ball state `[x, y, z, vx, vy,
-vz]`, no orientation / angular velocity / spin):
+Deliverables produced by this pipeline live at:
+- `configs/ball_physics_venue.yaml` — fitted constants with provenance + validity envelope
+- `docs/ball_physics_fit_report.md` — full FIT_REPORT (stages, F1–F8 falsification verdicts,
+  held-out metrics)
 
-* **Flight** — quadratic aerodynamic drag: `a = g − k_d·|v|·v`.
-* **Contact** — for the table top and the racket face, a normal restitution `e_n`
-  plus a tangential grip/damping term (`a_t`, `b_t`, friction cap `mu`). See
-  [`contact_model.py`](contact_model.py) for the exact equations.
+## Data layout
 
-The values shipped in `configs/ball_physics.yaml` came from a real capture of a
-ball on a regulation table. **They are specific to that ball and table — re-fit
-them for your own equipment** by running your capture through this pipeline and
-copying the resulting numbers into the config.
+Point `BALLFIT_DATA_ROOT` at the venue recording folder (REQUIRED — the venue
+recordings are not shipped with this repository; any `.tak` files in that
+folder are raw Avatar projects the pipeline never reads). Expected tree:
 
-## Data format
-
-Everything downstream works on **canonical trajectory CSVs**: one file per
-contiguous capture segment, with a `t,x,y,z` header, in SI units and the world
-frame from the config (`+x` forward, `+y` left, `+z` up; `z = 0` at the table
-surface). See [`sample_data/`](sample_data/) for a real example.
-
-If your raw capture is in other units or is one long recording (e.g. absolute
-timestamps and millimetres), convert it with `extract_canonical.py`, which
-rebases time, scales to metres, splits on tracking gaps, and (optionally) shifts
-`z` so the surface is at `z = 0`:
-
-```bash
-python extract_canonical.py RAW.csv sample_data/       # -> RAW_seg00.csv, ...
+```
+$BALLFIT_DATA_ROOT/
+  <take folders with .c3d exports>       # raw (not required once extracted)
+  analysis/
+    extracted/<take>.npz                 # extract_canonical.py output
+    qa_stage0.json                       # qa_stage0.py output
+    segments/{flights,bounces,strikes,meta}.json   # stage1_segments.py output
+    fits/stage2_fits_{all,train}.json    # stage2_fits.py output
+    fits/stage4_validation.json          # validate_stage4.py output
+    falsification/F*_verdict.json + .png # F1–F8 battery
 ```
 
-## Fit pipeline
+## Environment
 
-Point `BALLFIT_DATA_ROOT` at a folder of canonical trajectory CSVs (it defaults
-to the bundled `sample_data/`), then:
+`pip install -r requirements-ballfit.txt` (numpy/scipy/matplotlib always; the `c3d`
+reader is needed ONLY for `extract_canonical.py` — everything downstream runs from
+the extracted npz). Use a Python environment with `c3d` installed for that step;
+a stock system python3 typically lacks it.
 
-```bash
-pip install -r requirements-ballfit.txt
-
-python stage1_segments.py     # split trajectories into flights / bounces / strikes
-python stage2_fits.py         # fit k_d, table e_n + tangential, paddle contact
-```
-
-`stage2_fits.py` writes `analysis/fits/stage2_fits.json`; copy the fitted values
-into `configs/ball_physics.yaml`.
-
-Optional checks (all read the stage outputs; PNGs are written only if matplotlib
-is installed):
+## Pipeline (run in order)
 
 ```bash
-python flight_selfcheck.py           # front<->back flight self-consistency vs a noise floor
-python predict_check.py              # forward flight-prediction accuracy vs horizon
-python falsify/f1_kd_over_speed.py   # is k_d constant over launch speed?
-python falsify/f3_table_e_vs_vn.py   # is table e_n constant over impact speed?
-python falsify/f4_paddle_e_vs_un.py  # is paddle e constant over contact speed?
+python extract_canonical.py <take_dir_or_c3d> analysis/extracted   # per take (needs c3d)
+python qa_stage0.py           # Stage 0: sampling/units/gravity gates — STOP if it fails
+python stage1_segments.py     # Stage 1: flights / table bounces / racket strikes
+python stage2_fits.py --split all     # Stage 2: k_d → k_m → table e → table tan → paddle
+python stage3_falsify.py              # Stage 3: F1–F8 battery + adversarial verifiers (falsify/)
+python stage2_fits.py --split train   # for held-out validation
+python validate_stage4.py             # Stage 4 vs the train-split fit (test split)
+python validate_stage4.py --yaml ../../configs/ball_physics_venue.yaml --paddle-e exp
+                                      # Stage 4 vs THE SHIPPED YAML — the honest acceptance numbers
+python predict_check.py --yaml ../../configs/ball_physics_venue.yaml --split all
+                                      # two-horizon landing check: H0 at-contact through paddle /
+                                      # H1 at-contact measured-out / H2 ~100 ms before landing
+python predict_check.py --yaml ../../configs/ball_physics_venue.yaml --split all --full-state
+                                      # FULL-STATE validation: position error vs horizon bins,
+                                      # velocity/spin at 25/50/75% arc checkpoints, net-plane (x=0)
+                                      # crossing state. Adds H1q = H1 velocity with spin re-estimated
+                                      # from the FIRST 100 ms of flight quats (deploy-realistic spin
+                                      # source; the strike w_out quat channel reads ~0.22x = junk).
+                                      # Optional --magnus sat (saturating C_L form).
+python falsify/f10_paddle_split.py    # per-paddle / per-face / blade-position splits of the racket
+                                      # contact model (answers 正反面/拍位/双拍 questions; needs
+                                      # extracted npz for face identity — pad_n in strikes.json is
+                                      # flipped toward approach, so face comes from the raw body
+                                      # normal channel). Venue verdicts: paddles DIFFERENT (p2's
+                                      # e falls much faster with u_n), face/blade UNDERPOWERED.
+python flight_selfcheck.py --yaml ../../configs/ball_physics_venue.yaml
+                                      # front-window -> back-window (and reverse) self-consistency
+                                      # on ballistic arcs + matched MC noise floor: decomposes
+                                      # prediction error into variance (noise) vs model-form bias.
+                                      # Venue: ~half/half in quadrature; excess 42-62 mm.
+python test_oracle_present.py # loud-fail oracle check (never skips)
 ```
 
-The `falsify/` checks return a PASS / KILL / INCONCLUSIVE verdict on the
-constant-value assumptions, so you know when a single number is (or is not)
-enough for your data.
+Landing ground truth everywhere is the OBSERVED first-bounce contact point `p_c`
+from `bounces.json` under a continuity gate (measured post-strike state must land
+within 0.30 m / 80 ms of the recorded bounce). The legacy label (integrating the
+measured out-state through the same flight model) is reported separately as
+`landing_reconstructed_label` — it shares the flight model with the prediction and
+reads optimistic, so it is never the headline.
 
-## What each file does
+## Conventions
 
-| file | role |
-|------|------|
-| `paths.py`            | input (data root) and output (analysis) locations |
-| `extract_canonical.py`| raw capture CSV → canonical `t,x,y,z` segment CSVs |
-| `ballcore.py`         | load a trajectory, segment it into arcs/contacts, RK4 drag fit |
-| `contact_model.py`    | the no-spin contact equations (table & racket) |
-| `stage1_segments.py`  | trajectories → `flights.json`, `bounces.json`, `strikes.json` |
-| `stage2_fits.py`      | ordered fits → `stage2_fits.json` (the values for the config) |
-| `flight_selfcheck.py` | flight-model self-consistency vs a matched noise floor |
-| `predict_check.py`    | forward flight-prediction accuracy vs horizon |
-| `falsify/f1,f3,f4`    | constant-value sanity checks (drag, table e, paddle e) |
+- Table frame: origin = table center, X = length (2.740), Y = width (1.525), Z = up;
+  the playing surface sits at `meta.surface_z` (≈ −14 mm: corner markers stand ~14 mm
+  proud of the surface). Ball-center at table contact = surface_z + 0.020.
+- SI units throughout; spin = rad/s expressed in the table frame
+  (`spin_from_quats(..., R_table=take["table_R"])` — quats are template→world).
+- The venue ball is coated for mocap: m = 3.4 g (clean ITTF ball 2.70 g). Fitted k_d/k_m
+  are acceleration coefficients for THIS ball; scale by m_taped/0.0027 for a clean ball.
+- The 15 exported ball "markers" are Avatar-Pro solved-model points, NOT physical
+  sphere-surface positions (max pairwise span 56 mm > ball diameter). Treat the centroid
+  as a rigidly-attached virtual point; the true-center offset is handled dynamically
+  (QA wobble check), not geometrically. KNOWN SYSTEMATIC (forensics
+  `g1_wobble_delta_verdict`): the sphere-fit offset applied by the extractor is wrong by
+  ~1.9 mm (35° direction error); the residual wobble is coherent but sits ~0.1 mm-rms
+  under the 9 mm venue noise floor (k_d bias ≈ 0, k_m shift < 3%), so it is documented
+  rather than re-extracted. On a cleaner rig, fold the correction
+  (δ_common ≈ [−1.5, −0.4, −1.1] mm in the shared template frame) into extract_canonical.
+- Never finite-difference accelerations for fitting — RK4 shooting fits only
+  (`ballcore.fit_arcs_global`), g frozen at 9.81.
 
-## Data requirements
+## Gotchas learned on this dataset
 
-* **Drag `k_d`** and **table restitution** (`e_n`, tangential) fit from **ball
-  trajectory alone** — a ball-only capture with flight arcs and table bounces is
-  enough. Use many arcs across a range of speeds; `k_d` is not identifiable from
-  a single short arc.
-* **Paddle restitution** needs the **racket** tracked too (its contact-point
-  velocity and face normal at each strike): supply a paddle sidecar CSV
-  `<name>.paddle.csv` (`t,x,y,z` and optionally `nx,ny,nz`) next to the ball
-  file, and `stage1` will attach the paddle state to each strike. Without racket
-  tracking, `stage2` fits flight + table and reports the paddle stage as skipped.
-
-All internal state estimates use short windowed drag shooting fits rather than
-raw finite differences, so they tolerate the position noise typical of optical
-motion capture. Contact-detection thresholds in `ballcore.detect_contacts` may
-need tuning for very slow or very noisy captures.
+- Contacts are usually OCCLUDED (racket blocks cameras) → the contact falls between
+  tracked runs. Pair arcs ACROSS gaps (extrapolate both sides to a meeting point);
+  in-run contact detection alone finds almost nothing.
+- Parabola-g arc gates must be wide ([5, 16]) or heavy-topspin arcs get systematically
+  excluded (vertical Magnus biases apparent g) — which would blind the falsification tests.
+- Quaternion spin is trustworthy below ~75 rev/s at 300 Hz; its SCALE was cross-validated
+  aerodynamically (venue k_m 0.0044 inside the old rig's CI [0.0035, 0.0049]).
+- Venue position noise ≈ 9 mm shooting-fit RMS (old OptiTrack rig: 0.4 mm) — widen
+  outlier tolerances accordingly; contact windows are ≤25 frames with ±3/±5-frame
+  exclusion zones at table/racket contacts.

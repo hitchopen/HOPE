@@ -2,61 +2,74 @@
 
 v0.1 — 2026-03-19
 
-> **Preserved reference document.** This predates the current HOPE
-> stack and is kept for design background and provenance. Where it disagrees
-> with the shipped code, the authoritative planner contract is
-> [`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md). Index:
-> [`REFERENCE_DOCS.md`](REFERENCE_DOCS.md).
-
 ## Overview
 
-This document provides a reference implementation of the model-based planner (Stages 1–3) for computing the desired 7-DOF racket state — interception position, velocity, and face orientation — for a humanoid ping-pong player. The planner operates within the HOPE canonical world frame defined in the companion document *HOPE Motion Capture System Reference Setup for Ping-Pong Arena*.
+This document provides a reference implementation of the model-based planner (Stages 1–3) for computing the desired 7-DOF racket state — interception position, velocity, and face orientation — for a humanoid ping-pong player. The algorithms are adapted from the HITTER framework (Su et al., arXiv:2508.21043v2, 2025) and operate within the HOPE canonical world frame defined in the companion document *HOPE Motion Capture System Reference Setup for Ping-Pong Arena*.
 
-The planner consumes ball position data from the HOPE motion capture system and produces a `RacketCommand` message specifying where and how the humanoid's paddle must arrive to return the ball. Per the HOPE racket exclusion policy, the paddle's actual pose is **never measured by the motion capture system**; the motion capture system tracks only three categories of objects — the table origin frame (PPT), humanoid marker-cluster rigid bodies (P1, P2), and the ping-pong ball. A calibrated static transform maps each P1/P2 frame to its robot's declared URDF root frame (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). Each humanoid must achieve the commanded racket state through its own forward kinematics from that root frame plus joint encoders and its whole-body controller. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1 — Racket Exclusion Policy) and *HOPE WBC Simulation Training Reference Setup* (Section 2.8 — Racket Mount Kinematics).
+The planner consumes ball position data from the HOPE motion capture system and produces a `RacketCommand` message specifying where and how the humanoid's paddle must arrive to return the ball. Per the HOPE racket exclusion policy, the paddle's actual pose is **never measured by the motion capture system**; the motion capture system tracks only three categories of objects — the table origin frame (PPT), humanoid base_links (P1, P2), and the ping-pong ball. Each humanoid must achieve the commanded racket state through its own forward kinematics from `base_link` + joint encoders and whole-body controller. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1 — Racket Exclusion Policy) and *HOPE WBC Simulation Training Reference Setup* (Section 2.8 — Racket Mount Kinematics).
 
 ---
 
-## 0  Prologue — Scope and Implementation Notes
+## 0  Prologue — Relationship to the HITTER Paper
 
 ### 0.1  Scope
 
-This document covers the model-based planner spanning **Stages 1–3** — ball state estimation, trajectory prediction, and racket target planning — providing the complete algorithmic pipeline from ball position observations to the desired racket state `(p̂_intercept, v̂_racket, n̂_racket, t_strike)`.
+The HITTER paper describes a four-stage hierarchical framework. This document reimplements **Stages 1–3 only** — the model-based planner — providing the complete algorithmic pipeline from ball position observations to the desired racket state `(p̂_intercept, v̂_racket, n̂_racket, t_strike)`.
 
-Stage 4, the whole-body controller (WBC), is outside the scope of this planner reference. Each HOPE team is expected to provide their own WBC or IK-based controller to execute the planner's racket commands.
+Stage 4, the whole-body controller (WBC), is a PPO-trained reinforcement learning policy whose weights are not publicly available. Each HOPE team is expected to provide their own WBC or IK-based controller to execute the planner's racket commands.
 
-All code in this document is a clean-room implementation derived from the equations and design described in the following sections.
+**HITTER's source code has not been publicly released.** The project page (humanoid-table-tennis.github.io) and the arXiv paper contain no code repository. All code in this document is a clean-room reimplementation derived solely from the equations in Sections III-A through III-C of the paper.
 
-### 0.2  Coordinate Frame
+### 0.2  Coordinate Frame Adaptation
 
-The HOPE reference frame places the origin at the **near-side left corner of the table surface**, as defined in the HOPE Motion Capture System Reference Setup. The HOPE frame follows ROS 2 REP 103 (Y-left, ENU): X toward the opponent (P2), Y to the left from P1's perspective, Z up. The virtual hitting plane is at `x = x_hit ≈ 0.0 m`, and the opponent half-center is at `x = 2.055, y = −0.7625`.
+The HITTER paper does not explicitly publish its world frame origin. Based on the virtual hitting plane at `x = −1.37 m` and the use of OptiTrack with Z-up streaming, the paper's origin is inferred to be at the **table center**. The HOPE reference frame places the origin at the **near-side left corner of the table surface**, as defined in the HOPE Motion Capture System Reference Setup.
 
-### 0.3  Implementation Notes
+| | HITTER (inferred) | HOPE canonical frame |
+|---|---|---|
+| **Origin** | Table center | P1 near-side left corner, table surface |
+| **X** | Toward opponent | Toward P2 (same direction) |
+| **Y** | Left (player's perspective) | Left (same direction) |
+| **Z** | Up | Up (same direction) |
+| **Virtual hit plane** | x = −1.37 m | x = x_hit ≈ 0.0 m |
+| **Opponent half center** | x ≈ +0.685, y ≈ 0 | x = 2.055, y = −0.7625 |
 
-The following table documents key design decisions in this reference implementation. These are deliberate choices for accuracy and robustness appropriate to a reference design.
+The axes are co-aligned; the transform is a pure translation:
 
-| Aspect | This implementation |
-|--------|---------------------|
-| **World frame origin** | P1 near-side left corner; avoids negative coordinates for on-table positions |
-| **Integration method** | Explicit Euler with dt = 1 ms; adequate accuracy at 1 kHz for ~7.5 cm racket tolerance |
-| **Bounce event timing** | Linear sub-step interpolation within the crossing timestep improves temporal accuracy when z crosses zero mid-step |
-| **Bounce detection in state estimator** | Three-sample z-height pattern: z descends through threshold then rises, avoiding premature triggering on the ball's descent before actual contact |
-| **Table bounds for bounce** | Ball center bounds expanded by ball radius (±20 mm) to handle edge bounces where the ball center is slightly outside the table edge but the ball surface contacts the table |
-| **Net clearance validation** | Checks both height clearance and Y-axis net extent; auto-adjusts flight time if clearance fails |
-| **Racket orientation output** | `normal_to_quaternion()` utility with optional roll constraint, for IK-based controllers that need a full orientation quaternion rather than just the velocity vector |
-| **Drag calibration procedure** | Provided as `calibrate_ball_physics()` with least-squares fitting |
-| **Post-bounce kinematics** | Quadratic position correction (½a·dt²) in the remaining sub-step after a bounce ensures consistent second-order accuracy across bounce boundaries |
-| **Hit-plane crossing interpolation** | Interpolation uses post-bounce state if a bounce occurred in the same timestep, ensuring interpolation spans a continuous flight arc and preventing blending of pre-bounce and post-bounce velocities in rare edge cases |
-| **Smoothed position estimate** | Polynomial value at t=0 (latest timestamp) returned as smoothed position, which may differ from raw measurement by ~2 mm; polynomial denoising improves velocity accuracy at the cost of a small position offset |
+```
+x_HOPE = x_HITTER + 1.37
+y_HOPE = y_HITTER − 0.7625
+z_HOPE = z_HITTER
+```
+
+**Note**: If HITTER's actual (unpublished) implementation uses a different Y-axis convention, this translation must be revisited. The HOPE frame follows ROS 2 REP 103 (Y-left, ENU).
+
+### 0.3  Differences Between This Implementation and the Published Paper
+
+The following table documents every known point where this implementation departs from or extends the paper's description. These are not bugs — they are deliberate design choices made to fill in details the paper leaves unspecified, or to add defensive checks appropriate for a reference implementation.
+
+| Aspect | HITTER paper (arXiv:2508.21043v2) | This implementation | Rationale |
+|--------|-----------------------------------|---------------------|-----------|
+| **World frame origin** | Table center (inferred) | P1 near-side left corner | Aligned with HOPE Motion Capture Reference Setup; avoids negative coordinates for on-table positions |
+| **Integration method** | "step-by-step time integration" (method not specified) | Explicit Euler with dt = 1 ms | Simplest integrator consistent with "step-by-step"; adequate accuracy at 1 kHz for ~7.5 cm racket tolerance |
+| **Bounce event timing** | Not specified | Linear sub-step interpolation within the crossing timestep | Improves temporal accuracy when z crosses zero mid-step |
+| **Bounce detection in state estimator** | "Upon detecting a table bounce, the buffer is cleared" (detection method not specified) | Three-sample z-height pattern: z descends through threshold then rises | Paper does not specify how bounces are detected in the 360 Hz stream; three-sample pattern avoids premature triggering on the ball's descent before actual contact |
+| **Table bounds for bounce** | Not discussed | Ball center bounds expanded by ball radius (±20 mm) | Handles edge bounces where the ball center is slightly outside the table edge but the ball surface contacts the table |
+| **Net clearance validation** | Not described in the planner | Added: checks both height clearance and Y-axis net extent; auto-adjusts flight time if clearance fails | The paper may rely on the WBC to handle net failures implicitly; this implementation adds an explicit safety check |
+| **Racket orientation output** | WBC receives `v_racket` as a 3D vector; no quaternion | Added `normal_to_quaternion()` utility with optional roll constraint | Convenience for IK-based controllers that need a full orientation quaternion rather than just the velocity vector |
+| **Drag calibration procedure** | "15 recorded ball trajectories" fitted offline (procedure not detailed) | Provided as `calibrate_ball_physics()` with least-squares fitting | Clean-room implementation of the fitting procedure described qualitatively in the paper |
+| **Post-bounce kinematics** | Not specified at sub-step level | Includes quadratic position correction (½a·dt²) in the remaining sub-step after a bounce | Ensures consistent second-order accuracy across bounce boundaries |
+| **Hit-plane crossing interpolation** | Not specified | Interpolation uses post-bounce state if a bounce occurred in the same timestep, ensuring interpolation spans a continuous flight arc | Prevents physically meaningless blending of pre-bounce and post-bounce velocities in rare edge cases |
+| **Smoothed position estimate** | "least-squares fit of a second-order polynomial" | Polynomial value at t=0 (latest timestamp) returned as smoothed position, which may differ from raw measurement by ~2 mm | By design — polynomial denoising improves velocity accuracy at the cost of a small position offset |
 
 ### 0.4  What Is Not Implemented
 
-The following aspects are outside the scope of this planner reference:
+The following aspects are present in the HITTER paper but outside the scope of this planner reference:
 
-- **Spin dynamics** — Spin is neglected in this reference design. Magnus force is absent from this implementation.
-- **Strategic target selection** — The planner always aims for the opponent's half-center. No game-state-dependent target variation.
-- **Whole-body controller (Stage 4)** — Each HOPE team provides their own controller.
-- **Forehand/backhand selection** — Swing type is a WBC decision (e.g., based on the sign of the ball's Y position relative to the robot), not a planner output.
-- **Racket pose measurement** — Per the HOPE racket exclusion policy, the paddle is never tracked by the motion capture system. The motion capture system provides exactly three categories of tracking: the table origin frame (PPT), each humanoid's marker-cluster rigid body (P1/P2), and the ball. A calibrated static transform maps P1/P2 to the robot's declared URDF root frame (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). The planner outputs a desired racket state; achieving it is the robot's responsibility via forward kinematics from that root frame plus joint encoders. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1) for the exclusion policy and enforcement, and *HOPE WBC Simulation Training Reference Setup* (Section 2.8) for the fixed wrist mount kinematics that make this work.
+- **Spin dynamics** — The paper explicitly neglects spin. Magnus force is absent from both the paper and this implementation.
+- **Strategic target selection** — The paper always aims for the opponent's half-center. No game-state-dependent target variation.
+- **Whole-body controller (Stage 4)** — Requires trained RL policy weights from Isaac Lab. Each HOPE team provides their own.
+- **Forehand/backhand selection** — The paper determines swing type by the sign of the ball's Y position relative to the robot. This is a WBC decision, not a planner output.
+- **Racket pose measurement** — Per the HOPE racket exclusion policy, the paddle is never tracked by the motion capture system. The motion capture system provides exactly three categories of tracking: the table origin frame (PPT), each humanoid's `base_link` (P1/P2), and the ball. The planner outputs a desired racket state; achieving it is the robot's responsibility via forward kinematics from `base_link` + joint encoders. See companion *HOPE Motion Capture System Reference Setup* (Section 3.1) for the exclusion policy and enforcement, and *HOPE WBC Simulation Training Reference Setup* (Section 2.8) for the fixed wrist mount kinematics that make this work.
 
 ---
 
@@ -105,8 +118,8 @@ class BallPhysics:
     """Aerodynamic and restitution parameters.
 
     Calibrated from recorded ball trajectories by fitting observed
-    accelerations and bounce velocity ratios. Using at least
-    15 trajectories is recommended; more data improves robustness.
+    accelerations and bounce velocity ratios. The HITTER paper uses
+    15 trajectories; more data improves robustness.
     """
     k: float = 0.5               # aerodynamic drag coefficient (s/m)
                                   # typical range 0.3–0.8 for 40 mm ball
@@ -222,7 +235,7 @@ def calibrate_ball_physics(
 
 ## 3  Stage 1 — Ball State Estimation
 
-The motion capture system delivers ball center position `p(t) = [p_x, p_y, p_z]` at 360 Hz via `motion_capture_tracking`. Velocity is not directly observed. A 2nd-order polynomial is fit to the most recent N = 31 samples and differentiated analytically.
+The motion capture system delivers ball center position `p(t) = [p_x, p_y, p_z]` at 360 Hz via `motion_capture_tracking`. Velocity is not directly observed. Following HITTER, a 2nd-order polynomial is fit to the most recent N = 31 samples and differentiated analytically.
 
 ### 3.1  Theory
 
@@ -394,7 +407,8 @@ class StrikeTarget:
 class BallTrajectoryPredictor:
     """Forward-integrate ball trajectory and find the hitting-plane crossing.
 
-    Uses explicit Euler integration with a hybrid flight/bounce model.
+    Uses explicit Euler integration with the hybrid flight/bounce model
+    from HITTER Section III-B.
     """
 
     def __init__(self, physics: BallPhysics, config: PlannerConfig, table: TableParams):
@@ -574,7 +588,7 @@ class RacketCommand:
 class RacketTargetPlanner:
     """Compute desired racket velocity and orientation for a valid return.
 
-    Racket-ball interaction model.
+    Implements HITTER Section III-C: racket-ball interaction model.
     """
 
     def __init__(self, physics: BallPhysics, config: PlannerConfig, table: TableParams):
@@ -975,7 +989,7 @@ Motion Capture System (360 Hz)                         Humanoid (proprioceptive)
   │                                     Stages 1–3       │
   ├── PPT 6-DOF ──▶ origin validation     │              │
   │                                        ▼              │
-  └── P1 marker 6-DOF ──▶ robot root TF ──▶ WBC (Stage 4) ◀── RacketCommand
+  └── P1 base_link 6-DOF ──────────▶ WBC (Stage 4) ◀── RacketCommand
                                            │              (p_intercept,
                                            │               v_racket,
                                            ▼               n_racket,
@@ -992,7 +1006,7 @@ Motion Capture System (360 Hz)                         Humanoid (proprioceptive)
 
 ## 10  Known Limitations
 
-1. **No spin model** — Spin-induced Magnus force is neglected in this reference design. This is the largest source of prediction error for balls with heavy topspin or sidespin.
+1. **No spin model** — Spin-induced Magnus force is neglected, consistent with the HITTER paper. This is the largest source of prediction error for balls with heavy topspin or sidespin.
 
 2. **Drag-free return trajectory** — Stage 3 uses pure ballistic motion (no drag) for the outgoing velocity calculation. For high-speed returns, the actual landing point will undershoot slightly.
 
@@ -1002,7 +1016,7 @@ Motion Capture System (360 Hz)                         Humanoid (proprioceptive)
 
 5. **Single landing target** — The planner always aims for the opponent's half-center. Strategic target variation is outside the scope of this reference.
 
-6. **Implementation-specific numerical choices** — Numerical choices such as the integrator, bounce handling, and timing are specific to this reference setup and may be tuned differently in other systems.
+6. **No source code cross-validation** — HITTER has not released source code. Implementation choices not specified in the paper (integrator, bounce handling, timing) may differ from the authors' actual system.
 
 ---
 

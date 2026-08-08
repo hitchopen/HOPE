@@ -1,5 +1,8 @@
-# Dependencies for the no-spin ball-physics fitting pipeline.
+# Ball-physics fitting pipeline dependencies.
 #   pip install -r requirements-ballfit.txt
 numpy>=1.24
 scipy>=1.10
-matplotlib>=3.7      # only for the optional falsify/ and *_selfcheck plots
+matplotlib>=3.7
+# C3D reader — needed ONLY for extract_canonical.py (raw Avatar Pro takes).
+# Everything downstream runs from the extracted npz without it.
+c3d>=0.5

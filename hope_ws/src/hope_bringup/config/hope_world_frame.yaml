@@ -1,18 +1,37 @@
 hope_world:
-  # Frame names published as static transforms by hope_world.launch.py.
+  contract:
+    id: table_p1_to_p2_v1
+    description: Canonical table frame shared by planner, policy and deployment.
+    handedness: right_handed
+    x_axis: P1_to_P2
+    y_axis: completes_right_handed_frame
+    z_axis: up
+    quaternion_order: wxyz
+    quaternion_algebra: hamilton
+    base_link: pelvis_link
+    # Geometry defines the canonical frame. This venue uses Motive's manually
+    # aligned near-left table-surface origin; PPT is not a runtime dependency.
+    venue_calibrated: true
+    calibration_sha256: 23c3d8651c696c4f49d192d6cd246bbd393054ffc540163d6b7fdd92eff369f2
+    calibration_note: >-
+      Operator-attested manual Motive origin (+X P1-to-P2, +Y left, +Z up)
+      with a grounded Ball/P1 vertical probe; no PPT required. Receipt:
+      hope_ws/calibration_receipts/manual_motive_world_origin_20260731.json
+
   frames:
     world: world
+    table_rigid_body: PPT
+    p1_mocap: P1
+    p1_base_link: P1_base_link
+    p2_mocap: P2
+    p2_base_link: P2_base_link
     table_center: table_center
-    robot_half_center: robot_half_center
-    opponent_half_center: opponent_half_center
+    p1_half_center: p1_half_center
+    p2_half_center: p2_half_center
     net_center: net_center
     floor_origin: floor_origin
     virtual_hit_plane: virtual_hit_plane
 
-  # ITTF regulation table dimensions (m). World frame: +x forward (toward the
-  # opponent), +y left, +z up; z = 0 at the table surface; origin at the
-  # near-side left table corner, so the table occupies x in [0, length],
-  # y in [-width, 0].
   table_m:
     length: 2.74
     width: 1.525
@@ -21,11 +40,59 @@ hope_world:
 
   landmarks_m:
     table_center: [1.37, -0.7625, 0.0]
-    robot_half_center: [0.685, -0.7625, 0.0]
-    opponent_half_center: [2.055, -0.7625, 0.0]
+    p1_half_center: [0.685, -0.7625, 0.0]
+    p2_half_center: [2.055, -0.7625, 0.0]
     net_center: [1.37, -0.7625, 0.0]
     floor_origin: [0.0, 0.0, -0.76]
 
   planner:
-    # Fixed virtual hit-plane x (m); publish it as a frame for visualization.
     x_hit: 0.0
+    # Motive/table-surface z=0 -> policy/floor z=0. Apply exactly once.
+    policy_z_offset: 0.76
+
+  mocap_to_base_link:
+    # T_marker_base for each Motive rigid-body asset. CAD constrains the
+    # shell-to-pelvis transform, but Motive's pivot and axes are configurable.
+    # The operational transform must therefore come from a Motive asset export
+    # plus a multi-heading calibration receipt.
+    #
+    # Zero values below are inert placeholders, never an identity assertion.
+    p1:
+      marker_layout_id: A3_hip_shell_P1_0702
+      calibrated: true
+      calibration_sha256: 47a66d19e99d1940ec4edd9d06ae8b0c3dab08262397e54bf6add2ea541d55a0
+      xyz_m: [0.018738792771180856, 0.000029360682041056726, 0.14784471860656687]
+      quaternion_wxyz: [0.9953052770028697, -0.005766257821088485, 0.05477410483653936, -0.07958613748849415]
+      note: >-
+        Approved registration for the redefined Motive P1 rigid body (NatNet
+        rigid-body id 26): 10-marker ModelDef-to-A3 CAD fit with
+        operator-confirmed physical f1/b1 mounts and 33.21 deg live
+        multi-heading validation. Receipt:
+        hope_ws/calibration_receipts/p1_marker_cad_registration_20260805_redefined_p1_strict.json
+    p2:
+      marker_layout_id: unknown
+      calibrated: false
+      calibration_sha256: ""
+      xyz_m: [0.0, 0.0, 0.0]
+      quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
+      note: Not measured.
+
+  provenance:
+    cad:
+      path: agibot/pku/hip_marker_shell/a3_hip_marker_shell_p1_mocap_balls_0702.x_t
+      sha256: af8183e7ad76d3d35caa6dad573f79c06bcd07fb5e9e009876edbb3a2fa57ff6
+      format: Parasolid_XT_36.0.119
+    urdf:
+      path: agibot/URDF/A3T2.5-URDF-std-pingpang/urdf/URDF-JOINT-LINK.urdf
+      sha256: 0d83529cf808e2e68036f8168bd8b7a1c9a97d9c536eb9a14981ea4105d6b9ae
+      root_link: pelvis_link
+    pelvis_mesh:
+      path: agibot/URDF/A3T2.5-URDF-std-pingpang/meshes/pelvis_link.STL
+      sha256: 162899b2ba775cbdff24a7ded7908b057aae559326715eae7d6aee220578907f
+    cad_shell_to_urdf_pelvis_candidate:
+      # Shape-only registration; useful for axis diagnosis, forbidden at runtime.
+      runtime_usable: false
+      quaternion_wxyz: [0.5, 0.5, 0.5, 0.5]
+      translation_m_approx: [0.0, 0.0, -0.1455]
+      trimmed_rms_m_approx: 0.0023
+      limitation: Does not determine the Motive rigid-body pivot or axes.

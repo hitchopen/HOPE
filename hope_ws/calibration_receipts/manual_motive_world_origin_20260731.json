@@ -1,0 +1,97 @@
+{
+  "schema": "hope.manual_motive_world_origin_receipt.v1",
+  "created_utc": "2026-07-30T18:11:18Z",
+  "approved": true,
+  "blockers": [],
+  "method": {
+    "name": "operator_attested_manual_Motive_world_alignment",
+    "runtime_table_rigid_body_required": false,
+    "description": "Motive world was manually aligned to the canonical HOPE near-left table-surface corner. A stationary Ball/P1 probe independently checked the vertical convention and grounded policy-frame pelvis height.",
+    "limitation": "The X/Y origin and axis directions rely on the onsite operator attestation below; no independent PPT or temporary reference rigid body was used."
+  },
+  "operator_attestation": {
+    "confirmed_in_session": true,
+    "robot_support_state": "operator reported the robot grounded and stable",
+    "origin": "(0,0,0) is the P1-side near-left corner on the table upper surface",
+    "x_axis": "+X points from P1 toward P2",
+    "y_axis": "+Y points left when facing from P1 toward P2; the working/table region is y <= 0",
+    "z_axis": "+Z points upward",
+    "table_surface_z_m": 0.0
+  },
+  "coordinate_contract": {
+    "id": "table_p1_to_p2_v1",
+    "units": "metres",
+    "handedness": "right_handed",
+    "quaternion_order": "wxyz",
+    "table_extent_m": {
+      "x": [0.0, 2.74],
+      "y": [-1.525, 0.0],
+      "surface_z": 0.0
+    },
+    "policy_frame": {
+      "z_origin": "floor",
+      "mocap_to_policy_z_offset_m": 0.76
+    }
+  },
+  "motive_stream": {
+    "server_ipv4": "PLACEHOLDER_MOTIVE_PC_IP",
+    "motive_version": "3.1.0.4",
+    "natnet_version": "4.1.0.0",
+    "streaming_up_axis": "Z Up",
+    "transport": "unicast"
+  },
+  "live_grounded_probe": {
+    "schema_version": 1,
+    "ppt_required": false,
+    "pass": true,
+    "errors": [],
+    "ball_on_table": {
+      "topic": "/ball/point",
+      "samples": 1568,
+      "median_xyz_m": [
+        0.6173224449157715,
+        -1.1157307624816895,
+        0.026885313913226128
+      ],
+      "expected_center_z_m": 0.02,
+      "z_error_m": 0.006885313913226127,
+      "allowed_abs_z_error_m": 0.015,
+      "speed_p95_mps": 0.04148754191614252,
+      "allowed_speed_p95_mps": 0.1,
+      "pass": true
+    },
+    "policy_base_height": {
+      "topic": "/P1/pose",
+      "samples": 1567,
+      "marker_median_xyz_m": [
+        -0.4415401518344879,
+        -0.6753873825073242,
+        0.17816948890686035
+      ],
+      "marker_to_base_world_xyz_m": [
+        0.0013308462468769357,
+        0.0020785299519985208,
+        0.14899589769186403
+      ],
+      "base_policy_xyz_m": [
+        -0.44020930558761096,
+        -0.6733088525553257,
+        1.0871653865987243
+      ],
+      "allowed_base_policy_z_m": [0.7, 1.2],
+      "policy_z_offset_m": 0.76,
+      "pass": true
+    }
+  },
+  "dependencies": {
+    "p1_to_pelvis_receipt": {
+      "path": "hope_ws/calibration_receipts/p1_marker_cad_registration_20260731_strict_long.json",
+      "sha256": "256223d917689083cb3c5cfb069cd7ab31713389581d281c4b165187a90b33bf"
+    }
+  },
+  "invalidation_conditions": [
+    "Motive ground plane, world origin, Up Axis, or axis directions are changed",
+    "the calibrated camera volume is moved or recalibrated in a way that changes exported world coordinates",
+    "the table/working surface moves relative to the manually selected world origin"
+  ]
+}

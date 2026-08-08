@@ -1,9 +1,13 @@
-"""ABI test for the RacketCommand ROS message (fields, order, constants).
+"""ABI test for the RacketCommand ROS message (fields, order, no constants).
 
-Parses ``hope_ws/src/hope_msgs/msg/RacketCommand.msg`` and checks it matches the public contract
-(no spin / normal / outgoing-ball / validity / status fields, no version tag).
+Parses ``hope_ws/src/hope_msgs/msg/RacketCommand.msg`` and checks it matches the CURRENT
+public contract: a stamped strike command with geometry (position / velocity / normal),
+timing (strike_time / time_to_strike), the predicted outgoing ball, and validity /
+trajectory-quality flags. There are NO constants and NO task-identity or side fields —
+ball identity travels on the flat wire (schema-2 flight/revision ids) and the swing side
+is inferred outside the policy.
 
-Run:  python tests/test_racket_command_msg.py
+Run:  python tests/test_racket_command_msg.py   (or pytest)
 """
 
 from __future__ import annotations
@@ -45,29 +49,36 @@ def test_fields_exact_order():
     fields, _ = _parse_msg(_MSG_PATH)
     expected = [
         ("std_msgs/Header", "header"),
-        ("uint64", "task_id"),
-        ("uint32", "task_revision"),
-        ("int8", "swing_side"),
         ("geometry_msgs/Point", "position"),
         ("geometry_msgs/Vector3", "velocity"),
+        ("geometry_msgs/Vector3", "normal"),
+        ("float64", "strike_time"),
         ("float64", "time_to_strike"),
+        ("geometry_msgs/Vector3", "ball_velocity_outgoing"),
+        ("bool", "valid"),
+        ("bool", "clears_net"),
+        ("bool", "bypasses_net_posts"),
+        ("int32", "predicted_bounces"),
     ]
     assert fields == expected, f"field ABI mismatch:\n got {fields}\n want {expected}"
 
 
-def test_swing_side_constants():
+def test_no_constants():
     _, constants = _parse_msg(_MSG_PATH)
-    assert constants.get("FOREHAND") == "1"
-    assert constants.get("BACKHAND") == "-1"
+    assert constants == {}, f"RacketCommand.msg must define no constants, found {constants}"
 
 
 def test_removed_fields_absent():
     fields, constants = _parse_msg(_MSG_PATH)
     names = {n for _, n in fields} | set(constants)
     removed = {
-        "normal", "strike_time", "ball_velocity_outgoing", "valid", "clears_net",
-        "bypasses_net_posts", "predicted_bounces", "reason", "failure", "status",
-        "confidence", "diagnostics", "schema_version", "version",
+        # Retired task-identity / side fields (identity now lives on the flat wire;
+        # the side is inferred outside the policy and never observed).
+        "task_id", "task_revision", "swing_side", "swing_sign",
+        "FOREHAND", "BACKHAND",
+        # Never part of the public contract.
+        "reason", "failure", "status", "confidence", "diagnostics",
+        "schema_version", "version",
     }
     leaked = removed & names
     assert not leaked, f"forbidden fields present: {leaked}"

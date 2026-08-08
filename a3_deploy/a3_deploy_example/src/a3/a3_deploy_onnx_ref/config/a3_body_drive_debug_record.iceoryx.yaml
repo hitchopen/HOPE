@@ -1,0 +1,107 @@
+# Copyright (c) 2026, AgiBot Inc. All rights reserved.
+#
+# Low-overhead A3 body-drive raw recorder. This config is templated by
+# run_a3_body_drive_debug_record.sh: __BAG_PATH__ is replaced with the raw
+# output directory before the AimRT host starts.
+
+aimrt:
+  plugin:
+    plugins:
+      - name: iceoryx_plugin
+        path: libaimrt_iceoryx_plugin.so
+        options:
+          shm_init_size: 2048
+      - name: record_playback_plugin
+        path: libaimrt_record_playback_plugin.so
+        options:
+          type_support_pkgs:
+            - path: ./liba3_body_drive_debug_ros2_ts.so
+          timer_executor: storage_executor
+          record_actions:
+            - name: a3_body_drive_raw_record
+              options:
+                bag_path: "__BAG_PATH__"
+                mode: imd
+                executor: record_thread
+                storage_policy:
+                  max_bag_size_m: 256
+                  max_bag_num: 1
+                  msg_write_interval: 1000
+                  msg_write_interval_time: 1000
+                  compression_mode: zstd
+                  compression_level: default
+                  new_folder_daily: false
+                record_enabled: true
+                extra_attributes:
+                  robot: a3
+                  source: body_drive
+                  transport: iceoryx
+                  max_total_size: "approximately 1GB"
+                topic_meta_list: &body_drive_topics
+                  - topic_name: "/body_drive/waist_joint_state"
+                    msg_type: "ros2:joint_msgs/msg/JointState"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/leg_joint_state"
+                    msg_type: "ros2:joint_msgs/msg/JointState"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/arm_joint_state"
+                    msg_type: "ros2:joint_msgs/msg/JointState"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/neck_joint_state"
+                    msg_type: "ros2:joint_msgs/msg/JointState"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/waist_joint_command"
+                    msg_type: "ros2:joint_msgs/msg/JointCommand"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/leg_joint_command"
+                    msg_type: "ros2:joint_msgs/msg/JointCommand"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/arm_joint_command"
+                    msg_type: "ros2:joint_msgs/msg/JointCommand"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/neck_joint_command"
+                    msg_type: "ros2:joint_msgs/msg/JointCommand"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/pelvis_imu/data"
+                    msg_type: "ros2:sensor_msgs/msg/Imu"
+                    serialization_type: ros2
+                    record_enabled: true
+                  - topic_name: "/body_drive/torso_imu/data"
+                    msg_type: "ros2:sensor_msgs/msg/Imu"
+                    serialization_type: ros2
+                    record_enabled: true
+
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+      - type: rotate_file
+        options:
+          path: /tmp/a3_body_drive_debug_logs
+          filename: recorder.log
+          max_file_size_m: 32
+          max_file_num: 4
+
+  executor:
+    executors:
+      - name: storage_executor
+        type: asio_thread
+        options:
+          thread_num: 2
+      - name: record_thread
+        type: simple_thread
+
+  channel:
+    backends:
+      - type: iceoryx
+    sub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]

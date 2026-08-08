@@ -1,0 +1,19 @@
+# Explicit simulation-only candidate config for RallyV17 model_16600.
+#
+# The exporter and native loader bind this filename-independent candidate to the exact V17
+# task recipe, frozen run env, checkpoint and two approved motion clips.  Gate3 evidence is a
+# simulation qualification result only; this file does not authorize real-hardware motion.
+onnx:
+  model_path: ../../../../assets/a3_runtime/models/model_v17_candidate.onnx
+  backend: no_rknn
+
+policy_driver:
+  policy_hz: 50.0
+
+obs_debug:
+  loc_mode: perfect_tracking
+
+backend:
+  aimrt_cfg_path: a3_aimrt_config.pingpong_iceoryx.yaml
+  sync_mode: min_skew_pair
+  sync_hz: 100.0

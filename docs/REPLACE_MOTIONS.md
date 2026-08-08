@@ -4,11 +4,13 @@ Training imitates two motion clips. The ones shipped under
 `hope_training/motions/preprocessed/` are **reference examples only** — short, smooth,
 physically-neutral placeholders that let the loader and shape checks pass. They are **not**
 performance-tuned. Replace them with your own retargeted forehand/backhand motions before training a
-policy you intend to deploy.
+policy you intend to deploy. (The proven internal line trained on real clips of the *v12fix*
+generation — `hope_forehand_v12fix.npz` / `hope_backhand_v12fix.npz` — which are **not shipped**.)
 
-This page documents the file format so you can produce your own. There is deliberately **no** motion
-validator, scorer, receipt, or qualification step — the loader reads the fixed format below, and
-ordinary file/shape errors surface naturally.
+This page documents the file format so you can produce your own — any tool that emits the schema
+below works. Before an expensive training run, sanity-check the forehand/backhand pair yourself:
+a quiet ready pose, a clear strike, and a quiet recovery. The loader itself reads the fixed
+format below, and ordinary file/shape errors surface naturally.
 
 ## The two clips
 
@@ -70,9 +72,10 @@ The sidecar describes the clip's phase structure and racket convention (see
 
 ## Producing your own clips
 
-Record or synthesize a forehand and a backhand swing, retarget them to the A3's 31 DOF, resample to a
-fixed `fps`, and write the arrays above into a `.npz` plus a matching `.yaml`. Point training at them
-either by placing them at the default paths, or via the CLI:
+Record or synthesize a forehand and a backhand swing, retarget them to the A3's 31 DOF, and
+convert the retargeted trajectory into the `.npz` + `.yaml` schema above — compute the body
+arrays by forward kinematics on the prepared A3 asset; any tool that emits the schema works.
+Point training at the clips either by placing them at the default paths, or via the CLI:
 
 ```bash
 python scripts/train.py task=HOPEPingPong \
@@ -80,5 +83,5 @@ python scripts/train.py task=HOPEPingPong \
     motion_file_2=/path/to/your_backhand.npz
 ```
 
-(or set `commands.motion.motion_file` in `cfg/task/HOPEPingPong.yaml`). The retargeting pipeline
-itself is out of scope for this repository — any tool that emits the schema above works.
+(or set the motion source keys in the task YAML under `cfg/task/`). The retargeting pipeline
+itself is out of scope for this repository.

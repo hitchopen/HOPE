@@ -1,0 +1,344 @@
+{
+  "approved": true,
+  "blockers": [],
+  "cad": {
+    "coordinate_source": "agibot/pku/README.md marker table v2",
+    "nominal_only_marker_names": [
+      "b1",
+      "f1"
+    ],
+    "operator_attested_installed_layout": true,
+    "selected_marker_names": [
+      "f1",
+      "f2",
+      "f3",
+      "f4",
+      "f5",
+      "b1",
+      "b2",
+      "b3",
+      "b4",
+      "b5"
+    ]
+  },
+  "correspondence": {
+    "best_to_second_rms_margin_m": 0.02429777321034327,
+    "markers": [
+      {
+        "cad_name": "f5",
+        "cad_position_in_pelvis_link_m": [
+          0.078,
+          0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.002751096518342055,
+        "member_id": 0,
+        "model_position_in_P1_m": [
+          0.08290483802556992,
+          0.016275398433208466,
+          -0.040512196719646454
+        ],
+        "natnet_name": "Marker 001",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f2",
+        "cad_position_in_pelvis_link_m": [
+          0.08,
+          0.05,
+          -0.14
+        ],
+        "fit_residual_m": 0.0031267276059271398,
+        "member_id": 1,
+        "model_position_in_P1_m": [
+          0.09283461421728134,
+          0.03642648085951805,
+          -0.0014005512930452824
+        ],
+        "natnet_name": "Marker 002",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f1",
+        "cad_position_in_pelvis_link_m": [
+          0.09,
+          0.0,
+          -0.13
+        ],
+        "fit_residual_m": 0.0028468696617040463,
+        "member_id": 2,
+        "model_position_in_P1_m": [
+          0.09555985033512115,
+          -0.015151984989643097,
+          0.008714540861546993
+        ],
+        "natnet_name": "Marker 003",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f3",
+        "cad_position_in_pelvis_link_m": [
+          0.08,
+          -0.05,
+          -0.14
+        ],
+        "fit_residual_m": 0.0022885237560164888,
+        "member_id": 3,
+        "model_position_in_P1_m": [
+          0.07614108175039291,
+          -0.06291529536247253,
+          0.0005355748580768704
+        ],
+        "natnet_name": "Marker 004",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f4",
+        "cad_position_in_pelvis_link_m": [
+          0.078,
+          -0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.0025486159250552877,
+        "member_id": 4,
+        "model_position_in_P1_m": [
+          0.07317540794610977,
+          -0.04322921857237816,
+          -0.03921539708971977
+        ],
+        "natnet_name": "Marker 005",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b2",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          0.055,
+          -0.13
+        ],
+        "fit_residual_m": 0.0028991137083286375,
+        "member_id": 5,
+        "model_position_in_P1_m": [
+          -0.07286334782838821,
+          0.06853001564741135,
+          0.027548227459192276
+        ],
+        "natnet_name": "Marker 006",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b3",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          -0.055,
+          -0.13
+        ],
+        "fit_residual_m": 0.0023336183740926765,
+        "member_id": 6,
+        "model_position_in_P1_m": [
+          -0.08995019644498825,
+          -0.04087672010064125,
+          0.029227202758193016
+        ],
+        "natnet_name": "Marker 007",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b4",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          -0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.0030941839068527343,
+        "member_id": 7,
+        "model_position_in_P1_m": [
+          -0.09229058772325516,
+          -0.016608085483312607,
+          -0.02113545686006546
+        ],
+        "natnet_name": "Marker 008",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b5",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.00318096628358653,
+        "member_id": 8,
+        "model_position_in_P1_m": [
+          -0.0828637182712555,
+          0.0432010181248188,
+          -0.022309673950076103
+        ],
+        "natnet_name": "Marker 009",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b1",
+        "cad_position_in_pelvis_link_m": [
+          -0.09,
+          0.0,
+          -0.1
+        ],
+        "fit_residual_m": 0.0021301098137727456,
+        "member_id": 9,
+        "model_position_in_P1_m": [
+          -0.08264006674289703,
+          0.014347175136208534,
+          0.058629389852285385
+        ],
+        "natnet_name": "Marker 0010",
+        "required_active_label": 0
+      }
+    ]
+  },
+  "created_utc": "2026-08-04T17:20:47.141773+00:00",
+  "hope_world_frame_yaml_candidate": {
+    "calibrated": true,
+    "calibration_sha256": "fill with SHA-256 of the finalized receipt file",
+    "path": "hope_world.mocap_to_base_link.p1",
+    "quaternion_wxyz": [
+      0.9953052770028697,
+      -0.005766257821088485,
+      0.05477410483653936,
+      -0.07958613748849415
+    ],
+    "xyz_m": [
+      0.018738792771180856,
+      2.9360682041056726e-05,
+      0.14784471860656687
+    ]
+  },
+  "method": {
+    "correspondence_mode": "geometry_inferred_from_pairwise_distances",
+    "equation": "p_P1 = R_P1_pelvis_link * p_pelvis_link + t_P1_pelvis_link",
+    "evaluated_assignments": 576,
+    "limitation": "This observes P1 relative to the CAD marker centres. It does not independently measure pelvis_link; validity depends on the installed shell and marker centres matching the cited CAD.",
+    "name": "NatNet_ModelDef_to_A3_CAD_rigid_registration"
+  },
+  "p1_to_pelvis_link": {
+    "child_frame": "pelvis_link",
+    "parent_frame": "P1",
+    "quaternion_wxyz": [
+      0.9953052770028697,
+      -0.005766257821088485,
+      0.05477410483653936,
+      -0.07958613748849415
+    ],
+    "quaternion_xyzw": [
+      -0.005766257821088485,
+      0.05477410483653936,
+      -0.07958613748849415,
+      0.9953052770028697
+    ],
+    "xyz_m": [
+      0.018738792771180856,
+      2.9360682041056726e-05,
+      0.14784471860656687
+    ]
+  },
+  "quality": {
+    "live_local_position_max_m": 0.004993629233699509,
+    "live_local_position_rms_m": 0.0005545609081651161,
+    "pairwise_distance_rms_m": 0.0039015977871916943,
+    "per_marker_live": {
+      "0": {
+        "cad_name": "f5",
+        "local_position_max_m": 0.0008066957335323824,
+        "local_position_rms_m": 0.00037684272766321685,
+        "natnet_reconstruction_residual_rms_m": 0.00033549895720035033,
+        "physical_samples": 6086
+      },
+      "1": {
+        "cad_name": "f2",
+        "local_position_max_m": 0.0010197183206873764,
+        "local_position_rms_m": 0.0004521283081999582,
+        "natnet_reconstruction_residual_rms_m": 0.0002935689290458704,
+        "physical_samples": 6086
+      },
+      "2": {
+        "cad_name": "f1",
+        "local_position_max_m": 0.0016289621829148875,
+        "local_position_rms_m": 0.00035156160850439576,
+        "natnet_reconstruction_residual_rms_m": 0.0003033256027713198,
+        "physical_samples": 6086
+      },
+      "3": {
+        "cad_name": "f3",
+        "local_position_max_m": 0.0011360382923646022,
+        "local_position_rms_m": 0.0005970595271154319,
+        "natnet_reconstruction_residual_rms_m": 0.0005499970599076148,
+        "physical_samples": 6086
+      },
+      "4": {
+        "cad_name": "f4",
+        "local_position_max_m": 0.0013009300069993532,
+        "local_position_rms_m": 0.0005184830291887791,
+        "natnet_reconstruction_residual_rms_m": 0.0004353273371725706,
+        "physical_samples": 6086
+      },
+      "5": {
+        "cad_name": "b2",
+        "local_position_max_m": 0.004861056174483078,
+        "local_position_rms_m": 0.0006795561573479558,
+        "natnet_reconstruction_residual_rms_m": 0.0008497703640073217,
+        "physical_samples": 6082
+      },
+      "6": {
+        "cad_name": "b3",
+        "local_position_max_m": 0.0029847053753455084,
+        "local_position_rms_m": 0.0004500399923182104,
+        "natnet_reconstruction_residual_rms_m": 0.0014113294845910897,
+        "physical_samples": 6086
+      },
+      "7": {
+        "cad_name": "b4",
+        "local_position_max_m": 0.002822638235173819,
+        "local_position_rms_m": 0.00038121091510394855,
+        "natnet_reconstruction_residual_rms_m": 0.0005521882259403476,
+        "physical_samples": 6086
+      },
+      "8": {
+        "cad_name": "b5",
+        "local_position_max_m": 0.004993629233699509,
+        "local_position_rms_m": 0.000868194506634518,
+        "natnet_reconstruction_residual_rms_m": 0.0009208980313298102,
+        "physical_samples": 6080
+      },
+      "9": {
+        "cad_name": "b1",
+        "local_position_max_m": 0.004814117875745652,
+        "local_position_rms_m": 0.0006461406651075966,
+        "natnet_reconstruction_residual_rms_m": 0.0003684530386741009,
+        "physical_samples": 6068
+      }
+    },
+    "registration_max_m": 0.00318096628358653,
+    "registration_rms_m": 0.0027434090459886305,
+    "second_best_registration_rms_m": 0.0270411822563319,
+    "source_scatter_eigenvalues_m2": [
+      0.07027243405851814,
+      0.01465,
+      0.007227965941481873
+    ],
+    "trajectory": {
+      "rotation_span_deg": 33.20721961347334,
+      "translation_span_m": 0.05874958978372329
+    },
+    "vendor_mean_marker_error_rms_m": 0.0004756985891090076
+  },
+  "schema": "hope.p1_marker_cad_registration_receipt.v1",
+  "source": {
+    "definition_drift_max_m": 0.0,
+    "frames_received": 6086,
+    "frames_with_physical_samples": 6086,
+    "reference_frame": "world",
+    "rigid_body_id": 26,
+    "rigid_body_name": "P1",
+    "topic_type": "motion_capture_tracking_interfaces/msg/RigidBodyMarkerArray"
+  }
+}

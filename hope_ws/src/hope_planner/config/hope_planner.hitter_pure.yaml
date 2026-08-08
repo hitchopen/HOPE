@@ -1,0 +1,57 @@
+# HITTER-PURE (110-D) arena profile — overlay on hope_planner.yaml (2026-07-07;
+# RE-CALIBRATED 2026-07-13 to the RallyV8 v13 facefix geometry (receipt
+# hitter_rally_v13_facefix_receipt.json).
+#
+# Design deltas vs the 175/177 legacy profile, all paper-driven (arXiv:2508.21043):
+#   * FIXED virtual hit plane (§IV-B: "predefined virtual hit plane"; the paper's robot
+#     WALKS to a commanded station behind the plane, Fig. 4). x_hit_follow_robot: false
+#     kills the adaptive plane-chases-robot coupling (the documented "+x march").
+#     robot_pose_topic is still REQUIRED — it feeds /a3/base_pose_flat, which the 110-D
+#     runner needs every tick for its world-frame deltas (base_target_delta_xy,
+#     racket_target_rel_base). 110 deploy is mocap-mandatory.
+#   * PER-SIDE hit planes (v13): the Step-10.5 wrist re-solve moved the two clips'
+#     contacts to DIFFERENT station-relative planes — fh x 0.65 / bh x 0.50. x_hit is
+#     the FOREHAND plane; the backhand plane is x_hit + x_hit_bh_delta. Without the
+#     delta the bh intercept sits ~0.15 m forward of the trained bh reach, the runner
+#     derives station_x = base + 0.15 and its x-readiness gate (--gate-x-max 0.15)
+#     refuses every backhand engage.
+#   * x_hit placement: pick per venue so the demanded strike stays reachable from a legal
+#     station: station_x = x_hit − 0.65 (fh plane). The runner derives the station from
+#     the ONNX metadata boxes; the base remains x-locked and never follows the ball plane.
+#   * x_hit_offset 0.65: the v13 FOREHAND plane. Only used if x_hit_follow_robot is
+#     explicitly re-enabled (legacy 175/177 mode; UNSAFE for x-locked models).
+#   * Everything else (ball physics, flats, z offset) inherits the venue values.
+#
+# Launch (arena):
+#   ros2 run hope_planner hope_planner_node --ros-args \
+#     --params-file config/hope_planner.yaml --params-file config/hope_planner.hitter_pure.yaml
+hope_planner:
+  ros__parameters:
+    # Keep all 300 Hz mocap samples in the estimator, but run the expensive
+    # Stage-2/3 Python solve at about 30 Hz. Solving every frame starves the
+    # robot-pose callback on the HDU and makes /a3/base_pose_flat stale.
+    solve_period_s: 0.033
+    # Rotation-aware prediction is observation-only until a venue receipt
+    # proves Ball quaternion continuity and calibrates Magnus/contact error.
+    spin_shadow_enabled: true
+    ball_orientation_topic: "/ball/pose"
+    spin_window_s: 0.10
+    spin_gate_rev_s: 3.0
+    spin_max_gap_s: 0.05
+    spin_max_rev_s: 20.0
+    x_hit_follow_robot: false
+    # Preserve the arena's approximately -0.50 m base station after moving the trained reach
+    # to the v13 FOREHAND plane 0.65 m: station_x = 0.15 - 0.65 = -0.50.
+    x_hit: 0.15
+    # v13 backhand plane = x_hit - 0.15 = 0.00 (station -0.50 + bh plane 0.50).
+    x_hit_bh_delta: -0.15
+    x_hit_offset: 0.65
+    # HITTER §IV-C center return. Arena coordinates place table center at y=-0.7625;
+    # 0.50 s stays inside the venue-derived FinalV3 racket-velocity envelope.
+    target_land_y: -0.7625
+    delta_t_flight: 0.50
+    # Midpoint between the v13 reach-y band centers (fh -0.44 / bh -0.09; receipt
+    # swing_side_split_y). RallyV8 requires explicit swing side from the planner; this
+    # remains the deterministic fallback.
+    swing_side_split_y: -0.25
+    swing_side_hysteresis_y: 0.04

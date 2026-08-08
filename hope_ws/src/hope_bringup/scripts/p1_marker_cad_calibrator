@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""ROS 2 executable wrapper for P1 marker-to-CAD registration."""
+
+from p1_marker_cad_registration_impl import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

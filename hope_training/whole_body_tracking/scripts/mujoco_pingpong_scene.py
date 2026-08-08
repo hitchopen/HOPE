@@ -82,7 +82,7 @@ class StepResult:
 
 @dataclass
 class RobotObsState:
-    """Proprioceptive state consumed by the reference 111-D observation builder.
+    """Proprioceptive state consumed by the reference 110-D observation builder.
 
     Attribute names match the reference ``RobotState`` so it can be passed straight
     into ``build_observation`` without conversion.
