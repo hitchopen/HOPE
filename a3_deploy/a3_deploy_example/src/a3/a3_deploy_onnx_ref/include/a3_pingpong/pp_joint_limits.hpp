@@ -38,6 +38,13 @@ enum class ActualQHardLimitDisposition {
   kFault,
 };
 
+inline bool actual_q_hard_limit_audit_only(
+    bool gate3_qdes_audit_only, bool exported_limit_contract,
+    bool exported_telemetry_only) {
+  return gate3_qdes_audit_only ||
+         (exported_limit_contract && exported_telemetry_only);
+}
+
 // The exported policy contract owns whether measured-q excess is a termination
 // or telemetry audit.  q_des hard clamping is separate and remains unchanged.
 inline ActualQHardLimitDisposition classify_actual_q_hard_limit(

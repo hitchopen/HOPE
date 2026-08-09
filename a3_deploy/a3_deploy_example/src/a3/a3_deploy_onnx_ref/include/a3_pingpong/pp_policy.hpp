@@ -213,8 +213,9 @@ struct PpPolicyConfig {
   bool policy_native = false;
   // x86 Gate3 policy audit only.  Keep the actor's finite final q_des unchanged
   // even when it escapes the exported safe interval or the backend hard limits,
-  // and record the would-be intervention instead of throwing/clamping.  The
-  // production runner never enables this flag.
+  // and keep measured actual-q hard-limit excesses as telemetry.  Record every
+  // would-be intervention instead of throwing/clamping.  The production runner
+  // never enables this flag.
   bool gate3_qdes_audit_only = false;
   double shot_reuse_tolerance_s = 0.25;
   double engage_min_tts_s = 1.0;      // never START a swing later than this (deep-clip snap -> fall)
@@ -450,8 +451,8 @@ class PpPolicy {
       std::fprintf(
           stderr,
           "[pp qdes-audit] X86 GATE3 ONLY: finite policy q_des is published "
-          "unchanged; safe/hard-limit exceedances are telemetry, not fail-fast "
-          "or runner clamps\n");
+          "unchanged; q_des and measured actual-q limit exceedances are "
+          "telemetry, not fail-fast or runner clamps\n");
     }
     if (onnx_.is_v17_r10_p0_gate3()) {
       if (!cfg_.planner_mode || !cfg_.policy_native || cfg_.station_only ||
@@ -1372,9 +1373,11 @@ class PpPolicy {
                                                 : kSdkJointPosHi[sdk];
       const double tolerance = exported_limit_contract
           ? onnx_.qdes_actual_q_hard_tolerance_rad() : 0.0;
+      const bool actual_q_audit_only = actual_q_hard_limit_audit_only(
+          cfg_.gate3_qdes_audit_only, exported_limit_contract,
+          onnx_.qdes_actual_q_hard_audit_only());
       const auto disposition = classify_actual_q_hard_limit(
-          st.q[i], lo, hi, tolerance,
-          exported_limit_contract && onnx_.qdes_actual_q_hard_audit_only());
+          st.q[i], lo, hi, tolerance, actual_q_audit_only);
       if (disposition == ActualQHardLimitDisposition::kFault) {
         throw std::runtime_error(
             "ping-pong PHYSICAL SAFETY FAULT: measured q exceeds hard limit for joint '" +
