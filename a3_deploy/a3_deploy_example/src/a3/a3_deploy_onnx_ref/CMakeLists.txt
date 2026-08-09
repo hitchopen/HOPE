@@ -179,7 +179,7 @@ if(ENABLE_A3_ROS_MSGS)
     # whether cmake is invoked from the top-level a3_deploy_example/
     # project or directly from this directory.
     add_subdirectory(
-      ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/joint_msgs
+      ${A3_THIRDPARTY_ROOT}/joint_msgs
       ${CMAKE_CURRENT_BINARY_DIR}/joint_msgs_build)
 
     foreach(_jm_suffix
@@ -598,9 +598,9 @@ target_sources(${A3_EXECUTABLE_NAME} PRIVATE ${ROBOT_IO_SOURCES})
 target_include_directories(${A3_EXECUTABLE_NAME}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${A3_EXECUTABLE_NAME} BEFORE PRIVATE
-  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
-  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
-  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
+  ${A3_THIRDPARTY_ROOT}/unitree_sdk2/include
+  ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include
+  ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include/ddscxx)
 target_link_directories(${A3_EXECUTABLE_NAME} PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(${A3_EXECUTABLE_NAME} PRIVATE ${PROJECT_NAME}
   ${EXE_LIBS})
@@ -651,9 +651,9 @@ target_sources(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${ROBOT_IO_SOURCES})
 target_include_directories(${A3_PINGPONG_EXECUTABLE_NAME}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${A3_PINGPONG_EXECUTABLE_NAME} BEFORE PRIVATE
-  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
-  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
-  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
+  ${A3_THIRDPARTY_ROOT}/unitree_sdk2/include
+  ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include
+  ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include/ddscxx)
 target_link_directories(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${PROJECT_NAME}
   ${EXE_LIBS})
@@ -697,9 +697,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
     BEFORE PRIVATE
-    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
-    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
-    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
+    ${A3_THIRDPARTY_ROOT}/unitree_sdk2/include
+    ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include
+    ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include/ddscxx)
   target_link_directories(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
     PRIVATE ${CUDA_LINK_DIRS})
   target_link_libraries(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
@@ -746,9 +746,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     BEFORE PRIVATE
-    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
-    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
-    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
+    ${A3_THIRDPARTY_ROOT}/unitree_sdk2/include
+    ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include
+    ${A3_THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/include/ddscxx)
   target_link_directories(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     PRIVATE ${CUDA_LINK_DIRS})
   target_link_libraries(${A3_V17_R10_GATE3_EXECUTABLE_NAME}

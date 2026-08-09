@@ -29,6 +29,9 @@ option(ENABLE_TRT_INFERENCE "Build TensorRT/CUDA inference targets" OFF)
 option(ENABLE_RKNN_INFERENCE "Build Rockchip RKNN inference backend" OFF)
 option(USE_BUNDLED_ONNXRUNTIME_AARCH64
        "Use repo-local ONNX Runtime package on aarch64/arm64" ON)
+set(A3_THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty" CACHE PATH
+    "A3 vendor dependency root (onnxruntime, RKNN, unitree_sdk2, joint_msgs)")
+get_filename_component(A3_THIRDPARTY_ROOT "${A3_THIRDPARTY_ROOT}" ABSOLUTE)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -37,7 +40,7 @@ find_package(Threads REQUIRED)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64"
    AND USE_BUNDLED_ONNXRUNTIME_AARCH64)
   set(GS_ONNXRUNTIME_AARCH64_TARBALL
-      "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/onnxruntime/onnxruntime_gpu_1.19.2_aarch64.tar.gz")
+      "${A3_THIRDPARTY_ROOT}/onnxruntime/onnxruntime_gpu_1.19.2_aarch64.tar.gz")
   if(EXISTS "${GS_ONNXRUNTIME_AARCH64_TARBALL}")
     set(GS_ONNXRUNTIME_AARCH64_EXTRACT_DIR
         "${CMAKE_BINARY_DIR}/_deps/onnxruntime_aarch64")
@@ -82,7 +85,7 @@ if(ENABLE_RKNN_INFERENCE)
   endif()
 
   set(GS_RKNN_RUNTIME_ROOT
-      "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rknn_runtime/2.3.2"
+      "${A3_THIRDPARTY_ROOT}/rknn_runtime/2.3.2"
       CACHE PATH "Repo-local RKNN runtime root")
   set(GS_RKNN_INCLUDE_DIR "${GS_RKNN_RUNTIME_ROOT}/include")
   set(GS_RKNN_LIBRARY
@@ -317,11 +320,12 @@ set(BUILD_EXAMPLES
     OFF
     CACHE BOOL "Build unitree_sdk2 examples" FORCE)
 
-add_subdirectory(thirdparty/unitree_sdk2)
+add_subdirectory("${A3_THIRDPARTY_ROOT}/unitree_sdk2"
+                 "${CMAKE_BINARY_DIR}/thirdparty/unitree_sdk2")
 
 # Add unitree_sdk2 include directories
 target_include_directories(${PROJECT_NAME}
-                           INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/unitree_sdk2/include)
+                           INTERFACE ${A3_THIRDPARTY_ROOT}/unitree_sdk2/include)
 
 # Link to unitree_sdk2 which includes all necessary dependencies
 target_link_libraries(${PROJECT_NAME} INTERFACE unitree_sdk2)
