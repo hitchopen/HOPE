@@ -1,0 +1,45 @@
+// Copyright (c) 2026, AgiBot Inc. All rights reserved.
+// 对应 notes/a3_backend_plan.md §? / PR 6
+#pragma once
+
+#include <cstdint>
+#include <functional>
+
+#include "robot_io/a3_layout_extra.hpp"
+#include "robot_io/layouts.hpp"
+#include "robot_io/robot_io_backend.hpp"
+
+#ifdef HAS_A3_ROS_MSGS
+#include "joint_msgs/msg/joint_command.hpp"
+#endif
+
+namespace a3_io {
+
+// 2-DOF neck command publisher.
+// Source slice: RobotCommand.[...][3..4] (kA3NeckStart=3) in MuJoCo real
+// 31-DOF SDK layout.
+class NeckCmdPub {
+ public:
+  static constexpr std::size_t kDof = robot_io::kA3NeckCount;  // 2
+
+#ifdef HAS_A3_ROS_MSGS
+  using PublishFn = std::function<void(const joint_msgs::msg::JointCommand&)>;
+
+  NeckCmdPub() = default;
+  explicit NeckCmdPub(PublishFn publish) : publish_fn_(std::move(publish)) {}
+
+  void Publish(std::int64_t stamp_ns, std::uint32_t seq,
+               const robot_io::RobotCommand& cmd_31);
+
+  static void BuildMessage(const robot_io::RobotCommand& cmd_31,
+                           std::int64_t stamp_ns, std::uint32_t seq,
+                           joint_msgs::msg::JointCommand& out);
+#endif
+
+ private:
+#ifdef HAS_A3_ROS_MSGS
+  PublishFn publish_fn_;
+#endif
+};
+
+}  // namespace a3_io

@@ -1,18 +1,21 @@
 # A3 Isaac Lab Quickstart
 
 This is the shortest public path from a fresh clone to the full HOPE loop on the Agibot A3:
-prepare the robot asset, smoke-test the table-tennis scene, train the unified forehand/backhand
-policy in Isaac Lab, export it to ONNX, evaluate `success_rate`, and run the exported policy in
-the reference simulation. Each step lists only what it needs — you can stop after any step.
+prepare the robot asset, smoke-test the table-tennis scene, train the deploy-grade rally policy
+in Isaac Lab, evaluate it deterministically, export it to ONNX, verify it in MuJoCo sim-to-sim,
+and rehearse the deploy stack closed-loop. Each step lists only what it needs — you can stop
+after any step.
 
 | Step | Needs |
 |------|-------|
 | Train / play / Isaac eval | Isaac Sim + Isaac Lab (with `rsl_rl`), Python 3.10, CUDA GPU |
 | Export ONNX | the training install (torch + onnx) |
-| MuJoCo eval / reference runner | `mujoco`, `onnxruntime`, `numpy` (no GPU needed) |
+| MuJoCo sim-to-sim eval | `mujoco`, `onnxruntime`, `numpy` (no GPU needed) |
+| Deploy build + closed-loop rehearsal | C++ toolchain (CMake), ROS 2, `onnxruntime` (bundled under `a3_deploy/`) |
 | Planner (full loop) | ROS 2 (rclpy), `numpy`, `pyyaml` |
 
-For the same loop with more depth per step, see [`docs/QUICKSTART.md`](docs/QUICKSTART.md); the
+For the same loop with more depth per step, see [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md)
+(training/evaluation/export) and [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) (deploy); the
 document index is [`REFERENCE_DOCS.md`](REFERENCE_DOCS.md).
 
 ## 0. Clone
@@ -35,14 +38,14 @@ python -m pip install hydra-core omegaconf     # used by the Hydra entry points
 
 ## 2. Prepare the A3 Isaac Asset
 
-The starter ships the Agibot-provided A3 ping-pong URDF package under
+The repository ships the Agibot-provided A3 ping-pong URDF package under
 `agibot/URDF/A3T2.5-URDF-std-pingpang/` (vendor material, no OSS license — see
-[`A3_ASSETS.md`](A3_ASSETS.md)); the asset-prep step uses it by default. From the repository
-root:
+[`A3_ASSETS.md`](A3_ASSETS.md)); the asset-prep step uses it by default. From
+`hope_training/whole_body_tracking/`:
 
 ```bash
-python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --force
-python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --check
+python3 scripts/prepare_a3_isaac_asset.py --force
+python3 scripts/prepare_a3_isaac_asset.py --check
 ```
 
 This copies the meshes and rewrites `package://.../meshes/*.STL` references so Isaac Lab can
@@ -55,11 +58,11 @@ To use your own vendor-supplied copy instead, place it under `a3_deploy/URDF/` (
 [`a3_deploy/URDF/README.md`](a3_deploy/URDF/README.md)) and add
 `--source-root a3_deploy/URDF/<your_a3_package>`.
 
-## 3. Set Up the Training Shell (`isaac_py`)
+## 3. Set Up the Training Shell (`hope_isaac_py`)
 
-`setup_train_env.sh` puts the working-tree package source first on `PYTHONPATH` and defines an
-`isaac_py` launcher that runs your Isaac Sim Python with that path. Source it (do not execute)
-in every training shell:
+`setup_train_env.sh` puts the working-tree package source first on `PYTHONPATH` and defines a
+`hope_isaac_py` launcher that runs your Isaac Sim Python with that path. Source it (do not
+execute) in every training shell:
 
 ```bash
 cd hope_training/whole_body_tracking
@@ -67,27 +70,32 @@ source setup_train_env.sh
 ```
 
 It probes for a usable Isaac Sim Python on its own. If the probe picks the wrong interpreter,
-or your Isaac Lab is a source checkout, create the git-ignored local override:
+or your Isaac Lab is a source checkout, create the git-ignored local override
+`setup_train_env.local.sh` (auto-sourced) next to it:
 
 ```bash
-cp setup_train_env.local.example.sh setup_train_env.local.sh
-# edit: ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
-#       ISAACLAB_ROOT=/absolute/path/to/IsaacLab   (source checkouts only)
+# setup_train_env.local.sh
+export ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
+export ISAACLAB_ROOT=/absolute/path/to/IsaacLab   # source checkouts only
 ```
+
+The public setup does not configure external logging. New runs remain local; the
+published `model_21800` checkpoint is documented in
+[`docs/MODEL_21800.md`](docs/MODEL_21800.md).
 
 ## 4. Smoke Checks
 
 From `hope_training/whole_body_tracking/`, confirm the task package imports and the scene runs:
 
 ```bash
-isaac_py -c "import whole_body_tracking.tasks; print('HOPE tasks import ok')"
-isaac_py scripts/play_table_tennis.py --headless --steps 300
+hope_isaac_py -c "import whole_body_tracking.tasks; print('HOPE tasks import ok')"
+hope_isaac_py scripts/play_table_tennis.py --headless --steps 300
 ```
 
 The scene smoke builds the full court (floor, table, net, ball, Agibot A3) and steps the physics
 with no policy and no checkpoint — use it to verify the asset, ball flight, and layout before
 training. Drop `--headless` for a window; other options: `--num_envs 9`, `--fix_base`,
-`--disable_aero`.
+`--enable_aero`.
 
 Pure-Python unit tests need no GPU or Isaac install:
 
@@ -95,100 +103,119 @@ Pure-Python unit tests need no GPU or Isaac install:
 python -m pytest tests/ -q
 ```
 
+Before training, you can run the published deployment actor in plain MuJoCo from
+the repository root:
+
+```bash
+python3 -m venv .venv-mujoco && source .venv-mujoco/bin/activate
+python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
+a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --duration 10
+```
+
 ## 5. Train
 
 > The clips shipped under `hope_training/motions/preprocessed/` (`hope_forehand.npz` +
-> `hope_backhand.npz`) are **reference-only placeholders** so imports and shape checks pass.
+> `hope_backhand.npz`) are **schema-valid placeholders** so imports and shape checks pass.
 > Replace them with your own recorded forehand/backhand clips
 > ([`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md)) before training a policy you intend to
-> deploy.
+> deploy — the proven internal line trained on real `*_v12fix` clips that are not shipped.
 
 ```bash
-isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
+    motion_file=../motions/preprocessed/hope_forehand.npz \
+    motion_file_2=../motions/preprocessed/hope_backhand.npz
 
 # common overrides
-isaac_py scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1 \
-    motion_file=hope_training/motions/preprocessed/hope_forehand.npz \
-    motion_file_2=hope_training/motions/preprocessed/hope_backhand.npz
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
+    num_envs=4096 max_iterations=20000 seed=1 \
+    motion_file=../motions/preprocessed/hope_forehand.npz \
+    motion_file_2=../motions/preprocessed/hope_backhand.npz
 ```
 
-This trains the single Gym task `HOPE-PingPong-AgibotA3-v0` (111-D observation, 31-D action,
-50 Hz, continuous rallies — no teleport between swings). Checkpoints are written locally to
-`logs/rsl_rl/hope_pingpong/<timestamp>/` (a periodic checkpoint every `save_interval`
-iterations and a final one); resume with `checkpoint_path=<...>/model_<N>.pt`. Tune via
-`cfg/task/HOPEPingPong.yaml` and `cfg/algo/ppo.yaml`. The only metric is `success_rate`,
-reported by the evaluators in step 7 — see [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md) for
-the task design and reward terms.
+`HitterPingPong` (gym id `HOPE-HitterPingPong-AgibotA3-v0`) is the deploy-grade recipe
+validated on real A3 hardware: a **110-D `hitter_pure` observation**, 31-D raw action, 50 Hz,
+continuous rallies — no teleport between swings. It is the only shipped task; its full recipe
+lives in `cfg/task/HOPEPingPong.yaml` — see
+[`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md). Checkpoints are written locally to
+`logs/rsl_rl/<experiment_name>/<timestamp>/`; resume with `checkpoint_path=<...>/model_<N>.pt`.
+Motion clips are selected through the local `motion_file=` / `motion_file_2=` overrides.
 
-## 6. Export the Deployable Policy
+## 6. Evaluate in Isaac
 
 ```bash
-isaac_py scripts/export_onnx.py --checkpoint logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
+hope_isaac_py scripts/evaluate.py \
+    --checkpoint logs/rsl_rl/<run>/model_<iter>.pt \
+    --motion-file ../motions/preprocessed/hope_forehand.npz \
+    --motion-file-2 ../motions/preprocessed/hope_backhand.npz
 ```
 
-Writes `hope_pingpong.onnx` (single output, `observation[1,111] -> raw_action[1,31]`, no
-observation normalization) and `policy_manifest.json` to `<run>/exported/`. Export hard-checks
-the articulation's joint order against the canonical deploy order
-(`hope_training/config/joint_order_agibot_a3.yaml`) and refuses to export on a mismatch, so a
-mis-prepared asset cannot silently produce a policy with scrambled action columns. See
+This rolls the policy out across many parallel environments and reports the in-Isaac
+`success_rate` estimate; the authoritative physical number comes from the MuJoCo sim-to-sim
+check below.
+
+## 7. Export the Deployable Policy
+
+```bash
+cd hope_training/whole_body_tracking
+hope_isaac_py scripts/export_onnx.py --checkpoint logs/rsl_rl/<run>/model_<iter>.pt
+```
+
+Writes the single-output actor ONNX (110-D observation in, 31-D raw action out, no observation
+normalization) and its deploy manifest to `<run>/exported/`. The exported metadata is what the
+downstream loaders validate — a mis-matched or mis-prepared export cannot silently run. See
 [`docs/POLICY_INTERFACE.md`](docs/POLICY_INTERFACE.md) for the full contract.
 
-## 7. Evaluate — `success_rate`
+## 8. Evaluate in MuJoCo — sim-to-sim
 
-`scripts/mujoco_eval_onnx.py` is the **authoritative** evaluator: it runs the exported ONNX
-against a real MuJoCo ball that physically bounces off the racket, table, and net. It needs
-only `mujoco`, `onnxruntime`, and `numpy` (no GPU, no Isaac):
+`scripts/mujoco_eval_onnx.py` runs the exported ONNX against a real MuJoCo ball that physically
+bounces off the racket, table, and net. It needs only `mujoco`, `onnxruntime`, and `numpy`
+(no GPU, no Isaac):
 
 ```bash
-python scripts/mujoco_eval_onnx.py --onnx logs/rsl_rl/hope_pingpong/<run>/exported/hope_pingpong.onnx
+python3 scripts/mujoco_eval_onnx.py --onnx logs/rsl_rl/<run>/exported/policy.onnx
 ```
 
-By default it evaluates a **continuous rally** (robot/policy state persist across serves and
-all four adjacent forehand/backhand transitions are exercised); pass `--eval-mode independent`
-for the isolated per-serve variant. A fast in-Isaac **estimate** (analytic no-spin ball model,
-no MuJoCo) is also available:
+Omit `--onnx` to evaluate the published `model_21800`. The committed
+[`Gate 3 MuJoCo video`](docs/assets/model_21800_gate3_mujoco.mp4) comes from the
+build_1 planner + policy-native runner closed loop, not this standalone evaluator.
+
+Isaac metrics (step 6), this MuJoCo sim-to-sim check, and the closed-loop planner rehearsal
+(step 9) together form the staged evaluation story — each layer is a gate before the next
+([`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md#evaluation)).
+
+## 9. Run the Full Loop (C++ Runner + Planner)
+
+Build the ROS 2 planner workspace, then rehearse the chain closed-loop with the Python
+reference harness in plain MuJoCo:
 
 ```bash
-isaac_py scripts/evaluate.py --checkpoint logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt --num-envs 256
-```
-
-Both print only `{"success_rate": <float>}` — trust the MuJoCo number.
-
-## 8. Run the Full Loop (Reference Runner + Planner)
-
-Copy the exported policy to the reference deploy runner and drive the MuJoCo simulation:
-
-```bash
-cp logs/rsl_rl/hope_pingpong/<run>/exported/hope_pingpong.onnx \
-   a3_deploy/a3_deploy_example/models/
-cd a3_deploy/a3_deploy_example
-bash scripts/run_pingpong_sim.sh --view --realtime
-```
-
-By default the runner uses a built-in demo command feed. To close the loop with the planner,
-build the ROS 2 workspace, launch the planner with a fake ball (mocap-free smoke test) or real
-mocap, then start the runner in `--planner` mode so it consumes the planner's
-`hope_msgs/RacketCommand` on `/racket/command`:
-
-```bash
-# Terminal 1: planner + ball source
 cd hope_ws && colcon build && source install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true
-# real mocap instead:
-#   cd VRPN2ROS2 && colcon build --symlink-install && source install/setup.bash
-#   ros2 launch vrpn_mocap client.launch.yaml server:=<host> port:=3883
-#   # In a second terminal, source both overlays and start HOPE:
-#   source VRPN2ROS2/install/setup.bash && source hope_ws/install/setup.bash
-#   ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=vrpn \
-#       ball_pose_topic:=/vrpn_mocap/Ball/pose_id_0
 
-# Terminal 2 (same ROS env sourced): the runner consuming /racket/command
-cd a3_deploy/a3_deploy_example/reference
-python -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
+# in another terminal (same ROS env sourced):
+cd a3_deploy/a3_deploy_example
+PYTHONPATH=reference python3 -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
 ```
 
-The runner selects forehand/backhand from `swing_side` and executes the
-`ready → swing → follow-through → recovery` lifecycle continuously, without resetting robot
-state between balls. See [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) for the deploy stack
-(including the real-robot integration seam) and
-[`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md) for the command contract.
+The rehearsal wires a fake ball into the **real** Python planner
+(`hope_ws/src/hope_planner`), which publishes `/racket/command_flat` and `/a3/base_pose_flat`;
+the runner consumes the flats in `--planner` mode — the same wire the native C++ runner
+(`a3_pingpong`, sources under `a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/`)
+subscribes on hardware. Building and driving the C++ runner is covered in
+[docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md).
+
+To drive the planner from real mocap instead of the fake ball, additionally build one mocap
+workspace (`NatNet2ROS2/` for OptiTrack, `VRPN2ROS2/` for VRPN — see
+[`docs/OPTITRACK.md`](docs/OPTITRACK.md) and [`hope_ws/README.md`](hope_ws/README.md)):
+
+```bash
+cd hope_ws && source install/setup.bash
+ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true   # mocap-free smoke test
+```
+
+The runner executes the `ready → swing → follow-through → recovery` lifecycle continuously,
+without resetting robot state between balls; forehand/backhand is inferred by the planner and
+carried on the wire (`swing_sign`) — the policy never observes it. See
+[`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) for the deploy stack (including the
+real-robot path) and [`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md) for the command
+contract.

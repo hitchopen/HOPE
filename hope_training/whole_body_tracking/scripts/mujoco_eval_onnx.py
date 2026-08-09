@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """MuJoCo sim-to-sim evaluation of the exported HOPE ONNX policy.
 
-This drives the exported ``hope_pingpong.onnx`` (single layout: observation[1, 111]
--> raw_action[1, 31], no observation normalization) through the SAME 111-D
-observation builder, ActionAdapter, swing lifecycle and RacketCommand that the
-clean-room reference deploy runner uses, so this is a faithful test of the deploy
-contract rather than a second, divergent implementation.
+This drives the exported ``policy.onnx`` (single layout: observation[1, 110]
+``hitter_pure`` -> raw_action[1, 31], no observation normalization) through the
+SAME 110-D observation builder, ActionAdapter, swing lifecycle and RacketCommand
+that the clean-room reference deploy runner uses, so this is a faithful test of
+the deploy contract rather than a second, divergent implementation.
 
 ``success_rate`` is measured from an ACTUAL simulated ball. A real ball (free joint,
 sphere) is served from the opponent side toward the robot; it flies under gravity +
@@ -142,9 +142,10 @@ def _predict_command(ball_pos, ball_vel, side, scene, physics, args, task_id, re
     Forward-integrates the true ball with the shared no-spin model (gravity +
     quadratic drag) until it crosses the fixed strike plane, producing the racket
     target position (where the ball will be), the time-to-strike, and a target racket
-    velocity aimed at the fixed opponent-half landing point. ``swing_side`` is the
-    side locked for this task. This mirrors the planner's job but reads the ball
-    directly (the evaluator is the ground truth, so no mocap emulation is needed).
+    velocity aimed at the fixed opponent-half landing point. ``swing_sign`` is the
+    side locked for this task (harness-internal target semantics only — the policy
+    never observes it). This mirrors the planner's job but reads the ball directly
+    (the evaluator is the ground truth, so no mocap emulation is needed).
     """
     strike_x = scene.near_edge_x + args.strike_plane_x
     p = np.asarray(ball_pos, dtype=np.float64).copy()
@@ -181,7 +182,7 @@ def _predict_command(ball_pos, ball_vel, side, scene, physics, args, task_id, re
     return RacketCommand(
         task_id=task_id,
         task_revision=revision,
-        swing_side=side,
+        swing_sign=side,
         position=target_pos,
         velocity=target_vel,
         time_to_strike=float(tts),
@@ -191,7 +192,7 @@ def _predict_command(ball_pos, ball_vel, side, scene, physics, args, task_id, re
 def run_eval(args) -> dict:
     repo_root = _repo_root()
 
-    # Make the reference deploy package importable (shared 111-D obs / ActionAdapter /
+    # Make the reference deploy package importable (shared 110-D obs / ActionAdapter /
     # lifecycle / RacketCommand / ONNX wrapper).
     ref_dir = pathlib.Path(args.reference_dir) if args.reference_dir else _reference_pkg_dir(repo_root)
     sys.path.insert(0, str(ref_dir))
@@ -250,7 +251,7 @@ def run_eval(args) -> dict:
     rng = np.random.default_rng(args.seed)
     continuous = args.eval_mode == "continuous"
 
-    def _policy_tick(lifecycle, source, last_action, fixed_station_xy):
+    def _policy_tick(lifecycle, source, last_action, base_target_xy):
         """One 50 Hz policy step (identical to the deploy runner's tick).
 
         Returns (events, applied_action) — the caller keeps ``applied_action`` as
@@ -258,8 +259,13 @@ def run_eval(args) -> dict:
         """
         state = scene.read_robot_state()
         target = lifecycle.update(source.poll(), state)
-        obs = build_observation(state, target, last_action, default_q, fixed_station_xy)
-        raw_action = policy.infer(obs)
+        obs = build_observation(state, target, last_action, default_q, base_target_xy)
+        raw_action = policy.infer_target(
+            obs,
+            target.time_to_strike,
+            lifecycle.swing_sign,
+            runtime_cfg.control_dt,
+        )
         # Applied action = raw with the passive head columns zeroed, matching both
         # the deploy runner and training's zeroed last_action feedback.
         applied_action = np.asarray(raw_action, dtype=np.float64).copy()
@@ -279,13 +285,14 @@ def run_eval(args) -> dict:
         )
 
     # Continuous mode: ONE initialization for the whole session — robot state,
-    # last_action, lifecycle and the fixed station all persist across serves
-    # (matching the deploy runner). Independent mode re-creates them per serve.
+    # last_action, lifecycle and the base target (the fixed station of this
+    # harness, captured at spawn) all persist across serves (matching the deploy
+    # runner). Independent mode re-creates them per serve.
     scene.reset_stand()
     lifecycle = SwingLifecycle(runtime_cfg.lifecycle)
     source = QueueRacketCommandSource()
     last_action = np.zeros(31, dtype=np.float64)
-    fixed_station_xy = scene.base_pos_w()[:2].copy()
+    base_target_xy = scene.base_pos_w()[:2].copy()
     max_rest_ticks = max(1, int(round(args.max_rest_seconds / dt)))
     transitions_seen: set = set()
     prev_side = None
@@ -306,14 +313,14 @@ def run_eval(args) -> dict:
             lifecycle = SwingLifecycle(runtime_cfg.lifecycle)
             source = QueueRacketCommandSource()
             last_action = np.zeros(31, dtype=np.float64)
-            fixed_station_xy = scene.base_pos_w()[:2].copy()
+            base_target_xy = scene.base_pos_w()[:2].copy()
         elif trial > 0:
             # Continuous rally: keep the policy running (no reset, no teleport)
             # through follow-through/recovery until it is ready for the next ball.
             _park_ball()
             for _ in range(max_rest_ticks):
                 _events, last_action = _policy_tick(
-                    lifecycle, source, last_action, fixed_station_xy
+                    lifecycle, source, last_action, base_target_xy
                 )
                 if lifecycle.phase.value == "ready":
                     break
@@ -334,7 +341,7 @@ def run_eval(args) -> dict:
             revision += 1
             source.submit(cmd)
 
-            events, last_action = _policy_tick(lifecycle, source, last_action, fixed_station_xy)
+            events, last_action = _policy_tick(lifecycle, source, last_action, base_target_xy)
 
             # --- contact: real MuJoCo ball<->racket contact, or the allowed proximity
             #     fallback (ball within contact_radius of the racket site with the
@@ -398,7 +405,7 @@ def run_eval(args) -> dict:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--onnx", default=None, help="Exported hope_pingpong.onnx (default: from runtime config).")
+    parser.add_argument("--onnx", default=None, help="Exported policy.onnx (default: from runtime config).")
     parser.add_argument("--model-xml", default=None, help="a3_pingpong MJCF (default: from runtime config).")
     parser.add_argument("--runtime-config", default=None, help="hope_pingpong_runtime.yaml (default: shipped).")
     parser.add_argument("--reference-dir", default=None, help="Dir containing the reference deploy package.")

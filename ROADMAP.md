@@ -1,55 +1,66 @@
 # Roadmap
 
-Scope and direction for HOPE. For what the focused rewrite removed and
-why, see [`docs/REMOVED_FROM_STARTER.md`](docs/REMOVED_FROM_STARTER.md).
+Scope and direction for HOPE. For the ledger of what was dropped, restored,
+and deliberately withheld, see
+[`docs/REMOVED_FROM_STARTER.md`](docs/REMOVED_FROM_STARTER.md).
 
 ## Shipped
 
-- One unified forehand/backhand policy for the Agibot A3 (31 actuated DOF),
-  with automatic per-ball side selection and continuous multi-rally play.
-- A fixed station and base heading; legs used only for in-place balance and
-  recovery.
-- A single no-spin ball model fitted from real data
-  ([`configs/ball_physics.yaml`](configs/ball_physics.yaml)), shared by
-  training, planner, and eval.
-- Isaac Lab + PPO training, actor-only ONNX export, and one public metric,
-  `success_rate`.
-- Two deploy paths: the clean-room reference runner in
-  [`a3_deploy/`](a3_deploy) and Agibot's own example under
-  [`agibot/code_deployment/`](agibot/code_deployment).
+- The **hardware-exercised 110-D rally line**: one unified forehand/backhand
+  `hitter_pure` policy for the Agibot A3 (31 actuated DOF), automatic per-ball
+  side selection in the planner, continuous multi-rally play, and the
+  `HitterPingPong` task — the recipe validated on real A3 hardware
+  (`docs/TRAIN_POLICY.md`).
+- A station-anchored base (x-locked hit plane, in-place recentring/footwork
+  toward a commanded station); no free locomotion or gait planning.
+- A no-spin ball model **fitted from real venue data**
+  ([`configs/ball_physics.yaml`](configs/ball_physics.yaml),
+  [`configs/ball_physics_venue.yaml`](configs/ball_physics_venue.yaml),
+  [`configs/incoming_ball_venue.yaml`](configs/incoming_ball_venue.yaml)),
+  shared by training, planner, and eval, plus the fitting pipeline
+  (`hope_training/ball_physics_fit/`).
+- Isaac Lab + PPO training with named actor-observation contracts, actor-only
+  ONNX export with fail-closed deploy metadata, and the layered evaluation
+  story: Isaac evaluation, MuJoCo sim-to-sim, and closed-loop rehearsal
+  ([`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md#evaluation)).
+- **Dual planners** publishing one wire contract: Python
+  [`hope_planner`](hope_ws/src/hope_planner) (reference + presets +
+  `planner_imitate`) and C++
+  [`hope_planner_cpp`](hope_ws/src/hope_planner_cpp) (hardware line).
+- The **native C++ deploy runner** `a3_pingpong` under
+  [`a3_deploy/`](a3_deploy) — CMake build with rockchip/thor cross-build
+  images, `--planner` flat-topic mode, iceoryx body-drive — alongside the
+  Python reference harness for MuJoCo rehearsal, plus Agibot's own example
+  under [`agibot/code_deployment/`](agibot/code_deployment).
 - Independent raw-mocap workspaces ([`NatNet2ROS2/`](NatNet2ROS2) and
-  [`VRPN2ROS2/`](VRPN2ROS2)) plus a ROS 2 planner/relay workspace
-  ([`hope_ws/`](hope_ws)), wired end to end into the reference runner via
-  `--planner`.
+  [`VRPN2ROS2/`](VRPN2ROS2)), and the ROS 2 planner/relay workspace
+  ([`hope_ws/`](hope_ws)) with the `table_p1_to_p2_v1` world-frame contract and
+  fail-closed calibration receipts.
 
 ## Out of scope, by design
 
-Station movement, footstep planning, locomotion, ball spin, motion
-retiming/TOPP, opponent adaptation, and shot strategy. Also excluded: internal
-shadow/gate/debug/replay machinery, failure checks, and checkpoint promotion.
-The shipped motions, rewards, action adapter, side selector, and physics
-constants are documented examples meant to be replaced — see
+Free locomotion and gait planning (the base is station-anchored), motion
+retiming/TOPP, opponent adaptation, and shot strategy. Spin-aware **planning**
+is out of scope: the C++ planner carries only a diagnostics-only spin *shadow*
+estimator, and the published command stays no-spin. The shipped placeholder
+motions, reward recipes, and physics constants are documented and meant to be
+replaced or re-fitted — see
 [`docs/EXTENDING_HOPE_PINGPONG.md`](docs/EXTENDING_HOPE_PINGPONG.md).
 
-## Next
+## Not shipped / next
 
-- **A motion converter.** [`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md)
-  asks teams to bring their own retargeted clips, but no retargeted-CSV → `.npz`
-  tool ships today. This is the clearest gap; revival steps are recorded in
-  [`docs/REMOVED_FROM_STARTER.md`](docs/REMOVED_FROM_STARTER.md).
-- **Performance-tuned reference motions.** The two clips under
-  `hope_training/motions/preprocessed/` are physically-neutral placeholders.
-- **Validated reward defaults and training recipes**, so `success_rate` is
-  reproducible from a clean clone.
-- **Ball and table physics in the reference runner's MuJoCo scene.** The MJCF
-  bundled with the deploy runner is robot-only, so that interactive sim path
-  validates policy execution and joint control but not rally outcomes. The
-  authoritative `success_rate` already comes from
-  `hope_training/whole_body_tracking/scripts/mujoco_eval_onnx.py`, which builds
-  a full MuJoCo ball + table + net scene around the same robot model
-  (`scripts/evaluate.py` is only a fast in-Isaac analytic estimate); this
-  roadmap item is about folding that rally physics into the interactive runner
-  scene too.
-- **A real-robot deployment checklist** with reproduced dry-run, joint-order,
-  command-scale, low-gain, e-stop, and safe-halt verification.
+- **Real motion clips.** The proven line trained on the *v12fix*-generation
+  forehand/backhand clips, which are not shipped; the committed clips are
+  schema-valid placeholders. Bring your own via
+  [`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md) (converters and
+  validators are included).
+- **Trained checkpoints / ONNX weights.** The exporters, parity checks, and
+  fail-closed loaders ship; the weights do not. Reproducing a deploy-grade
+  policy from a clean clone requires your GPU time and your clips.
+- **Spin-aware planning** beyond the shadow estimator — promoting spin from a
+  diagnostics channel into the published racket command.
+- **Non-A3 robots.** The G1/SMPL scaffolding exists again in the tracking
+  stack, but their assets are not distributed and the contracts are sized to
+  the A3's 31 DOF; a second robot means revisiting the observation/action
+  contracts and deploy metadata.
 - **CI** for the non-Isaac checks, and optional GPU smoke jobs.

@@ -59,6 +59,13 @@ aimrt:
                 depth: 10
                 reliability: reliable
                 durability: volatile
+            - topic_name: "/sim/gate3/ball_state"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
             - topic_name: "/tf"
               use_serialized: false
               qos:
@@ -74,11 +81,20 @@ aimrt:
                 depth: 10
                 reliability: reliable
                 durability: volatile
+            - topic_name: "/sim/gate3/ball_command"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
 
     pub_topics_options:
       - topic_name: "/body_drive/(.*)"
         enable_backends: [iceoryx]
       - topic_name: "/sim/a3/(.*)"
+        enable_backends: [ros2]
+      - topic_name: "/sim/gate3/(.*)"
         enable_backends: [ros2]
       - topic_name: "/tf"
         enable_backends: [ros2]
@@ -89,6 +105,8 @@ aimrt:
       - topic_name: "/body_drive/(.*)"
         enable_backends: [iceoryx]
       - topic_name: "/sim/a3/reset"
+        enable_backends: [ros2]
+      - topic_name: "/sim/gate3/ball_command"
         enable_backends: [ros2]
       - topic_name: "(.*)"
         enable_backends: [iceoryx]
@@ -165,6 +183,9 @@ MujocoSimModule:
     - topic: /sim/a3/reset
       type: sim_reset_ros2
       options: {}
+    - topic: /sim/gate3/ball_command
+      type: gate3_ball_command_ros2
+      options: {}
 
   publisher_options:
     - topic: /body_drive/waist_joint_state
@@ -233,6 +254,14 @@ MujocoSimModule:
         frame_id: odom
         bind_framepos: right_racket_framepos
         bind_framequat: right_racket_framequat
+    - topic: /sim/gate3/ball_state
+      # AimRT's millisecond scheduler requires an integer-compatible period.
+      # 250 Hz preserves brief-contact evidence through the latched edge
+      # counters in Gate3BallState and avoids the unsupported 1000/300 period.
+      frequency: 250
+      executor: work_thread_pool
+      type: gate3_ball_state_ros2
+      options: {}
     - topic: /tf
       frequency: 100
       executor: work_thread_pool

@@ -1,0 +1,3 @@
+# Venue Laptop: use the robot HDU as the preferred NTP source so Motive
+# exposure timestamps and HDU Planner deadlines share the same Unix epoch.
+server PLACEHOLDER_HDU_WIFI_IP iburst prefer minpoll 2 maxpoll 4

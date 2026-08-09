@@ -1,0 +1,85 @@
+# =============================================================================
+# HOPE incoming-ball distribution — VENUE FIT 2026-07-04
+#
+# Fitted from the 2026-07-03 venue mocap dataset (same capture as
+# ball_physics_venue.yaml): per-strike incoming ball state at racket contact +
+# trajectory-level launcher anchors. Script + full numbers: pod
+# /workspace/franco/research/incoming_dist/{incoming_dist.py,incoming_dist.json,SUMMARY.md}.
+# Frame: canonical table frame, RECEIVER AT THE -X END (left-right mirrored to
+# pool both players); velocities in m/s, spin rad/s, heights above table surface.
+#
+# HEADLINE (2026-07-04): the hand-set virtual-ball sampler boxes
+# (vb_vel_x_range=(-4.5,-2.0) etc.) cover only 20% of measured incoming balls —
+# they train a fast-flat world; real venue balls are slower and drop steeper.
+# Spin is NOT topspin-dominated: energy split top/side/rifle = 0.38/0.32/0.30.
+#
+# CAVEATS: no serves; two amateur players, one venue, one session; rally pace
+# (|v| median 1.9 m/s at racket) is below match pace; spin-stroke takes n=7 so
+# strong-spin rallies are under-represented; strike detection biases toward
+# clean slow exchanges. Treat as the CURRENT-OPPONENT distribution, not an
+# upper bound for match play.
+# =============================================================================
+
+# Pooled realistic play (rally+lob+spin+tantiao, juggling excluded), n_v=82.
+at_strike:
+  vel_mean: [-1.567, -0.099, -0.702]
+  vel_std: [0.94, 0.29, 0.90]
+  vel_q10_q90:
+    x: [-2.84, -0.33]
+    y: [-0.46, 0.29]
+    z: [-1.93, 0.42]
+  speed_median: 1.90
+  contact_pos_mean: [-1.20, -0.07, 0.347]   # z above table surface
+  contact_pos_q10_q90:
+    x: [-1.50, -0.92]
+    y: [-0.35, 0.18]
+    z: [0.22, 0.50]
+  spin_mag_mean: 18.2         # rad/s
+  spin_mag_q10_q90: [5.0, 32.2]
+  spin_energy_split: {top: 0.38, side: 0.32, rifle: 0.30}
+  # Correlations that independent per-component sampling would violate:
+  # corr(vx,vz)=-0.44 (faster balls arrive dropping steeper), corr(vx,|w|)=-0.36,
+  # corr(vz,z_contact)=+0.30, corr(z_contact,|w|)=-0.26.
+  mvn:   # truncated multivariate normal over (vx, vy, vz, z_contact, |w|)
+    mean: [-1.567, -0.099, -0.702, 0.347, 18.17]
+    # full covariance + clip envelope in the pod JSON (incoming_dist.json);
+    # mirror here once a consumer loads it from yaml.
+
+# SAMPLING PRINCIPLE (franco 2026-07-04): the recording's class frequencies reflect
+# DATA-COLLECTION intent (deliberate lob/juggle-heavy takes), NOT match play. So:
+# - TRAINING uses the REBALANCED spec below (richness first: per-class q10-q90
+#   ENVELOPE over rally/lob/spin/other, juggling excluded) — every class's core is
+#   covered instead of the pooled mixture's core, and spin strokes are not drowned
+#   out by their small sample count.
+# - EVALUATION (realism mode) uses the pooled boxes/MVN — "can it handle what the
+#   venue actually throws".
+
+# TRAINING spec — rebalanced per-class envelope (use for vb sampler overrides):
+vb_boxes_training_rebalanced:
+  vb_vel_x_range: [-3.29, -0.10]   # rally fast end .. other slow end
+  vb_vel_y_range: [-0.58, 0.41]
+  vb_vel_z_range: [-2.30, 0.49]    # lob steep drop .. lob rising edge
+  vb_spin_abs_max: 50.0            # NOT the spin-class q90 (65.2): that comes from n=5 gated
+                                   # strikes (statistically fragile) AND per-component sampling
+                                   # corners at cap*sqrt(3) — 65.2 -> 113 rad/s = 18 rev/s, OUTSIDE
+                                   # the contact-model validity envelope (0-15 rev/s). 50 keeps the
+                                   # corner at 13.8 rev/s (inside) and ~= rally-class q90 (45.6).
+                                   # (franco 2026-07-04: recording max 87 rad/s was deliberate feeds)
+  # per-class cores, for curriculum or class-conditional sampling:
+  #   rally: vx[-3.29,-1.43] vz[-1.25,0.35] |w|q90=45.6
+  #   lob:   vx[-1.71,-0.69] vz[-2.30,0.49] |w|q90=24.3
+  #   spin:  vx[-2.81,-0.73] vz[-0.82,0.19] |w|q90=65.2
+  #   other: vx[-1.23,-0.10] vz[-1.74,0.02] |w|q90=20.2
+
+# EVAL spec — pooled empirical (matchlike = tantiao excluded):
+vb_boxes_matchlike:
+  vb_vel_x_range: [-2.85, -0.82]
+  vb_vel_y_range: [-0.46, 0.31]
+  vb_vel_z_range: [-2.02, 0.49]
+  vb_spin_abs_max: 34.0
+
+# Launcher anchors (spawn a sim ball as the opponent hits / at net crossing):
+launcher:
+  opponent_contact: {pos: [1.16, 0.10, 0.37], vel_mean: [-3.54, -0.12, 2.28], vel_std_x: 1.06, speed: 4.34, spin_mag: 18.8}
+  net_crossing: {y_mean: 0.01, y_std: 0.16, z_mean: 0.48, z_std: 0.18, speed_mean: 3.40, speed_std: 0.79}
+  our_side_bounce: {x_mean: -0.67, x_std: 0.25, y_mean: -0.01, y_std: 0.21, vz_out_mean: 2.81, apex_mean: 0.44, bounce_to_strike_s_median: 0.33}

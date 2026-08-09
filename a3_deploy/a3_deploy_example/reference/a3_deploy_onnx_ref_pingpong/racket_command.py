@@ -2,21 +2,31 @@
 # SPDX-License-Identifier: Apache-2.0
 """RacketCommand: the strike goal the planner streams to the runner.
 
-Mirrors the public ``RacketCommand.msg`` (one field group, nothing else):
+This is the runner's INTERNAL command record. On the wire the live planner
+publishes the same semantics as a ``std_msgs/Float64MultiArray`` on
+``/racket/command_flat`` (see :mod:`.ros_command_source` for the schema-1/2
+field layout); ``parse_flat_racket_command`` builds this dataclass from it.
 
-    uint64 task_id
-    uint32 task_revision
-    int8   swing_side        # FOREHAND = +1, BACKHAND = -1
-    Point  position          # target racket position, world frame, m
-    Vector3 velocity         # target racket velocity, world frame, m/s
-    float64 time_to_strike   # seconds
+Fields:
+
+    task_id         runner-side ball identity (schema-2 ``flight_id`` on the wire;
+                    synthesized for schema-1 streams, which carry no identity)
+    task_revision   refinement counter under the same ``task_id`` (schema-2
+                    ``revision_id``)
+    swing_sign      +1 forehand / -1 backhand (wire ``swing_sign``). The side never
+                    enters the 110-D observation — the policy does not observe it;
+                    the harness only uses it for target semantics (ready-reach side,
+                    serve direction, status prints).
+    position        target racket position, world frame, m
+    velocity        target racket velocity, world frame, m/s
+    time_to_strike  seconds until contact
 
 Each incoming ball gets a new ``task_id``. Pre-strike trajectory refinements
-arrive as an increasing ``task_revision`` under the same ``task_id``. ``swing_side``
-is chosen once per ``task_id`` and is locked for that task.
+arrive as an increasing ``task_revision`` under the same ``task_id``; the sign is
+chosen once per ``task_id`` and is locked for that task.
 
 A ``RacketCommandSource`` is the seam between the runner and whatever produces the
-command. In a real deployment that is a ROS2 subscriber writing into
+command. In a real deployment that is a ROS 2 subscriber writing into
 ``QueueRacketCommandSource``. ``ExampleCommandFeed`` is a self-contained stand-in
 so the runner is runnable against the sim WITHOUT a live planner; it is a
 demonstration feed only, NOT part of the deploy contract and NOT a scripted swing
@@ -39,7 +49,7 @@ BACKHAND: int = -1
 class RacketCommand:
     task_id: int
     task_revision: int
-    swing_side: int                       # +1 forehand / -1 backhand
+    swing_sign: int                        # +1 forehand / -1 backhand
     position: np.ndarray                   # (3,) world m
     velocity: np.ndarray                   # (3,) world m/s
     time_to_strike: float                  # s
@@ -47,7 +57,7 @@ class RacketCommand:
     def __post_init__(self) -> None:
         self.position = np.asarray(self.position, dtype=np.float64).reshape(3)
         self.velocity = np.asarray(self.velocity, dtype=np.float64).reshape(3)
-        self.swing_side = FOREHAND if self.swing_side >= 0 else BACKHAND
+        self.swing_sign = FOREHAND if self.swing_sign >= 0 else BACKHAND
 
 
 class RacketCommandSource(ABC):
@@ -61,8 +71,8 @@ class RacketCommandSource(ABC):
 class QueueRacketCommandSource(RacketCommandSource):
     """Thread-safe latest-value mailbox.
 
-    Integration seam for a live planner: a ROS2 (or other) subscriber thread calls
-    ``submit(...)`` on each ``RacketCommand.msg``; the 50 Hz runner thread calls
+    Integration seam for a live planner: a ROS 2 (or other) subscriber thread calls
+    ``submit(...)`` on each decoded flat command; the 50 Hz runner thread calls
     ``poll()``. Only the newest command is retained.
     """
 
@@ -95,7 +105,7 @@ class ExampleCommandFeed(RacketCommandSource):
     ``time_to_strike`` across the approach window, imitating how a real planner
     refines the intercept before contact. The targets are fixed example reach
     points in front of the robot; a real deployment replaces this entirely with the
-    planner's ``RacketCommand`` stream.
+    planner's ``/racket/command_flat`` stream.
     """
 
     dt: float = 0.02
@@ -137,7 +147,7 @@ class ExampleCommandFeed(RacketCommandSource):
         self._latest = RacketCommand(
             task_id=self._task_id,
             task_revision=self._revision,
-            swing_side=self._side,
+            swing_sign=self._side,
             position=self._pos,
             velocity=self._vel,
             time_to_strike=tts,

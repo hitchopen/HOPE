@@ -1,95 +1,114 @@
 # Planner interface
 
 The planner turns a stream of motion-capture ball positions into a per-strike racket target
-for the policy. It is a no-spin, continuous, fixed-station planner: it predicts where the
-incoming ball crosses a fixed strike plane, chooses forehand or backhand, and publishes a
-racket target position, velocity, time-to-strike, and swing side.
+for the policy. It is a no-spin, continuous planner: it predicts where the incoming ball
+crosses a virtual hit plane, chooses forehand or backhand, and publishes a racket target
+position, velocity, face normal, and strike timing.
+
+Two interchangeable implementations ship, publishing the same wire contract:
+
+| Package | Role |
+|---------|------|
+| `hope_ws/src/hope_planner` (Python) | Reference implementation, richest test suite, bring-up tooling (`planner_imitate` fake-planner mode included). |
+| `hope_ws/src/hope_planner_cpp` (C++) | Low-latency hardware line used on the head unit; adds an audit logger, batch physics estimator, and `/planner/diagnostics`. |
 
 ## Data flow
 
 ```
-mocap ball positions (/poses)
-  -> position/velocity estimate
-  -> no-spin trajectory prediction
-  -> fixed strike plane
-  -> forehand/backhand split
-  -> fixed opponent-half landing target
-  -> RacketCommand (position, velocity, time_to_strike, swing_side)
+mocap ball positions (/poses, ball at index 0)
+  -> position/velocity estimate (polyfit window)
+  -> no-spin trajectory prediction (gravity + drag + table bounce)
+  -> virtual hit plane crossing (fixed x_hit by default)
+  -> forehand/backhand selection
+  -> outgoing-shot solve (landing target on the opponent half)
+  -> RacketCommand + /racket/command_flat (+ diagnostics)
 ```
 
-- Every incoming mocap sample feeds the estimator; the (more expensive) trajectory solve runs
-  at **at most 50 Hz**.
-- The first timestamped sample seeds position; a second sample at a different timestamp
-  enables the velocity estimate; after that the planner publishes directly.
-- The ball model is no-spin: state is `[x, y, z, vx, vy, vz]` with gravity, measured drag, and
-  measured table/paddle restitution from `configs/ball_physics.yaml`. There is no spin
-  estimation, no Magnus force, and no per-side adaptive strike plane.
-
-## Continuous rallies
-
-Each incoming ball opens a new **task**:
-
-- `task_id` — a new unique id per incoming ball.
-- `task_revision` — increments monotonically as the pre-strike trajectory estimate is refined
-  for the *same* ball.
-- `swing_side` — chosen once when the task opens and held constant for that task.
-
-After a strike the planner opens the next task for the next ball. The robot is never reset
-between tasks. All four adjacent side transitions (FH→FH, FH→BH, BH→FH, BH→BH) occur naturally
-across a rally.
+- Every incoming mocap sample feeds the estimator; the trajectory solve runs at bounded
+  rate. Commands for the same incoming ball are revised as the estimate sharpens and
+  **freeze at engage** (the runner stops accepting revisions once the swing starts —
+  contract `schema2_three_stable_revisions_freeze_at_engage_v1`).
+- The ball model is no-spin: `[x, y, z, vx, vy, vz]` with gravity, measured drag, and
+  measured table/paddle restitution. The shipped parameters are a real venue fit
+  (`drag_k = 0.1261`, see `configs/ball_physics_venue.yaml` and the fitting tools under
+  `hope_training/ball_physics_fit/`); planner, fake-ball publisher, and evaluator must use
+  matching values or every command arrives invalid/late.
+- An optional **spin shadow** estimator exists in the C++ planner
+  (`spin_shadow_enabled`, default **false**; modes include `venue_grip_magnus`). It is an
+  observability/diagnostics channel fed by `/ball/pose` rigid-body orientation — the
+  published command remains the no-spin solution.
+- The virtual hit plane is **fixed** by default (`x_hit_follow_robot: false`) — the
+  x-locked HITTER convention: the robot walks to a commanded station behind a fixed plane.
+  Per-side plane offsets are supported for backhand reach.
 
 ## Forehand / backhand selection
 
-The planner predicts the ball's lateral (`y`) position where it crosses the fixed strike
-plane and compares it to `swing_side_split_y` (with optional small hysteresis):
+The planner predicts the ball's lateral (`y`) position where it crosses the hit plane and
+compares it to the configured split (with hysteresis so alternating rallies don't flap).
+A ball toward the paddle side (`-y`) is taken forehand (`swing_sign = +1`); the other side
+backhand (`-1`). The side is chosen per incoming ball, carried on the wire as
+`swing_sign`, consumed by the runner's engage machine — and **never observed by the
+policy** (see [POLICY_INTERFACE.md](POLICY_INTERFACE.md)).
 
-```
-crossing_y <  swing_side_split_y  -> FOREHAND (+1)
-crossing_y >= swing_side_split_y  -> BACKHAND (-1)
-```
+## Wire contract
 
-A ball arriving **below** the split (toward the paddle side, `-y`) is taken forehand; a ball
-at or above the split is taken backhand. Boundary cases, with `split = swing_side_split_y`
-and hysteresis `h` (`prev` = the previous task's side):
+### `hope_msgs/RacketCommand` (default `/racket/command`)
 
-| `crossing_y`            | `prev`     | selected side |
-|-------------------------|------------|---------------|
-| `< split`               | none       | FOREHAND      |
-| `= split` or `> split`  | none       | BACKHAND      |
-| `<= split + h`          | FOREHAND   | FOREHAND (sticky) |
-| `> split + h`           | FOREHAND   | BACKHAND      |
-| `>= split - h`          | BACKHAND   | BACKHAND (sticky) |
-| `< split - h`           | BACKHAND   | FOREHAND      |
-
-This convention is implemented in `hope_planner/side_selection.py` and pinned by
-`hope_planner/test/test_side_selection.py`. There is no higher-level shot selection, side
-optimization, or opponent adaptation. `swing_side` is a formal field of the message — it is
-no longer inferred downstream from the target's Y sign.
-
-## `RacketCommand.msg`
-
-Published on the racket-command topic (default `/racket/command`), consumed by the runner:
+The rich ROS message, used by tooling, gates, and the MuJoCo closed loop:
 
 ```
 std_msgs/Header header
-uint64 task_id
-uint32 task_revision
-int8 FOREHAND=1
-int8 BACKHAND=-1
-int8 swing_side
-geometry_msgs/Point position          # target racket position, world frame, m
-geometry_msgs/Vector3 velocity        # target racket velocity, world frame, m/s
-float64 time_to_strike                # seconds until the strike
+geometry_msgs/Point position               # target racket position, world frame, m
+geometry_msgs/Vector3 velocity             # target racket velocity, world frame, m/s
+geometry_msgs/Vector3 normal               # desired racket face normal at contact
+float64 strike_time                        # absolute strike wall time, s
+float64 time_to_strike                     # seconds until the strike
+geometry_msgs/Vector3 ball_velocity_outgoing  # predicted outgoing ball velocity
+bool valid                                 # command is currently actionable
+bool clears_net                            # predicted outgoing shot clears the net
+bool bypasses_net_posts                    # predicted shot passes outside the net posts
+int32 predicted_bounces                    # incoming-trajectory bounce count
 ```
 
-The message carries only what the policy needs. There is intentionally no `valid`/`reason`/
-failure flag, no outgoing-ball prediction, no net/bounce prediction, no confidence, and no
-diagnostics. The planner does not maintain a readiness or failure state — if the incoming
-data is insufficient it simply has not published yet.
+### Flat topics (`std_msgs/Float64MultiArray`) — the hardware wire
+
+The C++ runner on the robot's motion unit deliberately subscribes **core `std_msgs`
+flats** instead of `hope_msgs` (no custom rosidl typesupport needed in the aarch64
+cross-build). Layouts are pinned in
+`a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include/a3_pingpong/pp_planner_input.hpp`;
+element `[0]` is always a schema tag:
+
+- **`/racket/command_flat`** — schema 2 (19 doubles):
+  `[0]=2, [1]=valid, [2]=swing_sign, [3..5]=pos, [6..8]=vel, [9]=time_to_strike,
+  [10]=absolute strike wall time, [11]=frame_code, [12..13]=producer stamp,
+  [14]=command_seq, [15]=flight_id, [16]=revision_id, [17]=estimator sample count,
+  [18]=estimator span`. (Schema 1, ≥11 doubles, remains accepted for legacy tooling.)
+- **`/a3/base_pose_flat`** — schema 2 (16 doubles, authoritative for the deploy line):
+  `[0]=2, [1]=valid, [2]=sequence, [3..4]=source stamp, [5..7]=base position,
+  [8..11]=base quaternion wxyz, [12]=tracking quality, [13]=flags,
+  [14..15]=calibration receipt ids`. Published by the process-isolated
+  `hope_base_pose_flat_relay` from mocap `/P1/pose`; flags carry
+  tracking/quaternion/extrinsic/world-calibration validity bits.
+- **`/serve/ball_state_flat`** — pre-serve ball state (≥11 doubles) for the runner's
+  scripted-serve mode.
+
+Freshness is enforced with local monotonic receipt age; the schema-2 absolute strike
+deadline is converted once into the receiver's monotonic domain so wall-clock corrections
+never move a deadline.
+
+## Continuous rallies
+
+Each incoming ball is a new **flight** (`flight_id`); pre-strike refinements increment
+`revision_id` for the same flight. After a strike the planner moves to the next flight;
+the robot is never reset between flights, and all four side transitions (FH→FH, FH→BH,
+BH→FH, BH→BH) occur naturally across a rally.
 
 ## Configuration
 
-`hope_ws/src/hope_planner/config/hope_planner.yaml` holds the public parameters: the fixed
-strike-plane position, `swing_side_split_y` (and hysteresis), the fixed opponent-half landing
-target, the prediction horizon, and the solve rate. Ball physics is read from the shared
-`configs/ball_physics.yaml`.
+`hope_ws/src/hope_planner/config/hope_planner.yaml` is the annotated base config: virtual
+hit plane (`x_hit`, fixed-plane mode), side split and hysteresis, landing target, solve
+rate, and the venue-fit ball physics. Preset overlays ship next to it
+(`hope_planner.hitter_pure.yaml`, `hope_planner.rally_v17_r10.yaml`,
+`hope_planner.sim.yaml` for the MuJoCo closed loop, `planner_imitate.yaml` for the
+mocap-less fake planner). The C++ planner's hardware preset is
+`hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml`.

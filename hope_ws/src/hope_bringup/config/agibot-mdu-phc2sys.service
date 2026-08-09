@@ -1,0 +1,17 @@
+[Unit]
+Description=Discipline MDU system clock from the eth_mdu PHC
+Documentation=man:phc2sys(8)
+Requires=agibot-mdu-ptp4l.service
+After=agibot-mdu-ptp4l.service
+Before=agibot_pm.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=LC_ALL=C
+ExecStart=/usr/sbin/phc2sys -s eth_mdu -c CLOCK_REALTIME -w -O 0 -S 0.001 -m
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,57 +1,119 @@
 # Copyright (c) 2026 Intelligent Racing Inc. (dba Hitch Interactive)
 # SPDX-License-Identifier: Apache-2.0
-"""ROS 2 planner bridge: ``hope_msgs/RacketCommand`` -> :class:`RacketCommandSource`.
+"""ROS 2 planner bridge: ``/racket/command_flat`` -> :class:`RacketCommandSource`.
 
-This is the documented planner-to-runner control path. :class:`RosRacketCommandSource`
-subscribes to the planner's command topic (default ``/racket/command``), converts each
-``hope_msgs/RacketCommand`` message into the runner's :class:`RacketCommand` dataclass,
-and hands it to the 50 Hz control loop through the same thread-safe latest-value mailbox
-the other sources use. Select it with ``python -m a3_deploy_onnx_ref_pingpong --planner``.
+This is the documented planner-to-runner control path. The live planner publishes
+its racket command as a ``std_msgs/Float64MultiArray`` on ``/racket/command_flat``
+(reliable QoS). Using the core ``std_msgs`` type instead of a custom message means
+this bridge needs NO ``hope_msgs`` build and no rosidl typesupport overlay — a
+sourced ROS 2 environment with ``rclpy`` is the only requirement (and only when the
+bridge is actually constructed; the module itself imports without ROS).
 
-Requirements (only when the bridge is actually constructed — the module itself imports
-without ROS):
+Flat wire layouts (element [0] is a schema tag; both schemas share the same head):
 
-  * a sourced ROS 2 environment with ``rclpy``;
-  * the built ``hope_msgs`` package on the overlay, e.g.::
+    schema 1 (>= 11 doubles, legacy):
+      [0]=schema(1)  [1]=valid(0/1)  [2]=swing_sign(+1 forehand / -1 backhand)
+      [3..5]=pos_w(x,y,z)  [6..8]=vel_w(x,y,z)
+      [9]=time_to_strike(s)  [10]=strike_time(s, informational)
+      trailing elements (e.g. [11]=frame_code) are ignored here.
 
-        cd hope_ws && colcon build --packages-up-to hope_msgs
-        source install/setup.bash
+    schema 2 (19 doubles, revisioned):
+      same head as schema 1, plus
+      [11]=frame_code  [12]=producer_sec  [13]=producer_nsec  [14]=command_seq
+      [15]=flight_id  [16]=revision_id  [17]=estimator_sample_count
+      [18]=estimator_span_s
+      Only [15]/[16] are consumed (ball identity / pre-strike refinement); the
+      other extras are transport/audit fields this reference deliberately ignores.
 
-``racket_command_from_msg`` is a pure conversion function (duck-typed, no ROS imports)
-so the field mapping is unit-testable without a ROS installation.
+``parse_flat_racket_command`` is the pure conversion function (list of floats ->
+:class:`RacketCommand` or ``None``), unit-testable without a ROS installation.
+Packets with ``valid == 0``, an unknown schema tag, a short array, or non-finite
+required fields return ``None`` (skipped — the mailbox keeps the previous command).
+
+Ball identity: schema 2 carries it explicitly (``flight_id``/``revision_id`` map
+onto the runner's ``task_id``/``task_revision``). Schema 1 carries none, so
+:class:`RosRacketCommandSource` synthesizes it with the same rule the producers
+use: a valid command more than ``SCHEMA1_NEW_FLIGHT_GAP_S`` after the previous
+valid one opens a new task, otherwise it is a revision of the active task.
 """
 
 from __future__ import annotations
 
+import math
 import threading
+import time
+from typing import Sequence
 
 from .racket_command import QueueRacketCommandSource, RacketCommand, RacketCommandSource
 
-DEFAULT_COMMAND_TOPIC = "/racket/command"
+DEFAULT_COMMAND_TOPIC = "/racket/command_flat"
+
+# Minimum silence between valid schema-1 commands that opens a new ball (task_id).
+# Mirrors the 250 ms flight rule of both shipped planner publishers.
+SCHEMA1_NEW_FLIGHT_GAP_S: float = 0.25
+
+_SCHEMA1_MIN_LEN = 11
+_SCHEMA2_LEN = 19
 
 
-def racket_command_from_msg(msg) -> RacketCommand:
-    """Convert a ``hope_msgs/RacketCommand`` message into the runner dataclass.
+def _finite(values: Sequence[float]) -> bool:
+    return all(math.isfinite(float(v)) for v in values)
 
-    Duck-typed on the message fields so it works with the real ROS message class or
-    any stand-in exposing the same attributes.
+
+def parse_flat_racket_command(values: Sequence[float]) -> RacketCommand | None:
+    """Decode one ``/racket/command_flat`` array into a :class:`RacketCommand`.
+
+    Pure function (no ROS imports, no state): accepts schema 1 (>= 11 doubles) or
+    schema 2 (19 doubles), ignores the extra transport/audit fields, and returns
+    ``None`` for anything that must be skipped (``valid == 0``, short array,
+    unknown schema tag, non-finite required fields).
+
+    Schema-1 arrays carry no ball identity, so the returned command has
+    ``task_id == 0`` / ``task_revision == 0``; the stateful subscriber assigns the
+    synthesized identity (see :class:`RosRacketCommandSource`).
     """
+    a = [float(v) for v in values]
+    if len(a) < 2 or not _finite(a[:2]):
+        return None
+    schema = a[0]
+    if schema == 1.0:
+        if len(a) < _SCHEMA1_MIN_LEN:
+            return None
+        head = a[1:_SCHEMA1_MIN_LEN]
+        task_id = 0
+        task_revision = 0
+    elif schema == 2.0:
+        if len(a) < _SCHEMA2_LEN:
+            return None
+        head = a[1:_SCHEMA1_MIN_LEN]
+        if not _finite(a[_SCHEMA1_MIN_LEN:_SCHEMA2_LEN]):
+            return None
+        task_id = int(a[15])        # flight_id
+        task_revision = int(a[16])  # revision_id
+    else:
+        return None
+
+    if not _finite(head):
+        return None
+    if head[0] != 1.0:  # valid flag: 0 (or anything else) -> skip
+        return None
+
     return RacketCommand(
-        task_id=int(msg.task_id),
-        task_revision=int(msg.task_revision),
-        swing_side=int(msg.swing_side),
-        position=(float(msg.position.x), float(msg.position.y), float(msg.position.z)),
-        velocity=(float(msg.velocity.x), float(msg.velocity.y), float(msg.velocity.z)),
-        time_to_strike=float(msg.time_to_strike),
+        task_id=task_id,
+        task_revision=task_revision,
+        swing_sign=1 if head[1] >= 0.0 else -1,
+        position=(head[2], head[3], head[4]),
+        velocity=(head[5], head[6], head[7]),
+        time_to_strike=head[8],
     )
 
 
 class RosRacketCommandSource(RacketCommandSource):
-    """rclpy-backed command source: subscribes the planner topic on a background thread.
+    """rclpy-backed command source: subscribes the flat planner topic on a background thread.
 
     Owns a private rclpy context + single-threaded executor so it composes with (and
     never tears down) any other rclpy usage in the process. ``poll()`` is the runner-side
-    contract: it returns the newest converted command (or ``None`` before the first one).
+    contract: it returns the newest decoded command (or ``None`` before the first one).
     Call :meth:`close` when done.
     """
 
@@ -69,18 +131,12 @@ class RosRacketCommandSource(RacketCommandSource):
                 QoSProfile,
                 ReliabilityPolicy,
             )
+            from std_msgs.msg import Float64MultiArray
         except ImportError as exc:  # pragma: no cover - environment-dependent
             raise RuntimeError(
-                "--planner needs a sourced ROS 2 environment (rclpy not importable). "
-                "Source your ROS 2 setup and the hope_ws overlay first."
-            ) from exc
-        try:
-            from hope_msgs.msg import RacketCommand as RacketCommandMsg
-        except ImportError as exc:  # pragma: no cover - environment-dependent
-            raise RuntimeError(
-                "--planner needs the hope_msgs package: build it with "
-                "`cd hope_ws && colcon build --packages-up-to hope_msgs` and "
-                "`source install/setup.bash`."
+                "--planner needs a sourced ROS 2 environment (rclpy + std_msgs not "
+                "importable). No hope_msgs build is required — the planner command "
+                "arrives as a std_msgs/Float64MultiArray on the flat topic."
             ) from exc
 
         self._queue = QueueRacketCommandSource()
@@ -96,8 +152,12 @@ class RosRacketCommandSource(RacketCommandSource):
             depth=10,
         )
         self._sub = self._node.create_subscription(
-            RacketCommandMsg, topic, self._on_msg, qos
+            Float64MultiArray, topic, self._on_msg, qos
         )
+        # Schema-1 identity synthesis state (schema 2 carries its own identity).
+        self._s1_task_id = 0
+        self._s1_revision = 0
+        self._s1_last_valid_mono: float | None = None
         self._executor = SingleThreadedExecutor(context=self._context)
         self._executor.add_node(self._node)
         self._spin_thread = threading.Thread(
@@ -115,7 +175,25 @@ class RosRacketCommandSource(RacketCommandSource):
                 raise
 
     def _on_msg(self, msg) -> None:
-        self._queue.submit(racket_command_from_msg(msg))
+        cmd = parse_flat_racket_command(msg.data)
+        if cmd is None:
+            return
+        if cmd.task_id == 0:
+            # Schema-1 stream: assign a synthesized ball identity (new task after a
+            # SCHEMA1_NEW_FLIGHT_GAP_S silence, else a revision of the active one).
+            now = time.monotonic()
+            if (
+                self._s1_last_valid_mono is None
+                or now - self._s1_last_valid_mono > SCHEMA1_NEW_FLIGHT_GAP_S
+            ):
+                self._s1_task_id += 1
+                self._s1_revision = 0
+            else:
+                self._s1_revision += 1
+            self._s1_last_valid_mono = now
+            cmd.task_id = self._s1_task_id
+            cmd.task_revision = self._s1_revision
+        self._queue.submit(cmd)
 
     # -- RacketCommandSource -------------------------------------------------
     def poll(self) -> RacketCommand | None:

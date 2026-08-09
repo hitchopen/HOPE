@@ -1,54 +1,109 @@
 hope_planner:
   ros__parameters:
-    # --- Topics / frames ---
-    poses_topic: "/poses"          # mocap ball stream (geometry_msgs/PoseArray)
-    command_topic: "/racket/command"
-    frame_id: "world"
-    # Which slot in the /poses PoseArray is the ball (PoseArray carries no names;
-    # publish the ball first, or set this to its index). Confirm against your
-    # live stream, e.g. `ros2 topic echo /poses --once`.
+    ball_rigid_body_name: "pingpong_ball"
+    # ball_pose_index: which slot in the /poses PoseArray is the ball.
+    # HOW TO GET: with the avatar_pro relay this is 0 (pose_array_order starts with
+    # "ball"). Confirm against your live stream: `ros2 topic echo /poses --once`
+    # and count the ball's index. TODO: confirm against your live /poses.
     ball_pose_index: 0
-
-    # --- Strike plane ---
-    # Fixed virtual hitting-plane x (m). Set to your robot placement + reach so
-    # the incoming ball crosses this plane in front of the robot. Example only.
-    x_hit: 0.2
-
-    # --- Forehand / backhand selection ---
-    # The side is chosen once per incoming ball by splitting the predicted
-    # lateral (y) crossing at swing_side_split_y: y below the split -> FOREHAND,
-    # at/above -> BACKHAND. Default splits at the table centreline; tune to your
-    # robot's lateral position and reach.
-    swing_side_split_y: -0.7625
-    # Optional small hysteresis band (m) around the split so a ball arriving near
-    # the boundary does not flip the side between consecutive rallies. 0 disables.
-    swing_side_hysteresis_y: 0.04
-
-    # --- Fixed landing target (opponent half) ---
-    target_land_x: 2.055           # opponent half-centre x (= table length * 3/4)
-    target_land_y: -0.7625         # opponent half-centre y (= -table width / 2)
-    # Desired post-strike flight time (s). Shapes the demanded racket speed; tune
-    # to your policy's reachable racket-velocity envelope.
-    delta_t_flight: 0.5
-
-    # --- Solve / prediction ---
-    # Every mocap sample feeds the estimator; the predict+plan solve runs at most
-    # every solve_period_s (<= 50 Hz). 0.0 solves on every sample.
-    solve_period_s: 0.02
-    max_predict_time: 2.0          # forward prediction horizon (s)
-    # Velocity-fit window IN SAMPLES — coupled to the planner's ROS input rate
-    # (keep the window >= ~100 ms of samples). 31 ≈ 103 ms at 300 Hz; for other
-    # rates use round(31 * rate / 300). NatNet2ROS2 defaults to 180 Hz -> 19.
-    # VRPN2ROS2 defaults to 200 Hz -> 21. hope_bringup selects the matching
-    # backend-specific value.
+    # Virtual hit plane X (m); ~0.0 = HOPE origin end of table. MUST be matched to the
+    # ROBOT PLACEMENT: the current deploy_parity policy (model_11400/7500_hopex lineage)
+    # strikes at base-relative x in [0.56, 0.78] (box center 0.67), so
+    # x_hit ≈ robot_start_x + 0.67. Default assumes the robot at table x = -0.5
+    # -> x_hit = 0.17 (runbook §9.3 recommends x = -0.8 -> -0.13). Targets the swing
+    # can't reach are rejected by the C++ runner's base-relative target gate
+    # ([pp gate] REJECT in its log) — if you see that constantly, x_hit and the
+    # actual robot placement disagree.
+    # STATIC FALLBACK ONLY when robot_pose_topic is empty / silent (see below).
+    x_hit: 0.17
+    # --- HIT PLANE MODE (2026-07-09): FIXED plane is the SAFE default ---
+    # x_hit_follow_robot=false => FIXED virtual hit plane (paper §IV-B): the x-locked HITTER
+    # north star. The robot walks to a commanded station behind a FIXED plane, so the policy
+    # SEES its own x-error and self-corrects. robot_pose_topic is still REQUIRED (it feeds
+    # /a3/base_pose_flat, which the 110-D runner needs every tick) — fixed plane just stops the
+    # plane from CHASING the robot.
+    #   ⚠ Setting this TRUE (adaptive/follow, params below) SILENTLY DELETES the x anchor for an
+    #     x-locked policy: the plane chases the robot, the obs x-error stays ~constant, the policy
+    #     never sees its +x drift, never corrects, and FALLS (RALLY_STAGE2_XLOCK.md deploy trap).
+    #     ONLY the legacy 175/177 multi-swing rally wants follow-mode; it is re-enabled explicitly
+    #     in hope_planner.sim.yaml (legacy sim rehearsal) or via -p x_hit_follow_robot:=true.
+    x_hit_follow_robot: false
+    # --- ADAPTIVE (follow) hit plane params — INERT unless x_hit_follow_robot:=true (legacy) ---
+    # The trained policy WALKS to the strike (lunge ~0.5-0.8 m); with a static plane the
+    # robot ends standing ON it and every later plan is unreachable (one swing per
+    # session, Gate 3 finding). With the robot pose feed:
+    #   x_hit = clamp(robot_x + x_hit_offset, x_hit_min, x_hit_max)
+    # x_hit_offset 0.67 = policy strike-box center (base-relative).
+    # x_hit_max PROTECTS THE TABLE: clamping the plane at 0.35 keeps the demanded strike
+    # (and therefore the lunge endpoint, plane - 0.67) at pelvis x <= -0.32, ~30 cm short
+    # of the table edge x=0. The clamp also reproduces the training regime (targets in a
+    # FIXED world box): post-lunge the next target sits slightly behind -> the small
+    # trained back-step, never a long untrained walk-back.
+    robot_pose_topic: "/P1/pose"    # arena mocap robot pose (table frame, position-only)
+    x_hit_offset: 0.67
+    x_hit_min: 0.0
+    x_hit_max: 0.35
+    target_land_x: 2.055   # opponent half-center X (fixed by table geometry)
+    target_land_y: -0.7625 # opponent half-center Y (fixed by table geometry)
+    # Velocity-fit window IN SAMPLES — coupled to the venue mocap rate (the noise
+    # MC wants >= 100 ms of window). 31 ≈ 103 ms at the ChingMu/VRPN 300 Hz rig.
+    # OTHER RATES: round(31 * rate / 300) — e.g. an OptiTrack rig at 360 Hz -> 37
+    # (run_rally_v10_hdu.sh --mocap-backend optitrack derives and passes this).
     fit_window: 31
+    # Do not publish a post-bounce estimate from the first 6 samples (~17 ms at 300 Hz): that
+    # short derivative is too noisy and can move the predicted strike height by tens of cm.
+    fit_window_min_span_s: 0.10
+    # Fail closed when executor/DDS load drops the callback rate: never let the sample-count
+    # window stretch across a large fraction of a flight or across a table bounce.
+    fit_window_max_span_s: 0.15
+    # A BEST_EFFORT depth-1 subscriber may not observe the exact 0.02 m ball-center contact.
+    # Accept a low local minimum up to 0.20 m so a subsampled bounce still clears the fit.
+    bounce_center_z_max: 0.20
+    # Desired return flight time (s). ALIGNED to the current policy's racket-speed
+    # envelope: the deploy_parity vel boxes cap at |v|≈3.0 m/s, and the required racket
+    # speed ≈ (v_out + C_r·v_in)/(1+C_r) — at 0.5 s the demanded speed is ~4-6 m/s
+    # (every command OOD -> the runner's target gate stands). 0.65 s keeps demands inside
+    # the trained envelope for moderate serves; slower/faster policies retune this.
+    delta_t_flight: 0.65
+    # TODO(calibrate): drag + restitution. HOW TO GET: record >=15 ball trajectories
+    # with the mocap, export to CSV (t,x,y,z), then run
+    #   ros2 run hope_planner hope_calibrate traj1.csv ... traj15.csv
+    # and paste the printed values here (see reimplement.md Section 8).
+    #
+    # ⚠⚠ drag_k = 0.8781 is PHYSICALLY IMPLAUSIBLE (2026-07-03 analysis): a 40 mm
+    # 2.7 g ball has k = rho*Cd*A/(2m) ≈ 0.11 1/m; 0.878 = ~9 g deceleration at
+    # 10 m/s (~8x too high; single salvaged recording, bad fit). Consequences:
+    # predictions kill the ball before the hit plane, and the drag-aware outgoing-
+    # velocity solve demands |v_racket| 4.6-10 m/s — ALL out of the policy's trained
+    # envelope (max ~3.0), so the runner's target gate stands on every ball.
+    # With a plausible k (0.11-0.15) demands drop to 0.8-1.0 m/s (verified offline).
+    # VENUE FIT LANDED (2026-07-03 recordings, merged from main 2026-07-04): values below
+    # = configs/ball_physics_venue.yaml fit (match ball 3.4 g coated) and MATCH the node.py
+    # defaults — the venue-yaml <-> planner-constants consistency guard tests police drift.
+    # Re-run hope_calibrate only if the venue/ball changes.
+    drag_k: 0.1261        # venue fit (inside the physical 0.11-0.15 envelope); the salvaged
+                          # traj01 fit 0.8781 stays REJECTED (8x too high, see analysis above)
+    restitution_h: 0.64   # venue fit: no-spin grip equivalent (1 - a_t)
+    restitution_v: 0.9215 # venue fit: table e_n
+    restitution_racket: 0.654 # venue fit: paddle e const (e(u_n) exp form in racket_target_planner)
 
-    # --- Table placement ---
-    # Table's +y edge in the play frame (table occupies y in [y_max - width, y_max]).
-    table_y_max: 0.0
-
-    # --- Ball physics ---
-    # No-spin drag / restitution / gravity / geometry are read from
-    # configs/ball_physics.yaml. Leave empty to auto-discover it by walking up
-    # from the package, or set an explicit path.
-    ball_physics_path: ""
+    # --- FLAT outputs for the C++ --planner runner (Path A live mode, 2026-07-04) ---
+    # The native runner subscribes std_msgs/Float64MultiArray (no hope_msgs typesupport
+    # needed on the aarch64 MDU): /racket/command_flat mirrors /racket/command, and
+    # /a3/base_pose_flat streams the robot base pose (from robot_pose_topic) for the
+    # runner's external_base localization (the ONLY control path since 2026-07-04).
+    publish_flat_cmd: true
+    racket_flat_topic: "/racket/command_flat"
+    base_flat_topic: "/a3/base_pose_flat"
+    # ⚠ VENUE FILL (same measurement as hope_world_frame.yaml mocap_to_base_link / G8):
+    # P1 marker-cluster -> base_link offset (metres, base frame), applied to
+    # robot_pose_topic before publishing the base flat. Arena /P1/pose is the MARKER
+    # CLUSTER; the policy base is the PELVIS. Sim (/sim/a3/pelvis_pose) needs [0,0,0].
+    marker_to_base_xyz: [0.0, 0.0, 0.0]
+    # Z offset (metres) added to ALL published outputs (both flats + /racket/command):
+    # converts the mocap frame into the POLICY world frame (z=0 at the FLOOR, the frame the
+    # C++ runner's gates expect: base_low 0.7, target z 0.55-1.40). The G5 arena calibration
+    # puts mocap z=0 at the TABLE SURFACE -> 0.76 (= table height). The planner INTERNALS
+    # (bounce plane z=0, net check) correctly stay in the mocap/table-surface frame.
+    # Field 2026-07-07: without this the arena base z reads ~0.15 -> engage never fires.
+    policy_z_offset: 0.76

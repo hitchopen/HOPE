@@ -1,0 +1,17 @@
+# x86-only, non-certifying MuJoCo replay config for the exact V17 recipe-v1
+# model_16600 export. This config is intentionally separate from every
+# production/Gate3 candidate config and does not authorize hardware motion.
+onnx:
+  model_path: ../../../../assets/a3_runtime/models/model_v17_candidate.onnx
+  backend: no_rknn
+
+policy_driver:
+  policy_hz: 50.0
+
+obs_debug:
+  loc_mode: external_base
+
+backend:
+  aimrt_cfg_path: a3_aimrt_config.pingpong_iceoryx.yaml
+  sync_mode: min_skew_pair
+  sync_hz: 100.0

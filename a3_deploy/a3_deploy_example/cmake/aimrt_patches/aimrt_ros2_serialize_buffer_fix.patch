@@ -1,0 +1,42 @@
+--- a/src/interface/aimrt_module_ros2_interface/util/ros2_type_support.h
++++ b/src/interface/aimrt_module_ros2_interface/util/ros2_type_support.h
+@@ -14,6 +14,7 @@
+
+ #include "rclcpp/rclcpp.hpp"
+ #include "rclcpp/serialization.hpp"
++#include "rclcpp/serialized_message.hpp"
+ #include "rcutils/error_handling.h"
+ #include "rosidl_runtime_cpp/message_type_support_decl.hpp"
+ #include "rosidl_runtime_cpp/traits.hpp"
+@@ -83,16 +84,25 @@
+               rosidl_typesupport_cpp::get_message_type_support_handle<MsgType>();
+           static const rosidl_message_type_support_t* rmw_ts_ptr =
+               detail::ResolveRmwMessageTypeSupport(ts_ptr);
+-
+           if (aimrt::util::ToStdStringView(serialization_type) == "ros2") {
+-            aimrt_buffer_array_with_allocator_t bawa{.buffer_array = buffer_array, .allocator = allocator};
+-            Ros2RclSerializedMessageAdapter serialized_msg_adapter(&bawa);
+-            rcl_ret_t ret = rmw_serialize(msg, rmw_ts_ptr, serialized_msg_adapter.GetRclSerializedMessage());
+-            if (ret != RMW_RET_OK) {
++            rclcpp::SerializedMessage serialized;
++            rclcpp::SerializationBase serialization(rmw_ts_ptr);
++            try {
++              serialization.serialize_message(msg, &serialized);
++            } catch (...) {
+               rcutils_reset_error();
++              return false;
+             }
+
+-            return (ret == RMW_RET_OK);
++            const auto &rcl_ser = serialized.get_rcl_serialized_message();
++            auto buffer = allocator->allocate(allocator->impl, buffer_array, rcl_ser.buffer_length);
++            if (buffer.data == nullptr || buffer.len < rcl_ser.buffer_length) {
++              return false;
++            }
++            if (rcl_ser.buffer_length > 0) {
++              memcpy(buffer.data, rcl_ser.buffer, rcl_ser.buffer_length);
++            }
++            return true;
+           }
+           if (aimrt::util::ToStdStringView(serialization_type) == "json") {
+             std::string msg_data;

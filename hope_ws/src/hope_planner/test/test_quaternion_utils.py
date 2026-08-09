@@ -1,4 +1,4 @@
-"""Quaternion utility tests."""
+"""Quaternion utility tests (Planner_Reference_Setup.md Section 8 gate)."""
 
 import numpy as np
 

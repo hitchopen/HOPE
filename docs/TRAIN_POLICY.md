@@ -3,93 +3,124 @@
 The training package (`hope_training/whole_body_tracking/`) is an Isaac Lab extension that trains one
 feed-forward actor — shared by forehand and backhand — with PPO and a privileged critic. This page
 covers the design; exact commands and the package layout are in the
-[package README](../hope_training/whole_body_tracking/README.md).
+[package README](../hope_training/whole_body_tracking/README.md) and
+[QUICKSTART_A3_ISAAC.md](../QUICKSTART_A3_ISAAC.md).
 
 ## The task
 
-There is a single Gym task, `HOPE-PingPong-AgibotA3-v0` (`task=HOPEPingPong`), defined by
-`HOPEPingPongEnvCfg`:
+The shipped task is a Hydra YAML, `cfg/task/HOPEPingPong.yaml`, composed on top of the shared
+`cfg/base/*.yaml` defaults:
 
-- **Two motion clips** — clip 0 forehand, clip 1 backhand — imitated by the upper body. A new clip
-  (side) is chosen per swing, so all four adjacent transitions (FH→FH, FH→BH, BH→FH, BH→BH) appear
-  across a batch. The lower body is free to balance and recentre.
-- **A racket-target goal** (`RacketTargetCommand`): a sampled racket target position, target
-  velocity, and time-to-strike, plus the `swing_side`, all fed to the actor.
-- **A fixed station**: a startup-constant base target. The observation carries
-  `fixed_station_error_xy` (station minus current base XY) so the policy learns to recentre in place
-  as it drifts over a rally. The station never moves — there is no station or footstep planning.
-- **Continuous rallies**: `wrap_teleport = false`. Robot state, joint state, and `last_action` carry
-  across swings; the environment only resets on the fixed episode timeout or a physical fall (an
-  ordinary lifecycle event, not a gate).
-- **50 Hz** control (decimation 4 over a 200 Hz physics step).
+- **`HitterPingPong`** (gym id `HOPE-HitterPingPong-AgibotA3-v0`) — the deploy-grade recipe
+  validated on real A3 hardware, and the only task shipped. It trains the 110-D
+  `hitter_pure` actor contract (HITTER-style proprioception + goal only, no `swing_side` term — the
+  side is inferred outside the policy).
 
-The actor sees the 111-D observation ([POLICY_INTERFACE.md](POLICY_INTERFACE.md)); the critic
-additionally sees privileged, simulation-only signals (the reference joint stream, motion-anchor
-errors, and the true racket state) for its value estimate. Those never enter the deployed policy.
+A task selects its observation layout via the `actor_obs_contract` key; the named contracts
+(`full`=180, `deploy_parity`=175, `hitter_footwork`=177, `hitter_pure`=110,
+`hitter_pure_v15`=118) are defined in one place,
+`tasks/tracking/actor_observation_contract.py` — see
+[POLICY_INTERFACE.md](POLICY_INTERFACE.md).
+
+Common properties of the rally line:
+
+- **Two motion clips** — clip 0 forehand, clip 1 backhand — imitated by the upper body. A new side is
+  chosen per swing, so all four adjacent transitions (FH→FH, FH→BH, BH→FH, BH→BH) appear across a
+  batch.
+- **A racket-target goal**: a sampled racket target position, target velocity, and time-to-strike fed
+  to the actor. The recipe draws 25% of its per-side question bank from a physical tuple bank
+  fitted to the real venue (the `racket.venue_tuple_*` keys in the task YAML).
+- **A base station**: the observation carries a base-target delta so the policy recentres in place as
+  it drifts over a rally (Δ = 0 on mocap dropout, matching deploy).
+- **Continuous rallies**: robot state, joint state, and `last_action` carry across swings; the
+  environment only resets on the episode timeout or a physical fall.
+- **50 Hz** control (decimation 4 over a 200 Hz physics step), **no observation normalization**.
+
+The critic additionally sees privileged, simulation-only signals (the reference joint stream,
+motion-anchor errors, and the true racket state) for its value estimate. Those never enter the
+deployed policy.
+
+## Launching a run
+
+```bash
+cd hope_training/whole_body_tracking
+source setup_train_env.sh        # defines the hope_isaac_py launcher
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
+    motion_file=../motions/preprocessed/hope_forehand.npz \
+    motion_file_2=../motions/preprocessed/hope_backhand.npz
+```
+
+Everything is a Hydra override: `num_envs=4096`, `max_iterations=20000`, `seed=1`,
+`checkpoint_path=<run>/model_<N>.pt` (resume), or any dotted config path. Local `.npz` clips via
+`motion_file=` / `motion_file_2=` are first-class and require no external artifact registry. The
+shipped clips are placeholders — see
+[REPLACE_MOTIONS.md](REPLACE_MOTIONS.md).
 
 ## Reward terms
 
-The example reward is a simple sum of eleven terms with **illustrative weights** — tune them:
-
-1. upright / balance
-2. forehand-or-backhand sample imitation (upper body, gated to the swing)
-3. racket position (at the strike)
-4. racket velocity (at the strike)
-5. simplified blade direction (at the strike)
-6. ball contact
-7. net crossing
-8. opponent-half first bounce
-9. in-place follow-through / recovery
-10. action smoothness
-11. joint-limit regularization
-
-No private weights, windows, deadbands, curricula, or ablations are shipped. See
-`tasks/tracking/mdp/hope_rewards.py` and [EXTENDING_HOPE_PINGPONG.md](EXTENDING_HOPE_PINGPONG.md).
+Reward term functions live in `tasks/tracking/mdp/hope_rewards.py`; the task YAML composes and
+weights them. The recipe is deliberately documented in its own YAML
+(`cfg/task/HOPEPingPong.yaml`): the complete question bank, rewards, and
+domain randomization, plus a behavior-identical affine q_des clamp, a joint-acceleration
+regularizer, the 25% physical tuple bank, and deploy-faithful mocap observations. Tune weights by
+editing the task YAML — **the YAML overrides Python config defaults**, so edit the YAML, not the
+env-cfg dataclass, when both define a value.
 
 ## Evaluation
 
-`success_rate` is the only metric, and it is defined as an **actual physical return**: the racket
-contacts the ball, the ball crosses the net, and its first bounce lands on the opponent half.
+The evaluation story has three layers, cheap to expensive:
 
-- `scripts/mujoco_eval_onnx.py` is the **authoritative** evaluator: it runs the exported ONNX against
-  a real MuJoCo ball that physically bounces off the racket, table, and net, and reports
-  `success_rate` from that simulated trajectory. Use this number. By default it evaluates a
-  **continuous rally** (robot/policy state persist across serves, serve pattern FH, FH, BH, BH, …
-  so all four adjacent side transitions are exercised); pass `--eval-mode independent` for the
-  isolated per-serve variant (resets the robot each serve; does not validate transitions).
-- `scripts/evaluate.py` is a **fast in-Isaac estimate**: during training the reward terms above shape
-  contact/net/bounce with a no-spin *analytic* outgoing-ball model (the racket's strike velocity is
-  rolled out ballistically), and `evaluate.py` reports that same analytic estimate. It is a cheap
-  proxy for iterating in the training environment — trust `mujoco_eval_onnx.py` for the physical
-  number.
+1. **Isaac evaluation** — `scripts/evaluate.py` rolls the checkpoint out across many parallel
+   environments and reports the in-Isaac `success_rate` estimate (racket contact, net crossing,
+   opponent-half first bounce, judged with the shared no-spin ball model).
 
-If you want the training rewards themselves to use fully simulated contact, the repository ships a
-complete PhysX ball/table/net scene in `tasks/table_tennis/` (Gym id `HOPE-TableTennis-AgibotA3-v0`)
-that you can compose into the training environment; this is a supported extension point rather than
-the default, so that the default trains without the extra simulation cost.
+   ```bash
+   python scripts/evaluate.py --checkpoint <run>/model_<N>.pt \
+       --motion-file /abs/fh.npz --motion-file-2 /abs/bh.npz
+   ```
 
-Both evaluators print only `{"success_rate": <float>}`. There is no threshold, best-checkpoint
-selection, early stop, or exit-code effect.
+2. **MuJoCo sim-to-sim** — `scripts/mujoco_eval_onnx.py --onnx <run>/exported/policy.onnx` runs the
+   exported ONNX against a real MuJoCo ball that physically bounces off the racket, table, and net
+   (no GPU, no Isaac). This is the first cross-simulator check and the authoritative simulated
+   number.
+
+3. **Closed-loop planner rehearsal** — the reference harness's `--planner` mode exercises the
+   exported policy through the real planner over the same flat wire the hardware runner
+   subscribes ([RUN_ON_AGIBOT.md](RUN_ON_AGIBOT.md)).
+
+Isaac metrics do not perfectly predict downstream behavior — treat each layer as a gate, not a
+ranking oracle.
+
+## Export
+
+```bash
+python scripts/export_onnx.py --checkpoint <run_dir>/model_<N>.pt
+```
+
+writes the single-output actor ONNX (110-D observation in, 31-D raw action out, raw
+observations) and its deploy manifest to `<run_dir>/exported/`. The exported metadata is what
+the deploy-side loaders validate; hardware promotion additionally goes through the closed-loop
+rehearsal and gate sweeps above. See [POLICY_INTERFACE.md](POLICY_INTERFACE.md).
 
 ## Checkpoints and logging
 
-Checkpoints are written locally: a `periodic` checkpoint every `save_interval` iterations and a
-`final` at the end. There are no `best`/`candidate`/`accepted`/`promoted` checkpoints, no Weights &
-Biases / TensorBoard, no reward-term or per-side logging — only the single `success_rate` when you
-run an evaluator.
+Checkpoints are written locally to `logs/rsl_rl/<experiment_name>/<timestamp>/` (a periodic
+checkpoint every `save_interval` iterations and a final one). The public launcher uses local
+TensorBoard logging and does not upload runs or checkpoints. Checkpoint selection is yours to do
+with the evaluators above — nothing auto-promotes a checkpoint.
 
 ## Configuration
 
-- `cfg/task/HOPEPingPong.yaml` — the task: motion clip paths, `wrap_teleport: false`, episode length,
-  and an `overrides:` block for dotted-path env tweaks.
+- `cfg/task/HOPEPingPong.yaml` — the task recipe: motion clip sources, contract selection
+  (`actor_obs_contract`), rewards/DR recipe, and episode length.
 - `cfg/algo/ppo.yaml` — PPO (`empirical_normalization: false`, i.e. raw observations), iteration and
   save intervals.
 - `cfg/base/*.yaml` — shared env / sim / randomization defaults.
 
-Detailed reward and racket-target values live in `HOPEPingPongEnvCfg` (kept in code, not the YAML).
+Base env-cfg dataclasses live in `tasks/tracking/config/agibot_a3/hope_env_cfg.py`; remember the
+task YAML wins over Python where both set a value.
 
 ## The user runs training
 
-Training needs your GPU and your real motion clips; run it yourself with the commands in the
-[package README](../hope_training/whole_body_tracking/README.md#train). Launch from the repository
-root so the relative motion paths resolve.
+Training needs your GPU and your real motion clips; run it yourself with the commands above.
+Launch from `hope_training/whole_body_tracking/` so the relative motion paths resolve.

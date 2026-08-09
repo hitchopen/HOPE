@@ -1,0 +1,81 @@
+# Copyright (c) 2026, AgiBot Inc. All rights reserved.
+#
+# AimRT runtime configuration for `a3_deploy_onnx_ref`.
+# Loaded by AimRTCore::Initialize when ENABLE_A3_AIMRT_BACKEND=ON
+# (referenced from config/a3_runtime_config.yaml -> backend.aimrt_cfg_path).
+#
+# Topic layout mirrors mujoco_sim's a3_t2d5_cfg.yaml:
+#   Policy subscribes (6 channels):
+#     /body_drive/{waist,leg,arm,neck}_joint_state   - joint_msgs/JointState
+#     /body_drive/{pelvis,torso}_imu/data            - sensor_msgs/Imu
+#   Policy publishes (4 channels, only when publish_enabled=true):
+#     /body_drive/{waist,leg,arm,neck}_joint_command - joint_msgs/JointCommand
+#
+# iceoryx is the primary backend for sim<->deploy loopback and real A3 transport
+# bring-up in this branch. Use `--dry-run` for backend-only subscription checks,
+# or `--probe` for receive/sync plus infer latency with command publishers
+# disabled.
+
+aimrt:
+  plugin:
+    plugins:
+      - name: iceoryx_plugin
+        path: libaimrt_iceoryx_plugin.so
+        options:
+          # Initial chunk size for the AimRT iceoryx envelope. Payloads grow
+          # dynamically if needed; 2048 matches AimRT's own iceoryx examples
+          # and avoids tiny first allocations for JointState messages.
+          shm_init_size: 2048
+      - name: ros2_plugin
+        path: libaimrt_ros2_plugin.so
+        options:
+          # Enables playback/debug through ROS2 bags recorded by AimRT's ROS2
+          # bridge. Protobuf channel messages appear on ROS2 as:
+          #   <aimrt_topic>/<encoded_pb_type>
+          # e.g. /ta/whole_body_command/pb_3Aaimdk_2Eprotocol_2ETaWholeBodyCommandChannel
+          node_name: a3_deploy_onnx_ref
+          executor_type: MultiThreaded
+          executor_thread_num: 2
+
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+      - type: rotate_file
+        options:
+          path: /tmp/a3_deploy_logs
+          filename: a3_deploy.log
+          max_file_size_m: 32
+          max_file_num: 4
+
+  executor:
+    executors:
+      - name: aimrt_callback_pool
+        type: asio_thread
+        options:
+          thread_num: 2
+
+  channel:
+    backends:
+      - type: iceoryx
+      - type: ros2
+        options:
+          sub_topics_options:
+            - topic_name: "/ta/whole_body_command"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+
+    pub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]
+    sub_topics_options:
+      # Teleop may come from the live AimRT/iceoryx path or from ROS2 bag
+      # playback through AimRT's ros2_plugin wrapper topic.
+      - topic_name: "/ta/whole_body_command"
+        enable_backends: [iceoryx, ros2]
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]

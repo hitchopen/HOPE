@@ -1,0 +1,23 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/ta/ta_whole_body_command.proto";
+
+/**
+ * @brief TA 全身运动指令通道消息
+ * topic: /ta/whole_body_command
+ *
+ * 由 Teleop Avatar 模块以 60Hz 频率发布，MC（Motion Control）模块订阅。
+ * 包含TA从VR骨骼追踪数据经IK求解后生成的全身运动控制指令。
+ *
+ * 该消息替代原有的 /motion/control/leg_joint_command（sensor_msgs/JointState，
+ * 91元素扁平double数组）接口，提供结构化的proto接口。
+ */
+message TaWholeBodyCommandChannel {
+  // 消息头（包含序号、时间戳、frame_id等）
+  Header header = 1;
+
+  // 全身运动指令数据
+  TaWholeBodyCommand data = 2;
+}

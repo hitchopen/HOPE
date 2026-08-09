@@ -9,69 +9,79 @@ must all agree with it.
 
 | Property | Value |
 |----------|-------|
-| Observation | `float32[111]` |
+| Observation | `float32[110]` — the `hitter_pure` contract (deploy default) |
 | Action | `float32[31]` (raw joint-position residual) |
 | Control rate | 50 Hz |
 | Observation normalization | none (raw observation fed directly) |
-| ONNX signature | `observation[1, 111] -> raw_action[1, 31]` |
+| ONNX signature | `observation[1, 110] -> raw_action[1, 31]` |
 | Joint order | 31 DOF, see [joint order](#joint-order) |
 
-The policy is exported by `hope_training/whole_body_tracking/scripts/export_onnx.py` as
-`hope_pingpong.onnx` plus a `policy_manifest.json` describing this contract.
+Named observation contracts are defined in one place —
+`hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/actor_observation_contract.py`.
+Each task config selects one via its `actor_obs_contract` key, and the exported ONNX
+carries the contract name in its metadata so loaders can fail closed on a mismatch:
 
-## Observation (111 dims)
+| Contract | Dim | Used by |
+|----------|----:|---------|
+| `hitter_pure` | 110 | **The deploy-grade rally line** — the shipped `HitterPingPong` task (gym id `HOPE-HitterPingPong-AgibotA3-v0`). |
+| `full` | 180 | Historical full-observation line (no shipped task). |
+| `deploy_parity` | 175 | Historical sim-to-real line. |
+| `hitter_footwork` | 177 | Historical separate base/racket experiment. |
+| `hitter_pure_v15` | 118 | Historical executed-q_des experiment. |
 
-Assembled in this exact order every tick:
+The rest of this document describes the deploy contract, `hitter_pure`.
+
+## Observation (110 dims)
+
+Assembled in this exact order every tick. Structure follows HITTER
+(arXiv:2508.21043) Table I — proprioception + goal only — sized for the A3's 31 joints:
 
 | Slice | Term | Dim | Frame / units | Meaning |
 |-------|------|----:|---------------|---------|
-| `[0:3]`     | `base_ang_vel`           | 3  | pelvis body, rad/s | Pelvis angular velocity (IMU). |
+| `[0:3]`     | `base_ang_vel`           | 3  | pelvis body, rad/s | Pelvis angular velocity (IMU/mocap-anchored per the task's contract). |
 | `[3:34]`    | `joint_pos`              | 31 | rad | `q - default_q`, joint order below. |
 | `[34:65]`   | `joint_vel`              | 31 | rad/s | Encoder joint velocities. |
-| `[65:96]`   | `last_action`            | 31 | raw | The action **applied** on the previous tick: `raw_action` with the passive head columns (idx 3, 4) zeroed. |
-| `[96:99]`   | `projected_gravity`      | 3  | base frame, unit | Gravity direction in the base frame (IMU). |
-| `[99:101]`  | `base_forward_xy`        | 2  | world xy, unit | Base forward unit vector projected to world XY (from IMU yaw). |
-| `[101:103]` | `fixed_station_error_xy` | 2  | world xy, m | Fixed station position (a startup constant) minus current base XY. |
+| `[65:96]`   | `actions`                | 31 | raw | Previous policy action as applied by the runtime. |
+| `[96:99]`   | `projected_gravity`      | 3  | base frame, unit | Gravity direction in the base frame. |
+| `[99:101]`  | `base_forward_xy`        | 2  | world xy, unit | Base forward unit vector `e_base,x` projected to world XY. |
+| `[101:103]` | `base_target_delta_xy`   | 2  | world xy, m | Target base position minus current base position (Δ=0 on mocap dropout). |
 | `[103:106]` | `racket_target_rel_base` | 3  | world, m | Target racket position minus base position. |
 | `[106:109]` | `racket_target_vel_w`    | 3  | world, m/s | Target racket velocity. |
 | `[109:110]` | `time_to_strike`         | 1  | s | Time remaining until the strike. |
-| `[110:111]` | `swing_side`             | 1  | ±1 | Forehand `+1`, backhand `-1` (locked for the whole strike). |
 
-Total: `3 + 31 + 31 + 31 + 3 + 2 + 2 + 3 + 3 + 1 + 1 = 111`.
+Total: `3 + 31 + 31 + 31 + 3 + 2 + 2 + 3 + 3 + 1 = 110`.
 
 Notes:
-- `fixed_station_error_xy` is **not** constant zero. The station target is fixed at startup,
-  but the robot base drifts over a rally; these two dims give the policy in-place recentring
-  feedback. This is balance feedback, not station planning — the station never moves.
-- `swing_side` is a formal input, chosen once per incoming ball by the planner and held for
-  the whole strike. The planner also carries it in `RacketCommand`
-  (see [PLANNER_INTERFACE.md](PLANNER_INTERFACE.md)).
-- Target vectors are expressed in the world frame relative to the base; the policy has no
-  reference-motion stream, no ball state, and no spin inputs.
+- There is **no `swing_side` observation**. Forehand/backhand is inferred outside the policy
+  (HITTER §V-B-3): the planner publishes the side on the wire
+  (`swing_sign` in `/racket/command_flat`, see
+  [PLANNER_INTERFACE.md](PLANNER_INTERFACE.md)) and the runner's engage machine uses it, but
+  the actor never sees it.
+- `base_target_delta_xy` gives the policy in-place recentring feedback toward its station;
+  on mocap dropout the runtime holds Δ=0 so a stale pose can never command a chase.
+- The 62-D reference joint stream from the paper is **critic-only** — it exists during
+  training and never enters the actor observation or the deploy wire.
+- The policy has no ball state and no spin inputs.
 
 ## Action (31 dims)
 
-Each tick the actor emits `raw_action[31]` in the joint order below. The two passive head
-columns (idx 3, 4) are zeroed to form the **applied action**, which is:
-1. fed back as next tick's `last_action` (so those two columns are always 0 — exactly as
-   training zeroes them in its applied-action feedback), and
-2. passed through the **ActionAdapter** to produce 31 joint-position targets (the head is
-   held at its default angle).
-
-### ActionAdapter
-
-The public example adapter is a joint-position residual:
+Each tick the actor emits `raw_action[31]` in the joint order below, mapped to
+joint-position targets:
 
 ```
 q_des = default_q + raw_action * action_scale
-q_des = clamp(q_des, q_min, q_max)      # deterministic numeric transform, not a gate
+q_des = clamp(q_des, official A3 hard limits)   # deterministic numeric transform, not a gate
 ```
 
-The example constants (`default_q`, `action_scale`, clamp limits) live in a single shared
-config, `a3_deploy/a3_deploy_example/config/action_adapter.yaml`, read by **both**
-training and the reference runner so you edit them in one place. The shipped values are a
-neutral starting point — **tune them for your robot**. The deterministic clamp is a numeric
-transform; it never emits a failure/rejection status.
+- `default_q`, `action_scale`, and the joint-limit table are recorded in the export
+  sidecar `policy.deploy.json` (written next to the ONNX) — training and deployment read
+  the same values. The C++ loader cross-checks them against its own
+  `pp_joint_limits.hpp` table, which is verified against the official A3 URDF limits.
+- The two head columns (idx 3, 4) are **passive**: the runtime holds the neck at its
+  nominal pose regardless of the actor's output for those columns.
+- Every pre-clamp `q_des` column is measured against the official A3 hard joint range
+  during training (a range-normalized barrier reward term),
+  so the runtime clamp is a numeric formality, not a behavior patch.
 
 Vendor hard limits, motor protection, communication timeouts, and physical e-stop are the
 robot backend's responsibility; the policy code does not probe, score, certify, or bypass
@@ -101,7 +111,7 @@ robot but still occupy action columns. The racket is mounted on the right wrist.
 ## Continuous operation
 
 The policy is designed for continuous rallies. Between incoming balls the robot state, joint
-state, and `last_action` are **not** reset — no teleport, no history clear, no return to a
+state, and action history are **not** reset — no teleport, no history clear, no return to a
 default pose. The lifecycle per strike is:
 
 ```
@@ -110,9 +120,15 @@ ready -> swing -> follow-through -> recovery -> ready -> (next ball)
 
 Recovery is in-place recentring and balance only.
 
-## policy_manifest.json
+## Export, metadata, and qualification
 
-Emitted alongside the ONNX. It records the contract name (`hope_pingpong`), observation and
-action dimensions, control rate, joint order, observation normalization (`none`), and the
-ActionAdapter config path. It does **not** contain version numbers, training recipes, reward
-definitions, checkpoint lineage, or metrics.
+The export path is
+`hope_training/whole_body_tracking/scripts/export_onnx.py --checkpoint RUN_DIR/model_XXXX.pt`.
+It writes the single-output actor ONNX and its deploy manifest to `RUN_DIR/exported/`.
+
+The export carries the contract (dims, control rate, joint order, observation
+normalization = none) as metadata; the Python MuJoCo evaluator and the C++ hardware
+loader validate these fields exactly and **fail closed** on a missing or mismatched value.
+Exports are first proven in simulation ([TRAIN_POLICY.md](TRAIN_POLICY.md#evaluation));
+hardware acceptance additionally goes through the closed-loop rehearsal and gate sweeps
+described in [RUN_ON_AGIBOT.md](RUN_ON_AGIBOT.md).

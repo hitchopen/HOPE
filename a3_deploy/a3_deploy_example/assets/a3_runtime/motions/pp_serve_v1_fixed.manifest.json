@@ -1,0 +1,347 @@
+{
+  "controller_contract": {
+    "arm_kd_scale": 1.25,
+    "arm_kp_scale": 2.5,
+    "balance_compensation": "symmetric_hip_pitch_minus_ankle_pitch_plus",
+    "balance_compensation_rad": 0.05,
+    "ball_load_ready_frame": 150,
+    "handoff_gain_target": "a3_pd_stand_static",
+    "handoff_gain_transition_ticks": 25,
+    "joint_velocity_reference": "centered_difference_50hz_with_phase_wrist_caps",
+    "left_shoulder_pitch_kd_boost": 1.15,
+    "left_shoulder_pitch_kp_boost": 1.35,
+    "left_wrist_dq_cap_start_frame": 171,
+    "palm_drop_accel_delay_ticks": 0,
+    "palm_drop_acceleration_z_mps2": -45.0,
+    "palm_drop_min_vertical_velocity_mps": -2.0,
+    "palm_in_plane_orientation": "smooth_in_plane_rotation_from_forward_inboard_30deg_to_45deg",
+    "palm_release_vertical_velocity_request_mps": 2.95,
+    "palm_toss_duration_ticks": 16,
+    "palm_toss_pitch_compensation_rad": 0.1832595714594046,
+    "palm_toss_roll_compensation_rad": 0.0,
+    "post_release_elbow_mode": "hold_through_apex_then_smooth5_resync_before_contact",
+    "production_branch_mode": "observed_fixed_clip",
+    "right_arm_kd_boost": 1.0,
+    "right_arm_kp_boost": 1.0,
+    "right_retract_anchor_frame": 171,
+    "right_retract_duration_ticks": 2.0,
+    "right_retract_lead_ticks": 1,
+    "right_retract_position_m": [
+      0.4,
+      -0.26,
+      1.36
+    ],
+    "right_swing_type": "dedicated_serve_cartesian_continuous_ik",
+    "right_trace_second_difference_limit_rad": 0.099,
+    "right_wrist_dq_cap_start_frame": 173,
+    "wrist_dq_reference_cap_rad_s": 2.5
+  },
+  "dof": 31,
+  "dt_s": 0.02,
+  "event_bits": {
+    "clip_motion_start": 2,
+    "contact": 32,
+    "follow_end": 64,
+    "handoff_begin": 256,
+    "handoff_complete": 512,
+    "ready_pose": 1,
+    "recovery_start": 128,
+    "release": 8,
+    "swing_commit": 16,
+    "toss_commit": 4
+  },
+  "events": {
+    "clip_motion_start": 85,
+    "contact": 189,
+    "follow_end": 245,
+    "handoff_begin": 308,
+    "handoff_complete": 332,
+    "ready_pose": 59,
+    "recovery_start": 246,
+    "release": 167,
+    "swing_commit": 170,
+    "toss_commit": 151
+  },
+  "expected": {
+    "arm_kd_scale": 1.25,
+    "arm_kp_scale": 2.5,
+    "balance_compensation_rad": 0.05,
+    "ball_load_ready_frame": 150,
+    "handoff_dwell_ticks": 25,
+    "handoff_gain_target": "a3_pd_stand_static",
+    "handoff_gain_transition_ticks": 25,
+    "left_clear_resync_end_frame": 196,
+    "palm_clear_m": [
+      0.22,
+      0.18,
+      1.02
+    ],
+    "palm_drop_accel_delay_ticks": 0,
+    "palm_drop_duration_ticks": 7,
+    "palm_drop_min_vertical_velocity_mps": -2.0,
+    "palm_ready_m": [
+      0.47940587212092023,
+      0.04840300160382155,
+      1.114494766598164
+    ],
+    "palm_release_accel_after_mps2": [
+      0.0,
+      0.0,
+      -45.0
+    ],
+    "palm_release_m": [
+      0.49999999926798694,
+      0.03999999053992023,
+      1.259999945159108
+    ],
+    "palm_release_velocity_mps": [
+      0.0,
+      0.2,
+      2.95
+    ],
+    "palm_release_vertical_velocity_request_mps": 2.95,
+    "palm_toss_duration_ticks": 16,
+    "palm_toss_pitch_compensation_rad": 0.1832595714594046,
+    "palm_toss_roll_compensation_rad": 0.0,
+    "post_release_elbow_hold_end_frame": 176,
+    "racket_black_face_normal": [
+      0.7204093087640989,
+      0.040022739375783274,
+      0.6923933912010506
+    ],
+    "racket_contact_m": [
+      0.52,
+      0.03,
+      1.32
+    ],
+    "right_reference_contact_frame": 48,
+    "right_reference_end_frame": 80,
+    "right_retract_anchor_frame": 171,
+    "right_retract_duration_ticks": 2.0,
+    "right_retract_lead_ticks": 1,
+    "right_retract_position_m": [
+      0.4,
+      -0.26,
+      1.36
+    ],
+    "right_safe_approach_start_frame": 107,
+    "right_safe_hold_frame": 145,
+    "right_safe_hold_position_m": [
+      0.45,
+      -0.3,
+      1.36
+    ],
+    "right_swing_type": "dedicated_serve_cartesian_continuous_ik",
+    "right_trace_second_difference_limit_rad": 0.099,
+    "serve_accel_start_frame": 171,
+    "serve_ambiguous_policy": "complete_toss_only_then_safe_return_no_handoff",
+    "serve_branch_select_frame": 172,
+    "serve_branch_selector": "fresh_ball_envelope_fixed_clip",
+    "serve_branch_shared_prefix_end_frame": 171,
+    "serve_contact_height_m": 1.32,
+    "serve_contact_normal": [
+      0.7204093087640989,
+      0.040022739375783274,
+      0.6923933912010506
+    ],
+    "serve_contact_offset_ticks": 0,
+    "serve_contact_position_m": [
+      0.52,
+      0.03,
+      1.32
+    ],
+    "serve_contact_translation_m": [
+      0.0,
+      0.03,
+      0.0
+    ],
+    "serve_contact_velocity_mps": [
+      1.45,
+      0.2,
+      1.0
+    ],
+    "serve_follow_frame": 199,
+    "serve_follow_position_m": [
+      0.7,
+      0.06,
+      1.4000000000000001
+    ],
+    "serve_variant": "fixed",
+    "time_scale_from_backhand_reference": 2.0
+  },
+  "failures": [],
+  "joint_order": [
+    "left_hip_pitch_joint",
+    "right_hip_pitch_joint",
+    "waist_yaw_joint",
+    "left_hip_roll_joint",
+    "right_hip_roll_joint",
+    "waist_roll_joint",
+    "left_hip_yaw_joint",
+    "right_hip_yaw_joint",
+    "waist_pitch_joint",
+    "left_knee_joint",
+    "right_knee_joint",
+    "head_yaw_joint",
+    "left_shoulder_pitch_joint",
+    "right_shoulder_pitch_joint",
+    "left_ankle_pitch_joint",
+    "right_ankle_pitch_joint",
+    "head_pitch_joint",
+    "left_shoulder_roll_joint",
+    "right_shoulder_roll_joint",
+    "left_ankle_roll_joint",
+    "right_ankle_roll_joint",
+    "left_shoulder_yaw_joint",
+    "right_shoulder_yaw_joint",
+    "left_elbow_joint",
+    "right_elbow_joint",
+    "left_wrist_roll_joint",
+    "right_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "right_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+    "right_wrist_yaw_joint"
+  ],
+  "left_end_effector": {
+    "anatomical_palm_surface": "B_confirmed_minus_obb_z",
+    "controlled_hand_dof": 0,
+    "min_toss_elbow_rad": 0.6,
+    "palm_fingers_direction": "smooth_in_plane_rotation_from_forward_inboard_30deg_to_45deg",
+    "palm_up_branch_wrist_roll_max_rad": -1.2,
+    "release_mechanism": "arm_motion_and_drop_away_only",
+    "type": "rigid_palm_no_grasp"
+  },
+  "limits": {
+    "max_actual_release_palm_tilt_deg": 10.0,
+    "max_apex_palm_vertical_speed_mps": -2.0,
+    "max_commanded_palm_tilt_deg": 12.0,
+    "max_dqdes_rad_s": 4.0,
+    "max_qdes_second_difference_rad": 0.1,
+    "max_qdes_step_rad": 0.08,
+    "min_apex_ball_palm_center_distance_m": 0.15,
+    "min_apex_ball_palm_vertical_gap_m": 0.14,
+    "min_contact_racket_speed_mps": 0.75,
+    "min_hard_limit_margin_fraction": 0.02,
+    "min_left_hand_right_tool_surface_clearance_m": 0.08,
+    "min_palm_racket_surface_clearance_m": 0.06
+  },
+  "metrics": {
+    "ballistic_predicted_contact_position_m": [
+      0.5415036648671115,
+      0.11492888028117094,
+      1.5802175519302057
+    ],
+    "ballistic_racket_center_gap_m": 0.27728222588885887,
+    "contact_racket_black_face_normal": [
+      0.6884597613274028,
+      -0.05207630179482442,
+      0.7234025268302506
+    ],
+    "contact_racket_position_m": [
+      0.5152777640040038,
+      0.02974512216238262,
+      1.3176506799326928
+    ],
+    "contact_racket_speed_mps": 1.6318409031523593,
+    "contact_racket_velocity_mps": [
+      1.3265681040506725,
+      0.17863124816326972,
+      0.9333877413466196
+    ],
+    "duration_s": 6.640000000000001,
+    "frames": 333,
+    "handoff_default_max_error_rad": 0.0,
+    "max_commanded_joint_speed_rad_s": 3.950000000000009,
+    "max_qdes_second_difference_frame": 180,
+    "max_qdes_second_difference_joint": "left_shoulder_yaw_joint",
+    "max_qdes_second_difference_rad": 0.09247526137613837,
+    "max_qdes_step_frame": 166,
+    "max_qdes_step_joint": "left_wrist_roll_joint",
+    "max_qdes_step_rad": 0.07900000000000018,
+    "min_hard_limit_margin_fraction": 0.02886789188286826,
+    "min_hard_limit_margin_frame": 193,
+    "min_hard_limit_margin_joint": "right_shoulder_roll_joint",
+    "min_left_hand_right_tool_surface_clearance_frame": 175,
+    "min_left_hand_right_tool_surface_clearance_m": 0.1539292136385763,
+    "min_left_hand_right_tool_surface_clearance_pair": "left_hand_clearance_proxy<->right_racket_clearance_proxy",
+    "min_palm_racket_center_distance_frame": 181,
+    "min_palm_racket_center_distance_m": 0.3490627000705834,
+    "min_palm_racket_surface_clearance_frame": 175,
+    "min_palm_racket_surface_clearance_m": 0.1685699519734426,
+    "min_palm_racket_surface_clearance_pair": "left_palm_ball_support<->right_racket_clearance_proxy",
+    "palm_fingers_forward_min_dot_during_toss": 0.9953012069070376,
+    "palm_up_max_wrist_roll_rad_during_toss": -2.0687097176853744,
+    "palm_up_min_dot_during_toss": 0.9817163440363317,
+    "palm_up_min_elbow_rad_during_toss": 0.8563454201737208,
+    "post_release_min_elbow_rad": 0.7596067394585826,
+    "post_release_min_vertical_accel_mps2": -45.145913272299914,
+    "release_palm_lateral_speed_mps": 0.19467196364617523,
+    "release_palm_normal": [
+      -0.18223557104302163,
+      -2.0747677326182767e-09,
+      0.9832548991215979
+    ],
+    "release_palm_position_m": [
+      0.49999999926798694,
+      0.03999999053992023,
+      1.259999945159108
+    ],
+    "release_palm_velocity_mps": [
+      0.0943265127252832,
+      0.17029293123011524,
+      2.8859672881161313
+    ],
+    "release_palm_vertical_speed_mps": 2.8859672881161313,
+    "release_predicted_apex_rise_m": 0.42450597288870423,
+    "start_default_max_error_rad": 0.0
+  },
+  "physics_contract": {
+    "ball_release_state_injection": false,
+    "clearance_method": "conservative_obb_sat_lower_bound",
+    "kinematic_ballistic_contact_check": "informational_only_dynamic_mujoco_authoritative",
+    "mesh_geom_frame_for_face_normal": false,
+    "racket_face_normal": "right_racket_site_local_y"
+  },
+  "policy_hz": 50.0,
+  "provenance": {
+    "clip": "a3_deploy/a3_deploy_example/assets/a3_runtime/motions/pp_serve_v1_fixed.csv",
+    "clip_sha256": "82ef51ca2405256173af5696d0c871d37aeebdc39e2eba53e7960dd8f225d45c",
+    "generator": "a3_deploy/a3_deploy_example/scripts/serve/generate_pp_serve_clip.py",
+    "generator_sha256": "0d52852ad857a7b4100f0c0d40fd28e55186421a8dc4bf2387eb0106eec543cb",
+    "model": "a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/models/bin/cfg/model/a3_pingpong/a3_pingpong.xml",
+    "model_sha256": "4887b5301915830a298bee781c897da9448d45cf41ac91da6ce7440a7c3bbd22",
+    "right_reference": "hope_training/motions/preprocessed/hope_backhand_v12fix.npz",
+    "right_reference_sha256": "67d04e13deeed068bdb003e379e18330dcd29210d280188fab7af26c0764eaac"
+  },
+  "schema": "pp_serve_clip_v1",
+  "station_contract": {
+    "frame": "HOPE_world",
+    "heading_rad": 0.0,
+    "heading_tolerance_rad": 0.1,
+    "pelvis_position_m": [
+      -0.5,
+      -0.7625,
+      1.07
+    ],
+    "source": "rally_v17_gate3",
+    "xy_tolerance_m": 0.05
+  },
+  "status": "OFFLINE_PASS",
+  "strike_selection": {
+    "contact_x_m": 0.52,
+    "invalid_observation_policy": "complete_toss_only_then_safe_return_no_handoff",
+    "name": "fixed",
+    "right_retract_anchor_frame": 171,
+    "right_retract_duration_ticks": 2.0,
+    "right_retract_lead_ticks": 1,
+    "right_retract_position_m": [
+      0.4,
+      -0.26,
+      1.36
+    ],
+    "selection_frame": 172,
+    "selector": "fresh_ball_envelope_fixed_clip",
+    "shared_prefix_end_frame": 171
+  }
+}

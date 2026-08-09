@@ -19,10 +19,26 @@ outputs/
 checkpoints/
 *.pt
 *.pth
+*.ckpt
+*.log
 
-# Exported policies (regenerate with scripts/export_onnx.py)
+# Published model_21800 warm-start checkpoint (machine-bound exact-resume state removed).
+!hope_training/whole_body_tracking/checkpoints/
+!hope_training/whole_body_tracking/checkpoints/model_21800.pt
+
+# Exported / converted policies (regenerate with scripts/export_onnx.py)
 *.onnx
 !**/tests/**/*.onnx
+!a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx
+*.rknn
+*.engine
+*.trt
+
+# Packaged archives and native libraries are build outputs, never sources
+*.tar.gz
+*.deb
+*.so
+*.a
 
 # ROS 2 workspace build artifacts
 hope_ws/build/
@@ -42,6 +58,49 @@ a3_deploy/URDF/A3*/
 
 # Machine-local Isaac paths (copied from setup_train_env.local.example.sh)
 hope_training/whole_body_tracking/setup_train_env.local.sh
+
+# External motion-pipeline repos and local Python envs (docs/REPLACE_MOTIONS.md)
+hope_training/.venv-motion*/
+hope_training/GVHMR/
+hope_training/GMR/
+
+# Training run outputs kept out of git
+hope_training/whole_body_tracking/artifacts/
+hope_training/whole_body_tracking/diag_videos/
+hope_training/wandb/
+hope_training/whole_body_tracking/wandb/
+
+# Locally synced external reference repos and vendor payloads
+# (external reference checkouts and vendor payloads restored manually)
+external_repos/
+vendor_assets/
+
+# A3 deploy example: track sources/configs/docs, ignore build outputs and
+# heavy vendor bundles. thirdparty/joint_msgs stays tracked -- 40 KB of
+# .msg/CMake sources the deploy build and the hope_ws chain depend on.
+a3_deploy/a3_deploy_example/build/
+a3_deploy/a3_deploy_example/dist/
+a3_deploy/a3_deploy_example/logs/
+a3_deploy/a3_deploy_example/mujoco_sim_standalone/
+a3_deploy/a3_deploy_example/thirdparty/*
+!a3_deploy/a3_deploy_example/thirdparty/joint_msgs/
+# assets: ignore models/motions (binary) but keep the README and the tracked
+# reference serve clip that the runner's serve mode replays.
+a3_deploy/a3_deploy_example/assets/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/
+a3_deploy/a3_deploy_example/assets/a3_runtime/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/README.md
+!a3_deploy/a3_deploy_example/assets/a3_runtime/motions/
+a3_deploy/a3_deploy_example/assets/a3_runtime/motions/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/motions/pp_serve_v1_fixed.csv
+!a3_deploy/a3_deploy_example/assets/a3_runtime/motions/pp_serve_v1_fixed.manifest.json
+
+# Local evaluation/replay evidence is reproducible output, not source
+/artifacts/
+/real_logs/
+
+# Local secret scratch files; never commit passwords, tokens, or identities
+pw.txt
 
 # Local research notes
 /research/

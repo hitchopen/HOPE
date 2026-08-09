@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Intelligent Racing Inc. (dba Hitch Interactive)
 # SPDX-License-Identifier: Apache-2.0
-"""Minimal quaternion helpers used to assemble the 111-D observation.
+"""Minimal quaternion helpers used to assemble the 110-D observation.
 
 Convention: quaternions are stored ``(w, x, y, z)`` (Hamilton / scalar-first),
 which matches both the MuJoCo free-joint ``qpos`` layout and the training-side

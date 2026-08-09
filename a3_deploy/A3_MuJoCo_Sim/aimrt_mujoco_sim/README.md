@@ -130,6 +130,23 @@ The script starts `iox-roudi` if available, sources the generated ROS2 message s
 ./aimrt_main --cfg_file_path=./cfg/a3_pingpong_iceoryx_cfg.yaml
 ```
 
+Optional Gate3 diagnostics are environment-driven and off by default:
+
+```bash
+A3_MUJOCO_DEBUG_CSV=/tmp/pp_mujoco_plant.csv \
+A3_MUJOCO_DEBUG_STRIDE=5 \
+A3_MUJOCO_PD_MODE=explicit \
+./aimrt_main --cfg_file_path=./cfg/a3_pingpong_iceoryx_cfg.yaml
+```
+
+The CSV contains a monotonic simulation step/time plus wall time, reset sequence, contact/control
+summary, pelvis/torso/racket/feet state and per-joint q/qd/control/actuator-force/control-limit
+ratios. `A3_MUJOCO_DEBUG_STRIDE=5` records at 200 Hz for the current 1 kHz plant. The default and
+binding vendor path is `A3_MUJOCO_PD_MODE=explicit`. `implicit` is diagnostic-only: it selects
+MuJoCo `implicitfast`, retains the MJCF passive damping and adds the command damping to DOF damping
+so the same run can falsify a pure integration-method explanation. It does not describe or change
+the real body-drive backend.
+
 ## Architecture
 
 `MujocoSimModule` owns the simulation loop. Each simulation tick:
@@ -154,7 +171,7 @@ The body_drive state and IMU publishers are configured at 500 Hz and share the s
 
 The body_drive path is the main controller interface and uses the AimRT iceoryx backend only.
 
-Real-robot alignment: the `/body_drive/*` interface is intentionally aligned with the interface used on the real robot. This includes topic names, message field definitions, joint group ordering, publish frequencies for state/IMU feedback, and AimRT iceoryx backend routing. A controller that already implements the real-robot body_drive contract should not need simulator-specific message or transport changes.
+Real-robot parity: the `/body_drive/*` interface is intentionally aligned with the interface used on the real robot. This includes topic names, message field definitions, joint group ordering, publish frequencies for state/IMU feedback, and AimRT iceoryx backend routing. A controller that already implements the real-robot body_drive contract should not need simulator-specific message or transport changes.
 
 | Direction | Topic | Type | Frequency |
 | --- | --- | --- | --- |
@@ -195,6 +212,9 @@ ctrl = effort + stiffness * (position - q) + damping * (velocity - dq)
 ```
 
 The result is written to the MuJoCo actuator control for the matching joint.
+In the diagnostic implicit mode only, the `-damping*dq` term is represented through MuJoCo DOF
+damping and the motor receives `effort + stiffness*(position-q) + damping*velocity`; the default
+explicit formula above remains unchanged.
 
 ### ROS2 Debug and Reset Path
 
@@ -321,21 +341,3 @@ model = mujoco.MjModel.from_xml_path(str(xml))
 print("nq", model.nq, "nv", model.nv, "nu", model.nu)
 PY
 ```
-
-## Licensing and Model Assets
-
-The simulation source, build system, AimRT modules, protocol messages, and configs
-in this package are licensed under the Mulan Permissive Software License v2 (see the
-`LICENSE` file at the package root).
-
-The `a3_pingpong` MJCF references robot mesh assets under
-`src/models/bin/cfg/model/a3_pingpong/meshes/` (visual STL) and
-`meshes/collision_optimized/` (convex collision STL). These are the A3 T2.5 robot's
-hardware CAD-derived geometry. They are distributed here as part of this
-Mulan-licensed package so the model loads and runs out of the box. Note that these
-are the same physical-robot mesh assets used by the A3 URDF description (shipped
-with the starter under `agibot/URDF/` as Agibot-provided vendor material without an
-OSS license — see `A3_ASSETS.md` and `a3_deploy/URDF/README.md`). If you fork or redistribute this simulation,
-confirm the mesh assets are covered by your intended license terms for your robot
-platform. The MJCF is a drop-in target: point it at your own A3 meshes if you carry
-a different asset license.

@@ -1,0 +1,191 @@
+# =============================================================================
+# HOPE ping-pong ball physics — VENUE FIT 2026-07-03 (Avatar Pro C3D, 300 Hz)
+# Same schema as configs/ball_physics.yaml on branch ball-physics-realistic,
+# plus new keys for the velocity-dependent paddle restitution (F4) and the
+# recommended saturating Magnus form (F2) — both need small flight.py /
+# spin_contact.py (+ C++ mirror) changes to consume, flagged inline.
+#
+# Fit pipeline + full report: hope_training/ball_physics_fit/ and
+# docs/ball_physics_fit_report.md (§0.1 = full data-source references: raw .tak
+# checksums). Falsification battery F1–F8 verdicts and the per-event tables
+# live in <venue data>/analysis/ — the folder BALLFIT_DATA_ROOT points at.
+#
+# VALIDITY ENVELOPE (do NOT extrapolate silently — Sony's own failure mode):
+#   ball speed 1–7 m/s (Re 2.5e3–2.8e4) · spin 0–15 rev/s · SR <= 0.5 well
+#   covered, 0.5–1.6 sparse, > 1.6 EMPTY · table v_n 1.0–4.5 m/s ·
+#   paddle u_n 1.4–7.2 m/s. High spin (pro serves), smashes > 8 m/s, and
+#   shallow-incidence slip bounces are NOT validated by this fit.
+# =============================================================================
+
+ball:
+  mass: 0.0034            # kg — the coated 3.4 g ball (retro-reflective coating adds ~0.7 g over
+                          # the clean 2.7 g ITTF ball). COMPETITION USES THIS SAME COATED BALL,
+                          # so every constant in this file applies to match play directly.
+                          # k_d/k_m below are ACCELERATION coefficients fitted on this ball.
+  mass_clean: 0.0027      # for reference / scaling
+  radius: 0.020
+  inertia_coeff: 0.6666666666666666
+
+air:
+  rho: 1.20
+
+# Flight: a = g - k_d|v|v + k_m (omega x v); omega = physical (quaternion-measured) spin
+# omega is held CONSTANT in flight — justified by measurement (2026-07-04,
+# /workspace/franco/research/spin_decay_arcs.py, report §11.2): on 192 ballistic
+# arcs the median fractional spin decay per 0.5 s is +2.4%, CI [-8.1, +10.7]
+# (consistent with zero; 47% of arcs read "negative decay" = noise-symmetric);
+# high-spin subset lambda ~= 0, decay time constant tau > 5 s @95%. Matches
+# Sony Ace's constant-omega assumption. This is a VENUE CONSTRAINT (<=15 rev/s,
+# arcs <=2 s), not an omission — pro-spin decay remains uncovered.
+flight:
+  k_d: 0.1261             # 1/m — 100 low-spin arcs, joint RK4-shooting (Huber), rms 9.1 mm.
+                          # C_d = 0.569 (coated ball; roughness raises it above the clean ~0.44).
+                          # F1: constant-k_d PASSED, bins within ±6% over 2–6.8 m/s.
+  k_d_clean_scaled: 0.1588  # k_d * (3.4/2.7). Reference only — matches use the coated ball, so
+                            # this should never be needed. AUDIT FLAG: even for a hypothetical
+                            # clean-ball sim DO NOT USE (mass scaling removes the mass effect only;
+                            # the coating also raises C_d) — v0's 0.1222 would be the estimate.
+  k_m: 0.00444            # sidespin channel (66 arcs, spin axis vertical, g-degeneracy-free),
+                          # k_d frozen. INSIDE the old rig's 95% CI [0.0035, 0.0049] -> validates
+                          # the quaternion spin scale. Low-SR bin medians ~0.0052.
+  k_m_clean_scaled: 0.00559 # mass-only scaling; same caveat as k_d_clean_scaled.
+  g: 9.81                 # frozen. Venue rig read 9.825 @ 0.15 deg tilt vs world z (QA PASS).
+  rk4_h: 5.0e-4
+  # F2 (Magnus saturation): UNDECIDED on this data — the trusted channel never
+  # exceeds SR 1.6 (amateur spin <= 15 rev/s). Bin medians hint at a decline
+  # (0.0054 -> 0.0028 across SR 0.16 -> 0.35, wide CIs) roughly consistent with
+  # saturation onset. RECOMMENDED (strictly safer, ~5 lines in flight.py + C++):
+  # replace constant k_m with the saturating lift law below, calibrated to match
+  # k_m at low SR; identical behavior in the validated envelope, correct-by-
+  # construction if policies discover high spin.
+  magnus_saturating_form: "C_L(SR) = cl_slope*SR / (1 + cl_slope*SR/cl_max)"
+  cl_slope: 0.87          # = 0.752 * (m_taped/m_clean)-consistent low-SR slope matching k_m=0.00444
+  cl_max: 0.55            # Ito&Kamijima 2025 plateau; NOT venue-fit (out of coverage) — literature value
+
+contact:
+  table:                  # static surface (v_r = 0)
+    e_eff: 0.9215         # v_n 1.0–4.5 m/s (58 gated bounces; forensics estimator over all 218:
+                          # 0.925, CI95 [0.920, 0.937] ± 0.005 systematic). The earlier 0.934 was
+                          # biased +0.010 by a contact-time bug (assumed contact height ~9 mm above
+                          # the true arc intersection -> e inflated by ~0.17/vn^2; e>1 tail 17%),
+                          # FIXED in stage1 (t_c = two-sided meeting point, 35-frame windows;
+                          # e>1 now ~4% = pure noise tail). F3 after fix: flat, slope +0.005/m/s
+                          # CI [-0.007, +0.018]. Optional speed-dependent form from forensics:
+                          # e(v_n) = 0.948 - 0.011*v_n (slope CI excludes 0, small real effect).
+                          # v_n > 5 (shell buckling) NOT covered. At ITTF drop speed this reads
+                          # 0.921 = top of the ITTF band (old table: 0.908 — remaining gap
+                          # plausibly a real table difference; a 30 cm drop test adjudicates).
+    a_t: 0.369            # RETAINED FROM v0 (OptiTrack 101-bounce grip fit). The venue tangential
+    b_t: 0.0              # refit was degenerate at this noise level (9 mm vs 0.4 mm) — see F5 in the
+    mu_safety: 2.0        # report. Venue data neither confirms nor moves the grip block.
+  paddle:                 # racket hit (v_r = paddle CONTACT-POINT velocity incl. omega_racket x r;
+                          # the fit included that term — keep it in the sim, v0 code gap #1)
+    e_eff: 0.654          # FIRST REAL RACKET FIT (150 strikes, u_n 1.4–7.2 m/s). v0's 0.4632 was a
+                          # placeholder never fit on racket data. Landing-error sweep confirms the e
+                          # calibration is at its optimum (scaling e ±10% costs ~5 cm of landing).
+    a_t: 0.52             # tangential gain, VELOCITY-CHANNEL fit on the fixed segments
+                          # (bootstrap CI [0.46, 0.61]; old-segment value 0.58 and the model-free
+                          # cross-checks 0.58/0.60/0.62 sit at the top of the CI -> honest range
+                          # ~0.46-0.62). Forensics: at strikes the quaternion spin-change reads
+                          # only ~0.22x the position-implied value (noise-dominated), so JOINT
+                          # fits get dragged to ~0.32-0.38 — do not use them. NOTE (a_t,b_t) are
+                          # collinear (all contacts near-normal, cos(theta) median 0.98): only
+                          # a_t + b_t*cos(theta) is identified. Landing error is flat over
+                          # a_t 0.2–0.6, so this choice follows the direct tangential-impulse
+                          # measurement, not landing tuning. Spin-transfer prediction remains
+                          # UNVALIDATED at strikes (spin channel unmeasurable on this rig).
+    b_t: 0.0              # unsupported: bootstrap CI [-0.98, 0.52] spans 0, AIC prefers b_t=0
+    mu_safety: 0.5        # cap never binds (measured tangential/normal impulse ratio p90 = 0.27) ->
+                          # mu unidentified; 0.5 keeps grazing-hit extrapolation sane and does not
+                          # distort any observed strike (binds 0/130 at a_t=0.52). Was 2.5 (v0).
+    # F4 VERDICT: KILL constant-e (medium confidence, adversarially verified).
+    # 7-estimator ensemble delta_e(2-8 m/s) = -0.11..-0.14, all negative, beyond
+    # the -0.05 KILL line; within-take fixed-effects p=0.0015; slope
+    # -0.013..-0.018/m/s matches the 8,194-bounce literature (-0.017..-0.021).
+    # ADOPT e(u_n) — needs a ~3-line change in spin_contact.py + C++ mirror.
+    # Exponential preferred for extrapolation beyond u_n 7.2 (stays positive);
+    # linear and exponential are indistinguishable in-sample (dRMS ~ 1e-5).
+    e_lin_a: 0.749        # e(u_n) = e_lin_a - e_lin_b * |u_n|
+    e_lin_b: 0.0258
+    e_exp_g1: 0.759       # RECOMMENDED: e(u_n) = g1 * exp(g2 * |u_n|), valid u_n 1.4-7.2 m/s
+    e_exp_g2: -0.0441
+    # PADDLE-SPLIT RESOLUTION (2026-07-04, report §11.1,
+    # /workspace/franco/research/strat_paddle_split.py): F10's "two paddles are
+    # DIFFERENT" verdict was substantially a stroke-mix artifact (juggling 63:0
+    # toward p1; p1 median u_n 3.03 vs p2 3.59). Stratified + u_n-matched on the
+    # same 145 strikes, the e-level difference vanishes (non-juggling p1 0.658
+    # vs p2 0.705, MW p=0.37; within-take perm p=0.51); the slope difference is
+    # only suggestive (dg2=+0.091, perm p=0.070, carried by 14-vs-5 strikes at
+    # u_n>=4.5). This POOLED curve is therefore CONFIRMED CORRECT for the
+    # planner (the §10.4 per-paddle advice is withdrawn); treat e(u_n) above
+    # u_n ~ 4.5 m/s with WIDENED uncertainty until ~20 high-u_n low-spin p1
+    # strikes are captured.
+
+# =============================================================================
+# CAPTURE-RIG ERROR MODEL (采集误差 / 时间随机延迟) — Avatar Pro C3D venue rig.
+# These are MEASUREMENT-SYSTEM numbers, not ball physics. Use them to
+# (a) read the fit uncertainties above, (b) inject ACE-style sensor noise in
+# sim, (c) tune the deploy Kalman/observer (model the COLORED term!).
+# Sources: docs/ball_physics_fit_report.md §0/§1/§5.1/§9.3 (noise-floor MC),
+# hope_training/ball_physics_fit/README.md.
+# =============================================================================
+capture:
+  rate_hz: 300.0
+  # E2E latency bound (franco rig ground truth, 2026-07-04, verbal->recorded): transmission
+  # measured stable <10 ms; capture processing sustains 300 Hz output -> end-to-end <= ~20 ms
+  # (<= 1 policy step @50 Hz). Training delay_steps=2 (40 ms) is therefore a CONSERVATIVE upper
+  # bound. Timestamp-based precise measurement demoted to opportunistic (next venue session).
+  e2e_latency_bound_ms: 20
+  # FULL-LOOP budget incl. OUR algorithm (franco Q 2026-07-04): mocap+transmission <=20 ms
+  # + planner/policy compute ~1-5 ms (tiny MLP + numpy planner; negligible on 5090, small even
+  # on the onboard SoC) + command transport ~5 ms + up-to-half-step quantization ~10 ms
+  # => ~30-40 ms total. Training's target_delay_steps=2 (40 ms @50 Hz) therefore matches the
+  # MEASURED full loop almost exactly ("正正好好") — the lumped-delay model covers algorithm
+  # latency; the extra inherent 1-step action application in sim mirrors deploy's next-tick apply.
+  position_noise:           # ball-centroid error (采集误差) — NOT white (§9.3 MC)
+    white_mm: 1.9           # per-axis white component
+    ar1_marginal_mm: 5.2    # per-axis correlated AR(1) component
+    ar1_rho: 0.946          # per-frame @300 Hz (flight_selfcheck.py noise model; report
+    ar1_tau_ms: 60          # rounds to 0.94) -> correlation time ~60 ms; this is why
+                            # short windows look clean but long arcs read ~9 mm
+    long_arc_rms_mm: 9.1    # 3D shooting-fit RMS over long arcs (per-axis marginal
+                            # sqrt(1.9^2+5.2^2)=5.5 mm, x sqrt(3) ~ 9.6 — consistent).
+                            # Old OptiTrack rig reference: 0.4 mm (20x cleaner).
+    center_offset_mm: 1.9   # SYSTEMATIC (not random): extractor sphere-fit center
+                            # offset, 35 deg direction error; dynamics effect ~0.1 mm
+                            # rms under the 9 mm floor — documented, not re-extracted.
+  spin_noise:               # quaternion channel
+                            # MULTIPLICATIVE component measured 2026-07-04
+                            # (spin_decay_arcs.py, report §11.2): sigma/|omega|
+                            # ~= 0.28-0.31 (~30%) across the 192-arc set; spin
+                            # AXIS unreliable below ~2 rev/s. Use ~30%
+                            # multiplicative on top of the additive floor below.
+    floor_rev_s: 2.0        # per-event noise floor (= 12.6 rad/s, predict_check.py
+                            # FS_SPIN_NOISE). Venue-median spin ~ this floor.
+    bounce_dw_scale: 0.65   # quat delta-omega across TABLE bounces reads ~0.65x the
+                            # position-implied value (contact-window blur)...
+    strike_dw_scale: 0.22   # ...and ~0.22x at RACKET strikes -> unusable there; never
+                            # joint-fit paddle params through the strike spin channel.
+  timing:                   # 时间随机延迟误差
+    same_clock: true        # ball + paddles in ONE hardware-synced C3D stream ->
+                            # inter-body sync error = 0 (QA gate, trivially PASS).
+    frame_quantization_ms: 1.67  # +- half frame @300 Hz (uniform; std 0.96 ms).
+                            # Per-frame trigger jitter is UNOBSERVABLE in C3D exports
+                            # (time axis = frame_index/rate, extract_canonical.py);
+                            # genlocked rig -> true jitter << frame interval. No
+                            # random-delay term was needed anywhere in the fit;
+                            # empirical end-to-end bound: H2 landing-time bias
+                            # -0.7 ms median (predict_check §5.1).
+    gap_p50_ms: 10          # occlusion gaps (not frame drops), concentrated AT
+                            # contacts (racket occludes the ball).
+    racket_occlusion_ms: 30 # +- occluded window around strikes; racket state is
+                            # bridged by a const-accel fit on [-120, -15] ms.
+    contact_dwell_ms: 2     # ball-racket dwell ~1-3 ms = SUB-FRAME at 300 Hz; the
+                            # contact instant is never sampled. t_c is estimated by
+                            # intersecting pre/post shooting fits on a 1-ms grid ->
+                            # resolution ~1-3 ms.
+    # DEPLOY-SIDE WARNING (not this C3D capture): the live ROS/VRPN relay path
+    # previously measured only ~44 Hz EFFECTIVE (median dt 22.6 ms, p90 41.6 ms)
+    # despite the nominal 300 Hz — random delivery delay lives THERE, not in the
+    # rig. Re-verify received rate + use VRPN header stamps at deploy
+    # (mocapDesign.md §venue-checklist).

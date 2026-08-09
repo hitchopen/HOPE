@@ -2,36 +2,26 @@
 
 v0.2 — 2026-04-02
 
-> **Preserved reference document.** This predates the current HOPE
-> stack and describes the broader G1/A3 deployment architecture; it is kept for
-> design background, safety rationale, and provenance. The shipped deploy paths
-> are [`a3_deploy/`](a3_deploy) (clean-room ONNX reference runner) and
-> [`agibot/code_deployment/`](agibot/code_deployment) (Agibot's A3
-> body-drive example) — see [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) for
-> the current procedure. Index: [`REFERENCE_DOCS.md`](REFERENCE_DOCS.md).
-
 ## Overview
 
 This document describes how to deploy trained HOPE ping-pong WBC policies onto physical humanoid hardware — the Unitree G1 or Agibot Expedition A3. It is the final step in the HOPE pipeline, consuming the ONNX policy exported from simulation training (see companion *HOPE WBC Simulation Training Reference Setup*, Section 5) and connecting it to the live motion capture system (see companion *HOPE Motion Capture System Reference Setup*) and the real-time planner (see companion *HOPE 7DOF Racket Model-based Planner Reference Setup*).
 
-The deployment architecture is a ROS 2 Jazzy graph running on the robot's onboard computer or a tethered workstation. The policy runs ONNX CPU inference at 50 Hz, reads joint encoder feedback and the declared robot root pose (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3), receives racket target commands from the planner, and outputs 29-DOF (G1) or equivalent-DOF (A3) joint position commands that are converted to torques by a PD controller on the robot's actuator bus. Motion capture supplies the P1/P2 marker-cluster pose, which is composed with its calibrated static transform to obtain the robot root pose.
+The deployment architecture is a ROS 2 Jazzy graph running on the robot's onboard computer or a tethered workstation. The policy runs ONNX CPU inference at 50 Hz, reads joint encoder feedback and `base_link` pose from the motion capture system, receives racket target commands from the planner, and outputs 29-DOF (G1) or equivalent-DOF (A3) joint position commands that are converted to torques by a PD controller on the robot's actuator bus.
 
-> **HOPE Racket Tracking Prohibition.** During competition the motion-capture stream contains the ball and humanoid marker-cluster rigid bodies (P1/P2); calibrated static transforms map P1/P2 to the robots' declared URDF root frames (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). The `Table`/PPT asset is used only during setup and calibration to establish the surveyed world origin. The racket is NEVER tracked. The deployed policy infers its paddle state via forward kinematics from the robot root frame plus joint encoders through the fixed wrist mount (see WBC Training doc Section 2.8).
+> **HOPE Racket Tracking Prohibition.** As documented in all companion references, the motion capture system tracks only the table origin (PPT), humanoid base_links (P1/P2), and the ball. The racket is NEVER tracked. The deployed policy infers its paddle state via forward kinematics from `base_link` + joint encoders through the fixed wrist mount (see WBC Training doc Section 2.8).
 
 ---
 
-## 0  Prologue — Scope and Implementation Notes
+## 0  Prologue — Differences from the HITTER Paper
 
-This reference setup documents the following design and implementation choices:
-
-| # | Aspect | This HOPE reference setup |
-|---|--------|---------------------------|
-| 1 | **Inference framework** | BeyondMimic `motion_tracking_controller` (C++ ONNX, `legged_control2`) for G1; AimRT native ONNX or ROS 2 bridged for A3 |
-| 2 | **Target platforms** | G1 (via `legged_control2` + `unitree_bringup`) and Agibot A3 (via AimRT with ROS 2 protocol bridge) |
-| 3 | **Safety system** | E-stop via Unitree joystick (G1) or AimRT safety node (A3); mandatory pre-flight checklist documented. Physical safety is critical for fast-moving arm swings near humans. |
-| 4 | **PD gain tuning** | Heuristic gains from BeyondMimic, embedded in ONNX metadata; sim-to-real gain adjustment procedure documented for cases where hardware response differs. No additional RL training is performed on real hardware, but hardware-level gain tuning is supported. |
-| 5 | **Network architecture** | Full ROS 2 node graph with topic names, QoS profiles, and latency budget (HOPE engineering analysis) |
-| 6 | **Forehand/backhand switching** | Two-ONNX-model runtime switching documented; the controller loads both forehand and backhand ONNX sessions and selects per ball Y-position. BeyondMimic embeds one reference motion per ONNX file. |
+| # | Aspect | HITTER paper | This HOPE reference setup | Rationale |
+|---|--------|-------------|---------------------------|-----------|
+| 1 | **Inference framework** | Not named; paper states "built upon" BeyondMimic and "deployed zero-shot" | BeyondMimic `motion_tracking_controller` (C++ ONNX, `legged_control2`) for G1; AimRT native ONNX or ROS 2 bridged for A3 | HITTER does not name the deployment software. We infer `motion_tracking_controller` from shared authorship (Qiayuan Liao) and BeyondMimic attribution. |
+| 2 | **Target platforms** | Unitree G1 only | G1 (via `legged_control2` + `unitree_bringup`) and Agibot A3 (via AimRT with ROS 2 protocol bridge) | HOPE multi-platform support. |
+| 3 | **Safety system** | Not described | E-stop via Unitree joystick (G1) or AimRT safety node (A3); mandatory pre-flight checklist documented | Physical safety is critical for fast-moving arm swings near humans. |
+| 4 | **PD gain tuning** | "Joint PD gains are set heuristically following [BeyondMimic]"; "deployed zero-shot" (no real-world RL training) | Same heuristic gains from BeyondMimic, embedded in ONNX metadata; sim-to-real gain adjustment procedure documented for cases where hardware response differs | "Zero-shot" means no additional RL training on real hardware; it does not preclude hardware-level gain tuning, which HITTER does not discuss. |
+| 5 | **Network architecture** | Not described | Full ROS 2 node graph with topic names, QoS profiles, and latency budget (HOPE analysis) | HITTER omits ROS 2 details. Latency numbers are HOPE's engineering analysis, not HITTER's published data. |
+| 6 | **Forehand/backhand switching** | "We trigger a forehand strike when the ball's y position is negative and a backhand strike when positive"; single sentence, no deployment mechanism | Two-ONNX-model runtime switching documented; controller must load both forehand and backhand ONNX sessions and select per ball Y-position | BeyondMimic embeds one reference motion per ONNX file. HITTER does not describe how the runtime switch between two models is implemented. |
 
 ---
 
@@ -59,6 +49,7 @@ The deployment runs as a ROS 2 Jazzy graph. All nodes run on a single machine (t
 │  │    /ball/point          (PointStamped, 360 Hz)               │         │
 │  │    /P1/pose             (PoseStamped, 360 Hz)                │         │
 │  │    /P2/pose             (PoseStamped, 360 Hz)                │         │
+│  │    /table/pose          (PoseStamped, 10 Hz)                 │         │
 │  └──────────┬──────────────────────────┬───────────────────────┘         │
 │             │                          │                                  │
 │             ▼                          ▼                                  │
@@ -68,7 +59,7 @@ The deployment runs as a ROS 2 Jazzy graph. All nodes run on a single machine (t
 │  │                      │   │                               │             │
 │  │  Subscribes:         │   │  Subscribes:                  │             │
 │  │   /ball/point        │   │   /racket/command             │             │
-│  │   /P1/pose           │   │   robot root pose            │             │
+│  │   /P1/pose           │   │   /P1/pose (base_link)       │             │
 │  │                      │   │   Joint encoder feedback      │             │
 │  │  Publishes:          │   │                               │             │
 │  │   /racket/command    │──▶│  ONNX inference (50 Hz)       │             │
@@ -90,7 +81,7 @@ The deployment runs as a ROS 2 Jazzy graph. All nodes run on a single machine (t
 
 ### 1.2  Latency Budget
 
-The total perception-to-actuation latency must be under 20 ms for competitive play. The latency budget below is HOPE's engineering analysis of the pipeline components:
+The total perception-to-actuation latency must be under 20 ms for competitive play. The HITTER paper does not publish end-to-end latency numbers but states the system achieves "sub-second reaction times" (measured from the opponent's hit to the robot's return, which includes ball flight time). The latency budget below is HOPE's engineering analysis of the pipeline components:
 
 | Stage | Budget | Actual (typical) |
 |-------|--------|------------------|
@@ -106,7 +97,7 @@ The total perception-to-actuation latency must be under 20 ms for competitive pl
 
 ## 2  Path A — Unitree G1 Deployment
 
-The G1 deployment uses the BeyondMimic `motion_tracking_controller` package, which provides a production-ready C++ ONNX inference node built on the `legged_control2` framework. The `motion_tracking_controller` repository is the official BeyondMimic deployment code and is the canonical path for deploying BeyondMimic-trained policies on Unitree hardware.
+The G1 deployment uses the BeyondMimic `motion_tracking_controller` package, which provides a production-ready C++ ONNX inference node built on the `legged_control2` framework. The HITTER paper does not explicitly name its deployment framework, but states it was "built upon" BeyondMimic, and Qiayuan Liao (the `legged_control2` and `motion_tracking_controller` author) is a co-author on the HITTER paper. The `motion_tracking_controller` repository is the official BeyondMimic deployment code and is the canonical path for deploying BeyondMimic-trained policies on Unitree hardware.
 
 ### 2.1  Prerequisites
 
@@ -201,8 +192,8 @@ The MuJoCo simulation should show the G1 model performing the trained swing moti
 1. ☐ Robot is powered on and standing in a stable position
 2. ☐ 3D-printed racket mount is securely attached to the right wrist link
 3. ☐ Racket is mounted and the `T_mount` transform matches the simulation model (see WBC Training doc Section 2.8)
-4. ☐ Table/PPT calibration has been verified; the motion-capture system is tracking the robot marker cluster (P1) and ball, and the calibrated P1-to-root transform is active
-5. ☐ The mocap bridge (`optitrack_hope_bridge.launch.py`: vendored `motion_capture_tracking` driver + `optitrack_mct_relay`) is publishing `/P1/pose` and `/ball/point`
+4. ☐ OptiTrack system is running and tracking the table (PPT), robot base_link (P1), and ball
+5. ☐ `motion_capture_tracking` node is publishing `/P1/pose` and `/ball/point`
 6. ☐ HOPE planner node is running and publishing `/racket/command`
 7. ☐ E-stop (Unitree RC joystick button B) has been tested
 8. ☐ All personnel are at least 2 m from the robot's arm reach envelope
@@ -266,12 +257,12 @@ motion_tracking_controller/
 └── package.xml
 ```
 
-The `MotionTrackingController` class constructs the observation vector at each control step (50 Hz), matching the observation structure from the Isaac Lab / mjlab training environment. It reads:
+The `MotionTrackingController` class constructs the observation vector at each control step (50 Hz), matching the observation structure from the Isaac Lab / mjlab training environment and HITTER Table I. It reads:
 
 - Joint positions and velocities (from robot encoders via `unitree_systems`)
 - Base angular velocity and projected gravity (from onboard IMU)
 - Previous action (the joint position targets from the last control step — standard RL observation for temporal smoothness)
-- Robot root pose (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3), obtained by composing `/P1/pose` with the calibrated static transform
+- `base_link` pose (from motion capture via `/P1/pose` subscription)
 - Racket target command: desired base XY position, desired racket position relative to base, desired racket velocity in world frame, time to strike (from planner via `/racket/command` subscription)
 - Reference motion: target joint positions and velocities at the current and future timesteps, reference base angular velocity (extracted from the ONNX model's embedded 50 Hz reference trajectory via the `forward()` function)
 
@@ -279,7 +270,7 @@ The observation vector is passed to `MotionOnnxPolicy`, which runs the ONNX acto
 
 ### 2.7  PD Gain Tuning
 
-The simulation trains with specific PD gains (stiffness `Kp` and damping `Kd`) per joint. Joint PD gains are set heuristically following BeyondMimic — they are hand-tuned values (not learned), following the conventions in the BeyondMimic codebase. These gains are embedded in the ONNX model metadata by BeyondMimic's exporter and applied by `motion_tracking_controller` automatically at deployment. However, the real actuators may have different dynamic responses than the simulated ones, requiring gain adjustment.
+The simulation trains with specific PD gains (stiffness `Kp` and damping `Kd`) per joint. The HITTER paper states that joint PD gains are "set heuristically following [BeyondMimic]" — meaning they are hand-tuned values (not learned), following the conventions in the BeyondMimic codebase. These gains are embedded in the ONNX model metadata by BeyondMimic's exporter and applied by `motion_tracking_controller` automatically at deployment. However, the real actuators may have different dynamic responses than the simulated ones, requiring gain adjustment.
 
 **Signs that gains need tuning:**
 
@@ -319,7 +310,7 @@ This approach reuses the same ONNX inference logic from `motion_tracking_control
 
 - **Joint mapping**: Replace G1 joint names with A3 joint names in the controller configuration
 - **PD gains**: Set A3-specific stiffness and damping per joint (from Agibot's actuator datasheets)
-- **Root-frame transform**: Apply the calibrated `P1 → pelvis_link` transform for A3
+- **Base_link transform**: Apply the A3's `base_link` offset (different from G1's pelvis location)
 - **`T_mount` transform**: The A3's racket mount geometry will differ from the G1's
 
 The Agibot X1/X2 AimDK already provides ROS 2 standard interfaces for joint control, following the `/aimdk_msgs/` message conventions. The A3 (Expedition series) is expected to follow the same pattern.
@@ -340,7 +331,7 @@ class HopeWbcModule : public aimrt::ModuleBase {
     
     void OnJointState(const JointStateMsg& msg) {
         // Build observation vector (same structure as training)
-        auto obs = BuildObservation(msg, robot_root_pose_, racket_command_);
+        auto obs = BuildObservation(msg, base_link_pose_, racket_command_);
         
         // Run ONNX inference
         auto action = onnx_session_.Run(obs);
@@ -387,9 +378,9 @@ source install/setup.bash
 The full HOPE system requires multiple nodes launched in a specific order:
 
 ```bash
-# Terminal 1: Motion capture bridge (vendored driver + HOPE relay)
-ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
-    hostname:=192.168.1.100
+# Terminal 1: Motion capture bridge
+ros2 launch motion_capture_tracking optitrack.launch.py \
+    server_ip:=192.168.1.100
 
 # Terminal 2: HOPE planner
 ros2 run hope_planner hope_planner_node \
@@ -408,9 +399,10 @@ ros2 topic hz /ball/point /P1/pose /racket/command
 
 | Topic | Type | Publisher | Subscriber(s) | Rate |
 |-------|------|-----------|---------------|------|
-| `/ball/point` | `geometry_msgs/PointStamped` | `optitrack_mct_relay` | HOPE Planner | 360 Hz |
-| `/P1/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` | HOPE Planner, WBC Controller | 360 Hz |
-| `/P2/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` | (opponent's controller) | 360 Hz |
+| `/ball/point` | `geometry_msgs/PointStamped` | `motion_capture_tracking` | HOPE Planner | 360 Hz |
+| `/P1/pose` | `geometry_msgs/PoseStamped` | `motion_capture_tracking` | HOPE Planner, WBC Controller | 360 Hz |
+| `/P2/pose` | `geometry_msgs/PoseStamped` | `motion_capture_tracking` | (opponent's controller) | 360 Hz |
+| `/table/pose` | `geometry_msgs/PoseStamped` | `motion_capture_tracking` | (drift monitor) | 10 Hz |
 | `/racket/command` | `hope_msgs/RacketCommand` | HOPE Planner | WBC Controller | 50 Hz |
 | `/joint_states` | `sensor_msgs/JointState` | Robot driver | WBC Controller | 500 Hz |
 
@@ -441,9 +433,9 @@ The planner and WBC controller should use this QoS for all subscriptions. Using 
 | Robot falls immediately when policy activates | Gravity/mass mismatch between sim and real | Verify URDF inertial params; start with lower Kp |
 | Swing never reaches the ball | PD gains too low on real hardware | Increase Kp by 10% increments |
 | Arm oscillates during swing | Kd too low; actuator backlash not modeled | Increase Kd; add low-pass filter on action output |
-| Robot drifts sideways during play | IMU bias not calibrated; P1-to-root mocap offset wrong | Re-calibrate IMU; verify the calibrated marker-to-root transform |
+| Robot drifts sideways during play | IMU bias not calibrated; base_link mocap offset wrong | Re-calibrate IMU; verify mocap marker offset |
 | Ball contact but no return | `T_mount` mismatch between sim and real | Re-measure the physical racket mount transform |
-| Forehand/backhand selection wrong | Robot-root Y offset from table center incorrect | Verify robot placement relative to table origin |
+| Forehand/backhand selection wrong | Base_link Y offset from table center incorrect | Verify robot placement relative to table origin |
 
 ### 5.2  Observation Noise Matching
 
@@ -451,7 +443,7 @@ The training environment adds observation noise to simulate real sensor imperfec
 
 - **Joint encoder noise**: Unitree G1 encoders are ±0.01 rad — well within typical training noise of ±0.05 rad
 - **IMU noise**: Onboard IMU angular velocity noise ~0.01 rad/s — within training noise of ±0.2 rad/s
-- **Mocap robot-root noise**: OptiTrack at 360 Hz provides sub-mm marker tracking; include calibration uncertainty when comparing it with the ±5 mm training noise
+- **Mocap base_link noise**: OptiTrack at 360 Hz provides sub-mm accuracy — much better than the ±5 mm training noise
 - **Latency**: The ~10–15 ms total latency is within the 1-step (20 ms) observation delay modeled in training
 
 If any real sensor is noisier than the training distribution, the policy may degrade. The fix is to retrain with increased noise parameters in the domain randomization config.
@@ -463,7 +455,7 @@ If any real sensor is noisier than the training distribution, the policy may deg
 A typical HOPE competition match follows this sequence:
 
 1. **Setup** (5 min): Position robot at the table, power on, verify mocap tracking, attach racket
-2. **Calibration** (2 min): Verify P1 tracking, the P1-to-root transform (`P1 → pelvis_link` on A3), and `T_mount`; confirm the planner receives `/ball/point`
+2. **Calibration** (2 min): Verify `base_link` and `T_mount` in OptiTrack; confirm planner receives `/ball/point`
 3. **Pre-flight** (1 min): Run through the pre-flight checklist (Section 2.5)
 4. **Warm-up** (30 s): Activate policy in standby; toss a test ball to verify planner + WBC connectivity
 5. **Match**: Press `R1 + A` (G1) to activate the WBC; opponent serves
@@ -474,13 +466,13 @@ A typical HOPE competition match follows this sequence:
 
 ## 7  Known Limitations
 
-1. **Zero-shot transfer is not guaranteed in the strict hardware sense.** The policy is deployed zero-shot to the real robot, meaning no additional real-world reinforcement learning or fine-tuning is performed — the simulation-trained policy runs directly on hardware. However, "zero-shot" in this context does not mean zero hardware configuration. PD gain adjustment, `T_mount` verification, and mocap calibration are infrastructure setup steps that the first deployment on new hardware requires even if the policy itself is unchanged.
+1. **Zero-shot transfer is not guaranteed in the strict hardware sense.** The HITTER paper states the policy is "deployed zero-shot to the real robot," meaning no additional real-world reinforcement learning or fine-tuning is performed — the simulation-trained policy runs directly on hardware. However, "zero-shot" in this context does not mean zero hardware configuration. PD gain adjustment, `T_mount` verification, and mocap calibration are infrastructure setup steps that HITTER presumably performed but does not describe. Teams should expect that the first deployment on new hardware requires these adjustments even if the policy itself is unchanged.
 
 2. **No online adaptation.** The deployed ONNX policy is a frozen neural network. It does not learn or adapt during play. Performance degradation due to actuator wear, temperature changes, or loose racket mounts must be addressed offline.
 
-3. **Forehand/backhand switching requires two ONNX models.** BeyondMimic's ONNX exporter embeds a single reference motion per file. Since the policy uses two reference motions (forehand and backhand), deployment requires two ONNX models. Forehand is triggered when the ball's Y position is negative (robot's right side) and backhand when positive (left side). The runtime switching logic — loading both ONNX sessions and selecting which to query each control step based on the planner's swing type signal — must be implemented in the controller node. This is not provided by `motion_tracking_controller` out of the box, which loads a single ONNX file. A multi-skill policy trained with BeyondMimic's diffusion distillation (future work) would eliminate this dual-model requirement.
+3. **Forehand/backhand switching requires two ONNX models.** BeyondMimic's ONNX exporter embeds a single reference motion per file. Since HITTER uses two reference motions (forehand and backhand), deployment requires two ONNX models. The HITTER paper triggers forehand when the ball's Y position is negative (robot's right side) and backhand when positive (left side). The runtime switching logic — loading both ONNX sessions and selecting which to query each control step based on the planner's swing type signal — must be implemented in the controller node. This is not provided by `motion_tracking_controller` out of the box, which loads a single ONNX file. A multi-skill policy trained with BeyondMimic's diffusion distillation (future work) would eliminate this dual-model requirement.
 
-4. **A3 deployment is experimental.** The Agibot A3 deployment path is based on AimRT patterns from the X1/X2 platforms; the A3's exact joint-level control API may differ — verify against your vendor deploy package.
+4. **A3 deployment is experimental.** The Agibot A3 deployment path is based on AimRT patterns from the X1/X2 platforms. The A3 (Expedition series) is pre-production and its exact joint-level control API may differ.
 
 5. **No ball spin response.** Consistent with the training setup, the deployed policy does not adjust racket orientation to counteract incoming spin.
 
@@ -488,7 +480,6 @@ A typical HOPE competition match follows this sequence:
 
 ## References
 
-- Su, Z., Zhang, B., Rahmanian, N., Gao, Y., Liao, Q., Regan, C., Sreenath, K., & Sastry, S. S. (2025). HITTER: A HumanoId Table TEnnis Robot via Hierarchical Planning and Learning. *arXiv:2508.21043v2*.
 - BeyondMimic deployment code: https://github.com/HybridRobotics/motion_tracking_controller
 - `legged_control2` documentation: https://qiayuanl.github.io/legged_control2_doc/
 - `unitree_bringup`: https://github.com/qiayuanl/unitree_bringup

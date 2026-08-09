@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="params_file"
+       default="$(find-pkg-share hope_planner_cpp)/config/model21800_hardware.yaml"/>
+  <node pkg="hope_planner_cpp"
+        exec="hope_planner_cpp_node"
+        name="hope_planner"
+        output="screen">
+    <param from="$(var params_file)"/>
+  </node>
+</launch>

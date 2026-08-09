@@ -8,9 +8,10 @@ plus a clamp). It is NOT a rejection filter and emits no failure status:
     q_des = default_q + raw_action * action_scale
     q_des = clip(q_des, clamp_lower, clamp_upper)
 
-The SAME configuration file drives training and this reference runner, so a user
-tunes the mapping in exactly one place. The shipped constants are neutral EXAMPLE
-values (see ``config/action_adapter.yaml``) and must be tuned for a real robot.
+The runtime may load either the neutral public example
+(``config/action_adapter.yaml``) or the exact Unitree-style ``deploy.yaml`` shipped
+with a published model bundle.  In both cases the transform is resolved into the
+same SDK/MuJoCo joint order.
 
 Vendor hard limits, motor protection, and e-stop remain the responsibility of the
 robot backend; this transform neither probes nor bypasses them.
@@ -56,6 +57,13 @@ class ActionAdapter:
         with open(path, "r", encoding="utf-8") as fh:
             doc = yaml.safe_load(fh)
 
+        # A published model bundle carries the authoritative Unitree-style
+        # deploy.yaml used by the native runner. Reuse its resolved action arrays
+        # directly so the lightweight MuJoCo runner does not need a second copy of
+        # model-specific defaults, scales, or clamps.
+        if doc.get("format") == "unitree_rl_lab.deploy":
+            return cls._from_deploy_yaml(doc)
+
         default_q = _resolve_per_joint(doc["default_q"], "default_q")
 
         scale_spec = doc["action_scale"]
@@ -68,6 +76,31 @@ class ActionAdapter:
         clamp_lower = _resolve_per_joint(clamp["lower"], "joint_position_clamp.lower")
         clamp_upper = _resolve_per_joint(clamp["upper"], "joint_position_clamp.upper")
         return cls(default_q, action_scale, clamp_lower, clamp_upper)
+
+    @classmethod
+    def _from_deploy_yaml(cls, doc: dict) -> "ActionAdapter":
+        action = doc["actions"]["JointPositionAction"]
+        names = tuple(str(name) for name in action["joint_names"])
+        if len(names) != NUM_JOINTS or set(names) != set(JOINT_NAMES):
+            raise ValueError("deploy.yaml JointPositionAction must name all 31 A3 joints once")
+
+        def reorder(values, field_name: str) -> np.ndarray:
+            if len(values) != NUM_JOINTS:
+                raise ValueError(f"deploy.yaml {field_name} must be length {NUM_JOINTS}")
+            by_name = {name: value for name, value in zip(names, values)}
+            return np.asarray([by_name[name] for name in JOINT_NAMES], dtype=np.float64)
+
+        clips = action["clip"]
+        if len(clips) != NUM_JOINTS or any(len(pair) != 2 for pair in clips):
+            raise ValueError("deploy.yaml JointPositionAction.clip must contain 31 [lo, hi] pairs")
+        lower = reorder([pair[0] for pair in clips], "JointPositionAction.clip.lower")
+        upper = reorder([pair[1] for pair in clips], "JointPositionAction.clip.upper")
+        return cls(
+            default_q=reorder(action["offset"], "JointPositionAction.offset"),
+            action_scale=reorder(action["scale"], "JointPositionAction.scale"),
+            clamp_lower=lower,
+            clamp_upper=upper,
+        )
 
 
 def _resolve_per_joint(spec, field_name: str) -> np.ndarray:

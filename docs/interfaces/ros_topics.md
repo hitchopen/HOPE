@@ -11,12 +11,13 @@ planner/relay are independent workspaces; build and launch them separately
         |  pose_to_posearray (hope_bringup)
         v
 /poses                                 geometry_msgs/PoseArray     (Ball at index 0; P1/P2 optional)
-        |  hope_planner
+        |  hope_planner  (or hope_planner_cpp)
         v
-/racket/command                        hope_msgs/RacketCommand
-        |  python -m a3_deploy_onnx_ref_pingpong --planner
+/racket/command                        hope_msgs/RacketCommand      (tooling/gates)
+/racket/command_flat                   std_msgs/Float64MultiArray   (schema-tagged hardware wire)
+        |  + /a3/base_pose_flat (hope_base_pose_flat_relay, from /P1/pose)
         v
-50 Hz policy control loop
+a3_pingpong C++ runner --planner  ->  50 Hz policy control loop (body-drive iceoryx)
 ```
 
 The chain above shows the default **VRPN backend**. With
@@ -38,7 +39,18 @@ built NatNet2ROS2 adapter + HOPE relay — the `/poses` hop and everything below
 |-------|------|-----------|-----|
 | `/vrpn_mocap/<tracker>/pose_id_<N>` | `geometry_msgs/PoseStamped` | vrpn_mocap client → `pose_to_posearray` | sensor-data (best-effort, volatile) |
 | `/poses` | `geometry_msgs/PoseArray` | `pose_to_posearray` (or `fake_ball_publisher`) → `hope_planner` | best-effort, volatile, keep-last 1 |
-| `/racket/command` | `hope_msgs/RacketCommand` | `hope_planner` → runner `--planner` | reliable, volatile, keep-last 10 |
+| `/racket/command` | `hope_msgs/RacketCommand` | `hope_planner` → gates/tooling/MuJoCo closed loop | reliable, volatile, keep-last 10 |
+| `/racket/command_flat` | `std_msgs/Float64MultiArray` (schema 2, 19 doubles) | planner → C++ runner `--planner` | reliable, volatile |
+| `/a3/base_pose_flat` | `std_msgs/Float64MultiArray` (schema 2, 16 doubles) | `hope_base_pose_flat_relay` (from `/P1/pose`) → C++ runner | reliable, volatile |
+| `/serve/ball_state_flat` | `std_msgs/Float64MultiArray` (≥11 doubles) | serve tooling → C++ runner | reliable, volatile |
+| `/ball/pose` | `geometry_msgs/PoseStamped` | relay (valid Ball rigid-body quaternion only) → planner spin shadow (diagnostics) | best-effort, volatile |
+| `/planner/diagnostics` | (see `hope_planner_cpp`) | C++ planner → operators/audit | keep-last 1 |
+
+Flat layouts are pinned in
+[`pp_planner_input.hpp`](../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include/a3_pingpong/pp_planner_input.hpp)
+and summarized in [PLANNER_INTERFACE.md](../PLANNER_INTERFACE.md#wire-contract): the
+runner subscribes core `std_msgs` flats so the aarch64 cross-build needs no custom
+message typesupport.
 
 Notes per hop:
 
@@ -63,12 +75,14 @@ Notes per hop:
   when marker-cluster poses are aggregated; `Table` is never streamed in competition. The planner reads the ball at
   `ball_pose_index` (default 0). With `use_fake_ball:=true`,
   `fake_ball_publisher` publishes this form directly.
-- **`/racket/command`** — the planner feeds every mocap sample to its estimator
-  but solves at most every `solve_period_s` (≤ 50 Hz); topic names and tuning
+- **`/racket/command` + `/racket/command_flat`** — the planner feeds every mocap
+  sample to its estimator but solves at bounded rate; topic names and tuning
   live in
   [`hope_ws/src/hope_planner/config/hope_planner.yaml`](../../hope_ws/src/hope_planner/config/hope_planner.yaml).
-  The reference runner's `--planner` mode subscribes with the matching reliable
-  QoS and hands the newest command to the 50 Hz control loop.
+  The C++ runner's `--planner` mode subscribes the **flat** topics with matching
+  reliable QoS and hands the newest command to the 50 Hz control loop; the rich
+  `RacketCommand` stream feeds gates, tooling, and the MuJoCo closed loop.
+  Revisions for the same flight freeze once the runner engages the swing.
 
 ## VRPN backend
 
@@ -162,16 +176,20 @@ All fields are in the world frame (metres, seconds).
 | Field | Type | Meaning |
 |-------|------|---------|
 | `header` | `std_msgs/Header` | Stamp + world frame id. |
-| `task_id` | `uint64` | New unique id per incoming ball. |
-| `task_revision` | `uint32` | Increments as the pre-strike plan for the *same* ball is refined. |
-| `FOREHAND` / `BACKHAND` | `int8` constants | `1` / `-1`. |
-| `swing_side` | `int8` | Chosen once per task and locked for the whole strike. |
 | `position` | `geometry_msgs/Point` | Target racket position at the strike (m). |
 | `velocity` | `geometry_msgs/Vector3` | Target racket velocity at the strike (m/s). |
+| `normal` | `geometry_msgs/Vector3` | Desired racket face normal at contact. |
+| `strike_time` | `float64` | Absolute strike wall time (s). |
 | `time_to_strike` | `float64` | Seconds until the strike. |
+| `ball_velocity_outgoing` | `geometry_msgs/Vector3` | Predicted outgoing ball velocity. |
+| `valid` | `bool` | Command is currently actionable. |
+| `clears_net` | `bool` | Predicted outgoing shot clears the net. |
+| `bypasses_net_posts` | `bool` | Predicted shot passes outside the net posts. |
+| `predicted_bounces` | `int32` | Incoming-trajectory bounce count. |
 
-There is intentionally no `valid`/`reason`/failure field — if the incoming data
-is insufficient, the planner simply has not published yet.
+Flight/revision identity and `swing_sign` travel on the schema-2
+`/racket/command_flat` wire (see
+[PLANNER_INTERFACE.md](../PLANNER_INTERFACE.md#wire-contract)).
 
 ## QoS convention
 
