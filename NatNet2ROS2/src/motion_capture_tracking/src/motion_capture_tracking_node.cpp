@@ -1,5 +1,6 @@
-#include <iostream>
+#include <chrono>
 #include <cmath>
+#include <iostream>
 #include <stdexcept>
 #include <vector>
 #include <fmt/core.h>
@@ -13,6 +14,7 @@
 
 // Motion Capture
 #include <libmotioncapture/motioncapture.h>
+#include <motion_capture_tracking/output_rate_limiter.h>
 
 // Rigid Body tracker
 #include <librigidbodytracker/rigid_body_tracker.h>
@@ -61,6 +63,7 @@ int main(int argc, char **argv)
   node->declare_parameter<std::string>("hostname", "localhost");
   node->declare_parameter<std::string>("topics.frame_id", "world");
   node->declare_parameter<std::string>("topics.header_time", "ros");
+  node->declare_parameter<double>("topics.output_rate_hz", 180.0);
   node->declare_parameter<double>("topics.network_latency_ms", 0.0);
   node->declare_parameter<double>("topics.max_clock_sync_uncertainty_ms", 2.0);
   node->declare_parameter<double>("topics.max_capture_age_ms", 100.0);
@@ -75,11 +78,15 @@ int main(int argc, char **argv)
   std::string motionCaptureHostname = node->get_parameter("hostname").as_string();
   std::string frame_id = node->get_parameter("topics.frame_id").as_string();
   std::string header_time = node->get_parameter("topics.header_time").as_string();
+  double output_rate_hz = node->get_parameter("topics.output_rate_hz").as_double();
   double network_latency_ms = node->get_parameter("topics.network_latency_ms").as_double();
   double max_clock_sync_uncertainty_ms =
     node->get_parameter("topics.max_clock_sync_uncertainty_ms").as_double();
   double max_capture_age_ms =
     node->get_parameter("topics.max_capture_age_ms").as_double();
+  if (!std::isfinite(output_rate_hz) || output_rate_hz < 0.0) {
+    throw std::runtime_error("topics.output_rate_hz must be finite and non-negative");
+  }
   if (network_latency_ms < 0.0) {
     throw std::runtime_error("topics.network_latency_ms must be non-negative");
   }
@@ -120,6 +127,34 @@ int main(int argc, char **argv)
   double poses_deadline = node->get_parameter("topics.poses.qos.deadline").as_double();
   std::string tf_child_frame_id = node->get_parameter("topics.tf.child_frame_id").as_string();
   std::string logFilePath = node->get_parameter("logfilepath").as_string();
+
+  if (poses_qos == "sensor" &&
+    (!std::isfinite(poses_deadline) || poses_deadline <= 0.0))
+  {
+    throw std::runtime_error(
+      "topics.poses.qos.deadline must be finite and positive in sensor mode");
+  }
+  if (poses_qos == "sensor" && output_rate_hz > 0.0 &&
+    output_rate_hz <= poses_deadline)
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "topics.output_rate_hz (%.3f Hz) is not above the publisher deadline "
+      "rate (%.3f Hz); lower topics.poses.qos.deadline or use QoS mode none "
+      "to avoid expected deadline misses",
+      output_rate_hz, poses_deadline);
+  }
+
+  motion_capture_tracking::detail::OutputRateLimiter output_rate_limiter(
+    output_rate_hz);
+  if (output_rate_hz == 0.0) {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "ROS 2 output downsampling disabled; publishing every valid source frame");
+  } else {
+    RCLCPP_INFO(
+      node->get_logger(), "ROS 2 output rate capped at %.3f Hz", output_rate_hz);
+  }
 
   auto node_parameters_iface = node->get_node_parameters_interface();
   const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides =
@@ -350,16 +385,28 @@ int main(int argc, char **argv)
       throw std::logic_error("validated topics.header_time became unreachable");
     }
 
+    // Use a monotonic publication schedule, but keep the selected source
+    // frame's acquisition timestamp unchanged. All source frames have already
+    // reached the NatNet backend and timestamp checks; only ROS output is
+    // downsampled.
+    const double output_gate_now_seconds =
+      std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    const bool publish_this_frame =
+      output_rate_limiter.shouldPublish(output_gate_now_seconds);
+
     auto pointcloud = mocap->pointCloud();
 
     // publish as pointcloud
-    msgPointCloud.header.stamp = time;
-    msgPointCloud.width = pointcloud.rows();
-    msgPointCloud.data.resize(pointcloud.rows() * 3 * 4); // width * height * pointstep
-    memcpy(msgPointCloud.data.data(), pointcloud.data(), msgPointCloud.data.size());
-    msgPointCloud.row_step = msgPointCloud.data.size();
+    if (publish_this_frame) {
+      msgPointCloud.header.stamp = time;
+      msgPointCloud.width = pointcloud.rows();
+      msgPointCloud.data.resize(pointcloud.rows() * 3 * 4); // width * height * pointstep
+      memcpy(msgPointCloud.data.data(), pointcloud.data(), msgPointCloud.data.size());
+      msgPointCloud.row_step = msgPointCloud.data.size();
 
-    pubPointCloud->publish(msgPointCloud);
+      pubPointCloud->publish(msgPointCloud);
+    }
     if (logClouds) {
       // pointCloudLogger.log(timestamp/1000, markers);  // point cloud log format: infinite repetitions of:  timestamp (milliseconds) : uint32
       // std::cout << "0000000000000before log" << std::endl;
@@ -442,7 +489,7 @@ int main(int argc, char **argv)
       }
     }
 
-    if (transforms.size() > 0) {
+    if (publish_this_frame && transforms.size() > 0) {
       // publish poses
       if (poses_version == 1) {
         msgPoses.header.stamp = time;

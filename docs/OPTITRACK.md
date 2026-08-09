@@ -338,14 +338,16 @@ Relay config (name → topic mapping, scale):
 ```bash
 ros2 topic echo --once /optitrack/poses   # raw driver frames (names must match config)
 ros2 topic echo --once /poses             # HOPE contract (ball at index 0)
-ros2 run hope_bringup mocap_rate_probe.py --topic /P1/pose --min-hz 180
+ros2 run hope_bringup mocap_rate_probe.py --topic /P1/pose --min-hz 150
 ```
 
 `mocap_rate_probe.py` is a one-shot pass/fail rate gate (NatNet is UDP — unlike
 the VRPN TCP port there is nothing to `connect()` to before launch, so mocap
-liveness can only be proven by data). Counting published messages can read
-lower than the camera rate under receive-side drops; that is normal for a
-best-effort sensor stream.
+liveness can only be proven by data). NatNet2ROS2 receives every source frame
+but caps coherent ROS output at 180 Hz by default. Change the adapter launch
+argument `output_rate_hz:=<Hz>`, or use `0.0` for every valid source frame.
+Counting published messages can read below that cap under receive-side drops;
+that is normal for a best-effort sensor stream.
 
 ## No-hardware smoke test
 
@@ -372,15 +374,21 @@ For bag replay, record `/optitrack/poses` at a live session
 (`ros2 bag record /optitrack/poses`) and replay it against
 `optitrack_mct_relay.launch.py`; the raw adapter stays stopped during replay.
 
-## Camera rate and the planner's `fit_window`
+## Source/output rate and the planner's `fit_window`
 
-The planner's velocity fit uses `fit_window` **samples** (default 31 ≈ 103 ms
-at a 300 Hz rig). The window is rate-coupled: keep it at ≥ ~100 ms of samples,
-i.e. `round(31 × rate / 300)`. OptiTrack rigs commonly stream **360 Hz** →
-set `fit_window: 37` in
-[`hope_planner.yaml`](../hope_ws/src/hope_planner/config/hope_planner.yaml)
-(or pass `-p fit_window:=37`). The camera rate is a venue fact — read it from
-Motive, don't infer it from `ros2 topic hz` (receive-side drops read low).
+The camera rate and ROS output rate are now intentionally distinct. OptiTrack
+rigs commonly capture at 360 Hz, while NatNet2ROS2 receives every frame and
+publishes at a configurable maximum of 180 Hz by default. The planner's
+velocity fit uses `fit_window` **received samples**, so couple it to the ROS
+output rate, not the Motive camera rate: retain about 100 ms with
+`round(31 × output_rate / 300)`. At the 180 Hz default use `fit_window: 19`; if
+downsampling is disabled on a 360 Hz source, use 37. Configure it in
+[`hope_planner.yaml`](../hope_ws/src/hope_planner/config/hope_planner.yaml), or
+pass `planner_fit_window:=<samples>` to `hope_bringup.launch.py`. That launch
+selects 19 automatically for `mocap_backend:=optitrack` and 21 for
+VRPN2ROS2's default 200 Hz output.
+Read the camera rate from Motive and the output rate from adapter configuration;
+`ros2 topic hz` is only a receive-side verification of the latter.
 
 ## Multi-machine DDS (laptop bridge topology)
 
@@ -415,4 +423,4 @@ whitelist derived from the route to each peer) and sets
 | `/P1/pose` positions in the hundreds | Millimetre feed → `position_scale:=0.001`. |
 | `/poses` pauses while `/P1/pose` keeps updating | By design: the ball left the volume / lost tracking; the relay never re-emits a stale ball (protects the planner's velocity fit). |
 | `optitrack_mct_relay` exits with an import error | `motion_capture_tracking_interfaces` from NatNet2ROS2 is not installed/sourced on the HOPE host. Source that workspace (or install the interface package), or use the VRPN backend. |
-| Planner predictions lag/noisy at 360 Hz | Scale `fit_window` with the camera rate (see above). |
+| Planner predictions lag/noisy after changing output rate | Scale `fit_window` with the NatNet2ROS2 ROS output rate (see above). |

@@ -21,7 +21,7 @@ two roles**:
   observation builder, fail-closed ONNX metadata loader, passive-neck handling,
   `--planner` mode consuming `std_msgs` flats, iceoryx body-drive, watchdog and
   safe-halt. Build support: `CMakeLists.txt` + `cmake/` modules,
-  `setup_a3_env.sh` (fetches a public onnxruntime release), and `docker/`
+  `setup_a3_env.sh` (fetches public ONNX Runtime and Unitree SDK2 releases), and `docker/`
   cross-build images (rockchip / thor).
 - The shared **ActionAdapter** config and the **110-D runtime config** for the
   Python harness (`config/`), the tracked runtime assets (`assets/a3_runtime/` —
@@ -76,9 +76,14 @@ layout and integration seams.
 
 ## Building the C++ runner
 
+On Ubuntu/Debian, install `cmake`, `g++`, `libmsgpack-dev`, `libzmq3-dev`,
+`cppzmq-dev`, `libeigen3-dev`, `libyaml-cpp-dev`, `libgtest-dev`, `zlib1g-dev`
+and `wget` first. Then:
+
 ```bash
-source setup_a3_env.sh        # ROS 2 env + fetches onnxruntime into thirdparty/
-cmake -S . -B build && cmake --build build -j
+source setup_a3_env.sh        # ROS 2 env + public ONNX Runtime and Unitree SDK2
+cmake -S . -B build
+cmake --build build --target a3_deploy_onnx_ref_pingpong -j4
 ```
 
 `cmake/` provides the AimRT fetch/patch modules; `docker/` contains the

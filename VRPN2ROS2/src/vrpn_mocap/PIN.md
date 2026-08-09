@@ -21,6 +21,17 @@ Local HOPE changes include:
 6. Receipt-time fallback fixed to `RCL_SYSTEM_TIME`, invalid angular derivative
    intervals dropped, and publishers created only after a valid first frame.
 7. Extraction into the independently built `VRPN2ROS2` workspace.
+8. Per-topic/per-sensor ROS output limiting, default 200 Hz, applied only after
+   every VRPN report passes timestamp and minimum-age validation. Selected
+   messages retain their original server timestamp; `0.0` disables limiting.
+9. VRPN sensor indices are accepted only in the range 0–255 before either the
+   limiter or publisher vectors are grown, preventing malformed reports from
+   causing unbounded allocations. HOPE rigid-body deployments normally use 0.
+
+Maintenance note: this workspace builds independently, so its
+`output_rate_limiter.h` is intentionally duplicated. The NatNet2ROS2 copy is
+the behavioral reference; port limiter fixes and matching tests to both
+workspaces in the same change.
 
 VRPN protocol fact: the server supplies the message `timeval`; the VRPN core
 serializes and forwards it without server/client clock synchronization. Vendor

@@ -44,6 +44,31 @@ The adapter publishes:
 - `/optitrack/pointCloud`
 - `/optitrack/tf` and `/optitrack/tf_static`
 
+## ROS 2 output downsampling
+
+The adapter receives and validates every NatNet source frame but publishes the
+three raw ROS 2 outputs above at no more than `topics.output_rate_hz`. The
+default is **180 Hz**. Pose, point-cloud, and TF output are selected from the
+same source frame, and that frame keeps its original acquisition timestamp;
+the limiter does not average, interpolate, replay, or re-stamp data.
+
+Set the maximum rate at launch:
+
+```bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=<MOTIVE_PC_IP> output_rate_hz:=180.0
+```
+
+Use `output_rate_hz:=0.0` to disable downsampling and publish every valid
+source frame. The observed rate can still be lower than the requested cap when
+the source is slower, timestamps fail their safety gates, or the host cannot
+keep up. Changing the launch argument requires restarting the adapter.
+
+The shipped sensor QoS uses a 100 Hz publisher deadline. Keep
+`topics.poses.qos.deadline` below the selected output rate, lower it when using
+an output rate of 100 Hz or less, or select QoS mode `none`; otherwise DDS can
+correctly report expected deadline misses.
+
 ## ROS 2 NTP timestamp estimation
 
 The supported `camera_utc` path converts Motive's capture clock into the

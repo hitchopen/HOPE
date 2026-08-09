@@ -3,7 +3,7 @@
 The deploy side of HOPE lives under [`a3_deploy/`](../a3_deploy).
 **`a3_deploy/`** is a revised fork of the official AgiBot A3 deploy stack. It ships:
 
-1. the **native C++ runner `a3_pingpong`** (sources under
+1. the **native C++ runner `a3_deploy_onnx_ref_pingpong`** (sources under
    `a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/`) — the hardware control path, used
    both against the bundled MuJoCo simulation and on the real robot, with its CMake project
    (`CMakeLists.txt` + `cmake/`), `setup_a3_env.sh`, and `docker/` cross-build images for the
@@ -34,10 +34,19 @@ no extra assets**.
 
 ## Build the C++ runner
 
+Install the normal host build packages once (Ubuntu/Debian):
+
+```bash
+sudo apt-get update
+sudo apt-get install -y cmake g++ libmsgpack-dev libzmq3-dev cppzmq-dev \
+  libeigen3-dev libyaml-cpp-dev libgtest-dev zlib1g-dev wget
+```
+
 ```bash
 cd a3_deploy/a3_deploy_example
-source setup_a3_env.sh            # ROS 2 env + fetches a public onnxruntime release
-cmake -S . -B build && cmake --build build -j
+source setup_a3_env.sh            # ROS 2 env + public ONNX Runtime and Unitree SDK2
+cmake -S . -B build
+cmake --build build --target a3_deploy_onnx_ref_pingpong -j4
 ```
 
 `cmake/` provides the AimRT fetch/patch modules. For the robot's MDU, use the
@@ -76,11 +85,27 @@ comes from the planner's `swing_sign` on the wire; the policy itself never obser
 
 ## Real-robot path
 
-The same runner, cross-built with the `docker/` images for the robot's MDU, runs against the
-vendor body-drive backend instead of the simulator. Everything between an exported `policy.onnx`
-and a robot returning a ball — machine layout, clock sync, mocap bring-up, planner host, e-stop
-discipline, and the order of checks — is your operators' responsibility: rehearse the identical
-chain in simulation first and advance to hardware only on a clean pass.
+The same runner, cross-built through the vendor packaging script and its `docker/` image for the
+robot's MDU, runs against the vendor body-drive backend instead of the simulator. Supply the
+licensed AgiBot payload outside this repository, then build the complete Rockchip package from
+the repository root:
+
+```bash
+A3_VENDOR_PAYLOAD_ROOT=vendor_assets/agibot/a3_deploy_example_full \
+  agibot/code_deployment/a3_deploy_example/scripts/build_a3_deploy_pkg.sh \
+  --arch rockchip --jobs 4
+
+agibot/code_deployment/a3_deploy_example/dist/a3_deploy_rockchip/run_a3_pingpong.sh \
+  --planner --policy-native --start passive --official-stand
+```
+
+The wrapper selects the ping-pong runtime/AimRT configs and the packaged
+model_21800 bundle; it starts PASSIVE and does not enter motion on behalf of the
+operator. Everything between an exported `policy.onnx` and a robot returning a
+ball — machine layout, clock sync, mocap bring-up, planner host, e-stop
+discipline, and the order of checks — is your operators' responsibility:
+rehearse the identical chain in simulation first and advance to hardware only
+on a clean pass.
 
 Vendor hard joint limits, motor protection, communication timeouts, and physical e-stop remain
 entirely your robot backend's responsibility. HOPE does not probe, score, certify, or

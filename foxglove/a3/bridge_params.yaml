@@ -10,12 +10,14 @@
       - "^/joint_states$"
       - "^/hope/.*"
       - "^/agivslam/localization/odometry$"
-    # Match-nothing expressions avoid empty-array type ambiguity in ROS params.
-    service_whitelist: ["(?!)"]
+    # The sole remote write path is the HOPE Trigger proxy. It can assert the
+    # A3 vendor software E-stop but cannot clear it or call arbitrary services.
+    service_whitelist: ["^/hope/safety/trigger_estop$"]
     param_whitelist: ["(?!)"]
     client_topic_whitelist: ["(?!)"]
     send_buffer_limit: 10000000
     num_threads: 0
     use_compression: false
     capabilities:
+      - services
       - connectionGraph

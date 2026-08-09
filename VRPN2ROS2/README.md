@@ -25,6 +25,29 @@ ros2 launch vrpn_mocap client.launch.yaml \
 With `multi_sensor: true`, a tracker named `Ball` normally publishes
 `/vrpn_mocap/Ball/pose_id_0`.
 
+## ROS 2 output downsampling
+
+The adapter receives and timestamp-validates every VRPN report, then caps each
+ROS pose, velocity, and acceleration topic independently at
+`output_rate_hz`. The default is **200 Hz per tracker sensor**. The selected
+report keeps the VRPN server's original timestamp; the limiter does not average,
+interpolate, replay, or re-stamp data.
+
+Override the cap at launch:
+
+```bash
+ros2 launch vrpn_mocap client.launch.yaml \
+  server:=<CHINGMU_SERVER_IP> port:=3883 output_rate_hz:=200.0
+```
+
+Use `output_rate_hz:=0.0` to publish every accepted report. This parameter is
+separate from `update_freq`: keep the latter above the server stream rate so
+VRPN reports are drained and validated promptly.
+
+The adapter accepts VRPN sensor indices 0–255. It rejects negative or larger
+values before allocating the corresponding limiter and publisher slots; normal
+HOPE rigid-body senders use sensor index 0.
+
 ## ROS 2 NTP timestamp estimation and validation
 
 The checked-in deployment config enables `use_vrpn_timestamps: true`. The ROS
@@ -62,6 +85,10 @@ typical 300–360 Hz mocap stream. Ignoring scheduler jitter, this bounds the
 polling wait to about 2 ms instead of the 10 ms introduced by the former 100 Hz
 setting. Keep `update_freq` at least as high as the measured server rate and
 retain headroom; it can be overridden at launch with `update_freq:=<HZ>`.
+
+After validation, the independent `output_rate_hz` limiter reduces ROS/DDS
+traffic to 200 Hz per output topic and sensor by default. It does not reduce
+the 500 Hz socket polling rate or bypass any timestamp/age check.
 
 The source `header.stamp` remains the server report time regardless of polling
 frequency, but the driver's receipt-side age, the subscriber probe's p95 age,
@@ -114,10 +141,13 @@ and no more than 1 ms of local system-clock correction:
 ```bash
 ros2 run vrpn_mocap vrpn_timestamp_probe.py \
   --topic /vrpn_mocap/Ball/pose_id_0 \
-  --samples 1500 --min-hz 250 \
+  --samples 1500 --min-hz 180 \
   --max-p95-age-ms 20 --max-age-ms 100 --max-future-ms 5 \
   --max-ntp-offset-ms 1
 ```
+
+Here `--min-hz` checks the observed, downsampled ROS topic rate, not the
+CMTracker camera or VRPN server source rate.
 
 A passing probe proves that the ROS headers are monotonic and share the
 adapter's locally validated NTP/Unix epoch within the configured age bounds.

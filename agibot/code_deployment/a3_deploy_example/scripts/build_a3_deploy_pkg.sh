@@ -543,6 +543,7 @@ configure_and_build() {
     -DGS_PACKAGE_ARCH_NAME="${ARCH}"
     -DGS_RUNTIME_OUTPUT_DIR="${PKG_DIR}"
     -DA3_THIRDPARTY_ROOT="${THIRDPARTY_ROOT}"
+    -DA3_UNITREE_SDK2_ROOT="${THIRDPARTY_ROOT}/unitree_sdk2"
   )
   if [[ -x "${cmake_python}" ]]; then
     cmake_args+=(
@@ -1309,6 +1310,13 @@ stage_extra_libs() {
     copy_found_libs "${THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/lib/x86_64" "libddsc.so*"
     copy_found_libs "${THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/lib/x86_64" "libddscxx.so*"
   fi
+  # Some vendor payload exports contain placeholder files instead of the
+  # libddsc SONAME symlinks. Always normalize the package to the real ELF
+  # libraries that were linked by Unitree SDK2.
+  if [[ -f "${PKG_DIR}/libddsc.so" && -f "${PKG_DIR}/libddscxx.so" ]]; then
+    ln -sfn libddsc.so "${PKG_DIR}/libddsc.so.0"
+    ln -sfn libddscxx.so "${PKG_DIR}/libddscxx.so.0"
+  fi
 
   if [[ "${ARCH}" == "rockchip" ]]; then
     copy_found_libs "${THIRDPARTY_ROOT}/rknn_runtime/2.3.2/lib/aarch64" "librknnrt.so*"
@@ -1460,6 +1468,13 @@ verify_package() {
   for pingpong_rel in "${pingpong_required[@]}"; do
     if [[ ! -f "${PKG_DIR}/${pingpong_rel}" ]]; then
       echo "missing ping-pong package file: ${pingpong_rel}" >&2
+      exit 1
+    fi
+  done
+  local dds_soname
+  for dds_soname in libddsc.so.0 libddscxx.so.0; do
+    if [[ ! -L "${PKG_DIR}/${dds_soname}" || ! -e "${PKG_DIR}/${dds_soname}" ]]; then
+      echo "missing Unitree DDS SONAME link: ${dds_soname}" >&2
       exit 1
     fi
   done

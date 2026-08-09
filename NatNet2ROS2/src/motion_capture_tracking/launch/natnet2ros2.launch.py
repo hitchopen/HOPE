@@ -25,6 +25,7 @@ def generate_launch_description():
     hostname = LaunchConfiguration("hostname")
     mocap_type = LaunchConfiguration("mocap_type")
     header_time = LaunchConfiguration("header_time")
+    output_rate_hz = LaunchConfiguration("output_rate_hz")
     network_latency_ms = LaunchConfiguration("network_latency_ms")
 
     return LaunchDescription(
@@ -47,6 +48,12 @@ def generate_launch_description():
                 "for Motive versions without NatNet echo support.",
             ),
             DeclareLaunchArgument(
+                "output_rate_hz",
+                default_value="180.0",
+                description="Maximum ROS 2 output rate in Hz. Set 0 to publish "
+                "every valid NatNet source frame.",
+            ),
+            DeclareLaunchArgument(
                 "network_latency_ms",
                 default_value="0.0",
                 description="Legacy ros_latency_compensated mode only; camera_utc "
@@ -64,6 +71,9 @@ def generate_launch_description():
                         "hostname": hostname,
                         "type": mocap_type,
                         "topics.header_time": header_time,
+                        "topics.output_rate_hz": ParameterValue(
+                            output_rate_hz, value_type=float
+                        ),
                         "topics.network_latency_ms": ParameterValue(
                             network_latency_ms, value_type=float
                         ),

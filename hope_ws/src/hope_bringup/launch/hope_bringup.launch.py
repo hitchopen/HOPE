@@ -50,6 +50,7 @@ from launch.launch_description_sources import (
 )
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -57,6 +58,7 @@ def generate_launch_description():
     mocap_backend = LaunchConfiguration("mocap_backend")
     use_fake_ball = LaunchConfiguration("use_fake_ball")
     ball_pose_topic = LaunchConfiguration("ball_pose_topic")
+    planner_fit_window = LaunchConfiguration("planner_fit_window")
 
     planner_config = (
         Path(get_package_share_directory("hope_planner"))
@@ -116,7 +118,10 @@ def generate_launch_description():
         executable="hope_planner_node",
         name="hope_planner",
         output="screen",
-        parameters=[str(planner_config)],
+        parameters=[
+            str(planner_config),
+            {"fit_window": ParameterValue(planner_fit_window, value_type=int)},
+        ],
     )
 
     return LaunchDescription([
@@ -137,6 +142,15 @@ def generate_launch_description():
                         "named 'Ball' therefore publishes /vrpn_mocap/Ball/pose_id_0. "
                         "The optitrack backend maps objects by name instead "
                         "(config/optitrack_relay.yaml)."),
+        DeclareLaunchArgument(
+            "planner_fit_window",
+            default_value=PythonExpression(
+                ["19 if '", mocap_backend, "' == 'optitrack' else 21"]
+            ),
+            description="Planner velocity-fit samples. The default preserves an "
+                        "approximately 100 ms window for NatNet2ROS2's 180 Hz "
+                        "OptiTrack output or VRPN2ROS2's 200 Hz output. "
+                        "Override when changing the adapter output rate."),
         pose_adapter,
         optitrack_bridge,
         fake_ball,

@@ -32,6 +32,9 @@ option(USE_BUNDLED_ONNXRUNTIME_AARCH64
 set(A3_THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty" CACHE PATH
     "A3 vendor dependency root (onnxruntime, RKNN, unitree_sdk2, joint_msgs)")
 get_filename_component(A3_THIRDPARTY_ROOT "${A3_THIRDPARTY_ROOT}" ABSOLUTE)
+set(A3_UNITREE_SDK2_ROOT "${A3_THIRDPARTY_ROOT}/unitree_sdk2" CACHE PATH
+    "Unitree SDK2 root containing CMakeLists.txt and architecture libraries")
+get_filename_component(A3_UNITREE_SDK2_ROOT "${A3_UNITREE_SDK2_ROOT}" ABSOLUTE)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -320,12 +323,17 @@ set(BUILD_EXAMPLES
     OFF
     CACHE BOOL "Build unitree_sdk2 examples" FORCE)
 
-add_subdirectory("${A3_THIRDPARTY_ROOT}/unitree_sdk2"
+if(NOT EXISTS "${A3_UNITREE_SDK2_ROOT}/CMakeLists.txt")
+  message(FATAL_ERROR
+    "Unitree SDK2 is missing. Source setup_a3_env.sh before configuring, or "
+    "set A3_UNITREE_SDK2_ROOT to a complete Unitree SDK2 checkout.")
+endif()
+add_subdirectory("${A3_UNITREE_SDK2_ROOT}"
                  "${CMAKE_BINARY_DIR}/thirdparty/unitree_sdk2")
 
 # Add unitree_sdk2 include directories
 target_include_directories(${PROJECT_NAME}
-                           INTERFACE ${A3_THIRDPARTY_ROOT}/unitree_sdk2/include)
+                           INTERFACE ${A3_UNITREE_SDK2_ROOT}/include)
 
 # Link to unitree_sdk2 which includes all necessary dependencies
 target_link_libraries(${PROJECT_NAME} INTERFACE unitree_sdk2)

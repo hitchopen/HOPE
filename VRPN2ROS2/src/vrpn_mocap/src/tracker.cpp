@@ -36,6 +36,14 @@
 namespace vrpn_mocap
 {
 
+  namespace
+  {
+    // HOPE rigid-body deployments use sensor 0. Allow a generous multi-sensor
+    // range while preventing a malformed server report from forcing enormous
+    // limiter and publisher vector allocations.
+    constexpr int64_t kMaxSupportedSensorIndex = 255;
+  }  // namespace
+
   using geometry_msgs::msg::AccelStamped;
   using geometry_msgs::msg::PoseStamped;
   using geometry_msgs::msg::TwistStamped;
@@ -57,6 +65,7 @@ namespace vrpn_mocap
         multi_sensor_(declare_parameter("multi_sensor", false)),
         frame_id_(declare_parameter("frame_id", "world")),
         sensor_data_qos_(declare_parameter("sensor_data_qos", true)),
+        output_rate_hz_(declare_parameter("output_rate_hz", 200.0)),
         use_vrpn_timestamps_(declare_parameter("use_vrpn_timestamps", true)),
         validate_vrpn_timestamps_(declare_parameter("validate_vrpn_timestamps", true)),
         max_vrpn_timestamp_age_ms_(declare_parameter("max_vrpn_timestamp_age_ms", 100.0)),
@@ -89,6 +98,7 @@ namespace vrpn_mocap
         multi_sensor_(base_node.get_parameter("multi_sensor").as_bool()),
         frame_id_(base_node.get_parameter("frame_id").as_string()),
         sensor_data_qos_(base_node.get_parameter("sensor_data_qos").as_bool()),
+        output_rate_hz_(base_node.get_parameter("output_rate_hz").as_double()),
         use_vrpn_timestamps_(base_node.get_parameter("use_vrpn_timestamps").as_bool()),
         validate_vrpn_timestamps_(
             base_node.get_parameter("validate_vrpn_timestamps").as_bool()),
@@ -126,12 +136,14 @@ namespace vrpn_mocap
   {
     constexpr double kLargestConvertibleMilliseconds =
         static_cast<double>(std::numeric_limits<int64_t>::max()) / 1000000.0;
-    if (!std::isfinite(max_vrpn_timestamp_age_ms_) ||
+    if (!std::isfinite(output_rate_hz_) ||
+        !std::isfinite(max_vrpn_timestamp_age_ms_) ||
         !std::isfinite(max_vrpn_future_skew_ms_) ||
         !std::isfinite(min_age_monitor_window_ms_) ||
         !std::isfinite(max_vrpn_min_age_shift_ms_) ||
         !std::isfinite(expected_vrpn_min_age_ms_) ||
         !std::isfinite(max_expected_vrpn_min_age_error_ms_) ||
+        output_rate_hz_ < 0.0 ||
         max_vrpn_timestamp_age_ms_ < 0.0 ||
         max_vrpn_future_skew_ms_ < 0.0 ||
         min_age_monitor_window_ms_ <= 0.0 ||
@@ -146,7 +158,7 @@ namespace vrpn_mocap
         max_expected_vrpn_min_age_error_ms_ > kLargestConvertibleMilliseconds)
     {
       throw std::invalid_argument(
-          "VRPN timestamp and minimum-age monitor parameters are invalid");
+          "VRPN output-rate, timestamp, or minimum-age monitor parameters are invalid");
     }
 
     min_age_monitor_.reset(new detail::VrpnMinAgeMonitor(
@@ -163,6 +175,19 @@ namespace vrpn_mocap
     vrpn_tracker_.shutup = true;
 
     RCLCPP_INFO_STREAM(this->get_logger(), "Created new tracker " << name_);
+    if (output_rate_hz_ == 0.0)
+    {
+      RCLCPP_INFO(
+          this->get_logger(),
+          "ROS 2 output downsampling disabled; publishing every accepted VRPN report");
+    }
+    else
+    {
+      RCLCPP_INFO(
+          this->get_logger(),
+          "ROS 2 pose, velocity, and acceleration topics capped at %.3f Hz per sensor",
+          output_rate_hz_);
+    }
     if (use_vrpn_timestamps_)
     {
       RCLCPP_INFO(
@@ -194,6 +219,36 @@ namespace vrpn_mocap
   }
 
   void Tracker::MainLoop() { vrpn_tracker_.mainloop(); }
+
+  bool Tracker::ResolveSensorIndex(
+      int64_t reported_sensor_idx, size_t *sensor_idx)
+  {
+    if (reported_sensor_idx < 0 ||
+        reported_sensor_idx > kMaxSupportedSensorIndex)
+    {
+      RCLCPP_WARN_THROTTLE(
+          this->get_logger(), system_clock_, 2000,
+          "Dropping VRPN report with sensor index %lld; supported range is 0..%lld",
+          static_cast<long long>(reported_sensor_idx),
+          static_cast<long long>(kMaxSupportedSensorIndex));
+      return false;
+    }
+    *sensor_idx = static_cast<size_t>(reported_sensor_idx);
+    return true;
+  }
+
+  bool Tracker::ShouldPublish(
+      const size_t &sensor_idx,
+      std::vector<detail::OutputRateLimiter> *limiters)
+  {
+    while (limiters->size() <= sensor_idx)
+    {
+      limiters->emplace_back(output_rate_hz_);
+    }
+    const double monotonic_now_seconds = std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    return limiters->at(sensor_idx).ShouldPublish(monotonic_now_seconds);
+  }
 
   bool Tracker::ResolveStamp(const timeval &source_time, rclcpp::Time *stamp)
   {
@@ -279,15 +334,26 @@ namespace vrpn_mocap
   {
     Tracker *tracker = static_cast<Tracker *>(data);
 
+    size_t sensor_idx = 0;
+    if (!tracker->ResolveSensorIndex(tracker_pose.sensor, &sensor_idx))
+    {
+      return;
+    }
+
     rclcpp::Time stamp;
     if (!tracker->ResolveStamp(tracker_pose.msg_time, &stamp))
     {
       return;
     }
 
+    if (!tracker->ShouldPublish(sensor_idx, &tracker->pose_output_limiters_))
+    {
+      return;
+    }
+
     // Create the topic only after this tracker has produced an accepted frame.
     auto pub = tracker->GetOrCreatePublisher<PoseStamped>(
-        static_cast<size_t>(tracker_pose.sensor), "pose", &tracker->pose_pubs_);
+        sensor_idx, "pose", &tracker->pose_pubs_);
 
     PoseStamped msg;
     msg.header.frame_id = tracker->frame_id_;
@@ -318,14 +384,25 @@ namespace vrpn_mocap
       return;
     }
 
+    size_t sensor_idx = 0;
+    if (!tracker->ResolveSensorIndex(tracker_twist.sensor, &sensor_idx))
+    {
+      return;
+    }
+
     rclcpp::Time stamp;
     if (!tracker->ResolveStamp(tracker_twist.msg_time, &stamp))
     {
       return;
     }
 
+    if (!tracker->ShouldPublish(sensor_idx, &tracker->twist_output_limiters_))
+    {
+      return;
+    }
+
     auto pub = tracker->GetOrCreatePublisher<TwistStamped>(
-        static_cast<size_t>(tracker_twist.sensor), "velocity", &tracker->twist_pubs_);
+        sensor_idx, "velocity", &tracker->twist_pubs_);
 
     TwistStamped msg;
     msg.header.frame_id = tracker->frame_id_;
@@ -360,14 +437,25 @@ namespace vrpn_mocap
       return;
     }
 
+    size_t sensor_idx = 0;
+    if (!tracker->ResolveSensorIndex(tracker_accel.sensor, &sensor_idx))
+    {
+      return;
+    }
+
     rclcpp::Time stamp;
     if (!tracker->ResolveStamp(tracker_accel.msg_time, &stamp))
     {
       return;
     }
 
+    if (!tracker->ShouldPublish(sensor_idx, &tracker->accel_output_limiters_))
+    {
+      return;
+    }
+
     auto pub = tracker->GetOrCreatePublisher<AccelStamped>(
-        static_cast<size_t>(tracker_accel.sensor), "accel", &tracker->accel_pubs_);
+        sensor_idx, "accel", &tracker->accel_pubs_);
 
     AccelStamped msg;
     msg.header.frame_id = tracker->frame_id_;

@@ -63,6 +63,8 @@ Notes per hop:
   `use_vrpn_timestamps` and rejects source stamps outside a strict age/future
   bound against the adapter host's NTP-disciplined system clock. Thus ROS
   preserves the VRPN server report `timeval` rather than receipt time. VRPN
+  validates every report before limiting each output topic/sensor to 200 Hz by
+  default (`output_rate_hz:=0.0` disables the cap). VRPN
   does not prove which camera event a proprietary server associates with that
   value; exposure-time provenance remains a vendor/hardware acceptance item.
 - **`/poses`** — `pose_to_posearray` caches the latest pose from each configured
@@ -156,11 +158,13 @@ Notes:
   planner's default `ball_pose_index: 0`); absent objects are skipped.
   `publish_table` defaults to `false`, so even an accidentally active Motive
   Table asset creates no `/table/pose` publisher, Table TF, or `/poses` entry.
-- **Rates** — OptiTrack rigs commonly stream 360 Hz (vs the 300 Hz VRPN
-  default). The planner's `fit_window` is coupled to the rate
-  (`round(31 × rate / 300)`, ≥ ~100 ms of samples — 360 Hz → 37); see
-  [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read
-  below the camera rate under receive-side drops; that is normal for a
+- **Rates** — Both adapters validate every source report before reducing ROS
+  traffic. NatNet2ROS2 coherently caps its raw outputs at 180 Hz by default;
+  VRPN2ROS2 independently caps each topic/sensor at 200 Hz. The planner's
+  `fit_window` is coupled to the ROS input rate (`round(31 × rate / 300)`,
+  ≥ ~100 ms of samples — 180 Hz → 19, 200 Hz → 21); see
+  [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read below
+  the configured cap under receive-side drops; that is normal for a
   best-effort sensor stream.
 
 ## `hope_msgs/RacketCommand`
