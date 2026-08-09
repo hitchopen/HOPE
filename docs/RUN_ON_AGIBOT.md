@@ -24,7 +24,7 @@ qualification.
 
 | Item | Why | Where it goes |
 |------|-----|---------------|
-| A trained, exported policy (`policy.onnx` + `policy_manifest.json`) | the actor network; the runner's loader validates the embedded fail-closed metadata (joint order, contract name) | point the runtime config at it (Python harness: `models/policy.onnx` or `--onnx`; C++ runner: its runtime YAML) — see [export](TRAIN_POLICY.md#export) |
+| A policy bundle | `model_21800` is already published under `a3_deploy/a3_deploy_example/models/model_21800/policy/`; train/export another only if needed | the Python harness selects model_21800 by default; the C++ runner accepts its directory through `--policy-dir` — see [MODEL_21800](MODEL_21800.md) |
 | The A3 URDF/meshes (`A3T2.5-URDF-std-pingpang`) | shipped under `agibot/URDF/` (Agibot-provided vendor material, **no OSS license** — see `A3_ASSETS.md`); or supply your own copy under `a3_deploy/URDF/` (see its `README.md`) | used as-is by the asset-prep step |
 | The AgiBot vendor deploy payload | required for the **real robot** path only (~1.7 GB, vendor-gated, not in git) | `vendor_assets/agibot/a3_deploy_example_full/` (obtain it from Agibot; it is never committed) |
 | Agibot vendor environment on the MDU | required only for the high-level arm serve application | see the [self-contained application](../apps/a3_mujoco_serve/README.md) |
@@ -101,6 +101,6 @@ q_des = default_q + raw_action * action_scale   # then a deterministic joint cla
 
 with the backend PD loop tracking `q_des`. The joint order and contract name travel **with the
 export** (embedded ONNX metadata + `policy_manifest.json`), and the loaders fail closed on a
-mismatch; the Python harness reads its adapter constants from the shared
-`config/action_adapter.yaml`, the C++ runner from its runtime configuration. See
+mismatch; for model_21800 both runners read the exported
+`models/model_21800/policy/params/deploy.yaml`. See
 [POLICY_INTERFACE.md](POLICY_INTERFACE.md) for the full action contract.

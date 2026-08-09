@@ -17,7 +17,7 @@ import numpy as np
 import yaml
 
 from .action_adapter import ActionAdapter
-from .joint_order import NUM_JOINTS
+from .joint_order import JOINT_NAMES, NUM_JOINTS
 from .lifecycle import LifecycleConfig
 from .observation import CONTRACT_NAME
 
@@ -75,7 +75,7 @@ class RuntimeConfig:
         adapter_path = _resolve(cfg_dir, doc["action_adapter"]["config_path"])
         adapter = ActionAdapter.from_yaml(adapter_path)
 
-        sim_kp, sim_kd = _expand_pd_gains(doc["simulation"]["pd_gains"])
+        sim_kp, sim_kd = _expand_pd_gains(doc["simulation"]["pd_gains"], cfg_dir)
 
         life_doc = doc.get("lifecycle", {})
         lifecycle = LifecycleConfig(
@@ -107,8 +107,25 @@ def _resolve(base: Path, rel: str) -> Path:
     return p if p.is_absolute() else (base / p).resolve()
 
 
-def _expand_pd_gains(spec: dict) -> tuple[np.ndarray, np.ndarray]:
-    """Expand per-group example gains into length-31 kp/kd arrays."""
+def _expand_pd_gains(spec: dict, cfg_dir: Path) -> tuple[np.ndarray, np.ndarray]:
+    """Resolve model deploy gains or expand example group gains to 31 arrays."""
+    deploy_relpath = spec.get("deploy_config_path")
+    if deploy_relpath:
+        deploy_path = _resolve(cfg_dir, deploy_relpath)
+        with open(deploy_path, "r", encoding="utf-8") as fh:
+            deploy = yaml.safe_load(fh)
+        names = tuple(str(name) for name in deploy["joint_sdk_names"])
+        if len(names) != NUM_JOINTS or set(names) != set(JOINT_NAMES):
+            raise ValueError("deploy.yaml joint_sdk_names must name all 31 A3 joints once")
+
+        def reorder(values, field_name: str) -> np.ndarray:
+            if len(values) != NUM_JOINTS:
+                raise ValueError(f"deploy.yaml {field_name} must be length {NUM_JOINTS}")
+            by_name = {name: value for name, value in zip(names, values)}
+            return np.asarray([by_name[name] for name in JOINT_NAMES], dtype=np.float64)
+
+        return reorder(deploy["stiffness"], "stiffness"), reorder(deploy["damping"], "damping")
+
     kp = np.zeros(NUM_JOINTS, dtype=np.float64)
     kd = np.zeros(NUM_JOINTS, dtype=np.float64)
     groups = spec.get("groups", {})

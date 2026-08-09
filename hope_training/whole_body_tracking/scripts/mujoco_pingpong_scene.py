@@ -180,6 +180,8 @@ class PingPongRealPhysicsScene:
         self._kd = np.zeros(self.num_joints)
 
         self._viewer = None
+        self._renderer = None
+        self._renderer_size = None
         if launch_viewer:
             from mujoco import viewer as mj_viewer
 
@@ -347,6 +349,21 @@ class PingPongRealPhysicsScene:
         """Crude fall check: pelvis dropped well below the stand height."""
         return bool(self.data.qpos[self._base_qadr + 2] < min_height)
 
+    def render_frame(
+        self, width: int = 640, height: int = 480, camera: str = "torso_follow"
+    ) -> np.ndarray:
+        """Render one RGB frame from the live simulated state."""
+        size = (int(width), int(height))
+        if self._renderer is None or self._renderer_size != size:
+            if self._renderer is not None:
+                self._renderer.close()
+            self._renderer = self._mj.Renderer(
+                self.model, height=size[1], width=size[0]
+            )
+            self._renderer_size = size
+        self._renderer.update_scene(self.data, camera=camera)
+        return self._renderer.render().copy()
+
     # -- control + stepping -----------------------------------------------------
     def write_targets(self, q_des: np.ndarray, kp: np.ndarray, kd: np.ndarray) -> None:
         self._q_des = np.asarray(q_des, dtype=np.float64).reshape(self.num_joints)
@@ -418,6 +435,10 @@ class PingPongRealPhysicsScene:
         return result
 
     def close(self) -> None:
+        if self._renderer is not None:
+            self._renderer.close()
+            self._renderer = None
+            self._renderer_size = None
         if self._viewer is not None:
             self._viewer.close()
             self._viewer = None

@@ -22,9 +22,14 @@ checkpoints/
 *.ckpt
 *.log
 
+# Published model_21800 warm-start checkpoint (machine-bound exact-resume state removed).
+!hope_training/whole_body_tracking/checkpoints/
+!hope_training/whole_body_tracking/checkpoints/model_21800.pt
+
 # Exported / converted policies (regenerate with scripts/export_onnx.py)
 *.onnx
 !**/tests/**/*.onnx
+!a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx
 *.rknn
 *.engine
 *.trt

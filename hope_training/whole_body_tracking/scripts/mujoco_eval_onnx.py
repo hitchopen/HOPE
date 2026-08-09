@@ -52,11 +52,60 @@ reference deploy package (``a3_deploy/a3_deploy_example``) and the
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import pathlib
 import sys
 
 import numpy as np
+
+
+class _VideoWriter:
+    """Stream MuJoCo RGB frames to an H.264 MP4 without retaining them in RAM."""
+
+    def __init__(self, path: str, width: int, height: int, fps: float, control_dt: float):
+        try:
+            import imageio_ffmpeg
+        except ImportError as exc:
+            raise RuntimeError(
+                "--video-out requires imageio-ffmpeg; install reference/requirements.txt"
+            ) from exc
+
+        self.path = pathlib.Path(path).expanduser().resolve()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.width = int(width)
+        self.height = int(height)
+        self.fps = float(fps)
+        if self.width <= 0 or self.height <= 0 or self.fps <= 0.0:
+            raise ValueError("video width, height and fps must be positive")
+        self._stride = max(1, int(round(1.0 / (self.fps * float(control_dt)))))
+        self._tick = 0
+        self.frames = 0
+        self._writer = imageio_ffmpeg.write_frames(
+            str(self.path),
+            (self.width, self.height),
+            fps=self.fps,
+            codec="libx264",
+            pix_fmt_in="rgb24",
+            pix_fmt_out="yuv420p",
+            quality=8,
+            output_params=["-movflags", "+faststart"],
+        )
+        self._writer.send(None)
+        self._closed = False
+        atexit.register(self.close)
+
+    def capture(self, scene, camera: str) -> None:
+        if self._tick % self._stride == 0:
+            frame = scene.render_frame(self.width, self.height, camera=camera)
+            self._writer.send(np.ascontiguousarray(frame))
+            self.frames += 1
+        self._tick += 1
+
+    def close(self) -> None:
+        if not self._closed:
+            self._writer.close()
+            self._closed = True
 
 
 def _repo_root() -> pathlib.Path:
@@ -250,6 +299,17 @@ def run_eval(args) -> dict:
     max_ticks = max(1, int(round(args.max_trial_seconds / dt)))
     rng = np.random.default_rng(args.seed)
     continuous = args.eval_mode == "continuous"
+    video = (
+        _VideoWriter(
+            args.video_out,
+            args.video_width,
+            args.video_height,
+            args.video_fps,
+            dt,
+        )
+        if args.video_out
+        else None
+    )
 
     def _policy_tick(lifecycle, source, last_action, base_target_xy):
         """One 50 Hz policy step (identical to the deploy runner's tick).
@@ -260,7 +320,12 @@ def run_eval(args) -> dict:
         state = scene.read_robot_state()
         target = lifecycle.update(source.poll(), state)
         obs = build_observation(state, target, last_action, default_q, base_target_xy)
-        raw_action = policy.infer(obs)
+        raw_action = policy.infer_target(
+            obs,
+            target.time_to_strike,
+            lifecycle.swing_sign,
+            runtime_cfg.control_dt,
+        )
         # Applied action = raw with the passive head columns zeroed, matching both
         # the deploy runner and training's zeroed last_action feedback.
         applied_action = np.asarray(raw_action, dtype=np.float64).copy()
@@ -270,7 +335,10 @@ def run_eval(args) -> dict:
         if runtime_cfg.passive_neck:
             q_des[head_idx] = default_q[head_idx]
         scene.write_targets(q_des, kp, kd)
-        return scene.step(), applied_action
+        events = scene.step()
+        if video is not None:
+            video.capture(scene, camera=args.video_camera)
+        return events, applied_action
 
     def _park_ball():
         """Drop the ball out of play (past the far edge) between rally serves."""
@@ -381,6 +449,12 @@ def run_eval(args) -> dict:
         accumulator.add_bool(success)
 
     scene.close()
+    if video is not None:
+        video.close()
+        print(
+            f"[mujoco_eval] video={video.path} frames={video.frames} fps={video.fps:g}",
+            file=sys.stderr,
+        )
     if continuous:
         _names = {FOREHAND: "FH", BACKHAND: "BH"}
         seen = sorted(f"{_names[a]}->{_names[b]}" for a, b in transitions_seen)
@@ -430,6 +504,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=0, help="RNG seed for the example serve distribution.")
     parser.add_argument("--view", action="store_true", help="Launch the MuJoCo passive viewer (debug only).")
+    parser.add_argument("--video-out", default=None, help="Write an H.264 MuJoCo MP4 to this path.")
+    parser.add_argument("--video-width", type=int, default=640, help="Recorded video width in pixels.")
+    parser.add_argument("--video-height", type=int, default=480, help="Recorded video height in pixels.")
+    parser.add_argument("--video-fps", type=float, default=25.0, help="Recorded video frame rate.")
+    parser.add_argument(
+        "--video-camera", default="torso_follow", help="MuJoCo camera name used for recording."
+    )
     parser.add_argument("--json-out", default=None, help="Also write {'success_rate': ...} to this file.")
     return parser.parse_args()
 

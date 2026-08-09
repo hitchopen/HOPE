@@ -27,6 +27,8 @@ two roles**:
   Python harness (`config/`), the tracked runtime assets (`assets/a3_runtime/` —
   reference serve clip + manifest), and the `joint_msgs` message sources the
   build depends on (`thirdparty/joint_msgs/`).
+- The published **model_21800** bundle (`models/model_21800/policy/`): the exact
+  deploy ONNX plus its Unitree-style `deploy.yaml`.
 - Launch scripts (`scripts/`) for the sim harness and a documented real-hardware
   template.
 
@@ -35,8 +37,6 @@ two roles**:
 - The AgiBot vendor runtime payload (SDK bundles, meshes, model binaries —
   multi-GB, vendor-gated). The vendor's own deploy example remains under
   `../../agibot/code_deployment/` with its build flow.
-- The exported policy (`models/policy.onnx`) — train and export your own; see
-  `models/README.md`.
 
 ## The public contract (what any runner must satisfy)
 
@@ -44,7 +44,7 @@ two roles**:
 | --- | --- |
 | Observation | **110-D `hitter_pure`**, single layout, no normalization (raw). See `reference/.../observation.py` and `../../docs/POLICY_INTERFACE.md`. |
 | Action | **31-D** `raw_action` → `q_des = default_q + raw_action * action_scale`, clamped to the official A3 joint limits. The two head columns (idx 3, 4) are passive: the runtime holds the neck at nominal. |
-| ONNX | `observation[1, 110] -> raw_action[1, 31]`, single output; embedded joint-order and contract metadata are validated fail-closed. |
+| ONNX | Compact exports use `observation[1,110] -> raw_action[1,31]`; model_21800 uses `obs[1,110]` plus a reference `time_step[1,1]` and exposes `actions[1,31]` plus debug outputs. The wrapper consumes only the actor output and maps training/SDK joint order. |
 | Joint order | 31-DOF Agibot A3, fixed. See `reference/.../joint_order.py`. |
 | Command wire | `/racket/command_flat` (`std_msgs/Float64MultiArray`, schema 1 or 2: valid, swing_sign, position, velocity, timing, flight/revision identity) plus `/a3/base_pose_flat` for mocap base pose. Rich `hope_msgs/RacketCommand` remains for tooling. See `../../docs/PLANNER_INTERFACE.md`. |
 | Lifecycle | `ready -> swing -> follow-through -> recovery -> ready`, one swing per flight, no state reset between balls. |
@@ -63,7 +63,6 @@ There is no swing-side observation — the side travels on the wire as
 
 ```bash
 pip install -r reference/requirements.txt          # numpy pyyaml onnxruntime mujoco
-# put your exported policy at models/policy.onnx (or pass --onnx)
 scripts/run_pingpong_sim.sh --view --realtime      # windowed, wall-clock 50 Hz
 scripts/run_pingpong_sim.sh --duration 20          # headless, 20 s
 ```
@@ -91,15 +90,12 @@ AimRT MuJoCo sim) over the vendor body-drive interface — operational guidance 
 
 ## Configuration
 
-- `config/action_adapter.yaml` — the **shared** ActionAdapter for the Python
-  harness (also readable by tooling). Neutral example `default_q`, uniform
-  `action_scale`, example joint clamp limits. **Tune for your robot.** The C++
-  runner takes the equivalent values from the export's manifest/metadata.
+- `models/model_21800/policy/params/deploy.yaml` — the published model's action
+  offsets/scales/clips, joint ordering, timing and PD arrays. The neutral
+  `config/action_adapter.yaml` remains available for custom examples.
 - `config/hope_pingpong_runtime.yaml` — the 110-D runtime config for the Python
-  harness: control rate, `observation_normalization: none`, contract name, ONNX
-  path, ActionAdapter path, MuJoCo model path, and **example** simulation PD
-  gains (used only to drive the sim's torque actuators — not vendor deploy
-  gains).
+  harness. It selects model_21800 by default and uses the exported PD arrays only
+  to realize its targets in simulation; it never configures a robot backend.
 
 ## Running on real hardware
 

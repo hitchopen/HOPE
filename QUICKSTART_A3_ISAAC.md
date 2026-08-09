@@ -79,7 +79,9 @@ export ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
 export ISAACLAB_ROOT=/absolute/path/to/IsaacLab   # source checkouts only
 ```
 
-The public setup does not configure external logging; motions and checkpoints remain local.
+The public setup does not configure external logging. New runs remain local; the
+published `model_21800` checkpoint is documented in
+[`docs/MODEL_21800.md`](docs/MODEL_21800.md).
 
 ## 4. Smoke Checks
 
@@ -99,6 +101,15 @@ Pure-Python unit tests need no GPU or Isaac install:
 
 ```bash
 python -m pytest tests/ -q
+```
+
+Before training, you can run the published deployment actor in plain MuJoCo from
+the repository root:
+
+```bash
+python3 -m venv .venv-mujoco && source .venv-mujoco/bin/activate
+python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
+a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --duration 10
 ```
 
 ## 5. Train
@@ -132,7 +143,7 @@ Motion clips are selected through the local `motion_file=` / `motion_file_2=` ov
 ## 6. Evaluate in Isaac
 
 ```bash
-python scripts/evaluate.py \
+hope_isaac_py scripts/evaluate.py \
     --checkpoint logs/rsl_rl/<run>/model_<iter>.pt \
     --motion-file ../motions/preprocessed/hope_forehand.npz \
     --motion-file-2 ../motions/preprocessed/hope_backhand.npz
@@ -146,7 +157,7 @@ check below.
 
 ```bash
 cd hope_training/whole_body_tracking
-python scripts/export_onnx.py --checkpoint logs/rsl_rl/<run>/model_<iter>.pt
+hope_isaac_py scripts/export_onnx.py --checkpoint logs/rsl_rl/<run>/model_<iter>.pt
 ```
 
 Writes the single-output actor ONNX (110-D observation in, 31-D raw action out, no observation
@@ -161,9 +172,12 @@ bounces off the racket, table, and net. It needs only `mujoco`, `onnxruntime`, a
 (no GPU, no Isaac):
 
 ```bash
-python scripts/mujoco_eval_onnx.py --onnx logs/rsl_rl/<run>/exported/policy.onnx \
-    [--motion-files /abs/fh.npz /abs/bh.npz]
+python3 scripts/mujoco_eval_onnx.py --onnx logs/rsl_rl/<run>/exported/policy.onnx
 ```
+
+Omit `--onnx` to evaluate the published `model_21800`. Add
+`--video-out /tmp/model_21800.mp4` for an H.264 recording; the exact committed
+example is [`docs/assets/model_21800_mujoco.mp4`](docs/assets/model_21800_mujoco.mp4).
 
 Isaac metrics (step 6), this MuJoCo sim-to-sim check, and the closed-loop planner rehearsal
 (step 9) together form the staged evaluation story — each layer is a gate before the next

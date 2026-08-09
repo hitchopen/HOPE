@@ -6,8 +6,9 @@
 #
 # This drives the SAME a3_pingpong MJCF that the AimRT MuJoCo sim wraps, stepping
 # MuJoCo in-process -- no AimRT/iceoryx/ROS2 stack required. Requires:
-#     pip install numpy pyyaml onnxruntime mujoco
-# and an exported policy at config/../models/policy.onnx (or pass --onnx).
+#     pip install -r reference/requirements.txt
+# The default runtime config selects the published model_21800 bundle; pass
+# --onnx to exercise another compatible export.
 #
 # Examples:
 #   ./run_pingpong_sim.sh --view --realtime            # windowed, wall-clock 50 Hz

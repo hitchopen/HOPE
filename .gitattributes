@@ -3,3 +3,8 @@
 
 # Generated documents. Review rendered output instead of binary internals.
 *.pdf binary
+
+# Published executable model bundle and rendered demonstration.
+hope_training/whole_body_tracking/checkpoints/model_21800.pt binary
+a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx binary
+docs/assets/model_21800_mujoco.mp4 binary linguist-generated=true

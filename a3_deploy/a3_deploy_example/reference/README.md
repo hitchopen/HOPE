@@ -3,8 +3,8 @@
 A from-scratch Python implementation of the public HOPE deploy contract
 (the 110-D `hitter_pure` actor observation).
 It exists to document the contract **executably** and to run the exported policy
-against the shipped MuJoCo sim. It contains none of the vendor runner's source,
-tuned constants, or gates.
+against the shipped MuJoCo sim. It contains none of the vendor runner's source;
+model-specific constants are loaded from the published policy directory.
 
 ## Install & run
 
@@ -13,7 +13,6 @@ pip install -r requirements.txt
 export PYTHONPATH="$PWD"          # or use ../scripts/run_pingpong_sim.sh
 python -m a3_deploy_onnx_ref_pingpong \
     --config ../config/hope_pingpong_runtime.yaml \
-    --onnx /path/to/policy.onnx \
     --view --realtime
 ```
 
@@ -30,7 +29,7 @@ Flags: `--backend {mujoco,aimrt}`, `--onnx`, `--model-xml`, `--view`, `--realtim
 | `action_adapter.py` | Shared ActionAdapter: `q_des = default_q + raw*scale`, then clamp. |
 | `racket_command.py` | `RacketCommand` + command sources (queue seam, example feed). |
 | `lifecycle.py` | `ready -> swing -> follow-through -> recovery` state machine. |
-| `onnx_policy.py` | onnxruntime actor wrapper `obs[1,110] -> raw_action[1,31]`. |
+| `onnx_policy.py` | ONNX Runtime actor wrapper, including model_21800 reference-clock and joint-order translation. |
 | `sim_bridge.py` | `MujocoDirectBridge` (default) + `AimrtSimBridge` (seam). |
 | `config.py` | Runtime config loader. |
 | `runner.py` | The 50 Hz control loop. |
@@ -88,8 +87,9 @@ a higher `task_revision` refines the target/time-to-strike **before** contact on
 - one 50 Hz control tick advances several physics substeps (20 at the model's
   1 kHz timestep), recomputing the PD each substep.
 
-The PD gains are **example** simulation gains from the runtime config, not vendor
-deploy gains.
+The default model_21800 runtime uses the PD arrays exported with the actor; custom
+configs may use example group gains. Both are simulation-only in this harness and
+do not configure a vendor robot backend.
 
 ## Live planner input (`--planner`)
 
