@@ -34,7 +34,7 @@ a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
 
 The default runtime selects the deployed 110-D `hitter_pure` actor. See the
 [complete model guide](docs/MODEL_21800.md) and
-[MuJoCo video](docs/assets/model_21800_mujoco.mp4).
+[Gate 3 MuJoCo video](docs/assets/model_21800_gate3_mujoco.mp4).
 
 ## Train and export your own
 

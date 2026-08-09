@@ -175,9 +175,9 @@ bounces off the racket, table, and net. It needs only `mujoco`, `onnxruntime`, a
 python3 scripts/mujoco_eval_onnx.py --onnx logs/rsl_rl/<run>/exported/policy.onnx
 ```
 
-Omit `--onnx` to evaluate the published `model_21800`. Add
-`--video-out /tmp/model_21800.mp4` for an H.264 recording; the exact committed
-example is [`docs/assets/model_21800_mujoco.mp4`](docs/assets/model_21800_mujoco.mp4).
+Omit `--onnx` to evaluate the published `model_21800`. The committed
+[`Gate 3 MuJoCo video`](docs/assets/model_21800_gate3_mujoco.mp4) comes from the
+build_1 planner + policy-native runner closed loop, not this standalone evaluator.
 
 Isaac metrics (step 6), this MuJoCo sim-to-sim check, and the closed-loop planner rehearsal
 (step 9) together form the staged evaluation story — each layer is a gate before the next

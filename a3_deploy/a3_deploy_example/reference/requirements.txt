@@ -4,4 +4,3 @@ numpy>=1.23
 pyyaml>=6.0
 onnxruntime>=1.16      # CPU inference for the exported actor
 mujoco>=3.1            # in-process MuJoCo bridge (default sim backend)
-imageio-ffmpeg>=0.5    # optional --video-out H.264 recording
