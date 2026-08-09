@@ -6,7 +6,9 @@ This repository contains the full HOPE stack for the Agibot A3: Isaac Lab traini
 
 ## How To Read This Repository
 
-Start with this README, then follow [QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md).
+Start with this README, run the published model via
+[docs/MODEL_21800.md](docs/MODEL_21800.md), then follow
+[QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) to train or export your own.
 The rest of the repository is organized into four layers:
 
 | Layer | What to read or run | Purpose |
@@ -16,11 +18,25 @@ The rest of the repository is organized into four layers:
 | Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/`, `docs/RUN_ON_AGIBOT.md` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app; the native C++ deploy runner with its gate/rehearsal scripts (`a3_deploy/a3_deploy_example/`) and the MuJoCo/AimRT simulation fork with the real ball plant (`a3_deploy/A3_MuJoCo_Sim/`); and Agibot-provided A3 materials. |
 | Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace (Python + C++ planners) for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
-A fresh clone contains only tracked files. Generated Isaac assets, training logs,
-checkpoints, exported `.onnx` files, and ROS build artifacts are git-ignored and
-regenerated locally; Agibot-provided materials under `agibot/` are tracked.
+A fresh clone includes the public `model_21800` checkpoint, its exact deploy
+ONNX/parameters, and a MuJoCo video. Other generated Isaac assets, training logs,
+checkpoints, exported `.onnx` files, and ROS build artifacts remain git-ignored;
+Agibot-provided materials under `agibot/` are tracked.
 
-## Quickstart
+## Run `model_21800`
+
+```bash
+python3 -m venv .venv-mujoco
+source .venv-mujoco/bin/activate
+python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
+a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
+```
+
+The default runtime selects the deployed 110-D `hitter_pure` actor. See the
+[complete model guide](docs/MODEL_21800.md) and
+[Gate 3 MuJoCo video](docs/assets/model_21800_gate3_mujoco.mp4).
+
+## Train and export your own
 
 ```bash
 # 1. Prepare the A3 Isaac asset (bundled racket-equipped URDF)
@@ -30,21 +46,21 @@ python3 scripts/prepare_a3_isaac_asset.py --force
 # 2. Train the deploy-grade rally policy (inside your Isaac Lab Python environment).
 #    The bundled clips are schema placeholders — swap in real forehand/backhand clips
 #    (docs/REPLACE_MOTIONS.md) before training a policy you intend to deploy.
-source setup_train_env.sh        # defines the `isaac_py` launcher for the Isaac Sim Python
-python scripts/train.py task=HOPEPingPong algo=ppo headless=true \
+source setup_train_env.sh        # defines the `hope_isaac_py` Isaac Sim launcher
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
 
 # 3. Evaluate the checkpoint in Isaac
-python scripts/evaluate.py \
+hope_isaac_py scripts/evaluate.py \
     --checkpoint logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt
 
 # 4. Export the deployable actor -> <run>/exported/
-python scripts/export_onnx.py \
+hope_isaac_py scripts/export_onnx.py \
     --checkpoint logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt
 
 # 5. MuJoCo sim-to-sim check of the exported ONNX (real ball physics)
-python scripts/mujoco_eval_onnx.py \
+python3 scripts/mujoco_eval_onnx.py \
     --onnx logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/exported/policy.onnx
 ```
 

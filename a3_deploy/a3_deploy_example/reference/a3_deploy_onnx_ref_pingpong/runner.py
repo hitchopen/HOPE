@@ -80,7 +80,16 @@ class PingPongReferenceRunner:
                 obs = build_observation(
                     state, target, self.last_action, self.default_q, self.base_target_xy
                 )
-                raw_action = self.policy.infer(obs)
+                infer_target = getattr(self.policy, "infer_target", None)
+                if callable(infer_target):
+                    raw_action = infer_target(
+                        obs,
+                        target.time_to_strike,
+                        self.lifecycle.swing_sign,
+                        self.cfg.control_dt,
+                    )
+                else:
+                    raw_action = self.policy.infer(obs)
                 # The APPLIED action: with a passive neck the head columns are never
                 # actuated, so they are zeroed before feedback — training exposes the
                 # same zeroed columns in its last_action observation.

@@ -2,9 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """ONNX actor wrapper.
 
-The exported policy is a single-input, single-output network:
+The deployed model_21800 graph has the actor input plus a reference-motion clock:
 
-    observation[1, 110]  ->  raw_action[1, 31]
+    obs[1, 110], time_step[1, 1]  ->  actions[1, 31] + reference side outputs
+
+Compact single-input/single-output actors exported from the public training path
+remain supported as well.
 
 No observation normalization is applied (the observation is raw). The runner zeroes
 the passive head columns of ``raw_action`` to form the applied action, which is fed
@@ -79,18 +82,50 @@ class OnnxPolicy:
             onnx_path, sess_options=so, providers=providers or ["CPUExecutionProvider"]
         )
 
-        inputs = self._sess.get_inputs()
-        outputs = self._sess.get_outputs()
-        if len(inputs) != 1 or len(outputs) != 1:
-            raise ValueError("expected a single-input, single-output actor ONNX")
-        self._input_name = inputs[0].name
-        self._output_name = outputs[0].name
-        self._validate_shape(inputs[0].shape, OBS_DIM, "observation input")
-        self._validate_shape(outputs[0].shape, NUM_JOINTS, "raw_action output")
+        inputs = {item.name: item for item in self._sess.get_inputs()}
+        outputs = {item.name: item for item in self._sess.get_outputs()}
+        obs_input = inputs.get("obs") or inputs.get("observation")
+        if obs_input is None and len(inputs) == 1:
+            obs_input = next(iter(inputs.values()))
+        action_output = outputs.get("actions") or outputs.get("raw_action")
+        if action_output is None and len(outputs) == 1:
+            action_output = next(iter(outputs.values()))
+        if obs_input is None or action_output is None:
+            raise ValueError(
+                "ONNX must expose obs/observation input and actions/raw_action output"
+            )
+        unknown_inputs = set(inputs) - {obs_input.name, "time_step"}
+        if unknown_inputs:
+            raise ValueError(f"unsupported ONNX actor inputs: {sorted(unknown_inputs)}")
+        self._input_name = obs_input.name
+        self._time_step_name = "time_step" if "time_step" in inputs else None
+        self._output_name = action_output.name
+        self._validate_shape(obs_input.shape, OBS_DIM, "observation input")
+        if self._time_step_name is not None:
+            self._validate_shape(inputs[self._time_step_name].shape, 1, "time_step input")
+        self._validate_shape(action_output.shape, NUM_JOINTS, "raw_action output")
 
         meta = self._sess.get_modelmeta().custom_metadata_map or {}
         validate_embedded_joint_order(meta.get("joint_order", ""))
-        validate_embedded_contract(meta.get("contract", ""))
+        validate_embedded_contract(meta.get("contract", meta.get("actor_obs_contract", "")))
+
+        policy_names = tuple(filter(None, meta.get("joint_names", "").split(",")))
+        if policy_names:
+            if len(policy_names) != NUM_JOINTS or set(policy_names) != set(JOINT_NAMES):
+                raise ValueError("ONNX joint_names must be a permutation of the 31 A3 joints")
+            sdk_index = {name: index for index, name in enumerate(JOINT_NAMES)}
+            self._policy_to_sdk = np.asarray(
+                [sdk_index[name] for name in policy_names], dtype=np.int64
+            )
+        else:
+            self._policy_to_sdk = np.arange(NUM_JOINTS, dtype=np.int64)
+
+        self._clip_lengths = self._parse_pair(meta.get("clip_seg_lengths", ""), int)
+        self._strike_phases = self._parse_pair(meta.get("clip_strike_phases", ""), float)
+        if self._time_step_name and (self._clip_lengths is None or self._strike_phases is None):
+            raise ValueError(
+                "time_step ONNX input requires clip_seg_lengths and clip_strike_phases metadata"
+            )
 
     @staticmethod
     def _validate_shape(shape, expected_last: int, what: str) -> None:
@@ -98,8 +133,57 @@ class OnnxPolicy:
         if shape and isinstance(shape[-1], int) and shape[-1] != expected_last:
             raise ValueError(f"{what} trailing dim {shape[-1]} != expected {expected_last}")
 
-    def infer(self, obs: np.ndarray) -> np.ndarray:
-        """Run one forward pass. Returns ``raw_action`` as ``float32`` length 31."""
-        x = np.asarray(obs, dtype=np.float32).reshape(1, OBS_DIM)
-        out = self._sess.run([self._output_name], {self._input_name: x})[0]
-        return np.asarray(out, dtype=np.float32).reshape(NUM_JOINTS)
+    @staticmethod
+    def _parse_pair(raw: str, cast):
+        if not raw:
+            return None
+        values = tuple(cast(item) for item in raw.split(","))
+        return values if len(values) == 2 else None
+
+    @staticmethod
+    def _round_positive(value: float) -> int:
+        return int(np.floor(float(value) + 0.5))
+
+    def reference_time_step(
+        self, time_to_strike: float, swing_sign: float, step_dt: float = 0.02
+    ) -> int:
+        if self._time_step_name is None:
+            return 0
+        clip_id = 0 if float(swing_sign) > 0.0 else 1
+        length = int(self._clip_lengths[clip_id])
+        start = 0 if clip_id == 0 else int(self._clip_lengths[0])
+        strike = start + self._round_positive(
+            float(self._strike_phases[clip_id]) * (length - 1)
+        )
+        raw = strike - float(time_to_strike) / max(float(step_dt), 1.0e-6)
+        return max(start, min(start + length - 1, self._round_positive(raw)))
+
+    def _observation_to_policy_order(self, obs: np.ndarray) -> np.ndarray:
+        x = np.asarray(obs, dtype=np.float32).reshape(OBS_DIM).copy()
+        for slc in (slice(3, 34), slice(34, 65), slice(65, 96)):
+            sdk_values = x[slc].copy()
+            x[slc] = sdk_values[self._policy_to_sdk]
+        return x.reshape(1, OBS_DIM)
+
+    def infer(self, obs: np.ndarray, time_step: int = 0) -> np.ndarray:
+        """Run one actor pass and return raw action in MuJoCo/SDK joint order."""
+        feeds = {self._input_name: self._observation_to_policy_order(obs)}
+        if self._time_step_name is not None:
+            feeds[self._time_step_name] = np.asarray([[time_step]], dtype=np.float32)
+        policy_action = self._sess.run([self._output_name], feeds)[0]
+        policy_action = np.asarray(policy_action, dtype=np.float32).reshape(NUM_JOINTS)
+        sdk_action = np.empty(NUM_JOINTS, dtype=np.float32)
+        sdk_action[self._policy_to_sdk] = policy_action
+        return sdk_action
+
+    def infer_target(
+        self,
+        obs: np.ndarray,
+        time_to_strike: float,
+        swing_sign: float,
+        step_dt: float = 0.02,
+    ) -> np.ndarray:
+        return self.infer(
+            obs,
+            time_step=self.reference_time_step(time_to_strike, swing_sign, step_dt),
+        )

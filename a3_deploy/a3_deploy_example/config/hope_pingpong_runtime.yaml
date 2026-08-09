@@ -1,11 +1,10 @@
-# HOPE runtime configuration -- clean 110-D `hitter_pure` reference deploy.
+# HOPE runtime configuration -- published model_21800, 110-D `hitter_pure`.
 #
 # Read by the clean-room reference runner (a3_deploy_onnx_ref_pingpong). Every
 # relative path resolves against THIS file's directory.
 #
 # Single observation/action path only: 110-D observation, 31-D action, no
-# observation normalization, one control rate. There are no model/experiment
-# codenames, playback, or admission-control settings here.
+# observation normalization, one control rate, and no additional admission gates.
 
 contract: hitter_pure
 control_hz: 50.0                 # 50 Hz control loop
@@ -13,28 +12,23 @@ observation_normalization: none  # raw observation (must stay 'none')
 passive_neck: true               # hold head_yaw/head_pitch at their default angle
 
 policy:
-  # Place your exported actor here (obs[1,110] -> raw_action[1,31]).
-  # Override on the command line with --onnx.
-  onnx_path: ../models/policy.onnx
+  # Published model_21800 actor (obs[1,110] -> raw_action[1,31]).
+  # Override on the command line with --onnx to evaluate another compatible actor.
+  onnx_path: ../models/model_21800/policy/exported/policy.onnx
   joint_order: agibot_a3         # informational; the canonical order lives in joint_order.py
 
 action_adapter:
-  # The shared adapter config (also read by the training package).
-  config_path: action_adapter.yaml
+  # The exact defaults, scales and safe intervals exported with model_21800.
+  config_path: ../models/model_21800/policy/params/deploy.yaml
 
 simulation:
   # The a3_pingpong MJCF shipped with this repo (loaded directly by the MuJoCo
   # bridge; no build step needed). Point --model-xml elsewhere to use your own.
   model_xml_path: ../../A3_MuJoCo_Sim/aimrt_mujoco_sim/src/models/bin/cfg/model/a3_pingpong/a3_pingpong.xml
-  # EXAMPLE simulation PD gains used by the MuJoCo bridge to realize joint-position
-  # targets on the model's torque actuators. These are NOT vendor deploy gains --
-  # they only exist so the reference runs against the sim; tune for your robot.
+  # Use the model_21800 exported joint stiffness/damping in MuJoCo. This does not
+  # configure or bypass a robot backend; it only realizes q_des in the simulator.
   pd_gains:
-    groups:
-      waist: {kp: 200.0, kd: 5.0}
-      neck:  {kp: 20.0,  kd: 1.0}
-      arm:   {kp: 40.0,  kd: 2.0}
-      leg:   {kp: 200.0, kd: 5.0}
+    deploy_config_path: ../models/model_21800/policy/params/deploy.yaml
 
 lifecycle:
   # Example continuous-rally timing (ready -> swing -> follow-through -> recovery).

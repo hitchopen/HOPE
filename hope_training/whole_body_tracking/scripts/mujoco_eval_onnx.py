@@ -260,7 +260,12 @@ def run_eval(args) -> dict:
         state = scene.read_robot_state()
         target = lifecycle.update(source.poll(), state)
         obs = build_observation(state, target, last_action, default_q, base_target_xy)
-        raw_action = policy.infer(obs)
+        raw_action = policy.infer_target(
+            obs,
+            target.time_to_strike,
+            lifecycle.swing_sign,
+            runtime_cfg.control_dt,
+        )
         # Applied action = raw with the passive head columns zeroed, matching both
         # the deploy runner and training's zeroed last_action feedback.
         applied_action = np.asarray(raw_action, dtype=np.float64).copy()

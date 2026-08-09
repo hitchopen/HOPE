@@ -95,6 +95,31 @@ TEST(PpRuntimeContract, ExportedTelemetryModeDoesNotTurnMeasuredQIntoFault) {
       ActualQHardLimitDisposition::kFault);
 }
 
+TEST(PpRuntimeContract, Gate3AuditCanKeepMeasuredQAsTelemetry) {
+  constexpr double lo = -0.5;
+  constexpr double hi = 0.4;
+  constexpr double tolerance = 0.0;
+  constexpr bool gate3_qdes_audit_only = true;
+  constexpr bool exported_limit_contract = true;
+  constexpr bool exported_telemetry_only = false;
+  const bool actual_q_audit_only = actual_q_hard_limit_audit_only(
+      gate3_qdes_audit_only, exported_limit_contract,
+      exported_telemetry_only);
+
+  EXPECT_TRUE(actual_q_audit_only);
+  EXPECT_EQ(
+      classify_actual_q_hard_limit(hi + 1e-6, lo, hi, tolerance,
+                                   actual_q_audit_only),
+      ActualQHardLimitDisposition::kTelemetry);
+}
+
+TEST(PpRuntimeContract, ProductionDefaultKeepsMeasuredQFaultBehavior) {
+  EXPECT_FALSE(actual_q_hard_limit_audit_only(
+      /*gate3_qdes_audit_only=*/false,
+      /*exported_limit_contract=*/true,
+      /*exported_telemetry_only=*/false));
+}
+
 TEST(PpRuntimeContract, AcceptsOnlyPairedV15RuntimeAndRecipe) {
   EXPECT_EQ(validate_hitter_pure_runtime_contract("rally_v15", "rally_v15"),
             HitterPureRuntimeContract::kRallyV15);

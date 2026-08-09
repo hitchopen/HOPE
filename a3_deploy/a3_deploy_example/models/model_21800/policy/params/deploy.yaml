@@ -1,0 +1,570 @@
+format: unitree_rl_lab.deploy
+format_version: 1
+task_plugin: a3_pingpong_hitter_pure
+joint_ids_map:
+- 19
+- 25
+- 0
+- 20
+- 26
+- 1
+- 21
+- 27
+- 2
+- 22
+- 28
+- 3
+- 5
+- 12
+- 23
+- 29
+- 4
+- 6
+- 13
+- 24
+- 30
+- 7
+- 14
+- 8
+- 15
+- 9
+- 16
+- 10
+- 17
+- 11
+- 18
+joint_sdk_names:
+- waist_yaw_joint
+- waist_roll_joint
+- waist_pitch_joint
+- head_yaw_joint
+- head_pitch_joint
+- left_shoulder_pitch_joint
+- left_shoulder_roll_joint
+- left_shoulder_yaw_joint
+- left_elbow_joint
+- left_wrist_roll_joint
+- left_wrist_pitch_joint
+- left_wrist_yaw_joint
+- right_shoulder_pitch_joint
+- right_shoulder_roll_joint
+- right_shoulder_yaw_joint
+- right_elbow_joint
+- right_wrist_roll_joint
+- right_wrist_pitch_joint
+- right_wrist_yaw_joint
+- left_hip_pitch_joint
+- left_hip_roll_joint
+- left_hip_yaw_joint
+- left_knee_joint
+- left_ankle_pitch_joint
+- left_ankle_roll_joint
+- right_hip_pitch_joint
+- right_hip_roll_joint
+- right_hip_yaw_joint
+- right_knee_joint
+- right_ankle_pitch_joint
+- right_ankle_roll_joint
+step_dt: 0.02
+stiffness:
+- 85.0
+- 50.0
+- 50.0
+- 40.0
+- 40.0
+- 40.0
+- 40.0
+- 30.0
+- 30.0
+- 30.0
+- 20.0
+- 20.0
+- 40.0
+- 40.0
+- 30.0
+- 30.0
+- 30.0
+- 20.0
+- 20.0
+- 80.0
+- 120.0
+- 80.0
+- 250.0
+- 50.0
+- 50.0
+- 80.0
+- 120.0
+- 80.0
+- 250.0
+- 50.0
+- 50.0
+damping:
+- 3.0
+- 2.0
+- 2.0
+- 2.0
+- 2.0
+- 3.0
+- 3.0
+- 2.0
+- 2.0
+- 2.0
+- 2.0
+- 2.0
+- 3.0
+- 3.0
+- 2.0
+- 2.0
+- 2.0
+- 2.0
+- 2.0
+- 3.0
+- 4.0
+- 3.0
+- 8.0
+- 2.0
+- 2.0
+- 3.0
+- 4.0
+- 3.0
+- 8.0
+- 2.0
+- 2.0
+default_joint_pos: &id001
+- -0.131099999
+- -0.131099999
+- 0.0
+- 0.0055999998
+- -0.0055999998
+- 0.0
+- -0.0348000005
+- 0.0348000005
+- 0.0
+- 0.246800005
+- 0.246800005
+- 0.0
+- 0.300000012
+- 0.300000012
+- -0.120399997
+- -0.120399997
+- 0.0
+- 0.119999997
+- -0.119999997
+- -0.00779999979
+- 0.00779999979
+- 0.0
+- 0.0
+- 0.800000012
+- 0.800000012
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+actions:
+  JointPositionAction:
+    joint_ids: null
+    joint_names:
+    - left_hip_pitch_joint
+    - right_hip_pitch_joint
+    - waist_yaw_joint
+    - left_hip_roll_joint
+    - right_hip_roll_joint
+    - waist_roll_joint
+    - left_hip_yaw_joint
+    - right_hip_yaw_joint
+    - waist_pitch_joint
+    - left_knee_joint
+    - right_knee_joint
+    - head_yaw_joint
+    - left_shoulder_pitch_joint
+    - right_shoulder_pitch_joint
+    - left_ankle_pitch_joint
+    - right_ankle_pitch_joint
+    - head_pitch_joint
+    - left_shoulder_roll_joint
+    - right_shoulder_roll_joint
+    - left_ankle_roll_joint
+    - right_ankle_roll_joint
+    - left_shoulder_yaw_joint
+    - right_shoulder_yaw_joint
+    - left_elbow_joint
+    - right_elbow_joint
+    - left_wrist_roll_joint
+    - right_wrist_roll_joint
+    - left_wrist_pitch_joint
+    - right_wrist_pitch_joint
+    - left_wrist_yaw_joint
+    - right_wrist_yaw_joint
+    scale:
+    - 0.6875
+    - 0.6875
+    - 0.647058845
+    - 0.458333343
+    - 0.458333343
+    - 0.230000004
+    - 0.6875
+    - 0.6875
+    - 0.589999974
+    - 0.319999993
+    - 0.319999993
+    - 0.0375000015
+    - 0.375
+    - 0.375
+    - 0.591000021
+    - 0.591000021
+    - 0.0375000015
+    - 0.375
+    - 0.375
+    - 0.273750007
+    - 0.273750007
+    - 0.200000003
+    - 0.200000003
+    - 0.200000003
+    - 0.200000003
+    - 0.200000003
+    - 0.200000003
+    - 0.075000003
+    - 0.075000003
+    - 0.075000003
+    - 0.075000003
+    offset: *id001
+    clip:
+    - - -2.2410028
+      - 2.65988183
+    - - -2.2410028
+      - 2.65988183
+    - - -2.35619426
+      - 2.35619426
+    - - -0.417133689
+      - 1.49923766
+    - - -1.49923766
+      - 0.417133689
+    - - -0.314159214
+      - 0.314159214
+    - - -2.45044231
+      - 2.45044231
+    - - -2.45044231
+      - 2.45044231
+    - - -0.443313599
+      - 0.373500466
+    - - 0.00872659683
+      - 2.36492085
+    - - 0.00872659683
+      - 2.36492085
+    - - -0.942477822
+      - 0.942477822
+    - - -2.59181356
+      - 2.59181356
+    - - -2.59181356
+      - 2.59181356
+    - - -0.836012602
+      - 0.452040285
+    - - -0.836012602
+      - 0.452040285
+    - - -0.401425689
+      - 0.226892799
+    - - 0.0479966402
+      - 2.48273039
+    - - -2.48273039
+      - -0.0479966402
+    - - -0.314159214
+      - 0.314159214
+    - - -0.314159214
+      - 0.314159214
+    - - -2.51327372
+      - 2.51327372
+    - - -2.51327372
+      - 2.51327372
+    - - -0.82466799
+      - 1.61006618
+    - - -0.82466799
+      - 1.61006618
+    - - -2.51327372
+      - 2.51327372
+    - - -2.51327372
+      - 2.51327372
+    - - -1.46084046
+      - 1.46084046
+    - - -1.46084046
+      - 1.46084046
+    - - -1.46084046
+      - 1.46084046
+    - - -1.46084046
+      - 1.46084046
+observations:
+  policy:
+    base_ang_vel:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 3
+      source: imu
+    joint_pos:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 31
+      source: encoders
+    joint_vel:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 31
+      source: encoders
+    actions:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 31
+      source: runtime_state
+    projected_gravity:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 3
+      source: imu
+    base_forward_xy:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 2
+      source: imu_yaw_aligned
+    base_target_delta_xy:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 2
+      source: planner_plus_mocap
+    racket_target_rel_base:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 3
+      source: planner_plus_mocap
+    racket_target_vel_w:
+      params: {}
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 3
+      source: planner
+    time_to_strike:
+      params: {}
+      scale:
+      - 1.0
+      clip: null
+      history_length: 1
+      dim: 1
+      source: reference_clock
+contracts:
+  actor_observation:
+    name: hitter_pure
+    total_dim: 110
+    ordered_terms:
+    - base_ang_vel
+    - joint_pos
+    - joint_vel
+    - actions
+    - projected_gravity
+    - base_forward_xy
+    - base_target_delta_xy
+    - racket_target_rel_base
+    - racket_target_vel_w
+    - time_to_strike
+  action:
+    name: v11_affine_safe_qdes_v1
+    total_dim: 31
+    hard_lower_rad:
+    - -2.51327419
+    - -2.51327419
+    - -2.61799359
+    - -0.52359879
+    - -1.60570276
+    - -0.34906581
+    - -2.72271371
+    - -2.72271371
+    - -0.488692164
+    - -0.122173041
+    - -0.122173041
+    - -1.04719758
+    - -2.87979293
+    - -2.87979293
+    - -0.907571137
+    - -0.907571137
+    - -0.436332285
+    - -0.0872664526
+    - -2.61799359
+    - -0.34906581
+    - -0.34906581
+    - -2.79252648
+    - -2.79252648
+    - -0.959931016
+    - -0.959931016
+    - -2.79252648
+    - -2.79252648
+    - -1.62315607
+    - -1.62315607
+    - -1.62315607
+    - -1.62315607
+    hard_upper_rad:
+    - 2.93215322
+    - 2.93215322
+    - 2.61799359
+    - 1.60570276
+    - 0.52359879
+    - 0.34906581
+    - 2.72271371
+    - 2.72271371
+    - 0.418879032
+    - 2.49582052
+    - 2.49582052
+    - 1.04719758
+    - 2.87979293
+    - 2.87979293
+    - 0.52359879
+    - 0.52359879
+    - 0.261799395
+    - 2.61799359
+    - 0.0872664526
+    - 0.34906581
+    - 0.34906581
+    - 2.79252648
+    - 2.79252648
+    - 1.74532914
+    - 1.74532914
+    - 2.79252648
+    - 2.79252648
+    - 1.62315607
+    - 1.62315607
+    - 1.62315607
+    - 1.62315607
+    actual_q_hard_tolerance_rad: 0.002
+    policy_feedback: legacy_applied_raw_v1
+  runtime: rally_final_v2
+  training_recipe:
+    name: rally_v14
+    version: '1'
+provenance:
+  policy_sha256: 6bf1a2418f8538e23577a0153f2fe6a1e78dee91f41650a232259432a84a4dc8
+  frozen_env_sha256: 76f9ad893fe3212d3284b78ef233da6c7d9c302ba7462ac08bc980960ffc57e0
+  checkpoint_sha256: daca62616178177647cf9949128582785529dbe6b7ba080fc96d86da23916561
+  export_source: run_frozen_env_plus_onnx_metadata
