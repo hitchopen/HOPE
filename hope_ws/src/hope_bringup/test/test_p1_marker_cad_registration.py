@@ -167,6 +167,58 @@ class P1MarkerCadRegistrationTest(unittest.TestCase):
             ),
             self.transform,
         )
+        canonical = document["p1_to_pelvis"]
+        self.assertEqual(canonical["parent_frame"], "P1")
+        self.assertEqual(canonical["child_frame"], "pelvis_link")
+        self.assertEqual(
+            canonical["translation_m"],
+            document["p1_to_pelvis_link"]["xyz_m"],
+        )
+
+    def test_stationary_named_ten_marker_prepare_can_pass(self):
+        markers = self.model_markers(MODULE.MARKER_NAMES)
+        capture = MODULE.Capture("P1", 26, "world", markers, frames_received=80)
+        for marker in markers:
+            capture.live_errors_m[marker.member_id] = [0.0007] * 40
+            capture.live_residuals_m[marker.member_id] = [0.0004] * 40
+        capture.frames_with_physical_samples = 40
+        capture.poses = [
+            MODULE.Transform((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0))
+            for _ in range(40)
+        ]
+
+        document, blockers = MODULE.analyze_capture(
+            capture,
+            MODULE.MARKER_NAMES,
+            {},
+            max_registration_rms_m=0.003,
+            max_registration_max_m=0.006,
+            max_pairwise_rms_m=0.005,
+            minimum_mapping_margin_m=0.0015,
+            minimum_live_samples_per_marker=30,
+            max_live_rms_m=0.004,
+            max_live_max_m=0.005,
+            minimum_rotation_span_deg=0.0,
+            operator_attested_installed_layout=True,
+            allow_nominal_only_markers=True,
+        )
+
+        self.assertEqual(blockers, [])
+        self.assertTrue(document["approved"])
+        self.assertEqual(
+            document["method"]["trajectory_validation"],
+            "stationary_named_marker_geometry",
+        )
+
+    def test_atomic_write_replaces_complete_receipt(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "p1_to_pelvis.json"
+            path.write_bytes(b"old\n")
+            MODULE._write_bytes_atomic(path, b'{"approved": true}\n')
+            self.assertEqual(path.read_bytes(), b'{"approved": true}\n')
+            self.assertEqual(list(path.parent.glob(".*.tmp")), [])
 
     def test_ten_marker_nominal_points_require_explicit_confirmation(self):
         markers = self.model_markers(MODULE.MARKER_NAMES)

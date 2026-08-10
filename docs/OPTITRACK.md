@@ -177,9 +177,58 @@ This implements the same timing principle as OptiTrack's documented
 open-source backend implements the echo wire protocol directly so it also
 works on the A3 adapter's aarch64 platform.
 
-### Calibrating P1 to an A3 `pelvis_link`
+### Optional marker-CAD calibration: P1 to an A3 `pelvis_link`
 
-Do this only in a **setup/calibration session**. The calibrator does not require
+The imported colleague branch can use all ten waist markers to compute this
+alignment without an independent pelvis tracker. Its automatic
+`/hope/control/enter_prepare` orchestration belongs to the legacy TTY adapter;
+the integrated V17 bridges do not expose that service. The native V17 console
+shows the live 0–10 marker count but uses `/hope/v17/refresh_x_hit` for its
+Calibration button and does not add a P1-calibration admission gate.
+
+When an approved setup procedure calls for this transform, first put the MDU
+Runner in settled PD_STAND, then run `p1_marker_cad_calibrator` manually on
+`/optitrack/rigid_body_markers`.
+Motive supplies
+the P1-local ModelDef marker centres plus live labeled-marker samples; the tool
+registers those centres to the A3 v2 hip-shell CAD (`f1`–`f5`, `b1`–`b5`) and
+checks every selected marker's live residual and definition stability.
+
+The non-collinear named 3-D marker layout observes all six degrees of the fixed
+`P1 → pelvis_link` transform even while the robot is stationary in PD_STAND.
+An approved result atomically replaces `calibration/p1_to_pelvis.json`,
+relative to the external computer's HOPE repository root (for example,
+`/home/user/HOPE/calibration/p1_to_pelvis.json`). A failed fit cannot install a
+current-run calibration. Run the calculation only after PD_STAND has already
+been established by the approved robot procedure:
+
+```bash
+ros2 run hope_bringup p1_marker_cad_calibrator \
+  --topic /optitrack/rigid_body_markers \
+  --asset-name P1 \
+  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
+  --minimum-frames 200 \
+  --capture-duration 4 \
+  --stationary-prepare \
+  --attest-installed-layout \
+  --allow-nominal-only-markers \
+  --output calibration/p1_to_pelvis.json
+```
+
+After the replacement, the computer-side `hope_base_pose_flat_relay` only
+reads the canonical `p1_to_pelvis` object from that JSON for the rest of the
+run and composes it with the live `world → P1` pose. The computer publishes
+`/a3/base_pose_flat` for policy localization and the unshifted diagnostic
+`/a3/mocap/pelvis_pose`. It does not recalculate while the robot is playing.
+The robot consumes `/a3/base_pose_flat`; it never stores, reads, or receives
+the JSON. The SHA-derived PREPARE receipt gate described by the imported
+adapter is not part of the native V17 Runner admission contract.
+
+#### Legacy independent pose-pair method
+
+The following older method is retained for a genuinely independent external
+6-DOF reference or a simulation test. Do this only in a
+**setup/calibration session**. The calibrator does not require
 the `Table` rigid body; `Table` remains disabled in competition. The normal
 deployment keeps Motive's dynamic `world → P1` rigid-body pose and adds the
 calibrated constant `P1 → pelvis_link` static TF at ROS 2 bringup.
@@ -208,6 +257,11 @@ independent external 6-DOF tracker or state estimator to a topic such as
 `header.frame_id: world`, and the same clock domain as `/P1/pose`. The existing
 `/sim/a3/pelvis_pose` producer is MuJoCo-only and uses `odom`; it is valid for a
 simulation check only if the P1 input is also expressed in `odom`.
+
+No checked-in real-robot node publishes `/a3/calibration/pelvis_pose`. It is an
+input to this legacy tool, not the output of the ten-marker calculation. Never
+feed `/a3/mocap/pelvis_pose` or any other P1-derived result into it, because
+that would make the measurement circular.
 
 Build and source the workspace, start both pose producers, then run:
 
@@ -272,16 +326,11 @@ consumes the solved 6-DOF `/P1/pose`, while its CAD centroid calculation is
 order-independent. Only an offline reconstruction directly from individual
 marker coordinates would require a verified marker-ID-to-CAD correspondence.
 
-An alternative, venue-proven route is `p1_marker_cad_calibrator`, which needs
-no independent pelvis pose producer: it registers the Motive asset's live
-marker layout (ModelDef) directly against the hip-shell CAD at
-`agibot/pku/hip_marker_shell/` and writes a fail-closed receipt under
-`hope_ws/calibration_receipts/`; the approved transform is then pinned by SHA
-in the `mocap_to_base_link` block of
-[`hope_world_frame.yaml`](../hope_ws/src/hope_bringup/config/hope_world_frame.yaml).
-Use **one** route per calibration — the pose-pair calibrator above or the
-marker-CAD registration — never both on top of each other (see
-[interfaces/frames.md](interfaces/frames.md)).
+The production marker/CAD route described at the top of this section supersedes
+the old checked-in P1 transform in `hope_world_frame.yaml`. The runtime relay
+now reads the approved JSON directly. Use exactly one route per calibration
+receipt — marker/CAD registration or the independent pose-pair method — never
+stack both corrections (see [interfaces/frames.md](interfaces/frames.md)).
 
 ## Bringup
 

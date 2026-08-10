@@ -22,6 +22,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/NamedPose.msg"
   "msg/NamedPoseArray.msg"
   "msg/NamedPoseArrayV2.msg"
+  "msg/RigidBodyMarker.msg"
+  "msg/RigidBodyMarkerArray.msg"
   DEPENDENCIES builtin_interfaces geometry_msgs std_msgs 
   ADD_LINTER_TESTS
 )

@@ -2,9 +2,12 @@
 """HOPE A3 monitoring and narrowly scoped safety publisher for Foxglove.
 
 Reads `chronyc tracking`, local systemd state, one timestamped IMU topic, the
-vendor TF tree, and vendor joint states. The one write path is an explicit
-Trigger service that can assert (but never clear) the A3 vendor software
-E-stop. Motive/NatNet and mocap diagnostics remain on the external laptop.
+vendor TF tree, vendor joint states, runner acknowledgments, and the final
+base-pose stream. The E-stop path can assert (but never clear) the A3 vendor
+software latch and can independently request native Runner PASSIVE. Four
+imported `/hope/control/*` services remain as legacy compatibility internals,
+but the integrated bridges do not expose them. Motive/NatNet network
+acquisition remains outside this process.
 Publishes:
 
   /hope/ntp/offset_ms           std_msgs/Float64  chrony System time offset
@@ -23,12 +26,17 @@ Publishes:
   /hope/safety/estop_ready       std_msgs/Bool     live vendor E-stop RPC matched
   /hope/pelvis/pose             geometry_msgs/PoseStamped  reference->pelvis TF
   /hope/pelvis/text             std_msgs/String   human-readable pose (or TF error)
+  /hope/pelvis/scene            foxglove_msgs/SceneUpdate  in-scene pelvis label
   /hope/joints/fresh            std_msgs/Bool     all configured groups are fresh
   /hope/joints/text             std_msgs/String   group freshness details
   /joint_states                 sensor_msgs/JointState  bounded-rate merged joints
 
-Service:
-  /hope/safety/trigger_estop    std_srvs/Trigger  assert vendor software E-stop
+Services:
+  /hope/safety/trigger_estop    std_srvs/Trigger  vendor E-stop + native Runner passive
+  /hope/control/enter_prepare   std_srvs/Trigger  PD_STAND + approved calibration gate
+  /hope/control/enter_policy    std_srvs/Trigger  enter MOTION after acknowledged gates
+  /hope/control/exit_policy     std_srvs/Trigger  return MOTION to PD_STAND
+  /hope/control/enter_passive   std_srvs/Trigger  press stock runner's PASSIVE key
 """
 
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -40,7 +48,10 @@ import uuid
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import (
+    MutuallyExclusiveCallbackGroup,
+    ReentrantCallbackGroup,
+)
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import (
@@ -48,10 +59,11 @@ from rclpy.qos import (
     QoSProfile,
     ReliabilityPolicy,
     qos_profile_sensor_data,
+    qos_profile_system_default,
 )
 from rclpy.time import Time
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool, Float64, String
+from std_msgs.msg import Bool, Float64, Float64MultiArray, String
 from std_srvs.srv import Trigger
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
@@ -61,14 +73,25 @@ try:
 except ImportError:  # Status still works; the E-stop proxy is not advertised.
     RosRpcWrapper = None
 
+try:
+    from foxglove_msgs.msg import Color as FoxgloveColor
+    from foxglove_msgs.msg import SceneEntity, SceneUpdate, TextPrimitive
+except ImportError:  # The monitor still runs if the bridge message overlay is absent.
+    FoxgloveColor = None
+    SceneEntity = None
+    SceneUpdate = None
+    TextPrimitive = None
+
 from hope_monitor_core import (
     NtpProbeResult,
     ServiceProbeResult,
     build_software_estop_request,
+    combine_estop_results,
     cpu_load_percent,
     decode_software_estop_response,
     load_robot_urdf_for_foxglove,
     message_latency_ms,
+    parse_calibration_service_sha,
     parse_proc_stat_cpu,
     probe_ntp,
     probe_systemd_service,
@@ -83,6 +106,28 @@ VENDOR_JOINT_TOPICS = [
     "/motion/control/neck_joint_state",
     "/motion/control/waist_joint_state",
 ]
+
+RUNNER_MODE_PASSIVE = 0
+RUNNER_MODE_PD_STAND = 1
+RUNNER_MODE_SHADOW = 2
+RUNNER_MODE_MOTION = 3
+RUNNER_MODE_IDLE = 6
+RUNNER_MODE_STOPPED = 7
+RUNNER_MODE_STARTING = 8
+RUNNER_MODE_NAMES = {
+    RUNNER_MODE_PASSIVE: "PASSIVE",
+    RUNNER_MODE_PD_STAND: "PD_STAND",
+    RUNNER_MODE_SHADOW: "SHADOW",
+    RUNNER_MODE_MOTION: "MOTION",
+    4: "REFERENCE_PLAYBACK",
+    5: "SERVE",
+    RUNNER_MODE_IDLE: "IDLE",
+    RUNNER_MODE_STOPPED: "STOPPED",
+    RUNNER_MODE_STARTING: "STARTING",
+}
+MODE_COMMAND_PASSIVE = 0
+MODE_COMMAND_PD_STAND = 1
+MODE_COMMAND_MOTION = 2
 
 class HopeMonitor(Node):
     def __init__(self):
@@ -111,6 +156,20 @@ class HopeMonitor(Node):
         self.declare_parameter(
             "robot_asset_root_url", "http://localhost:8000/urdf"
         )
+        self.declare_parameter(
+            "mode_command_topic", "/hope/runner/mode_command"
+        )
+        self.declare_parameter("mode_state_topic", "/hope/runner/mode_state")
+        self.declare_parameter(
+            "runner_estop_service", "/hope/runner/emergency_stop"
+        )
+        self.declare_parameter("runner_state_stale_after_s", 2.5)
+        self.declare_parameter("base_pose_topic", "/a3/base_pose_flat")
+        self.declare_parameter("base_pose_stale_after_s", 1.0)
+        self.declare_parameter(
+            "calibration_service", "/a3/calibration/recompute_p1"
+        )
+        self.declare_parameter("calibration_timeout_s", 25.0)
 
         self.pub_offset = self.create_publisher(Float64, "/hope/ntp/offset_ms", 10)
         self.pub_skew = self.create_publisher(Float64, "/hope/ntp/skew_ppm", 10)
@@ -169,6 +228,25 @@ class HopeMonitor(Node):
         self.pub_joints_text = self.create_publisher(String, "/hope/joints/text", 10)
         self.pub_pelvis = self.create_publisher(PoseStamped, "/hope/pelvis/pose", 10)
         self.pub_pelvis_text = self.create_publisher(String, "/hope/pelvis/text", 10)
+        self.pub_pelvis_scene = (
+            self.create_publisher(SceneUpdate, "/hope/pelvis/scene", 10)
+            if SceneUpdate is not None
+            else None
+        )
+        self.pub_runner_ready = self.create_publisher(
+            Bool, "/hope/control/runner_ready", 10
+        )
+        self.pub_calibration_ready = self.create_publisher(
+            Bool, "/hope/control/calibration_ready", 10
+        )
+        self.pub_control_text = self.create_publisher(
+            String, "/hope/control/state_text", 10
+        )
+        self._mode_command_pub = self.create_publisher(
+            Float64MultiArray,
+            str(self.get_parameter("mode_command_topic").value),
+            10,
+        )
 
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
@@ -206,17 +284,85 @@ class HopeMonitor(Node):
         )
 
         self._vendor_callback_group = ReentrantCallbackGroup()
+        # State transitions are serialized so an older PREPARE cannot publish
+        # PD_STAND after a newer PASSIVE/exit request. E-stop remains on the
+        # independent reentrant group above and is never delayed by this lock.
+        self._mode_callback_group = MutuallyExclusiveCallbackGroup()
+        self._calibration_callback_group = ReentrantCallbackGroup()
+        self._calibration_client = self.create_client(
+            Trigger,
+            str(self.get_parameter("calibration_service").value),
+            callback_group=self._calibration_callback_group,
+        )
         self._vendor_estop_client = None
+        self._runner_estop_client = self.create_client(
+            Trigger,
+            str(self.get_parameter("runner_estop_service").value),
+            callback_group=self._vendor_callback_group,
+        )
         self._estop_proxy_service = None
         self._estop_service_lock = threading.Lock()
         self._estop_call_in_progress = False
+        self._control_estop_latched = False
         self._last_estop_backend_ready = None
         if RosRpcWrapper is not None:
             self._vendor_estop_client = self.create_client(
                 RosRpcWrapper,
                 "/aimdk_2Eprotocol_2EHalEmergencyService/SetEmergencyCommand",
+                qos_profile=qos_profile_system_default,
                 callback_group=self._vendor_callback_group,
             )
+
+        self._control_lock = threading.Lock()
+        self._runner_state = None
+        self._runner_state_received_monotonic = None
+        self._base_flat_valid = False
+        self._base_flat_calibration_id = 0
+        self._base_flat_received_monotonic = None
+        self._mode_command_sequence = max(1, time.time_ns() // 1_000_000)
+        self._prepare_request_sequence = 0
+        self._prepare_waiting_for_stand = False
+        self._prepare_requires_calibration = False
+        self._calibration_generation = 0
+        self._calibration_future = None
+        self._session_calibration_sha = ""
+        self._control_detail = "RUNNER UNAVAILABLE | waiting for mode state"
+        self.create_subscription(
+            Float64MultiArray,
+            str(self.get_parameter("mode_state_topic").value),
+            self._on_runner_mode_state,
+            10,
+        )
+        self.create_subscription(
+            Float64MultiArray,
+            str(self.get_parameter("base_pose_topic").value),
+            self._on_base_pose_flat,
+            10,
+        )
+        self.create_service(
+            Trigger,
+            "/hope/control/enter_prepare",
+            self._enter_prepare,
+            callback_group=self._mode_callback_group,
+        )
+        self.create_service(
+            Trigger,
+            "/hope/control/enter_policy",
+            self._enter_policy,
+            callback_group=self._mode_callback_group,
+        )
+        self.create_service(
+            Trigger,
+            "/hope/control/exit_policy",
+            self._exit_policy,
+            callback_group=self._mode_callback_group,
+        )
+        self.create_service(
+            Trigger,
+            "/hope/control/enter_passive",
+            self._enter_passive,
+            callback_group=self._mode_callback_group,
+        )
 
         self._joint_groups = {}
         self._joint_received_monotonic = {}
@@ -246,6 +392,8 @@ class HopeMonitor(Node):
             raise ValueError("cpu_publish_period_s must be positive")
         if float(self.get_parameter("tf_stale_after_s").value) <= 0.0:
             raise ValueError("tf_stale_after_s must be positive")
+        if float(self.get_parameter("calibration_timeout_s").value) <= 0.0:
+            raise ValueError("calibration_timeout_s must be positive")
         if (
             float(self.get_parameter("robot_description_publish_period_s").value)
             <= 0.0
@@ -263,6 +411,7 @@ class HopeMonitor(Node):
         self.create_timer(period, self._poll_hdu)
         self.create_timer(cpu_publish_period_s, self._poll_cpu)
         self.create_timer(0.5, self._poll_estop_backend)
+        self.create_timer(0.2, self._poll_control_state)
         self.create_timer(0.2, self._poll_pelvis)
         self.create_timer(1.0 / joint_publish_hz, self._publish_joint_states)
         self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
@@ -521,6 +670,50 @@ class HopeMonitor(Node):
                 )
             )
         )
+        self._publish_pelvis_scene(
+            pelvis,
+            tf.header.stamp,
+            t.x,
+            t.y,
+            t.z,
+            roll,
+            pitch,
+            yaw,
+        )
+
+    def _publish_pelvis_scene(
+        self, pelvis, stamp, x, y, z, roll, pitch, yaw
+    ):
+        if (
+            self.pub_pelvis_scene is None
+            or SceneUpdate is None
+            or SceneEntity is None
+            or TextPrimitive is None
+            or FoxgloveColor is None
+        ):
+            return
+        text = TextPrimitive()
+        text.pose.position.z = 0.55
+        text.pose.orientation.w = 1.0
+        text.billboard = True
+        text.font_size = 19.0
+        text.scale_invariant = True
+        text.color = FoxgloveColor(r=1.0, g=0.78, b=0.40, a=1.0)
+        text.text = (
+            f"{pelvis}\n"
+            f"x {x:+.3f}  y {y:+.3f}  z {z:+.3f}\n"
+            f"rpy {roll:+.1f} deg  {pitch:+.1f} deg  {yaw:+.1f} deg"
+        )
+        entity = SceneEntity()
+        entity.timestamp = stamp
+        entity.frame_id = pelvis
+        entity.id = "hope_pelvis_status"
+        entity.lifetime.nanosec = 500_000_000
+        entity.frame_locked = True
+        entity.texts = [text]
+        update = SceneUpdate()
+        update.entities = [entity]
+        self.pub_pelvis_scene.publish(update)
 
     def _set_tf_unready(self, detail: str):
         self.pub_tf_ready.publish(Bool(data=False))
@@ -546,6 +739,432 @@ class HopeMonitor(Node):
         self._robot_description_visible = show_robot
         self._last_robot_description_publish_monotonic = now
 
+    # ---- legacy 8-double adapter compatibility; not bridge-exposed ---------
+    @staticmethod
+    def _exact_integer(value, *, minimum=0, maximum=(1 << 52)):
+        number = float(value)
+        if not math.isfinite(number) or number < minimum or number > maximum:
+            raise ValueError("integer field is out of range")
+        integer = int(number)
+        if float(integer) != number:
+            raise ValueError("integer field is not exact")
+        return integer
+
+    def _on_runner_mode_state(self, message):
+        values = list(message.data)
+        try:
+            if len(values) != 8 or values[0] != 1.0:
+                raise ValueError("mode-state schema/size mismatch")
+            mode = self._exact_integer(values[1], maximum=RUNNER_MODE_STARTING)
+            pd_ready = self._exact_integer(values[2], maximum=1)
+            received_sequence = self._exact_integer(values[3])
+            applied_sequence = self._exact_integer(values[4])
+            result = self._exact_integer(
+                abs(values[5]), maximum=3
+            ) * (-1 if values[5] < 0.0 else 1)
+            base_ready = self._exact_integer(values[6], maximum=1)
+            command_fault = self._exact_integer(values[7], maximum=1)
+        except (TypeError, ValueError):
+            self.get_logger().warning(
+                "rejected malformed /hope/runner/mode_state",
+                throttle_duration_sec=5.0,
+            )
+            return
+        with self._control_lock:
+            self._runner_state = {
+                "mode": mode,
+                "pd_ready": bool(pd_ready),
+                "received_sequence": received_sequence,
+                "applied_sequence": applied_sequence,
+                "result": result,
+                "base_ready": bool(base_ready),
+                "command_fault": bool(command_fault),
+            }
+            self._runner_state_received_monotonic = time.monotonic()
+
+    def _on_base_pose_flat(self, message):
+        values = list(message.data)
+        valid = False
+        calibration_id = 0
+        try:
+            if len(values) >= 16 and values[0] == 2.0 and values[1] == 1.0:
+                calibration_id = self._exact_integer(
+                    values[14], minimum=1
+                )
+                valid = True
+        except (TypeError, ValueError):
+            valid = False
+            calibration_id = 0
+        with self._control_lock:
+            self._base_flat_valid = valid
+            self._base_flat_calibration_id = calibration_id
+            self._base_flat_received_monotonic = time.monotonic()
+
+    def _runner_snapshot(self):
+        with self._control_lock:
+            state = None if self._runner_state is None else dict(self._runner_state)
+            received = self._runner_state_received_monotonic
+        stale_after = float(
+            self.get_parameter("runner_state_stale_after_s").value
+        )
+        fresh = (
+            state is not None
+            and received is not None
+            and time.monotonic() - received <= stale_after
+        )
+        return state, fresh
+
+    def _publish_mode_command(self, command_code):
+        with self._control_lock:
+            if self._control_estop_latched:
+                return 0
+            self._mode_command_sequence += 1
+            sequence = self._mode_command_sequence
+            message = Float64MultiArray()
+            message.data = [1.0, float(sequence), float(command_code)]
+            self._mode_command_pub.publish(message)
+        return sequence
+
+    def _base_matches_session_calibration(self):
+        with self._control_lock:
+            receipt_sha = self._session_calibration_sha
+            valid = self._base_flat_valid
+            calibration_id = self._base_flat_calibration_id
+            received = self._base_flat_received_monotonic
+        if not receipt_sha or not valid or received is None:
+            return False
+        stale_after = float(
+            self.get_parameter("base_pose_stale_after_s").value
+        )
+        if time.monotonic() - received > stale_after:
+            return False
+        return calibration_id == int(receipt_sha[:13], 16)
+
+    def _start_calibration(self, expected_generation, expected_request_sequence):
+        with self._control_lock:
+            if (
+                self._calibration_generation != expected_generation
+                or not self._prepare_waiting_for_stand
+                or not self._prepare_requires_calibration
+                or self._prepare_request_sequence != expected_request_sequence
+                or self._calibration_future is not None
+            ):
+                return
+            if not self._calibration_client.service_is_ready():
+                self._prepare_waiting_for_stand = False
+                self._prepare_requires_calibration = False
+                self._prepare_request_sequence = 0
+                self._session_calibration_sha = ""
+                self._control_detail = (
+                    "CALIBRATION START FAILED | laptop service unavailable"
+                )
+                return
+            generation = expected_generation
+            try:
+                future = self._calibration_client.call_async(Trigger.Request())
+            except Exception as exc:  # noqa: BLE001 - surface ROS client failure
+                self._prepare_waiting_for_stand = False
+                self._prepare_requires_calibration = False
+                self._prepare_request_sequence = 0
+                self._session_calibration_sha = ""
+                self._control_detail = f"CALIBRATION START FAILED | {exc}"
+                self.get_logger().error(f"cannot start P1 calibration: {exc}")
+                return
+            self._prepare_waiting_for_stand = False
+            self._prepare_requires_calibration = False
+            self._prepare_request_sequence = 0
+            self._control_detail = "PD_STAND READY | laptop calibration running"
+            self._calibration_future = (future, generation, time.monotonic())
+        self.get_logger().info(
+            "PD_STAND acknowledged; requested laptop 10-marker P1 calibration"
+        )
+
+    def _finish_calibration_if_ready(self):
+        with self._control_lock:
+            record = self._calibration_future
+        if record is None:
+            return
+        future, generation, started_monotonic = record
+        if not future.done():
+            timeout_s = float(
+                self.get_parameter("calibration_timeout_s").value
+            )
+            if time.monotonic() - started_monotonic <= timeout_s:
+                return
+            future.cancel()
+            with self._control_lock:
+                if self._calibration_future != record:
+                    return
+                self._calibration_future = None
+                if generation == self._calibration_generation:
+                    self._session_calibration_sha = ""
+                    self._control_detail = "CALIBRATION FAILED | laptop service timed out"
+            return
+        try:
+            failure_detail = "laptop calibration returned no response"
+            result = future.result()
+        except Exception as exc:  # noqa: BLE001 - surface worker failure
+            result = None
+            failure_detail = str(exc)
+        try:
+            if result is None:
+                raise ValueError(failure_detail)
+            if not result.success:
+                raise ValueError(result.message or "laptop calibration failed")
+            receipt_sha = parse_calibration_service_sha(result.message)
+        except (TypeError, ValueError) as exc:
+            with self._control_lock:
+                if self._calibration_future != record:
+                    return
+                self._calibration_future = None
+                current = generation == self._calibration_generation
+                if current:
+                    self._session_calibration_sha = ""
+                    self._control_detail = f"CALIBRATION FAILED | {exc}"
+            if current:
+                self.get_logger().error(f"laptop P1 calibration failed: {exc}")
+            return
+        with self._control_lock:
+            if self._calibration_future != record:
+                return
+            self._calibration_future = None
+            if generation != self._calibration_generation:
+                return
+            self._session_calibration_sha = receipt_sha
+            self._control_detail = (
+                "LAPTOP CALIBRATION SAVED | waiting for matching "
+                "/a3/base_pose_flat"
+            )
+        self.get_logger().info(
+            f"laptop installed approved P1 calibration {receipt_sha}"
+        )
+
+    def _cancel_prepare(self, detail, *, clear_calibration=True):
+        with self._control_lock:
+            self._calibration_generation += 1
+            self._prepare_waiting_for_stand = False
+            self._prepare_requires_calibration = False
+            self._prepare_request_sequence = 0
+            if clear_calibration:
+                self._session_calibration_sha = ""
+            self._control_detail = detail
+
+    def _enter_prepare(self, _request, response):
+        if self._control_estop_latched:
+            response.success = False
+            response.message = "E-stop is latched; use the approved local recovery procedure"
+            return response
+        state, fresh = self._runner_snapshot()
+        if not fresh:
+            response.success = False
+            response.message = "runner mode state is unavailable; PD_STAND was NOT requested"
+            return response
+        if state["command_fault"]:
+            response.success = False
+            response.message = "runner command fault is latched; PD_STAND was NOT requested"
+            return response
+        if (
+            state["received_sequence"] > state["applied_sequence"]
+            and state["result"] == 0
+        ):
+            response.success = False
+            response.message = "a runner command is already in progress"
+            return response
+        if not self._calibration_client.service_is_ready():
+            response.success = False
+            response.message = (
+                "laptop calibration service is unavailable; "
+                "PD_STAND was NOT requested"
+            )
+            return response
+        with self._control_lock:
+            if self._calibration_future is not None:
+                response.success = False
+                response.message = "10-marker calibration is already running"
+                return response
+            self._calibration_generation += 1
+            # Every PREPARE starts a new initialization. The prior laptop JSON
+            # stays only as rollback until the new fit succeeds; it cannot
+            # authorize policy entry for this session.
+            self._session_calibration_sha = ""
+            self._prepare_waiting_for_stand = True
+            self._prepare_requires_calibration = True
+            generation = self._calibration_generation
+        sequence = self._publish_mode_command(MODE_COMMAND_PD_STAND)
+        if sequence == 0:
+            self._cancel_prepare("E-STOP LATCHED | PREPARE cancelled")
+            response.success = False
+            response.message = "E-stop latched before PD_STAND could be requested"
+            return response
+        with self._control_lock:
+            if generation == self._calibration_generation:
+                self._prepare_request_sequence = sequence
+                self._control_detail = (
+                    f"PREPARE REQUESTED seq={sequence} | waiting for PD_STAND readiness"
+                )
+        response.success = True
+        response.message = (
+            f"PD_STAND requested (seq={sequence}); this init's 10-marker "
+            "calibration will run on the laptop after settle and atomically "
+            "replace the laptop JSON"
+        )
+        return response
+
+    def _enter_policy(self, _request, response):
+        if self._control_estop_latched:
+            response.success = False
+            response.message = "E-stop is latched; MOTION was NOT requested"
+            return response
+        state, fresh = self._runner_snapshot()
+        if not fresh or state is None:
+            response.success = False
+            response.message = "runner mode state is unavailable; MOTION was NOT requested"
+            return response
+        if state["command_fault"]:
+            response.success = False
+            response.message = "runner command fault is latched; MOTION was NOT requested"
+            return response
+        if state["mode"] != RUNNER_MODE_PD_STAND or not state["pd_ready"]:
+            response.success = False
+            response.message = "robot is not in settled PD_STAND; MOTION was NOT requested"
+            return response
+        with self._control_lock:
+            session_receipt_sha = self._session_calibration_sha
+        if not session_receipt_sha:
+            response.success = False
+            response.message = (
+                "this run has no approved laptop calibration; "
+                "run PREPARE again before MOTION"
+            )
+            return response
+        if not self._base_matches_session_calibration():
+            response.success = False
+            response.message = (
+                "approved calibration is not yet present in valid /a3/base_pose_flat; "
+                "MOTION was NOT requested"
+            )
+            return response
+        sequence = self._publish_mode_command(MODE_COMMAND_MOTION)
+        if sequence == 0:
+            response.success = False
+            response.message = "E-stop latched before MOTION could be requested"
+            return response
+        with self._control_lock:
+            self._control_detail = f"POLICY REQUESTED seq={sequence} | waiting for runner ack"
+        response.success = True
+        response.message = f"MOTION/policy requested (seq={sequence})"
+        return response
+
+    def _exit_policy(self, _request, response):
+        if self._control_estop_latched:
+            response.success = False
+            response.message = "E-stop is latched; runner transition was NOT requested"
+            return response
+        _state, fresh = self._runner_snapshot()
+        if not fresh:
+            response.success = False
+            response.message = "runner mode state is unavailable; PD_STAND was NOT requested"
+            return response
+        self._cancel_prepare(
+            "EXIT POLICY REQUESTED | waiting for PD_STAND ack",
+            clear_calibration=False,
+        )
+        sequence = self._publish_mode_command(MODE_COMMAND_PD_STAND)
+        if sequence == 0:
+            response.success = False
+            response.message = "E-stop latched before PD_STAND could be requested"
+            return response
+        response.success = True
+        response.message = f"PD_STAND requested (seq={sequence}); no calibration started"
+        return response
+
+    def _enter_passive(self, _request, response):
+        if self._control_estop_latched:
+            response.success = False
+            response.message = "E-stop is latched; managed runner stop owns recovery"
+            return response
+        _state, fresh = self._runner_snapshot()
+        if not fresh:
+            response.success = False
+            response.message = "runner mode state is unavailable; PASSIVE was NOT requested"
+            return response
+        self._cancel_prepare("PASSIVE REQUESTED | waiting for runner ack")
+        sequence = self._publish_mode_command(MODE_COMMAND_PASSIVE)
+        if sequence == 0:
+            response.success = False
+            response.message = "E-stop latched before PASSIVE could be requested"
+            return response
+        response.success = True
+        response.message = f"PASSIVE requested (seq={sequence})"
+        return response
+
+    def _poll_control_state(self):
+        self._finish_calibration_if_ready()
+        state, fresh = self._runner_snapshot()
+        runner_ready = bool(
+            fresh
+            and state is not None
+            and state["mode"] not in {RUNNER_MODE_STOPPED, RUNNER_MODE_STARTING}
+            and not state["command_fault"]
+        )
+        self.pub_runner_ready.publish(Bool(data=runner_ready))
+        calibration_ready = self._base_matches_session_calibration()
+        self.pub_calibration_ready.publish(Bool(data=calibration_ready))
+        if not fresh or state is None:
+            detail = "RUNNER UNAVAILABLE | start the approved MDU policy runner"
+        else:
+            with self._control_lock:
+                waiting = self._prepare_waiting_for_stand
+                requires_calibration = self._prepare_requires_calibration
+                request_sequence = self._prepare_request_sequence
+                generation = self._calibration_generation
+                calibration_running = self._calibration_future is not None
+                configured_detail = self._control_detail
+            if (
+                waiting
+                and state["mode"] == RUNNER_MODE_PD_STAND
+                and state["pd_ready"]
+                and state["applied_sequence"] >= request_sequence
+                and request_sequence > 0
+            ):
+                if requires_calibration:
+                    self._start_calibration(generation, request_sequence)
+                    with self._control_lock:
+                        calibration_running = self._calibration_future is not None
+                        configured_detail = self._control_detail
+            elif (
+                waiting
+                and request_sequence > 0
+                and state["received_sequence"] >= request_sequence
+                and state["applied_sequence"] < request_sequence
+                and state["result"] < 0
+            ):
+                self._cancel_prepare(
+                    f"PREPARE REJECTED | runner result={state['result']}"
+                )
+                configured_detail = (
+                    f"PREPARE REJECTED | runner result={state['result']}"
+                )
+            mode_name = RUNNER_MODE_NAMES.get(state["mode"], f"MODE_{state['mode']}")
+            if state["mode"] == RUNNER_MODE_STOPPED and not state["command_fault"]:
+                detail = "STOPPED | ENTER PREPARE starts the approved model21800 runner"
+            elif state["mode"] == RUNNER_MODE_STARTING:
+                detail = "STARTING | waiting for all six stock runner inputs"
+            elif calibration_ready:
+                detail = (
+                    f"{mode_name} | PD_READY={int(state['pd_ready'])} | "
+                    "CALIBRATION READY | policy gate open"
+                )
+            elif calibration_running:
+                detail = f"{mode_name} | 10-MARKER CALIBRATION RUNNING"
+            else:
+                detail = f"{mode_name} | {configured_detail}"
+            if state["result"] < 0:
+                detail += f" | last runner request rejected ({state['result']})"
+            if state["command_fault"]:
+                detail += " | COMMAND FAULT LATCHED"
+        self.pub_control_text.publish(String(data=detail))
+
     # ---- irreversible-from-UI vendor software E-stop ----------------------
     def _poll_estop_backend(self):
         """Expose the HOPE proxy only while the live vendor RPC is matched.
@@ -557,9 +1176,11 @@ class HopeMonitor(Node):
 
         client = self._vendor_estop_client
         ready = bool(client is not None and client.service_is_ready())
+        runner_stop_ready = self._runner_estop_client.service_is_ready()
         self.pub_estop_ready.publish(Bool(data=ready))
         if ready:
-            detail = "VENDOR E-STOP RPC READY | Foxglove control enabled"
+            runner_detail = "RUNNER STOP READY" if runner_stop_ready else "RUNNER STOP UNAVAILABLE"
+            detail = f"VENDOR E-STOP RPC READY | {runner_detail}"
         elif RosRpcWrapper is None:
             detail = "E-STOP UNAVAILABLE | ros2_plugin_proto is not installed"
         else:
@@ -601,6 +1222,14 @@ class HopeMonitor(Node):
             # completes, but the lock is not held across vendor I/O. Other
             # monitor timers therefore continue publishing during the call.
             self._estop_call_in_progress = True
+        with self._control_lock:
+            self._control_estop_latched = True
+            self._calibration_generation += 1
+            self._prepare_waiting_for_stand = False
+            self._prepare_requires_calibration = False
+            self._prepare_request_sequence = 0
+            self._session_calibration_sha = ""
+            self._control_detail = "E-STOP LATCHED | local recovery required"
         try:
             return self._execute_trigger_estop(response)
         finally:
@@ -608,66 +1237,103 @@ class HopeMonitor(Node):
                 self._estop_call_in_progress = False
 
     def _execute_trigger_estop(self, response):
+        deadline = time.monotonic() + 2.7
+        runner_future = None
+        runner_stopped = False
+        runner_detail = "managed runner stop service unavailable"
+        if self._runner_estop_client.service_is_ready():
+            try:
+                # Start the independent command-source removal before the vendor
+                # RPC. The vendor path below remains the primary safety action.
+                runner_future = self._runner_estop_client.call_async(
+                    Trigger.Request()
+                )
+                runner_detail = "managed runner stop pending"
+            except Exception as exc:  # noqa: BLE001 - aggregate both paths
+                runner_detail = f"managed runner stop call failed: {exc}"
+
+        vendor_accepted = False
         client = self._vendor_estop_client
         if client is None or RosRpcWrapper is None:
-            response.success = False
-            response.message = (
-                "A3 vendor ros2_plugin_proto is unavailable; E-stop was NOT sent"
+            vendor_detail = "ros2_plugin_proto unavailable"
+        elif not client.wait_for_service(timeout_sec=0.5):
+            vendor_detail = "vendor emergency service unavailable"
+        else:
+            trace_id = f"hope-foxglove-{uuid.uuid4()}"
+            vendor_request = RosRpcWrapper.Request()
+            vendor_request.serialization_type = "pb"
+            vendor_request.context = ["aimdk.protocol.EmergencyCommandReq"]
+            vendor_request.data = list(
+                build_software_estop_request(time.time_ns(), trace_id)
             )
-            return response
-        if not client.wait_for_service(timeout_sec=0.5):
-            response.success = False
-            response.message = "A3 vendor emergency service unavailable; E-stop was NOT sent"
-            return response
+            try:
+                vendor_response = client.call(vendor_request, timeout_sec=2.0)
+            except Exception as exc:  # noqa: BLE001 - aggregate both paths
+                vendor_response = None
+                vendor_detail = f"vendor call failed: {exc}"
+            else:
+                if vendor_response is None:
+                    vendor_detail = "vendor returned no response"
+                elif int(vendor_response.code) != 0:
+                    vendor_detail = (
+                        "vendor wrapper rejected request: "
+                        f"code={vendor_response.code}"
+                    )
+                elif vendor_response.serialization_type != "pb":
+                    vendor_detail = (
+                        "vendor returned unexpected serialization type "
+                        f"{vendor_response.serialization_type!r}"
+                    )
+                else:
+                    try:
+                        application_code, application_message = (
+                            decode_software_estop_response(
+                                bytes(vendor_response.data)
+                            )
+                        )
+                    except ValueError as exc:
+                        vendor_detail = f"vendor response decode failed: {exc}"
+                    else:
+                        vendor_accepted = application_code == 0
+                        vendor_detail = (
+                            "vendor request accepted"
+                            if vendor_accepted
+                            else (
+                                "vendor application rejected request: "
+                                f"code={application_code}, "
+                                f"msg={application_message or 'no detail'}"
+                            )
+                        )
 
-        trace_id = f"hope-foxglove-{uuid.uuid4()}"
-        vendor_request = RosRpcWrapper.Request()
-        vendor_request.serialization_type = "pb"
-        vendor_request.context = ["aimdk.protocol.EmergencyCommandReq"]
-        vendor_request.data = list(
-            build_software_estop_request(time.time_ns(), trace_id)
-        )
-        try:
-            vendor_response = client.call(vendor_request, timeout_sec=2.0)
-        except Exception as exc:  # noqa: BLE001 - report the safety-call failure
-            response.success = False
-            response.message = f"A3 vendor E-stop call failed: {exc}"
-            return response
+        if runner_future is not None:
+            while not runner_future.done() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            if not runner_future.done():
+                runner_detail = "managed runner stop timed out"
+            else:
+                try:
+                    runner_response = runner_future.result()
+                except Exception as exc:  # noqa: BLE001 - aggregate both paths
+                    runner_detail = f"managed runner stop failed: {exc}"
+                else:
+                    runner_stopped = bool(
+                        runner_response is not None and runner_response.success
+                    )
+                    runner_detail = (
+                        "managed runner stopped"
+                        if runner_stopped
+                        else (
+                            runner_response.message
+                            if runner_response is not None
+                            else "managed runner returned no response"
+                        )
+                    )
 
-        if vendor_response is None or int(vendor_response.code) != 0:
-            code = "no response" if vendor_response is None else vendor_response.code
-            response.success = False
-            response.message = f"A3 vendor rejected E-stop wrapper call: {code}"
-            return response
-
-        if vendor_response.serialization_type != "pb":
-            response.success = False
-            response.message = (
-                "A3 vendor E-stop response used unexpected serialization type "
-                f"{vendor_response.serialization_type!r}"
-            )
-            return response
-        try:
-            application_code, application_message = decode_software_estop_response(
-                bytes(vendor_response.data)
-            )
-        except ValueError as exc:
-            response.success = False
-            response.message = f"A3 vendor E-stop response could not be decoded: {exc}"
-            return response
-        if application_code != 0:
-            detail = application_message or "no vendor detail"
-            response.success = False
-            response.message = (
-                "A3 vendor rejected E-stop application request: "
-                f"code={application_code}, msg={detail}"
-            )
-            return response
-
-        response.success = True
-        response.message = (
-            "A3 vendor software E-stop asserted; use the approved local recovery "
-            "procedure to inspect and reset"
+        response.success, response.message = combine_estop_results(
+            vendor_accepted=vendor_accepted,
+            vendor_detail=vendor_detail,
+            runner_stopped=runner_stopped,
+            runner_detail=runner_detail,
         )
         return response
 

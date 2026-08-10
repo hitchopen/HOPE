@@ -16,6 +16,7 @@ state. No interface here connects to or controls the opponent robot.
 | MDU active | `/hope/v17/system/mdu_active` (`Bool`) | freshness of the MDU Runner authoritative state heartbeat |
 | P1 live marker count | `/hope/v17/mocap/p1_marker_count` (`UInt32`), `p1_marker_text` (`String`), `p1_marker_fresh` and `p1_markers_complete` (`Bool`) | Laptop `RigidBodyMarkerArray`; unique physical live samples only, bounded 0–10 |
 | Pelvis world XYZ | `/hope/pelvis/pose` (`PoseStamped`), `/hope/pelvis/text` (`String`) | fresh `world -> pelvis_link` vendor TF |
+| Pelvis label in 3D | `/hope/pelvis/scene` (`foxglove_msgs/SceneUpdate`) | frame-locked XYZ/RPY text attached to `pelvis_link` |
 | Standard table | static `hope_ping_pong_table.urdf` layer | fixed HOPE-world table geometry |
 | Robot URDF and TF tree | `/hope/robot_description`, `/tf`, `/tf_static`, `/joint_states` | TF-gated A3 URDF driven by vendor live transforms/joints |
 | Runner/role/serve state | `/hope/v17/runner/**`, `/hope/v17/opponent/**` | our Runner confirmed; opponent expected role is inferred and never confirmed |
@@ -80,11 +81,12 @@ sudo systemctl enable --now hope-v17-marker-monitor.service
 
 ## Foxglove connection
 
-Use the opt-in control endpoint `ws://<HDU-IP>:8766` and import
-`foxglove/layouts/v17_model21800_control_phase2.json`. It includes all display
-and button interfaces above. The endpoint still has no client topic publish,
-parameter mutation, wildcard service, shell, argv, PID, or arbitrary signal
-capability.
+Build and install `foxglove/extensions/hope-a3-console`, use the opt-in control
+endpoint `ws://<HDU-IP>:8766`, and import
+`foxglove/layouts/v17_model21800_console.json`. The custom panel implements the
+new desktop design and includes all display and button interfaces above. The
+endpoint still has no client topic publish, parameter mutation, wildcard
+service, shell, argv, PID, or arbitrary signal capability.
 
 The static table and rewritten robot mesh URLs use the existing Laptop asset
 server. Start it from the repository before opening the 3D panel:

@@ -2,7 +2,8 @@ from pathlib import Path
 
 import yaml
 from launch import LaunchDescription
-from launch.actions import LogInfo
+from launch.actions import DeclareLaunchArgument, LogInfo
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -78,7 +79,7 @@ def generate_launch_description():
     offsets = config["mocap_to_base_link"]
     contract = config["contract"]
     x_hit = config["planner"]["x_hit"]
-    p1 = offsets["p1"]
+    p1_calibration_file = LaunchConfiguration("p1_calibration_file")
 
     nodes = [
         _static_tf(frames["world"], frames["table_center"], landmarks["table_center"], [0.0, 0.0, 0.0]),
@@ -87,7 +88,9 @@ def generate_launch_description():
         _static_tf(frames["world"], frames["net_center"], landmarks["net_center"], [0.0, 0.0, 0.0]),
         _static_tf(frames["world"], frames["floor_origin"], landmarks["floor_origin"], [0.0, 0.0, 0.0]),
         _static_tf(frames["world"], frames["virtual_hit_plane"], [x_hit, 0.0, 0.0], [0.0, 0.0, 0.0]),
-        _calibrated_marker_tf(frames, offsets, "p1"),
+        # Do not publish P1 -> pelvis_link into the vendor TF tree: the vendor
+        # stack already owns pelvis_link below odom.  The relay publishes the
+        # independently composed world pose on /a3/mocap/pelvis_pose instead.
         _calibrated_marker_tf(frames, offsets, "p2"),
         # Independent high-rate transport for the native runner and planner.
         # It publishes explicit schema-2 valid=0 packets until BOTH the Motive
@@ -101,24 +104,33 @@ def generate_launch_description():
                 "input_topic": f"/{frames['p1_mocap']}/pose",
                 "output_topic": "/a3/base_pose_flat",
                 "expected_input_frame": frames["world"],
-                "marker_to_base_xyz": p1["xyz_m"],
-                "marker_to_base_quaternion_wxyz": p1["quaternion_wxyz"],
+                "expected_marker_frame": frames["p1_mocap"],
+                "pelvis_frame": "pelvis_link",
+                "pelvis_pose_topic": "/a3/mocap/pelvis_pose",
+                "calibration_file": p1_calibration_file,
                 "policy_z_offset": config["planner"]["policy_z_offset"],
-                "extrinsic_calibrated": bool(p1.get("calibrated", False)),
                 "world_frame_calibrated": bool(
                     contract.get("venue_calibrated", False)
-                ),
-                "calibration_sha256": str(
-                    p1.get("calibration_sha256", "")
                 ),
                 "world_frame_sha256": str(
                     contract.get("calibration_sha256", "")
                 ),
-                # Production launches this relay on HDU.  /P1/pose originates
-                # on the Laptop, whose ROS clock is not a valid MDU freshness
-                # clock; schema-2 therefore carries the HDU ROS receipt stamp.
-                "source_stamp_mode": "local_receipt",
+                # Production launches this relay next to NatNet on the laptop.
+                # The input header is already mapped into that host's
+                # disciplined ROS system-time epoch.
+                "source_stamp_mode": "input_header",
             }],
         ),
     ]
-    return LaunchDescription(nodes)
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "p1_calibration_file",
+                default_value="calibration/p1_to_pelvis.json",
+                description=(
+                    "laptop-local approved P1 -> pelvis_link calibration receipt"
+                ),
+            ),
+            *nodes,
+        ]
+    )

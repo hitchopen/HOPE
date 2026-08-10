@@ -46,9 +46,9 @@ class V17AssetInvariantTests(unittest.TestCase):
         bridge = (FOXGLOVE_DIR / "a3/bridge_params.yaml").read_text()
         self.assertIn('"^/hope/.*"', bridge)
         self.assertIn('client_topic_whitelist: ["(?!)"]', bridge)
-        self.assertIn(
-            'service_whitelist: ["^/hope/safety/trigger_estop$"]', bridge
-        )
+        self.assertIn('service_whitelist:', bridge)
+        self.assertIn('- "^/hope/safety/trigger_estop$"', bridge)
+        self.assertNotIn('/hope/control/', bridge)
         service = (
             FOXGLOVE_DIR / "v17/a3/hope-v17-observer.service"
         ).read_text()
@@ -75,12 +75,36 @@ class V17AssetInvariantTests(unittest.TestCase):
         ):
             self.assertIn(f'"^/hope/v17/runner/{action}$"', params)
         self.assertNotIn('"^/hope/.*"', params)
+        self.assertIn("root_dispersion_ms", params)
+        self.assertIn("message_fresh", params)
+        self.assertIn("tf_ready", params)
+        self.assertIn("pelvis/(pose|text|scene)", params)
         self.assertIn('param_whitelist: ["(?!)"]', params)
         self.assertIn('client_topic_whitelist: ["(?!)"]', params)
 
         fleet_params = (FOXGLOVE_DIR / "a3/bridge_params.yaml").read_text()
         self.assertNotIn("refresh_x_hit", fleet_params)
         self.assertIn("port: 8765", fleet_params)
+
+    def test_hdu_units_share_one_configurable_laptop_peer_file(self):
+        units = (
+            "a3/hope-monitor.service",
+            "a3/hope-foxglove-bridge.service",
+            "v17/a3/hope-v17-observer.service",
+            "v17/a3/hope-v17-command-proxy.service",
+            "v17/a3/hope-foxglove-v17-control-bridge.service",
+        )
+        for relative in units:
+            with self.subTest(unit=relative):
+                content = (FOXGLOVE_DIR / relative).read_text()
+                self.assertIn(
+                    "EnvironmentFile=-/etc/hope-foxglove/network.env",
+                    content,
+                )
+                self.assertNotIn("172.23.21.67", content)
+        example = (FOXGLOVE_DIR / "a3/network.env.example").read_text()
+        self.assertIn("ROS_STATIC_PEERS=", example)
+        self.assertNotIn("172.23.21.67", example)
 
     def test_control_layout_has_only_fixed_local_actions_x_hit_and_estop(self):
         layout = json.loads(
@@ -184,6 +208,43 @@ class V17AssetInvariantTests(unittest.TestCase):
         self.assertNotIn("os.kill", proxy)
         self.assertNotIn("Popen", proxy)
         self.assertNotIn("shell=True", proxy)
+
+    def test_custom_console_maps_directly_to_native_runner_contract(self):
+        extension = (
+            FOXGLOVE_DIR
+            / "extensions/hope-a3-console/src/HopeA3Console.tsx"
+        ).read_text()
+        package = json.loads(
+            (
+                FOXGLOVE_DIR / "extensions/hope-a3-console/package.json"
+            ).read_text()
+        )
+        layout = json.loads(
+            (FOXGLOVE_DIR / "layouts/v17_model21800_console.json").read_text()
+        )
+        self.assertEqual(package["displayName"], "HOPE A3 Console")
+        for service in (
+            "/hope/safety/trigger_estop",
+            "/hope/v17/refresh_x_hit",
+            "/hope/v17/runner/set_server",
+            "/hope/v17/runner/set_receiver",
+            "/hope/v17/runner/enter_pd_stand",
+            "/hope/v17/runner/enter_motion",
+            "/hope/v17/runner/emergency_passive",
+            "/hope/v17/runner/ready_to_serve",
+            "/hope/v17/runner/serve",
+        ):
+            self.assertIn(service, extension)
+        self.assertNotIn("/hope/control/enter_", extension)
+        self.assertNotIn("context.publish", extension)
+        self.assertIn("HOPE A3 Console!operator", layout["configById"])
+        self.assertEqual(layout["layout"]["splitPercentage"], 60)
+        scene = layout["configById"]["3D!a3tf"]
+        self.assertEqual(
+            scene["layers"]["urdf-a3"]["topic"],
+            "/hope/robot_description",
+        )
+        self.assertTrue(scene["topics"]["/hope/pelvis/scene"]["visible"])
 
 
 if __name__ == "__main__":

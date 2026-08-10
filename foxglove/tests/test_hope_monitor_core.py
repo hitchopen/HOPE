@@ -8,9 +8,11 @@ sys.path.insert(0, str(A3_DIR))
 
 from hope_monitor_core import (  # noqa: E402
     build_software_estop_request,
+    combine_estop_results,
     cpu_load_percent,
     decode_software_estop_response,
     message_latency_ms,
+    parse_calibration_service_sha,
     parse_chrony_status,
     parse_proc_stat_cpu,
     rewrite_urdf_asset_urls,
@@ -116,6 +118,31 @@ class ProbeAndFreshnessTests(unittest.TestCase):
 
 
 class TimestampAndSafetyTests(unittest.TestCase):
+    def test_estop_result_requires_both_independent_paths(self):
+        for vendor_ok, runner_ok, expected in (
+            (True, True, True),
+            (True, False, False),
+            (False, True, False),
+            (False, False, False),
+        ):
+            with self.subTest(vendor_ok=vendor_ok, runner_ok=runner_ok):
+                success, message = combine_estop_results(
+                    vendor_accepted=vendor_ok,
+                    vendor_detail="vendor-test",
+                    runner_stopped=runner_ok,
+                    runner_detail="runner-test",
+                )
+                self.assertEqual(success, expected)
+                self.assertIn("physical E-stop", message)
+
+    def test_calibration_service_sha_is_exact(self):
+        sha = "a" * 64
+        self.assertEqual(parse_calibration_service_sha(f"  {sha}\n"), sha)
+        for invalid in ("", "A" * 64, "a" * 63, f"sha256={sha}"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    parse_calibration_service_sha(invalid)
+
     def test_message_latency_uses_ros_header_epoch(self):
         latency = message_latency_ms(
             1_700_000_000_012_500_000,

@@ -1,5 +1,12 @@
 # model_21800 Foxglove trial layer
 
+The integrated operator UI is the custom extension in
+`foxglove/extensions/hope-a3-console`. Package/install that extension, connect
+Foxglove Desktop to `ws://<HDU-IP>:8766`, and import
+`foxglove/layouts/v17_model21800_console.json`. The panel directly uses the
+native `/hope/v17/runner/*` services; it does not use the imported legacy
+`/hope/control/*` TTY adapter.
+
 This directory is separate from the fleet-generic `foxglove/a3/` baseline.
 Phase 1 is read-only: it adds no bridge capability and no remotely callable
 application service. ROS 2 Jazzy's automatic type-description endpoint is not
@@ -121,6 +128,10 @@ The control endpoint is a second bridge on port `8766`; the fleet bridge on
 `8765` and its E-stop-only allowlist stay unchanged. Stage the same folder as
 above, then install but do not enable the opt-in units:
 
+All three V17 units read `/etc/hope-foxglove/network.env`, shared with the
+fleet monitor. Set its `ROS_STATIC_PEERS` to the current Laptop Wi-Fi address
+before relying on cross-host marker or mocap topics.
+
 ```bash
 sudo install -D -o root -g root -m 0755 \
   ~/foxglove_v17_a3/hope_v17_command_proxy.py \
@@ -156,13 +167,13 @@ systemctl status \
 ```
 
 Connect a Foxglove window to `ws://<robot-ip>:8766` and import
-`foxglove/layouts/v17_model21800_control_phase2.json`. The panel labels local
-role as Runner-confirmed. The opponent expected role is always derived from
-that local role, its source is `INFERRED_FROM_LOCAL_ROLE`, and
-`/hope/v17/opponent/role_confirmed` is always false. The two red actions are
-different safety paths: Runner PASSIVE loses active support, while vendor
-E-stop remains the real assert-only vendor path and must not be used as a
-smoke test.
+`foxglove/layouts/v17_model21800_console.json` after installing the
+`hope-a3-console` extension. The panel labels local role as Runner-confirmed.
+The opponent expected role is always derived from that local role, its source
+is `INFERRED_FROM_LOCAL_ROLE`, and `/hope/v17/opponent/role_confirmed` is always
+false. The two red actions are different safety paths: Runner PASSIVE loses
+active support, while vendor E-stop remains the real assert-only vendor path
+and must not be used as a smoke test.
 
 The same layout also consumes the fleet monitor's NTP/ROS latency, agibot_pm,
 Pelvis TF/URDF, and CPU topics. The Laptop marker node publishes the live P1

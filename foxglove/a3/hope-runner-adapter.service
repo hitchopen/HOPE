@@ -1,0 +1,22 @@
+[Unit]
+Description=HOPE adapter for the validated A3 model21800 manual runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agi
+Environment=ROS_DOMAIN_ID=232
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
+Environment=PYTHONPATH=/usr/local/lib/hope-foxglove
+ExecStartPre=/bin/bash -c 'for ((i=0; i<150; ++i)); do /sbin/ip -4 address show dev eth_hdu | /bin/grep -q "inet 10.42.10.10/24" && exit 0; /bin/sleep 0.2; done; exit 1'
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/bin/hope_runner_adapter.py'
+Restart=no
+KillMode=control-group
+TimeoutStopSec=3
+
+[Install]
+WantedBy=multi-user.target

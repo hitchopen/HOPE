@@ -1,5 +1,5 @@
 [Unit]
-Description=HOPE Foxglove bridge (monitoring plus E-stop-only service)
+Description=HOPE Foxglove fleet bridge (monitoring plus assert-only E-stop)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,6 +8,9 @@ Type=simple
 User=agi
 Environment=ROS_DOMAIN_ID=232
 Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=ROS_STATIC_PEERS=
+EnvironmentFile=-/etc/hope-foxglove/network.env
 Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
 ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
