@@ -1,0 +1,375 @@
+{
+  "configById": {
+    "3D!operator": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 4.5,
+        "phi": 58,
+        "thetaOffset": 42,
+        "target": [1.37, -0.7625, -0.1],
+        "targetOffset": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "enableStats": false,
+        "transforms": {"showLabel": true, "axisScale": 0.25, "lineWidth": 2}
+      },
+      "transforms": {},
+      "topics": {},
+      "layers": {
+        "grid-hope": {
+          "instanceId": "grid-hope",
+          "layerId": "foxglove.Grid",
+          "visible": true,
+          "label": "HOPE world (z=0 table surface)",
+          "frameId": "world",
+          "size": 4,
+          "divisions": 40,
+          "lineWidth": 1,
+          "color": "#248eff44",
+          "position": [1.37, -0.7625, 0],
+          "rotation": [0, 0, 0],
+          "order": 1
+        },
+        "urdf-table": {
+          "instanceId": "urdf-table",
+          "layerId": "foxglove.Urdf",
+          "visible": true,
+          "label": "Standard ping-pong table (HOPE world)",
+          "sourceType": "url",
+          "url": "http://localhost:8000/assets/hope_ping_pong_table.urdf",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#245c8a",
+          "order": 2
+        },
+        "urdf-a3": {
+          "instanceId": "urdf-a3",
+          "layerId": "foxglove.Urdf",
+          "visible": true,
+          "label": "A3 URDF driven by live TF tree",
+          "sourceType": "topic",
+          "topic": "/hope/robot_description",
+          "controlMode": "transforms",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 3
+        }
+      }
+    },
+    "Indicator!agibotpm": {
+      "path": "/hope/vendor/agibot_pm_active.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "agibot_pm: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "agibot_pm ON"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "agibot_pm OFF"}
+      ]
+    },
+    "Indicator!hdu": {
+      "path": "/hope/v17/system/hdu_active.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "HDU: NO DATA / WS DISCONNECTED",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "HDU OBSERVER ON"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "HDU OBSERVER OFF"}
+      ]
+    },
+    "Indicator!mdu": {
+      "path": "/hope/v17/system/mdu_active.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "MDU RUNNER: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "MDU RUNNER ON"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "MDU RUNNER OFF / STALE"}
+      ]
+    },
+    "Indicator!markers": {
+      "path": "/hope/v17/mocap/p1_markers_complete.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "P1 MARKERS: NO LAPTOP DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "P1 MARKERS 10/10"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "P1 MARKERS INCOMPLETE"}
+      ]
+    },
+    "Indicator!runnerfault": {
+      "path": "/hope/v17/runner/command_fault_latched.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "RUNNER FAULT: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "false", "color": "#2e7d32", "label": "RUNNER FAULT CLEAR"},
+        {"operator": "=", "rawValue": "true", "color": "#c62828", "label": "RUNNER FAULT LATCHED"}
+      ]
+    },
+    "Indicator!readytoserve": {
+      "path": "/hope/v17/runner/is_ready_to_serve.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "SERVE STATE: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "READY: PLACE BALL ON PALM"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "NOT READY TO SERVE"}
+      ]
+    },
+    "Indicator!estopready": {
+      "path": "/hope/safety/estop_ready.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "E-STOP BACKEND: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "E-STOP BACKEND READY"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "E-STOP BACKEND UNAVAILABLE"}
+      ]
+    },
+    "RawMessages!ntp": {"topicPath": "/hope/ntp/text", "diffEnabled": false, "diffMethod": "custom"},
+    "RawMessages!latency": {"topicPath": "/hope/clock/message_text", "diffEnabled": false, "diffMethod": "custom"},
+    "RawMessages!markers": {"topicPath": "/hope/v17/mocap/p1_marker_text", "diffEnabled": false, "diffMethod": "custom"},
+    "RawMessages!pelvis": {"topicPath": "/hope/pelvis/text", "diffEnabled": false, "diffMethod": "custom"},
+    "RawMessages!runner": {"topicPath": "/hope/v17/runner/summary", "diffEnabled": false, "diffMethod": "custom"},
+    "RawMessages!opponent": {"topicPath": "/hope/v17/opponent/summary", "diffEnabled": false, "diffMethod": "custom"},
+    "Plot!cpuload": {
+      "title": "A3 aggregate CPU utilization",
+      "paths": [{
+        "value": "/hope/system/cpu_load_percent.data",
+        "enabled": true,
+        "timestampMethod": "receiveTime",
+        "label": "CPU load (%)",
+        "color": "#ff9800",
+        "lineSize": 2,
+        "showLine": true
+      }],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showYAxisGridLines": true,
+      "showLegend": true,
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "yAxisLabel": "CPU load (%)",
+      "minYValue": 0,
+      "maxYValue": 100,
+      "followingViewWidth": 120
+    },
+    "ServiceCall!calibration": {
+      "serviceName": "/hope/v17/refresh_x_hit",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "CALIBRATION / REFRESH X_HIT",
+      "buttonTooltip": "Use only after stable PD_STAND. Planner confirms x_hit; this does not change Runner mode.",
+      "buttonColor": "#1565c0"
+    },
+    "ServiceCall!stand": {
+      "serviceName": "/hope/v17/runner/enter_pd_stand",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "STAND / PD_STAND",
+      "buttonTooltip": "Same Runner transition as keyboard s. During SERVE it requests phase-aware abort.",
+      "buttonColor": "#1565c0"
+    },
+    "ServiceCall!ready": {
+      "serviceName": "/hope/v17/runner/enter_motion",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "READY / ENTER MOTION",
+      "buttonTooltip": "Same Runner transition as keyboard m. It adds no hidden x_hit, role, localization, or clock gate.",
+      "buttonColor": "#ef6c00"
+    },
+    "ServiceCall!readytoserve": {
+      "serviceName": "/hope/v17/runner/ready_to_serve",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "READY TO SERVE",
+      "buttonTooltip": "Starts the existing serve pre-position. Wait for Runner state AWAIT_BALL_ON_PALM before placing the ball.",
+      "buttonColor": "#6a1b9a"
+    },
+    "ServiceCall!serve": {
+      "serviceName": "/hope/v17/runner/serve",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "SERVE — BALL ON PALM CONFIRMED",
+      "buttonTooltip": "Accepted only when the authoritative Runner serve state is AWAIT_BALL_ON_PALM. This commits toss/serve.",
+      "buttonColor": "#ad1457"
+    },
+    "ServiceCall!setserver": {
+      "serviceName": "/hope/v17/runner/set_server",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "OUR ROLE: SERVER",
+      "buttonTooltip": "Sets only our Runner role; does not control the opponent.",
+      "buttonColor": "#2e7d32"
+    },
+    "ServiceCall!setreceiver": {
+      "serviceName": "/hope/v17/runner/set_receiver",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "OUR ROLE: RECEIVER",
+      "buttonTooltip": "Sets only our Runner role; opponent role remains an unconfirmed inference.",
+      "buttonColor": "#2e7d32"
+    },
+    "ServiceCall!passive": {
+      "serviceName": "/hope/v17/runner/emergency_passive",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "RUNNER PASSIVE — LOSES SUPPORT",
+      "buttonTooltip": "Same zero-gain Runner transition as keyboard p. This is distinct from vendor E-stop.",
+      "buttonColor": "#d32f2f"
+    },
+    "ServiceCall!estop": {
+      "serviceName": "/hope/safety/trigger_estop",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "A3 E-STOP",
+      "buttonTooltip": "Assert the vendor software E-stop. Foxglove cannot clear or reset it.",
+      "buttonColor": "#b71c1c"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {"speed": 1},
+  "layout": {
+    "direction": "row",
+    "first": "3D!operator",
+    "second": {
+      "direction": "column",
+      "first": {
+        "direction": "column",
+        "first": {
+          "direction": "row",
+          "first": "Indicator!agibotpm",
+          "second": {
+            "direction": "row",
+            "first": "Indicator!hdu",
+            "second": "Indicator!mdu",
+            "splitPercentage": 50
+          },
+          "splitPercentage": 33
+        },
+        "second": {
+          "direction": "row",
+          "first": "RawMessages!ntp",
+          "second": {
+            "direction": "row",
+            "first": "RawMessages!latency",
+            "second": "Plot!cpuload",
+            "splitPercentage": 50
+          },
+          "splitPercentage": 33
+        },
+        "splitPercentage": 25
+      },
+      "second": {
+        "direction": "column",
+        "first": {
+          "direction": "row",
+          "first": {
+            "direction": "column",
+            "first": "Indicator!markers",
+            "second": "RawMessages!markers",
+            "splitPercentage": 35
+          },
+          "second": {
+            "direction": "column",
+            "first": "RawMessages!pelvis",
+            "second": {
+              "direction": "row",
+              "first": "RawMessages!runner",
+              "second": "RawMessages!opponent",
+              "splitPercentage": 65
+            },
+            "splitPercentage": 35
+          },
+          "splitPercentage": 28
+        },
+        "second": {
+          "direction": "column",
+          "first": {
+            "direction": "row",
+            "first": "ServiceCall!setserver",
+            "second": "ServiceCall!setreceiver",
+            "splitPercentage": 50
+          },
+          "second": {
+            "direction": "column",
+            "first": {
+              "direction": "row",
+              "first": "ServiceCall!stand",
+              "second": {
+                "direction": "row",
+                "first": "ServiceCall!calibration",
+                "second": "ServiceCall!ready",
+                "splitPercentage": 50
+              },
+              "splitPercentage": 33
+            },
+            "second": {
+              "direction": "column",
+              "first": {
+                "direction": "row",
+                "first": "ServiceCall!readytoserve",
+                "second": {
+                  "direction": "row",
+                  "first": "Indicator!readytoserve",
+                  "second": "ServiceCall!serve",
+                  "splitPercentage": 45
+                },
+                "splitPercentage": 33
+              },
+              "second": {
+                "direction": "row",
+                "first": {
+                  "direction": "row",
+                  "first": "Indicator!runnerfault",
+                  "second": "ServiceCall!passive",
+                  "splitPercentage": 45
+                },
+                "second": {
+                  "direction": "row",
+                  "first": "Indicator!estopready",
+                  "second": "ServiceCall!estop",
+                  "splitPercentage": 45
+                },
+                "splitPercentage": 50
+              },
+              "splitPercentage": 50
+            },
+            "splitPercentage": 30
+          },
+          "splitPercentage": 18
+        },
+        "splitPercentage": 35
+      },
+      "splitPercentage": 28
+    },
+    "splitPercentage": 48
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "configById": {
+    "Indicator!observer": {
+      "path": "/hope/v17/observer_alive.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "V17 OBSERVER: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "V17 OBSERVER LIVE"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "V17 OBSERVER DOWN"}
+      ]
+    },
+    "Indicator!session": {
+      "path": "/hope/v17/session/active.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "SESSION: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "SESSION ID PRESENT"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "NO VALID SESSION ID"}
+      ]
+    },
+    "Indicator!planner": {
+      "path": "/hope/v17/planner/process_alive.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "PLANNER: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "PLANNER PROCESS LIVE"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "PLANNER PROCESS NOT SEEN"}
+      ]
+    },
+    "Indicator!basevalid": {
+      "path": "/hope/v17/base/valid.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "BASE VALIDITY: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "BASE SCHEMA-2 VALID"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "BASE SCHEMA-2 INVALID"}
+      ]
+    },
+    "Indicator!basefresh": {
+      "path": "/hope/v17/base/fresh.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "BASE FRESHNESS: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "BASE RECEIPT FRESH"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "BASE RECEIPT STALE"}
+      ]
+    },
+    "Indicator!ball": {
+      "path": "/hope/v17/ball/live.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "BALL STREAM: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "BALL /poses LIVE"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "BALL /poses ABSENT"}
+      ]
+    },
+    "Indicator!xhitstatus": {
+      "path": "/hope/v17/x_hit/status_available.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "X_HIT STATUS: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "X_HIT STATUS PRESENT"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "NO X_HIT STATUS"}
+      ]
+    },
+    "Indicator!xhitsuccess": {
+      "path": "/hope/v17/x_hit/success.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "X_HIT RESULT: NO DATA",
+      "rules": [
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "LATEST X_HIT REFRESH SUCCESS"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "LATEST X_HIT NOT SUCCESSFUL"}
+      ]
+    },
+    "Plot!ages": {
+      "title": "HDU observer receipt/source ages",
+      "paths": [
+        {"value": "/hope/v17/base/receipt_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "base local receipt age (ms)"},
+        {"value": "/hope/v17/base/source_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "HDU ROS now - base source stamp (ms)"},
+        {"value": "/hope/v17/ball/receipt_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "ball local receipt age (ms)"},
+        {"value": "/hope/v17/command/receipt_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "last command local receipt age (ms)"}
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "yAxisLabel": "age (ms)",
+      "sidebarDimension": 260,
+      "followingViewWidth": 30
+    },
+    "Plot!ballrate": {
+      "title": "Ball /poses local receipt rate",
+      "paths": [
+        {"value": "/hope/v17/ball/rate_hz.data", "enabled": true, "timestampMethod": "receiveTime", "label": "local callback rate (Hz)", "color": "#00bcd4"}
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "yAxisLabel": "Hz",
+      "minYValue": 0,
+      "sidebarDimension": 220,
+      "followingViewWidth": 30
+    },
+    "Plot!geometry": {
+      "title": "Base X and latest x_hit audit value",
+      "paths": [
+        {"value": "/hope/v17/base/position_x_m.data", "enabled": true, "timestampMethod": "receiveTime", "label": "calibrated pelvis x (m)", "color": "#4caf50"},
+        {"value": "/hope/v17/x_hit/value_m.data", "enabled": true, "timestampMethod": "receiveTime", "label": "x_hit status value (m)", "color": "#ff9800"}
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "yAxisLabel": "HOPE world X (m)",
+      "sidebarDimension": 240,
+      "followingViewWidth": 30
+    },
+    "Plot!countdown": {
+      "title": "Last command deadline on HDU wall-clock domain",
+      "paths": [
+        {"value": "/hope/v17/command/hdu_wall_countdown_s.data", "enabled": true, "timestampMethod": "receiveTime", "label": "absolute deadline - HDU ROS now (s)", "color": "#e91e63"}
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "yAxisLabel": "seconds",
+      "sidebarDimension": 260,
+      "followingViewWidth": 15
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {"speed": 1},
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": {
+        "direction": "row",
+        "first": "Indicator!observer",
+        "second": "Indicator!session",
+        "splitPercentage": 50
+      },
+      "second": {
+        "direction": "column",
+        "first": {
+          "direction": "row",
+          "first": "Indicator!planner",
+          "second": "Indicator!basevalid",
+          "splitPercentage": 50
+        },
+        "second": {
+          "direction": "column",
+          "first": {
+            "direction": "row",
+            "first": "Indicator!basefresh",
+            "second": "Indicator!ball",
+            "splitPercentage": 50
+          },
+          "second": {
+            "direction": "row",
+            "first": "Indicator!xhitstatus",
+            "second": "Indicator!xhitsuccess",
+            "splitPercentage": 50
+          },
+          "splitPercentage": 50
+        },
+        "splitPercentage": 34
+      },
+      "splitPercentage": 25
+    },
+    "second": {
+      "direction": "column",
+      "first": {
+        "direction": "row",
+        "first": "Plot!ages",
+        "second": "Plot!ballrate",
+        "splitPercentage": 60
+      },
+      "second": {
+        "direction": "row",
+        "first": "Plot!geometry",
+        "second": "Plot!countdown",
+        "splitPercentage": 50
+      },
+      "splitPercentage": 50
+    },
+    "splitPercentage": 36
+  }
+}

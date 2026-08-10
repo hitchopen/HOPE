@@ -134,6 +134,7 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertIn("DurabilityPolicy.TRANSIENT_LOCAL", monitor)
         self.assertIn('declare_parameter("tf_stale_after_s", 0.5)', monitor)
         self.assertIn('"/hope/system/cpu_load_percent"', monitor)
+        self.assertIn('"/hope/ntp/text"', monitor)
         self.assertIn('Path("/proc/stat")', monitor)
         self.assertIn(
             'payload = self._robot_urdf_xml if show_robot else ""', monitor

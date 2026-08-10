@@ -12,10 +12,12 @@ Publishes:
   /hope/ntp/root_dispersion_ms  std_msgs/Float64
   /hope/ntp/utc_qualified       std_msgs/Bool     Leap Normal + selected source
   /hope/ntp/gate_pass           std_msgs/Bool     qualified + offset/skew gates
+  /hope/ntp/text                std_msgs/String   human-readable offset in ms
   /hope/clock/message_latency_ms std_msgs/Float64 A3 ROS time - message stamp
   /hope/clock/message_fresh      std_msgs/Bool
   /hope/system/cpu_load_percent  std_msgs/Float64 aggregate CPU busy percentage
   /hope/vendor/agibot_pm_active  std_msgs/Bool     local HDU systemd unit state
+  /hope/v17/system/hdu_active    std_msgs/Bool     V17 HDU observer unit state
   /hope/vendor/tf_ready          std_msgs/Bool     fresh reference->pelvis TF
   /hope/robot_description        std_msgs/String   URDF only while TF is fresh
   /hope/safety/estop_ready       std_msgs/Bool     live vendor E-stop RPC matched
@@ -98,6 +100,7 @@ class HopeMonitor(Node):
         self.declare_parameter("message_latency_publish_hz", 20.0)
         self.declare_parameter("message_latency_stale_after_s", 0.5)
         self.declare_parameter("agibot_pm_unit", "agibot_pm.service")
+        self.declare_parameter("hdu_runtime_unit", "hope-v17-observer.service")
         self.declare_parameter("cpu_publish_period_s", 1.0)
         self.declare_parameter("tf_stale_after_s", 0.5)
         self.declare_parameter("robot_description_publish_period_s", 5.0)
@@ -116,6 +119,7 @@ class HopeMonitor(Node):
         )
         self.pub_qualified = self.create_publisher(Bool, "/hope/ntp/utc_qualified", 10)
         self.pub_ntp_gate = self.create_publisher(Bool, "/hope/ntp/gate_pass", 10)
+        self.pub_ntp_text = self.create_publisher(String, "/hope/ntp/text", 10)
         self.pub_message_latency = self.create_publisher(
             Float64, "/hope/clock/message_latency_ms", 10
         )
@@ -136,6 +140,12 @@ class HopeMonitor(Node):
         )
         self.pub_pm_text = self.create_publisher(
             String, "/hope/vendor/agibot_pm_text", 10
+        )
+        self.pub_hdu_active = self.create_publisher(
+            Bool, "/hope/v17/system/hdu_active", 10
+        )
+        self.pub_hdu_text = self.create_publisher(
+            String, "/hope/v17/system/hdu_text", 10
         )
         self.pub_tf_ready = self.create_publisher(
             Bool, "/hope/vendor/tf_ready", 10
@@ -243,12 +253,14 @@ class HopeMonitor(Node):
             raise ValueError("robot_description_publish_period_s must be positive")
 
         self._probe_pool = ThreadPoolExecutor(
-            max_workers=2, thread_name_prefix="hope-monitor-probe"
+            max_workers=3, thread_name_prefix="hope-monitor-probe"
         )
         self._ntp_future: Future[NtpProbeResult] | None = None
         self._pm_future: Future[ServiceProbeResult] | None = None
+        self._hdu_future: Future[ServiceProbeResult] | None = None
         self.create_timer(period, self._poll_ntp)
         self.create_timer(period, self._poll_pm)
+        self.create_timer(period, self._poll_hdu)
         self.create_timer(cpu_publish_period_s, self._poll_cpu)
         self.create_timer(0.5, self._poll_estop_backend)
         self.create_timer(0.2, self._poll_pelvis)
@@ -402,6 +414,15 @@ class HopeMonitor(Node):
         self.pub_qualified.publish(Bool(data=result.utc_qualified))
         self.pub_ntp_gate.publish(Bool(data=result.gate_pass))
         if result.error:
+            ntp_text = f"NTP UNAVAILABLE | {result.error}"
+        else:
+            ntp_text = (
+                f"NTP world-clock offset = {result.offset_ms:+.3f} ms | "
+                f"root dispersion = {result.root_dispersion_ms:.3f} ms | "
+                f"skew = {result.skew_ppm:.3f} ppm"
+            )
+        self.pub_ntp_text.publish(String(data=ntp_text))
+        if result.error:
             self.get_logger().warn(
                 f"chrony probe unavailable: {result.error}", throttle_duration_sec=30
             )
@@ -432,6 +453,22 @@ class HopeMonitor(Node):
             label += f" | {result.error}"
         self.pub_pm_text.publish(String(data=label))
         self._pm_future = self._probe_pool.submit(probe_systemd_service, unit)
+
+    def _poll_hdu(self):
+        unit = str(self.get_parameter("hdu_runtime_unit").value)
+        if self._hdu_future is None:
+            self._hdu_future = self._probe_pool.submit(probe_systemd_service, unit)
+            return
+        if not self._hdu_future.done():
+            return
+
+        result = self._hdu_future.result()
+        self.pub_hdu_active.publish(Bool(data=result.active))
+        label = f"HDU runtime {unit}: {result.state}"
+        if result.error:
+            label += f" | {result.error}"
+        self.pub_hdu_text.publish(String(data=label))
+        self._hdu_future = self._probe_pool.submit(probe_systemd_service, unit)
 
     # ---- pelvis pose -------------------------------------------------------
     def _poll_pelvis(self):
