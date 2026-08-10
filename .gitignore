@@ -17,11 +17,13 @@ env/
 logs/
 outputs/
 checkpoints/
-*.pt
 *.pth
 *.ckpt
 *.log
 
+# PyTorch .pt files are distributable model assets and are not globally ignored.
+# Generated checkpoint directories remain ignored above; explicitly publish
+# reviewed checkpoint assets such as model_21800 below.
 # Published model_21800 warm-start checkpoint (machine-bound exact-resume state removed).
 !hope_training/whole_body_tracking/checkpoints/
 !hope_training/whole_body_tracking/checkpoints/model_21800.pt
