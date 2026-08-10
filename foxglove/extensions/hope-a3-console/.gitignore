@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.foxe
+*.tgz
+*.log
+*.tsbuildinfo
+.DS_Store
+

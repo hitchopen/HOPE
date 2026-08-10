@@ -84,6 +84,8 @@ foxglove/
 |-- README.md                        this rulebook
 |-- layouts/
 |   `-- a3_monitor.json              Foxglove layout (import on the laptop)
+|-- extensions/
+|   `-- hope-a3-console/             laptop-side custom operator panel source
 |-- assets/
 |   `-- hope_ping_pong_table.urdf    visualization-only HOPE-world table
 `-- a3/                              staged robot-side assets (NOT installed)
@@ -328,7 +330,20 @@ unavailable.
    This is the only place the laptop needs the robot's IP. To switch to a
    different A3, open a new connection with that robot's IP — the layout is
    fleet-generic and needs no editing.
-3. Layout menu → **Import from file** → `foxglove/layouts/a3_monitor.json`.
+3. Install the laptop-side console extension before importing the layout. A
+   local Foxglove extension installation may require a developer seat:
+
+   ```bash
+   cd foxglove/extensions/hope-a3-console
+   npm install
+   npm run build
+   npm run local-install
+   ```
+
+   Reload or restart Foxglove Desktop and confirm **HOPE A3 Console** appears
+   in Settings → Extensions. This step changes only the laptop; it does not
+   install or modify anything on A3.
+4. Layout menu → **Import from file** → `foxglove/layouts/a3_monitor.json`.
 
 Foxglove Desktop uses one active data source per window. This A3 layout connects
 to `ws://<robot-ip>:8765`; to view laptop-side NatNet/ROS 2 mocap data at the
@@ -431,6 +446,11 @@ pelvis_link`, both settable in `hope-monitor.service`) and publishes:
   lookup fails, this topic carries the error text instead, so a wrong frame
   name is visible directly in the UI.
 
+The revised layout does not draw the proposed pelvis text marker because that
+Foxglove `SceneUpdate` producer is not implemented. The two pelvis topics above
+remain available for optional inspection and no robot-side behavior was added
+for the visual redesign.
+
 The structured pose is published only for fresh TF samples. Consumers must
 still use `/hope/vendor/tf_ready` as the validity bit because ROS topics retain
 the last pose a subscriber received. The default freshness limit is 0.5 seconds
@@ -481,8 +501,8 @@ an epoch/clock problem; it is not clamped away. Change
 is extended to support a different message type.
 
 The green/red `agibot_pm` tile is the local **HDU** systemd state. It is not a
-claim that the MDU vendor manager or TF publisher is ready. The adjacent
-`LIVE TF READY` tile checks the configured `world -> pelvis_link` lookup and is
+claim that the MDU vendor manager or TF publisher is ready. The separate
+`TF READY` gate chip checks the configured `world -> pelvis_link` lookup and is
 the display gate that matters for the combined robot/table scene. The 3D panel
 follows `world`, not `pelvis_link`, so the table and HOPE axes remain usable
 while the vendor tree is absent; this also avoids treating a missing
@@ -522,16 +542,22 @@ second E-stop request is rejected while the first remains in progress.
 
 - **3D (left):** live A3 URDF and TF plus the standard table illustration in
   HOPE `world`. The A3 appears only when a connected live TF path exists.
-- **NTP offset (upper right):** A3 system-clock offset and root dispersion in
-  milliseconds.
-- **ROS timestamp latency (upper right):** A3 ROS clock minus the pelvis-IMU
-  message header timestamp, in milliseconds.
-- **CPU utilization (upper right):** aggregate A3 CPU busy percentage over
-  time, displayed on a fixed 0%–100% scale.
-- **Status tiles:** HDU `agibot_pm`, connected TF readiness, E-stop backend,
-  NTP gate, and timestamp freshness use green/red/orange backgrounds.
-- **A3 EMERGENCY STOP:** the sole command control, backed by the assert-only
-  proxy described above and enabled only when its live vendor backend exists.
+- **HOPE A3 Console (right):** the custom laptop extension combines large NTP
+  offset and ROS timestamp-latency values, a bounded 120-second CPU chart, gate
+  chips, and process state in one match-day panel.
+- **Status semantics:** green means live/pass, amber means attention, and gray
+  means missing or stale data. The existing one-second NTP/CPU/systemd sources
+  use a 2.5-second display freshness allowance; the 20 Hz timestamp path keeps
+  the design's 0.5-second freshness boundary.
+- **Process tiles:** `agibot_pm` uses the existing HDU-local topic. HDU and MDU
+  are deliberately empty `NO DATA` placeholders: the proposed split probes do
+  not exist and the extension does not subscribe to invented topics.
+- **Sequence area:** intentionally empty. No calibration/stand/ready/serve
+  buttons or service calls are included because those functions are not
+  implemented or allowlisted.
+- **E-STOP:** the sole command control, backed by the existing assert-only proxy
+  and enabled only while `/hope/safety/estop_ready` is fresh and true. The
+  custom panel retains the three-second UI timeout and has no reset path.
 
 ## Notes and limits
 
@@ -545,6 +571,13 @@ second E-stop request is rejected while the first remains in progress.
 - **Battery:** the BMS topic is protobuf-wrapped
   (`ros2_plugin_proto/msg/RosMsgWrapper`) and needs a decoder before
   Foxglove can display fields — planned extension, not in this layout.
+- **Custom-panel prerequisite:** the imported layout references
+  `hope-a3-console.hope-a3-console`. Install the checked-in extension first;
+  otherwise Foxglove cannot resolve the right-hand panel. The extension bundles
+  its fonts and requires no CDN on the arena network.
+- **Deferred design elements:** HDU/MDU split-state topics, sequence services,
+  and the pelvis `SceneUpdate` label from the design handoff remain unimplemented
+  and are not added by this UI-only revision.
 - **Clock context:** `/hope/ntp/utc_qualified` uses the same Leap Normal plus
   selected-source rule as `timesync.sh --preflight`.
   `/hope/ntp/gate_pass` additionally applies the documented offset and skew

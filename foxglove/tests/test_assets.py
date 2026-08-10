@@ -10,7 +10,7 @@ REPO_ROOT = FOXGLOVE_DIR.parent
 
 
 class AssetInvariantTests(unittest.TestCase):
-    def test_layout_is_a3_rooted_and_has_only_estop_control(self):
+    def test_layout_is_a3_rooted_and_uses_the_console_extension(self):
         layout = json.loads((FOXGLOVE_DIR / "layouts/a3_monitor.json").read_text())
         panel = layout["configById"]["3D!a3tf"]
         # Keep the scene usable while vendor TF is absent; the table itself
@@ -22,41 +22,41 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertEqual(robot_layer["controlMode"], "transforms")
         self.assertNotIn("url", robot_layer)
         self.assertNotIn("publish", panel)
+        extension_panel = "hope-a3-console.hope-a3-console!a3console"
         self.assertEqual(
-            layout["configById"]["Indicator!ntp"]["path"],
-            "/hope/ntp/gate_pass.data",
+            set(layout["configById"]),
+            {"3D!a3tf", extension_panel},
         )
-        self.assertEqual(
-            layout["configById"]["Indicator!agibotpm"]["path"],
-            "/hope/vendor/agibot_pm_active.data",
-        )
-        self.assertEqual(
-            layout["configById"]["Indicator!tfready"]["path"],
-            "/hope/vendor/tf_ready.data",
-        )
-        self.assertEqual(
-            layout["configById"]["Indicator!estopready"]["path"],
-            "/hope/safety/estop_ready.data",
-        )
-        self.assertEqual(
-            layout["configById"]["Plot!messagelatency"]["paths"][0]["value"],
-            "/hope/clock/message_latency_ms.data",
-        )
-        cpu_plot = layout["configById"]["Plot!cpuload"]
-        self.assertEqual(
-            cpu_plot["paths"][0]["value"],
-            "/hope/system/cpu_load_percent.data",
-        )
-        self.assertEqual(cpu_plot["minYValue"], 0)
-        self.assertEqual(cpu_plot["maxYValue"], 100)
-        self.assertEqual(cpu_plot["yAxisLabel"], "CPU load (%)")
-        self.assertIn('"Plot!cpuload"', json.dumps(layout["layout"]))
-        self.assertEqual(
-            layout["configById"]["ServiceCall!estop"]["serviceName"],
-            "/hope/safety/trigger_estop",
-        )
-        self.assertFalse(layout["configById"]["ServiceCall!estop"]["editingMode"])
+        self.assertEqual(layout["layout"]["first"], "3D!a3tf")
+        self.assertEqual(layout["layout"]["second"], extension_panel)
+        self.assertEqual(layout["layout"]["splitPercentage"], 60)
         self.assertNotIn("Publish!", json.dumps(layout["configById"]))
+
+    def test_console_reuses_existing_topics_and_only_estop_control(self):
+        extension = FOXGLOVE_DIR / "extensions/hope-a3-console"
+        package = json.loads((extension / "package.json").read_text())
+        self.assertEqual(package["name"], "hope-a3-console")
+        self.assertEqual(package["publisher"], "hitchopen")
+        source = (extension / "src/HopeA3Console.tsx").read_text()
+        expected_topics = {
+            "/hope/ntp/offset_ms",
+            "/hope/ntp/root_dispersion_ms",
+            "/hope/ntp/gate_pass",
+            "/hope/clock/message_latency_ms",
+            "/hope/clock/message_fresh",
+            "/hope/system/cpu_load_percent",
+            "/hope/vendor/agibot_pm_active",
+            "/hope/vendor/tf_ready",
+            "/hope/safety/estop_ready",
+        }
+        for topic in expected_topics:
+            self.assertIn(f'"{topic}"', source)
+        self.assertIn('const ESTOP_SERVICE = "/hope/safety/trigger_estop"', source)
+        self.assertIn("context.callService(ESTOP_SERVICE, {})", source)
+        self.assertNotIn("/hope/sequence/", source)
+        self.assertNotIn("/hope/vendor/hdu_active", source)
+        self.assertNotIn("/hope/vendor/mdu_active", source)
+        self.assertNotIn("foxglove.SceneUpdate", source)
 
     def test_table_asset_uses_hope_world_geometry(self):
         asset = FOXGLOVE_DIR / "assets/hope_ping_pong_table.urdf"
