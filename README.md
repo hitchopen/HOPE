@@ -128,70 +128,51 @@ even while ROS 2 topics appear healthy.
 
 ## Required mocap bringup: align P1 to A3 `pelvis_link`
 
-Before using a newly installed A3 pelvis marker shell, perform the one-time P1
-calibration and save its constant 6-DOF `P1 → pelvis_link` transform to a
-persistent JSON file. The mocap system supplies the dynamic `world → P1`
-pose from the P1 rigid-body markers. Calibration additionally requires an
-**independent full-6DOF** `geometry_msgs/PoseStamped` measurement of
-`world → pelvis_link`, for example on `/a3/calibration/pelvis_pose`. The
-calibrator synchronizes those two pose topics and estimates their constant
-relative transform; it does not consume a `Table` topic or TF.
-
-The checked-in A3 hardware bridge publishes `/body_drive/pelvis_imu/data`, but
-an IMU does not provide absolute pelvis translation. It therefore is **not** a
-producer for `/a3/calibration/pelvis_pose`. Before real-robot calibration, the
-A3 integration must bridge an independent external 6-DOF tracker or state
-estimator to that topic with `header.frame_id: world` and timestamps in the
-same clock domain as `/P1/pose`. The MuJoCo-only
-`/sim/a3/pelvis_pose` publisher may be used for simulation validation after
-both inputs have been expressed in its `odom` frame; it is not a hardware
-producer. Do not run `p1_pelvis_tf_publisher` while collecting calibration,
-and never construct the reference pose from `P1`, because either would make
-the measurement circular.
-
-Collect while moving the pelvis smoothly through at least 0.10 m translation
-and 10 degrees rotation for at least one second. Residual RMS alone only tests
-repeatability; the calibrator separately gates measured motion excitation,
-timestamp uniqueness, and pair skew so a stationary capture cannot pass.
-OptiTrack uses NatNet echo-mapped `camera_utc` acquisition timestamps in the
-adapter host's NTP-disciplined ROS epoch; both calibration sources must use
-that same acquisition-time epoch.
+The A3 production path uses the ten waist markers once at the start of every
+run. After the runner has entered and settled in PD_STAND, Foxglove's
+`/hope/control/enter_prepare` workflow asks the external computer to run
+`p1_marker_cad_calibrator` against `/optitrack/rigid_body_markers`. It always
+recomputes the transform, even when a JSON file already exists. A successful
+fit atomically replaces the computer's `calibration/p1_to_pelvis.json`; the
+resulting matrix is then fixed for the entire policy run.
+The tool registers Motive's P1-local marker centres
+to the A3 hip-shell CAD centres (`f1`–`f5`, `b1`–`b5`) and requires live
+same-frame samples for every selected marker to pass the physical-layout and
+residual gates. The named non-collinear 3-D layout makes the fixed six-DOF
+transform observable while the robot is stationary in PD_STAND.
 
 ```bash
-cd hope_ws && colcon build --packages-select hope_bringup && source install/setup.bash
-ros2 run hope_bringup p1_pelvis_calibrator \
-  --p1-topic /P1/pose \
-  --pelvis-topic /a3/calibration/pelvis_pose \
-  --reference-frame world \
-  --pelvis-frame pelvis_link \
-  --p1-frame P1 \
+cd <HOPE_REPO>
+source hope_ws/install/setup.bash
+ros2 run hope_bringup p1_marker_cad_calibrator \
+  --topic /optitrack/rigid_body_markers \
+  --asset-name P1 \
+  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
+  --stationary-prepare \
+  --attest-installed-layout \
+  --allow-nominal-only-markers \
   --output calibration/p1_to_pelvis.json
 ```
 
-At normal runtime, load that JSON to publish the constant `P1 → pelvis_link` TF:
+The relative path is resolved from the external computer's HOPE repository
+root (for example, `/home/user/HOPE/calibration/p1_to_pelvis.json`). After the
+atomic replacement, the computer-side `hope_base_pose_flat_relay` only reads
+that file for the rest of the run, composes the live `world → P1` pose with the
+fixed `P1 → pelvis_link` transform, and publishes `/a3/base_pose_flat`. It also
+publishes the unshifted reconstructed pose on `/a3/mocap/pelvis_pose` for
+diagnostics. No recalculation occurs while the robot is playing. The robot
+receives the final `/a3/base_pose_flat` stream only; it never stores, reads, or
+receives the calibration JSON.
 
-```bash
-ros2 run hope_bringup p1_pelvis_tf_publisher \
-  --calibration-file calibration/p1_to_pelvis.json
-```
+`/a3/calibration/pelvis_pose` is different: it is the independent
+`world → pelvis_link` input of the older two-PoseStamped
+`p1_pelvis_calibrator`. No checked-in hardware node publishes that topic. It is
+not the result of the ten-marker calculation, and feeding a P1-derived result
+to it would make that older calibration circular. Keep the pose-pair tool only
+for an explicitly independent external 6-DOF reference or simulation check.
 
-The resulting chain is `world → P1 → pelvis_link`; the first transform remains
-the live mocap measurement, while only the second is static. An optional
-alternative is to absorb the saved correction into Motive's P1 pivot
-definition. If that is done, disable the static publisher and verify by
-rerunning calibration that the correction is approximately identity. Never
-apply both corrections. The `Table` asset may be enabled separately for arena
-setup when needed; this tool does not use it, and competition must not stream it.
 See [mocap/README.md](mocap/README.md#calibrating-a-humanoid-p1-body-to-pelvis_link)
 and [docs/OPTITRACK.md](docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link).
-
-An alternative, venue-proven route ships alongside: `p1_marker_cad_calibrator`
-registers the Motive P1 marker layout directly against the A3 hip-shell CAD
-(`agibot/pku/hip_marker_shell/`) and writes an auditable receipt
-(`hope_ws/calibration_receipts/`); the approved transform is recorded in
-[`hope_world_frame.yaml`](hope_ws/src/hope_bringup/config/hope_world_frame.yaml)
-(`mocap_to_base_link`, fail-closed: `hope_world.launch.py` refuses to publish an
-uncalibrated marker→base TF). Use one route or the other — never both at once.
 
 The bundled motion clips under `hope_training/motions/preprocessed/` are
 **reference-only placeholders** — replace them with real forehand/backhand clips

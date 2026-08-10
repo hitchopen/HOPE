@@ -102,6 +102,50 @@ def _quat_rotate(
     )
 
 
+def compose_marker_to_base_pose(
+    position_xyz: Sequence[float],
+    marker_quaternion_wxyz: Sequence[float],
+    marker_to_base_xyz: Sequence[float],
+    marker_to_base_quaternion_wxyz: Sequence[float],
+    *,
+    previous_base_quaternion_wxyz: Sequence[float] | None = None,
+) -> tuple[
+    tuple[float, float, float], tuple[float, float, float, float]
+]:
+    """Compose T_world_marker * T_marker_base without a policy z offset."""
+
+    position = tuple(float(v) for v in position_xyz)
+    offset = tuple(float(v) for v in marker_to_base_xyz)
+    if len(position) != 3 or len(offset) != 3:
+        raise ValueError("position/offset dimensions must be 3/3")
+    if not all(math.isfinite(v) for v in (*position, *offset)):
+        raise ValueError("position/offset contains a non-finite value")
+
+    q_world_marker = _normalize_quaternion(marker_quaternion_wxyz, "marker")
+    q_marker_base = _normalize_quaternion(
+        marker_to_base_quaternion_wxyz, "marker-to-base"
+    )
+    q_world_base = _normalize_quaternion(
+        _quat_mul(q_world_marker, q_marker_base), "world-to-base"
+    )
+    if previous_base_quaternion_wxyz is not None:
+        previous = _normalize_quaternion(
+            previous_base_quaternion_wxyz, "previous base"
+        )
+        if sum(a * b for a, b in zip(q_world_base, previous)) < 0.0:
+            q_world_base = tuple(-v for v in q_world_base)
+
+    rotated_offset = _quat_rotate(q_world_marker, offset)
+    return (
+        (
+            position[0] + rotated_offset[0],
+            position[1] + rotated_offset[1],
+            position[2] + rotated_offset[2],
+        ),
+        q_world_base,
+    )
+
+
 def pose_to_base_flat(
     position_xyz: Sequence[float],
     marker_quaternion_wxyz: Sequence[float],
@@ -119,27 +163,16 @@ def pose_to_base_flat(
     previous_base_quaternion_wxyz: Sequence[float] | None = None,
 ) -> list[float]:
     """Build schema 2 using T_world_base = T_world_marker * T_marker_base."""
-    position = tuple(float(v) for v in position_xyz)
-    offset = tuple(float(v) for v in marker_to_base_xyz)
     z_offset = float(policy_z_offset)
-    if len(position) != 3 or len(offset) != 3:
-        raise ValueError("position/offset dimensions must be 3/3")
-    if not all(math.isfinite(v) for v in (*position, *offset, z_offset)):
-        raise ValueError("position/offset contains a non-finite value")
-
-    q_world_marker = _normalize_quaternion(marker_quaternion_wxyz, "marker")
-    q_marker_base = _normalize_quaternion(
-        marker_to_base_quaternion_wxyz, "marker-to-base"
+    if not math.isfinite(z_offset):
+        raise ValueError("policy z offset is non-finite")
+    base_position, q_world_base = compose_marker_to_base_pose(
+        position_xyz,
+        marker_quaternion_wxyz,
+        marker_to_base_xyz,
+        marker_to_base_quaternion_wxyz,
+        previous_base_quaternion_wxyz=previous_base_quaternion_wxyz,
     )
-    q_world_base = _normalize_quaternion(
-        _quat_mul(q_world_marker, q_marker_base), "world-to-base"
-    )
-    if previous_base_quaternion_wxyz is not None:
-        previous = _normalize_quaternion(
-            previous_base_quaternion_wxyz, "previous base"
-        )
-        if sum(a * b for a, b in zip(q_world_base, previous)) < 0.0:
-            q_world_base = tuple(-v for v in q_world_base)
 
     sequence_i = int(sequence)
     source_sec_i = int(source_sec)
@@ -165,16 +198,15 @@ def pose_to_base_flat(
         if value <= 0 or value > (1 << 52):
             raise ValueError(f"{name} is outside the exact Float64 integer range")
 
-    rotated_offset = _quat_rotate(q_world_marker, offset)
     return [
         2.0,
         1.0,
         float(sequence_i),
         float(source_sec_i),
         float(source_nsec_i),
-        position[0] + rotated_offset[0],
-        position[1] + rotated_offset[1],
-        position[2] + rotated_offset[2] + z_offset,
+        base_position[0],
+        base_position[1],
+        base_position[2] + z_offset,
         *q_world_base,
         quality,
         float(flags_i),

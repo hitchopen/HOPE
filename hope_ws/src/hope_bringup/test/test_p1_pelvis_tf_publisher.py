@@ -66,3 +66,36 @@ def test_rejects_zero_norm_quaternion(tmp_path):
 
     with pytest.raises(ValueError, match="non-zero norm"):
         module.load_calibration(path)
+
+
+def test_loads_approved_marker_cad_receipt(tmp_path):
+    module = _load_module()
+    path = tmp_path / "p1_to_pelvis.json"
+    path.write_text(
+        json.dumps(
+            {
+                "approved": True,
+                "p1_to_pelvis_link": {
+                    "parent_frame": "P1",
+                    "child_frame": "pelvis_link",
+                    "xyz_m": [0.01, 0.02, 0.15],
+                    "quaternion_xyzw": [0.0, 0.0, 0.0, 1.0],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    parent, child, translation, quaternion = module.load_calibration(path)
+
+    assert (parent, child) == ("P1", "pelvis_link")
+    assert translation == pytest.approx([0.01, 0.02, 0.15])
+    assert quaternion == pytest.approx([0.0, 0.0, 0.0, 1.0])
+
+
+def test_rejects_unapproved_marker_receipt(tmp_path):
+    module = _load_module()
+    path = tmp_path / "rejected.json"
+    path.write_text(json.dumps({"approved": False}), encoding="utf-8")
+    with pytest.raises(ValueError, match="not approved"):
+        module.load_calibration(path)

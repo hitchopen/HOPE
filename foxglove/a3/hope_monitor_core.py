@@ -18,6 +18,54 @@ import xml.etree.ElementTree as ET
 
 
 ROBOT_MODEL_RE = re.compile(r"[a-z0-9][a-z0-9_-]*")
+CALIBRATION_SHA_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def combine_estop_results(
+    *,
+    vendor_accepted: bool,
+    vendor_detail: str,
+    runner_stopped: bool,
+    runner_detail: str,
+) -> tuple[bool, str]:
+    """Combine the two independent E-stop actions without overstating proof."""
+
+    vendor_text = vendor_detail.strip() or "no vendor detail"
+    runner_text = runner_detail.strip() or "no runner detail"
+    if vendor_accepted and runner_stopped:
+        return (
+            True,
+            "vendor software E-stop request accepted and managed model21800 "
+            "runner stopped; actuator stop is not independently confirmed, "
+            "verify the physical E-stop",
+        )
+    if vendor_accepted:
+        return (
+            False,
+            "PARTIAL E-STOP: vendor request accepted, but managed runner stop "
+            f"is unconfirmed ({runner_text}); use the physical E-stop",
+        )
+    if runner_stopped:
+        return (
+            False,
+            "PARTIAL E-STOP: managed runner stopped, but vendor E-stop request "
+            f"was not accepted ({vendor_text}); use the physical E-stop",
+        )
+    return (
+        False,
+        "E-STOP UNCONFIRMED: vendor path failed "
+        f"({vendor_text}); runner path failed ({runner_text}); "
+        "use the physical E-stop",
+    )
+
+
+def parse_calibration_service_sha(message: str) -> str:
+    """Validate the laptop calibration service's exact SHA response."""
+
+    value = str(message).strip()
+    if CALIBRATION_SHA_RE.fullmatch(value) is None:
+        raise ValueError("calibration service did not return a 64-hex SHA")
+    return value
 
 
 @dataclass(frozen=True)

@@ -21,6 +21,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import sys
 import time
@@ -746,6 +747,11 @@ def analyze_capture(
             ),
             "correspondence_mode": correspondence.mode,
             "evaluated_assignments": correspondence.evaluated_assignments,
+            "trajectory_validation": (
+                "stationary_named_marker_geometry"
+                if minimum_rotation_span_deg == 0.0
+                else "multi_heading_live_validation"
+            ),
             "limitation": (
                 "This observes P1 relative to the CAD marker centres. It does "
                 "not independently measure pelvis_link; validity depends on "
@@ -796,6 +802,15 @@ def analyze_capture(
             "child_frame": "pelvis_link",
             "xyz_m": [tx, ty, tz],
             "quaternion_wxyz": [qw, qx, qy, qz],
+            "quaternion_xyzw": [qx, qy, qz, qw],
+        },
+        # Canonical runtime spelling shared with p1_pelvis_calibrator and the
+        # policy localization relay.  Keep p1_to_pelvis_link above for receipt
+        # compatibility with the existing audited marker/CAD records.
+        "p1_to_pelvis": {
+            "parent_frame": "P1",
+            "child_frame": "pelvis_link",
+            "translation_m": [tx, ty, tz],
             "quaternion_xyzw": [qx, qy, qz, qw],
         },
         "hope_world_frame_yaml_candidate": {
@@ -1046,6 +1061,15 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument("--max-live-max-mm", type=float, default=5.0)
     parser.add_argument("--minimum-rotation-span-deg", type=float, default=10.0)
     parser.add_argument(
+        "--stationary-prepare",
+        action="store_true",
+        help=(
+            "allow a stationary PD_STAND capture; the fixed transform is "
+            "observable from the named 3-D marker geometry, while live "
+            "per-marker residual gates remain mandatory"
+        ),
+    )
+    parser.add_argument(
         "--attest-installed-layout",
         action="store_true",
         help=(
@@ -1077,10 +1101,13 @@ def _parse_arguments() -> argparse.Namespace:
         args.minimum_mapping_margin_mm,
         args.max_live_rms_mm,
         args.max_live_max_mm,
-        args.minimum_rotation_span_deg,
     )
     if min(positive_thresholds) <= 0.0:
-        parser.error("all quality thresholds must be positive")
+        parser.error("registration/live quality thresholds must be positive")
+    if args.minimum_rotation_span_deg < 0.0:
+        parser.error("--minimum-rotation-span-deg must be non-negative")
+    if args.stationary_prepare:
+        args.minimum_rotation_span_deg = 0.0
     try:
         args.explicit_mapping = parse_explicit_mapping(args.mapping)
         args.selected_marker_names = (
@@ -1091,6 +1118,39 @@ def _parse_arguments() -> argparse.Namespace:
     except ValueError as exc:
         parser.error(str(exc))
     return args
+
+
+def _write_bytes_atomic(path: Path, encoded: bytes) -> None:
+    """Durably replace one receipt without exposing a partial JSON file."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    )
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _rejected_receipt_path(output: Path) -> Path:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return output.with_name(f"{output.stem}.rejected.{timestamp}{output.suffix}")
 
 
 def main() -> int:
@@ -1123,14 +1183,11 @@ def main() -> int:
         print(f"calibration failed: {exc}", file=sys.stderr)
         return 2
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
     encoded = (
         json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n"
     ).encode("utf-8")
-    args.output.write_bytes(encoded)
     receipt_sha256 = hashlib.sha256(encoded).hexdigest()
     transform = document["p1_to_pelvis_link"]
-    print(f"receipt: {args.output}")
     print(f"receipt_sha256: {receipt_sha256}")
     print(f"approved: {document['approved']}")
     print(f"P1 -> pelvis_link xyz_m: {transform['xyz_m']}")
@@ -1139,10 +1196,19 @@ def main() -> int:
         f"{transform['quaternion_wxyz']}"
     )
     if blockers:
+        rejected_path = _rejected_receipt_path(args.output)
+        _write_bytes_atomic(rejected_path, encoded)
+        print(f"rejected_receipt: {rejected_path}")
+        print(
+            f"preserved_last_approved_receipt: {args.output}",
+            file=sys.stderr,
+        )
         print("blockers:", file=sys.stderr)
         for blocker in blockers:
             print(f"  - {blocker}", file=sys.stderr)
         return 1
+    _write_bytes_atomic(args.output, encoded)
+    print(f"receipt: {args.output}")
     return 0
 
 

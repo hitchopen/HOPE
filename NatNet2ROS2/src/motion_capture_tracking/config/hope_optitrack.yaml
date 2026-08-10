@@ -71,9 +71,26 @@
           # Publisher deadline frequency. Keep this below output_rate_hz (or
           # adjust/disable it when selecting an output rate at or below 100 Hz).
           deadline: 100.0 # Hz
-    # The adapter publishes only `/optitrack/poses`, with exact-name entries
-    # Ball, P1, and P2 in that order when present. It does not expose marker
-    # point clouds, raw TF, setup assets such as Table, skeletons, or arbitrary
-    # Motive rigid bodies. A selected valid frame with none of the three is an
-    # empty-array heartbeat. The HOPE relay owns the downstream per-body
-    # topics and TF authority.
+      rigid_body_markers:
+        # Calibration-only aggregate: P1 pose + local ModelDef marker centres
+        # + same-frame labeled samples. The launch argument
+        # publish_p1_markers:=true overrides enabled. Motive's Streaming /
+        # Labeled Markers switch must also be ON to populate live samples.
+        enabled: false
+        asset_name: "P1"
+        # Motive sessions without legacy passive-marker IDs are associated by
+        # nearest expected ModelDef position. This is below the P1 layout's
+        # nearest-marker spacing and is used only by the calibration stream.
+        geometric_match_max_distance_m: 0.005
+        # Motive 3.1/NatNet 4.1 field verification: streamed poses/points obey
+        # Z Up, but ModelDef marker coordinates remain in Motive's Y-up axes.
+        # Convert (x,y,z) -> (x,-z,y) before publishing/association.
+        modeldef_y_up_to_z_up: true
+
+    # The adapter publishes `/optitrack/poses`, with exact-name entries Ball,
+    # P1, and P2 in that order when present. The disabled-by-default P1 marker
+    # calibration stream above is the sole additional output; raw TF, setup
+    # assets such as Table, skeletons, and arbitrary Motive rigid bodies remain
+    # excluded. A selected valid frame with none of the three is an empty-array
+    # heartbeat. The HOPE relay owns the downstream per-body topics and TF
+    # authority.

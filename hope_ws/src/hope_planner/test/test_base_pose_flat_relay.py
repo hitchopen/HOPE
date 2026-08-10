@@ -6,6 +6,7 @@ from hope_planner.base_pose_contract import (
     SOURCE_STAMP_INPUT_HEADER,
     SOURCE_STAMP_LOCAL_RECEIPT,
     V17_REQUIRED_FLAGS,
+    compose_marker_to_base_pose,
     pose_to_base_flat,
     receipt_id_u52,
     resolve_wire_source_stamp_ns,
@@ -102,6 +103,17 @@ def test_marker_to_base_rotation_is_composed():
         (half, half, 0.0, 0.0),
     )
     assert flat[8:12] == pytest.approx([0.5, 0.5, 0.5, 0.5])
+
+
+def test_raw_pelvis_pose_does_not_include_policy_floor_offset():
+    position, quaternion = compose_marker_to_base_pose(
+        (1.0, 2.0, 3.0),
+        (1.0, 0.0, 0.0, 0.0),
+        (0.1, -0.2, 0.3),
+        (1.0, 0.0, 0.0, 0.0),
+    )
+    assert position == pytest.approx((1.1, 1.8, 3.3))
+    assert quaternion == pytest.approx((1.0, 0.0, 0.0, 0.0))
 
 
 def test_zero_robot_quaternion_fails_closed():

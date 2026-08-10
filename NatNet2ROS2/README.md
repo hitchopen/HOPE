@@ -38,7 +38,7 @@ ros2 launch motion_capture_tracking natnet2ros2.launch.py \
   hostname:=<MOTIVE_PC_IP>
 ```
 
-The adapter publishes exactly one ROS 2 topic:
+In normal operation the adapter publishes exactly one ROS 2 topic:
 
 - `/optitrack/poses`
   (`motion_capture_tracking_interfaces/msg/NamedPoseArray`)
@@ -54,6 +54,21 @@ throttled diagnostic while empty frames continue. All other Motive
 rigid bodies—including `Table`—as well as marker coordinates, skeletons, raw
 TF, and arbitrary assets are excluded from ROS 2.
 The downstream `optitrack_mct_relay` owns the per-body topics and TF output.
+
+The only exception is P1 initialization on the external computer. Start the
+adapter with marker output enabled before each PREPARE that begins a new run:
+
+```bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=<MOTIVE_PC_IP> publish_p1_markers:=true
+```
+
+This adds `/optitrack/rigid_body_markers` for the ten-marker capture. Every
+PREPARE recomputes the transform and atomically replaces the external
+computer's repository-relative `calibration/p1_to_pelvis.json`, even if the
+file already exists. The computer then only reads that JSON and publishes
+`/a3/base_pose_flat` for the rest of the run; no recalculation occurs while the
+robot is playing. The robot receives `/a3/base_pose_flat`, never the JSON.
 
 ## ROS 2 output downsampling
 

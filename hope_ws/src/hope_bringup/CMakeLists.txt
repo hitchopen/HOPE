@@ -21,6 +21,7 @@ install(PROGRAMS
   scripts/mocap_rate_probe.py
   scripts/natnet_preflight.py
   scripts/p1_marker_cad_calibrator
+  scripts/p1_marker_cad_calibration_server
   scripts/p1_pelvis_calibrator
   scripts/p1_pelvis_tf_publisher
   scripts/optitrack_mct_relay

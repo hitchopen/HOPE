@@ -10,9 +10,14 @@
       - "^/joint_states$"
       - "^/hope/.*"
       - "^/agivslam/localization/odometry$"
-    # The sole remote write path is the HOPE Trigger proxy. It can assert the
-    # A3 vendor software E-stop but cannot clear it or call arbitrary services.
-    service_whitelist: ["^/hope/safety/trigger_estop$"]
+    # Expose only the five audited HOPE state transitions. E-stop can assert
+    # but never clear the vendor latch; the other four use runner acknowledgments.
+    service_whitelist:
+      - "^/hope/safety/trigger_estop$"
+      - "^/hope/control/enter_prepare$"
+      - "^/hope/control/enter_policy$"
+      - "^/hope/control/exit_policy$"
+      - "^/hope/control/enter_passive$"
     param_whitelist: ["(?!)"]
     client_topic_whitelist: ["(?!)"]
     send_buffer_limit: 10000000

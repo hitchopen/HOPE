@@ -92,16 +92,20 @@ def generate_launch_description():
         condition=vrpn_selected,
     )
 
-    # Real-mocap adapter (OptiTrack): NatNet2ROS2 is an independent workspace
-    # and must already be publishing /optitrack/poses. This include starts only
-    # the HOPE relay. start_world:=false keeps the path symmetric with VRPN.
+    # Legacy relay-only OptiTrack path: NatNet2ROS2 is independently launched.
+    # The production laptop entry point launches this include directly and
+    # owns NatNet, per-run calibration, JSON, world/base relay, and static TF.
     optitrack_bridge = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 FindPackageShare("hope_bringup"), "launch", "optitrack_hope_bridge.launch.py"
             ])
         ),
-        launch_arguments={"start_world": "false"}.items(),
+        launch_arguments={
+            "start_world": "false",
+            "start_natnet": "false",
+            "start_calibration": "false",
+        }.items(),
         condition=optitrack_selected,
     )
 

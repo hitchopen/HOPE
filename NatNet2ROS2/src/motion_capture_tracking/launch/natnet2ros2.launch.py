@@ -29,6 +29,7 @@ def generate_launch_description():
     header_time = LaunchConfiguration("header_time")
     output_rate_hz = LaunchConfiguration("output_rate_hz")
     network_latency_ms = LaunchConfiguration("network_latency_ms")
+    publish_p1_markers = LaunchConfiguration("publish_p1_markers")
 
     return LaunchDescription(
         [
@@ -59,7 +60,18 @@ def generate_launch_description():
                 "network_latency_ms",
                 default_value="0.0",
                 description="Legacy ros_latency_compensated mode only; camera_utc "
-                "uses measured NatNet echo synchronization.",
+                    "uses measured NatNet echo synchronization.",
+            ),
+            DeclareLaunchArgument(
+                "publish_p1_markers",
+                default_value="false",
+                description=(
+                    "Per-run calibration support: publish atomic P1 ModelDef and "
+                    "same-frame labeled-marker samples on "
+                    "/optitrack/rigid_body_markers. Motive Labeled Markers "
+                    "must be ON. The laptop bringup keeps this local publisher "
+                    "available; recalculation still occurs only on PREPARE."
+                ),
             ),
             Node(
                 package="motion_capture_tracking",
@@ -78,6 +90,9 @@ def generate_launch_description():
                         ),
                         "topics.network_latency_ms": ParameterValue(
                             network_latency_ms, value_type=float
+                        ),
+                        "topics.rigid_body_markers.enabled": ParameterValue(
+                            publish_p1_markers, value_type=bool
                         ),
                     },
                 ],

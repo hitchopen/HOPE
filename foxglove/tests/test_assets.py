@@ -4,13 +4,22 @@ from pathlib import Path
 import unittest
 import xml.etree.ElementTree as ET
 
+import yaml
+
 
 FOXGLOVE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = FOXGLOVE_DIR.parent
 
 
 class AssetInvariantTests(unittest.TestCase):
-    def test_layout_is_a3_rooted_and_has_only_estop_control(self):
+    def test_callservice_layout_alias_matches_canonical_layout(self):
+        canonical = (FOXGLOVE_DIR / "layouts/a3_monitor.json").read_bytes()
+        compatibility = (
+            FOXGLOVE_DIR / "layouts/a3_monitor_callservice.json"
+        ).read_bytes()
+        self.assertEqual(compatibility, canonical)
+
+    def test_layout_is_a3_rooted_and_has_five_audited_controls(self):
         layout = json.loads((FOXGLOVE_DIR / "layouts/a3_monitor.json").read_text())
         panel = layout["configById"]["3D!a3tf"]
         # Keep the scene usable while vendor TF is absent; the table itself
@@ -52,10 +61,22 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertEqual(cpu_plot["yAxisLabel"], "CPU load (%)")
         self.assertIn('"Plot!cpuload"', json.dumps(layout["layout"]))
         self.assertEqual(
-            layout["configById"]["ServiceCall!estop"]["serviceName"],
+            layout["configById"]["CallService!estop"]["serviceName"],
             "/hope/safety/trigger_estop",
         )
-        self.assertFalse(layout["configById"]["ServiceCall!estop"]["editingMode"])
+        self.assertFalse(layout["configById"]["CallService!estop"]["editingMode"])
+        expected_services = {
+            "CallService!estop": "/hope/safety/trigger_estop",
+            "CallService!prepare": "/hope/control/enter_prepare",
+            "CallService!policy": "/hope/control/enter_policy",
+            "CallService!exitpolicy": "/hope/control/exit_policy",
+            "CallService!passive": "/hope/control/enter_passive",
+        }
+        for panel_id, service_name in expected_services.items():
+            self.assertEqual(
+                layout["configById"][panel_id]["serviceName"], service_name
+            )
+            self.assertFalse(layout["configById"][panel_id]["editingMode"])
         self.assertNotIn("Publish!", json.dumps(layout["configById"]))
 
     def test_table_asset_uses_hope_world_geometry(self):
@@ -77,13 +98,32 @@ class AssetInvariantTests(unittest.TestCase):
             "http://localhost:8000/assets/hope_ping_pong_table.urdf",
         )
 
-    def test_bridge_exposes_only_estop_service_and_no_client_publish(self):
+    def test_bridge_exposes_only_five_audited_services_and_no_client_publish(self):
         params = (FOXGLOVE_DIR / "a3/bridge_params.yaml").read_text()
         self.assertNotIn("- clientPublish", params)
         self.assertNotIn("- assets", params)
         self.assertNotIn('^/motion/control/.*_joint_state$', params)
         self.assertIn('client_topic_whitelist: ["(?!)"]', params)
-        self.assertIn('service_whitelist: ["^/hope/safety/trigger_estop$"]', params)
+        for service in (
+            "/hope/safety/trigger_estop",
+            "/hope/control/enter_prepare",
+            "/hope/control/enter_policy",
+            "/hope/control/exit_policy",
+            "/hope/control/enter_passive",
+        ):
+            self.assertIn(f'- "^{service}$"', params)
+        parsed = yaml.safe_load(params)["/**"]["ros__parameters"]
+        self.assertEqual(
+            parsed["service_whitelist"],
+            [
+                "^/hope/safety/trigger_estop$",
+                "^/hope/control/enter_prepare$",
+                "^/hope/control/enter_policy$",
+                "^/hope/control/exit_policy$",
+                "^/hope/control/enter_passive$",
+            ],
+        )
+        self.assertNotIn("/hope/runner/emergency_stop", params)
         self.assertIn("      - services", params)
         self.assertNotIn("HalEmergencyService", params)
 
@@ -151,7 +191,8 @@ class AssetInvariantTests(unittest.TestCase):
 
     def test_estop_proxy_is_assert_only(self):
         monitor = (FOXGLOVE_DIR / "a3/hope_monitor.py").read_text()
-        self.assertIn("software E-stop asserted", monitor)
+        self.assertIn("combine_estop_results", monitor)
+        self.assertIn('"/hope/runner/emergency_stop"', monitor)
         self.assertIn("build_software_estop_request", monitor)
         self.assertIn("decode_software_estop_response", monitor)
         self.assertIn("client.service_is_ready()", monitor)
@@ -159,6 +200,17 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertIn("lock is not held across vendor I/O", monitor)
         self.assertNotIn("software_emergency_stop = False", monitor)
         self.assertNotIn("clear_estop", monitor.lower())
+
+    def test_runner_adapter_unit_does_not_restart_or_broaden_process_kills(self):
+        unit = (FOXGLOVE_DIR / "a3/hope-runner-adapter.service").read_text()
+        self.assertIn("Restart=no", unit)
+        self.assertIn("KillMode=control-group", unit)
+        self.assertIn("TimeoutStopSec=3", unit)
+        self.assertIn("/usr/local/bin/hope_runner_adapter.py", unit)
+        helper = (FOXGLOVE_DIR / "a3/hope_model21800_runner.sh").read_text()
+        self.assertNotIn("pkill", helper)
+        self.assertNotIn("killall", helper)
+        self.assertIn('kill -KILL "${exact_pid}"', helper)
 
     def test_downloaded_urdf_directory_is_ignored(self):
         ignore = (REPO_ROOT / ".gitignore").read_text().splitlines()

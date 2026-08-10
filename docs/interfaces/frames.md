@@ -47,20 +47,22 @@ The arena motion-capture stream carries the named rigid bodies — `Ball`, `P1`,
 and `P2` — in the world frame during competition (a `Table` asset exists for
 calibration only and is not streamed). P1/P2 are marker-cluster frames; the
 calibrated constant transform mapping each one to its robot's URDF root
-(`pelvis_link` on the Agibot A3) is the `mocap_to_base_link` block of
-`hope_world_frame.yaml`. Discipline:
+(`pelvis_link` on the Agibot A3) is required. P1's production transform is the
+approved runtime JSON at `calibration/p1_to_pelvis.json`; the static
+`mocap_to_base_link` block of `hope_world_frame.yaml` remains for P2 and legacy
+records. Discipline:
 
-- The values are **never** hand-typed identities: each calibrated entry is
-  pinned to a fail-closed receipt (SHA-256) under
-  [`hope_ws/calibration_receipts/`](../../hope_ws/calibration_receipts) —
-  uncalibrated entries say so (`calibrated: false`) and zero values there are
-  inert placeholders, never an identity assertion.
-- Two calibration routes exist; **use one, never both** (running both applies
-  the correction twice): the upstream pose-pair route
-  (`p1_pelvis_calibrator` + `p1_pelvis_tf_publisher`) and the venue-proven
+- The values are **never** hand-typed identities. P1's approved marker/CAD
+  receipt is written atomically and the relay derives its wire ID from the
+  exact file SHA-256. Historical evidence remains under
+  [`hope_ws/calibration_receipts/`](../../hope_ws/calibration_receipts).
+- Two calibration routes exist; **use one, never both**: the production
   CAD-registration route (`p1_marker_cad_calibrator`, which registers the live
   Motive marker layout against the A3 hip-shell CAD at
-  [`agibot/pku/hip_marker_shell/`](../../agibot/pku/hip_marker_shell)). See
+  [`agibot/pku/hip_marker_shell/`](../../agibot/pku/hip_marker_shell)), or the
+  legacy pose-pair route (`p1_pelvis_calibrator` plus
+  `p1_pelvis_tf_publisher`), which is valid only with a genuinely independent
+  `world → pelvis_link` source. See
   [`docs/OPTITRACK.md`](../OPTITRACK.md) for the operational walkthrough.
 
 Each ROS 2 pose contains position `(x, y, z)` and quaternion orientation
