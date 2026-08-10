@@ -325,7 +325,7 @@ source hope_ws/install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
-链路为 `Motive → motion_capture_tracking_node → /optitrack/poses → optitrack_mct_relay → /poses`。驱动每个相机帧发布一个 `NamedPoseArray`；relay 按 `config/optitrack_relay.yaml` 映射名称，仅在另行配置时缩放位置，并保留四元数。默认驱动使用 `topics.header_time: camera_utc`：通过 NatNet echo 同步把 Motive 的 `CameraMidExposureTimestamp` QPC tick 映射到 adapter 单调时钟，再从 adapter 上经 Chrony 校准的 ROS system time/Unix epoch 减去实测帧龄。不得使用仅表示到达时刻的 `ros`，也不得把 Motive 主机独立时钟域的 `camera` 直接与 ROS 时间混用。旧版 Motive VRPN 的 3883 端口不属于此连接。构建、启动和诊断细节见 [`docs/OPTITRACK.md`](../docs/OPTITRACK.md)。
+链路为 `Motive → motion_capture_tracking_node → /optitrack/poses → optitrack_mct_relay → /poses`。驱动在每个配置输出周期最多发布一个 `NamedPoseArray`（默认 200 Hz）。若已通过时间戳校验并被限频器选中的帧不含名称严格匹配的 `Ball`、`P1` 或 `P2`，驱动会发布空数组心跳；relay 利用该回调诊断跟踪丢失，但不会生成占位位姿、TF 或规划器样本。relay 按 `config/optitrack_relay.yaml` 映射名称，仅在另行配置时缩放位置，并保留四元数。默认驱动使用 `topics.header_time: camera_utc`：通过 NatNet echo 同步把 Motive 的 `CameraMidExposureTimestamp` QPC tick 映射到 adapter 单调时钟，再从 adapter 上经 Chrony 校准的 ROS system time/Unix epoch 减去实测帧龄。不得使用仅表示到达时刻的 `ros`，也不得把 Motive 主机独立时钟域的 `camera` 直接与 ROS 时间混用。旧版 Motive VRPN 的 3883 端口不属于此连接。构建、启动和诊断细节见 [`docs/OPTITRACK.md`](../docs/OPTITRACK.md)。
 
 ### 6.3  青瞳 / VRPN 路径
 

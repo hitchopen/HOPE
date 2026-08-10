@@ -24,11 +24,10 @@ class MocapFrameProbeTest(unittest.TestCase):
             rows.append(cls(*values))
         return rows
 
-    def _evaluate(self, *, ball_z=0.02, table=True):
+    def _evaluate(self, *, ball_z=0.02):
         return MODULE.evaluate_frame_samples(
             self._samples(MODULE.PositionSample, [0.7, -0.7, ball_z]),
             self._samples(MODULE.PoseSample, [-0.1, -0.7, 0.15], [1, 0, 0, 0]),
-            self._samples(MODULE.PoseSample, [0, 0, 0], [1, 0, 0, 0]) if table else [],
             min_samples=20,
             ball_radius_m=0.02,
             ball_z_tolerance_m=0.015,
@@ -37,14 +36,13 @@ class MocapFrameProbeTest(unittest.TestCase):
             policy_z_offset_m=0.76,
             base_policy_z_min_m=0.70,
             base_policy_z_max_m=1.20,
-            require_table=False,
-            table_position_tolerance_m=0.03,
-            table_angle_tolerance_deg=5.0,
         )
 
-    def test_canonical_table_frame_passes(self):
+    def test_live_vertical_contract_passes_without_table_topic(self):
         report = self._evaluate()
         self.assertTrue(report["pass"], report)
+        self.assertEqual(report["warnings"], [])
+        self.assertFalse(report["scope"]["live_table_pose_required"])
         self.assertAlmostEqual(
             report["checks"]["policy_base_height"]["base_policy_xyz_m"][2], 0.91, places=3
         )
@@ -53,12 +51,6 @@ class MocapFrameProbeTest(unittest.TestCase):
         report = self._evaluate(ball_z=0.78)
         self.assertFalse(report["pass"])
         self.assertTrue(any("Ball centre z" in error for error in report["errors"]))
-
-    def test_missing_optional_ppt_is_reported_as_warning(self):
-        report = self._evaluate(table=False)
-        self.assertTrue(report["pass"], report)
-        self.assertTrue(any("no PPT" in warning for warning in report["warnings"]))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -342,8 +342,11 @@ ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
 The chain is `Motive → motion_capture_tracking_node → /optitrack/poses →
-optitrack_mct_relay → /poses`. The driver publishes one `NamedPoseArray` per camera frame;
-the relay maps names according to `config/optitrack_relay.yaml`, scales positions only if
+optitrack_mct_relay → /poses`. The driver publishes at most one `NamedPoseArray` per
+configured output period (200 Hz by default). A selected valid frame with no exact-name
+`Ball`, `P1`, or `P2` body is an empty-array heartbeat; the relay uses it to diagnose
+tracking loss but emits no placeholder pose, TF, or planner sample. The relay maps names
+according to `config/optitrack_relay.yaml`, scales positions only if
 configured otherwise, and preserves the quaternion. The default driver uses
 `topics.header_time: camera_utc`: NatNet echo synchronization maps Motive's
 `CameraMidExposureTimestamp` QPC tick into the adapter monotonic clock, then the driver

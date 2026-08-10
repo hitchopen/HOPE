@@ -40,7 +40,6 @@ Options:
   --session-root PATH        Session root (default /tmp/hope_real).
   --frame-preflight          Require the static Ball/P1 frame probe.
   --skip-frame-preflight     Disable it (OptiTrack enables it by default).
-  --require-ppt              Also require PPT near the canonical identity pose.
   --preflight-only           Check host/network/packages without starting ROS nodes.
   --print-cmd                Print the two managed ROS commands and exit.
   -h, --help                 Show this help.
@@ -90,7 +89,6 @@ WORKSPACE="${HOME}/hope_ws"
 SESSION_ROOT="/tmp/hope_real"
 SESSION_ID="${HOPE_REAL_SESSION_ID:-}"
 FRAME_PREFLIGHT_MODE="auto"
-REQUIRE_PPT=0
 PREFLIGHT_ONLY=0
 PRINT_CMD=0
 
@@ -158,10 +156,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-frame-preflight)
       FRAME_PREFLIGHT_MODE="off"
-      shift
-      ;;
-    --require-ppt)
-      REQUIRE_PPT=1
       shift
       ;;
     --preflight-only)
@@ -568,9 +562,6 @@ if [[ "${FRAME_PREFLIGHT}" -eq 1 ]]; then
     --policy-z-offset 0.76
     --json "${SESSION_DIR}/frame_preflight.json"
   )
-  if [[ "${REQUIRE_PPT}" -eq 1 ]]; then
-    FRAME_PROBE_CMD+=(--require-table)
-  fi
   "${FRAME_PROBE_CMD[@]}" || {
     kill -INT "${BRIDGE_PID}" 2>/dev/null || true
     die "mocap frame preflight failed; planner was not started (inspect ${SESSION_DIR}/frame_preflight.json)"

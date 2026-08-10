@@ -144,12 +144,10 @@ def generate_launch_description():
                         "(config/optitrack_relay.yaml)."),
         DeclareLaunchArgument(
             "planner_fit_window",
-            default_value=PythonExpression(
-                ["19 if '", mocap_backend, "' == 'optitrack' else 21"]
-            ),
+            default_value="21",
             description="Planner velocity-fit samples. The default preserves an "
-                        "approximately 100 ms window for NatNet2ROS2's 180 Hz "
-                        "OptiTrack output or VRPN2ROS2's 200 Hz output. "
+                        "approximately 100 ms window for either adapter's "
+                        "default 200 Hz output. "
                         "Override when changing the adapter output rate."),
         pose_adapter,
         optitrack_bridge,

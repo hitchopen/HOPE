@@ -98,12 +98,12 @@ every accepted report.
 
 | Adapter | Default ROS 2 output cap | Downsampled output |
 |---|---:|---|
-| **NatNet2ROS2** | **180 Hz** | Coherent pose, point-cloud, and TF output from the same selected NatNet frame |
+| **NatNet2ROS2** | **200 Hz** | One filtered `/optitrack/poses` array containing only available `Ball`, `P1`, and `P2` entries; an empty array is the live-source/no-competition-body heartbeat; no raw marker cloud or duplicate TF output |
 | **VRPN2ROS2** | **200 Hz** | Each pose, velocity, and acceleration topic independently, per tracker sensor |
 
 | Adapter | Source timestamp | Conversion into the adapter host world clock | Trust requirement |
 |---|---|---|---|
-| **NatNet2ROS2** | Motive `CameraMidExposureTimestamp` in the Motive QPC domain | NatNet echo exchanges estimate the QPC-to-adapter-steady-clock mapping; the measured capture age is subtracted from the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`. Motive's Windows wall clock is not used for this conversion. Raw ROS outputs are coherently capped at 180 Hz by default (`output_rate_hz` is configurable). | Mapping age and uncertainty must pass the configured gates. |
+| **NatNet2ROS2** | Motive `CameraMidExposureTimestamp` in the Motive QPC domain | NatNet echo exchanges estimate the QPC-to-adapter-steady-clock mapping; the measured capture age is subtracted from the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`. Motive's Windows wall clock is not used for this conversion. The filtered ROS pose array is capped at 200 Hz by default (`output_rate_hz` is configurable). | Mapping age and uncertainty must pass the configured gates. |
 | **VRPN2ROS2** | CMTracker/MCServer report `timeval` | The source seconds/microseconds are decoded as Unix time and validated against the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`; absolute-age and sliding minimum-age gates detect invalid or changed timing regimes. Raw ROS outputs are capped at 200 Hz per topic/sensor by default. | The VRPN server host must already share the same NTP epoch; VRPN itself does not synchronize clocks. |
 
 The adapter computer and the humanoid robot computer **must be synchronized to

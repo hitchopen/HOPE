@@ -30,7 +30,7 @@ built NatNet2ROS2 adapter + HOPE relay — the `/poses` hop and everything below
 /optitrack/poses                       motion_capture_tracking_interfaces/NamedPoseArray
         |  optitrack_mct_relay (hope_bringup)
         v
-/poses (+ /ball/point, /{P1,P2}/pose, TF; Table is setup-only opt-in)
+/poses (+ /ball/point, /{P1,P2}/pose, TF)
 ```
 
 ## Topics
@@ -128,24 +128,25 @@ contract byte-identical. Operational guide:
 | `/poses` | `geometry_msgs/PoseArray` | `optitrack_mct_relay` → `hope_planner` | best-effort, volatile, keep-last 1 |
 | `/ball/point` | `geometry_msgs/PointStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
 | `/P1/pose`, `/P2/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
-| `/table/pose` | `geometry_msgs/PoseStamped` | setup/recording only when `publish_table:=true`; no publisher is created by the competition-default relay | best-effort, volatile, keep-last 1 |
 
 Notes:
 
-- **`/optitrack/poses`** — ONE message per camera frame carrying every tracked
-  object by name (Motive rigid-body assets verbatim: `Ball` — a strict 6-DOF
-  rigid body per the HOPE spec — plus `P1`/`P2`; a `Table` asset appears only
-  in setup/calibration sessions and is never streamed in competition, see
-  [`hope_optitrack.yaml`](../../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml)).
-  ⚠ deliberately remapped AWAY from the bare `/poses` name by
-  `natnet2ros2.launch.py`: same name, DIFFERENT message type than the
+- **`/optitrack/poses`** — at most one selected message per output period,
+  carrying only the available exact-name Motive rigid bodies `Ball`, `P1`, and
+  `P2`, in that order. Missing bodies are silently omitted. A selected valid
+  source frame containing none is an empty-array heartbeat: continued empty
+  messages mean the NatNet/adapter path is alive but the competition assets
+  are absent, invalid, or misnamed; a stopped topic means transport, timestamp
+  gating, or process failure. `Ball` is a strict
+  6-DOF rigid body per the HOPE spec. `Table`, marker coordinates, skeletons,
+  arbitrary Motive assets, raw TF, and every other raw ROS output are blocked
+  by the adapter; see
+  [`hope_optitrack.yaml`](../../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml).
+  ⚠ deliberately namespaced away from the bare `/poses` name by
+  `natnet2ros2.launch.py`: same basename, DIFFERENT message type than the
   HOPE contract — an unremapped driver breaks the planner with a DDS type
-  mismatch. The driver's raw TF is likewise remapped to `/optitrack/tf` /
-  `/optitrack/tf_static` so the relay stays the only
-  `world → Ball/P1/P2` TF authority (and setup-only `Table` only when explicitly
-  enabled); `/optitrack/pointCloud` carries the
-  unlabeled-marker cloud (diagnostics only — the ball is a rigid-body asset,
-  never reconstructed from the cloud). The supplied driver uses `camera_utc`:
+  mismatch. The relay is the only `world → Ball/P1/P2` TF authority. The
+  supplied driver uses `camera_utc`:
   NatNet echo synchronization maps `CameraMidExposureTimestamp` from Motive QPC
   into the adapter's monotonic clock, then into its Chrony-disciplined ROS
   system-time/Unix epoch. Neither bare receipt-time `ros` nor the unrelated
@@ -156,13 +157,13 @@ Notes:
   ball-triggered publishing the VRPN path gets from `pose_to_posearray`.
   Competition order is `["ball", "P1", "P2"]` (ball first, matching the
   planner's default `ball_pose_index: 0`); absent objects are skipped.
-  `publish_table` defaults to `false`, so even an accidentally active Motive
-  Table asset creates no `/table/pose` publisher, Table TF, or `/poses` entry.
+  The source allowlist means even an accidentally active Motive Table asset
+  creates no `/table/pose`, Table TF, or `/poses` entry.
 - **Rates** — Both adapters validate every source report before reducing ROS
-  traffic. NatNet2ROS2 coherently caps its raw outputs at 180 Hz by default;
-  VRPN2ROS2 independently caps each topic/sensor at 200 Hz. The planner's
-  `fit_window` is coupled to the ROS input rate (`round(31 × rate / 300)`,
-  ≥ ~100 ms of samples — 180 Hz → 19, 200 Hz → 21); see
+  traffic. NatNet2ROS2 caps its strict `Ball`/`P1`/`P2` named-pose array at
+  200 Hz by default; VRPN2ROS2 independently caps each topic/sensor at 200 Hz.
+  The planner's `fit_window` is coupled to the ROS input rate
+  (`round(31 × rate / 300)`, ≥ ~100 ms of samples — 200 Hz → 21); see
   [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read below
   the configured cap under receive-side drops; that is normal for a
   best-effort sensor stream.

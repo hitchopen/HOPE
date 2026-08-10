@@ -1,8 +1,10 @@
 """Standalone NatNet -> ROS 2 adapter launch for HOPE deployments.
 
-This workspace owns the NatNet connection and publishes only raw, named mocap
-frames.  HOPE-specific conversion to ``/poses`` is performed separately by
-``hope_bringup/optitrack_mct_relay``.
+This workspace owns the NatNet connection and publishes one filtered, raw
+``/optitrack/poses`` stream containing only ``Ball``, ``P1``, and ``P2`` when
+available. A selected valid frame containing none is emitted as an empty-array
+heartbeat. HOPE-specific conversion to ``/poses`` and TF is performed
+separately by ``hope_bringup/optitrack_mct_relay``.
 """
 
 from pathlib import Path
@@ -49,7 +51,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "output_rate_hz",
-                default_value="180.0",
+                default_value="200.0",
                 description="Maximum ROS 2 output rate in Hz. Set 0 to publish "
                 "every valid NatNet source frame.",
             ),
@@ -78,10 +80,6 @@ def generate_launch_description():
                             network_latency_ms, value_type=float
                         ),
                     },
-                ],
-                remappings=[
-                    ("/tf", "/optitrack/tf"),
-                    ("/tf_static", "/optitrack/tf_static"),
                 ],
             ),
         ]

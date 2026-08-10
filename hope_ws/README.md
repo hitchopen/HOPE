@@ -34,7 +34,10 @@ The raw OptiTrack adapter lives in the sibling `NatNet2ROS2` workspace and is
 built/launched separately. `hope_ws` never connects to Motive directly; its
 `optitrack_mct_relay` subscribes to
 `/optitrack/poses` (`motion_capture_tracking_interfaces/NamedPoseArray`) and
-publishes the HOPE-standard `/poses` and related topics.
+publishes the HOPE-standard `/poses` and related topics. The raw adapter sends
+an empty-array heartbeat when NatNet remains live but none of the exact-name
+`Ball`/`P1`/`P2` assets is present; the relay uses those callbacks for a
+throttled tracking-loss warning but emits no placeholder pose or TF.
 
 The host running that relay needs local message type support. Source the
 adapter workspace before the HOPE overlay:

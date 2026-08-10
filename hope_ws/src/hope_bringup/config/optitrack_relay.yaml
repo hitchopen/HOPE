@@ -10,12 +10,10 @@ optitrack_mct_relay:
     input_poses_topic: "/optitrack/poses"
 
     # STANDARDIZED object names (the HOPE tracked-object taxonomy, see
-    # mocap/README.md): Motive rigid-body ASSETS must be named EXACTLY P1 / P2
-    # (+ Table for the table if used — older notes call it PPT), and the ball
-    # entry is named Ball. A mismatch = no data relayed; check with
+    # mocap/README.md): Motive competition rigid-body ASSETS must be named
+    # EXACTLY P1 / P2, and the ball entry is named Ball. A mismatch = no data
+    # relayed; check with
     # `ros2 topic echo --once /optitrack/poses` after the driver is up.
-    table_object: "Table"  # table rigid body (setup/calibration only; not
-                           # streamed during competition)
     p1_object: "P1"        # our robot's marker-cluster rigid body (standardized)
     p2_object: "P2"        # opponent marker-cluster rigid body (standardized)
     # Ball entry name in the NamedPoseArray. HOPE requires a Motive-native
@@ -36,16 +34,13 @@ optitrack_mct_relay:
     ball_stale_warn_s: 2.0
 
     # Published HOPE-standard topics.
-    table_pose_topic: "/table/pose"
     p1_pose_topic: "/P1/pose"
     p2_pose_topic: "/P2/pose"
     ball_point_topic: "/ball/point"
     poses_topic: "/poses"
 
     # Keep ball first so hope_planner's default ball_pose_index=0 works.
-    # Competition output contains Ball/P1/P2 only. The setup-only Table asset
-    # is ignored even if it is accidentally left active in Motive.
+    # Competition output contains Ball/P1/P2 only.
     pose_array_order: ["ball", "P1", "P2"]
-    publish_table: false
     publish_tf: true
     publish_pose_array: true

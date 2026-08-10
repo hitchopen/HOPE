@@ -10,17 +10,12 @@ set(CMAKE_INSTALL_RPATH "$ORIGIN")
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(tf2_ros REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(motion_capture_tracking_interfaces REQUIRED)
 
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common)
-find_package(fmt REQUIRED)
 
 # add dependencies
-add_subdirectory(deps/librigidbodytracker EXCLUDE_FROM_ALL)
 set(LIBMOTIONCAPTURE_BUILD_PYTHON_BINDINGS OFF CACHE INTERNAL "")
 set(LIBMOTIONCAPTURE_BUILD_EXAMPLE OFF CACHE INTERNAL "")
 
@@ -47,24 +42,18 @@ set(LIBMOTIONCAPTURE_ENABLE_MOTIONANALYSIS OFF CACHE INTERNAL "")
 add_subdirectory(deps/libmotioncapture EXCLUDE_FROM_ALL)
 
 include_directories(
-  deps/librigidbodytracker/include
   deps/libmotioncapture/include
   ${EIGEN3_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
 )
 
 add_executable(motion_capture_tracking_node
   src/motion_capture_tracking_node.cpp
 )
 target_link_libraries(motion_capture_tracking_node
-  librigidbodytracker
   libmotioncapture
-  fmt::fmt
 )
 target_link_libraries(motion_capture_tracking_node
   rclcpp::rclcpp
-  tf2_ros::tf2_ros
-  ${sensor_msgs_TARGETS}
   ${motion_capture_tracking_interfaces_TARGETS}
 )
 target_include_directories(motion_capture_tracking_node PUBLIC
@@ -78,6 +67,15 @@ if(BUILD_TESTING)
   target_include_directories(test_output_rate_limiter PRIVATE include)
   target_compile_features(test_output_rate_limiter PRIVATE cxx_std_17)
   add_test(NAME output_rate_limiter COMMAND test_output_rate_limiter)
+
+  add_executable(
+    test_competition_rigid_body_filter
+    test/test_competition_rigid_body_filter.cpp)
+  target_include_directories(test_competition_rigid_body_filter PRIVATE include)
+  target_compile_features(test_competition_rigid_body_filter PRIVATE cxx_std_17)
+  add_test(
+    NAME competition_rigid_body_filter
+    COMMAND test_competition_rigid_body_filter)
 endif()
 
 install(TARGETS motion_capture_tracking_node

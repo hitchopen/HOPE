@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed static check for the HOPE mocap/table/policy frame contract.
+"""Fail-closed static check for the live HOPE mocap/policy vertical contract.
 
 Run after the mocap bridge is streaming and while the ball is motionless on
 the table.  The probe never publishes a control command.  It verifies the two
@@ -9,8 +9,10 @@ measurements that make a vertical miss diagnosable before the planner starts:
 * the P1 marker pose plus marker->base and table->floor offsets produces a
   plausible policy-frame pelvis height.
 
-When PPT is available it also checks that the table rigid body is near the
-canonical identity pose (near-left table-surface corner, Z up).
+The competition adapters deliberately publish no live Table/PPT topic. The
+surveyed X/Y origin and axis directions are setup-time evidence pinned by
+``hope_world_frame.yaml`` and its calibration receipt; this probe neither
+requires that asset nor claims to detect post-calibration table/world drift.
 """
 
 from __future__ import annotations
@@ -96,20 +98,9 @@ def _rotate_vector(q: Sequence[float], vector: Sequence[float]) -> list[float]:
     ]
 
 
-def _quat_angle_deg(sample: PoseSample) -> float:
-    norm = math.sqrt(
-        sample.qw * sample.qw + sample.qx * sample.qx
-        + sample.qy * sample.qy + sample.qz * sample.qz
-    )
-    if not math.isfinite(norm) or norm < 1.0e-9:
-        return float("inf")
-    return math.degrees(2.0 * math.acos(min(1.0, abs(sample.qw / norm))))
-
-
 def evaluate_frame_samples(
     ball_samples: Sequence[PositionSample],
     robot_samples: Sequence[PoseSample],
-    table_samples: Sequence[PoseSample],
     *,
     min_samples: int,
     ball_radius_m: float,
@@ -119,9 +110,6 @@ def evaluate_frame_samples(
     policy_z_offset_m: float,
     base_policy_z_min_m: float,
     base_policy_z_max_m: float,
-    require_table: bool,
-    table_position_tolerance_m: float,
-    table_angle_tolerance_deg: float,
 ) -> dict:
     """Evaluate already-collected samples; kept pure for host-side tests."""
 
@@ -192,39 +180,21 @@ def evaluate_frame_samples(
                 "check P1 pivot, marker_to_base and policy_z_offset"
             )
 
-    if table_samples:
-        table_median = _median_position(table_samples)
-        table_position_error = math.sqrt(sum(value * value for value in table_median))
-        table_angle = _median(_quat_angle_deg(sample) for sample in table_samples)
-        table_ok = (
-            table_position_error <= table_position_tolerance_m
-            and table_angle <= table_angle_tolerance_deg
-        )
-        checks["table_identity"] = {
-            "pass": table_ok,
-            "samples": len(table_samples),
-            "median_xyz_m": table_median,
-            "position_error_m": table_position_error,
-            "median_angle_error_deg": table_angle,
-        }
-        if not table_ok:
-            errors.append(
-                f"PPT is not identity: position error {table_position_error:.4f} m, "
-                f"angle error {table_angle:.2f} deg; recalibrate Motive table frame"
-            )
-    elif require_table:
-        errors.append("PPT /table/pose is required but no samples arrived")
-    else:
-        warnings.append(
-            "no PPT samples; ball/base Z checks ran, but table origin/axis drift was not proven"
-        )
-
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "pass": not errors,
         "errors": errors,
         "warnings": warnings,
         "checks": checks,
+        "scope": {
+            "live_table_pose_required": False,
+            "verified_live": ["Ball centre height/stationarity", "P1-derived policy base height"],
+            "setup_authority": (
+                "surveyed world origin/axes pinned by hope_world_frame.yaml "
+                "and its calibration receipt"
+            ),
+            "not_verified_live": "post-calibration table/world origin or axis drift",
+        },
     }
 
 
@@ -247,7 +217,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--ball-topic", default="/ball/point")
     parser.add_argument("--robot-topic", default="/P1/pose")
-    parser.add_argument("--table-topic", default="/table/pose")
     parser.add_argument("--duration", type=float, default=2.0)
     parser.add_argument("--discover-timeout", type=float, default=10.0)
     parser.add_argument("--min-samples", type=int, default=20)
@@ -258,9 +227,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--policy-z-offset", type=float, default=0.76)
     parser.add_argument("--base-policy-z-min", type=float, default=0.70)
     parser.add_argument("--base-policy-z-max", type=float, default=1.20)
-    parser.add_argument("--require-table", action="store_true")
-    parser.add_argument("--table-position-tolerance", type=float, default=0.03)
-    parser.add_argument("--table-angle-tolerance-deg", type=float, default=5.0)
     parser.add_argument("--json", default="")
     return parser
 
@@ -280,15 +246,11 @@ def main(argv=None) -> int:
             super().__init__("hope_mocap_frame_probe")
             self.ball: list[PositionSample] = []
             self.robot: list[PoseSample] = []
-            self.table: list[PoseSample] = []
             self.create_subscription(
                 PointStamped, args.ball_topic, self._ball, qos_profile_sensor_data
             )
             self.create_subscription(
                 PoseStamped, args.robot_topic, self._robot, qos_profile_sensor_data
-            )
-            self.create_subscription(
-                PoseStamped, args.table_topic, self._table, qos_profile_sensor_data
             )
 
         def _ball(self, msg):
@@ -302,16 +264,13 @@ def main(argv=None) -> int:
         def _robot(self, msg):
             self.robot.append(self._pose(msg, time.monotonic()))
 
-        def _table(self, msg):
-            self.table.append(self._pose(msg, time.monotonic()))
-
     rclpy.init(args=None)
     node = Collector()
     try:
         discovery_deadline = time.monotonic() + args.discover_timeout
         while time.monotonic() < discovery_deadline:
             rclpy.spin_once(node, timeout_sec=0.1)
-            if node.ball and node.robot and (node.table or not args.require_table):
+            if node.ball and node.robot:
                 break
         collection_deadline = time.monotonic() + args.duration
         while time.monotonic() < collection_deadline:
@@ -320,7 +279,6 @@ def main(argv=None) -> int:
         report = evaluate_frame_samples(
             node.ball,
             node.robot,
-            node.table,
             min_samples=args.min_samples,
             ball_radius_m=args.ball_radius,
             ball_z_tolerance_m=args.ball_z_tolerance,
@@ -329,15 +287,11 @@ def main(argv=None) -> int:
             policy_z_offset_m=args.policy_z_offset,
             base_policy_z_min_m=args.base_policy_z_min,
             base_policy_z_max_m=args.base_policy_z_max,
-            require_table=args.require_table,
-            table_position_tolerance_m=args.table_position_tolerance,
-            table_angle_tolerance_deg=args.table_angle_tolerance_deg,
         )
         report["generated_wall_time_ns"] = time.time_ns()
         report["topics"] = {
             "ball": args.ball_topic,
             "robot": args.robot_topic,
-            "table": args.table_topic,
         }
         rendered = json.dumps(report, indent=2, sort_keys=True)
         print(rendered)

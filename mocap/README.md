@@ -53,8 +53,8 @@ mocap root-yaw estimate as advisory unless a robot integration contract says oth
 
 | Topic | Type | Rate (typical) | Meaning |
 |-------|------|----------------|---------|
-| `/poses` | `geometry_msgs/PoseArray` | 180 Hz OptiTrack default; 200 Hz VRPN default | Full tracked pose(s) in the world frame. `Ball` is always first; `P1` and `P2` marker-cluster poses may follow when configured. The planner reads `Ball` at `ball_pose_index` and currently consumes only its position. |
-| `/tf` (optional) | `tf2_msgs/TFMessage` | 180 Hz OptiTrack default | Named transforms for `world → Ball` (and `world → P1`, `world → P2` where streamed). The OptiTrack relay publishes these; the shipped Chingmu/VRPN path does **not**, so add a `tf2_ros` broadcaster if that deployment needs named transforms. |
+| `/poses` | `geometry_msgs/PoseArray` | 200 Hz adapter default | Full tracked pose(s) in the world frame. `Ball` is always first; `P1` and `P2` marker-cluster poses may follow when available. The planner reads `Ball` at `ball_pose_index` and currently consumes only its position. |
+| `/tf` (optional) | `tf2_msgs/TFMessage` | 200 Hz OptiTrack relay output | Named transforms for `world → Ball` (and `world → P1`, `world → P2` when available). The HOPE OptiTrack relay publishes these from the filtered named-pose array; the raw NatNet adapter does not publish duplicate TF. The shipped Chingmu/VRPN path does **not** publish TF, so add a `tf2_ros` broadcaster if that deployment needs named transforms. |
 | `<robot_root_pose>` | `geometry_msgs/PoseStamped` | source-dependent (optional) | Full declared robot-root pose in the world frame (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3), obtained after applying the marker-to-root calibration and used for fixed-station recentring. Topic name is deployment-specific. |
 
 The planner consumes every incoming mocap sample for its estimator but runs its
@@ -77,14 +77,18 @@ server's camera-exposure timestamp semantics still require vendor documentation
 or a hardware-trigger comparison.
 
 Both raw adapters receive and validate every source report before reducing ROS
-traffic. NatNet2ROS2 coherently caps pose, point-cloud, and TF output at 180 Hz;
-VRPN2ROS2 independently caps each pose, velocity, and acceleration topic per
-sensor at 200 Hz. Configure `output_rate_hz:=<Hz>` on either launch command, or
-use `0.0` for every accepted source report. Downsampling preserves the selected
-source header timestamp; it is not a timestamp resampler. Because the planner's
-`fit_window` is measured in samples, use 19 samples at 180 Hz or 21 at 200 Hz
-to retain an approximately 100 ms velocity-fit horizon. `hope_bringup.launch.py`
-selects those backend defaults; override `planner_fit_window` whenever the
+traffic. NatNet2ROS2 publishes only `/optitrack/poses`, capped at 200 Hz and
+strictly filtered to the available exact-name rigid bodies `Ball`, `P1`, and
+`P2` in that order. A valid selected frame with none of those bodies is an
+empty-array heartbeat, allowing operators to distinguish competition-body
+tracking loss from NatNet/adapter transport loss. It publishes no marker point
+cloud, raw TF, Table, skeleton, or arbitrary Motive asset. VRPN2ROS2 independently caps each pose, velocity,
+and acceleration topic per sensor at 200 Hz. Configure
+`output_rate_hz:=<Hz>` on either launch command, or use `0.0` for every accepted
+source report. Downsampling preserves the selected source header timestamp; it
+is not a timestamp resampler. Because the planner's `fit_window` is measured in
+samples, use 21 samples at the 200 Hz defaults to retain an approximately
+100 ms velocity-fit horizon. Override `planner_fit_window` whenever the
 configured adapter output rate differs.
 
 ## Bringing up mocap
@@ -119,8 +123,10 @@ Motive NatNet → NatNet2ROS2 workspace (namespace /optitrack)
 `NamedPoseArray` carries one header plus entries of the form `{name, Pose}`. The relay maps
 the case-sensitive Motive asset names into the HOPE topics, preserves the position and
 quaternion, and only publishes `/poses` on a frame that contains `Ball`; it never repeats a
-stale ball pose during an occlusion. The raw topic is intentionally namespaced because its
-message type differs from the HOPE `/poses` `PoseArray` contract.
+stale ball pose during an occlusion. NatNet2ROS2 admits only `Ball`, `P1`, and `P2`, in that
+order when available; absent bodies are silently omitted, and a frame with none is an empty
+array heartbeat. The raw topic is intentionally
+namespaced because its message type differs from the HOPE `/poses` `PoseArray` contract.
 
 ### Calibrating a humanoid P1 body to `pelvis_link`
 
@@ -222,10 +228,11 @@ source hope_ws/install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
-The `Table` asset may be recorded through this relay during a separate setup/calibration
-session, but must be disabled or omitted from Motive's competition stream. Consequently no
-live `/table/pose`, table TF, or table entry reaches the competition `/poses` stream. See the
-full operational guide in [`docs/OPTITRACK.md`](../docs/OPTITRACK.md).
+The competition NatNet adapter never exports `Table`. Record or inspect that setup asset in
+Motive (or with dedicated calibration tooling) during a separate setup/training-data session;
+do not route it through the competition ROS adapter. Consequently no live `/table/pose`, table
+TF, or table entry can reach the competition `/poses` stream. See the full operational guide
+in [`docs/OPTITRACK.md`](../docs/OPTITRACK.md).
 
 ### Chingmu / CMTracker: VRPN
 

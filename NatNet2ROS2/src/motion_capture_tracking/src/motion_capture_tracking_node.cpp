@@ -1,29 +1,22 @@
 #include <chrono>
 #include <cmath>
-#include <iostream>
+#include <map>
+#include <set>
 #include <stdexcept>
+#include <string>
+#include <utility>
 #include <vector>
-#include <fmt/core.h>
 
 // ROS
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
-#include <tf2_ros/transform_broadcaster.h>
+#include <motion_capture_tracking_interfaces/msg/named_pose.hpp>
 #include <motion_capture_tracking_interfaces/msg/named_pose_array.hpp>
 #include <motion_capture_tracking_interfaces/msg/named_pose_array_v2.hpp>
 
 // Motion Capture
 #include <libmotioncapture/motioncapture.h>
+#include <motion_capture_tracking/competition_rigid_body_filter.h>
 #include <motion_capture_tracking/output_rate_limiter.h>
-
-// Rigid Body tracker
-#include <librigidbodytracker/rigid_body_tracker.h>
-#include <librigidbodytracker/cloudlog.hpp>
-
-void logWarn(rclcpp::Logger logger, const std::string& msg)
-{
-  RCLCPP_WARN(logger, "%s", msg.c_str());
-}
 
 std::set<std::string> extract_names(
   const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides,
@@ -63,16 +56,13 @@ int main(int argc, char **argv)
   node->declare_parameter<std::string>("hostname", "localhost");
   node->declare_parameter<std::string>("topics.frame_id", "world");
   node->declare_parameter<std::string>("topics.header_time", "ros");
-  node->declare_parameter<double>("topics.output_rate_hz", 180.0);
+  node->declare_parameter<double>("topics.output_rate_hz", 200.0);
   node->declare_parameter<double>("topics.network_latency_ms", 0.0);
   node->declare_parameter<double>("topics.max_clock_sync_uncertainty_ms", 2.0);
   node->declare_parameter<double>("topics.max_capture_age_ms", 100.0);
   node->declare_parameter<uint8_t>("topics.poses.version", 1);
   node->declare_parameter<std::string>("topics.poses.qos.mode", "none");
   node->declare_parameter<double>("topics.poses.qos.deadline", 100.0);
-  node->declare_parameter<std::string>("topics.tf.child_frame_id", "{}");
-
-  node->declare_parameter<std::string>("logfilepath", "");
 
   std::string motionCaptureType = node->get_parameter("type").as_string();
   std::string motionCaptureHostname = node->get_parameter("hostname").as_string();
@@ -125,9 +115,11 @@ int main(int argc, char **argv)
   uint8_t poses_version = node->get_parameter("topics.poses.version").as_int();
   std::string poses_qos = node->get_parameter("topics.poses.qos.mode").as_string();
   double poses_deadline = node->get_parameter("topics.poses.qos.deadline").as_double();
-  std::string tf_child_frame_id = node->get_parameter("topics.tf.child_frame_id").as_string();
-  std::string logFilePath = node->get_parameter("logfilepath").as_string();
-
+  if (poses_version != 1 && poses_version != 2) {
+    throw std::runtime_error(
+      "topics.poses.version must be 1 (NamedPoseArray) or 2 "
+      "(NamedPoseArrayV2)");
+  }
   if (poses_qos == "sensor" &&
     (!std::isfinite(poses_deadline) || poses_deadline <= 0.0))
   {
@@ -160,10 +152,6 @@ int main(int argc, char **argv)
   const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides =
       node_parameters_iface->get_parameter_overrides();
 
-  librigidbodytracker::PointCloudLogger pointCloudLogger(logFilePath);
-  const bool logClouds = !logFilePath.empty();
-  std::cout << "logClouds=" <<logClouds << std::endl;  // 1
-
   // Make a new client
   std::map<std::string, std::string> cfg;
   cfg["hostname"] = motionCaptureHostname;
@@ -180,29 +168,6 @@ int main(int argc, char **argv)
   }
 
   libmotioncapture::MotionCapture *mocap = libmotioncapture::MotionCapture::connect(motionCaptureType, cfg);
-
-  // prepare point cloud publisher
-  auto pubPointCloud = node->create_publisher<sensor_msgs::msg::PointCloud2>("pointCloud", 1);
-
-  sensor_msgs::msg::PointCloud2 msgPointCloud;
-  msgPointCloud.header.frame_id = frame_id;
-  msgPointCloud.height = 1;
-
-  sensor_msgs::msg::PointField field;
-  field.name = "x";
-  field.offset = 0;
-  field.datatype = sensor_msgs::msg::PointField::FLOAT32;
-  field.count = 1;
-  msgPointCloud.fields.push_back(field);
-  field.name = "y";
-  field.offset = 4;
-  msgPointCloud.fields.push_back(field);
-  field.name = "z";
-  field.offset = 8;
-  msgPointCloud.fields.push_back(field);
-  msgPointCloud.point_step = 12;
-  msgPointCloud.is_bigendian = false;
-  msgPointCloud.is_dense = true;
 
   // prepare pose array publisher
   rclcpp::Publisher<motion_capture_tracking_interfaces::msg::NamedPoseArray>::SharedPtr pubPoses;
@@ -233,85 +198,16 @@ int main(int argc, char **argv)
   motion_capture_tracking_interfaces::msg::NamedPoseArrayV2 msgPosesV2;
   msgPosesV2.header.frame_id = frame_id;
 
-  // prepare rigid body tracker
-
-  auto dynamics_config_names = extract_names(parameter_overrides, "dynamics_configurations");
-  std::vector<librigidbodytracker::DynamicsConfiguration> dynamicsConfigurations(dynamics_config_names.size());
-  std::map<std::string, size_t> dynamics_name_to_index;
-  size_t i = 0;
-  for (const auto& name : dynamics_config_names) {
-    const auto max_vel = get_vec(parameter_overrides.at("dynamics_configurations." + name + ".max_velocity"));
-    dynamicsConfigurations[i].maxXVelocity = max_vel.at(0);
-    dynamicsConfigurations[i].maxYVelocity = max_vel.at(1);
-    dynamicsConfigurations[i].maxZVelocity = max_vel.at(2);
-    const auto max_angular_velocity = get_vec(parameter_overrides.at("dynamics_configurations." + name + ".max_angular_velocity"));
-    dynamicsConfigurations[i].maxRollRate = max_angular_velocity.at(0);
-    dynamicsConfigurations[i].maxPitchRate = max_angular_velocity.at(1);
-    dynamicsConfigurations[i].maxYawRate = max_angular_velocity.at(2);
-    dynamicsConfigurations[i].maxRoll = parameter_overrides.at("dynamics_configurations." + name + ".max_roll").get<double>();
-    dynamicsConfigurations[i].maxPitch = parameter_overrides.at("dynamics_configurations." + name + ".max_pitch").get<double>();
-    dynamicsConfigurations[i].maxFitnessScore = parameter_overrides.at("dynamics_configurations." + name + ".max_fitness_score").get<double>();
-    dynamics_name_to_index[name] = i;
-    ++i;
-  }
-
-  auto marker_config_names = extract_names(parameter_overrides, "marker_configurations");
-  std::vector<librigidbodytracker::MarkerConfiguration> markerConfigurations;
-  std::map<std::string, size_t> marker_name_to_index;
-  i = 0;
-  for (const auto &name : marker_config_names)
-  {
-    markerConfigurations.push_back(pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>));
-    const auto offset = get_vec(parameter_overrides.at("marker_configurations." + name + ".offset"));
-    for (const auto &param : parameter_overrides)
-    {
-      if (param.first.find("marker_configurations." + name + ".points") == 0)
-      {
-        const auto points = get_vec(param.second);
-        markerConfigurations.back()->push_back(pcl::PointXYZ(points[0] + offset[0], points[1] + offset[1], points[2] + offset[2]));
-      }
-    }
-    marker_name_to_index[name] = i;
-    ++i;
-  }
-
-  std::vector<librigidbodytracker::RigidBody> rigidBodies;
-  // only add the rigid bodies to the tracker if we are not using the "mock" mode
-  if (motionCaptureType != "mock") {
-    auto rigid_body_names = extract_names(parameter_overrides, "rigid_bodies");
-    for (const auto &name : rigid_body_names)
-    {
-      const auto pos = get_vec(parameter_overrides.at("rigid_bodies." + name + ".initial_position"));
-      Eigen::Affine3f m;
-      m = Eigen::Translation3f(pos[0], pos[1], pos[2]);
-      const auto marker = parameter_overrides.at("rigid_bodies." + name + ".marker").get<std::string>();
-      const auto dynamics = parameter_overrides.at("rigid_bodies." + name + ".dynamics").get<std::string>();
-
-      rigidBodies.push_back(librigidbodytracker::RigidBody(marker_name_to_index.at(marker), dynamics_name_to_index.at(dynamics), m, name));
-    }
-  }
-
-  librigidbodytracker::RigidBodyTracker tracker(
-      dynamicsConfigurations,
-      markerConfigurations,
-      rigidBodies);
-  tracker.setLogWarningCallback(std::bind(logWarn, node->get_logger(), std::placeholders::_1));
-
-  // prepare TF broadcaster
-  tf2_ros::TransformBroadcaster tfbroadcaster(node);
-  std::vector<geometry_msgs::msg::TransformStamped> transforms;
-
-  pcl::PointCloud<pcl::PointXYZ>::Ptr markers(new pcl::PointCloud<pcl::PointXYZ>);
+  std::vector<motion_capture_tracking_interfaces::msg::NamedPose> output_poses;
   // RCL_SYSTEM_TIME is Unix epoch time supplied by CLOCK_REALTIME on Linux.
   // Chrony disciplines that host clock; do not use node->now() for camera_utc
   // because /use_sim_time could put it in an unrelated ROS simulation epoch.
   rclcpp::Clock system_clock(RCL_SYSTEM_TIME);
 
-  for (size_t frameId = 0; rclcpp::ok(); ++frameId) {
+  while (rclcpp::ok()) {
 
     // Get a frame
     mocap->waitForNextFrame();
-    auto chrono_now = std::chrono::high_resolution_clock::now();
     rclcpp::Time time;
     if (header_time == "ros") {
       time = node->now();
@@ -395,112 +291,51 @@ int main(int argc, char **argv)
     const bool publish_this_frame =
       output_rate_limiter.shouldPublish(output_gate_now_seconds);
 
-    auto pointcloud = mocap->pointCloud();
-
-    // publish as pointcloud
     if (publish_this_frame) {
-      msgPointCloud.header.stamp = time;
-      msgPointCloud.width = pointcloud.rows();
-      msgPointCloud.data.resize(pointcloud.rows() * 3 * 4); // width * height * pointstep
-      memcpy(msgPointCloud.data.data(), pointcloud.data(), msgPointCloud.data.size());
-      msgPointCloud.row_step = msgPointCloud.data.size();
+      output_poses.clear();
+      const auto &rigid_bodies = mocap->rigidBodies();
 
-      pubPointCloud->publish(msgPointCloud);
-    }
-    if (logClouds) {
-      // pointCloudLogger.log(timestamp/1000, markers);  // point cloud log format: infinite repetitions of:  timestamp (milliseconds) : uint32
-      // std::cout << "0000000000000before log" << std::endl;
-      pointCloudLogger.log(markers);
-    }
-
-
-    // run tracker
-    markers->clear();
-    for (long int i = 0; i < pointcloud.rows(); ++i)
-    {
-      const auto &point = pointcloud.row(i);
-      markers->push_back(pcl::PointXYZ(point(0), point(1), point(2)));
-    }
-    // HOPE patch (see PIN.md): skip the point-cloud tracker entirely when no
-    // custom rigid_bodies are configured (e.g. the ball is a vendor-native
-    // rigid-body asset). librigidbodytracker warns "initialization failed" on
-    // EVERY frame with an empty cloud, which floods the log at camera rate
-    // when unlabeled-marker streaming is disabled.
-    if (!rigidBodies.empty()) {
-      tracker.update(markers);
-    }
-
-    transforms.clear();
-    transforms.reserve(mocap->rigidBodies().size());
-    for (const auto &iter : mocap->rigidBodies())
-    {
-      const auto& rigidBody = iter.second;
-
-      // const auto& transform = rigidBody.transformation();
-      // transforms.emplace_back(eigenToTransform(transform));
-      transforms.resize(transforms.size() + 1);
-      transforms.back().header.stamp = time;
-      transforms.back().header.frame_id = frame_id;
-      transforms.back().child_frame_id = rigidBody.name();
-      transforms.back().transform.translation.x = rigidBody.position().x();
-      transforms.back().transform.translation.y = rigidBody.position().y();
-      transforms.back().transform.translation.z = rigidBody.position().z();
-      transforms.back().transform.rotation.x = rigidBody.rotation().x();
-      transforms.back().transform.rotation.y = rigidBody.rotation().y();
-      transforms.back().transform.rotation.z = rigidBody.rotation().z();
-      transforms.back().transform.rotation.w = rigidBody.rotation().w();
-    }
-
-    for (const auto& rigidBody : tracker.rigidBodies())
-    {
-      if (rigidBody.lastTransformationValid())
+      // The standalone adapter has one deliberately narrow ROS contract:
+      // publish only competition rigid bodies, in canonical order. Motive may
+      // stream setup assets, skeletons, marker sets, or other rigid bodies;
+      // none of them are allowed onto ROS 2. A body missing from the current
+      // frame is simply omitted, with no placeholder. If none are present,
+      // publish an empty array heartbeat. That keeps transport/adapter
+      // liveness distinguishable from competition-body tracking loss while
+      // exposing no non-allowlisted data.
+      for (const auto allowed_name :
+        motion_capture_tracking::detail::competitionRigidBodyNames())
       {
-        const Eigen::Affine3f &transform = rigidBody.transformation();
-        Eigen::Quaternionf q(transform.rotation());
-        const auto &translation = transform.translation();
+        for (const auto &entry : rigid_bodies) {
+          const auto &rigid_body = entry.second;
+          if (rigid_body.name() != allowed_name) {
+            continue;
+          }
 
-        transforms.resize(transforms.size() + 1);
-        transforms.back().header.stamp = time;
-        transforms.back().header.frame_id = frame_id;
-        transforms.back().child_frame_id = rigidBody.name();
-        transforms.back().transform.translation.x = translation.x();
-        transforms.back().transform.translation.y = translation.y();
-        transforms.back().transform.translation.z = translation.z();
-        if (rigidBody.orientationAvailable()) {
-          transforms.back().transform.rotation.x = q.x();
-          transforms.back().transform.rotation.y = q.y();
-          transforms.back().transform.rotation.z = q.z();
-          transforms.back().transform.rotation.w = q.w();
-        } else {
-          transforms.back().transform.rotation.x = std::nan("");
-          transforms.back().transform.rotation.y = std::nan("");
-          transforms.back().transform.rotation.z = std::nan("");
-          transforms.back().transform.rotation.w = std::nan("");
+          motion_capture_tracking_interfaces::msg::NamedPose named_pose;
+          named_pose.name = std::string(allowed_name);
+          named_pose.pose.position.x = rigid_body.position().x();
+          named_pose.pose.position.y = rigid_body.position().y();
+          named_pose.pose.position.z = rigid_body.position().z();
+          named_pose.pose.orientation.x = rigid_body.rotation().x();
+          named_pose.pose.orientation.y = rigid_body.rotation().y();
+          named_pose.pose.orientation.z = rigid_body.rotation().z();
+          named_pose.pose.orientation.w = rigid_body.rotation().w();
+          output_poses.push_back(std::move(named_pose));
+          break;
         }
       }
-      else
-      {
-        std::chrono::duration<double> elapsedSeconds = chrono_now - rigidBody.lastValidTime();
-        // HOPE patch #7 (see PIN.md): throttled — an untracked tracker body is a
-        // normal state (e.g. object out of the volume between rallies); the
-        // unthrottled warn fired at camera rate (300-360 Hz).
-        RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
-            "No updated pose for %s for %f s.", rigidBody.name().c_str(), elapsedSeconds.count());
-      }
-    }
 
-    if (publish_this_frame && transforms.size() > 0) {
-      // publish poses
+      if (output_poses.empty()) {
+        RCLCPP_WARN_THROTTLE(
+          node->get_logger(), *node->get_clock(), 2000,
+          "valid NatNet frames contain none of the exact-name competition "
+          "bodies Ball, P1, or P2; publishing an empty heartbeat");
+      }
+
       if (poses_version == 1) {
         msgPoses.header.stamp = time;
-        msgPoses.poses.resize(transforms.size());
-        for (size_t i = 0; i < transforms.size(); ++i) {
-          msgPoses.poses[i].name = transforms[i].child_frame_id;
-          msgPoses.poses[i].pose.position.x = transforms[i].transform.translation.x;
-          msgPoses.poses[i].pose.position.y = transforms[i].transform.translation.y;
-          msgPoses.poses[i].pose.position.z = transforms[i].transform.translation.z;
-          msgPoses.poses[i].pose.orientation = transforms[i].transform.rotation;
-        }
+        msgPoses.poses = output_poses;
         pubPoses->publish(msgPoses);
       } else if (poses_version == 2) {
         msgPosesV2.header.stamp = time;
@@ -511,45 +346,11 @@ int main(int argc, char **argv)
           msgPosesV2.latencies[i].source = latencies[i].name();
           msgPosesV2.latencies[i].latency = latencies[i].value() * 1e6;
         }
-        msgPosesV2.poses.resize(transforms.size());
-        for (size_t i = 0; i < transforms.size(); ++i) {
-          msgPosesV2.poses[i].name = transforms[i].child_frame_id;
-          msgPosesV2.poses[i].pose.position.x = transforms[i].transform.translation.x;
-          msgPosesV2.poses[i].pose.position.y = transforms[i].transform.translation.y;
-          msgPosesV2.poses[i].pose.position.z = transforms[i].transform.translation.z;
-          msgPosesV2.poses[i].pose.orientation = transforms[i].transform.rotation;
-        }
+        msgPosesV2.poses = output_poses;
         pubPosesV2->publish(msgPosesV2);
       }
-
-      // send TF
-      
-      // Since RViz and others can't handle nan's, report a fake orientation if needed
-      for (auto& tf : transforms) {
-        if (std::isnan(tf.transform.rotation.x)) {
-          tf.transform.rotation.x = 0;
-          tf.transform.rotation.y = 0;
-          tf.transform.rotation.z = 0;
-          tf.transform.rotation.w = 1;
-        }
-      }
-
-      // allow custom child_frame_ids before sending
-      for (auto& tf : transforms) {
-        std::string name = tf.child_frame_id;
-        tf.child_frame_id = fmt::format(fmt::runtime(tf_child_frame_id), name);
-      }
-
-      tfbroadcaster.sendTransform(transforms);
-    }
-    if (logClouds) {
-      pointCloudLogger.flush();
     }
     rclcpp::spin_some(node);
-  }
-
-  if (logClouds) {
-    pointCloudLogger.flush();
   }
 
   return 0;

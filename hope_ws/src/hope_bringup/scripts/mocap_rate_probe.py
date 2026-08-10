@@ -13,6 +13,12 @@ echo/hz` sessions are unwelcome. Particularly useful for the OptiTrack
 backend: NatNet is UDP, so unlike the VRPN TCP port there is nothing to
 connect() to before launch — mocap liveness can only be proven by data.
 
+For the raw NatNet ``/optitrack/poses`` topic, this probe measures adapter and
+transport liveness only: the competition adapter intentionally publishes empty
+array heartbeats when no ``Ball``/``P1``/``P2`` body is valid. Use the managed
+bringup's downstream ``/P1/pose`` probe, or inspect array contents, to qualify
+competition-body tracking.
+
 Exit codes: 0 = rate OK, 1 = below threshold / topic never appeared.
 """
 
