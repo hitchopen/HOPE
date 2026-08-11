@@ -1,7 +1,6 @@
 # HOPE A3 Console
 
-Foxglove extension implementing the operator-console design from
-`Foxglove+Desktop+UI+improvements/design_handoff_a3_console` against the
+Foxglove extension implementing the attended operator console against the
 native model_21800 Runner contract.
 
 The panel uses one opt-in data source, `ws://<HDU-IP>:8766`. It never publishes

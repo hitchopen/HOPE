@@ -12,13 +12,6 @@ REPO_ROOT = FOXGLOVE_DIR.parent
 
 
 class AssetInvariantTests(unittest.TestCase):
-    def test_callservice_layout_alias_matches_canonical_layout(self):
-        canonical = (FOXGLOVE_DIR / "layouts/a3_monitor.json").read_bytes()
-        compatibility = (
-            FOXGLOVE_DIR / "layouts/a3_monitor_callservice.json"
-        ).read_bytes()
-        self.assertEqual(compatibility, canonical)
-
     def test_legacy_layout_is_a3_rooted_and_has_monitoring_panels(self):
         layout = json.loads((FOXGLOVE_DIR / "layouts/a3_monitor.json").read_text())
         panel = layout["configById"]["3D!a3tf"]
@@ -212,17 +205,6 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertIn(
             "/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash", unit
         )
-
-    def test_runner_adapter_unit_does_not_restart_or_broaden_process_kills(self):
-        unit = (FOXGLOVE_DIR / "a3/hope-runner-adapter.service").read_text()
-        self.assertIn("Restart=no", unit)
-        self.assertIn("KillMode=control-group", unit)
-        self.assertIn("TimeoutStopSec=3", unit)
-        self.assertIn("/usr/local/bin/hope_runner_adapter.py", unit)
-        helper = (FOXGLOVE_DIR / "a3/hope_model21800_runner.sh").read_text()
-        self.assertNotIn("pkill", helper)
-        self.assertNotIn("killall", helper)
-        self.assertIn('kill -KILL "${exact_pid}"', helper)
 
     def test_downloaded_urdf_directory_is_ignored(self):
         ignore = (REPO_ROOT / ".gitignore").read_text().splitlines()

@@ -30,10 +30,12 @@ HELPER_EVENT_PATTERN = re.compile(
 
 @dataclass(frozen=True)
 class LifecycleConfig:
-    laptop_wifi_ip: str = "172.23.20.46"
-    hdu_wifi_ip: str = "172.23.20.135"
-    mdu_internal_ip: str = "10.42.10.12"
-    motive_ip: str = "192.168.100.111"
+    # A fresh public install must not inherit one lab's network coordinates.
+    # The operator confirms all four values through the fixed apply_config API.
+    laptop_wifi_ip: str = ""
+    hdu_wifi_ip: str = ""
+    mdu_internal_ip: str = ""
+    motive_ip: str = ""
     revision: int = 0
 
     def values(self) -> dict[str, str]:

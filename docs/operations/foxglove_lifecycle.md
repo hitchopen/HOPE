@@ -57,31 +57,45 @@ The copy/paste deployment and first attended test procedure is
 It also installs the Laptop-local 3D asset user service and stages the marker
 publisher files that the managed OptiTrack Distrobox session starts.
 
-The HDU `agi` account must have non-interactive SSH authentication to the
-Laptop `dongc1` account and the MDU `agi` account. The Laptop must retain its
+Set the site addresses and accounts on the Laptop first. Do not commit the
+resolved values:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+export HOPE_ROOT="$PWD"
+export LAPTOP_USER="${USER}"
+export ROBOT_USER="${ROBOT_USER:-agi}"
+export LAPTOP_IP=<laptop-wifi-ip>
+export HDU_IP=<hdu-wifi-ip>
+export MDU_IP=<mdu-internal-ip>
+```
+
+The HDU robot account must have non-interactive SSH authentication to the
+Laptop operator account and the MDU robot account. The Laptop must retain its
 existing non-interactive access to the HDU and MDU for STEP 0 evidence and STEP
 6 collection. Verify all four directions before enabling the supervisor:
 
 ```bash
-# From HDU
-ssh -o BatchMode=yes dongc1@172.23.20.46 true
-ssh -o BatchMode=yes agi@10.42.10.12 true
+# From HDU; substitute the values printed on the Laptop.
+ssh -o BatchMode=yes <laptop-user>@<laptop-wifi-ip> true
+ssh -o BatchMode=yes <robot-user>@<mdu-internal-ip> true
 
 # From Laptop
-ssh -o BatchMode=yes agi@172.23.20.135 true
-ssh -o BatchMode=yes -J agi@172.23.20.135 agi@10.42.10.12 true
+ssh -o BatchMode=yes "${ROBOT_USER}@${HDU_IP}" true
+ssh -o BatchMode=yes -J "${ROBOT_USER}@${HDU_IP}" \
+  "${ROBOT_USER}@${MDU_IP}" true
 ```
 
 Do not put passwords in the repository, UI, ROS messages, unit files, helper
 arguments or process environment. Install SSH public keys once instead.
 
-`tmux` must be installed on all three machines. The MDU `agi` account also
+`tmux` must be installed on all three machines. The MDU robot account also
 needs narrow passwordless sudo only for the commands already present in STEP 4
 and STEP 6. Install with `visudo -f /etc/sudoers.d/hope-lifecycle`:
 
 ```sudoers
-agi ALL=(root) NOPASSWD: /usr/bin/systemctl stop agibot_pm.service
-agi ALL=(root) NOPASSWD: /usr/bin/systemctl start agibot_pm.service
+<robot-user> ALL=(root) NOPASSWD: /usr/bin/systemctl stop agibot_pm.service
+<robot-user> ALL=(root) NOPASSWD: /usr/bin/systemctl start agibot_pm.service
 ```
 
 Confirm the resolved command path with `command -v systemctl` on the MDU
@@ -93,7 +107,7 @@ than prompting.
 On the Laptop:
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd "$HOPE_ROOT"
 sudo install -D -o root -g root -m 0755 \
   foxglove/helpers/hope-lifecycle \
   /usr/local/libexec/hope-lifecycle
@@ -103,16 +117,16 @@ Stage the same file to the HDU and MDU, then install it root-owned at the same
 absolute path:
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd "$HOPE_ROOT"
 scp foxglove/helpers/hope-lifecycle \
-  agi@172.23.20.135:/tmp/hope-lifecycle
-ssh agi@172.23.20.135 \
+  "${ROBOT_USER}@${HDU_IP}:/tmp/hope-lifecycle"
+ssh "${ROBOT_USER}@${HDU_IP}" \
   'sudo install -D -o root -g root -m 0755 /tmp/hope-lifecycle /usr/local/libexec/hope-lifecycle'
 
-scp -o ProxyJump=agi@172.23.20.135 \
+scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/helpers/hope-lifecycle \
-  agi@10.42.10.12:/tmp/hope-lifecycle
-ssh -J agi@172.23.20.135 agi@10.42.10.12 \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-lifecycle"
+ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
   'sudo install -D -o root -g root -m 0755 /tmp/hope-lifecycle /usr/local/libexec/hope-lifecycle'
 ```
 

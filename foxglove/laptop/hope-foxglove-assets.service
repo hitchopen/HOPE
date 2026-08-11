@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/dongc1/workspace/HOPE_OPEN/foxglove
-ExecStart=/usr/bin/python3 -m http.server 8000 --bind 127.0.0.1
+WorkingDirectory=%h/.local/share/hope-foxglove
+ExecStart=/usr/bin/python3 -m http.server 8000 --bind 127.0.0.1 --directory %h/.local/share/hope-foxglove
 Restart=on-failure
 RestartSec=2
 

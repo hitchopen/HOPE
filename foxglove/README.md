@@ -1,11 +1,10 @@
 # HOPE A3 Foxglove Operator Interface
 
-> **Formal model_21800 operator stack.** This branch combines the monitoring,
-> OptiTrack/marker, pelvis TF and E-stop work from `Catrunaround/HOPE:nightly_built`
-> with the native Runner contract. The imported 8-double TTY adapter and
-> `/hope/control/*` services are retained as source history/compatibility assets
-> but are not exposed by the fleet bridge and must not be enabled for the native
-> Runner. Use the opt-in `8766` bridge, the services under `/hope/runner/*`,
+> **Formal model_21800 operator stack.** This directory combines monitoring,
+> OptiTrack/marker, pelvis TF and E-stop support with the native Runner contract.
+> The obsolete 8-double TTY adapter and
+> `/hope/control/*` process-control path have been removed; they must not be
+> restored alongside the native Runner. Use the opt-in `8766` bridge, the services under `/hope/runner/*`,
 > and `layouts/model21800_console.json`; the exact mapping and deployment
 > boundary are in `docs/operations/foxglove_runner_integration.md`.
 > The copy/paste deployment procedure is
@@ -14,7 +13,8 @@
 Rules and procedures for monitoring **any** Agibot A3 unit from a laptop on
 the same subnet: NTP offset, aggregate CPU utilization, ROS-message timestamp
 latency, vendor process and pelvis-TF readiness. The operator layouts contain
-no URDF or robot TF-tree rendering; only the sanitized Pelvis link is shown.
+no robot URDF or robot TF-tree rendering; only the static table URDF and the
+sanitized Pelvis link are shown.
 The fleet endpoint exposes one audited action:
 assert E-stop. In the integrated Runner deployment the E-stop requests the vendor
 software latch and independently requests native Runner PASSIVE, but cannot
@@ -31,15 +31,14 @@ replaces the Laptop JSON with the fixed `P1 -> pelvis_link` result plus a
 stationary `world -> pelvis_link` audit snapshot, then waits for the matching
 live base receipt. Refresh x_hit touches only the Planner request/status files.
 
-This document uses the current fixed3 site as its staged network example. The
-operator must verify both distinct Wi-Fi addresses whenever the robot, Laptop,
-or venue changes:
+This document is site-neutral. The operator must provide and verify both
+distinct Wi-Fi addresses whenever the robot, Laptop, or venue changes:
 
 1. Shell sessions use the HDU address in `A3_HOST`.
 2. `fastdds_bridge_profile.xml` uses UDPv4 without shared memory but does not
    pin a local IPv4 address. Runner supplies validated peers at startup.
-3. `/etc/hope-foxglove/network.env` supplies the Laptop peer; the current
-   runbook uses `172.23.20.46`.
+3. `/etc/hope-foxglove/network.env` supplies the Laptop peer selected for the
+   current venue.
 4. The Foxglove connection dialog takes the HDU address as
    `ws://<HDU-IP>:8765` or, for the attended console, port `8766`.
 
@@ -137,9 +136,6 @@ foxglove/
     |-- hope-observer.service
     |-- hope-command-proxy.service
     |-- hope-lifecycle-supervisor.service
-    |-- hope-runner-adapter.service  legacy TTY adapter; not installed for Runner
-    |-- hope_runner_adapter.py       legacy source; not a Runner authority
-    |-- hope_model21800_runner.sh    legacy MDU helper; not installed for Runner
     `-- patches/                     pinned A3 ament-index compatibility patches
 ```
 
@@ -255,8 +251,7 @@ sudo install -D -o root -g root -m 0644 ~/foxglove_a3/fastdds_bridge_profile.xml
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/network.env.example \
   /etc/hope-foxglove/network.env
 # Edit this one file and set ROS_STATIC_PEERS to the Laptop Wi-Fi address.
-# The current Runner fixed3 runbook uses 172.23.20.46; re-check it after a venue
-# or network change.
+# Re-check it after every venue or network change.
 sudoedit /etc/hope-foxglove/network.env
 sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_monitor.py \
   /usr/local/bin/hope_monitor.py
@@ -319,7 +314,7 @@ After verifying that the following dedicated paths contain only files created
 by this procedure, the operator may also remove staged/build artifacts:
 
 ```bash
-rm -rf /home/agi/hope_foxglove_ws /home/agi/foxglove_a3
+rm -rf "$HOME/hope_foxglove_ws" "$HOME/foxglove_a3"
 ```
 
 ### 3. Per-unit verification checklist
@@ -512,60 +507,6 @@ the display gate that matters for the combined robot/table scene. The 3D panel
 follows `world`, not `pelvis_link`, so the table and HOPE axes remain usable
 while the vendor tree is absent; this also avoids treating a missing
 `pelvis_link` as the panel's required coordinate frame.
-
-## Legacy TTY adapter reference (not used by native Runner integration)
-
-The following section documents the colleague branch's imported 8-double
-adapter for source provenance only. Do not install or enable it alongside the
-native 19-double Runner interface, and do not expose its `/hope/control/*`
-services on either integrated bridge.
-
-### Prepare calibration and policy gate
-
-`/hope/control/enter_prepare` starts a new initialization. The internal adapter
-starts the unchanged `/agibot/a3_deploy_model21800/run_a3.sh` in a managed TTY
-when needed and sends its existing `s` key. It never passes `--auto-start` and
-refuses to start while vendor `motion_control` or another policy runner is
-present. After the stock runner log reports `mode=pd_stand pd=N` with `N>150`
-and no halt/fault evidence, the monitor invokes the
-external computer's calibration service. That computer records the ten
-installed waist markers (`f1`…`f5`, `b1`…`b5`) from
-`/optitrack/rigid_body_markers` and fits their live 3-D geometry to the A3
-pelvis CAD coordinates to obtain the fixed `P1 -> pelvis_link` transform.
-
-Enable the computer adapter's `publish_p1_markers:=true` for each
-initialization. Every PREPARE recomputes the transform, even if the previous
-run's file is present, and an accepted fit atomically replaces the computer's
-repository-relative `calibration/p1_to_pelvis.json` (for example,
-`/home/user/HOPE/calibration/p1_to_pelvis.json`). The policy never triggers
-another fit while playing; Foxglove does not transport or regenerate the
-marker stream.
-
-After the replacement, the computer-side base-pose relay only reads that JSON
-for the rest of the run. It combines the stored transform with live mocap and
-publishes `/a3/base_pose_flat` for the policy plus the unshifted reconstructed
-world pelvis pose on `/a3/mocap/pelvis_pose` for diagnostics. The robot receives
-the final `/a3/base_pose_flat` stream; it never stores, reads, or receives the
-JSON. The policy-entry service remains locked until `/a3/base_pose_flat`
-carries the exact SHA-derived calibration ID of the current PREPARE receipt.
-
-`/a3/calibration/pelvis_pose` is intentionally not reused by this flow. It is
-the independent `world -> pelvis_link` input of the older two-PoseStamped
-calibration tool, and no node in this repository publishes it. Treating the
-10-marker result as that independent input would make the calibration circular.
-
-The four runner controls are:
-
-- `/hope/control/enter_prepare`: request PD_STAND, then generate this
-  initialization's marker calibration and replace the previous JSON.
-- `/hope/control/enter_policy`: send the stock runner's existing `m` key only
-  after its PD_STAND gate and the monitor's current-calibration/base-pose gate
-  pass. The unchanged runner does not read the calibration JSON.
-- `/hope/control/exit_policy`: return from policy to PD_STAND without replacing
-  the current session calibration.
-- `/hope/control/enter_passive`: send the stock runner's existing `p` key and
-  cancel any pending prepare generation so it cannot later publish a
-  calibration. PASSIVE is not E-stop.
 
 ## Foxglove E-stop button
 

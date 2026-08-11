@@ -77,30 +77,22 @@ uses ROS domain 232; adjust deployment paths for the Laptop environment, then
 start it only after the mocap bridge is available. The publisher has no
 service, process-management, or control API.
 
-For the current fixed-lifecycle Laptop, ROS Jazzy lives in the `hope`
-Distrobox rather than on the Host. Do not enable the Host-native marker unit
-there. Install the three marker files under
-`/home/dongc1/.local/share/hope-foxglove`; the fixed lifecycle helper starts
-the node inside the same Distrobox/Fast DDS context as the OptiTrack bridge and
-stops it with that managed session. Use the complete commands in
-`docs/operations/foxglove_first_hardware_test.md`. The unit below remains a
-template only for a Laptop whose Host itself provides `/opt/ros/jazzy`.
+The supported lifecycle runs ROS Jazzy inside the `hope` Distrobox. Install the
+three marker files below into the operator account; the fixed lifecycle helper
+starts the node inside the same Distrobox/Fast DDS context as the OptiTrack
+bridge and stops it with that managed session. Use the complete commands in
+`docs/operations/foxglove_first_hardware_test.md`.
 
 ```bash
-sudo install -D -m 0755 \
+install -D -m 0755 \
   foxglove/laptop/hope_marker_monitor.py \
-  /usr/local/bin/hope_marker_monitor.py
-sudo install -D -m 0644 \
+  "$HOME/.local/share/hope-foxglove/hope_marker_monitor.py"
+install -D -m 0644 \
   foxglove/laptop/hope_marker_monitor_core.py \
-  /usr/local/lib/hope-foxglove/hope_marker_monitor_core.py
-sudo install -D -m 0644 \
+  "$HOME/.local/share/hope-foxglove/hope_marker_monitor_core.py"
+install -D -m 0644 \
   foxglove/laptop/marker_monitor.yaml \
-  /etc/hope-foxglove/marker_monitor.yaml
-sudo install -D -m 0644 \
-  foxglove/laptop/hope-marker-monitor.service \
-  /etc/systemd/system/hope-marker-monitor.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now hope-marker-monitor.service
+  "$HOME/.local/share/hope-foxglove/marker_monitor.yaml"
 ```
 
 ## Foxglove connection

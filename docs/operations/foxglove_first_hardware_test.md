@@ -1,7 +1,7 @@
 # Foxglove Runner 首次部署与现场测试手册
 
-本文用于把当前 `runner_foxglove_integration` 分支部署到一台 Laptop、一个
-HDU 和一个 MDU，并完成第一次有人值守测试。完成“一次性部署”后，正常
+本文用于把当前 HOPE checkout 部署到一台 Laptop、一个 HDU 和一个 MDU，
+并完成第一次有人值守测试。完成“一次性部署”后，正常
 session 不再手工执行旧 runbook 的 STEP 0、STEP 1、STEP 2A/2B、STEP 4
 和 STEP 5；这些步骤由 Foxglove 的 `START SYSTEM` 固定执行。
 
@@ -9,32 +9,59 @@ Foxglove 不是远程终端。它只能确认四个 IP、启动/停止固定流�
 明确列出的 Runner/Planner 服务。Runner 仍然是 PASSIVE、PD_STAND、MOTION、
 角色和 Serve 状态的唯一权威。
 
-## 0. 先确认执行环境和默认地址
+## 0. 设置现场参数并确认执行环境
+
+先在 **Laptop HOST** 的仓库根目录执行下面的 block。把四个尖括号占位符换成
+现场真实地址；本文后续 Laptop 命令均复用这些变量：
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+export HOPE_ROOT="$PWD"
+export LAPTOP_USER="${USER}"
+export ROBOT_USER="${ROBOT_USER:-agi}"
+export LAPTOP_IP=<laptop-wifi-ip>
+export HDU_IP=<hdu-wifi-ip>
+export MDU_IP=<mdu-internal-ip>
+export MOTIVE_IP=<motive-ip>
+export ROS_DOMAIN_ID=232
+export DOWNLOAD_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
+
+[[ "$LAPTOP_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+[[ "$ROBOT_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+
+printf 'HOPE_ROOT=%s\nLAPTOP_USER=%s\nROBOT_USER=%s\n' \
+  "$HOPE_ROOT" "$LAPTOP_USER" "$ROBOT_USER"
+printf 'Laptop=%s HDU=%s MDU=%s Motive=%s\n' \
+  "$LAPTOP_IP" "$HDU_IP" "$MDU_IP" "$MOTIVE_IP"
+```
+
+不要把真实地址、密码或私钥提交到 Git。重新打开终端后，需要重新执行这个
+参数 block。
 
 本文有四种执行环境。不要把命令贴错机器：
 
 | 标记 | 如何进入 | 是否使用 distrobox |
 | --- | --- | --- |
-| `Laptop HOST` | Laptop 普通终端，提示符是 `dongc1@...` | 否 |
+| `Laptop HOST` | Laptop 当前操作员的普通终端 | 否 |
 | `Laptop hope Distrobox` | 从 Laptop 执行 `distrobox enter hope` | 是 |
-| `HDU` | 从 Laptop 执行 `ssh -tt agi@172.23.20.135` | 否，使用 HDU 原生 Jazzy |
-| `MDU` | 从 Laptop 经 HDU 执行 `ssh -tt -J agi@172.23.20.135 agi@10.42.10.12` | 否，使用 MDU vendor 环境 |
+| `HDU` | `ssh -tt "${ROBOT_USER}@${HDU_IP}"` | 否，使用 HDU 原生 Jazzy |
+| `MDU` | `ssh -tt -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}"` | 否，使用 MDU vendor 环境 |
 
-当前现场默认值：
+需要确认的连接参数：
 
 ```text
-Laptop Wi-Fi IP   172.23.20.46
-HDU Wi-Fi IP      172.23.20.135
-MDU internal IP   10.42.10.12
-Motive IP         192.168.100.111
+Laptop Wi-Fi IP   $LAPTOP_IP
+HDU Wi-Fi IP      $HDU_IP
+MDU internal IP   $MDU_IP
+Motive IP         $MOTIVE_IP
 ROS_DOMAIN_ID     232
-Foxglove control  ws://172.23.20.135:8766
+Foxglove control  ws://$HDU_IP:8766
 ```
 
 Laptop 正式运行目录：
 
 ```text
-/home/dongc1/workspace/HOPE_OPEN
+$HOPE_ROOT
     Foxglove、Runner、Laptop OptiTrack workspace、Calibration JSON、
     real_logs、部署文件和本文全部从这里取。不要混用旧 Hope_v11 工作区。
 ```
@@ -59,24 +86,23 @@ Laptop 正式运行目录：
 以下完整 block 在 **Laptop HOST，不进 distrobox** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd "$HOPE_ROOT"
 
 git branch --show-current
 git status --short
 
-test "$(git branch --show-current)" = runner_foxglove_integration
 test -f foxglove/extensions/hope-a3-console/package.json
 test -f foxglove/layouts/model21800_console.json
 ```
 
-预期分支为 `runner_foxglove_integration`。当前开发改动尚未提交时，
-`git status` 非空是正常现象，不要为了测试执行 `git reset` 或切换分支。
+部署前记录当前 commit。`git status` 非空时先确认改动来源；不要为了测试执行
+`git reset` 或盲目切换分支。
 
 当前 Laptop Host 不要求预装 Node.js。第一次使用或 UI 源码改变后，
-用隔离的 Node 22 容器构建正式 `1.2.4` 扩展：
+用隔离的 Node 22 容器构建当前扩展：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN/foxglove/extensions/hope-a3-console
+cd "$HOPE_ROOT/foxglove/extensions/hope-a3-console"
 
 if ! command -v podman >/dev/null; then
   sudo apt-get update
@@ -84,20 +110,20 @@ if ! command -v podman >/dev/null; then
 fi
 
 podman run --rm --userns keep-id \
-  -v /home/dongc1/workspace/HOPE_OPEN/foxglove/extensions/hope-a3-console:/workspace \
+  -v "$PWD:/workspace" \
   -w /workspace \
   docker.io/library/node:22-bookworm-slim \
   bash -lc 'npm ci && npm run lint && npx tsc --noEmit && npm run package'
 
-test -f hopeopen.hope-a3-console-1.2.4.foxe
-ls -lh hopeopen.hope-a3-console-1.2.4.foxe
+UI_VERSION="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+FOXE="$PWD/hopeopen.hope-a3-console-$UI_VERSION.foxe"
+test -f "$FOXE"
+ls -lh "$FOXE"
 ```
 
-首次会拉取 Node 22 容器镜像。如果网络失败，但 `1.2.4.foxe` 已存在，
-可先使用已经生成的包；不要安装同目录的 `0.1.0`、`0.2.0`、`1.0.0`
-或 `1.1.0`、`1.2.0`、`1.2.1`、`1.2.2`、`1.2.3` 旧包。1.2.4 包含独立
-Calibration/Refresh x_hit、可重复 assert 的 E-stop，以及不依赖 Runner 模式的
-`KILL ALL & COLLECT`。
+首次会拉取 Node 22 容器镜像。`.foxe` 是本地生成物，不随源码提交；安装时只使用
+上面 `$FOXE` 指向的当前版本。当前面板包含独立 Calibration/Refresh x_hit、
+可重复 assert 的 E-stop，以及不依赖 Runner 模式的 `KILL ALL & COLLECT`。
 
 ---
 
@@ -108,7 +134,7 @@ Calibration/Refresh x_hit、可重复 assert 的 E-stop，以及不依赖 Runner
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd "$HOPE_ROOT"
 
 sudo apt-get update
 sudo apt-get install -y \
@@ -130,7 +156,7 @@ distrobox list
 distrobox enter hope -- bash -lc '
   set -eo pipefail
   source /opt/ros/jazzy/setup.bash
-  cd /home/dongc1/workspace/HOPE_OPEN/hope_ws
+  cd "$HOPE_ROOT/hope_ws"
   /usr/bin/colcon build \
     --base-paths src ../NatNet2ROS2/src \
     --symlink-install \
@@ -152,7 +178,7 @@ distrobox enter hope -- bash -lc '
 
 以后没有修改 `HOPE_OPEN/hope_ws` 的 OptiTrack/bringup/flight-packet 源码时，
 不需要每次重编。Foxglove 启动链额外运行 Laptop 数据适配器：它从原生 `/poses`
-生成 `/ball/flight_packet`，但不修改后续 `build_1` 的 estimator、bounce、target 或
+生成 `/ball/flight_packet`，但不修改后续已检入的 estimator、bounce、target 或
 schema-2 算法。
 
 ### 2.3 安装 Laptop lifecycle helper 和 marker 文件
@@ -160,27 +186,30 @@ schema-2 算法。
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd "$HOPE_ROOT"
 
 sudo install -D -o root -g root -m 0755 \
   foxglove/helpers/hope-lifecycle \
   /usr/local/libexec/hope-lifecycle
 
-# 旧的 Host-native marker unit 不适用于这台 Host（ROS Jazzy 在 distrobox 中）。
-sudo systemctl disable --now hope-marker-monitor.service 2>/dev/null || true
+install -d -m 0700 "$HOME/.config/hope-foxglove"
+printf 'HOPE_ROOT=%q\nHOPE_LAPTOP_USER=%q\nHOPE_ROBOT_USER=%q\n' \
+  "$HOPE_ROOT" "$LAPTOP_USER" "$ROBOT_USER" \
+  > "$HOME/.config/hope-foxglove/lifecycle.env"
+chmod 0600 "$HOME/.config/hope-foxglove/lifecycle.env"
 
 install -D -m 0755 \
   foxglove/laptop/hope_marker_monitor.py \
-  /home/dongc1/.local/share/hope-foxglove/hope_marker_monitor.py
+  "$HOME/.local/share/hope-foxglove/hope_marker_monitor.py"
 install -D -m 0644 \
   foxglove/laptop/hope_marker_monitor_core.py \
-  /home/dongc1/.local/share/hope-foxglove/hope_marker_monitor_core.py
+  "$HOME/.local/share/hope-foxglove/hope_marker_monitor_core.py"
 install -D -m 0644 \
   foxglove/laptop/marker_monitor.yaml \
-  /home/dongc1/.local/share/hope-foxglove/marker_monitor.yaml
+  "$HOME/.local/share/hope-foxglove/marker_monitor.yaml"
 
 test -x /usr/local/libexec/hope-lifecycle
-test -r /home/dongc1/.local/share/hope-foxglove/hope_marker_monitor.py
+test -r "$HOME/.local/share/hope-foxglove/hope_marker_monitor.py"
 ```
 
 Marker publisher 不在 Laptop Host 直接 source ROS。它由 lifecycle 的
@@ -197,11 +226,13 @@ URDF。8765/8766 仍不转发原始 `/tf` 或 `/tf_static`，`hope_monitor` 只�
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd "$HOPE_ROOT"
 
+install -d -m 0755 "$HOME/.local/share/hope-foxglove"
+cp -a foxglove/assets "$HOME/.local/share/hope-foxglove/"
 install -D -m 0644 \
   foxglove/laptop/hope-foxglove-assets.service \
-  /home/dongc1/.config/systemd/user/hope-foxglove-assets.service
+  "$HOME/.config/systemd/user/hope-foxglove-assets.service"
 
 systemctl --user daemon-reload
 systemctl --user enable --now hope-foxglove-assets.service
@@ -216,27 +247,27 @@ curl -fsS \
 
 ## 3. 一次性配置四个方向的 SSH key
 
-后台一键启动使用 `BatchMode=yes`，不能输入密码。HDU/MDU 的密码 `1`
-只在本节访问机器人的 `ssh-copy-id` 提示时人工输入；不要把密码写进
-脚本、Foxglove 或 ROS 消息。HDU 到 Laptop 的 key 由 Laptop 本地安装，
-不需要、也不应猜测 `dongc1` 的 Laptop 登录密码。
+后台一键启动使用 `BatchMode=yes`，不能输入密码。只在本节的
+`ssh-copy-id` 提示中通过安全渠道输入现场密码；不要把密码写进仓库、脚本、
+Foxglove、ROS 消息或命令历史。HDU 到 Laptop 的 key 由 Laptop 本地安装，
+不需要、也不应猜测 Laptop 登录密码。
 
 ### 3.1 Laptop 到 HDU/MDU
 
 在 **Laptop HOST** 执行：
 
 ```bash
-install -d -m 0700 /home/dongc1/.ssh
+install -d -m 0700 "$HOME/.ssh"
 
-if [[ ! -f /home/dongc1/.ssh/id_ed25519 ]]; then
-  ssh-keygen -t ed25519 -N '' -f /home/dongc1/.ssh/id_ed25519
+if [[ ! -f "$HOME/.ssh/id_ed25519" ]]; then
+  ssh-keygen -t ed25519 -N '' -f "$HOME/.ssh/id_ed25519"
 fi
 
-ssh-copy-id agi@172.23.20.135
-ssh-copy-id -o ProxyJump=agi@172.23.20.135 agi@10.42.10.12
+ssh-copy-id "${ROBOT_USER}@${HDU_IP}"
+ssh-copy-id -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}"
 
-ssh -o BatchMode=yes agi@172.23.20.135 true
-ssh -o BatchMode=yes -J agi@172.23.20.135 agi@10.42.10.12 true
+ssh -o BatchMode=yes "${ROBOT_USER}@${HDU_IP}" true
+ssh -o BatchMode=yes -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" true
 ```
 
 第一次连接如询问 host key，先核对目标地址，然后输入 `yes`。两个最后的验证命令
@@ -247,33 +278,33 @@ ssh -o BatchMode=yes -J agi@172.23.20.135 agi@10.42.10.12 true
 先在 **Laptop HOST** 登录 HDU：
 
 ```bash
-ssh -tt agi@172.23.20.135
+ssh -tt "${ROBOT_USER}@${HDU_IP}"
 ```
 
 看到 HDU 的 `agi@...` 提示符后，在 **HDU 原生 shell，不进 distrobox** 执行：
 
 ```bash
-install -d -m 0700 /home/agi/.ssh
+install -d -m 0700 "$HOME/.ssh"
 
-if [[ ! -f /home/agi/.ssh/id_ed25519 ]]; then
-  ssh-keygen -t ed25519 -N '' -f /home/agi/.ssh/id_ed25519
+if [[ ! -f "$HOME/.ssh/id_ed25519" ]]; then
+  ssh-keygen -t ed25519 -N '' -f "$HOME/.ssh/id_ed25519"
 fi
 
-ssh-copy-id agi@10.42.10.12
+ssh-copy-id <robot-user>@<mdu-internal-ip>
 
-ssh -o BatchMode=yes agi@10.42.10.12 true
+ssh -o BatchMode=yes <robot-user>@<mdu-internal-ip> true
 
 exit
 ```
 
 回到 **Laptop HOST** 后，从 HDU 读取公钥并本地写入
-`/home/dongc1/.ssh/authorized_keys`。这段命令是幂等的，重复执行不会
+`$HOME/.ssh/authorized_keys`。这段命令是幂等的，重复执行不会
 追加重复 key：
 
 ```bash
 HDU_PUBLIC_KEY="$(
-  ssh -o BatchMode=yes agi@172.23.20.135 \
-    'cat /home/agi/.ssh/id_ed25519.pub'
+  ssh -o BatchMode=yes "${ROBOT_USER}@${HDU_IP}" \
+    'cat "$HOME/.ssh/id_ed25519.pub"'
 )"
 
 case "$HDU_PUBLIC_KEY" in
@@ -286,13 +317,13 @@ case "$HDU_PUBLIC_KEY" in
     ;;
 esac
 
-install -d -m 0700 /home/dongc1/.ssh
-touch /home/dongc1/.ssh/authorized_keys
-chmod 0600 /home/dongc1/.ssh/authorized_keys
+install -d -m 0700 "$HOME/.ssh"
+touch "$HOME/.ssh/authorized_keys"
+chmod 0600 "$HOME/.ssh/authorized_keys"
 
-if ! grep -qxF "$HDU_PUBLIC_KEY" /home/dongc1/.ssh/authorized_keys; then
+if ! grep -qxF "$HDU_PUBLIC_KEY" "$HOME/.ssh/authorized_keys"; then
   printf '%s\n' "$HDU_PUBLIC_KEY" \
-    >> /home/dongc1/.ssh/authorized_keys
+    >> "$HOME/.ssh/authorized_keys"
 fi
 
 unset HDU_PUBLIC_KEY
@@ -301,14 +332,14 @@ unset HDU_PUBLIC_KEY
 仍在 **Laptop HOST**，做四方向最终验证：
 
 ```bash
-ssh -o BatchMode=yes agi@172.23.20.135 true
-ssh -o BatchMode=yes -J agi@172.23.20.135 agi@10.42.10.12 true
-ssh agi@172.23.20.135 \
-  'ssh -o BatchMode=yes dongc1@172.23.20.46 true &&
-   echo HDU_TO_LAPTOP_OK'
-ssh agi@172.23.20.135 \
-  'ssh -o BatchMode=yes agi@10.42.10.12 true &&
-   echo HDU_TO_MDU_OK'
+ssh -o BatchMode=yes "${ROBOT_USER}@${HDU_IP}" true
+ssh -o BatchMode=yes -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" true
+ssh "${ROBOT_USER}@${HDU_IP}" \
+  ssh -o BatchMode=yes "${LAPTOP_USER}@${LAPTOP_IP}" true &&
+  echo HDU_TO_LAPTOP_OK
+ssh "${ROBOT_USER}@${HDU_IP}" \
+  ssh -o BatchMode=yes "${ROBOT_USER}@${MDU_IP}" true &&
+  echo HDU_TO_MDU_OK
 
 echo "four SSH directions: OK"
 ```
@@ -325,17 +356,17 @@ already exist`，表示该 key 已存在，不要使用 `ssh-copy-id -f`。
 Rockchip/AArch64 package；不要在 HDU 或 MDU 编译。
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN/agibot/code_deployment/a3_deploy_example
+cd $HOPE_ROOT/agibot/code_deployment/a3_deploy_example
 
 BUILD_LOG=/tmp/hope_open_model21800_rockchip_build.log
-VENDOR_PAYLOAD=/home/dongc1/workspace/HOPE/agi/a3_deploy_example
+VENDOR_PAYLOAD=/absolute/path/to/licensed/a3_deploy_example
 
 test -f "$VENDOR_PAYLOAD/thirdparty/rockchip_sysroot/rockchip-1.0-aarch64-sysroot.tar.gz"
 
 A3_VENDOR_PAYLOAD_ROOT="$VENDOR_PAYLOAD" \
   bash scripts/build_a3_deploy_pkg.sh \
   --arch rockchip \
-  --policy-dir /home/dongc1/workspace/HOPE_OPEN/a3_deploy/a3_deploy_example/models/model_21800/policy \
+  --policy-dir "$HOPE_ROOT/a3_deploy/a3_deploy_example/models/model_21800/policy" \
   --jobs 4 \
   2>&1 | tee "$BUILD_LOG"
 
@@ -347,9 +378,9 @@ test "$BUILD_RC" -eq 0
 构建成功后继续在 **同一个 Laptop HOST 终端** 核对：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN/agibot/code_deployment/a3_deploy_example
+cd $HOPE_ROOT/agibot/code_deployment/a3_deploy_example
 
-DIST=/home/dongc1/workspace/HOPE_OPEN/agibot/code_deployment/a3_deploy_example/dist/a3_deploy_rockchip
+DIST=$HOPE_ROOT/agibot/code_deployment/a3_deploy_example/dist/a3_deploy_rockchip
 HASH_FILE=/tmp/hope_open_model21800_candidate_sha256.txt
 
 sha256sum \
@@ -368,9 +399,9 @@ strings "$DIST/a3_deploy_onnx_ref_pingpong" | \
 echo "candidate hashes: $HASH_FILE"
 ```
 
-这里 Runner/接口源码来自 `HOPE_OPEN/a3_deploy`，vendor runtime payload 和
-Rockchip sysroot 来自 `/home/dongc1/workspace/HOPE/agi/a3_deploy_example`；不要
-把后者误写成 Runner 源码目录。
+这里 Runner/接口源码来自当前 checkout 的 `a3_deploy`。受许可证约束的 vendor
+runtime payload 和 Rockchip sysroot 不在公开仓库中；`VENDOR_PAYLOAD` 必须指向
+操作者合法取得的本地 payload，不能把它提交或上传到 PR。
 
 必须能看到两个 `/hope/runner/*_flat` topic 和
 `SET_SERVER/SET_RECEIVER`。不要把 ping-pong 的精简 runtime YAML 传给
@@ -393,26 +424,35 @@ Runner 动作按钮都会被权威状态检查锁住；`KILL ALL & COLLECT` 不�
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd $HOPE_ROOT
 
-ssh agi@172.23.20.135 \
-  'mkdir -p /home/agi/foxglove_a3'
+ssh "${ROBOT_USER}@${HDU_IP}" \
+  'mkdir -p "$HOME/foxglove_a3"'
 
 rsync -azP \
   --exclude '__pycache__/' \
   --exclude '*.pyc' \
   foxglove/a3/ \
-  agi@172.23.20.135:/home/agi/foxglove_a3/
+  "${ROBOT_USER}@${HDU_IP}:~/foxglove_a3/"
 
 scp foxglove/helpers/hope-lifecycle \
-  agi@172.23.20.135:/tmp/hope-lifecycle
+  "${ROBOT_USER}@${HDU_IP}:/tmp/hope-lifecycle"
+
+sed \
+  -e "s/^HOPE_LAPTOP_USER=.*/HOPE_LAPTOP_USER=$LAPTOP_USER/" \
+  -e "s/^HOPE_ROBOT_USER=.*/HOPE_ROBOT_USER=$ROBOT_USER/" \
+  foxglove/a3/network.env.example \
+  > /tmp/hope-foxglove-network.env
+
+scp /tmp/hope-foxglove-network.env \
+  "${ROBOT_USER}@${HDU_IP}:/tmp/hope-foxglove-network.env"
 ```
 
 同样在 **Laptop HOST，不进 distrobox**，把当前硬件运行 workspace 的源码
 同步到 HDU。这里不上传、不删除 HDU 的 build/install/log：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd "$HOPE_ROOT"
 
 rsync -azP \
   --exclude 'build*' \
@@ -422,7 +462,7 @@ rsync -azP \
   --exclude '*.pyc' \
   --exclude '.pytest_cache/' \
   hope_ws/ \
-  agi@172.23.20.135:/home/agi/hope_ws/
+  "${ROBOT_USER}@${HDU_IP}:~/hope_ws/"
 ```
 
 ---
@@ -434,7 +474,7 @@ rsync -azP \
 在 **Laptop HOST** 执行：
 
 ```bash
-ssh -tt agi@172.23.20.135
+ssh -tt "${ROBOT_USER}@${HDU_IP}"
 ```
 
 以下小节全部在新的 **HDU 原生 shell，不进 distrobox** 执行。
@@ -448,11 +488,11 @@ ssh -tt agi@172.23.20.135
 set -eo pipefail
 
 source /opt/ros/jazzy/setup.bash
-cd /home/agi/hope_ws
-test -f /home/agi/hope_ws/src/hope_msgs/msg/BallFlightPacket.msg
+cd $HOME/hope_ws
+test -f $HOME/hope_ws/src/hope_msgs/msg/BallFlightPacket.msg
 
-if [[ -f /home/agi/hope_ws/install/local_setup.bash ]]; then
-  source /home/agi/hope_ws/install/local_setup.bash
+if [[ -f $HOME/hope_ws/install/local_setup.bash ]]; then
+  source $HOME/hope_ws/install/local_setup.bash
 fi
 
 colcon --log-base log_model21800_fix build \
@@ -467,29 +507,29 @@ colcon --log-base log_model21800_fix build \
     -DPython3_EXECUTABLE=/usr/bin/python3
 
 source /opt/ros/jazzy/setup.bash
-source /home/agi/hope_ws/install/local_setup.bash
-source /home/agi/hope_ws/install_model21800_fix/local_setup.bash
+source $HOME/hope_ws/install/local_setup.bash
+source $HOME/hope_ws/install_model21800_fix/local_setup.bash
 
 test "$(ros2 pkg prefix hope_msgs)" = \
-  /home/agi/hope_ws/install_model21800_fix/hope_msgs
+  $HOME/hope_ws/install_model21800_fix/hope_msgs
 ros2 interface show hope_msgs/msg/BallFlightPacket >/dev/null
 
 ros2 pkg prefix hope_planner_cpp
 test "$(ros2 pkg prefix hope_planner_cpp)" = \
-  /home/agi/hope_ws/install_model21800_fix/hope_planner_cpp
+  $HOME/hope_ws/install_model21800_fix/hope_planner_cpp
 test -x \
-  /home/agi/hope_ws/install_model21800_fix/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_node
+  $HOME/hope_ws/install_model21800_fix/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_node
 test -x \
-  /home/agi/hope_ws/install_model21800_fix/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_packetizer
-test -x /home/agi/hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh
+  $HOME/hope_ws/install_model21800_fix/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_packetizer
+test -x $HOME/hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh
 echo "HDU_PLANNER_OVERLAY_OK"
 )
 ```
 
 `hope_msgs` 和 `hope_planner_cpp` 的 prefix 都必须来自
 `install_model21800_fix`，并且 `BallFlightPacket` interface 与 Planner executable
-都必须存在。核心 Planner 行为以 `dongc1/nohope build_1@17f0f0e` 为基线；新增内容
-只负责 Foxglove 启动链的数据接入。
+都必须存在。核心 Planner 行为由当前 checkout 中已审阅并检入的实现决定；本集成
+只负责把既有 Planner 接到 Foxglove 启动链，不从私有仓库动态下载代码。
 不要只看 `ros2 pkg prefix hope_planner_cpp` 的输出：构建失败时，旧 overlay
 的残留目录仍可能返回这个 prefix。以后 Planner 和 `hope_msgs` 源码都没有
 变化时，可以跳过同步和本小节构建。
@@ -497,24 +537,24 @@ echo "HDU_PLANNER_OVERLAY_OK"
 ### 6.3 首次缺少 foxglove_bridge 时构建
 
 ```bash
-cd /home/agi/foxglove_a3
+cd $HOME/foxglove_a3
 
 if ! command -v tmux >/dev/null || ! command -v rsync >/dev/null; then
   sudo apt-get update
   sudo apt-get install -y tmux rsync
 fi
 
-if [[ ! -x /home/agi/hope_foxglove_ws/foxglove-sdk/ros/install/foxglove_bridge/lib/foxglove_bridge/foxglove_bridge ]]; then
+if [[ ! -x $HOME/hope_foxglove_ws/foxglove-sdk/ros/install/foxglove_bridge/lib/foxglove_bridge/foxglove_bridge ]]; then
   sudo apt-get update
   sudo apt-get install --no-install-recommends -y \
     git ca-certificates libssl-dev zlib1g-dev rapidjson-dev tmux rsync
-  bash /home/agi/foxglove_a3/build_foxglove_bridge.sh
+  bash $HOME/foxglove_a3/build_foxglove_bridge.sh
 else
   echo "foxglove_bridge already built"
 fi
 
 source /opt/ros/jazzy/setup.bash
-source /home/agi/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash
+source $HOME/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash
 ros2 pkg prefix foxglove_bridge
 ros2 pkg executables foxglove_bridge
 ```
@@ -524,75 +564,75 @@ ros2 pkg executables foxglove_bridge
 仍在 **HDU** 执行整段：
 
 ```bash
-cd /home/agi
+cd $HOME
 
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/bridge_params.yaml \
+  $HOME/foxglove_a3/bridge_params.yaml \
   /etc/hope-foxglove/bridge_params.yaml
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/fastdds_bridge_profile.xml \
+  $HOME/foxglove_a3/fastdds_bridge_profile.xml \
   /etc/hope-foxglove/fastdds_bridge_profile.xml
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/network.env.example \
+  /tmp/hope-foxglove-network.env \
   /etc/hope-foxglove/network.env
 
 sudo install -D -o root -g root -m 0755 \
-  /home/agi/foxglove_a3/hope_monitor.py \
+  $HOME/foxglove_a3/hope_monitor.py \
   /usr/local/bin/hope_monitor.py
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope_monitor_core.py \
+  $HOME/foxglove_a3/hope_monitor_core.py \
   /usr/local/lib/hope-foxglove/hope_monitor_core.py
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope-monitor.service \
+  $HOME/foxglove_a3/hope-monitor.service \
   /etc/systemd/system/hope-monitor.service
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope-foxglove-bridge.service \
+  $HOME/foxglove_a3/hope-foxglove-bridge.service \
   /etc/systemd/system/hope-foxglove-bridge.service
 
 sudo install -D -o root -g root -m 0755 \
-  /home/agi/foxglove_a3/hope_observer.py \
+  $HOME/foxglove_a3/hope_observer.py \
   /usr/local/bin/hope_observer.py
 sudo install -D -o root -g root -m 0755 \
-  /home/agi/foxglove_a3/hope_command_proxy.py \
+  $HOME/foxglove_a3/hope_command_proxy.py \
   /usr/local/bin/hope_command_proxy.py
 sudo install -D -o root -g root -m 0755 \
-  /home/agi/foxglove_a3/hope_lifecycle_supervisor.py \
+  $HOME/foxglove_a3/hope_lifecycle_supervisor.py \
   /usr/local/bin/hope_lifecycle_supervisor.py
 
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope_observer_core.py \
+  $HOME/foxglove_a3/hope_observer_core.py \
   /usr/local/lib/hope-foxglove/hope_observer_core.py
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope_command_core.py \
+  $HOME/foxglove_a3/hope_command_core.py \
   /usr/local/lib/hope-foxglove/hope_command_core.py
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope_runner_control_core.py \
+  $HOME/foxglove_a3/hope_runner_control_core.py \
   /usr/local/lib/hope-foxglove/hope_runner_control_core.py
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope_lifecycle_core.py \
+  $HOME/foxglove_a3/hope_lifecycle_core.py \
   /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
 
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/bridge_params_control.yaml \
+  $HOME/foxglove_a3/bridge_params_control.yaml \
   /etc/hope-foxglove/control_bridge_params.yaml
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope-observer.service \
+  $HOME/foxglove_a3/hope-observer.service \
   /etc/systemd/system/hope-observer.service
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope-command-proxy.service \
+  $HOME/foxglove_a3/hope-command-proxy.service \
   /etc/systemd/system/hope-command-proxy.service
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope-foxglove-control-bridge.service \
+  $HOME/foxglove_a3/hope-foxglove-control-bridge.service \
   /etc/systemd/system/hope-foxglove-control-bridge.service
 sudo install -D -o root -g root -m 0644 \
-  /home/agi/foxglove_a3/hope-lifecycle-supervisor.service \
+  $HOME/foxglove_a3/hope-lifecycle-supervisor.service \
   /etc/systemd/system/hope-lifecycle-supervisor.service
 
 sudo install -D -o root -g root -m 0755 \
   /tmp/hope-lifecycle \
   /usr/local/libexec/hope-lifecycle
 sudo install -D -o root -g root -m 0755 \
-  /home/agi/foxglove_a3/hope_base_pose_transport_relay.py \
+  $HOME/foxglove_a3/hope_base_pose_transport_relay.py \
   /usr/local/libexec/hope-base-pose-transport-relay
 
 sudo systemctl daemon-reload
@@ -609,7 +649,7 @@ sudo systemctl enable --now \
 Laptop bridge、marker publisher、Laptop base relay、HDU base transport relay 和
 HDU Planner 会使用 UI 已确认的地址构造固定 Fast DDS peer 列表。Laptop 发布
 `/a3/base_pose_laptop_flat`；双网口 HDU 只改 topic 名并逐包转发到
-`/a3/base_pose_flat`，让 MDU Runner 收到与 `build_1` 相同的 schema-2 payload。
+`/a3/base_pose_flat`，让 MDU Runner 收到既有 schema-2 payload。
 `with_fastdds_unicast.sh` 会把这些 peer 同时写入 Fast DDS XML 的
 `initialPeersList`；只设置 `ROS_STATIC_PEERS` 在 HDU/MDU 这套 Fast DDS 上不足以
 完成跨网卡发现。不要换回没有 `initialPeersList` 的旧 wrapper，否则 Ready 以后
@@ -673,11 +713,11 @@ exit
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd $HOPE_ROOT
 
-scp -o ProxyJump=agi@172.23.20.135 \
+scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/helpers/hope-lifecycle \
-  agi@10.42.10.12:/tmp/hope-lifecycle
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-lifecycle"
 ```
 
 ### 7.2 进入 MDU 并配置最小 sudo 权限
@@ -685,13 +725,13 @@ scp -o ProxyJump=agi@172.23.20.135 \
 在 **Laptop HOST** 执行登录命令：
 
 ```bash
-ssh -tt -J agi@172.23.20.135 agi@10.42.10.12
+ssh -tt -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}"
 ```
 
 看到 MDU 的 `agi@...` 提示符后，在 **MDU 原生 shell，不进 distrobox** 执行：
 
 ```bash
-cd /home/agi
+cd $HOME
 
 test "$(command -v systemctl)" = /usr/bin/systemctl
 
@@ -707,13 +747,19 @@ sudo install -D -o root -g root -m 0755 \
   /tmp/hope-lifecycle \
   /usr/local/libexec/hope-lifecycle
 
-printf '%s\n' \
-  'agi ALL=(root) NOPASSWD: /usr/bin/systemctl stop agibot_pm.service' \
-  'agi ALL=(root) NOPASSWD: /usr/bin/systemctl start agibot_pm.service' \
+ROBOT_LOGIN="$(id -un)"
+printf '%s ALL=(root) NOPASSWD: %s\n' \
+  "$ROBOT_LOGIN" '/usr/bin/systemctl stop agibot_pm.service' \
+  "$ROBOT_LOGIN" '/usr/bin/systemctl start agibot_pm.service' \
   | sudo tee /etc/sudoers.d/hope-lifecycle >/dev/null
 
 sudo chmod 0440 /etc/sudoers.d/hope-lifecycle
 sudo visudo -cf /etc/sudoers.d/hope-lifecycle
+
+install -d -m 0700 "$HOME/.config/hope-foxglove"
+printf 'HOPE_ROBOT_USER=%q\n' "$ROBOT_LOGIN" \
+  > "$HOME/.config/hope-foxglove/lifecycle.env"
+chmod 0600 "$HOME/.config/hope-foxglove/lifecycle.env"
 
 systemctl is-active agibot_pm.service
 test -x /usr/local/libexec/hope-lifecycle
@@ -729,13 +775,13 @@ exit
 从 **Laptop HOST** 再次进入 MDU：
 
 ```bash
-ssh -tt -J agi@172.23.20.135 agi@10.42.10.12
+ssh -tt -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}"
 ```
 
 在 **MDU** 执行：
 
 ```bash
-if pgrep -u agi -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null; then
+if pgrep -u "$(id -un)" -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null; then
   echo 'STOP: an existing Runner is active; do not overwrite its package.' >&2
   exit 1
 fi
@@ -756,11 +802,11 @@ exit
 在 **Laptop HOST，不进 distrobox** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN/agibot/code_deployment/a3_deploy_example
+cd "$HOPE_ROOT/agibot/code_deployment/a3_deploy_example"
 
-rsync -azP -e "ssh -J agi@172.23.20.135" \
+rsync -azP -e "ssh -J ${ROBOT_USER}@${HDU_IP}" \
   dist/a3_deploy_rockchip/ \
-  agi@10.42.10.12:/agibot/a3_deploy_model21800/
+  "${ROBOT_USER}@${MDU_IP}:/agibot/a3_deploy_model21800/"
 ```
 
 不使用 `--delete`，不会删除目标目录里额外的现场文件。
@@ -770,7 +816,7 @@ rsync -azP -e "ssh -J agi@172.23.20.135" \
 在 **Laptop HOST** 执行下面一个只读 block：
 
 ```bash
-ssh -J agi@172.23.20.135 agi@10.42.10.12 '
+ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} '
   set -e
   cd /agibot/a3_deploy_model21800
   sha256sum \
@@ -800,7 +846,7 @@ ssh -J agi@172.23.20.135 agi@10.42.10.12 '
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd $HOPE_ROOT
 
 if rg -n 'robot_description|joint_states|urdf-a3' \
   foxglove/layouts/model21800_console.json; then
@@ -835,8 +881,8 @@ echo "Table plus Pelvis-only transform surface: OK"
 这一节在 **Laptop 桌面**操作。Foxglove Desktop 是独立应用，不是
 浏览器页面、终端或 distrobox。
 
-`/home/dongc1/Downloads/Foxglove+Desktop+UI+improvements` 是这版界面的设计
-输入；现场不需要从该目录启动另一个程序。实际可安装产物是下面的正式 `1.2.4.foxe`。
+UI 源码和设计均在本仓库的 `foxglove/extensions/hope-a3-console`。现场不需要
+额外的设计目录或私有下载内容；实际可安装产物是第 1 节本地生成的 `.foxe`。
 
 ### 9.1 首次使用：安装并启动 Foxglove Desktop
 
@@ -855,12 +901,12 @@ https://foxglove.dev/download
 ```
 
 选择 **Linux x64**（不要选 Linux arm64）并把 `.deb` 下载到
-`/home/dongc1/Downloads`。下载完后，在 **Laptop HOST** 使用明确的 AMD64
+`$DOWNLOAD_DIR`。下载完后，在 **Laptop HOST** 使用明确的 AMD64
 文件名执行；不要使用 `foxglove-studio-*.deb` 通配符，因为目录里如果还留着
 ARM64 包，`apt` 可能选错架构：
 
 ```bash
-cd /home/dongc1/Downloads
+cd $DOWNLOAD_DIR
 
 test "$(dpkg --print-architecture)" = amd64
 test "$(dpkg-deb -f foxglove-studio-latest-linux-amd64.deb Architecture)" = amd64
@@ -891,16 +937,23 @@ Developer seat；如果命令面板没有本地 extension 安装项，先检查�
 2. 按 `Ctrl+K` 打开 command palette。
 3. 输入并选择 `Install local extension…`。如果旧版界面没有该命令，
    也可以把 `.foxe` 文件从文件管理器拖入已打开的 Foxglove Visualization 页面。
-4. 选择：
+4. 先在 **Laptop HOST** 打印当前安装包的绝对路径：
 
-   ```text
-   /home/dongc1/workspace/HOPE_OPEN/foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.2.4.foxe
+   ```bash
+   cd "$HOPE_ROOT/foxglove/extensions/hope-a3-console"
+   UI_VERSION="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+   FOXE="$PWD/hopeopen.hope-a3-console-$UI_VERSION.foxe"
+   test -f "$FOXE"
+   printf '%s\n' "$FOXE"
    ```
 
-5. 如果 Installed Extensions 中存在 `HOPE A3 Console 0.1.0`、`0.2.0`、
-   `1.0.0`、`1.1.0`、`1.2.0`、`1.2.1`、`1.2.2` 或 `1.2.3`，卸载或禁用旧版，只保留 `1.2.4`。
+   然后在 Foxglove 中选择该命令打印的文件。文件选择器不会展开 `$HOPE_ROOT`
+   或 `$FOXE` 变量。
 
-6. 安装或重新启用 `1.2.4` 后，使用 Foxglove 菜单中的 **Quit**（或 `Ctrl+Q`）
+5. 如果 Installed Extensions 中存在多个 `HOPE A3 Console` 版本，卸载或禁用
+   旧版，只保留 `$UI_VERSION` 对应的当前包。
+
+6. 安装或重新启用当前版本后，使用 Foxglove 菜单中的 **Quit**（或 `Ctrl+Q`）
    完全退出 Desktop。只关闭 Visualization 窗口不一定会退出 Electron 主进程。
 7. 在 **Laptop HOST** 确认进程已退出，然后重新启动：
 
@@ -920,8 +973,9 @@ Developer seat；如果命令面板没有本地 extension 安装项，先检查�
 执行下面的只读检查：
 
 ```bash
-EXT=/home/dongc1/.foxglove-studio/extensions/hopeopen.hope-a3-console-1.2.4
-SRC=/home/dongc1/workspace/HOPE_OPEN/foxglove/extensions/hope-a3-console
+SRC="$HOPE_ROOT/foxglove/extensions/hope-a3-console"
+UI_VERSION="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' "$SRC/package.json")"
+EXT="$HOME/.foxglove-studio/extensions/hopeopen.hope-a3-console-$UI_VERSION"
 
 test -r "$EXT/package.json"
 test -r "$EXT/dist/extension.js"
@@ -931,7 +985,7 @@ cmp "$SRC/dist/extension.js" "$EXT/dist/extension.js"
 echo "HOPE extension files: OK"
 ```
 
-五条检查通过但 Add panel 仍没有该名称时，在 **Extensions** 中把 `1.2.4` 禁用后
+五条检查通过但 Add panel 仍没有该名称时，在 **Extensions** 中把当前版本禁用后
 重新启用，再完整 Quit/reopen 一次。仍失败则按 `Ctrl+Shift+I` 打开 Developer Tools，
 保留 Console 中第一条 extension activation error；这时是 Desktop 扩展加载错误，
 不是 HDU、ROS 或 8766 错误。
@@ -952,16 +1006,20 @@ hope-a3-console.HOPE A3 Console!operator
 
 1. 从 Foxglove dashboard 或左侧菜单点击 **Open connection**。
 2. 选择 **Foxglove WebSocket**。
-3. 输入并点击 **Open**：
+3. 先在 Laptop HOST 执行 `printf 'ws://%s:8766\n' "$HDU_IP"`，把打印出的完整
+   URL 输入连接框并点击 **Open**。不要把下面的 shell 变量名原样填进 GUI：
 
    ```text
-   ws://172.23.20.135:8766
+   ws://<HDU-IP>:8766
    ```
 
-4. 在顶部工具栏打开 **Layouts** 菜单，选择 **Import from file…**：
+4. 先在 Laptop HOST 执行
+   `realpath "$HOPE_ROOT/foxglove/layouts/model21800_console.json"`，再在顶部工具栏
+   打开 **Layouts** 菜单，选择 **Import from file…** 并选择打印出的文件。文件
+   选择器不会展开下面的 shell 变量：
 
    ```text
-   /home/dongc1/workspace/HOPE_OPEN/foxglove/layouts/model21800_console.json
+   <HOPE_ROOT>/foxglove/layouts/model21800_console.json
    ```
 
 5. 如果出现 `Unknown panel type: HOPE A3 Console`，不要修改 8766：
@@ -974,7 +1032,7 @@ hope-a3-console.HOPE A3 Console!operator
    `8765` layout 作为这个窗口的数据源；新 console 只使用 `8766`。
 
 如果 `Open connection` 报 connection refused，先在 Laptop 检查
-`nc -vz 172.23.20.135 8766`；这表示 HDU control bridge 未监听，不是 Layout 导入问题。
+`nc -vz ${HDU_IP} 8766`；这表示 HDU control bridge 未监听，不是 Layout 导入问题。
 同一版本的布局只需导入一次。Foxglove Desktop 保存的是导入时的副本；仓库中的
 `model21800_console.json` 更新后（例如增加球 Marker 或移除机器人 URDF），必须
 重新 **Import from file…**，不能只重连 WebSocket。
@@ -1003,19 +1061,19 @@ gate。Foxglove 不会、也不应在机器人运行时自动 step 系统时钟�
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd $HOPE_ROOT
 
-ping -c 3 192.168.100.111
-ping -c 3 172.23.20.135
-ip route get 192.168.100.111
-ip route get 172.23.20.135
+ping -c 3 ${MOTIVE_IP}
+ping -c 3 ${HDU_IP}
+ip route get ${MOTIVE_IP}
+ip route get ${HDU_IP}
 
-ssh -o BatchMode=yes agi@172.23.20.135 true
-ssh -o BatchMode=yes -J agi@172.23.20.135 agi@10.42.10.12 true
+ssh -o BatchMode=yes ${ROBOT_USER}@${HDU_IP} true
+ssh -o BatchMode=yes -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} true
 
 test -x /usr/local/libexec/hope-lifecycle
-test -d /home/dongc1/workspace/HOPE_OPEN/hope_ws/install
-test -r /home/dongc1/.local/share/hope-foxglove/hope_marker_monitor.py
+test -d $HOPE_ROOT/hope_ws/install
+test -r $HOME/.local/share/hope-foxglove/hope_marker_monitor.py
 
 if command -v chronyc >/dev/null; then
   chronyc tracking || true
@@ -1035,7 +1093,7 @@ echo "Laptop preflight: OK"
 在 **Laptop HOST** 执行下面的远程只读 block：
 
 ```bash
-ssh agi@172.23.20.135 '
+ssh ${ROBOT_USER}@${HDU_IP} '
   set -e
   systemctl is-active \
     hope-monitor.service \
@@ -1046,8 +1104,8 @@ ssh agi@172.23.20.135 '
     hope-lifecycle-supervisor.service
   test -x /usr/local/libexec/hope-lifecycle
   test -x /usr/local/libexec/hope-base-pose-transport-relay
-  test -d /home/agi/hope_ws/install
-  test -d /home/agi/hope_ws/install_model21800_fix
+  test -d $HOME/hope_ws/install
+  test -d $HOME/hope_ws/install_model21800_fix
   ss -lnt | grep -E ":8766[[:space:]]"
   test "$(pgrep -x ptp4l | wc -l)" -eq 1
   test "$(pgrep -x phc2sys | wc -l)" -eq 1
@@ -1067,7 +1125,7 @@ ssh agi@172.23.20.135 '
 在 **Laptop HOST** 执行下面的远程只读 block：
 
 ```bash
-ssh -J agi@172.23.20.135 agi@10.42.10.12 '
+ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} '
   set -e
   systemctl is-active agibot_pm.service
   test -x /usr/local/libexec/hope-lifecycle
@@ -1123,7 +1181,7 @@ HAL 的 cgroup 属于 `/system.slice/agibot_pm.service`，它就是 STEP 4 将�
 `set -e` 下提前退出：
 
 ```bash
-ssh -J agi@172.23.20.135 agi@10.42.10.12 '
+ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} '
   set -e
 
   RESTORE=/tmp/hope-clock-active-mdu
@@ -1163,7 +1221,7 @@ ssh -J agi@172.23.20.135 agi@10.42.10.12 '
 仍在 **Laptop HOST** 执行：
 
 ```bash
-ssh agi@172.23.20.135 '
+ssh ${ROBOT_USER}@${HDU_IP} '
   set -e
 
   VENDOR_RESTORE=/tmp/hope-clock-active-hdu-vendor
@@ -1228,7 +1286,7 @@ ssh agi@172.23.20.135 '
 仍在 **Laptop HOST** 执行。`waitsync` 最长等待 20 分钟；多数情况下会更快返回：
 
 ```bash
-ssh -tt agi@172.23.20.135 '
+ssh -tt ${ROBOT_USER}@${HDU_IP} '
   set -e
 
   sudo systemctl reset-failed agibot-clock-bootstrap.service
@@ -1251,7 +1309,7 @@ ssh -tt agi@172.23.20.135 '
 失败时只恢复 chrony 并收集诊断，随后停止本次机器人启动：
 
 ```bash
-ssh agi@172.23.20.135 '
+ssh ${ROBOT_USER}@${HDU_IP} '
   sudo systemctl start chrony.service
   systemctl status agibot-clock-bootstrap.service --no-pager || true
   chronyc tracking || true
@@ -1264,7 +1322,7 @@ ssh agi@172.23.20.135 '
 维护前 active 的 HDU vendor unit，再等待两个 PTP worker：
 
 ```bash
-ssh agi@172.23.20.135 '
+ssh ${ROBOT_USER}@${HDU_IP} '
   set -e
 
   while IFS= read -r SERVICE; do
@@ -1297,7 +1355,7 @@ ssh agi@172.23.20.135 '
 在 **Laptop HOST** 执行：
 
 ```bash
-ssh -J agi@172.23.20.135 agi@10.42.10.12 '
+ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} '
   set -e
 
   sudo systemctl start \
@@ -1325,7 +1383,7 @@ ssh -J agi@172.23.20.135 agi@10.42.10.12 '
 在 **Laptop HOST** 执行：
 
 ```bash
-ssh agi@172.23.20.135 '
+ssh ${ROBOT_USER}@${HDU_IP} '
   set -e
 
   sudo systemctl reset-failed \
@@ -1372,11 +1430,11 @@ distrobox enter hope
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-source /home/dongc1/workspace/HOPE_OPEN/hope_ws/install/local_setup.bash
+source $HOPE_ROOT/hope_ws/install/local_setup.bash
 
-DDS=/home/dongc1/workspace/HOPE_OPEN/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh
+DDS=$HOPE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh
 
-"$DDS" --domain-id 232 --peer 172.23.20.135 -- bash -lc '
+"$DDS" --domain-id 232 --peer ${HDU_IP} -- bash -lc '
   set -e
   ros2 daemon stop >/dev/null 2>&1 || true
   trap "ros2 daemon stop >/dev/null 2>&1 || true" EXIT
@@ -1420,13 +1478,21 @@ Pelvis 点和文字 Marker 的 lifetime 为 0.5 秒。权威 pelvis pose/TF 变�
 
 ### 11.1 确认四个输入框
 
-在 HOPE A3 Console 中填写：
+先在 **Laptop HOST** 执行下面的命令并保留输出：
+
+```bash
+printf 'Laptop Wi-Fi   %s\nHDU Wi-Fi      %s\nMDU internal   %s\nMotive         %s\n' \
+  "$LAPTOP_IP" "$HDU_IP" "$MDU_IP" "$MOTIVE_IP"
+```
+
+在 HOPE A3 Console 中填写命令打印出的四个地址。不要把 `${...}` 变量名原样
+粘贴到 GUI：
 
 ```text
-Laptop Wi-Fi   172.23.20.46
-HDU Wi-Fi      172.23.20.135
-MDU internal   10.42.10.12
-Motive         192.168.100.111
+Laptop Wi-Fi   <laptop-wifi-ip>
+HDU Wi-Fi      <hdu-wifi-ip>
+MDU internal   <mdu-internal-ip>
+Motive         <motive-ip>
 ```
 
 确认系统状态为 `STOPPED`，然后点击 `CONFIRM CONFIG`。预期：
@@ -1608,7 +1674,7 @@ lifecycle 会进入 `FAILED`，此时同一个按钮仍可清理已经创建的�
 若第二步仍返回 `KILL_FAILED`，不要反复点 START。先在 **Laptop HOST** 执行：
 
 ```bash
-ssh agi@172.23.20.135 '
+ssh ${ROBOT_USER}@${HDU_IP} '
   systemctl status hope-lifecycle-supervisor.service --no-pager -l
   journalctl -u hope-lifecycle-supervisor.service -n 200 --no-pager
 '
@@ -1635,10 +1701,10 @@ ssh agi@172.23.20.135 '
 在 **Laptop HOST** 执行：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd $HOPE_ROOT
 
 SESSION_ID="$(cat real_logs/.active_session_id)"
-LOG_ROOT="/home/dongc1/workspace/HOPE_OPEN/real_logs/$SESSION_ID"
+LOG_ROOT="$HOPE_ROOT/real_logs/$SESSION_ID"
 
 echo "SESSION_ID=$SESSION_ID"
 find "$LOG_ROOT" -maxdepth 4 -type f | sort
@@ -1647,9 +1713,9 @@ test -f "$LOG_ROOT/laptop/laptop_bridge.log"
 test -f "$LOG_ROOT/laptop/marker_monitor.log"
 test -f "$LOG_ROOT/hdu/planner.log"
 test -f "$LOG_ROOT/mdu/real/current_attempt"
-test -f /home/dongc1/workspace/HOPE_OPEN/calibration/p1_to_pelvis.json
+test -f $HOPE_ROOT/calibration/p1_to_pelvis.json
 
-ssh -J agi@172.23.20.135 agi@10.42.10.12 \
+ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} \
   'systemctl is-active agibot_pm.service'
 ```
 
@@ -1665,10 +1731,10 @@ Planner 每次启动写独立的 `planner_attempt_###`，Runner 每次启动写�
 在 **Laptop HOST** 执行：
 
 ```bash
-ping -c 3 172.23.20.135
-nc -vz 172.23.20.135 8766
+ping -c 3 ${HDU_IP}
+nc -vz ${HDU_IP} 8766
 
-ssh agi@172.23.20.135 \
+ssh ${ROBOT_USER}@${HDU_IP} \
   'systemctl status hope-foxglove-control-bridge.service \
     hope-command-proxy.service \
     hope-lifecycle-supervisor.service --no-pager'
@@ -1679,13 +1745,13 @@ ssh agi@172.23.20.135 \
 在 **Laptop HOST** 执行以下只读命令：
 
 ```bash
-ssh agi@172.23.20.135 '
+ssh ${ROBOT_USER}@${HDU_IP} '
   journalctl -u hope-lifecycle-supervisor.service -n 200 --no-pager
   tmux ls 2>&1 || true
   cat /tmp/hope_model21800_session_id 2>/dev/null || true
 '
 
-ssh -J agi@172.23.20.135 agi@10.42.10.12 '
+ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} '
   tmux ls 2>&1 || true
   systemctl is-active agibot_pm.service || true
   pgrep -a -f "[a]imrt_main_hal|[a]3_deploy_onnx_ref_pingpong" || true
@@ -1752,9 +1818,9 @@ target support 和 nominal late cutoff 在 policy-native 现场路径中只做 a
 distrobox enter hope -- bash -lc '
   set -eo pipefail
   source /opt/ros/jazzy/setup.bash
-  source /home/dongc1/workspace/HOPE_OPEN/hope_ws/install/local_setup.bash
-  DDS=/home/dongc1/workspace/HOPE_OPEN/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh
-  "$DDS" --domain-id 232 --peer 172.23.20.135 -- bash -lc "
+  source $HOPE_ROOT/hope_ws/install/local_setup.bash
+  DDS=$HOPE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh
+  "$DDS" --domain-id 232 --peer ${HDU_IP} -- bash -lc "
     ros2 node list | grep -E \"/hope_ball_flight_packetizer|/optitrack_mct_relay\"
     ros2 topic info /poses -v
     ros2 topic info /ball/flight_packet -v
@@ -1765,7 +1831,7 @@ distrobox enter hope -- bash -lc '
 再查看本次 Laptop 日志：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd $HOPE_ROOT
 SESSION_ID="$(cat real_logs/.active_session_id)"
 grep -E 'Flight Packet producer started|ball.*acquired|ball.*lost|ERROR|FATAL' \
   "real_logs/$SESSION_ID/laptop/laptop_bridge.log" | tail -n 100
@@ -1776,8 +1842,8 @@ tail -n 50 "real_logs/$SESSION_ID/laptop/flight_packets.csv" 2>/dev/null || true
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-source /home/agi/hope_ws/install/local_setup.bash
-source /home/agi/hope_ws/install_model21800_fix/local_setup.bash
+source $HOME/hope_ws/install/local_setup.bash
+source $HOME/hope_ws/install_model21800_fix/local_setup.bash
 export ROS_DOMAIN_ID=232
 
 ros2 topic info /ball/flight_packet -v
@@ -1803,7 +1869,7 @@ tail -n 120 "/tmp/hope_real/$SESSION_ID/hdu/planner.log"
 正常启动后，Laptop marker 日志位于：
 
 ```bash
-cd /home/dongc1/workspace/HOPE_OPEN
+cd $HOPE_ROOT
 SESSION_ID="$(cat real_logs/.active_session_id)"
 tail -n 100 "real_logs/$SESSION_ID/laptop/marker_monitor.log"
 ```

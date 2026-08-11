@@ -6,6 +6,8 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+import os
+import re
 import subprocess
 import threading
 import time
@@ -33,6 +35,14 @@ from hope_lifecycle_core import (
 
 LIFECYCLE_HELPER = "/usr/local/libexec/hope-lifecycle"
 CONFIG_PATH = Path("/var/lib/hope-lifecycle/config.json")
+LAPTOP_USER = os.environ.get("HOPE_LAPTOP_USER", "operator").strip()
+ROBOT_USER = os.environ.get("HOPE_ROBOT_USER", "agi").strip()
+for _name, _value in (
+    ("HOPE_LAPTOP_USER", LAPTOP_USER),
+    ("HOPE_ROBOT_USER", ROBOT_USER),
+):
+    if re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", _value) is None:
+        raise RuntimeError(f"{_name} is not a safe POSIX account name")
 SSH_OPTIONS = (
     "-T",
     "-o", "BatchMode=yes",
@@ -92,8 +102,8 @@ class LifecycleBackend:
 
     def start(self, config: LifecycleConfig, session_id: str, event_callback) -> None:
         validate_session_id(session_id)
-        laptop = f"dongc1@{config.laptop_wifi_ip}"
-        mdu = f"agi@{config.mdu_internal_ip}"
+        laptop = f"{LAPTOP_USER}@{config.laptop_wifi_ip}"
+        mdu = f"{ROBOT_USER}@{config.mdu_internal_ip}"
         common = [
             session_id,
             config.laptop_wifi_ip,
@@ -127,8 +137,8 @@ class LifecycleBackend:
         self, config: LifecycleConfig, session_id: str, event_callback
     ) -> str:
         validate_session_id(session_id)
-        laptop = f"dongc1@{config.laptop_wifi_ip}"
-        mdu = f"agi@{config.mdu_internal_ip}"
+        laptop = f"{LAPTOP_USER}@{config.laptop_wifi_ip}"
+        mdu = f"{ROBOT_USER}@{config.mdu_internal_ip}"
         common = [
             session_id,
             config.laptop_wifi_ip,

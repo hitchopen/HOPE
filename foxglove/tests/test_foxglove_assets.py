@@ -307,10 +307,11 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             FOXGLOVE_DIR / "laptop/hope-foxglove-assets.service"
         ).read_text()
         self.assertIn(
-            "WorkingDirectory=/home/dongc1/workspace/HOPE_OPEN/foxglove",
+            "WorkingDirectory=%h/.local/share/hope-foxglove",
             unit,
         )
         self.assertIn("python3 -m http.server 8000 --bind 127.0.0.1", unit)
+        self.assertIn("--directory %h/.local/share/hope-foxglove", unit)
 
     def test_command_proxy_accepts_no_generic_execution_input(self):
         proxy = (
@@ -499,9 +500,9 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("collection_status.txt", helper)
         self.assertIn("HDU_UNREACHABLE", helper)
         self.assertIn("MDU_UNREACHABLE", helper)
-        self.assertNotIn("pgrep -u agi -f '[h]ope_planner_cpp_node'", helper)
+        self.assertNotIn("pgrep -u agi", helper)
         self.assertIn(
-            "pgrep -u agi -f '(^|/)hope_planner_cpp_node([[:space:]]|$)'",
+            "pgrep -u \"$ROBOT_USER\" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)'",
             helper,
         )
         self.assertIn('"KILL_COMPLETE_AGIBOT_PM_RESTORED_" + collection_reason', supervisor)
@@ -527,10 +528,9 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             "motion_capture_tracking_node.cpp",
             helper,
         )
-        self.assertIn(
-            "readonly HOPE_ROOT=/home/dongc1/workspace/HOPE_OPEN", helper
-        )
-        self.assertNotIn("/home/dongc1/workspace/Hope_v11", helper)
+        self.assertIn('readonly HOPE_ROOT="${HOPE_ROOT:-$HOME/HOPE}"', helper)
+        self.assertIn("LAPTOP_CONFIG", helper)
+        self.assertNotIn("/home/dongc1", helper)
         self.assertNotIn("src/hope_bringup/config/optitrack_mct.yaml", helper)
         self.assertIn('motive_hostname:="$motive_ip"', helper)
         run_laptop_outer = helper.split("run_laptop() {", 1)[1].split(
@@ -538,6 +538,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         )[0]
         self.assertIn('hope_root="$4"', run_laptop_outer)
         self.assertNotIn('hope_root="$5"', run_laptop_outer)
+        self.assertIn('marker_root="$5"', helper)
         self.assertIn("HDU_TRANSPORT_RELAY_RUNNING", helper)
         self.assertIn("/a3/base_pose_laptop_flat", helper)
         self.assertIn("hope-base-pose-transport-relay", helper)
@@ -567,7 +568,10 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("src/hope_msgs/msg/BallFlightPacket.msg", runbook)
         self.assertIn("ros2 interface show hope_msgs/msg/BallFlightPacket", runbook)
         self.assertIn("HDU_PLANNER_OVERLAY_OK", runbook)
-        self.assertNotIn("ssh-copy-id dongc1@172.23.20.46", runbook)
+        self.assertNotIn("/home/dongc1", runbook)
+        self.assertNotIn("172.23.20.46", runbook)
+        self.assertNotIn("172.23.20.135", runbook)
+        self.assertIn("<laptop-wifi-ip>", runbook)
         self.assertIn("HDU_PUBLIC_KEY", runbook)
         self.assertIn("HDU_TO_LAPTOP_OK", runbook)
         self.assertIn("https://foxglove.dev/download", runbook)
@@ -575,10 +579,10 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("sudo apt install ./foxglove-studio-*.deb", runbook)
         self.assertIn("Install local extension", runbook)
         self.assertIn("Open connection", runbook)
-        self.assertIn("ws://172.23.20.135:8766", runbook)
+        self.assertIn("ws://<HDU-IP>:8766", runbook)
         self.assertIn("Unknown panel type: HOPE A3 Console", runbook)
         self.assertIn("Add panel", runbook)
-        self.assertIn("hopeopen.hope-a3-console-1.2.4", runbook)
+        self.assertIn("hopeopen.hope-a3-console-$UI_VERSION.foxe", runbook)
         self.assertIn("hope-a3-console.HOPE A3 Console!operator", runbook)
         self.assertIn('cmp "$SRC/dist/extension.js" "$EXT/dist/extension.js"', runbook)
         self.assertIn("agibot-clock-bootstrap.service", runbook)
