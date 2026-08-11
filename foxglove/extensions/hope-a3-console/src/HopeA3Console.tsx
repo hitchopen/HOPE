@@ -18,47 +18,85 @@ const TOPICS = {
   latency: "/hope/clock/message_latency_ms",
   timestampFresh: "/hope/clock/message_fresh",
   cpu: "/hope/system/cpu_load_percent",
+  cpuTopProcess: "/hope/system/cpu_top_process",
   agibotPm: "/hope/vendor/agibot_pm_active",
   tfReady: "/hope/vendor/tf_ready",
   estopReady: "/hope/safety/estop_ready",
-  hduActive: "/hope/v17/system/hdu_active",
-  mduActive: "/hope/v17/system/mdu_active",
-  markers: "/hope/v17/mocap/p1_marker_count",
-  markersFresh: "/hope/v17/mocap/p1_marker_fresh",
-  runnerAlive: "/hope/v17/runner/alive",
-  runnerMode: "/hope/v17/runner/mode",
-  runnerFault: "/hope/v17/runner/command_fault_latched",
-  localRole: "/hope/v17/runner/local_role",
-  roleChangeAllowed: "/hope/v17/runner/role_change_allowed",
-  serveCapability: "/hope/v17/runner/serve_capability",
-  serveState: "/hope/v17/runner/serve_state",
-  standing: "/hope/v17/runner/standing",
-  ready: "/hope/v17/runner/ready",
-  readyToServe: "/hope/v17/runner/is_ready_to_serve",
-  serving: "/hope/v17/runner/serving",
-  lastAction: "/hope/v17/runner/last_action",
-  lastResult: "/hope/v17/runner/last_action_result",
-  lastReason: "/hope/v17/runner/last_action_reason",
-  xHitSuccess: "/hope/v17/x_hit/success",
-  xHitStatus: "/hope/v17/x_hit/status",
+  estopFullReady: "/hope/safety/estop_full_ready",
+  estopLatched: "/hope/safety/estop_latched",
+  estopText: "/hope/safety/estop_text",
+  hduActive: "/hope/system/hdu_active",
+  mduActive: "/hope/system/mdu_active",
+  markers: "/hope/mocap/p1_marker_count",
+  markersFresh: "/hope/mocap/p1_marker_fresh",
+  baseFresh: "/hope/base/fresh",
+  runnerAlive: "/hope/runner/alive",
+  runnerMode: "/hope/runner/mode",
+  runnerFault: "/hope/runner/command_fault_latched",
+  localRole: "/hope/runner/local_role",
+  roleChangeAllowed: "/hope/runner/role_change_allowed",
+  serveCapability: "/hope/runner/serve_capability",
+  serveState: "/hope/runner/serve_state",
+  standing: "/hope/runner/standing",
+  ready: "/hope/runner/ready",
+  readyToServe: "/hope/runner/is_ready_to_serve",
+  serving: "/hope/runner/serving",
+  lastAction: "/hope/runner/last_action",
+  lastResult: "/hope/runner/last_action_result",
+  lastReason: "/hope/runner/last_action_reason",
+  xHitSuccess: "/hope/x_hit/success",
+  xHitStatus: "/hope/x_hit/status",
+  calibrationSuccess: "/hope/calibration/success",
+  calibrationStatus: "/hope/calibration/status",
+  lifecycleState: "/hope/lifecycle/state",
+  lifecycleStep: "/hope/lifecycle/step",
+  lifecycleSession: "/hope/lifecycle/session_id",
+  lifecycleResult: "/hope/lifecycle/last_result",
+  lifecycleBusy: "/hope/lifecycle/busy",
+  lifecycleConfigRevision: "/hope/lifecycle/config/revision",
+  laptopWifiIp: "/hope/lifecycle/config/laptop_wifi_ip",
+  hduWifiIp: "/hope/lifecycle/config/hdu_wifi_ip",
+  mduInternalIp: "/hope/lifecycle/config/mdu_internal_ip",
+  motiveIp: "/hope/lifecycle/config/motive_ip",
 } as const;
 
 const SERVICES = {
   estop: "/hope/safety/trigger_estop",
-  setServer: "/hope/v17/runner/set_server",
-  setReceiver: "/hope/v17/runner/set_receiver",
-  stand: "/hope/v17/runner/enter_pd_stand",
-  calibration: "/hope/v17/refresh_x_hit",
-  ready: "/hope/v17/runner/enter_motion",
-  readyToServe: "/hope/v17/runner/ready_to_serve",
-  serve: "/hope/v17/runner/serve",
-  passive: "/hope/v17/runner/emergency_passive",
+  setServer: "/hope/runner/set_server",
+  setReceiver: "/hope/runner/set_receiver",
+  stand: "/hope/runner/enter_pd_stand",
+  calibration: "/hope/calibrate",
+  refreshXHit: "/hope/refresh_x_hit",
+  ready: "/hope/runner/enter_motion",
+  readyToServe: "/hope/runner/ready_to_serve",
+  serve: "/hope/runner/serve",
+  passive: "/hope/runner/emergency_passive",
+  applyLifecycleConfig: "/hope/lifecycle/apply_config",
+  startLifecycle: "/hope/lifecycle/start",
+  killAllAndCollect: "/hope/lifecycle/kill_all_and_collect",
 } as const;
 
 type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type CpuSample = { at: number; value: number };
+
+const CONFIG_FIELDS = {
+  laptop_wifi_ip: { label: "Laptop Wi-Fi", topic: TOPICS.laptopWifiIp },
+  hdu_wifi_ip: { label: "HDU Wi-Fi", topic: TOPICS.hduWifiIp },
+  mdu_internal_ip: { label: "MDU Internal", topic: TOPICS.mduInternalIp },
+  motive_ip: { label: "Motive", topic: TOPICS.motiveIp },
+} as const;
+
+type ConfigField = keyof typeof CONFIG_FIELDS;
+type LifecycleConfigDraft = Record<ConfigField, string>;
+
+const EMPTY_CONFIG: LifecycleConfigDraft = {
+  laptop_wifi_ip: "",
+  hdu_wifi_ip: "",
+  mdu_internal_ip: "",
+  motive_ip: "",
+};
 
 type Snapshot = {
   ntpOffsetMs?: number;
@@ -67,14 +105,19 @@ type Snapshot = {
   latencyMs?: number;
   timestampFresh?: boolean;
   cpuPercent?: number;
+  cpuTopProcess?: string;
   cpuSamples: CpuSample[];
   agibotPm?: boolean;
   tfReady?: boolean;
   estopReady?: boolean;
+  estopFullReady?: boolean;
+  estopLatched?: boolean;
+  estopText?: string;
   hduActive?: boolean;
   mduActive?: boolean;
   markerCount?: number;
   markersFresh?: boolean;
+  baseFresh?: boolean;
   runnerAlive?: boolean;
   runnerMode?: string;
   runnerFault?: boolean;
@@ -91,18 +134,31 @@ type Snapshot = {
   lastReason?: string;
   xHitSuccess?: boolean;
   xHitStatus?: string;
+  calibrationSuccess?: boolean;
+  calibrationStatus?: string;
+  lifecycleState?: string;
+  lifecycleStep?: string;
+  lifecycleSession?: string;
+  lifecycleResult?: string;
+  lifecycleBusy?: boolean;
+  lifecycleConfigRevision?: number;
+  lifecycleConfig: Partial<LifecycleConfigDraft>;
   availableTopics: Set<string>;
   lastReceived: Partial<Record<TopicName, number>>;
 };
 
 const INITIAL_SNAPSHOT: Snapshot = {
   cpuSamples: [],
+  lifecycleConfig: {},
   availableTopics: new Set<string>(),
   lastReceived: {},
 };
 
 type ScalarMessage = { data?: unknown };
 type TriggerResponse = { success?: unknown; message?: unknown };
+type SetParametersResponse = {
+  results?: Array<{ successful?: unknown; reason?: unknown }>;
+};
 
 function scalar(message: unknown): unknown {
   if (typeof message !== "object" || message == undefined || !("data" in message)) {
@@ -159,6 +215,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       }
       break;
     }
+    case TOPICS.cpuTopProcess:
+      next.cpuTopProcess = stringValue(event.message);
+      break;
     case TOPICS.agibotPm:
       next.agibotPm = boolValue(event.message);
       break;
@@ -167,6 +226,15 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.estopReady:
       next.estopReady = boolValue(event.message);
+      break;
+    case TOPICS.estopFullReady:
+      next.estopFullReady = boolValue(event.message);
+      break;
+    case TOPICS.estopLatched:
+      next.estopLatched = boolValue(event.message);
+      break;
+    case TOPICS.estopText:
+      next.estopText = stringValue(event.message);
       break;
     case TOPICS.hduActive:
       next.hduActive = boolValue(event.message);
@@ -179,6 +247,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.markersFresh:
       next.markersFresh = boolValue(event.message);
+      break;
+    case TOPICS.baseFresh:
+      next.baseFresh = boolValue(event.message);
       break;
     case TOPICS.runnerAlive:
       next.runnerAlive = boolValue(event.message);
@@ -227,6 +298,42 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.xHitStatus:
       next.xHitStatus = stringValue(event.message);
+      break;
+    case TOPICS.calibrationSuccess:
+      next.calibrationSuccess = boolValue(event.message);
+      break;
+    case TOPICS.calibrationStatus:
+      next.calibrationStatus = stringValue(event.message);
+      break;
+    case TOPICS.lifecycleState:
+      next.lifecycleState = stringValue(event.message);
+      break;
+    case TOPICS.lifecycleStep:
+      next.lifecycleStep = stringValue(event.message);
+      break;
+    case TOPICS.lifecycleSession:
+      next.lifecycleSession = stringValue(event.message);
+      break;
+    case TOPICS.lifecycleResult:
+      next.lifecycleResult = stringValue(event.message);
+      break;
+    case TOPICS.lifecycleBusy:
+      next.lifecycleBusy = boolValue(event.message);
+      break;
+    case TOPICS.lifecycleConfigRevision:
+      next.lifecycleConfigRevision = numberValue(event.message);
+      break;
+    case TOPICS.laptopWifiIp:
+      next.lifecycleConfig.laptop_wifi_ip = stringValue(event.message);
+      break;
+    case TOPICS.hduWifiIp:
+      next.lifecycleConfig.hdu_wifi_ip = stringValue(event.message);
+      break;
+    case TOPICS.mduInternalIp:
+      next.lifecycleConfig.mdu_internal_ip = stringValue(event.message);
+      break;
+    case TOPICS.motiveIp:
+      next.lifecycleConfig.motive_ip = stringValue(event.message);
       break;
   }
 }
@@ -311,6 +418,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState<Partial<Record<ServiceKey, boolean>>>({});
   const [notice, setNotice] = useState("Waiting for authoritative Runner state");
+  const [configDraft, setConfigDraft] = useState<LifecycleConfigDraft>(EMPTY_CONFIG);
+  const [configTouched, setConfigTouched] = useState(false);
 
   useLayoutEffect(() => {
     context.onRender = (renderState, done) => {
@@ -318,6 +427,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       const next: Snapshot = {
         ...latest.current,
         cpuSamples: [...latest.current.cpuSamples],
+        lifecycleConfig: { ...latest.current.lifecycleConfig },
         availableTopics: new Set(latest.current.availableTopics),
         lastReceived: { ...latest.current.lastReceived },
       };
@@ -353,6 +463,18 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     };
   }, []);
 
+  useEffect(() => {
+    if (configTouched) {
+      return;
+    }
+    const complete = (Object.keys(CONFIG_FIELDS) as ConfigField[]).every(
+      (name) => snapshot.lifecycleConfig[name] != undefined,
+    );
+    if (complete) {
+      setConfigDraft(snapshot.lifecycleConfig as LifecycleConfigDraft);
+    }
+  }, [configTouched, snapshot.lifecycleConfig]);
+
   const invoke = useCallback(async (key: ServiceKey) => {
     if (context.callService == undefined || busy[key] === true) {
       setNotice("Current data source does not expose service calls");
@@ -361,7 +483,14 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     setBusy((current) => ({ ...current, [key]: true }));
     setNotice(`${SERVICES[key]} requested…`);
     try {
-      const raw = await Promise.race([context.callService(SERVICES[key], {}), timeoutAfter(3_000)]);
+      const timeoutMs = key === "estop"
+        ? 5_000
+        : key === "calibration"
+          ? 40_000
+          : key === "refreshXHit"
+            ? 7_000
+            : 3_000;
+      const raw = await Promise.race([context.callService(SERVICES[key], {}), timeoutAfter(timeoutMs)]);
       const response = triggerResponse(raw);
       setNotice(`${response.success ? "ACCEPTED" : "REJECTED"} · ${response.message}`);
     } catch (error) {
@@ -371,6 +500,70 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     }
   }, [busy, context]);
 
+  const confirmLifecycleConfig = useCallback(async () => {
+    const key: ServiceKey = "applyLifecycleConfig";
+    if (context.callService == undefined || busy[key] === true) {
+      setNotice("Current data source does not expose lifecycle configuration");
+      return;
+    }
+    setBusy((current) => ({ ...current, [key]: true }));
+    setNotice("Validating and confirming lifecycle configuration…");
+    const parameters = (Object.keys(CONFIG_FIELDS) as ConfigField[]).map((name) => ({
+      name,
+      value: {
+        type: 4,
+        bool_value: false,
+        integer_value: 0,
+        double_value: 0,
+        string_value: configDraft[name],
+        byte_array_value: [],
+        bool_array_value: [],
+        integer_array_value: [],
+        double_array_value: [],
+        string_array_value: [],
+      },
+    }));
+    try {
+      const raw = await Promise.race([
+        context.callService(SERVICES.applyLifecycleConfig, { parameters }),
+        timeoutAfter(3_000),
+      ]) as SetParametersResponse;
+      const results = Array.isArray(raw.results) ? raw.results : [];
+      const rejected = results.find((result) => result.successful !== true);
+      if (results.length !== Object.keys(CONFIG_FIELDS).length || rejected != undefined) {
+        const reason = typeof rejected?.reason === "string"
+          ? rejected.reason
+          : "invalid service response";
+        setNotice(`CONFIG REJECTED · ${reason}`);
+      } else {
+        setConfigTouched(false);
+        setNotice("CONFIG CONFIRMED · the next start will use these addresses");
+      }
+    } catch (error) {
+      setNotice(`CONFIG FAILED · ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setBusy((current) => ({ ...current, [key]: false }));
+    }
+  }, [busy, configDraft, context]);
+
+  const startSystem = useCallback(async () => {
+    const accepted = window.confirm(
+      "Start STEP 0/1/2A/2B/4/5 now? Confirm the robot is physically supported and the hardware E-stop is reachable. The Runner will start in PASSIVE.",
+    );
+    if (accepted) {
+      await invoke("startLifecycle");
+    }
+  }, [invoke]);
+
+  const killAllAndCollect = useCallback(async () => {
+    const accepted = window.confirm(
+      "Immediately terminate all lifecycle-managed Runner, HAL, Planner, base relay and OptiTrack sessions, restore agibot_pm, then collect logs? The robot may lose active support immediately; physically support it and keep the physical E-stop reachable.",
+    );
+    if (accepted) {
+      await invoke("killAllAndCollect");
+    }
+  }, [invoke]);
+
   const ntpFresh = isFresh(snapshot, TOPICS.ntpOffset, now, 1_500);
   const latencyFresh = isFresh(snapshot, TOPICS.latency, now, 500) && snapshot.timestampFresh === true;
   const cpuFresh = isFresh(snapshot, TOPICS.cpu, now, 1_500);
@@ -379,9 +572,21 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const pmFresh = isFresh(snapshot, TOPICS.agibotPm, now, 1_500);
   const runnerFresh = isFresh(snapshot, TOPICS.runnerAlive, now, 1_500) && snapshot.runnerAlive === true;
   const markerFresh = isFresh(snapshot, TOPICS.markers, now, 1_000) && snapshot.markersFresh === true;
+  const baseFresh = isFresh(snapshot, TOPICS.baseFresh, now, 1_000) && snapshot.baseFresh === true;
   const estopUsable = isFresh(snapshot, TOPICS.estopReady, now, 1_000) && snapshot.estopReady === true;
+  const estopFullReady = isFresh(snapshot, TOPICS.estopFullReady, now, 1_000) && snapshot.estopFullReady === true;
+  // Once observed true, keep the safety indication asserted through a bridge
+  // outage. Only a later authoritative false after approved local recovery
+  // clears it; stale telemetry must never make the panel look reset.
+  const estopAsserted = snapshot.estopLatched === true;
   const runnerUsable = runnerFresh && snapshot.runnerFault !== true;
   const serveAvailable = snapshot.serveCapability === "AVAILABLE";
+  const lifecycleFresh = isFresh(snapshot, TOPICS.lifecycleState, now, 1_500);
+  const lifecycleState = lifecycleFresh ? snapshot.lifecycleState ?? "UNKNOWN" : "NO DATA";
+  const lifecycleStopped = lifecycleState === "STOPPED" || lifecycleState === "CONFIG_ERROR";
+  const lifecycleRunning = lifecycleState === "RUNNING" || lifecycleState === "FAILED";
+  const lifecycleBusy = snapshot.lifecycleBusy === true;
+  const configComplete = Object.values(configDraft).every((value) => value.trim().length > 0);
 
   const nextStep = snapshot.standing !== true
     ? "stand"
@@ -391,11 +596,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         : snapshot.readyToServe === true
             ? "serve"
             : "none"
-      : snapshot.xHitSuccess !== true
+      : snapshot.calibrationSuccess !== true
         ? "calibration"
-        : snapshot.ready !== true
-          ? "ready"
-          : "none";
+        : snapshot.xHitSuccess !== true
+          ? "refreshXHit"
+          : snapshot.ready !== true
+            ? "ready"
+            : "none";
 
   const cpuPoints = useMemo(() => {
     if (snapshot.cpuSamples.length === 0) {
@@ -424,18 +631,95 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           </div>
           <div className="helper">change the host through the Foxglove connection dialog</div>
         </div>
-        <button className="estop-button" type="button" disabled={!estopUsable || busy.estop === true} onClick={() => void invoke("estop")}>
-          {busy.estop === true ? "ASSERTING…" : "E-STOP"}
-          <small>ASSERT ONLY · NO RESET</small>
+        <button
+          className={`estop-button ${estopAsserted ? "estop-asserted" : ""}`}
+          type="button"
+          disabled={busy.estop === true}
+          title={notice}
+          onClick={() => void invoke("estop")}
+        >
+          {busy.estop === true ? "ASSERTING…" : estopAsserted ? "E-STOP ASSERTED" : "E-STOP"}
+          <small>{estopAsserted ? "CLICK TO REASSERT · LOCAL RECOVERY REQUIRED" : estopFullReady ? "DUAL PATH · ASSERT ONLY · NO RESET" : estopUsable ? "PARTIAL SOFTWARE STOP · USE PHYSICAL E-STOP" : "BACKEND UNKNOWN · CLICK STILL ASSERTS"}</small>
         </button>
       </div>
 
       <div className="gate-row">
-        <GateChip label="NTP GATE" value={ntpFresh ? snapshot.ntpPass : undefined} />
-        <GateChip label="TIMESTAMP" value={latencyFresh ? true : undefined} />
-        <GateChip label="TF READY" value={isFresh(snapshot, TOPICS.tfReady, now, 1_000) ? snapshot.tfReady : undefined} />
-        <GateChip label="E-STOP BACKEND" value={estopUsable ? true : undefined} />
-        <GateChip label={`MARKERS ${markerFresh ? Math.round(snapshot.markerCount ?? 0) : "—"}/10`} value={markerFresh ? snapshot.markerCount === 10 : undefined} />
+        <GateChip label="NTP · AUDIT" value={ntpFresh ? snapshot.ntpPass : undefined} />
+        <GateChip label="TIMESTAMP · AUDIT" value={latencyFresh ? true : undefined} />
+        <GateChip label="TF · AUDIT" value={isFresh(snapshot, TOPICS.tfReady, now, 1_000) ? snapshot.tfReady : undefined} />
+        <GateChip label="E-STOP BACKEND · AUDIT" value={estopAsserted ? false : estopUsable ? estopFullReady : undefined} detail={snapshot.estopText} />
+        <GateChip label={`MARKERS · AUDIT ${markerFresh ? Math.round(snapshot.markerCount ?? 0) : "—"}/10`} value={markerFresh ? snapshot.markerCount === 10 : undefined} />
+      </div>
+
+      <div className={`operator-notice ${estopAsserted ? "operator-notice-danger" : ""}`}>
+        <span className="eyebrow">LAST UI REQUEST</span>
+        <span>{notice}</span>
+      </div>
+
+      <div className="lifecycle-card">
+        <div className="lifecycle-header">
+          <div>
+            <div className="eyebrow">SYSTEM LIFECYCLE · STEP 0/1/2A/2B/4/5</div>
+            <div className="lifecycle-state">
+              {lifecycleState} · {snapshot.lifecycleStep ?? "IDLE"}
+            </div>
+            <div className="topic-path">
+              {snapshot.lifecycleSession != undefined && snapshot.lifecycleSession.length > 0
+                ? snapshot.lifecycleSession
+                : "no active session"} · config revision {snapshot.lifecycleConfigRevision ?? 0}
+            </div>
+          </div>
+          <div className="lifecycle-result" title={snapshot.lifecycleResult}>
+            {snapshot.lifecycleResult ?? "waiting for supervisor"}
+          </div>
+        </div>
+        <div className="config-grid">
+          {(Object.keys(CONFIG_FIELDS) as ConfigField[]).map((name) => (
+            <label className="config-field" key={name}>
+              <span>{CONFIG_FIELDS[name].label}</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                spellCheck={false}
+                value={configDraft[name]}
+                placeholder="IPv4 address"
+                onChange={(event) => {
+                  setConfigTouched(true);
+                  setConfigDraft((current) => ({ ...current, [name]: event.target.value }));
+                }}
+              />
+            </label>
+          ))}
+        </div>
+        <div className="lifecycle-actions">
+          <button
+            className="config-confirm"
+            type="button"
+            disabled={!configComplete || !lifecycleStopped || lifecycleBusy || busy.applyLifecycleConfig === true}
+            onClick={() => void confirmLifecycleConfig()}
+          >
+            {busy.applyLifecycleConfig === true ? "CONFIRMING…" : "CONFIRM CONFIG"}
+          </button>
+          <button
+            className="system-start"
+            type="button"
+            disabled={!lifecycleStopped || lifecycleBusy || (snapshot.lifecycleConfigRevision ?? 0) < 1 || configTouched || busy.startLifecycle === true}
+            onClick={() => void startSystem()}
+          >
+            {busy.startLifecycle === true || (lifecycleBusy && lifecycleState === "STARTING") ? "STARTING…" : "START SYSTEM"}
+          </button>
+          <button
+            className="system-stop"
+            type="button"
+            disabled={!lifecycleRunning || lifecycleBusy || busy.killAllAndCollect === true}
+            onClick={() => void killAllAndCollect()}
+          >
+            {busy.killAllAndCollect === true || (lifecycleBusy && lifecycleState === "KILLING") ? "KILLING…" : "KILL ALL & COLLECT"}
+          </button>
+          <span className="config-helper">
+            Inputs stay editable. Confirm is accepted only while stopped; changing HDU Wi-Fi also requires reconnecting Foxglove to the new :8766 address.
+          </span>
+        </div>
       </div>
 
       <div className="metric-grid">
@@ -461,7 +745,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         <div className="cpu-header">
           <span className="eyebrow">A3 CPU LOAD</span>
           <span className={`cpu-value ${cpuFresh ? "" : "stale"}`}>{cpuFresh && snapshot.cpuPercent != undefined ? snapshot.cpuPercent.toFixed(0) : "—"}<small>%</small></span>
-          <span className="topic-path cpu-topic">{TOPICS.cpu} · 0–100 %, 120 s</span>
+          <div className="cpu-diagnostics">
+            <span className="topic-path">{TOPICS.cpu} · 0–100 %, 120 s</span>
+            <span className="topic-path" title={snapshot.cpuTopProcess}>{snapshot.cpuTopProcess ?? "top process warming up"}</span>
+          </div>
         </div>
         <svg className="cpu-plot" viewBox="0 0 600 160" preserveAspectRatio="none" aria-label="CPU load over 120 seconds">
           <line x1="0" y1="40" x2="600" y2="40" />
@@ -473,19 +760,23 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
       <div className="sequence-card">
         <div className="sequence-header">
-          <div><span className="eyebrow">RUNNER SEQUENCE</span><span className="sequence-status">{runnerFresh ? `${snapshot.runnerMode ?? "UNKNOWN"} · ${snapshot.serveState ?? "UNAVAILABLE"}` : "NO FRESH RUNNER STATE"}</span></div>
+          <div className="sequence-summary">
+            <span className="eyebrow">RUNNER SEQUENCE</span>
+            <span className="sequence-status">{runnerFresh ? `${snapshot.runnerMode ?? "UNKNOWN"} · ${snapshot.serveState ?? "UNAVAILABLE"}` : "NO FRESH RUNNER STATE"}</span>
+          </div>
           <div className="role-controls">
-            <span>OUR ROLE: {snapshot.localRole ?? "UNASSIGNED"}</span>
+            <span className="role-label">OUR ROLE: {snapshot.localRole ?? "UNASSIGNED"}</span>
             <button type="button" disabled={snapshot.roleChangeAllowed !== true || busy.setServer === true} onClick={() => void invoke("setServer")}>SERVER</button>
             <button type="button" disabled={snapshot.roleChangeAllowed !== true || busy.setReceiver === true} onClick={() => void invoke("setReceiver")}>RECEIVER</button>
           </div>
         </div>
         <div className="action-grid">
           <ActionButton label="Stand" detail={snapshot.standing === true ? "DONE · PD_STAND" : "same as keyboard s"} disabled={!runnerUsable} busy={busy.stand === true} completed={snapshot.standing === true} next={nextStep === "stand"} onClick={() => void invoke("stand")} />
-          <ActionButton label="Calibration" detail={snapshot.xHitSuccess === true ? "DONE · x_hit refreshed" : snapshot.standing === true ? "refresh x_hit" : "LOCKED · stand first"} disabled={!runnerUsable || snapshot.standing !== true} busy={busy.calibration === true} completed={snapshot.xHitSuccess === true} next={nextStep === "calibration"} onClick={() => void invoke("calibration")} />
-          <ActionButton label="Ready" detail={snapshot.ready === true ? "DONE · MOTION" : "same as keyboard m"} disabled={!runnerUsable} busy={busy.ready === true} completed={snapshot.ready === true} next={nextStep === "ready"} onClick={() => void invoke("ready")} />
+          <ActionButton label="Calibration" detail={snapshot.calibrationSuccess === true ? "DONE · world→pelvis JSON" : snapshot.standing === true ? snapshot.calibrationStatus ?? "recompute and persist world→pelvis" : "LOCKED · stand first"} disabled={!runnerUsable || snapshot.standing !== true} busy={busy.calibration === true} completed={snapshot.calibrationSuccess === true} next={nextStep === "calibration"} onClick={() => void invoke("calibration")} />
+          <ActionButton label="Refresh x_hit" detail={snapshot.xHitSuccess === true ? snapshot.xHitStatus ?? "DONE · Planner acknowledged" : snapshot.standing === true ? snapshot.xHitStatus ?? "refresh Planner x_hit only" : "LOCKED · stand first"} disabled={!runnerUsable || snapshot.standing !== true} busy={busy.refreshXHit === true} completed={snapshot.xHitSuccess === true} next={nextStep === "refreshXHit"} onClick={() => void invoke("refreshXHit")} />
+          <ActionButton label="Ready" detail={snapshot.ready === true ? "DONE · MOTION" : snapshot.standing !== true ? "LOCKED · stand first" : !baseFresh ? "LOCKED · wait for fresh Pelvis base" : "same as keyboard m"} disabled={!runnerUsable || snapshot.standing !== true || !baseFresh} busy={busy.ready === true} completed={snapshot.ready === true} next={nextStep === "ready"} onClick={() => void invoke("ready")} />
           <ActionButton label="Ready to Serve" detail={!serveAvailable ? "UNAVAILABLE · launch Runner with --serve" : snapshot.readyToServe === true ? "DONE · ball on palm" : "start serve pre-position"} disabled={!runnerUsable || !serveAvailable} busy={busy.readyToServe === true} completed={snapshot.readyToServe === true} next={nextStep === "readyToServe"} onClick={() => void invoke("readyToServe")} />
-          <ActionButton label="Serve" detail={snapshot.serving === true ? "SERVING" : snapshot.readyToServe === true ? "confirm ball on palm" : "LOCKED UNTIL AWAIT_BALL_ON_PALM"} disabled={!runnerUsable || snapshot.readyToServe !== true} busy={busy.serve === true} completed={snapshot.serving === true} next={nextStep === "serve"} wide onClick={() => void invoke("serve")} />
+          <ActionButton label="Serve" detail={snapshot.serving === true ? "SERVING" : snapshot.readyToServe === true ? "confirm ball on palm" : "LOCKED UNTIL AWAIT_BALL_ON_PALM"} disabled={!runnerUsable || snapshot.readyToServe !== true} busy={busy.serve === true} completed={snapshot.serving === true} next={nextStep === "serve"} onClick={() => void invoke("serve")} />
         </div>
         <div className="sequence-footer">
           <span title={snapshot.xHitStatus}>{lastAction}</span>

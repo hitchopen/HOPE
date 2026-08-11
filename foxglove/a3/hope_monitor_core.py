@@ -9,15 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from pathlib import Path
 import re
 import subprocess
 from typing import Mapping, Sequence
-from urllib.parse import quote, urljoin, urlparse
-import xml.etree.ElementTree as ET
 
 
-ROBOT_MODEL_RE = re.compile(r"[a-z0-9][a-z0-9_-]*")
 CALIBRATION_SHA_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -41,13 +37,13 @@ def combine_estop_results(
         )
     if vendor_accepted:
         return (
-            False,
+            True,
             "PARTIAL E-STOP: vendor request accepted, but managed runner stop "
             f"is unconfirmed ({runner_text}); use the physical E-stop",
         )
     if runner_stopped:
         return (
-            False,
+            True,
             "PARTIAL E-STOP: managed runner stopped, but vendor E-stop request "
             f"was not accepted ({vendor_text}); use the physical E-stop",
         )
@@ -56,6 +52,68 @@ def combine_estop_results(
         "E-STOP UNCONFIRMED: vendor path failed "
         f"({vendor_text}); runner path failed ({runner_text}); "
         "use the physical E-stop",
+    )
+
+
+@dataclass(frozen=True)
+class EstopBackendStatus:
+    """Operator-facing availability without overstating a degraded stop path."""
+
+    action_ready: bool
+    full_ready: bool
+    detail: str
+
+
+def estop_backend_status(
+    *,
+    vendor_ready: bool,
+    runner_ready: bool,
+    latched: bool,
+    vendor_protocol_available: bool,
+) -> EstopBackendStatus:
+    """Describe whether at least one and whether both E-stop paths are ready.
+
+    A live native Runner emergency-PASSIVE service is still useful when the
+    vendor application manager is intentionally stopped for the managed HAL,
+    but it must remain visibly degraded and can never be reported as a full
+    dual-path E-stop.
+    """
+
+    if latched:
+        return EstopBackendStatus(
+            action_ready=False,
+            full_ready=False,
+            detail="E-STOP LATCHED | inspect robot and use approved local recovery",
+        )
+    if vendor_ready and runner_ready:
+        return EstopBackendStatus(
+            action_ready=True,
+            full_ready=True,
+            detail="DUAL-PATH E-STOP READY | VENDOR + RUNNER EMERGENCY PASSIVE",
+        )
+    if vendor_ready:
+        return EstopBackendStatus(
+            action_ready=True,
+            full_ready=False,
+            detail="VENDOR E-STOP READY | RUNNER STOP DEGRADED | PARTIAL ONLY",
+        )
+    if runner_ready:
+        return EstopBackendStatus(
+            action_ready=True,
+            full_ready=False,
+            detail=(
+                "RUNNER EMERGENCY PASSIVE READY | VENDOR E-STOP UNAVAILABLE | "
+                "PARTIAL ONLY | USE PHYSICAL E-STOP"
+            ),
+        )
+    if not vendor_protocol_available:
+        detail = "E-STOP UNAVAILABLE | ros2_plugin_proto is not installed"
+    else:
+        detail = "E-STOP UNAVAILABLE | no live vendor or Runner emergency backend"
+    return EstopBackendStatus(
+        action_ready=False,
+        full_ready=False,
+        detail=detail,
     )
 
 
@@ -116,6 +174,25 @@ class CpuTimes:
     @property
     def idle_total(self) -> int:
         return self.idle + self.iowait
+
+
+@dataclass(frozen=True)
+class ProcessCpuTimes:
+    """One Linux process CPU counter snapshot from ``/proc/<pid>/stat``."""
+
+    pid: int
+    name: str
+    ticks: int
+
+
+@dataclass(frozen=True)
+class ProcessCpuLoad:
+    """Top process load in both whole-machine and one-core percentage units."""
+
+    pid: int
+    name: str
+    system_percent: float
+    core_percent: float
 
 
 def parse_chrony_status(
@@ -241,6 +318,68 @@ def cpu_load_percent(previous: CpuTimes, current: CpuTimes) -> float:
     return max(0.0, min(100.0, 100.0 * busy_delta / total_delta))
 
 
+def parse_process_stat(process_stat: str) -> ProcessCpuTimes:
+    """Parse PID, command name, and user+system ticks from procfs stat text."""
+
+    text = str(process_stat).strip()
+    left = text.find("(")
+    right = text.rfind(")")
+    if left <= 0 or right <= left:
+        raise ValueError("process stat has no valid command field")
+    try:
+        pid = int(text[:left].strip())
+    except ValueError as exc:
+        raise ValueError("process stat PID is invalid") from exc
+    name = text[left + 1:right]
+    fields = text[right + 1:].split()
+    # fields[0] is kernel field 3 (state); utime/stime are fields 14/15.
+    if pid <= 0 or not name or len(fields) < 13:
+        raise ValueError("process stat is truncated")
+    try:
+        user_ticks = int(fields[11])
+        system_ticks = int(fields[12])
+    except ValueError as exc:
+        raise ValueError("process CPU counters are invalid") from exc
+    if user_ticks < 0 or system_ticks < 0:
+        raise ValueError("process CPU counters are negative")
+    return ProcessCpuTimes(pid=pid, name=name, ticks=user_ticks + system_ticks)
+
+
+def top_process_cpu_load(
+    previous: Mapping[int, ProcessCpuTimes],
+    current: Mapping[int, ProcessCpuTimes],
+    *,
+    total_cpu_delta: int,
+    cpu_count: int,
+) -> ProcessCpuLoad | None:
+    """Find the process responsible for the largest CPU delta.
+
+    ``system_percent`` is its share of all machine CPU time. ``core_percent``
+    uses the familiar top(1) scale where one fully occupied core is 100%.
+    """
+
+    if total_cpu_delta <= 0 or cpu_count <= 0:
+        raise ValueError("CPU delta and CPU count must be positive")
+    candidates: list[tuple[int, ProcessCpuTimes]] = []
+    for pid, sample in current.items():
+        old = previous.get(pid)
+        if old is None or old.name != sample.name:
+            continue
+        delta = sample.ticks - old.ticks
+        if delta >= 0:
+            candidates.append((delta, sample))
+    if not candidates:
+        return None
+    delta, sample = max(candidates, key=lambda item: (item[0], -item[1].pid))
+    system_percent = max(0.0, min(100.0, 100.0 * delta / total_cpu_delta))
+    return ProcessCpuLoad(
+        pid=sample.pid,
+        name=sample.name,
+        system_percent=system_percent,
+        core_percent=system_percent * cpu_count,
+    )
+
+
 def message_latency_ms(now_ns: int, stamp_sec: int, stamp_nanosec: int) -> float:
     """Return local ROS time minus a ROS message header timestamp in ms."""
 
@@ -254,112 +393,6 @@ def timestamp_age_s(now_ns: int, stamp_sec: int, stamp_nanosec: int) -> float:
     """Return local ROS time minus a positive ROS timestamp in seconds."""
 
     return message_latency_ms(now_ns, stamp_sec, stamp_nanosec) / 1000.0
-
-
-def rewrite_urdf_asset_urls(
-    urdf_xml: str,
-    *,
-    public_urdf_url: str,
-    public_asset_root_url: str,
-) -> str:
-    """Make URDF mesh/texture locations fetchable by Foxglove on the laptop.
-
-    Relative references are resolved against the public URL corresponding to
-    the URDF file. ``package://pkg/path`` becomes ``<asset-root>/pkg/path``.
-    Local absolute paths and unknown URI schemes are rejected rather than
-    silently exposing or misaddressing robot-side files.
-    """
-
-    urdf_url = _require_http_url(public_urdf_url, "public_urdf_url")
-    asset_root = _require_http_url(public_asset_root_url, "public_asset_root_url")
-    try:
-        root = ET.fromstring(urdf_xml)
-    except ET.ParseError as exc:
-        raise ValueError(f"invalid URDF XML: {exc}") from exc
-
-    for element in root.iter():
-        tag = element.tag.rsplit("}", 1)[-1]
-        if tag not in ("mesh", "texture") or "filename" not in element.attrib:
-            continue
-        source = element.attrib["filename"].strip()
-        if not source:
-            raise ValueError(f"URDF {tag} has an empty filename")
-        if source.startswith("package://"):
-            package_path = source.removeprefix("package://")
-            package, separator, remainder = package_path.partition("/")
-            remainder_parts = remainder.split("/")
-            if (
-                not separator
-                or not remainder
-                or ".." in remainder_parts
-                or not ROBOT_MODEL_RE.fullmatch(package)
-            ):
-                raise ValueError(f"invalid package URI in URDF: {source}")
-            encoded = quote(f"{package}/{remainder}", safe="/._-")
-            element.attrib["filename"] = f"{asset_root.rstrip('/')}/{encoded}"
-            continue
-
-        parsed = urlparse(source)
-        if parsed.scheme in ("http", "https", "data"):
-            continue
-        if parsed.scheme or source.startswith("/"):
-            raise ValueError(f"unsupported local/absolute URDF asset URI: {source}")
-        resolved = urljoin(
-            urdf_url,
-            quote(source, safe="/._-"),
-        )
-        if not _url_is_within_root(resolved, asset_root):
-            raise ValueError(
-                f"relative URDF asset escapes public_asset_root_url: {source}"
-            )
-        element.attrib["filename"] = resolved
-
-    return ET.tostring(root, encoding="unicode")
-
-
-def load_robot_urdf_for_foxglove(
-    *,
-    model_info_path: str,
-    model_root: str,
-    public_asset_root_url: str,
-) -> tuple[str, str, str]:
-    """Load the selected A3 model and return model, path, rewritten XML."""
-
-    model = Path(model_info_path).read_text(encoding="utf-8").strip().lower()
-    if not ROBOT_MODEL_RE.fullmatch(model):
-        raise ValueError(f"invalid robot model identifier: {model!r}")
-    urdf_path = Path(model_root) / model / "urdf" / "model.urdf"
-    urdf_xml = urdf_path.read_text(encoding="utf-8")
-    public_urdf_url = (
-        f"{public_asset_root_url.rstrip('/')}/{model}/urdf/model.urdf"
-    )
-    rewritten = rewrite_urdf_asset_urls(
-        urdf_xml,
-        public_urdf_url=public_urdf_url,
-        public_asset_root_url=public_asset_root_url,
-    )
-    return model, str(urdf_path), rewritten
-
-
-def _require_http_url(value: str, name: str) -> str:
-    parsed = urlparse(value)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise ValueError(f"{name} must be an absolute HTTP(S) URL")
-    return value
-
-
-def _url_is_within_root(value: str, root: str) -> bool:
-    parsed_value = urlparse(value)
-    parsed_root = urlparse(root)
-    root_path = parsed_root.path.rstrip("/") or "/"
-    return (
-        parsed_value.scheme == parsed_root.scheme
-        and parsed_value.netloc == parsed_root.netloc
-        and (
-            parsed_value.path == root_path
-            or parsed_value.path.startswith(f"{root_path.rstrip('/')}/")
-        )
-    )
 
 
 def build_software_estop_request(timestamp_ns: int, trace_id: str) -> bytes:

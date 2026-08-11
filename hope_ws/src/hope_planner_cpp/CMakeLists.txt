@@ -34,13 +34,17 @@ add_library(hope_planner_core
   src/audit_logger.cpp
   src/post_net_one_shot.cpp
   src/incoming_trajectory.cpp
+  src/flight_packet.cpp
 )
 target_include_directories(hope_planner_core
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(hope_planner_core PUBLIC Eigen3::Eigen)
+target_link_libraries(hope_planner_core PUBLIC
+  Eigen3::Eigen
+  ${hope_msgs_TARGETS}
+)
 
 add_executable(hope_planner_cpp_node
   src/planner_node.cpp
@@ -62,10 +66,24 @@ add_executable(hope_planner_cpp_replay src/replay_main.cpp)
 target_include_directories(hope_planner_cpp_replay PRIVATE include)
 target_link_libraries(hope_planner_cpp_replay PRIVATE hope_planner_core Eigen3::Eigen)
 
+add_executable(hope_ball_flight_packetizer
+  src/flight_packetizer_node.cpp
+  src/flight_packetizer_main.cpp
+)
+target_include_directories(hope_ball_flight_packetizer PRIVATE include)
+target_link_libraries(hope_ball_flight_packetizer PRIVATE
+  hope_planner_core
+  Eigen3::Eigen
+  rclcpp::rclcpp
+  ${geometry_msgs_TARGETS}
+  ${hope_msgs_TARGETS}
+)
+
 install(TARGETS
   hope_planner_core
   hope_planner_cpp_node
   hope_planner_cpp_replay
+  hope_ball_flight_packetizer
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -110,6 +128,10 @@ if(BUILD_TESTING)
   target_link_libraries(test_incoming_trajectory hope_planner_core Eigen3::Eigen)
   target_include_directories(test_incoming_trajectory PRIVATE include)
 
+  ament_add_gtest(test_flight_packet test/test_flight_packet.cpp)
+  target_link_libraries(test_flight_packet hope_planner_core Eigen3::Eigen)
+  target_include_directories(test_flight_packet PRIVATE include)
+
   ament_add_gtest(test_planner_node_one_shot
     test/test_planner_node_one_shot.cpp
     src/planner_node.cpp
@@ -125,9 +147,26 @@ if(BUILD_TESTING)
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS}
   )
+
+  ament_add_gtest(test_flight_packet_pipeline
+    test/test_flight_packet_pipeline.cpp
+    src/planner_node.cpp
+    src/flight_packetizer_node.cpp
+  )
+  target_include_directories(test_flight_packet_pipeline PRIVATE include)
+  target_link_libraries(test_flight_packet_pipeline
+    hope_planner_core
+    Eigen3::Eigen
+    rclcpp::rclcpp
+    ${diagnostic_msgs_TARGETS}
+    ${geometry_msgs_TARGETS}
+    ${hope_msgs_TARGETS}
+    ${std_msgs_TARGETS}
+    ${std_srvs_TARGETS}
+  )
 endif()
 
 ament_export_include_directories(include)
 ament_export_libraries(hope_planner_core)
-ament_export_dependencies(Eigen3)
+ament_export_dependencies(Eigen3 hope_msgs)
 ament_package()

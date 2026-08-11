@@ -4,8 +4,8 @@
 #   /racket/command_flat   std_msgs/Float64MultiArray  (racket target from hope_planner)
 #   /a3/base_pose_flat      std_msgs/Float64MultiArray  (mocap base pose from hope_planner)
 #   /serve/ball_state_flat  std_msgs/Float64MultiArray  (pre-serve position fit)
-#   /hope/v17/runner/control_request_flat  fixed actions, Foxglove proxy -> Runner
-#   /hope/v17/runner/state_flat            authoritative local Runner state
+#   /hope/runner/control_request_flat  fixed actions, Foxglove proxy -> Runner
+#   /hope/runner/state_flat            authoritative local Runner state
 #
 # This is the SAME dual-backend pattern the stock a3_aimrt_config.iceoryx.yaml uses for
 # teleop (/ta/whole_body_command over ros2, /body_drive over iceoryx) — the officially
@@ -54,7 +54,7 @@ aimrt:
       - type: ros2
         options:
           pub_topics_options:
-            - topic_name: "/hope/v17/runner/state_flat"
+            - topic_name: "/hope/runner/state_flat"
               qos: &runner_control_qos
                 history: keep_last
                 depth: 10
@@ -82,13 +82,13 @@ aimrt:
                 depth: 10
                 reliability: reliable
                 durability: volatile
-            - topic_name: "/hope/v17/runner/control_request_flat"
+            - topic_name: "/hope/runner/control_request_flat"
               use_serialized: false
               qos: *runner_control_qos
 
     # Body-drive state+command stay iceoryx. Runner state is telemetry over ROS2.
     pub_topics_options:
-      - topic_name: "/hope/v17/runner/state_flat"
+      - topic_name: "/hope/runner/state_flat"
         enable_backends: [ros2]
       - topic_name: "(.*)"
         enable_backends: [iceoryx]
@@ -99,7 +99,7 @@ aimrt:
         enable_backends: [ros2]
       - topic_name: "/serve/ball_state_flat"
         enable_backends: [ros2]
-      - topic_name: "/hope/v17/runner/control_request_flat"
+      - topic_name: "/hope/runner/control_request_flat"
         enable_backends: [ros2]
       - topic_name: "(.*)"
         enable_backends: [iceoryx]

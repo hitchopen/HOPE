@@ -179,12 +179,14 @@ works on the A3 adapter's aarch64 platform.
 
 ### Optional marker-CAD calibration: P1 to an A3 `pelvis_link`
 
-The imported colleague branch can use all ten waist markers to compute this
-alignment without an independent pelvis tracker. Its automatic
-`/hope/control/enter_prepare` orchestration belongs to the legacy TTY adapter;
-the integrated V17 bridges do not expose that service. The native V17 console
-shows the live 0–10 marker count but uses `/hope/v17/refresh_x_hit` for its
-Calibration button and does not add a P1-calibration admission gate.
+The integrated Foxglove console can use all ten waist markers to compute this
+alignment without an independent pelvis tracker. Its `Calibration` button calls
+`/hope/calibrate`: while the authoritative Runner remains in fresh `PD_STAND`,
+the Laptop recomputes the fixed `P1 -> pelvis_link` registration, composes the
+current stationary `world -> P1` pose into a `world -> pelvis_link` audit
+snapshot, and atomically stores both in `calibration/p1_to_pelvis.json`. The
+separate `Refresh x_hit` button calls `/hope/refresh_x_hit`; it does not rerun
+the marker calibration.
 
 When an approved setup procedure calls for this transform, first put the MDU
 Runner in settled PD_STAND, then run `p1_marker_cad_calibrator` manually on
@@ -215,14 +217,16 @@ ros2 run hope_bringup p1_marker_cad_calibrator \
   --output calibration/p1_to_pelvis.json
 ```
 
-After the replacement, the computer-side `hope_base_pose_flat_relay` only
-reads the canonical `p1_to_pelvis` object from that JSON for the rest of the
-run and composes it with the live `world → P1` pose. The computer publishes
+After the replacement, the computer-side `hope_base_pose_flat_relay` reads the
+canonical `p1_to_pelvis` object from that JSON and composes it with the live
+`world → P1` pose. The additional `world_to_pelvis_snapshot` object records
+the stationary calibration instant for audit only; it is not published as a
+static transform after the robot moves. The computer publishes
 `/a3/base_pose_flat` for policy localization and the unshifted diagnostic
 `/a3/mocap/pelvis_pose`. It does not recalculate while the robot is playing.
 The robot consumes `/a3/base_pose_flat`; it never stores, reads, or receives
 the JSON. The SHA-derived PREPARE receipt gate described by the imported
-adapter is not part of the native V17 Runner admission contract.
+adapter is not part of the native Runner admission contract.
 
 #### Legacy independent pose-pair method
 

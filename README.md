@@ -129,8 +129,8 @@ even while ROS 2 topics appear healthy.
 ## Optional marker-CAD alignment: P1 to A3 `pelvis_link`
 
 The imported Foxglove work includes a ten-waist-marker CAD calibration tool.
-It is not invoked by the integrated V17 console: the native flow uses Stand,
-`/hope/v17/refresh_x_hit`, and Ready, while the ten-marker topic remains
+It is not invoked by the integrated Runner console: the native flow uses Stand,
+`/hope/refresh_x_hit`, and Ready, while the ten-marker topic remains
 operator telemetry. The colleague branch's `/hope/control/enter_prepare`
 orchestration belongs to the legacy TTY adapter and is not bridge-exposed in
 this integration.

@@ -5,9 +5,6 @@
     tls: false
     # Whitelist keeps camera H.265 / lidar off the Wi-Fi link by default.
     topic_whitelist:
-      - "^/tf$"
-      - "^/tf_static$"
-      - "^/joint_states$"
       - "^/hope/.*"
       - "^/agivslam/localization/odometry$"
     # The fleet endpoint remains monitoring plus assert-only E-stop. All

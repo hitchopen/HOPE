@@ -1,0 +1,13 @@
+[Unit]
+Description=HOPE Foxglove local table asset server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/dongc1/workspace/HOPE_OPEN/foxglove
+ExecStart=/usr/bin/python3 -m http.server 8000 --bind 127.0.0.1
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,7 +1,8 @@
 """Laptop-side OptiTrack adapter, calibration, and HOPE pose bridge.
 
 Chain:  NatNet2ROS2 /optitrack/poses  -->  optitrack_mct_relay
-        --> /poses, /tf, /ball/point, /{P1,P2}/pose  --> hope_planner
+        --> /poses, /tf, /ball/point, /{P1,P2}/pose
+        --> hope_ball_flight_packetizer --> /ball/flight_packet --> hope_planner
 
 When launched directly on the external computer, this owns NatNet2ROS2, the
 per-run P1 calibration service, the laptop-local calibration JSON, the base
@@ -43,11 +44,20 @@ def generate_launch_description():
     motive_hostname = LaunchConfiguration("motive_hostname")
     position_scale = LaunchConfiguration("position_scale")
     p1_calibration_file = LaunchConfiguration("p1_calibration_file")
+    base_pose_output_topic = LaunchConfiguration("base_pose_output_topic")
+    debug_csv_path = LaunchConfiguration("debug_csv_path")
+    debug_session_id = LaunchConfiguration("debug_session_id")
+    start_flight_packetizer = LaunchConfiguration("start_flight_packetizer")
+    flight_packet_topic = LaunchConfiguration("flight_packet_topic")
+    flight_packet_debug_csv_path = LaunchConfiguration(
+        "flight_packet_debug_csv_path"
+    )
 
     return LaunchDescription([
         DeclareLaunchArgument("start_world", default_value="true"),
         DeclareLaunchArgument("start_natnet", default_value="true"),
         DeclareLaunchArgument("start_calibration", default_value="true"),
+        DeclareLaunchArgument("start_flight_packetizer", default_value="true"),
         DeclareLaunchArgument(
             "motive_hostname",
             default_value="192.168.100.111",
@@ -60,6 +70,29 @@ def generate_launch_description():
                 "laptop-local P1 calibration JSON, relative to the launch "
                 "working directory unless absolute"
             ),
+        ),
+        DeclareLaunchArgument(
+            "debug_csv_path",
+            default_value="",
+            description="Optional per-frame mocap audit CSV path.",
+        ),
+        DeclareLaunchArgument(
+            "debug_session_id",
+            default_value="",
+            description="Session identifier copied into mocap and packet audit rows.",
+        ),
+        DeclareLaunchArgument(
+            "flight_packet_topic",
+            default_value="/ball/flight_packet",
+        ),
+        DeclareLaunchArgument(
+            "base_pose_output_topic",
+            default_value="/a3/base_pose_flat",
+        ),
+        DeclareLaunchArgument(
+            "flight_packet_debug_csv_path",
+            default_value="",
+            description="Optional Laptop flight-packet audit CSV path.",
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -89,6 +122,7 @@ def generate_launch_description():
             condition=IfCondition(start_world),
             launch_arguments={
                 "p1_calibration_file": p1_calibration_file,
+                "base_pose_output_topic": base_pose_output_topic,
             }.items(),
         ),
 
@@ -116,6 +150,32 @@ def generate_launch_description():
                 str(relay_config_path),
                 {
                     "position_scale": ParameterValue(position_scale, value_type=float),
+                    "debug_csv_path": debug_csv_path,
+                    "debug_session_id": debug_session_id,
+                },
+            ],
+        ),
+
+        # Foxglove lifecycle data adapter. It observes the same /poses stream,
+        # freezes one complete incoming flight, and publishes the immutable
+        # transport packet consumed by the HDU Planner. The downstream
+        # build_1 estimator, bounce, target and schema-2 logic remain unchanged.
+        Node(
+            package="hope_planner_cpp",
+            executable="hope_ball_flight_packetizer",
+            name="hope_ball_flight_packetizer",
+            output="screen",
+            condition=IfCondition(start_flight_packetizer),
+            parameters=[
+                PathJoinSubstitution([
+                    FindPackageShare("hope_planner_cpp"),
+                    "config",
+                    "model21800_flight_packetizer.yaml",
+                ]),
+                {
+                    "session_id": debug_session_id,
+                    "flight_packet_topic": flight_packet_topic,
+                    "debug_csv_path": flight_packet_debug_csv_path,
                 },
             ],
         ),

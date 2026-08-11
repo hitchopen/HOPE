@@ -1,0 +1,21 @@
+test_batch_physics_estimator 0 0
+test_trajectory_and_stage3 0 0
+test_schema2 0 0
+test_spin_estimator 0 0
+test_audit_logger 0 0
+test_post_net_one_shot 0 0
+test_incoming_trajectory 0 0
+test_flight_packet 0 0
+test_planner_node_one_shot 0 0
+test_flight_packet_pipeline 0 0
+---
+test_batch_physics_estimator
+test_trajectory_and_stage3
+test_schema2
+test_spin_estimator
+test_audit_logger
+test_post_net_one_shot
+test_incoming_trajectory
+test_flight_packet
+test_planner_node_one_shot
+test_flight_packet_pipeline

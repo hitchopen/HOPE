@@ -3,10 +3,12 @@ hope_planner:
     # model_21800 C++ candidate: production estimator is always the
     # non-recursive batch physics implementation.  No EKF code is selected.
     use_kalman: false
-    # Retain about 178 ms of DDS history through short executor bursts; the
-    # estimator itself uses the nearest representable 180 ms raw window.
-    # The callback sees every ordered sample; one-shot flights bypass the
-    # legacy SPSC and hand the solver one immutable latest-wins snapshot.
+    # Formal hardware input is one immutable Laptop-produced flight packet,
+    # not the per-frame /poses stream. Raw /poses may still be published for
+    # recording/Foxglove, but this Planner does not subscribe to it.
+    flight_packet_input_enabled: true
+    flight_packet_topic: "/ball/flight_packet"
+    # Kept only for explicit legacy /poses A/B runs.
     input_qos_depth: 64
     solve_period_s: 0.033
     expected_mocap_hz: 360.0
@@ -14,10 +16,9 @@ hope_planner:
     # Offline-selected after replay; every flight uses this same task-phase
     # offset. It is not a confidence, READY, source-age, or balance gate.
     post_net_commit_delay_s: 0.05
-    # Callback-side incoming-flight segmentation. Direction is a least-squares
-    # X slope over four samples; two consecutive fitted slopes require five
-    # stable frames before entry. The 24-sample pre-roll is detector-only and
-    # is backtracked to the opponent-side X maximum on a confirmed return.
+    # These parameters describe the Laptop packetizer's deterministic flight
+    # boundary and are retained here as audited contract values. They do not
+    # become HDU command-admission gates.
     incoming_opponent_side_margin_m: 0.05
     incoming_speed_threshold_mps: 0.25
     outgoing_speed_threshold_mps: 0.25

@@ -174,6 +174,20 @@ class P1MarkerCadRegistrationTest(unittest.TestCase):
             canonical["translation_m"],
             document["p1_to_pelvis_link"]["xyz_m"],
         )
+        snapshot = document["world_to_pelvis_snapshot"]
+        self.assertEqual(snapshot["parent_frame"], "world")
+        self.assertEqual(snapshot["child_frame"], "pelvis_link")
+        self.assertEqual(snapshot["sample_count"], len(capture.poses))
+        expected_snapshot = MODULE.compose(
+            MODULE.representative_transform(capture.poses), self.transform
+        )
+        self.assert_transform_close(
+            MODULE.Transform(
+                tuple(snapshot["translation_m"]),
+                tuple(snapshot["quaternion_xyzw"]),
+            ),
+            expected_snapshot,
+        )
 
     def test_stationary_named_ten_marker_prepare_can_pass(self):
         markers = self.model_markers(MODULE.MARKER_NAMES)
@@ -209,6 +223,22 @@ class P1MarkerCadRegistrationTest(unittest.TestCase):
             document["method"]["trajectory_validation"],
             "stationary_named_marker_geometry",
         )
+
+    def test_capture_waits_until_every_marker_has_physical_samples(self):
+        markers = self.model_markers(MODULE.MARKER_NAMES)
+        capture = MODULE.Capture("P1", 26, "world", markers, frames_received=800)
+        for marker in markers:
+            capture.live_errors_m[marker.member_id] = [0.0007] * 30
+        self.assertTrue(MODULE.physical_marker_samples_ready(capture, 30))
+
+        capture.live_errors_m[markers[6].member_id] = []
+        self.assertFalse(MODULE.physical_marker_samples_ready(capture, 30))
+
+        capture.live_errors_m[markers[6].member_id] = [0.0007] * 29
+        self.assertFalse(MODULE.physical_marker_samples_ready(capture, 30))
+
+        capture.live_errors_m[markers[6].member_id].append(0.0007)
+        self.assertTrue(MODULE.physical_marker_samples_ready(capture, 30))
 
     def test_atomic_write_replaces_complete_receipt(self):
         import tempfile

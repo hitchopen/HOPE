@@ -80,6 +80,7 @@ def generate_launch_description():
     contract = config["contract"]
     x_hit = config["planner"]["x_hit"]
     p1_calibration_file = LaunchConfiguration("p1_calibration_file")
+    base_pose_output_topic = LaunchConfiguration("base_pose_output_topic")
 
     nodes = [
         _static_tf(frames["world"], frames["table_center"], landmarks["table_center"], [0.0, 0.0, 0.0]),
@@ -102,7 +103,7 @@ def generate_launch_description():
             output="screen",
             parameters=[{
                 "input_topic": f"/{frames['p1_mocap']}/pose",
-                "output_topic": "/a3/base_pose_flat",
+                "output_topic": base_pose_output_topic,
                 "expected_input_frame": frames["world"],
                 "expected_marker_frame": frames["p1_mocap"],
                 "pelvis_frame": "pelvis_link",
@@ -130,6 +131,11 @@ def generate_launch_description():
                 description=(
                     "laptop-local approved P1 -> pelvis_link calibration receipt"
                 ),
+            ),
+            DeclareLaunchArgument(
+                "base_pose_output_topic",
+                default_value="/a3/base_pose_flat",
+                description="schema-2 base-pose output topic",
             ),
             *nodes,
         ]

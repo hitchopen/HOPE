@@ -36,6 +36,12 @@
           "type": "arrow",
           "arrowScale": [0.4, 0.1, 0.1],
           "color": "#00e5ff"
+        },
+        "/hope/ball/marker": {
+          "visible": true
+        },
+        "/hope/pelvis/marker": {
+          "visible": true
         }
       },
       "layers": {
@@ -64,19 +70,6 @@
           "displayMode": "auto",
           "fallbackColor": "#245c8a",
           "order": 2
-        },
-        "urdf-a3": {
-          "instanceId": "urdf-a3",
-          "layerId": "foxglove.Urdf",
-          "visible": true,
-          "label": "A3 URDF (automatically gated by fresh live TF)",
-          "sourceType": "topic",
-          "topic": "/hope/robot_description",
-          "controlMode": "transforms",
-          "framePrefix": "",
-          "displayMode": "auto",
-          "fallbackColor": "#ffffff",
-          "order": 3
         }
       }
     },

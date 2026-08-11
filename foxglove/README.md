@@ -1,34 +1,43 @@
-# A3 Foxglove Monitoring — Fleet Rulebook
+# HOPE A3 Foxglove Operator Interface
 
-> **Integrated model_21800 control note.** This branch combines the monitoring,
-> OptiTrack/marker, TF/URDF and E-stop work from `Catrunaround/HOPE:nightly_built`
-> with the native V17 Runner contract. The imported 8-double TTY adapter and
+> **Formal model_21800 operator stack.** This branch combines the monitoring,
+> OptiTrack/marker, pelvis TF and E-stop work from `Catrunaround/HOPE:nightly_built`
+> with the native Runner contract. The imported 8-double TTY adapter and
 > `/hope/control/*` services are retained as source history/compatibility assets
 > but are not exposed by the fleet bridge and must not be enabled for the native
-> Runner. Use the opt-in `8766` bridge, the services under `/hope/v17/runner/*`,
-> and `layouts/v17_model21800_console.json`; the exact mapping and deployment
+> Runner. Use the opt-in `8766` bridge, the services under `/hope/runner/*`,
+> and `layouts/model21800_console.json`; the exact mapping and deployment
 > boundary are in `docs/operations/foxglove_runner_integration.md`.
+> The copy/paste deployment procedure is
+> `docs/operations/foxglove_first_hardware_test.md`.
 
 Rules and procedures for monitoring **any** Agibot A3 unit from a laptop on
 the same subnet: NTP offset, aggregate CPU utilization, ROS-message timestamp
-latency, vendor process and TF readiness, and the live A3 URDF beside a
-HOPE-aligned table asset. The fleet endpoint exposes one audited action:
-assert E-stop. In the integrated V17 deployment the E-stop requests the vendor
+latency, vendor process and pelvis-TF readiness. The operator layouts contain
+no URDF or robot TF-tree rendering; only the sanitized Pelvis link is shown.
+The fleet endpoint exposes one audited action:
+assert E-stop. In the integrated Runner deployment the E-stop requests the vendor
 software latch and independently requests native Runner PASSIVE, but cannot
 release either latch. All other Runner actions use the separate attended
-control endpoint documented in `foxglove/v17/README.md`. Motive/NatNet conversion,
+control endpoint documented in `foxglove/README.md`. Motive/NatNet conversion,
 ten-marker calibration, the calibration JSON, and
 HOPE base-pose reconstruction all stay on the external computer. The A3 never
 connects to or probes the Motive host and never stores, reads, or receives the
 JSON; it consumes the computer's `/a3/base_pose_flat` output.
+
+On the attended `8766` console, `/hope/calibrate` and
+`/hope/refresh_x_hit` are deliberately separate. Calibration atomically
+replaces the Laptop JSON with the fixed `P1 -> pelvis_link` result plus a
+stationary `world -> pelvis_link` audit snapshot, then waits for the matching
+live base receipt. Refresh x_hit touches only the Planner request/status files.
 
 This document uses the current fixed3 site as its staged network example. The
 operator must verify both distinct Wi-Fi addresses whenever the robot, Laptop,
 or venue changes:
 
 1. Shell sessions use the HDU address in `A3_HOST`.
-2. `fastdds_bridge_profile.xml` currently allowlists the HDU's local
-   `172.23.20.135` address plus the fleet-standard internal `10.42.10.10`.
+2. `fastdds_bridge_profile.xml` uses UDPv4 without shared memory but does not
+   pin a local IPv4 address. Runner supplies validated peers at startup.
 3. `/etc/hope-foxglove/network.env` supplies the Laptop peer; the current
    runbook uses `172.23.20.46`.
 4. The Foxglove connection dialog takes the HDU address as
@@ -52,7 +61,7 @@ or venue changes:
   matched. It can only encode `software_emergency_stop=true`; it contains no
   reset/release path.
 - **R3 — Additive only.** Two dedicated fleet-monitoring HDU systemd units; no
-  vendor runner file is modified. The V17 observer, command proxy and 8766
+  vendor runner file is modified. The Runner observer, command proxy and 8766
   bridge are separately staged opt-in units. Disabling the units removes their runtime effect; the documented
   removal procedure separately cleans installed and build artifacts.
 - **R4 — Bandwidth is opt-in.** The topic whitelist excludes H.265 camera
@@ -65,14 +74,16 @@ or venue changes:
   external computer receives NatNet from Motive and publishes
   `/optitrack/rigid_body_markers`. If an approved setup procedure runs the
   optional P1 marker-CAD calibration, only that computer writes
-  `calibration/p1_to_pelvis.json`. Its base-pose relay reads that file and
+  `calibration/p1_to_pelvis.json`. The receipt includes the fixed extrinsic and
+  a stationary world-pelvis audit snapshot; the latter is not a static runtime
+  TF. Its base-pose relay reads the fixed extrinsic and
   publishes `/a3/base_pose_flat`; the A3 does not consume the marker stream or
   JSON and never attempts to reach the mocap network.
 - **R7 — PM state is not TF readiness.** `/hope/vendor/agibot_pm_active`
   reports the HDU's local systemd unit literally. On split HDU/MDU deployments,
   the HDU unit can be active while MDU-owned joint/TF/localization processes are
   absent. `/hope/vendor/tf_ready` is the authoritative layout gate for the 3D
-  robot.
+  pelvis indicator.
 
 ## Fleet defaults (verify per unit)
 
@@ -83,8 +94,6 @@ or venue changes:
 | DDS interfaces | HDU-MDU internal link plus the unit's Wi-Fi interface for the explicit computer peer | staged FastDDS profile and vendor `ros_dds_configuration.xml` |
 | TF topics | `/tf`, `/tf_static` (`tf2_msgs/TFMessage`) | `ros2 topic type /tf` |
 | Odometry | `/agivslam/localization/odometry` (`nav_msgs/Odometry`) | `ros2 topic list` |
-| Joint states | `/motion/control/{leg,arm,hand,neck,waist}_joint_state` | `ros2 topic list` |
-| URDF selection | model ID in `/agibot/data/info/model`; model package under `/opt/agibot/share/robot_model/models/<lowercase-model>/` | see URDF section |
 | chrony | installed per `agibot/ntp_sync` | `chronyc tracking` |
 | Software E-stop service | live `HalEmergencyService/SetEmergencyCommand`, conditionally wrapped by `/hope/safety/trigger_estop` | `/hope/safety/estop_ready`; do not test by firing it |
 
@@ -94,7 +103,7 @@ A3 unit                                          External computer
             ⇄ ROS2/FastDDS domain 232  ──┐
   hope_monitor.py (health, E-stop, scene) ──┤
   fleet foxglove_bridge ─────────────────┴── ws://<robot-ip>:8765 ──► monitoring / E-stop
-  V17 observer + command proxy ◄──► native Runner request/state
+  Runner observer + command proxy ◄──► native Runner request/state
   attended control bridge ─────────────── ws://<robot-ip>:8766 ──► A3 Console
 
 Motive ── NatNet ──► adapter ── ten-marker calibration ──► calibration/p1_to_pelvis.json
@@ -108,20 +117,29 @@ foxglove/
 |-- layouts/
 |   `-- a3_monitor.json              Foxglove layout (import on the laptop)
 |-- assets/
-|   `-- hope_ping_pong_table.urdf    visualization-only HOPE-world table
+|   `-- hope_ping_pong_table.urdf    static table visualization asset
+|-- laptop/                          Laptop marker and local-asset services
+|-- helpers/
+|   `-- hope-lifecycle               fixed three-machine lifecycle helper
 `-- a3/                              staged robot-side assets (NOT installed)
     |-- build_foxglove_bridge.sh     pinned ROS 2 bridge build vs /opt/ros/jazzy
-    |-- bridge_params.yaml           port, address, topic whitelist
-    |-- fastdds_bridge_profile.xml   UDPv4-only profile matching the vendor whitelist
+    |-- bridge_params.yaml           read-only fleet endpoint on 8765
+    |-- bridge_params_control.yaml   attended control endpoint on 8766
+    |-- fastdds_bridge_profile.xml   UDPv4-only, address-agnostic host profile
     |-- network.env.example          one-place Laptop static-peer configuration
-    |-- hope-foxglove-bridge.service systemd unit (bridge)
-    |-- hope-runner-adapter.service  legacy TTY adapter; not installed for V17
-    |-- hope_runner_adapter.py       legacy source; not a Runner authority
-    |-- hope_runner_adapter_core.py  legacy fixed SSH contract and parser
-    |-- hope_model21800_runner.sh    legacy MDU tmux helper; not installed for V17
     |-- hope_monitor.py              health, scene and assert-only E-stop monitor
-    |-- hope_monitor_core.py         ROS-free probe parsing and health rules
-    |-- hope-monitor.service         systemd unit (monitor node)
+    |-- hope_observer.py             normalized Runner/operator state publisher
+    |-- hope_command_proxy.py        fixed Runner and calibration service proxy
+    |-- hope_lifecycle_supervisor.py fixed process lifecycle authority
+    |-- hope-foxglove-bridge.service read-only fleet bridge
+    |-- hope-foxglove-control-bridge.service
+    |-- hope-monitor.service
+    |-- hope-observer.service
+    |-- hope-command-proxy.service
+    |-- hope-lifecycle-supervisor.service
+    |-- hope-runner-adapter.service  legacy TTY adapter; not installed for Runner
+    |-- hope_runner_adapter.py       legacy source; not a Runner authority
+    |-- hope_model21800_runner.sh    legacy MDU helper; not installed for Runner
     `-- patches/                     pinned A3 ament-index compatibility patches
 ```
 
@@ -237,7 +255,7 @@ sudo install -D -o root -g root -m 0644 ~/foxglove_a3/fastdds_bridge_profile.xml
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/network.env.example \
   /etc/hope-foxglove/network.env
 # Edit this one file and set ROS_STATIC_PEERS to the Laptop Wi-Fi address.
-# The current V17 fixed3 runbook uses 172.23.20.46; re-check it after a venue
+# The current Runner fixed3 runbook uses 172.23.20.46; re-check it after a venue
 # or network change.
 sudoedit /etc/hope-foxglove/network.env
 sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_monitor.py \
@@ -276,8 +294,8 @@ The verification also found that the HDU `agibot_pm.service` was active while
 the MDU vendor manager had been intentionally stopped for a custom application.
 The vendor joint-state, localization, TF, and emergency-service endpoints were
 therefore absent from a direct live ROS graph query. Consequently
-`/hope/joints/fresh` was `false`, `odom -> pelvis_link` was unavailable, and the
-E-stop proxy could not safely be exposed. This is why the revised UI has
+`odom -> pelvis_link` was unavailable, and the E-stop proxy could not safely be
+exposed. This is why the revised UI has
 separate **HDU agibot_pm**, **LIVE TF READY**, and **E-STOP BACKEND READY**
 indicators. A stale `ros2cli` daemon can retain old service names; the monitor
 uses live client matching rather than trusting that cache.
@@ -318,10 +336,15 @@ the 3D panel when the vendor TF publisher is active;
 header timestamp; `/hope/system/cpu_load_percent` plots aggregate A3 CPU
 utilization from 0% to 100%; `/hope/vendor/agibot_pm_active` reports the local
 HDU unit; and `/hope/vendor/tf_ready` becomes green only when the configured
-live TF path exists. `/hope/safety/estop_ready` becomes green only when the
-vendor emergency RPC is live; only then is `/hope/safety/trigger_estop`
-advertised. Native Runner acknowledgments and role/serve state are published by
-the V17 observer on `/hope/v17/runner/**` when the attended layer is installed.
+live TF path exists. `/hope/safety/estop_ready` is true while at least one of
+the vendor or native Runner emergency paths is callable, so the assert button
+is not lost when managed operation intentionally stops `agibot_pm`.
+`/hope/safety/estop_full_ready` is true only when both paths are live; a
+one-path state is visibly `PARTIAL ONLY`. Native Runner acknowledgments and role/serve state are published by
+the Runner observer on `/hope/runner/**` when the attended layer is installed.
+The same observer converts `/poses[0]` into a 4 cm orange
+`visualization_msgs/Marker` on `/hope/ball/marker`; its 0.2 s lifetime removes
+the ball promptly when tracking is lost.
 Camera topics, arbitrary publish controls, parameters, and all other services
 remain unavailable.
 
@@ -333,7 +356,9 @@ ros2 topic echo /hope/vendor/tf_ready --once
 ros2 topic echo /hope/clock/message_latency_ms --once
 ros2 topic echo /hope/system/cpu_load_percent --once
 ros2 topic echo /hope/safety/estop_ready --once
-ros2 topic info /hope/robot_description
+ros2 topic echo /hope/safety/estop_full_ready --once
+ros2 topic info /hope/pelvis/marker
+ros2 topic info /hope/ball/marker
 # Run the next line only after estop_ready reports true:
 ros2 service type /hope/safety/trigger_estop
 ```
@@ -377,73 +402,25 @@ to `ws://<robot-ip>:8765`; to view laptop-side NatNet/ROS 2 mocap data at the
 same time, open a second Foxglove window and connect that window to the laptop
 mocap data source.
 
-## Robot and HOPE-world table in 3D
+## Pelvis and ball in 3D
 
-The table environment is independent of the robot state and is always enabled.
-The A3 layer is sourced from `/hope/robot_description`, not directly from a URL.
-`hope_monitor.py` publishes the selected A3 URDF on that topic only while the
-configured `world -> ... -> pelvis_link` transform exists and is no more than
-0.5 seconds old. When the lookup fails or becomes stale, it immediately
-publishes an empty description, which removes the robot while leaving the table
-and HOPE axes visible. The description publisher uses reliable,
-transient-local, depth-1 QoS, so a newly connected bridge/client can receive
-the current visible-or-hidden state immediately instead of waiting for the
-periodic refresh.
+The operator layouts contain no URDF and do not expose
+`/hope/robot_description`, `/joint_states`, raw `/tf`, or raw `/tf_static`
+through the Foxglove bridges. `/hope/pelvis/tf` contains exactly one sanitized
+`world -> pelvis_link` transform. The 3D panel shows only a `world` grid, that
+Pelvis link and marker, and the ball marker.
+`hope_monitor.py` validates the configured `world -> pelvis_link` pose, publishes
+the structured/text status and standard visualization markers, and broadcasts
+only the root transform needed to place the pelvis status in the HOPE world.
+The Pelvis point and text markers expire after 0.5 seconds without a fresh
+authoritative pose/TF, so the panel never presents a stale world position as live.
 
-This explicit gate is necessary. Foxglove's built-in transform-controlled URDF
-layer can fall back to the URDF's internal joint tree when data-source frames
-are incomplete; merely enabling a URL layer does **not** guarantee that a
-disconnected robot stays hidden. See Foxglove's
-[URDF custom-layer documentation](https://docs.foxglove.dev/docs/visualization/panels/3d#urdf-custom-layer).
+The live ball is a separate `/hope/ball/marker` topic in the same 3D panel.
+It is visible only while `/poses` contains a finite pose at index 0; absence of
+the ball is therefore represented by the marker expiring, not by retaining a
+stale last position.
 
-Each robot still supplies its own visual mesh files. The installed A3 selects
-its model using `/agibot/data/info/model`. Copy that complete model directory
-to the matching lowercase directory on the laptop (read-only on the robot):
-
-```bash
-A3_MODEL="$(ssh "agi@$A3_HOST" \
-  'tr "[:upper:]" "[:lower:]" < /agibot/data/info/model')"
-mkdir -p foxglove/urdf
-scp -r \
-  "agi@$A3_HOST:/opt/agibot/share/robot_model/models/$A3_MODEL" \
-  foxglove/urdf/
-```
-
-For the verified unit, `/agibot/data/info/model` contains `A3_P1D0`, so this
-selects `/opt/agibot/share/robot_model/models/a3_p1d0/urdf/model.urdf`. Its mesh
-references are relative paths such as `../meshes/pelvis_link.STL`. The previous
-`/proc/<run_agibot-pid>/environ` procedure is not reliable on this image: the
-launcher exists, but those URDF variables were not present in its live process
-environment.
-
-Serve the whole `foxglove/` folder from the laptop. This one server supplies
-both the copied per-unit meshes and the checked-in table asset:
-
-```bash
-cd foxglove && python3 -m http.server 8000
-```
-
-No A3 layer URL needs to be edited in Foxglove. The monitor reads the selected
-robot-side URDF and rewrites its relative mesh references to the corresponding
-`http://localhost:8000/urdf/<model>/...` locations before publishing the gated
-description. Here, `localhost` is resolved by Foxglove Desktop on the laptop.
-`package://<package>/...` references are mapped to
-`http://localhost:8000/urdf/<package>/...`; the copied directory name must
-therefore match the lowercase ROS package name. Uppercase package names are
-rejected so a layout cannot work accidentally on macOS and then 404 on a
-case-sensitive Linux laptop. Relative paths such as the A3's
-`../meshes/pelvis_link.STL` remain supported, but the resolved URL must stay
-inside `robot_asset_root_url`. Local absolute paths and relative escapes are
-rejected rather than exposed. The URL root is configurable in
-`hope-monitor.service`.
-
-The checked-in **Standard ping-pong table (HOPE world)** layer remains a
-separate, always-on URL:
-`http://localhost:8000/assets/hope_ping_pong_table.urdf`.
-
-The table illustration uses regulation dimensions (2.740 m × 1.525 m, playing
-surface 0.760 m above the floor, net height 0.1525 m) and the repository's HOPE
-world convention:
+The grid follows the repository's HOPE world convention:
 
 - `world=(0,0,0)` is the near-side left corner of the **playing surface** from
   P1's view;
@@ -454,13 +431,11 @@ world convention:
 The visual includes a red/green/blue +X/+Y/+Z triad at the origin. It is an
 illustration only: no collision or planning geometry is provided.
 
-The robot appears beside the table only when TF provides a connected, fresh
-`world -> ... -> pelvis_link` path. `agibot_pm` can restore the vendor joint and
-localization tree, but a vendor tree rooted at `odom` still needs a measured
-`world -> odom` alignment before it is a HOPE-world scene. Until that measured
-connection exists, **LIVE TF READY** stays false and the 3D viewer intentionally
-shows the table without the robot. Do not add an identity transform unless the
-table-origin calibration actually establishes that identity.
+The Pelvis indicator appears on the world grid only when the authoritative mocap
+pose or TF provides a connected, fresh `world -> pelvis_link` path. Until then,
+**LIVE TF READY** stays false and the 3D viewer intentionally shows only the
+grid without a Pelvis label. Do not add an identity transform unless calibration
+actually establishes that identity.
 
 **Pelvis position and rotation in text:** `hope_monitor.py` looks up the
 transform `reference_frame -> pelvis_frame` (layout defaults `world ->
@@ -473,16 +448,17 @@ pelvis_link`, both settable in `hope-monitor.service`) and publishes:
   lookup fails, this topic carries the error text instead, so a wrong frame
   name is visible directly in the UI.
 
-The structured pose is published only for fresh TF samples. Consumers must
-still use `/hope/vendor/tf_ready` as the validity bit because ROS topics retain
-the last pose a subscriber received. The default freshness limit is 0.5 seconds
-and is configurable as `tf_stale_after_s`.
+The structured pose is published only for a fresh authoritative mocap pose or
+a fresh TF fallback. Consumers must still use `/hope/vendor/tf_ready` as the
+validity bit because ROS topics retain the last pose a subscriber received.
+The default freshness limit is 0.5 seconds and is configurable as
+`tf_stale_after_s`.
 
-The monitor caches the five vendor joint groups but publishes the merged
-`/joint_states` at a bounded 20 Hz. It publishes only while every group is
-fresh, preserves the oldest contributing source timestamp, and exposes group
-health on `/hope/joints/fresh` and `/hope/joints/text`. The rate and freshness
-window are configurable in `hope-monitor.service`.
+During the managed model21800 session the authoritative root pose is
+`/a3/mocap/pelvis_pose`, composed on the Laptop from the approved marker
+calibration. The monitor validates its `world` frame and timestamp, republishes
+it as `/hope/pelvis/pose`, and broadcasts `world -> pelvis_link`. Existing live
+vendor TF remains the fallback when the authoritative mocap pose is absent.
 
 To discover a unit's actual frame names, open the 3D panel's frame list, or
 run on the robot: `ros2 topic echo /tf_static --once | grep frame_id`.
@@ -505,6 +481,13 @@ near 100% are evidence of compute saturation, but temperature throttling,
 memory pressure, and scheduling latency require separate diagnostics. The
 sampling interval is configurable as `cpu_publish_period_s` in
 `hope-monitor.service`.
+
+At the same one-second cadence the monitor reads the CPU tick counters in each
+readable `/proc/<pid>/stat` and publishes the largest delta on
+`/hope/system/cpu_top_process`. The text reports both `core=...%` (the familiar
+one-core `top` scale) and `system=...%` (share of total machine CPU time). This
+is diagnostic attribution; it does not change Runner, TF, joint, or latency
+rates automatically.
 
 ## Timestamp latency and process-state semantics
 
@@ -530,7 +513,7 @@ follows `world`, not `pelvis_link`, so the table and HOPE axes remain usable
 while the vendor tree is absent; this also avoids treating a missing
 `pelvis_link` as the panel's required coordinate frame.
 
-## Legacy TTY adapter reference (not used by native V17 integration)
+## Legacy TTY adapter reference (not used by native Runner integration)
 
 The following section documents the colleague branch's imported 8-double
 adapter for source provenance only. Do not install or enable it alongside the
@@ -592,9 +575,15 @@ Runner `emergency_passive` service when available, and independently adds a
 fresh timestamp and trace ID, encodes the vendor
 `aimdk.protocol.EmergencyCommandReq`, and calls the live A3
 `HalEmergencyService/SetEmergencyCommand` endpoint with only
-`software_emergency_stop=true`. The HOPE proxy is dynamically advertised only
-while the vendor endpoint is matched; otherwise Foxglove shows the service as
-unavailable and the adjacent backend tile is red.
+`software_emergency_stop=true`. The HOPE proxy is dynamically advertised while
+either that vendor endpoint or the native Runner emergency-PASSIVE endpoint is
+matched and the local latch is clear. `/hope/safety/estop_ready` means at least
+one explicit stop path is callable; `/hope/safety/estop_full_ready` is true only
+when both independent paths are callable. A one-path state is always shown as
+`PARTIAL ONLY` and requires the physical E-stop.
+The independent managed Runner emergency service is attempted whenever it is
+available, but its absence never suppresses the primary vendor stop; that case
+returns an explicit `PARTIAL E-STOP` result.
 
 Success requires both independent paths: the managed runner must be confirmed
 stopped, AimRT's `RosRpcWrapper.code` must be zero, and the protobuf
@@ -604,16 +593,24 @@ missing header, or malformed payload is reported as failure; the vendor
 message is included when present. The service callback does not hold the
 readiness lock while waiting up to 2 seconds for the vendor RPC, so NTP, CPU,
 TF, and other monitor timers continue publishing during the call. A concurrent
-second E-stop request is rejected while the first remains in progress. Even
-when both requests succeed, this repository has no independent actuator-state
+second E-stop request is rejected while the first remains in progress. The
+Runner emergency action bypasses the ordinary operator-action lock, so a long
+calibration cannot prevent the independent command-source removal request.
+Before either backend call completes, the monitor stores an assert-only latch
+at `/var/lib/hope-monitor/estop-latched`; `/hope/safety/estop_latched` remains
+true across monitor restarts and the console follows this authoritative state
+instead of a browser-local flag. Even when both requests succeed, this
+repository has no independent actuator-state
 feedback, so the response explicitly requires checking the physical E-stop.
 
 - The button is a real safety action, not a test widget.
 - The fleet bridge allowlists only the assert-only E-stop service; the attended
-  bridge has a separate fixed V17 allowlist. Arbitrary services, parameters,
+  bridge has a separate fixed Runner allowlist. Arbitrary services, parameters,
   and client-published topics remain blocked.
 - There is deliberately no remote reset/release button. Inspect the robot and
-  use Agibot's approved local recovery procedure after an E-stop.
+  use Agibot's approved local recovery procedure after an E-stop. Only after
+  the physical and vendor emergency state has been safely reset may an HDU
+  operator remove the fixed latch file and restart `hope-monitor.service`.
 - If the vendor wrapper package or emergency service is absent, the proxy is
   removed and the Foxglove control is unavailable. If the vendor endpoint drops
   during a call or its response cannot be validated, the callback fails closed
@@ -627,20 +624,22 @@ Foxglove.
 
 ## What the layout shows
 
-- **3D (left):** live A3 URDF and TF plus the standard table illustration in
-  HOPE `world`. The A3 appears only when a connected live TF path exists.
+- **3D (left):** Pelvis link/world-pose marker and live ball on a HOPE `world`
+  grid; no URDF, non-Pelvis robot links, or joint rendering.
 - **NTP offset (upper right):** A3 system-clock offset and root dispersion in
   milliseconds.
 - **ROS timestamp latency (upper right):** A3 ROS clock minus the pelvis-IMU
   message header timestamp, in milliseconds.
 - **CPU utilization (upper right):** aggregate A3 CPU busy percentage over
-  time, displayed on a fixed 0%–100% scale.
+  time, displayed on a fixed 0%–100% scale, plus the process with the largest
+  per-sample CPU delta.
 - **Status tiles:** HDU `agibot_pm`, connected TF readiness, runner readiness,
   calibration readiness, E-stop backend, NTP gate, and timestamp freshness use
   green/red/orange backgrounds.
 - **A3 EMERGENCY STOP:** backed by the assert-only proxy described above and
-  enabled only when its live vendor backend exists.
-- The integrated A3 Console on port 8766 provides the fixed native V17 actions
+  enabled when the live primary vendor backend exists and no prior latch is
+  active; the detail text reports whether the Runner path is also ready.
+- The integrated A3 Console on port 8766 provides the fixed native Runner actions
   documented in `docs/operations/foxglove_runner_integration.md`; the fleet
   layout itself has no legacy TTY Runner controls.
 

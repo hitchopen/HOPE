@@ -129,6 +129,36 @@ button {
   opacity: 0.85;
 }
 
+.estop-button.estop-asserted {
+  border-color: #ff8b82;
+  background: #d1202a;
+  box-shadow: 0 0 0 6px rgba(209, 32, 42, 0.24);
+}
+
+.estop-button:disabled {
+  opacity: 0.82;
+  background: #d1202a;
+}
+
+.operator-notice {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 3%);
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+}
+
+.operator-notice-danger {
+  border-color: #ff5b52;
+  background: rgb(126 24 24 / 35%);
+}
+
 button:not(:disabled):hover {
   filter: brightness(1.08);
 }
@@ -182,6 +212,121 @@ button:disabled {
 
 .gate-attention .gate-dot {
   background: #e8a33d;
+}
+
+.lifecycle-card {
+  border: 1px solid rgba(19, 168, 184, 0.48);
+  border-radius: 12px;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(19, 168, 184, 0.07);
+}
+
+.lifecycle-header,
+.lifecycle-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.lifecycle-header {
+  justify-content: space-between;
+}
+
+.lifecycle-state {
+  margin-top: 5px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.lifecycle-result,
+.config-field,
+.config-helper,
+.lifecycle-actions button {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.lifecycle-result {
+  max-width: 48%;
+  overflow: hidden;
+  color: #aebbca;
+  font-size: 13px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.config-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #8fa0b4;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+.config-field input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(174, 187, 202, 0.28);
+  border-radius: 8px;
+  outline: none;
+  padding: 10px 11px;
+  color: #ffffff;
+  background: #111f32;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14px;
+}
+
+.config-field input:focus {
+  border-color: #13a8b8;
+  box-shadow: 0 0 0 3px rgba(19, 168, 184, 0.16);
+}
+
+.lifecycle-actions button {
+  min-width: 150px;
+  border: 1px solid rgba(174, 187, 202, 0.34);
+  border-radius: 8px;
+  padding: 11px 14px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.lifecycle-actions .config-confirm {
+  border-color: rgba(19, 168, 184, 0.68);
+  background: rgba(19, 168, 184, 0.16);
+}
+
+.lifecycle-actions .system-start {
+  border-color: #3fbf6a;
+  background: #218a45;
+}
+
+.lifecycle-actions .system-stop {
+  border-color: rgba(232, 163, 61, 0.65);
+  color: #f3c888;
+  background: rgba(232, 163, 61, 0.12);
+}
+
+.config-helper {
+  min-width: 0;
+  color: #7c8aa0;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .metric-grid,
@@ -326,8 +471,20 @@ button:disabled {
   font-size: 20px;
 }
 
-.cpu-topic {
+.cpu-diagnostics {
   margin-left: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.cpu-diagnostics .topic-path {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cpu-plot {
@@ -359,16 +516,35 @@ button:disabled {
 .sequence-header {
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
+  border: 1px solid rgba(19, 168, 184, 0.32);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(19, 168, 184, 0.06);
+  flex-wrap: wrap;
 }
 
-.sequence-header > div {
-  gap: 14px;
+.sequence-summary {
+  min-width: 220px;
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 4px;
 }
 
 .role-controls {
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   color: #aebbca;
   font-size: 13px;
+}
+
+.role-label {
+  white-space: nowrap;
 }
 
 .role-controls button {
@@ -471,7 +647,8 @@ button:disabled {
 @media (max-width: 700px) {
   .metric-grid,
   .process-grid,
-  .action-grid {
+  .action-grid,
+  .config-grid {
     grid-template-columns: 1fr;
   }
 
@@ -480,6 +657,8 @@ button:disabled {
   }
 
   .source-row,
+  .lifecycle-header,
+  .lifecycle-actions,
   .sequence-header,
   .sequence-footer {
     align-items: stretch;
@@ -487,6 +666,7 @@ button:disabled {
   }
 
   .estop-button,
+  .lifecycle-actions button,
   .sequence-footer .action-button {
     width: 100%;
     margin-left: 0;
@@ -494,6 +674,11 @@ button:disabled {
 
   .role-controls {
     flex-wrap: wrap;
+  }
+
+  .lifecycle-result {
+    max-width: 100%;
+    text-align: left;
   }
 }
 

@@ -47,8 +47,9 @@ struct TrajectorySnapshot {
       std::numeric_limits<double>::quiet_NaN();
   double previous_segment_last_source_time_s =
       std::numeric_limits<double>::quiet_NaN();
-  const char* segment_boundary_reason = "none";
+  std::string segment_boundary_reason = "none";
   PostNetOneShotEvent one_shot;
+  FlightPacketMetadata packet;
 
   const BallSample* latest_sample() const noexcept {
     return sample_count == 0 ? nullptr : &samples[sample_count - 1];

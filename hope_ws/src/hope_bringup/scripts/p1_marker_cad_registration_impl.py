@@ -9,7 +9,9 @@ For a verified correspondence between those centres and the CAD centres in
 
 This setup-session tool solves that rigid registration, validates same-frame
 labeled-marker samples over multiple P1 headings, and writes an auditable JSON
-receipt. It does not edit Motive or ``hope_world_frame.yaml``.
+receipt.  The receipt also records the stationary ``world -> pelvis_link``
+snapshot obtained by composing the captured ``world -> P1`` pose with the
+fixed registration. It does not edit Motive or ``hope_world_frame.yaml``.
 
 The calculation is deliberately dependency-free outside ROS 2. Math-level
 tests and JSON snapshots therefore work on machines without NumPy.
@@ -168,6 +170,71 @@ def transform_point(transform: Transform, point: Vector3) -> Vector3:
         rotated[0] + transform.translation[0],
         rotated[1] + transform.translation[1],
         rotated[2] + transform.translation[2],
+    )
+
+
+def quaternion_multiply(left: Quaternion, right: Quaternion) -> Quaternion:
+    """Compose two xyzw rotations, applying ``right`` before ``left``."""
+
+    lx, ly, lz, lw = normalize_quaternion(left)
+    rx, ry, rz, rw = normalize_quaternion(right)
+    return normalize_quaternion(
+        (
+            lw * rx + lx * rw + ly * rz - lz * ry,
+            lw * ry - lx * rz + ly * rw + lz * rx,
+            lw * rz + lx * ry - ly * rx + lz * rw,
+            lw * rw - lx * rx - ly * ry - lz * rz,
+        )
+    )
+
+
+def compose(left: Transform, right: Transform) -> Transform:
+    """Compose parent->middle and middle->child transforms."""
+
+    rotated = rotate(left.quaternion, right.translation)
+    return Transform(
+        (
+            left.translation[0] + rotated[0],
+            left.translation[1] + rotated[1],
+            left.translation[2] + rotated[2],
+        ),
+        quaternion_multiply(left.quaternion, right.quaternion),
+    )
+
+
+def representative_transform(samples: Sequence[Transform]) -> Transform | None:
+    """Average a stationary pose capture with quaternion hemisphere alignment."""
+
+    if not samples:
+        return None
+    translation = _mean([sample.translation for sample in samples])
+    reference = normalize_quaternion(samples[0].quaternion)
+    aligned: list[Quaternion] = []
+    for sample in samples:
+        quaternion = normalize_quaternion(sample.quaternion)
+        if _dot(reference, quaternion) < 0.0:
+            quaternion = tuple(-value for value in quaternion)  # type: ignore[assignment]
+        aligned.append(quaternion)
+    quaternion = normalize_quaternion(
+        tuple(
+            sum(sample[index] for sample in aligned)
+            for index in range(4)
+        )
+    )
+    return Transform(translation, quaternion)
+
+
+def physical_marker_samples_ready(
+    capture: Capture, minimum_live_samples_per_marker: int
+) -> bool:
+    """Return true only after every ModelDef member has enough live samples."""
+
+    minimum = int(minimum_live_samples_per_marker)
+    if minimum < 1:
+        raise ValueError("minimum_live_samples_per_marker must be positive")
+    return bool(capture.markers) and all(
+        len(capture.live_errors_m.get(marker.member_id, ())) >= minimum
+        for marker in capture.markers
     )
 
 
@@ -715,6 +782,14 @@ def analyze_capture(
 
     qx, qy, qz, qw = registration.transform.quaternion
     tx, ty, tz = registration.transform.translation
+    reference_to_p1 = representative_transform(capture.poses)
+    reference_to_pelvis = (
+        compose(reference_to_p1, registration.transform)
+        if reference_to_p1 is not None
+        else None
+    )
+    if reference_to_pelvis is None:
+        blockers.append("no P1 rigid-body pose samples for world-to-pelvis snapshot")
     marker_records = []
     for marker in capture.markers:
         cad_name = correspondence.mapping[marker.member_id]
@@ -813,6 +888,25 @@ def analyze_capture(
             "translation_m": [tx, ty, tz],
             "quaternion_xyzw": [qx, qy, qz, qw],
         },
+        # An audited snapshot of the derived pose at the stationary calibration
+        # instant. This satisfies operator provenance without turning the
+        # moving robot's world pose into a static runtime transform. Runtime
+        # localization still composes live world->P1 with P1->pelvis_link.
+        "world_to_pelvis_snapshot": (
+            None
+            if reference_to_pelvis is None
+            else {
+                "parent_frame": capture.frame_id,
+                "child_frame": "pelvis_link",
+                "translation_m": list(reference_to_pelvis.translation),
+                "quaternion_xyzw": list(reference_to_pelvis.quaternion),
+                "sample_count": len(capture.poses),
+                "semantics": (
+                    "stationary calibration snapshot for audit; not a static "
+                    "runtime world-to-pelvis transform"
+                ),
+            }
+        ),
         "hope_world_frame_yaml_candidate": {
             "path": "hope_world.mocap_to_base_link.p1",
             "calibrated": not blockers,
@@ -993,6 +1087,9 @@ def collect_ros_capture(args: argparse.Namespace) -> Capture:
                 if (
                     collector.capture.frames_received >= args.minimum_frames
                     and capture_elapsed >= args.capture_duration
+                    and physical_marker_samples_ready(
+                        collector.capture, args.minimum_live_samples_per_marker
+                    )
                 ):
                     return collector.capture
             if elapsed >= args.timeout:
@@ -1001,6 +1098,11 @@ def collect_ros_capture(args: argparse.Namespace) -> Capture:
                         f"no {args.asset_name} marker messages arrived on "
                         f"{args.topic} within {args.timeout:.1f} s"
                     )
+                if collector.capture.frames_received >= args.minimum_frames:
+                    # Preserve the detailed per-marker blocker report. A
+                    # temporarily occluded marker gets the full timeout to
+                    # recover, but a persistent occlusion still fails closed.
+                    return collector.capture
                 raise RuntimeError(
                     f"capture timed out after {args.timeout:.1f} s with "
                     f"{collector.capture.frames_received} frames"

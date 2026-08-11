@@ -166,8 +166,8 @@ class A3AimrtBackend : public RobotIOBackend {
   FlatArrayCallback ball_state_cb_{};
   std::string ball_state_topic_{"/serve/ball_state_flat"};
   FlatArrayCallback runner_control_cb_{};
-  std::string runner_control_topic_{"/hope/v17/runner/control_request_flat"};
-  std::string runner_state_topic_{"/hope/v17/runner/state_flat"};
+  std::string runner_control_topic_{"/hope/runner/control_request_flat"};
+  std::string runner_state_topic_{"/hope/runner/state_flat"};
   std::mutex runner_state_publish_mutex_;
   std::function<void(const std::vector<double>&)> runner_state_publish_fn_{};
 

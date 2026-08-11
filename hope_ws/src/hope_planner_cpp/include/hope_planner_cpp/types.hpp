@@ -85,6 +85,10 @@ struct SpinEstimatorConfig {
 };
 
 struct BallSample {
+  // Exact producer timestamp for transport/audit. source_time_s remains the
+  // numerical integration coordinate, but must never be converted back to an
+  // epoch timestamp when this integer is available.
+  std::int64_t source_time_ns = 0;
   double source_time_s = 0.0;
   Vec3 position = Vec3::Zero();
   // Motive/ROS orientation of the tracked ball, normalized in the callback.
@@ -158,6 +162,24 @@ struct RacketCommand {
   std::string reason = "not_run";
 };
 
+// Transport provenance attached to a Laptop-produced immutable flight. These
+// fields are audit/identity only; none participates in target admission.
+struct FlightPacketMetadata {
+  bool present = false;
+  std::string session_id;
+  std::string producer_instance_id;
+  std::string payload_hash;
+  std::string frame_id = "world";
+  std::uint64_t trajectory_epoch = 0;
+  std::uint64_t flight_sequence = 0;
+  std::int64_t freeze_wall_unix_ns = 0;
+  std::int64_t publish_wall_unix_ns = 0;
+  std::int64_t receipt_wall_unix_ns = 0;
+  std::int64_t receipt_steady_ns = 0;
+  std::uint8_t transmit_index = 0;
+  std::uint8_t transmit_count = 0;
+};
+
 struct SolveAudit {
   double estimator_ms = 0.0;
   double stage2_ms = 0.0;
@@ -172,6 +194,7 @@ struct SolveAudit {
   double previous_segment_last_source_time_s =
       std::numeric_limits<double>::quiet_NaN();
   std::string segment_boundary_reason = "none";
+  FlightPacketMetadata flight_packet;
   std::string reason = "not_run";
 };
 
