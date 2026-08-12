@@ -1,0 +1,26 @@
+hope_ball_flight_packetizer:
+  ros__parameters:
+    input_pose_topic: "/poses"
+    flight_packet_topic: "/ball/flight_packet"
+    ball_pose_index: 0
+    input_qos_depth: 64
+
+    # Laptop retains exactly the source-time-causal 180 ms window and freezes
+    # it on the first exposure sample at/after net crossing + 50 ms.
+    flight_window_s: 0.18
+    net_x: 1.37
+    post_net_commit_delay_s: 0.05
+    incoming_opponent_side_margin_m: 0.05
+    incoming_speed_threshold_mps: 0.25
+    outgoing_speed_threshold_mps: 0.25
+    incoming_direction_fit_samples: 4
+    incoming_direction_confirmations: 2
+    incoming_pre_roll_samples: 24
+    incoming_source_gap_reset_s: 0.25
+
+    # Same content-addressed flight is sent at t+0/5/15 ms. HDU deduplicates
+    # by session + producer instance + epoch + sequence + payload hash.
+    retransmit_delays_ms: [0, 5, 15]
+    session_id: ""
+    producer_instance_id: ""
+    debug_csv_path: ""

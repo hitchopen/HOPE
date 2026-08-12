@@ -56,6 +56,10 @@ if(BUILD_TESTING)
   target_include_directories(test_vrpn_min_age_monitor PRIVATE include)
   add_test(NAME test_vrpn_min_age_monitor COMMAND test_vrpn_min_age_monitor)
 
+  add_executable(test_output_rate_limiter test/test_output_rate_limiter.cpp)
+  target_include_directories(test_output_rate_limiter PRIVATE include)
+  add_test(NAME test_output_rate_limiter COMMAND test_output_rate_limiter)
+
   find_package(ament_lint_auto REQUIRED)
   # add rclcpp include dir to ament_cppcheck
   get_target_property(ament_cmake_cppcheck_ADDITIONAL_INCLUDE_DIRS

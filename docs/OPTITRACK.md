@@ -21,32 +21,35 @@ Motive (NatNet UDP)
       |  NatNet2ROS2 workspace               (independent driver, namespace /optitrack)
       v
 /optitrack/poses                             motion_capture_tracking_interfaces/NamedPoseArray
-      |  optitrack_mct_relay (hope_bringup)  (one message per camera frame, objects by name)
+      |  optitrack_mct_relay (hope_bringup)  (rate-capped arrays, objects by name)
       v
 /poses (ball at index 0), /ball/point, /P1/pose, /P2/pose, TF
-      |  hope_planner
+      |  hope_planner (or hope_planner_cpp)
       v
-/racket/command
+/racket/command + /racket/command_flat
 ```
 
-The driver's raw topics stay under `/optitrack/*` **on purpose**: its `poses`
-topic is a `NamedPoseArray` — on the bare `/poses` name it would collide with
-the HOPE `/poses` contract (`geometry_msgs/PoseArray`) as a DDS type mismatch —
-and its raw `/tf` (body names verbatim) would fight the relay's transforms.
-`natnet2ros2.launch.py` enforces both raw-driver remaps; the HOPE relay is the
-only `/poses`/HOPE-TF authority.
+The raw driver publishes exactly `/optitrack/poses`. It is namespaced **on
+purpose**: its type is `NamedPoseArray`; using the bare `/poses` name would
+collide with HOPE's `geometry_msgs/PoseArray` contract. Each raw array is a
+strict, case-sensitive allowlist of the available `Ball`, `P1`, and `P2`
+assets in that order. Missing assets are silently omitted. The adapter exports
+no marker point cloud, raw TF, `Table`, skeleton, or arbitrary Motive body; the
+HOPE relay is the only `/poses` and HOPE-TF authority. If a selected,
+timestamp-valid frame contains none of the three allowed assets, the adapter
+publishes an empty array heartbeat. Empty arrays prove that NatNet frames and
+the adapter are live while competition-body tracking is not; the relay emits
+no placeholder pose or TF from them. Both the adapter and relay issue a
+throttled diagnostic while this condition persists.
 
-The relay parameter `publish_table` defaults to `false`. Therefore the normal
-competition launch creates no `/table/pose` publisher and emits no Table TF or
-Table entry in `/poses`, even if the Motive asset was accidentally left active.
-For a separate arena setup or data-recording session only, the standalone
-bridge may be launched with `publish_table:=true`; stop it and return to the
-default before competition.
+Record or inspect `Table` in Motive or dedicated calibration tooling during a
+separate setup/training-data session. The competition adapter never exports it,
+and the HOPE competition relay has no Table publisher.
 
 The driver in the independent `NatNet2ROS2` workspace is [IMRCLab
 motion_capture_tracking](https://github.com/IMRCLab/motion_capture_tracking)
-pinned at v1.0.9 with its `libmotioncapture`/`librigidbodytracker` submodules
-materialized, non-OptiTrack vendor SDKs removed, and NatNet unicast fixes
+pinned at v1.0.9 with its `libmotioncapture` sources materialized,
+non-OptiTrack vendor SDKs removed, and NatNet unicast fixes
 applied — the complete provenance and patch list is in
 [`NatNet2ROS2/src/motion_capture_tracking/PIN.md`](../NatNet2ROS2/src/motion_capture_tracking/PIN.md).
 It uses the **open-source NatNet depacketizer**, so it runs on any platform
@@ -58,20 +61,14 @@ Build and source the adapter workspace independently:
 
 ```bash
 cd NatNet2ROS2
-rosdep install --from-paths src --ignore-src -r -y   # PCL, Eigen, fmt, Boost, ...
+rosdep install --from-paths src --ignore-src -r -y   # Eigen, Boost, ROS 2 interfaces, ...
 colcon build --symlink-install
 source install/setup.bash
 ```
 
-Additional system dependencies beyond the VRPN-only build: the vendored
-manifests declare PCL and Eigen, so the `rosdep install` line resolves those.
-Two build requirements are **not** declared upstream — `libfmt-dev` (the
-driver package's own CMake does `find_package(fmt REQUIRED)`) and
-`libboost-program-options-dev` (a `librigidbodytracker` CMake requirement) —
-install them via apt if the build reports a missing `fmt` or
-`Boost::program_options`. Message generation also needs the rosidl generator
-pythons (`python3-empy`, `python3-lark`), part of a standard ROS 2 dev
-install.
+The competition adapter no longer builds the legacy unlabeled-marker tracker,
+PCL, or fmt path. Message generation still needs the rosidl generator pythons
+(`python3-empy`, `python3-lark`), part of a standard ROS 2 dev install.
 
 Building with a uv/conda Python shim earlier on `PATH` can make CMake's
 `FindPython3` pick a non-system interpreter, failing the
@@ -93,13 +90,13 @@ In Motive's Data Streaming pane:
 | Enable NatNet | ✅ Enabled | This backend consumes NatNet (cmd port 1510) |
 | Up Axis | **Z Axis** | Critical — aligns with the HOPE REP 103 Z-up frame; the relay applies no frame conversion |
 | Transmission | Unicast preferred | Auto-negotiated from the server response; unicast keeps venue switches happy |
-| Rigid Bodies | **ON** | `Ball`, `P1` (+ `P2`; `Table` in calibration sessions only) |
+| Rigid Bodies | **ON** | Competition assets named exactly `Ball`, `P1`, and `P2` |
 | Labeled/Unlabeled Markers | OFF (optional) | Not consumed — the ball is a rigid-body asset |
 | Skeletons | OFF | Not used |
 | Command/Data ports | 1510 / 1511 (defaults) | Must match firewall rules |
-- Rigid Bodies **ON**; assets named exactly `P1` (+ `Table`, `P2` if used —
-  the table asset is setup/calibration-only; older notes call it `PPT`) — the
-  driver streams Motive asset names verbatim and the relay maps by name.
+- Rigid Bodies **ON**; competition assets named exactly `Ball`, `P1`, and
+  `P2`. The adapter passes only these exact names and orders them
+  `Ball`, `P1`, `P2`; all other assets are ignored.
   Assets created/renamed while the bridge runs self-heal in ~1–2 s (the
   pinned adapter driver re-requests the model definition when an unnamed body
   streams, PIN.md patch #6); restart the bridge only as a fallback.
@@ -116,8 +113,7 @@ In Motive's Data Streaming pane:
   and re-acquisition per the mocap reference §5.4 acceptance checks.
   Single-marker / unlabeled-point ball tracking (the retired ≤ v0.4 design)
   does **not** meet the spec and is not supported by this bringup — the
-  `librigidbodytracker` machinery in the adapter driver is deliberately left
-  unconfigured.
+  former unlabeled-marker tracker path is not built by the competition adapter.
 - Units stream in **metres** → `position_scale:=1.0` (default). Sanity check:
   `/P1/pose` reading hundreds means a millimetre feed → `0.001`.
 
@@ -181,9 +177,62 @@ This implements the same timing principle as OptiTrack's documented
 open-source backend implements the echo wire protocol directly so it also
 works on the A3 adapter's aarch64 platform.
 
-### Calibrating P1 to an A3 `pelvis_link`
+### Optional marker-CAD calibration: P1 to an A3 `pelvis_link`
 
-Do this only in a **setup/calibration session**. The calibrator does not require
+The integrated Foxglove console can use all ten waist markers to compute this
+alignment without an independent pelvis tracker. Its `Calibration` button calls
+`/hope/calibrate`: while the authoritative Runner remains in fresh `PD_STAND`,
+the Laptop recomputes the fixed `P1 -> pelvis_link` registration, composes the
+current stationary `world -> P1` pose into a `world -> pelvis_link` audit
+snapshot, and atomically stores both in `calibration/p1_to_pelvis.json`. The
+separate `Refresh x_hit` button calls `/hope/refresh_x_hit`; it does not rerun
+the marker calibration.
+
+When an approved setup procedure calls for this transform, first put the MDU
+Runner in settled PD_STAND, then run `p1_marker_cad_calibrator` manually on
+`/optitrack/rigid_body_markers`.
+Motive supplies
+the P1-local ModelDef marker centres plus live labeled-marker samples; the tool
+registers those centres to the A3 v2 hip-shell CAD (`f1`–`f5`, `b1`–`b5`) and
+checks every selected marker's live residual and definition stability.
+
+The non-collinear named 3-D marker layout observes all six degrees of the fixed
+`P1 → pelvis_link` transform even while the robot is stationary in PD_STAND.
+An approved result atomically replaces `calibration/p1_to_pelvis.json`,
+relative to the external computer's HOPE repository root (for example,
+`/home/user/HOPE/calibration/p1_to_pelvis.json`). A failed fit cannot install a
+current-run calibration. Run the calculation only after PD_STAND has already
+been established by the approved robot procedure:
+
+```bash
+ros2 run hope_bringup p1_marker_cad_calibrator \
+  --topic /optitrack/rigid_body_markers \
+  --asset-name P1 \
+  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
+  --minimum-frames 200 \
+  --capture-duration 4 \
+  --stationary-prepare \
+  --attest-installed-layout \
+  --allow-nominal-only-markers \
+  --output calibration/p1_to_pelvis.json
+```
+
+After the replacement, the computer-side `hope_base_pose_flat_relay` reads the
+canonical `p1_to_pelvis` object from that JSON and composes it with the live
+`world → P1` pose. The additional `world_to_pelvis_snapshot` object records
+the stationary calibration instant for audit only; it is not published as a
+static transform after the robot moves. The computer publishes
+`/a3/base_pose_flat` for policy localization and the unshifted diagnostic
+`/a3/mocap/pelvis_pose`. It does not recalculate while the robot is playing.
+The robot consumes `/a3/base_pose_flat`; it never stores, reads, or receives
+the JSON. The SHA-derived PREPARE receipt gate described by the imported
+adapter is not part of the native Runner admission contract.
+
+#### Legacy independent pose-pair method
+
+The following older method is retained for a genuinely independent external
+6-DOF reference or a simulation test. Do this only in a
+**setup/calibration session**. The calibrator does not require
 the `Table` rigid body; `Table` remains disabled in competition. The normal
 deployment keeps Motive's dynamic `world → P1` rigid-body pose and adds the
 calibrated constant `P1 → pelvis_link` static TF at ROS 2 bringup.
@@ -212,6 +261,11 @@ independent external 6-DOF tracker or state estimator to a topic such as
 `header.frame_id: world`, and the same clock domain as `/P1/pose`. The existing
 `/sim/a3/pelvis_pose` producer is MuJoCo-only and uses `odom`; it is valid for a
 simulation check only if the P1 input is also expressed in `odom`.
+
+No checked-in real-robot node publishes `/a3/calibration/pelvis_pose`. It is an
+input to this legacy tool, not the output of the ten-marker calculation. Never
+feed `/a3/mocap/pelvis_pose` or any other P1-derived result into it, because
+that would make the measurement circular.
 
 Build and source the workspace, start both pose producers, then run:
 
@@ -276,6 +330,12 @@ consumes the solved 6-DOF `/P1/pose`, while its CAD centroid calculation is
 order-independent. Only an offline reconstruction directly from individual
 marker coordinates would require a verified marker-ID-to-CAD correspondence.
 
+The production marker/CAD route described at the top of this section supersedes
+the old checked-in P1 transform in `hope_world_frame.yaml`. The runtime relay
+now reads the approved JSON directly. Use exactly one route per calibration
+receipt — marker/CAD registration or the independent pose-pair method — never
+stack both corrections (see [interfaces/frames.md](interfaces/frames.md)).
+
 ## Bringup
 
 ### Preflight (before launch, no ROS required)
@@ -327,14 +387,22 @@ Relay config (name → topic mapping, scale):
 ```bash
 ros2 topic echo --once /optitrack/poses   # raw driver frames (names must match config)
 ros2 topic echo --once /poses             # HOPE contract (ball at index 0)
-ros2 run hope_bringup mocap_rate_probe.py --topic /P1/pose --min-hz 180
+ros2 run hope_bringup mocap_rate_probe.py --topic /P1/pose --min-hz 150
 ```
 
 `mocap_rate_probe.py` is a one-shot pass/fail rate gate (NatNet is UDP — unlike
 the VRPN TCP port there is nothing to `connect()` to before launch, so mocap
-liveness can only be proven by data). Counting published messages can read
-lower than the camera rate under receive-side drops; that is normal for a
-best-effort sensor stream.
+liveness can only be proven by data). NatNet2ROS2 receives every source frame
+but caps its filtered ROS pose output at 200 Hz by default. Change the adapter launch
+argument `output_rate_hz:=<Hz>`, or use `0.0` for every valid source frame.
+Counting published messages can read below that cap under receive-side drops;
+that is normal for a best-effort sensor stream.
+
+Because `/optitrack/poses` carries empty heartbeats, its message rate proves
+NatNet/adapter/timestamp-path liveness, not competition-body readiness. Inspect
+the array contents or gate on downstream `/P1/pose` as shown above. The managed
+`run_rally_v10_hdu.sh` startup uses `/P1/pose`, so empty heartbeats cannot pass
+its robot-body qualification.
 
 ## No-hardware smoke test
 
@@ -361,15 +429,20 @@ For bag replay, record `/optitrack/poses` at a live session
 (`ros2 bag record /optitrack/poses`) and replay it against
 `optitrack_mct_relay.launch.py`; the raw adapter stays stopped during replay.
 
-## Camera rate and the planner's `fit_window`
+## Source/output rate and the planner's `fit_window`
 
-The planner's velocity fit uses `fit_window` **samples** (default 31 ≈ 103 ms
-at a 300 Hz rig). The window is rate-coupled: keep it at ≥ ~100 ms of samples,
-i.e. `round(31 × rate / 300)`. OptiTrack rigs commonly stream **360 Hz** →
-set `fit_window: 37` in
-[`hope_planner.yaml`](../hope_ws/src/hope_planner/config/hope_planner.yaml)
-(or pass `-p fit_window:=37`). The camera rate is a venue fact — read it from
-Motive, don't infer it from `ros2 topic hz` (receive-side drops read low).
+The camera rate and ROS output rate are now intentionally distinct. OptiTrack
+rigs commonly capture at 360 Hz, while NatNet2ROS2 receives every frame and
+publishes at a configurable maximum of 200 Hz by default. The planner's
+velocity fit uses `fit_window` **received samples**, so couple it to the ROS
+output rate, not the Motive camera rate: retain about 100 ms with
+`round(31 × output_rate / 300)`. At the 200 Hz default use `fit_window: 21`; if
+downsampling is disabled on a 360 Hz source, use 37. Configure it in
+[`hope_planner.yaml`](../hope_ws/src/hope_planner/config/hope_planner.yaml), or
+pass `planner_fit_window:=<samples>` to `hope_bringup.launch.py`. That launch
+selects 21 for either adapter's default 200 Hz output.
+Read the camera rate from Motive and the output rate from adapter configuration;
+`ros2 topic hz` is only a receive-side verification of the latter.
 
 ## Multi-machine DDS (laptop bridge topology)
 
@@ -397,11 +470,12 @@ whitelist derived from the route to each peer) and sets
 
 | Symptom | Cause / fix |
 |---|---|
-| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`, firewall on UDP 1510/1511, or not on the Motive LAN. `ping` the Motive PC first. Run `natnet_preflight.py --hostname <MOTIVE_PC_IP>` to pinpoint the failing stage. |
+| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`, firewall on UDP 1510/1511, not on the Motive LAN, or all frames are failing the configured timestamp gates. Inspect the adapter log, `ping` the Motive PC, then run `natnet_preflight.py --hostname <MOTIVE_PC_IP>` to pinpoint the failing stage. |
 | `/optitrack/poses` exists with `Publisher count: 0`, nothing logged | Pre-patch-#9 driver hung in its constructor: Motive 3.1 / NatNet 4.1 silently drops payload-less model-definition requests. Fixed in the pinned adapter driver (type-mask request + bounded handshake — it now retries and then exits with an error instead of hanging); `natnet_preflight.py` reports this Motive behavior explicitly. |
-| Objects stream but nothing relayed | Motive asset names don't match `optitrack_relay.yaml` (`P1`/`P2`/`Table`/`Ball`, case-sensitive). Check `ros2 topic echo --once /optitrack/poses`. |
+| `/optitrack/poses` continues near 200 Hz with `poses: []` | NatNet transport and timestamp gates are live, but no valid exact-name `Ball`, `P1`, or `P2` asset is present in the selected frames. Check Motive tracking/streaming and case-sensitive asset names. The relay intentionally emits no downstream pose or TF. |
+| Objects stream but nothing relayed | Motive asset names don't match the exact adapter allowlist and `optitrack_relay.yaml` (`Ball`/`P1`/`P2`, case-sensitive), or only empty heartbeats are arriving. Check `ros2 topic echo --once /optitrack/poses`. |
 | Rigid bodies stream with empty names | Fixed by vendored patch #6 (self-heals in ~1–2 s); if persistent, restart the bridge. |
 | `/P1/pose` positions in the hundreds | Millimetre feed → `position_scale:=0.001`. |
 | `/poses` pauses while `/P1/pose` keeps updating | By design: the ball left the volume / lost tracking; the relay never re-emits a stale ball (protects the planner's velocity fit). |
 | `optitrack_mct_relay` exits with an import error | `motion_capture_tracking_interfaces` from NatNet2ROS2 is not installed/sourced on the HOPE host. Source that workspace (or install the interface package), or use the VRPN backend. |
-| Planner predictions lag/noisy at 360 Hz | Scale `fit_window` with the camera rate (see above). |
+| Planner predictions lag/noisy after changing output rate | Scale `fit_window` with the NatNet2ROS2 ROS output rate (see above). |

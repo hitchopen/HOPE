@@ -11,7 +11,7 @@ not use git submodules).
 |---|---|---|
 | motion_capture_tracking (+ `motion_capture_tracking_interfaces`) | https://github.com/IMRCLab/motion_capture_tracking | `037adc497c67b635d1ee50992a9f74a9f753aff4` (v1.0.9) |
 | deps/libmotioncapture (submodule, materialized) | https://github.com/IMRCLab/libmotioncapture | `24321e4c1c923a1bc5d6cecdaa7834f11b79d8f2` |
-| deps/librigidbodytracker (submodule, materialized) | https://github.com/IMRCLab/librigidbodytracker | `020e541b6825595c841f1103bf86e42914d08c9f` |
+| deps/librigidbodytracker (submodule, materialized for provenance; no longer built by the HOPE competition adapter) | https://github.com/IMRCLab/librigidbodytracker | `020e541b6825595c841f1103bf86e42914d08c9f` |
 
 License: MIT (upstream `LICENSE` kept in this directory).
 
@@ -48,7 +48,8 @@ License: MIT (upstream `LICENSE` kept in this directory).
    point-cloud tracker is unused). librigidbodytracker's `initializePose`
    returns false on an EMPTY cloud, so with unlabeled-marker streaming off the
    unguarded call warns "initialization failed" on every frame (camera-rate
-   log flood).
+   log flood). Superseded for the HOPE competition executable by patch #13,
+   which removes that tracker path from the build and node entirely.
 
 6. **`deps/libmotioncapture/src/optitrack.cpp` reply/stream interleave fix +
    model-definition self-heal (2026-07-19, field finding)**: once patch #4
@@ -71,6 +72,7 @@ License: MIT (upstream `LICENSE` kept in this directory).
    finding)**: the per-frame `RCLCPP_WARN` for an untracked tracker body
    (line ~321) became `RCLCPP_WARN_THROTTLE(…, 2000 ms)` — an object out of
    the volume is a normal state and the unthrottled warn fired at camera rate.
+   Superseded for the HOPE competition executable by patch #13.
 
 8. **`config/cfg.yaml` placeholder hostname + legacy launch removal
    (2026-07-21, hardened 2026-08-05)**: the upstream example's lab IP
@@ -79,8 +81,9 @@ License: MIT (upstream `LICENSE` kept in this directory).
    HOPE clock configuration/remaps and made an unsafe entry point look
    supported. `natnet2ros2.launch.py`, which always loads
    `config/hope_optitrack.yaml`, is the only installed launch entry point. It
-   exposes `header_time:=camera_utc|ros`; `ros` is an explicit diagnostic-only
-   fallback for a Motive version without NatNet echo support.
+   exposes `header_time:=camera_utc|ros` and the output-rate cap; `ros` is an
+   explicit diagnostic-only fallback for a Motive version without NatNet echo
+   support.
 
 9. **`src/motion_capture_tracking_node.cpp` acquisition-time mapping
    (2026-07-30)**: add `topics.header_time=ros_latency_compensated`, which
@@ -141,6 +144,37 @@ License: MIT (upstream `LICENSE` kept in this directory).
     documentation requires a wired adapter path and distinguishes this 2 ms
     mapping term from the two hosts' clock errors.
 
+12. **Coherent ROS 2 output downsampling (2026-08-05)**: add
+    `topics.output_rate_hz`, initially defaulted to 180 Hz and exposed by the supported launch
+    file. Every NatNet frame still services the backend, clock mapping, and
+    timestamp gates; every valid frame also reaches logging and the optional
+    point-cloud tracker. A monotonic deadline selects at most one valid frame
+    per output period, then publishes that same frame on `poses`, `pointCloud`,
+    and TF without changing its acquisition timestamp. Missed periods never
+    produce catch-up bursts; `0.0` disables the cap. Pure limiter tests live in
+    `test/test_output_rate_limiter.cpp`. The multi-output portion of this
+    historical patch is superseded by patch #13; only filtered `poses` remains.
+
+    Maintenance note: this implementation is the behavioral reference for the
+    intentionally duplicated VRPN2ROS2 limiter. Port limiter fixes and matching
+    tests to both independently built workspaces in the same change.
+
+13. **Strict competition ROS egress + 200 Hz default (2026-08-10)**: the
+    standalone node now publishes exactly one ROS topic, relative `poses`
+    (`/optitrack/poses` under the supported launch namespace). Each array is
+    filtered and ordered by the exact case-sensitive allowlist `Ball`, `P1`,
+    `P2`; missing bodies are silently omitted. A selected, timestamp-valid
+    source frame with none publishes an empty array heartbeat so body-tracking
+    loss is distinguishable from adapter or transport loss without exposing
+    any additional body. All other Motive rigid bodies (including `Table`), marker
+    coordinates, point-cloud output, raw TF, skeletons, and arbitrary assets
+    are blocked from ROS 2. The legacy unlabeled-marker tracker, PCL, fmt,
+    point-cloud logger, and TF publisher are no longer built or executed. The
+    downstream HOPE relay remains the sole per-body topic and TF authority.
+    The output-rate default is now 200 Hz in the node, deployment YAML, and
+    supported launch file. `test/test_competition_rigid_body_filter.cpp`
+    locks the allowlist's membership, case sensitivity, and canonical order.
+
 ## Re-pin procedure
 
 ```bash
@@ -157,40 +191,29 @@ rm -rf NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/deps/{vrpn,
 ## Interface facts verified at this pin (used by hope_bringup)
 
 - Executable: `motion_capture_tracking_node` (node name the same). Topics:
-  relative `poses` + `pointCloud` (→ run inside the `optitrack` namespace),
-  absolute `/tf` via `tf2_ros::TransformBroadcaster` (→ needs an explicit
-  remap; `natnet2ros2.launch.py` remaps it to `/optitrack/tf`).
+  relative `poses` only (→ `/optitrack/poses` inside the supported namespace).
+  No point-cloud, marker-coordinate, or raw-TF publisher exists.
 - `poses` msg: `motion_capture_tracking_interfaces/msg/NamedPoseArray`
   (`header` + `NamedPose[]{string name, geometry_msgs/Pose pose}`) when
-  `topics.poses.version: 1`; a V2 with vendor timestamp/latencies exists.
-- Params actually read by the node (the upstream `config/cfg.yaml` example
-  contains stale `topics.tf.reference_frame/child_frame_fmt` keys the node
-  ignores): `type`, `hostname`, `topics.frame_id`, `topics.header_time`
+  `topics.poses.version: 1`; a V2 with vendor timestamp/latencies exists. Both
+  versions carry only available `Ball`, `P1`, `P2` entries, in that order.
+- Params actually read by the node: `type`, `hostname`, `topics.frame_id`, `topics.header_time`
   (`ros`=arrival time, `camera`=vendor clock, `camera_utc`=NatNet-echo mapped
   CameraMidExposureTimestamp in the adapter host's ROS system-time/Unix epoch,
   `ros_latency_compensated`=legacy local ROS receive time minus NatNet
   Camera/Motive latency and `topics.network_latency_ms`),
+  `topics.output_rate_hz` (maximum filtered ROS output rate; default 200 Hz,
+  `0.0`=every valid source frame),
   `topics.max_clock_sync_uncertainty_ms`, `topics.max_capture_age_ms`,
   `topics.poses.version`,
   `topics.poses.qos.mode` (`none`=reliable depth-1 | `sensor`=SensorDataQoS
-  keep-last-1 + deadline), `topics.poses.qos.deadline` (Hz),
-  `topics.tf.child_frame_id` (fmt string, default `{}`), `logfilepath`, plus
-  the `rigid_bodies.<name>.{initial_position,marker,dynamics}` /
-  `marker_configurations` / `dynamics_configurations` trees (read via
-  parameter overrides, no declare needed).
-- Two rigid-body sources merged into the same `poses`/tf output:
-  vendor-native rigid bodies (Motive assets, e.g. `P1`/`PPT`, published under
-  their Motive names) and `librigidbodytracker`-tracked bodies from the
-  unlabeled-marker point cloud (HOPE's single-marker ball).
-- Single-marker tracking: ICP max-correspondence radius = `max_velocity ×
-  (time since last valid track)` — the search radius grows during occlusion,
-  so the ball re-acquires after leaving the volume. Anti-snap hygiene: stream
-  ONLY unlabeled markers (Motive: Labeled Markers OFF), keep stray reflections
-  out of the volume. Before the first valid lock the published quaternion can
-  be NaN (`orientationAvailable()==false` path); the HOPE relay sanitizes
-  non-finite orientations to identity.
+  keep-last-1 + deadline), and `topics.poses.qos.deadline` (Hz). For mock-mode
+  bench tests only, `rigid_bodies.<name>.initial_position` overrides are read
+  to populate the mock backend; the same Ball/P1/P2 egress filter still applies.
+- The only pose source is the vendor-native rigid-body map. The node never
+  requests or publishes the unlabeled-marker point cloud and never reconstructs
+  a body from individual marker coordinates.
 - OptiTrack backend: queries the Motive command port (cfg key `port_command`,
   default 1510) over UDP, auto-discovers the data port and multicast-vs-unicast
-  from the server response. Build deps: Boost headers (asio) + Threads; PCL
-  (`common` + `librigidbodytracker` needs full PCL) ; Eigen3; fmt;
-  Boost program_options (librigidbodytracker CMake requirement).
+  from the server response. Build deps: Boost headers (asio), Threads, Eigen3,
+  ROS 2 `rclcpp`, and the named-pose interface package.

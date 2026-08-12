@@ -5,17 +5,17 @@
 Per tick, in order:
   1. read robot state from the sim bridge;
   2. poll the latest RacketCommand and advance the swing lifecycle;
-  3. assemble the 111-D observation;
+  3. assemble the 110-D ``hitter_pure`` observation;
   4. run the ONNX actor -> raw_action[31];
   5. zero the passive head columns (idx 3, 4) to form the APPLIED action, and feed
      that back as the next last_action — matching training, where the zeroed
-     applied action (not the actor's raw output) is the last_action observation;
+     applied action (not the actor's raw output) is the actions observation;
   6. pass the applied action through the shared ActionAdapter -> 31 joint targets
      (holding the passive neck at its default);
   7. write the targets (with the example PD gains) and step the sim.
 
 There are deliberately NO gates, failure checks, rejections, state resets between
-tasks, or reference playback here -- a single continuous 111-D control path.
+tasks, or reference playback here -- a single continuous 110-D control path.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ class PingPongReferenceRunner:
         self.kd = cfg.sim_kd.copy()
 
         self.last_action = np.zeros(NUM_JOINTS, dtype=np.float64)
-        self.fixed_station_xy: np.ndarray | None = None
+        self.base_target_xy: np.ndarray | None = None
 
     def run(self, max_ticks: int | None = None, realtime: bool = False,
             status_every: int = 100) -> None:
@@ -63,9 +63,10 @@ class PingPongReferenceRunner:
         self.bridge.reset()
 
         state = self.bridge.read_state()
-        # Capture the startup station once; the fixed_station_error_xy obs term is
-        # measured against this constant for the rest of the session.
-        self.fixed_station_xy = np.asarray(state.base_pos_w[:2], dtype=np.float64).copy()
+        # Capture the base target once at startup (this sim harness keeps the
+        # station fixed at spawn); the base_target_delta_xy obs term is measured
+        # against this constant for the rest of the session.
+        self.base_target_xy = np.asarray(state.base_pos_w[:2], dtype=np.float64).copy()
 
         tick = 0
         try:
@@ -77,9 +78,18 @@ class PingPongReferenceRunner:
                 target = self.lifecycle.update(cmd, state)
 
                 obs = build_observation(
-                    state, target, self.last_action, self.default_q, self.fixed_station_xy
+                    state, target, self.last_action, self.default_q, self.base_target_xy
                 )
-                raw_action = self.policy.infer(obs)
+                infer_target = getattr(self.policy, "infer_target", None)
+                if callable(infer_target):
+                    raw_action = infer_target(
+                        obs,
+                        target.time_to_strike,
+                        self.lifecycle.swing_sign,
+                        self.cfg.control_dt,
+                    )
+                else:
+                    raw_action = self.policy.infer(obs)
                 # The APPLIED action: with a passive neck the head columns are never
                 # actuated, so they are zeroed before feedback — training exposes the
                 # same zeroed columns in its last_action observation.
@@ -109,7 +119,7 @@ class PingPongReferenceRunner:
             self.bridge.close()
 
     def _print_status(self, tick: int, target) -> None:
-        side = "forehand" if target.swing_side >= 0 else "backhand"
+        side = "forehand" if self.lifecycle.swing_sign >= 0 else "backhand"
         print(
             f"[ref] t={tick * self.cfg.control_dt:6.2f}s "
             f"phase={self.lifecycle.phase.value:<14} "

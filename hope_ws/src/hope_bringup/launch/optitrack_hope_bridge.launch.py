@@ -1,28 +1,25 @@
-"""Bridge an externally launched NatNet2ROS2 adapter into HOPE topics.
+"""Laptop-side OptiTrack adapter, calibration, and HOPE pose bridge.
 
 Chain:  NatNet2ROS2 /optitrack/poses  -->  optitrack_mct_relay
-        --> /poses, /tf, /ball/point, /{P1,P2}/pose  --> hope_planner
+        --> /poses, /tf, /ball/point, /{P1,P2}/pose
+        --> hope_ball_flight_packetizer --> /ball/flight_packet --> hope_planner
 
-OptiTrack sibling of the VRPN path (``vrpn_mocap`` + ``pose_to_posearray``,
-wired by ``hope_bringup.launch.py``); both feed the identical ``/poses``
-contract (ball at index 0), so everything downstream is unchanged. This launch
-starts the HOPE relay side only — launch NatNet2ROS2 independently first, then
-run the planner via ``hope_bringup.launch.py``
-(``mocap_backend:=optitrack`` includes this file), or separately.
-Also starts the static HOPE arena-landmark frames. Robot marker-to-root
-transforms are loaded separately from their calibration records.
+When launched directly on the external computer, this owns NatNet2ROS2, the
+per-run P1 calibration service, the laptop-local calibration JSON, the base
+pose relay, and the static HOPE arena frames. ``hope_bringup.launch.py`` also
+includes this file in relay-only mode for its legacy independently launched
+NatNet workflow.
 
 NatNet2ROS2 owns the load-bearing driver namespace/remaps: its raw
 ``NamedPoseArray`` stays on ``/optitrack/poses`` rather than colliding with the
-HOPE ``geometry_msgs/PoseArray`` contract on ``/poses``. Its raw TF is likewise
-kept under ``/optitrack/tf`` so this relay remains the HOPE TF authority.
+HOPE ``geometry_msgs/PoseArray`` contract on ``/poses``. NatNet2ROS2 publishes
+no raw TF, so this relay remains the HOPE TF authority.
 
-Before running against a live rig (see docs/OPTITRACK.md), start the independent
-adapter workspace with ``ros2 launch motion_capture_tracking
-natnet2ros2.launch.py hostname:=<MOTIVE_PC_IP>`` and verify
-``/optitrack/poses`` is live.
-Rigid-body names are mapped in config/optitrack_relay.yaml: P1/P2/Table assets
-and the strict 6-DOF ball rigid body named Ball.
+Before running against a live rig (see docs/OPTITRACK.md), verify
+``/optitrack/poses`` is live and that PREPARE replaces the laptop-local
+``calibration/p1_to_pelvis.json`` before policy entry.
+Rigid-body names are mapped in config/optitrack_relay.yaml: P1/P2 and the
+strict 6-DOF ball rigid body named Ball.
 """
 
 from pathlib import Path
@@ -31,9 +28,10 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -41,31 +39,108 @@ def generate_launch_description():
     relay_config_path = launch_dir.parent / "config" / "optitrack_relay.yaml"
 
     start_world = LaunchConfiguration("start_world")
+    start_natnet = LaunchConfiguration("start_natnet")
+    start_calibration = LaunchConfiguration("start_calibration")
+    motive_hostname = LaunchConfiguration("motive_hostname")
     position_scale = LaunchConfiguration("position_scale")
-    publish_table = LaunchConfiguration("publish_table")
+    p1_calibration_file = LaunchConfiguration("p1_calibration_file")
+    base_pose_output_topic = LaunchConfiguration("base_pose_output_topic")
+    debug_csv_path = LaunchConfiguration("debug_csv_path")
+    debug_session_id = LaunchConfiguration("debug_session_id")
+    start_flight_packetizer = LaunchConfiguration("start_flight_packetizer")
+    flight_packet_topic = LaunchConfiguration("flight_packet_topic")
+    flight_packet_debug_csv_path = LaunchConfiguration(
+        "flight_packet_debug_csv_path"
+    )
 
     return LaunchDescription([
         DeclareLaunchArgument("start_world", default_value="true"),
+        DeclareLaunchArgument("start_natnet", default_value="true"),
+        DeclareLaunchArgument("start_calibration", default_value="true"),
+        DeclareLaunchArgument("start_flight_packetizer", default_value="true"),
+        DeclareLaunchArgument(
+            "motive_hostname",
+            default_value="192.168.100.111",
+            description="Motive/NatNet server IPv4 address",
+        ),
+        DeclareLaunchArgument(
+            "p1_calibration_file",
+            default_value="calibration/p1_to_pelvis.json",
+            description=(
+                "laptop-local P1 calibration JSON, relative to the launch "
+                "working directory unless absolute"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "debug_csv_path",
+            default_value="",
+            description="Optional per-frame mocap audit CSV path.",
+        ),
+        DeclareLaunchArgument(
+            "debug_session_id",
+            default_value="",
+            description="Session identifier copied into mocap and packet audit rows.",
+        ),
+        DeclareLaunchArgument(
+            "flight_packet_topic",
+            default_value="/ball/flight_packet",
+        ),
+        DeclareLaunchArgument(
+            "base_pose_output_topic",
+            default_value="/a3/base_pose_flat",
+        ),
+        DeclareLaunchArgument(
+            "flight_packet_debug_csv_path",
+            default_value="",
+            description="Optional Laptop flight-packet audit CSV path.",
+        ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                PathJoinSubstitution([
+                    FindPackageShare("motion_capture_tracking"),
+                    "launch",
+                    "natnet2ros2.launch.py",
+                ])
+            ),
+            condition=IfCondition(start_natnet),
+            launch_arguments={
+                "hostname": motive_hostname,
+                # Each PREPARE performs one fit. Keeping the publisher alive
+                # does not trigger recalibration during policy execution.
+                "publish_p1_markers": "true",
+            }.items(),
+        ),
         DeclareLaunchArgument(
             "position_scale", default_value="1.0",
             description="Uniform position conversion applied by the relay. Motive "
                         "streams metres -> 1.0 (use 0.001 only for a millimetre feed).",
-        ),
-        DeclareLaunchArgument(
-            "publish_table", default_value="false",
-            description="Setup/recording only: relay the Table asset to /table/pose, "
-                        "/poses, and TF. Must remain false in competition.",
         ),
         # Static HOPE arena-landmark frames. P1/P2-to-robot-root transforms
         # are separate calibrated authorities.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(launch_dir / "hope_world.launch.py")),
             condition=IfCondition(start_world),
+            launch_arguments={
+                "p1_calibration_file": p1_calibration_file,
+                "base_pose_output_topic": base_pose_output_topic,
+            }.items(),
+        ),
+
+        # Internal laptop service. Foxglove exposes only the five robot-facing
+        # controls; PREPARE calls this service after PD_STAND is settled.
+        Node(
+            package="hope_bringup",
+            executable="p1_marker_cad_calibration_server",
+            name="p1_marker_cad_calibration_server",
+            output="screen",
+            condition=IfCondition(start_calibration),
+            parameters=[{
+                "calibration_file": p1_calibration_file,
+            }],
         ),
 
         # Relay: external /optitrack/poses -> HOPE-standard topics (the relay is the
-        # only /tf authority for Ball/P1/P2. Table output is opt-in for a
-        # separate setup/recording session and is off by default.
+        # only /tf authority for Ball/P1/P2.
         Node(
             package="hope_bringup",
             executable="optitrack_mct_relay",
@@ -75,7 +150,32 @@ def generate_launch_description():
                 str(relay_config_path),
                 {
                     "position_scale": ParameterValue(position_scale, value_type=float),
-                    "publish_table": ParameterValue(publish_table, value_type=bool),
+                    "debug_csv_path": debug_csv_path,
+                    "debug_session_id": debug_session_id,
+                },
+            ],
+        ),
+
+        # Foxglove lifecycle data adapter. It observes the same /poses stream,
+        # freezes one complete incoming flight, and publishes the immutable
+        # transport packet consumed by the HDU Planner. The downstream
+        # build_1 estimator, bounce, target and schema-2 logic remain unchanged.
+        Node(
+            package="hope_planner_cpp",
+            executable="hope_ball_flight_packetizer",
+            name="hope_ball_flight_packetizer",
+            output="screen",
+            condition=IfCondition(start_flight_packetizer),
+            parameters=[
+                PathJoinSubstitution([
+                    FindPackageShare("hope_planner_cpp"),
+                    "config",
+                    "model21800_flight_packetizer.yaml",
+                ]),
+                {
+                    "session_id": debug_session_id,
+                    "flight_packet_topic": flight_packet_topic,
+                    "debug_csv_path": flight_packet_debug_csv_path,
                 },
             ],
         ),

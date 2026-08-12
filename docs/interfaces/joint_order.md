@@ -3,8 +3,8 @@
 One canonical 31-DOF joint order is shared by training, the exported ONNX
 policy, and the deploy runner. The source of truth is
 [`hope_training/config/joint_order_agibot_a3.yaml`](../../hope_training/config/joint_order_agibot_a3.yaml);
-the deploy runner carries the same list in
-[`a3_deploy_onnx_ref_pingpong/joint_order.py`](../../a3_deploy/a3_deploy_example/reference/a3_deploy_onnx_ref_pingpong/joint_order.py).
+the C++ deploy runner carries the same list (and the official hard-limit table)
+under `a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/`.
 The authoritative contract (with the full indexed table) is
 [POLICY_INTERFACE.md — Joint order](../POLICY_INTERFACE.md#joint-order).
 
@@ -32,8 +32,8 @@ use this exact index order:
 ```
 
 - `head_yaw_joint` / `head_pitch_joint` (indices **3–4**) are passive at deploy:
-  held at their default angle, zeroed in the applied action, but still occupying
-  their action columns so every vector is length 31.
+  the runtime holds the neck at its nominal pose regardless of the actor output,
+  but the columns still exist so every vector is length 31.
 - The racket is mounted on the right wrist.
 
 ## Enforcement
@@ -44,8 +44,8 @@ column, so the order is checked at three points:
 | Stage | Check |
 |-------|-------|
 | Train (`scripts/train.py`) | Refuses to start if the articulation's joint enumeration differs from the canonical order. |
-| Export (`scripts/export_onnx.py`) | Applies the same check before exporting, then embeds the joint order in the ONNX metadata and `policy_manifest.json`. |
-| Deploy (reference runner) | Rejects any `hope_pingpong.onnx` whose embedded `joint_order` metadata differs from the runner's canonical list. |
+| Export (`scripts/export_onnx.py`) | Verifies the order, then embeds it (with the runtime-contract metadata) in the ONNX and the exported deploy manifest. |
+| Deploy (C++ loader) | Validates the embedded metadata — joint order, contract name, recipe fields, and the hard-limit table cross-checked against the official A3 URDF — and **fails closed** on any mismatch. |
 
 If your A3 asset enumerates joints differently, fix the URDF/USD (or update the
 canonical order everywhere at once); do not remap columns ad hoc. Verify against

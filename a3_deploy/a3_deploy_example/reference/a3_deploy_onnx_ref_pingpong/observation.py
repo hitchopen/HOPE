@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Intelligent Racing Inc. (dba Hitch Interactive)
 # SPDX-License-Identifier: Apache-2.0
-"""Assemble the 111-D actor observation.
+"""Assemble the 110-D ``hitter_pure`` actor observation.
 
-The layout is fixed and must byte-for-byte match the training/export contract.
+The layout is fixed and must byte-for-byte match the training/export contract
+(``hitter_pure`` in the training-side actor observation contract registry).
 There is exactly one layout; no normalization is applied (raw observation).
 
 | slice      | term                    | dim | frame / units          |
@@ -10,20 +11,24 @@ There is exactly one layout; no normalization is applied (raw observation).
 | [0:3]      | base_ang_vel            | 3   | pelvis body, rad/s     |
 | [3:34]     | joint_pos               | 31  | rad, q - default_q     |
 | [34:65]    | joint_vel               | 31  | rad/s                  |
-| [65:96]    | last_action             | 31  | applied (prev tick)(*) |
+| [65:96]    | actions (last_action)   | 31  | applied (prev tick)(*) |
 | [96:99]    | projected_gravity       | 3   | base frame, unit       |
 | [99:101]   | base_forward_xy         | 2   | world xy, unit         |
-| [101:103]  | fixed_station_error_xy  | 2   | world xy, m            |
+| [101:103]  | base_target_delta_xy    | 2   | world xy, m            |
 | [103:106]  | racket_target_rel_base  | 3   | world, m               |
 | [106:109]  | racket_target_vel_w     | 3   | world, m/s             |
 | [109:110]  | time_to_strike          | 1   | s                      |
-| [110:111]  | swing_side              | 1   | +1 forehand / -1 back  |
 
-``fixed_station_error_xy`` = fixed_station_xy (a startup constant) - current base
-xy. It is NOT constant zero: the base drifts across rallies, and this term is the
-in-place recentring feedback the policy uses to hold its station.
+``base_target_delta_xy`` = target base position - current base position (world
+xy). In this sim harness the base target is the fixed station captured at spawn
+(the historical name of this term), so the delta is the in-place recentring
+feedback the policy uses to hold its station; it is NOT constant zero because the
+base drifts across rallies. On hardware the delta is 0 on mocap dropout.
 
-(*) ``last_action`` is the previous tick's APPLIED action: the actor's raw output
+There is NO swing-side observation slot: deploy infers forehand/backhand outside
+the policy, so the side never enters the observation.
+
+(*) the actions term is the previous tick's APPLIED action: the actor's raw output
 with the passive head columns (idx 3, 4) zeroed, exactly as training zeroes them
 in its applied-action feedback. Those two columns are therefore always 0 here.
 """
@@ -37,7 +42,8 @@ import numpy as np
 from . import quaternion as quat
 from .joint_order import NUM_JOINTS
 
-OBS_DIM: int = 111
+CONTRACT_NAME: str = "hitter_pure"
+OBS_DIM: int = 110
 _ACTION_DIM: int = NUM_JOINTS
 
 
@@ -64,7 +70,6 @@ class ObsTarget:
     pos_w: np.ndarray   # (3,) racket target position, world m
     vel_w: np.ndarray   # (3,) racket target velocity, world m/s
     time_to_strike: float
-    swing_side: float   # +1 forehand / -1 backhand
 
 
 def build_observation(
@@ -72,9 +77,9 @@ def build_observation(
     target: ObsTarget,
     last_action: np.ndarray,
     default_q: np.ndarray,
-    fixed_station_xy: np.ndarray,
+    base_target_xy: np.ndarray,
 ) -> np.ndarray:
-    """Return the 111-D observation as a contiguous ``float32`` vector."""
+    """Return the 110-D observation as a contiguous ``float32`` vector."""
     q = np.asarray(state.q, dtype=np.float64)
     qd = np.asarray(state.qd, dtype=np.float64)
     default_q = np.asarray(default_q, dtype=np.float64)
@@ -92,13 +97,12 @@ def build_observation(
     obs[o:o + 3] = state.base_ang_vel_b;                       o += 3          # base_ang_vel
     obs[o:o + NUM_JOINTS] = q - default_q;                     o += NUM_JOINTS  # joint_pos
     obs[o:o + NUM_JOINTS] = qd;                                o += NUM_JOINTS  # joint_vel
-    obs[o:o + NUM_JOINTS] = last_action;                       o += NUM_JOINTS  # last_action
+    obs[o:o + NUM_JOINTS] = last_action;                       o += NUM_JOINTS  # actions (applied)
     obs[o:o + 3] = quat.projected_gravity_body(base_quat);     o += 3          # projected_gravity
     obs[o:o + 2] = quat.base_forward_xy(base_quat);            o += 2          # base_forward_xy
-    obs[o:o + 2] = np.asarray(fixed_station_xy)[:2] - base_pos[:2]; o += 2     # fixed_station_error_xy
+    obs[o:o + 2] = np.asarray(base_target_xy)[:2] - base_pos[:2]; o += 2       # base_target_delta_xy
     obs[o:o + 3] = np.asarray(target.pos_w) - base_pos;        o += 3          # racket_target_rel_base
     obs[o:o + 3] = np.asarray(target.vel_w);                   o += 3          # racket_target_vel_w
     obs[o] = float(target.time_to_strike);                     o += 1          # time_to_strike
-    obs[o] = float(target.swing_side);                         o += 1          # swing_side
     assert o == OBS_DIM, o
     return obs.astype(np.float32)

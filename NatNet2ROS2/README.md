@@ -2,8 +2,9 @@
 
 `NatNet2ROS2` is the standalone OptiTrack Motive/NatNet adapter workspace.
 It receives NatNet frames, maps Motive capture timestamps into the adapter
-host's Chrony/NTP-disciplined ROS system-time epoch, and publishes raw named
-rigid-body frames. It does not contain the HOPE planner or HOPE topic relay.
+host's Chrony/NTP-disciplined ROS system-time epoch, and publishes a filtered
+named-rigid-body stream. It does not contain the HOPE planner or HOPE topic
+relay.
 
 ## Workspace contents
 
@@ -29,7 +30,7 @@ add `--cmake-args -DPython3_EXECUTABLE=/usr/bin/python3` to `colcon build`.
 
 `natnet2ros2.launch.py` is the only supported launch entry point. The two
 upstream legacy launch files were removed because they bypassed the hardened
-`hope_optitrack.yaml` configuration and topic remaps.
+`hope_optitrack.yaml` configuration.
 
 ```bash
 source NatNet2ROS2/install/setup.bash
@@ -37,12 +38,61 @@ ros2 launch motion_capture_tracking natnet2ros2.launch.py \
   hostname:=<MOTIVE_PC_IP>
 ```
 
-The adapter publishes:
+In normal operation the adapter publishes exactly one ROS 2 topic:
 
 - `/optitrack/poses`
   (`motion_capture_tracking_interfaces/msg/NamedPoseArray`)
-- `/optitrack/pointCloud`
-- `/optitrack/tf` and `/optitrack/tf_static`
+
+Each array contains only the available, exact case-sensitive rigid-body names
+`Ball`, `P1`, and `P2`, always in that order. Missing bodies are silently
+omitted. A selected, timestamp-valid NatNet frame containing none of those
+bodies is published as an empty array heartbeat. This exposes no additional
+body data, but distinguishes a live NatNet/adapter path with lost or misnamed
+competition assets from a stopped source, rejected timestamp path, adapter
+process, or network path. The adapter and downstream relay each emit a
+throttled diagnostic while empty frames continue. All other Motive
+rigid bodies—including `Table`—as well as marker coordinates, skeletons, raw
+TF, and arbitrary assets are excluded from ROS 2.
+The downstream `optitrack_mct_relay` owns the per-body topics and TF output.
+
+The only exception is P1 initialization on the external computer. Start the
+adapter with marker output enabled before each PREPARE that begins a new run:
+
+```bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=<MOTIVE_PC_IP> publish_p1_markers:=true
+```
+
+This adds `/optitrack/rigid_body_markers` for the ten-marker capture. Every
+PREPARE recomputes the transform and atomically replaces the external
+computer's repository-relative `calibration/p1_to_pelvis.json`, even if the
+file already exists. The computer then only reads that JSON and publishes
+`/a3/base_pose_flat` for the rest of the run; no recalculation occurs while the
+robot is playing. The robot receives `/a3/base_pose_flat`, never the JSON.
+
+## ROS 2 output downsampling
+
+The adapter receives and validates every NatNet source frame but publishes the
+filtered named-pose array at no more than `topics.output_rate_hz`. The default
+is **200 Hz**. The selected frame keeps its original acquisition timestamp; the
+limiter does not average, interpolate, replay, or re-stamp data.
+
+Set the maximum rate at launch:
+
+```bash
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=<MOTIVE_PC_IP> output_rate_hz:=200.0
+```
+
+Use `output_rate_hz:=0.0` to disable downsampling and publish every valid
+source frame. The observed rate can still be lower than the requested cap when
+the source is slower, timestamps fail their safety gates, or the host cannot
+keep up. Changing the launch argument requires restarting the adapter.
+
+The shipped sensor QoS uses a 100 Hz publisher deadline. Keep
+`topics.poses.qos.deadline` below the selected output rate, lower it when using
+an output rate of 100 Hz or less, or select QoS mode `none`; otherwise DDS can
+correctly report expected deadline misses.
 
 ## ROS 2 NTP timestamp estimation
 

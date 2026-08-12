@@ -1,0 +1,344 @@
+{
+  "approved": true,
+  "blockers": [],
+  "cad": {
+    "coordinate_source": "agibot/pku/README.md marker table v2",
+    "nominal_only_marker_names": [
+      "b1",
+      "f1"
+    ],
+    "operator_attested_installed_layout": true,
+    "selected_marker_names": [
+      "f1",
+      "f2",
+      "f3",
+      "f4",
+      "f5",
+      "b1",
+      "b2",
+      "b3",
+      "b4",
+      "b5"
+    ]
+  },
+  "correspondence": {
+    "best_to_second_rms_margin_m": 0.024311751955851155,
+    "markers": [
+      {
+        "cad_name": "f3",
+        "cad_position_in_pelvis_link_m": [
+          0.08,
+          -0.05,
+          -0.14
+        ],
+        "fit_residual_m": 0.002839224415374119,
+        "member_id": 0,
+        "model_position_in_P1_m": [
+          0.07842597365379333,
+          -0.0609220415353775,
+          -0.0025249957107007504
+        ],
+        "natnet_name": "Marker 001",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f4",
+        "cad_position_in_pelvis_link_m": [
+          0.078,
+          -0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.0027422016686878287,
+        "member_id": 1,
+        "model_position_in_P1_m": [
+          0.07397439330816269,
+          -0.03978244960308075,
+          -0.04171851649880409
+        ],
+        "natnet_name": "Marker 002",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f5",
+        "cad_position_in_pelvis_link_m": [
+          0.078,
+          0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.002508289018687334,
+        "member_id": 2,
+        "model_position_in_P1_m": [
+          0.0815243273973465,
+          0.019922588020563126,
+          -0.04121802747249603
+        ],
+        "natnet_name": "Marker 003",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f1",
+        "cad_position_in_pelvis_link_m": [
+          0.09,
+          0.0,
+          -0.13
+        ],
+        "fit_residual_m": 0.0027232398032656768,
+        "member_id": 3,
+        "model_position_in_P1_m": [
+          0.09591133147478104,
+          -0.012798971496522427,
+          0.006807733792811632
+        ],
+        "natnet_name": "Marker 004",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "f2",
+        "cad_position_in_pelvis_link_m": [
+          0.08,
+          0.05,
+          -0.14
+        ],
+        "fit_residual_m": 0.0025334174143923647,
+        "member_id": 4,
+        "model_position_in_P1_m": [
+          0.09111832082271576,
+          0.03901731222867966,
+          -0.001685078488662839
+        ],
+        "natnet_name": "Marker 005",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b2",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          0.055,
+          -0.13
+        ],
+        "fit_residual_m": 0.0029972726398674703,
+        "member_id": 5,
+        "model_position_in_P1_m": [
+          -0.07451558858156204,
+          0.0656045526266098,
+          0.03042769618332386
+        ],
+        "natnet_name": "Marker 006",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b3",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          -0.055,
+          -0.13
+        ],
+        "fit_residual_m": 0.0021072171507730874,
+        "member_id": 6,
+        "model_position_in_P1_m": [
+          -0.08807370811700821,
+          -0.04440683871507645,
+          0.029103394597768784
+        ],
+        "natnet_name": "Marker 007",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b4",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          -0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.002796120239753315,
+        "member_id": 7,
+        "model_position_in_P1_m": [
+          -0.09179474413394928,
+          -0.01858719252049923,
+          -0.020312387496232986
+        ],
+        "natnet_name": "Marker 008",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b5",
+        "cad_position_in_pelvis_link_m": [
+          -0.085,
+          0.03,
+          -0.18
+        ],
+        "fit_residual_m": 0.0027789192409107106,
+        "member_id": 8,
+        "model_position_in_P1_m": [
+          -0.08397532999515533,
+          0.04153268784284592,
+          -0.019803304225206375
+        ],
+        "natnet_name": "Marker 009",
+        "required_active_label": 0
+      },
+      {
+        "cad_name": "b1",
+        "cad_position_in_pelvis_link_m": [
+          -0.09,
+          0.0,
+          -0.1
+        ],
+        "fit_residual_m": 0.0028376333226902773,
+        "member_id": 9,
+        "model_position_in_P1_m": [
+          -0.08258478343486786,
+          0.010467161424458027,
+          0.060893040150403976
+        ],
+        "natnet_name": "Marker 0010",
+        "required_active_label": 0
+      }
+    ]
+  },
+  "created_utc": "2026-07-30T17:59:05.180502+00:00",
+  "hope_world_frame_yaml_candidate": {
+    "calibrated": true,
+    "calibration_sha256": "fill with SHA-256 of the finalized receipt file",
+    "path": "hope_world.mocap_to_base_link.p1",
+    "quaternion_wxyz": [
+      0.9958890131000732,
+      0.0077904804032034895,
+      0.06332239740362165,
+      -0.06430129072349605
+    ],
+    "xyz_m": [
+      0.021005146495635854,
+      -0.003825718016719472,
+      0.14747886855360676
+    ]
+  },
+  "method": {
+    "correspondence_mode": "geometry_inferred_from_pairwise_distances",
+    "equation": "p_P1 = R_P1_pelvis_link * p_pelvis_link + t_P1_pelvis_link",
+    "evaluated_assignments": 576,
+    "limitation": "This observes P1 relative to the CAD marker centres. It does not independently measure pelvis_link; validity depends on the installed shell and marker centres matching the cited CAD.",
+    "name": "NatNet_ModelDef_to_A3_CAD_rigid_registration"
+  },
+  "p1_to_pelvis_link": {
+    "child_frame": "pelvis_link",
+    "parent_frame": "P1",
+    "quaternion_wxyz": [
+      0.9958890131000732,
+      0.0077904804032034895,
+      0.06332239740362165,
+      -0.06430129072349605
+    ],
+    "quaternion_xyzw": [
+      0.0077904804032034895,
+      0.06332239740362165,
+      -0.06430129072349605,
+      0.9958890131000732
+    ],
+    "xyz_m": [
+      0.021005146495635854,
+      -0.003825718016719472,
+      0.14747886855360676
+    ]
+  },
+  "quality": {
+    "live_local_position_max_m": 0.004995896965222195,
+    "live_local_position_rms_m": 0.0007472459305850955,
+    "pairwise_distance_rms_m": 0.0038594216636584316,
+    "per_marker_live": {
+      "0": {
+        "cad_name": "f3",
+        "local_position_max_m": 0.0008206019316005798,
+        "local_position_rms_m": 0.00032348738114974893,
+        "natnet_reconstruction_residual_rms_m": 0.00045407465460876883,
+        "physical_samples": 14128
+      },
+      "1": {
+        "cad_name": "f4",
+        "local_position_max_m": 0.0007667678519910613,
+        "local_position_rms_m": 0.0002828731974745881,
+        "natnet_reconstruction_residual_rms_m": 0.00029672485950731764,
+        "physical_samples": 14128
+      },
+      "2": {
+        "cad_name": "f5",
+        "local_position_max_m": 0.0011699260539821865,
+        "local_position_rms_m": 0.0005849716184343821,
+        "natnet_reconstruction_residual_rms_m": 0.0003224036291942137,
+        "physical_samples": 14128
+      },
+      "3": {
+        "cad_name": "f1",
+        "local_position_max_m": 0.0014975044768429269,
+        "local_position_rms_m": 0.0005258475868273595,
+        "natnet_reconstruction_residual_rms_m": 0.00036734348300511253,
+        "physical_samples": 14128
+      },
+      "4": {
+        "cad_name": "f2",
+        "local_position_max_m": 0.0017290349926225117,
+        "local_position_rms_m": 0.0007803874821321981,
+        "natnet_reconstruction_residual_rms_m": 0.00036523444546288076,
+        "physical_samples": 14128
+      },
+      "5": {
+        "cad_name": "b2",
+        "local_position_max_m": 0.004745259743831742,
+        "local_position_rms_m": 0.0006483196224539428,
+        "natnet_reconstruction_residual_rms_m": 0.0008135040153502381,
+        "physical_samples": 12976
+      },
+      "6": {
+        "cad_name": "b3",
+        "local_position_max_m": 0.004983740282191549,
+        "local_position_rms_m": 0.0009984915851003644,
+        "natnet_reconstruction_residual_rms_m": 0.0007132557493365085,
+        "physical_samples": 14085
+      },
+      "7": {
+        "cad_name": "b4",
+        "local_position_max_m": 0.0049888904912224466,
+        "local_position_rms_m": 0.0011122691919128183,
+        "natnet_reconstruction_residual_rms_m": 0.00033773660256269206,
+        "physical_samples": 13961
+      },
+      "8": {
+        "cad_name": "b5",
+        "local_position_max_m": 0.004992739077767465,
+        "local_position_rms_m": 0.0008244582566703822,
+        "natnet_reconstruction_residual_rms_m": 0.00039196736840015496,
+        "physical_samples": 13932
+      },
+      "9": {
+        "cad_name": "b1",
+        "local_position_max_m": 0.004995896965222195,
+        "local_position_rms_m": 0.0009172814825912634,
+        "natnet_reconstruction_residual_rms_m": 0.0004843532677409694,
+        "physical_samples": 13908
+      }
+    },
+    "registration_max_m": 0.0029972726398674703,
+    "registration_rms_m": 0.002696728920570805,
+    "second_best_registration_rms_m": 0.02700848087642196,
+    "source_scatter_eigenvalues_m2": [
+      0.07027243405851814,
+      0.01465,
+      0.007227965941481873
+    ],
+    "trajectory": {
+      "rotation_span_deg": 71.80430102964843,
+      "translation_span_m": 0.07522256917760128
+    },
+    "vendor_mean_marker_error_rms_m": 0.0007794964220824216
+  },
+  "schema": "hope.p1_marker_cad_registration_receipt.v1",
+  "source": {
+    "definition_drift_max_m": 0.0,
+    "frames_received": 14128,
+    "frames_with_physical_samples": 14128,
+    "reference_frame": "world",
+    "rigid_body_id": 23,
+    "rigid_body_name": "P1",
+    "topic_type": "motion_capture_tracking_interfaces/msg/RigidBodyMarkerArray"
+  }
+}

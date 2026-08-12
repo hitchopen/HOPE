@@ -325,7 +325,7 @@ source hope_ws/install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
-链路为 `Motive → motion_capture_tracking_node → /optitrack/poses → optitrack_mct_relay → /poses`。驱动每个相机帧发布一个 `NamedPoseArray`；relay 按 `config/optitrack_relay.yaml` 映射名称，仅在另行配置时缩放位置，并保留四元数。默认驱动使用 `topics.header_time: camera_utc`：通过 NatNet echo 同步把 Motive 的 `CameraMidExposureTimestamp` QPC tick 映射到 adapter 单调时钟，再从 adapter 上经 Chrony 校准的 ROS system time/Unix epoch 减去实测帧龄。不得使用仅表示到达时刻的 `ros`，也不得把 Motive 主机独立时钟域的 `camera` 直接与 ROS 时间混用。旧版 Motive VRPN 的 3883 端口不属于此连接。构建、启动和诊断细节见 [`docs/OPTITRACK.md`](../docs/OPTITRACK.md)。
+链路为 `Motive → motion_capture_tracking_node → /optitrack/poses → optitrack_mct_relay → /poses`。驱动在每个配置输出周期最多发布一个 `NamedPoseArray`（默认 200 Hz）。若已通过时间戳校验并被限频器选中的帧不含名称严格匹配的 `Ball`、`P1` 或 `P2`，驱动会发布空数组心跳；relay 利用该回调诊断跟踪丢失，但不会生成占位位姿、TF 或规划器样本。relay 按 `config/optitrack_relay.yaml` 映射名称，仅在另行配置时缩放位置，并保留四元数。默认驱动使用 `topics.header_time: camera_utc`：通过 NatNet echo 同步把 Motive 的 `CameraMidExposureTimestamp` QPC tick 映射到 adapter 单调时钟，再从 adapter 上经 Chrony 校准的 ROS system time/Unix epoch 减去实测帧龄。不得使用仅表示到达时刻的 `ros`，也不得把 Motive 主机独立时钟域的 `camera` 直接与 ROS 时间混用。旧版 Motive VRPN 的 3883 端口不属于此连接。构建、启动和诊断细节见 [`docs/OPTITRACK.md`](../docs/OPTITRACK.md)。
 
 ### 6.3  青瞳 / VRPN 路径
 
@@ -352,12 +352,16 @@ ros2 launch vrpn_mocap client.launch.yaml server:=CHINGMU_SERVER_IP port:=3883
     max_vrpn_timestamp_age_ms: 100.0
     max_vrpn_future_skew_ms: 5.0
     update_freq: 500.0             # polling 高于 300-360 Hz 源数据率
+    output_rate_hz: 200.0          # 每个 ROS 话题/传感器限频；0 表示不限频
     refresh_freq: 1.0
 ```
 
 500 Hz 客户端 polling 频率有意高于预计的 300–360 Hz VRPN 源数据率。VRPN 每次
 进入 mainloop 都会读取当时已到达的报告，但旧的 100 Hz polling 会使最早一帧在
 客户端队列中等待接近 10 ms；500 Hz 将理想 polling 延迟降至约 2 ms。
+所有报告仍先通过时间戳安全检查；随后独立的 `output_rate_hz` 限频器默认把每个
+传感器的 pose、velocity 与 acceleration ROS 话题限制到 200 Hz，并保留被选中报告的
+VRPN server 原始时间戳。
 
 VRPN 本身不执行跨主机时钟换算；CMTracker/MCServer 主机与 adapter 主机必须
 使用同一个 NTP/PTP absolute epoch。严格检查会丢弃过旧、超前、相对时钟域或
@@ -374,7 +378,7 @@ VRPN 本身不执行跨主机时钟换算；CMTracker/MCServer 主机与 adapter
 /vrpn_mocap/Ball/pose_id_0   geometry_msgs/PoseStamped
 ```
 
-实际名称与大小写由 CMTracker 决定且区分大小写。若 CMTracker 分配的传感器索引不是 0，应使用实际发布的索引，不要在桥接层重写。`multi_sensor: true` 是安全默认值，可避免同一发送方暴露多个传感器时的冲突。
+实际名称与大小写由 CMTracker 决定且区分大小写。若 CMTracker 分配的传感器索引不是 0，应使用实际发布的索引，不要在桥接层重写。适配器接受 0–255 的索引，并在分配话题状态前拒绝超出范围的值；普通刚体使用索引 0。`multi_sensor: true` 是安全默认值，可避免同一发送方暴露多个传感器时的冲突。
 
 配置 `hope_bringup/pose_to_posearray` 时将 Ball 话题放在首位，以保持规划器默认的 `ball_pose_index: 0`。适配器发布 `/poses` 但不产生 `/tf`；如部署还需要命名变换，请另加 `tf2_ros` broadcaster。
 

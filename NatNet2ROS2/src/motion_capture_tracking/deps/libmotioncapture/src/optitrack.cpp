@@ -421,39 +421,65 @@ namespace libmotioncapture {
           }
           else if(type ==1)   // rigid body
           {
-            char szName[MAX_NAMELENGTH];
+            std::string rigid_body_name;
             if(major >= 2)
             {
               // name
-              strcpy(szName, ptr);
+              rigid_body_name = ptr;
               ptr += strlen(ptr) + 1;
-              // printf("Name: %s\n", szName);
+              // printf("Name: %s\n", rigid_body_name.c_str());
             }
 
             int ID = 0; memcpy(&ID, ptr, 4); ptr +=4;
             // printf("ID : %d\n", ID);
 
-            rigidBodyDefinitions[ID].name = szName;
-            rigidBodyDefinitions[ID].ID = ID;
-         
-            memcpy(&rigidBodyDefinitions[ID].parentID, ptr, 4); ptr +=4;
-            memcpy(&rigidBodyDefinitions[ID].xoffset, ptr, 4); ptr +=4;
-            memcpy(&rigidBodyDefinitions[ID].yoffset, ptr, 4); ptr +=4;
-            memcpy(&rigidBodyDefinitions[ID].zoffset, ptr, 4); ptr +=4;
+            auto& definition = rigidBodyDefinitions[ID];
+            definition.name = rigid_body_name;
+            definition.id = ID;
+
+            int parent_id = 0;
+            float xoffset = 0.0f;
+            float yoffset = 0.0f;
+            float zoffset = 0.0f;
+            memcpy(&parent_id, ptr, 4); ptr +=4;
+            memcpy(&xoffset, ptr, 4); ptr +=4;
+            memcpy(&yoffset, ptr, 4); ptr +=4;
+            memcpy(&zoffset, ptr, 4); ptr +=4;
+            definition.parentId = parent_id;
+            definition.parentOffset = Eigen::Vector3f(xoffset, yoffset, zoffset);
+            definition.markers.clear();
 
             // Per-marker data (NatNet 3.0 and later)
             if ( major >= 3 )
             {
               int nMarkers = 0; memcpy( &nMarkers, ptr, 4 ); ptr += 4;
+              if (nMarkers < 0 || nMarkers > 10000) {
+                throw std::runtime_error("NatNet rigid-body marker count is invalid");
+              }
+              definition.markers.resize(static_cast<size_t>(nMarkers));
               // Marker positions
-              nBytes = nMarkers * 3 * sizeof(float);
-              ptr += nBytes;
+              for (int markerIdx = 0; markerIdx < nMarkers; ++markerIdx) {
+                float position[3] = {0.0f, 0.0f, 0.0f};
+                memcpy(position, ptr, sizeof(position));
+                ptr += sizeof(position);
+                auto& marker = definition.markers[static_cast<size_t>(markerIdx)];
+                marker.memberId = static_cast<uint32_t>(markerIdx);
+                marker.position = Eigen::Vector3f(
+                    position[0], position[1], position[2]);
+                marker.requiredActiveLabel = -1;
+              }
               // Marker required active labels
-              nBytes = nMarkers * sizeof(int);
-              ptr += nBytes;
+              for (int markerIdx = 0; markerIdx < nMarkers; ++markerIdx) {
+                int required_active_label = -1;
+                memcpy(&required_active_label, ptr, sizeof(required_active_label));
+                ptr += sizeof(required_active_label);
+                definition.markers[static_cast<size_t>(markerIdx)]
+                    .requiredActiveLabel = required_active_label;
+              }
               // Marker Name
               if (major >= 4) {
                 for (int markerIdx = 0; markerIdx < nMarkers; ++markerIdx) {
+                  definition.markers[static_cast<size_t>(markerIdx)].name = ptr;
                   ptr += strlen(ptr) + 1;
                 }
               }
@@ -569,16 +595,8 @@ namespace libmotioncapture {
       float z;
     };
     std::vector<marker> markers;
-
-    struct rigidBodyDefinition {
-      std::string name;
-      int ID;
-      int parentID;
-      float xoffset;
-      float yoffset;
-      float zoffset;
-    };
-    std::map<int, rigidBodyDefinition> rigidBodyDefinitions;
+    std::vector<LabeledMarker> labeledMarkers;
+    std::map<int32_t, RigidBodyDefinition> rigidBodyDefinitions;
   };
 
   MotionCaptureOptitrack::MotionCaptureOptitrack(
@@ -972,6 +990,7 @@ namespace libmotioncapture {
           memcpy(&nLabeledMarkers, ptr, 4); ptr += 4;
           ptr = UnpackDataSize(ptr, major, minor,nBytes);
           pImpl->markers.resize(nOtherMarkers + nLabeledMarkers);
+          pImpl->labeledMarkers.resize(nLabeledMarkers);
           // printf("Labeled Marker Count : %d\n", nLabeledMarkers);
 
           // Loop through labeled markers
@@ -987,24 +1006,30 @@ namespace libmotioncapture {
             //      MemberID  (Lo Word)
             //   Else
             //      PointCloud ID
-            // int ID = 0; memcpy(&ID, ptr, 4);
-            ptr += 4;
-            // int modelID, markerID;
-            // DecodeMarkerID(ID, &modelID, &markerID);
+            auto& labeled_marker =
+                pImpl->labeledMarkers[static_cast<size_t>(j)];
+            memcpy(&labeled_marker.id, ptr, 4); ptr += 4;
+            labeled_marker.modelId = (labeled_marker.id >> 16) & 0xffffU;
+            labeled_marker.memberId = labeled_marker.id & 0xffffU;
 
             memcpy(&pImpl->markers[nOtherMarkers + j].x, ptr, 4); ptr += 4;
             memcpy(&pImpl->markers[nOtherMarkers + j].y, ptr, 4); ptr += 4;
             memcpy(&pImpl->markers[nOtherMarkers + j].z, ptr, 4); ptr += 4;
+            labeled_marker.position = Eigen::Vector3f(
+                pImpl->markers[nOtherMarkers + j].x,
+                pImpl->markers[nOtherMarkers + j].y,
+                pImpl->markers[nOtherMarkers + j].z);
             // size
-            //float size = 0.0f; memcpy(&size, ptr, 4);
-            ptr += 4;
+            memcpy(&labeled_marker.size, ptr, 4); ptr += 4;
+            labeled_marker.params = 0;
+            labeled_marker.residual =
+                std::numeric_limits<float>::quiet_NaN();
 
             // NatNet version 2.6 and later
             if( ((major == 2)&&(minor >= 6)) || (major > 2) || (major == 0) ) 
             {
               // marker params
-              // short params = 0; memcpy(&params, ptr, 2);
-              ptr += 2;
+              memcpy(&labeled_marker.params, ptr, 2); ptr += 2;
               // bool bOccluded = (params & 0x01) != 0;     // marker was not visible (occluded) in this frame
               // bool bPCSolved = (params & 0x02) != 0;     // position provided by point cloud solve
               // bool bModelSolved = (params & 0x04) != 0;  // position provided by model solve
@@ -1017,14 +1042,16 @@ namespace libmotioncapture {
             }
 
             // NatNet version 3.0 and later
-            // float residual = 0.0f;
             if ((major >= 3) || (major == 0))
             {
               // Marker residual
-              // memcpy(&residual, ptr, 4);
-              ptr += 4;
+              memcpy(&labeled_marker.residual, ptr, 4); ptr += 4;
             }
           }
+        }
+        else
+        {
+          pImpl->labeledMarkers.clear();
         }
 
         // Force Plate data (NatNet version 2.9 and later)
@@ -1223,12 +1250,17 @@ namespace libmotioncapture {
     rigidBodies_.clear();
     for (const auto& rb : pImpl->rigidBodies) {
       if (rb.bTrackingValid) {
-        const auto& def = pImpl->rigidBodyDefinitions[rb.ID];
+        const auto def_it = pImpl->rigidBodyDefinitions.find(rb.ID);
+        if (def_it == pImpl->rigidBodyDefinitions.end() ||
+            def_it->second.name.empty()) {
+          continue;
+        }
+        const auto& def = def_it->second;
 
         Eigen::Vector3f position(
-          rb.x + def.xoffset,
-          rb.y + def.yoffset,
-          rb.z + def.zoffset);
+          rb.x + def.parentOffset.x(),
+          rb.y + def.parentOffset.y(),
+          rb.z + def.parentOffset.z());
 
         Eigen::Quaternionf rotation(
           rb.qw, // w
@@ -1236,7 +1268,9 @@ namespace libmotioncapture {
           rb.qy, // y
           rb.qz  // z
           );
-        rigidBodies_.emplace(def.name, RigidBody(def.name, position, rotation));
+        rigidBodies_.emplace(
+            def.name,
+            RigidBody(def.name, position, rotation, rb.ID, rb.fError));
       }
     }
     return rigidBodies_;
@@ -1251,6 +1285,17 @@ namespace libmotioncapture {
       pointcloud_.row(r) << marker.x, marker.y, marker.z;
     }
     return pointcloud_;
+  }
+
+  const std::map<int32_t, RigidBodyDefinition>&
+  MotionCaptureOptitrack::rigidBodyDefinitions() const
+  {
+    return pImpl->rigidBodyDefinitions;
+  }
+
+  const std::vector<LabeledMarker>& MotionCaptureOptitrack::labeledMarkers() const
+  {
+    return pImpl->labeledMarkers;
   }
 
   const std::vector<LatencyInfo> &MotionCaptureOptitrack::latency() const

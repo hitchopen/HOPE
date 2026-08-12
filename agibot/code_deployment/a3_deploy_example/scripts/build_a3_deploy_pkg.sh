@@ -4,16 +4,19 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/build_a3_deploy_pkg.sh --arch x86_64 [--runtime-cfg PATH]
-  scripts/build_a3_deploy_pkg.sh --arch rockchip [--runtime-cfg PATH]
-  scripts/build_a3_deploy_pkg.sh --arch thor [--runtime-cfg PATH]
+  scripts/build_a3_deploy_pkg.sh --arch x86_64 [--runtime-cfg PATH] [--policy-dir PATH]
+  scripts/build_a3_deploy_pkg.sh --arch rockchip [--runtime-cfg PATH] [--policy-dir PATH]
+  scripts/build_a3_deploy_pkg.sh --arch thor [--runtime-cfg PATH] [--policy-dir PATH]
 
 Options:
   --arch ARCH          x86_64, rockchip, or thor.
   --runtime-cfg PATH   Source A3 runtime YAML. Defaults to the repo A3 config.
+  --policy-dir PATH    Unitree-style ping-pong policy directory containing
+                       params/deploy.yaml and exported/policy.onnx. Defaults to
+                       the published model_21800 bundle.
   --smpl-zmq-host HOST Override packaged smpl_zmq.host. By default x86_64 uses
                        localhost, while rockchip and thor use the fixed HDU
-                       address <hdu_ip> when the source config still has a
+                       address 10.42.10.10 when the source config still has a
                        localhost-style host.
   --jobs N             Parallel build jobs. Defaults to nproc.
   --inside-docker      Internal flag used by the arm64 builder containers.
@@ -23,6 +26,10 @@ Proxy:
   Existing http_proxy/https_proxy/all_proxy environment variables are passed
   through to Docker build/run. If they point at localhost/127.0.0.1, Docker
   uses --network host so the container can reach the host proxy.
+
+Vendor payload:
+  Set A3_VENDOR_PAYLOAD_ROOT to an AgiBot deploy payload when the public tree
+  does not contain the licensed sysroot/runtime libraries and legacy assets.
 
 Thor sysroot:
   Thor builds require thirdparty/thor_sysroot/thor-1.0-aarch64-sysroot.tar.gz.
@@ -39,10 +46,20 @@ USAGE
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 GEAR_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-REPO_ROOT="${GEAR_ROOT}"
+REPO_ROOT="$(cd -- "${GEAR_ROOT}/../../.." && pwd)"
+GEAR_ROOT_REL="${GEAR_ROOT#${REPO_ROOT}/}"
+HOPE_RUNNER_ROOT="${REPO_ROOT}/a3_deploy/a3_deploy_example"
+VENDOR_PAYLOAD_ROOT="${A3_VENDOR_PAYLOAD_ROOT:-${GEAR_ROOT}}"
+if [[ "${VENDOR_PAYLOAD_ROOT}" != /* ]]; then
+  VENDOR_PAYLOAD_ROOT="${REPO_ROOT}/${VENDOR_PAYLOAD_ROOT}"
+fi
+VENDOR_PAYLOAD_ROOT="$(cd -- "${VENDOR_PAYLOAD_ROOT}" && pwd)"
+THIRDPARTY_ROOT="${VENDOR_PAYLOAD_ROOT}/thirdparty"
 
 ARCH=""
 RUNTIME_CFG="${GEAR_ROOT}/src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.yaml"
+POLICY_DIR="${A3_PINGPONG_POLICY_DIR_SOURCE:-${HOPE_RUNNER_ROOT}/models/model_21800/policy}"
+PINGPONG_RUNTIME_CFG="${HOPE_RUNNER_ROOT}/src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
 SMPL_ZMQ_HOST_OVERRIDE=""
 INSIDE_DOCKER=0
 BUILD_ONLY=0
@@ -56,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --runtime-cfg)
       RUNTIME_CFG="${2:-}"
+      shift 2
+      ;;
+    --policy-dir)
+      POLICY_DIR="${2:-}"
       shift 2
       ;;
     --smpl-zmq-host)
@@ -95,6 +116,9 @@ if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "--jobs must be a positive integer; got '${JOBS}'" >&2
   exit 64
 fi
+if [[ "${POLICY_DIR}" != /* ]]; then
+  POLICY_DIR="$(cd -- "$(dirname -- "${POLICY_DIR}")" && pwd)/$(basename -- "${POLICY_DIR}")"
+fi
 
 case "${ARCH}" in
   x86_64)
@@ -117,10 +141,10 @@ esac
 
 PKG_DIR="${GEAR_ROOT}/dist/${PACKAGE_NAME}"
 ROCKCHIP_SYSROOT_TARBALL_REL="${A3_ROCKCHIP_SYSROOT_TARBALL_REL:-thirdparty/rockchip_sysroot/rockchip-1.0-aarch64-sysroot.tar.gz}"
-ROCKCHIP_SYSROOT_TARBALL="${GEAR_ROOT}/${ROCKCHIP_SYSROOT_TARBALL_REL}"
+ROCKCHIP_SYSROOT_TARBALL="${VENDOR_PAYLOAD_ROOT}/${ROCKCHIP_SYSROOT_TARBALL_REL}"
 ROCKCHIP_BUILDER_BASE="${A3_ROCKCHIP_BUILDER_BASE:-debian:bookworm}"
 THOR_SYSROOT_TARBALL_REL="${A3_THOR_SYSROOT_TARBALL_REL:-thirdparty/thor_sysroot/thor-1.0-aarch64-sysroot.tar.gz}"
-THOR_SYSROOT_TARBALL="${GEAR_ROOT}/${THOR_SYSROOT_TARBALL_REL}"
+THOR_SYSROOT_TARBALL="${VENDOR_PAYLOAD_ROOT}/${THOR_SYSROOT_TARBALL_REL}"
 PROXY_ENV_NAMES=(
   http_proxy
   https_proxy
@@ -224,7 +248,7 @@ source_ros_if_available() {
 
 apply_existing_aimrt_patches() {
   local aimrt_src="${BUILD_DIR}/_deps/aimrt-src"
-  local patch_script="${GEAR_ROOT}/cmake/aimrt_patches/ApplyAimRTPatches.cmake"
+  local patch_script="${HOPE_RUNNER_ROOT}/cmake/aimrt_patches/ApplyAimRTPatches.cmake"
   if [[ -f "${aimrt_src}/CMakeLists.txt" && -f "${patch_script}" ]]; then
     (
       cd "${aimrt_src}"
@@ -374,8 +398,12 @@ build_rockchip_in_docker() {
       --user "$(id -u):$(id -g)" \
       -e HOME=/tmp \
       -e HAS_ROS2=1 \
+      -e A3_VENDOR_PAYLOAD_ROOT=/vendor-payload \
+      -e A3_PINGPONG_POLICY_DIR_SOURCE=/policy-source \
       -v "${REPO_ROOT}:/work" \
-      -w /work \
+      -v "${VENDOR_PAYLOAD_ROOT}:/vendor-payload:ro" \
+      -v "${POLICY_DIR}:/policy-source:ro" \
+      -w "/work/${GEAR_ROOT_REL}" \
       "${image}" \
       bash -lc "source /opt/ros/jazzy/setup.bash && scripts/build_a3_deploy_pkg.sh --arch rockchip --inside-docker --build-only --jobs '${JOBS}'" || status=$?
   fi
@@ -418,8 +446,12 @@ build_thor_in_docker() {
       -e HOME=/tmp \
       -e HAS_ROS2=1 \
       -e HOST_REPO_ROOT="${REPO_ROOT}" \
+      -e A3_VENDOR_PAYLOAD_ROOT=/vendor-payload \
+      -e A3_PINGPONG_POLICY_DIR_SOURCE=/policy-source \
       -v "${REPO_ROOT}:/work" \
-      -w /work \
+      -v "${VENDOR_PAYLOAD_ROOT}:/vendor-payload:ro" \
+      -v "${POLICY_DIR}:/policy-source:ro" \
+      -w "/work/${GEAR_ROOT_REL}" \
       "${image}" \
       bash -lc "source /opt/ros/jazzy/setup.bash && scripts/build_a3_deploy_pkg.sh --arch thor --inside-docker${inner_build_only_arg} --jobs '${JOBS}'" || status=$?
   fi
@@ -445,10 +477,50 @@ cmake_target_exists() {
   return 1
 }
 
+clear_stale_source_cache_if_needed() {
+  local cache_file="${BUILD_DIR}/CMakeCache.txt"
+  local cached_source=""
+  [[ -f "${cache_file}" ]] || return 0
+  cached_source="$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "${cache_file}" | head -n 1)"
+  if [[ -n "${cached_source}" && "${cached_source}" != "${HOPE_RUNNER_ROOT}" ]]; then
+    echo "clearing stale CMake build dir after source root changed: ${cached_source} -> ${HOPE_RUNNER_ROOT}" >&2
+    rm -rf "${BUILD_DIR}"
+  fi
+}
+
+has_complete_fetchcontent_cache() {
+  local required_sources=(
+    aimrt-src
+    asio-src
+    backward-src
+    cpptoml-src
+    fmt-src
+    gflags-src
+    iceoryx-src
+    irobot_events_executor-src
+    jsoncpp-src
+    libunifex-src
+    lz4-src
+    mcap-src
+    protobuf-src
+    tbb-src
+    yaml-cpp-src
+    zstd-src
+  )
+  local source_dir
+  for source_dir in "${required_sources[@]}"; do
+    if [[ ! -d "${BUILD_DIR}/_deps/${source_dir}" ]]; then
+      return 1
+    fi
+  done
+  [[ -f "${BUILD_DIR}/_deps/aimrt-src/VERSION" ]]
+}
+
 configure_and_build() {
   rm -rf "${PKG_DIR}"
   mkdir -p "${PKG_DIR}"
 
+  clear_stale_source_cache_if_needed
   clear_stale_cross_cmake_cache_if_needed
   source_ros_if_available
   refresh_aimrt_source_if_stale
@@ -461,7 +533,7 @@ configure_and_build() {
   local cmake_python="${A3_CMAKE_PYTHON:-/usr/bin/python3}"
 
   local cmake_args=(
-    -S "${GEAR_ROOT}"
+    -S "${HOPE_RUNNER_ROOT}"
     -B "${BUILD_DIR}"
     -DCMAKE_BUILD_TYPE=Release
     -DBUILD_SRCS=ON
@@ -470,12 +542,18 @@ configure_and_build() {
     -DENABLE_A3_AIMRT_BACKEND=ON
     -DGS_PACKAGE_ARCH_NAME="${ARCH}"
     -DGS_RUNTIME_OUTPUT_DIR="${PKG_DIR}"
+    -DA3_THIRDPARTY_ROOT="${THIRDPARTY_ROOT}"
+    -DA3_UNITREE_SDK2_ROOT="${THIRDPARTY_ROOT}/unitree_sdk2"
   )
   if [[ -x "${cmake_python}" ]]; then
     cmake_args+=(
       -DPython3_EXECUTABLE="${cmake_python}"
       -DPYTHON_EXECUTABLE="${cmake_python}"
     )
+  fi
+  if has_complete_fetchcontent_cache; then
+    echo "using complete local FetchContent source cache (offline configure)"
+    cmake_args+=(-DFETCHCONTENT_FULLY_DISCONNECTED=ON)
   fi
 
   if [[ "${ARCH}" == "rockchip" ]]; then
@@ -490,7 +568,7 @@ configure_and_build() {
       )
     else
       cmake_args+=(
-        -DCMAKE_TOOLCHAIN_FILE="${GEAR_ROOT}/cmake/toolchains/aarch64-linux-gnu.cmake"
+        -DCMAKE_TOOLCHAIN_FILE="${HOPE_RUNNER_ROOT}/cmake/toolchains/aarch64-linux-gnu.cmake"
         -DGS_SKIP_ROSIDL_GENERATOR_PY=ON
       )
     fi
@@ -502,7 +580,7 @@ configure_and_build() {
     )
     if ! is_native_arm64; then
       cmake_args+=(
-        -DCMAKE_TOOLCHAIN_FILE="${GEAR_ROOT}/cmake/toolchains/aarch64-linux-gnu.cmake"
+        -DCMAKE_TOOLCHAIN_FILE="${HOPE_RUNNER_ROOT}/cmake/toolchains/aarch64-linux-gnu.cmake"
       )
     fi
   fi
@@ -510,6 +588,11 @@ configure_and_build() {
   cmake "${cmake_args[@]}"
   cmake --build "${BUILD_DIR}" --target a3_deploy_onnx_ref -j"${JOBS}"
   cmake --build "${BUILD_DIR}" --target a3_policy_runtime_probe -j"${JOBS}"
+  if ! cmake_target_exists "${BUILD_DIR}" "a3_deploy_onnx_ref_pingpong"; then
+    echo "missing required CMake target: a3_deploy_onnx_ref_pingpong" >&2
+    exit 1
+  fi
+  cmake --build "${BUILD_DIR}" --target a3_deploy_onnx_ref_pingpong -j"${JOBS}"
   if cmake_target_exists "${BUILD_DIR}" "a3_body_drive_debug_record"; then
     cmake --build "${BUILD_DIR}" --target a3_body_drive_debug_record -j"${JOBS}"
   else
@@ -533,7 +616,7 @@ copy_found_libs() {
 }
 
 stage_runtime_config_and_assets() {
-  python3 - "${REPO_ROOT}" "${GEAR_ROOT}" "${RUNTIME_CFG}" "${PKG_DIR}" "${ARCH}" "${SMPL_ZMQ_HOST_OVERRIDE}" <<'PY'
+  python3 - "${REPO_ROOT}" "${VENDOR_PAYLOAD_ROOT}" "${RUNTIME_CFG}" "${PKG_DIR}" "${ARCH}" "${SMPL_ZMQ_HOST_OVERRIDE}" <<'PY'
 import shutil
 import sys
 import os
@@ -925,8 +1008,8 @@ if isinstance(smpl_zmq_cfg, dict):
     elif arch in ("rockchip", "thor") and is_localhost(smpl_zmq_cfg.get("host")):
         # Arm deploy targets connect to the Pico sender on the HDU via the
         # robot's fixed internal HDU address.
-        set_nested(cfg, ["smpl_zmq", "host"], "<hdu_ip>")
-        print(f"packaged smpl_zmq.host default for {arch}: <hdu_ip>")
+        set_nested(cfg, ["smpl_zmq", "host"], "10.42.10.10")
+        print(f"packaged smpl_zmq.host default for {arch}: 10.42.10.10")
     elif arch == "x86_64" and is_localhost(smpl_zmq_cfg.get("host")):
         set_nested(cfg, ["smpl_zmq", "host"], "localhost")
 
@@ -961,14 +1044,43 @@ if teleop_fallback_src is not None:
 print(f"packaged aimrt cfg: {aimrt_src}")
 PY
 
-  local fastrtps_src="${GEAR_ROOT}/src/a3/a3_deploy_onnx_ref/config/fastrtps_profile.xml"
+  local fastrtps_src="${HOPE_RUNNER_ROOT}/src/a3/a3_deploy_onnx_ref/config/fastrtps_profile.xml"
   if [[ -f "${fastrtps_src}" ]]; then
     cp -f "${fastrtps_src}" "${PKG_DIR}/config/fastrtps_profile.xml"
   fi
 }
 
+stage_pingpong_runtime_and_policy() {
+  local pingpong_cfg_dir="${HOPE_RUNNER_ROOT}/src/a3/a3_deploy_onnx_ref/config"
+  local policy_deploy="${POLICY_DIR}/params/deploy.yaml"
+  local policy_onnx="${POLICY_DIR}/exported/policy.onnx"
+
+  if [[ ! -f "${PINGPONG_RUNTIME_CFG}" ]]; then
+    echo "missing ping-pong runtime config: ${PINGPONG_RUNTIME_CFG}" >&2
+    exit 66
+  fi
+  if [[ ! -f "${policy_deploy}" || ! -f "${policy_onnx}" ]]; then
+    echo "policy directory must contain params/deploy.yaml and exported/policy.onnx: ${POLICY_DIR}" >&2
+    exit 66
+  fi
+
+  mkdir -p \
+    "${PKG_DIR}/config" \
+    "${PKG_DIR}/policy/params" \
+    "${PKG_DIR}/policy/exported"
+  install -m 0644 \
+    "${PINGPONG_RUNTIME_CFG}" \
+    "${PKG_DIR}/config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
+  install -m 0644 \
+    "${pingpong_cfg_dir}/a3_aimrt_config.pingpong_iceoryx.yaml" \
+    "${pingpong_cfg_dir}/a3_aimrt_config.pingpong_ros2body.yaml" \
+    "${PKG_DIR}/config/"
+  install -m 0644 "${policy_deploy}" "${PKG_DIR}/policy/params/deploy.yaml"
+  install -m 0644 "${policy_onnx}" "${PKG_DIR}/policy/exported/policy.onnx"
+}
+
 stage_body_drive_debug_files() {
-  local debug_src="${GEAR_ROOT}/src/a3/a3_deploy_onnx_ref"
+  local debug_src="${HOPE_RUNNER_ROOT}/src/a3/a3_deploy_onnx_ref"
 
   mkdir -p \
     "${PKG_DIR}/config" \
@@ -1085,7 +1197,103 @@ exec "${SCRIPT_DIR}/run_a3.sh" \
   "$@"
 RUN_A3_PROBE
 
-  chmod +x "${PKG_DIR}/run_a3.sh" "${PKG_DIR}/run_a3_probe.sh"
+  cat > "${PKG_DIR}/run_a3_pingpong.sh" <<'RUN_A3_PINGPONG'
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "${SCRIPT_DIR}"
+
+A3_SOURCE_ROBOT_ENV_DEFAULT="__A3_SOURCE_ROBOT_ENV_DEFAULT__"
+A3_ROBOT_ENV="${A3_ROBOT_ENV:-/agibot/software/v0/entry/env/env.sh}"
+A3_SOURCE_ROBOT_ENV_ENABLED="${A3_SOURCE_ROBOT_ENV:-${A3_SOURCE_ROBOT_ENV_DEFAULT}}"
+if [[ "${A3_SOURCE_ROBOT_ENV_ENABLED}" != "0" ]]; then
+  if [[ ! -f "${A3_ROBOT_ENV}" ]]; then
+    echo "required robot env not found: ${A3_ROBOT_ENV} (set A3_SOURCE_ROBOT_ENV=0 to skip)" >&2
+    exit 66
+  fi
+  set +u
+  # shellcheck disable=SC1090
+  source "${A3_ROBOT_ENV}"
+  set -u
+  echo "[a3_pingpong] sourced robot env: ${A3_ROBOT_ENV}"
+fi
+
+DEFAULT_A3_TRANSPORT="__DEFAULT_A3_TRANSPORT__"
+A3_TRANSPORT="${A3_TRANSPORT:-${DEFAULT_A3_TRANSPORT}}"
+case "${A3_TRANSPORT}" in
+  iceoryx)
+    A3_AIMRT_CFG="${SCRIPT_DIR}/config/a3_aimrt_config.pingpong_iceoryx.yaml"
+    ;;
+  ros2)
+    A3_AIMRT_CFG="${SCRIPT_DIR}/config/a3_aimrt_config.ros2.yaml"
+    ;;
+  *)
+    echo "invalid A3_TRANSPORT='${A3_TRANSPORT}'; expected one of: iceoryx, ros2" >&2
+    exit 64
+    ;;
+esac
+
+# Planner commands and mocap stay on ROS2 while body-drive remains on iceoryx.
+for arg in "$@"; do
+  if [[ "${arg}" == "--planner" ]]; then
+    A3_AIMRT_CFG="${SCRIPT_DIR}/config/a3_aimrt_config.pingpong_ros2body.yaml"
+    break
+  fi
+done
+
+PINGPONG_RUNTIME_CFG="${A3_PINGPONG_RUNTIME_CFG:-${SCRIPT_DIR}/config/a3_runtime_config.pingpong.hitter_pingpong.yaml}"
+PINGPONG_POLICY_DIR="${A3_PINGPONG_POLICY_DIR:-${SCRIPT_DIR}/policy}"
+if [[ ! -f "${PINGPONG_RUNTIME_CFG}" ]]; then
+  echo "ping-pong runtime config not found: ${PINGPONG_RUNTIME_CFG}" >&2
+  exit 66
+fi
+if [[ ! -f "${A3_AIMRT_CFG}" ]]; then
+  echo "selected AimRT config does not exist: ${A3_AIMRT_CFG}" >&2
+  exit 66
+fi
+if [[ ! -f "${PINGPONG_POLICY_DIR}/params/deploy.yaml" ||
+      ! -f "${PINGPONG_POLICY_DIR}/exported/policy.onnx" ]]; then
+  echo "ping-pong policy bundle is incomplete: ${PINGPONG_POLICY_DIR}" >&2
+  exit 66
+fi
+
+mkdir -p logs
+export LD_LIBRARY_PATH="${SCRIPT_DIR}:${LD_LIBRARY_PATH:-}"
+export FASTRTPS_DEFAULT_PROFILES_FILE="${SCRIPT_DIR}/config/fastrtps_profile.xml"
+
+if [[ -n "${ROS_DISTRO:-}" && -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
+  set +u
+  # shellcheck disable=SC1090
+  source "/opt/ros/${ROS_DISTRO}/setup.bash"
+  set -u
+elif [[ -f /opt/ros/jazzy/setup.bash ]]; then
+  set +u
+  # shellcheck disable=SC1091
+  source /opt/ros/jazzy/setup.bash
+  set -u
+elif [[ -f /opt/ros/humble/setup.bash ]]; then
+  set +u
+  # shellcheck disable=SC1091
+  source /opt/ros/humble/setup.bash
+  set -u
+fi
+
+echo "[a3_pingpong] transport=${A3_TRANSPORT} aimrt_cfg=${A3_AIMRT_CFG} runtime_cfg=${PINGPONG_RUNTIME_CFG} policy_dir=${PINGPONG_POLICY_DIR}"
+exec "${SCRIPT_DIR}/a3_deploy_onnx_ref_pingpong" \
+  --runtime-cfg "${PINGPONG_RUNTIME_CFG}" \
+  --policy-dir "${PINGPONG_POLICY_DIR}" \
+  --aimrt-cfg "${A3_AIMRT_CFG}" \
+  "$@"
+RUN_A3_PINGPONG
+
+  sed -i "s/__DEFAULT_A3_TRANSPORT__/${default_transport}/g" "${PKG_DIR}/run_a3_pingpong.sh"
+  sed -i "s/__A3_SOURCE_ROBOT_ENV_DEFAULT__/${source_robot_env_default}/g" "${PKG_DIR}/run_a3_pingpong.sh"
+
+  chmod +x \
+    "${PKG_DIR}/run_a3.sh" \
+    "${PKG_DIR}/run_a3_probe.sh" \
+    "${PKG_DIR}/run_a3_pingpong.sh"
 }
 
 stage_extra_libs() {
@@ -1096,15 +1304,22 @@ stage_extra_libs() {
   copy_found_libs "${BUILD_DIR}" "liba3_body_drive_debug_ros2_ts.so*"
 
   if [[ "${ARCH}" == "rockchip" || "${ARCH}" == "thor" ]]; then
-    copy_found_libs "${GEAR_ROOT}/thirdparty/unitree_sdk2/thirdparty/lib/aarch64" "libddsc.so*"
-    copy_found_libs "${GEAR_ROOT}/thirdparty/unitree_sdk2/thirdparty/lib/aarch64" "libddscxx.so*"
+    copy_found_libs "${THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/lib/aarch64" "libddsc.so*"
+    copy_found_libs "${THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/lib/aarch64" "libddscxx.so*"
   else
-    copy_found_libs "${GEAR_ROOT}/thirdparty/unitree_sdk2/thirdparty/lib/x86_64" "libddsc.so*"
-    copy_found_libs "${GEAR_ROOT}/thirdparty/unitree_sdk2/thirdparty/lib/x86_64" "libddscxx.so*"
+    copy_found_libs "${THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/lib/x86_64" "libddsc.so*"
+    copy_found_libs "${THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/lib/x86_64" "libddscxx.so*"
+  fi
+  # Some vendor payload exports contain placeholder files instead of the
+  # libddsc SONAME symlinks. Always normalize the package to the real ELF
+  # libraries that were linked by Unitree SDK2.
+  if [[ -f "${PKG_DIR}/libddsc.so" && -f "${PKG_DIR}/libddscxx.so" ]]; then
+    ln -sfn libddsc.so "${PKG_DIR}/libddsc.so.0"
+    ln -sfn libddscxx.so "${PKG_DIR}/libddscxx.so.0"
   fi
 
   if [[ "${ARCH}" == "rockchip" ]]; then
-    copy_found_libs "${GEAR_ROOT}/thirdparty/rknn_runtime/2.3.2/lib/aarch64" "librknnrt.so*"
+    copy_found_libs "${THIRDPARTY_ROOT}/rknn_runtime/2.3.2/lib/aarch64" "librknnrt.so*"
   fi
 
   if [[ "${ARCH}" == "thor" ]]; then
@@ -1167,10 +1382,10 @@ stage_joint_msgs_ros2_cli_overlay() {
   fi
 
   mkdir -p "${PKG_DIR}/share/joint_msgs"
-  cp -f "${GEAR_ROOT}/thirdparty/joint_msgs/package.xml" \
+  cp -f "${THIRDPARTY_ROOT}/joint_msgs/package.xml" \
     "${PKG_DIR}/share/joint_msgs/package.xml"
   rm -rf "${PKG_DIR}/share/joint_msgs/msg"
-  cp -a "${GEAR_ROOT}/thirdparty/joint_msgs/msg" \
+  cp -a "${THIRDPARTY_ROOT}/joint_msgs/msg" \
     "${PKG_DIR}/share/joint_msgs/msg"
 
 cat > "${PKG_DIR}/setup_ros2_msgs.bash" <<'SETUP_ROS2_MSGS'
@@ -1234,6 +1449,35 @@ verify_package() {
     echo "missing executable: ${PKG_DIR}/a3_policy_runtime_probe" >&2
     exit 1
   fi
+  if [[ ! -x "${PKG_DIR}/a3_deploy_onnx_ref_pingpong" ]]; then
+    echo "missing executable: ${PKG_DIR}/a3_deploy_onnx_ref_pingpong" >&2
+    exit 1
+  fi
+  if [[ ! -x "${PKG_DIR}/run_a3_pingpong.sh" ]]; then
+    echo "missing executable: ${PKG_DIR}/run_a3_pingpong.sh" >&2
+    exit 1
+  fi
+  local pingpong_required=(
+    "config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
+    "config/a3_aimrt_config.pingpong_iceoryx.yaml"
+    "config/a3_aimrt_config.pingpong_ros2body.yaml"
+    "policy/params/deploy.yaml"
+    "policy/exported/policy.onnx"
+  )
+  local pingpong_rel
+  for pingpong_rel in "${pingpong_required[@]}"; do
+    if [[ ! -f "${PKG_DIR}/${pingpong_rel}" ]]; then
+      echo "missing ping-pong package file: ${pingpong_rel}" >&2
+      exit 1
+    fi
+  done
+  local dds_soname
+  for dds_soname in libddsc.so.0 libddscxx.so.0; do
+    if [[ ! -L "${PKG_DIR}/${dds_soname}" || ! -e "${PKG_DIR}/${dds_soname}" ]]; then
+      echo "missing Unitree DDS SONAME link: ${dds_soname}" >&2
+      exit 1
+    fi
+  done
   if [[ "${ARCH}" == "rockchip" && ! -e "${PKG_DIR}/librknnrt.so" ]]; then
     echo "missing Rockchip RKNN runtime library: librknnrt.so" >&2
     exit 1
@@ -1365,6 +1609,7 @@ fi
 
 if [[ "${BUILD_ONLY}" -eq 0 ]]; then
   stage_runtime_config_and_assets
+  stage_pingpong_runtime_and_policy
   stage_body_drive_debug_files
   stage_extra_libs
   stage_ros2_plugin_proto_prefix

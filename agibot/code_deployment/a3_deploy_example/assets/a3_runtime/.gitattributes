@@ -1,0 +1,7 @@
+# These vendor motion CSVs are committed as RAW blobs (the repo has no actual
+# git-lfs objects anywhere), but the package-level .gitattributes marks *.csv
+# as lfs — on machines with git-lfs configured that mismatch makes every CSV
+# here show as permanently "modified" and git prints "should have been
+# pointers, but weren't" on checkout. Deepest .gitattributes wins: unset the
+# lfs filtering so the raw blobs are handled as the plain text files they are.
+*.csv -filter -diff -merge

@@ -10,6 +10,10 @@
     update_freq: 500.
     refresh_freq: 1.
     multi_sensor: false
+    # Validate every received report, but cap each ROS pose/velocity/accel
+    # topic independently to reduce DDS traffic. The selected report keeps its
+    # original VRPN server timestamp. Set 0.0 to publish every accepted report.
+    output_rate_hz: 200.0
     # Preserve the VRPN packet's server-supplied timeval instead of re-stamping
     # on receipt. VRPN itself does no server/client clock conversion, so both
     # the CMTracker/MCServer host and this adapter host MUST be disciplined to

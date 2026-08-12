@@ -1,0 +1,16 @@
+[Unit]
+Description=Agibot MDU PTP slave on eth_mdu
+Documentation=man:ptp4l(8)
+After=sys-subsystem-net-devices-eth_mdu.device
+Before=agibot-mdu-phc2sys.service agibot_pm.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=LC_ALL=C
+ExecStart=/usr/sbin/ptp4l -i eth_mdu -2 -E -s -m --step_threshold 0.001
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

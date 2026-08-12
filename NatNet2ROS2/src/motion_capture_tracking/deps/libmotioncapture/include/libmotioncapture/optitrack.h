@@ -20,6 +20,8 @@ namespace libmotioncapture {
     virtual void waitForNextFrame();
     virtual const std::map<std::string, RigidBody>& rigidBodies() const;
     virtual const PointCloud& pointCloud() const;
+    virtual const std::map<int32_t, RigidBodyDefinition>& rigidBodyDefinitions() const;
+    virtual const std::vector<LabeledMarker>& labeledMarkers() const;
     virtual const std::vector<LatencyInfo> &latency() const;
     virtual uint64_t timeStamp() const;
     virtual double timeStampAge() const;

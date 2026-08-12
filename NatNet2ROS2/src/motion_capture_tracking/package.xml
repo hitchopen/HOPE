@@ -10,11 +10,8 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>tf2_ros</depend>
-  <depend>sensor_msgs</depend>
   <depend>eigen</depend>
   <depend>eigen3_cmake_module</depend>
-  <depend>libpcl-all-dev</depend>
   <depend>motion_capture_tracking_interfaces</depend>
 
   <test_depend>ament_lint_auto</test_depend>

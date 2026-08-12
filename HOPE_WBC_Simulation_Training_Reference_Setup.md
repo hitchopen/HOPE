@@ -2,19 +2,11 @@
 
 v0.5 — 2026-03-25
 
-> **Preserved reference document.** This predates the current HOPE
-> stack (it describes a broader dual-backend Isaac Lab / mjlab plan) and is kept
-> for design background and provenance. Where it disagrees with the shipped
-> code, the authoritative training path is
-> [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md) and the policy contract is
-> [`docs/POLICY_INTERFACE.md`](docs/POLICY_INTERFACE.md). Index:
-> [`REFERENCE_DOCS.md`](REFERENCE_DOCS.md).
-
 ## Overview
 
-This document describes the simulation training pipeline for the HOPE ping-pong whole-body controller (WBC), which is the Stage-4 whole-body controller in the HOPE hierarchical pipeline. The WBC is a reinforcement learning policy that receives racket target commands from the HOPE model-based planner (Stages 1–3) and produces coordinated whole-body joint commands to position the paddle at the desired interception point with the correct velocity and orientation.
+This document describes the simulation training pipeline for the HOPE ping-pong whole-body controller (WBC), which is Stage 4 in the HITTER hierarchical framework. The WBC is a reinforcement learning policy that receives racket target commands from the HOPE model-based planner (Stages 1–3) and produces coordinated whole-body joint commands to position the paddle at the desired interception point with the correct velocity and orientation.
 
-The training pipeline is based on **BeyondMimic** (Liao et al., arXiv:2508.08241), an open-source motion tracking framework that trains humanoid whole-body controllers from human motion references. BeyondMimic is maintained by the UC Berkeley HybridRobotics lab.
+The training pipeline is based on **BeyondMimic** (Liao et al., arXiv:2508.08241), an open-source motion tracking framework that trains humanoid whole-body controllers from human motion references. The HITTER paper explicitly states it was "built upon" BeyondMimic — Qiayuan Liao is a co-author on both papers, and the same lab (UC Berkeley HybridRobotics) maintains both codebases.
 
 BeyondMimic supports two simulation backends:
 
@@ -34,28 +26,28 @@ The trained policy is exported as an ONNX model for deployment. Deployment to th
 
 ---
 
-## 0  Prologue — HOPE WBC Design Notes
+## 0  Prologue — Differences from the HITTER Paper
 
-This document describes the HOPE whole-body controller (WBC) simulation training pipeline, which is the Stage-4 whole-body controller in the HOPE hierarchical pipeline. Unlike the companion planner document (Stages 1–3), which is a clean-room reimplementation from paper equations, the WBC training pipeline is based entirely on open-source code: BeyondMimic (`whole_body_tracking`, MIT license) and GMR (`github.com/YanjieZe/GMR`, MIT license). The notes below summarize the key design choices of this HOPE reference setup.
+This document describes the HOPE whole-body controller (WBC) simulation training pipeline, which is Stage 4 in the HITTER hierarchical framework. Unlike the companion planner document (Stages 1–3), which is a clean-room reimplementation from paper equations, the WBC training pipeline is based entirely on open-source code: BeyondMimic (`whole_body_tracking`, MIT license) and GMR (`github.com/YanjieZe/GMR`, MIT license). The HITTER paper's WBC training procedure closely follows BeyondMimic's published framework; the differences documented below are between this HOPE reference setup and the HITTER paper's described approach.
 
-### 0.1  Implementation Notes
+### 0.1  Implementation Differences from HITTER
 
-| # | Aspect | This HOPE reference setup |
-|---|--------|---------------------------|
-| 1 | **Simulation backend** | Isaac Lab + PhysX (G1) **and** mjlab + MuJoCo Warp (A3). HOPE supports multiple humanoid platforms including Agibot A3, which lacks USD assets for Isaac Lab. Section 4A covers the mjlab path. |
-| 2 | **Target robots** | G1 (29 DOF) and Agibot Expedition A3 (DOF TBD). HOPE is a multi-platform competition. |
-| 3 | **Reference motion source** | Two clips (forehand + backhand) via GVHMR + GMR, with expanded guidance on video recording requirements, broadcast footage extraction (P2ANet, Olympics), and building a multi-stroke motion library. Section 1.1 Option A provides detailed specifications. |
-| 4 | **SMPL-X hand pose** | Explicitly documented as discarded; detailed analysis of the hand → wrist → fixed racket mount kinematic chain. Section 2.8 explains why SMPL hand pose is irrelevant and how the 3D-printed wrist mount determines paddle orientation via the 7-DOF arm's FK. |
-| 5 | **Racket mount model** | Explicit URDF/MJCF fixed-joint model with `T_mount` transform; calibration procedure documented. Section 2.8 provides the complete fixed-joint formulation. |
-| 6 | **Robot asset format** | USD (GCS bucket, HuggingFace, or URDF import) with detailed explanation of USD format and three source variants. Section 4.3 explains what USD is, documents three non-interchangeable G1 USD sources, and notes the Isaac Sim ≥ 5.0 URDF import path. |
-| 7 | **MDP reward structure** | Three components: imitation + goal tracking + regularization, documented with explicit observation vector dimensions and activation timing. Section 4.6 provides the quantitative formulation. |
-| 8 | **PPO hyperparameters** | MLP [512, 256, 128], with remaining params documented with source annotations (**[P]** = published source method, **[B]** = BeyondMimic code, **[R]** = RSL-RL default). Section 4.8 annotates each parameter's provenance. |
-| 9 | **Motion preprocessing** | Full `csv_to_npz.py` workflow with WandB Registry setup, using BeyondMimic's open-source preprocessing pipeline. |
-| 10 | **Deployment** | Deferred to a separate deployment document; ONNX export and sim-to-sim verification covered here. HOPE separates training from deployment for clarity. |
-| 11 | **Forehand/backhand selection** | Based on ball Y position relative to robot center, documented as a WBC observation (swing type = ±1). Section 4.6 specifies the observation encoding. |
-| 12 | **Racket sensing architecture** | Racket tracking by mocap is explicitly prohibited; the FK chain `robot root → ... → wrist → T_mount → racket` computes paddle state. During competition, mocap streams the Ball and humanoid marker-cluster rigid bodies (P1/P2), which are mapped to each robot's declared URDF root (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3) by calibrated static transforms; the Table/PPT asset is used only during setup and calibration. See companion Mocap doc Section 3.1 and this doc Section 2.8. |
+| # | Aspect | HITTER paper | This HOPE reference setup | Rationale |
+|---|--------|-------------|---------------------------|-----------|
+| 1 | **Simulation backend** | Isaac Lab + PhysX only | Isaac Lab + PhysX (G1) **and** mjlab + MuJoCo Warp (A3) | HITTER targets only the Unitree G1. HOPE supports multiple humanoid platforms including Agibot A3, which lacks USD assets for Isaac Lab. Section 4A covers the mjlab path. |
+| 2 | **Target robots** | Unitree G1 (29 DOF) only | G1 (29 DOF) and Agibot Expedition A3 (DOF TBD) | HOPE is a multi-platform competition. |
+| 3 | **Reference motion source** | Two clips (forehand + backhand) from "video clips" via GVHMR + GMR | Same pipeline, but expanded guidance on video recording requirements, broadcast footage extraction (P2ANet, Olympics), and building a multi-stroke motion library | HITTER provides minimal detail on video acquisition. Section 1.1 Option A provides detailed specifications. |
+| 4 | **SMPL-X hand pose** | Not discussed (implicitly discarded during retargeting) | Explicitly documented as discarded; detailed analysis of the hand → wrist → fixed racket mount kinematic chain | Section 2.8 explains why SMPL hand pose is irrelevant and how the 3D-printed wrist mount determines paddle orientation via the 7-DOF arm's FK. |
+| 5 | **Racket mount model** | "3D-printed connector" on right wrist (Fig. 1a); not described in simulation detail | Explicit URDF/MJCF fixed-joint model with `T_mount` transform; calibration procedure documented | HITTER does not publish the mount's kinematic parameters or its simulation model. Section 2.8 provides the complete fixed-joint formulation. |
+| 6 | **Robot asset format** | USD (downloaded from GCS bucket) | USD (GCS bucket, HuggingFace, or URDF import) with detailed explanation of USD format and three source variants | HITTER assumes familiarity with USD. Section 4.3 explains what USD is, documents three non-interchangeable G1 USD sources, and notes the Isaac Sim ≥ 5.0 URDF import path. |
+| 7 | **MDP reward structure** | Three components: imitation + goal tracking + regularization (Section IV) | Same three components, documented with explicit observation vector dimensions and activation timing | HITTER describes the reward structure qualitatively. Section 4.6 provides the quantitative formulation. |
+| 8 | **PPO hyperparameters** | MLP [512, 256, 128] published; other PPO params not published | MLP [512, 256, 128] confirmed; remaining params documented with source annotations (**[H]** = HITTER, **[B]** = BeyondMimic code, **[R]** = RSL-RL default) | HITTER publishes the network architecture and confirms PPO + asymmetric actor-critic, but does not publish LR, batch size, γ, λ, or other PPO coefficients. Section 4.8 annotates each parameter's provenance. |
+| 9 | **Motion preprocessing** | Not described (internal pipeline) | Full `csv_to_npz.py` workflow with WandB Registry setup | BeyondMimic's preprocessing pipeline is open-source; HITTER does not describe this step. |
+| 10 | **Deployment** | Described as "deployed zero-shot to the real robot" | Deferred to a separate deployment document; ONNX export and sim-to-sim verification covered here | HOPE separates training from deployment for clarity. |
+| 11 | **Forehand/backhand selection** | Based on ball Y position relative to robot center | Same logic, documented as a WBC observation (swing type = ±1) | HITTER describes this in a single sentence; Section 4.6 specifies the observation encoding. |
+| 12 | **Racket sensing architecture** | Racket pose is never measured by mocap; inferred via FK from joint encoders | Same: racket tracking by mocap is explicitly prohibited; FK chain `base_link → ... → wrist → T_mount → racket` computes paddle state | HOPE formalizes this as a competition rule. The mocap system tracks only the table origin (PPT), humanoid base_links (P1/P2), and ball. See companion Mocap doc Section 3.1 and this doc Section 2.8. |
 
-### 0.2  What Is Directly Reused from BeyondMimic
+### 0.2  What Is Directly Reused from HITTER / BeyondMimic
 
 The following elements are used as-is from the published open-source code, with no modifications:
 
@@ -68,13 +60,13 @@ The following elements are used as-is from the published open-source code, with 
 ### 0.3  What Is Not Implemented in This Document
 
 - **Real robot deployment** — The `motion_tracking_controller` ROS 2 inference pipeline, `legged_control2` low-level controller, and `unitree_bringup` launch configuration are covered in the companion *HOPE Hardware Deployment Reference Setup*.
-- **Diffusion-based multi-skill composition** — BeyondMimic's diffusion distillation for composing multiple motion skills into a single policy is not used. This reference setup trains separate forehand and backhand policies and switches between them.
-- **Ball spin response** — This reference setup does not adjust the WBC's racket orientation to counteract ball spin.
-- **Pre-trained policy weights** — No pre-trained model weights are used. All training in this document starts from scratch using the BeyondMimic framework.
+- **Diffusion-based multi-skill composition** — BeyondMimic's diffusion distillation for composing multiple motion skills into a single policy is not used. HITTER trains separate forehand and backhand policies and switches between them.
+- **Ball spin response** — Neither HITTER nor this reference setup adjusts the WBC's racket orientation to counteract ball spin.
+- **HITTER's trained policy weights** — The HITTER paper has not released trained model weights. All training in this document starts from scratch using the BeyondMimic framework.
 
-### 0.4  WBC Design Overview
+### 0.4  How HITTER Uses BeyondMimic
 
-The WBC is a PPO-trained policy operating at 50 Hz that generates desired joint positions for the Unitree G1's 29 DOF. It incorporates two human reference motions (forehand and backhand table tennis swings) derived from video clips via the following pipeline:
+The HITTER paper (Su et al., arXiv:2508.21043v2) describes its WBC as a PPO-trained policy operating at 50 Hz that generates desired joint positions for the Unitree G1's 29 DOF. The paper incorporates two human reference motions (forehand and backhand table tennis swings) derived from video clips via the following pipeline:
 
 ```
 Human video → GVHMR (pose estimation) → SMPL skeleton → GMR (retargeting) → G1 joint trajectories
@@ -103,13 +95,13 @@ The standard BeyondMimic training produces a motion *tracker* — a policy that 
 3. **Reposition the base** by stepping to reach balls at different lateral positions
 4. **Recover balance** after each swing for consecutive rallies
 
-These adaptations correspond to the reward structure described in Section 4.6 (separate base position commands, racket goal tracking activated near strike time, and imitation reward for swing style). The base BeyondMimic MDP is extended with these additional observation and reward terms.
+These adaptations correspond to the reward modifications described in HITTER Section IV (separate base position commands, racket goal tracking activated near strike time, and imitation reward for swing style). The base BeyondMimic MDP is extended with these additional observation and reward terms.
 
 ---
 
 ## 1  Phase 1 — Human Motion Acquisition
 
-The WBC requires reference table tennis swing motions in SMPL or SMPL-X skeleton format. This pipeline uses two clips: one forehand swing and one backhand swing, each approximately 1.7 seconds long with the strike occurring at t ≈ 0.86 s.
+The WBC requires reference table tennis swing motions in SMPL or SMPL-X skeleton format. The HITTER paper uses two clips: one forehand swing and one backhand swing, each approximately 1.7 seconds long with the strike occurring at t ≈ 0.86 s.
 
 ### 1.1  Motion Sources
 
@@ -125,7 +117,7 @@ Position a single camera to capture the player performing forehand and backhand 
 
 Camera placement and framing:
 
-- **Side view at 90° to the table's long axis** — the camera looks along the table's Y axis (in the HOPE coordinate convention), so the player's swing arc is fully visible in the image plane. This is the view that maximizes the visible range of arm, shoulder, and torso rotation. This is the recommended viewpoint for reference swing clips.
+- **Side view at 90° to the table's long axis** — the camera looks along the table's Y axis (in the HOPE coordinate convention), so the player's swing arc is fully visible in the image plane. This is the view that maximizes the visible range of arm, shoulder, and torso rotation. The HITTER paper uses this viewpoint for its reference swing clips.
 - **Distance**: 3–5 meters from the player. The player should occupy roughly 40–70% of the frame height. Too far reduces keypoint resolution; too close risks the racket arm leaving the frame during the backswing.
 - **Height**: Camera at approximately chest height (1.0–1.4 m). Floor-level or overhead angles introduce severe foreshortening of the legs or arms respectively, degrading 3D lift accuracy.
 - **Background**: A clean, uncluttered background behind the player improves person detection reliability. Avoid other people standing directly behind the player in frame.
@@ -138,7 +130,7 @@ Resolution and frame rate:
 | Resolution | 720p (1280×720) | 1080p (1920×1080) or higher | The person detector crops a bounding box around the player; the ViTPose keypoint estimator then operates on this crop. At 720p with the player at ~50% frame height, the crop is ~360 px tall — marginal for wrist and finger keypoints. At 1080p the crop is ~540 px, which gives robust keypoints including wrists. 4K provides no meaningful further improvement for GVHMR. |
 | Frame rate | 25 fps | 30 fps | GVHMR processes every frame. Higher fps (60, 120) provides denser temporal sampling of the fast swing phase (~0.3 s from backswing peak to contact) but increases preprocessing time linearly. 30 fps yields ~9 frames across the swing phase, which is sufficient for SMPL-X pose interpolation. The LAFAN1 and AMASS datasets that GVHMR was trained on use 30 fps. If recording at 60 fps, the video can be downsampled to 30 fps before GVHMR processing with no quality loss. |
 | Codec | H.264 / H.265 | H.264 at high bitrate (≥ 20 Mbps) | Avoid heavy compression artifacts that blur limb edges. Smartphone "cinematic" mode or action camera "standard" mode at 1080p30 is fine. |
-| Duration | 1.5 s per swing | 3–5 s (swing + setup + recovery) | Each clip should contain one complete swing cycle: ready stance → backswing → forward swing → contact → follow-through → recovery. This pipeline uses ~1.7 s clips with contact at t ≈ 0.86 s. Include 0.5 s of standing before and after the swing for clean motion boundaries. |
+| Duration | 1.5 s per swing | 3–5 s (swing + setup + recovery) | Each clip should contain one complete swing cycle: ready stance → backswing → forward swing → contact → follow-through → recovery. The HITTER paper uses ~1.7 s clips with contact at t ≈ 0.86 s. Include 0.5 s of standing before and after the swing for clean motion boundaries. |
 
 What NOT to record:
 
@@ -197,7 +189,7 @@ A practical workflow for building a swing library from broadcast footage:
 7. Register in WandB as named motions (e.g., "forehand_loop_fast", "backhand_chop_defense")
 ```
 
-This workflow can produce dozens of stroke variations from a single match, enabling multi-skill policy training beyond the baseline two-stroke (forehand + backhand) setup.
+This workflow can produce dozens of stroke variations from a single match, enabling multi-skill policy training beyond the two-stroke (forehand + backhand) setup in the HITTER paper.
 
 **Option B — Use existing motion capture datasets.**
 The LAFAN1 dataset (Ubisoft) contains diverse locomotion but no table tennis swings. For ping-pong specific motions, candidate sources include:
@@ -207,7 +199,7 @@ The LAFAN1 dataset (Ubisoft) contains diverse locomotion but no table tennis swi
 - Video-extracted clips from professional table tennis footage via GVHMR
 
 **Option C — Synthesize swing motions procedurally.**
-Define a parametric swing trajectory in G1 joint space directly, bypassing SMPL entirely. This loses the human-like naturalness but can serve as a bootstrap for initial training. This approach is not used in the reference setup.
+Define a parametric swing trajectory in G1 joint space directly, bypassing SMPL entirely. This loses the human-like naturalness but can serve as a bootstrap for initial training. The HITTER paper does not use this approach.
 
 ### 1.2  SMPL / SMPL-X Body Model
 
@@ -340,9 +332,9 @@ If artifacts are present, GMR's optimization parameters can be tuned per-motion.
 
 ### 2.8  Racket Mount Kinematics: From Human Hand to Fixed Wrist Attachment
 
-> **HOPE Racket Tracking Prohibition.** The motion capture system must NOT track the ping-pong racket. No reflective markers may be placed on the racket, the robot's hand/gripper, or the wrist link. During competition, motion capture streams the `Ball` rigid body and each humanoid's marker-cluster rigid body (P1, P2); calibrated static transforms map P1/P2 to the robots' declared URDF root frames (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). The `Table`/PPT asset is used only for setup and calibration and has no competition ROS topic. The racket's 6-DOF pose is NEVER measured externally — each robot must infer its paddle state through forward kinematics from its root frame plus joint encoders through the arm kinematic chain. This is a deliberate HOPE competition design constraint that tests autonomous paddle control. See the companion *HOPE Motion Capture System Reference Setup* (Section 3.1 — Racket Exclusion Policy) for enforcement details and rationale.
+> **HOPE Racket Tracking Prohibition.** The motion capture system must NOT track the ping-pong racket. No reflective markers may be placed on the racket, the robot's hand/gripper, or the wrist link. The motion capture system provides exactly three categories of tracking data: (1) the ping-pong table origin frame (PPT), (2) each humanoid's `base_link` (P1, P2), and (3) the ping-pong ball (single unlabeled marker). The racket's 6-DOF pose is NEVER measured externally — each robot must infer its paddle state through forward kinematics from `base_link` + joint encoders through the arm kinematic chain. This is a deliberate HOPE competition design constraint that tests autonomous paddle control. See the companion *HOPE Motion Capture System Reference Setup* (Section 3.1 — Racket Exclusion Policy) for enforcement details and rationale.
 
-In the HOPE setup, the G1's right hand is physically removed and replaced with a 3D-printed connector that rigidly mounts the racket to the right wrist link. The LATENT tennis system uses an identical approach. This hardware modification has important implications for every stage of the pipeline — motion acquisition, retargeting, simulation, and deployment — and is the mechanism by which the racket tracking prohibition is satisfied: the robot controls its paddle entirely through its own joint angles, with no external sensing of the end-effector.
+In the HITTER system, the G1's right hand is physically removed and replaced with a 3D-printed connector that rigidly mounts the racket to the right wrist link. The LATENT tennis system uses an identical approach. This hardware modification has important implications for every stage of the pipeline — motion acquisition, retargeting, simulation, and deployment — and is the mechanism by which the racket tracking prohibition is satisfied: the robot controls its paddle entirely through its own joint angles, with no external sensing of the end-effector.
 
 **The physical setup:**
 
@@ -588,7 +580,7 @@ There are three sources of G1 USD files, and they are **not interchangeable** �
    # Configure UNITREE_MODEL_DIR in your robot config to point here
    ```
 
-3. **Isaac Lab built-in assets** — Isaac Lab ships with its own G1 USD (accessible via Omniverse Nucleus). This is a third variant with yet another DOF configuration (23 DOF in some versions). Not recommended for HOPE as it does not match the 29-DOF configuration used by BeyondMimic.
+3. **Isaac Lab built-in assets** — Isaac Lab ships with its own G1 USD (accessible via Omniverse Nucleus). This is a third variant with yet another DOF configuration (23 DOF in some versions). Not recommended for HOPE as it does not match the 29-DOF configuration used by BeyondMimic and HITTER.
 
 **URDF alternative (Isaac Sim ≥ 5.0 only):**
 
@@ -660,7 +652,7 @@ whole_body_tracking/
 
 ### 4.6  HOPE-Specific Training Extensions
 
-For HOPE ping-pong, the base BeyondMimic MDP must be extended with the racket target tracking objective. The key modifications are:
+For HOPE ping-pong, the base BeyondMimic MDP must be extended with the racket target tracking objective described in HITTER Section IV. The key modifications are:
 
 **Additional observations (appended to the base observation vector):**
 
@@ -671,7 +663,7 @@ For HOPE ping-pong, the base BeyondMimic MDP must be extended with the racket ta
 - Desired base XY position in world frame: `p̂_base,xy` (2 dims)
 - Swing type: forehand (+1) or backhand (−1) (1 dim)
 
-**Sensing architecture note:** The observations above contain only the *desired* racket state (from the planner) — never the *measured* racket state. Per the HOPE racket tracking prohibition (Section 2.8, companion Mocap doc Section 3.1), no motion capture data is available for the racket's actual pose. The WBC is a proprioceptive controller: it receives the robot root pose (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3), obtained by composing the live P1 pose with its calibrated static transform, plus joint encoder readings from the robot. It then relies on its trained internal model to drive the 7-DOF arm such that the racket (attached via fixed mount) arrives at the commanded state. The `r_racket` reward term (below) is computed in simulation via FK — on the real robot, there is no closed-loop feedback on racket position error.
+**Sensing architecture note:** The observations above contain only the *desired* racket state (from the planner) — never the *measured* racket state. Per the HOPE racket tracking prohibition (Section 2.8, companion Mocap doc Section 3.1), no motion capture data is available for the racket's actual pose. The WBC is a proprioceptive controller: it receives `base_link` pose from mocap and joint encoder readings from the robot, then relies on its trained internal model to drive the 7-DOF arm such that the racket (attached via fixed mount) arrives at the commanded state. The `r_racket` reward term (below) is computed in simulation via FK — on the real robot, there is no closed-loop feedback on racket position error.
 
 **Additional reward terms (added to the BeyondMimic base reward):**
 
@@ -742,30 +734,30 @@ python scripts/rsl_rl/train.py \
 
 The PPO hyperparameters are defined in `rsl_rl_ppo_cfg.py`. BeyondMimic's key design choice is that **the same hyperparameters work for all motions** without tuning.
 
-The table below documents the training configuration. Each parameter is annotated with its source: **[P]** = specified by the published source method, **[B]** = from BeyondMimic open-source code (`whole_body_tracking`), **[R]** = RSL-RL default value. Parameters marked **[R]** are standard defaults that should be verified against the `rsl_rl_ppo_cfg.py` file in the `whole_body_tracking` repository at training time, as the BeyondMimic authors may have modified them.
+The table below documents the training configuration. Each parameter is annotated with its source: **[H]** = confirmed by the HITTER paper (arXiv:2508.21043), **[B]** = from BeyondMimic open-source code (`whole_body_tracking`), **[R]** = RSL-RL default value. Parameters marked **[R]** are standard defaults that should be verified against the `rsl_rl_ppo_cfg.py` file in the `whole_body_tracking` repository at training time, as the BeyondMimic authors may have modified them.
 
 | Parameter | Value | Source | Notes |
 |-----------|-------|--------|-------|
-| Algorithm | PPO | **[P]** | Proximal Policy Optimization. Trained end-to-end using PPO. |
-| Actor network | MLP [512, 256, 128] | **[P]** | Three hidden layers of sizes 512, 256, and 128. |
-| Critic network | MLP [512, 256, 128] | **[P]** | Both the actor and critic are implemented as MLPs [512, 256, 128]. |
-| Activation function | ELU | **[R]** | RSL-RL default. Not explicitly specified by the published method. |
-| Asymmetric critic | Yes | **[P]** | Critic receives privileged info (body poses T_B, time left t_left). |
-| PD gains | Heuristic | **[P]** | Set heuristically following BeyondMimic. |
-| Control frequency | 50 Hz | **[P]** | Outputs desired joint positions for all 29 joints at 50 Hz. |
+| Algorithm | PPO | **[H]** | Proximal Policy Optimization. HITTER: "trained end-to-end using PPO" |
+| Actor network | MLP [512, 256, 128] | **[H]** | HITTER: "three hidden layers of sizes 512, 256, and 128" |
+| Critic network | MLP [512, 256, 128] | **[H]** | HITTER: "Both the actor and critic are implemented as MLPs [512, 256, 128]" |
+| Activation function | ELU | **[R]** | RSL-RL default. Not explicitly stated in HITTER. |
+| Asymmetric critic | Yes | **[H]** | HITTER: critic receives privileged info (body poses T_B, time left t_left) |
+| PD gains | Heuristic | **[H]** | HITTER: "set heuristically following [BeyondMimic]" |
+| Control frequency | 50 Hz | **[H]** | HITTER: "outputs desired joint positions for all 29 joints at 50 Hz" |
 | Num environments | 4096 | **[B]** | BeyondMimic training command uses 4096 parallel envs |
-| Learning rate | 1e-3 (initial) | **[R]** | RSL-RL default. LR not specified by the published method. Verify in `rsl_rl_ppo_cfg.py`. |
+| Learning rate | 1e-3 (initial) | **[R]** | RSL-RL default. HITTER does not publish LR. Verify in `rsl_rl_ppo_cfg.py`. |
 | LR schedule | Adaptive or cosine | **[R]** | RSL-RL supports adaptive KL-based and fixed schedules. Verify in config. |
-| Discount γ | 0.99 | **[R]** | Standard PPO default. Not specified by the published method. |
-| GAE λ | 0.95 | **[R]** | Standard PPO default. Not specified by the published method. |
-| Clip range | 0.2 | **[R]** | Standard PPO default. Not specified by the published method. |
-| Entropy coefficient | 0.01 | **[R]** | RSL-RL default. Not specified by the published method. |
+| Discount γ | 0.99 | **[R]** | Standard PPO default. Not stated in HITTER. |
+| GAE λ | 0.95 | **[R]** | Standard PPO default. Not stated in HITTER. |
+| Clip range | 0.2 | **[R]** | Standard PPO default. Not stated in HITTER. |
+| Entropy coefficient | 0.01 | **[R]** | RSL-RL default. Not stated in HITTER. |
 | Num steps per env | 24 | **[R]** | RSL-RL default for Isaac Lab humanoid tasks. Verify in config. |
-| Num epochs per update | 5 | **[R]** | RSL-RL default. Not specified by the published method. |
+| Num epochs per update | 5 | **[R]** | RSL-RL default. Not stated in HITTER. |
 | Simulation dt | 0.005 s (200 Hz) | **[R]** | Standard Isaac Lab humanoid default. 4 physics substeps per policy step. |
-| Episode length | ~170 steps (~3.4 s) | Inferred | Swing clips are ~1.7 s. Episode may span ~2× clip length for base repositioning + swing + recovery. |
+| Episode length | ~170 steps (~3.4 s) | Inferred | HITTER uses ~1.7 s swing clips. Episode may span ~2× clip length for base repositioning + swing + recovery. |
 
-**Parameters not specified by the published method:** The published source method is built upon BeyondMimic but does not specify the following: learning rate, learning rate schedule, batch size, mini-batch size, number of PPO epochs per update, discount factor, GAE lambda, clip range, entropy coefficient, simulation timestep, or episode length. The values marked **[R]** above are RSL-RL defaults that are reasonable starting points but should be cross-checked against the actual `rsl_rl_ppo_cfg.py` file in the `whole_body_tracking` repository before training.
+**What HITTER does NOT publish:** The HITTER paper explicitly states it was "built upon" BeyondMimic [2] but does not publish the following: learning rate, learning rate schedule, batch size, mini-batch size, number of PPO epochs per update, discount factor, GAE lambda, clip range, entropy coefficient, simulation timestep, or episode length. The values marked **[R]** above are RSL-RL defaults that are reasonable starting points but should be cross-checked against the actual `rsl_rl_ppo_cfg.py` file in the `whole_body_tracking` repository before training.
 
 **How to verify:** After cloning `whole_body_tracking`, inspect the config directly:
 
@@ -773,7 +765,7 @@ The table below documents the training configuration. Each parameter is annotate
 cat source/whole_body_tracking/whole_body_tracking/tasks/tracking/config/g1/agents/rsl_rl_ppo_cfg.py
 ```
 
-This file contains the definitive hyperparameters that BeyondMimic uses. Any values that differ from the **[R]** defaults listed above should be adopted from this file.
+This file contains the definitive hyperparameters that BeyondMimic uses (and by extension, that HITTER was built upon). Any values that differ from the **[R]** defaults listed above should be adopted from this file.
 
 **Asymmetric actor-critic:** During training, the critic receives privileged information unavailable to the actor at deployment:
 
@@ -1154,9 +1146,9 @@ This runs the ONNX policy in a MuJoCo environment with the same G1 model, confir
 
 3. **Sim-to-real gap** — Despite domain randomization, the trained policy may exhibit degraded performance on hardware due to unmodeled dynamics (backlash, cable routing, thermal effects). The `motion_tracking_controller` deployment framework includes additional gain tuning for real-world deployment.
 
-4. **Single-policy limitation** — The current formulation trains separate policies for forehand and backhand, selecting between them based on ball Y position. A more advanced approach would train a single multi-skill policy or use BeyondMimic's diffusion distillation to compose both skills.
+4. **Single-policy limitation** — The current formulation trains separate policies for forehand and backhand. The HITTER paper selects between them based on ball Y position. A more advanced approach would train a single multi-skill policy or use BeyondMimic's diffusion distillation to compose both skills.
 
-5. **No spin response** — The WBC does not adjust the racket orientation to counteract ball spin. This matches the no-spin assumption in the planner.
+5. **No spin response** — The WBC does not adjust the racket orientation to counteract ball spin. This matches the HITTER paper's no-spin assumption in the planner.
 
 6. **Fixed strike timing** — The reference motion has a fixed strike time (t ≈ 0.86 s). The WBC must learn to temporally stretch or compress the swing to match the planner's `t_strike`, which may differ from the reference. BeyondMimic's adaptive sampling helps but does not fully address temporal generalization.
 

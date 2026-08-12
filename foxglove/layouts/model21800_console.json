@@ -1,0 +1,78 @@
+{
+  "configById": {
+    "3D!a3tf": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 4.5,
+        "phi": 58,
+        "thetaOffset": 42,
+        "target": [1.37, -0.7625, -0.1],
+        "targetOffset": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": true,
+          "axisScale": 0.25,
+          "lineWidth": 2
+        }
+      },
+      "transforms": {},
+      "topics": {
+        "/hope/pelvis/marker": {
+          "visible": true
+        },
+        "/hope/ball/marker": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid-hope": {
+          "instanceId": "grid-hope",
+          "layerId": "foxglove.Grid",
+          "visible": true,
+          "label": "HOPE world (z=0 table surface)",
+          "frameId": "world",
+          "size": 4,
+          "divisions": 40,
+          "lineWidth": 1,
+          "color": "#248eff44",
+          "position": [1.37, -0.7625, 0],
+          "rotation": [0, 0, 0],
+          "order": 1
+        },
+        "urdf-table": {
+          "instanceId": "urdf-table",
+          "layerId": "foxglove.Urdf",
+          "visible": true,
+          "label": "Standard ping-pong table (HOPE world)",
+          "sourceType": "url",
+          "url": "http://localhost:8000/assets/hope_ping_pong_table.urdf",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#245c8a",
+          "order": 2
+        }
+      }
+    },
+    "hope-a3-console.HOPE A3 Console!operator": {}
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1,
+    "messageOrder": "receiveTime"
+  },
+  "layout": {
+    "direction": "row",
+    "first": "3D!a3tf",
+    "second": "hope-a3-console.HOPE A3 Console!operator",
+    "splitPercentage": 60
+  }
+}

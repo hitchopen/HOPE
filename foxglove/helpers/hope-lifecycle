@@ -1,0 +1,718 @@
+#!/usr/bin/env bash
+# Fixed, role-specific process helper for the Runner Laptop/HDU/MDU lifecycle.
+# The HDU ROS supervisor is the only intended caller. No command, path, user,
+# environment-variable name, or arbitrary argument is accepted from Foxglove.
+
+set -euo pipefail
+umask 077
+export LC_ALL=C
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+readonly LAPTOP_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/hope-foxglove/lifecycle.env"
+if [[ -r "$LAPTOP_CONFIG" ]]; then
+  # This file is owned by the operator account and contains only local paths
+  # and usernames. Robot-side invocations normally use the defaults below.
+  source "$LAPTOP_CONFIG"
+fi
+
+readonly SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+readonly HOPE_ROOT="${HOPE_ROOT:-$HOME/HOPE}"
+readonly LAPTOP_SHARE="${HOPE_LAPTOP_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}/hope-foxglove}"
+readonly LAPTOP_USER="${HOPE_LAPTOP_USER:-$(id -un)}"
+readonly ROBOT_USER="${HOPE_ROBOT_USER:-agi}"
+readonly HDU_WS="${HOPE_HDU_WS:-$HOME/hope_ws}"
+readonly LAPTOP_SESSION=hope-optitrack
+readonly HDU_BASE_SESSION=hope-base
+readonly HDU_PLANNER_SESSION=hope-planner
+readonly MDU_HAL_SESSION=hope-hal
+readonly MDU_RUNNER_SESSION=hope-runner
+readonly MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
+
+emit() {
+  local step="$1" state="$2" reason="$3"
+  [[ "$step" =~ ^[A-Z0-9_]+$ ]]
+  [[ "$state" =~ ^[A-Z]+$ ]]
+  [[ "$reason" =~ ^[A-Z0-9_]+$ ]]
+  printf 'HOPE_LIFECYCLE_V1 step=%s state=%s reason=%s\n' \
+    "$step" "$state" "$reason"
+}
+
+die() {
+  emit "$1" FAILED "$2"
+  exit 1
+}
+
+valid_ipv4() {
+  local value="$1" part
+  [[ "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  local IFS=.
+  read -r -a parts <<< "$value"
+  [[ "${#parts[@]}" == 4 ]] || return 1
+  for part in "${parts[@]}"; do
+    [[ "$part" =~ ^(0|[1-9][0-9]{0,2})$ ]] || return 1
+    (( 10#$part <= 255 )) || return 1
+  done
+  [[ "$value" != 0.0.0.0 && "$value" != 255.255.255.255 ]] || return 1
+  if (( 10#${parts[0]} == 10 )); then
+    return 0
+  fi
+  if (( 10#${parts[0]} == 172 && 10#${parts[1]} >= 16 && 10#${parts[1]} <= 31 )); then
+    return 0
+  fi
+  (( 10#${parts[0]} == 192 && 10#${parts[1]} == 168 ))
+}
+
+parse_common() {
+  [[ "$#" == 5 ]] || return 1
+  SESSION_ID="$1"
+  LAPTOP_WIFI_IP="$2"
+  HDU_WIFI_IP="$3"
+  MDU_INTERNAL_IP="$4"
+  MOTIVE_IP="$5"
+  [[ "$SESSION_ID" =~ ^model21800_[0-9]{8}T[0-9]{6}Z$ ]] || return 1
+  valid_ipv4 "$LAPTOP_WIFI_IP" || return 1
+  valid_ipv4 "$HDU_WIFI_IP" || return 1
+  valid_ipv4 "$MDU_INTERNAL_IP" || return 1
+  valid_ipv4 "$MOTIVE_IP" || return 1
+}
+
+require_user() {
+  [[ "$(id -un)" == "$1" ]] || die "$2" WRONG_USER
+}
+
+tmux_exists() {
+  /usr/bin/tmux has-session -t "$1" 2>/dev/null
+}
+
+cgroup_path_in_systemd_unit() {
+  local cgroup_path="$1" unit="$2"
+  local unit_root="/system.slice/$unit"
+  [[ "$cgroup_path" == "$unit_root" || "$cgroup_path" == "$unit_root/"* ]]
+}
+
+pid_in_systemd_unit() {
+  local pid="$1" unit="$2"
+  local hierarchy controllers cgroup_path
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  [[ -r "/proc/$pid/cgroup" ]] || return 1
+  while IFS=: read -r hierarchy controllers cgroup_path; do
+    if cgroup_path_in_systemd_unit "$cgroup_path" "$unit"; then
+      return 0
+    fi
+  done < "/proc/$pid/cgroup"
+  return 1
+}
+
+has_unmanaged_hal() {
+  local pid
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] || continue
+    if ! pid_in_systemd_unit "$pid" agibot_pm.service; then
+      printf 'hope-lifecycle: HAL pid %s is outside agibot_pm.service\n' "$pid" >&2
+      return 0
+    fi
+  done < <(pgrep -f '[a]imrt_main_hal' || true)
+  return 1
+}
+
+start_tmux() {
+  local session="$1"
+  shift
+  tmux_exists "$session" && return 2
+  # Do not let a detached runtime inherit the supervisor SSH capture pipes.
+  # Otherwise a successful remote start can keep subprocess.run() waiting for
+  # EOF and leave the lifecycle stuck at the previous step.
+  /usr/bin/tmux new-session -d -s "$session" -- "$@" \
+    </dev/null >/dev/null 2>&1
+}
+
+stop_tmux() {
+  local session="$1"
+  tmux_exists "$session" || return 0
+  /usr/bin/tmux send-keys -t "$session:0.0" C-c
+  local attempt
+  for attempt in {1..50}; do
+    tmux_exists "$session" || return 0
+    sleep 0.1
+  done
+  /usr/bin/tmux kill-session -t "$session"
+}
+
+prepare_laptop() {
+  require_user "$LAPTOP_USER" SESSION
+  cd "$HOPE_ROOT"
+  mkdir -p "real_logs/$SESSION_ID/laptop"
+  mkdir -p calibration
+  printf '%s\n' "$SESSION_ID" > real_logs/.active_session_id
+  cp /tmp/model21800_rockchip_candidate_sha256.txt \
+    "real_logs/$SESSION_ID/laptop/rockchip_candidate_sha256.txt" \
+    2>/dev/null || true
+  {
+    echo 'laptop UTC source for camera exposure and absolute strike deadline:'
+    date -u --iso-8601=ns
+    if command -v chronyc >/dev/null 2>&1; then
+      test -s /etc/chrony/sources.d/hope-hdu.sources || true
+      sha256sum /etc/chrony/sources.d/hope-hdu.sources 2>&1 || true
+      chronyc sources -v 2>&1 || true
+      chronyc tracking 2>&1 || true
+    else
+      timedatectl show -p NTPSynchronized -p TimeUSec 2>&1 || true
+    fi
+    echo 'hdu chrony + vendor PTP master:'
+    ssh -T -o BatchMode=yes -o ConnectTimeout=3 "$ROBOT_USER@$HDU_WIFI_IP" \
+      /bin/bash -s -- "$LAPTOP_WIFI_IP" 2>&1 <<'HDU_CLOCK' || true
+laptop_ip="$1"
+timedatectl show -p NTPSynchronized -p TimeUSec 2>&1 || true
+systemctl is-enabled chrony.service 2>&1 || true
+systemctl is-active chrony.service 2>&1 || true
+systemctl is-enabled agibot-clock-bootstrap.service 2>&1 || true
+chronyc tracking 2>&1 || true
+chronyc -n sources -v 2>&1 || true
+pgrep -a -f "[c]hronyd|[p]tp4l|[p]hc2sys|[n]tp2rtc" || true
+sha256sum \
+  /opt/agibot/entry/system/timesync.sh \
+  /etc/chrony/chrony.conf \
+  /etc/chrony/chrony-bootstrap.conf \
+  /etc/systemd/system/agibot-clock-bootstrap.service \
+  /etc/systemd/system/chrony.service.d/agibot-controls.conf \
+  /etc/systemd/system/chrony.service.d/30-hope-laptop-server.conf \
+  /etc/systemd/system/agibot_pm.service.d/20-clock-ordering.conf 2>&1 || true
+sudo -n chronyc accheck "$laptop_ip" 2>&1 || true
+sudo -n /opt/agibot/entry/system/timesync.sh --runtime-status 2>&1 || true
+sudo -n /usr/sbin/pmc -u -b 0 "GET PORT_DATA_SET" 2>&1 || true
+sudo -n /usr/sbin/pmc -u -b 0 "GET TIME_STATUS_NP" 2>&1 || true
+HDU_CLOCK
+    echo 'mdu systemd-supervised vendor-compatible PTP slave:'
+    ssh -T -o BatchMode=yes -o ConnectTimeout=3 \
+      -J "$ROBOT_USER@$HDU_WIFI_IP" "$ROBOT_USER@$MDU_INTERNAL_IP" \
+      /bin/bash -s 2>&1 <<'MDU_CLOCK' || true
+timedatectl show -p NTPSynchronized -p TimeUSec 2>&1 || true
+systemctl is-enabled agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service 2>&1 || true
+systemctl is-active agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service 2>&1 || true
+systemctl show -p MainPID -p NRestarts -p ActiveState -p SubState \
+  agibot-mdu-ptp4l.service agibot-mdu-phc2sys.service 2>&1 || true
+pgrep -a -f "[p]tp4l|[p]hc2sys|[c]hronyd|[n]tp2rtc" || true
+sha256sum \
+  /opt/agibot/entry/system/timesync.sh \
+  /etc/systemd/system/agibot-mdu-ptp4l.service \
+  /etc/systemd/system/agibot-mdu-phc2sys.service \
+  /etc/systemd/system/agibot_pm.service 2>&1 || true
+sudo -n /usr/sbin/pmc -u -b 0 "GET TIME_STATUS_NP" 2>&1 || true
+sudo -n /usr/sbin/pmc -u -b 0 "GET PORT_DATA_SET" 2>&1 || true
+sudo -n journalctl -u agibot-mdu-ptp4l.service \
+  -u agibot-mdu-phc2sys.service --since "-10 min" --no-pager 2>&1 || true
+MDU_CLOCK
+  } > "real_logs/$SESSION_ID/laptop/clock_snapshot.txt"
+  emit SESSION COMPLETE LAPTOP_PREPARED
+}
+
+preflight_laptop() {
+  require_user "$LAPTOP_USER" PREFLIGHT
+  tmux_exists "$LAPTOP_SESSION" && die PREFLIGHT MANAGED_LAPTOP_STACK_PRESENT
+  pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null && \
+    die PREFLIGHT UNMANAGED_BRIDGE_PRESENT
+  pgrep -u "$LAPTOP_USER" -f '[h]ope_marker_monitor.py' >/dev/null && \
+    die PREFLIGHT UNMANAGED_MARKER_PRESENT
+  [[ -d "$HOPE_ROOT/hope_ws/install" ]] || die PREFLIGHT LAPTOP_OVERLAY_MISSING
+  [[ -x "$HOPE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/p1_marker_cad_calibrator" ]] || \
+    die PREFLIGHT LAPTOP_CALIBRATOR_MISSING
+  [[ -x "$HOPE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/p1_marker_cad_calibration_server" ]] || \
+    die PREFLIGHT LAPTOP_CALIBRATION_SERVICE_MISSING
+  [[ -x "$HOPE_ROOT/hope_ws/install/motion_capture_tracking/lib/motion_capture_tracking/motion_capture_tracking_node" ]] || \
+    die PREFLIGHT LAPTOP_NATNET_NODE_MISSING
+  [[ -x "$HOPE_ROOT/hope_ws/install/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_packetizer" ]] || \
+    die PREFLIGHT LAPTOP_FLIGHT_PACKETIZER_MISSING
+  [[ -r "$LAPTOP_SHARE/hope_marker_monitor.py" ]] || \
+    die PREFLIGHT LAPTOP_MARKER_NODE_MISSING
+  [[ -r "$LAPTOP_SHARE/hope_marker_monitor_core.py" ]] || \
+    die PREFLIGHT LAPTOP_MARKER_CORE_MISSING
+  [[ -r "$LAPTOP_SHARE/marker_monitor.yaml" ]] || \
+    die PREFLIGHT LAPTOP_MARKER_CONFIG_MISSING
+  command -v distrobox >/dev/null || die PREFLIGHT DISTROBOX_MISSING
+  command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
+  emit PREFLIGHT COMPLETE LAPTOP_READY
+}
+
+prepare_hdu() {
+  require_user "$ROBOT_USER" SESSION
+  printf '%s\n' "$SESSION_ID" > /tmp/hope_model21800_session_id
+  mkdir -p "/tmp/hope_real/$SESSION_ID/hdu"
+  emit SESSION COMPLETE HDU_PREPARED
+}
+
+preflight_hdu() {
+  local planner_prefix messages_prefix
+  require_user "$ROBOT_USER" PREFLIGHT
+  tmux_exists "$HDU_BASE_SESSION" && die PREFLIGHT MANAGED_BASE_PRESENT
+  tmux_exists "$HDU_PLANNER_SESSION" && die PREFLIGHT MANAGED_PLANNER_PRESENT
+  pgrep -u "$ROBOT_USER" -f '[h]ope_world.launch.py' >/dev/null && die PREFLIGHT UNMANAGED_BASE_PRESENT
+  pgrep -u "$ROBOT_USER" -f '[h]ope-base-pose-transport-relay' >/dev/null && \
+    die PREFLIGHT UNMANAGED_BASE_RELAY_PRESENT
+  pgrep -u "$ROBOT_USER" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)' >/dev/null && \
+    die PREFLIGHT UNMANAGED_PLANNER_PRESENT
+  [[ -r "$HDU_WS/install/local_setup.bash" ]] || \
+    die PREFLIGHT HDU_BASE_OVERLAY_MISSING
+  [[ -r "$HDU_WS/install_model21800_fix/local_setup.bash" ]] || \
+    die PREFLIGHT HDU_OVERLAY_MISSING
+  [[ -x /usr/local/libexec/hope-base-pose-transport-relay ]] || \
+    die PREFLIGHT BASE_TRANSPORT_RELAY_MISSING
+  set +u
+  source /opt/ros/jazzy/setup.bash
+  source "$HDU_WS/install/local_setup.bash"
+  source "$HDU_WS/install_model21800_fix/local_setup.bash"
+  set -u
+  messages_prefix="$(ros2 pkg prefix hope_msgs 2>/dev/null)" || \
+    die PREFLIGHT HOPE_MSGS_MISSING
+  [[ "$messages_prefix" == "$HDU_WS/install_model21800_fix/hope_msgs" ]] || \
+    die PREFLIGHT HOPE_MSGS_STALE
+  ros2 interface show hope_msgs/msg/BallFlightPacket >/dev/null 2>&1 || \
+    die PREFLIGHT BALL_FLIGHT_PACKET_MISSING
+  planner_prefix="$(ros2 pkg prefix hope_planner_cpp 2>/dev/null)" || \
+    die PREFLIGHT PLANNER_PACKAGE_MISSING
+  [[ "$planner_prefix" == "$HDU_WS/install_model21800_fix/hope_planner_cpp" ]] || \
+    die PREFLIGHT PLANNER_OVERLAY_STALE
+  [[ -x "$planner_prefix/lib/hope_planner_cpp/hope_planner_cpp_node" ]] || \
+    die PREFLIGHT PLANNER_EXECUTABLE_MISSING
+  command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
+  emit PREFLIGHT COMPLETE HDU_READY
+}
+
+prepare_mdu() {
+  require_user "$ROBOT_USER" SESSION
+  printf '%s\n' "$SESSION_ID" > /tmp/hope_model21800_session_id
+  mkdir -p "/tmp/hope_real/$SESSION_ID/mdu"
+  emit SESSION COMPLETE MDU_PREPARED
+}
+
+preflight_mdu() {
+  require_user "$ROBOT_USER" PREFLIGHT
+  tmux_exists "$MDU_HAL_SESSION" && die PREFLIGHT MANAGED_HAL_PRESENT
+  tmux_exists "$MDU_RUNNER_SESSION" && die PREFLIGHT MANAGED_RUNNER_PRESENT
+  pgrep -u "$ROBOT_USER" -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && die PREFLIGHT UNMANAGED_RUNNER_PRESENT
+  systemctl is-active --quiet agibot_pm.service || die PREFLIGHT AGIBOT_PM_NOT_ACTIVE
+  has_unmanaged_hal && die PREFLIGHT UNMANAGED_HAL_PRESENT
+  [[ -x "$MDU_DEPLOY/run_a3_pingpong.sh" ]] || die PREFLIGHT RUNNER_PACKAGE_MISSING
+  command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
+  emit PREFLIGHT COMPLETE MDU_READY
+}
+
+run_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  exec /usr/bin/distrobox enter hope -- /bin/bash -lc '
+    set -eo pipefail
+    source /opt/ros/jazzy/setup.bash
+    hope_root="$4"
+    cd "$hope_root/hope_ws"
+    source install/local_setup.bash
+    set -u
+    session_id="$1"
+    hdu_ip="$2"
+    motive_ip="$3"
+    laptop_dir="$hope_root/real_logs/$session_id/laptop"
+    marker_root="$5"
+    mkdir -p "$laptop_dir"
+    {
+      date -u --iso-8601=seconds
+      uname -a
+      sha256sum \
+        src/hope_bringup/launch/optitrack_hope_bridge.launch.py \
+        src/hope_bringup/launch/hope_world.launch.py \
+        src/hope_bringup/scripts/optitrack_mct_relay \
+        src/hope_bringup/scripts/p1_marker_cad_calibrator \
+        src/hope_bringup/scripts/p1_marker_cad_calibration_server \
+        src/hope_bringup/scripts/p1_marker_cad_registration_impl.py \
+        src/hope_msgs/msg/BallFlightSample.msg \
+        src/hope_msgs/msg/BallFlightPacket.msg \
+        src/hope_planner_cpp/config/model21800_flight_packetizer.yaml \
+        src/hope_planner_cpp/src/flight_packetizer_node.cpp \
+        src/hope_planner/hope_planner/base_pose_flat_relay.py \
+        src/hope_bringup/config/optitrack_relay.yaml \
+        ../NatNet2ROS2/src/motion_capture_tracking/src/motion_capture_tracking_node.cpp \
+        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/src/optitrack.cpp \
+        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_clock_sync.h
+    } > "$laptop_dir/artifact_sha256.txt"
+    ros2 daemon stop || true
+    dds_wrap="$hope_root/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
+    "$dds_wrap" --domain-id 232 --peer "$hdu_ip" -- \
+      bash -c '\''
+        set -euo pipefail
+        marker_root="$1"
+        laptop_dir="$2"
+        motive_ip="$3"
+        session_id="$4"
+        hope_root="$5"
+        export PYTHONPATH="$marker_root${PYTHONPATH:+:$PYTHONPATH}"
+        marker_pid=""
+        stop_marker() {
+          if [[ -n "$marker_pid" ]] && kill -0 "$marker_pid" 2>/dev/null; then
+            kill -INT "$marker_pid" 2>/dev/null || true
+            wait "$marker_pid" 2>/dev/null || true
+          fi
+        }
+        trap stop_marker EXIT
+        python3 "$marker_root/hope_marker_monitor.py" \
+          --ros-args --params-file "$marker_root/marker_monitor.yaml" \
+          > >(tee -a "$laptop_dir/marker_monitor.log") 2>&1 &
+        marker_pid=$!
+        sleep 1
+        kill -0 "$marker_pid" 2>/dev/null
+        ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
+          motive_hostname:="$motive_ip" start_world:=true start_calibration:=true \
+          p1_calibration_file:="$hope_root/calibration/p1_to_pelvis.json" \
+          base_pose_output_topic:=/a3/base_pose_laptop_flat \
+          debug_csv_path:="$laptop_dir/mocap_raw.csv" \
+          debug_session_id:="$session_id" \
+          start_flight_packetizer:=true \
+          flight_packet_topic:=/ball/flight_packet \
+          flight_packet_debug_csv_path:="$laptop_dir/flight_packets.csv" \
+          > >(tee -a "$laptop_dir/laptop_bridge.log") 2>&1
+      '\'' hope-laptop-runtime \
+        "$marker_root" "$laptop_dir" "$motive_ip" "$session_id" "$hope_root"
+  ' hope-laptop "$SESSION_ID" "$HDU_WIFI_IP" "$MOTIVE_IP" "$HOPE_ROOT" "$LAPTOP_SHARE"
+}
+
+start_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null; then
+    die OPTITRACK UNMANAGED_BRIDGE_PRESENT
+  fi
+  start_tmux "$LAPTOP_SESSION" "$SELF" _run-laptop \
+    "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die OPTITRACK ALREADY_RUNNING
+  sleep 2
+  tmux_exists "$LAPTOP_SESSION" || die OPTITRACK START_FAILED
+  emit OPTITRACK COMPLETE BRIDGE_RUNNING
+}
+
+run_base() {
+  require_user "$ROBOT_USER" BASE_RELAY
+  set +u
+  source /opt/ros/jazzy/setup.bash
+  source "$HDU_WS/install/local_setup.bash"
+  set -u
+  local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
+  mkdir -p "$hdu_dir"
+  {
+    date -u --iso-8601=seconds
+    uname -a
+    sha256sum \
+      /usr/local/libexec/hope-base-pose-transport-relay
+  } > "$hdu_dir/artifact_sha256.txt"
+  local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+    python3 /usr/local/libexec/hope-base-pose-transport-relay \
+    > >(tee -a "$hdu_dir/base_relay.log") 2>&1
+}
+
+start_base() {
+  require_user "$ROBOT_USER" BASE_RELAY
+  tmux_exists "$HDU_BASE_SESSION" && die BASE_RELAY ALREADY_RUNNING
+  local attempt
+  start_tmux "$HDU_BASE_SESSION" "$SELF" _run-base \
+    "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die BASE_RELAY ALREADY_RUNNING
+  # Startup is process-based, not a data-admission gate. The relay may come up
+  # before Motive publishes its first pose; live base freshness remains visible
+  # to the operator and gates only the Foxglove Ready button.
+  for attempt in {1..20}; do
+    if tmux_exists "$HDU_BASE_SESSION" && \
+       pgrep -u "$ROBOT_USER" -f \
+         '^python3 /usr/local/libexec/hope-base-pose-transport-relay([[:space:]]|$)' \
+         >/dev/null; then
+      emit BASE_RELAY COMPLETE HDU_TRANSPORT_RELAY_RUNNING
+      return 0
+    fi
+    tmux_exists "$HDU_BASE_SESSION" || break
+    sleep 0.25
+  done
+  stop_tmux "$HDU_BASE_SESSION"
+  die BASE_RELAY HDU_TRANSPORT_RELAY_START_FAILED
+}
+
+run_planner() {
+  require_user "$ROBOT_USER" PLANNER
+  set +u
+  source /opt/ros/jazzy/setup.bash
+  source "$HDU_WS/install/local_setup.bash"
+  source "$HDU_WS/install_model21800_fix/local_setup.bash"
+  set -u
+  local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
+  mkdir -p "$hdu_dir"
+  local attempt_number=1 attempt_id attempt_dir
+  while true; do
+    attempt_id="$(printf 'planner_attempt_%03d' "$attempt_number")"
+    attempt_dir="$hdu_dir/$attempt_id"
+    mkdir "$attempt_dir" 2>/dev/null && break
+    attempt_number=$((attempt_number + 1))
+  done
+  printf '%s\n' "$attempt_id" > "$hdu_dir/current_planner_attempt"
+  date -u --iso-8601=seconds > "$attempt_dir/attempt_start_utc.txt"
+  cat /proc/sys/kernel/random/uuid > "$attempt_dir/instance_uuid.txt"
+  ln -sfn "$attempt_id/planner.csv" "$hdu_dir/planner.csv"
+  ln -sfn "$attempt_id/planner.log" "$hdu_dir/planner.log"
+  ln -sfn "$attempt_id/artifact_sha256.txt" "$hdu_dir/planner_artifact_sha256.txt"
+  local request_file="$hdu_dir/x_hit.request"
+  local status_file="$hdu_dir/x_hit.status"
+  rm -f "$request_file" "$status_file"
+  local prefix executable dds_wrap planner_rc
+  prefix="$(ros2 pkg prefix hope_planner_cpp)"
+  executable="$prefix/lib/hope_planner_cpp/hope_planner_cpp_node"
+  cp "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
+    "$attempt_dir/runtime_params.yaml"
+  {
+    printf 'session_id: %s\n' "$SESSION_ID"
+    printf 'x_hit_calibration_request_file: %s\n' "$request_file"
+    printf 'x_hit_calibration_status_file: %s\n' "$status_file"
+    printf 'debug_csv_path: %s\n' "$attempt_dir/planner.csv"
+  } > "$attempt_dir/runtime_overrides.yaml"
+  {
+    date -u --iso-8601=seconds
+    uname -a
+    sha256sum "$executable" \
+      "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
+      "$HDU_WS/src/hope_planner_cpp/src/planner_node.cpp" \
+      "$HDU_WS/src/hope_planner_cpp/src/audit_logger.cpp" \
+      "$HDU_WS/src/hope_planner_cpp/src/batch_physics_estimator.cpp" \
+      "$HDU_WS/src/hope_planner_cpp/src/post_net_one_shot.cpp" \
+      "$HDU_WS/src/hope_planner_cpp/src/trajectory_predictor.cpp"
+  } > "$attempt_dir/artifact_sha256.txt"
+  dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+  set +e
+  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+    bash -c 'printf "%s\n" "$$" > "$1"; shift; exec "$@"' \
+      hope_planner_launcher "$attempt_dir/pid.txt" \
+      "$executable" --ros-args \
+        --params-file "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
+        -p "x_hit_calibration_request_file:=$request_file" \
+        -p "x_hit_calibration_status_file:=$status_file" \
+        -p "debug_csv_path:=$attempt_dir/planner.csv" \
+        -p "debug_session_id:=$SESSION_ID" \
+    > >(tee "$attempt_dir/planner.log") 2>&1
+  planner_rc=$?
+  set -e
+  date -u --iso-8601=seconds > "$attempt_dir/attempt_end_utc.txt"
+  printf '%s\n' "$planner_rc" > "$attempt_dir/planner_exit_code.txt"
+  exit "$planner_rc"
+}
+
+start_planner() {
+  require_user "$ROBOT_USER" PLANNER
+  pgrep -u "$ROBOT_USER" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)' >/dev/null && \
+    die PLANNER UNMANAGED_PLANNER_PRESENT
+  start_tmux "$HDU_PLANNER_SESSION" "$SELF" _run-planner \
+    "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die PLANNER ALREADY_RUNNING
+  sleep 2
+  tmux_exists "$HDU_PLANNER_SESSION" || die PLANNER START_FAILED
+  emit PLANNER COMPLETE PLANNER_RUNNING
+}
+
+run_hal() {
+  require_user "$ROBOT_USER" HAL
+  set +u
+  source /agibot/software/v0/entry/env/env.sh
+  set -u
+  cd /agibot/software/v0
+  exec bash scripts/hal_ethercat/start_hal_ethercat.sh
+}
+
+start_hal() {
+  require_user "$ROBOT_USER" HAL
+  pgrep -u "$ROBOT_USER" -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && die HAL UNMANAGED_RUNNER_PRESENT
+  systemctl is-active --quiet agibot_pm.service || die HAL AGIBOT_PM_NOT_ACTIVE
+  has_unmanaged_hal && die HAL UNMANAGED_HAL_PRESENT
+  sudo -n systemctl stop agibot_pm.service || die HAL AGIBOT_PM_STOP_FAILED
+  systemctl is-active --quiet agibot_pm.service && die HAL AGIBOT_PM_STOP_FAILED
+  pgrep -f '[a]imrt_main_hal' >/dev/null && die HAL HAL_REMAINS_AFTER_AGIBOT_PM_STOP
+  start_tmux "$MDU_HAL_SESSION" "$SELF" _run-hal \
+    "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die HAL ALREADY_RUNNING
+  sleep 3
+  tmux_exists "$MDU_HAL_SESSION" || die HAL START_FAILED
+  emit HAL COMPLETE HAL_RUNNING
+}
+
+run_runner() {
+  require_user "$ROBOT_USER" RUNNER
+  set +u
+  source /agibot/software/v0/entry/env/env.sh
+  set -u
+  cd "$MDU_DEPLOY"
+  export A3_TRANSPORT=iceoryx
+  export A3_SOURCE_ROBOT_ENV=0
+  export A3_PINGPONG_RUNTIME_CFG="$PWD/config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
+  local real_root="/tmp/hope_real/$SESSION_ID/mdu/real"
+  mkdir -p "$real_root"
+  local attempt_number=1 attempt_id session_dir runner_rc
+  while [[ -e "$real_root/$(printf 'attempt_%03d' "$attempt_number")" ]]; do
+    attempt_number=$((attempt_number + 1))
+  done
+  attempt_id="$(printf 'attempt_%03d' "$attempt_number")"
+  session_dir="$real_root/$attempt_id"
+  mkdir -p "$session_dir"
+  printf '%s\n' "$attempt_id" > "$real_root/current_attempt"
+  date -u --iso-8601=seconds > "$session_dir/attempt_start_utc.txt"
+  {
+    date -u --iso-8601=seconds
+    uname -a
+    sha256sum a3_deploy_onnx_ref_pingpong run_a3_pingpong.sh \
+      "$A3_PINGPONG_RUNTIME_CFG" policy/exported/policy.onnx \
+      policy/params/deploy.yaml /opt/agibot/entry/system/timesync.sh \
+      /etc/systemd/system/agibot-mdu-ptp4l.service \
+      /etc/systemd/system/agibot-mdu-phc2sys.service \
+      /etc/systemd/system/agibot_pm.service
+  } > "$session_dir/artifact_sha256.txt"
+  set +e
+  taskset -c 4-7 ./run_a3_pingpong.sh \
+    --policy-dir "$PWD/policy" --planner --policy-native --no-fall-guard \
+    --start passive --official-stand \
+    --trace-csv "$session_dir/runner_trace.csv" \
+    --obs-csv "$session_dir/runner_obs.csv" \
+    --session-id "$SESSION_ID" \
+    > >(tee -a "$session_dir/runner.log") 2>&1
+  runner_rc=$?
+  set -e
+  date -u --iso-8601=seconds > "$session_dir/attempt_end_utc.txt"
+  printf '%s\n' "$runner_rc" > "$session_dir/runner_exit_code.txt"
+  exit "$runner_rc"
+}
+
+start_runner() {
+  require_user "$ROBOT_USER" RUNNER
+  tmux_exists "$MDU_HAL_SESSION" || die RUNNER HAL_NOT_RUNNING
+  pgrep -u "$ROBOT_USER" -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && die RUNNER UNMANAGED_RUNNER_PRESENT
+  start_tmux "$MDU_RUNNER_SESSION" "$SELF" _run-runner \
+    "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die RUNNER ALREADY_RUNNING
+  sleep 3
+  tmux_exists "$MDU_RUNNER_SESSION" || die RUNNER START_FAILED
+  emit RUNNER COMPLETE RUNNER_PASSIVE
+}
+
+stop_mdu() {
+  require_user "$ROBOT_USER" RUNNER_HAL
+  stop_tmux "$MDU_RUNNER_SESSION"
+  emit RUNNER COMPLETE RUNNER_STOPPED
+  stop_tmux "$MDU_HAL_SESSION"
+  emit HAL COMPLETE HAL_STOPPED
+  sudo -n systemctl start agibot_pm.service || die RUNNER_HAL AGIBOT_PM_RESTORE_FAILED
+  systemctl is-active --quiet agibot_pm.service || die RUNNER_HAL AGIBOT_PM_NOT_ACTIVE
+  emit RUNNER_HAL COMPLETE AGIBOT_PM_RESTORED
+}
+
+stop_hdu() {
+  require_user "$ROBOT_USER" PLANNER_BASE
+  stop_tmux "$HDU_PLANNER_SESSION"
+  emit PLANNER COMPLETE PLANNER_STOPPED
+  stop_tmux "$HDU_BASE_SESSION"
+  emit BASE_RELAY COMPLETE BASE_STOPPED
+  emit PLANNER_BASE COMPLETE HDU_STOPPED
+}
+
+stop_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  stop_tmux "$LAPTOP_SESSION"
+  emit OPTITRACK COMPLETE BRIDGE_STOPPED
+}
+
+collect_logs() {
+  require_user "$LAPTOP_USER" COLLECT
+  cd "$HOPE_ROOT"
+  local root="$HOPE_ROOT/real_logs/$SESSION_ID"
+  local hdu_remote="/tmp/hope_real/$SESSION_ID/hdu"
+  local mdu_remote="/tmp/hope_real/$SESSION_ID/mdu"
+  local hdu_present=0 mdu_present=0 check_rc
+  mkdir -p "$root/hdu" "$root/mdu"
+
+  # A managed-stack preflight rejection can require STOP recovery before the
+  # new session reaches prepare-{laptop,hdu,mdu}. In that case the remote log
+  # directories legitimately do not exist. Distinguish that state from an SSH
+  # failure so cleanup can finish and the supervisor can return to STOPPED.
+  set +e
+  ssh -T -o BatchMode=yes -o ConnectTimeout=3 \
+    "$ROBOT_USER@$HDU_WIFI_IP" test -d "$hdu_remote"
+  check_rc=$?
+  set -e
+  case "$check_rc" in
+    0)
+      hdu_present=1
+      rsync -az "$ROBOT_USER@$HDU_WIFI_IP:$hdu_remote/" "$root/hdu/"
+      ;;
+    1) ;;
+    255) die COLLECT HDU_UNREACHABLE ;;
+    *) die COLLECT HDU_LOG_CHECK_FAILED ;;
+  esac
+
+  set +e
+  ssh -T -o BatchMode=yes -o ConnectTimeout=3 \
+    -J "$ROBOT_USER@$HDU_WIFI_IP" "$ROBOT_USER@$MDU_INTERNAL_IP" test -d "$mdu_remote"
+  check_rc=$?
+  set -e
+  case "$check_rc" in
+    0)
+      mdu_present=1
+      rsync -az -e "ssh -J $ROBOT_USER@$HDU_WIFI_IP" \
+        "$ROBOT_USER@$MDU_INTERNAL_IP:$mdu_remote/" "$root/mdu/"
+      ;;
+    1) ;;
+    255) die COLLECT MDU_UNREACHABLE ;;
+    *) die COLLECT MDU_LOG_CHECK_FAILED ;;
+  esac
+
+  {
+    printf 'session_id=%s\n' "$SESSION_ID"
+    printf 'hdu_remote_logs=%s\n' "$hdu_present"
+    printf 'mdu_remote_logs=%s\n' "$mdu_present"
+  } > "$root/collection_status.txt"
+  local status_path attempt_name
+  for status_path in "$root"/hdu/x_hit_attempts/attempt_*.status; do
+    [[ -e "$status_path" ]] || continue
+    attempt_name="$(basename "$status_path" .status)"
+    cp "$status_path" "$root/mdu/real/$attempt_name/x_hit.status" 2>/dev/null || true
+  done
+  case "$((hdu_present + mdu_present))" in
+    0) emit COLLECT COMPLETE NO_REMOTE_SESSION_LOGS ;;
+    1) emit COLLECT COMPLETE PARTIAL_LOGS_COLLECTED ;;
+    2) emit COLLECT COMPLETE LOGS_COLLECTED ;;
+  esac
+}
+
+main() {
+  [[ "$#" -ge 1 ]] || exit 64
+  local action="$1"
+  shift
+  parse_common "$@" || {
+    emit CONFIG FAILED INVALID_ARGUMENTS
+    exit 64
+  }
+  case "$action" in
+    preflight-laptop) preflight_laptop ;;
+    preflight-hdu) preflight_hdu ;;
+    preflight-mdu) preflight_mdu ;;
+    prepare-laptop) prepare_laptop ;;
+    prepare-hdu) prepare_hdu ;;
+    prepare-mdu) prepare_mdu ;;
+    start-laptop) start_laptop ;;
+    start-base) start_base ;;
+    start-planner) start_planner ;;
+    start-hal) start_hal ;;
+    start-runner) start_runner ;;
+    stop-mdu) stop_mdu ;;
+    stop-hdu) stop_hdu ;;
+    stop-laptop) stop_laptop ;;
+    collect) collect_logs ;;
+    _run-laptop) run_laptop ;;
+    _run-base) run_base ;;
+    _run-planner) run_planner ;;
+    _run-hal) run_hal ;;
+    _run-runner) run_runner ;;
+    *)
+      emit CONFIG FAILED UNSUPPORTED_ACTION
+      exit 64
+      ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

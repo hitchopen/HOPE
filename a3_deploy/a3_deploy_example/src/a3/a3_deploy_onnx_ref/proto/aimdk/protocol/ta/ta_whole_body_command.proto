@@ -1,0 +1,262 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief 关节布局枚举
+ *
+ * 用于区分不同的关节自由度配置：
+ * - BODY_30: 标准30自由度全身（腿12 + 腰3 + 头1 + 臂14）
+ * - BODY_HANDS_54: 全身30自由度 + 双手24自由度（每只手12个手指关节）
+ */
+enum TaJointLayout {
+  // 未指定，接收端应视为 BODY_30 处理
+  TaJointLayout_UNKNOWN = 0;
+
+  // 标准30自由度全身布局: leg(12) + waist(3) + head(1) + arm(14)
+  TaJointLayout_BODY_30 = 1;
+
+  // 全身+双手54自由度布局: body_30(30) + left_hand(12) + right_hand(12)
+  TaJointLayout_BODY_HANDS_54 = 2;
+}
+
+/**
+ * @brief 骨盆姿态信息
+ *
+ * 描述骨盆在世界坐标系下的位置和姿态。
+ * 骨盆（pelvis）是全身运动控制的浮动基座参考点。
+ */
+message TaPelvisPose {
+  // 骨盆四元数姿态 [w, x, y, z]，表示骨盆相对于世界坐标系的旋转
+  // 数组长度: 4
+  // 约束: w^2 + x^2 + y^2 + z^2 = 1（单位四元数）
+  repeated double quat_wxyz = 1 [packed = true];
+
+  // 骨盆位置 [x, y, z]，单位：米
+  // 数组长度: 3
+  // 坐标系: 世界坐标系，x-前，y-左，z-上
+  repeated double position_xyz = 2 [packed = true];
+}
+
+/**
+ * @brief 骨盆局部坐标系速度
+ *
+ * 描述骨盆在其局部坐标系（body frame）下的线速度和角速度。
+ * 由TA通过对骨盆位姿进行差分+滤波计算得到。
+ * MC用于前馈补偿和步态规划。
+ */
+message TaPelvisVelocity {
+  // 骨盆局部坐标系下的线速度 [vx, vy, vz]，单位：m/s
+  // 数组长度: 3
+  // 坐标系: 骨盆局部坐标系，x-前，y-左，z-上
+  // 注意: 可能经过速度缩放因子（legacy_linear_velocity_scale）处理
+  repeated double linear_xyz = 1 [packed = true];
+
+  // 骨盆局部坐标系下的角速度 [wx, wy, wz]，单位：rad/s
+  // 数组长度: 3
+  // 坐标系: 骨盆局部坐标系
+  repeated double angular_xyz = 2 [packed = true];
+}
+
+/**
+ * @brief 足底接触力信息
+ *
+ * 描述双脚的接触状态，用于MC判断支撑腿和摆动腿的切换。
+ */
+message TaFootContact {
+  // 左脚整体接触状态
+  // 0.0 = 无接触（摆动相），1.0 = 完全接触（支撑相）
+  double left_contact = 1;
+
+  // 右脚整体接触状态
+  // 0.0 = 无接触（摆动相），1.0 = 完全接触（支撑相）
+  double right_contact = 2;
+
+  // 详细足底压力分布，数组长度: 16
+  // 前8个为左脚（脚跟到脚尖），后8个为右脚（脚跟到脚尖）
+  // 值域: [0.0, 1.0]，表示各压力传感器的归一化压力值
+  // 用于MC进行更精细的ZMP（零力矩点）计算
+  repeated double detailed_contacts = 3 [packed = true];
+}
+
+/**
+ * @brief 腿部关节指令
+ *
+ * 12个腿部关节的目标角度，关节顺序：
+ *   [0]  left_hip_pitch_joint
+ *   [1]  left_hip_roll_joint
+ *   [2]  left_hip_yaw_joint
+ *   [3]  left_knee_joint
+ *   [4]  left_ankle_pitch_joint
+ *   [5]  left_ankle_roll_joint
+ *   [6]  right_hip_pitch_joint
+ *   [7]  right_hip_roll_joint
+ *   [8]  right_hip_yaw_joint
+ *   [9]  right_knee_joint
+ *   [10] right_ankle_pitch_joint
+ *   [11] right_ankle_roll_joint
+ */
+message TaLegJointCommand {
+  // 腿部关节角度，单位：弧度
+  // 数组长度: 12
+  repeated double angles_rad = 1 [packed = true];
+}
+
+/**
+ * @brief 腰部关节指令
+ *
+ * 3个腰部关节的目标角度，关节顺序：
+ *   [0] waist_yaw_joint    — 腰部偏航（左右转体）
+ *   [1] waist_roll_joint   — 腰部横滚（侧弯）
+ *   [2] waist_pitch_joint  — 腰部俯仰（前后弯腰）
+ */
+message TaWaistJointCommand {
+  // 腰部关节角度，单位：弧度
+  // 数组长度: 3
+  repeated double angles_rad = 1 [packed = true];
+}
+
+/**
+ * @brief 头部关节指令
+ *
+ * 头部关节的目标角度。
+ * 注意: 当前仅支持1个自由度（head_pitch），后续可扩展。
+ */
+message TaHeadJointCommand {
+  // 头部关节角度，单位：弧度
+  // 当前为单自由度 head_pitch_joint
+  double angle_rad = 1;
+}
+
+/**
+ * @brief 手臂关节指令
+ *
+ * 14个手臂关节的目标角度（左臂7 + 右臂7），关节顺序：
+ *   [0]  left_shoulder_pitch_joint
+ *   [1]  left_shoulder_roll_joint
+ *   [2]  left_shoulder_yaw_joint
+ *   [3]  left_elbow_pitch_joint
+ *   [4]  left_elbow_yaw_joint
+ *   [5]  left_wrist_pitch_joint
+ *   [6]  left_wrist_yaw_joint
+ *   [7]  right_shoulder_pitch_joint
+ *   [8]  right_shoulder_roll_joint
+ *   [9]  right_shoulder_yaw_joint
+ *   [10] right_elbow_pitch_joint
+ *   [11] right_elbow_yaw_joint
+ *   [12] right_wrist_pitch_joint
+ *   [13] right_wrist_yaw_joint
+ */
+message TaArmJointCommand {
+  // 手臂关节角度，单位：弧度
+  // 数组长度: 14
+  repeated double angles_rad = 1 [packed = true];
+
+  // 手臂关节速度，单位：rad/s（可选，用于前馈控制）
+  // 数组长度: 14（与 angles_rad 顺序一致）
+  repeated double velocities_rad_s = 2 [packed = true];
+
+  // 手臂关节前馈力矩，单位：N·m（可选）
+  // 来源: J*acc + B*vel + C_f*sign(vel) + G(theta)（含重力补偿）
+  // 数组长度: 14
+  repeated double feedforward_efforts = 3 [packed = true];
+
+  // 手臂关节刚度（Kp），单位：N·m/rad（可选）
+  // 数组长度: 14
+  repeated double stiffness = 4 [packed = true];
+
+  // 手臂关节阻尼（Kd），单位：N·m·s/rad（可选）
+  // 数组长度: 14
+  repeated double damping = 5 [packed = true];
+}
+
+/**
+ * @brief 手指关节指令
+ *
+ * 单手12个手指关节的目标角度。
+ * 仅在 joint_layout = BODY_HANDS_54 时填充。
+ */
+message TaHandJointCommand {
+  // 手指关节角度，单位：弧度
+  // 数组长度: 12（按IK求解器的关节顺序排列）
+  repeated double angles_rad = 1 [packed = true];
+}
+
+/**
+ * @brief 全身关节速度
+ *
+ * 全部30个自由度的关节速度（不含手指），用于MC速度前馈。
+ * 顺序: leg(12) + waist(3) + head(1) + arm(14)
+ */
+message TaJointVelocities {
+  // 全身关节速度，单位：rad/s
+  // 数组长度: 30（BODY_30布局）
+  // 顺序: leg[0:12] + waist[12:15] + head[15:16] + arm[16:30]
+  repeated double velocities_rad_s = 1 [packed = true];
+}
+
+/**
+ * @brief Teleop Avatar 全身运动指令
+ *
+ * TA（Teleop Avatar）模块发送给MC（Motion Control）模块的全身运动控制指令。
+ * 该消息替代原有的91元素扁平数组接口（/motion/control/leg_joint_command），
+ * 提供结构化、可扩展的全身指令格式。
+ *
+ * 数据来源:
+ *   TA从VR设备（如Pico）接收人体骨骼追踪数据，经过IK求解和运动匹配后，
+ *   生成机器人全身关节目标位姿和速度指令。
+ *
+ * 数据流向:
+ *   VR骨骼数据 -> TA IK求解器 -> TaWholeBodyCommand -> MC运动控制器
+ *
+ * 控制频率:
+ *   - 全身（腿/腰/头）: 60 Hz（由 output_rate_hz 配置）
+ *   - 手臂: 500 Hz（由 arm_publish_rate_hz 配置，通过 arm_command 子消息发送）
+ *
+ * 坐标系约定:
+ *   - 世界坐标系: x-前，y-左，z-上（右手系）
+ *   - 骨盆局部坐标系: 随骨盆姿态旋转，原点在骨盆中心
+ */
+message TaWholeBodyCommand {
+  // 关节自由度布局
+  TaJointLayout joint_layout = 1;
+
+  // === 骨盆状态 ===
+
+  // 骨盆位姿（世界坐标系）
+  TaPelvisPose pelvis_pose = 2;
+
+  // 骨盆速度（局部坐标系）
+  TaPelvisVelocity pelvis_velocity = 3;
+
+  // === 下肢指令 ===
+
+  // 腿部关节指令（12 DOF）
+  TaLegJointCommand leg_command = 4;
+
+  // 足底接触力信息
+  TaFootContact foot_contact = 5;
+
+  // === 上肢指令 ===
+
+  // 腰部关节指令（3 DOF）
+  TaWaistJointCommand waist_command = 6;
+
+  // 头部关节指令（1 DOF）
+  TaHeadJointCommand head_command = 7;
+
+  // 手臂关节指令（14 DOF，含可选的速度/力矩/刚度/阻尼）
+  TaArmJointCommand arm_command = 8;
+
+  // === 手指指令（仅 BODY_HANDS_54 布局时有效）===
+
+  // 左手手指关节指令（12 DOF）
+  TaHandJointCommand left_hand_command = 9;
+
+  // 右手手指关节指令（12 DOF）
+  TaHandJointCommand right_hand_command = 10;
+
+  // === 全身速度 ===
+
+  // 全身关节速度（30 DOF），用于MC前馈补偿
+  TaJointVelocities joint_velocities = 11;
+}

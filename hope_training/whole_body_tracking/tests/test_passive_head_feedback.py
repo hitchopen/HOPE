@@ -1,23 +1,31 @@
-"""Observation-contract test for the passive head joints (finding: last_action feedback).
+"""Observation-contract test for the passive head joints (applied-action feedback).
 
-Training zeroes the passive head columns (idx 3, 4) in the applied action before it is
-exposed as the ``last_action`` observation. The deploy runner and the MuJoCo evaluator
-must do the same — the actor must never see nonzero values in observation columns that
-were always zero during training.
+Training (``mdp/hope_actions.py``) binds the passive columns FROM THE ACTION TERM by
+joint name (``cfg.passive_joint_names = A3_PASSIVE_HEAD_JOINT_NAMES``), zeroes them in
+``applied_raw_actions``, and exposes exactly that buffer as the policy's ``actions``
+observation (``mdp.applied_last_action``); the processed targets hold the passive
+joints at their defaults. The deploy runner and the MuJoCo evaluator must reproduce
+this — the actor must never see nonzero values in observation columns that were
+always zero during training.
 
-This drives the REAL ``PingPongReferenceRunner`` tick loop with a fake bridge and a fake
-policy (no MuJoCo / onnxruntime needed) and asserts:
+Host-side (no torch / Isaac / MuJoCo / onnxruntime) this asserts BOTH ends:
 
-  * ``runner.last_action`` head columns are zero even though the policy emits ones;
-  * the next tick's observation ``last_action`` slice ([65:96]) has zero head columns
-    while every actuated column carries the applied value;
-  * the head joint targets written to the bridge equal the default head pose.
+  * the training-side declaration: ``A3_PASSIVE_HEAD_JOINT_NAMES`` (read from
+    ``hope_actions.py`` as a literal) names head_yaw/head_pitch, which occupy
+    indices 3 and 4 of the canonical joint order — the same ``HEAD_INDICES`` the
+    reference runner zeroes;
+  * the deploy-side behavior: the REAL ``PingPongReferenceRunner`` tick loop (fake
+    bridge + fake policy) keeps the head columns of ``last_action`` zero even though
+    the policy emits ones, feeds the zeroed applied action back in the observation's
+    actions slice ([65:96] of the 110-D contract), and writes the default head pose.
 
 Run:  python tests/test_passive_head_feedback.py   (or pytest)
 """
 
 from __future__ import annotations
 
+import ast
+import importlib.util
 import os
 import sys
 
@@ -29,19 +37,62 @@ _REFERENCE_DIR = os.path.join(_REPO, "a3_deploy", "a3_deploy_example", "referenc
 _RUNTIME_YAML = os.path.join(
     _REPO, "a3_deploy", "a3_deploy_example", "config", "hope_pingpong_runtime.yaml"
 )
+_HOPE_ACTIONS_PY = os.path.join(
+    _ROOT,
+    "source", "whole_body_tracking", "whole_body_tracking",
+    "tasks", "tracking", "mdp", "hope_actions.py",
+)
+_ADAPTER_CONFIG_PY = os.path.join(
+    _ROOT, "source", "whole_body_tracking", "whole_body_tracking", "utils",
+    "action_adapter_config.py",
+)
 
 sys.path.insert(0, _REFERENCE_DIR)
 
 from a3_deploy_onnx_ref_pingpong.config import RuntimeConfig  # noqa: E402
-from a3_deploy_onnx_ref_pingpong.joint_order import HEAD_INDICES, NUM_JOINTS  # noqa: E402
+from a3_deploy_onnx_ref_pingpong.joint_order import HEAD_INDICES, JOINT_NAMES, NUM_JOINTS  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.observation import RobotState  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.racket_command import QueueRacketCommandSource  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.runner import PingPongReferenceRunner  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.sim_bridge import SimBridge  # noqa: E402
 
-_LAST_ACTION_SLICE = slice(65, 96)  # 111-D contract: last_action columns
+_LAST_ACTION_SLICE = slice(65, 96)  # 110-D hitter_pure contract: actions (applied) columns
 _HEAD = list(HEAD_INDICES)
 _ACTUATED = [i for i in range(NUM_JOINTS) if i not in _HEAD]
+
+
+def _training_passive_head_names() -> tuple[str, ...]:
+    """Read the A3_PASSIVE_HEAD_JOINT_NAMES literal from hope_actions.py (no torch import)."""
+    with open(_HOPE_ACTIONS_PY, "r", encoding="utf-8") as fh:
+        tree = ast.parse(fh.read(), filename=_HOPE_ACTIONS_PY)
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "A3_PASSIVE_HEAD_JOINT_NAMES":
+                    value = ast.literal_eval(node.value)
+                    return tuple(str(v) for v in value)
+    raise AssertionError("A3_PASSIVE_HEAD_JOINT_NAMES not found in hope_actions.py")
+
+
+def _load_by_path(name: str, path: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_training_passive_names_bind_to_head_columns_3_and_4():
+    """The training-side declaration and the deploy HEAD_INDICES name the same columns."""
+    passive = _training_passive_head_names()
+    assert passive == ("head_yaw_joint", "head_pitch_joint")
+    # Resolve the names against the canonical joint order (the action term resolves its
+    # columns by name at runtime; the canonical order is what the exported ONNX uses).
+    adapter_cfg = _load_by_path("hope_adapter_cfg_passive", _ADAPTER_CONFIG_PY)
+    order = adapter_cfg.load_joint_order()
+    assert tuple(order) == tuple(JOINT_NAMES)
+    cols = tuple(order.index(name) for name in passive)
+    assert cols == tuple(HEAD_INDICES) == (3, 4)
 
 
 class _FakeBridge(SimBridge):
@@ -98,15 +149,16 @@ def test_last_action_head_columns_zeroed():
     assert np.all(runner.last_action[_ACTUATED] == 1.0)
 
 
-def test_observation_last_action_slice_matches_training_contract():
+def test_observation_actions_slice_matches_training_contract():
     _cfg, _bridge, policy, _runner = _run_ticks(3)
     # Tick 0 sees the zero-initialized last_action; from tick 1 on it must be the
     # APPLIED action: ones in actuated columns, zeros in the passive head columns.
     first = policy.seen_obs[0][_LAST_ACTION_SLICE]
+    assert policy.seen_obs[0].shape == (110,)
     assert np.all(first == 0.0)
     for obs in policy.seen_obs[1:]:
         la = obs[_LAST_ACTION_SLICE]
-        assert np.all(la[_HEAD] == 0.0), "passive head columns must stay zero in last_action"
+        assert np.all(la[_HEAD] == 0.0), "passive head columns must stay zero in the actions slice"
         assert np.all(la[_ACTUATED] == 1.0)
 
 

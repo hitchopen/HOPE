@@ -18,20 +18,23 @@ docs win:
 
 | Topic | Current, authoritative |
 |-------|------------------------|
-| Observation / action contract | [`docs/POLICY_INTERFACE.md`](docs/POLICY_INTERFACE.md) |
-| Planner pipeline and `RacketCommand` | [`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md) |
-| Training the policy | [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md) |
-| Running on the A3 (sim and real) | [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) |
-| Mocap frames and topics | [`mocap/README.md`](mocap/README.md) |
+| Observation / action contract | [`docs/POLICY_INTERFACE.md`](docs/POLICY_INTERFACE.md) (compact summary: [`docs/interfaces/policy_io.md`](docs/interfaces/policy_io.md)) |
+| Planner pipeline and `RacketCommand` / flat wire | [`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md) (topics table: [`docs/interfaces/ros_topics.md`](docs/interfaces/ros_topics.md)) |
+| World / table frame contract (`table_p1_to_p2_v1`) | [`docs/interfaces/frames.md`](docs/interfaces/frames.md) |
+| Joint order | [`docs/interfaces/joint_order.md`](docs/interfaces/joint_order.md) |
+| Training the policy (the `HitterPingPong` task) | [`docs/TRAIN_POLICY.md`](docs/TRAIN_POLICY.md) |
+| Running on the A3 (C++ runner, sim and real) | [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) |
+| Mocap frames and topics | [`mocap/README.md`](mocap/README.md) · OptiTrack backend: [`docs/OPTITRACK.md`](docs/OPTITRACK.md) |
 | Raw mocap adapters / clock acceptance | [`NatNet2ROS2/README.md`](NatNet2ROS2/README.md) · [`VRPN2ROS2/README.md`](VRPN2ROS2/README.md) |
-| Asset map / joint order | [`A3_ASSETS.md`](A3_ASSETS.md) |
+| ROS 2 workspace bring-up (planner/relay, dry-run, shadow mode) | [`hope_ws/README.md`](hope_ws/README.md) · [`hope_ws/BRINGUP_TUTORIAL.md`](hope_ws/BRINGUP_TUTORIAL.md) · [`hope_ws/SMOKE_TEST.md`](hope_ws/SMOKE_TEST.md) · [`hope_ws/SHADOW_MODE.md`](hope_ws/SHADOW_MODE.md) |
+| Asset map / joint order source | [`A3_ASSETS.md`](A3_ASSETS.md) |
 
 ## What the rewrite dropped
 
-[REMOVED_FROM_STARTER.md](docs/REMOVED_FROM_STARTER.md) records every file the
-HOPE rewrite removed — what it was, what replaced it, and how to
-retrieve it. It also lists the one **known gap** (a retargeted-CSV → `.npz`
-motion converter) and the exact steps to revive it.
+[REMOVED_FROM_STARTER.md](docs/REMOVED_FROM_STARTER.md) is the two-way ledger:
+what the first rewrite removed, what the build1 port brought back (most of it),
+what superseded what, and what is still deliberately not shipped (real motion
+clips, trained weights, the vendor payload, internal evidence stores).
 
 ## System design documents
 

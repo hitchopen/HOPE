@@ -50,6 +50,7 @@ from launch.launch_description_sources import (
 )
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -57,6 +58,7 @@ def generate_launch_description():
     mocap_backend = LaunchConfiguration("mocap_backend")
     use_fake_ball = LaunchConfiguration("use_fake_ball")
     ball_pose_topic = LaunchConfiguration("ball_pose_topic")
+    planner_fit_window = LaunchConfiguration("planner_fit_window")
 
     planner_config = (
         Path(get_package_share_directory("hope_planner"))
@@ -90,16 +92,20 @@ def generate_launch_description():
         condition=vrpn_selected,
     )
 
-    # Real-mocap adapter (OptiTrack): NatNet2ROS2 is an independent workspace
-    # and must already be publishing /optitrack/poses. This include starts only
-    # the HOPE relay. start_world:=false keeps the path symmetric with VRPN.
+    # Legacy relay-only OptiTrack path: NatNet2ROS2 is independently launched.
+    # The production laptop entry point launches this include directly and
+    # owns NatNet, per-run calibration, JSON, world/base relay, and static TF.
     optitrack_bridge = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 FindPackageShare("hope_bringup"), "launch", "optitrack_hope_bridge.launch.py"
             ])
         ),
-        launch_arguments={"start_world": "false"}.items(),
+        launch_arguments={
+            "start_world": "false",
+            "start_natnet": "false",
+            "start_calibration": "false",
+        }.items(),
         condition=optitrack_selected,
     )
 
@@ -116,7 +122,10 @@ def generate_launch_description():
         executable="hope_planner_node",
         name="hope_planner",
         output="screen",
-        parameters=[str(planner_config)],
+        parameters=[
+            str(planner_config),
+            {"fit_window": ParameterValue(planner_fit_window, value_type=int)},
+        ],
     )
 
     return LaunchDescription([
@@ -137,6 +146,13 @@ def generate_launch_description():
                         "named 'Ball' therefore publishes /vrpn_mocap/Ball/pose_id_0. "
                         "The optitrack backend maps objects by name instead "
                         "(config/optitrack_relay.yaml)."),
+        DeclareLaunchArgument(
+            "planner_fit_window",
+            default_value="21",
+            description="Planner velocity-fit samples. The default preserves an "
+                        "approximately 100 ms window for either adapter's "
+                        "default 200 Hz output. "
+                        "Override when changing the adapter output rate."),
         pose_adapter,
         optitrack_bridge,
         fake_ball,

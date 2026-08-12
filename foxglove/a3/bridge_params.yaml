@@ -5,17 +5,17 @@
     tls: false
     # Whitelist keeps camera H.265 / lidar off the Wi-Fi link by default.
     topic_whitelist:
-      - "^/tf$"
-      - "^/tf_static$"
-      - "^/joint_states$"
       - "^/hope/.*"
       - "^/agivslam/localization/odometry$"
-    # Match-nothing expressions avoid empty-array type ambiguity in ROS params.
-    service_whitelist: ["(?!)"]
+    # The fleet endpoint remains monitoring plus assert-only E-stop. All
+    # model_21800 Runner and Planner controls are on the opt-in 8766 bridge.
+    service_whitelist:
+      - "^/hope/safety/trigger_estop$"
     param_whitelist: ["(?!)"]
     client_topic_whitelist: ["(?!)"]
     send_buffer_limit: 10000000
     num_threads: 0
     use_compression: false
     capabilities:
+      - services
       - connectionGraph

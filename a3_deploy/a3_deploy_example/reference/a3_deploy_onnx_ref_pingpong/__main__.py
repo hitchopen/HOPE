@@ -6,14 +6,15 @@
 
 By default it loads the shipped runtime config, drives the in-process MuJoCo
 bridge, and feeds an example (planner-less) command stream so the policy visibly
-swings. Point ``--onnx`` at your exported ``hope_pingpong.onnx``.
+swings. Point ``--onnx`` at your exported ``policy.onnx`` (110-D hitter_pure).
 
 Command feeds (mutually exclusive):
   * default      -- the built-in ExampleCommandFeed (planner-less demo);
-  * ``--planner``-- subscribe the live planner's ``hope_msgs/RacketCommand`` on
-                    ``--command-topic`` (needs a sourced ROS 2 env + built
-                    hope_msgs; see ros_command_source.py). This is the documented
-                    full planner -> runner control path;
+  * ``--planner``-- subscribe the live planner's flat command stream
+                    (std_msgs/Float64MultiArray on ``--command-topic``; needs only
+                    a sourced ROS 2 env — no hope_msgs build; see
+                    ros_command_source.py). This is the documented full
+                    planner -> runner control path;
   * ``--idle``   -- no commands at all (robot just holds its stand).
 """
 
@@ -46,8 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-ticks", type=int, default=None, help="run for N control ticks")
     feed = p.add_mutually_exclusive_group()
     feed.add_argument("--planner", action="store_true",
-                      help="consume the live planner's hope_msgs/RacketCommand via ROS 2 "
-                           "(the full planner -> runner path; needs rclpy + built hope_msgs)")
+                      help="consume the live planner's flat command stream "
+                           "(std_msgs/Float64MultiArray; the full planner -> runner path; "
+                           "needs only rclpy — no hope_msgs build)")
     feed.add_argument("--idle", action="store_true",
                       help="no command feed (robot just holds a stand)")
     p.add_argument("--command-topic", default=DEFAULT_COMMAND_TOPIC,
@@ -68,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"[ref] ONNX policy not found: {cfg.onnx_path}\n"
             f"      Export one with the training package "
-            f"(hope_pingpong.onnx) and pass --onnx, or set policy.onnx_path.",
+            f"(policy.onnx) and pass --onnx, or set policy.onnx_path.",
             file=sys.stderr,
         )
         return 2

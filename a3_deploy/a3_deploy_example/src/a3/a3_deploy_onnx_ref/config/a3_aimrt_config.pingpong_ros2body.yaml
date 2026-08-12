@@ -1,0 +1,105 @@
+# Ping-pong runner with a LIVE PLANNER (Path B). Body-drive stays on iceoryx (the
+# hal_ethercat transport on the MDU); the three low-rate planner inputs and the
+# fixed local-Runner operator contract ride ROS2:
+#   /racket/command_flat   std_msgs/Float64MultiArray  (racket target from hope_planner)
+#   /a3/base_pose_flat      std_msgs/Float64MultiArray  (mocap base pose from hope_planner)
+#   /serve/ball_state_flat  std_msgs/Float64MultiArray  (pre-serve position fit)
+#   /hope/runner/control_request_flat  fixed actions, Foxglove proxy -> Runner
+#   /hope/runner/state_flat            authoritative local Runner state
+#
+# This is the SAME dual-backend pattern the stock a3_aimrt_config.iceoryx.yaml uses for
+# teleop (/ta/whole_body_command over ros2, /body_drive over iceoryx) — the officially
+# sanctioned way to add an external ROS2 input without moving body-drive off iceoryx.
+#
+# ⚠ REQUIRES libaimrt_ros2_plugin.so to load on the target. On the x86 `hope` box the
+# prebuilt plugin is ABI-mismatched with jazzy rclcpp (undefined rclcpp::QOSEventHandlerBase)
+# — verify with `./run_a3_pingpong.sh --planner --dry-run` (must reach "backend started"
+# without an undefined-symbol abort) BEFORE trusting it on the MDU. If the plugin will not
+# load, fall back to the scripted binary (no --planner) for the demo.
+aimrt:
+  plugin:
+    plugins:
+      - name: iceoryx_plugin
+        path: libaimrt_iceoryx_plugin.so
+        options:
+          shm_init_size: 2048
+      - name: ros2_plugin
+        path: libaimrt_ros2_plugin.so
+        options:
+          node_name: a3_deploy_onnx_ref_pingpong
+          executor_type: MultiThreaded
+          executor_thread_num: 2
+
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+      - type: rotate_file
+        options:
+          path: /tmp/a3_deploy_logs
+          filename: a3_deploy_pingpong.log
+          max_file_size_m: 32
+          max_file_num: 4
+
+  executor:
+    executors:
+      - name: aimrt_callback_pool
+        type: asio_thread
+        options:
+          thread_num: 2
+
+  channel:
+    backends:
+      - type: iceoryx
+      - type: ros2
+        options:
+          pub_topics_options:
+            - topic_name: "/hope/runner/state_flat"
+              qos: &runner_control_qos
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+          sub_topics_options:
+            - topic_name: "/racket/command_flat"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/a3/base_pose_flat"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/serve/ball_state_flat"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/hope/runner/control_request_flat"
+              use_serialized: false
+              qos: *runner_control_qos
+
+    # Body-drive state+command stay iceoryx. Runner state is telemetry over ROS2.
+    pub_topics_options:
+      - topic_name: "/hope/runner/state_flat"
+        enable_backends: [ros2]
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]
+    sub_topics_options:
+      - topic_name: "/racket/command_flat"
+        enable_backends: [ros2]
+      - topic_name: "/a3/base_pose_flat"
+        enable_backends: [ros2]
+      - topic_name: "/serve/ball_state_flat"
+        enable_backends: [ros2]
+      - topic_name: "/hope/runner/control_request_flat"
+        enable_backends: [ros2]
+      - topic_name: "(.*)"
+        enable_backends: [iceoryx]

@@ -3,11 +3,10 @@
 
 OptiTrack counterpart of the VRPN path (``vrpn_mocap`` + ``pose_to_posearray``).
 The independently built ``NatNet2ROS2`` workspace depacketizes NatNet from
-Motive and publishes ONE NamedPoseArray per camera frame carrying every tracked
-object:
+Motive and publishes a rate-capped NamedPoseArray containing only the available
+competition rigid bodies:
 
-* Motive-native rigid bodies (``P1``/``P2`` and setup-only ``Table``) under
-  their Motive asset names, and
+* Motive-native rigid bodies ``P1`` and ``P2`` under their asset names, and
 * the ping-pong ball as a Motive rigid-body asset named ``Ball``. The HOPE
   standard requires the ball to be tracked as a strict 6-DOF rigid body
   (marker dots added to a standard ball — verified workable on both OptiTrack
@@ -17,8 +16,7 @@ This relay maps those named entries onto the HOPE-standard topics the planner
 consumes: ``/poses`` (geometry_msgs/PoseArray, ball at index 0 — the
 hope_planner input contract, same as ``pose_to_posearray`` produces on the
 VRPN side), plus ``/ball/point``, ``/P1/pose``, ``/P2/pose`` and TF.
-``Table`` output is disabled by default and must never be enabled in a
-competition launch. Compared with the VRPN adapter:
+Compared with the VRPN adapter:
 
 * no runtime topic discovery -- the driver already names everything; mapping
   is a pure name lookup;
@@ -32,9 +30,13 @@ competition launch. Compared with the VRPN adapter:
 (occluded ball -> the driver omits it) so a stale ball position is never
 re-emitted at rigid-body timestamps -- the planner's velocity polyfit relies
 on this, exactly like the ball-triggered publishing of ``pose_to_posearray``.
+The driver deliberately sends an empty-array heartbeat when a valid selected
+NatNet frame contains none of the three competition bodies. That callback
+feeds this relay's throttled missing-ball diagnostic without generating a
+placeholder pose, TF, or planner sample.
 
-The standalone adapter launch owns the ``/optitrack`` namespace and raw TF
-remaps. ``optitrack_hope_bridge.launch.py`` starts only this relay and the
+The standalone adapter launch owns the ``/optitrack`` namespace and publishes
+no raw TF. ``optitrack_hope_bridge.launch.py`` starts only this relay and the
 optional HOPE world frame; it never starts the NatNet driver.
 """
 
@@ -64,10 +66,6 @@ class OptitrackMctRelay(Node):
         self._named_pose_array_type = named_pose_array_type
 
         self.declare_parameter("input_poses_topic", "/optitrack/poses")
-        # Table rigid body (setup/calibration only — not streamed during
-        # competition). Canonical asset name is 'Table'; older notes call the
-        # same asset 'PPT'.
-        self.declare_parameter("table_object", "Table")
         self.declare_parameter("p1_object", "P1")
         self.declare_parameter("p2_object", "P2")
         # Ball entry name = the Motive rigid-body asset name. STANDARDIZED:
@@ -75,7 +73,6 @@ class OptitrackMctRelay(Node):
         # The ball MUST be a strict 6-DOF rigid body (HOPE spec).
         self.declare_parameter("ball_object", "Ball")
         self.declare_parameter("world_frame", "world")
-        self.declare_parameter("table_pose_topic", "/table/pose")
         self.declare_parameter("p1_pose_topic", "/P1/pose")
         self.declare_parameter("p2_pose_topic", "/P2/pose")
         self.declare_parameter("ball_point_topic", "/ball/point")
@@ -83,7 +80,6 @@ class OptitrackMctRelay(Node):
         self.declare_parameter("pose_array_order", ["ball", "P1", "P2"])
         self.declare_parameter("publish_tf", True)
         self.declare_parameter("publish_pose_array", True)
-        self.declare_parameter("publish_table", False)
         # Warn (throttled) when frames keep arriving without a ball entry for
         # this long -- ball out of the volume / tracker lost the marker.
         self.declare_parameter("ball_stale_warn_s", 2.0)
@@ -92,17 +88,13 @@ class OptitrackMctRelay(Node):
         # feeds (seen on the VRPN side) turn out to stream millimetres.
         self.declare_parameter("position_scale", 1.0)
 
-        self._table_object = str(self.get_parameter("table_object").value)
         self._p1_object = str(self.get_parameter("p1_object").value)
         self._p2_object = str(self.get_parameter("p2_object").value)
         self._ball_object = str(self.get_parameter("ball_object").value)
         self._world_frame = str(self.get_parameter("world_frame").value)
         self._publish_tf = bool(self.get_parameter("publish_tf").value)
         self._publish_pose_array = bool(self.get_parameter("publish_pose_array").value)
-        self._publish_table = bool(self.get_parameter("publish_table").value)
         self._pose_array_order = [str(item) for item in self.get_parameter("pose_array_order").value]
-        if self._publish_table and "Table" not in self._pose_array_order:
-            self._pose_array_order.append("Table")
         self._stale_warn_s = float(self.get_parameter("ball_stale_warn_s").value)
         self._position_scale = float(self.get_parameter("position_scale").value)
         if self._position_scale != 1.0:
@@ -115,8 +107,6 @@ class OptitrackMctRelay(Node):
             self._p2_object: "P2",
             self._ball_object: "ball",
         }
-        if self._publish_table:
-            self._name_to_key[self._table_object] = "Table"
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -146,19 +136,13 @@ class OptitrackMctRelay(Node):
                 PoseStamped, str(self.get_parameter("p2_pose_topic").value), sensor_qos
             ),
         }
-        if self._publish_table:
-            self._pose_publishers["Table"] = self.create_publisher(
-                PoseStamped, str(self.get_parameter("table_pose_topic").value), sensor_qos
-            )
-
         input_topic = str(self.get_parameter("input_poses_topic").value)
         self._sub = self.create_subscription(
             named_pose_array_type, input_topic, self._on_frame, sensor_qos
         )
         self.get_logger().info(
             f"relaying {input_topic} (NamedPoseArray) -> HOPE topics; objects: "
-            f"ball='{self._ball_object}' P1='{self._p1_object}' P2='{self._p2_object}'; "
-            f"setup-only Table output={'enabled' if self._publish_table else 'disabled'}"
+            f"ball='{self._ball_object}' P1='{self._p1_object}' P2='{self._p2_object}'"
         )
 
     # ---- message handling ------------------------------------------------
@@ -167,6 +151,10 @@ class OptitrackMctRelay(Node):
         return self.get_clock().now().nanoseconds * 1e-9
 
     def _on_frame(self, msg) -> None:
+        if not msg.poses:
+            self._warn_no_competition_bodies()
+            return
+
         ball_in_frame = False
         for named in msg.poses:
             key = self._name_to_key.get(named.name)
@@ -209,8 +197,22 @@ class OptitrackMctRelay(Node):
         else:
             self.get_logger().warn(
                 f"mocap frames arriving but ball '{self._ball_object}' has never been "
-                "tracked; check the mct rigid_bodies config / marker visibility"
+                "tracked; check Motive streaming, the exact asset name, and marker visibility"
             )
+
+    def _warn_no_competition_bodies(self) -> None:
+        if self._stale_warn_s <= 0.0:
+            return
+        now = self._now()
+        if now - self._last_stale_warn < self._stale_warn_s:
+            return
+        self._last_stale_warn = now
+        self.get_logger().warn(
+            "NatNet frames are arriving, but the filtered frame contains none of "
+            f"'{self._ball_object}', '{self._p1_object}', or '{self._p2_object}'; "
+            "check Motive tracking/streaming and exact case-sensitive asset names. "
+            "No downstream pose or TF is being published"
+        )
 
     def _emit_ball(self, normalized: PoseStamped) -> None:
         out = PointStamped()

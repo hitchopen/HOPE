@@ -23,6 +23,7 @@
 #ifndef VRPN_MOCAP__TRACKER_HPP_
 #define VRPN_MOCAP__TRACKER_HPP_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -36,6 +37,7 @@
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "rclcpp/qos.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "vrpn_mocap/output_rate_limiter.h"
 #include "vrpn_mocap/vrpn_min_age_monitor.h"
 
 namespace vrpn_mocap
@@ -101,6 +103,7 @@ namespace vrpn_mocap
     const bool multi_sensor_;
     const std::string frame_id_;
     const bool sensor_data_qos_;
+    const double output_rate_hz_;
     // Stamp messages with the VRPN server's report time (tracker msg_time) instead of
     // ROS-side receipt time. The server clock is a FOREIGN clock domain: enable only when
     // the mocap host and the ROS host are synchronized (e.g. NTP/PTP), otherwise strict
@@ -128,6 +131,9 @@ namespace vrpn_mocap
     std::vector<PublisherT<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_pubs_;
     std::vector<PublisherT<geometry_msgs::msg::TwistStamped>::SharedPtr> twist_pubs_;
     std::vector<PublisherT<geometry_msgs::msg::AccelStamped>::SharedPtr> accel_pubs_;
+    std::vector<detail::OutputRateLimiter> pose_output_limiters_;
+    std::vector<detail::OutputRateLimiter> twist_output_limiters_;
+    std::vector<detail::OutputRateLimiter> accel_output_limiters_;
 
     rclcpp::TimerBase::SharedPtr timer_;
     std::unique_ptr<detail::VrpnMinAgeMonitor> min_age_monitor_;
@@ -135,6 +141,10 @@ namespace vrpn_mocap
     rclcpp::Clock system_clock_{RCL_SYSTEM_TIME};
 
     bool ResolveStamp(const timeval &source_time, rclcpp::Time *stamp);
+    bool ResolveSensorIndex(int64_t reported_sensor_idx, size_t *sensor_idx);
+    bool ShouldPublish(
+        const size_t &sensor_idx,
+        std::vector<detail::OutputRateLimiter> *limiters);
 
     template <typename MsgT>
     typename PublisherT<MsgT>::SharedPtr GetOrCreatePublisher(

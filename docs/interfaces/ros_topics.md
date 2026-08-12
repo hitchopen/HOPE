@@ -11,12 +11,13 @@ planner/relay are independent workspaces; build and launch them separately
         |  pose_to_posearray (hope_bringup)
         v
 /poses                                 geometry_msgs/PoseArray     (Ball at index 0; P1/P2 optional)
-        |  hope_planner
+        |  hope_planner  (or hope_planner_cpp)
         v
-/racket/command                        hope_msgs/RacketCommand
-        |  python -m a3_deploy_onnx_ref_pingpong --planner
+/racket/command                        hope_msgs/RacketCommand      (tooling/gates)
+/racket/command_flat                   std_msgs/Float64MultiArray   (schema-tagged hardware wire)
+        |  + /a3/base_pose_flat (hope_base_pose_flat_relay, from /P1/pose)
         v
-50 Hz policy control loop
+a3_pingpong C++ runner --planner  ->  50 Hz policy control loop (body-drive iceoryx)
 ```
 
 The chain above shows the default **VRPN backend**. With
@@ -29,7 +30,7 @@ built NatNet2ROS2 adapter + HOPE relay — the `/poses` hop and everything below
 /optitrack/poses                       motion_capture_tracking_interfaces/NamedPoseArray
         |  optitrack_mct_relay (hope_bringup)
         v
-/poses (+ /ball/point, /{P1,P2}/pose, TF; Table is setup-only opt-in)
+/poses (+ /ball/point, /{P1,P2}/pose, TF)
 ```
 
 ## Topics
@@ -38,7 +39,18 @@ built NatNet2ROS2 adapter + HOPE relay — the `/poses` hop and everything below
 |-------|------|-----------|-----|
 | `/vrpn_mocap/<tracker>/pose_id_<N>` | `geometry_msgs/PoseStamped` | vrpn_mocap client → `pose_to_posearray` | sensor-data (best-effort, volatile) |
 | `/poses` | `geometry_msgs/PoseArray` | `pose_to_posearray` (or `fake_ball_publisher`) → `hope_planner` | best-effort, volatile, keep-last 1 |
-| `/racket/command` | `hope_msgs/RacketCommand` | `hope_planner` → runner `--planner` | reliable, volatile, keep-last 10 |
+| `/racket/command` | `hope_msgs/RacketCommand` | `hope_planner` → gates/tooling/MuJoCo closed loop | reliable, volatile, keep-last 10 |
+| `/racket/command_flat` | `std_msgs/Float64MultiArray` (schema 2, 19 doubles) | planner → C++ runner `--planner` | reliable, volatile |
+| `/a3/base_pose_flat` | `std_msgs/Float64MultiArray` (schema 2, 16 doubles) | `hope_base_pose_flat_relay` (from `/P1/pose`) → C++ runner | reliable, volatile |
+| `/serve/ball_state_flat` | `std_msgs/Float64MultiArray` (≥11 doubles) | serve tooling → C++ runner | reliable, volatile |
+| `/ball/pose` | `geometry_msgs/PoseStamped` | relay (valid Ball rigid-body quaternion only) → planner spin shadow (diagnostics) | best-effort, volatile |
+| `/planner/diagnostics` | (see `hope_planner_cpp`) | C++ planner → operators/audit | keep-last 1 |
+
+Flat layouts are pinned in
+[`pp_planner_input.hpp`](../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include/a3_pingpong/pp_planner_input.hpp)
+and summarized in [PLANNER_INTERFACE.md](../PLANNER_INTERFACE.md#wire-contract): the
+runner subscribes core `std_msgs` flats so the aarch64 cross-build needs no custom
+message typesupport.
 
 Notes per hop:
 
@@ -51,6 +63,8 @@ Notes per hop:
   `use_vrpn_timestamps` and rejects source stamps outside a strict age/future
   bound against the adapter host's NTP-disciplined system clock. Thus ROS
   preserves the VRPN server report `timeval` rather than receipt time. VRPN
+  validates every report before limiting each output topic/sensor to 200 Hz by
+  default (`output_rate_hz:=0.0` disables the cap). VRPN
   does not prove which camera event a proprietary server associates with that
   value; exposure-time provenance remains a vendor/hardware acceptance item.
 - **`/poses`** — `pose_to_posearray` caches the latest pose from each configured
@@ -61,12 +75,14 @@ Notes per hop:
   when marker-cluster poses are aggregated; `Table` is never streamed in competition. The planner reads the ball at
   `ball_pose_index` (default 0). With `use_fake_ball:=true`,
   `fake_ball_publisher` publishes this form directly.
-- **`/racket/command`** — the planner feeds every mocap sample to its estimator
-  but solves at most every `solve_period_s` (≤ 50 Hz); topic names and tuning
+- **`/racket/command` + `/racket/command_flat`** — the planner feeds every mocap
+  sample to its estimator but solves at bounded rate; topic names and tuning
   live in
   [`hope_ws/src/hope_planner/config/hope_planner.yaml`](../../hope_ws/src/hope_planner/config/hope_planner.yaml).
-  The reference runner's `--planner` mode subscribes with the matching reliable
-  QoS and hands the newest command to the 50 Hz control loop.
+  The C++ runner's `--planner` mode subscribes the **flat** topics with matching
+  reliable QoS and hands the newest command to the 50 Hz control loop; the rich
+  `RacketCommand` stream feeds gates, tooling, and the MuJoCo closed loop.
+  Revisions for the same flight freeze once the runner engages the swing.
 
 ## VRPN backend
 
@@ -112,24 +128,25 @@ contract byte-identical. Operational guide:
 | `/poses` | `geometry_msgs/PoseArray` | `optitrack_mct_relay` → `hope_planner` | best-effort, volatile, keep-last 1 |
 | `/ball/point` | `geometry_msgs/PointStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
 | `/P1/pose`, `/P2/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
-| `/table/pose` | `geometry_msgs/PoseStamped` | setup/recording only when `publish_table:=true`; no publisher is created by the competition-default relay | best-effort, volatile, keep-last 1 |
 
 Notes:
 
-- **`/optitrack/poses`** — ONE message per camera frame carrying every tracked
-  object by name (Motive rigid-body assets verbatim: `Ball` — a strict 6-DOF
-  rigid body per the HOPE spec — plus `P1`/`P2`; a `Table` asset appears only
-  in setup/calibration sessions and is never streamed in competition, see
-  [`hope_optitrack.yaml`](../../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml)).
-  ⚠ deliberately remapped AWAY from the bare `/poses` name by
-  `natnet2ros2.launch.py`: same name, DIFFERENT message type than the
+- **`/optitrack/poses`** — at most one selected message per output period,
+  carrying only the available exact-name Motive rigid bodies `Ball`, `P1`, and
+  `P2`, in that order. Missing bodies are silently omitted. A selected valid
+  source frame containing none is an empty-array heartbeat: continued empty
+  messages mean the NatNet/adapter path is alive but the competition assets
+  are absent, invalid, or misnamed; a stopped topic means transport, timestamp
+  gating, or process failure. `Ball` is a strict
+  6-DOF rigid body per the HOPE spec. `Table`, marker coordinates, skeletons,
+  arbitrary Motive assets, raw TF, and every other raw ROS output are blocked
+  by the adapter; see
+  [`hope_optitrack.yaml`](../../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml).
+  ⚠ deliberately namespaced away from the bare `/poses` name by
+  `natnet2ros2.launch.py`: same basename, DIFFERENT message type than the
   HOPE contract — an unremapped driver breaks the planner with a DDS type
-  mismatch. The driver's raw TF is likewise remapped to `/optitrack/tf` /
-  `/optitrack/tf_static` so the relay stays the only
-  `world → Ball/P1/P2` TF authority (and setup-only `Table` only when explicitly
-  enabled); `/optitrack/pointCloud` carries the
-  unlabeled-marker cloud (diagnostics only — the ball is a rigid-body asset,
-  never reconstructed from the cloud). The supplied driver uses `camera_utc`:
+  mismatch. The relay is the only `world → Ball/P1/P2` TF authority. The
+  supplied driver uses `camera_utc`:
   NatNet echo synchronization maps `CameraMidExposureTimestamp` from Motive QPC
   into the adapter's monotonic clock, then into its Chrony-disciplined ROS
   system-time/Unix epoch. Neither bare receipt-time `ros` nor the unrelated
@@ -140,13 +157,15 @@ Notes:
   ball-triggered publishing the VRPN path gets from `pose_to_posearray`.
   Competition order is `["ball", "P1", "P2"]` (ball first, matching the
   planner's default `ball_pose_index: 0`); absent objects are skipped.
-  `publish_table` defaults to `false`, so even an accidentally active Motive
-  Table asset creates no `/table/pose` publisher, Table TF, or `/poses` entry.
-- **Rates** — OptiTrack rigs commonly stream 360 Hz (vs the 300 Hz VRPN
-  default). The planner's `fit_window` is coupled to the rate
-  (`round(31 × rate / 300)`, ≥ ~100 ms of samples — 360 Hz → 37); see
-  [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read
-  below the camera rate under receive-side drops; that is normal for a
+  The source allowlist means even an accidentally active Motive Table asset
+  creates no `/table/pose`, Table TF, or `/poses` entry.
+- **Rates** — Both adapters validate every source report before reducing ROS
+  traffic. NatNet2ROS2 caps its strict `Ball`/`P1`/`P2` named-pose array at
+  200 Hz by default; VRPN2ROS2 independently caps each topic/sensor at 200 Hz.
+  The planner's `fit_window` is coupled to the ROS input rate
+  (`round(31 × rate / 300)`, ≥ ~100 ms of samples — 200 Hz → 21); see
+  [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read below
+  the configured cap under receive-side drops; that is normal for a
   best-effort sensor stream.
 
 ## `hope_msgs/RacketCommand`
@@ -158,16 +177,20 @@ All fields are in the world frame (metres, seconds).
 | Field | Type | Meaning |
 |-------|------|---------|
 | `header` | `std_msgs/Header` | Stamp + world frame id. |
-| `task_id` | `uint64` | New unique id per incoming ball. |
-| `task_revision` | `uint32` | Increments as the pre-strike plan for the *same* ball is refined. |
-| `FOREHAND` / `BACKHAND` | `int8` constants | `1` / `-1`. |
-| `swing_side` | `int8` | Chosen once per task and locked for the whole strike. |
 | `position` | `geometry_msgs/Point` | Target racket position at the strike (m). |
 | `velocity` | `geometry_msgs/Vector3` | Target racket velocity at the strike (m/s). |
+| `normal` | `geometry_msgs/Vector3` | Desired racket face normal at contact. |
+| `strike_time` | `float64` | Absolute strike wall time (s). |
 | `time_to_strike` | `float64` | Seconds until the strike. |
+| `ball_velocity_outgoing` | `geometry_msgs/Vector3` | Predicted outgoing ball velocity. |
+| `valid` | `bool` | Command is currently actionable. |
+| `clears_net` | `bool` | Predicted outgoing shot clears the net. |
+| `bypasses_net_posts` | `bool` | Predicted shot passes outside the net posts. |
+| `predicted_bounces` | `int32` | Incoming-trajectory bounce count. |
 
-There is intentionally no `valid`/`reason`/failure field — if the incoming data
-is insufficient, the planner simply has not published yet.
+Flight/revision identity and `swing_sign` travel on the schema-2
+`/racket/command_flat` wire (see
+[PLANNER_INTERFACE.md](../PLANNER_INTERFACE.md#wire-contract)).
 
 ## QoS convention
 

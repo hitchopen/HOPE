@@ -34,7 +34,7 @@ exit 1
 #
 # 0) Provide your licensed vendor package and point this script at it:
 #    VENDOR_DEPLOY_ROOT="/opt/agibot/a3_deploy"      # YOUR package, not shipped here
-#    HOPE_ONNX="/path/to/hope_pingpong.onnx"          # your exported policy
+#    HOPE_ONNX="/path/to/policy.onnx"          # your exported policy
 #    ACTION_ADAPTER="../config/action_adapter.yaml"   # the shared adapter config
 #
 # 1) Bring up the vendor real-time backend and its safety systems per the vendor
@@ -43,7 +43,7 @@ exit 1
 #
 # 2) Wire the public contract into the vendor backend:
 #      - build the 111-D observation each 50 Hz tick (see observation.py);
-#      - run hope_pingpong.onnx: obs[1,111] -> raw_action[1,31];
+#      - run policy.onnx: obs[1,110] -> raw_action[1,31];
 #      - feed raw_action back as next-tick last_action;
 #      - map raw_action -> 31 joint targets with the shared ActionAdapter
 #        (action_adapter.yaml), holding head_yaw/head_pitch passive;

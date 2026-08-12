@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    source_topic: "/optitrack/rigid_body_markers"
+    asset_name: "P1"
+    expected_count: 10
+    stale_after_s: 0.25
+    publish_period_s: 0.1

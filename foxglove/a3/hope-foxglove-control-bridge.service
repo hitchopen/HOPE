@@ -1,0 +1,26 @@
+[Unit]
+Description=HOPE model_21800 Foxglove opt-in control bridge
+After=network-online.target hope-command-proxy.service hope-monitor.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agi
+Environment=ROS_DOMAIN_ID=232
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=ROS_STATIC_PEERS=
+EnvironmentFile=-/etc/hope-foxglove/network.env
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+  source /home/agi/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash && \
+  ros2 run foxglove_bridge foxglove_bridge \
+    --ros-args \
+    --params-file /etc/hope-foxglove/control_bridge_params.yaml \
+    -r __node:=hope_foxglove_control_bridge'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

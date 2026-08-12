@@ -3,18 +3,18 @@
     "3D!a3tf": {
       "cameraState": {
         "perspective": true,
-        "distance": 5,
-        "phi": 60,
-        "thetaOffset": 45,
-        "target": [0, 0, 0],
+        "distance": 4.5,
+        "phi": 58,
+        "thetaOffset": 42,
+        "target": [1.37, -0.7625, -0.1],
         "targetOffset": [0, 0, 0],
         "targetOrientation": [0, 0, 0, 1],
         "fovy": 45,
-        "near": 0.5,
+        "near": 0.05,
         "far": 5000
       },
       "followMode": "follow-pose",
-      "followTf": "pelvis_link",
+      "followTf": "world",
       "scene": {
         "enableStats": false,
         "transforms": {
@@ -30,6 +30,18 @@
           "type": "arrow",
           "arrowScale": [0.4, 0.1, 0.1],
           "color": "#00e5ff"
+        },
+        "/slam/localization/odometry": {
+          "visible": true,
+          "type": "arrow",
+          "arrowScale": [0.4, 0.1, 0.1],
+          "color": "#00e5ff"
+        },
+        "/hope/ball/marker": {
+          "visible": true
+        },
+        "/hope/pelvis/marker": {
+          "visible": true
         }
       },
       "layers": {
@@ -37,38 +49,38 @@
           "instanceId": "grid-hope",
           "layerId": "foxglove.Grid",
           "visible": true,
-          "label": "Grid",
-          "frameId": "",
-          "size": 10,
-          "divisions": 20,
+          "label": "HOPE world (z=0 table surface)",
+          "frameId": "world",
+          "size": 4,
+          "divisions": 40,
           "lineWidth": 1,
           "color": "#248eff44",
-          "position": [0, 0, 0],
+          "position": [1.37, -0.7625, 0],
           "rotation": [0, 0, 0],
           "order": 1
         },
-        "urdf-a3": {
-          "instanceId": "urdf-a3",
+        "urdf-table": {
+          "instanceId": "urdf-table",
           "layerId": "foxglove.Urdf",
           "visible": true,
-          "label": "A3 URDF",
+          "label": "Standard ping-pong table (HOPE world)",
           "sourceType": "url",
-          "url": "http://localhost:8000/REPLACE_WITH_URDF_FILE.urdf",
+          "url": "http://localhost:8000/assets/hope_ping_pong_table.urdf",
           "framePrefix": "",
           "displayMode": "auto",
-          "fallbackColor": "#ffffff",
+          "fallbackColor": "#245c8a",
           "order": 2
         }
       }
     },
     "Plot!ntpoffset": {
-      "title": "NTP offset (A3 vs UTC)",
+      "title": "NTP offset — A3 system clock vs UTC",
       "paths": [
         {
           "value": "/hope/ntp/offset_ms.data",
           "enabled": true,
           "timestampMethod": "receiveTime",
-          "label": "offset (ms)"
+          "label": "system offset (ms)"
         },
         {
           "value": "/hope/ntp/root_dispersion_ms.data",
@@ -87,14 +99,14 @@
       "sidebarDimension": 240,
       "followingViewWidth": 120
     },
-    "Plot!ntpskew": {
-      "title": "NTP skew (gate: 5 ppm)",
+    "Plot!messagelatency": {
+      "title": "A3 clock − ROS 2 pelvis-IMU header timestamp",
       "paths": [
         {
-          "value": "/hope/ntp/skew_ppm.data",
+          "value": "/hope/clock/message_latency_ms.data",
           "enabled": true,
           "timestampMethod": "receiveTime",
-          "label": "skew (ppm)"
+          "label": "timestamp latency (ms)"
         }
       ],
       "showXAxisLabels": true,
@@ -107,27 +119,74 @@
       "sidebarDimension": 240,
       "followingViewWidth": 120
     },
-    "Plot!mocaprtt": {
-      "title": "A3 <-> mocap host network RTT",
+    "Plot!cpuload": {
+      "title": "A3 aggregate CPU utilization",
       "paths": [
         {
-          "value": "/hope/mocap/rtt_ms.data",
+          "value": "/hope/system/cpu_load_percent.data",
           "enabled": true,
           "timestampMethod": "receiveTime",
-          "label": "RTT (ms)"
+          "label": "CPU load (%)",
+          "color": "#ff9800",
+          "lineSize": 2,
+          "showLine": true
         }
       ],
       "showXAxisLabels": true,
       "showYAxisLabels": true,
+      "showYAxisGridLines": true,
       "showLegend": true,
       "legendDisplay": "floating",
       "showPlotValuesInLegend": true,
       "isSynced": true,
       "xAxisVal": "timestamp",
+      "yAxisLabel": "CPU load (%)",
+      "minYValue": 0,
+      "maxYValue": 100,
       "sidebarDimension": 240,
       "followingViewWidth": 120
     },
-    "Indicator!utc": {
+    "Indicator!agibotpm": {
+      "path": "/hope/vendor/agibot_pm_active.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "HDU agibot_pm: NO DATA",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#2e7d32",
+          "label": "HDU agibot_pm ON"
+        },
+        {
+          "operator": "=",
+          "rawValue": "false",
+          "color": "#c62828",
+          "label": "HDU agibot_pm OFF"
+        }
+      ]
+    },
+    "Indicator!tfready": {
+      "path": "/hope/vendor/tf_ready.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "TF: NO DATA",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#2e7d32",
+          "label": "LIVE TF READY"
+        },
+        {
+          "operator": "=",
+          "rawValue": "false",
+          "color": "#ef6c00",
+          "label": "WAITING FOR VENDOR TF"
+        }
+      ]
+    },
+    "Indicator!ntp": {
       "path": "/hope/ntp/gate_pass.data",
       "style": "background",
       "fallbackColor": "#607d8b",
@@ -137,71 +196,145 @@
           "operator": "=",
           "rawValue": "true",
           "color": "#2e7d32",
-          "label": "MOCAP TIME READY"
+          "label": "NTP READY"
         },
         {
           "operator": "=",
           "rawValue": "false",
           "color": "#c62828",
-          "label": "MOCAP TIME NOT READY"
+          "label": "NTP NOT READY"
         }
       ]
     },
-    "RawMessages!pelvistext": {
-      "topicPath": "/hope/pelvis/text.data",
-      "diffEnabled": false,
-      "diffMethod": "custom",
-      "diffTopicPath": "",
-      "showFullMessageForDiff": false,
-      "expansion": "all"
-    },
-    "RawMessages!pelvispose": {
-      "topicPath": "/hope/pelvis/pose",
-      "diffEnabled": false,
-      "diffMethod": "custom",
-      "diffTopicPath": "",
-      "showFullMessageForDiff": false,
-      "expansion": "all"
-    },
-    "Indicator!mocap": {
-      "path": "/hope/mocap/reachable.data",
+    "Indicator!clockfresh": {
+      "path": "/hope/clock/message_fresh.data",
       "style": "background",
       "fallbackColor": "#607d8b",
-      "fallbackLabel": "MOCAP: NO DATA",
+      "fallbackLabel": "TIMESTAMP: NO DATA",
       "rules": [
         {
           "operator": "=",
           "rawValue": "true",
           "color": "#2e7d32",
-          "label": "MOCAP LINK UP"
+          "label": "TIMESTAMP LIVE"
         },
         {
           "operator": "=",
           "rawValue": "false",
           "color": "#c62828",
-          "label": "MOCAP UNREACHABLE"
+          "label": "TIMESTAMP STALE"
         }
       ]
     },
-    "Indicator!joints": {
-      "path": "/hope/joints/fresh.data",
+    "Indicator!estopready": {
+      "path": "/hope/safety/estop_ready.data",
       "style": "background",
       "fallbackColor": "#607d8b",
-      "fallbackLabel": "JOINTS: NO DATA",
+      "fallbackLabel": "E-STOP BACKEND: NO DATA",
       "rules": [
         {
           "operator": "=",
           "rawValue": "true",
           "color": "#2e7d32",
-          "label": "JOINT DATA FRESH"
+          "label": "E-STOP BACKEND READY"
         },
         {
           "operator": "=",
           "rawValue": "false",
           "color": "#c62828",
-          "label": "JOINT DATA STALE"
+          "label": "E-STOP BACKEND UNAVAILABLE"
         }
       ]
+    },
+    "Indicator!runnerready": {
+      "path": "/hope/control/runner_ready.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "RUNNER: NO DATA",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#2e7d32",
+          "label": "RUNNER READY"
+        },
+        {
+          "operator": "=",
+          "rawValue": "false",
+          "color": "#c62828",
+          "label": "RUNNER UNAVAILABLE"
+        }
+      ]
+    },
+    "Indicator!calibrationready": {
+      "path": "/hope/control/calibration_ready.data",
+      "style": "background",
+      "fallbackColor": "#607d8b",
+      "fallbackLabel": "P1 CALIBRATION: NO DATA",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#2e7d32",
+          "label": "P1 -> PELVIS READY"
+        },
+        {
+          "operator": "=",
+          "rawValue": "false",
+          "color": "#ef6c00",
+          "label": "P1 CALIBRATION REQUIRED"
+        }
+      ]
+    },
+    "CallService!estop": {
+      "serviceName": "/hope/safety/trigger_estop",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "A3 EMERGENCY STOP",
+        "buttonTooltip": "Request the vendor software E-stop and stop the managed model21800 runner. No remote reset; verify the physical E-stop.",
+      "buttonColor": "#d32f2f"
+    },
+    "CallService!prepare": {
+      "serviceName": "/hope/control/enter_prepare",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "1. ENTER PREPARE",
+      "buttonTooltip": "Request PD_STAND. After the runner reports settled, use the 10 Motive waist markers once and atomically overwrite the computer-local calibration/p1_to_pelvis.json.",
+      "buttonColor": "#ef6c00"
+    },
+    "CallService!policy": {
+      "serviceName": "/hope/control/enter_policy",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "2. ENTER POLICY",
+      "buttonTooltip": "Request MOTION only after settled PD_STAND and a matching valid calibration receipt are acknowledged.",
+      "buttonColor": "#2e7d32"
+    },
+    "CallService!exitpolicy": {
+      "serviceName": "/hope/control/exit_policy",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "EXIT POLICY -> STAND",
+      "buttonTooltip": "Leave policy MOTION and return to PD_STAND without recalibrating.",
+      "buttonColor": "#1565c0"
+    },
+    "CallService!passive": {
+      "serviceName": "/hope/control/enter_passive",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "ENTER PASSIVE",
+      "buttonTooltip": "Request the runner's zero-gain PASSIVE state. This is not a substitute for E-stop.",
+      "buttonColor": "#546e7a"
     }
   },
   "globalVariables": {},
@@ -211,43 +344,78 @@
   },
   "layout": {
     "direction": "row",
-    "first": {
-      "direction": "column",
-      "first": "3D!a3tf",
-      "second": {
-        "direction": "row",
-        "first": "RawMessages!pelvistext",
-        "second": "RawMessages!pelvispose",
-        "splitPercentage": 55
-      },
-      "splitPercentage": 72
-    },
+    "first": "3D!a3tf",
     "second": {
       "direction": "column",
       "first": {
         "direction": "column",
         "first": "Plot!ntpoffset",
-        "second": "Plot!ntpskew",
-        "splitPercentage": 50
+        "second": {
+          "direction": "column",
+          "first": "Plot!messagelatency",
+          "second": "Plot!cpuload",
+          "splitPercentage": 50
+        },
+        "splitPercentage": 33
       },
       "second": {
         "direction": "column",
-        "first": "Plot!mocaprtt",
-        "second": {
+        "first": {
           "direction": "row",
-          "first": "Indicator!utc",
-          "second": {
+          "first": "Indicator!agibotpm",
+          "second": "Indicator!tfready",
+          "splitPercentage": 50
+        },
+        "second": {
+          "direction": "column",
+          "first": {
             "direction": "row",
-            "first": "Indicator!mocap",
-            "second": "Indicator!joints",
+            "first": "Indicator!ntp",
+            "second": "Indicator!clockfresh",
             "splitPercentage": 50
           },
-          "splitPercentage": 34
+          "second": {
+            "direction": "column",
+            "first": {
+              "direction": "row",
+              "first": "Indicator!runnerready",
+              "second": "Indicator!calibrationready",
+              "splitPercentage": 50
+            },
+            "second": {
+              "direction": "column",
+              "first": {
+                "direction": "row",
+                "first": "CallService!prepare",
+                "second": "CallService!policy",
+                "splitPercentage": 50
+              },
+              "second": {
+                "direction": "column",
+                "first": {
+                  "direction": "row",
+                  "first": "CallService!exitpolicy",
+                  "second": "CallService!passive",
+                  "splitPercentage": 50
+                },
+                "second": {
+                  "direction": "row",
+                  "first": "Indicator!estopready",
+                  "second": "CallService!estop",
+                  "splitPercentage": 50
+                },
+                "splitPercentage": 50
+              },
+              "splitPercentage": 34
+            },
+            "splitPercentage": 22
+          },
+          "splitPercentage": 18
         },
-        "splitPercentage": 60
+        "splitPercentage": 14
       },
-      "splitPercentage": 50
+      "splitPercentage": 55
     },
-    "splitPercentage": 55
+    "splitPercentage": 60
   }
 }

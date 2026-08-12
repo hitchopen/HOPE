@@ -21,10 +21,14 @@ namespace libmotioncapture {
     RigidBody(
       const std::string& name,
       const Eigen::Vector3f& position,
-      Eigen::Quaternionf& rotation)
+      const Eigen::Quaternionf& rotation,
+      int32_t id = -1,
+      float meanMarkerError = std::numeric_limits<float>::quiet_NaN())
       : m_name(name)
       , m_position(position)
       , m_rotation(rotation)
+      , m_id(id)
+      , m_meanMarkerError(meanMarkerError)
     {
     }
 
@@ -40,10 +44,48 @@ namespace libmotioncapture {
       return m_rotation;
     }
 
+    int32_t id() const {
+      return m_id;
+    }
+
+    float meanMarkerError() const {
+      return m_meanMarkerError;
+    }
+
   private:
     std::string m_name;
     Eigen::Vector3f m_position;
     Eigen::Quaternionf m_rotation;
+    int32_t m_id;
+    float m_meanMarkerError;
+  };
+
+  struct RigidBodyMarkerDefinition
+  {
+    uint32_t memberId;
+    std::string name;
+    Eigen::Vector3f position;
+    int32_t requiredActiveLabel;
+  };
+
+  struct RigidBodyDefinition
+  {
+    std::string name;
+    int32_t id;
+    int32_t parentId;
+    Eigen::Vector3f parentOffset;
+    std::vector<RigidBodyMarkerDefinition> markers;
+  };
+
+  struct LabeledMarker
+  {
+    uint32_t id;
+    uint32_t modelId;
+    uint32_t memberId;
+    Eigen::Vector3f position;
+    float size;
+    uint16_t params;
+    float residual;
   };
 
   class LatencyInfo
@@ -102,6 +144,21 @@ namespace libmotioncapture {
     {
       pointcloud_.resize(0, Eigen::NoChange);
       return pointcloud_;
+    }
+
+    // Static marker layouts reported by the motion-capture server.
+    virtual const std::map<int32_t, RigidBodyDefinition>& rigidBodyDefinitions() const
+    {
+      rigidBodyDefinitions_.clear();
+      return rigidBodyDefinitions_;
+    }
+
+    // Per-frame labeled marker samples. IDs retain the vendor model/member
+    // split so callers can associate samples with a rigid-body definition.
+    virtual const std::vector<LabeledMarker>& labeledMarkers() const
+    {
+      labeledMarkers_.clear();
+      return labeledMarkers_;
     }
 
     // return latency information
@@ -166,9 +223,10 @@ namespace libmotioncapture {
   protected:
     mutable std::map<std::string, RigidBody> rigidBodies_;
     mutable PointCloud pointcloud_;
+    mutable std::map<int32_t, RigidBodyDefinition> rigidBodyDefinitions_;
+    mutable std::vector<LabeledMarker> labeledMarkers_;
     mutable std::vector<LatencyInfo> latencies_;
     mutable uint64_t timestamp_;
   };
 
 } // namespace libobjecttracker
-

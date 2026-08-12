@@ -1,9 +1,10 @@
 """Hydra training entry for the HOPE Agibot A3 policy.
 
-Single task, single algo. Build the ``HOPE-PingPong-AgibotA3-v0`` environment (111-D actor
-observation, privileged critic, 50 Hz control, ``wrap_teleport: false``), a rsl_rl PPO runner, and
-train. Checkpoints are written locally (periodic every ``save_interval`` and a final one). There is
-no Weights & Biases, no external logging service, no gate / lineage / curriculum machinery.
+Single task, single algo. Build the ``HOPE-HitterPingPong-AgibotA3-v0`` environment (110-D
+``hitter_pure`` actor observation, privileged critic, 50 Hz control, ``wrap_teleport: false``), a
+rsl_rl PPO runner, and train. Checkpoints are written locally (periodic every ``save_interval`` and
+a final one). There is no Weights & Biases, no external logging service, no gate / lineage
+machinery.
 
 Usage:
     python scripts/train.py task=HOPEPingPong algo=ppo headless=true
@@ -86,12 +87,22 @@ def _set_dotted(obj, dotted: str, value, applied: list, where: str) -> None:
 def _apply_domain_rand(env_cfg, dr, applied: list) -> None:
     """Apply the shared link-mass / PD-gain randomization knobs.
 
-    The event terms are named ``events.link_mass`` and ``events.pd_gains`` in
-    :class:`HOPEPingPongEnvCfg.EventCfg` — the override MUST target those exact fields
-    (see ``tests/test_domain_rand_overrides.py``). Semantics per range knob:
+    The event terms are named ``events.randomize_link_mass`` and
+    ``events.randomize_pd_gains`` in :class:`HOPEEventCfg` — the override MUST target
+    those exact fields (see ``tests/test_domain_rand_overrides.py``). Semantics per
+    range knob:
       * absent          -> keep the env-cfg default;
       * ``null``        -> disable the event entirely (set the term to None);
       * ``[lo, hi]``    -> override the distribution parameters.
+
+    PD gains have two modes:
+      * ``pd_mode`` absent (legacy generic scale DR): ``pd_gain_range`` drives the
+        stiffness/damping distribution params of ``events.randomize_pd_gains``;
+      * ``pd_mode: a3_message_passive_nominal_cohort_v1`` (the shipped
+        HitterPingPong recipe, ``mdp.randomize_a3_message_pd_gains``):
+        ``pd_gain_range`` MUST be null (it only retires the generic scale DR — the
+        a3-message term stays), and ``pd_alpha_range`` / ``pd_beta_range`` /
+        ``pd_nominal_fraction`` override the term's alpha/beta/nominal params.
     """
     if dr is None:
         return
@@ -128,12 +139,47 @@ def _apply_domain_rand(env_cfg, dr, applied: list) -> None:
             term.params[key] = (lo, hi)
         applied.append(f"events.{event_name} = {(lo, hi)}")
 
-    _apply("link_mass_range", "link_mass", ("mass_distribution_params",))
-    _apply(
-        "pd_gain_range",
-        "pd_gains",
-        ("stiffness_distribution_params", "damping_distribution_params"),
-    )
+    _apply("link_mass_range", "randomize_link_mass", ("mass_distribution_params",))
+
+    pd_mode = dr.get("pd_mode")
+    if pd_mode is None:
+        _apply(
+            "pd_gain_range",
+            "randomize_pd_gains",
+            ("stiffness_distribution_params", "damping_distribution_params"),
+        )
+        return
+
+    # a3-message PD cohort (the env cfg already installs randomize_a3_message_pd_gains
+    # for this recipe): pd_gain_range null only documents that the generic scale DR is
+    # off; the alpha/beta/nominal knobs refine the installed term.
+    if dr.get("pd_gain_range") is not None:
+        print(
+            f"[train.py] WARNING: domain_rand.pd_mode={pd_mode!r} requires "
+            "pd_gain_range: null (the a3-message term replaces the generic scale DR); "
+            "pd_gain_range ignored.",
+            flush=True,
+        )
+    term = getattr(events, "randomize_pd_gains", None)
+    if term is None:
+        print(
+            f"[train.py] WARNING: domain_rand.pd_mode={pd_mode!r}: "
+            "events.randomize_pd_gains is disabled in the env cfg; PD knobs ignored.",
+            flush=True,
+        )
+        return
+    for range_key, param_key in (
+        ("pd_alpha_range", "alpha_range"),
+        ("pd_beta_range", "beta_range"),
+    ):
+        rng = dr.get(range_key)
+        if rng is not None:
+            term.params[param_key] = (float(rng[0]), float(rng[1]))
+            applied.append(f"events.randomize_pd_gains.{param_key} = {term.params[param_key]}")
+    nominal = dr.get("pd_nominal_fraction")
+    if nominal is not None:
+        term.params["nominal_fraction"] = float(nominal)
+        applied.append(f"events.randomize_pd_gains.nominal_fraction = {float(nominal)}")
 
 
 def _apply_task_overrides(env_cfg, cfg, applied: list) -> None:
@@ -167,7 +213,9 @@ def _run(cfg):
     from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
     from isaaclab_tasks.utils import parse_env_cfg
 
-    import whole_body_tracking.tasks  # noqa: F401  -- registers the gym task
+    import importlib
+
+    importlib.import_module("whole_body_tracking.tasks")  # registers the gym task
     from whole_body_tracking.utils.my_on_policy_runner import HOPEOnPolicyRunner
     from whole_body_tracking.utils.ppo_cfg import runner_kwargs
 
@@ -234,7 +282,8 @@ def _run(cfg):
         )
     print("[train.py] joint-order gate: articulation matches the canonical deploy order.", flush=True)
 
-    # Validate the 111-D actor observation contract when the task declares one (guarded import).
+    # Validate the actor observation contract when the task declares one (guarded import).
+    # The name (e.g. hitter_pure, 110-D) is resolved generically through the contract registry.
     expected_contract = cfg.task.get("actor_obs_contract")
     if expected_contract is not None:
         try:

@@ -1,26 +1,61 @@
+# Omniverse
+**/*.dmp
+**/.thumbs
+
 # Python
-**/__pycache__/
-**/*.py[cod]
-**/*.egg-info/
-.pytest_cache/
-
-# Training outputs / local checkpoints (regenerate; not committed)
-logs/
-outputs/
-runs/
-videos/
-*.pt
-*.pth
-*.onnx
-
-# Generated robot asset contents (regenerate with scripts/prepare_a3_isaac_asset.py). Keep the
-# package marker files so the assets package still imports.
-source/whole_body_tracking/whole_body_tracking/assets/*
-!source/whole_body_tracking/whole_body_tracking/assets/__init__.py
-!source/whole_body_tracking/whole_body_tracking/assets/.gitignore
-
-# OS / editor
 .DS_Store
-*.swp
-.idea/
-.vscode/
+**/*.egg-info/
+**/__pycache__/
+**/.pytest_cache/
+**/*.pyc
+**/*.pb
+
+# IDE
+**/.idea/
+**/.vscode/
+# Don't ignore the top-level .vscode directory as it is
+# used to configure VS Code settings
+!.vscode
+
+# Outputs
+**/runs/*
+**/logs/*
+**/recordings/*
+**/output/*
+**/outputs/*
+**/videos/*
+**/wandb/*
+**/.neptune/*
+docker/artifacts/
+*.tmp
+
+# Isaac-Sim packman
+_isaac_sim*
+_repo
+_build
+.lastformat
+
+*.csv
+*.pkl
+*.zarr
+*.npz
+
+# Ignore asset CONTENTS (meshes/urdf are huge) but keep the package marker files un-excluded —
+# `whole_body_tracking.assets.__init__` defines ASSET_DIR and the tracking tasks fail to import
+# without it (it silently vanished once as a gitignored file).
+**/assets/
+!source/whole_body_tracking/whole_body_tracking/assets/
+source/whole_body_tracking/whole_body_tracking/assets/*
+!source/whole_body_tracking/whole_body_tracking/assets/.gitignore
+!source/whole_body_tracking/whole_body_tracking/assets/__init__.py
+
+# V17 r12's physical tuple bank is a recipe input, not a generated run artifact.
+# Keep the broad asset/NPZ ignores above, but allow this bank and its receipt so
+# a checkout cannot silently lose 25% of the training question bank.
+!assets/
+assets/*
+!assets/venue_tuple/
+assets/venue_tuple/*
+!assets/venue_tuple/v17_r12_physical_tuple_bank.npz
+!assets/venue_tuple/v17_r12_physical_tuple_bank.receipt.json
+artifacts/

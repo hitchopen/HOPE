@@ -1,6 +1,6 @@
 # A3 Assets
 
-This branch includes the public Agibot A3 materials used by the HOPE starter.
+This branch includes the public Agibot A3 materials used by HOPE.
 
 For the Isaac Lab quickstart, teams only need the source URDF package and the
 asset preparation script. The rest of `agibot/` is Agibot-provided reference
@@ -12,9 +12,12 @@ material for teams studying deployment or optional MuJoCo/AimRT simulation.
 |------|--------------------------|------|
 | `agibot/URDF/A3T2.5-URDF-std-pingpang/` | Yes | Source A3 ping-pong URDF, meshes, joint config, and metadata. |
 | `hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py` | Yes | Copies the source URDF package into the Isaac Lab Python package and rewrites mesh paths for local loading. |
+| `a3_deploy/URDF/` | No | Optional override location for your own vendor-supplied A3 URDF copy (`--source-root`, see its [README](a3_deploy/URDF/README.md)). |
 | `hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/agibot_a3/` | Generated locally | Derived Isaac-ready copy. It is ignored by git and can be regenerated. |
 | `hope_training/config/joint_order_agibot_a3.yaml` | Yes | Canonical public A3 policy joint order. |
+| `agibot/pku/hip_marker_shell/` | No (hardware only) | PKU hip marker-shell CAD (ten mocap markers, f1–f5/b1–b5). The P1 marker-CAD calibration route registers the live Motive marker layout against this CAD (see below). |
 | `agibot/code_deployment/` | No | Agibot A3 deployment example for ONNX policy runtime and body-drive I/O. |
+| `a3_deploy/` | No (deploy path) | HOPE's deploy line: the native C++ runner, packaging, and the AimRT MuJoCo sim copy the deploy scripts drive (`a3_deploy/A3_MuJoCo_Sim/`). See [docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md). |
 | `apps/a3_mujoco_serve/` | No | Self-contained [MuJoCo → DLS IK → CSV → high-level A3 application](apps/a3_mujoco_serve/README.md), including the fully A3-tested PR #18 reference motion and [demo video](apps/a3_mujoco_serve/assets/validated/pr18_a3_serve_demo.mp4). |
 | `agibot/A3_MuJoCo_Sim/` | No | Agibot MuJoCo/AimRT simulation reference. Not required for Isaac smoke training. |
 
@@ -43,11 +46,12 @@ Isaac Lab loads the prepared asset from:
 hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/agibot_a3/
 ```
 
-Generate it with:
+Generate it with (from `hope_training/whole_body_tracking/` — the script lives in that
+package's `scripts/`):
 
 ```bash
-python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --force
-python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --check
+python3 scripts/prepare_a3_isaac_asset.py --force
+python3 scripts/prepare_a3_isaac_asset.py --check
 ```
 
 The script copies the URDF package into the Python package asset directory,
@@ -67,8 +71,9 @@ hope_training/config/joint_order_agibot_a3.yaml
 ```
 
 It is mirrored in code by `whole_body_tracking.robots.agibot_a3.AGIBOT_A3_JOINT_NAMES`
-and, on the deploy side, by
-`a3_deploy/a3_deploy_example/reference/a3_deploy_onnx_ref_pingpong/joint_order.py`.
+and, on the deploy side, by the C++ runner's name-scattered joint map
+(`a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include/a3_pingpong/pp_joint_map.hpp`)
+plus the SDK joint mapping carried in each export's `deploy.yaml`.
 See [docs/POLICY_INTERFACE.md](docs/POLICY_INTERFACE.md) for the full
 observation/action contract that consumes it.
 
@@ -85,9 +90,26 @@ agibot/code_deployment/
 
 This area is optional for the Isaac quickstart. It is useful after teams have
 exported policies and want to study Agibot's body-drive state/command topics,
-runtime configuration, and deployment packaging examples. The high-level
-fixed/generated serve workflow is consolidated separately under
+runtime configuration, and deployment packaging examples. HOPE's own deploy
+line — the native C++ runner and packaging — lives under
+[`a3_deploy/`](a3_deploy) ([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)). The
+high-level fixed/generated serve workflow is consolidated separately under
 [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md).
+
+## Hip Marker Shell (mocap calibration)
+
+The PKU hip marker-shell CAD is under:
+
+```text
+agibot/pku/hip_marker_shell/
+```
+
+It defines the ten-marker layout (`f1`–`f5`, `b1`–`b5`) printed and mounted on
+the A3 hip. The venue-proven P1 calibration route,
+`p1_marker_cad_calibrator` (in `hope_ws/src/hope_bringup`), registers the live
+Motive marker layout against this CAD to produce the marker→`pelvis_link`
+transform recorded in `hope_ws/calibration_receipts/` — see
+[docs/interfaces/frames.md](docs/interfaces/frames.md).
 
 ## MuJoCo / AimRT Reference
 
@@ -97,7 +119,8 @@ The Agibot MuJoCo/AimRT reference project is under:
 agibot/A3_MuJoCo_Sim/
 ```
 
-This is included as Agibot-provided reference material. The v1 quickstart does
-not claim a validated MuJoCo RL training backend; the supported first run is
-still Isaac Lab asset load, table-tennis scene smoke test, and PPO smoke
-training.
+This is included as Agibot-provided reference material; the deploy scripts
+drive their own copy under `a3_deploy/A3_MuJoCo_Sim/` for the closed-loop
+rehearsal. There is no MuJoCo RL *training* backend — training runs in Isaac
+Lab; MuJoCo serves sim-to-sim evaluation (`scripts/mujoco_eval_onnx.py`) and
+the deploy rehearsal ([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)).

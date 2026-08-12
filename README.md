@@ -2,45 +2,66 @@
 
 HOPE is an open platform for humanoid robot table tennis, developed by [Hitch Interactive](https://hitchinteractive.com) (Intelligent Racing Inc.) in collaboration with the [ROAR Platform](https://roar.berkeley.edu) at UC Berkeley. The challenge invites teams to deploy whole-body humanoid controllers that can rally a ping-pong ball against human opponents or other robots, using off-the-shelf humanoid hardware and an open-source perception and planning stack.
 
-This repository contains the full HOPE stack for the Agibot A3: Isaac Lab training for a **unified forehand/backhand whole-body policy**, a **no-spin planner** (ROS 2), a **MuJoCo evaluator** with real ball physics, and an **A3 deploy reference runner** — plus the preserved HOPE **reference design documents**, the **challenge rulebooks**, and the Agibot-provided A3 starter materials under `agibot/`.
+This repository contains the full HOPE stack for the Agibot A3: Isaac Lab training for a **unified forehand/backhand whole-body policy** (the deploy-grade 110-D `hitter_pure` rally line, proven on real A3 hardware), a **no-spin planner** in both Python and low-latency C++ (ROS 2), a **MuJoCo/AimRT simulation with a real ball plant** for closed-loop evaluation, and the **native C++ A3 deploy runner** (`a3_pingpong`) — plus the preserved HOPE **reference design documents**, the **challenge rulebooks**, and the Agibot-provided A3 starter materials under `agibot/`.
 
 ## How To Read This Repository
 
-Start with this README, then follow [QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md).
+Start with this README, run the published model via
+[docs/MODEL_21800.md](docs/MODEL_21800.md), then follow
+[QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) to train or export your own.
 The rest of the repository is organized into four layers:
 
 | Layer | What to read or run | Purpose |
 |-------|---------------------|---------|
-| Required path | `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py`, `agibot/URDF/A3T2.5-URDF-std-pingpang/`, `hope_training/whole_body_tracking/` | Prepare the A3 Isaac asset, train the unified forehand/backhand policy (`task=HOPEPingPong`), export `hope_pingpong.onnx`, and evaluate `success_rate`. |
-| Stable public contracts | `A3_ASSETS.md`, `docs/interfaces/`, `docs/POLICY_INTERFACE.md`, `docs/PLANNER_INTERFACE.md` | Frame conventions, joint order, the 111-D observation / 31-D action policy IO, ROS topics, `RacketCommand`, and asset expectations that stay stable when you integrate your own code. |
-| Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app, the public deploy contract and clean-room policy runner, and Agibot-provided A3 materials. |
-| Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
+| Required path | `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/` (incl. `scripts/prepare_a3_isaac_asset.py`), `agibot/URDF/A3T2.5-URDF-std-pingpang/` | Prepare the A3 Isaac asset, train the deploy-grade rally policy (`task=HOPEPingPong`), export the ONNX policy, and evaluate it in Isaac and MuJoCo. |
+| Stable public contracts | `A3_ASSETS.md`, `docs/interfaces/`, `docs/POLICY_INTERFACE.md`, `docs/PLANNER_INTERFACE.md` | Frame conventions, joint order, the 110-D `hitter_pure` observation / 31-D action policy IO, ROS topics incl. the schema-tagged flat wire, `RacketCommand`, and asset expectations that stay stable when you integrate your own code. |
+| Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/`, `docs/RUN_ON_AGIBOT.md` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app; the native C++ deploy runner with its gate/rehearsal scripts (`a3_deploy/a3_deploy_example/`) and the MuJoCo/AimRT simulation fork with the real ball plant (`a3_deploy/A3_MuJoCo_Sim/`); and Agibot-provided A3 materials. |
+| Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace (Python + C++ planners) for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
-A fresh clone contains only tracked files. Generated Isaac assets, training logs,
-checkpoints, exported `.onnx` files, and ROS build artifacts are git-ignored and
-regenerated locally; Agibot-provided materials under `agibot/` are tracked.
+A fresh clone includes the public `model_21800` checkpoint, its exact deploy
+ONNX/parameters, and a MuJoCo video. Other generated Isaac assets, training logs,
+checkpoints, exported `.onnx` files, and ROS build artifacts remain git-ignored;
+Agibot-provided materials under `agibot/` are tracked.
 
-## Quickstart
+## Run `model_21800`
 
 ```bash
-# 1. Prepare the A3 Isaac asset (bundled racket-equipped URDF, from the repo root)
-python3 hope_training/whole_body_tracking/scripts/prepare_a3_isaac_asset.py --force
+python3 -m venv .venv-mujoco
+source .venv-mujoco/bin/activate
+python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
+a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
+```
 
-# 2. Train the unified forehand/backhand policy (inside your Isaac Lab Python environment)
+The default runtime selects the deployed 110-D `hitter_pure` actor. See the
+[complete model guide](docs/MODEL_21800.md) and
+[Gate 3 MuJoCo video](docs/assets/model_21800_gate3_mujoco.mp4).
+
+## Train and export your own
+
+```bash
+# 1. Prepare the A3 Isaac asset (bundled racket-equipped URDF)
 cd hope_training/whole_body_tracking
-source setup_train_env.sh        # defines the `isaac_py` launcher for the Isaac Sim Python
-python scripts/train.py task=HOPEPingPong algo=ppo headless=true
+python3 scripts/prepare_a3_isaac_asset.py --force
 
-# 3. Export the deployable actor -> <run>/exported/hope_pingpong.onnx
-python scripts/export_onnx.py --checkpoint logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
+# 2. Train the deploy-grade rally policy (inside your Isaac Lab Python environment).
+#    The bundled clips are schema placeholders — swap in real forehand/backhand clips
+#    (docs/REPLACE_MOTIONS.md) before training a policy you intend to deploy.
+source setup_train_env.sh        # defines the `hope_isaac_py` Isaac Sim launcher
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
+    motion_file=../motions/preprocessed/hope_forehand.npz \
+    motion_file_2=../motions/preprocessed/hope_backhand.npz
 
-# 4. Evaluate (real MuJoCo ball, continuous rally) -> {"success_rate": <float>}
-python scripts/mujoco_eval_onnx.py --onnx logs/rsl_rl/hope_pingpong/<run>/exported/hope_pingpong.onnx
+# 3. Evaluate the checkpoint in Isaac
+hope_isaac_py scripts/evaluate.py \
+    --checkpoint logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt
 
-# 5. Watch the deploy reference runner drive the robot in MuJoCo
-cp logs/rsl_rl/hope_pingpong/<run>/exported/hope_pingpong.onnx ../../a3_deploy/a3_deploy_example/models/
-cd ../../a3_deploy/a3_deploy_example
-bash scripts/run_pingpong_sim.sh
+# 4. Export the deployable actor -> <run>/exported/
+hope_isaac_py scripts/export_onnx.py \
+    --checkpoint logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt
+
+# 5. MuJoCo sim-to-sim check of the exported ONNX (real ball physics)
+python3 scripts/mujoco_eval_onnx.py \
+    --onnx logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/exported/policy.onnx
 ```
 
 To close the loop with the planner (ROS 2):
@@ -50,9 +71,14 @@ cd hope_ws && colcon build && source install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true   # mocap-free smoke test
 
 # in another terminal (same ROS env sourced):
-cd a3_deploy/a3_deploy_example/reference
-python -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
+cd a3_deploy/a3_deploy_example
+PYTHONPATH=reference python3 -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
 ```
+
+The staged evaluation ladder (Isaac eval → MuJoCo sim-to-sim → closed-loop
+MuJoCo with the real planner → hardware) is documented in
+[docs/TRAIN_POLICY.md](docs/TRAIN_POLICY.md#evaluation) and
+[docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md).
 
 ## ROS 2 motion-capture adapters and shared NTP time
 
@@ -65,10 +91,20 @@ timestamp in the adapter host computer's NTP-disciplined
 `RCL_SYSTEM_TIME`/Unix epoch. Here “world clock” means absolute UTC/Unix wall
 clock, not the ROS `world` coordinate frame.
 
+Both adapters validate every received source report before applying a
+configurable ROS 2 output-rate cap, reducing DDS traffic without changing the
+selected report's source timestamp. Set `output_rate_hz:=0.0` to publish
+every accepted report.
+
+| Adapter | Default ROS 2 output cap | Downsampled output |
+|---|---:|---|
+| **NatNet2ROS2** | **200 Hz** | One filtered `/optitrack/poses` array containing only available `Ball`, `P1`, and `P2` entries; an empty array is the live-source/no-competition-body heartbeat; no raw marker cloud or duplicate TF output |
+| **VRPN2ROS2** | **200 Hz** | Each pose, velocity, and acceleration topic independently, per tracker sensor |
+
 | Adapter | Source timestamp | Conversion into the adapter host world clock | Trust requirement |
 |---|---|---|---|
-| **NatNet2ROS2** | Motive `CameraMidExposureTimestamp` in the Motive QPC domain | NatNet echo exchanges estimate the QPC-to-adapter-steady-clock mapping; the measured capture age is subtracted from the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`. Motive's Windows wall clock is not used for this conversion. | Mapping age and uncertainty must pass the configured gates. |
-| **VRPN2ROS2** | CMTracker/MCServer report `timeval` | The source seconds/microseconds are decoded as Unix time and validated against the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`; absolute-age and sliding minimum-age gates detect invalid or changed timing regimes. | The VRPN server host must already share the same NTP epoch; VRPN itself does not synchronize clocks. |
+| **NatNet2ROS2** | Motive `CameraMidExposureTimestamp` in the Motive QPC domain | NatNet echo exchanges estimate the QPC-to-adapter-steady-clock mapping; the measured capture age is subtracted from the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`. Motive's Windows wall clock is not used for this conversion. The filtered ROS pose array is capped at 200 Hz by default (`output_rate_hz` is configurable). | Mapping age and uncertainty must pass the configured gates. |
+| **VRPN2ROS2** | CMTracker/MCServer report `timeval` | The source seconds/microseconds are decoded as Unix time and validated against the adapter's Chrony-disciplined `RCL_SYSTEM_TIME`; absolute-age and sliding minimum-age gates detect invalid or changed timing regimes. Raw ROS outputs are capped at 200 Hz per topic/sensor by default. | The VRPN server host must already share the same NTP epoch; VRPN itself does not synchronize clocks. |
 
 The adapter computer and the humanoid robot computer **must be synchronized to
 the same approved NTP server or equivalent common time source before live
@@ -90,62 +126,56 @@ and A3 clock-health gates pass. Clock drift or mixed domains can corrupt state
 estimation, latency measurement, recording, calibration, and strike timing
 even while ROS 2 topics appear healthy.
 
-## Required mocap bringup: align P1 to A3 `pelvis_link`
+## Optional marker-CAD alignment: P1 to A3 `pelvis_link`
 
-Before using a newly installed A3 pelvis marker shell, perform the one-time P1
-calibration and save its constant 6-DOF `P1 → pelvis_link` transform to a
-persistent JSON file. The mocap system supplies the dynamic `world → P1`
-pose from the P1 rigid-body markers. Calibration additionally requires an
-**independent full-6DOF** `geometry_msgs/PoseStamped` measurement of
-`world → pelvis_link`, for example on `/a3/calibration/pelvis_pose`. The
-calibrator synchronizes those two pose topics and estimates their constant
-relative transform; it does not consume a `Table` topic or TF.
+The imported Foxglove work includes a ten-waist-marker CAD calibration tool.
+It is not invoked by the integrated Runner console: the native flow uses Stand,
+`/hope/refresh_x_hit`, and Ready, while the ten-marker topic remains
+operator telemetry. The colleague branch's `/hope/control/enter_prepare`
+orchestration belongs to the legacy TTY adapter and is not bridge-exposed in
+this integration.
 
-The checked-in A3 hardware bridge publishes `/body_drive/pelvis_imu/data`, but
-an IMU does not provide absolute pelvis translation. It therefore is **not** a
-producer for `/a3/calibration/pelvis_pose`. Before real-robot calibration, the
-A3 integration must bridge an independent external 6-DOF tracker or state
-estimator to that topic with `header.frame_id: world` and timestamps in the
-same clock domain as `/P1/pose`. The MuJoCo-only
-`/sim/a3/pelvis_pose` publisher may be used for simulation validation after
-both inputs have been expressed in its `odom` frame; it is not a hardware
-producer. Do not run `p1_pelvis_tf_publisher` while collecting calibration,
-and never construct the reference pose from `P1`, because either would make
-the measurement circular.
-
-Collect while moving the pelvis smoothly through at least 0.10 m translation
-and 10 degrees rotation for at least one second. Residual RMS alone only tests
-repeatability; the calibrator separately gates measured motion excitation,
-timestamp uniqueness, and pair skew so a stationary capture cannot pass.
-OptiTrack uses NatNet echo-mapped `camera_utc` acquisition timestamps in the
-adapter host's NTP-disciplined ROS epoch; both calibration sources must use
-that same acquisition-time epoch.
+When an approved setup procedure explicitly requires a new P1-to-pelvis
+calibration, run the tool on the external computer only after the Runner has
+entered and settled in PD_STAND. A successful fit atomically replaces the
+computer's `calibration/p1_to_pelvis.json`; the resulting matrix is then fixed
+for that policy run.
+The tool registers Motive's P1-local marker centres
+to the A3 hip-shell CAD centres (`f1`–`f5`, `b1`–`b5`) and requires live
+same-frame samples for every selected marker to pass the physical-layout and
+residual gates. The named non-collinear 3-D layout makes the fixed six-DOF
+transform observable while the robot is stationary in PD_STAND.
 
 ```bash
-cd hope_ws && colcon build --packages-select hope_bringup && source install/setup.bash
-ros2 run hope_bringup p1_pelvis_calibrator \
-  --p1-topic /P1/pose \
-  --pelvis-topic /a3/calibration/pelvis_pose \
-  --reference-frame world \
-  --pelvis-frame pelvis_link \
-  --p1-frame P1 \
+cd <HOPE_REPO>
+source hope_ws/install/setup.bash
+ros2 run hope_bringup p1_marker_cad_calibrator \
+  --topic /optitrack/rigid_body_markers \
+  --asset-name P1 \
+  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
+  --stationary-prepare \
+  --attest-installed-layout \
+  --allow-nominal-only-markers \
   --output calibration/p1_to_pelvis.json
 ```
 
-At normal runtime, load that JSON to publish the constant `P1 → pelvis_link` TF:
+The relative path is resolved from the external computer's HOPE repository
+root (for example, `/home/user/HOPE/calibration/p1_to_pelvis.json`). After the
+atomic replacement, the computer-side `hope_base_pose_flat_relay` only reads
+that file for the rest of the run, composes the live `world → P1` pose with the
+fixed `P1 → pelvis_link` transform, and publishes `/a3/base_pose_flat`. It also
+publishes the unshifted reconstructed pose on `/a3/mocap/pelvis_pose` for
+diagnostics. No recalculation occurs while the robot is playing. The robot
+receives the final `/a3/base_pose_flat` stream only; it never stores, reads, or
+receives the calibration JSON.
 
-```bash
-ros2 run hope_bringup p1_pelvis_tf_publisher \
-  --calibration-file calibration/p1_to_pelvis.json
-```
+`/a3/calibration/pelvis_pose` is different: it is the independent
+`world → pelvis_link` input of the older two-PoseStamped
+`p1_pelvis_calibrator`. No checked-in hardware node publishes that topic. It is
+not the result of the ten-marker calculation, and feeding a P1-derived result
+to it would make that older calibration circular. Keep the pose-pair tool only
+for an explicitly independent external 6-DOF reference or simulation check.
 
-The resulting chain is `world → P1 → pelvis_link`; the first transform remains
-the live mocap measurement, while only the second is static. An optional
-alternative is to absorb the saved correction into Motive's P1 pivot
-definition. If that is done, disable the static publisher and verify by
-rerunning calibration that the correction is approximately identity. Never
-apply both corrections. The `Table` asset may be enabled separately for arena
-setup when needed; this tool does not use it, and competition must not stream it.
 See [mocap/README.md](mocap/README.md#calibrating-a-humanoid-p1-body-to-pelvis_link)
 and [docs/OPTITRACK.md](docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link).
 
@@ -187,12 +217,12 @@ The competition rulebooks ship at the repository root:
 | [ROADMAP.md](ROADMAP.md) | What is shipped, what is out of scope by design, and what comes next. |
 | `HOPE_*_Reference_Setup.md` | Preserved system design documents (planner / WBC training / hardware deployment). |
 | `HOPE_AI_Challenge_2026_Rules_EN.docx`, `..._ZH.docx` | Challenge rulebooks (English / 中文). |
-| `configs/` | The shared no-spin ball model ([ball_physics.yaml](configs/ball_physics.yaml)) used by training, planner, and eval. |
-| `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with task cfg, train/export/eval scripts), placeholder motion clips (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
+| `configs/` | The shared no-spin ball model: the generic [ball_physics.yaml](configs/ball_physics.yaml) plus the real venue fits [ball_physics_venue.yaml](configs/ball_physics_venue.yaml) and [incoming_ball_venue.yaml](configs/incoming_ball_venue.yaml) (measured drag/restitution and the serve envelope used by the proven line). |
+| `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with the `HitterPingPong` task and the train/eval/export scripts, including `scripts/prepare_a3_isaac_asset.py`), placeholder motion clips (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
 | `NatNet2ROS2/` | Independent ROS 2 workspace for the OptiTrack/Motive NatNet adapter, named-pose interfaces, acquisition-time mapping, and driver tests. Build and launch it separately from `hope_ws`. |
 | `VRPN2ROS2/` | Independent ROS 2 workspace for the ChingMu/VRPN client, strict server-time/NTP validation, and raw per-tracker `PoseStamped` topics. |
-| `hope_ws/` | ROS 2 workspace: `hope_planner` (no-spin planner), `hope_bringup` (HOPE-side `pose_to_posearray` / `optitrack_mct_relay` adapters and fake-ball publishers), and `hope_msgs` (`RacketCommand.msg`). Raw acquisition lives in the two sibling adapter workspaces. |
-| `a3_deploy/` | Public deploy contract and clean-room reference runner (`a3_deploy_example/`), the MuJoCo/AimRT simulation fork (`A3_MuJoCo_Sim/`), and the optional user-supplied URDF override location (`URDF/`). |
+| `hope_ws/` | ROS 2 workspace: `hope_planner` (Python no-spin planner + presets + fake-planner mode), `hope_planner_cpp` (low-latency C++ planner used on hardware), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (`RacketCommand.msg`), and `calibration_receipts/` (venue calibration evidence). Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
+| `a3_deploy/` | The native C++ deploy runner, gate/rehearsal script suite, parity harness, and deploy runbooks (`a3_deploy_example/`); the MuJoCo/AimRT simulation fork with the real ball plant (`A3_MuJoCo_Sim/`); and the optional user-supplied URDF override location (`URDF/`). |
 | [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
 | `agibot/` | Agibot-provided A3 bundle: the racket-equipped source URDF (`URDF/A3T2.5-URDF-std-pingpang/`), the vendor deploy example (`code_deployment/`), the MuJoCo/AimRT simulation reference (`A3_MuJoCo_Sim/`), and mounting hardware models (`pku/`). |
 | `mocap/` | Motion-capture frame/topic contract ([mocap/README.md](mocap/README.md)) and the preserved mocap reference documents (EN/ZH). |
@@ -222,28 +252,31 @@ The competition rulebooks ship at the repository root:
                                │
                                ▼
                     ┌─────────────────────────────┐
-                    │  hope_planner (Stages 1–3)   │
+                    │  hope_planner /              │
+                    │  hope_planner_cpp (Stages 1–3)│
                     │                              │
                     │  Ball state estimation       │
                     │  → no-spin trajectory        │
                     │    prediction                │
                     │  → racket target planning    │
                     │    (side, position, velocity,│
-                    │     time_to_strike)          │
+                    │     face normal, timing)     │
                     └──────────┬──────────────────┘
-                               │ /racket/command
-                               │ (hope_msgs/RacketCommand)
+                               │ /racket/command (RacketCommand, tooling)
+                               │ /racket/command_flat + /a3/base_pose_flat
+                               │ (schema-tagged Float64MultiArray — hardware wire)
                                ▼
                     ┌─────────────────────────────┐
-                    │  Policy runner (Stage 4)     │
+                    │  a3_pingpong C++ runner      │
+                    │  (Stage 4, --planner mode)   │
                     │                              │
-                    │  hope_pingpong.onnx @ 50 Hz  │
-                    │  111-D obs → 31-D action     │
+                    │  policy.onnx @ 50 Hz         │
+                    │  110-D obs → 31-D action     │
                     │                              │
                     │  Receives:                   │
-                    │   • RacketCommand            │
-                    │   • robot root pose          │
-                    │   • Joint encoders           │
+                    │   • racket command flats     │
+                    │   • mocap base pose flats    │
+                    │   • Joint encoders (iceoryx) │
                     │                              │
                     │  Outputs:                    │
                     │   • Robot joint              │
@@ -275,16 +308,17 @@ spin-aware estimation.
 > everything below that hop is unchanged. See
 > [docs/OPTITRACK.md](docs/OPTITRACK.md).
 
-The same policy runner drives either the shipped MuJoCo simulation
-(`a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh`) or, via your own
-licensed Agibot vendor deploy package, the real robot
-([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)).
+The Python reference harness drives the same policy in plain MuJoCo
+(`a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh`); the native C++
+runner (sources under `a3_deploy/a3_deploy_example/src/`) drives either the
+shipped MuJoCo/AimRT simulation or, cross-built for the robot's motion unit,
+the real A3 ([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)).
 
 ## Key Design Decisions
 
 **Racket tracking is prohibited.** During competition the motion capture system streams the named rigid bodies `Ball`, `P1`, and `P2` — the ball and the two humanoid marker-cluster frames. A calibrated static transform maps each P1/P2 frame to that robot's declared URDF root frame (`pelvis` on Unitree G1; `pelvis_link` on Agibot A3). The table is a calibrated static world origin (a `Table` asset is used during setup only and appears only in training-data recordings). The ball stream contains position `(x, y, z)` and orientation, represented in ROS 2 as a quaternion `(qx, qy, qz, qw)`. Pitch, yaw, and roll are derived views, not fields carried by `geometry_msgs/Pose`. No reflective markers may be placed on the racket, the robot's hand, or the wrist link. Each robot must infer its paddle's 6-DOF pose through forward kinematics from its declared root frame plus joint encoders. This is a deliberate competition constraint that tests autonomous paddle control through the robot's internal body model.
 
-**Implementation scope.** The preserved reference documents include robot-specific integration examples; the code currently shipped in this repository implements the Agibot A3 (31 actuated DOF) path end to end: Isaac Lab training of one unified forehand/backhand policy (`HOPE-PingPong-AgibotA3-v0`), MuJoCo evaluation with real ball physics, and a clean-room deploy reference runner, alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
+**Implementation scope.** The preserved reference documents include robot-specific integration examples; the code currently shipped in this repository implements the Agibot A3 (31 actuated DOF) path end to end: Isaac Lab training of one unified forehand/backhand policy on the 110-D `hitter_pure` contract (the `HitterPingPong` task, gym id `HOPE-HitterPingPong-AgibotA3-v0` — the recipe validated on real hardware), Isaac evaluation, MuJoCo sim-to-sim and closed-loop evaluation with a real ball plant, and the native C++ deploy runner — alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
 
 **Open-source training stack.** The WBC training pipeline is built entirely on open-source code: [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting, and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. The HITTER paper's trained weights are not released; all training starts from scratch, and the bundled motion clips are placeholders to be replaced with your own retargeted swings ([docs/REPLACE_MOTIONS.md](docs/REPLACE_MOTIONS.md)).
 
@@ -294,7 +328,7 @@ The table below reports current repository implementation coverage.
 
 | Robot | DOF | Status |
 |-------|-----|--------|
-| Agibot Expedition A3 | 31 actuated | Shipped end-to-end path: Isaac Lab training, ONNX export, MuJoCo evaluation, deploy reference runner, plus the Agibot vendor deploy example. |
+| Agibot Expedition A3 | 31 actuated | Shipped end-to-end path: Isaac Lab training (deploy-grade `hitter_pure` rally line), ONNX export with fail-closed metadata, Isaac/MuJoCo evaluation gates, native C++ deploy runner — exercised on real A3 hardware — plus the Agibot vendor deploy example. |
 | Unitree G1 | 29 | Discussed in the preserved reference design documents (`HOPE_*_Reference_Setup.md`) only; no shipped code path. |
 
 ## Coordinate Frame Convention

@@ -8,8 +8,9 @@ Per tick the runner advances one state machine that turns the latest
     ready -> swing -> follow-through -> recovery -> ready -> (next task_id)
 
 Contract points enforced here:
-  * A new ``task_id`` engages a swing (only from ready or recovery). ``swing_side``
-    is locked for the whole task.
+  * A new ``task_id`` engages a swing (only from ready or recovery). ``swing_sign``
+    is locked for the whole task. The sign shapes the ready reach only — it is
+    NEVER part of the 110-D observation (deploy infers the side outside the policy).
   * A higher ``task_revision`` under the active ``task_id`` updates the target and
     time-to-strike, but only before contact.
   * There is exactly one swing per ``task_id``.
@@ -59,7 +60,7 @@ class SwingLifecycle:
         self.cfg = cfg or LifecycleConfig()
         self.phase = Phase.READY
         self.active_task_id: int | None = None
-        self.swing_side: int = FOREHAND         # last locked side (default forehand)
+        self.swing_sign: int = FOREHAND         # last locked side (default forehand)
         self._target_pos_w = np.zeros(3)
         self._target_vel_w = np.zeros(3)
         self._tts = self.cfg.ready_time_to_strike
@@ -74,7 +75,7 @@ class SwingLifecycle:
 
     # -- helpers ------------------------------------------------------------
     def _ready_target_pos_w(self, state: RobotState) -> np.ndarray:
-        side = 1.0 if self.swing_side >= 0 else -1.0
+        side = 1.0 if self.swing_sign >= 0 else -1.0
         base = np.asarray(state.base_pos_w, dtype=np.float64)
         return base + np.array(
             [self.cfg.ready_reach_x, side * self.cfg.ready_reach_y, self.cfg.ready_reach_z],
@@ -95,7 +96,7 @@ class SwingLifecycle:
                 self.active_task_id = cmd.task_id
                 self._last_engaged_task_id = cmd.task_id
                 self._applied_revision = cmd.task_revision
-                self.swing_side = cmd.swing_side          # locked for this task
+                self.swing_sign = cmd.swing_sign          # locked for this task
                 self._target_pos_w = np.asarray(cmd.position, dtype=np.float64).copy()
                 self._target_vel_w = np.asarray(cmd.velocity, dtype=np.float64).copy()
                 self._tts = float(cmd.time_to_strike)
@@ -131,18 +132,17 @@ class SwingLifecycle:
                 self.phase = Phase.READY
                 self.active_task_id = None
 
-        # 3) Emit the goal to observe this tick.
+        # 3) Emit the goal to observe this tick (the locked side stays internal —
+        #    it shapes the ready reach but never appears in the observation).
         if self.phase in (Phase.SWING, Phase.FOLLOW_THROUGH):
             return ObsTarget(
                 pos_w=self._target_pos_w,
                 vel_w=self._target_vel_w,
                 time_to_strike=self._tts,
-                swing_side=float(self.swing_side),
             )
         # READY / RECOVERY -> in-place ready reach, clock pinned.
         return ObsTarget(
             pos_w=self._ready_target_pos_w(state),
             vel_w=np.zeros(3),
             time_to_strike=c.ready_time_to_strike,
-            swing_side=float(self.swing_side),
         )

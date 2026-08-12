@@ -1,4 +1,5 @@
 *
 !.gitignore
 !__init__.py
-!README.md
+!venue_tuple/
+!venue_tuple/**

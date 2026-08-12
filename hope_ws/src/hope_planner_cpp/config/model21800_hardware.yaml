@@ -1,0 +1,112 @@
+hope_planner:
+  ros__parameters:
+    # model_21800 C++ candidate: production estimator is always the
+    # non-recursive batch physics implementation.  No EKF code is selected.
+    use_kalman: false
+    # Formal hardware input is one immutable Laptop-produced flight packet,
+    # not the per-frame /poses stream. Raw /poses may still be published for
+    # recording/Foxglove, but this Planner does not subscribe to it.
+    flight_packet_input_enabled: true
+    flight_packet_topic: "/ball/flight_packet"
+    # Kept only for explicit legacy /poses A/B runs.
+    input_qos_depth: 64
+    solve_period_s: 0.033
+    expected_mocap_hz: 360.0
+    post_net_one_shot_enabled: true
+    # Offline-selected after replay; every flight uses this same task-phase
+    # offset. It is not a confidence, READY, source-age, or balance gate.
+    post_net_commit_delay_s: 0.05
+    # These parameters describe the Laptop packetizer's deterministic flight
+    # boundary and are retained here as audited contract values. They do not
+    # become HDU command-admission gates.
+    incoming_opponent_side_margin_m: 0.05
+    incoming_speed_threshold_mps: 0.25
+    outgoing_speed_threshold_mps: 0.25
+    incoming_direction_fit_samples: 4
+    incoming_direction_confirmations: 2
+    incoming_pre_roll_samples: 24
+    incoming_source_gap_reset_s: 0.25
+    # Effective coefficient for a future, not-yet-observed zero-spin table
+    # contact in the causal one-shot predictor. The venue value below remains
+    # active inside the estimator after a real bounce is observed.
+    post_net_future_bounce_tangential_gain: 0.075
+    net_x: 1.37
+
+    # One-shot-specific cross-session candidate. HDU ARM and field behavior
+    # remain unqualified.
+    batch_estimator_window_s: 0.18
+    batch_estimator_min_span_s: 0.08
+    batch_estimator_min_samples: 12
+    batch_estimator_huber_delta_m: 0.003
+    batch_estimator_recency_half_life_s: 0.0
+    batch_estimator_iterations: 3
+
+    ball_pose_index: 0
+    x_hit: 0.15
+    x_hit_follow_robot: false
+    require_x_hit_calibration: false
+    x_hit_calibration_offset: 0.58
+    x_hit_bh_delta: 0.0
+
+    target_land_x: 2.055
+    target_land_y: -0.7625
+    delta_t_flight: 0.50
+    swing_side_split_y: -0.25
+    swing_side_hysteresis_y: 0.04
+
+    drag_k: 0.1261
+    restitution_h: 0.64
+    restitution_v: 0.9215
+    magnus_k: 0.00444
+    nakashima_friction_mu: 0.25
+    table_tangential_gain: 0.369
+    table_friction_cap_mu: 2.0
+    restitution_racket: 0.654
+    dt_integrate: 0.001
+    max_predict_time: 2.0
+    # Estimate the required crossing horizon and cap it at 3.0 s. This avoids
+    # dropping slow but still incoming one-shot flights at the old 2.0 s limit.
+    adaptive_predict_horizon: true
+    max_predict_time_cap: 3.0
+    bounce_center_z_max: 0.20
+    # Estimator segmentation only: suppress repeated noise minima after one
+    # physical contact. These values never suppress a published command.
+    bounce_min_reversal_m: 0.00005
+    bounce_min_excursion_m: 0.001
+    bounce_confirmation_samples: 5
+    bounce_confirmation_max_span_s: 0.05
+    bounce_sparse_confirmation_min_span_s: 0.012
+    bounce_sparse_confirmation_excursion_m: 0.005
+    bounce_refractory_s: 0.12
+
+    # Main Stage 2 uses the venue table-contact law with omega=0. Rotation and
+    # Magnus are evaluated in a second Stage-2 path only; spin validity or
+    # coherence never gates or changes robot motion.
+    spin_shadow_enabled: true
+    spin_shadow_mode: "venue_grip_magnus"
+    spin_window_s: 0.10
+    spin_min_span_s: 0.05
+    spin_max_gap_s: 0.05
+    spin_max_rev_s: 20.0
+    spin_huber_delta_rev_s: 2.0
+    spin_min_increments: 3
+    spin_robust_iterations: 5
+
+    robot_pose_topic: ""
+    base_pose_flat_input_topic: "/a3/base_pose_flat"
+    publish_base_flat: false
+    publish_flat_cmd: true
+    publish_typed_command: true
+    racket_flat_schema: 2
+    racket_flat_topic: "/racket/command_flat"
+    publish_serve_ball_flat: true
+    serve_ball_flat_topic: "/serve/ball_state_flat"
+    policy_z_offset: 0.76
+    table_y_max: 0.0
+
+    # Audit only.  Refresh success/failure updates x_hit and logs status but
+    # never suppresses /racket/command_flat.
+    x_hit_calibration_request_file: ""
+    x_hit_calibration_status_file: ""
+    debug_csv_path: ""
+    debug_session_id: ""

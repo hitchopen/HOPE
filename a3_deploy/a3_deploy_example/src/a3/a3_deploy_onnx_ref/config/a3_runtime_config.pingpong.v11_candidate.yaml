@@ -1,0 +1,64 @@
+# Explicit simulation-only diagnostic config for RallyV11 model_11800.
+# Deterministic Isaac eval passed strike/READY-release proxies but failed heading/qdes/wrist/elbow
+# tail criteria. Strict Gate3 then produced 12/12 proxy and a passing plant but failed 9 report
+# checks (qdes, idle wrist roll/yaw, six station-x strikes). Do not use this file for hardware
+# packaging or call it a promoted champion.
+# Runtime config for the ping-pong runner (a3_deploy_onnx_ref_pingpong).
+# This runner reads: onnx.model_path, policy_driver.policy_hz, the backend block,
+# and obs_debug (localization mode). Paths are relative to THIS file's directory.
+#
+# DURABLE SOURCE OF TRUTH. The package builder stages this into dist/.../config/.
+# (Previously this file lived only under dist/, which build_a3_deploy_pkg.sh wipes
+# on every build -> the runner asset was silently dropped. Keep it here in src.)
+onnx:
+  # Keep the SOURCE config valid inside the repo tree: from src/.../config this resolves under
+  # assets/a3_runtime/models/. During packaging, build_a3_deploy_pkg.sh copies the model into
+  # dist/.../models/ and rewrites the packaged runtime cfg to `models/...`. The runner
+  # auto-detects obs dim from the ONNX input and builds obs 175 vs 180 accordingly.
+  #
+  # CURRENT V11 DIAGNOSTIC: model_11800. Its 512-env deterministic eval covered core, planner and
+  # production mix. Strike composite remained about 0.99, but planner tails reached 46.0 deg READY
+  # heading, 3.15 rad raw joint qdes and 0.486 rad left-wrist reference error. The exporter/loader require
+  # recipe v1, the v13 facefix clips, one shared 0.58 m plane, core/planner velocity components,
+  # 45--60 tick holds, READY 0.10/0.10 m + 0.20 m/s + 0.12 s, and the +y 0.19--0.24 m curriculum.
+  # This path is for simulated Gate3 evidence; it is not real-hardware approval.
+  # HISTORY: model_17400_hitter177.onnx (2026-07-06, run 2026-07-06_00-56-46 model_17400) —
+  # 177-D hitter_footwork (deploy_parity + base_target_pos_b(2) station channel), hopex
+  # RE-GROUNDED clips baked (seg 139/132, strike phases 0.470/0.333 in metadata) + the new
+  # actor_obs_contract / ref_reach_offset_xy keys (fh +0.700,-0.409 / bh +0.706,+0.185 —
+  # the runner derives the base station from them). Verification chain 2026-07-06:
+  # Isaac det composite 0.993; C++ parity 2e-7; training-side deploy-faithful gate 0 falls
+  # x3 seeds / completion 1.0 / composite 0.966; Gate 2.5 ORACLE 10/10 (incl. 20 s hold +
+  # post-swing hold — the 175-era killers); Gate 3 closed loop 10/10 points on the
+  # 10-placement serve sweep.
+  # ⚠ 177 HARD REQUIREMENT: real base localization (sim --oracle-pelvis / hardware mocap
+  # external_base). The station obs feeds BOTH footwork and the hold/recovery anchor;
+  # without it the channel degrades to the Δ=0 dropout fallback (strike-in-place, NO hold
+  # anchor — post-swing holds tip over: Gate 2.5 perfect_tracking P3b). Do not arm MOTION
+  # on hardware without the mocap relay alive.
+  # PREVIOUS: model_7500_hopex.onnx (175-D, 2026-07-03_13-32-07; deploy-faithful gate
+  # composite 1.0 both clips, 0 falls; works WITHOUT mocap — the mocap-less fallback).
+  # FALLBACK (no mocap, forehand-only): model_p4_deployparity.onnx (strikes in place;
+  # needs --no-imu-yaw for its validated behavior).
+  model_path: ../../../../assets/a3_runtime/models/model_11800_v11_diag.onnx
+  # The pingpong runner runs its ONNX on the CPU via the bundled onnxruntime — on rockchip too.
+  # no_rknn tells build_a3_deploy_pkg.sh NOT to auto-promote to the RKNN/NPU path (which would
+  # SystemExit on a missing <model>.rknn and block the standard rockchip staging).
+  backend: no_rknn
+
+policy_driver:
+  policy_hz: 50.0
+
+obs_debug:
+  # HARDWARE-SAFE default. fabricated synthesizes a fictional world-tracking error
+  # (the documented "deploy buzz" mode) and must NOT be used on hardware. The
+  # A/B/C rehearsal selects fabricated/oracle explicitly via --loc-mode.
+  loc_mode: perfect_tracking   # fabricated | perfect_tracking | oracle(sim-only)
+
+backend:
+  # PURE-iceoryx cfg (no ros2_plugin) to match the iceoryx-only sim cfg and avoid
+  # the ABI-mismatched prebuilt libaimrt_ros2_plugin.so. For the real robot use
+  # a3_aimrt_config.ros2.yaml (rebuilt in-box) instead.
+  aimrt_cfg_path: a3_aimrt_config.pingpong_iceoryx.yaml
+  sync_mode: min_skew_pair
+  sync_hz: 100.0

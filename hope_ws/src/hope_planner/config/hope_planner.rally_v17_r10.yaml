@@ -1,0 +1,37 @@
+# RallyV17 recipe-revision 10 planner overlay.
+#
+# The station is captured once from the calibrated base while standing.  The
+# virtual contact plane is then frozen at station_x + 0.58 m; it never follows
+# later robot drift.  The native runner independently latches the same session
+# station and accepts only schema-2 commands with three stable revisions.
+hope_planner:
+  ros__parameters:
+    solve_period_s: 0.033
+    racket_flat_schema: 2
+
+    x_hit_follow_robot: false
+    require_x_hit_calibration: true
+    x_hit_calibration_offset: 0.58
+    x_hit_calibration_window_s: 0.50
+    x_hit_calibration_max_age_s: 0.20
+    x_hit_calibration_min_samples: 10
+    x_hit_calibration_max_span_m: 0.01
+    x_hit_bh_delta: 0.0
+
+    # Fallback before freeze only; with the nominal station x=-0.50 this is
+    # exactly -0.50 + 0.58. No command is published until freeze succeeds.
+    x_hit: 0.08
+
+    target_land_y: -0.7625
+    delta_t_flight: 0.50
+    swing_side_split_y: -0.265
+    swing_side_hysteresis_y: 0.04
+
+    # Spin-aware prediction remains observation-only. It is intentionally not
+    # promoted into live targets without a venue calibration receipt.
+    spin_shadow_enabled: true
+    ball_orientation_topic: "/ball/pose"
+    spin_window_s: 0.10
+    spin_gate_rev_s: 3.0
+    spin_max_gap_s: 0.05
+    spin_max_rev_s: 20.0
