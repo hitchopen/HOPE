@@ -4,7 +4,7 @@ import { initHopeA3Console } from "./HopeA3Console";
 
 export function activate(extensionContext: ExtensionContext): void {
   extensionContext.registerPanel({
-    name: "hope-a3-console",
+    name: "HOPE A3 Console",
     initPanel: initHopeA3Console,
   });
 }

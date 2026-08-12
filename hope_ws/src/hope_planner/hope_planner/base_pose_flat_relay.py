@@ -4,14 +4,15 @@ The planner's ball solve intentionally runs in another process. Stage-2/3 solves
 can exceed the runner's localization freshness horizon, so base forwarding must
 not share that callback path.
 
-Schema 2 preserves the HDU ROS receipt time and the complete calibrated
-world->base pose.  The upstream PoseStamped clock may belong to the Laptop, so
-production uses a local HDU receipt stamp while still rejecting invalid or
-reordered upstream stamps.  V17 rejects schema 1, missing receipts, invalid
-quaternions, reordered source time, and implausible pose jumps.
+Schema 2 preserves an authoritative ROS timestamp and the complete calibrated
+world->base pose. In production this relay runs beside NatNet on the external
+computer and reloads the computer-local per-run JSON. V17 rejects schema 1,
+missing receipts, invalid quaternions, reordered source time, and implausible
+pose jumps.
 """
 
 import math
+from pathlib import Path
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
@@ -29,11 +30,13 @@ from .base_pose_contract import (
     FLAG_WORLD_FRAME_CALIBRATED,
     SOURCE_STAMP_INPUT_HEADER,
     SOURCE_STAMP_LOCAL_RECEIPT,
+    compose_marker_to_base_pose,
     invalid_base_flat,
     pose_to_base_flat,
     receipt_id_u52,
     resolve_wire_source_stamp_ns,
 )
+from .p1_calibration import load_p1_calibration
 
 
 class BasePoseFlatRelay(Node):
@@ -44,6 +47,11 @@ class BasePoseFlatRelay(Node):
         self.declare_parameter("input_topic", "/P1/pose")
         self.declare_parameter("output_topic", "/a3/base_pose_flat")
         self.declare_parameter("expected_input_frame", "world")
+        self.declare_parameter("expected_marker_frame", "P1")
+        self.declare_parameter("pelvis_frame", "pelvis_link")
+        self.declare_parameter("pelvis_pose_topic", "/a3/mocap/pelvis_pose")
+        self.declare_parameter("calibration_file", "")
+        self.declare_parameter("calibration_reload_period_s", 1.0)
         self.declare_parameter("marker_to_base_xyz", [0.0, 0.0, 0.0])
         self.declare_parameter(
             "marker_to_base_quaternion_wxyz", [1.0, 0.0, 0.0, 0.0]
@@ -73,8 +81,18 @@ class BasePoseFlatRelay(Node):
         self._expected_input_frame = str(
             self.get_parameter("expected_input_frame").value
         )
-        self._extrinsic_calibrated = bool(
-            self.get_parameter("extrinsic_calibrated").value
+        self._expected_marker_frame = str(
+            self.get_parameter("expected_marker_frame").value
+        )
+        self._pelvis_frame = str(self.get_parameter("pelvis_frame").value)
+        calibration_file = str(self.get_parameter("calibration_file").value).strip()
+        self._calibration_path = Path(calibration_file) if calibration_file else None
+        self._loaded_calibration_sha = ""
+        self._calibration_error = ""
+        self._extrinsic_calibrated = (
+            False
+            if self._calibration_path is not None
+            else bool(self.get_parameter("extrinsic_calibrated").value)
         )
         self._world_calibrated = bool(
             self.get_parameter("world_frame_calibrated").value
@@ -105,11 +123,10 @@ class BasePoseFlatRelay(Node):
         self._world_frame_id = (
             receipt_id_u52(world_sha) if self._world_calibrated else 0
         )
-        self._flags = FLAG_SOURCE_STAMP_HDU_ROS | FLAG_POLICY_Z_OFFSET_APPLIED
-        if self._extrinsic_calibrated:
-            self._flags |= FLAG_EXTRINSIC_CALIBRATED
-        if self._world_calibrated:
-            self._flags |= FLAG_WORLD_FRAME_CALIBRATED
+        self._flags = 0
+        self._rebuild_flags()
+        if self._calibration_path is not None:
+            self._reload_calibration()
 
         self._sequence = 0
         self._last_input_source_ns: int | None = None
@@ -137,13 +154,76 @@ class BasePoseFlatRelay(Node):
             str(self.get_parameter("output_topic").value),
             output_qos,
         )
+        self._pelvis_pub = self.create_publisher(
+            PoseStamped,
+            str(self.get_parameter("pelvis_pose_topic").value),
+            output_qos,
+        )
         self.create_subscription(
             PoseStamped,
             str(self.get_parameter("input_topic").value),
             self._pose_cb,
             input_qos,
         )
+        reload_period_s = float(
+            self.get_parameter("calibration_reload_period_s").value
+        )
+        if reload_period_s <= 0.0:
+            raise ValueError("calibration_reload_period_s must be positive")
+        if self._calibration_path is not None:
+            self.create_timer(reload_period_s, self._reload_calibration)
         self.create_timer(1.0, self._log_health)
+
+    def _rebuild_flags(self) -> None:
+        self._flags = FLAG_SOURCE_STAMP_HDU_ROS | FLAG_POLICY_Z_OFFSET_APPLIED
+        if self._extrinsic_calibrated:
+            self._flags |= FLAG_EXTRINSIC_CALIBRATED
+        if self._world_calibrated:
+            self._flags |= FLAG_WORLD_FRAME_CALIBRATED
+
+    def _reload_calibration(self) -> None:
+        path = self._calibration_path
+        if path is None:
+            return
+        try:
+            calibration = load_p1_calibration(path)
+            if calibration.parent_frame != self._expected_marker_frame:
+                raise ValueError(
+                    f"calibration parent {calibration.parent_frame!r} != "
+                    f"{self._expected_marker_frame!r}"
+                )
+            if calibration.child_frame != self._pelvis_frame:
+                raise ValueError(
+                    f"calibration child {calibration.child_frame!r} != "
+                    f"{self._pelvis_frame!r}"
+                )
+        except (OSError, UnicodeError, ValueError) as exc:
+            detail = str(exc)
+            changed = detail != self._calibration_error or self._extrinsic_calibrated
+            self._calibration_error = detail
+            self._extrinsic_calibrated = False
+            self._calibration_id = 0
+            self._loaded_calibration_sha = ""
+            self._rebuild_flags()
+            if changed:
+                self.get_logger().warning(
+                    f"P1 calibration unavailable -> base output invalid: {detail}"
+                )
+            return
+        if calibration.receipt_sha256 == self._loaded_calibration_sha:
+            return
+        self._offset = calibration.translation_m
+        qx, qy, qz, qw = calibration.quaternion_xyzw
+        self._offset_quat = (qw, qx, qy, qz)
+        self._calibration_id = calibration.receipt_id_u52
+        self._loaded_calibration_sha = calibration.receipt_sha256
+        self._calibration_error = ""
+        self._extrinsic_calibrated = True
+        self._rebuild_flags()
+        self.get_logger().info(
+            "loaded approved P1 -> pelvis_link calibration "
+            f"{calibration.receipt_sha256} from {path}"
+        )
 
     def _pose_cb(self, msg: PoseStamped) -> None:
         self._received += 1
@@ -202,6 +282,18 @@ class BasePoseFlatRelay(Node):
                 world_frame_id=self._world_frame_id,
                 previous_base_quaternion_wxyz=self._last_base_quaternion,
             )
+            pelvis_position, pelvis_quaternion = compose_marker_to_base_pose(
+                (position_msg.x, position_msg.y, position_msg.z),
+                (
+                    quaternion_msg.w,
+                    quaternion_msg.x,
+                    quaternion_msg.y,
+                    quaternion_msg.z,
+                ),
+                self._offset,
+                self._offset_quat,
+                previous_base_quaternion_wxyz=self._last_base_quaternion,
+            )
             position = tuple(float(v) for v in candidate[5:8])
             quaternion = tuple(float(v) for v in candidate[8:12])
             if self._last_source_ns is not None:
@@ -245,6 +337,16 @@ class BasePoseFlatRelay(Node):
             self._last_base_position = position
             self._last_base_quaternion = quaternion
             self._published += 1
+            pelvis = PoseStamped()
+            pelvis.header = msg.header
+            pelvis.pose.position.x = pelvis_position[0]
+            pelvis.pose.position.y = pelvis_position[1]
+            pelvis.pose.position.z = pelvis_position[2]
+            pelvis.pose.orientation.w = pelvis_quaternion[0]
+            pelvis.pose.orientation.x = pelvis_quaternion[1]
+            pelvis.pose.orientation.y = pelvis_quaternion[2]
+            pelvis.pose.orientation.z = pelvis_quaternion[3]
+            self._pelvis_pub.publish(pelvis)
         except ValueError as exc:
             # Explicit invalidation is safer than a fabricated last-good pose.
             out.data = invalid_base_flat(
@@ -262,12 +364,13 @@ class BasePoseFlatRelay(Node):
 
     def _log_health(self) -> None:
         self.get_logger().info(
-            "BASE RELAY schema=2 stamp=%s calibrated=%d world=%d "
+            "BASE RELAY schema=2 stamp=%s calibrated=%d world=%d receipt=%s "
             "received=%d published=%d rejected=%d"
             % (
                 self._source_stamp_mode,
                 self._extrinsic_calibrated,
                 self._world_calibrated,
+                self._loaded_calibration_sha[:13] or "parameter",
                 self._received,
                 self._published,
                 self._rejected,

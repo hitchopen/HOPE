@@ -1,0 +1,46 @@
+/**:
+  ros__parameters:
+    # Separate, explicitly started control endpoint. The fleet monitor remains
+    # on 8765 with its E-stop-only service allowlist. The custom HOPE console
+    # uses this one data source for colleague monitor topics plus authoritative
+    # Runner/Planner state.
+    port: 8766
+    address: "0.0.0.0"
+    tls: false
+    topic_whitelist:
+      - "^/hope/(observer_alive|session/.*|planner/.*|base/.*|ball/.*|command/.*|x_hit/.*|runner/.*|opponent/.*|lifecycle/.*|mocap/.*|system/(hdu_active|hdu_text|mdu_active|mdu_text))$"
+      - "^/hope/safety/(estop_ready|estop_full_ready|estop_latched|estop_text)$"
+      - "^/hope/ntp/(offset_ms|root_dispersion_ms|gate_pass|text)$"
+      - "^/hope/clock/(message_latency_ms|message_fresh|message_text)$"
+      - "^/hope/system/(cpu_load_percent|cpu_top_process)$"
+      - "^/hope/calibration/(success|status)$"
+      - "^/hope/vendor/(agibot_pm_active|tf_ready)$"
+      - "^/hope/pelvis/(pose|text|marker|tf)$"
+    # Exact local-Runner actions, world-to-pelvis calibration, a separate x_hit
+    # refresh, and the assert-only emergency path. No wildcard service,
+    # parameters, or client publishing. Internal topics are not browser-writable.
+    service_whitelist:
+      - "^/hope/safety/trigger_estop$"
+      - "^/hope/calibrate$"
+      - "^/hope/refresh_x_hit$"
+      - "^/hope/runner/set_server$"
+      - "^/hope/runner/set_receiver$"
+      - "^/hope/runner/enter_pd_stand$"
+      - "^/hope/runner/enter_motion$"
+      - "^/hope/runner/emergency_passive$"
+      - "^/hope/runner/ready_to_serve$"
+      - "^/hope/runner/serve$"
+      # Fixed lifecycle orchestration. apply_config is a dedicated, exact
+      # SetParameters-shaped service that accepts only four validated IPv4
+      # strings; the node's generic parameter services remain disabled.
+      - "^/hope/lifecycle/apply_config$"
+      - "^/hope/lifecycle/start$"
+      - "^/hope/lifecycle/kill_all_and_collect$"
+    param_whitelist: ["(?!)"]
+    client_topic_whitelist: ["(?!)"]
+    send_buffer_limit: 2000000
+    num_threads: 0
+    use_compression: false
+    capabilities:
+      - services
+      - connectionGraph

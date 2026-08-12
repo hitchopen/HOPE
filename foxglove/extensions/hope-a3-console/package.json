@@ -1,18 +1,13 @@
 {
   "name": "hope-a3-console",
   "displayName": "HOPE A3 Console",
-  "description": "Match-day A3 health and assert-only E-stop console for HOPE",
-  "publisher": "hitchopen",
-  "homepage": "https://github.com/hitchopen/HOPE/tree/main/foxglove",
-  "version": "0.1.0",
+  "description": "Single-robot model_21800 operator console for the HOPE Runner",
+  "publisher": "hope-open",
+  "homepage": "https://github.com/hitchopen/HOPE",
+  "version": "1.2.4",
   "license": "Apache-2.0",
   "main": "./dist/extension.js",
-  "keywords": [
-    "foxglove",
-    "ros2",
-    "agibot",
-    "hope"
-  ],
+  "keywords": ["foxglove", "hope", "agibot", "operator"],
   "scripts": {
     "build": "foxglove-extension build",
     "foxglove:prepublish": "foxglove-extension build --mode production",
@@ -23,25 +18,27 @@
     "package": "foxglove-extension package",
     "pretest": "foxglove-extension pretest"
   },
-  "dependencies": {
-    "@fontsource/ibm-plex-mono": "5.3.0",
-    "@fontsource/ibm-plex-sans": "5.3.0",
-    "@fontsource/space-grotesk": "5.3.0"
+  "overrides": {
+    "tar": "7.5.22",
+    "webpack": "5.109.2"
   },
   "devDependencies": {
-    "@foxglove/eslint-plugin": "2.1.2",
-    "@foxglove/extension": "2.58.0",
-    "@types/react": "18.3.31",
-    "@types/react-dom": "18.3.7",
-    "css-loader": "7.1.2",
-    "create-foxglove-extension": "1.3.2",
-    "eslint": "9.39.5",
-    "prettier": "3.9.6",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "style-loader": "4.0.0",
-    "ts-loader": "9.5.1",
-    "typescript": "5.9.3",
-    "webpack": "5.96.1"
+    "@fontsource/ibm-plex-mono": "^5.2.6",
+    "@fontsource/ibm-plex-sans": "^5.2.7",
+    "@fontsource/space-grotesk": "^5.2.8",
+    "@foxglove/eslint-plugin": "^2.0.0",
+    "@foxglove/extension": "^2.59.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "create-foxglove-extension": "^1.3.2",
+    "css-loader": "^7.1.2",
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "style-loader": "^4.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0"
   }
 }

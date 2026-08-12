@@ -1,0 +1,21 @@
+# Immutable, content-addressed input for exactly one HDU Planner solve.
+uint16 schema_version
+string session_id
+string producer_instance_id
+uint64 trajectory_epoch
+uint64 flight_sequence
+string payload_hash_algorithm
+string payload_hash
+string frame_id
+string segment_boundary_reason
+float64 net_x
+float64 post_net_delay_s
+int64 segment_start_exposure_unix_ns
+int64 previous_segment_last_exposure_unix_ns
+int64 net_cross_exposure_unix_ns
+int64 commit_exposure_unix_ns
+int64 freeze_wall_unix_ns
+int64 publish_wall_unix_ns
+uint8 transmit_index
+uint8 transmit_count
+BallFlightSample[] samples

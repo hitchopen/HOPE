@@ -1,0 +1,33 @@
+[Unit]
+Description=HOPE Runner fixed Laptop-HDU-MDU lifecycle supervisor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agi
+Group=agi
+StateDirectory=hope-lifecycle
+StateDirectoryMode=0700
+Environment=ROS_DOMAIN_ID=232
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=ROS_STATIC_PEERS=
+EnvironmentFile=-/etc/hope-foxglove/network.env
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
+Environment=PYTHONPATH=/usr/local/lib/hope-foxglove
+Environment=ROS_LOG_DIR=/var/lib/hope-lifecycle/ros-log
+ExecStartPre=/usr/bin/install -d -m 0700 /var/lib/hope-lifecycle/ros-log
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/bin/hope_lifecycle_supervisor.py'
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/hope-lifecycle /tmp
+
+[Install]
+WantedBy=multi-user.target

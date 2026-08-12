@@ -1,42 +1,39 @@
-# HOPE A3 Console extension
+# HOPE A3 Console
 
-Laptop-side Foxglove custom panel for the HOPE A3 match-day monitor. It
-implements the visual design in the UI handoff without adding robot behavior.
+Foxglove extension implementing the attended operator console against the
+native model_21800 Runner contract.
 
-The panel subscribes only to the monitor topics already documented in
-`foxglove/README.md` and can call only the existing assert-only
-`/hope/safety/trigger_estop` service. The sequence area is intentionally empty:
-the proposed sequence services do not exist and are not exposed by the bridge.
-The HDU and MDU tiles are visual `NO DATA` placeholders; the panel does not
-subscribe to the proposed split-state topics. The proposed pelvis scene label
-is also omitted, leaving the stock 3D configuration unchanged.
-
-## Build and install locally
-
-Node.js 18 or newer and npm are required. From this directory:
+The panel uses one opt-in data source, `ws://<HDU-IP>:8766`. It never publishes
+topics and cannot access generic parameters. Buttons call only the explicit
+services listed in `foxglove/a3/bridge_params_control.yaml`. The
+lifecycle configuration call uses a `SetParameters`-shaped request only so the
+four named IPv4 strings can be transported; the dedicated server rejects every
+other name/type and accepts confirmation only while stopped.
 
 ```bash
 npm install
-npm run build
-npm run local-install
-```
-
-Restart or reload Foxglove Desktop, confirm that **HOPE A3 Console** appears in
-Settings → Extensions, then import `foxglove/layouts/a3_monitor.json`.
-
-Local extension installation may require a Foxglove developer seat. To create
-a shareable artifact instead of installing directly:
-
-```bash
+npm run lint
 npm run package
 ```
 
-This generates a `.foxe` package in this directory. Build outputs, local
-packages, and `node_modules/` are intentionally ignored by Git.
+Install the generated `.foxe` through Foxglove Desktop's Extensions screen,
+then import `foxglove/layouts/model21800_console.json`.
 
-## Safety boundary
+The recommended receiver sequence shown by the UI is Stand, Calibration,
+Refresh x_hit, then Ready. Calibration captures the ten physical P1 markers,
+replaces the approved `P1 -> pelvis_link` receipt, stores the derived stationary
+`world -> pelvis_link` audit snapshot in the same JSON, and waits for the base
+relay to publish a fresh matching packet. It does not refresh Planner x_hit;
+the separate `Refresh x_hit` button uses the existing atomic Planner contract.
+Neither operation becomes a hidden Runner MOTION admission gate. Ready to Serve
+and Serve remain disabled unless the authoritative Runner reports a loaded
+serve controller and the appropriate serve phase.
 
-The E-stop button is disabled until `/hope/safety/estop_ready` is fresh and
-true. It calls the existing service with `{}`, enforces a three-second UI
-timeout, rejects re-entry, and treats every response without `success: true` as
-failure. There is no reset or release control.
+The CPU card reports aggregate HDU load and the process with the largest CPU
+delta. E-stop is assert-only: the panel follows the persistent HDU latch and
+does not expose a reset operation.
+
+The system-lifecycle card is backed by the separately installed HDU supervisor
+documented in `docs/operations/foxglove_lifecycle.md`. `START SYSTEM`
+replaces runbook STEP 0/1/2A/2B/4/5 and leaves the Runner in PASSIVE; it does
+not replace physical robot support or access to the hardware E-stop.

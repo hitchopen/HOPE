@@ -100,6 +100,8 @@ a3_deploy/a3_deploy_example/assets/a3_runtime/motions/*
 # Local evaluation/replay evidence is reproducible output, not source
 /artifacts/
 /real_logs/
+/calibration/*.json
+/hope_ws/build_foxglove_verify/
 
 # Local secret scratch files; never commit passwords, tokens, or identities
 pw.txt

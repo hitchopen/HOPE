@@ -130,8 +130,49 @@ namespaced because its message type differs from the HOPE `/poses` `PoseArray` c
 
 ### Calibrating a humanoid P1 body to `pelvis_link`
 
-This is a required **one-time bringup calibration** for each installed marker
-shell or whenever its Motive rigid-body definition changes.
+The production A3 workflow performs this calibration once at the start of
+every run. Foxglove's `/hope/control/enter_prepare` first requests and waits
+for settled PD_STAND, then asks the external computer to run
+`p1_marker_cad_calibrator` against all ten waist markers on
+`/optitrack/rigid_body_markers`. It recomputes on every PREPARE, even when the
+previous run's JSON exists.
+Motive's P1-local ModelDef
+centres are rigidly registered to the A3 v2 hip-shell CAD centres
+(`f1`–`f5`, `b1`–`b5`), while live labeled-marker samples gate the installed
+geometry and residuals. The named non-collinear 3-D constellation makes the
+fixed six-DOF transform observable during a stationary PD_STAND capture.
+
+An approved receipt atomically replaces
+`calibration/p1_to_pelvis.json`, relative to the external computer's HOPE
+repository root (for example,
+`/home/user/HOPE/calibration/p1_to_pelvis.json`). The computer-side runtime
+relay then only reads that file for the rest of the run, composes the live
+`world → P1` pose with the fixed `P1 → pelvis_link` result, publishes policy
+localization on `/a3/base_pose_flat`, and publishes the unshifted diagnostic
+pose on `/a3/mocap/pelvis_pose`. It does not recalculate while the robot is
+playing. The robot consumes `/a3/base_pose_flat`; it does not store, read, or
+receive the JSON.
+
+For a maintenance-only manual capture, after PD_STAND has already been reached
+through the approved robot procedure:
+
+```bash
+ros2 run hope_bringup p1_marker_cad_calibrator \
+  --topic /optitrack/rigid_body_markers \
+  --asset-name P1 \
+  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
+  --minimum-frames 200 \
+  --capture-duration 4 \
+  --stationary-prepare \
+  --attest-installed-layout \
+  --allow-nominal-only-markers \
+  --output calibration/p1_to_pelvis.json
+```
+
+#### Legacy independent pose-pair route
+
+The older tool below is retained only for a genuinely independent external
+full-6DOF reference or a simulation check.
 
 Motive independently solves the P1 rigid body from the physical marker
 constellation and publishes `world → P1`. A separate calibration-only
@@ -161,6 +202,11 @@ solved 6-DOF `/P1/pose`, not individual marker topics, so marker topic names
 and ordering are irrelevant. It consumes no Table topic or TF. Do not run
 `p1_pelvis_tf_publisher` during collection, because that would make the target
 transform circular.
+
+No checked-in real-robot node publishes `/a3/calibration/pelvis_pose`. That
+topic is an input to this legacy route, not the result of the ten-marker
+calculation. Never feed `/a3/mocap/pelvis_pose` or another P1-derived result
+into it.
 
 A common `Table` transform would cancel algebraically from every relative-pose
 sample, so enabling that asset would add setup/competition divergence without

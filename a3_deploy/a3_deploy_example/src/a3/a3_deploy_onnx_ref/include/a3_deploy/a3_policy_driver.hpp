@@ -84,6 +84,9 @@ class A3PolicyDriver : public a3_rt::A3BasedTask {
   bool CommandFaultLatched() const noexcept {
     return command_fault_latched_.load(std::memory_order_acquire);
   }
+  bool HasSentCommand() const noexcept {
+    return has_sent_command_.load(std::memory_order_acquire);
+  }
 
   // Current value of the PR-9 PolicyFn tick counter (== PolicyTickCount).
   // Exposed as a distinct accessor so the test / diagnostic surface is

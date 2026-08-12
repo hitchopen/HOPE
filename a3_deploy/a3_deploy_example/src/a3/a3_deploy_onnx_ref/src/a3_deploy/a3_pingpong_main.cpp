@@ -38,6 +38,7 @@
 #include "a3_pingpong/pp_command_safety.hpp"
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_reference_playback.hpp"
+#include "a3_pingpong/pp_runner_control.hpp"
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "robot_io/a3_aimrt_backend.hpp"
 
@@ -63,24 +64,24 @@ constexpr bool kGate3QdesAuditOnlySupported = false;
 std::atomic<bool> g_stop{false};
 void OnSig(int) { g_stop.store(true); }
 
-enum class Mode {
-  kPassive,
-  kPdStand,
-  kShadow,
-  kMotion,
-  kReferencePlayback,
-  kServe,
-};
-const char* ModeName(Mode m) {
-  switch (m) {
-    case Mode::kPassive: return "PASSIVE";
-    case Mode::kPdStand: return "PD_STAND";
-    case Mode::kShadow: return "SHADOW(no-publish)";
-    case Mode::kMotion: return "MOTION";
-    case Mode::kReferencePlayback: return "REFERENCE_PLAYBACK";
-    case Mode::kServe: return "SERVE";
-  }
-  return "?";
+using Mode = a3_pingpong::RunnerMode;
+const char* ModeName(Mode mode) { return a3_pingpong::RunnerModeName(mode); }
+
+std::uint64_t NewRunnerBootId() {
+  const auto wall_now = static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count());
+  const auto steady_now = static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now().time_since_epoch())
+          .count());
+  const auto mixed = wall_now ^ (steady_now << 1) ^
+                     (static_cast<std::uint64_t>(getpid()) *
+                      0x9e3779b97f4a7c15ULL);
+  const auto folded =
+      mixed & (a3_pingpong::kRunnerMaxExactFloatInteger - 1);
+  return folded == 0 ? 1 : folded;
 }
 
 std::string Flag(int argc, char** argv, const char* name, const std::string& def) {
@@ -661,7 +662,9 @@ int main(int argc, char** argv) {
   // non-interactive run reach MOTION from a stable stand.
   const double warmup_sec = std::stod(Flag(argc, argv, "--warmup-sec", "0"));
   const Mode target_mode = default_mode;
-  std::atomic<Mode> mode{warmup_sec > 0 ? Mode::kPdStand : default_mode};
+  a3_pingpong::PpRunnerControl runner_control(
+      warmup_sec > 0 ? Mode::kPdStand : default_mode,
+      NewRunnerBootId(), session_id);
 
   // --- backend ---
   auto backend = std::make_unique<robot_io::A3AimrtBackend>();
@@ -669,6 +672,10 @@ int main(int argc, char** argv) {
       BuildBackendCfg(cfg["backend"], aimrt_override_arg, cfgdir, no_publish);
   std::cout << "[pingpong] backend cfg: " << backend_cfg << "\n";
   if (!backend->Init(backend_cfg)) { std::cerr << "backend Init failed\n"; return 1; }
+  backend->SetRunnerControlCallback(
+      [&runner_control](const std::vector<double>& values) {
+        runner_control.EnqueueFlatRequest(values);
+      });
   std::cout << "[pingpong] A3AimrtBackend initialised; model=" << model_path;
   if (!deploy_cfg_path.empty()) {
     std::cout << " deploy_cfg=" << deploy_cfg_path
@@ -1168,7 +1175,7 @@ int main(int argc, char** argv) {
   a3_pingpong::PpPolicy* ppp = pp.get();
   a3_pingpong::PpReferencePlayback* refp = ref.get();
   a3_pingpong::PpServeController* servep = serve.get();
-  auto command_fn = [ppp, refp, servep, &mode, &gain_scale, &leg_gain_scale, &ankle_gain_scale,
+  auto command_fn = [ppp, refp, servep, &runner_control, &gain_scale, &leg_gain_scale, &ankle_gain_scale,
                      stand_q, stand_kp, stand_kd,
                      official_stand, auto_leg_hold, policy_native,
                      squat_guard_rad, tilt_guard, leg_stand_gains,
@@ -1184,7 +1191,7 @@ int main(int argc, char** argv) {
                      &authoritative_mocap_stale_warned](
                         std::uint64_t tick, const robot_io::RobotState& st,
                         robot_io::RobotCommand& cmd) -> bool {
-    Mode m = mode.load();
+    Mode m = runner_control.mode();
     const int N = 31;
     bool publish = true;
     const auto wall_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -1212,7 +1219,7 @@ int main(int argc, char** argv) {
       const auto gfg = ppp->last_proj_grav();
       if (gfg[2] > fall_guard_gz) {
         if (++fall_guard_ticks >= 25) {  // ~0.5 s persistent at 50 Hz
-          mode.store(Mode::kPassive);
+          runner_control.SetRuntimeMode(Mode::kPassive);
           fall_guard_ticks = 0;
           std::fprintf(stderr,
               "[pp SAFETY] FALL GUARD: gravZ=%+.2f > %.2f for 0.5 s -> PASSIVE (zero gains). "
@@ -1322,13 +1329,13 @@ int main(int argc, char** argv) {
         // next tick enters MOTION through the dedicated static-handoff path:
         // planner/yaw state is reset, V17 affine previous-action history is
         // zeroed, and the first policy command remains this exact default.
-        mode.store(Mode::kMotion);
+        runner_control.SetRuntimeMode(Mode::kMotion);
         std::fprintf(stderr,
                      "[serve] strict 0.5 s handoff READY -> V17 MOTION armed\n");
       } else if (servep->state() ==
                  a3_pingpong::ServeControllerState::kAborted) {
         // A phase-aware abort has already reached the exact default pose.
-        mode.store(Mode::kPdStand);
+        runner_control.SetRuntimeMode(Mode::kPdStand);
         std::fprintf(stderr,
                      "[serve] phase-aware abort complete -> PD_STAND\n");
       }
@@ -1511,6 +1518,77 @@ int main(int argc, char** argv) {
   std::signal(SIGINT, OnSig);
   std::signal(SIGTERM, OnSig);
 
+  // Both keyboard s/m/p/h and the fixed remote services enter this bounded
+  // queue.  The AimRT callback never writes Runner mode or role directly.
+  std::thread runner_action_worker([&]() {
+    while (!g_stop.load()) {
+      const bool serve_active = servep != nullptr && servep->active();
+      const int serve_state =
+          servep == nullptr ? -1 : static_cast<int>(servep->state());
+      const double arm_scale = gain_scale.load();
+      const double leg_override = leg_gain_scale.load();
+      const double leg_scale =
+          leg_override >= 0.0 ? leg_override : arm_scale;
+      const double ankle_override = ankle_gain_scale.load();
+      const double ankle_scale =
+          ankle_override >= 0.0 ? ankle_override : leg_scale;
+      const bool serve_gain_scales_nominal =
+          std::abs(arm_scale - 1.0) <= 1.0e-12 &&
+          std::abs(leg_scale - 1.0) <= 1.0e-12 &&
+          std::abs(ankle_scale - 1.0) <= 1.0e-12;
+      const auto decisions = runner_control.ProcessPending(
+          driver.CommandFaultLatched(), serve_active, servep != nullptr,
+          serve_state, serve_gain_scales_nominal);
+      for (const auto& decision : decisions) {
+        if (decision.hold_reference) {
+          refp->Hold(decision.request.action ==
+                             a3_pingpong::RunnerAction::kEmergencyPassive
+                         ? "operator_passive"
+                         : "operator_mode_hold");
+        }
+        if (decision.request_serve_abort && servep != nullptr) {
+          servep->RequestAbort();
+        }
+        if (decision.request_serve_start && servep != nullptr) {
+          servep->Start();
+        }
+        if (decision.request_serve_confirm && servep != nullptr) {
+          servep->ConfirmBallOnPalm();
+        }
+        std::cout << "-> [runner-control] source="
+                  << (decision.request.remote ? "FOXGLOVE" : "KEYBOARD")
+                  << " request=" << decision.request.request_id
+                  << " action="
+                  << a3_pingpong::RunnerActionName(decision.request.action)
+                  << " result="
+                  << a3_pingpong::RunnerActionResultName(decision.result)
+                  << " reason="
+                  << a3_pingpong::RunnerActionReasonName(decision.reason)
+                  << " mode=" << ModeName(runner_control.mode())
+                  << " role="
+                  << a3_pingpong::LocalRoleName(runner_control.local_role())
+                  << "\n";
+        if (decision.request.action ==
+                a3_pingpong::RunnerAction::kEmergencyPassive &&
+            serve_active) {
+          std::cout << "-> EMERGENCY PASSIVE during SERVE; restart the "
+                       "runner before another serve\n";
+        }
+        const Mode current = runner_control.mode();
+        runner_control.ObserveExternalState(
+            !no_publish && current != Mode::kShadow && driver.HasSentCommand(),
+            policy_native,
+            driver.CommandFaultLatched(), servep != nullptr,
+            servep == nullptr ? -1 : static_cast<int>(servep->state()));
+        // Publish the acknowledgement immediately; the 5 Hz heartbeat below
+        // remains the stale/liveness source.  This prevents a following
+        // keyboard action from hiding a remote request's result.
+        backend->PublishRunnerState(runner_control.EncodeState());
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  });
+
   // ---- consolidated bring-up CONFIG banner (one place to eyeball every knob) ----
   char leg_gain_banner[16];
   {
@@ -1596,77 +1674,31 @@ int main(int argc, char** argv) {
       if (tty && read(STDIN_FILENO, &c, 1) == 1) {
         switch (c) {
           case 'p':
-            refp->Hold("operator_passive");
-            mode.store(Mode::kPassive);
-            if (servep != nullptr && servep->active()) {
-              std::cout << "-> EMERGENCY PASSIVE during SERVE; restart the "
-                           "runner before another serve\n";
-            } else {
-              std::cout << "-> PASSIVE\n";
-            }
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kEmergencyPassive);
             break;
           case 's':
-            if (mode.load() == Mode::kServe && servep != nullptr &&
-                servep->active()) {
-              servep->RequestAbort();
-              std::cout << "-> SERVE phase-aware abort requested; PD_STAND "
-                           "after safe recovery\n";
-            } else {
-              refp->Hold("operator_pd_stand");
-              mode.store(Mode::kPdStand);
-              std::cout << "-> PD_STAND\n";
-            }
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kEnterPdStand);
             break;
           case 'h':
-            if (mode.load() == Mode::kServe && servep != nullptr &&
-                servep->active()) {
-              std::cout << "-> SHADOW rejected while SERVE owns q_des; press x\n";
-            } else {
-              mode.store(Mode::kShadow);
-              std::cout << "-> SHADOW (no publish)\n";
-            }
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kEnterShadow);
             break;
           case 'm':
-            if (mode.load() == Mode::kServe && servep != nullptr &&
-                servep->active()) {
-              std::cout << "-> MOTION rejected before strict SERVE handoff\n";
-            } else {
-              mode.store(Mode::kMotion);
-              std::cout << "-> MOTION (PUBLISHING)\n";
-            }
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kEnterMotion);
             break;
           case 'v':
             if (servep == nullptr) {
               std::cout << "-> SERVE unavailable; launch with --serve\n";
             } else if (servep->state() ==
                        a3_pingpong::ServeControllerState::kAwaitBall) {
-              servep->ConfirmBallOnPalm();
-              std::cout << "-> ball-on-rigid-palm CONFIRMED; toss/swing armed\n";
-            } else if (servep->state() ==
-                       a3_pingpong::ServeControllerState::kFault) {
-              std::cout << "-> SERVE fault is latched; restart runner\n";
-            } else if (servep->active()) {
-              std::cout << "-> SERVE already active; wait or press x\n";
+              runner_control.EnqueueLocalAction(
+                  a3_pingpong::RunnerAction::kServe);
             } else {
-              const double arm_scale = gain_scale.load();
-              const double leg_override = leg_gain_scale.load();
-              const double leg_scale =
-                  leg_override >= 0.0 ? leg_override : arm_scale;
-              const double ankle_override = ankle_gain_scale.load();
-              const double ankle_scale =
-                  ankle_override >= 0.0 ? ankle_override : leg_scale;
-              if (std::abs(arm_scale - 1.0) > 1.0e-12 ||
-                  std::abs(leg_scale - 1.0) > 1.0e-12 ||
-                  std::abs(ankle_scale - 1.0) > 1.0e-12) {
-                std::cout
-                    << "-> SERVE rejected: restore arm/leg/ankle gain scales "
-                       "to exactly 1.0\n";
-              } else {
-                servep->Start();
-                mode.store(Mode::kServe);
-                std::cout << "-> SERVE pre-positioning both arms; do not place "
-                             "the ball until AWAIT_BALL_ON_PALM\n";
-              }
+              runner_control.EnqueueLocalAction(
+                  a3_pingpong::RunnerAction::kReadyToServe);
             }
             break;
           case '0':
@@ -1677,11 +1709,12 @@ int main(int argc, char** argv) {
           case '5':
           case '6':
           case '7':
-            if (reference_playback_selected || mode.load() == Mode::kReferencePlayback) {
+            if (reference_playback_selected ||
+                runner_control.mode() == Mode::kReferencePlayback) {
               const int gi = c - '0';
               refp->SetGroup(a3_pingpong::RefPlaybackGroupFromInt(gi));
               refp->Hold("group_selected_hold");
-              mode.store(Mode::kReferencePlayback);
+              runner_control.SetRuntimeMode(Mode::kReferencePlayback);
               std::cout << "-> ref group " << gi << " ("
                         << a3_pingpong::RefPlaybackGroupName(refp->group())
                         << "), HOLD; press r to move\n";
@@ -1695,7 +1728,7 @@ int main(int argc, char** argv) {
             break;
           case '[':
           case ']':
-            if (mode.load() == Mode::kServe && servep != nullptr &&
+            if (runner_control.mode() == Mode::kServe && servep != nullptr &&
                 servep->active()) {
               std::cout << "gain change rejected while SERVE owns PD gains\n";
             } else {
@@ -1719,25 +1752,25 @@ int main(int argc, char** argv) {
                     ppp->set_swing_dir(-1);
                     std::cout << "-> swing dir = BACKHAND (scripted target +y, clip1)\n"; break;
           case 'r':
-            if (mode.load() == Mode::kServe && servep != nullptr &&
+            if (runner_control.mode() == Mode::kServe && servep != nullptr &&
                 servep->active()) {
               std::cout << "-> REFERENCE_PLAYBACK rejected while SERVE owns q_des\n";
             } else {
               refp->Start();
-              mode.store(Mode::kReferencePlayback);
+              runner_control.SetRuntimeMode(Mode::kReferencePlayback);
               std::cout << "-> REFERENCE_PLAYBACK moving group="
                         << a3_pingpong::RefPlaybackGroupName(refp->group())
                         << "\n";
             }
             break;
           case 'x':
-            if (mode.load() == Mode::kServe && servep != nullptr &&
+            if (runner_control.mode() == Mode::kServe && servep != nullptr &&
                 servep->active()) {
               servep->RequestAbort();
               std::cout << "-> SERVE phase-aware abort requested\n";
             } else {
               refp->Hold("operator_hold");
-              mode.store(Mode::kReferencePlayback);
+              runner_control.SetRuntimeMode(Mode::kReferencePlayback);
               std::cout << "-> REFERENCE_PLAYBACK hold current pose\n";
             }
             break;
@@ -1749,6 +1782,23 @@ int main(int argc, char** argv) {
       } else {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
+    }
+  });
+
+  // Authoritative Runner heartbeat.  It carries actual local role/mode and
+  // the real PpServeController enum; the HDU observer only decodes it.
+  std::thread runner_state_publisher([&]() {
+    while (!g_stop.load()) {
+      const Mode current = runner_control.mode();
+      const bool command_publishing =
+          !no_publish && current != Mode::kShadow && driver.HasSentCommand();
+      const int serve_state =
+          servep == nullptr ? -1 : static_cast<int>(servep->state());
+      runner_control.ObserveExternalState(
+          command_publishing, policy_native,
+          driver.CommandFaultLatched(), servep != nullptr, serve_state);
+      backend->PublishRunnerState(runner_control.EncodeState());
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
   });
 
@@ -1768,14 +1818,14 @@ int main(int argc, char** argv) {
     auto now = std::chrono::steady_clock::now();
     if (warming &&
         std::chrono::duration<double>(now - t_start).count() >= warmup_sec) {
-      mode.store(target_mode);
+      runner_control.SetRuntimeMode(target_mode);
       warming = false;
       std::printf("[pingpong] warmup done -> %s\n", ModeName(target_mode));
     }
     double dt = std::chrono::duration<double>(now - t_prev).count();
     double hz = dt > 0 ? (ticks - last_ticks) / dt : 0;
     const auto g = ppp->last_proj_grav();
-    const Mode cur_mode = mode.load();
+    const Mode cur_mode = runner_control.mode();
     if (cur_mode == Mode::kServe && servep != nullptr) {
       const auto d = servep->TakeDiag();
       std::printf(
@@ -1882,6 +1932,8 @@ int main(int argc, char** argv) {
   PrintClampAudit("final", *ppp);
   PrintQdesProjectorAudit("final", *ppp);
   if (kb.joinable()) kb.join();
+  if (runner_action_worker.joinable()) runner_action_worker.join();
+  if (runner_state_publisher.joinable()) runner_state_publisher.join();
   if (tty) tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
   driver.StopDriver();
   backend->Stop();

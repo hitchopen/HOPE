@@ -181,6 +181,21 @@ EOF
     </transport_descriptors>
     <participant profile_name="hope_static_peer" is_default_profile="true">
       <rtps>
+        <builtin>
+          <initialPeersList>
+EOF
+  for peer in "${PEERS[@]}"; do
+    cat <<EOF
+            <locator>
+              <udpv4>
+                <address>${peer}</address>
+              </udpv4>
+            </locator>
+EOF
+  done
+  cat <<'EOF'
+          </initialPeersList>
+        </builtin>
         <useBuiltinTransports>false</useBuiltinTransports>
         <userTransports>
           <transport_id>hope_static_peer_udp</transport_id>

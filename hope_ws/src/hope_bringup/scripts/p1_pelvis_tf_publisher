@@ -21,16 +21,25 @@ def _finite_vector(value: object, length: int, field: str) -> list[float]:
 
 
 def load_calibration(path: Path) -> tuple[str, str, list[float], list[float]]:
-    """Load and validate the calibrator's ``p1_to_pelvis`` JSON object."""
+    """Load either approved calibrator receipt spelling."""
     document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise ValueError("P1 calibration document must be a JSON object")
+    if "approved" in document and document["approved"] is not True:
+        raise ValueError("P1 calibration receipt is not approved")
     try:
-        transform = document["p1_to_pelvis"]
+        if "p1_to_pelvis" in document:
+            transform = document["p1_to_pelvis"]
+            translation_value = transform["translation_m"]
+        else:
+            transform = document["p1_to_pelvis_link"]
+            translation_value = transform["xyz_m"]
         parent = transform["parent_frame"]
         child = transform["child_frame"]
-        translation = _finite_vector(transform["translation_m"], 3, "translation_m")
+        translation = _finite_vector(translation_value, 3, "translation_m")
         quaternion = _finite_vector(transform["quaternion_xyzw"], 4, "quaternion_xyzw")
     except (KeyError, TypeError) as exc:
-        raise ValueError(f"invalid p1_to_pelvis calibration document: missing {exc}") from exc
+        raise ValueError(f"invalid P1 calibration document: missing {exc}") from exc
 
     if not isinstance(parent, str) or not parent:
         raise ValueError("parent_frame must be a non-empty string")

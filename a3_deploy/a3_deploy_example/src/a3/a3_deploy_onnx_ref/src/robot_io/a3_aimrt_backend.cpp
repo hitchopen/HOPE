@@ -76,7 +76,8 @@ void AnchorJointMsgsFastRtpsTypesupport() {
       rosidl_typesupport_fastrtps_cpp, joint_msgs, msg, JointCommand)();
   (void)ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(
       rosidl_typesupport_fastrtps_cpp, joint_msgs, msg, JointState)();
-  // Same for the std_msgs Float64MultiArray carried by the live-planner subscribers.
+  // Same for the std_msgs Float64MultiArray carried by the live-planner and
+  // narrow local-Runner control/status channels.
   (void)ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(
       rosidl_typesupport_fastrtps_cpp, std_msgs, msg, Float64MultiArray)();
 }
@@ -409,6 +410,28 @@ bool A3AimrtBackend::RegisterPubSub_() {
                    "(publish_enabled=false)\n";
     }
 
+    // Runner status is telemetry, not a body command.  Register it even when
+    // publish_enabled=false so a --dry-run Runner remains observable without
+    // gaining any ability to publish motor commands.
+    {
+      auto runner_state_pub = ch.GetPublisher(runner_state_topic_);
+      if (!aimrt::channel::RegisterPublishType<
+              std_msgs::msg::Float64MultiArray>(runner_state_pub)) {
+        throw std::runtime_error("register runner state publish failed");
+      }
+      auto runner_state_proxy = std::make_shared<
+          aimrt::channel::PublisherProxy<std_msgs::msg::Float64MultiArray>>(
+          runner_state_pub);
+      runner_state_publish_fn_ =
+          [runner_state_proxy](const std::vector<double>& values) {
+            std_msgs::msg::Float64MultiArray message;
+            message.data = values;
+            runner_state_proxy->Publish(message);
+          };
+      std::cerr << "[a3_backend] runner state publisher enabled: "
+                << runner_state_topic_ << "\n";
+    }
+
     // ---- Subscribers ----
     auto waist_sub = ch.GetSubscriber("/body_drive/waist_joint_state");
     auto leg_sub   = ch.GetSubscriber("/body_drive/leg_joint_state");
@@ -525,6 +548,20 @@ bool A3AimrtBackend::RegisterPubSub_() {
         throw std::runtime_error("subscribe serve ball state failed");
       std::cerr << "[a3_backend] serve ball-state subscriber enabled: "
                 << ball_state_topic_ << "\n";
+    }
+    if (runner_control_cb_) {
+      auto runner_control_sub = ch.GetSubscriber(runner_control_topic_);
+      if (!aimrt::channel::Subscribe<std_msgs::msg::Float64MultiArray>(
+              runner_control_sub,
+              [this](const std::shared_ptr<
+                     const std_msgs::msg::Float64MultiArray>& msg) {
+                if (!msg || !runner_control_cb_) return;
+                runner_control_cb_(msg->data);
+              })) {
+        throw std::runtime_error("subscribe runner control request failed");
+      }
+      std::cerr << "[a3_backend] runner control subscriber enabled: "
+                << runner_control_topic_ << "\n";
     }
   } catch (const std::exception& e) {
     std::cerr << "[a3_backend] RegisterPubSub_ failed: " << e.what() << "\n";
@@ -699,6 +736,25 @@ void A3AimrtBackend::SetBallStateCallback(FlatArrayCallback cb) {
 }
 void A3AimrtBackend::SetBallStateTopic(std::string topic) {
   if (!topic.empty()) ball_state_topic_ = std::move(topic);
+}
+void A3AimrtBackend::SetRunnerControlCallback(FlatArrayCallback cb) {
+  runner_control_cb_ = std::move(cb);
+}
+void A3AimrtBackend::SetRunnerControlTopic(std::string topic) {
+  if (!topic.empty()) runner_control_topic_ = std::move(topic);
+}
+void A3AimrtBackend::SetRunnerStateTopic(std::string topic) {
+  if (!topic.empty()) runner_state_topic_ = std::move(topic);
+}
+
+bool A3AimrtBackend::PublishRunnerState(const std::vector<double>& values) {
+  std::lock_guard<std::mutex> lock(runner_state_publish_mutex_);
+  if (!started_.load(std::memory_order_acquire) ||
+      !runner_state_publish_fn_) {
+    return false;
+  }
+  runner_state_publish_fn_(values);
+  return true;
 }
 
 void A3AimrtBackend::OnSyncState_(const RobotState& state) {

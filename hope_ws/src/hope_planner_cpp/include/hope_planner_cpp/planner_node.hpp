@@ -2,6 +2,7 @@
 
 #include "hope_planner_cpp/audit_logger.hpp"
 #include "hope_planner_cpp/batch_physics_estimator.hpp"
+#include "hope_planner_cpp/flight_packet.hpp"
 #include "hope_planner_cpp/incoming_trajectory.hpp"
 #include "hope_planner_cpp/post_net_one_shot.hpp"
 #include "hope_planner_cpp/racket_target_planner.hpp"
@@ -13,6 +14,7 @@
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <hope_msgs/msg/ball_flight_packet.hpp>
 #include <hope_msgs/msg/racket_command.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
@@ -51,6 +53,8 @@ class PlannerNode final : public rclcpp::Node {
   };
 
   void ball_callback(const geometry_msgs::msg::PoseArray::SharedPtr message);
+  void flight_packet_callback(
+      const hope_msgs::msg::BallFlightPacket::SharedPtr message);
   void base_flat_callback(const std_msgs::msg::Float64MultiArray::SharedPtr message);
   void robot_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr message);
   void solver_loop() noexcept;
@@ -70,6 +74,9 @@ class PlannerNode final : public rclcpp::Node {
   void add_base_sample(double base_x, std::int64_t receipt_steady_ns) noexcept;
   void set_base_snapshot(const BaseSnapshot& snapshot) noexcept;
   BaseSnapshot base_snapshot() const noexcept;
+  bool try_take_flight_packet(TrajectorySnapshot& snapshot) noexcept;
+  bool has_pending_flight_packet() const noexcept;
+  std::size_t flight_packet_queue_depth() const noexcept;
   double select_swing_sign(double intercept_y, double base_y) noexcept;
   double active_x_hit() const noexcept;
 
@@ -91,6 +98,9 @@ class PlannerNode final : public rclcpp::Node {
 
   SpscRing<BallSample, kInputRingCapacity> input_ring_;
   LatestSnapshotMailbox snapshot_mailbox_;
+  FlightPacketDeduplicator flight_packet_deduplicator_{256};
+  mutable std::mutex flight_packet_mutex_;
+  std::deque<TrajectorySnapshot> flight_packet_queue_;
   std::mutex wake_mutex_;
   std::condition_variable wake_condition_;
   std::thread solver_thread_;
@@ -105,10 +115,13 @@ class PlannerNode final : public rclcpp::Node {
 
   Schema2Packer schema2_packer_;
   std::unique_ptr<AuditLogger> audit_logger_;
+  std::unique_ptr<AuditLogger> flight_packet_audit_logger_;
 
   rclcpp::CallbackGroup::SharedPtr ball_callback_group_;
   rclcpp::CallbackGroup::SharedPtr base_callback_group_;
   rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr ball_subscription_;
+  rclcpp::Subscription<hope_msgs::msg::BallFlightPacket>::SharedPtr
+      flight_packet_subscription_;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr base_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr robot_pose_subscription_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr flat_publisher_;
@@ -142,6 +155,8 @@ class PlannerNode final : public rclcpp::Node {
   std::string x_hit_status_file_;
   std::string session_id_;
   bool post_net_one_shot_enabled_ = true;
+  bool flight_packet_input_enabled_ = false;
+  std::string flight_packet_topic_ = "/ball/flight_packet";
   double post_net_commit_delay_s_ = 0.05;
   double post_net_future_bounce_tangential_gain_ = 0.075;
 
@@ -174,6 +189,11 @@ class PlannerNode final : public rclcpp::Node {
   std::atomic<int> incoming_phase_{
       static_cast<int>(IncomingPhase::kSeekIncoming)};
   std::atomic<std::uint64_t> trajectory_source_resets_{0};
+  std::atomic<std::uint64_t> flight_packets_received_{0};
+  std::atomic<std::uint64_t> flight_packets_accepted_{0};
+  std::atomic<std::uint64_t> flight_packets_duplicate_{0};
+  std::atomic<std::uint64_t> flight_packets_conflict_{0};
+  std::atomic<std::uint64_t> flight_packets_invalid_{0};
   std::atomic<std::uint64_t> solve_count_{0};
   std::atomic<std::uint64_t> valid_count_{0};
   std::atomic<std::uint64_t> spin_valid_count_{0};

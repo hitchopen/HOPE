@@ -1,37 +1,43 @@
 [Unit]
-Description=HOPE A3 monitor (time, CPU, TF, PM status, E-stop proxy)
+Description=HOPE A3 monitor and assert-only safety proxy
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=agi
+StateDirectory=hope-monitor
+StateDirectoryMode=0700
 Environment=ROS_DOMAIN_ID=232
 Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=ROS_STATIC_PEERS=
+EnvironmentFile=-/etc/hope-foxglove/network.env
 Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
 Environment=PYTHONPATH=/usr/local/lib/hope-foxglove:/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package/lib/python3.11/site-packages
 Environment=LD_LIBRARY_PATH=/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package/lib
+ExecStartPre=/bin/bash -c 'for ((i=0; i<150; ++i)); do /sbin/ip -4 address show dev eth_hdu | /bin/grep -q "inet 10.42.10.10/24" && exit 0; /bin/sleep 0.2; done; exit 1'
 # Per-robot parameters: pelvis/reference frame names. Motive/NatNet runs on the
 # external laptop and is intentionally not contacted by this A3 service.
 ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+  source /home/agi/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash && \
   python3 /usr/local/bin/hope_monitor.py \
     --ros-args -p pelvis_frame:=pelvis_link \
     -p reference_frame:=world \
     -p ntp_max_offset_ms:=10.0 \
     -p ntp_max_skew_ppm:=5.0 \
-    -p joint_publish_hz:=20.0 \
-    -p joint_stale_after_s:=0.5 \
     -p message_latency_topic:=/ros2/body_drive/pelvis_imu/data \
     -p message_latency_publish_hz:=20.0 \
     -p message_latency_stale_after_s:=0.5 \
     -p agibot_pm_unit:=agibot_pm.service \
+    -p runner_estop_service:=/hope/runner/emergency_passive \
     -p cpu_publish_period_s:=1.0 \
     -p tf_stale_after_s:=0.5 \
-    -p robot_description_publish_period_s:=5.0 \
-    -p robot_model_info_path:=/agibot/data/info/model \
-    -p robot_model_root:=/opt/agibot/share/robot_model/models \
-    -p robot_asset_root_url:=http://localhost:8000/urdf'
+    -p calibration_service:=/a3/calibration/recompute_p1 \
+    -p calibration_timeout_s:=25.0 \
+    -p pelvis_pose_topic:=/a3/mocap/pelvis_pose \
+    -p estop_latch_path:=/var/lib/hope-monitor/estop-latched'
 Restart=on-failure
 RestartSec=5
 

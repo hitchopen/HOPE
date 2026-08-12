@@ -1,0 +1,30 @@
+[Unit]
+Description=HOPE model_21800 Foxglove observer (read-only)
+After=network-online.target hope-foxglove-bridge.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agi
+Environment=ROS_DOMAIN_ID=232
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=ROS_STATIC_PEERS=
+EnvironmentFile=-/etc/hope-foxglove/network.env
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
+Environment=PYTHONPATH=/usr/local/lib/hope-foxglove
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+  python3 /usr/local/bin/hope_observer.py \
+    --ros-args \
+    -p session_id_path:=/tmp/hope_model21800_session_id \
+    -p runtime_root:=/tmp/hope_real \
+    -p base_stale_after_s:=0.5 \
+    -p ball_stale_after_s:=0.1 \
+    -p publish_period_s:=0.2 \
+    -p planner_process_fragment:=hope_planner_cpp_node'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

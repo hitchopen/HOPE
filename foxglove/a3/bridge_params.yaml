@@ -5,14 +5,12 @@
     tls: false
     # Whitelist keeps camera H.265 / lidar off the Wi-Fi link by default.
     topic_whitelist:
-      - "^/tf$"
-      - "^/tf_static$"
-      - "^/joint_states$"
       - "^/hope/.*"
       - "^/agivslam/localization/odometry$"
-    # The sole remote write path is the HOPE Trigger proxy. It can assert the
-    # A3 vendor software E-stop but cannot clear it or call arbitrary services.
-    service_whitelist: ["^/hope/safety/trigger_estop$"]
+    # The fleet endpoint remains monitoring plus assert-only E-stop. All
+    # model_21800 Runner and Planner controls are on the opt-in 8766 bridge.
+    service_whitelist:
+      - "^/hope/safety/trigger_estop$"
     param_whitelist: ["(?!)"]
     client_topic_whitelist: ["(?!)"]
     send_buffer_limit: 10000000

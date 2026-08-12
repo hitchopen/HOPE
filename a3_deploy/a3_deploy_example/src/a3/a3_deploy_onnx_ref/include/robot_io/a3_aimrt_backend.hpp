@@ -23,6 +23,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -98,6 +99,15 @@ class A3AimrtBackend : public RobotIOBackend {
   void SetBallStateCallback(FlatArrayCallback cb);
   void SetBallStateTopic(std::string topic);
 
+  // Narrow local-Runner operator channel.  The request callback receives only
+  // the frozen fixed-action wire; the Runner validates and queues it.  State
+  // publishing is independent of body command publishing so --dry-run can
+  // still be observed without enabling motor output.
+  void SetRunnerControlCallback(FlatArrayCallback cb);
+  void SetRunnerControlTopic(std::string topic);
+  void SetRunnerStateTopic(std::string topic);
+  bool PublishRunnerState(const std::vector<double>& values);
+
   // ---------- Test hooks (no AimRT required) ----------
   void InjectWaistSample_ForTest(const a3_sync::WaistSample& s);
   void InjectLegSample_ForTest(const a3_sync::LegSample& s);
@@ -155,6 +165,11 @@ class A3AimrtBackend : public RobotIOBackend {
   std::string base_pose_topic_{"/a3/base_pose_flat"};
   FlatArrayCallback ball_state_cb_{};
   std::string ball_state_topic_{"/serve/ball_state_flat"};
+  FlatArrayCallback runner_control_cb_{};
+  std::string runner_control_topic_{"/hope/runner/control_request_flat"};
+  std::string runner_state_topic_{"/hope/runner/state_flat"};
+  std::mutex runner_state_publish_mutex_;
+  std::function<void(const std::vector<double>&)> runner_state_publish_fn_{};
 
 #ifdef ENABLE_A3_AIMRT_BACKEND
   aimrt::runtime::core::AimRTCore          aimrt_core_;
