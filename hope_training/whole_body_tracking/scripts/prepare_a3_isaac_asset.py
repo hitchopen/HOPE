@@ -57,8 +57,6 @@ DEFAULT_OUTPUT_ROOT = (
     / "assets"
     / "agibot_a3"
 )
-
-
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--source-root", type=pathlib.Path, default=DEFAULT_SOURCE_ROOT,
@@ -75,6 +73,23 @@ def _rewrite_mesh_ref(filename: str) -> str:
     if filename.startswith("package://") and "/meshes/" in filename:
         return "../meshes/" + filename.rsplit("/meshes/", 1)[1]
     return filename
+
+
+def _remove_racket_calibration_ball(root: ET.Element) -> None:
+    """Remove the vendor's fixed racket-center calibration sphere.
+
+    ``pingbang_ball_Link`` is a visual/calibration aid attached at the same
+    transform as the red/black racket meshes.  It is not part of the build_1
+    training articulation, changes the body topology, and adds an overlapping
+    fixed collision.  Remove it so fresh imports reproduce that articulation.
+    """
+    for joint in list(root.findall("joint")):
+        child = joint.find("child")
+        if child is not None and child.get("link") == "pingbang_ball_Link":
+            root.remove(joint)
+    for link in list(root.findall("link")):
+        if link.get("name") == "pingbang_ball_Link":
+            root.remove(link)
 
 
 def _find_source_urdf(source_root: pathlib.Path) -> pathlib.Path:
@@ -104,10 +119,21 @@ def prepare(source_root: pathlib.Path, output_root: pathlib.Path, force: bool) -
 
     tree = ET.parse(source_urdf)
     root = tree.getroot()
+    _remove_racket_calibration_ball(root)
     for mesh in root.findall(".//mesh"):
         filename = mesh.get("filename")
         if filename:
             mesh.set("filename", _rewrite_mesh_ref(filename))
+
+    # Several vendor fixed joints carry invalid one-value or empty ``axis``
+    # attributes (for example ``xyz="0.0"``).  An axis has no meaning for a
+    # fixed joint, but Isaac Sim 5.x still attempts to parse it and may produce
+    # an incomplete articulation.  Remove only those semantically inert tags;
+    # movable-joint axes remain byte-for-byte unchanged.
+    for joint in root.findall(".//joint"):
+        axis = joint.find("axis")
+        if joint.get("type") == "fixed" and axis is not None:
+            joint.remove(axis)
     tree.write(urdf_dir / "model.urdf", encoding="utf-8", xml_declaration=True)
     print(f"[prepare_a3_isaac_asset] prepared: {output_root}")
 
@@ -125,6 +151,36 @@ def check(output_root: pathlib.Path) -> bool:
     if stale:
         failures.append("stale package:// mesh refs remain: " + ", ".join(sorted(set(stale))[:8]))
 
+    root = ET.parse(model_urdf).getroot()
+    calibration_links = [
+        link.get("name", "<unnamed>")
+        for link in root.findall("link")
+        if link.get("name") == "pingbang_ball_Link"
+    ]
+    if calibration_links:
+        failures.append("racket calibration ball must not be part of the Isaac articulation")
+    fixed_axes = [
+        joint.get("name", "<unnamed>")
+        for joint in root.findall(".//joint")
+        if joint.get("type") == "fixed" and joint.find("axis") is not None
+    ]
+    if fixed_axes:
+        failures.append("fixed joints still carry unnecessary axis tags: " + ", ".join(fixed_axes[:8]))
+
+    for joint in root.findall(".//joint"):
+        if joint.get("type") not in {"revolute", "continuous", "prismatic"}:
+            continue
+        axis = joint.find("axis")
+        raw = None if axis is None else axis.get("xyz")
+        try:
+            values = [] if raw is None else [float(value) for value in raw.split()]
+        except ValueError:
+            values = []
+        if len(values) != 3 or sum(value * value for value in values) <= 0.0:
+            failures.append(
+                f"movable joint has an invalid axis: {joint.get('name', '<unnamed>')} xyz={raw!r}"
+            )
+
     rel_refs = [r for r in refs if r.startswith("../meshes/")]
     for ref in rel_refs:
         if not (model_urdf.parent / ref).resolve().exists():
@@ -134,7 +190,11 @@ def check(output_root: pathlib.Path) -> bool:
         for failure in failures:
             print(f"[FAIL] {failure}")
         return False
-    print(f"[prepare_a3_isaac_asset] OK: {len(refs)} mesh refs ({len(rel_refs)} repo-relative), all resolve.")
+    print(
+        f"[prepare_a3_isaac_asset] OK: {len(refs)} mesh refs "
+        f"({len(rel_refs)} repo-relative), all resolve; build_1 racket articulation and "
+        "joint axes are Isaac-compatible."
+    )
     return True
 
 

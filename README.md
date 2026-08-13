@@ -47,8 +47,7 @@ cd hope_training/whole_body_tracking
 python3 scripts/prepare_a3_isaac_asset.py --force
 
 # 2. Train the deploy-grade rally policy (inside your Isaac Lab Python environment).
-#    The bundled clips are schema placeholders — swap in real forehand/backhand clips
-#    (docs/REPLACE_MOTIONS.md) before training a policy you intend to deploy.
+#    The complete validated forehand/backhand reference pair is included.
 source setup_train_env.sh        # defines the `hope_isaac_py` Isaac Sim launcher
 hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
@@ -182,10 +181,10 @@ for an explicitly independent external 6-DOF reference or simulation check.
 See [mocap/README.md](mocap/README.md#calibrating-a-humanoid-p1-body-to-pelvis_link)
 and [docs/OPTITRACK.md](docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link).
 
-The bundled motion clips under `hope_training/motions/preprocessed/` are
-**reference-only placeholders** — replace them with real forehand/backhand clips
-([docs/REPLACE_MOTIONS.md](docs/REPLACE_MOTIONS.md)) before training a policy you
-intend to deploy. See [QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) for the full
+The complete validated reference pair is included under the stable public names
+`hope_training/motions/preprocessed/hope_forehand.npz` and `hope_backhand.npz`.
+Use [docs/REPLACE_MOTIONS.md](docs/REPLACE_MOTIONS.md) only to substitute your own
+retargeted motions. See [QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) for the full
 install → train → export → evaluate → run loop, and
 [docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md) for the deploy path.
 
@@ -221,7 +220,7 @@ The competition rulebooks ship at the repository root:
 | `HOPE_*_Reference_Setup.md` | Preserved system design documents (planner / WBC training / hardware deployment). |
 | `HOPE_AI_Challenge_2026_Rules_EN.docx`, `..._ZH.docx` | Challenge rulebooks (English / 中文). |
 | `configs/` | The shared no-spin ball model: the generic [ball_physics.yaml](configs/ball_physics.yaml) plus the real venue fits [ball_physics_venue.yaml](configs/ball_physics_venue.yaml) and [incoming_ball_venue.yaml](configs/incoming_ball_venue.yaml) (measured drag/restitution and the serve envelope used by the proven line). |
-| `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with the `HitterPingPong` task and the train/eval/export scripts, including `scripts/prepare_a3_isaac_asset.py`), placeholder motion clips (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
+| `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with the `HitterPingPong` task and the train/eval/export scripts, including `scripts/prepare_a3_isaac_asset.py`), the complete validated forehand/backhand reference motions (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
 | `NatNet2ROS2/` | Independent ROS 2 workspace for the OptiTrack/Motive NatNet adapter, named-pose interfaces, acquisition-time mapping, and driver tests. Build and launch it separately from `hope_ws`. |
 | `VRPN2ROS2/` | Independent ROS 2 workspace for the ChingMu/VRPN client, strict server-time/NTP validation, and raw per-tracker `PoseStamped` topics. |
 | `hope_ws/` | ROS 2 workspace: `hope_planner` (Python no-spin planner + presets + fake-planner mode), `hope_planner_cpp` (low-latency C++ planner used on hardware), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (`RacketCommand.msg`), and `calibration_receipts/` (venue calibration evidence). Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
@@ -323,7 +322,7 @@ the real A3 ([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)).
 
 **Implementation scope.** The preserved reference documents include robot-specific integration examples; the code currently shipped in this repository implements the Agibot A3 (31 actuated DOF) path end to end: Isaac Lab training of one unified forehand/backhand policy on the 110-D `hitter_pure` contract (the `HitterPingPong` task, gym id `HOPE-HitterPingPong-AgibotA3-v0` — the recipe validated on real hardware), Isaac evaluation, MuJoCo sim-to-sim and closed-loop evaluation with a real ball plant, and the native C++ deploy runner — alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
 
-**Open-source training stack.** The WBC training pipeline is built entirely on open-source code: [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting, and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. The HITTER paper's trained weights are not released; all training starts from scratch, and the bundled motion clips are placeholders to be replaced with your own retargeted swings ([docs/REPLACE_MOTIONS.md](docs/REPLACE_MOTIONS.md)).
+**Training stack.** The WBC training code builds on open-source [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, plus [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. This repository also publishes the complete validated forehand/backhand reference motions and the `model_21800` training/deploy artifacts; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the per-asset documentation for applicable terms.
 
 ## Supported Robots
 
@@ -352,7 +351,8 @@ and [mocap/README.md](mocap/README.md).
 
 Each piece has its own dependencies — install only what the step you are on needs:
 
-- **Training / export**: NVIDIA Isaac Sim + Isaac Lab (with `rsl_rl`), Python 3.10, PyTorch, CUDA GPU
+- **Training / export**: NVIDIA Isaac Sim + a compatible Isaac Lab installation
+  (with `rsl_rl`), its matching Python/PyTorch environment, and a CUDA GPU
 - **MuJoCo evaluation / reference runner**: `mujoco`, `onnxruntime`, `numpy` (no GPU needed)
 - **Planner workspace**: ROS 2 Jazzy (`rclpy`), `numpy`, `pyyaml`
 - **Real arena**: OptiTrack Motive streams **NatNet** through the independently built/launched `NatNet2ROS2` workspace and the HOPE-side `optitrack_mct_relay` (`mocap_backend:=optitrack`; set Motive **Up Axis = Z** and see [docs/OPTITRACK.md](docs/OPTITRACK.md)). Chingmu CMTracker/MCServer streams **VRPN** through the independent `VRPN2ROS2` workspace and HOPE-side `pose_to_posearray` (`mocap_backend:=vrpn`). In either case configure the named 6-DOF competition rigid bodies `Ball`, `P1`, and `P2`; `Table` is calibration-only and is not streamed during competition.

@@ -33,8 +33,8 @@ docs win:
 
 [REMOVED_FROM_STARTER.md](docs/REMOVED_FROM_STARTER.md) is the two-way ledger:
 what the first rewrite removed, what the build1 port brought back (most of it),
-what superseded what, and what is still deliberately not shipped (real motion
-clips, trained weights, the vendor payload, internal evidence stores).
+what superseded what, and what is still deliberately not shipped (additional
+motion datasets and weights, the vendor payload, internal evidence stores).
 
 ## System design documents
 

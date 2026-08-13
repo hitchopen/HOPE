@@ -39,11 +39,11 @@ use this exact index order:
 ## Enforcement
 
 A permuted joint enumeration would silently permute every observation and action
-column, so the order is checked at three points:
+column, so the order is bound and checked at the artifact boundary:
 
 | Stage | Check |
 |-------|-------|
-| Train (`scripts/train.py`) | Refuses to start if the articulation's joint enumeration differs from the canonical order. |
+| Train (`scripts/train.py`) | Uses the articulation order of the selected Isaac asset; the published task and motion sidecars record the validated 31-column training order. |
 | Export (`scripts/export_onnx.py`) | Verifies the order, then embeds it (with the runtime-contract metadata) in the ONNX and the exported deploy manifest. |
 | Deploy (C++ loader) | Validates the embedded metadata — joint order, contract name, recipe fields, and the hard-limit table cross-checked against the official A3 URDF — and **fails closed** on any mismatch. |
 

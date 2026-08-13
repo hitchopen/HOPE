@@ -23,6 +23,8 @@ from isaaclab.utils.math import (
     yaw_quat,
 )
 
+from whole_body_tracking.utils.motion_schema import select_motion_bodies
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -36,7 +38,13 @@ class MotionLoader:
     before: one segment spanning the whole motion, ``time_step_total`` unchanged.
     """
 
-    def __init__(self, motion_file, body_indexes: Sequence[int], device: str = "cpu"):
+    def __init__(
+        self,
+        motion_file,
+        body_indexes: Sequence[int],
+        device: str = "cpu",
+        articulation_body_count: int | None = None,
+    ):
         files = [motion_file] if isinstance(motion_file, str) else list(motion_file)
         assert len(files) >= 1, "MotionLoader needs at least one motion file"
         jp, jv, bp, bq, bl, ba = [], [], [], [], [], []
@@ -49,10 +57,58 @@ class MotionLoader:
                 self.fps = data["fps"]
             jp.append(torch.tensor(data["joint_pos"], dtype=torch.float32, device=device))
             jv.append(torch.tensor(data["joint_vel"], dtype=torch.float32, device=device))
-            bp.append(torch.tensor(data["body_pos_w"], dtype=torch.float32, device=device))
-            bq.append(torch.tensor(data["body_quat_w"], dtype=torch.float32, device=device))
-            bl.append(torch.tensor(data["body_lin_vel_w"], dtype=torch.float32, device=device))
-            ba.append(torch.tensor(data["body_ang_vel_w"], dtype=torch.float32, device=device))
+            bp.append(
+                torch.tensor(
+                    select_motion_bodies(
+                        data["body_pos_w"],
+                        body_indexes,
+                        f,
+                        "body_pos_w",
+                        articulation_body_count,
+                    ),
+                    dtype=torch.float32,
+                    device=device,
+                )
+            )
+            bq.append(
+                torch.tensor(
+                    select_motion_bodies(
+                        data["body_quat_w"],
+                        body_indexes,
+                        f,
+                        "body_quat_w",
+                        articulation_body_count,
+                    ),
+                    dtype=torch.float32,
+                    device=device,
+                )
+            )
+            bl.append(
+                torch.tensor(
+                    select_motion_bodies(
+                        data["body_lin_vel_w"],
+                        body_indexes,
+                        f,
+                        "body_lin_vel_w",
+                        articulation_body_count,
+                    ),
+                    dtype=torch.float32,
+                    device=device,
+                )
+            )
+            ba.append(
+                torch.tensor(
+                    select_motion_bodies(
+                        data["body_ang_vel_w"],
+                        body_indexes,
+                        f,
+                        "body_ang_vel_w",
+                        articulation_body_count,
+                    ),
+                    dtype=torch.float32,
+                    device=device,
+                )
+            )
             seg_lens.append(jp[-1].shape[0])
         self.joint_pos = torch.cat(jp, dim=0)
         self.joint_vel = torch.cat(jv, dim=0)
@@ -60,7 +116,6 @@ class MotionLoader:
         self._body_quat_w = torch.cat(bq, dim=0)
         self._body_lin_vel_w = torch.cat(bl, dim=0)
         self._body_ang_vel_w = torch.cat(ba, dim=0)
-        self._body_indexes = body_indexes
         self.time_step_total = self.joint_pos.shape[0]
         # Per-clip segment boundaries on the concatenated time axis.
         self.num_segments = len(seg_lens)
@@ -71,19 +126,19 @@ class MotionLoader:
 
     @property
     def body_pos_w(self) -> torch.Tensor:
-        return self._body_pos_w[:, self._body_indexes]
+        return self._body_pos_w
 
     @property
     def body_quat_w(self) -> torch.Tensor:
-        return self._body_quat_w[:, self._body_indexes]
+        return self._body_quat_w
 
     @property
     def body_lin_vel_w(self) -> torch.Tensor:
-        return self._body_lin_vel_w[:, self._body_indexes]
+        return self._body_lin_vel_w
 
     @property
     def body_ang_vel_w(self) -> torch.Tensor:
-        return self._body_ang_vel_w[:, self._body_indexes]
+        return self._body_ang_vel_w
 
 
 class MotionCommand(CommandTerm):
@@ -247,7 +302,12 @@ class MotionCommand(CommandTerm):
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
 
-        self.motion = MotionLoader(self.cfg.motion_file, self.body_indexes, device=self.device)
+        self.motion = MotionLoader(
+            self.cfg.motion_file,
+            self.body_indexes,
+            device=self.device,
+            articulation_body_count=len(self.robot.body_names),
+        )
         # GROUNDING preflight (2026-07-03): the actor obs consumes the RAW clip-world anchor quat,
         # and the racket-target boxes are planned in the +X-grounded frame — a clip that was never
         # re-grounded (frame-0 anchor yaw far from 0, e.g. registry v4 at ~+84 deg) trains a

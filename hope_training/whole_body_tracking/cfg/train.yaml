@@ -24,7 +24,7 @@ seed: 0
 num_envs: null
 max_iterations: null
 
-# Reference motion clips. null -> use the two placeholder clips configured in cfg/task/HOPEPingPong.yaml
+# Reference motion clips. null -> use the complete Build clips configured in cfg/task/HOPEPingPong.yaml
 # (hope_forehand.npz + hope_backhand.npz). Pass local .npz paths to use your own clips:
 #   motion_file=/abs/hope_forehand.npz motion_file_2=/abs/hope_backhand.npz
 motion_file: null       # clip 0 (forehand)
