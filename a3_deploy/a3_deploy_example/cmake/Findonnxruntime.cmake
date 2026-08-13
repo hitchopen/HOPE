@@ -7,9 +7,20 @@
 #  onnxruntime_LIBRARIES - Libraries for ONNX Runtime
 #  onnxruntime::onnxruntime - Imported target for ONNX Runtime
 
-# Try to find ONNX Runtime installation
+# Try to find ONNX Runtime installation.  A public clone carries the x86_64
+# SDK under thirdparty so Gate3 and the reference runner do not depend on a
+# machine-global /opt/onnxruntime install.
+set(_onnxruntime_hints)
+if(DEFINED onnxruntime_ROOT)
+  list(APPEND _onnxruntime_hints "${onnxruntime_ROOT}")
+endif()
+file(GLOB _onnxruntime_bundled_roots LIST_DIRECTORIES true
+  "${CMAKE_CURRENT_LIST_DIR}/../thirdparty/onnxruntime/onnxruntime-linux-*")
+list(APPEND _onnxruntime_hints ${_onnxruntime_bundled_roots})
+
 find_path(onnxruntime_INCLUDE_DIR
   NAMES onnxruntime_cxx_api.h
+  HINTS ${_onnxruntime_hints}
   PATHS
     ENV onnxruntime_ROOT
     ENV onnxruntime_DIR
@@ -21,6 +32,7 @@ find_path(onnxruntime_INCLUDE_DIR
 
 find_library(onnxruntime_LIBRARY
   NAMES onnxruntime
+  HINTS ${_onnxruntime_hints}
   PATHS
     ENV onnxruntime_ROOT
     ENV onnxruntime_DIR
@@ -55,3 +67,5 @@ if(onnxruntime_FOUND)
   mark_as_advanced(onnxruntime_INCLUDE_DIR onnxruntime_LIBRARY)
 endif()
 
+unset(_onnxruntime_bundled_roots)
+unset(_onnxruntime_hints)
