@@ -8,7 +8,7 @@ after any step.
 
 | Step | Needs |
 |------|-------|
-| Train / play / Isaac eval | Isaac Sim + Isaac Lab (with `rsl_rl`), Python 3.10, CUDA GPU |
+| Train / play / Isaac eval | Isaac Sim + a compatible Isaac Lab install (with `rsl_rl`) and NVIDIA CUDA GPU; use the Python shipped with that Isaac installation |
 | Export ONNX | the training install (torch + onnx) |
 | MuJoCo sim-to-sim eval | `mujoco`, `onnxruntime`, `numpy` (no GPU needed) |
 | Deploy build + closed-loop rehearsal | C++ toolchain (CMake), ROS 2, `onnxruntime` (bundled under `a3_deploy/`) |
@@ -27,14 +27,34 @@ cd HOPE
 
 ## 1. Install the training extension
 
-Follow the [Isaac Lab install guide](https://isaac-sim.github.io/IsaacLab/), then, in the Isaac
-Lab Python environment:
+Follow the [Isaac Lab install guide](https://isaac-sim.github.io/IsaacLab/), then enter its
+GPU/Isaac shell. Source the HOPE launcher first so the editable install cannot accidentally land
+in an unrelated host/Conda Python:
 
 ```bash
 cd hope_training/whole_body_tracking
-python -m pip install -e source/whole_body_tracking
-python -m pip install hydra-core omegaconf     # used by the Hydra entry points
+source setup_train_env.sh
+hope_isaac_py -m pip install -e source/whole_body_tracking
+hope_isaac_py -c "import hydra, omegaconf, importlib.util; assert importlib.util.find_spec('whole_body_tracking'); print('HOPE Python dependencies OK')"
 ```
+
+The editable package declares `hydra-core` and `omegaconf`; no separate host-Python install is
+required. This check intentionally does not import the task package: Isaac extensions import their
+runtime modules only after `AppLauncher` starts Kit.
+
+If you intend to play the published `model_21800.pt`, install Git LFS on the
+host before cloning, or materialize the checkpoint after cloning. Run these
+commands from the repository root:
+
+```bash
+git lfs install
+git lfs pull --include=hope_training/whole_body_tracking/checkpoints/model_21800.pt
+test "$(stat -c %s hope_training/whole_body_tracking/checkpoints/model_21800.pt)" -gt 1000000
+```
+
+Without this step the checkout contains a small text pointer instead of the
+checkpoint, so `play.py` cannot load it. This is dependency materialization,
+not a policy-admission or SHA gate.
 
 ## 2. Prepare the A3 Isaac Asset
 
@@ -79,16 +99,29 @@ export ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
 export ISAACLAB_ROOT=/absolute/path/to/IsaacLab   # source checkouts only
 ```
 
+Do not run this step from an ordinary host Python unless Isaac Sim and Isaac
+Lab are installed there. A successful source prints `training env ready` and
+the selected Isaac Python; otherwise `hope_isaac_py` exits immediately with a
+setup error. In the common HOPE/Omnidrones Distrobox, enter the container first:
+
+```bash
+distrobox enter grasping
+cd /absolute/path/to/HOPE/hope_training/whole_body_tracking
+source setup_train_env.sh
+```
+
 The public setup does not configure external logging. New runs remain local; the
 published `model_21800` checkpoint is documented in
 [`docs/MODEL_21800.md`](docs/MODEL_21800.md).
 
 ## 4. Smoke Checks
 
-From `hope_training/whole_body_tracking/`, confirm the task package imports and the scene runs:
+From `hope_training/whole_body_tracking/`, confirm the installed package is
+discoverable and the scene runs. Task modules are imported by the entrypoints
+after `AppLauncher` starts Isaac Kit:
 
 ```bash
-hope_isaac_py -c "import whole_body_tracking.tasks; print('HOPE tasks import ok')"
+hope_isaac_py -c "import importlib.util; assert importlib.util.find_spec('whole_body_tracking'); print('HOPE package found')"
 hope_isaac_py scripts/play_table_tennis.py --headless --steps 300
 ```
 
@@ -100,7 +133,7 @@ training. Drop `--headless` for a window; other options: `--num_envs 9`, `--fix_
 Pure-Python unit tests need no GPU or Isaac install:
 
 ```bash
-python -m pytest tests/ -q
+python3 -m pytest tests/ -q
 ```
 
 Before training, you can run the published deployment actor in plain MuJoCo from
@@ -114,11 +147,10 @@ a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --duration 10
 
 ## 5. Train
 
-> The clips shipped under `hope_training/motions/preprocessed/` (`hope_forehand.npz` +
-> `hope_backhand.npz`) are **schema-valid placeholders** so imports and shape checks pass.
-> Replace them with your own recorded forehand/backhand clips
-> ([`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md)) before training a policy you intend to
-> deploy — the proven internal line trained on real `*_v12fix` clips that are not shipped.
+The repository ships the complete validated Build forehand/backhand pair under the stable public
+filenames `hope_forehand.npz` and `hope_backhand.npz`. They are the default inputs used by the
+recipe; no private-version suffix is part of the public interface. To train on a different motion
+pair, follow [`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md) and override both paths.
 
 ```bash
 hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
@@ -141,6 +173,17 @@ lives in `cfg/task/HOPEPingPong.yaml` — see
 Motion clips are selected through the local `motion_file=` / `motion_file_2=` overrides.
 
 ## 6. Evaluate in Isaac
+
+To open the published checkpoint directly:
+
+```bash
+test "$(stat -c %s checkpoints/model_21800.pt)" -gt 1000000
+hope_isaac_py scripts/play.py task=HOPEPingPong algo=ppo num_envs=4 \
+    checkpoint=checkpoints/model_21800.pt
+```
+
+Use `headless=true num_steps=2` for a bounded non-interactive smoke; the default
+opens the Isaac viewer and runs until the window closes.
 
 ```bash
 hope_isaac_py scripts/evaluate.py \

@@ -11,9 +11,8 @@ experiment_name: agibot_a3_hitter_pingpong
 actor_obs_contract: hitter_pure
 # Reference motions: pass local clips on the command line —
 #   motion_file=<forehand.npz> motion_file_2=<backhand.npz>
-# The bundled placeholders under hope_training/motions/preprocessed/ train the
-# pipeline end to end; replace them with real swings (docs/REPLACE_MOTIONS.md)
-# before training a policy you intend to deploy.
+# The complete validated Build pair is published under the stable
+# hope_forehand.npz / hope_backhand.npz filenames below.
 env:
   # Formal Build batch. The permanent 75% core / 12.5% FH / 12.5% BH
   # cohorts therefore contain 4608 / 768 / 768 environments.
@@ -463,7 +462,6 @@ motion_file: ../motions/preprocessed/hope_forehand.npz
 motion_file_2: ../motions/preprocessed/hope_backhand.npz
 checkpoint_export_onnx: false
 build_contract:
-  baseline: HitterV11@ad63118b803a36b378d9489d8ab0609b363677ea:V14
   actor_observation_dim: 110
   action_dim: 31
   forbidden_features:

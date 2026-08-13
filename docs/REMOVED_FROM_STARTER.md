@@ -41,7 +41,7 @@ Shipped for the first time with the port (never in the starter at all):
 |---------|-------------|
 | `hope_bringup/config/avatar_pro_vrpn.yaml`, `launch/avatar_pro_hope_bridge.launch.py`, `launch/avatar_pro_vrpn_relay.launch.py`, `scripts/avatar_pro_vrpn_relay` | The independent [`VRPN2ROS2/`](../VRPN2ROS2) and [`NatNet2ROS2/`](../NatNet2ROS2) driver workspaces plus `hope_bringup/launch/hope_bringup.launch.py` (`mocap_backend:=vrpn|optitrack`), which builds the same `/poses` PoseArray (ball at index 0). |
 | `cfg/task/TrackingFlat.yaml` (selected `Tracking-Flat-AgibotA3-v0`) | The deploy-grade **`HitterPingPong`** task (`cfg/task/HOPEPingPong.yaml`, 110-D `hitter_pure` contract) — the only shipped task. |
-| `scripts/create_smoke_motion.py`, `sample_motions/README.md` (generate a stand-still clip so the pipeline runs) | The committed placeholder clips `hope_training/motions/preprocessed/hope_{forehand,backhand}.npz` with their YAML sidecars, plus [`docs/REPLACE_MOTIONS.md`](REPLACE_MOTIONS.md). |
+| `scripts/create_smoke_motion.py`, `sample_motions/README.md` (generate a stand-still clip so the pipeline runs) | The complete validated Build clips `hope_training/motions/preprocessed/hope_{forehand,backhand}.npz` with their YAML sidecars, plus [`docs/REPLACE_MOTIONS.md`](REPLACE_MOTIONS.md). |
 | `hope_planner/side_selection.py` (pure lateral-split function) | Side selection now lives **inside both planners** with hysteresis (`swing_side_split_y` / `swing_side_hysteresis_y`); the side travels on the wire as `swing_sign` and the policy never observes it. |
 | The starter's single control path (the Python reference runner as the only runner) | **Two roles, two runners**: the Python reference runner (`a3_deploy/a3_deploy_example/reference/`, package `a3_deploy_onnx_ref_pingpong`, with `config/action_adapter.yaml` / `config/hope_pingpong_runtime.yaml`) ships as the MuJoCo evaluation/simulation reference harness, while the **native C++ runner** `a3_pingpong` (`src/a3/a3_deploy_onnx_ref/`, built with the example's CMake project, consuming the planner's flat topics in `--planner` mode) is the hardware deploy path. |
 | `scripts/rsl_rl/{cli_args,train,play}.py` (pre-Hydra argparse plumbing) | The **Hydra** entry points only: `scripts/train.py` / `scripts/play.py` + the `cfg/` tree. |
@@ -62,11 +62,11 @@ override inline and auto-sources a git-ignored `setup_train_env.local.sh` if you
 
 These are the honest gaps a fresh clone must plan around:
 
-- **Real motion clips.** The proven line trained on the *v12fix*-generation clips
-  (`hope_forehand_v12fix.npz` / `hope_backhand_v12fix.npz`); the committed clips are schema-valid
-  placeholders ([REPLACE_MOTIONS.md](REPLACE_MOTIONS.md)).
-- **Trained checkpoints and exported ONNX weights.** You train and export your own; the loaders'
-  fail-closed metadata checks are shipped, the weights are not.
+- **Additional motion datasets.** The complete Build forehand/backhand pair is shipped under stable
+  public filenames. Other recordings and retargeting intermediates remain outside the repository
+  ([REPLACE_MOTIONS.md](REPLACE_MOTIONS.md)).
+- **Additional trained checkpoints and exported ONNX weights.** The published `model_21800`
+  checkpoint and deploy bundle are included; other runs and intermediate checkpoints are not.
 - **The AgiBot vendor deploy payload** (~1.7 GB) — vendor-gated, lives under the git-ignored
   `vendor_assets/` (see [RUN_ON_AGIBOT.md](RUN_ON_AGIBOT.md)).
 - **W&B registry contents** (internal motion artifacts and run history).

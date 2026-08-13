@@ -42,6 +42,11 @@ deployed policy.
 
 ## Launching a run
 
+On a new machine, complete steps 0–4 of
+[QUICKSTART_A3_ISAAC.md](../QUICKSTART_A3_ISAAC.md) first: clone with Git LFS,
+prepare the A3 asset, enter the Isaac environment, source
+`setup_train_env.sh`, install the extension, and run the smoke checks.
+
 ```bash
 cd hope_training/whole_body_tracking
 source setup_train_env.sh        # defines the hope_isaac_py launcher
@@ -53,8 +58,8 @@ hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
 Everything is a Hydra override: `num_envs=4096`, `max_iterations=20000`, `seed=1`,
 `checkpoint_path=<run>/model_<N>.pt` (resume), or any dotted config path. Local `.npz` clips via
 `motion_file=` / `motion_file_2=` are first-class and require no external artifact registry. The
-shipped clips are placeholders — see
-[REPLACE_MOTIONS.md](REPLACE_MOTIONS.md).
+shipped clips are the complete validated Build pair. See
+[REPLACE_MOTIONS.md](REPLACE_MOTIONS.md) only when substituting your own motions.
 
 ## Reward terms
 
@@ -75,7 +80,7 @@ The evaluation story has three layers, cheap to expensive:
    opponent-half first bounce, judged with the shared no-spin ball model).
 
    ```bash
-   python scripts/evaluate.py --checkpoint <run>/model_<N>.pt \
+   hope_isaac_py scripts/evaluate.py --checkpoint <run>/model_<N>.pt \
        --motion-file /abs/fh.npz --motion-file-2 /abs/bh.npz
    ```
 
@@ -94,7 +99,7 @@ ranking oracle.
 ## Export
 
 ```bash
-python scripts/export_onnx.py --checkpoint <run_dir>/model_<N>.pt
+hope_isaac_py scripts/export_onnx.py --checkpoint <run_dir>/model_<N>.pt
 ```
 
 writes the single-output actor ONNX (110-D observation in, 31-D raw action out, raw
@@ -122,5 +127,6 @@ task YAML wins over Python where both set a value.
 
 ## The user runs training
 
-Training needs your GPU and your real motion clips; run it yourself with the commands above.
+Training needs your GPU; the validated reference pair is included, or you can supply your own
+motion clips. Run it yourself with the commands above.
 Launch from `hope_training/whole_body_tracking/` so the relative motion paths resolve.

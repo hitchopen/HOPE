@@ -3122,6 +3122,49 @@ class HitterPingPongAgibotA3EnvCfg(
         racket.ability_gate_dwell_steps = 250
         racket.base_mocap_robustness_ramp_steps = 8000
 
+        # Keep direct Gym construction, train.py and play.py on the exact same
+        # standalone Build recipe.  The reviewed launcher populated
+        # these fields from HitterPingPong.yaml; the public launcher is kept
+        # intentionally small and local-only, so the renamed public task must
+        # also carry those YAML values in its registered EnvCfg defaults.
+        racket.venue_tuple_enabled = True
+        racket.venue_tuple_final_mix_prob = 0.25
+        racket.venue_tuple_mix_mode = "fixed_balanced_bank_v1"
+        racket.venue_tuple_bank_path = (
+            "assets/venue_tuple/v17_r12_physical_tuple_bank.npz"
+        )
+        racket.venue_tuple_bank_receipt_path = (
+            "assets/venue_tuple/v17_r12_physical_tuple_bank.receipt.json"
+        )
+        racket.venue_tuple_bank_schema_version = 2
+        racket.venue_tuple_bank_min_rows_per_side = 50000
+        racket.venue_tuple_unconditional_outcomes = True
+        racket.venue_tuple_speed_limit_mps = 3.5
+        racket.base_mocap_enabled = True
+        racket.base_mocap_orientation_enabled = True
+        racket.base_mocap_delay_steps = 1
+        racket.base_mocap_update_interval_steps = 1
+        racket.base_mocap_position_noise_std = (0.003, 0.003, 0.005)
+        racket.base_mocap_orientation_noise_std_rad = (
+            0.003491,
+            0.003491,
+            0.005236,
+        )
+        racket.base_mocap_extrinsic_residual_rpy_std_rad = (
+            0.005236,
+            0.005236,
+            0.008727,
+        )
+        racket.base_mocap_dropout_prob = 0.01
+        racket.base_mocap_velocity_ema_alpha = 0.25
+        racket.base_mocap_max_age_s = 0.05
+        racket.base_mocap_max_propagation_s = 0.05
+
+        # RallyV13 replaced the older scalar saturation term with
+        # rally_all_joint_qdes_barrier, whose signature has no max_blend.
+        # The reference recipe removes the inherited key via explicit YAML null.
+        self.rewards.rally_joint_qdes_saturation.params.pop("max_blend", None)
+
         # A3 Parkour-style log-uniform Kp/Kd randomization, with a fixed 25% nominal
         # actuator cohort.  Kd randomizes only the deploy message term; passive damping
         # remains fixed and the V14 affine action scale remains nominal.

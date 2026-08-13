@@ -27,8 +27,15 @@ def _resolve_motion_path(value: str) -> str:
     p = pathlib.Path(str(value))
     if p.is_file():
         return str(p.resolve())
-    rooted = _repo_root() / value
-    return str(rooted.resolve()) if rooted.is_file() else str(rooted)
+    repo_root = _repo_root()
+    candidates = (
+        repo_root / value,
+        repo_root / "hope_training" / "whole_body_tracking" / value,
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+    return str(candidates[-1].resolve())
 
 
 def _resolve_motion_sources(cfg) -> list[str]:
@@ -52,11 +59,18 @@ def _run(cfg, simulation_app):
     importlib.import_module("whole_body_tracking.tasks")  # registers the gym tasks
     from whole_body_tracking.utils.my_on_policy_runner import HOPEOnPolicyRunner
     from whole_body_tracking.utils.ppo_cfg import runner_kwargs
+    from whole_body_tracking.utils.task_reward_overrides import apply_reward_overrides
 
     task_id = str(cfg.task.gym_task)
     num_envs = int(cfg.num_envs)
 
     env_cfg = parse_env_cfg(task_id, device=str(cfg.device), num_envs=num_envs)
+    reward_overrides: list[str] = []
+    apply_reward_overrides(env_cfg.rewards, cfg.task.get("rewards"), reward_overrides)
+    print(
+        f"[play.py] applied {len(reward_overrides)} task reward override(s)",
+        flush=True,
+    )
     motion_files = _resolve_motion_sources(cfg)
     if motion_files:
         env_cfg.commands.motion.motion_file = motion_files if len(motion_files) > 1 else motion_files[0]
@@ -84,11 +98,16 @@ def _run(cfg, simulation_app):
     runner.load(resume_path)
     policy = runner.get_inference_policy(device=env.unwrapped.device)
 
-    obs, _ = env.get_observations()
-    while simulation_app.is_running():
+    # Isaac Lab's RslRlVecEnvWrapper returns one TensorDict, not
+    # ``(observations, extras)``. Mirror the runner's rollout contract.
+    obs = env.get_observations().to(agent_cfg.device)
+    num_steps = None if cfg.num_steps is None else int(cfg.num_steps)
+    step = 0
+    while simulation_app.is_running() and (num_steps is None or step < num_steps):
         with torch.inference_mode():
             actions = policy(obs)
             obs, _, _, _ = env.step(actions)
+        step += 1
     env.close()
 
 

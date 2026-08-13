@@ -3,7 +3,7 @@
 import os
 import toml
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -12,6 +12,8 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
+    "hydra-core>=1.3,<2",
+    "omegaconf>=2.3,<3",
     "psutil",
     "onnxscript",
 ]
@@ -19,7 +21,7 @@ INSTALL_REQUIRES = [
 # Installation operation
 setup(
     name="whole_body_tracking",
-    packages=["whole_body_tracking"],
+    packages=find_packages(),
     author=EXTENSION_TOML_DATA["package"]["author"],
     maintainer=EXTENSION_TOML_DATA["package"]["maintainer"],
     url=EXTENSION_TOML_DATA["package"]["repository"],

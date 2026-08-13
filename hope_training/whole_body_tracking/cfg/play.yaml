@@ -18,10 +18,11 @@ defaults:
 headless: false
 device: cuda:0
 num_envs: 4
+num_steps: null        # null -> run until the viewer closes; use a small integer for headless smoke
 
 checkpoint: null       # explicit local model_*.pt path (else: latest local checkpoint)
 
-# Reference motion clips (null -> the task's placeholder clips).
+# Reference motion clips (null -> the task's complete Build clips).
 motion_file: null      # clip 0 (forehand)
 motion_file_2: null    # clip 1 (backhand)
 
