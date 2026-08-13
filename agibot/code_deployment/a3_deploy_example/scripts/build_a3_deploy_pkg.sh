@@ -21,6 +21,9 @@ Options:
   --jobs N             Parallel build jobs. Defaults to nproc.
   --inside-docker      Internal flag used by the arm64 builder containers.
   --build-only         Internal flag: compile binaries/libs but skip asset staging.
+  --pingpong-only      Build and stage only the native ping-pong Runner bundle.
+                       This x86_64 mode is sufficient for model_21800 Gate3 and
+                       does not require unrelated legacy A3 policy assets.
 
 Proxy:
   Existing http_proxy/https_proxy/all_proxy environment variables are passed
@@ -63,6 +66,7 @@ PINGPONG_RUNTIME_CFG="${HOPE_RUNNER_ROOT}/src/a3/a3_deploy_onnx_ref/config/a3_ru
 SMPL_ZMQ_HOST_OVERRIDE=""
 INSIDE_DOCKER=0
 BUILD_ONLY=0
+PINGPONG_ONLY=0
 JOBS="$(nproc)"
 
 while [[ $# -gt 0 ]]; do
@@ -93,6 +97,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --build-only)
       BUILD_ONLY=1
+      shift
+      ;;
+    --pingpong-only)
+      PINGPONG_ONLY=1
       shift
       ;;
     -h|--help)
@@ -138,6 +146,11 @@ case "${ARCH}" in
     exit 64
     ;;
 esac
+
+if [[ "${PINGPONG_ONLY}" -eq 1 && "${ARCH}" != "x86_64" ]]; then
+  echo "--pingpong-only currently supports --arch x86_64 only" >&2
+  exit 64
+fi
 
 PKG_DIR="${GEAR_ROOT}/dist/${PACKAGE_NAME}"
 ROCKCHIP_SYSROOT_TARBALL_REL="${A3_ROCKCHIP_SYSROOT_TARBALL_REL:-thirdparty/rockchip_sysroot/rockchip-1.0-aarch64-sysroot.tar.gz}"
@@ -586,18 +599,22 @@ configure_and_build() {
   fi
 
   cmake "${cmake_args[@]}"
-  cmake --build "${BUILD_DIR}" --target a3_deploy_onnx_ref -j"${JOBS}"
-  cmake --build "${BUILD_DIR}" --target a3_policy_runtime_probe -j"${JOBS}"
+  if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
+    cmake --build "${BUILD_DIR}" --target a3_deploy_onnx_ref -j"${JOBS}"
+    cmake --build "${BUILD_DIR}" --target a3_policy_runtime_probe -j"${JOBS}"
+  fi
   if ! cmake_target_exists "${BUILD_DIR}" "a3_deploy_onnx_ref_pingpong"; then
     echo "missing required CMake target: a3_deploy_onnx_ref_pingpong" >&2
     exit 1
   fi
   cmake --build "${BUILD_DIR}" --target a3_deploy_onnx_ref_pingpong -j"${JOBS}"
-  if cmake_target_exists "${BUILD_DIR}" "a3_body_drive_debug_record"; then
-    cmake --build "${BUILD_DIR}" --target a3_body_drive_debug_record -j"${JOBS}"
-  else
-    echo "missing CMake target: a3_body_drive_debug_record" >&2
-    exit 1
+  if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
+    if cmake_target_exists "${BUILD_DIR}" "a3_body_drive_debug_record"; then
+      cmake --build "${BUILD_DIR}" --target a3_body_drive_debug_record -j"${JOBS}"
+    else
+      echo "missing CMake target: a3_body_drive_debug_record" >&2
+      exit 1
+    fi
   fi
   if cmake_target_exists "${BUILD_DIR}" "joint_msgs_s__rosidl_typesupport_c"; then
     cmake --build "${BUILD_DIR}" --target joint_msgs_s__rosidl_typesupport_c -j"${JOBS}"
@@ -1113,7 +1130,8 @@ stage_run_scripts() {
     source_robot_env_default="1"
   fi
 
-  cat > "${PKG_DIR}/run_a3.sh" <<'RUN_A3'
+  if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
+    cat > "${PKG_DIR}/run_a3.sh" <<'RUN_A3'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -1196,6 +1214,7 @@ exec "${SCRIPT_DIR}/run_a3.sh" \
   --frame-log-interval "${A3_FRAME_LOG_INTERVAL:-50}" \
   "$@"
 RUN_A3_PROBE
+  fi
 
   cat > "${PKG_DIR}/run_a3_pingpong.sh" <<'RUN_A3_PINGPONG'
 #!/usr/bin/env bash
@@ -1290,18 +1309,35 @@ RUN_A3_PINGPONG
   sed -i "s/__DEFAULT_A3_TRANSPORT__/${default_transport}/g" "${PKG_DIR}/run_a3_pingpong.sh"
   sed -i "s/__A3_SOURCE_ROBOT_ENV_DEFAULT__/${source_robot_env_default}/g" "${PKG_DIR}/run_a3_pingpong.sh"
 
-  chmod +x \
-    "${PKG_DIR}/run_a3.sh" \
-    "${PKG_DIR}/run_a3_probe.sh" \
-    "${PKG_DIR}/run_a3_pingpong.sh"
+  chmod +x "${PKG_DIR}/run_a3_pingpong.sh"
+  if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
+    chmod +x \
+      "${PKG_DIR}/run_a3.sh" \
+      "${PKG_DIR}/run_a3_probe.sh"
+  fi
 }
 
 stage_extra_libs() {
   copy_found_libs "${BUILD_DIR}" "libtbb.so*"
   copy_found_libs "${BUILD_DIR}" "libirobot_events_executor.so*"
   copy_found_libs "${BUILD_DIR}" "libmcap.so*"
+  copy_found_libs "${BUILD_DIR}" "libaimrt_iceoryx_plugin.so*"
+  copy_found_libs "${BUILD_DIR}" "libaimrt_ros2_plugin.so*"
   copy_found_libs "${BUILD_DIR}" "libaimrt_record_playback_plugin.so*"
   copy_found_libs "${BUILD_DIR}" "liba3_body_drive_debug_ros2_ts.so*"
+  copy_found_libs "${BUILD_DIR}" "libjoint_msgs__*.so*"
+  copy_found_libs "${BUILD_DIR}" "libros2_plugin_proto__*.so*"
+
+  # Copy the exact ONNX Runtime selected by CMake, including its SONAME links.
+  # The native Runner uses $ORIGIN at runtime, so a package must not silently
+  # depend on a machine-global /usr/local installation.
+  local ort_library=""
+  if [[ -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
+    ort_library="$(sed -n 's/^onnxruntime_LIBRARY:FILEPATH=//p' "${BUILD_DIR}/CMakeCache.txt" | tail -n 1)"
+  fi
+  if [[ -n "${ort_library}" && -e "${ort_library}" ]]; then
+    copy_found_libs "$(dirname -- "${ort_library}")" "libonnxruntime.so*"
+  fi
 
   if [[ "${ARCH}" == "rockchip" || "${ARCH}" == "thor" ]]; then
     copy_found_libs "${THIRDPARTY_ROOT}/unitree_sdk2/thirdparty/lib/aarch64" "libddsc.so*"
@@ -1327,6 +1363,59 @@ stage_extra_libs() {
     copy_found_libs "/usr/lib/aarch64-linux-gnu" "libnvonnxparser*.so*"
     copy_found_libs "/usr/local/cuda/targets/aarch64-linux/lib" "libcudart.so*"
   fi
+}
+
+verify_pingpong_package() {
+  local required=(
+    "a3_deploy_onnx_ref_pingpong"
+    "run_a3_pingpong.sh"
+    "libaimrt_iceoryx_plugin.so"
+    "libaimrt_ros2_plugin.so"
+    "libonnxruntime.so.1"
+    "libjoint_msgs__rosidl_typesupport_cpp.so"
+    "libjoint_msgs__rosidl_typesupport_fastrtps_cpp.so"
+    "libddsc.so.0"
+    "libddscxx.so.0"
+    "config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
+    "config/a3_aimrt_config.pingpong_iceoryx.yaml"
+    "config/a3_aimrt_config.pingpong_ros2body.yaml"
+    "policy/params/deploy.yaml"
+    "policy/exported/policy.onnx"
+  )
+  local rel
+  for rel in "${required[@]}"; do
+    if [[ ! -e "${PKG_DIR}/${rel}" ]]; then
+      echo "missing model_21800 Gate3 package file: ${rel}" >&2
+      exit 1
+    fi
+  done
+  if [[ ! -x "${PKG_DIR}/a3_deploy_onnx_ref_pingpong" ||
+        ! -x "${PKG_DIR}/run_a3_pingpong.sh" ]]; then
+    echo "model_21800 Runner entrypoints are not executable" >&2
+    exit 1
+  fi
+
+  python3 - "${PKG_DIR}/policy/params/deploy.yaml" \
+    "${PKG_DIR}/policy/exported/policy.onnx" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+import yaml
+
+deploy_path = Path(sys.argv[1])
+policy_path = Path(sys.argv[2])
+deploy = yaml.safe_load(deploy_path.read_text(encoding="utf-8")) or {}
+expected = str((deploy.get("provenance") or {}).get("policy_sha256") or "").lower()
+actual = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+if not expected:
+    raise SystemExit("missing provenance.policy_sha256 in packaged deploy.yaml")
+if actual != expected:
+    raise SystemExit(
+        f"packaged model_21800 policy SHA mismatch: expected={expected} actual={actual}"
+    )
+print(f"model_21800 policy SHA256 verified: {actual}")
+PY
 }
 
 stage_ros2_plugin_proto_prefix() {
@@ -1608,13 +1697,21 @@ else
 fi
 
 if [[ "${BUILD_ONLY}" -eq 0 ]]; then
-  stage_runtime_config_and_assets
+  if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
+    stage_runtime_config_and_assets
+  fi
   stage_pingpong_runtime_and_policy
-  stage_body_drive_debug_files
+  if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
+    stage_body_drive_debug_files
+  fi
   stage_extra_libs
   stage_ros2_plugin_proto_prefix
   stage_joint_msgs_ros2_cli_overlay
   stage_run_scripts
-  verify_package
+  if [[ "${PINGPONG_ONLY}" -eq 1 ]]; then
+    verify_pingpong_package
+  else
+    verify_package
+  fi
   echo "A3 deploy package ready: ${PKG_DIR}"
 fi

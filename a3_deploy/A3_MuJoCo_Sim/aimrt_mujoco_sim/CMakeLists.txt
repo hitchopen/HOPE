@@ -16,6 +16,8 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 option(AIMRT_MUJOCO_SIM_BUILD_TESTS "AimRT Mujoco Sim build tests." OFF)
 option(AIMRT_MUJOCO_SIM_BUILD_EXAMPLES "AimRT Mujoco Sim build examples." OFF)
 option(AIMRT_MUJOCO_SIM_INSTALL "Enable installation of AimRT Mujoco Sim." ON)
+option(AIMRT_MUJOCO_SIM_ENABLE_COVERAGE
+       "Instrument MuJoCo Sim and its tests for coverage." OFF)
 
 # Some necessary settings
 set(CMAKE_CXX_STANDARD 20)
@@ -43,11 +45,10 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   set(CMAKE_CXX_VISIBILITY_PRESET hidden)
   set(CMAKE_CXX_VISIBILITY_INLINES_HIDDEN ON)
 
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    if(AIMRT_MUJOCO_SIM_BUILD_TESTS)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
-      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
-    endif()
+  if(AIMRT_MUJOCO_SIM_ENABLE_COVERAGE AND
+     CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
   endif()
 
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

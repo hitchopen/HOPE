@@ -35,6 +35,9 @@ a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
 The default runtime selects the deployed 110-D `hitter_pure` actor. See the
 [complete model guide](docs/MODEL_21800.md) and
 [Gate 3 MuJoCo video](docs/assets/model_21800_gate3_mujoco.mp4).
+The guide also contains the reproducible native Runner/Planner build,
+host-only contract tests, isolated racket-contact A/B test, process-free Gate
+3 preflight, and the sole formal 12-serve Gate 3 entrypoint.
 
 ## Train and export your own
 
