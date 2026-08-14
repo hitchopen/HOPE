@@ -35,6 +35,10 @@ replay and HDU/field qualification explicitly promote them.
 
 ## Local build and tests
 
+The commands below assume the ROS-equipped `hope` container already exists.
+On a new machine, create it using
+[`docs/DISTROBOX_SETUP.md`](../../../docs/DISTROBOX_SETUP.md) first.
+
 ```bash
 distrobox enter hope
 source /opt/ros/jazzy/setup.bash

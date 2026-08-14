@@ -19,6 +19,10 @@ deterministically, and logs obs/action/`target_q` to CSV for inspection.
 
 ## Where things run — dev machine, HDU, MDU (when you need SSH)
 
+If the dev machine does not yet have the ROS-equipped `hope` container, follow
+[`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md) before using the
+prologue below.
+
 There are **three machines** (see the deploy guide (`docs/RUN_ON_AGIBOT.md`), the
 authoritative robot-side guide):
 

@@ -80,6 +80,11 @@ To use your own vendor-supplied copy instead, place it under `a3_deploy/URDF/` (
 
 ## 3. Set Up the Training Shell (`hope_isaac_py`)
 
+Distrobox is optional for training. If the host has no `distrobox` command,
+the installation choices and the difference between `hope` and `grasping` are
+documented in [`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md). This
+repository does not create the Isaac-equipped `grasping` container.
+
 `setup_train_env.sh` puts the working-tree package source first on `PYTHONPATH` and defines a
 `hope_isaac_py` launcher that runs your Isaac Sim Python with that path. Source it (do not
 execute) in every training shell:

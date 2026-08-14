@@ -131,6 +131,10 @@ ls -lh "$FOXE"
 
 ### 2.1 安装/启用本机基础工具
 
+新机器如果还没有 Distrobox，先完成
+[`docs/DISTROBOX_SETUP.md`](../DISTROBOX_SETUP.md) 中的 HOST 安装，并按其
+`hope` 小节完成 ROS 2 Jazzy 容器。不要只创建一个没有 ROS 的空容器。
+
 在 **Laptop HOST** 执行：
 
 ```bash
@@ -138,14 +142,27 @@ cd "$HOPE_ROOT"
 
 sudo apt-get update
 sudo apt-get install -y \
-  openssh-client openssh-server rsync tmux curl netcat-openbsd
+  openssh-client openssh-server rsync tmux curl netcat-openbsd podman
 sudo systemctl enable --now ssh.service
 
-command -v distrobox
+if ! command -v distrobox >/dev/null 2>&1; then
+  if ! sudo apt-get install -y distrobox; then
+    curl -s \
+      https://raw.githubusercontent.com/89luca89/distrobox/main/install |
+      sh -s -- --prefix "$HOME/.local"
+    grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.bashrc" ||
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+    export PATH="$HOME/.local/bin:$PATH"
+  fi
+fi
+
+command -v distrobox >/dev/null
+distrobox --version
 distrobox list
 ```
 
-确认列表中存在名为 `hope` 的容器。
+确认列表中存在名为 `hope` 的容器；如果不存在，停止本 runbook，先完成上面链接的
+`hope` 一次性环境构建。
 
 ### 2.2 在 hope Distrobox 中构建 Laptop OptiTrack workspace
 

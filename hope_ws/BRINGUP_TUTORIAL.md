@@ -24,14 +24,21 @@ command and **cannot** move hardware. We never use `mode:=hardware`.
 
 ## Section 1 — Build + smoke test (in `hope`)
 
+On a new machine, first install Distrobox and provision the ROS-equipped
+`hope` container using
+[`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md). The later
+`grasping` examples require a separately prepared Isaac environment; a plain
+Ubuntu container with that name is not sufficient.
+
 ### 1.1 Open a terminal on the host and enter the container
 ```bash
 distrobox enter hope -- bash
 ```
 - **Does:** drops you into the `hope` ROS 2 container; your prompt changes.
 - **Success:** prompt shows you're inside (e.g. `user@hope:~$`).
-- **Error `No such container: hope`** → list them: `distrobox list`. Use the ROS one
-  (the image with `ros2-jazzy`). If it's stopped, `distrobox enter hope` starts it.
+- **Error `distrobox: command not found` or `No such container: hope`** → stop
+  and complete [`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md). If an
+  existing `hope` container is merely stopped, `distrobox enter hope` starts it.
 
 ### 1.2 Find your ROS distro, then source it
 ```bash

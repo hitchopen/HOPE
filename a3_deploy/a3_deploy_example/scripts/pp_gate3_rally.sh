@@ -38,6 +38,7 @@ export A3_SIM_INSTALL="${A3_SIM_INSTALL:-$SIM_INSTALL}"
 if [ ! -r /opt/ros/jazzy/setup.bash ]; then
   echo "[g3r] ENV FAIL: ROS Jazzy is unavailable."
   echo "[g3r] Run Gate3 inside: distrobox enter hope"
+  echo "[g3r] New-machine setup: docs/DISTROBOX_SETUP.md"
   exit 2
 fi
 if [ ! -r "$WS/install/local_setup.bash" ]; then
