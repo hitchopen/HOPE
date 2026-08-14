@@ -22,6 +22,7 @@ install(PROGRAMS
   scripts/natnet_preflight.py
   scripts/p1_marker_cad_calibrator
   scripts/p1_marker_cad_calibration_server
+  scripts/hope_base_pose_flat_relay
   scripts/p1_pelvis_calibrator
   scripts/p1_pelvis_tf_publisher
   scripts/optitrack_mct_relay
@@ -33,6 +34,8 @@ install(PROGRAMS
 )
 
 install(FILES
+  scripts/base_pose_contract.py
+  scripts/p1_calibration.py
   scripts/p1_marker_cad_registration_impl.py
   scripts/p1_pelvis_calibration_impl.py
   DESTINATION lib/${PROJECT_NAME}
@@ -58,6 +61,12 @@ if(BUILD_TESTING)
     test/test_p1_marker_cad_registration.py
   )
   ament_add_pytest_test(mocap_frame_probe_test test/test_mocap_frame_probe.py)
+  ament_add_pytest_test(base_pose_contract_test test/test_base_pose_contract.py)
+  ament_add_pytest_test(p1_calibration_test test/test_p1_calibration.py)
+  ament_add_pytest_test(
+    cpp_planner_runtime_contract_test
+    test/test_cpp_planner_runtime_contract.py
+  )
 endif()
 
 ament_package()

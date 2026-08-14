@@ -1,9 +1,14 @@
 import hashlib
 import json
+from pathlib import Path
+import sys
 
 import pytest
 
-from hope_planner.p1_calibration import load_p1_calibration
+SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+
+from p1_calibration import load_p1_calibration
 
 
 def test_loads_marker_cad_receipt_and_derives_file_identity(tmp_path):

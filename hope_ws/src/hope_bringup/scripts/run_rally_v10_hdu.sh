@@ -29,11 +29,10 @@ Options:
                              NatNet command port is fixed in optitrack_mct.yaml.
   --update-freq HZ           Mocap camera rate. avatar_pro: VRPN poll rate
                              (default 300.0). optitrack: expected Motive rate
-                             (default 360.0) — probe threshold + fit-window
-                             derivation only; Motive owns the actual rate.
-  --fit-window N             Planner velocity-fit window in samples. Default:
-                             avatar_pro leaves the planner yaml default (31);
-                             optitrack derives round(31 * update_freq / 300).
+                             (default 360.0) — probe threshold only; Motive
+                             owns the actual rate.
+  --fit-window N             Deprecated compatibility option. Converts N mocap
+                             samples into the C++ packetizer flight window N/HZ.
   --solve-period SEC         Planner solve period (default 0.033, about 30 Hz).
   --workspace PATH           HDU ROS workspace (default $HOME/hope_ws).
   --session-id ID            Shared HDU/MDU log session ID. Default: UTC timestamp.
@@ -41,11 +40,12 @@ Options:
   --frame-preflight          Require the static Ball/P1 frame probe.
   --skip-frame-preflight     Disable it (OptiTrack enables it by default).
   --preflight-only           Check host/network/packages without starting ROS nodes.
-  --print-cmd                Print the two managed ROS commands and exit.
+  --print-cmd                Print the three managed ROS commands and exit.
   -h, --help                 Show this help.
 
-This entrypoint is HDU-only. It supervises the mocap bridge/relay (VRPN or
-NatNet backend) and RallyV10 planner as one foreground process group. Without
+This entrypoint is HDU-only. It supervises the mocap bridge/relay, the C++
+flight packetizer, and the model_21800 C++ planner as one foreground process
+group. Without
 --x-hit, racket commands are blocked until the robot is in PD_STAND and the
 operator presses c in this HDU terminal to freeze x_hit from a stable base-X
 window. The c control uses local /tmp files, not a new ROS/DDS CLI participant.
@@ -232,17 +232,13 @@ if [[ "${MOCAP_BACKEND}" == "avatar_pro" ]]; then
   [[ "${PORT}" =~ ^[1-9][0-9]{0,4}$ ]] || die "--port must be a positive integer"
   ((10#${PORT} <= 65535)) || die "--port must be <= 65535"
 fi
-# Planner velocity-fit window (samples). The planner yaml default 31 is sized
-# for the 300 Hz ChingMu rig; other rates need round(31 * rate / 300) to keep
-# the window >= 100 ms. avatar_pro passes nothing unless --fit-window is given
-# (yaml default applies); optitrack always passes the derived/explicit value.
+# Backward-compatible conversion of the former sample-count option. The active
+# estimator window belongs to the C++ packetizer and is expressed in seconds.
 if [[ -n "${FIT_WINDOW}" ]]; then
   [[ "${FIT_WINDOW}" =~ ^[1-9][0-9]*$ ]] || die "--fit-window must be a positive integer"
-  FIT_WINDOW_ARG="${FIT_WINDOW}"
-elif [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
-  FIT_WINDOW_ARG="$(awk -v rate="${UPDATE_FREQ}" 'BEGIN {printf "%d", (31 * rate / 300) + 0.5}')"
+  FLIGHT_WINDOW_S="$(awk -v samples="${FIT_WINDOW}" -v rate="${UPDATE_FREQ}" 'BEGIN {printf "%.9g", samples / rate}')"
 else
-  FIT_WINDOW_ARG=""
+  FLIGHT_WINDOW_S="0.18"
 fi
 
 IFS=',' read -r MARKER_X MARKER_Y MARKER_Z MARKER_EXTRA <<<"${MARKER_TO_BASE}"
@@ -273,32 +269,37 @@ case "${SIDE}" in
     ;;
 esac
 
-PLANNER_CONFIG_DIR="${WORKSPACE}/src/hope_planner/config"
+PLANNER_CONFIG_DIR="${WORKSPACE}/src/hope_planner_cpp/config"
 X_HIT_REQUEST_FILE="/tmp/hope_rally_v10_x_hit.request"
 X_HIT_STATUS_FILE="/tmp/hope_rally_v10_x_hit.status"
 if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   BRIDGE_CMD=(
     ros2 launch hope_bringup optitrack_hope_bridge.launch.py
-    "hostname:=${MOCAP_IP}"
+    "motive_hostname:=${MOCAP_IP}"
     "position_scale:=${POSITION_SCALE}"
     "debug_csv_path:=${SESSION_DIR}/mocap_raw.csv"
     "debug_session_id:=${SESSION_ID}"
+    start_flight_packetizer:=false
   )
 else
   BRIDGE_CMD=(
-    ros2 launch hope_bringup avatar_pro_hope_bridge.launch.py
-    "server:=${MOCAP_IP}"
-    "port:=${PORT}"
-    "update_freq:=${UPDATE_FREQ}"
-    ball_tracking_mode:=rigid_body
-    ball_object:=Ball
-    "position_scale:=${POSITION_SCALE}"
+    ros2 run hope_bringup pose_to_posearray --ros-args
+    -p 'input_topics:=[/vrpn_mocap/Ball/pose_id_0]'
+    -p trigger_index:=0
   )
 fi
+PACKETIZER_CMD=(
+  ros2 run hope_planner_cpp hope_ball_flight_packetizer --ros-args
+  --params-file "${PLANNER_CONFIG_DIR}/model21800_flight_packetizer.yaml"
+  -p "flight_window_s:=${FLIGHT_WINDOW_S}"
+  -p "session_id:=${SESSION_ID}"
+  -p "debug_csv_path:=${SESSION_DIR}/flight_packetizer.csv"
+)
 PLANNER_CMD=(
-  ros2 run hope_planner hope_planner_node --ros-args
-  --params-file "${PLANNER_CONFIG_DIR}/hope_planner.yaml"
-  --params-file "${PLANNER_CONFIG_DIR}/hope_planner.hitter_pure.yaml"
+  ros2 run hope_planner_cpp hope_planner_cpp_node --ros-args
+  --params-file "${PLANNER_CONFIG_DIR}/model21800_hardware.yaml"
+  -p flight_packet_input_enabled:=true
+  -p flight_packet_topic:=/ball/flight_packet
   -p base_pose_flat_input_topic:=/a3/base_pose_flat
   -p publish_base_flat:=false
   -p x_hit_follow_robot:=false
@@ -314,13 +315,12 @@ PLANNER_CMD=(
   -p "debug_csv_path:=${SESSION_DIR}/planner.csv"
   -p "debug_session_id:=${SESSION_ID}"
 )
-if [[ -n "${FIT_WINDOW_ARG}" ]]; then
-  PLANNER_CMD+=(-p "fit_window:=${FIT_WINDOW_ARG}")
-fi
 
 if [[ "${PRINT_CMD}" -eq 1 ]]; then
   echo "[rally-v10-hdu] bridge:"
   print_shell_command "${BRIDGE_CMD[@]}"
+  echo "[rally-v10-hdu] flight packetizer:"
+  print_shell_command "${PACKETIZER_CMD[@]}"
   echo "[rally-v10-hdu] planner (${SIDE}, expected swing_sign ${EXPECTED_SIGN}):"
   print_shell_command "${PLANNER_CMD[@]}"
   echo "[rally-v10-hdu] session_id=${SESSION_ID} session_dir=${SESSION_DIR} frame_preflight=${FRAME_PREFLIGHT}"
@@ -333,8 +333,8 @@ machine="$(uname -m)"
 [[ -f /opt/ros/jazzy/setup.bash ]] || die "/opt/ros/jazzy/setup.bash is missing"
 [[ -f "${WORKSPACE}/install/local_setup.bash" ]] ||
   die "${WORKSPACE}/install/local_setup.bash is missing; deploy/build the HDU workspace first"
-[[ -f "${PLANNER_CONFIG_DIR}/hope_planner.yaml" ]] || die "planner base config is missing"
-[[ -f "${PLANNER_CONFIG_DIR}/hope_planner.hitter_pure.yaml" ]] || die "planner overlay is missing"
+[[ -f "${PLANNER_CONFIG_DIR}/model21800_hardware.yaml" ]] || die "C++ planner config is missing"
+[[ -f "${PLANNER_CONFIG_DIR}/model21800_flight_packetizer.yaml" ]] || die "C++ packetizer config is missing"
 
 set +u
 # shellcheck disable=SC1091
@@ -359,7 +359,7 @@ else
   ros2 pkg prefix vrpn_mocap >/dev/null || die "vrpn_mocap is not installed in the HDU overlay"
 fi
 ros2 pkg prefix hope_bringup >/dev/null || die "hope_bringup is not installed in the HDU overlay"
-ros2 pkg prefix hope_planner >/dev/null || die "hope_planner is not installed in the HDU overlay"
+ros2 pkg prefix hope_planner_cpp >/dev/null || die "hope_planner_cpp is not installed in the HDU overlay"
 DDS_PROFILE="$(ros2 pkg prefix hope_bringup)/share/hope_bringup/config/fastdds_hdu_internal.xml"
 [[ -f "${DDS_PROFILE}" ]] || die "HDU Fast DDS profile is missing: ${DDS_PROFILE}; rebuild hope_bringup"
 ip -o -4 addr show | awk '$4 ~ /^10[.]42[.]10[.]10\// {found=1} END {exit !found}' ||
@@ -398,7 +398,8 @@ fi
 # Stale processes from EITHER backend poison a run (both publish /poses).
 for process_pattern in '[a]vatar_pro_hope_bridge.launch.py' '[a]vatar_pro_vrpn_relay' \
     '[o]ptitrack_hope_bridge.launch.py' '[o]ptitrack_mct_relay' \
-    '[m]otion_capture_tracking_node' '[h]ope_planner_node' \
+    '[m]otion_capture_tracking_node' '[h]ope_planner_cpp_node' \
+    '[h]ope_ball_flight_packetizer' \
     '[h]ope_base_pose_flat_relay'; do
   if pgrep -f "${process_pattern}" >/dev/null; then
     die "an existing process matches ${process_pattern}; stop it explicitly before starting this supervisor"
@@ -414,7 +415,7 @@ fi
 
 mkdir -p -- "${SESSION_DIR}"
 python3 - "${SESSION_DIR}/session.json" "${SESSION_ID}" "$$" "${MOCAP_BACKEND}" \
-    "${MOCAP_IP}" "${POSITION_SCALE}" "${UPDATE_FREQ}" "${FIT_WINDOW_ARG:-31}" \
+    "${MOCAP_IP}" "${POSITION_SCALE}" "${UPDATE_FREQ}" "${FLIGHT_WINDOW_S}" \
     "${SOLVE_PERIOD}" "${MARKER_TO_BASE}" "${PLANNER_X_HIT}" "${X_HIT_OFFSET}" \
     "${WORKSPACE}" <<'PY'
 import hashlib
@@ -424,13 +425,14 @@ import socket
 import sys
 import time
 
-(output, session_id, launcher_pid, backend, mocap_ip, scale, rate, fit_window, solve_period,
+(output, session_id, launcher_pid, backend, mocap_ip, scale, rate, flight_window_s, solve_period,
  marker_to_base, x_hit, x_hit_offset, workspace) = sys.argv[1:]
 workspace_path = pathlib.Path(workspace)
 sources = {
-    "planner_node": workspace_path / "src/hope_planner/hope_planner/node.py",
-    "planner_yaml": workspace_path / "src/hope_planner/config/hope_planner.yaml",
-    "hitter_overlay": workspace_path / "src/hope_planner/config/hope_planner.hitter_pure.yaml",
+    "planner_node": workspace_path / "src/hope_planner_cpp/src/planner_node.cpp",
+    "planner_yaml": workspace_path / "src/hope_planner_cpp/config/model21800_hardware.yaml",
+    "flight_packetizer": workspace_path / "src/hope_planner_cpp/src/flight_packetizer_node.cpp",
+    "flight_packetizer_yaml": workspace_path / "src/hope_planner_cpp/config/model21800_flight_packetizer.yaml",
     "optitrack_relay": workspace_path / "src/hope_bringup/scripts/optitrack_mct_relay",
     "world_frame_yaml": workspace_path / "src/hope_bringup/config/hope_world_frame.yaml",
 }
@@ -449,7 +451,7 @@ report = {
     "mocap_ip": mocap_ip,
     "position_scale": float(scale),
     "update_frequency_hz": float(rate),
-    "fit_window": int(fit_window),
+    "flight_window_s": float(flight_window_s),
     "solve_period_s": float(solve_period),
     "frame_probe_marker_to_base_xyz": [
         float(value) for value in marker_to_base.split(",")
@@ -466,6 +468,7 @@ exec > >(tee -a "${SESSION_DIR}/hdu.log") 2>&1
 echo "[rally-v10-hdu] session_id=${SESSION_ID} logs=${SESSION_DIR}"
 
 BRIDGE_PID=""
+PACKETIZER_PID=""
 PLANNER_PID=""
 CONTROL_PID=""
 
@@ -474,12 +477,12 @@ stop_children() {
   if [[ -n "${CONTROL_PID}" ]] && kill -0 "${CONTROL_PID}" 2>/dev/null; then
     kill -TERM "${CONTROL_PID}" 2>/dev/null || true
   fi
-  for pid in "${PLANNER_PID}" "${BRIDGE_PID}"; do
+  for pid in "${PLANNER_PID}" "${PACKETIZER_PID}" "${BRIDGE_PID}"; do
     if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
       kill -INT "${pid}" 2>/dev/null || true
     fi
   done
-  for pid in "${PLANNER_PID}" "${BRIDGE_PID}"; do
+  for pid in "${PLANNER_PID}" "${PACKETIZER_PID}" "${BRIDGE_PID}"; do
     if [[ -n "${pid}" ]]; then
       wait "${pid}" 2>/dev/null || true
     fi
@@ -569,13 +572,18 @@ if [[ "${FRAME_PREFLIGHT}" -eq 1 ]]; then
   echo "[rally-v10-hdu] FRAME PREFLIGHT PASS"
 fi
 
-echo "[rally-v10-hdu] starting RallyV10 planner"
+echo "[rally-v10-hdu] starting C++ flight packetizer + Planner"
+"${PACKETIZER_CMD[@]}" &
+PACKETIZER_PID=$!
+sleep 1
+kill -0 "${PACKETIZER_PID}" 2>/dev/null || die "flight packetizer exited during startup"
+
 "${PLANNER_CMD[@]}" &
 PLANNER_PID=$!
 sleep 2
 kill -0 "${PLANNER_PID}" 2>/dev/null || die "planner exited during startup"
 
-echo "[rally-v10-hdu] READY: bridge_pid=${BRIDGE_PID} planner_pid=${PLANNER_PID}"
+echo "[rally-v10-hdu] READY: bridge_pid=${BRIDGE_PID} packetizer_pid=${PACKETIZER_PID} planner_pid=${PLANNER_PID}"
 echo "[rally-v10-hdu] use the planner's 1 Hz HDU HEALTH line; do NOT run ros2 topic echo/hz on the HDU"
 if [[ "${REQUIRE_CALIBRATION}" == "true" ]]; then
   [[ -t 0 ]] || die "runtime x_hit freeze requires an interactive TTY (use ssh -tt)"
@@ -589,7 +597,7 @@ fi
 echo "[rally-v10-hdu] before MOTION, throw a ball and require /racket/command_flat data[2]=${EXPECTED_SIGN}"
 
 set +e
-wait -n "${BRIDGE_PID}" "${PLANNER_PID}"
+wait -n "${BRIDGE_PID}" "${PACKETIZER_PID}" "${PLANNER_PID}"
 child_status=$?
 set -e
 echo "[rally-v10-hdu] a managed process exited (status=${child_status}); stopping the remaining process" >&2

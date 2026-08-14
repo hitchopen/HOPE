@@ -8,7 +8,7 @@ import json
 import math
 from pathlib import Path
 
-from .base_pose_contract import receipt_id_u52
+from base_pose_contract import receipt_id_u52
 
 
 @dataclass(frozen=True)

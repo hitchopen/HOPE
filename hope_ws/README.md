@@ -16,8 +16,8 @@ source install/setup.bash
 
 | Member | Role |
 |--------|------|
-| `src/hope_planner` | Python planner (reference implementation) with venue presets (`config/hope_planner.yaml`, `.hitter_pure`, `.rally_v17_r10`, `.sim`) and the `planner_imitate` fake-planner for mocap-less bring-up. |
-| `src/hope_planner_cpp` | C++ planner — the low-latency hardware line (`config/model21800_hardware.yaml`, `/planner/diagnostics`). Publishes the same wire contract as the Python planner. |
+| `src/hope_planner_cpp` | The only supported Planner runtime: C++ flight packetizer + C++ Planner (`config/model21800_{flight_packetizer,hardware}.yaml`, `/planner/diagnostics`). |
+| `src/hope_planner` | Retired Python reference source, excluded from colcon by `COLCON_IGNORE`; offline comparisons only. |
 | `src/hope_msgs` | `RacketCommand` (position, velocity, normal, strike timing, outgoing ball velocity, validity/feasibility flags) — the field-by-field contract is [`docs/PLANNER_INTERFACE.md`](../docs/PLANNER_INTERFACE.md). |
 | `src/hope_bringup` | Launch files, mocap relays (`optitrack_mct_relay`, `pose_to_posearray`), the world-frame contract `config/hope_world_frame.yaml` (`table_p1_to_p2_v1`), preflight/probe scripts, and the P1 calibration tools (`p1_pelvis_calibrator`, `p1_marker_cad_calibrator`, `p1_pelvis_tf_publisher`). |
 | `calibration_receipts/` | Fail-closed calibration receipts (world origin, P1 marker-CAD registrations) that `hope_world_frame.yaml` pins by SHA — see [`docs/interfaces/frames.md`](../docs/interfaces/frames.md). |
@@ -74,5 +74,6 @@ ros2 launch hope_bringup hope_bringup.launch.py \
 `pose_to_posearray` preserves the incoming `PoseStamped` header. See
 [`../VRPN2ROS2/README.md`](../VRPN2ROS2/README.md) for the strict source-time
 and NTP epoch requirements. VRPN2ROS2 validates every source report and caps
-each raw ROS output topic/sensor at 200 Hz by default; this bringup selects a
-21-sample planner fit window for an approximately 100 ms estimator horizon.
+each raw ROS output topic/sensor at 200 Hz by default. The C++ packetizer uses
+the time-based `flight_window_s` setting (0.18 s by default), so changing the
+ROS output rate does not require converting a sample-count window.

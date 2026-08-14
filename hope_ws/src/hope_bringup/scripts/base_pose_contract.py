@@ -1,4 +1,4 @@
-"""Pure schema-2 mocap base-pose wire helpers (no ROS dependency)."""
+"""Pure schema-2 mocap base-pose wire helpers owned by hope_bringup."""
 
 import math
 from typing import Sequence

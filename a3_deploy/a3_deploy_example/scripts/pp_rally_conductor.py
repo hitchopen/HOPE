@@ -27,10 +27,10 @@ The ``random`` RallyV17-r10 phase instead scores a configurable many-ball
 session: it does not require READY or station transitions, and measures return
 to the immutable MOTION-entry XY anchor after each full-body swing.
 
-PASS requires the lifecycle/stability/input contract, the planner-envelope
-preflight, and separately sufficient FH and BH measured racket-contact and
-legal-landing rates.  Missing telemetry, side assignment, or ``shot_id`` joins
-fail closed.
+PASS requires the lifecycle/stability/input contract, the
+planner-envelope preflight, and separately sufficient FH and BH measured
+racket-contact and legal-landing rates.  Missing telemetry, side assignment,
+or ``shot_id`` joins fail closed.
 """
 import json
 import math
@@ -526,7 +526,7 @@ def stand_and_motion(label):
 
 
 def planner_pids():
-    out = subprocess.run(["pgrep", "-f", "hope_planner_node"],
+    out = subprocess.run(["pgrep", "-f", "hope_planner_cpp_node"],
                          capture_output=True, text=True).stdout.split()
     return [int(p) for p in out]
 
@@ -812,8 +812,6 @@ achieved_station_sequence = [
     (r["serve"], r["engaged"]["side"], r["command_station"])
     for r in serve_rows if r.get("command_station") is not None and r.get("engaged") is not None
 ]
-
-
 def station_transition_rows(sequence):
     result = []
     for prev, current in zip(sequence, sequence[1:]):
@@ -935,7 +933,7 @@ for row in serve_rows:
     row["physical_outcome"] = physical_by_id.get(int(row.get("shot_id") or 0))
 physical_ball_pass = bool(physical_join["pass"])
 certification_pass = bool(runner_gate_pass and planner_contract_pass and physical_ball_pass)
-# Public Gate3 has exactly one top-level verdict.  The historical runner-only
+# Public Gate3 has exactly one top-level verdict. The historical runner-only
 # result remains visible as the lifecycle regression subreport, but can never
 # promote the gate without contact and landing evidence.
 ok = certification_pass

@@ -16,7 +16,7 @@
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
-  <exec_depend>hope_planner</exec_depend>
+  <exec_depend>hope_planner_cpp</exec_depend>
   <!-- VRPN2ROS2 is an independently built/launched workspace. The VRPN
        relay consumes only standard geometry_msgs/PoseStamped, so hope_ws has
        no build or runtime package dependency on vrpn_mocap. -->
