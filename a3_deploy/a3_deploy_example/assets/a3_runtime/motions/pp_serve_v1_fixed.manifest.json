@@ -311,7 +311,7 @@
     "generator_sha256": "0d52852ad857a7b4100f0c0d40fd28e55186421a8dc4bf2387eb0106eec543cb",
     "model": "a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/models/bin/cfg/model/a3_pingpong/a3_pingpong.xml",
     "model_sha256": "4887b5301915830a298bee781c897da9448d45cf41ac91da6ce7440a7c3bbd22",
-    "right_reference": "hope_training/motions/preprocessed/hope_backhand_v12fix.npz",
+    "right_reference": "hope_training/motions/preprocessed/hope_backhand.npz",
     "right_reference_sha256": "67d04e13deeed068bdb003e379e18330dcd29210d280188fab7af26c0764eaac"
   },
   "schema": "pp_serve_clip_v1",

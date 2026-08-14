@@ -1,11 +1,9 @@
 # Replacing the motion clips
 
-Training imitates two motion clips. The ones shipped under
-`hope_training/motions/preprocessed/` are **reference examples only** — short, smooth,
-physically-neutral placeholders that let the loader and shape checks pass. They are **not**
-performance-tuned. Replace them with your own retargeted forehand/backhand motions before training a
-policy you intend to deploy. (The proven internal line trained on real clips of the *v12fix*
-generation — `hope_forehand_v12fix.npz` / `hope_backhand_v12fix.npz` — which are **not shipped**.)
+Training imitates two motion clips. The repository ships the complete validated Build pair under
+the stable public names `hope_forehand.npz` and `hope_backhand.npz`. Replace them only when you
+intend to train against your own retargeted forehand/backhand motions; keep the public filenames
+or override both paths explicitly.
 
 This page documents the file format so you can produce your own — any tool that emits the schema
 below works. Before an expensive training run, sanity-check the forehand/backhand pair yourself:
@@ -33,15 +31,19 @@ All arrays are `float32`, retargeted to the Agibot A3 and expressed in the share
 | Key | Shape | Meaning |
 |-----|-------|---------|
 | `fps` | scalar | frames per second (e.g. 50) |
-| `joint_pos` | `(F, 31)` | joint positions, in the [31-DOF joint order](POLICY_INTERFACE.md#joint-order) |
+| `joint_pos` | `(F, 31)` | joint positions in the Isaac articulation order recorded in the sidecar |
 | `joint_vel` | `(F, 31)` | joint velocities, same order |
-| `body_pos_w` | `(F, 14, 3)` | world positions of the 14 tracked bodies |
-| `body_quat_w` | `(F, 14, 4)` | world orientations (quaternion, **wxyz**) |
-| `body_lin_vel_w` | `(F, 14, 3)` | world linear velocities of the tracked bodies |
-| `body_ang_vel_w` | `(F, 14, 3)` | world angular velocities of the tracked bodies |
+| `body_pos_w` | `(F, B, 3)` | world body positions |
+| `body_quat_w` | `(F, B, 4)` | world body orientations (quaternion, **wxyz**) |
+| `body_lin_vel_w` | `(F, B, 3)` | world body linear velocities |
+| `body_ang_vel_w` | `(F, B, 3)` | world body angular velocities |
 
-The 14 tracked bodies are stored in this exact order (index 0 is the root, index 7 is the anchor the
-imitation reward aligns to):
+The published Build pair uses the complete unmerged articulation schema (`B=32`). The loader also
+accepts a compact `B=14` representation already ordered as the configured tracked-body list. Any
+other body-axis length fails before tensors reach CUDA.
+
+For compact replacement clips, the 14 tracked bodies must be stored in this exact order (index 0
+is the root, index 7 is the anchor the imitation reward aligns to):
 
 ```
  0 pelvis_link         (root)        7 torso_Link          (anchor)
@@ -63,10 +65,11 @@ The sidecar describes the clip's phase structure and racket convention (see
 
 - `name`, `swing_side` (`+1` forehand / `-1` backhand)
 - `fps`, `frame_count`, `frame_time_s`, `duration_s`
-- `strike_frame`, `strike_phase` (fraction of the clip at the strike)
-- `ready_interval_frames`, `follow_through_end_frame`, `recover_end_frame`
+- `strike_frame`, `strike_phase` (fraction of the clip at the strike), `recover_end_frame`
 - `joint_order` (the 31 joint names, in order)
-- `tracked_bodies`, `anchor_body`, `root_body`
+- `body_schema` (`complete_articulation_v1` for the published `B=32` files),
+  `anchor_body`, `root_body`; compact replacements may additionally record their
+  `tracked_bodies` order
 - `racket_link`, `racket_body`, `mount_offset_xyz` (wrist → racket-centre offset in the wrist frame),
   `blade_normal_axis`, `blade_normal_sign` (the public blade-face convention)
 
@@ -78,7 +81,7 @@ arrays by forward kinematics on the prepared A3 asset; any tool that emits the s
 Point training at the clips either by placing them at the default paths, or via the CLI:
 
 ```bash
-python scripts/train.py task=HOPEPingPong \
+hope_isaac_py scripts/train.py task=HOPEPingPong \
     motion_file=/path/to/your_forehand.npz \
     motion_file_2=/path/to/your_backhand.npz
 ```

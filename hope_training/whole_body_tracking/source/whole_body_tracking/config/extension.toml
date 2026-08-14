@@ -7,12 +7,12 @@ version = "0.1.0"
 category = "isaaclab"
 readme  = "README.md"
 
-title = "Extension Template"
-author = "Isaac Lab Project Developers"
-maintainer = "Isaac Lab Project Developers"
-description="Extension Template for Isaac Lab"
-repository = "https://github.com/isaac-sim/IsaacLabExtensionTemplate.git"
-keywords = ["extension", "template", "isaaclab"]
+title = "HOPE Whole-Body Tracking"
+author = "BeyondMimic and HOPE contributors"
+maintainer = "HOPE contributors"
+description = "Isaac Lab whole-body tracking extension for HOPE Agibot A3 ping-pong"
+repository = "https://github.com/hitchopen/HOPE.git"
+keywords = ["robotics", "reinforcement-learning", "isaaclab", "table-tennis"]
 
 [dependencies]
 "isaaclab" = {}

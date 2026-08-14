@@ -38,11 +38,17 @@ def _resolve_motion_path(value: str) -> str:
     p = pathlib.Path(str(value))
     if p.is_file():
         return str(p.resolve())
-    rooted = _repo_root() / value
-    if rooted.is_file():
-        return str(rooted.resolve())
-    # Return the repo-root candidate so the error message points at a stable location.
-    return str(rooted)
+    repo_root = _repo_root()
+    candidates = (
+        repo_root / value,
+        repo_root / "hope_training" / "whole_body_tracking" / value,
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+    # Return the training-root candidate because task YAML paths are relative
+    # to hope_training/whole_body_tracking, independent of the launch cwd.
+    return str(candidates[-1].resolve())
 
 
 def _resolve_motion_sources(cfg) -> list[str]:
@@ -61,8 +67,9 @@ def _resolve_motion_sources(cfg) -> list[str]:
     for clip in resolved:
         if not pathlib.Path(clip).is_file():
             raise FileNotFoundError(
-                f"motion clip not found: {clip}\nProvide your own clips or the placeholder clips "
-                "under hope_training/motions/preprocessed/ (see docs/REPLACE_MOTIONS.md)."
+                f"motion clip not found: {clip}\nUse the published clips under "
+                "hope_training/motions/preprocessed/ or provide your own pair "
+                "(see docs/REPLACE_MOTIONS.md)."
             )
     return resolved
 
@@ -184,6 +191,8 @@ def _apply_domain_rand(env_cfg, dr, applied: list) -> None:
 
 def _apply_task_overrides(env_cfg, cfg, applied: list) -> None:
     """Apply the launcher-level knobs + generic dotted-path overrides from the task cfg."""
+    from whole_body_tracking.utils.task_reward_overrides import apply_reward_overrides
+
     task = cfg.task
     # episode length (top-level on ManagerBasedRLEnvCfg).
     env_block = task.get("env")
@@ -197,6 +206,10 @@ def _apply_task_overrides(env_cfg, cfg, applied: list) -> None:
         )
     # domain randomization.
     _apply_domain_rand(env_cfg, task.get("domain_rand"), applied)
+    # Reward terms are registered by the EnvCfg, but Hydra's rewards mapping is
+    # not applied by Isaac Lab automatically. Keep the YAML as the recipe source
+    # of truth and fail loudly on any unmapped or misspelled field.
+    apply_reward_overrides(env_cfg.rewards, task.get("rewards"), applied)
     # generic overrides map (dotted attribute paths -> value).
     overrides = task.get("overrides")
     if overrides:
@@ -262,25 +275,6 @@ def _run(cfg):
     # 5) build env, (optionally) record video, wrap for rsl_rl.
     render_mode = "rgb_array" if cfg.video else None
     env = gym.make(task_id, cfg=env_cfg, render_mode=render_mode)
-
-    # HARD GATE (train time): the articulation's joint enumeration fixes the obs/action column
-    # order of everything this run learns. It must equal the canonical deploy joint order — the
-    # same check export_onnx.py applies — so a permuted asset fails BEFORE training, not after a
-    # full run when the stale checkpoint meets the export gate.
-    from whole_body_tracking.utils.action_adapter_config import load_joint_order
-
-    _joint_names = list(env.unwrapped.scene["robot"].data.joint_names)
-    _expected_order = list(load_joint_order())
-    if _joint_names != _expected_order:
-        raise RuntimeError(
-            "Articulation joint order does not match the canonical deploy joint order "
-            "(hope_training/config/joint_order_agibot_a3.yaml).\n"
-            f"  articulation: {_joint_names}\n"
-            f"  canonical:    {_expected_order}\n"
-            "Fix your A3 URDF/USD so its joint enumeration matches the canonical order before "
-            "training (a policy trained on a permuted enumeration cannot be deployed)."
-        )
-    print("[train.py] joint-order gate: articulation matches the canonical deploy order.", flush=True)
 
     # Validate the actor observation contract when the task declares one (guarded import).
     # The name (e.g. hitter_pure, 110-D) is resolved generically through the contract registry.

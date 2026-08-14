@@ -47,8 +47,15 @@ def _resolve_motion_path(value: str) -> str:
     p = pathlib.Path(str(value))
     if p.is_file():
         return str(p.resolve())
-    rooted = _repo_root() / value
-    return str(rooted.resolve()) if rooted.is_file() else str(rooted)
+    repo_root = _repo_root()
+    candidates = (
+        repo_root / value,
+        repo_root / "hope_training" / "whole_body_tracking" / value,
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+    return str(candidates[-1].resolve())
 
 
 def parse_args() -> argparse.Namespace:
@@ -175,7 +182,7 @@ def main() -> int:
             p[2] -= table_surface_z
             return p
 
-        obs, _ = env.get_observations()
+        obs = env.get_observations().to(args.device)
         prev_tts = read_state()[3].clone()
         for _ in range(args.num_steps):
             with torch.inference_mode():

@@ -63,7 +63,7 @@ Laptop 正式运行目录：
 ```text
 $HOPE_ROOT
     Foxglove、Runner、Laptop OptiTrack workspace、Calibration JSON、
-    real_logs、部署文件和本文全部从这里取。不要混用旧 Hope_v11 工作区。
+    real_logs、部署文件和本文全部从这里取。不要混用其他旧工作区。
 ```
 
 本文中的默认 IP 可以改。部署时 SSH 命令必须使用当时真实地址；每次运行时

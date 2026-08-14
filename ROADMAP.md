@@ -42,21 +42,19 @@ and deliberately withheld, see
 Free locomotion and gait planning (the base is station-anchored), motion
 retiming/TOPP, opponent adaptation, and shot strategy. Spin-aware **planning**
 is out of scope: the C++ planner carries only a diagnostics-only spin *shadow*
-estimator, and the published command stays no-spin. The shipped placeholder
-motions, reward recipes, and physics constants are documented and meant to be
+estimator, and the published command stays no-spin. The shipped reference
+motions, reward recipes, and physics constants are documented and may be
 replaced or re-fitted — see
 [`docs/EXTENDING_HOPE_PINGPONG.md`](docs/EXTENDING_HOPE_PINGPONG.md).
 
 ## Not shipped / next
 
-- **Real motion clips.** The proven line trained on the *v12fix*-generation
-  forehand/backhand clips, which are not shipped; the committed clips are
-  schema-valid placeholders. Bring your own via
-  [`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md) (converters and
-  validators are included).
-- **Trained checkpoints / ONNX weights.** The exporters, parity checks, and
-  fail-closed loaders ship; the weights do not. Reproducing a deploy-grade
-  policy from a clean clone requires your GPU time and your clips.
+- **Additional motion clips.** The complete validated forehand/backhand pair is
+  shipped under stable public filenames. Bring additional motions via
+  [`docs/REPLACE_MOTIONS.md`](docs/REPLACE_MOTIONS.md).
+- **Additional trained weights.** The `model_21800` checkpoint, exported ONNX,
+  deploy configuration, and Gate 3 evidence ship. Training other policies still
+  requires your own GPU time and, when applicable, your own motions.
 - **Spin-aware planning** beyond the shadow estimator — promoting spin from a
   diagnostics channel into the published racket command.
 - **Non-A3 robots.** The G1/SMPL scaffolding exists again in the tracking

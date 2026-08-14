@@ -6,7 +6,7 @@ points and the exact files behind each.
 
 ## Bring your own motions
 
-Replace the two placeholder clips with your own forehand/backhand motions. The `.npz` + `.yaml`
+Replace the two shipped Build clips with your own forehand/backhand motions. The `.npz` + `.yaml`
 schema and the CLI to point training at them are in
 [REPLACE_MOTIONS.md](REPLACE_MOTIONS.md).
 

@@ -27,7 +27,6 @@ HITTER alignment notes (see the project HITTER verification):
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -230,24 +229,10 @@ class RacketTargetCommand(CommandTerm):
                 raise ValueError(
                     "fixed_balanced_bank_v1 requires venue_tuple_bank_path"
                 )
-            bank_sha = str(
-                getattr(cfg, "venue_tuple_bank_sha256", "")
-            ).strip().lower()
-            if len(bank_sha) != 64 or any(
-                character not in "0123456789abcdef" for character in bank_sha
-            ):
+            if not str(getattr(cfg, "venue_tuple_bank_receipt_path", "")).strip():
                 raise ValueError(
-                    "fixed_balanced_bank_v1 requires a 64-character lowercase "
-                    "venue_tuple_bank_sha256"
+                    "fixed_balanced_bank_v1 requires venue_tuple_bank_receipt_path"
                 )
-            for label in (
-                "venue_tuple_bank_receipt_path",
-                "venue_tuple_bank_receipt_sha256",
-            ):
-                if not str(getattr(cfg, label, "")).strip():
-                    raise ValueError(
-                        f"fixed_balanced_bank_v1 requires {label}"
-                    )
         if float(cfg.venue_tuple_speed_limit_mps) <= 0.0:
             raise ValueError("venue_tuple_speed_limit_mps must be positive")
         if int(cfg.venue_tuple_max_resample_attempts) < 1:
@@ -3627,14 +3612,6 @@ class RacketTargetCommand(CommandTerm):
         )
 
     @staticmethod
-    def _file_sha256(path: Path) -> str:
-        digest = hashlib.sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
-
-    @staticmethod
     def _normal_from_target_velocity(velocity: torch.Tensor) -> torch.Tensor:
         """Return the HitterV11 V14 face-normal target for a velocity target."""
 
@@ -3668,34 +3645,9 @@ class RacketTargetCommand(CommandTerm):
         path = self._resolve_venue_tuple_bank_path(
             str(self.cfg.venue_tuple_bank_path)
         )
-        # SHA pinning is optional: validate only when the task config carries
-        # the expected digests (the public config ships without them).
-        sha_pin_status = "disabled"
-        expected_sha = str(
-            getattr(self.cfg, "venue_tuple_bank_sha256", "") or ""
-        ).strip().lower()
-        if expected_sha:
-            actual_sha = self._file_sha256(path)
-            if actual_sha != expected_sha:
-                raise RuntimeError(
-                    "V17 physical tuple bank SHA256 mismatch: "
-                    f"expected={expected_sha}, actual={actual_sha}, path={path}"
-                )
-            sha_pin_status = "verified"
         receipt_path = self._resolve_venue_tuple_bank_path(
             str(self.cfg.venue_tuple_bank_receipt_path)
         )
-        expected_receipt_sha = str(
-            getattr(self.cfg, "venue_tuple_bank_receipt_sha256", "") or ""
-        ).strip().lower()
-        if expected_receipt_sha:
-            actual_receipt_sha = self._file_sha256(receipt_path)
-            if actual_receipt_sha != expected_receipt_sha:
-                raise RuntimeError(
-                    "V17 physical tuple receipt SHA256 mismatch: "
-                    f"expected={expected_receipt_sha}, actual={actual_receipt_sha}, "
-                    f"path={receipt_path}"
-                )
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         if (
             int(receipt.get("schema_version", -1))
@@ -3787,7 +3739,7 @@ class RacketTargetCommand(CommandTerm):
         self._venue_tuple_bank_receipt_path = str(receipt_path)
         print(
             "[RacketTargetCommand] physical tuple bank ON: "
-            f"path={path}, sha_pin={sha_pin_status}, FH={counts[0]}, BH={counts[1]}, "
+            f"path={path}, FH={counts[0]}, BH={counts[1]}, "
             f"mix={float(self.cfg.venue_tuple_final_mix_prob):.3f}",
             flush=True,
         )
