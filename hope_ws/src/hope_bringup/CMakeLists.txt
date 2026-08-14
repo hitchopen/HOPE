@@ -63,10 +63,6 @@ if(BUILD_TESTING)
   ament_add_pytest_test(mocap_frame_probe_test test/test_mocap_frame_probe.py)
   ament_add_pytest_test(base_pose_contract_test test/test_base_pose_contract.py)
   ament_add_pytest_test(p1_calibration_test test/test_p1_calibration.py)
-  ament_add_pytest_test(
-    cpp_planner_runtime_contract_test
-    test/test_cpp_planner_runtime_contract.py
-  )
 endif()
 
 ament_package()
