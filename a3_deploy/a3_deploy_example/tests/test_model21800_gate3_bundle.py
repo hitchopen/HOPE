@@ -132,6 +132,8 @@ def test_model21800_only_packager_checks_runtime_dependency_closure():
     for marker in (
         "--pingpong-only",
         "verify_pingpong_package",
+        "aimrt_plugins_iceoryx_plugin",
+        "aimrt_plugins_ros2_plugin",
         "libaimrt_iceoryx_plugin.so",
         "libaimrt_ros2_plugin.so",
         "libonnxruntime.so.1",
