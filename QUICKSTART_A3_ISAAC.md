@@ -80,6 +80,11 @@ To use your own vendor-supplied copy instead, place it under `a3_deploy/URDF/` (
 
 ## 3. Set Up the Training Shell (`hope_isaac_py`)
 
+Distrobox is optional for training. If the host has no `distrobox` command,
+the installation choices and the difference between `hope` and `grasping` are
+documented in [`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md). This
+repository does not create the Isaac-equipped `grasping` container.
+
 `setup_train_env.sh` puts the working-tree package source first on `PYTHONPATH` and defines a
 `hope_isaac_py` launcher that runs your Isaac Sim Python with that path. Source it (do not
 execute) in every training shell:
@@ -228,8 +233,8 @@ Isaac metrics (step 6), this MuJoCo sim-to-sim check, and the closed-loop planne
 
 ## 9. Run the Full Loop (C++ Runner + Planner)
 
-Build the ROS 2 planner workspace, then rehearse the chain closed-loop with the Python
-reference harness in plain MuJoCo:
+Build the ROS 2 workspace, then rehearse the C++ Planner chain closed-loop with
+the Python MuJoCo reference Runner harness:
 
 ```bash
 cd hope_ws && colcon build && source install/setup.bash
@@ -240,8 +245,9 @@ cd a3_deploy/a3_deploy_example
 PYTHONPATH=reference python3 -m a3_deploy_onnx_ref_pingpong --planner --view --realtime
 ```
 
-The rehearsal wires a fake ball into the **real** Python planner
-(`hope_ws/src/hope_planner`), which publishes `/racket/command_flat` and `/a3/base_pose_flat`;
+The rehearsal wires a fake ball through `hope_ball_flight_packetizer` into the
+production **C++ Planner** (`hope_ws/src/hope_planner_cpp`), which publishes
+`/racket/command_flat`; `hope_bringup` owns the independent base-pose relay;
 the runner consumes the flats in `--planner` mode — the same wire the native C++ runner
 (`a3_pingpong`, sources under `a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/`)
 subscribes on hardware. Building and driving the C++ runner is covered in

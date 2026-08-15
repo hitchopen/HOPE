@@ -1,20 +1,22 @@
 # hope_planner_cpp
 
-Deterministic C++17 planner candidate for the `model_21800` hardware contract.
+Deterministic C++17 Planner for the `model_21800` hardware contract. This is
+the only supported ROS Planner runtime for production, Foxglove and Gate 3.
 The ROS production path contains a non-recursive, bounce-aware batch physics estimator, the
 Stage 2 trajectory predictor, the complete Stage 3 racket solve, and the exact
 19-double schema-2 publisher. It contains no EKF, covariance, Kalman gain, or
 chi-square admission logic.
 
-The high-rate `/poses` callback validates monotonic samples and owns the
-incoming-flight state machine. A small detector-only pre-roll fits X velocity,
+In production, the separate `hope_ball_flight_packetizer` executable owns the
+high-rate `/poses` callback and incoming-flight state machine. A small
+detector-only pre-roll fits X velocity,
 ignores the robot's outgoing flight, and backtracks a confirmed opponent return
 to its X turnaround. Only that epoch's incoming samples enter the 180 ms
 estimator history. At `net crossing + 50 ms`, the callback freezes one immutable
-snapshot, clears the active epoch, and sends it through a one-slot latest-wins
-mailbox. The solver runs one estimator/Stage-2/Stage-3 solve and publishes once.
-The fixed SPSC ring remains only for the explicitly disabled one-shot legacy
-mode. DDS QoS remains `KeepLast(64)` (about 178 ms at 360 Hz).
+snapshot, clears the active epoch, and publishes an immutable
+`/ball/flight_packet`. `hope_planner_cpp_node` runs one
+estimator/Stage-2/Stage-3 solve and publishes once. Direct `/poses` input remains
+an explicit legacy A/B mode and is disabled by the production config.
 
 The net crossing is fixed task-phase bookkeeping, not a safety or quality gate.
 There is no confidence, stability-frame, READY, source-age, calibration, or
@@ -35,10 +37,18 @@ replay and HDU/field qualification explicitly promote them.
 
 ## Local build and tests
 
+The commands below assume the ROS-equipped `hope` container already exists.
+On a new machine, create it using
+[`docs/DISTROBOX_SETUP.md`](../../../docs/DISTROBOX_SETUP.md) first.
+
 ```bash
 distrobox enter hope
 source /opt/ros/jazzy/setup.bash
-colcon build --symlink-install --packages-up-to hope_planner_cpp
+colcon build --symlink-install \
+  --packages-select hope_msgs hope_planner_cpp \
+  --cmake-args \
+    -DPython3_EXECUTABLE=/usr/bin/python3 \
+    -DPYTHON_EXECUTABLE=/usr/bin/python3
 colcon test --packages-select hope_planner_cpp
 colcon test-result --verbose
 ```

@@ -37,7 +37,8 @@ The default runtime selects the deployed 110-D `hitter_pure` actor. See the
 [Gate 3 MuJoCo video](docs/assets/model_21800_gate3_mujoco.mp4).
 The guide also contains the reproducible native Runner/Planner build,
 host-only contract tests, isolated racket-contact A/B test, process-free Gate
-3 preflight, and the sole formal 12-serve Gate 3 entrypoint.
+3 preflight, the default repeated-good-ball cherry-pick run, and the explicit
+`--qualification` 12-serve lateral sweep.
 
 ## Train and export your own
 
@@ -223,7 +224,7 @@ The competition rulebooks ship at the repository root:
 | `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with the `HitterPingPong` task and the train/eval/export scripts, including `scripts/prepare_a3_isaac_asset.py`), the complete validated forehand/backhand reference motions (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
 | `NatNet2ROS2/` | Independent ROS 2 workspace for the OptiTrack/Motive NatNet adapter, named-pose interfaces, acquisition-time mapping, and driver tests. Build and launch it separately from `hope_ws`. |
 | `VRPN2ROS2/` | Independent ROS 2 workspace for the ChingMu/VRPN client, strict server-time/NTP validation, and raw per-tracker `PoseStamped` topics. |
-| `hope_ws/` | ROS 2 workspace: `hope_planner` (Python no-spin planner + presets + fake-planner mode), `hope_planner_cpp` (low-latency C++ planner used on hardware), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (`RacketCommand.msg`), and `calibration_receipts/` (venue calibration evidence). Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
+| `hope_ws/` | ROS 2 workspace: `hope_planner_cpp` (the supported C++ packetizer/Planner runtime), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (wire messages), and `calibration_receipts/` (venue calibration evidence). The retired Python Planner source is excluded from colcon and retained only for offline comparison. Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
 | `a3_deploy/` | The native C++ deploy runner, gate/rehearsal script suite, parity harness, and deploy runbooks (`a3_deploy_example/`); the MuJoCo/AimRT simulation fork with the real ball plant (`A3_MuJoCo_Sim/`); and the optional user-supplied URDF override location (`URDF/`). |
 | [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
 | `agibot/` | Agibot-provided A3 bundle: the racket-equipped source URDF (`URDF/A3T2.5-URDF-std-pingpang/`), the vendor deploy example (`code_deployment/`), the MuJoCo/AimRT simulation reference (`A3_MuJoCo_Sim/`), and mounting hardware models (`pku/`). |
@@ -254,8 +255,8 @@ The competition rulebooks ship at the repository root:
                                │
                                ▼
                     ┌─────────────────────────────┐
-                    │  hope_planner /              │
-                    │  hope_planner_cpp (Stages 1–3)│
+                    │  hope_ball_flight_packetizer │
+                    │  + hope_planner_cpp (1–3)   │
                     │                              │
                     │  Ball state estimation       │
                     │  → no-spin trajectory        │

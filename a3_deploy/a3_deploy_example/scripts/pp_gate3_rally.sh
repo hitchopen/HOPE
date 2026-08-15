@@ -27,6 +27,7 @@ DIST="${PP_DIST:-$GEAR/dist/a3_deploy_x86_64}"
 WS="${PP_HOPE_WS:-$HOPE_ROOT/hope_ws}"
 SIM_INSTALL="${PP_SIM_INSTALL:-$HOPE_ROOT/a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/cmake-build-model21800-gate3/install}"
 PLANNER_DEBUG_CSV="${PP_PLANNER_DEBUG_CSV:-/tmp/pp_planner_debug.csv}"
+PACKETIZER_DEBUG_CSV="${PP_PACKETIZER_DEBUG_CSV:-/tmp/pp_flight_packets.csv}"
 # The real MDU launcher and Gate3 consume the same policy-native argv contract.
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/pp_gate3_runner_common.sh"
@@ -38,6 +39,7 @@ export A3_SIM_INSTALL="${A3_SIM_INSTALL:-$SIM_INSTALL}"
 if [ ! -r /opt/ros/jazzy/setup.bash ]; then
   echo "[g3r] ENV FAIL: ROS Jazzy is unavailable."
   echo "[g3r] Run Gate3 inside: distrobox enter hope"
+  echo "[g3r] New-machine setup: docs/DISTROBOX_SETUP.md"
   exit 2
 fi
 if [ ! -r "$WS/install/local_setup.bash" ]; then
@@ -106,6 +108,28 @@ source /opt/ros/jazzy/setup.bash
 source "$SIM_INSTALL/share/mujoco_sim_msgs/local_setup.bash"
 # shellcheck disable=SC1090
 source "$WS/install/local_setup.bash"
+CPP_PLANNER_PREFIX="$(ros2 pkg prefix hope_planner_cpp 2>/dev/null)" || {
+  echo "[g3r] ENV FAIL: hope_planner_cpp is not installed in $WS/install"
+  exit 2
+}
+CPP_PLANNER_EXE="$CPP_PLANNER_PREFIX/lib/hope_planner_cpp/hope_planner_cpp_node"
+PACKETIZER_EXE="$CPP_PLANNER_PREFIX/lib/hope_planner_cpp/hope_ball_flight_packetizer"
+CPP_PLANNER_CONFIG="$WS/src/hope_planner_cpp/config/model21800_hardware.yaml"
+PACKETIZER_CONFIG="$WS/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml"
+for required in \
+  "$CPP_PLANNER_EXE" \
+  "$PACKETIZER_EXE" \
+  "$CPP_PLANNER_CONFIG" \
+  "$PACKETIZER_CONFIG"; do
+  if [ ! -r "$required" ]; then
+    echo "[g3r] ENV FAIL: C++ Planner artifact missing: $required"
+    exit 2
+  fi
+done
+if [ ! -x "$CPP_PLANNER_EXE" ] || [ ! -x "$PACKETIZER_EXE" ]; then
+  echo "[g3r] ENV FAIL: C++ Planner executables are not executable; rebuild hope_planner_cpp"
+  exit 2
+fi
 if ! python3 -c \
   'import rclpy; from mujoco_sim_msgs.msg import Gate3BallCommand, Gate3BallState; from motion_capture_tracking_interfaces.msg import NamedPoseArray; from std_srvs.srv import Trigger'; then
   echo "[g3r] ENV FAIL: Gate3 ROS Python messages are not importable"
@@ -267,17 +291,19 @@ if [ "${PP_REQUIRE_IDLE_SMOOTHNESS:-0}" = "1" ]; then
 fi
 
 if [ "${PP_GATE3_PREFLIGHT_ONLY:-0}" = "1" ]; then
-  echo "[g3r] PREFLIGHT PASS: model_21800 Gate3 environment is complete"
+  echo "[g3r] PREFLIGHT PASS: model_21800 ${PP_GATE3_PHASE} environment is complete"
   echo "[g3r] runner=$DIST/a3_deploy_onnx_ref_pingpong"
   echo "[g3r] sim=$SIM_INSTALL/bin/aimrt_main"
-  echo "[g3r] planner_workspace=$WS"
+  echo "[g3r] planner=$CPP_PLANNER_EXE"
+  echo "[g3r] flight_packetizer=$PACKETIZER_EXE"
   exit 0
 fi
 
 echo "[g3r] cleanup"
 pkill -9 -f "aimrt_main.*a3_pingpong" 2>/dev/null
 pkill -9 -f "a3_deploy_onnx_ref_pingpong" 2>/dev/null
-pkill -9 -f "hope_planner_node" 2>/dev/null
+pkill -9 -f "hope_planner_cpp_node" 2>/dev/null
+pkill -9 -f "hope_ball_flight_packetizer" 2>/dev/null
 pkill -9 -f "hope_base_pose_flat_relay" 2>/dev/null
 pkill -9 -f "ros2 launch hope_bringup hope_world.launch.py" 2>/dev/null
 pkill -9 -f "optitrack_mct_relay" 2>/dev/null
@@ -289,14 +315,16 @@ rm -f /dev/shm/iox1_0_* /tmp/pp_obs.csv /tmp/pp_runner_trace.csv \
   /tmp/pp_mujoco_plant.csv /tmp/pp_mujoco_plant_report.json \
   /tmp/pp_rally_report.json /tmp/pp_runner.log /tmp/pp_ball.log \
   /tmp/pp_contact.log /tmp/pp_raw_mocap.log /tmp/pp_mocap_relay.log \
-  "$PLANNER_DEBUG_CSV" \
+  /tmp/pp_packetizer.log "$PLANNER_DEBUG_CSV" \
+  "$PLANNER_DEBUG_CSV.flight_packets.csv" "$PACKETIZER_DEBUG_CSV" \
   "${PP_PHYSICAL_EVIDENCE_JSON:-/tmp/pp_physical_ball_report.json}" \
   2>/dev/null
 sleep 1
 
 gate3_cleanup() {
   pkill -9 -f "a3_deploy_onnx_ref_pingpong" 2>/dev/null
-  pkill -9 -f "hope_planner_node" 2>/dev/null
+  pkill -9 -f "hope_planner_cpp_node" 2>/dev/null
+  pkill -TERM -f "hope_ball_flight_packetizer" 2>/dev/null
   pkill -TERM -f "ros2 launch hope_bringup hope_world.launch.py" 2>/dev/null
   pkill -TERM -f "hope_base_pose_flat_relay" 2>/dev/null
   pkill -INT -f "pp_gate3_ball_evidence.py" 2>/dev/null
@@ -347,38 +375,34 @@ setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; \
   -p publish_tf:=false" >/tmp/pp_mocap_relay.log 2>&1 &
 
 echo "[g3r] calibrated hope_world relay (/P1/pose -> pelvis schema-2 base)"
-# The pure-Python Stage-2/3 solve can occasionally occupy the planner executor for >200 ms.
-# Localization is a fail-closed safety input, so do not forward it from that same process:
-# keep the calibrated relay lightweight and independent instead of relaxing the runner
-# freshness timeout.  The launch consumes the same full translation, quaternion and
-# calibration receipts as the real OptiTrack path.
+# Keep localization in a process independent from the C++ flight packetizer and
+# Planner. The launch consumes the same translation, quaternion and calibration
+# receipts as the real OptiTrack path.
 setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install/local_setup.bash 2>/dev/null; \
   ros2 launch hope_bringup hope_world.launch.py \
   p1_calibration_file:='$P1_CALIBRATION_RECEIPT'" \
   >/tmp/pp_base_relay.log 2>&1 &
 
-echo "[g3r] production hope_planner (venue physics + raw mocap boundary)"
+echo "[g3r] production C++ flight packetizer (/poses -> /ball/flight_packet)"
+setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install/local_setup.bash 2>/dev/null; \
+  '$PACKETIZER_EXE' --ros-args \
+  --params-file '$PACKETIZER_CONFIG' \
+  -p session_id:=${PP_GATE3_PROFILE}_gate3 \
+  -p debug_csv_path:='$PACKETIZER_DEBUG_CSV'" \
+  >/tmp/pp_packetizer.log 2>&1 &
+
+echo "[g3r] production hope_planner_cpp (immutable flight packet -> schema-2 command)"
 echo "      hitter_pure profile: world x_hit=$PP_XHIT, shared reach plane=$PP_FIXED_PLANE_X, station_x=$PP_STATION_X"
 echo "      backhand x_hit delta=$PP_XHIT_BH_DELTA (V10--V15 require 0.0 for y-only footwork)"
 echo "      gate profile=$PP_GATE3_PROFILE (versioned wrapper; bare launch is rejected)"
 echo "      landing x=${PP_LAND_X:-2.055} y(fh/bh)=${PP_LAND_Y_FH:--0.7625}/${PP_LAND_Y_BH:--0.7625}"
 echo "      dtf(fh/bh)=${PP_DTF_FH:-0.50}/${PP_DTF_BH:-0.50}; versioned wrapper values are authoritative."
-PLANNER_PROFILE_ARG=""
-if [ -n "${PP_PLANNER_PROFILE:-}" ]; then
-  if [ ! -f "$PP_PLANNER_PROFILE" ]; then
-    echo "[g3r] ENV FAIL: planner profile missing: $PP_PLANNER_PROFILE"
-    exit 2
-  fi
-  PLANNER_PROFILE_ARG="--params-file $PP_PLANNER_PROFILE"
-fi
 setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install/local_setup.bash 2>/dev/null; \
-  PYTHONPATH='$WS/src/hope_planner':\"\${PYTHONPATH:-}\" \
-  ros2 run hope_planner hope_planner_node --ros-args \
-  --params-file $WS/src/hope_planner/config/hope_planner.yaml \
-  --params-file $WS/src/hope_planner/config/hope_planner.hitter_pure.yaml \
-  $PLANNER_PROFILE_ARG \
+  '$CPP_PLANNER_EXE' --ros-args \
+  --params-file '$CPP_PLANNER_CONFIG' \
+  -p flight_packet_input_enabled:=true -p flight_packet_topic:=/ball/flight_packet \
   -p base_pose_flat_input_topic:=/a3/base_pose_flat -p publish_base_flat:=false \
-  -p policy_z_offset:=$PP_POLICY_Z_OFFSET -p fit_window:=26 \
+  -p policy_z_offset:=$PP_POLICY_Z_OFFSET \
   -p drag_k:=0.1261 -p restitution_h:=0.64 -p restitution_v:=0.9215 \
   -p x_hit_follow_robot:=false -p x_hit:=$PP_XHIT \
   -p x_hit_bh_delta:=$PP_XHIT_BH_DELTA \
@@ -409,13 +433,21 @@ setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic echo --
 
 echo "[g3r] flat topics alive?"
 sleep 4
+# The packetizer intentionally emits no flight packet until the launcher releases
+# the first ball after MOTION.  At this point verify graph discovery only; waiting
+# for a sample here mistakes the correct pre-serve idle state for a transport fault.
+timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic info /ball/flight_packet 2>&1" | tail -2
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /racket/command_flat 2>&1 | head -2" | tail -1
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /a3/base_pose_flat 2>&1 | head -2" | tail -1
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /P1/pose 2>&1 | head -2" | tail -1
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source '$SIM_INSTALL/share/mujoco_sim_msgs/local_setup.bash' 2>/dev/null; ros2 topic hz /sim/gate3/ball_state 2>&1 | head -2" | tail -1
 
 echo "[g3r] prewarm ros2 pub discovery (straggler-reset-in-MOTION trap)"
-"$GEAR/scripts/reset_sim.sh" >/tmp/pp_reset_prewarm.log 2>&1
+if ! timeout 10 "$GEAR/scripts/reset_sim.sh" >/tmp/pp_reset_prewarm.log 2>&1; then
+  echo "[g3r] RESET DISCOVERY FAIL: /sim/a3/reset has no live subscriber"
+  tail -4 /tmp/pp_reset_prewarm.log
+  exit 1
+fi
 
 echo "[g3r] RALLY conductor: stand -> m ONCE, then ${PP_SERVES:-12} serves, no resets"
 source "$SIM_INSTALL/share/mujoco_sim_msgs/local_setup.bash" 2>/dev/null

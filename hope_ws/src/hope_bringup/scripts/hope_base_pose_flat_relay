@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Independent, fail-closed PoseStamped -> native-runner base-pose relay.
 
 The planner's ball solve intentionally runs in another process. Stage-2/3 solves
@@ -21,7 +22,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Float64MultiArray
 
-from .base_pose_contract import (
+from base_pose_contract import (
     FLAG_EXTRINSIC_CALIBRATED,
     FLAG_POLICY_Z_OFFSET_APPLIED,
     FLAG_QUATERNION_VALID,
@@ -36,7 +37,7 @@ from .base_pose_contract import (
     receipt_id_u52,
     resolve_wire_source_stamp_ns,
 )
-from .p1_calibration import load_p1_calibration
+from p1_calibration import load_p1_calibration
 
 
 class BasePoseFlatRelay(Node):

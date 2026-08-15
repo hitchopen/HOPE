@@ -1,4 +1,4 @@
-"""Generic HOPE bringup: motion capture -> planner.
+"""Generic HOPE bringup: motion capture -> C++ flight packetizer -> C++ planner.
 
 Starts the racket planner and its ball source. Two mocap backends are
 selectable via ``mocap_backend`` (both feed the same ``/poses`` contract, ball
@@ -58,12 +58,17 @@ def generate_launch_description():
     mocap_backend = LaunchConfiguration("mocap_backend")
     use_fake_ball = LaunchConfiguration("use_fake_ball")
     ball_pose_topic = LaunchConfiguration("ball_pose_topic")
-    planner_fit_window = LaunchConfiguration("planner_fit_window")
+    flight_window_s = LaunchConfiguration("flight_window_s")
 
     planner_config = (
-        Path(get_package_share_directory("hope_planner"))
+        Path(get_package_share_directory("hope_planner_cpp"))
         / "config"
-        / "hope_planner.yaml"
+        / "model21800_hardware.yaml"
+    )
+    packetizer_config = (
+        Path(get_package_share_directory("hope_planner_cpp"))
+        / "config"
+        / "model21800_flight_packetizer.yaml"
     )
 
     # Backend selectors. use_fake_ball overrides either backend (no mocap
@@ -105,6 +110,9 @@ def generate_launch_description():
             "start_world": "false",
             "start_natnet": "false",
             "start_calibration": "false",
+            # This top-level launch owns exactly one packetizer for every
+            # mocap backend.
+            "start_flight_packetizer": "false",
         }.items(),
         condition=optitrack_selected,
     )
@@ -117,15 +125,23 @@ def generate_launch_description():
         condition=IfCondition(use_fake_ball),
     )
 
-    planner = Node(
-        package="hope_planner",
-        executable="hope_planner_node",
-        name="hope_planner",
+    packetizer = Node(
+        package="hope_planner_cpp",
+        executable="hope_ball_flight_packetizer",
+        name="hope_ball_flight_packetizer",
         output="screen",
         parameters=[
-            str(planner_config),
-            {"fit_window": ParameterValue(planner_fit_window, value_type=int)},
+            str(packetizer_config),
+            {"flight_window_s": ParameterValue(flight_window_s, value_type=float)},
         ],
+    )
+
+    planner = Node(
+        package="hope_planner_cpp",
+        executable="hope_planner_cpp_node",
+        name="hope_planner",
+        output="screen",
+        parameters=[str(planner_config)],
     )
 
     return LaunchDescription([
@@ -147,14 +163,12 @@ def generate_launch_description():
                         "The optitrack backend maps objects by name instead "
                         "(config/optitrack_relay.yaml)."),
         DeclareLaunchArgument(
-            "planner_fit_window",
-            default_value="21",
-            description="Planner velocity-fit samples. The default preserves an "
-                        "approximately 100 ms window for either adapter's "
-                        "default 200 Hz output. "
-                        "Override when changing the adapter output rate."),
+            "flight_window_s",
+            default_value="0.18",
+            description="Time window retained by the C++ flight packetizer."),
         pose_adapter,
         optitrack_bridge,
         fake_ball,
+        packetizer,
         planner,
     ])

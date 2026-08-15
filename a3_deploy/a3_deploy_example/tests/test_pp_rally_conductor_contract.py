@@ -69,3 +69,17 @@ def test_runner_command_safety_latch_is_a_fail_fast_stability_failure():
     assert 'if ev["command_safety_faults"]:' in source
     assert 'and not command_safety_faults' in source
     assert '"command_safety_fault_count": len(command_safety_faults)' in source
+
+
+def test_conductor_tracks_the_cpp_planner_process_only():
+    source = SCRIPT.read_text()
+    assert '["pgrep", "-f", "hope_planner_cpp_node"]' in source
+    assert '["pgrep", "-f", "hope_planner_node"]' not in source
+
+
+def test_gate3_has_one_fail_closed_certification_verdict():
+    source = SCRIPT.read_text()
+    assert 'GATE3_VERDICT != "certification"' in source
+    assert '"gate_name": "Gate3"' in source
+    assert '"selected_gate_verdict": "certification"' in source
+    assert "cherry_pick" not in source

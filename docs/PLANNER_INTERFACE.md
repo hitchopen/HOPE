@@ -5,18 +5,22 @@ for the policy. It is a no-spin, continuous planner: it predicts where the incom
 crosses a virtual hit plane, chooses forehand or backhand, and publishes a racket target
 position, velocity, face normal, and strike timing.
 
-Two interchangeable implementations ship, publishing the same wire contract:
+There is one supported ROS runtime implementation:
 
 | Package | Role |
 |---------|------|
-| `hope_ws/src/hope_planner` (Python) | Reference implementation, richest test suite, bring-up tooling (`planner_imitate` fake-planner mode included). |
-| `hope_ws/src/hope_planner_cpp` (C++) | Low-latency hardware line used on the head unit; adds an audit logger, batch physics estimator, and `/planner/diagnostics`. |
+| `hope_ws/src/hope_planner_cpp` (C++) | Production and Gate 3 Planner, with the flight packetizer, audit logger, batch physics estimator, and `/planner/diagnostics`. |
+
+`hope_ws/src/hope_planner` is excluded from colcon with `COLCON_IGNORE`. Its
+Python source is retained only as an offline numerical reference; do not launch
+it or add it to a production build.
 
 ## Data flow
 
 ```
 mocap ball positions (/poses, ball at index 0)
-  -> position/velocity estimate (polyfit window)
+  -> hope_ball_flight_packetizer (immutable /ball/flight_packet)
+  -> C++ batch position/velocity estimate
   -> no-spin trajectory prediction (gravity + drag + table bounce)
   -> virtual hit plane crossing (fixed x_hit by default)
   -> forehand/backhand selection
@@ -24,10 +28,9 @@ mocap ball positions (/poses, ball at index 0)
   -> RacketCommand + /racket/command_flat (+ diagnostics)
 ```
 
-- Every incoming mocap sample feeds the estimator; the trajectory solve runs at bounded
-  rate. Commands for the same incoming ball are revised as the estimate sharpens and
-  **freeze at engage** (the runner stops accepting revisions once the swing starts —
-  contract `schema2_three_stable_revisions_freeze_at_engage_v1`).
+- Every incoming mocap sample feeds the Laptop-side packetizer. It freezes one
+  complete incoming-flight packet; the C++ Planner solves that immutable packet
+  once and the Runner freezes the accepted command when the swing engages.
 - The ball model is no-spin: `[x, y, z, vx, vy, vz]` with gravity, measured drag, and
   measured table/paddle restitution. The shipped parameters are a real venue fit
   (`drag_k = 0.1261`, see `configs/ball_physics_venue.yaml` and the fitting tools under
@@ -105,10 +108,8 @@ BH→FH, BH→BH) occur naturally across a rally.
 
 ## Configuration
 
-`hope_ws/src/hope_planner/config/hope_planner.yaml` is the annotated base config: virtual
-hit plane (`x_hit`, fixed-plane mode), side split and hysteresis, landing target, solve
-rate, and the venue-fit ball physics. Preset overlays ship next to it
-(`hope_planner.hitter_pure.yaml`, `hope_planner.rally_v17_r10.yaml`,
-`hope_planner.sim.yaml` for the MuJoCo closed loop, `planner_imitate.yaml` for the
-mocap-less fake planner). The C++ planner's hardware preset is
-`hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml`.
+The production Planner config is
+`hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml`: virtual hit
+plane (`x_hit`), side split/hysteresis, landing target, solve rate and venue-fit
+physics. The Laptop packet boundary is configured by
+`model21800_flight_packetizer.yaml`. Gate 3 and Foxglove use these same files.

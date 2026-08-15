@@ -2,7 +2,13 @@ import math
 
 import pytest
 
-from hope_planner.base_pose_contract import (
+import sys
+from pathlib import Path
+
+SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+
+from base_pose_contract import (
     SOURCE_STAMP_INPUT_HEADER,
     SOURCE_STAMP_LOCAL_RECEIPT,
     V17_REQUIRED_FLAGS,

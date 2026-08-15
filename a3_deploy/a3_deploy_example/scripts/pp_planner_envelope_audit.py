@@ -495,7 +495,9 @@ def main() -> int:
         serves, boxes, aims, geometry,
         RALLY_V10_UNION if args.contract in ("rally_v10", "rally_v11", "rally_v12", "rally_v13", "rally_v14", "rally_v15", "rally_v17", "rally_v17_r10") else None,
     )
-    if args.contract in ("rally_v11", "rally_v12", "rally_v13", "rally_v14", "rally_v17"):
+    if args.contract in (
+        "rally_v11", "rally_v12", "rally_v13", "rally_v14", "rally_v17"
+    ):
         positive_main = [
             value for value in report["station_signed_transitions_after_first"]
             if 0.19 - 1e-3 <= value <= 0.24 + 1e-3
@@ -584,7 +586,9 @@ def main() -> int:
         f"arena={'PASS' if report['initial_state_arena_pass'] else 'FAIL'} "
         f"timing={'PASS' if report['visible_lead_time_pass'] else 'FAIL'}"
     )
-    if args.contract in ("rally_v11", "rally_v12", "rally_v13", "rally_v14", "rally_v17"):
+    if args.contract in (
+        "rally_v11", "rally_v12", "rally_v13", "rally_v14", "rally_v17"
+    ):
         print(
             "positive-main [+0.19,+0.24] m="
             f"{len(report['positive_main_transitions'])} "

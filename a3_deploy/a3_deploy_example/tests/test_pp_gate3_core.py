@@ -435,11 +435,13 @@ class Gate3StaticPlantContractTest(unittest.TestCase):
                 f'geom1="gate3_ball_collision" geom2="{target}"', model
             )
 
-    def test_public_verdict_name_remains_gate3(self) -> None:
+    def test_public_gate3_has_one_joined_physical_verdict(self) -> None:
         conductor = (SCRIPTS / "pp_rally_conductor.py").read_text()
         engine = (SCRIPTS / "pp_gate3_rally.sh").read_text()
         self.assertIn('"gate_name": "Gate3"', conductor)
-        self.assertIn("Gate3={'PASS' if ok else 'FAIL'}", conductor)
+        self.assertIn('"selected_gate_verdict": "certification"', conductor)
+        self.assertNotIn("Gate3CherryPick", conductor)
+        self.assertNotIn("cherry_pick", conductor)
         self.assertIn("Gate3 — autonomous end-to-end", engine)
         self.assertIn("MIN_PHYSICAL_SAMPLES_PER_SIDE < 4", conductor)
         self.assertIn("REQUIRED_GLOBAL_CONTACTS = 11", conductor)
@@ -463,6 +465,10 @@ class Gate3StaticPlantContractTest(unittest.TestCase):
         self.assertIn(
             "-p base_pose_flat_input_topic:=/a3/base_pose_flat", engine
         )
+        self.assertIn("hope_ball_flight_packetizer", engine)
+        self.assertIn("hope_planner_cpp_node", engine)
+        self.assertIn("flight_packet_input_enabled:=true", engine)
+        self.assertNotIn("ros2 run hope_planner hope_planner_node", engine)
         self.assertIn(
             'cmp -s "$WORLD_CONFIG_SOURCE" "$WORLD_CONFIG_INSTALL"', engine
         )

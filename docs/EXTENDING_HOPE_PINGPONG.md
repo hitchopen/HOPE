@@ -61,11 +61,11 @@ See [POLICY_INTERFACE.md](POLICY_INTERFACE.md#action-31-dims).
 Forehand/backhand is chosen **inside the planner** from where the predicted ball crosses the hit
 plane, with hysteresis so alternating rallies don't flap:
 
-- Parameters: `swing_side_split_y` and `swing_side_hysteresis_y` (declared in
-  `hope_ws/src/hope_planner/hope_planner/node.py`; tuned per preset in
-  `hope_ws/src/hope_planner/config/hope_planner*.yaml` and mirrored in the C++ planner's
-  `hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml`).
-- Logic: `_select_swing_sign` in the Python planner node; the C++ planner implements the same rule.
+- Parameters: `swing_side_split_y` and `swing_side_hysteresis_y`, declared in
+  `hope_ws/src/hope_planner_cpp/src/planner_node.cpp` and configured in
+  `hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml`.
+- Logic: the authoritative implementation is the C++ Planner; the retired
+  Python source may be used only as an offline comparison oracle.
 
 Replace the lateral split with your own rule. The chosen side travels on the wire as `swing_sign`
 in `/racket/command_flat` ([PLANNER_INTERFACE.md](PLANNER_INTERFACE.md)) and drives the runner's

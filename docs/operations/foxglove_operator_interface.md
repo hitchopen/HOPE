@@ -81,7 +81,9 @@ The supported lifecycle runs ROS Jazzy inside the `hope` Distrobox. Install the
 three marker files below into the operator account; the fixed lifecycle helper
 starts the node inside the same Distrobox/Fast DDS context as the OptiTrack
 bridge and stops it with that managed session. Use the complete commands in
-`docs/operations/foxglove_first_hardware_test.md`.
+`docs/operations/foxglove_first_hardware_test.md`. On a new Laptop, install
+Distrobox and create the ROS-equipped `hope` environment through
+[`DISTROBOX_SETUP.md`](../DISTROBOX_SETUP.md) first.
 
 ```bash
 install -D -m 0755 \

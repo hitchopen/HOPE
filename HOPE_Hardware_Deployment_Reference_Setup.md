@@ -2,6 +2,12 @@
 
 v0.2 — 2026-04-02
 
+> **Implementation status.** This preserved cross-platform reference includes
+> historical architecture examples. The supported A3/model_21800 path uses the
+> C++ flight packetizer and C++ Planner only; follow
+> [`docs/operations/foxglove_first_hardware_test.md`](docs/operations/foxglove_first_hardware_test.md)
+> for hardware and [`docs/MODEL_21800.md`](docs/MODEL_21800.md) for Gate 3.
+
 ## Overview
 
 This document describes how to deploy trained HOPE ping-pong WBC policies onto physical humanoid hardware — the Unitree G1 or Agibot Expedition A3. It is the final step in the HOPE pipeline, consuming the ONNX policy exported from simulation training (see companion *HOPE WBC Simulation Training Reference Setup*, Section 5) and connecting it to the live motion capture system (see companion *HOPE Motion Capture System Reference Setup*) and the real-time planner (see companion *HOPE 7DOF Racket Model-based Planner Reference Setup*).
@@ -54,8 +60,8 @@ The deployment runs as a ROS 2 Jazzy graph. All nodes run on a single machine (t
 │             │                          │                                  │
 │             ▼                          ▼                                  │
 │  ┌──────────────────────┐   ┌──────────────────────────────┐             │
-│  │  HOPE Planner Node   │   │  WBC Controller Node         │             │
-│  │  (Python, 50 Hz)     │   │  (C++, 50 Hz)                │             │
+│  │  HOPE C++ Planner    │   │  WBC Controller Node         │             │
+│  │  (packetized input)  │   │  (C++, 50 Hz)                │             │
 │  │                      │   │                               │             │
 │  │  Subscribes:         │   │  Subscribes:                  │             │
 │  │   /ball/point        │   │   /racket/command             │             │
@@ -87,7 +93,7 @@ The total perception-to-actuation latency must be under 20 ms for competitive pl
 |-------|--------|------------------|
 | OptiTrack capture + NatNet | 2.8 ms | ~2.8 ms at 360 Hz |
 | `motion_capture_tracking` ROS 2 node | < 1 ms | ~0.5 ms |
-| Planner (ball estimation + trajectory prediction + racket target) | < 5 ms | ~2–4 ms (Python, single ball) |
+| C++ Planner (ball estimation + trajectory prediction + racket target) | < 5 ms | Measure on the target hardware; no generic Python estimate applies. |
 | WBC ONNX inference | < 5 ms | ~1–2 ms (CPU, MLP [512,256,128]) |
 | Actuator bus command transmission | < 2 ms | ~1 ms (Unitree DDS / AimRT EtherCAT) |
 | PD controller + motor response | < 5 ms | ~3–5 ms |
@@ -382,17 +388,21 @@ The full HOPE system requires multiple nodes launched in a specific order:
 ros2 launch motion_capture_tracking optitrack.launch.py \
     server_ip:=192.168.1.100
 
-# Terminal 2: HOPE planner
-ros2 run hope_planner hope_planner_node \
-    --ros-args -p table_origin_frame:=PPT
+# Terminal 2: freeze each incoming flight into the production packet contract
+ros2 run hope_planner_cpp hope_ball_flight_packetizer --ros-args \
+    --params-file hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml
 
-# Terminal 3: WBC controller (G1 example)
+# Terminal 3: HOPE C++ Planner
+ros2 run hope_planner_cpp hope_planner_cpp_node --ros-args \
+    --params-file hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml
+
+# Terminal 4: WBC controller (G1 example)
 ros2 launch motion_tracking_controller real.launch.py \
     network_interface:=enp3s0 \
     policy_path:=/home/user/hope_forehand_policy.onnx
 
-# Terminal 4 (optional): Monitoring
-ros2 topic hz /ball/point /P1/pose /racket/command
+# Terminal 5 (optional): Monitoring
+ros2 topic hz /ball/point /P1/pose /ball/flight_packet /racket/command
 ```
 
 ### 4.2  Topic Map

@@ -42,7 +42,9 @@ export ISAACLAB_ROOT=/absolute/path/to/IsaacLab
 ```
 
 In the common HOPE Distrobox environment, enter the container before sourcing
-the setup script:
+the setup script. On a new machine, read
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md) first: the repository
+does not create the Isaac-equipped `grasping` container.
 
 ```bash
 distrobox enter grasping

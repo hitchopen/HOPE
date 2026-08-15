@@ -31,7 +31,9 @@ which is the single source of truth and is regression-tested against the ITTF/HO
 
 This needs Isaac Sim / Isaac Lab, which live in the **`grasping` distrobox**. The launcher
 `hope_isaac_py` (defined by `setup_train_env.sh`) runs Isaac's bundled Python with the working-tree
-PYTHONPATH, so your local edits to this task win:
+PYTHONPATH, so your local edits to this task win. On a new machine, first read
+[`docs/DISTROBOX_SETUP.md`](../../../../../../../docs/DISTROBOX_SETUP.md): this
+repository does not create the Isaac-equipped `grasping` container.
 
 ```bash
 distrobox enter grasping

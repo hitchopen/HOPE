@@ -56,6 +56,8 @@ The copy/paste deployment and first attended test procedure is
 [`foxglove_first_hardware_test.md`](foxglove_first_hardware_test.md).
 It also installs the Laptop-local 3D asset user service and stages the marker
 publisher files that the managed OptiTrack Distrobox session starts.
+Fresh Laptops must first install Distrobox and create the ROS-equipped `hope`
+environment as documented in [`DISTROBOX_SETUP.md`](../DISTROBOX_SETUP.md).
 
 Set the site addresses and accounts on the Laptop first. Do not commit the
 resolved values:

@@ -86,10 +86,10 @@ cloud, raw TF, Table, skeleton, or arbitrary Motive asset. VRPN2ROS2 independent
 and acceleration topic per sensor at 200 Hz. Configure
 `output_rate_hz:=<Hz>` on either launch command, or use `0.0` for every accepted
 source report. Downsampling preserves the selected source header timestamp; it
-is not a timestamp resampler. Because the planner's `fit_window` is measured in
-samples, use 21 samples at the 200 Hz defaults to retain an approximately
-100 ms velocity-fit horizon. Override `planner_fit_window` whenever the
-configured adapter output rate differs.
+is not a timestamp resampler. The production C++ packetizer retains a
+time-based window (`flight_window_s`, default 0.18 s), so adapter-rate changes
+do not require a sample-count conversion. Keep enough output samples to satisfy
+the packetizer's minimum sample/span requirements.
 
 ## Bringing up mocap
 
