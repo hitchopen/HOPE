@@ -29,7 +29,7 @@ hope_planner:
     # Effective coefficient for a future, not-yet-observed zero-spin table
     # contact in the causal one-shot predictor. The venue value below remains
     # active inside the estimator after a real bounce is observed.
-    post_net_future_bounce_tangential_gain: 0.075
+    post_net_future_bounce_tangential_gain: 0.369
     net_x: 1.37
 
     # One-shot-specific cross-session candidate. HDU ARM and field behavior
