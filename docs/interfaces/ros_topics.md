@@ -11,7 +11,10 @@ planner/relay are independent workspaces; build and launch them separately
         |  pose_to_posearray (hope_bringup)
         v
 /poses                                 geometry_msgs/PoseArray     (Ball at index 0; P1/P2 optional)
-        |  hope_planner  (or hope_planner_cpp)
+        |  hope_ball_flight_packetizer
+        v
+/ball/flight_packet                    hope_msgs/BallFlightPacket
+        |  hope_planner_cpp_node
         v
 /racket/command                        hope_msgs/RacketCommand      (tooling/gates)
 /racket/command_flat                   std_msgs/Float64MultiArray   (schema-tagged hardware wire)
@@ -38,8 +41,9 @@ built NatNet2ROS2 adapter + HOPE relay — the `/poses` hop and everything below
 | Topic | Type | From → to | QoS |
 |-------|------|-----------|-----|
 | `/vrpn_mocap/<tracker>/pose_id_<N>` | `geometry_msgs/PoseStamped` | vrpn_mocap client → `pose_to_posearray` | sensor-data (best-effort, volatile) |
-| `/poses` | `geometry_msgs/PoseArray` | `pose_to_posearray` (or `fake_ball_publisher`) → `hope_planner` | best-effort, volatile, keep-last 1 |
-| `/racket/command` | `hope_msgs/RacketCommand` | `hope_planner` → gates/tooling/MuJoCo closed loop | reliable, volatile, keep-last 10 |
+| `/poses` | `geometry_msgs/PoseArray` | `pose_to_posearray` (or `fake_ball_publisher`) → C++ packetizer | best-effort, volatile, keep-last 1 |
+| `/ball/flight_packet` | `hope_msgs/BallFlightPacket` | C++ packetizer → C++ Planner | reliable, transient-local |
+| `/racket/command` | `hope_msgs/RacketCommand` | C++ Planner → tooling/MuJoCo closed loop | reliable, volatile, keep-last 10 |
 | `/racket/command_flat` | `std_msgs/Float64MultiArray` (schema 2, 19 doubles) | planner → C++ runner `--planner` | reliable, volatile |
 | `/a3/base_pose_flat` | `std_msgs/Float64MultiArray` (schema 2, 16 doubles) | `hope_base_pose_flat_relay` (from `/P1/pose`) → C++ runner | reliable, volatile |
 | `/serve/ball_state_flat` | `std_msgs/Float64MultiArray` (≥11 doubles) | serve tooling → C++ runner | reliable, volatile |
@@ -78,7 +82,7 @@ Notes per hop:
 - **`/racket/command` + `/racket/command_flat`** — the planner feeds every mocap
   sample to its estimator but solves at bounded rate; topic names and tuning
   live in
-  [`hope_ws/src/hope_planner/config/hope_planner.yaml`](../../hope_ws/src/hope_planner/config/hope_planner.yaml).
+  [`model21800_hardware.yaml`](../../hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml).
   The C++ runner's `--planner` mode subscribes the **flat** topics with matching
   reliable QoS and hands the newest command to the 50 Hz control loop; the rich
   `RacketCommand` stream feeds gates, tooling, and the MuJoCo closed loop.
@@ -125,7 +129,7 @@ contract byte-identical. Operational guide:
 | Topic | Type | From → to | QoS |
 |-------|------|-----------|-----|
 | `/optitrack/poses` | `motion_capture_tracking_interfaces/NamedPoseArray` | independent NatNet2ROS2 driver → `optitrack_mct_relay` | sensor-data (best-effort, volatile, keep-last 1) |
-| `/poses` | `geometry_msgs/PoseArray` | `optitrack_mct_relay` → `hope_planner` | best-effort, volatile, keep-last 1 |
+| `/poses` | `geometry_msgs/PoseArray` | `optitrack_mct_relay` → C++ packetizer | best-effort, volatile, keep-last 1 |
 | `/ball/point` | `geometry_msgs/PointStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
 | `/P1/pose`, `/P2/pose` | `geometry_msgs/PoseStamped` | `optitrack_mct_relay` → (debug / downstream consumers) | best-effort, volatile, keep-last 1 |
 
@@ -162,8 +166,7 @@ Notes:
 - **Rates** — Both adapters validate every source report before reducing ROS
   traffic. NatNet2ROS2 caps its strict `Ball`/`P1`/`P2` named-pose array at
   200 Hz by default; VRPN2ROS2 independently caps each topic/sensor at 200 Hz.
-  The planner's `fit_window` is coupled to the ROS input rate
-  (`round(31 × rate / 300)`, ≥ ~100 ms of samples — 200 Hz → 21); see
+  The C++ packetizer uses a time-based `flight_window_s` (0.18 s default); see
   [docs/OPTITRACK.md](../OPTITRACK.md). Measured `ros2 topic hz` can read below
   the configured cap under receive-side drops; that is normal for a
   best-effort sensor stream.

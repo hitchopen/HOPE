@@ -86,12 +86,28 @@ def test_formal_gate3_script_dependency_closure_is_complete_and_executable():
     engine = (SCRIPTS / "pp_gate3_rally.sh").read_text()
     assert "PP_GATE3_PROFILE=rally_v14" in entry
     assert "PP_GATE3_PHASE=qualification" in entry
+    assert "gate3_apply_physical_arena_contract" in entry
+    assert "PP_SERVES=12" in entry
     assert "--gate3-qdes-audit-only" in entry
     assert "--preflight-only" in entry
     assert "physical MuJoCo" in engine or "MuJoCo ball/table/net/racket" in engine
     assert "/agi/A3_MuJoCo_Sim" not in engine
     assert "p1_marker_cad_registration_20260805_redefined_p1_strict.json" in engine
     assert "p1_calibration_file:=" in engine
+    assert "hope_planner_cpp_node" in engine
+    assert "hope_ball_flight_packetizer" in engine
+    assert "model21800_hardware.yaml" in engine
+    assert "model21800_flight_packetizer.yaml" in engine
+    assert "flight_packet_input_enabled:=true" in engine
+    assert '"$PLANNER_DEBUG_CSV.flight_packets.csv"' in engine
+    assert "ros2 run hope_planner hope_planner_node" not in engine
+    assert "PYTHONPATH='$WS/src/hope_planner'" not in engine
+    assert 'pgrep", "-f", "hope_planner_cpp_node"' in (
+        SCRIPTS / "pp_rally_conductor.py"
+    ).read_text()
+    conductor = (SCRIPTS / "pp_rally_conductor.py").read_text()
+    assert '"gate_name": "Gate3"' in conductor
+    assert "Gate3CherryPick" not in conductor
 
     sim_mocap = (SCRIPTS / "pp_gate3_sim_mocap.py").read_text()
     assert "import NamedPose, NamedPoseArrayV2" not in sim_mocap
@@ -132,6 +148,8 @@ def test_model21800_only_packager_checks_runtime_dependency_closure():
     for marker in (
         "--pingpong-only",
         "verify_pingpong_package",
+        "aimrt_plugins_iceoryx_plugin",
+        "aimrt_plugins_ros2_plugin",
         "libaimrt_iceoryx_plugin.so",
         "libaimrt_ros2_plugin.so",
         "libonnxruntime.so.1",

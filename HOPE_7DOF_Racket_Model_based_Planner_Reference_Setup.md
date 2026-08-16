@@ -2,6 +2,13 @@
 
 v0.1 — 2026-03-19
 
+> **Implementation status.** The Python listings in this preserved design
+> reference are explanatory pseudocode, not the supported ROS runtime. Current
+> production, Foxglove and Gate 3 use
+> `hope_ws/src/hope_planner_cpp`: `hope_ball_flight_packetizer` followed by
+> `hope_planner_cpp_node`. Use [`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md)
+> and [`docs/MODEL_21800.md`](docs/MODEL_21800.md) for executable commands.
+
 ## Overview
 
 This document provides a reference implementation of the model-based planner (Stages 1–3) for computing the desired 7-DOF racket state — interception position, velocity, and face orientation — for a humanoid ping-pong player. The algorithms are adapted from the HITTER framework (Su et al., arXiv:2508.21043v2, 2025) and operate within the HOPE canonical world frame defined in the companion document *HOPE Motion Capture System Reference Setup for Ping-Pong Arena*.

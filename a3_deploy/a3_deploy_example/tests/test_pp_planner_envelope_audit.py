@@ -79,7 +79,8 @@ def test_audit_defaults_to_the_only_public_formal_gate3_entry():
     for marker in (
         "PP_GATE3_PROFILE=rally_v14",
         "PP_GATE3_PHASE=qualification",
-        "PP_SERVES=\"${PP_SERVES:-12}\"",
+        "PP_SERVES=12",
+        "gate3_apply_physical_arena_contract",
         "PP_MIN_GLOBAL_CONTACTS=11",
         "PP_MIN_GLOBAL_LANDINGS=10",
         "PP_MIN_PROXY_RATE=1.0",

@@ -66,6 +66,9 @@ Foxglove Desktop 每个窗口只有一个 active data source。机器人内部�
 “进入 Foxglove”表示把一个固定动作封装成有名称、固定参数和结构化返回值的 API，不表示把
 原 shell 文本粘进 UI 执行。
 
+矩阵中保留在 Laptop Distrobox 的 CLI 项目，默认使用已经配置 ROS 2 Jazzy 的 `hope`
+环境；新机器先完成 [`DISTROBOX_SETUP.md`](../DISTROBOX_SETUP.md)，不能用同名空容器代替。
+
 | runbook 区段 | 目标机 | Foxglove 形态 | 阶段 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | Pre-flight A：Laptop mocap build | Laptop Distrobox | maintenance job + build log/status | P4 | CLI 保留 |

@@ -24,7 +24,10 @@ Motive (NatNet UDP)
       |  optitrack_mct_relay (hope_bringup)  (rate-capped arrays, objects by name)
       v
 /poses (ball at index 0), /ball/point, /P1/pose, /P2/pose, TF
-      |  hope_planner (or hope_planner_cpp)
+      |  hope_ball_flight_packetizer
+      v
+/ball/flight_packet
+      |  hope_planner_cpp_node
       v
 /racket/command + /racket/command_flat
 ```
@@ -429,18 +432,17 @@ For bag replay, record `/optitrack/poses` at a live session
 (`ros2 bag record /optitrack/poses`) and replay it against
 `optitrack_mct_relay.launch.py`; the raw adapter stays stopped during replay.
 
-## Source/output rate and the planner's `fit_window`
+## Source/output rate and the C++ packetizer window
 
 The camera rate and ROS output rate are now intentionally distinct. OptiTrack
 rigs commonly capture at 360 Hz, while NatNet2ROS2 receives every frame and
-publishes at a configurable maximum of 200 Hz by default. The planner's
-velocity fit uses `fit_window` **received samples**, so couple it to the ROS
-output rate, not the Motive camera rate: retain about 100 ms with
-`round(31 × output_rate / 300)`. At the 200 Hz default use `fit_window: 21`; if
-downsampling is disabled on a 360 Hz source, use 37. Configure it in
-[`hope_planner.yaml`](../hope_ws/src/hope_planner/config/hope_planner.yaml), or
-pass `planner_fit_window:=<samples>` to `hope_bringup.launch.py`. That launch
-selects 21 for either adapter's default 200 Hz output.
+publishes at a configurable maximum of 200 Hz by default. The production C++
+packetizer uses the time-based `flight_window_s` parameter, not the retired
+Python Planner's sample-count `fit_window`. Its default is 0.18 s in
+[`model21800_flight_packetizer.yaml`](../hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml).
+Pass `flight_window_s:=<seconds>` to `hope_bringup.launch.py` only when the
+flight contract itself changes; changing the adapter output rate alone
+normally does not require retuning it.
 Read the camera rate from Motive and the output rate from adapter configuration;
 `ros2 topic hz` is only a receive-side verification of the latter.
 
@@ -478,4 +480,4 @@ whitelist derived from the route to each peer) and sets
 | `/P1/pose` positions in the hundreds | Millimetre feed → `position_scale:=0.001`. |
 | `/poses` pauses while `/P1/pose` keeps updating | By design: the ball left the volume / lost tracking; the relay never re-emits a stale ball (protects the planner's velocity fit). |
 | `optitrack_mct_relay` exits with an import error | `motion_capture_tracking_interfaces` from NatNet2ROS2 is not installed/sourced on the HOPE host. Source that workspace (or install the interface package), or use the VRPN backend. |
-| Planner predictions lag/noisy after changing output rate | Scale `fit_window` with the NatNet2ROS2 ROS output rate (see above). |
+| Planner predictions lag/noisy after changing output rate | Check packet sample count/span and drops; keep `flight_window_s` time-based (see above). |

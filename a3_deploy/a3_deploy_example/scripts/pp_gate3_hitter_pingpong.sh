@@ -6,27 +6,28 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 GEAR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$GEAR" || exit 2
 export PP_GEAR="$GEAR"
-export PYTHONPATH="$GEAR/../../hope_ws/src/hope_planner:${PYTHONPATH:-}"
 
-case "${1:-}" in
-  "") ;;
-  --preflight-only)
-    export PP_GATE3_PREFLIGHT_ONLY=1
-    ;;
-  -h|--help)
-    echo "Usage: scripts/pp_gate3_hitter_pingpong.sh [--preflight-only]"
-    echo "  --preflight-only  validate the complete environment without starting processes"
-    exit 0
-    ;;
-  *)
-    echo "[hitter-pingpong] unknown argument: $1" >&2
-    exit 64
-    ;;
-esac
+while (($#)); do
+  case "$1" in
+    --preflight-only)
+      export PP_GATE3_PREFLIGHT_ONLY=1
+      ;;
+    -h|--help)
+      echo "Usage: scripts/pp_gate3_hitter_pingpong.sh [--preflight-only]"
+      echo "  --preflight-only validate the selected environment without starting processes"
+      exit 0
+      ;;
+    *)
+      echo "[hitter-pingpong] unknown argument: $1" >&2
+      exit 64
+      ;;
+  esac
+  shift
+done
 
 export PP_GATE3_PROFILE=rally_v14
 export PP_GATE3_PHASE=qualification
-export PP_SERVES="${PP_SERVES:-12}"
+export PP_SERVES=12
 export PP_XHIT=0.08
 export PP_XHIT_BH_DELTA=0.0
 export PP_FIXED_PLANE_X=0.58

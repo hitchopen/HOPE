@@ -1,0 +1,2 @@
+The legacy Python planner is retained only as an offline reference oracle.
+Production bringup, Gate3, Foxglove, and model_21800 use hope_planner_cpp.

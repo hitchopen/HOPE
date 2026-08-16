@@ -608,6 +608,28 @@ configure_and_build() {
     exit 1
   fi
   cmake --build "${BUILD_DIR}" --target a3_deploy_onnx_ref_pingpong -j"${JOBS}"
+
+  # The Runner executable links against the AimRT core, but the transport
+  # plugins are loaded from the packaged YAML at runtime.  They are therefore
+  # not transitive build dependencies of a3_deploy_onnx_ref_pingpong.  Build
+  # them explicitly so a clean --pingpong-only build can stage a runnable
+  # package instead of relying on plugin files left by an earlier full build.
+  local plugin_target=""
+  local required_plugin_targets=(
+    aimrt_plugins_iceoryx_plugin
+    aimrt_plugins_ros2_plugin
+  )
+  if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
+    required_plugin_targets+=(aimrt_plugins_record_playback_plugin)
+  fi
+  for plugin_target in "${required_plugin_targets[@]}"; do
+    if ! cmake_target_exists "${BUILD_DIR}" "${plugin_target}"; then
+      echo "missing required CMake target: ${plugin_target}" >&2
+      exit 1
+    fi
+    cmake --build "${BUILD_DIR}" --target "${plugin_target}" -j"${JOBS}"
+  done
+
   if [[ "${PINGPONG_ONLY}" -eq 0 ]]; then
     if cmake_target_exists "${BUILD_DIR}" "a3_body_drive_debug_record"; then
       cmake --build "${BUILD_DIR}" --target a3_body_drive_debug_record -j"${JOBS}"

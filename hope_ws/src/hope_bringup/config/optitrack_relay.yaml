@@ -39,7 +39,7 @@ optitrack_mct_relay:
     ball_point_topic: "/ball/point"
     poses_topic: "/poses"
 
-    # Keep ball first so hope_planner's default ball_pose_index=0 works.
+    # Keep ball first so the C++ packetizer's ball_pose_index=0 contract works.
     # Competition output contains Ball/P1/P2 only.
     pose_array_order: ["ball", "P1", "P2"]
     publish_tf: true

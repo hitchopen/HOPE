@@ -97,7 +97,7 @@ def generate_launch_description():
         # It publishes explicit schema-2 valid=0 packets until BOTH the Motive
         # world frame and marker->pelvis receipts are present.
         Node(
-            package="hope_planner",
+            package="hope_bringup",
             executable="hope_base_pose_flat_relay",
             name="hope_base_pose_flat_relay",
             output="screen",

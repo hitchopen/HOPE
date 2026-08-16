@@ -325,7 +325,9 @@ run_laptop() {
         src/hope_msgs/msg/BallFlightPacket.msg \
         src/hope_planner_cpp/config/model21800_flight_packetizer.yaml \
         src/hope_planner_cpp/src/flight_packetizer_node.cpp \
-        src/hope_planner/hope_planner/base_pose_flat_relay.py \
+        src/hope_bringup/scripts/hope_base_pose_flat_relay \
+        src/hope_bringup/scripts/base_pose_contract.py \
+        src/hope_bringup/scripts/p1_calibration.py \
         src/hope_bringup/config/optitrack_relay.yaml \
         ../NatNet2ROS2/src/motion_capture_tracking/src/motion_capture_tracking_node.cpp \
         ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/src/optitrack.cpp \
