@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <vector>
 
 namespace hope_planner_cpp {
 namespace {
@@ -54,6 +55,48 @@ TEST(IncomingTrajectory, QuickIncomingSnapshotContainsOnlyCurrentEpoch) {
       result.snapshot.samples[result.snapshot.sample_count - 1].source_time_s -
           result.snapshot.samples[0].source_time_s,
       0.12);
+  EXPECT_EQ(trajectory.phase(), IncomingPhase::kWaitOutgoing);
+}
+
+TEST(IncomingTrajectory, RollingModeEmitsCompleteRevisionsThenFinalCommit) {
+  auto config = test_config();
+  config.rolling_snapshots_enabled = true;
+  config.rolling_snapshot_period_s = 0.033;
+  config.rolling_snapshot_min_span_s = 0.08;
+  config.rolling_snapshot_min_samples = 12;
+  IncomingTrajectory trajectory(config);
+  constexpr double dt = 1.0 / 360.0;
+  std::vector<TrajectorySnapshot> revisions;
+  for (int i = 0; i < 70; ++i) {
+    const double time = 12.0 + i * dt;
+    const auto update = trajectory.observe(
+        sample(time, 1.70 - 3.0 * (time - 12.0)));
+    if (update.snapshot_ready) revisions.push_back(update.snapshot);
+  }
+
+  ASSERT_GE(revisions.size(), 3U);
+  std::size_t final_count = 0;
+  for (std::size_t index = 0; index < revisions.size(); ++index) {
+    const auto& revision = revisions[index];
+    EXPECT_EQ(revision.trajectory_epoch, 1U);
+    EXPECT_EQ(revision.one_shot.flight_sequence, 1U);
+    EXPECT_EQ(revision.snapshot_sequence, index + 1U);
+    ASSERT_GE(revision.sample_count, config.rolling_snapshot_min_samples);
+    EXPECT_GE(
+        revision.samples[revision.sample_count - 1].source_time_s -
+            revision.samples[0].source_time_s,
+        config.rolling_snapshot_min_span_s - 1.0e-12);
+    final_count += revision.one_shot.commit_due ? 1U : 0U;
+    if (index + 1U < revisions.size()) {
+      EXPECT_FALSE(revision.one_shot.commit_due);
+    }
+  }
+  EXPECT_EQ(final_count, 1U);
+  EXPECT_TRUE(revisions.back().one_shot.commit_due);
+  EXPECT_TRUE(std::isfinite(
+      revisions.back().one_shot.net_cross_source_time_s));
+  EXPECT_TRUE(std::isfinite(
+      revisions.back().one_shot.commit_source_time_s));
   EXPECT_EQ(trajectory.phase(), IncomingPhase::kWaitOutgoing);
 }
 

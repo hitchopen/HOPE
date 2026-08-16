@@ -50,7 +50,7 @@ struct Arguments {
   double solve_period_s = 0.033;
   bool post_net_one_shot = false;
   double post_net_delay_s = 0.05;
-  double post_net_future_bounce_tangential_gain = 0.075;
+  double post_net_future_bounce_tangential_gain = 0.369;
   double net_x = 1.37;
   double incoming_opponent_side_margin_m = 0.05;
   double incoming_speed_threshold_mps = 0.25;
@@ -282,7 +282,7 @@ Arguments parse_arguments(int argc, char** argv) {
           << "usage: hope_planner_cpp_replay --input mocap_raw.csv --output replay.csv "
              "[--x-hit 0.15] [--x-hit-bh-delta 0] [--solve-period 0.033] "
              "[--post-net-one-shot] [--post-net-delay 0.05] "
-             "[--post-net-future-bounce-tangential-gain 0.075] [--net-x 1.37] "
+             "[--post-net-future-bounce-tangential-gain 0.369] [--net-x 1.37] "
              "[--incoming-opponent-side-margin 0.05] "
              "[--incoming-speed-threshold 0.25] "
              "[--outgoing-speed-threshold 0.25] "

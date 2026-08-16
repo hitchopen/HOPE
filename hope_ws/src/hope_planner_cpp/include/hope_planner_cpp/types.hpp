@@ -172,6 +172,8 @@ struct FlightPacketMetadata {
   std::string frame_id = "world";
   std::uint64_t trajectory_epoch = 0;
   std::uint64_t flight_sequence = 0;
+  std::uint64_t snapshot_sequence = 0;
+  bool final_commit = false;
   std::int64_t freeze_wall_unix_ns = 0;
   std::int64_t publish_wall_unix_ns = 0;
   std::int64_t receipt_wall_unix_ns = 0;

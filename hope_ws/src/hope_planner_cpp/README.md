@@ -12,17 +12,22 @@ high-rate `/poses` callback and incoming-flight state machine. A small
 detector-only pre-roll fits X velocity,
 ignores the robot's outgoing flight, and backtracks a confirmed opponent return
 to its X turnaround. Only that epoch's incoming samples enter the 180 ms
-estimator history. At `net crossing + 50 ms`, the callback freezes one immutable
-snapshot, clears the active epoch, and publishes an immutable
-`/ball/flight_packet`. `hope_planner_cpp_node` runs one
-estimator/Stage-2/Stage-3 solve and publishes once. Direct `/poses` input remains
-an explicit legacy A/B mode and is disabled by the production config.
+estimator history. Once the estimator has at least 80 ms and 12 samples, the
+callback freezes the complete retained history (capped at 180 ms) into
+immutable revisions at about 30 Hz. Each revision
+contains one internally consistent position, velocity, TTS, side and station
+solve. A final revision is still frozen at `net crossing + 50 ms` for audit.
+`hope_planner_cpp_node` deduplicates retries and uses a latest-only mailbox, so
+an older pending revision cannot accumulate behind newer data. Direct `/poses`
+input remains an explicit legacy A/B mode and is disabled by production config.
 
 The net crossing is fixed task-phase bookkeeping, not a safety or quality gate.
 There is no confidence, stability-frame, READY, source-age, calibration, or
-balance admission check. A mathematically invalid one-shot is still logged as
-that flight's sole result; it is not retried. Source age, diagnostics, residuals,
-calibration status, queue depth, and deadline misses are audit-only.
+balance admission check. A mathematically invalid revision is logged and a
+newer complete revision may supersede it before Runner engage. Source age,
+diagnostics, residuals, calibration status, mailbox depth, and deadline misses
+are audit-only. Runner atomically freezes the latest complete tuple at its
+existing engage boundary and ignores later revisions during the swing.
 
 Audit CSV creation is exclusive and refuses to truncate an existing attempt.
 There is no Planner process-lock gate; operations should still start one
@@ -74,7 +79,7 @@ hope_planner_cpp_replay \
   --control-zero-spin \
   --post-net-one-shot \
   --post-net-delay 0.05 \
-  --post-net-future-bounce-tangential-gain 0.075 \
+  --post-net-future-bounce-tangential-gain 0.369 \
   --incoming-opponent-side-margin 0.05 \
   --incoming-speed-threshold 0.25 \
   --outgoing-speed-threshold 0.25 \
@@ -90,12 +95,12 @@ hope_planner_cpp_replay \
 the venue table-contact law while preventing orientation-derived spin from
 changing the strike. Omit it only for a separately named spin-shadow study.
 
-The estimator retains the venue contact coefficient `0.369` for a bounce that
-has actually been observed. The one-shot predictor uses the separately audited
-effective coefficient `0.075` only when it must predict a future table contact
-from pre-bounce data. This split avoids changing post-bounce state fitting to
-compensate for the zero-spin causal prediction model. The hardware candidate
-also uses the adaptive Stage-2 horizon, capped at `3.0 s`.
+The estimator and the future-contact predictor both use the venue contact
+coefficient `0.369`. This removes the old one-shot-only `0.075` model split.
+The retained Python predictor still uses its legacy point-ball contact geometry,
+so the offline comparison reports that residual explicitly instead of claiming
+bit parity. The hardware candidate also uses the adaptive Stage-2 horizon,
+capped at `3.0 s`.
 
 `scripts/compare_cpp_python_planner.py` checks the migrated Stage 2 and Stage 3
 numerics against the retained Python implementation. Python is an offline

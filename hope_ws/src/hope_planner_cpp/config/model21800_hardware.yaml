@@ -3,15 +3,18 @@ hope_planner:
     # model_21800 C++ candidate: production estimator is always the
     # non-recursive batch physics implementation.  No EKF code is selected.
     use_kalman: false
-    # Formal hardware input is one immutable Laptop-produced flight packet,
-    # not the per-frame /poses stream. Raw /poses may still be published for
-    # recording/Foxglove, but this Planner does not subscribe to it.
+    # Formal hardware input is rolling immutable Laptop-produced flight
+    # revisions, not the per-frame /poses stream. Raw /poses may still be
+    # published for recording/Foxglove, but this Planner does not subscribe.
     flight_packet_input_enabled: true
     flight_packet_topic: "/ball/flight_packet"
     # Kept only for explicit legacy /poses A/B runs.
     input_qos_depth: 64
     solve_period_s: 0.033
     expected_mocap_hz: 360.0
+    # Historical name: this now means one isolated solve per immutable
+    # revision, not one solve per flight. The Laptop still publishes rolling
+    # revisions until the final net+50 ms snapshot.
     post_net_one_shot_enabled: true
     # Offline-selected after replay; every flight uses this same task-phase
     # offset. It is not a confidence, READY, source-age, or balance gate.
@@ -26,13 +29,14 @@ hope_planner:
     incoming_direction_confirmations: 2
     incoming_pre_roll_samples: 24
     incoming_source_gap_reset_s: 0.25
-    # Effective coefficient for a future, not-yet-observed zero-spin table
-    # contact in the causal one-shot predictor. The venue value below remains
-    # active inside the estimator after a real bounce is observed.
-    post_net_future_bounce_tangential_gain: 0.075
+    # A future table contact uses the same venue coefficient as an
+    # already-observed contact in the estimator. This removes the historical
+    # 0.075 one-shot model split; the retained Python point-ball geometry is
+    # kept as an offline comparison, not copied into this control path.
+    post_net_future_bounce_tangential_gain: 0.369
     net_x: 1.37
 
-    # One-shot-specific cross-session candidate. HDU ARM and field behavior
+    # Rolling-revision cross-session candidate. HDU ARM and field behavior
     # remain unqualified.
     batch_estimator_window_s: 0.18
     batch_estimator_min_span_s: 0.08

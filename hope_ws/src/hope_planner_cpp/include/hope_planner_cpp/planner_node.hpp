@@ -29,6 +29,7 @@
 #include <limits>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -98,9 +99,11 @@ class PlannerNode final : public rclcpp::Node {
 
   SpscRing<BallSample, kInputRingCapacity> input_ring_;
   LatestSnapshotMailbox snapshot_mailbox_;
+  LatestSnapshotMailbox flight_packet_mailbox_;
   FlightPacketDeduplicator flight_packet_deduplicator_{256};
-  mutable std::mutex flight_packet_mutex_;
-  std::deque<TrajectorySnapshot> flight_packet_queue_;
+  mutable std::mutex flight_packet_identity_mutex_;
+  std::unordered_map<std::string, std::uint64_t> flight_revision_watermarks_;
+  std::deque<std::string> flight_revision_insertion_order_;
   std::mutex wake_mutex_;
   std::condition_variable wake_condition_;
   std::thread solver_thread_;
@@ -158,7 +161,7 @@ class PlannerNode final : public rclcpp::Node {
   bool flight_packet_input_enabled_ = false;
   std::string flight_packet_topic_ = "/ball/flight_packet";
   double post_net_commit_delay_s_ = 0.05;
-  double post_net_future_bounce_tangential_gain_ = 0.075;
+  double post_net_future_bounce_tangential_gain_ = 0.369;
 
   double swing_side_split_y_ = -0.25;
   double swing_side_hysteresis_y_ = 0.04;
@@ -193,6 +196,7 @@ class PlannerNode final : public rclcpp::Node {
   std::atomic<std::uint64_t> flight_packets_accepted_{0};
   std::atomic<std::uint64_t> flight_packets_duplicate_{0};
   std::atomic<std::uint64_t> flight_packets_conflict_{0};
+  std::atomic<std::uint64_t> flight_packets_stale_{0};
   std::atomic<std::uint64_t> flight_packets_invalid_{0};
   std::atomic<std::uint64_t> solve_count_{0};
   std::atomic<std::uint64_t> valid_count_{0};

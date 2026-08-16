@@ -512,7 +512,7 @@ def main(argv=None) -> int:
     parser.add_argument("--post-net-one-shot", action="store_true")
     parser.add_argument("--post-net-delay-s", type=float, default=0.05)
     parser.add_argument(
-        "--post-net-future-bounce-tangential-gain", type=float, default=0.075
+        "--post-net-future-bounce-tangential-gain", type=float, default=0.369
     )
     parser.add_argument("--net-x", type=float, default=1.37)
     parser.add_argument(

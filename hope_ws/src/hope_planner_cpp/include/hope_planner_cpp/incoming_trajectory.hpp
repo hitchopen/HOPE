@@ -26,6 +26,10 @@ struct IncomingTrajectoryConfig {
   double net_x = 1.37;
   double estimator_window_s = 0.18;
   double commit_delay_s = 0.05;
+  bool rolling_snapshots_enabled = false;
+  double rolling_snapshot_period_s = 0.033;
+  double rolling_snapshot_min_span_s = 0.08;
+  std::size_t rolling_snapshot_min_samples = 12;
   double opponent_side_margin_m = 0.05;
   double incoming_speed_threshold_mps = 0.25;
   double outgoing_speed_threshold_mps = 0.25;
@@ -35,9 +39,10 @@ struct IncomingTrajectoryConfig {
   std::size_t pre_roll_samples = 24;
 };
 
-// Immutable, source-time-causal input to the one-shot solver. The callback
-// creates it at the first sample on/after net crossing + commit_delay. The
-// solver never observes samples that arrived after this boundary.
+// Immutable, source-time-causal input to one solver revision. In rolling mode,
+// the callback freezes complete estimator windows before engage and emits one
+// final revision at the first sample on/after net crossing + commit_delay. The
+// solver never observes samples that arrived after a revision boundary.
 struct TrajectorySnapshot {
   std::array<BallSample, kMaxEstimatorSamples> samples{};
   std::size_t sample_count = 0;
@@ -95,7 +100,10 @@ class IncomingTrajectory {
   void collect_sample(
       const BallSample& sample,
       IncomingTrajectoryUpdate& update) noexcept;
-  void make_snapshot(IncomingTrajectoryUpdate& update) noexcept;
+  void maybe_make_rolling_snapshot(IncomingTrajectoryUpdate& update) noexcept;
+  void make_snapshot(
+      IncomingTrajectoryUpdate& update,
+      bool final_commit) noexcept;
 
   IncomingTrajectoryConfig config_;
   IncomingPhase phase_ = IncomingPhase::kSeekIncoming;
@@ -113,6 +121,8 @@ class IncomingTrajectory {
       std::numeric_limits<double>::quiet_NaN();
   double commit_source_time_s_ =
       std::numeric_limits<double>::quiet_NaN();
+  double last_snapshot_source_time_s_ =
+      -std::numeric_limits<double>::infinity();
   double current_segment_start_source_time_s_ =
       std::numeric_limits<double>::quiet_NaN();
   double previous_segment_last_source_time_s_ =
@@ -121,8 +131,8 @@ class IncomingTrajectory {
   bool seek_after_source_reset_ = false;
 };
 
-// One pending immutable solve, latest flight wins. Publishing a newer flight
-// replaces an older pending snapshot instead of rejecting the newest data.
+// One pending immutable solve, latest revision wins. Publishing a newer
+// revision replaces an older pending snapshot instead of rejecting new data.
 class LatestSnapshotMailbox {
  public:
   bool publish(const TrajectorySnapshot& snapshot) noexcept;

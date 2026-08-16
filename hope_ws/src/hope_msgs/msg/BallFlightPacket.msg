@@ -1,9 +1,11 @@
-# Immutable, content-addressed input for exactly one HDU Planner solve.
+# Immutable, content-addressed trajectory revision for one HDU Planner solve.
 uint16 schema_version
 string session_id
 string producer_instance_id
 uint64 trajectory_epoch
 uint64 flight_sequence
+uint64 snapshot_sequence
+bool final_commit
 string payload_hash_algorithm
 string payload_hash
 string frame_id

@@ -38,6 +38,15 @@ IncomingTrajectoryConfig declare_trajectory_config(rclcpp::Node& node) {
       node.declare_parameter<double>("flight_window_s", 0.18);
   config.commit_delay_s =
       node.declare_parameter<double>("post_net_commit_delay_s", 0.05);
+  config.rolling_snapshots_enabled =
+      node.declare_parameter<bool>("rolling_snapshots_enabled", false);
+  config.rolling_snapshot_period_s =
+      node.declare_parameter<double>("rolling_snapshot_period_s", 0.033);
+  config.rolling_snapshot_min_span_s =
+      node.declare_parameter<double>("rolling_snapshot_min_span_s", 0.08);
+  config.rolling_snapshot_min_samples = static_cast<std::size_t>(std::max(
+      2, static_cast<int>(node.declare_parameter<int>(
+             "rolling_snapshot_min_samples", 12))));
   config.opponent_side_margin_m =
       node.declare_parameter<double>("incoming_opponent_side_margin_m", 0.05);
   config.incoming_speed_threshold_mps =
@@ -120,7 +129,8 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
     if (audit_stream_ && audit_stream_.tellp() == 0) {
       audit_stream_
           << "session_id,producer_instance_id,trajectory_epoch,flight_sequence,"
-             "payload_hash,event,transmit_index,transmit_count,sample_count,"
+             "snapshot_sequence,final_commit,payload_hash,event,transmit_index,"
+             "transmit_count,sample_count,"
              "first_exposure_unix_ns,last_exposure_unix_ns,net_cross_unix_ns,"
              "commit_unix_ns,freeze_wall_unix_ns,publish_wall_unix_ns\n";
     }
@@ -141,9 +151,12 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
   RCLCPP_INFO(
       get_logger(),
       "Laptop Flight Packet producer started: input=%s output=%s session=%s "
-      "producer=%s window=%.3fs net+%.3fs retries=%zu QoS=best_effort/KeepLast(1)",
+      "producer=%s window=%.3fs rolling=%s period=%.3fs final=net+%.3fs "
+      "retries=%zu QoS=best_effort/KeepLast(1)",
       pose_topic.c_str(), packet_topic_.c_str(), session_id_.c_str(),
       producer_instance_id_.c_str(), trajectory_config_.estimator_window_s,
+      trajectory_config_.rolling_snapshots_enabled ? "true" : "false",
+      trajectory_config_.rolling_snapshot_period_s,
       trajectory_config_.commit_delay_s, retransmit_delays_ms_.size());
 }
 
@@ -192,6 +205,8 @@ void FlightPacketizerNode::publish_snapshot(
   metadata.producer_instance_id = producer_instance_id_;
   metadata.trajectory_epoch = snapshot.trajectory_epoch;
   metadata.flight_sequence = snapshot.one_shot.flight_sequence;
+  metadata.snapshot_sequence = snapshot.snapshot_sequence;
+  metadata.final_commit = snapshot.one_shot.commit_due;
   metadata.frame_id = frame_id;
   metadata.freeze_wall_unix_ns = wall_now_ns();
 
@@ -201,6 +216,8 @@ void FlightPacketizerNode::publish_snapshot(
   packet.producer_instance_id = metadata.producer_instance_id;
   packet.trajectory_epoch = metadata.trajectory_epoch;
   packet.flight_sequence = metadata.flight_sequence;
+  packet.snapshot_sequence = metadata.snapshot_sequence;
+  packet.final_commit = metadata.final_commit;
   packet.payload_hash_algorithm = kBallFlightPacketHashAlgorithm;
   packet.frame_id = metadata.frame_id;
   packet.segment_boundary_reason = snapshot.segment_boundary_reason;
@@ -303,7 +320,9 @@ void FlightPacketizerNode::write_audit(
       ? 0 : message.samples.back().exposure_unix_stamp_ns;
   audit_stream_ << message.session_id << ',' << message.producer_instance_id
                 << ',' << message.trajectory_epoch << ','
-                << message.flight_sequence << ',' << message.payload_hash << ','
+                << message.flight_sequence << ',' << message.snapshot_sequence
+                << ',' << (message.final_commit ? 1 : 0) << ','
+                << message.payload_hash << ','
                 << event << ',' << static_cast<int>(message.transmit_index) << ','
                 << static_cast<int>(message.transmit_count) << ','
                 << message.samples.size() << ',' << first << ',' << last << ','

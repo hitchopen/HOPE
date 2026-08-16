@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <string>
 
 namespace hope_planner_cpp {
@@ -38,6 +39,8 @@ FlightPacketMetadata example_metadata() {
   metadata.producer_instance_id = "laptop_boot_1";
   metadata.trajectory_epoch = 7;
   metadata.flight_sequence = 11;
+  metadata.snapshot_sequence = 11;
+  metadata.final_commit = true;
   metadata.frame_id = "world";
   return metadata;
 }
@@ -77,6 +80,8 @@ TEST(FlightPacket, WireHashUsesIntegerExposureTimeAndIgnoresRetries) {
   packet.producer_instance_id = "laptop_boot_1";
   packet.trajectory_epoch = 7;
   packet.flight_sequence = 11;
+  packet.snapshot_sequence = 11;
+  packet.final_commit = true;
   packet.frame_id = "world";
   packet.segment_boundary_reason = "opponent_turnaround";
   packet.net_x = 1.37;
@@ -119,6 +124,15 @@ TEST(FlightPacket, DedupeAcceptsExactlyOnePayloadPerIdentity) {
   EXPECT_EQ(dedupe.size(), 1U);
 }
 
+TEST(FlightPacket, RevisionIdentityChangesWithinOneFlight) {
+  auto metadata = example_metadata();
+  const auto first_flight_key = flight_packet_flight_identity_key(metadata);
+  const auto first_revision_key = flight_packet_identity_key(metadata);
+  ++metadata.snapshot_sequence;
+  EXPECT_EQ(first_flight_key, flight_packet_flight_identity_key(metadata));
+  EXPECT_NE(first_revision_key, flight_packet_identity_key(metadata));
+}
+
 TEST(FlightPacket, OneHundredRetriesStillProduceOneAcceptedFlight) {
   FlightPacketDeduplicator dedupe(256);
   const std::string identity =
@@ -143,6 +157,22 @@ TEST(FlightPacket, ValidationRequiresOrderedFiniteImmutableWindow) {
   snapshot.samples[2].source_time_s = snapshot.samples[1].source_time_s;
   EXPECT_FALSE(validate_flight_snapshot(snapshot, reason));
   EXPECT_EQ(reason, "invalid_or_unordered_sample");
+}
+
+TEST(FlightPacket, ValidationAcceptsEstimatorReadyProvisionalRevision) {
+  auto snapshot = example_snapshot();
+  snapshot.one_shot.commit_due = false;
+  snapshot.one_shot.net_cross_source_time_s =
+      std::numeric_limits<double>::quiet_NaN();
+  snapshot.one_shot.commit_source_time_s =
+      std::numeric_limits<double>::quiet_NaN();
+  std::string reason;
+  EXPECT_TRUE(validate_flight_snapshot(snapshot, reason));
+  EXPECT_EQ(reason, "ok");
+
+  snapshot.one_shot.commit_due = true;
+  EXPECT_FALSE(validate_flight_snapshot(snapshot, reason));
+  EXPECT_EQ(reason, "invalid_commit_timestamps");
 }
 
 }  // namespace

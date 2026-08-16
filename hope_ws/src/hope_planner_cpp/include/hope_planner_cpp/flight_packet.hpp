@@ -12,13 +12,15 @@
 
 namespace hope_planner_cpp {
 
-constexpr std::uint16_t kBallFlightPacketSchemaVersion = 1;
-constexpr const char* kBallFlightPacketHashAlgorithm = "fnv1a64-v1";
+constexpr std::uint16_t kBallFlightPacketSchemaVersion = 2;
+constexpr const char* kBallFlightPacketHashAlgorithm = "fnv1a64-v2";
 
 std::string flight_packet_identity_key(
     const FlightPacketMetadata& metadata);
+std::string flight_packet_flight_identity_key(
+    const FlightPacketMetadata& metadata);
 
-// Hashes only immutable flight content. Retry index and transport receipt/
+// Hashes only immutable revision content. Retry index and transport receipt/
 // publish times are intentionally excluded, so all retries share one content
 // address.
 std::string flight_packet_payload_hash(
@@ -44,8 +46,9 @@ enum class FlightPacketDedupResult : std::uint8_t {
   kIdentityConflict = 2,
 };
 
-// Bounded identity memory prevents retry packets from ever producing another
-// solve. Eviction is insertion-order only and is far longer than a rally.
+// Bounded revision identity memory prevents retries of the same revision from
+// ever producing another solve. Eviction is insertion-order only and is far
+// longer than a rally.
 class FlightPacketDeduplicator {
  public:
   explicit FlightPacketDeduplicator(std::size_t capacity = 256);

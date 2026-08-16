@@ -67,6 +67,14 @@ std::int64_t seconds_to_ns(double value) noexcept {
 std::string flight_packet_identity_key(
     const FlightPacketMetadata& metadata) {
   std::ostringstream output;
+  output << flight_packet_flight_identity_key(metadata) << '\x1f'
+         << metadata.snapshot_sequence;
+  return output.str();
+}
+
+std::string flight_packet_flight_identity_key(
+    const FlightPacketMetadata& metadata) {
+  std::ostringstream output;
   output << metadata.session_id << '\x1f'
          << metadata.producer_instance_id << '\x1f'
          << metadata.trajectory_epoch << '\x1f'
@@ -85,6 +93,8 @@ std::string flight_packet_payload_hash(
   hash.string(metadata.producer_instance_id);
   hash.integer(metadata.trajectory_epoch);
   hash.integer(metadata.flight_sequence);
+  hash.integer(metadata.snapshot_sequence);
+  hash.integer<std::uint8_t>(metadata.final_commit ? 1 : 0);
   hash.string(metadata.frame_id);
   hash.string(snapshot.segment_boundary_reason);
   hash.floating(net_x);
@@ -122,6 +132,8 @@ std::string flight_packet_message_payload_hash(
   hash.string(packet.producer_instance_id);
   hash.integer(packet.trajectory_epoch);
   hash.integer(packet.flight_sequence);
+  hash.integer(packet.snapshot_sequence);
+  hash.integer<std::uint8_t>(packet.final_commit ? 1 : 0);
   hash.string(packet.frame_id);
   hash.string(packet.segment_boundary_reason);
   hash.floating(packet.net_x);
@@ -159,11 +171,14 @@ bool validate_flight_snapshot(
     reason = "invalid_flight_identity";
     return false;
   }
-  if (!snapshot.one_shot.commit_due ||
-      !std::isfinite(snapshot.one_shot.net_cross_source_time_s) ||
-      !std::isfinite(snapshot.one_shot.commit_source_time_s) ||
-      snapshot.one_shot.commit_source_time_s + 1.0e-12 <
-          snapshot.one_shot.net_cross_source_time_s) {
+  const bool has_net =
+      std::isfinite(snapshot.one_shot.net_cross_source_time_s);
+  const bool has_commit =
+      std::isfinite(snapshot.one_shot.commit_source_time_s);
+  if (has_net != has_commit ||
+      (has_net && snapshot.one_shot.commit_source_time_s + 1.0e-12 <
+          snapshot.one_shot.net_cross_source_time_s) ||
+      (snapshot.one_shot.commit_due && !has_net)) {
     reason = "invalid_commit_timestamps";
     return false;
   }

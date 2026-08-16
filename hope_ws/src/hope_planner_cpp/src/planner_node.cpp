@@ -154,14 +154,15 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
     post_net_one_shot_enabled_ = true;
     RCLCPP_WARN(
         get_logger(),
-        "flight_packet_input_enabled requires one solve per immutable flight; "
+        "flight_packet_input_enabled requires an isolated solve per immutable revision; "
         "post_net_one_shot_enabled was promoted to true");
   }
   post_net_commit_delay_s_ = std::max(
       0.0, declare_parameter<double>("post_net_commit_delay_s", 0.05));
   post_net_future_bounce_tangential_gain_ = std::max(
       0.0, declare_parameter<double>(
-          "post_net_future_bounce_tangential_gain", 0.075));
+          "post_net_future_bounce_tangential_gain",
+          physics_.table_tangential_gain));
 
   incoming_trajectory_config_.net_x = table_.net_x;
   incoming_trajectory_config_.commit_delay_s = post_net_commit_delay_s_;
@@ -315,10 +316,12 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "previous_segment_last_source_time_s,previous_tail_to_commit_ms,"
       "snapshot_published_total,snapshot_consumed_total,snapshot_superseded_total,"
       "flight_packet_input,packet_session_id,packet_producer_instance_id,"
-      "packet_payload_hash,packet_transmit_index,packet_transmit_count,"
+      "packet_snapshot_sequence,packet_final_commit,packet_payload_hash,"
+      "packet_transmit_index,packet_transmit_count,"
       "packet_transport_age_ms,packet_freeze_to_receive_ms,"
       "packet_received_total,packet_accepted_total,packet_duplicate_total,"
-      "packet_conflict_total,packet_invalid_total,packet_queue_depth");
+      "packet_conflict_total,packet_stale_total,packet_invalid_total,"
+      "packet_mailbox_depth,packet_mailbox_superseded_total");
   std::string flight_packet_audit_path = declare_parameter<std::string>(
       "flight_packet_audit_csv_path", "");
   if (flight_packet_audit_path.empty() && !debug_path.empty()) {
@@ -327,17 +330,18 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   flight_packet_audit_logger_ = std::make_unique<AuditLogger>(
       flight_packet_audit_path,
       "receipt_wall_unix_ns,receipt_steady_ns,session_id,"
-      "producer_instance_id,trajectory_epoch,flight_sequence,payload_hash,"
-      "transmit_index,transmit_count,sample_count,last_exposure_unix_ns,"
-      "source_age_ms,dedupe_result,accepted_for_solve,packet_queue_depth");
+      "producer_instance_id,trajectory_epoch,flight_sequence,snapshot_sequence,"
+      "final_commit,payload_hash,transmit_index,transmit_count,sample_count,"
+      "last_exposure_unix_ns,source_age_ms,dedupe_result,accepted_for_solve,"
+      "packet_mailbox_depth");
 
   estimator_ = std::make_unique<BatchPhysicsEstimator>(physics_, estimator_config_);
   spin_estimator_ = std::make_unique<SpinEstimator>(spin_estimator_config_);
   predictor_ = std::make_unique<TrajectoryPredictor>(physics_, planner_config_, table_);
   BallPhysics post_net_physics = physics_;
-  // This effective future-contact coefficient is identified for the causal
-  // pre-bounce one-shot prediction. The estimator keeps the venue coefficient
-  // when an actual bounce has already been observed.
+  // The future-contact prediction and the estimator use the same venue
+  // coefficient. The retained Python predictor has legacy point-ball contact
+  // geometry, so offline comparison measures (rather than hides) that residual.
   post_net_physics.table_tangential_gain =
       post_net_future_bounce_tangential_gain_;
   post_net_predictor_ = std::make_unique<TrajectoryPredictor>(
@@ -606,6 +610,8 @@ void PlannerNode::flight_packet_callback(
           << receipt_wall_ns << ',' << receipt_steady_ns << ','
           << message->session_id << ',' << message->producer_instance_id << ','
           << message->trajectory_epoch << ',' << message->flight_sequence << ','
+          << message->snapshot_sequence << ','
+          << (message->final_commit ? 1 : 0) << ','
           << message->payload_hash << ','
           << static_cast<int>(message->transmit_index) << ','
           << static_cast<int>(message->transmit_count) << ','
@@ -623,6 +629,7 @@ void PlannerNode::flight_packet_callback(
         message->payload_hash_algorithm != kBallFlightPacketHashAlgorithm ||
         message->session_id.empty() || message->producer_instance_id.empty() ||
         message->trajectory_epoch == 0 || message->flight_sequence == 0 ||
+        message->snapshot_sequence == 0 ||
         message->transmit_count == 0 || message->samples.empty() ||
         message->samples.size() > kMaxEstimatorSamples) {
       flight_packets_invalid_.fetch_add(1, std::memory_order_relaxed);
@@ -642,20 +649,26 @@ void PlannerNode::flight_packet_callback(
     TrajectorySnapshot snapshot;
     snapshot.sample_count = message->samples.size();
     snapshot.trajectory_epoch = message->trajectory_epoch;
-    snapshot.snapshot_sequence = message->flight_sequence;
+    snapshot.snapshot_sequence = message->snapshot_sequence;
     snapshot.segment_start_source_time_s =
-        ns_to_seconds(message->segment_start_exposure_unix_ns);
+        message->segment_start_exposure_unix_ns == 0
+        ? std::numeric_limits<double>::quiet_NaN()
+        : ns_to_seconds(message->segment_start_exposure_unix_ns);
     snapshot.previous_segment_last_source_time_s =
         message->previous_segment_last_exposure_unix_ns == 0
         ? std::numeric_limits<double>::quiet_NaN()
         : ns_to_seconds(message->previous_segment_last_exposure_unix_ns);
     snapshot.segment_boundary_reason = message->segment_boundary_reason;
-    snapshot.one_shot.commit_due = true;
+    snapshot.one_shot.commit_due = message->final_commit;
     snapshot.one_shot.flight_sequence = message->flight_sequence;
     snapshot.one_shot.net_cross_source_time_s =
-        ns_to_seconds(message->net_cross_exposure_unix_ns);
+        message->net_cross_exposure_unix_ns == 0
+        ? std::numeric_limits<double>::quiet_NaN()
+        : ns_to_seconds(message->net_cross_exposure_unix_ns);
     snapshot.one_shot.commit_source_time_s =
-        ns_to_seconds(message->commit_exposure_unix_ns);
+        message->commit_exposure_unix_ns == 0
+        ? std::numeric_limits<double>::quiet_NaN()
+        : ns_to_seconds(message->commit_exposure_unix_ns);
     snapshot.packet.present = true;
     snapshot.packet.session_id = message->session_id;
     snapshot.packet.producer_instance_id = message->producer_instance_id;
@@ -663,6 +676,8 @@ void PlannerNode::flight_packet_callback(
     snapshot.packet.frame_id = message->frame_id;
     snapshot.packet.trajectory_epoch = message->trajectory_epoch;
     snapshot.packet.flight_sequence = message->flight_sequence;
+    snapshot.packet.snapshot_sequence = message->snapshot_sequence;
+    snapshot.packet.final_commit = message->final_commit;
     snapshot.packet.freeze_wall_unix_ns = message->freeze_wall_unix_ns;
     snapshot.packet.publish_wall_unix_ns = message->publish_wall_unix_ns;
     snapshot.packet.receipt_wall_unix_ns = receipt_wall_ns;
@@ -716,28 +731,51 @@ void PlannerNode::flight_packet_callback(
 
     const std::string identity_key = flight_packet_identity_key(snapshot.packet);
     std::size_t accepted_queue_depth = 0;
+    bool superseded = false;
     {
-      std::lock_guard<std::mutex> lock(flight_packet_mutex_);
+      std::lock_guard<std::mutex> lock(flight_packet_identity_mutex_);
       const FlightPacketDedupResult result = flight_packet_deduplicator_.observe(
           identity_key, message->payload_hash);
       if (result == FlightPacketDedupResult::kDuplicate) {
         flight_packets_duplicate_.fetch_add(1, std::memory_order_relaxed);
-        write_receive_audit("duplicate", false, flight_packet_queue_.size());
+        write_receive_audit("duplicate", false, flight_packet_queue_depth());
         return;
       }
       if (result == FlightPacketDedupResult::kIdentityConflict) {
         flight_packets_conflict_.fetch_add(1, std::memory_order_relaxed);
         write_receive_audit(
-            "identity_conflict", false, flight_packet_queue_.size());
+            "identity_conflict", false, flight_packet_queue_depth());
         RCLCPP_WARN(
             get_logger(),
             "ignored conflicting BallFlightPacket identity=%s hash=%s",
             identity_key.c_str(), message->payload_hash.c_str());
         return;
       }
-      flight_packet_queue_.push_back(std::move(snapshot));
-      accepted_queue_depth = flight_packet_queue_.size();
+      const std::string flight_key =
+          flight_packet_flight_identity_key(snapshot.packet);
+      const auto watermark = flight_revision_watermarks_.find(flight_key);
+      if (watermark != flight_revision_watermarks_.end() &&
+          message->snapshot_sequence < watermark->second) {
+        flight_packets_stale_.fetch_add(1, std::memory_order_relaxed);
+        write_receive_audit("stale_revision", false, flight_packet_queue_depth());
+        return;
+      }
+      if (watermark == flight_revision_watermarks_.end()) {
+        constexpr std::size_t kRevisionWatermarkCapacity = 256;
+        if (flight_revision_watermarks_.size() >= kRevisionWatermarkCapacity) {
+          flight_revision_watermarks_.erase(
+              flight_revision_insertion_order_.front());
+          flight_revision_insertion_order_.pop_front();
+        }
+        flight_revision_watermarks_.emplace(
+            flight_key, message->snapshot_sequence);
+        flight_revision_insertion_order_.push_back(flight_key);
+      } else {
+        watermark->second = message->snapshot_sequence;
+      }
     }
+    superseded = flight_packet_mailbox_.publish(snapshot);
+    accepted_queue_depth = flight_packet_queue_depth();
 
     received_samples_.fetch_add(message->samples.size(), std::memory_order_relaxed);
     present_samples_.fetch_add(message->samples.size(), std::memory_order_relaxed);
@@ -748,10 +786,17 @@ void PlannerNode::flight_packet_callback(
     last_ball_receipt_steady_ns_.store(receipt_steady_ns, std::memory_order_release);
     trajectory_epoch_.store(message->trajectory_epoch, std::memory_order_release);
     incoming_phase_.store(
-        static_cast<int>(IncomingPhase::kWaitOutgoing),
+        static_cast<int>(message->final_commit
+            ? IncomingPhase::kWaitOutgoing
+            : (message->net_cross_exposure_unix_ns != 0
+                ? IncomingPhase::kWaitCommit
+                : IncomingPhase::kCollectIncoming)),
         std::memory_order_release);
     flight_packets_accepted_.fetch_add(1, std::memory_order_relaxed);
-    write_receive_audit("accepted", true, accepted_queue_depth);
+    write_receive_audit(
+        superseded ? "accepted_superseded" : "accepted",
+        true,
+        accepted_queue_depth);
     wake_condition_.notify_one();
   } catch (const std::exception& exception) {
     flight_packets_invalid_.fetch_add(1, std::memory_order_relaxed);
@@ -767,21 +812,15 @@ void PlannerNode::flight_packet_callback(
 
 bool PlannerNode::try_take_flight_packet(
     TrajectorySnapshot& snapshot) noexcept {
-  std::lock_guard<std::mutex> lock(flight_packet_mutex_);
-  if (flight_packet_queue_.empty()) return false;
-  snapshot = std::move(flight_packet_queue_.front());
-  flight_packet_queue_.pop_front();
-  return true;
+  return flight_packet_mailbox_.try_take(snapshot);
 }
 
 bool PlannerNode::has_pending_flight_packet() const noexcept {
-  std::lock_guard<std::mutex> lock(flight_packet_mutex_);
-  return !flight_packet_queue_.empty();
+  return flight_packet_mailbox_.has_pending();
 }
 
 std::size_t PlannerNode::flight_packet_queue_depth() const noexcept {
-  std::lock_guard<std::mutex> lock(flight_packet_mutex_);
-  return flight_packet_queue_.size();
+  return flight_packet_mailbox_.has_pending() ? 1U : 0U;
 }
 
 void PlannerNode::set_base_snapshot(const BaseSnapshot& snapshot) noexcept {
@@ -1052,9 +1091,9 @@ void PlannerNode::solver_loop() noexcept {
           ? post_net_predictor_.get()
           : predictor_.get();
       if (state.valid) {
-        // One-shot control uses the causally identified effective coefficient
-        // for a future contact; the estimator keeps the venue coefficient for
-        // an already observed bounce. Omega=0 remains the control contract.
+        // Rolling revision control uses the venue coefficient for both a
+        // future contact and an already observed bounce. Omega=0 remains the
+        // control contract; the retained Python point-ball path is audit-only.
         // Orientation, spin coherence and Magnus are shadow-only.
         strike = control_predictor->predict_with_spin(
             state, active_x_hit(), Vec3::Zero(),
@@ -1336,6 +1375,8 @@ void PlannerNode::publish_solve(
           << (audit.flight_packet.present ? 1 : 0) << ','
           << audit.flight_packet.session_id << ','
           << audit.flight_packet.producer_instance_id << ','
+          << audit.flight_packet.snapshot_sequence << ','
+          << (audit.flight_packet.final_commit ? 1 : 0) << ','
           << audit.flight_packet.payload_hash << ','
           << static_cast<int>(audit.flight_packet.transmit_index) << ','
           << static_cast<int>(audit.flight_packet.transmit_count) << ','
@@ -1344,8 +1385,10 @@ void PlannerNode::publish_solve(
           << flight_packets_accepted_.load() << ','
           << flight_packets_duplicate_.load() << ','
           << flight_packets_conflict_.load() << ','
+          << flight_packets_stale_.load() << ','
           << flight_packets_invalid_.load() << ','
-          << flight_packet_queue_depth();
+          << flight_packet_queue_depth() << ','
+          << flight_packet_mailbox_.superseded();
       audit_logger_->enqueue(row.str());
     }
   } catch (...) {
@@ -1405,7 +1448,10 @@ void PlannerNode::publish_diagnostics() noexcept {
     status.values.push_back(diagnostic_value(
         "flight_packet_topic", flight_packet_topic_));
     status.values.push_back(diagnostic_value(
-        "flight_packet_queue_depth", std::to_string(flight_packet_queue_depth())));
+        "flight_packet_mailbox_depth", std::to_string(flight_packet_queue_depth())));
+    status.values.push_back(diagnostic_value(
+        "flight_packet_mailbox_superseded",
+        std::to_string(flight_packet_mailbox_.superseded())));
     status.values.push_back(diagnostic_value(
         "flight_packets_received", std::to_string(flight_packets_received_.load())));
     status.values.push_back(diagnostic_value(
@@ -1414,6 +1460,8 @@ void PlannerNode::publish_diagnostics() noexcept {
         "flight_packets_duplicate", std::to_string(flight_packets_duplicate_.load())));
     status.values.push_back(diagnostic_value(
         "flight_packets_conflict", std::to_string(flight_packets_conflict_.load())));
+    status.values.push_back(diagnostic_value(
+        "flight_packets_stale", std::to_string(flight_packets_stale_.load())));
     status.values.push_back(diagnostic_value(
         "flight_packets_invalid", std::to_string(flight_packets_invalid_.load())));
     status.values.push_back(diagnostic_value(
@@ -1471,7 +1519,8 @@ void PlannerNode::publish_diagnostics() noexcept {
         "ring=%zu drops=%llu coalesced=%llu ooo=%llu source_age=%.2fms "
         "valid=%llu deadline_miss=%llu max_gap=%.2fms logger_drops=%llu "
         "trajectory=%llu phase=%s snapshots=%llu/%llu superseded=%llu "
-        "packets=%llu/%llu duplicate=%llu conflict=%llu invalid=%llu queue=%zu",
+        "packets=%llu/%llu duplicate=%llu conflict=%llu stale=%llu invalid=%llu "
+        "mailbox=%zu packet_superseded=%llu",
         receive_rate, 100.0 * nominal_retention, solve_rate,
         input_ring_.size_approx(),
         static_cast<unsigned long long>(ring_drops_.load()),
@@ -1492,8 +1541,10 @@ void PlannerNode::publish_diagnostics() noexcept {
         static_cast<unsigned long long>(flight_packets_received_.load()),
         static_cast<unsigned long long>(flight_packets_duplicate_.load()),
         static_cast<unsigned long long>(flight_packets_conflict_.load()),
+        static_cast<unsigned long long>(flight_packets_stale_.load()),
         static_cast<unsigned long long>(flight_packets_invalid_.load()),
-        flight_packet_queue_depth());
+        flight_packet_queue_depth(),
+        static_cast<unsigned long long>(flight_packet_mailbox_.superseded()));
   } catch (...) {
   }
 }

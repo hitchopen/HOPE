@@ -39,6 +39,14 @@ IncomingTrajectory::IncomingTrajectory(IncomingTrajectoryConfig config)
     : config_(std::move(config)) {
   config_.estimator_window_s = std::max(0.02, config_.estimator_window_s);
   config_.commit_delay_s = std::max(0.0, config_.commit_delay_s);
+  config_.rolling_snapshot_period_s =
+      std::max(0.001, config_.rolling_snapshot_period_s);
+  config_.rolling_snapshot_min_span_s = std::clamp(
+      config_.rolling_snapshot_min_span_s,
+      0.0,
+      config_.estimator_window_s);
+  config_.rolling_snapshot_min_samples = std::clamp<std::size_t>(
+      config_.rolling_snapshot_min_samples, 2, kMaxEstimatorSamples);
   config_.opponent_side_margin_m = std::max(0.0, config_.opponent_side_margin_m);
   config_.incoming_speed_threshold_mps =
       std::max(0.01, config_.incoming_speed_threshold_mps);
@@ -64,6 +72,8 @@ void IncomingTrajectory::reset_phase(bool keep_epoch) noexcept {
   last_source_time_s_ = -std::numeric_limits<double>::infinity();
   net_cross_source_time_s_ = std::numeric_limits<double>::quiet_NaN();
   commit_source_time_s_ = std::numeric_limits<double>::quiet_NaN();
+  last_snapshot_source_time_s_ =
+      -std::numeric_limits<double>::infinity();
   current_segment_start_source_time_s_ =
       std::numeric_limits<double>::quiet_NaN();
   current_boundary_reason_ = "none";
@@ -171,6 +181,8 @@ void IncomingTrajectory::start_incoming(
   history_count_ = 0;
   net_cross_source_time_s_ = std::numeric_limits<double>::quiet_NaN();
   commit_source_time_s_ = std::numeric_limits<double>::quiet_NaN();
+  last_snapshot_source_time_s_ =
+      -std::numeric_limits<double>::infinity();
   current_boundary_reason_ = reason;
   current_segment_start_source_time_s_ = pre_roll_count_ > 0
       ? pre_roll_[boundary].source_time_s
@@ -185,6 +197,7 @@ void IncomingTrajectory::start_incoming(
     collect_sample(pre_roll_[i], update);
     if (update.snapshot_ready) break;
   }
+  if (!update.snapshot_ready) maybe_make_rolling_snapshot(update);
 }
 
 void IncomingTrajectory::collect_sample(
@@ -215,11 +228,29 @@ void IncomingTrajectory::collect_sample(
   if (phase_ == IncomingPhase::kWaitCommit &&
       std::isfinite(commit_source_time_s_) &&
       sample.source_time_s + 1.0e-12 >= commit_source_time_s_) {
-    make_snapshot(update);
+    make_snapshot(update, true);
   }
 }
 
-void IncomingTrajectory::make_snapshot(IncomingTrajectoryUpdate& update) noexcept {
+void IncomingTrajectory::maybe_make_rolling_snapshot(
+    IncomingTrajectoryUpdate& update) noexcept {
+  if (!config_.rolling_snapshots_enabled || update.snapshot_ready ||
+      history_count_ < config_.rolling_snapshot_min_samples) {
+    return;
+  }
+  const double latest = history_[history_count_ - 1].source_time_s;
+  const double span = latest - history_[0].source_time_s;
+  if (span + 1.0e-12 < config_.rolling_snapshot_min_span_s ||
+      latest + 1.0e-12 <
+          last_snapshot_source_time_s_ + config_.rolling_snapshot_period_s) {
+    return;
+  }
+  make_snapshot(update, false);
+}
+
+void IncomingTrajectory::make_snapshot(
+    IncomingTrajectoryUpdate& update,
+    bool final_commit) noexcept {
   TrajectorySnapshot snapshot;
   snapshot.sample_count = history_count_;
   std::copy_n(history_.begin(), history_count_, snapshot.samples.begin());
@@ -229,12 +260,18 @@ void IncomingTrajectory::make_snapshot(IncomingTrajectoryUpdate& update) noexcep
   snapshot.previous_segment_last_source_time_s =
       previous_segment_last_source_time_s_;
   snapshot.segment_boundary_reason = current_boundary_reason_;
-  snapshot.one_shot.commit_due = true;
+  snapshot.one_shot.commit_due = final_commit;
   snapshot.one_shot.flight_sequence = trajectory_epoch_;
   snapshot.one_shot.net_cross_source_time_s = net_cross_source_time_s_;
   snapshot.one_shot.commit_source_time_s = commit_source_time_s_;
   update.snapshot = std::move(snapshot);
   update.snapshot_ready = true;
+  if (history_count_ > 0) {
+    last_snapshot_source_time_s_ =
+        history_[history_count_ - 1].source_time_s;
+  }
+
+  if (!final_commit) return;
 
   if (history_count_ > 0) {
     previous_segment_last_source_time_s_ =
@@ -290,11 +327,13 @@ IncomingTrajectoryUpdate IncomingTrajectory::observe(
       return update;
     }
     collect_sample(sample, update);
+    if (!update.snapshot_ready) maybe_make_rolling_snapshot(update);
     return update;
   }
 
   if (phase_ == IncomingPhase::kWaitCommit) {
     collect_sample(sample, update);
+    if (!update.snapshot_ready) maybe_make_rolling_snapshot(update);
     return update;
   }
 

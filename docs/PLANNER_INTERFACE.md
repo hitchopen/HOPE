@@ -19,7 +19,7 @@ it or add it to a production build.
 
 ```
 mocap ball positions (/poses, ball at index 0)
-  -> hope_ball_flight_packetizer (immutable /ball/flight_packet)
+  -> hope_ball_flight_packetizer (rolling immutable /ball/flight_packet revisions)
   -> C++ batch position/velocity estimate
   -> no-spin trajectory prediction (gravity + drag + table bounce)
   -> virtual hit plane crossing (fixed x_hit by default)
@@ -28,9 +28,12 @@ mocap ball positions (/poses, ball at index 0)
   -> RacketCommand + /racket/command_flat (+ diagnostics)
 ```
 
-- Every incoming mocap sample feeds the Laptop-side packetizer. It freezes one
-  complete incoming-flight packet; the C++ Planner solves that immutable packet
-  once and the Runner freezes the accepted command when the swing engages.
+- Every incoming mocap sample feeds the Laptop-side packetizer. After the
+  estimator minimum is met, it freezes the complete retained history (capped
+  at 180 ms) into revisions at about 30 Hz and one final `net+50 ms` audit
+  revision. The C++ Planner keeps
+  only the latest pending revision; the Runner consumes updates before engage
+  and atomically freezes the complete command tuple when the swing engages.
 - The ball model is no-spin: `[x, y, z, vx, vy, vz]` with gravity, measured drag, and
   measured table/paddle restitution. The shipped parameters are a real venue fit
   (`drag_k = 0.1261`, see `configs/ball_physics_venue.yaml` and the fitting tools under

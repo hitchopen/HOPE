@@ -33,6 +33,8 @@ TEST(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   packetizer_options.append_parameter_override(
       "producer_instance_id", "laptop_test_instance");
   packetizer_options.append_parameter_override(
+      "rolling_snapshots_enabled", false);
+  packetizer_options.append_parameter_override(
       "retransmit_delays_ms", std::vector<std::int64_t>{0, 5, 15});
   auto packetizer = std::make_shared<FlightPacketizerNode>(packetizer_options);
 
