@@ -4,7 +4,7 @@
   "description": "Single-robot model_21800 operator console for the HOPE Runner",
   "publisher": "hope-open",
   "homepage": "https://github.com/hitchopen/HOPE",
-  "version": "1.2.4",
+  "version": "1.3.0",
   "license": "Apache-2.0",
   "main": "./dist/extension.js",
   "keywords": ["foxglove", "hope", "agibot", "operator"],

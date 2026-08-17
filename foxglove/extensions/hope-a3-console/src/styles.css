@@ -231,6 +231,10 @@ button:disabled {
   gap: 14px;
 }
 
+.lifecycle-actions {
+  flex-wrap: wrap;
+}
+
 .lifecycle-header {
   justify-content: space-between;
 }
@@ -323,10 +327,68 @@ button:disabled {
 }
 
 .config-helper {
+  flex: 1 1 260px;
   min-width: 0;
   color: #7c8aa0;
   font-size: 11px;
   line-height: 1.4;
+}
+
+.time-calibration-row {
+  border: 1px solid rgba(232, 163, 61, 0.42);
+  border-radius: 10px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: rgba(232, 163, 61, 0.08);
+}
+
+.time-calibration-copy {
+  min-width: 0;
+}
+
+.time-calibration-state {
+  margin: 4px 0;
+  color: #f3c888;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.time-calibration-button {
+  min-width: 190px;
+  border: 1px solid rgba(232, 163, 61, 0.72);
+  border-radius: 8px;
+  padding: 12px 15px;
+  color: #f7d49f;
+  background: rgba(232, 163, 61, 0.16);
+  cursor: pointer;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.time-calibration-complete {
+  border-color: rgba(63, 191, 106, 0.52);
+  background: rgba(63, 191, 106, 0.08);
+}
+
+.time-calibration-complete .time-calibration-state {
+  color: #77db98;
+}
+
+.time-calibration-failed-safe-stop,
+.time-calibration-interrupted {
+  border-color: rgba(209, 32, 42, 0.58);
+  background: rgba(209, 32, 42, 0.1);
+}
+
+.time-calibration-failed-safe-stop .time-calibration-state,
+.time-calibration-interrupted .time-calibration-state {
+  color: #ff858c;
 }
 
 .metric-grid,
@@ -659,6 +721,7 @@ button:disabled {
   .source-row,
   .lifecycle-header,
   .lifecycle-actions,
+  .time-calibration-row,
   .sequence-header,
   .sequence-footer {
     align-items: stretch;
@@ -667,6 +730,7 @@ button:disabled {
 
   .estop-button,
   .lifecycle-actions button,
+  .time-calibration-button,
   .sequence-footer .action-button {
     width: 100%;
     margin-left: 0;

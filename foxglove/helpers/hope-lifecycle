@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fixed, role-specific process helper for the Runner Laptop/HDU/MDU lifecycle.
-# The HDU ROS supervisor is the only intended caller. No command, path, user,
-# environment-variable name, or arbitrary argument is accepted from Foxglove.
+# The HDU ROS supervisors are the only intended callers. No command, path,
+# user, environment-variable name, or arbitrary argument is accepted from
+# Foxglove. The two root-only MDU clock actions accept no data arguments.
 
 set -euo pipefail
 umask 077
@@ -136,6 +137,128 @@ stop_tmux() {
     sleep 0.1
   done
   /usr/bin/tmux kill-session -t "$session"
+}
+
+time_calibration_require_root() {
+  [[ "$(id -u)" == 0 ]] || die TIME_CALIBRATION ROOT_REQUIRED
+  [[ "$#" == 0 ]] || die TIME_CALIBRATION INVALID_ARGUMENTS
+  [[ "${SUDO_USER:-}" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || \
+    die TIME_CALIBRATION INVALID_SUDO_USER
+}
+
+time_calibration_check_mdu() {
+  time_calibration_require_root "$@"
+  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
+    die TIME_CALIBRATION RUNNER_PRESENT
+  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
+  /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
+    die TIME_CALIBRATION MDU_PTP4L_NOT_ACTIVE
+  /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
+    die TIME_CALIBRATION MDU_PHC2SYS_NOT_ACTIVE
+  emit TIME_CALIBRATION COMPLETE MDU_PREFLIGHT_READY
+}
+
+time_calibration_stop_mdu() {
+  time_calibration_require_root "$@"
+  local run_dir=/run/hope-time-calibration
+  local active_file="$run_dir/mdu-active-services"
+  local state_file="$run_dir/mdu-state"
+  local boot_file="$run_dir/mdu-boot-id"
+  local current_boot state=""
+  current_boot="$(< /proc/sys/kernel/random/boot_id)"
+  /usr/bin/install -d -o root -g root -m 0700 "$run_dir"
+  exec 9>"$run_dir/mdu.lock"
+  /usr/bin/flock -n 9 || die TIME_CALIBRATION ALREADY_RUNNING
+
+  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
+    die TIME_CALIBRATION RUNNER_PRESENT
+  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
+
+  [[ -r "$state_file" ]] && state="$(< "$state_file")"
+  if [[ "$state" != STOPPING && "$state" != STOPPED ]] ||
+     [[ ! -r "$boot_file" || "$(< "$boot_file")" != "$current_boot" ]]; then
+    : > "$active_file"
+    local service
+    for service in \
+      agibot_roudi.service \
+      agibot_top.service \
+      agibot_ui.service \
+      agibot_pm.service; do
+      if /usr/bin/systemctl cat "$service" >/dev/null 2>&1 &&
+         /usr/bin/systemctl is-active --quiet "$service"; then
+        printf '%s\n' "$service" >> "$active_file"
+      fi
+    done
+    printf '%s\n' "$current_boot" > "$boot_file"
+  fi
+  printf 'STOPPING\n' > "$state_file"
+
+  local -a active_services=()
+  mapfile -t active_services < "$active_file"
+  if ((${#active_services[@]})); then
+    /usr/bin/systemctl stop "${active_services[@]}" || \
+      die TIME_CALIBRATION MDU_VENDOR_STOP_FAILED
+  fi
+  /usr/bin/systemctl stop \
+    agibot-mdu-phc2sys.service \
+    agibot-mdu-ptp4l.service || die TIME_CALIBRATION MDU_PTP_STOP_FAILED
+
+  ! pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null || \
+    die TIME_CALIBRATION RUNNER_REMAINS
+  ! pgrep -f '[a]imrt_main_hal' >/dev/null || \
+    die TIME_CALIBRATION HAL_REMAINS
+  ! /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
+    die TIME_CALIBRATION MDU_PTP4L_REMAINS
+  ! /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
+    die TIME_CALIBRATION MDU_PHC2SYS_REMAINS
+  printf 'STOPPED\n' > "$state_file"
+  emit TIME_CALIBRATION COMPLETE MDU_CLOCK_CONSUMERS_STOPPED
+}
+
+time_calibration_restore_mdu() {
+  time_calibration_require_root "$@"
+  local run_dir=/run/hope-time-calibration
+  local active_file="$run_dir/mdu-active-services"
+  local state_file="$run_dir/mdu-state"
+  local boot_file="$run_dir/mdu-boot-id"
+  local current_boot
+  current_boot="$(< /proc/sys/kernel/random/boot_id)"
+  [[ -d "$run_dir" ]] || die TIME_CALIBRATION MDU_RESTORE_RECEIPT_MISSING
+  exec 9>"$run_dir/mdu.lock"
+  /usr/bin/flock -n 9 || die TIME_CALIBRATION ALREADY_RUNNING
+  [[ -r "$active_file" && -r "$state_file" && -r "$boot_file" ]] || \
+    die TIME_CALIBRATION MDU_RESTORE_RECEIPT_MISSING
+  [[ "$(< "$boot_file")" == "$current_boot" ]] || \
+    die TIME_CALIBRATION MDU_RESTORE_BOOT_CHANGED
+  [[ "$(< "$state_file")" == STOPPED ]] || \
+    die TIME_CALIBRATION MDU_NOT_IN_STOPPED_STATE
+
+  /usr/bin/systemctl start \
+    agibot-mdu-ptp4l.service \
+    agibot-mdu-phc2sys.service || die TIME_CALIBRATION MDU_PTP_RESTORE_FAILED
+  /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
+    die TIME_CALIBRATION MDU_PTP4L_NOT_ACTIVE
+  /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
+    die TIME_CALIBRATION MDU_PHC2SYS_NOT_ACTIVE
+  sleep 5
+
+  local service
+  while IFS= read -r service; do
+    [[ -n "$service" ]] || continue
+    case "$service" in
+      agibot_roudi.service|agibot_top.service|agibot_ui.service|agibot_pm.service) ;;
+      *) die TIME_CALIBRATION INVALID_MDU_RESTORE_RECEIPT ;;
+    esac
+    /usr/bin/systemctl start "$service" || \
+      die TIME_CALIBRATION MDU_VENDOR_RESTORE_FAILED
+  done < "$active_file"
+  while IFS= read -r service; do
+    [[ -n "$service" ]] || continue
+    /usr/bin/systemctl is-active --quiet "$service" || \
+      die TIME_CALIBRATION MDU_VENDOR_NOT_ACTIVE
+  done < "$active_file"
+  printf 'RESTORED\n' > "$state_file"
+  emit TIME_CALIBRATION COMPLETE MDU_PTP_AND_VENDOR_RESTORED
 }
 
 prepare_laptop() {
@@ -683,6 +806,20 @@ main() {
   [[ "$#" -ge 1 ]] || exit 64
   local action="$1"
   shift
+  case "$action" in
+    time-calibration-preflight-mdu)
+      time_calibration_check_mdu "$@"
+      return
+      ;;
+    time-calibration-stop-mdu)
+      time_calibration_stop_mdu "$@"
+      return
+      ;;
+    time-calibration-restore-mdu)
+      time_calibration_restore_mdu "$@"
+      return
+      ;;
+  esac
   parse_common "$@" || {
     emit CONFIG FAILED INVALID_ARGUMENTS
     exit 64

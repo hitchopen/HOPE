@@ -136,6 +136,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             "apply_config",
             "start",
             "kill_all_and_collect",
+            "time_calibration",
         ):
             self.assertIn(f'"^/hope/lifecycle/{service}$"', params)
         self.assertNotIn('"^/hope/.*"', params)
@@ -161,6 +162,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             "a3/hope-observer.service",
             "a3/hope-command-proxy.service",
             "a3/hope-foxglove-control-bridge.service",
+            "a3/hope-time-calibration.service",
         )
         for relative in units:
             with self.subTest(unit=relative):
@@ -374,6 +376,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             "/hope/lifecycle/apply_config",
             "/hope/lifecycle/start",
             "/hope/lifecycle/kill_all_and_collect",
+            "/hope/lifecycle/time_calibration",
         ):
             self.assertIn(service, extension)
         self.assertNotIn("/hope/lifecycle/stop_and_collect", extension)
@@ -434,6 +437,75 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("/joint_states", json.dumps(scene))
         self.assertTrue(scene["topics"]["/hope/pelvis/marker"]["visible"])
         self.assertTrue(scene["topics"]["/hope/ball/marker"]["visible"])
+
+    def test_time_calibration_is_fixed_attended_and_fail_closed(self):
+        coordinator = (
+            FOXGLOVE_DIR / "a3/hope_time_calibration.py"
+        ).read_text()
+        core = (
+            FOXGLOVE_DIR / "a3/hope_time_calibration_core.py"
+        ).read_text()
+        helper = (
+            FOXGLOVE_DIR / "helpers/hope-lifecycle"
+        ).read_text()
+        unit = (
+            FOXGLOVE_DIR / "a3/hope-time-calibration.service"
+        ).read_text()
+        lifecycle_unit = (
+            FOXGLOVE_DIR / "a3/hope-lifecycle-supervisor.service"
+        ).read_text()
+        lifecycle_supervisor = (
+            FOXGLOVE_DIR / "a3/hope_lifecycle_supervisor.py"
+        ).read_text()
+        bridge = (
+            FOXGLOVE_DIR / "a3/bridge_params_control.yaml"
+        ).read_text()
+        extension = (
+            FOXGLOVE_DIR / "extensions/hope-a3-console/src/HopeA3Console.tsx"
+        ).read_text()
+        runbook = (
+            REPO_DIR / "docs/operations/foxglove_first_hardware_test.md"
+        ).read_text()
+
+        self.assertIn('"/hope/lifecycle/time_calibration"', coordinator)
+        self.assertIn("start_parameter_services=False", coordinator)
+        self.assertIn('lifecycle_state != "STOPPED"', coordinator)
+        self.assertIn("fresh failing NTP gate", coordinator)
+        self.assertIn("one hard-step was already attempted", coordinator)
+        self.assertIn("REARMED_AFTER_COMPLETED_LIFECYCLE", coordinator)
+        self.assertNotIn("shell=True", coordinator)
+        self.assertNotIn("shell=True", core)
+        self.assertIn('"time-calibration-stop-mdu"', core)
+        self.assertIn('"time-calibration-preflight-mdu"', core)
+        self.assertIn('"time-calibration-restore-mdu"', core)
+        self.assertIn('[CHRONYC, "waitsync", "600", "0.010", "5", "2"]', core)
+        self.assertIn("robot services stopped", core)
+        self.assertIn("time_calibration_require_root", helper)
+        self.assertIn("INVALID_MDU_RESTORE_RECEIPT", helper)
+        self.assertNotIn("eval ", helper)
+        self.assertIn("User=root", unit)
+        self.assertIn("NoNewPrivileges=true", unit)
+        self.assertIn("ProtectSystem=strict", unit)
+        self.assertIn("hope-lifecycle-supervisor.service", unit)
+        self.assertIn("hardware-operation.lock", lifecycle_unit)
+        self.assertIn("try_acquire_hardware_operation_lock", coordinator)
+        self.assertIn("try_acquire_hardware_operation_lock", lifecycle_supervisor)
+        self.assertIn("release_hardware_operation_lock", lifecycle_supervisor)
+        self.assertIn('"^/hope/lifecycle/time_calibration$"', bridge)
+        self.assertIn("TIME CALIBRATION", extension)
+        self.assertIn("snapshot.ntpPass === false", extension)
+        self.assertIn("lifecycleStopped", extension)
+        self.assertIn("FAILED_SAFE_STOP", extension)
+        self.assertIn("TIME CALIBRATION", runbook)
+        self.assertIn("同一维护周期中的第二次 hard-step", runbook)
+        self.assertIn(
+            "/usr/local/libexec/hope-lifecycle time-calibration-preflight-mdu",
+            runbook,
+        )
+        self.assertIn(
+            "/usr/local/libexec/hope-lifecycle time-calibration-stop-mdu",
+            runbook,
+        )
 
     def test_lifecycle_surface_is_fixed_and_has_no_browser_shell(self):
         supervisor = (

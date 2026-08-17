@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import fcntl
 import ipaddress
 import json
 import os
 from pathlib import Path
 import re
 import tempfile
-from typing import Mapping, Sequence
+from typing import IO, Mapping, Sequence
 
 
 CONFIG_SCHEMA_VERSION = 1
@@ -25,6 +26,9 @@ PRIVATE_NETWORKS = tuple(
 SESSION_PATTERN = re.compile(r"model21800_[0-9]{8}T[0-9]{6}Z")
 HELPER_EVENT_PATTERN = re.compile(
     r"HOPE_LIFECYCLE_V1 step=([A-Z0-9_]+) state=([A-Z]+) reason=([A-Z0-9_]+)"
+)
+HARDWARE_OPERATION_LOCK_PATH = Path(
+    "/var/lib/hope-lifecycle/hardware-operation.lock"
 )
 
 
@@ -47,6 +51,29 @@ class HelperEvent:
     step: str
     state: str
     reason: str
+
+
+def try_acquire_hardware_operation_lock(
+    path: Path = HARDWARE_OPERATION_LOCK_PATH,
+) -> IO[str] | None:
+    """Acquire the shared lifecycle/maintenance interlock without waiting."""
+
+    stream = path.open("r+", encoding="ascii")
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        stream.close()
+        return None
+    return stream
+
+
+def release_hardware_operation_lock(stream: IO[str] | None) -> None:
+    if stream is None:
+        return
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    finally:
+        stream.close()
 
 
 def validate_ipv4(name: str, value: object) -> str:

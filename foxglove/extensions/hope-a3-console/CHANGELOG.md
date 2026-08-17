@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0
+
+- Add an attended `TIME CALIBRATION` action for the fixed runbook 10.4
+  stop, single hard-step, and dependency-ordered restore sequence.
+- Require a fresh failing NTP gate, a stopped lifecycle, and confirmed network
+  configuration; refuse a second hard-step in the same maintenance cycle.
+- Share an exclusive hardware-operation interlock with `START SYSTEM` so a
+  second window or direct service client cannot race lifecycle startup.
+- Show persistent calibration progress after the expected temporary 8766
+  disconnect. Failures keep robot vendor/PTP services stopped while restoring
+  chrony and the Foxglove control plane for diagnosis.
+
 ## 1.2.4
 
 - Keep Ready as the native keyboard `m` action, but disable its UI button until

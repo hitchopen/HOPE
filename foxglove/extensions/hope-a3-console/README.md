@@ -37,3 +37,11 @@ The system-lifecycle card is backed by the separately installed HDU supervisor
 documented in `docs/operations/foxglove_lifecycle.md`. `START SYSTEM`
 replaces runbook STEP 0/1/2A/2B/4/5 and leaves the Runner in PASSIVE; it does
 not replace physical robot support or access to the hardware E-stop.
+
+`TIME CALIBRATION` is a separate attended maintenance action for runbook 10.4.
+It is enabled only with confirmed network configuration, a stopped lifecycle,
+and a fresh failing NTP gate. The fixed root coordinator stops MDU consumers
+before HDU consumers, performs at most one hard-step per maintenance cycle,
+restores in dependency order, and publishes persistent status after the expected temporary
+8766 disconnect. It shares an exclusive operation interlock with `START
+SYSTEM`; the panel exposes no clock parameters or shell input.

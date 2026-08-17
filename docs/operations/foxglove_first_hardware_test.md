@@ -9,6 +9,13 @@ Foxglove 不是远程终端。它只能确认四个 IP、启动/停止固定流�
 明确列出的 Runner/Planner 服务。Runner 仍然是 PASSIVE、PD_STAND、MOTION、
 角色和 Serve 状态的唯一权威。
 
+如果现场已经完成过本手册的旧版 Foxglove/lifecycle 部署，现在只需要增加
+`TIME CALIBRATION`，不要重复构建 Planner、Rockchip Runner 或重新上传 policy。
+增量升级路径是：第 0 节设置变量 → 第 1 节构建当前 `.foxe` → 第 9.2 节安装 UI
+→ 第 9.2.1 节部署 MDU/HDU 增量后端 → 第 9.3 节重新连接 → 第 10 节 preflight。
+全新机器人或尚未部署 8766/lifecycle 的现场仍按第 0–9 节首次部署路径执行，并按
+9.2.1 的说明跳过增量重复安装。
+
 ## 0. 设置现场参数并确认执行环境
 
 先在 **Laptop HOST** 的仓库根目录执行下面的 block。把四个尖括号占位符换成
@@ -123,7 +130,8 @@ ls -lh "$FOXE"
 
 首次会拉取 Node 22 容器镜像。`.foxe` 是本地生成物，不随源码提交；安装时只使用
 上面 `$FOXE` 指向的当前版本。当前面板包含独立 Calibration/Refresh x_hit、
-可重复 assert 的 E-stop，以及不依赖 Runner 模式的 `KILL ALL & COLLECT`。
+可重复 assert 的 E-stop、不依赖 Runner 模式的 `KILL ALL & COLLECT`，以及仅在
+NTP gate 不合格且 lifecycle 已停止时启用的 `TIME CALIBRATION`。
 
 ---
 
@@ -615,6 +623,9 @@ sudo install -D -o root -g root -m 0755 \
 sudo install -D -o root -g root -m 0755 \
   $HOME/foxglove_a3/hope_lifecycle_supervisor.py \
   /usr/local/bin/hope_lifecycle_supervisor.py
+sudo install -D -o root -g root -m 0755 \
+  $HOME/foxglove_a3/hope_time_calibration.py \
+  /usr/local/bin/hope_time_calibration.py
 
 sudo install -D -o root -g root -m 0644 \
   $HOME/foxglove_a3/hope_observer_core.py \
@@ -628,6 +639,9 @@ sudo install -D -o root -g root -m 0644 \
 sudo install -D -o root -g root -m 0644 \
   $HOME/foxglove_a3/hope_lifecycle_core.py \
   /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_time_calibration_core.py \
+  /usr/local/lib/hope-foxglove/hope_time_calibration_core.py
 
 sudo install -D -o root -g root -m 0644 \
   $HOME/foxglove_a3/bridge_params_control.yaml \
@@ -644,6 +658,9 @@ sudo install -D -o root -g root -m 0644 \
 sudo install -D -o root -g root -m 0644 \
   $HOME/foxglove_a3/hope-lifecycle-supervisor.service \
   /etc/systemd/system/hope-lifecycle-supervisor.service
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-time-calibration.service \
+  /etc/systemd/system/hope-time-calibration.service
 
 sudo install -D -o root -g root -m 0755 \
   /tmp/hope-lifecycle \
@@ -659,7 +676,8 @@ sudo systemctl enable --now \
   hope-observer.service \
   hope-command-proxy.service \
   hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service
+  hope-lifecycle-supervisor.service \
+  hope-time-calibration.service
 ```
 
 `/etc/hope-foxglove/network.env` 默认不写死旧 Laptop 地址。Lifecycle 启动的
@@ -686,7 +704,8 @@ systemctl is-enabled \
   hope-observer.service \
   hope-command-proxy.service \
   hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service
+  hope-lifecycle-supervisor.service \
+  hope-time-calibration.service
 
 systemctl is-active \
   hope-monitor.service \
@@ -694,7 +713,8 @@ systemctl is-active \
   hope-observer.service \
   hope-command-proxy.service \
   hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service
+  hope-lifecycle-supervisor.service \
+  hope-time-calibration.service
 
 ss -lnt | grep -E ':(8765|8766)[[:space:]]'
 
@@ -706,6 +726,7 @@ ros2 topic echo /hope/lifecycle/summary --once
 ros2 service type /hope/lifecycle/apply_config
 ros2 service type /hope/lifecycle/start
 ros2 service type /hope/lifecycle/kill_all_and_collect
+ros2 service type /hope/lifecycle/time_calibration
 ros2 service type /hope/calibrate
 ros2 service type /hope/refresh_x_hit
 test -x /usr/local/libexec/hope-base-pose-transport-relay
@@ -752,13 +773,16 @@ cd $HOME
 
 test "$(command -v systemctl)" = /usr/bin/systemctl
 
-if ! command -v tmux >/dev/null || ! command -v rsync >/dev/null; then
+if ! command -v tmux >/dev/null ||
+   ! command -v rsync >/dev/null ||
+   ! command -v flock >/dev/null; then
   sudo apt-get update
-  sudo apt-get install -y tmux rsync
+  sudo apt-get install -y tmux rsync util-linux
 fi
 
 command -v tmux
 command -v rsync
+test "$(command -v flock)" = /usr/bin/flock
 
 sudo install -D -o root -g root -m 0755 \
   /tmp/hope-lifecycle \
@@ -768,6 +792,9 @@ ROBOT_LOGIN="$(id -un)"
 printf '%s ALL=(root) NOPASSWD: %s\n' \
   "$ROBOT_LOGIN" '/usr/bin/systemctl stop agibot_pm.service' \
   "$ROBOT_LOGIN" '/usr/bin/systemctl start agibot_pm.service' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-preflight-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-stop-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-restore-mdu' \
   | sudo tee /etc/sudoers.d/hope-lifecycle >/dev/null
 
 sudo chmod 0440 /etc/sudoers.d/hope-lifecycle
@@ -893,7 +920,7 @@ echo "Table plus Pelvis-only transform surface: OK"
 
 ---
 
-## 9. Foxglove Desktop：一次性安装新 UI
+## 9. Foxglove Desktop：安装或升级 HOPE UI
 
 这一节在 **Laptop 桌面**操作。Foxglove Desktop 是独立应用，不是
 浏览器页面、终端或 distrobox。
@@ -1007,6 +1034,171 @@ echo "HOPE extension files: OK"
 保留 Console 中第一条 extension activation error；这时是 Desktop 扩展加载错误，
 不是 HDU、ROS 或 8766 错误。
 
+#### 9.2.1 已部署旧版现场：安装 Time Calibration 增量后端
+
+本小节只用于已经能通过 `ws://<HDU-IP>:8766` 使用旧版 HOPE A3 Console、且
+HDU lifecycle supervisor 与 MDU helper 已经部署的现场。全新部署已经在第 6.4 和
+7.2 节安装了相同文件，应跳过本小节。仅增加 Time Calibration 不需要执行第 4、6.2、
+6.3、7.3、7.4 或 7.5 节，也不需要重建或上传 Planner、Runner、ONNX 和 policy。
+
+开始前确认机器人已经物理支撑、实体急停可触达、lifecycle 为 `STOPPED`，并且没有
+Policy、Runner、Planner 或受管硬件 session 正在运行。部署期间不要点击
+`START SYSTEM`。在增量后端安装完成前，新 UI 中 Time Calibration 状态显示
+`STALE` 或按钮保持禁用是正常现象。
+
+先在 **Laptop HOST，不进 distrobox** stage 当前文件：
+
+```bash
+cd "$HOPE_ROOT"
+
+test -n "${ROBOT_USER:-}"
+test -n "${HDU_IP:-}"
+test -n "${MDU_IP:-}"
+
+ssh "${ROBOT_USER}@${HDU_IP}" \
+  'mkdir -p "$HOME/foxglove_a3"'
+
+rsync -azP \
+  --exclude '__pycache__/' \
+  --exclude '*.pyc' \
+  foxglove/a3/ \
+  "${ROBOT_USER}@${HDU_IP}:~/foxglove_a3/"
+
+scp foxglove/helpers/hope-lifecycle \
+  "${ROBOT_USER}@${HDU_IP}:/tmp/hope-lifecycle"
+
+scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
+  foxglove/helpers/hope-lifecycle \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-lifecycle"
+```
+
+先从 **Laptop HOST** 登录 MDU：
+
+```bash
+ssh -tt -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}"
+```
+
+在 **MDU 原生 shell，不进 distrobox** 更新 helper 和最小 sudoers：
+
+```bash
+if ! command -v flock >/dev/null; then
+  sudo apt-get update
+  sudo apt-get install -y util-linux
+fi
+
+test "$(command -v flock)" = /usr/bin/flock
+
+sudo install -D -o root -g root -m 0755 \
+  /tmp/hope-lifecycle \
+  /usr/local/libexec/hope-lifecycle
+
+ROBOT_LOGIN="$(id -un)"
+printf '%s ALL=(root) NOPASSWD: %s\n' \
+  "$ROBOT_LOGIN" '/usr/bin/systemctl stop agibot_pm.service' \
+  "$ROBOT_LOGIN" '/usr/bin/systemctl start agibot_pm.service' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-preflight-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-stop-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-restore-mdu' \
+  | sudo tee /etc/sudoers.d/hope-lifecycle >/dev/null
+
+sudo chmod 0440 /etc/sudoers.d/hope-lifecycle
+sudo visudo -cf /etc/sudoers.d/hope-lifecycle
+
+sudo -n /usr/local/libexec/hope-lifecycle \
+  time-calibration-preflight-mdu
+
+exit
+```
+
+最后一条是只读 preflight，不会停止服务；预期包含：
+
+```text
+HOPE_LIFECYCLE_V1 step=TIME_CALIBRATION state=COMPLETE reason=MDU_PREFLIGHT_READY
+```
+
+如果它报告 `RUNNER_PRESENT`、`NON_VENDOR_HAL_PRESENT` 或 PTP service 不 active，
+不要继续 HDU 安装或为了变绿而执行通用 `pkill`；先查清当前运行状态。
+
+再从 **Laptop HOST** 登录 HDU：
+
+```bash
+ssh -tt "${ROBOT_USER}@${HDU_IP}"
+```
+
+在 **HDU 原生 shell，不进 distrobox** 安装 Time Calibration、共享 lifecycle
+interlock 和 8766 allowlist 的增量文件：
+
+```bash
+sudo install -D -o root -g root -m 0755 \
+  "$HOME/foxglove_a3/hope_lifecycle_supervisor.py" \
+  /usr/local/bin/hope_lifecycle_supervisor.py
+sudo install -D -o root -g root -m 0755 \
+  "$HOME/foxglove_a3/hope_time_calibration.py" \
+  /usr/local/bin/hope_time_calibration.py
+
+sudo install -D -o root -g root -m 0644 \
+  "$HOME/foxglove_a3/hope_lifecycle_core.py" \
+  /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
+sudo install -D -o root -g root -m 0644 \
+  "$HOME/foxglove_a3/hope_time_calibration_core.py" \
+  /usr/local/lib/hope-foxglove/hope_time_calibration_core.py
+
+sudo install -D -o root -g root -m 0755 \
+  /tmp/hope-lifecycle \
+  /usr/local/libexec/hope-lifecycle
+
+sudo install -D -o root -g root -m 0644 \
+  "$HOME/foxglove_a3/bridge_params_control.yaml" \
+  /etc/hope-foxglove/control_bridge_params.yaml
+sudo install -D -o root -g root -m 0644 \
+  "$HOME/foxglove_a3/hope-lifecycle-supervisor.service" \
+  /etc/systemd/system/hope-lifecycle-supervisor.service
+sudo install -D -o root -g root -m 0644 \
+  "$HOME/foxglove_a3/hope-time-calibration.service" \
+  /etc/systemd/system/hope-time-calibration.service
+sudo install -D -o root -g root -m 0644 \
+  "$HOME/foxglove_a3/hope-foxglove-control-bridge.service" \
+  /etc/systemd/system/hope-foxglove-control-bridge.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable hope-time-calibration.service
+sudo systemctl restart hope-lifecycle-supervisor.service
+sudo systemctl restart hope-time-calibration.service
+sudo systemctl restart hope-foxglove-control-bridge.service
+```
+
+重启 control bridge 时现有 8766 连接会短暂断开。仍在 **HDU** 做只读验证：
+
+```bash
+systemctl is-active \
+  hope-lifecycle-supervisor.service \
+  hope-time-calibration.service \
+  hope-foxglove-control-bridge.service
+
+systemctl is-enabled hope-time-calibration.service
+ss -lnt | grep -E ':8766[[:space:]]'
+
+source /opt/ros/jazzy/setup.bash
+export ROS_DOMAIN_ID=232
+export ROS_LOCALHOST_ONLY=0
+
+ros2 service type /hope/lifecycle/time_calibration
+timeout 10s ros2 topic echo \
+  /hope/lifecycle/time_calibration/state --once
+
+exit
+```
+
+三个 service 应全部为 `active`，time calibration service 应为 `enabled`，8766
+应重新监听，service type 必须是 `std_srvs/srv/Trigger`。第一次安装且尚未执行过校时
+时，状态应为 `IDLE`；协调器状态会持久化，所以重复部署时也可能保留之前的
+`COMPLETE`、`REJECTED` 或 `FAILED_SAFE_STOP`，不要通过删除状态文件绕过它。
+service 启动失败时在 HDU 查看：
+
+```bash
+journalctl -u hope-time-calibration.service -b --no-pager
+```
+
 ### 9.3 连接 HDU 并导入 Layout
 
 开始本节前，必须已经在 9.2 的 **Add panel** 中看到 `HOPE A3 Console`。Layout
@@ -1053,6 +1245,8 @@ hope-a3-console.HOPE A3 Console!operator
 同一版本的布局只需导入一次。Foxglove Desktop 保存的是导入时的副本；仓库中的
 `model21800_console.json` 更新后（例如增加球 Marker 或移除机器人 URDF），必须
 重新 **Import from file…**，不能只重连 WebSocket。
+仅执行 9.2.1 的 Time Calibration 增量升级时，本次没有修改正式 Layout；已有窗口
+只需确认当前扩展已升级、重新连接 8766，不需要重复导入 Layout。
 
 ---
 
@@ -1118,7 +1312,8 @@ ssh ${ROBOT_USER}@${HDU_IP} '
     hope-observer.service \
     hope-command-proxy.service \
     hope-foxglove-control-bridge.service \
-    hope-lifecycle-supervisor.service
+    hope-lifecycle-supervisor.service \
+    hope-time-calibration.service
   test -x /usr/local/libexec/hope-lifecycle
   test -x /usr/local/libexec/hope-base-pose-transport-relay
   test -d $HOME/hope_ws/install
@@ -1190,6 +1385,58 @@ HAL 的 cgroup 属于 `/system.slice/agibot_pm.service`，它就是 STEP 4 将�
 
 恢复顺序必须保持为：先停止下游 MDU，再停止 HDU；校准 HDU UTC 后，先恢复 HDU
 上游时钟，再恢复 MDU PTP，最后恢复 Foxglove 控制面。
+
+正常现场操作不再复制粘贴 10.4.1–10.4.6 的 shell block。保持 lifecycle 为
+`STOPPED`，在 HOPE A3 Console 中确认四个现场 IP（只点 `CONFIRM CONFIG`，不要点
+`START SYSTEM`）。当面板上的 `NTP · AUDIT` 为失败且数据新鲜时，
+`TIME CALIBRATION` 按钮才会启用。点击后再次确认机器人已物理支撑、Policy/Runner
+没有运行且实体急停可触达。
+
+按钮状态按下面解释：
+
+- `NTP · AUDIT` 已合格时按钮禁用是正常行为，不需要 hard-step；
+- Time Calibration 卡片显示 `STALE` 时，先检查第 9.2.1 节的 coordinator 和 8766
+  allowlist 是否已经部署并 active；
+- NTP 数据新鲜且失败、但按钮仍禁用时，检查 lifecycle 是否为 `STOPPED`、四个 IP
+  是否已 `CONFIRM CONFIG`、输入框是否又被修改，以及 coordinator 是否 busy/locked。
+
+预期过程为：
+
+```text
+RUNNING · HANDOFF
+→ RUNNING · PREFLIGHT
+→ RUNNING · MDU_STOP
+→ RUNNING · HDU_STOP
+→ Foxglove :8766 暂时断开
+→ HARD_STEP（本次维护周期最多一次）
+→ HDU_RESTORE
+→ MDU_RESTORE
+→ CONTROL_RESTORE
+→ Foxglove :8766 恢复
+→ COMPLETE · CLOCK_QUALIFIED ... SERVICES_RESTORED
+```
+
+最长的 `chronyc waitsync` 仍可能等待 20 分钟；断开期间不要再次点击、不要手工启动
+任何 vendor、PTP、Runner 或 Foxglove service。连接恢复后只有状态为 `COMPLETE`、
+NTP gate 变绿，并重新完成 10.1、10.2、10.3，才能继续。协调器会持久化进度，并拒绝
+同一维护周期中的第二次 hard-step。一次完整 lifecycle 进入 `RUNNING` 后才自动为下一
+次维护重新解锁；HDU 重启也会开始新周期。它和 `START SYSTEM` 在整个事务期间共同持有同一
+个硬件操作 interlock；另一个 Foxglove 窗口或直接 service call 不能并发启动 Runner。
+
+如果显示 `REJECTED`，表示尚未改动机器状态，按 result 修正 preflight 后可重新请求。
+如果显示 `FAILED_SAFE_STOP`，机器人相关 HDU/MDU vendor 与 PTP 服务保持停止；协调器
+只保证尽力恢复 `chrony.service` 和 Foxglove 控制面用于诊断。此时不要再次校时或启动
+系统，保留实体支撑并按下面的手工 block 检查/恢复。10.4.1–10.4.6 因而保留为故障
+恢复和实现审计参考，不再是每次测试的正常操作路径。`FAILED_SAFE_STOP` 后本次 boot
+不要再次执行 10.4.3；先根据 service journal 和 `chronyc tracking` 查清失败点，再由
+现场负责人决定只恢复 10.4.4–10.4.6，还是关机后重新开始维护。
+
+协调器把每个固定命令的 return code 和截断后的 stdout/stderr 写入本机 journal。故障时
+在 **HDU** 读取，不要从 Foxglove 增加通用日志/命令接口：
+
+```bash
+journalctl -u hope-time-calibration.service -b --no-pager
+```
 
 #### 10.4.1 先停止 MDU 时间消费者
 
@@ -1409,7 +1656,8 @@ ssh ${ROBOT_USER}@${HDU_IP} '
     hope-observer.service \
     hope-command-proxy.service \
     hope-foxglove-control-bridge.service \
-    hope-lifecycle-supervisor.service
+    hope-lifecycle-supervisor.service \
+    hope-time-calibration.service
 
   while IFS= read -r SERVICE; do
     [[ -n "$SERVICE" ]] && sudo systemctl start "$SERVICE"
@@ -1421,7 +1669,8 @@ ssh ${ROBOT_USER}@${HDU_IP} '
     hope-observer.service \
     hope-command-proxy.service \
     hope-foxglove-control-bridge.service \
-    hope-lifecycle-supervisor.service
+    hope-lifecycle-supervisor.service \
+    hope-time-calibration.service
 
   ss -lnt | grep -E ":8766[[:space:]]"
   chronyc tracking

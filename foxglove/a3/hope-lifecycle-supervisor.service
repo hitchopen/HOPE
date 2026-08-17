@@ -19,6 +19,8 @@ Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_pro
 Environment=PYTHONPATH=/usr/local/lib/hope-foxglove
 Environment=ROS_LOG_DIR=/var/lib/hope-lifecycle/ros-log
 ExecStartPre=/usr/bin/install -d -m 0700 /var/lib/hope-lifecycle/ros-log
+ExecStartPre=/usr/bin/touch /var/lib/hope-lifecycle/hardware-operation.lock
+ExecStartPre=/usr/bin/chmod 0600 /var/lib/hope-lifecycle/hardware-operation.lock
 ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/bin/hope_lifecycle_supervisor.py'
 Restart=on-failure
 RestartSec=2

@@ -30,6 +30,11 @@ On the attended `8766` console, `/hope/calibrate` and
 replaces the Laptop JSON with the fixed `P1 -> pelvis_link` result plus a
 stationary `world -> pelvis_link` audit snapshot, then waits for the matching
 live base receipt. Refresh x_hit touches only the Planner request/status files.
+The separate `/hope/lifecycle/time_calibration` Trigger is the fixed attended
+implementation of hardware-runbook section 10.4. It is available only for a
+fresh failing NTP gate while the managed lifecycle is stopped. Its dedicated
+root coordinator remains alive while the ordinary control plane is restarted;
+it accepts no arguments and never exposes a shell.
 
 This document is site-neutral. The operator must provide and verify both
 distinct Wi-Fi addresses whenever the robot, Laptop, or venue changes:
@@ -83,6 +88,12 @@ distinct Wi-Fi addresses whenever the robot, Laptop, or venue changes:
   the HDU unit can be active while MDU-owned joint/TF/localization processes are
   absent. `/hope/vendor/tf_ready` is the authoritative layout gate for the 3D
   pelvis indicator.
+- **R8 — Clock steps are explicit maintenance.** The coordinator permits at
+  most one hard-step attempt per maintenance cycle, stops MDU consumers before HDU
+  consumers, and restores them in the documented dependency order. A failed
+  operation leaves robot vendor/PTP services stopped and restores only chrony
+  plus the Foxglove control plane for diagnosis; it never runs during a managed
+  Runner lifecycle.
 
 ## Fleet defaults (verify per unit)
 
@@ -104,6 +115,7 @@ A3 unit                                          External computer
   fleet foxglove_bridge ─────────────────┴── ws://<robot-ip>:8765 ──► monitoring / E-stop
   Runner observer + command proxy ◄──► native Runner request/state
   attended control bridge ─────────────── ws://<robot-ip>:8766 ──► A3 Console
+  root time-calibration coordinator ───── fixed 10.4 maintenance Trigger
 
 Motive ── NatNet ──► adapter ── ten-marker calibration ──► calibration/p1_to_pelvis.json
 ```
@@ -130,12 +142,15 @@ foxglove/
     |-- hope_observer.py             normalized Runner/operator state publisher
     |-- hope_command_proxy.py        fixed Runner and calibration service proxy
     |-- hope_lifecycle_supervisor.py fixed process lifecycle authority
+    |-- hope_time_calibration.py     fixed attended 10.4 coordinator
+    |-- hope_time_calibration_core.py ROS-free stop/step/restore contract
     |-- hope-foxglove-bridge.service read-only fleet bridge
     |-- hope-foxglove-control-bridge.service
     |-- hope-monitor.service
     |-- hope-observer.service
     |-- hope-command-proxy.service
     |-- hope-lifecycle-supervisor.service
+    |-- hope-time-calibration.service
     `-- patches/                     pinned A3 ament-index compatibility patches
 ```
 
@@ -583,12 +598,16 @@ Foxglove.
 - The integrated A3 Console on port 8766 provides the fixed native Runner actions
   documented in `docs/operations/foxglove_runner_integration.md`; the fleet
   layout itself has no legacy TTY Runner controls.
+- **TIME CALIBRATION:** shown only on the attended console. It requires fresh
+  failed NTP audit data, confirmed lifecycle addresses, and `STOPPED` state;
+  progress survives the expected temporary 8766 disconnect.
 
 ## Notes and limits
 
 - **Security:** the fleet WebSocket has no authentication and carries the real
   E-stop service. The attended 8766 endpoint carries the fixed native Runner
-  actions. Serve either only on the trusted lab subnet; do not
+  actions and the argument-free, root-owned clock-maintenance Trigger. Serve
+  either only on the trusted lab subnet; do not
   port-forward it, and do not leave an untrusted Foxglove client connected.
 - **Mocap network:** Motive access, NatNet reception, and mocap diagnostics are
   computer-side responsibilities. The A3 monitor has no mocap host parameter

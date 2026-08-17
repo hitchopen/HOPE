@@ -18,6 +18,8 @@ from hope_lifecycle_core import (  # noqa: E402
     load_config,
     parse_helper_event,
     save_config_atomic,
+    release_hardware_operation_lock,
+    try_acquire_hardware_operation_lock,
     validate_ipv4,
     validate_session_id,
 )
@@ -112,6 +114,18 @@ class LifecycleConfigTests(unittest.TestCase):
         self.assertIsNotNone(event)
         self.assertEqual(event.step, "RUNNER")
         self.assertIsNone(parse_helper_event("arbitrary helper output"))
+
+    def test_hardware_operation_interlock_is_exclusive_and_reusable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "hardware-operation.lock"
+            path.touch(mode=0o600)
+            first = try_acquire_hardware_operation_lock(path)
+            self.assertIsNotNone(first)
+            self.assertIsNone(try_acquire_hardware_operation_lock(path))
+            release_hardware_operation_lock(first)
+            second = try_acquire_hardware_operation_lock(path)
+            self.assertIsNotNone(second)
+            release_hardware_operation_lock(second)
 
 
 if __name__ == "__main__":

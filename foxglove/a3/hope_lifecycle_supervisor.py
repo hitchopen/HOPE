@@ -28,7 +28,9 @@ from hope_lifecycle_core import (
     apply_config_updates,
     load_config,
     parse_helper_event,
+    release_hardware_operation_lock,
     save_config_atomic,
+    try_acquire_hardware_operation_lock,
     validate_session_id,
 )
 
@@ -205,6 +207,7 @@ class HopeLifecycleSupervisor(Node):
         self._runner_mode_received = 0.0
         self._runner_session_matches = False
         self._runner_session_matches_received = 0.0
+        self._hardware_operation_lock = None
 
         self._lifecycle_publishers = {
             "state": self.create_publisher(String, "/hope/lifecycle/state", 10),
@@ -389,6 +392,18 @@ class HopeLifecycleSupervisor(Node):
                 response.success = False
                 response.message = "confirm the four IPv4 fields before starting"
                 return response
+            try:
+                operation_lock = try_acquire_hardware_operation_lock()
+            except OSError as exc:
+                response.success = False
+                response.message = f"hardware-operation interlock unavailable: {exc}"
+                return response
+            if operation_lock is None:
+                response.success = False
+                response.message = (
+                    "another lifecycle or time-calibration operation owns the interlock"
+                )
+                return response
             config = self._config
             session_id = datetime.now(timezone.utc).strftime("model21800_%Y%m%dT%H%M%SZ")
             self._busy = True
@@ -396,7 +411,23 @@ class HopeLifecycleSupervisor(Node):
             self._step = "SESSION"
             self._session_id = session_id
             self._last_result = "START_ACCEPTED"
-        self._pool.submit(self._run_start, config, session_id)
+            self._hardware_operation_lock = operation_lock
+        try:
+            self._pool.submit(self._run_start, config, session_id)
+        except Exception as exc:  # noqa: BLE001 - hardware has not changed yet
+            with self._lock:
+                self._busy = False
+                self._state = "STOPPED"
+                self._step = "IDLE"
+                self._session_id = ""
+                self._last_result = f"START_SUBMIT_FAILED: {type(exc).__name__}"
+                release_hardware_operation_lock(
+                    self._hardware_operation_lock
+                )
+                self._hardware_operation_lock = None
+            response.success = False
+            response.message = f"cannot start lifecycle worker: {exc}"
+            return response
         response.success = True
         response.message = f"start accepted for {session_id}; follow lifecycle state topics"
         return response
@@ -415,6 +446,10 @@ class HopeLifecycleSupervisor(Node):
                     self._state = "STOPPED"
                     self._session_id = ""
                     self._last_result = f"PREFLIGHT_REJECTED: {str(exc)[:300]}"
+                    release_hardware_operation_lock(
+                        self._hardware_operation_lock
+                    )
+                    self._hardware_operation_lock = None
                 else:
                     self._state = "FAILED"
                     prefix = "MANAGED_RECOVERY_REQUIRED" if managed_recovery else "START_FAILED"
@@ -466,7 +501,16 @@ class HopeLifecycleSupervisor(Node):
             self._state = "KILLING"
             self._step = "RUNNER_HAL"
             self._last_result = "KILL_ACCEPTED"
-        self._pool.submit(self._run_kill, config, session_id)
+        try:
+            self._pool.submit(self._run_kill, config, session_id)
+        except Exception as exc:  # noqa: BLE001 - managed system may still run
+            with self._lock:
+                self._busy = False
+                self._state = "FAILED"
+                self._last_result = f"KILL_SUBMIT_FAILED: {type(exc).__name__}"
+            response.success = False
+            response.message = f"cannot start lifecycle kill worker: {exc}"
+            return response
         response.success = True
         response.message = (
             "kill accepted; managed robot processes may lose active support immediately"
@@ -506,8 +550,13 @@ class HopeLifecycleSupervisor(Node):
                 "KILL_COMPLETE_AGIBOT_PM_RESTORED_" + collection_reason
             )
             self._busy = False
+            release_hardware_operation_lock(self._hardware_operation_lock)
+            self._hardware_operation_lock = None
 
     def close(self) -> None:
+        with self._lock:
+            release_hardware_operation_lock(self._hardware_operation_lock)
+            self._hardware_operation_lock = None
         self._pool.shutdown(wait=False, cancel_futures=True)
 
 

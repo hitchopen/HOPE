@@ -1,7 +1,7 @@
 [Unit]
 Description=HOPE model_21800 Foxglove opt-in control bridge
-After=network-online.target hope-command-proxy.service hope-monitor.service
-Wants=network-online.target
+After=network-online.target hope-command-proxy.service hope-monitor.service hope-time-calibration.service
+Wants=network-online.target hope-time-calibration.service
 
 [Service]
 Type=simple

@@ -54,6 +54,11 @@ const TOPICS = {
   lifecycleResult: "/hope/lifecycle/last_result",
   lifecycleBusy: "/hope/lifecycle/busy",
   lifecycleConfigRevision: "/hope/lifecycle/config/revision",
+  timeCalibrationState: "/hope/lifecycle/time_calibration/state",
+  timeCalibrationStep: "/hope/lifecycle/time_calibration/step",
+  timeCalibrationResult: "/hope/lifecycle/time_calibration/result",
+  timeCalibrationOperation: "/hope/lifecycle/time_calibration/operation_id",
+  timeCalibrationBusy: "/hope/lifecycle/time_calibration/busy",
   laptopWifiIp: "/hope/lifecycle/config/laptop_wifi_ip",
   hduWifiIp: "/hope/lifecycle/config/hdu_wifi_ip",
   mduInternalIp: "/hope/lifecycle/config/mdu_internal_ip",
@@ -74,6 +79,7 @@ const SERVICES = {
   applyLifecycleConfig: "/hope/lifecycle/apply_config",
   startLifecycle: "/hope/lifecycle/start",
   killAllAndCollect: "/hope/lifecycle/kill_all_and_collect",
+  timeCalibration: "/hope/lifecycle/time_calibration",
 } as const;
 
 type ServiceKey = keyof typeof SERVICES;
@@ -142,6 +148,11 @@ type Snapshot = {
   lifecycleResult?: string;
   lifecycleBusy?: boolean;
   lifecycleConfigRevision?: number;
+  timeCalibrationState?: string;
+  timeCalibrationStep?: string;
+  timeCalibrationResult?: string;
+  timeCalibrationOperation?: string;
+  timeCalibrationBusy?: boolean;
   lifecycleConfig: Partial<LifecycleConfigDraft>;
   availableTopics: Set<string>;
   lastReceived: Partial<Record<TopicName, number>>;
@@ -323,6 +334,21 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
     case TOPICS.lifecycleConfigRevision:
       next.lifecycleConfigRevision = numberValue(event.message);
       break;
+    case TOPICS.timeCalibrationState:
+      next.timeCalibrationState = stringValue(event.message);
+      break;
+    case TOPICS.timeCalibrationStep:
+      next.timeCalibrationStep = stringValue(event.message);
+      break;
+    case TOPICS.timeCalibrationResult:
+      next.timeCalibrationResult = stringValue(event.message);
+      break;
+    case TOPICS.timeCalibrationOperation:
+      next.timeCalibrationOperation = stringValue(event.message);
+      break;
+    case TOPICS.timeCalibrationBusy:
+      next.timeCalibrationBusy = boolValue(event.message);
+      break;
     case TOPICS.laptopWifiIp:
       next.lifecycleConfig.laptop_wifi_ip = stringValue(event.message);
       break;
@@ -489,6 +515,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           ? 40_000
           : key === "refreshXHit"
             ? 7_000
+            : key === "timeCalibration"
+              ? 10_000
             : 3_000;
       const raw = await Promise.race([context.callService(SERVICES[key], {}), timeoutAfter(timeoutMs)]);
       const response = triggerResponse(raw);
@@ -564,7 +592,17 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     }
   }, [invoke]);
 
+  const runTimeCalibration = useCallback(async () => {
+    const accepted = window.confirm(
+      "Run the controlled 10.4 HDU time calibration now? Continue only when the robot is physically supported, no Policy/Runner session is active, and the physical E-stop is reachable. MDU and HDU time consumers will stop, HDU UTC will hard-step once, and services will recover in dependency order. Foxglove :8766 will disconnect temporarily.",
+    );
+    if (accepted) {
+      await invoke("timeCalibration");
+    }
+  }, [invoke]);
+
   const ntpFresh = isFresh(snapshot, TOPICS.ntpOffset, now, 1_500);
+  const ntpGateFresh = isFresh(snapshot, TOPICS.ntpGate, now, 1_500);
   const latencyFresh = isFresh(snapshot, TOPICS.latency, now, 500) && snapshot.timestampFresh === true;
   const cpuFresh = isFresh(snapshot, TOPICS.cpu, now, 1_500);
   const hduFresh = isFresh(snapshot, TOPICS.hduActive, now, 1_500);
@@ -587,6 +625,40 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const lifecycleRunning = lifecycleState === "RUNNING" || lifecycleState === "FAILED";
   const lifecycleBusy = snapshot.lifecycleBusy === true;
   const configComplete = Object.values(configDraft).every((value) => value.trim().length > 0);
+  const timeCalibrationFresh = isFresh(snapshot, TOPICS.timeCalibrationState, now, 1_500);
+  const timeCalibrationState = timeCalibrationFresh
+    ? snapshot.timeCalibrationState ?? "UNKNOWN"
+    : "NO DATA";
+  const timeCalibrationBusy = snapshot.timeCalibrationBusy === true;
+  const timeCalibrationLocked = ["RUNNING", "INTERRUPTED", "FAILED_SAFE_STOP", "COMPLETE"]
+    .includes(timeCalibrationState);
+  const timeCalibrationBlocksStart = timeCalibrationBusy
+    || ["RUNNING", "INTERRUPTED", "FAILED_SAFE_STOP"].includes(timeCalibrationState);
+  const timeCalibrationReady = ntpFresh
+    && ntpGateFresh
+    && snapshot.ntpPass === false
+    && timeCalibrationFresh
+    && lifecycleStopped
+    && !lifecycleBusy
+    && (snapshot.lifecycleConfigRevision ?? 0) >= 1
+    && !configTouched
+    && !timeCalibrationBusy
+    && !timeCalibrationLocked;
+  const timeCalibrationTitle = !timeCalibrationFresh
+    ? "Waiting for the time-calibration coordinator"
+    : !ntpFresh || !ntpGateFresh
+    ? "Waiting for a fresh NTP gate"
+    : snapshot.ntpPass !== false
+      ? "Available only when the fresh NTP gate is failing"
+      : !lifecycleStopped || lifecycleBusy
+        ? "Stop the managed lifecycle before calibrating time"
+        : configTouched || (snapshot.lifecycleConfigRevision ?? 0) < 1
+          ? "Confirm the four lifecycle addresses before calibrating time"
+          : timeCalibrationState === "FAILED_SAFE_STOP"
+            ? "Manual recovery is required; do not repeat the hard-step this boot"
+            : timeCalibrationState === "COMPLETE"
+              ? "One hard-step has already completed in this maintenance cycle"
+              : "Run the fixed runbook 10.4 stop, hard-step, and restore sequence";
 
   const nextStep = snapshot.standing !== true
     ? "stand"
@@ -644,7 +716,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       </div>
 
       <div className="gate-row">
-        <GateChip label="NTP · AUDIT" value={ntpFresh ? snapshot.ntpPass : undefined} />
+        <GateChip label="NTP · AUDIT" value={ntpFresh && ntpGateFresh ? snapshot.ntpPass : undefined} />
         <GateChip label="TIMESTAMP · AUDIT" value={latencyFresh ? true : undefined} />
         <GateChip label="TF · AUDIT" value={isFresh(snapshot, TOPICS.tfReady, now, 1_000) ? snapshot.tfReady : undefined} />
         <GateChip label="E-STOP BACKEND · AUDIT" value={estopAsserted ? false : estopUsable ? estopFullReady : undefined} detail={snapshot.estopText} />
@@ -695,7 +767,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <button
             className="config-confirm"
             type="button"
-            disabled={!configComplete || !lifecycleStopped || lifecycleBusy || busy.applyLifecycleConfig === true}
+            disabled={!configComplete || !lifecycleStopped || lifecycleBusy || timeCalibrationBlocksStart || busy.applyLifecycleConfig === true}
             onClick={() => void confirmLifecycleConfig()}
           >
             {busy.applyLifecycleConfig === true ? "CONFIRMING…" : "CONFIRM CONFIG"}
@@ -703,7 +775,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <button
             className="system-start"
             type="button"
-            disabled={!lifecycleStopped || lifecycleBusy || (snapshot.lifecycleConfigRevision ?? 0) < 1 || configTouched || busy.startLifecycle === true}
+            disabled={!lifecycleStopped || lifecycleBusy || timeCalibrationBlocksStart || (snapshot.lifecycleConfigRevision ?? 0) < 1 || configTouched || busy.startLifecycle === true}
             onClick={() => void startSystem()}
           >
             {busy.startLifecycle === true || (lifecycleBusy && lifecycleState === "STARTING") ? "STARTING…" : "START SYSTEM"}
@@ -719,6 +791,29 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <span className="config-helper">
             Inputs stay editable. Confirm is accepted only while stopped; changing HDU Wi-Fi also requires reconnecting Foxglove to the new :8766 address.
           </span>
+        </div>
+        <div className={`time-calibration-row time-calibration-${timeCalibrationState.toLowerCase().replace(/[_ ]/g, "-")}`}>
+          <div className="time-calibration-copy">
+            <div className="eyebrow">TIME CALIBRATION · RUNBOOK 10.4 · ATTENDED</div>
+            <div className="time-calibration-state">
+              {timeCalibrationState} · {snapshot.timeCalibrationStep ?? "IDLE"}
+            </div>
+            <div className="topic-path" title={snapshot.timeCalibrationResult}>
+              {snapshot.timeCalibrationOperation != undefined && snapshot.timeCalibrationOperation.length > 0
+                ? `${snapshot.timeCalibrationOperation} · `
+                : ""}
+              {snapshot.timeCalibrationResult ?? "waiting for calibration coordinator"}
+            </div>
+          </div>
+          <button
+            className="time-calibration-button"
+            type="button"
+            disabled={!timeCalibrationReady || busy.timeCalibration === true}
+            title={timeCalibrationTitle}
+            onClick={() => void runTimeCalibration()}
+          >
+            {busy.timeCalibration === true || timeCalibrationBusy ? "CALIBRATING…" : "TIME CALIBRATION"}
+          </button>
         </div>
       </div>
 

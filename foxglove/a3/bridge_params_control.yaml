@@ -36,6 +36,10 @@
       - "^/hope/lifecycle/apply_config$"
       - "^/hope/lifecycle/start$"
       - "^/hope/lifecycle/kill_all_and_collect$"
+      # Attended runbook 10.4 maintenance. The root-owned coordinator accepts
+      # no arguments, requires a fresh stopped lifecycle plus failing NTP gate,
+      # and permits at most one hard-step attempt per maintenance cycle.
+      - "^/hope/lifecycle/time_calibration$"
     param_whitelist: ["(?!)"]
     client_topic_whitelist: ["(?!)"]
     send_buffer_limit: 2000000
