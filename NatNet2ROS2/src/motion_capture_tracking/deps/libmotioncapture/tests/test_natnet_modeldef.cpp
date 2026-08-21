@@ -130,6 +130,8 @@ int main()
   assert(near(ball.parentRotationOffset.w(), 1.0f));
   assert(ball.markers.size() == 2);
   assert(ball.markers[0].name == "marker_0");
+  assert(ball.markers[0].memberId == 1);
+  assert(ball.markers[1].memberId == 2);
   assert(ball.markers[1].requiredActiveLabel == 1002);
   assert(near(ball.markers[1].position.z(), 6.0f));
 
@@ -162,6 +164,8 @@ int main()
   assert(near(p1.parentRotationOffset.z(), 0.3f));
   assert(near(p1.parentRotationOffset.w(), 0.9f));
   assert(p1.markers.size() == 2);
+  assert(p1.markers[0].memberId == 1);
+  assert(p1.markers[1].memberId == 2);
   assert(p1.markers[0].requiredActiveLabel == 1001);
 
   // NatNet 4.5 adds IMU, GPIO, and anchor descriptions. The bridge requests

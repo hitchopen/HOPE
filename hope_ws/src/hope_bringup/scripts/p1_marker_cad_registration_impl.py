@@ -426,7 +426,7 @@ def parse_explicit_mapping(value: str) -> dict[int, str]:
             member_id = int(member_text.strip())
         except (ValueError, TypeError) as exc:
             raise ValueError(
-                "mapping entries must use member_id=CAD_name, e.g. 0=f2"
+                "mapping entries must use member_id=CAD_name, e.g. 1=f2"
             ) from exc
         name = name_text.strip().lower()
         if member_id < 0 or name not in CAD_MARKERS_PELVIS_M:
@@ -1145,7 +1145,7 @@ def _parse_arguments() -> argparse.Namespace:
         default="",
         help=(
             "optional verified member_id=CAD_name list, e.g. "
-            "'0=f2,1=f3,...'; otherwise NatNet names or geometry are used"
+            "'1=f2,2=f3,...'; otherwise NatNet names or geometry are used"
         ),
     )
     parser.add_argument("--minimum-frames", type=int, default=300)

@@ -215,6 +215,15 @@ License: MIT (upstream `LICENSE` kept in this directory).
     group `239.255.42.99`, command/data ports 1510/1511, actual decode success,
     and the 300 Hz source-rate check remain operational gates.
 
+16. **NatNet rigid-body marker member IDs (2026-08-21)**: NatNet labeled
+    markers encode a model ID in the high word and a 1-based member ID in the
+    low word. MODELDEF carries the rigid body's marker array but no separate
+    member-ID field, so the decoder assigns array position `marker_index + 1`.
+    This keeps MODELDEF marker 1 aligned with FRAMEOFDATA member 1 and restores
+    the node's deterministic ID association for P1 calibration; the geometric
+    association remains only as a fallback. The MODELDEF fixture locks member
+    IDs 1 and 2, matching the FRAMEOFDATA fixture's first member ID of 1.
+
 ## Re-pin procedure
 
 ```bash

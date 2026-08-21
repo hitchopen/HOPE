@@ -189,7 +189,10 @@ inline std::map<int32_t, RigidBodyDefinition> parseNatNetModelDef(
           const float y = dataset.read<float>("rigid-body marker y");
           const float z = dataset.read<float>("rigid-body marker z");
           auto& marker = definition.markers[static_cast<std::size_t>(marker_index)];
-          marker.memberId = static_cast<uint32_t>(marker_index);
+          // FRAMEOFDATA encodes the marker's 1-based member ID in the low
+          // word of the labeled-marker ID. MODELDEF supplies only the marker
+          // array order, so synthesize the matching wire-level member ID.
+          marker.memberId = static_cast<uint32_t>(marker_index + 1);
           marker.position = Eigen::Vector3f(x, y, z);
           marker.requiredActiveLabel = -1;
         }
