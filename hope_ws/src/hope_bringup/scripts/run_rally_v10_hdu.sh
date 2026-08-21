@@ -395,7 +395,7 @@ if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
     die "Motive route uses source ${route_src:-NONE}, not --mocap-interface-ip ${MOCAP_INTERFACE_IP}"
   ros2 run hope_bringup natnet_preflight.py \
     --hostname "${MOCAP_IP}" --interface-ip "${MOCAP_INTERFACE_IP}" ||
-    die "NatNet 4.2 multicast preflight failed"
+    die "NatNet 4.5 multicast preflight failed"
 else
   python3 - "${MOCAP_IP}" "${PORT}" <<'PY'
 import socket

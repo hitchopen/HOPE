@@ -1,5 +1,6 @@
 #include "libmotioncapture/optitrack.h"
 #include "libmotioncapture/natnet_clock_sync.h"
+#include "libmotioncapture/natnet_frame.h"
 #include "libmotioncapture/natnet_modeldef.h"
 
 #include <algorithm>
@@ -839,6 +840,69 @@ namespace libmotioncapture {
 
       if(MessageID == 7)      // FRAME OF MOCAP DATA packet
       {
+        if (((major == 4) && (minor >= 1)) || (major > 4)) {
+          // NatNet 4.1+ supplies an authoritative byte count for every frame
+          // section. Use the bounded parser so MotiveBody 3.5 / NatNet 4.5
+          // IMU and GPIO sections can be skipped without shifting the rigid
+          // bodies, labeled markers, or timestamp suffix.
+          const detail::NatNetFrameData frame =
+            detail::parseNatNetSizedFrame(
+              pImpl->data.data(), pImpl->data.size(), major, minor);
+
+          pImpl->markers.resize(frame.markers.size());
+          for (std::size_t i = 0; i < frame.markers.size(); ++i) {
+            pImpl->markers[i].x = frame.markers[i].x();
+            pImpl->markers[i].y = frame.markers[i].y();
+            pImpl->markers[i].z = frame.markers[i].z();
+          }
+          pImpl->labeledMarkers = frame.labeled_markers;
+
+          pImpl->rigidBodies.resize(frame.rigid_bodies.size());
+          for (std::size_t i = 0; i < frame.rigid_bodies.size(); ++i) {
+            const auto& source = frame.rigid_bodies[i];
+            auto& destination = pImpl->rigidBodies[i];
+            destination.ID = source.id;
+            destination.x = source.x;
+            destination.y = source.y;
+            destination.z = source.z;
+            destination.qx = source.qx;
+            destination.qy = source.qy;
+            destination.qz = source.qz;
+            destination.qw = source.qw;
+            destination.fError = source.mean_marker_error;
+            destination.bTrackingValid = source.tracking_valid;
+          }
+
+          latencies_.clear();
+          pImpl->cameraMidExposureTimestamp =
+            frame.camera_mid_exposure_timestamp;
+          pImpl->transmitTimestamp = frame.transmit_timestamp;
+          const bool timing_valid = pImpl->clockFrequency != 0 &&
+            frame.camera_mid_exposure_timestamp != 0 &&
+            frame.camera_data_received_timestamp >=
+              frame.camera_mid_exposure_timestamp &&
+            frame.transmit_timestamp >= frame.camera_data_received_timestamp;
+          if (timing_valid) {
+            const uint64_t camera_latency_ticks =
+              frame.camera_data_received_timestamp -
+              frame.camera_mid_exposure_timestamp;
+            latencies_.emplace_back(LatencyInfo(
+              "Camera", camera_latency_ticks /
+                static_cast<double>(pImpl->clockFrequency)));
+
+            const uint64_t motive_latency_ticks =
+              frame.transmit_timestamp - frame.camera_data_received_timestamp;
+            latencies_.emplace_back(LatencyInfo(
+              "Motive", motive_latency_ticks /
+                static_cast<double>(pImpl->clockFrequency)));
+
+            timestamp_ = ticksToMicroseconds(
+              frame.camera_mid_exposure_timestamp, pImpl->clockFrequency);
+          } else {
+            pImpl->cameraMidExposureTimestamp = 0;
+            timestamp_ = 0;
+          }
+        } else {
         // Next 4 Bytes is the frame number
         int frameNumber = 0; memcpy(&frameNumber, ptr, 4); ptr += 4;
         // printf("Frame # : %d\n", frameNumber);
@@ -1181,6 +1245,7 @@ namespace libmotioncapture {
         // end of data tag
         // int eod = 0; memcpy(&eod, ptr, 4); ptr += 4;
         // printf("End Packet\n-------------\n");
+        }
       }
       else if (MessageID == NAT_MODELDEF)
       {

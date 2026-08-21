@@ -47,6 +47,15 @@ has no launch supervisor and is intended only for attended diagnostics.
 to this computer's wired NIC on the Motive network. They are different values;
 multicast startup fails closed if `interface_ip` is omitted or `0.0.0.0`.
 
+The competition baseline is **MotiveBody 3.5.0.1 Beta 1 / NatNet 4.5** with
+multicast group `239.255.42.99`, command port `1510`, and data port `1511`.
+Motive's Local Interface is `192.168.50.1`, so that address is the current
+`hostname`; `interface_ip` remains the adapter computer's own wired-NIC IPv4.
+The NatNet 4.1+ decoder uses bounded section lengths and safely skips the new
+4.5 IMU/GPIO data before decoding the frame timestamps. Multicast always uses
+the Motive-installed native bitstream, so this path does not rely on requesting
+an older NatNet version.
+
 In normal operation the adapter publishes exactly one ROS 2 topic:
 
 - `/optitrack/poses`

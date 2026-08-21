@@ -109,6 +109,11 @@ if (BUILD_TESTING)
   target_include_directories(
     test_natnet_modeldef PRIVATE include ${EIGEN3_INCLUDE_DIRS})
   add_test(NAME test_natnet_modeldef COMMAND test_natnet_modeldef)
+
+  add_executable(test_natnet_frame tests/test_natnet_frame.cpp)
+  target_include_directories(
+    test_natnet_frame PRIVATE include ${EIGEN3_INCLUDE_DIRS})
+  add_test(NAME test_natnet_frame COMMAND test_natnet_frame)
 endif()
 
 if (LIBMOTIONCAPTURE_ENABLE_OPTITRACK_CLOSED_SOURCE)

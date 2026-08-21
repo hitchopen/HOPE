@@ -164,6 +164,30 @@ int main()
   assert(p1.markers.size() == 2);
   assert(p1.markers[0].requiredActiveLabel == 1001);
 
+  // NatNet 4.5 adds IMU, GPIO, and anchor descriptions. The bridge requests
+  // only marker-set/rigid-body definitions, but a server that includes new
+  // description types must remain aligned through their description_size.
+  std::vector<char> natnet_45;
+  beginPacket(natnet_45, 4);
+  for (int32_t type : {7, 8}) {
+    const std::size_t extension_size = beginDataset(natnet_45, type);
+    append<int32_t>(natnet_45, 0x12340000 + type);
+    endDataset(natnet_45, extension_size);
+  }
+  const std::size_t p2_size = beginDataset(natnet_45, 1);
+  appendRigidBody(natnet_45, "P2", 303, true);
+  endDataset(natnet_45, p2_size);
+  const std::size_t anchor_size = beginDataset(natnet_45, 9);
+  append<int32_t>(natnet_45, 0x12340009);
+  endDataset(natnet_45, anchor_size);
+  endPacket(natnet_45);
+
+  const auto definitions_45 =
+    parseNatNetModelDef(natnet_45.data(), natnet_45.size(), 4, 5);
+  assert(definitions_45.size() == 1);
+  assert(definitions_45.at(303).name == "P2");
+  assert(near(definitions_45.at(303).parentRotationOffset.w(), 0.9f));
+
   std::vector<char> truncated = natnet_42;
   truncated.pop_back();
   assert(throwsRuntimeError([&]() {

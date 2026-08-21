@@ -90,9 +90,12 @@ In Motive's Data Streaming pane:
 
 | Setting | Required value | Notes |
 |---------|----------------|-------|
+| Motive build | **MotiveBody 3.5.0.1 Beta 1** | Competition software baseline |
+| NatNet bitstream | **4.5** | Multicast always uses Motive's native bitstream |
 | Enable NatNet | ✅ Enabled | This backend consumes NatNet (cmd port 1510) |
 | Up Axis | **Z Axis** | Critical — aligns with the HOPE REP 103 Z-up frame; the relay applies no frame conversion |
 | Transmission | **Multicast** | Competition profile; default group `239.255.42.99` and data port `1511` |
+| Local Interface | **192.168.50.1** | Motive PC's arena NIC; pass this server address as `hostname`, not as the adapter's `interface_ip` |
 | Rigid Bodies | **ON** | Competition assets named exactly `Ball`, `P1`, and `P2` |
 | Labeled/Unlabeled Markers | OFF (optional) | Not consumed — the ball is a rigid-body asset |
 | Skeletons | OFF | Not used |
@@ -363,11 +366,12 @@ model-definition request (see the adapter driver's PIN.md patch #9 — on
 Motive 3.1 / NatNet 4.1 this used to hang the driver's constructor before it
 created any publisher), NatNet echo clock synchronization unavailable, and
 frames not reaching this host (wrong interface, multicast/IGMP, firewall).
-It requires Motive 3.2.0.2, NatNet 4.2, the competition multicast group/port,
-decodes the 4.2 model definition to verify `Ball`, `P1`, and `P2`, reports the
-minimum echo RTT / midpoint uncertainty, and gates on the measured frame rate
-(`--min-hz`, default 270 for the 300 Hz competition source). Exit code 0 means
-the bridge should come up.
+It requires MotiveBody 3.5.0.1 Beta 1, NatNet 4.5, the competition multicast
+group `239.255.42.99` and data port `1511`, decodes the sized 4.5 model
+definition while safely skipping IMU/GPIO/anchor descriptions, verifies
+`Ball`, `P1`, and `P2`, reports the minimum echo RTT / midpoint uncertainty,
+and gates on the measured frame rate (`--min-hz`, default 270 for the 300 Hz
+competition source). Exit code 0 means the bridge should come up.
 
 ### Launch
 

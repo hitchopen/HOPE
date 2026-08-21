@@ -199,6 +199,21 @@ License: MIT (upstream `LICENSE` kept in this directory).
     matching fixtures in `deps/libmotioncapture/tests/test_natnet_modeldef.cpp`
     and `hope_ws/src/hope_bringup/test/test_natnet_preflight_clock_sync.py`.
 
+15. **MotiveBody 3.5 / NatNet 4.5 additive frame sections (2026-08-21)**:
+    multicast cannot negotiate an older bitstream, so MotiveBody 3.5.0.1 Beta
+    1 streams native NatNet 4.5. The old FRAMEOFDATA decoder walked every
+    field with unchecked `strlen`/`memcpy` and assumed the 4.2 section order;
+    NatNet 4.5 IMU/GPIO data could therefore shift the timing suffix. NatNet
+    4.1+ frame decoding now uses each section's authoritative byte count,
+    bounds-checks rigid bodies and labeled markers, skips appended 4.5 stream
+    types until the fixed timestamp suffix, and consumes the two precision/PTP
+    timestamp words that the old decoder left behind. `test_natnet_frame.cpp`
+    covers 4.2, 4.5 extension sections, timestamps, truncation, and EOD. The
+    C++ and Python MODELDEF fixtures both cover unknown 4.5 descriptions. The
+    venue preflight now gates Motive/MotiveBody 3.5.0.1 and NatNet 4.5 while
+    retaining multicast group `239.255.42.99`, command/data ports 1510/1511,
+    and the 300 Hz source-rate check.
+
 ## Re-pin procedure
 
 ```bash

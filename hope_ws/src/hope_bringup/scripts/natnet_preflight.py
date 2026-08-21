@@ -54,6 +54,24 @@ MODELDEF_TYPES = 0x3
 
 SERVERINFO_MIN_LEN = 283
 REQUIRED_ASSETS = ('Ball', 'P1', 'P2')
+REQUIRED_APP_NAMES = ('Motive', 'MotiveBody')
+REQUIRED_APP_VERSION = (3, 5, 0, 1)
+REQUIRED_NATNET_VERSION = (4, 5)
+
+
+def competition_version_blockers(app: str, app_version, nat_version):
+    """Return competition software-profile failures from SERVERINFO fields."""
+    blockers = []
+    app_version = tuple(app_version)
+    nat_version = tuple(nat_version)
+    if app not in REQUIRED_APP_NAMES or app_version != REQUIRED_APP_VERSION:
+        blockers.append('competition requires MotiveBody 3.5.0.1 Beta 1; '
+                        'server reports %s %s' %
+                        (app, '.'.join(str(b) for b in app_version)))
+    if nat_version[:2] != REQUIRED_NATNET_VERSION:
+        blockers.append('competition requires NatNet 4.5.x; server reports %s'
+                        % '.'.join(str(b) for b in nat_version))
+    return blockers
 
 
 def route_of(dst: str):
@@ -197,7 +215,12 @@ class ModelDefReader:
 
 
 def modeldef_assets(packet: bytes, nat_major: int, nat_minor: int):
-    """Decode rigid-body names using the NatNet 4.1/4.2 MODELDEF schema."""
+    """Decode rigid-body names using the sized NatNet 4.1+ MODELDEF schema.
+
+    NatNet 4.5 IMU/GPIO/anchor descriptions are intentionally skipped using
+    description_size. Keep this parser and the C++ natnet_modeldef.h fixtures
+    updated together whenever OptiTrack changes the schema.
+    """
     if len(packet) < 8:
         raise ValueError('MODELDEF is shorter than its header')
     message_id, payload_size = struct.unpack_from('<HH', packet)
@@ -348,7 +371,8 @@ def main() -> int:
         return 1
 
     app = info[4:260].split(b'\x00')[0].decode(errors='replace')
-    app_version = '.'.join(str(b) for b in info[260:264])
+    app_version_bytes = tuple(info[260:264])
+    app_version = '.'.join(str(b) for b in app_version_bytes)
     nat_version_bytes = tuple(info[264:268])
     nat_version = '.'.join(str(b) for b in nat_version_bytes)
     data_port, is_multicast = struct.unpack_from('<H?', info, 276)
@@ -359,12 +383,8 @@ def main() -> int:
     print('  transmission        : %s, data port %d%s'
           % ('MULTICAST' if is_multicast else 'UNICAST', data_port,
              ', group ' + group if is_multicast else ''))
-    if app != 'Motive' or app_version != '3.2.0.2':
-        blockers.append('competition requires Motive 3.2.0.2; server reports '
-                        '%s %s' % (app, app_version))
-    if nat_version_bytes[:2] != (4, 2):
-        blockers.append('competition requires NatNet 4.2.x; server reports %s'
-                        % nat_version)
+    blockers.extend(competition_version_blockers(
+        app, app_version_bytes, nat_version_bytes))
     if not is_multicast:
         blockers.append('competition Motive transmission must be MULTICAST')
     if is_multicast and group != '239.255.42.99':
