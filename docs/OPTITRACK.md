@@ -88,10 +88,10 @@ that runs `optitrack_mct_relay` must nevertheless have the independent
 
 In Motive's Data Streaming pane:
 
-| Setting | Required value | Notes |
-|---------|----------------|-------|
-| Motive build | **MotiveBody 3.5.0.1 Beta 1** | Competition software baseline |
-| NatNet bitstream | **4.5** | Multicast always uses Motive's native bitstream |
+| Setting | Required or validated value | Notes |
+|---------|-----------------------------|-------|
+| Motive build | **MotiveBody 3.5.0.1 Beta 1** | Validated profile; version differences warn but do not reject preflight |
+| NatNet bitstream | **4.5.x** | Validated profile; multicast always uses Motive's native bitstream, and version differences are advisory |
 | Enable NatNet | ✅ Enabled | This backend consumes NatNet (cmd port 1510) |
 | Up Axis | **Z Axis** | Critical — aligns with the HOPE REP 103 Z-up frame; the relay applies no frame conversion |
 | Transmission | **Multicast** | Competition profile; default group `239.255.42.99` and data port `1511` |
@@ -366,12 +366,14 @@ model-definition request (see the adapter driver's PIN.md patch #9 — on
 Motive 3.1 / NatNet 4.1 this used to hang the driver's constructor before it
 created any publisher), NatNet echo clock synchronization unavailable, and
 frames not reaching this host (wrong interface, multicast/IGMP, firewall).
-It requires MotiveBody 3.5.0.1 Beta 1, NatNet 4.5, the competition multicast
-group `239.255.42.99` and data port `1511`, decodes the sized 4.5 model
-definition while safely skipping IMU/GPIO/anchor descriptions, verifies
-`Ball`, `P1`, and `P2`, reports the minimum echo RTT / midpoint uncertainty,
-and gates on the measured frame rate (`--min-hz`, default 270 for the 300 Hz
-competition source). Exit code 0 means the bridge should come up.
+It identifies MotiveBody 3.5.0.1 Beta 1 / NatNet 4.5.x as the validated
+software profile but treats version differences as warnings. It still requires
+the competition multicast group `239.255.42.99` and data port `1511`, decodes
+the sized model definition while safely skipping unknown descriptions,
+verifies `Ball`, `P1`, and `P2`, reports the minimum echo RTT / midpoint
+uncertainty, and gates on the measured frame rate (`--min-hz`, default 270 for
+the 300 Hz competition source). An actual decode failure remains blocking.
+Exit code 0 means the bridge should come up.
 
 ### Launch
 

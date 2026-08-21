@@ -54,24 +54,27 @@ MODELDEF_TYPES = 0x3
 
 SERVERINFO_MIN_LEN = 283
 REQUIRED_ASSETS = ('Ball', 'P1', 'P2')
-REQUIRED_APP_NAMES = ('Motive', 'MotiveBody')
-REQUIRED_APP_VERSION = (3, 5, 0, 1)
-REQUIRED_NATNET_VERSION = (4, 5)
+EXPECTED_APP_NAMES = ('Motive', 'MotiveBody')
+EXPECTED_APP_VERSION = (3, 5, 0, 1)
+EXPECTED_NATNET_VERSION_PREFIX = (4, 5)
 
 
-def competition_version_blockers(app: str, app_version, nat_version):
-    """Return competition software-profile failures from SERVERINFO fields."""
-    blockers = []
+def competition_version_warnings(app: str, app_version, nat_version):
+    """Report deviations from the validated profile without rejecting them."""
+    warnings = []
     app_version = tuple(app_version)
     nat_version = tuple(nat_version)
-    if app not in REQUIRED_APP_NAMES or app_version != REQUIRED_APP_VERSION:
-        blockers.append('competition requires MotiveBody 3.5.0.1 Beta 1; '
-                        'server reports %s %s' %
+    if app not in EXPECTED_APP_NAMES or app_version != EXPECTED_APP_VERSION:
+        warnings.append('validated Motive profile is MotiveBody 3.5.0.1 Beta '
+                        '1; server reports %s %s; continuing because software '
+                        'versions are advisory' %
                         (app, '.'.join(str(b) for b in app_version)))
-    if nat_version[:2] != REQUIRED_NATNET_VERSION:
-        blockers.append('competition requires NatNet 4.5.x; server reports %s'
-                        % '.'.join(str(b) for b in nat_version))
-    return blockers
+    if nat_version[:2] != EXPECTED_NATNET_VERSION_PREFIX:
+        warnings.append('validated profile is NatNet 4.5.x; server reports %s; '
+                        'continuing because the live decode and stream checks '
+                        'are authoritative' %
+                        '.'.join(str(b) for b in nat_version))
+    return warnings
 
 
 def route_of(dst: str):
@@ -383,8 +386,9 @@ def main() -> int:
     print('  transmission        : %s, data port %d%s'
           % ('MULTICAST' if is_multicast else 'UNICAST', data_port,
              ', group ' + group if is_multicast else ''))
-    blockers.extend(competition_version_blockers(
-        app, app_version_bytes, nat_version_bytes))
+    for warning in competition_version_warnings(
+            app, app_version_bytes, nat_version_bytes):
+        print('  WARN VERSION        : %s' % warning)
     if not is_multicast:
         blockers.append('competition Motive transmission must be MULTICAST')
     if is_multicast and group != '239.255.42.99':

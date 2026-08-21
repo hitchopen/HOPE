@@ -101,9 +101,10 @@ group `239.255.42.99`. Motive's arena-network Local Interface is
 `interface_ip` must be the adapter computer's own wired-NIC IPv4 address.
 Because multicast always carries Motive's native bitstream, the adapter's
 bounded NatNet 4.1+ decoder skips the additive 4.5 IMU/GPIO sections safely
-instead of requesting an older stream version. The venue preflight also gates
-the MotiveBody/NatNet versions, multicast settings, competition assets, clock
-mapping, and native frame rate. See the
+instead of requesting an older stream version. The venue preflight reports
+MotiveBody/NatNet version differences as warnings rather than rejecting a
+working patch or beta revision; multicast settings, competition assets, clock
+mapping, live decoding, and native frame rate remain blocking checks. See the
 [OptiTrack bring-up guide](docs/OPTITRACK.md) and
 [NatNet2ROS2 details](NatNet2ROS2/README.md).
 

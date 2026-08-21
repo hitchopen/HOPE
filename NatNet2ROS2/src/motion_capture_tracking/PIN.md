@@ -187,7 +187,7 @@ License: MIT (upstream `LICENSE` kept in this directory).
     timeout. The supported standalone launch respawns the node after two
     seconds, while managed venue supervisors retain their own lifecycle
     recovery. The matching preflight uses the same interface,
-    performs a real 4.2 MODELDEF decode, and gates the Motive/NatNet versions,
+    performs a real 4.2 MODELDEF decode, and reports the Motive/NatNet versions,
     multicast group/port, and all three competition assets.
 
     Maintenance note: the C++ MODELDEF decoder in
@@ -210,9 +210,10 @@ License: MIT (upstream `LICENSE` kept in this directory).
     timestamp words that the old decoder left behind. `test_natnet_frame.cpp`
     covers 4.2, 4.5 extension sections, timestamps, truncation, and EOD. The
     C++ and Python MODELDEF fixtures both cover unknown 4.5 descriptions. The
-    venue preflight now gates Motive/MotiveBody 3.5.0.1 and NatNet 4.5 while
-    retaining multicast group `239.255.42.99`, command/data ports 1510/1511,
-    and the 300 Hz source-rate check.
+    venue preflight identifies Motive/MotiveBody 3.5.0.1 and NatNet 4.5.x as
+    the validated profile but only warns on version differences. Multicast
+    group `239.255.42.99`, command/data ports 1510/1511, actual decode success,
+    and the 300 Hz source-rate check remain operational gates.
 
 ## Re-pin procedure
 

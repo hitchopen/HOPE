@@ -73,18 +73,28 @@ def test_clock_sync_samples_match_echo_tokens():
 
 
 def test_competition_profile_accepts_motivebody_natnet_45():
-    assert natnet_preflight.competition_version_blockers(
+    assert natnet_preflight.competition_version_warnings(
         "MotiveBody", (3, 5, 0, 1), (4, 5, 0, 0)) == []
     # SERVERINFO may retain the legacy application name even for MotiveBody.
-    assert natnet_preflight.competition_version_blockers(
+    assert natnet_preflight.competition_version_warnings(
         "Motive", (3, 5, 0, 1), (4, 5, 0, 0)) == []
+    assert natnet_preflight.competition_version_warnings(
+        "MotiveBody", (3, 5, 0, 1), (4, 5, 9, 9)) == []
 
 
-def test_competition_profile_rejects_old_natnet_42():
-    blockers = natnet_preflight.competition_version_blockers(
+def test_competition_profile_warns_but_does_not_block_beta_2():
+    warnings = natnet_preflight.competition_version_warnings(
+        "MotiveBody", (3, 5, 0, 2), (4, 5, 0, 0))
+    assert len(warnings) == 1
+    assert "versions are advisory" in warnings[0]
+
+
+def test_competition_profile_warns_but_does_not_block_old_natnet_42():
+    warnings = natnet_preflight.competition_version_warnings(
         "Motive", (3, 2, 0, 2), (4, 2, 0, 0))
-    assert len(blockers) == 2
-    assert any("NatNet 4.5" in blocker for blocker in blockers)
+    assert len(warnings) == 2
+    assert any("NatNet 4.5" in warning for warning in warnings)
+    assert all("continuing" in warning for warning in warnings)
 
 
 def make_rigid_body_description(name, rigid_body_id, include_rotation):
