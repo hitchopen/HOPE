@@ -175,6 +175,19 @@ License: MIT (upstream `LICENSE` kept in this directory).
     supported launch file. `test/test_competition_rigid_body_filter.cpp`
     locks the allowlist's membership, case sensitivity, and canonical order.
 
+14. **Motive 3.2 / NatNet 4.2 multicast hardening (2026-08-21)**: NatNet 4.2
+    adds a quaternion rotation offset to each rigid-body model description.
+    The old parser read its first four bytes as the marker count, shifting the
+    rest of every definition. MODELDEF decoding is now length-checked, obeys
+    NatNet 4.1 `description_size`, consumes the 4.2 quaternion, and is covered
+    by 4.1/4.2 plus truncation fixtures. Multicast requires an explicit local
+    `interface_ip`; the driver logs the group/interface/buffer, rejects packets
+    from other hosts and invalid declared lengths, omits unicast-only recurring
+    keepalives, and exits on a one-second frame timeout so a supervisor can
+    restart it. The matching preflight uses the same interface,
+    performs a real 4.2 MODELDEF decode, and gates the Motive/NatNet versions,
+    multicast group/port, and all three competition assets.
+
 ## Re-pin procedure
 
 ```bash
@@ -197,7 +210,8 @@ rm -rf NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/deps/{vrpn,
   (`header` + `NamedPose[]{string name, geometry_msgs/Pose pose}`) when
   `topics.poses.version: 1`; a V2 with vendor timestamp/latencies exists. Both
   versions carry only available `Ball`, `P1`, `P2` entries, in that order.
-- Params actually read by the node: `type`, `hostname`, `topics.frame_id`, `topics.header_time`
+- Params actually read by the node: `type`, `hostname`, `interface_ip`,
+  `topics.frame_id`, `topics.header_time`
   (`ros`=arrival time, `camera`=vendor clock, `camera_utc`=NatNet-echo mapped
   CameraMidExposureTimestamp in the adapter host's ROS system-time/Unix epoch,
   `ros_latency_compensated`=legacy local ROS receive time minus NatNet

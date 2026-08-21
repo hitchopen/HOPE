@@ -1,5 +1,6 @@
 #include "libmotioncapture/optitrack.h"
 #include "libmotioncapture/natnet_clock_sync.h"
+#include "libmotioncapture/natnet_modeldef.h"
 
 #include <algorithm>
 #include <boost/asio.hpp>
@@ -29,7 +30,7 @@ using boost::asio::ip::udp;
 
 namespace libmotioncapture {
 
-  constexpr int MAX_PACKETSIZE = 65503; // max size of packet (actual packet size is dynamic)
+  constexpr int MAX_PACKETSIZE = 65507; // maximum IPv4 UDP payload
   constexpr int MAX_NAMELENGTH = 256;
 
   constexpr int NAT_CONNECT           = 0;
@@ -55,6 +56,9 @@ namespace libmotioncapture {
   // every HOPE topic stayed silent with no error logged anywhere.
   constexpr int HANDSHAKE_TIMEOUT_S   = 5;
   constexpr int HANDSHAKE_ATTEMPTS    = 3;
+  constexpr int FRAME_RECEIVE_TIMEOUT_MS = 1000;
+  constexpr int SOCKET_RECEIVE_BUFFER_BYTES = 8 << 20;
+  constexpr std::size_t MAX_POST_FRAME_DRAIN_PACKETS = 4096;
 
   // NatNet's echo protocol is the clock-domain bridge used by the official
   // NatNetClient::SecondsSinceHostTimestamp API.  The request carries an
@@ -132,6 +136,7 @@ namespace libmotioncapture {
       , io_context()
       , socket(io_context)
       , sender_endpoint()
+      , server_address()
       , data(MAX_PACKETSIZE)
       , incoming_data(MAX_PACKETSIZE)
       , clock_mapping(
@@ -141,11 +146,46 @@ namespace libmotioncapture {
           CLOCK_SYNC_UPDATE_ALPHA,
           CLOCK_SYNC_RTT_REGIME_RECOVERY_REJECTIONS)
       , clock_sync_enabled(false)
+      , is_multicast(false)
+      , rejected_foreign_packets(0)
+      , rejected_malformed_packets(0)
       , pending_echo(false)
       , pending_echo_token(0)
       , cameraMidExposureTimestamp(0)
       , transmitTimestamp(0)
     {
+    }
+
+    void setReceiveTimeout(int timeout_ms)
+    {
+      struct timeval timeout;
+      timeout.tv_sec = timeout_ms / 1000;
+      timeout.tv_usec = (timeout_ms % 1000) * 1000;
+      if (::setsockopt(socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO,
+                       &timeout, sizeof(timeout)) != 0) {
+        throw std::runtime_error("Failed to set NatNet socket receive timeout");
+      }
+    }
+
+    bool isExpectedServer(const boost::asio::ip::udp::endpoint& sender) const
+    {
+      return sender.address() == server_address;
+    }
+
+    static bool decodePacketHeader(
+      const char* packet,
+      std::size_t length,
+      uint16_t& message_id,
+      std::size_t& packet_length)
+    {
+      if (length < 4) {
+        return false;
+      }
+      uint16_t payload_size = 0;
+      std::memcpy(&message_id, packet, sizeof(message_id));
+      std::memcpy(&payload_size, packet + 2, sizeof(payload_size));
+      packet_length = 4 + static_cast<std::size_t>(payload_size);
+      return packet_length <= length;
     }
 
     static double steadySeconds(std::chrono::steady_clock::time_point value)
@@ -177,6 +217,7 @@ namespace libmotioncapture {
       memcpy(&echoed_token, packet + 4, sizeof(echoed_token));
       memcpy(&server_receive_ticks, packet + 12, sizeof(server_receive_ticks));
       return message_id == NAT_ECHORESPONSE && payload_size >= 16 &&
+             static_cast<std::size_t>(payload_size) + 4 <= length &&
              echoed_token == expected_token;
     }
 
@@ -209,9 +250,17 @@ namespace libmotioncapture {
         if (receive_time >= deadline) {
           return false;
         }
+        uint16_t message_id = 0;
+        std::size_t packet_length = 0;
+        if (!isExpectedServer(sender_endpoint) ||
+            !decodePacketHeader(
+              incoming_data.data(), length, message_id, packet_length)) {
+          continue;
+        }
         uint64_t server_receive_ticks = 0;
         if (decodeEchoResponse(
-              incoming_data.data(), length, token, server_receive_ticks)) {
+              incoming_data.data(), packet_length,
+              token, server_receive_ticks)) {
           sample.local_send_seconds = steadySeconds(send_time);
           sample.local_receive_seconds = steadySeconds(receive_time);
           sample.server_receive_seconds =
@@ -234,14 +283,7 @@ namespace libmotioncapture {
           "NatNet reported HighResClockFrequency=0; cannot synchronize clocks");
       }
 
-      struct timeval timeout;
-      timeout.tv_sec = 0;
-      timeout.tv_usec = CLOCK_SYNC_REPLY_TIMEOUT_MS * 1000;
-      if (::setsockopt(socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO,
-                       &timeout, sizeof(timeout)) != 0) {
-        throw std::runtime_error(
-          "Failed to set NatNet clock-sync receive timeout");
-      }
+      setReceiveTimeout(CLOCK_SYNC_REPLY_TIMEOUT_MS);
 
       std::vector<detail::NatNetClockSample> samples;
       samples.reserve(CLOCK_SYNC_INITIAL_SAMPLES);
@@ -259,14 +301,7 @@ namespace libmotioncapture {
       }
       last_echo_sent = std::chrono::steady_clock::now();
 
-      // Restore blocking frame reception after the bounded startup exchange.
-      timeout.tv_sec = 0;
-      timeout.tv_usec = 0;
-      if (::setsockopt(socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO,
-                       &timeout, sizeof(timeout)) != 0) {
-        throw std::runtime_error(
-          "Failed to restore blocking NatNet frame reception");
-      }
+      setReceiveTimeout(FRAME_RECEIVE_TIMEOUT_MS);
       return true;
     }
 
@@ -369,179 +404,10 @@ namespace libmotioncapture {
     //     }
     //   } 
 
-    void parseModelDef(const char* data)
+    void parseModelDef(const char* data, std::size_t length)
     {
-      const char *ptr = data;
-      int major = versionMajor;
-      int minor = versionMinor;
-
-      // First 2 Bytes is message ID
-      int MessageID = 0;
-      memcpy(&MessageID, ptr, 2); ptr += 2;
-      // printf("Message ID : %d\n", MessageID);
-
-      // Second 2 Bytes is the size of the packet
-      int nBytes = 0;
-      memcpy(&nBytes, ptr, 2); ptr += 2;
-      // printf("Byte count : %d\n", nBytes);
-
-      if(MessageID == NAT_MODELDEF) // Data Descriptions
-      {
-        // number of datasets
-        int nDatasets = 0; memcpy(&nDatasets, ptr, 4); ptr += 4;
-        // printf("Dataset Count : %d\n", nDatasets);
-
-        for(int i=0; i < nDatasets; i++)
-        {
-          // printf("Dataset %d\n", i);
-
-          int type = 0; memcpy(&type, ptr, 4); ptr += 4;
-          int description_size = 0;
-          // printf("Type : %d\n", i, type);
-
-          if ((major == 4 && minor >= 1) || major > 4)
-          {
-            // If the NatNet version is 4.1 or greater, next four bytes represent
-            // the number of bytes in the dataset. Just skip them.
-            memcpy(&description_size, ptr, 4); ptr += 4;
-          }
-
-          if(type == 0)   // markerset
-          {
-            ptr += strlen(ptr) + 1; // name
-
-            // marker data
-            int nMarkers = 0; memcpy(&nMarkers, ptr, 4); ptr += 4;
-            // printf("Marker Count : %d\n", nMarkers);
-
-            for(int j=0; j < nMarkers; j++)
-            {
-              ptr += strlen(ptr) + 1;
-            }
-          }
-          else if(type ==1)   // rigid body
-          {
-            std::string rigid_body_name;
-            if(major >= 2)
-            {
-              // name
-              rigid_body_name = ptr;
-              ptr += strlen(ptr) + 1;
-              // printf("Name: %s\n", rigid_body_name.c_str());
-            }
-
-            int ID = 0; memcpy(&ID, ptr, 4); ptr +=4;
-            // printf("ID : %d\n", ID);
-
-            auto& definition = rigidBodyDefinitions[ID];
-            definition.name = rigid_body_name;
-            definition.id = ID;
-
-            int parent_id = 0;
-            float xoffset = 0.0f;
-            float yoffset = 0.0f;
-            float zoffset = 0.0f;
-            memcpy(&parent_id, ptr, 4); ptr +=4;
-            memcpy(&xoffset, ptr, 4); ptr +=4;
-            memcpy(&yoffset, ptr, 4); ptr +=4;
-            memcpy(&zoffset, ptr, 4); ptr +=4;
-            definition.parentId = parent_id;
-            definition.parentOffset = Eigen::Vector3f(xoffset, yoffset, zoffset);
-            definition.markers.clear();
-
-            // Per-marker data (NatNet 3.0 and later)
-            if ( major >= 3 )
-            {
-              int nMarkers = 0; memcpy( &nMarkers, ptr, 4 ); ptr += 4;
-              if (nMarkers < 0 || nMarkers > 10000) {
-                throw std::runtime_error("NatNet rigid-body marker count is invalid");
-              }
-              definition.markers.resize(static_cast<size_t>(nMarkers));
-              // Marker positions
-              for (int markerIdx = 0; markerIdx < nMarkers; ++markerIdx) {
-                float position[3] = {0.0f, 0.0f, 0.0f};
-                memcpy(position, ptr, sizeof(position));
-                ptr += sizeof(position);
-                auto& marker = definition.markers[static_cast<size_t>(markerIdx)];
-                marker.memberId = static_cast<uint32_t>(markerIdx);
-                marker.position = Eigen::Vector3f(
-                    position[0], position[1], position[2]);
-                marker.requiredActiveLabel = -1;
-              }
-              // Marker required active labels
-              for (int markerIdx = 0; markerIdx < nMarkers; ++markerIdx) {
-                int required_active_label = -1;
-                memcpy(&required_active_label, ptr, sizeof(required_active_label));
-                ptr += sizeof(required_active_label);
-                definition.markers[static_cast<size_t>(markerIdx)]
-                    .requiredActiveLabel = required_active_label;
-              }
-              // Marker Name
-              if (major >= 4) {
-                for (int markerIdx = 0; markerIdx < nMarkers; ++markerIdx) {
-                  definition.markers[static_cast<size_t>(markerIdx)].name = ptr;
-                  ptr += strlen(ptr) + 1;
-                }
-              }
-            }
-          }
-          else if ((major == 4 && minor >= 1) || major > 4)
-          {
-            // We got a description_size for > 4.1, which is simpler to discard
-            // for unsuported datatypes
-            ptr += description_size;
-          }
-          else if(type ==2)   // skeleton
-          {
-            // char szName[MAX_NAMELENGTH];
-            // strcpy(szName, ptr);
-            ptr += strlen(ptr) + 1;
-            // printf("Name: %s\n", szName);
-
-            // int ID = 0; memcpy(&ID, ptr, 4);
-            ptr +=4;
-            // printf("ID : %d\n", ID);
-
-            int nRigidBodies = 0; memcpy(&nRigidBodies, ptr, 4); ptr +=4;
-            // printf("RigidBody (Bone) Count : %d\n", nRigidBodies);
-
-            for(int i=0; i< nRigidBodies; i++)
-            {
-                if(major >= 2)
-                {
-                    // RB name
-                    // char szName[MAX_NAMELENGTH];
-                    // strcpy(szName, ptr);
-                    ptr += strlen(ptr) + 1;
-                    // printf("Rigid Body Name: %s\n", szName);
-                }
-
-                // int ID = 0; memcpy(&ID, ptr, 4);
-                ptr +=4;
-                // printf("RigidBody ID : %d\n", ID);
-
-                // int parentID = 0; memcpy(&parentID, ptr, 4);
-                ptr +=4;
-                // printf("Parent ID : %d\n", parentID);
-
-                // float xoffset = 0; memcpy(&xoffset, ptr, 4);
-                ptr +=4;
-                // printf("X Offset : %3.2f\n", xoffset);
-
-                // float yoffset = 0; memcpy(&yoffset, ptr, 4);
-                ptr +=4;
-                // printf("Y Offset : %3.2f\n", yoffset);
-
-                // float zoffset = 0; memcpy(&zoffset, ptr, 4);
-                ptr +=4;
-                // printf("Z Offset : %3.2f\n", zoffset);
-            }
-          }
-        }   // next dataset
-
-       // printf("End Packet\n-------------\n");
-
-      }
+      rigidBodyDefinitions = detail::parseNatNetModelDef(
+        data, length, versionMajor, versionMinor);
     }
 
   public:
@@ -554,6 +420,7 @@ namespace libmotioncapture {
     boost::asio::io_context io_context;
     boost::asio::ip::udp::socket socket;
     boost::asio::ip::udp::endpoint sender_endpoint;
+    boost::asio::ip::address server_address;
     std::vector<char> data;
     std::vector<char> incoming_data;
     // HOPE patch (see PIN.md): Motive command endpoint + keep-alive pacing for
@@ -568,6 +435,9 @@ namespace libmotioncapture {
     // is disciplined by Chrony on the deployed Linux adapter host.
     detail::NatNetClockMapping clock_mapping;
     bool clock_sync_enabled;
+    bool is_multicast;
+    std::size_t rejected_foreign_packets;
+    std::size_t rejected_malformed_packets;
     std::chrono::steady_clock::time_point last_echo_sent;
     bool pending_echo;
     uint64_t pending_echo_token;
@@ -613,6 +483,7 @@ namespace libmotioncapture {
     udp::socket socket_cmd(io_context_cmd, udp::endpoint(udp::v4(), 0));
     udp::endpoint endpoint_cmd(boost::asio::ip::make_address(hostname), port_command);
     pImpl->cmd_endpoint = endpoint_cmd;
+    pImpl->server_address = endpoint_cmd.address();
 
     typedef struct
     {
@@ -620,7 +491,7 @@ namespace libmotioncapture {
       unsigned short nDataBytes;              // Num bytes in payload
     } sRequest;
 
-    typedef struct
+    PACK(struct sResponse
     {
       unsigned short iMessage;
       unsigned short nDataBytes;
@@ -631,7 +502,10 @@ namespace libmotioncapture {
       uint16_t DataPort;
       bool IsMulticast;
       uint8_t MulticastGroupAddress[4];
-    } sResponse;
+    });
+    static_assert(
+      sizeof(sResponse) == 283,
+      "NatNet SERVERINFO wire structure must not contain ABI padding");
 
     // HOPE patch (see PIN.md): the NAT_CONNECT below registers this command
     // socket as a unicast client, so Motive starts streaming FRAMEOFDATA to
@@ -663,17 +537,21 @@ namespace libmotioncapture {
                         std::chrono::seconds(HANDSHAKE_TIMEOUT_S);
         while (std::chrono::steady_clock::now() < deadline) {
           boost::system::error_code ec;
-          reply_length = socket_cmd.receive_from(
+          const size_t received_length = socket_cmd.receive_from(
               boost::asio::buffer(reply.data(), reply.size()),
               sender_endpoint, 0, ec);
           if (ec) {
             break;  // receive timeout -> re-send the request
           }
-          if (reply_length >= 2) {
-            memcpy(&reply_id, reply.data(), 2);
-            if (reply_id == expected) {
-              return;
-            }
+          std::size_t packet_length = 0;
+          if (sender_endpoint != endpoint_cmd ||
+              !MotionCaptureOptitrackImpl::decodePacketHeader(
+                reply.data(), received_length, reply_id, packet_length)) {
+            continue;
+          }
+          if (reply_id == expected) {
+            reply_length = packet_length;
+            return;
           }
         }
         std::cerr << "[optitrack] no " << what << " from " << hostname
@@ -690,7 +568,10 @@ namespace libmotioncapture {
     await_reply(NAT_SERVERINFO, &connectCmd, sizeof(connectCmd),
                 "NAT_SERVERINFO");
 
-    sResponse response;
+    sResponse response{};
+    if (reply_length < sizeof(sResponse)) {
+      throw std::runtime_error("NatNet SERVERINFO packet is truncated");
+    }
     memcpy(&response, reply.data(),
            std::min(reply_length, sizeof(response)));
 
@@ -707,9 +588,13 @@ namespace libmotioncapture {
 
     pImpl->versionMajor = response.NatNetVersion[0];
     pImpl->versionMinor = response.NatNetVersion[1];
+    pImpl->is_multicast = response.IsMulticast;
     memcpy(&pImpl->clockFrequency, response.HighResClockFrequency, sizeof(uint64_t));
 
     uint16_t port_data = response.DataPort;
+    if (port_data == 0) {
+      throw std::runtime_error("NatNet SERVERINFO advertised data port 0");
+    }
 
     // query model def. The 4-byte MODELDEF_TYPES mask is MANDATORY on Motive
     // 3.1 / NatNet 4.1 -- without it the request is silently dropped. The
@@ -720,24 +605,39 @@ namespace libmotioncapture {
                                     MODELDEF_TYPES};
     await_reply(NAT_MODELDEF, &modelDefCmd, sizeof(modelDefCmd), "NAT_MODELDEF");
     std::vector<char> modelDef(reply.begin(), reply.begin() + reply_length);
-    pImpl->parseModelDef(modelDef.data());
+    pImpl->parseModelDef(modelDef.data(), modelDef.size());
 
     // The transient handshake registration must not remain as a second
     // unicast frame destination once the persistent data socket registers.
     // Echo synchronization below deliberately uses that data socket too.
     socket_cmd.close();
 
-    // connect to data port to receive mocap data
-    auto listen_address_boost = boost::asio::ip::make_address_v4(interface_ip);
-
     // Create the socket so that multiple may be bound to the same address.
     boost::asio::ip::udp::endpoint listen_endpoint(
         boost::asio::ip::address_v4::any(), port_data);
     pImpl->socket.open(listen_endpoint.protocol());
     pImpl->socket.set_option(boost::asio::ip::udp::socket::reuse_address(true));
+    pImpl->socket.set_option(
+      boost::asio::socket_base::receive_buffer_size(
+        SOCKET_RECEIVE_BUFFER_BYTES));
     pImpl->socket.bind(listen_endpoint);
+    boost::asio::socket_base::receive_buffer_size actual_receive_buffer;
+    pImpl->socket.get_option(actual_receive_buffer);
 
     if (response.IsMulticast) {
+      if (interface_ip.empty() || interface_ip == "0.0.0.0") {
+        throw std::runtime_error(
+          "Motive selected multicast, but interface_ip is not an explicit "
+          "local IPv4 address. Relaunch with interface_ip:=<WIRED_NIC_IP>");
+      }
+      auto listen_address_boost =
+        boost::asio::ip::make_address_v4(interface_ip);
+      if (listen_address_boost.is_unspecified() ||
+          listen_address_boost.is_multicast()) {
+        throw std::runtime_error(
+          "interface_ip must be a unicast IPv4 address assigned to the "
+          "competition adapter NIC");
+      }
       std::stringstream sstr;
       sstr << (int)response.MulticastGroupAddress[0] << "."
            << (int)response.MulticastGroupAddress[1] << "."
@@ -745,12 +645,26 @@ namespace libmotioncapture {
            << (int)response.MulticastGroupAddress[3];
       std::string multicast_address = sstr.str();
       auto multicast_address_boost = boost::asio::ip::make_address_v4(multicast_address);
+      if (!multicast_address_boost.is_multicast()) {
+        throw std::runtime_error(
+          "NatNet SERVERINFO advertised an invalid multicast group: " +
+          multicast_address);
+      }
       // Join the multicast group on a specific interface
       pImpl->socket.set_option(boost::asio::ip::multicast::join_group(multicast_address_boost, listen_address_boost));
+      std::cout << "[optitrack] Using multicast from " << hostname
+                << " via local interface " << interface_ip
+                << ", group " << multicast_address << ":" << port_data
+                << ", NatNet " << pImpl->version
+                << ", receive buffer " << actual_receive_buffer.value()
+                << " bytes" << std::endl;
     } else {
       // log some server info
       std::ostringstream ustr;
-      ustr << "Using unicast from server " << hostname << ":" << port_data;
+      ustr << "[optitrack] Using unicast from server " << hostname << ":"
+           << port_data << ", NatNet " << pImpl->version
+           << ", receive buffer " << actual_receive_buffer.value()
+           << " bytes";
       std::cout << ustr.str() << std::endl;
     }
 
@@ -759,8 +673,10 @@ namespace libmotioncapture {
     // FRAMEOFDATA back to the SOURCE endpoint of the NAT_CONNECT packet — not
     // to the advertised data port — so a registration sent from the transient
     // command socket above leaves this data socket permanently silent.
-    // Harmless in multicast mode (the extra NAT_SERVERINFO reply is dropped by
-    // the MessageID==7 filter in waitForNextFrame).
+    // Multicast data itself needs no registration. This process nevertheless
+    // uses the same socket for NatNet echo/model-definition command replies,
+    // so register that command endpoint once in both modes. Only unicast needs
+    // the recurring keepalive below.
     const uint16_t connect_from_data[2] = {NAT_CONNECT, 0};
     pImpl->socket.send_to(
         boost::asio::buffer(connect_from_data, sizeof(connect_from_data)),
@@ -781,6 +697,8 @@ namespace libmotioncapture {
                 << " ms, initial uncertainty "
                 << pImpl->clock_mapping.baseUncertaintySeconds() * 1e3 << " ms"
                 << std::endl;
+    } else {
+      pImpl->setReceiveTimeout(FRAME_RECEIVE_TIMEOUT_MS);
     }
   }
 
@@ -800,10 +718,11 @@ namespace libmotioncapture {
     // HOPE patch (see PIN.md): ~1 Hz keep-alive from the data socket so Motive
     // does not expire this unicast client (it drops receivers that stay silent
     // for a few seconds; official SDK clients do the same). Sent before the
-    // blocking receive; if Motive restarts mid-run the stream stays down until
-    // the node is restarted — same behavior as the VRPN path.
+    // blocking receive. If Motive or the multicast path fails mid-run, the
+    // receive watchdog below exits the node for supervisor restart.
     auto ka_now = std::chrono::steady_clock::now();
-    if (ka_now - pImpl->last_keepalive > std::chrono::seconds(1)) {
+    if (!pImpl->is_multicast &&
+        ka_now - pImpl->last_keepalive > std::chrono::seconds(1)) {
       const uint16_t keepalive[2] = {NAT_KEEPALIVE, 0};
       boost::system::error_code ka_ec;
       pImpl->socket.send_to(boost::asio::buffer(keepalive, sizeof(keepalive)),
@@ -815,37 +734,93 @@ namespace libmotioncapture {
     // command replies.  Echo requests originate from this same registered
     // data socket so Motive does not see a second unicast streaming client.
     bool have_frame = false;
-    do {
+    const auto frame_deadline =
+      std::chrono::steady_clock::now() +
+      std::chrono::milliseconds(FRAME_RECEIVE_TIMEOUT_MS);
+    std::size_t post_frame_drain_packets = 0;
+    while (true) {
+      if (have_frame &&
+          post_frame_drain_packets >= MAX_POST_FRAME_DRAIN_PACKETS) {
+        std::cerr
+          << "[optitrack] stopped latest-frame drain after "
+          << MAX_POST_FRAME_DRAIN_PACKETS
+          << " queued datagrams; processing the newest valid frame"
+          << std::endl;
+        break;
+      }
+      if (!have_frame && std::chrono::steady_clock::now() >= frame_deadline) {
+        throw std::runtime_error(
+          "No valid NatNet frame arrived before the receive watchdog expired");
+      }
+      boost::system::error_code receive_ec;
+      const boost::asio::socket_base::message_flags receive_flags =
+        have_frame ? MSG_DONTWAIT : 0;
       const size_t length = pImpl->socket.receive_from(
         boost::asio::buffer(
           pImpl->incoming_data.data(), pImpl->incoming_data.size()),
-        pImpl->sender_endpoint);
+        pImpl->sender_endpoint, receive_flags, receive_ec);
       const auto receive_time = std::chrono::steady_clock::now();
-      if (length < 2) {
+      if (receive_ec) {
+        if (receive_ec == boost::asio::error::would_block ||
+            receive_ec == boost::asio::error::try_again ||
+            receive_ec == boost::asio::error::timed_out) {
+          if (have_frame) {
+            break;
+          }
+          throw std::runtime_error(
+            "NatNet frame receive timed out after " +
+            std::to_string(FRAME_RECEIVE_TIMEOUT_MS) +
+            " ms; check Motive streaming, interface_ip, firewall, and "
+            "multicast IGMP state");
+        }
+        throw boost::system::system_error(receive_ec);
+      }
+      if (have_frame) {
+        ++post_frame_drain_packets;
+      }
+      if (!pImpl->isExpectedServer(pImpl->sender_endpoint)) {
+        ++pImpl->rejected_foreign_packets;
+        if (pImpl->rejected_foreign_packets == 1) {
+          std::cerr << "[optitrack] rejected NatNet multicast packet from "
+                    << pImpl->sender_endpoint.address().to_string()
+                    << "; expected " << pImpl->server_address.to_string()
+                    << std::endl;
+        }
         continue;
       }
 
       uint16_t drain_id = 0;
-      memcpy(&drain_id, pImpl->incoming_data.data(), 2);
+      std::size_t packet_length = 0;
+      if (!MotionCaptureOptitrackImpl::decodePacketHeader(
+            pImpl->incoming_data.data(), length,
+            drain_id, packet_length)) {
+        ++pImpl->rejected_malformed_packets;
+        if (pImpl->rejected_malformed_packets == 1) {
+          std::cerr << "[optitrack] rejected malformed NatNet packet from "
+                    << pImpl->server_address.to_string() << std::endl;
+        }
+        continue;
+      }
       if (drain_id == 7) {  // NAT_FRAMEOFDATA
         pImpl->data.assign(
-          pImpl->incoming_data.begin(), pImpl->incoming_data.begin() + length);
+          pImpl->incoming_data.begin(),
+          pImpl->incoming_data.begin() + packet_length);
         have_frame = true;
       } else if (drain_id == NAT_MODELDEF) {
         // Model-definition replies requested below arrive interleaved with
         // frames; consume them so the latest-only drain cannot discard one.
-        pImpl->parseModelDef(pImpl->incoming_data.data());
+        pImpl->parseModelDef(pImpl->incoming_data.data(), packet_length);
       } else if (drain_id == NAT_ECHORESPONSE && pImpl->pending_echo) {
         uint64_t server_receive_ticks = 0;
         if (pImpl->decodeEchoResponse(
-              pImpl->incoming_data.data(), length,
+              pImpl->incoming_data.data(), packet_length,
               pImpl->pending_echo_token, server_receive_ticks)) {
           pImpl->updateClockMapping(
             pImpl->pending_echo_sent, receive_time, server_receive_ticks);
           pImpl->pending_echo = false;
         }
       }
-    } while (!have_frame || pImpl->socket.available() > 0);
+    }
 
     if (pImpl->data.size() > 4) {
       char *ptr = pImpl->data.data();

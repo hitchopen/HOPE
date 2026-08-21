@@ -309,7 +309,7 @@ Motive 预期设置：
 |------|----------|------|
 | NatNet | ✅ 启用 | 仓库内 OptiTrack 后端的必需项；此路径不使用 Motive 的 VRPN Streaming Engine |
 | Up Axis | **Z** | 与 HOPE ROS 2 REP 103 世界坐标系一致；比赛前须在地标处验证 |
-| 传输方式 | 优先 Unicast | 客户端连接到 Motive PC；NatNet 与服务器协商流细节 |
+| 传输方式 | Multicast | 比赛配置；组地址 `239.255.42.99`、数据端口 1511，adapter 使用同一 VLAN 的有线网卡 |
 | 命令端口 | 通常为 UDP 1510 | 独立 adapter 使用 NatNet 命令通道并从 Motive 获得数据端口信息；防火墙须允许协商后的 UDP 数据流量 |
 | 刚体 | 比赛为 `Ball`、`P1`、`P2`；`Table` 仅限标定 | 名称区分大小写，并原样传递至 relay |
 | 球 | 名为 `Ball` 的 6-DOF 刚体资产 | 枢轴设在几何球心；跟踪丢失时 `Ball` 条目消失，relay 暂停 `/poses`，不会重发旧球位姿 |
@@ -318,7 +318,8 @@ Motive 预期设置：
 
 ```bash
 source NatNet2ROS2/install/setup.bash
-ros2 launch motion_capture_tracking natnet2ros2.launch.py hostname:=MOTIVE_PC_IP
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=MOTIVE_PC_IP interface_ip:=ADAPTER_WIRED_IP
 
 source NatNet2ROS2/install/setup.bash
 source hope_ws/install/setup.bash
@@ -424,7 +425,7 @@ ros2 topic echo --once /poses
 配套规划器文档（《HOPE 7DOF 球拍基于模型的规划器参考设计》）消费由动捕桥接发布的球体位姿（当前使用位置）并产生球拍目标指令。整个系统的数据流为：
 
 ```
-动作捕捉系统 (360 Hz)                                   人形机器人 (本体感受)
+动作捕捉系统 (300 Hz)                                   人形机器人 (本体感受)
   │                                                      │
   ├── Ball 6 自由度刚体位姿 ──▶ HOPE 规划器             │
   │      （规划器当前使用 xyz）     阶段 1–3            │

@@ -325,7 +325,7 @@ The expected Motive settings are:
 |---------|----------------|-------|
 | NatNet | ✅ Enabled | Required by the shipped OptiTrack backend; Motive's VRPN Streaming Engine is not used by this path |
 | Up Axis | **Z** | Matches the HOPE ROS 2 REP 103 world frame; validate at landmarks before play |
-| Delivery | Unicast preferred | The client connects to the Motive PC; NatNet negotiates stream details with the server |
+| Delivery | Multicast | Competition profile; use group `239.255.42.99`, data port 1511, and a wired same-VLAN adapter |
 | Command port | UDP 1510 (normally) | The independent adapter uses NatNet's command channel and obtains data-port details from Motive; permit the negotiated UDP data traffic through the firewall |
 | Rigid Bodies | `Ball`, `P1`, `P2` in competition; `Table` only during calibration | Names are case-sensitive and are passed through verbatim to the relay |
 | Ball | 6-DOF rigid-body asset named `Ball` | Set its pivot to the geometric ball center; a tracking loss removes the `Ball` entry and pauses `/poses`, rather than republishing a stale ball |
@@ -334,7 +334,8 @@ Start the independent adapter with the Motive PC address, then start HOPE:
 
 ```bash
 source NatNet2ROS2/install/setup.bash
-ros2 launch motion_capture_tracking natnet2ros2.launch.py hostname:=MOTIVE_PC_IP
+ros2 launch motion_capture_tracking natnet2ros2.launch.py \
+  hostname:=MOTIVE_PC_IP interface_ip:=ADAPTER_WIRED_IP
 
 source NatNet2ROS2/install/setup.bash
 source hope_ws/install/setup.bash
@@ -457,7 +458,7 @@ Confirm all of the following:
 The companion planner document (*HOPE 7DOF Racket Model-based Planner Reference Setup*) consumes ball position data from the `/poses` stream described in Section 6 and produces racket target commands. The data flow through the complete system is:
 
 ```
-Motion Capture System (360 Hz)                         Humanoid (proprioceptive)
+Motion Capture System (300 Hz)                         Humanoid (proprioceptive)
   │                                                      │
   ├── Ball 6-DOF rigid-body pose ──▶ HOPE Planner      │
   │      (planner currently uses xyz)  Stages 1–3       │

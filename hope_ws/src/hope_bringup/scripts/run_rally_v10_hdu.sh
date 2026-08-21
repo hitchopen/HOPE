@@ -16,6 +16,8 @@ Options:
   --mocap-backend NAME       avatar_pro (default, ChingMu/VRPN) or optitrack
                              (Motive/NatNet via the vendored
                              motion_capture_tracking driver).
+  --mocap-interface-ip IPV4  HDU/laptop local IPv4 on the Motive network.
+                             Required for optitrack multicast; not the Motive IP.
   --x-hit METRES             Already-confirmed fixed world plane; bypasses the runtime freeze.
   --x-hit-offset METRES      Settled base-X to fixed-plane offset (default 0.58).
   --side MODE                backhand (default), forehand, or both.
@@ -29,7 +31,7 @@ Options:
                              NatNet command port is fixed in optitrack_mct.yaml.
   --update-freq HZ           Mocap camera rate. avatar_pro: VRPN poll rate
                              (default 300.0). optitrack: expected Motive rate
-                             (default 360.0) — probe threshold only; Motive
+                             (default 300.0) — probe threshold only; Motive
                              owns the actual rate.
   --fit-window N             Deprecated compatibility option. Converts N mocap
                              samples into the C++ packetizer flight window N/HZ.
@@ -72,6 +74,7 @@ print_shell_command() {
 
 MOCAP_BACKEND="avatar_pro"
 MOCAP_IP=""
+MOCAP_INTERFACE_IP="${HOPE_MOTIVE_INTERFACE_IP:-}"
 X_HIT=""
 X_HIT_OFFSET="0.58"
 SIDE="backhand"
@@ -79,7 +82,7 @@ SIDE="backhand"
 # exists only for the legacy one-shot frame probe/evidence JSON.
 MARKER_TO_BASE="0.0,0.0,0.0"
 # Empty = backend-derived default (avatar_pro: 0.001 / 3883 / 300.0;
-# optitrack: 1.0 / no port / 360.0). Explicit flags always win.
+# optitrack: 1.0 / no port / 300.0). Explicit flags always win.
 POSITION_SCALE=""
 PORT=""
 UPDATE_FREQ=""
@@ -100,6 +103,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mocap-ip|--vrpn-ip)
       MOCAP_IP="${2:-}"
+      shift 2
+      ;;
+    --mocap-interface-ip)
+      MOCAP_INTERFACE_IP="${2:-}"
       shift 2
       ;;
     --x-hit)
@@ -180,15 +187,21 @@ done
 
 case "${MOCAP_BACKEND}" in
   avatar_pro)
+    [[ -z "${MOCAP_INTERFACE_IP}" ]] ||
+      die "--mocap-interface-ip/HOPE_MOTIVE_INTERFACE_IP is optitrack-only"
     [[ -n "${POSITION_SCALE}" ]] || POSITION_SCALE="0.001"
     [[ -n "${PORT}" ]] || PORT="3883"
     [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="300.0"
     ;;
   optitrack)
+    [[ -n "${MOCAP_INTERFACE_IP}" ]] ||
+      die "--mocap-interface-ip (or HOPE_MOTIVE_INTERFACE_IP) is required for OptiTrack multicast"
+    [[ "${MOCAP_INTERFACE_IP}" =~ ^([0-9]{1,3}[.]){3}[0-9]{1,3}$ ]] ||
+      die "--mocap-interface-ip must be an IPv4 address"
     [[ -n "${POSITION_SCALE}" ]] || POSITION_SCALE="1.0"
     [[ -z "${PORT}" ]] ||
       die "--port is a VRPN (avatar_pro) flag; the NatNet command port is fixed in optitrack_mct.yaml"
-    [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="360.0"
+    [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="300.0"
     ;;
   *)
     die "--mocap-backend must be one of: avatar_pro, optitrack"
@@ -276,6 +289,7 @@ if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   BRIDGE_CMD=(
     ros2 launch hope_bringup optitrack_hope_bridge.launch.py
     "motive_hostname:=${MOCAP_IP}"
+    "motive_interface_ip:=${MOCAP_INTERFACE_IP}"
     "position_scale:=${POSITION_SCALE}"
     "debug_csv_path:=${SESSION_DIR}/mocap_raw.csv"
     "debug_session_id:=${SESSION_ID}"
@@ -374,12 +388,14 @@ export FASTRTPS_DEFAULT_PROFILES_FILE="${DDS_PROFILE}"
 rm -f -- "${X_HIT_REQUEST_FILE}" "${X_HIT_STATUS_FILE}"
 
 if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
-  # NatNet is UDP (command 1510 / data auto-discovered): there is no port to
-  # connect() to before launch. Preflight = ICMP reachability only; mocap
-  # liveness is proven AFTER the bridge starts by the mocap_rate_probe below.
-  ping -c 3 -W 2 "${MOCAP_IP}" >/dev/null ||
-    die "Motive PC ${MOCAP_IP} is not reachable (ping); check the group-control Wi-Fi route"
-  echo "[rally-v10-hdu] Motive host reachable (ping): ${MOCAP_IP}; NatNet liveness checked after bridge start"
+  route_line="$(ip -o route get "${MOCAP_IP}" 2>/dev/null | head -n 1)"
+  [[ -n "${route_line}" ]] || die "no route to Motive PC ${MOCAP_IP}"
+  route_src="$(awk '{for (i=1; i<=NF; ++i) if ($i == "src") {print $(i+1); exit}}' <<<"${route_line}")"
+  [[ "${route_src}" == "${MOCAP_INTERFACE_IP}" ]] ||
+    die "Motive route uses source ${route_src:-NONE}, not --mocap-interface-ip ${MOCAP_INTERFACE_IP}"
+  ros2 run hope_bringup natnet_preflight.py \
+    --hostname "${MOCAP_IP}" --interface-ip "${MOCAP_INTERFACE_IP}" ||
+    die "NatNet 4.2 multicast preflight failed"
 else
   python3 - "${MOCAP_IP}" "${PORT}" <<'PY'
 import socket
@@ -415,7 +431,8 @@ fi
 
 mkdir -p -- "${SESSION_DIR}"
 python3 - "${SESSION_DIR}/session.json" "${SESSION_ID}" "$$" "${MOCAP_BACKEND}" \
-    "${MOCAP_IP}" "${POSITION_SCALE}" "${UPDATE_FREQ}" "${FLIGHT_WINDOW_S}" \
+    "${MOCAP_IP}" "${MOCAP_INTERFACE_IP}" "${POSITION_SCALE}" \
+    "${UPDATE_FREQ}" "${FLIGHT_WINDOW_S}" \
     "${SOLVE_PERIOD}" "${MARKER_TO_BASE}" "${PLANNER_X_HIT}" "${X_HIT_OFFSET}" \
     "${WORKSPACE}" <<'PY'
 import hashlib
@@ -425,7 +442,8 @@ import socket
 import sys
 import time
 
-(output, session_id, launcher_pid, backend, mocap_ip, scale, rate, flight_window_s, solve_period,
+(output, session_id, launcher_pid, backend, mocap_ip, mocap_interface_ip,
+ scale, rate, flight_window_s, solve_period,
  marker_to_base, x_hit, x_hit_offset, workspace) = sys.argv[1:]
 workspace_path = pathlib.Path(workspace)
 sources = {
@@ -449,6 +467,7 @@ report = {
     "start_wall_time_ns": time.time_ns(),
     "mocap_backend": backend,
     "mocap_ip": mocap_ip,
+    "mocap_interface_ip": mocap_interface_ip or None,
     "position_scale": float(scale),
     "update_frequency_hz": float(rate),
     "flight_window_s": float(flight_window_s),

@@ -21,6 +21,7 @@ readonly LAPTOP_SHARE="${HOPE_LAPTOP_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}
 readonly LAPTOP_USER="${HOPE_LAPTOP_USER:-$(id -un)}"
 readonly ROBOT_USER="${HOPE_ROBOT_USER:-agi}"
 readonly HDU_WS="${HOPE_HDU_WS:-$HOME/hope_ws}"
+readonly MOTIVE_INTERFACE_IP="${HOPE_MOTIVE_INTERFACE_IP:-}"
 readonly LAPTOP_SESSION=hope-optitrack
 readonly HDU_BASE_SESSION=hope-base
 readonly HDU_PLANNER_SESSION=hope-planner
@@ -60,6 +61,18 @@ valid_ipv4() {
     return 0
   fi
   (( 10#${parts[0]} == 192 && 10#${parts[1]} == 168 ))
+}
+
+require_motive_interface() {
+  local step="$1" route_line route_src
+  valid_ipv4 "$MOTIVE_INTERFACE_IP" ||
+    die "$step" MOTIVE_INTERFACE_IP_INVALID
+  command -v ip >/dev/null || die "$step" IPROUTE2_MISSING
+  route_line="$(ip -o route get "$MOTIVE_IP" 2>/dev/null | head -n 1)"
+  [[ -n "$route_line" ]] || die "$step" MOTIVE_ROUTE_MISSING
+  route_src="$(awk '{for (i=1; i<=NF; ++i) if ($i == "src") {print $(i+1); exit}}' <<<"$route_line")"
+  [[ "$route_src" == "$MOTIVE_INTERFACE_IP" ]] ||
+    die "$step" MOTIVE_INTERFACE_ROUTE_MISMATCH
 }
 
 parse_common() {
@@ -208,6 +221,7 @@ MDU_CLOCK
 
 preflight_laptop() {
   require_user "$LAPTOP_USER" PREFLIGHT
+  require_motive_interface PREFLIGHT
   tmux_exists "$LAPTOP_SESSION" && die PREFLIGHT MANAGED_LAPTOP_STACK_PRESENT
   pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null && \
     die PREFLIGHT UNMANAGED_BRIDGE_PRESENT
@@ -298,6 +312,7 @@ preflight_mdu() {
 
 run_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
+  require_motive_interface OPTITRACK
   exec /usr/bin/distrobox enter hope -- /bin/bash -lc '
     set -eo pipefail
     source /opt/ros/jazzy/setup.bash
@@ -308,6 +323,7 @@ run_laptop() {
     session_id="$1"
     hdu_ip="$2"
     motive_ip="$3"
+    motive_interface_ip="$6"
     laptop_dir="$hope_root/real_logs/$session_id/laptop"
     marker_root="$5"
     mkdir -p "$laptop_dir"
@@ -331,7 +347,8 @@ run_laptop() {
         src/hope_bringup/config/optitrack_relay.yaml \
         ../NatNet2ROS2/src/motion_capture_tracking/src/motion_capture_tracking_node.cpp \
         ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/src/optitrack.cpp \
-        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_clock_sync.h
+        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_clock_sync.h \
+        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_modeldef.h
     } > "$laptop_dir/artifact_sha256.txt"
     ros2 daemon stop || true
     dds_wrap="$hope_root/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
@@ -341,8 +358,9 @@ run_laptop() {
         marker_root="$1"
         laptop_dir="$2"
         motive_ip="$3"
-        session_id="$4"
-        hope_root="$5"
+        motive_interface_ip="$4"
+        session_id="$5"
+        hope_root="$6"
         export PYTHONPATH="$marker_root${PYTHONPATH:+:$PYTHONPATH}"
         marker_pid=""
         stop_marker() {
@@ -359,7 +377,9 @@ run_laptop() {
         sleep 1
         kill -0 "$marker_pid" 2>/dev/null
         ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
-          motive_hostname:="$motive_ip" start_world:=true start_calibration:=true \
+          motive_hostname:="$motive_ip" \
+          motive_interface_ip:="$motive_interface_ip" \
+          start_world:=true start_calibration:=true \
           p1_calibration_file:="$hope_root/calibration/p1_to_pelvis.json" \
           base_pose_output_topic:=/a3/base_pose_laptop_flat \
           debug_csv_path:="$laptop_dir/mocap_raw.csv" \
@@ -369,12 +389,15 @@ run_laptop() {
           flight_packet_debug_csv_path:="$laptop_dir/flight_packets.csv" \
           > >(tee -a "$laptop_dir/laptop_bridge.log") 2>&1
       '\'' hope-laptop-runtime \
-        "$marker_root" "$laptop_dir" "$motive_ip" "$session_id" "$hope_root"
-  ' hope-laptop "$SESSION_ID" "$HDU_WIFI_IP" "$MOTIVE_IP" "$HOPE_ROOT" "$LAPTOP_SHARE"
+        "$marker_root" "$laptop_dir" "$motive_ip" "$motive_interface_ip" \
+        "$session_id" "$hope_root"
+  ' hope-laptop "$SESSION_ID" "$HDU_WIFI_IP" "$MOTIVE_IP" "$HOPE_ROOT" \
+    "$LAPTOP_SHARE" "$MOTIVE_INTERFACE_IP"
 }
 
 start_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
+  require_motive_interface OPTITRACK
   if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null; then
     die OPTITRACK UNMANAGED_BRIDGE_PRESENT
   fi

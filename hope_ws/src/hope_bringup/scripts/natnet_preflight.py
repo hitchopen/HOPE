@@ -22,16 +22,16 @@ deps/libmotioncapture/src/optitrack.cpp (MODELDEF_TYPES; PIN.md patch #9).
 This probe reports that condition in ten seconds instead of leaving the
 operator to guess.
 
-Multicast note: libmotioncapture passes interface_ip="0.0.0.0", so the data
-socket's IP_ADD_MEMBERSHIP lets the kernel pick the interface by route. When a
-VPN default route wins over the arena NIC, the join lands on the tunnel and no
-frames arrive. This probe compares the two routes and fails loudly.
+For multicast, --interface-ip is the exact local wired-NIC IPv4 address passed
+to NatNet2ROS2. The probe and driver therefore join the same group on the same
+interface; neither lets a VPN/default route choose implicitly.
 
 Exit codes: 0 = the bridge should come up, 1 = it cannot start or publish
 camera_utc data safely.
 """
 
 import argparse
+import ipaddress
 import re
 import socket
 import struct
@@ -53,7 +53,7 @@ NAT_ECHORESPONSE = 13
 MODELDEF_TYPES = 0x3
 
 SERVERINFO_MIN_LEN = 283
-REQUIRED_ASSETS = ('Ball', 'P1')
+REQUIRED_ASSETS = ('Ball', 'P1', 'P2')
 
 
 def route_of(dst: str):
@@ -69,6 +69,16 @@ def route_of(dst: str):
     return (dev.group(1) if dev else None), (src.group(1) if src else None)
 
 
+def packet_message_id(data: bytes):
+    """Return a NatNet message id only when the declared payload fits."""
+    if len(data) < 4:
+        return None
+    message_id, payload_size = struct.unpack_from('<HH', data)
+    if payload_size > len(data) - 4:
+        return None
+    return message_id
+
+
 def natnet_connect(host: str, port: int, wait: float = 3.0):
     """Send NAT_CONNECT; return (socket, serverinfo_packet_or_None).
 
@@ -81,13 +91,15 @@ def natnet_connect(host: str, port: int, wait: float = 3.0):
     sock.settimeout(wait)
     sock.bind(('0.0.0.0', 0))
     sock.sendto(struct.pack('<HH', NAT_CONNECT, 0), (host, port))
+    server_ip = socket.gethostbyname(host)
     deadline = time.time() + wait
     while time.time() < deadline:
         try:
-            data, _ = sock.recvfrom(65535)
+            data, sender = sock.recvfrom(65535)
         except socket.timeout:
             break
-        if (struct.unpack_from('<H', data)[0] == NAT_SERVERINFO
+        if (sender[0] == server_ip
+                and packet_message_id(data) == NAT_SERVERINFO
                 and len(data) >= SERVERINFO_MIN_LEN):
             return sock, data
     return sock, None
@@ -102,13 +114,15 @@ def ask_modeldef(host: str, port: int, payload: bytes, wait: float = 3.0):
         sock.sendto(
             struct.pack('<HH', NAT_REQUEST_MODELDEF, len(payload)) + payload,
             (host, port))
+        server_ip = socket.gethostbyname(host)
         deadline = time.time() + wait
         while time.time() < deadline:
             try:
-                data, _ = sock.recvfrom(65535)
+                data, sender = sock.recvfrom(65535)
             except socket.timeout:
                 break
-            if struct.unpack_from('<H', data)[0] == NAT_MODELDEF:
+            if (sender[0] == server_ip
+                    and packet_message_id(data) == NAT_MODELDEF):
                 return data
         return None
     finally:
@@ -119,6 +133,7 @@ def clock_sync_samples(host: str, port: int, count: int = 10):
     """Return NatNet echo RTTs, or fewer entries when responses are missing."""
     sock, info = natnet_connect(host, port)
     samples = []
+    server_ip = socket.gethostbyname(host)
     try:
         if info is None:
             return samples
@@ -131,11 +146,12 @@ def clock_sync_samples(host: str, port: int, count: int = 10):
             deadline = sent + 0.1
             while time.monotonic() < deadline:
                 try:
-                    data, _ = sock.recvfrom(65535)
+                    data, sender = sock.recvfrom(65535)
                 except socket.timeout:
                     break
                 received = time.monotonic()
-                if len(data) < 20:
+                if (sender[0] != server_ip or len(data) < 20
+                        or packet_message_id(data) != NAT_ECHORESPONSE):
                     continue
                 message_id, payload_size, echoed, server_ticks = \
                     struct.unpack_from('<HHQQ', data)
@@ -148,24 +164,100 @@ def clock_sync_samples(host: str, port: int, count: int = 10):
         sock.close()
 
 
-def modeldef_assets(packet: bytes):
-    """Asset names in a model definition, ignoring per-marker labels.
+class ModelDefReader:
+    """Length-checked little-endian reader for one MODELDEF region."""
 
-    A byte scan rather than a full parse: the dataset layout is NatNet
-    version dependent and all this needs to answer is "are Ball and P1 in
-    here". Scanning can start mid-token when the preceding byte happens to be
-    a letter, so drop any name that is a strict suffix of another ('all' from
-    'Ball'). Real HOPE assets (Ball, P1, P2, Table) are never suffixes of each
-    other.
-    """
-    names = {m.decode(errors='replace').rstrip('\x00')
-             for m in re.findall(rb'[A-Za-z][A-Za-z0-9_]{1,30}\x00', packet)}
-    names = {n for n in names if 'Marker' not in n}
-    return sorted(n for n in names
-                  if not any(o != n and o.endswith(n) for o in names))
+    def __init__(self, packet: bytes, start: int, end: int):
+        if start < 0 or end < start or end > len(packet):
+            raise ValueError('invalid MODELDEF bounds')
+        self.packet = packet
+        self.offset = start
+        self.end = end
+
+    def unpack(self, fmt: str, field: str):
+        size = struct.calcsize('<' + fmt)
+        if self.offset + size > self.end:
+            raise ValueError('MODELDEF truncated at %s' % field)
+        values = struct.unpack_from('<' + fmt, self.packet, self.offset)
+        self.offset += size
+        return values[0] if len(values) == 1 else values
+
+    def string(self, field: str):
+        end = self.packet.find(b'\x00', self.offset, self.end)
+        if end < 0:
+            raise ValueError('MODELDEF unterminated string at %s' % field)
+        value = self.packet[self.offset:end].decode(errors='replace')
+        self.offset = end + 1
+        return value
+
+    def skip(self, size: int, field: str):
+        if size < 0 or self.offset + size > self.end:
+            raise ValueError('MODELDEF truncated at %s' % field)
+        self.offset += size
 
 
-def count_frames(sock: socket.socket, seconds: float):
+def modeldef_assets(packet: bytes, nat_major: int, nat_minor: int):
+    """Decode rigid-body names using the NatNet 4.1/4.2 MODELDEF schema."""
+    if len(packet) < 8:
+        raise ValueError('MODELDEF is shorter than its header')
+    message_id, payload_size = struct.unpack_from('<HH', packet)
+    if message_id != NAT_MODELDEF:
+        raise ValueError('packet is not MODELDEF')
+    if payload_size > len(packet) - 4:
+        raise ValueError('MODELDEF payload exceeds datagram')
+
+    reader = ModelDefReader(packet, 4, 4 + payload_size)
+    dataset_count = reader.unpack('i', 'dataset count')
+    if dataset_count < 0 or dataset_count > 10000:
+        raise ValueError('invalid MODELDEF dataset count')
+    sized = nat_major > 4 or (nat_major == 4 and nat_minor >= 1)
+    rotation_offset = nat_major > 4 or (nat_major == 4 and nat_minor >= 2)
+    assets = []
+
+    for _ in range(dataset_count):
+        dataset_type = reader.unpack('i', 'dataset type')
+        dataset_end = reader.end
+        if sized:
+            description_size = reader.unpack('i', 'description size')
+            if description_size < 0 or reader.offset + description_size > reader.end:
+                raise ValueError('invalid MODELDEF description size')
+            dataset_end = reader.offset + description_size
+        dataset = ModelDefReader(packet, reader.offset, dataset_end)
+
+        if dataset_type == 0:
+            dataset.string('marker-set name')
+            marker_count = dataset.unpack('i', 'marker-set marker count')
+            if marker_count < 0 or marker_count > 10000:
+                raise ValueError('invalid marker-set marker count')
+            for _ in range(marker_count):
+                dataset.string('marker-set marker name')
+        elif dataset_type == 1:
+            name = dataset.string('rigid-body name') if nat_major >= 2 else ''
+            assets.append(name)
+            dataset.unpack('i', 'rigid-body id')
+            dataset.unpack('i', 'rigid-body parent id')
+            dataset.skip(3 * 4, 'rigid-body position offset')
+            if rotation_offset:
+                dataset.skip(4 * 4, 'rigid-body rotation offset')
+            if nat_major >= 3:
+                marker_count = dataset.unpack('i', 'rigid-body marker count')
+                if marker_count < 0 or marker_count > 10000:
+                    raise ValueError('invalid rigid-body marker count')
+                dataset.skip(marker_count * 3 * 4, 'marker positions')
+                dataset.skip(marker_count * 4, 'marker active labels')
+                if nat_major >= 4:
+                    for _ in range(marker_count):
+                        dataset.string('rigid-body marker name')
+        elif not sized:
+            raise ValueError('unsupported unsized MODELDEF dataset type %d'
+                             % dataset_type)
+
+        reader.offset = dataset_end if sized else dataset.offset
+
+    return sorted(name for name in assets if name)
+
+
+def count_frames(sock: socket.socket, seconds: float, server_ip: str):
     """Return (n_frames, hz, missing) using NatNet frame numbers for loss."""
     sock.settimeout(3.0)
     prev = None
@@ -174,10 +266,13 @@ def count_frames(sock: socket.socket, seconds: float):
     start = time.time()
     while time.time() - start < seconds:
         try:
-            data, _ = sock.recvfrom(65535)
+            data, sender = sock.recvfrom(65535)
         except socket.timeout:
             break
-        if struct.unpack_from('<H', data)[0] != NAT_FRAMEOFDATA:
+        if sender[0] != server_ip or len(data) < 8:
+            continue
+        message_id, payload_size = struct.unpack_from('<HH', data)
+        if payload_size > len(data) - 4 or message_id != NAT_FRAMEOFDATA:
             continue
         number = struct.unpack_from('<i', data, 4)[0]
         n += 1
@@ -203,10 +298,15 @@ def main() -> int:
     parser.add_argument('--hostname', required=True,
                         help='Motive PC IP (NatNet server); venue fact, '
                              'always passed explicitly')
+    parser.add_argument('--interface-ip', required=True,
+                        help="this computer's wired Motive-network NIC IPv4; "
+                             'passed unchanged to NatNet2ROS2')
     parser.add_argument('--port-command', type=int, default=1510)
     parser.add_argument('--window', type=float, default=8.0,
                         help='seconds to count FRAMEOFDATA')
-    parser.add_argument('--min-hz', type=float, default=250.0)
+    parser.add_argument('--min-hz', type=float, default=270.0,
+                        help='minimum accepted direct NatNet rate; competition '
+                             'Motive is configured for 300 Hz')
     parser.add_argument('--max-loss', type=float, default=20.0,
                         help='percent of frame numbers allowed to go missing')
     parser.add_argument('--max-clock-sync-uncertainty-ms', type=float,
@@ -216,6 +316,14 @@ def main() -> int:
     if args.max_clock_sync_uncertainty_ms <= 0.0:
         parser.error('--max-clock-sync-uncertainty-ms must be positive')
 
+    try:
+        interface_address = ipaddress.ip_address(args.interface_ip)
+    except ValueError:
+        parser.error('--interface-ip must be an IPv4 address')
+    if (interface_address.version != 4 or interface_address.is_unspecified
+            or interface_address.is_multicast):
+        parser.error('--interface-ip must be an explicit unicast IPv4 address')
+
     blockers = []
     print('== NatNet preflight: %s:%d ==' % (args.hostname, args.port_command))
 
@@ -224,6 +332,10 @@ def main() -> int:
     if host_src is None:
         print('  FAIL no route to %s' % args.hostname)
         return 1
+    if host_src != args.interface_ip:
+        blockers.append('--interface-ip %s does not match the route source %s '
+                        'used to reach Motive on %s'
+                        % (args.interface_ip, host_src, host_dev))
 
     sock, info = natnet_connect(args.hostname, args.port_command)
     sock.close()
@@ -237,7 +349,8 @@ def main() -> int:
 
     app = info[4:260].split(b'\x00')[0].decode(errors='replace')
     app_version = '.'.join(str(b) for b in info[260:264])
-    nat_version = '.'.join(str(b) for b in info[264:268])
+    nat_version_bytes = tuple(info[264:268])
+    nat_version = '.'.join(str(b) for b in nat_version_bytes)
     data_port, is_multicast = struct.unpack_from('<H?', info, 276)
     high_res_clock_frequency = struct.unpack_from('<Q', info, 268)[0]
     group = '.'.join(str(b) for b in info[279:283])
@@ -246,9 +359,20 @@ def main() -> int:
     print('  transmission        : %s, data port %d%s'
           % ('MULTICAST' if is_multicast else 'UNICAST', data_port,
              ', group ' + group if is_multicast else ''))
-    if is_multicast:
-        print('  NOTE Motive is in MULTICAST; docs/OPTITRACK.md recommends '
-              'Unicast (venue switches handle it better).')
+    if app != 'Motive' or app_version != '3.2.0.2':
+        blockers.append('competition requires Motive 3.2.0.2; server reports '
+                        '%s %s' % (app, app_version))
+    if nat_version_bytes[:2] != (4, 2):
+        blockers.append('competition requires NatNet 4.2.x; server reports %s'
+                        % nat_version)
+    if not is_multicast:
+        blockers.append('competition Motive transmission must be MULTICAST')
+    if is_multicast and group != '239.255.42.99':
+        blockers.append('unexpected multicast group %s; expected 239.255.42.99'
+                        % group)
+    if data_port != 1511:
+        blockers.append('unexpected NatNet data port %d; expected 1511'
+                        % data_port)
 
     echo_samples = clock_sync_samples(args.hostname, args.port_command)
     if len(echo_samples) >= 5 and high_res_clock_frequency > 0:
@@ -290,28 +414,39 @@ def main() -> int:
 
     packet = masked or bare
     if packet is not None:
-        assets = modeldef_assets(packet)
-        print('  assets in modeldef  : %s' % (', '.join(assets) or '(none)'))
-        for want in REQUIRED_ASSETS:
-            if want not in assets:
-                blockers.append("rigid body '%s' is not in the model "
-                                'definition; create/rename it in Motive' % want)
+        try:
+            assets = modeldef_assets(
+                packet, nat_version_bytes[0], nat_version_bytes[1])
+        except ValueError as exc:
+            assets = []
+            blockers.append('MODELDEF decode failed for NatNet %s: %s'
+                            % (nat_version, exc))
+        else:
+            print('  assets in modeldef  : %s'
+                  % (', '.join(assets) or '(none)'))
+            for want in REQUIRED_ASSETS:
+                if want not in assets:
+                    blockers.append("rigid body '%s' is not in the model "
+                                    'definition; create/rename it in Motive'
+                                    % want)
 
-    if is_multicast:
-        group_dev, _ = route_of(group)
-        print('  multicast join iface: dev=%s (driver uses interface_ip='
-              '0.0.0.0, so the kernel route decides)' % group_dev)
-        if group_dev != host_dev:
-            blockers.append('multicast group %s routes out %s but Motive is on '
-                            '%s; the data socket would join the wrong '
-                            'interface. Switch Motive to Unicast.'
-                            % (group, group_dev, host_dev))
-        frame_sock = multicast_socket(group, data_port, host_src)
+    try:
+        if is_multicast:
+            print('  multicast join iface: dev=%s interface_ip=%s'
+                  % (host_dev, args.interface_ip))
+            frame_sock = multicast_socket(group, data_port, args.interface_ip)
+        else:
+            frame_sock, _ = natnet_connect(args.hostname, args.port_command)
+    except OSError as exc:
+        frame_sock = None
+        blockers.append('cannot open NatNet data socket: %s' % exc)
+
+    if frame_sock is None:
+        frames, hz, missing = 0, 0.0, 0
     else:
-        frame_sock, _ = natnet_connect(args.hostname, args.port_command)
-
-    frames, hz, missing = count_frames(frame_sock, args.window)
-    frame_sock.close()
+        server_ip = socket.gethostbyname(args.hostname)
+        frames, hz, missing = count_frames(frame_sock, args.window, server_ip)
+        frame_sock.close()
     loss = 100.0 * missing / max(1, frames + missing)
     if frames == 0:
         print('  FAIL FRAMEOFDATA    : none received in %.0fs' % args.window)

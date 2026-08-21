@@ -1,8 +1,9 @@
 # Deployment parameters for the standalone NatNet2ROS2 OptiTrack adapter.
 # Wildcard header: this file is passed ONLY to that node (namespace /optitrack)
-# by natnet2ros2.launch.py. The launch file overrides `hostname`, exposes the
-# explicit `header_time` safety/diagnostic choice and `output_rate_hz`, and
-# leaves the node's sole ROS output, relative `poses`, under `/optitrack`.
+# by natnet2ros2.launch.py. The launch file overrides `hostname` and
+# `interface_ip`, exposes the explicit `header_time` safety/diagnostic choice
+# and `output_rate_hz`, and leaves the node's sole ROS output, relative `poses`,
+# under `/optitrack`.
 #
 # ---- BALL: strict 6-DOF rigid body (HOPE spec) ------------------------------
 # The ball is a Motive rigid-body ASSET named exactly `Ball`, streamed like
@@ -21,7 +22,7 @@
 # -----------------------------------------------------------------------------
 # Other Motive-side requirements (Motive settings table: docs/OPTITRACK.md,
 # 'Motive-side checklist'): NatNet
-# enabled, Up Axis = Z, Unicast preferred, rigid-body assets named exactly
+# enabled, Up Axis = Z, Multicast, rigid-body assets named exactly
 # Ball, P1, and P2. Assets created/renamed in Motive while the bridge runs
 # SELF-HEAL in ~1-2 s (vendored patch #6 re-requests the model definition when
 # an unnamed body streams); restart the bridge only as a fallback.
@@ -36,14 +37,19 @@
     # explicitly per run via the REQUIRED launch arg
     # (natnet2ros2.launch.py hostname:=<MOTIVE_PC_IP>).
     # For a bare `ros2 run motion_capture_tracking motion_capture_tracking_node`
-    # debug session, add `-p hostname:=<MOTIVE_PC_IP>` yourself.
+    # debug session, add both `-p hostname:=<MOTIVE_PC_IP>` and
+    # `-p interface_ip:=<ADAPTER_WIRED_IP>` yourself. `interface_ip` is passed
+    # explicitly per run. It is this Linux
+    # computer's wired NIC address on the Motive network, not the Motive IP.
+    # Multicast intentionally fails closed when it is empty or 0.0.0.0.
 
     topics:
       frame_id: "world"
       # Cap the filtered NamedPoseArray output while still receiving and
       # validating every NatNet source frame. The selected frame keeps its
       # acquisition timestamp; no averaging or re-stamping is performed. Set
-      # 0.0 for the native valid-frame rate.
+      # 0.0 for the native valid-frame rate (300 Hz in the competition Motive
+      # profile).
       output_rate_hz: 200.0
       # Convert NatNet CameraMidExposureTimestamp from Motive's QPC domain into
       # this adapter host's absolute ROS system-time/Unix epoch. The driver uses

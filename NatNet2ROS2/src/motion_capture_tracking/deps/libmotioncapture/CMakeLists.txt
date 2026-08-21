@@ -104,6 +104,11 @@ if (BUILD_TESTING)
   add_executable(test_natnet_clock_sync tests/test_natnet_clock_sync.cpp)
   target_include_directories(test_natnet_clock_sync PRIVATE include)
   add_test(NAME test_natnet_clock_sync COMMAND test_natnet_clock_sync)
+
+  add_executable(test_natnet_modeldef tests/test_natnet_modeldef.cpp)
+  target_include_directories(
+    test_natnet_modeldef PRIVATE include ${EIGEN3_INCLUDE_DIRS})
+  add_test(NAME test_natnet_modeldef COMMAND test_natnet_modeldef)
 endif()
 
 if (LIBMOTIONCAPTURE_ENABLE_OPTITRACK_CLOSED_SOURCE)

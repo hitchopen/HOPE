@@ -92,7 +92,7 @@ In Motive's Data Streaming pane:
 |---------|----------------|-------|
 | Enable NatNet | ✅ Enabled | This backend consumes NatNet (cmd port 1510) |
 | Up Axis | **Z Axis** | Critical — aligns with the HOPE REP 103 Z-up frame; the relay applies no frame conversion |
-| Transmission | Unicast preferred | Auto-negotiated from the server response; unicast keeps venue switches happy |
+| Transmission | **Multicast** | Competition profile; default group `239.255.42.99` and data port `1511` |
 | Rigid Bodies | **ON** | Competition assets named exactly `Ball`, `P1`, and `P2` |
 | Labeled/Unlabeled Markers | OFF (optional) | Not consumed — the ball is a rigid-body asset |
 | Skeletons | OFF | Not used |
@@ -120,9 +120,14 @@ In Motive's Data Streaming pane:
 - Units stream in **metres** → `position_scale:=1.0` (default). Sanity check:
   `/P1/pose` reading hundreds means a millimetre feed → `0.001`.
 
+Set Motive's **Local Interface** to its wired arena-network NIC. The adapter
+must be on the same VLAN/L2 segment unless multicast routing is explicitly
+provided. The managed switch must pass IGMP membership traffic; when IGMP
+snooping is enabled, ensure the venue supplies an IGMP querier.
+
 Note: the "VRPN port 3883" Motive also exposes is its legacy VRPN broadcast —
-NOT used by this backend (NatNet cmd 1510; the data port and
-unicast-vs-multicast are auto-negotiated from the server response).
+NOT used by this backend (NatNet cmd 1510; data port 1511 and multicast group
+`239.255.42.99` for the competition profile).
 
 ### Acquisition timestamps
 
@@ -344,8 +349,11 @@ stack both corrections (see [interfaces/frames.md](interfaces/frames.md)).
 ### Preflight (before launch, no ROS required)
 
 ```bash
-ros2 run hope_bringup natnet_preflight.py --hostname <MOTIVE_PC_IP>
-# or directly: ./hope_ws/src/hope_bringup/scripts/natnet_preflight.py --hostname <MOTIVE_PC_IP>
+ros2 run hope_bringup natnet_preflight.py \
+  --hostname <MOTIVE_PC_IP> --interface-ip <ADAPTER_WIRED_IP>
+# or directly:
+./hope_ws/src/hope_bringup/scripts/natnet_preflight.py \
+  --hostname <MOTIVE_PC_IP> --interface-ip <ADAPTER_WIRED_IP>
 ```
 
 `natnet_preflight.py` speaks the NatNet command protocol itself and separates
@@ -354,11 +362,12 @@ silent): Motive unreachable / streaming disabled, Motive ignoring the
 model-definition request (see the adapter driver's PIN.md patch #9 — on
 Motive 3.1 / NatNet 4.1 this used to hang the driver's constructor before it
 created any publisher), NatNet echo clock synchronization unavailable, and
-frames not reaching this host (wrong interface, multicast routed out a VPN
-tunnel, firewall). It reports the minimum echo RTT / midpoint uncertainty,
-verifies the `Ball` and `P1` assets in the model definition, and gates on the
-measured frame rate (`--min-hz`, default 250). Exit code 0 means the bridge
-should come up.
+frames not reaching this host (wrong interface, multicast/IGMP, firewall).
+It requires Motive 3.2.0.2, NatNet 4.2, the competition multicast group/port,
+decodes the 4.2 model definition to verify `Ball`, `P1`, and `P2`, reports the
+minimum echo RTT / midpoint uncertainty, and gates on the measured frame rate
+(`--min-hz`, default 270 for the 300 Hz competition source). Exit code 0 means
+the bridge should come up.
 
 ### Launch
 
@@ -367,7 +376,7 @@ Start the raw adapter from its own workspace:
 ```bash
 source NatNet2ROS2/install/setup.bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP>
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 ```
 
 Then start the independently built HOPE relay and planner. Source the adapter
@@ -379,11 +388,21 @@ source hope_ws/install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
-`hostname` is a REQUIRED argument with no default — venue values are passed
-explicitly to the adapter, never baked in. Driver/timestamp config:
+`hostname` is required and `interface_ip` is required for live multicast; venue
+values are never baked in. `hostname` is the Motive server address;
+`interface_ip` is the local wired NIC address used for `IP_ADD_MEMBERSHIP`.
+The empty interface default exists only so the mock backend can launch without
+a physical NIC; a multicast server fails closed. Driver/timestamp config:
 [`hope_optitrack.yaml`](../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml).
 Relay config (name → topic mapping, scale):
 [`config/optitrack_relay.yaml`](../hope_ws/src/hope_bringup/config/optitrack_relay.yaml).
+
+Managed rally startup requires either
+`--mocap-interface-ip <ADAPTER_WIRED_IP>` or the equivalent
+`HOPE_MOTIVE_INTERFACE_IP` environment variable. Foxglove lifecycle startup
+reads `HOPE_MOTIVE_INTERFACE_IP` from
+`~/.config/hope-foxglove/lifecycle.env`. Both paths validate that the route to
+Motive uses that source address before starting NatNet.
 
 ### Verify
 
@@ -434,9 +453,9 @@ For bag replay, record `/optitrack/poses` at a live session
 
 ## Source/output rate and the C++ packetizer window
 
-The camera rate and ROS output rate are now intentionally distinct. OptiTrack
-rigs commonly capture at 360 Hz, while NatNet2ROS2 receives every frame and
-publishes at a configurable maximum of 200 Hz by default. The production C++
+The camera rate and ROS output rate are intentionally distinct. Competition
+Motive captures at 300 Hz, while NatNet2ROS2 receives every frame and publishes
+at a configurable maximum of 200 Hz by default. The production C++
 packetizer uses the time-based `flight_window_s` parameter, not the retired
 Python Planner's sample-count `fit_window`. Its default is 0.18 s in
 [`model21800_flight_packetizer.yaml`](../hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml).
@@ -457,7 +476,7 @@ Motive LAN to the robot's network. Where DDS multicast discovery does not work
 # Laptop (runs the independent raw adapter; peers with the robot host):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <ROBOT_HOST_IP> -- \
   ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-    hostname:=<MOTIVE_PC_IP>
+    hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 
 # Robot host (sources the interface package, then runs HOPE relay + planner):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <LAPTOP_IP> -- \
@@ -472,7 +491,7 @@ whitelist derived from the route to each peer) and sets
 
 | Symptom | Cause / fix |
 |---|---|
-| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`, firewall on UDP 1510/1511, not on the Motive LAN, or all frames are failing the configured timestamp gates. Inspect the adapter log, `ping` the Motive PC, then run `natnet_preflight.py --hostname <MOTIVE_PC_IP>` to pinpoint the failing stage. |
+| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`/`interface_ip`, firewall on UDP 1510/1511, broken IGMP membership, not on the Motive VLAN, or all frames are failing the timestamp gates. Run `natnet_preflight.py --hostname <MOTIVE_PC_IP> --interface-ip <ADAPTER_WIRED_IP>` to pinpoint the failing stage. |
 | `/optitrack/poses` exists with `Publisher count: 0`, nothing logged | Pre-patch-#9 driver hung in its constructor: Motive 3.1 / NatNet 4.1 silently drops payload-less model-definition requests. Fixed in the pinned adapter driver (type-mask request + bounded handshake — it now retries and then exits with an error instead of hanging); `natnet_preflight.py` reports this Motive behavior explicitly. |
 | `/optitrack/poses` continues near 200 Hz with `poses: []` | NatNet transport and timestamp gates are live, but no valid exact-name `Ball`, `P1`, or `P2` asset is present in the selected frames. Check Motive tracking/streaming and case-sensitive asset names. The relay intentionally emits no downstream pose or TF. |
 | Objects stream but nothing relayed | Motive asset names don't match the exact adapter allowlist and `optitrack_relay.yaml` (`Ball`/`P1`/`P2`, case-sensitive), or only empty heartbeats are arriving. Check `ros2 topic echo --once /optitrack/poses`. |

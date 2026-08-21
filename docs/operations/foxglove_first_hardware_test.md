@@ -11,7 +11,7 @@ Foxglove 不是远程终端。它只能确认四个 IP、启动/停止固定流�
 
 ## 0. 设置现场参数并确认执行环境
 
-先在 **Laptop HOST** 的仓库根目录执行下面的 block。把四个尖括号占位符换成
+先在 **Laptop HOST** 的仓库根目录执行下面的 block。把五个尖括号占位符换成
 现场真实地址；本文后续 Laptop 命令均复用这些变量：
 
 ```bash
@@ -23,6 +23,7 @@ export LAPTOP_IP=<laptop-wifi-ip>
 export HDU_IP=<hdu-wifi-ip>
 export MDU_IP=<mdu-internal-ip>
 export MOTIVE_IP=<motive-ip>
+export MOTIVE_INTERFACE_IP=<laptop-motive-nic-ip>
 export ROS_DOMAIN_ID=232
 export DOWNLOAD_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
 
@@ -31,8 +32,8 @@ export DOWNLOAD_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
 
 printf 'HOPE_ROOT=%s\nLAPTOP_USER=%s\nROBOT_USER=%s\n' \
   "$HOPE_ROOT" "$LAPTOP_USER" "$ROBOT_USER"
-printf 'Laptop=%s HDU=%s MDU=%s Motive=%s\n' \
-  "$LAPTOP_IP" "$HDU_IP" "$MDU_IP" "$MOTIVE_IP"
+printf 'Laptop=%s HDU=%s MDU=%s Motive=%s MotiveInterface=%s\n' \
+  "$LAPTOP_IP" "$HDU_IP" "$MDU_IP" "$MOTIVE_IP" "$MOTIVE_INTERFACE_IP"
 ```
 
 不要把真实地址、密码或私钥提交到 Git。重新打开终端后，需要重新执行这个
@@ -54,6 +55,7 @@ Laptop Wi-Fi IP   $LAPTOP_IP
 HDU Wi-Fi IP      $HDU_IP
 MDU internal IP   $MDU_IP
 Motive IP         $MOTIVE_IP
+Motive NIC IP     $MOTIVE_INTERFACE_IP
 ROS_DOMAIN_ID     232
 Foxglove control  ws://$HDU_IP:8766
 ```
@@ -210,8 +212,8 @@ sudo install -D -o root -g root -m 0755 \
   /usr/local/libexec/hope-lifecycle
 
 install -d -m 0700 "$HOME/.config/hope-foxglove"
-printf 'HOPE_ROOT=%q\nHOPE_LAPTOP_USER=%q\nHOPE_ROBOT_USER=%q\n' \
-  "$HOPE_ROOT" "$LAPTOP_USER" "$ROBOT_USER" \
+printf 'HOPE_ROOT=%q\nHOPE_LAPTOP_USER=%q\nHOPE_ROBOT_USER=%q\nHOPE_MOTIVE_INTERFACE_IP=%q\n' \
+  "$HOPE_ROOT" "$LAPTOP_USER" "$ROBOT_USER" "$MOTIVE_INTERFACE_IP" \
   > "$HOME/.config/hope-foxglove/lifecycle.env"
 chmod 0600 "$HOME/.config/hope-foxglove/lifecycle.env"
 
@@ -1084,6 +1086,9 @@ ping -c 3 ${MOTIVE_IP}
 ping -c 3 ${HDU_IP}
 ip route get ${MOTIVE_IP}
 ip route get ${HDU_IP}
+
+test "$(ip route get "${MOTIVE_IP}" | sed -n 's/.* src \([^ ]*\).*/\1/p' | head -n1)" = \
+  "${MOTIVE_INTERFACE_IP}"
 
 ssh -o BatchMode=yes ${ROBOT_USER}@${HDU_IP} true
 ssh -o BatchMode=yes -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} true

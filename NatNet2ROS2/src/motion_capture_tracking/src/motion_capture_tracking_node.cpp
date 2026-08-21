@@ -57,6 +57,7 @@ int main(int argc, char **argv)
   auto node = rclcpp::Node::make_shared("motion_capture_tracking_node");
   node->declare_parameter<std::string>("type", "vicon");
   node->declare_parameter<std::string>("hostname", "localhost");
+  node->declare_parameter<std::string>("interface_ip", "");
   node->declare_parameter<std::string>("topics.frame_id", "world");
   node->declare_parameter<std::string>("topics.header_time", "ros");
   node->declare_parameter<double>("topics.output_rate_hz", 200.0);
@@ -76,6 +77,8 @@ int main(int argc, char **argv)
 
   std::string motionCaptureType = node->get_parameter("type").as_string();
   std::string motionCaptureHostname = node->get_parameter("hostname").as_string();
+  std::string motionCaptureInterfaceIp =
+    node->get_parameter("interface_ip").as_string();
   std::string frame_id = node->get_parameter("topics.frame_id").as_string();
   std::string header_time = node->get_parameter("topics.header_time").as_string();
   double output_rate_hz = node->get_parameter("topics.output_rate_hz").as_double();
@@ -183,6 +186,7 @@ int main(int argc, char **argv)
   // Make a new client
   std::map<std::string, std::string> cfg;
   cfg["hostname"] = motionCaptureHostname;
+  cfg["interface_ip"] = motionCaptureInterfaceIp;
   cfg["enable_clock_sync"] = header_time == "camera_utc" ? "true" : "false";
 
   // if the mock type is selected, add the defined rigid bodies

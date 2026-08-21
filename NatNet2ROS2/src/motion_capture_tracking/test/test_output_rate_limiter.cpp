@@ -44,6 +44,19 @@ void testNonIntegerDownsamplingKeepsAverageRate()
   assert(published <= 1201);
 }
 
+void testCompetitionProfileDownsamples300To200Hz()
+{
+  OutputRateLimiter limiter(200.0);
+  size_t published = 0;
+  for (size_t i = 0; i < 3000; ++i) {
+    if (limiter.shouldPublish(static_cast<double>(i) / 300.0)) {
+      ++published;
+    }
+  }
+  assert(published >= 1999);
+  assert(published <= 2001);
+}
+
 void testNoCatchUpBurstAfterDelay()
 {
   OutputRateLimiter limiter(100.0);
@@ -99,6 +112,7 @@ int main()
   testUnlimitedRatePublishesEveryFrame();
   testExactIntegerDownsampling();
   testNonIntegerDownsamplingKeepsAverageRate();
+  testCompetitionProfileDownsamples300To200Hz();
   testNoCatchUpBurstAfterDelay();
   testBackwardsClockResetPublishesImmediately();
   testInvalidInputsAreRejected();

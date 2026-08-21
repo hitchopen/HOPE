@@ -35,8 +35,12 @@ upstream legacy launch files were removed because they bypassed the hardened
 ```bash
 source NatNet2ROS2/install/setup.bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP>
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 ```
+
+`hostname` is the Motive computer. `interface_ip` is the IPv4 address assigned
+to this computer's wired NIC on the Motive network. They are different values;
+multicast startup fails closed if `interface_ip` is omitted or `0.0.0.0`.
 
 In normal operation the adapter publishes exactly one ROS 2 topic:
 
@@ -60,7 +64,8 @@ adapter with marker output enabled before each PREPARE that begins a new run:
 
 ```bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP> publish_p1_markers:=true
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP> \
+  publish_p1_markers:=true
 ```
 
 This adds `/optitrack/rigid_body_markers` for the ten-marker capture. Every
@@ -74,14 +79,16 @@ robot is playing. The robot receives `/a3/base_pose_flat`, never the JSON.
 
 The adapter receives and validates every NatNet source frame but publishes the
 filtered named-pose array at no more than `topics.output_rate_hz`. The default
-is **200 Hz**. The selected frame keeps its original acquisition timestamp; the
+is **200 Hz**, independently of the competition Motive native rate of 300 Hz.
+The selected frame keeps its original acquisition timestamp; the
 limiter does not average, interpolate, replay, or re-stamp data.
 
 Set the maximum rate at launch:
 
 ```bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP> output_rate_hz:=200.0
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP> \
+  output_rate_hz:=200.0
 ```
 
 Use `output_rate_hz:=0.0` to disable downsampling and publish every valid
@@ -155,7 +162,8 @@ timestamp mode:
 
 ```bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP> header_time:=ros
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP> \
+  header_time:=ros
 ```
 
 ## Connect to HOPE
@@ -170,7 +178,7 @@ Same-host example:
 # Terminal 1: raw NatNet adapter
 source NatNet2ROS2/install/setup.bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP>
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 
 # Terminal 2: HOPE relay and planner
 source NatNet2ROS2/install/setup.bash
