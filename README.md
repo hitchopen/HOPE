@@ -94,6 +94,19 @@ timestamp in the adapter host computer's NTP-disciplined
 `RCL_SYSTEM_TIME`/Unix epoch. Here “world clock” means absolute UTC/Unix wall
 clock, not the ROS `world` coordinate frame.
 
+The OptiTrack competition baseline is **MotiveBody 3.5.0.1 Beta 1 with native
+NatNet 4.5 multicast**: command port `1510`, data port `1511`, and multicast
+group `239.255.42.99`. Motive's arena-network Local Interface is
+`192.168.50.1`; pass that server address as NatNet2ROS2 `hostname`, while
+`interface_ip` must be the adapter computer's own wired-NIC IPv4 address.
+Because multicast always carries Motive's native bitstream, the adapter's
+bounded NatNet 4.1+ decoder skips the additive 4.5 IMU/GPIO sections safely
+instead of requesting an older stream version. The venue preflight also gates
+the MotiveBody/NatNet versions, multicast settings, competition assets, clock
+mapping, and native frame rate. See the
+[OptiTrack bring-up guide](docs/OPTITRACK.md) and
+[NatNet2ROS2 details](NatNet2ROS2/README.md).
+
 Both adapters validate every received source report before applying a
 configurable ROS 2 output-rate cap, reducing DDS traffic without changing the
 selected report's source timestamp. Set `output_rate_hz:=0.0` to publish
@@ -101,7 +114,7 @@ every accepted report.
 
 | Adapter | Default ROS 2 output cap | Downsampled output |
 |---|---:|---|
-| **NatNet2ROS2** | **200 Hz** | One filtered `/optitrack/poses` array containing only available `Ball`, `P1`, and `P2` entries; an empty array is the live-source/no-competition-body heartbeat; no raw marker cloud or duplicate TF output |
+| **NatNet2ROS2** | **200 Hz** | Receives the 300 Hz NatNet 4.5 competition source and publishes one filtered `/optitrack/poses` array containing only available `Ball`, `P1`, and `P2` entries; an empty array is the live-source/no-competition-body heartbeat; no raw marker cloud or duplicate TF output |
 | **VRPN2ROS2** | **200 Hz** | Each pose, velocity, and acceleration topic independently, per tracker sensor |
 
 | Adapter | Source timestamp | Conversion into the adapter host world clock | Trust requirement |
@@ -222,7 +235,7 @@ The competition rulebooks ship at the repository root:
 | `HOPE_AI_Challenge_2026_Rules_EN.docx`, `..._ZH.docx` | Challenge rulebooks (English / 中文). |
 | `configs/` | The shared no-spin ball model: the generic [ball_physics.yaml](configs/ball_physics.yaml) plus the real venue fits [ball_physics_venue.yaml](configs/ball_physics_venue.yaml) and [incoming_ball_venue.yaml](configs/incoming_ball_venue.yaml) (measured drag/restitution and the serve envelope used by the proven line). |
 | `hope_training/` | The Isaac Lab training extension (`whole_body_tracking/` with the `HitterPingPong` task and the train/eval/export scripts, including `scripts/prepare_a3_isaac_asset.py`), the complete validated forehand/backhand reference motions (`motions/preprocessed/`), the canonical A3 joint order (`config/joint_order_agibot_a3.yaml`), and the ball-physics fitting tools (`ball_physics_fit/`). |
-| `NatNet2ROS2/` | Independent ROS 2 workspace for the OptiTrack/Motive NatNet adapter, named-pose interfaces, acquisition-time mapping, and driver tests. Build and launch it separately from `hope_ws`. |
+| `NatNet2ROS2/` | Independent ROS 2 workspace for the OptiTrack/MotiveBody NatNet 4.5 multicast adapter, named-pose interfaces, acquisition-time mapping, and driver tests. Build and launch it separately from `hope_ws`. |
 | `VRPN2ROS2/` | Independent ROS 2 workspace for the ChingMu/VRPN client, strict server-time/NTP validation, and raw per-tracker `PoseStamped` topics. |
 | `hope_ws/` | ROS 2 workspace: `hope_planner_cpp` (the supported C++ packetizer/Planner runtime), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (wire messages), and `calibration_receipts/` (venue calibration evidence). The retired Python Planner source is excluded from colcon and retained only for offline comparison. Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
 | `a3_deploy/` | The native C++ deploy runner, gate/rehearsal script suite, parity harness, and deploy runbooks (`a3_deploy_example/`); the MuJoCo/AimRT simulation fork with the real ball plant (`A3_MuJoCo_Sim/`); and the optional user-supplied URDF override location (`URDF/`). |
@@ -234,8 +247,8 @@ The competition rulebooks ship at the repository root:
 
 ```
        ┌──────────────────────────────┐   ┌──────────────────────────────┐
-       │ OptiTrack Motive             │   │ Chingmu CMTracker / MCServer │
-       │ NatNet UDP                   │   │ VRPN server                  │
+       │ MotiveBody 3.5.0.1 Beta 1    │   │ Chingmu CMTracker / MCServer │
+       │ NatNet 4.5 multicast, 300 Hz │   │ VRPN server                  │
        │ Ball / P1 / P2               │   │ Ball / P1 / P2               │
        └──────────────┬───────────────┘   └──────────────┬───────────────┘
                       │ NatNet                            │ VRPN
