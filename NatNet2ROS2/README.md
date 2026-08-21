@@ -38,6 +38,11 @@ ros2 launch motion_capture_tracking natnet2ros2.launch.py \
   hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 ```
 
+This supported launch respawns the adapter after two seconds when a bounded
+NatNet stream timeout or another fatal driver error produces a clean non-zero
+exit. A bare `ros2 run motion_capture_tracking motion_capture_tracking_node`
+has no launch supervisor and is intended only for attended diagnostics.
+
 `hostname` is the Motive computer. `interface_ip` is the IPv4 address assigned
 to this computer's wired NIC on the Motive network. They are different values;
 multicast startup fails closed if `interface_ip` is omitted or `0.0.0.0`.

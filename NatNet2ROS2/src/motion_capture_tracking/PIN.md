@@ -183,10 +183,21 @@ License: MIT (upstream `LICENSE` kept in this directory).
     by 4.1/4.2 plus truncation fixtures. Multicast requires an explicit local
     `interface_ip`; the driver logs the group/interface/buffer, rejects packets
     from other hosts and invalid declared lengths, omits unicast-only recurring
-    keepalives, and exits on a one-second frame timeout so a supervisor can
-    restart it. The matching preflight uses the same interface,
+    keepalives, and exits cleanly with a non-zero status on a one-second frame
+    timeout. The supported standalone launch respawns the node after two
+    seconds, while managed venue supervisors retain their own lifecycle
+    recovery. The matching preflight uses the same interface,
     performs a real 4.2 MODELDEF decode, and gates the Motive/NatNet versions,
     multicast group/port, and all three competition assets.
+
+    Maintenance note: the C++ MODELDEF decoder in
+    `deps/libmotioncapture/include/libmotioncapture/natnet_modeldef.h` and the
+    Python venue decoder in
+    `hope_ws/src/hope_bringup/scripts/natnet_preflight.py` intentionally
+    implement the same wire schema. Port every schema, version-gate, bounds,
+    or dataset-skip fix to both implementations in the same change, with
+    matching fixtures in `deps/libmotioncapture/tests/test_natnet_modeldef.cpp`
+    and `hope_ws/src/hope_bringup/test/test_natnet_preflight_clock_sync.py`.
 
 ## Re-pin procedure
 

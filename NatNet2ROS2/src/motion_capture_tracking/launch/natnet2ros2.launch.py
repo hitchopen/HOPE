@@ -89,6 +89,11 @@ def generate_launch_description():
                 namespace="optitrack",
                 name="motion_capture_tracking_node",
                 output="screen",
+                # The driver exits non-zero after a bounded stream timeout.
+                # Restart here as well as in managed venue supervisors so the
+                # documented standalone launch recovers when Motive resumes.
+                respawn=True,
+                respawn_delay=2.0,
                 parameters=[
                     str(config_path),
                     {

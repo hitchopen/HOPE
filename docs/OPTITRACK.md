@@ -397,6 +397,12 @@ a physical NIC; a multicast server fails closed. Driver/timestamp config:
 Relay config (name → topic mapping, scale):
 [`config/optitrack_relay.yaml`](../hope_ws/src/hope_bringup/config/optitrack_relay.yaml).
 
+The supported `natnet2ros2.launch.py` process exits cleanly on a bounded
+one-second stream timeout and respawns after two seconds, so standalone launch
+recovers after Motive resumes streaming or multicast membership returns. A
+bare `ros2 run motion_capture_tracking motion_capture_tracking_node` has no
+respawn supervisor and is for attended diagnostics only.
+
 Managed rally startup requires either
 `--mocap-interface-ip <ADAPTER_WIRED_IP>` or the equivalent
 `HOPE_MOTIVE_INTERFACE_IP` environment variable. Foxglove lifecycle startup

@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <map>
 #include <limits>
 #include <set>
@@ -51,7 +54,7 @@ std::vector<double> get_vec(const rclcpp::ParameterValue& param_value)
   return param_value.get<std::vector<double>>();
 }
 
-int main(int argc, char **argv)
+int runMotionCaptureTrackingNode(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
   auto node = rclcpp::Node::make_shared("motion_capture_tracking_node");
@@ -561,5 +564,24 @@ int main(int argc, char **argv)
     rclcpp::spin_some(node);
   }
 
-  return 0;
+  rclcpp::shutdown();
+  return EXIT_SUCCESS;
+}
+
+int main(int argc, char **argv)
+{
+  try {
+    return runMotionCaptureTrackingNode(argc, argv);
+  } catch (const std::exception& error) {
+    std::cerr << "[motion_capture_tracking_node] fatal error: "
+              << error.what() << std::endl;
+  } catch (...) {
+    std::cerr << "[motion_capture_tracking_node] fatal unknown exception"
+              << std::endl;
   }
+
+  if (rclcpp::ok()) {
+    rclcpp::shutdown();
+  }
+  return EXIT_FAILURE;
+}
