@@ -6,28 +6,45 @@ This repository contains the full HOPE stack for the Agibot A3: Isaac Lab traini
 
 ## How To Read This Repository
 
-Start with this README, run the published model via
+Start with the verified new-machine setup in
+[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md), run the published model via
 [docs/MODEL_21800.md](docs/MODEL_21800.md), then follow
 [QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) to train or export your own.
 The rest of the repository is organized into four layers:
 
 | Layer | What to read or run | Purpose |
 |-------|---------------------|---------|
-| Required path | `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/` (incl. `scripts/prepare_a3_isaac_asset.py`), `agibot/URDF/A3T2.5-URDF-std-pingpang/` | Prepare the A3 Isaac asset, train the deploy-grade rally policy (`task=HOPEPingPong`), export the ONNX policy, and evaluate it in Isaac and MuJoCo. |
+| Required path | `docs/DISTROBOX_SETUP.md`, `QUICKSTART_A3_ISAAC.md`, `hope_training/whole_body_tracking/` (incl. `scripts/prepare_a3_isaac_asset.py`), `agibot/URDF/A3T2.5-URDF-std-pingpang/` | Reproduce the verified workstation, prepare the A3 Isaac asset, train the deploy-grade rally policy (`task=HOPEPingPong`), export the ONNX policy, and evaluate it in Isaac and MuJoCo. |
 | Stable public contracts | `A3_ASSETS.md`, `docs/interfaces/`, `docs/POLICY_INTERFACE.md`, `docs/PLANNER_INTERFACE.md` | Frame conventions, joint order, the 110-D `hitter_pure` observation / 31-D action policy IO, ROS topics incl. the schema-tagged flat wire, `RacketCommand`, and asset expectations that stay stable when you integrate your own code. |
 | Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/`, `docs/RUN_ON_AGIBOT.md` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app; the native C++ deploy runner with its gate/rehearsal scripts (`a3_deploy/a3_deploy_example/`) and the MuJoCo/AimRT simulation fork with the real ball plant (`a3_deploy/A3_MuJoCo_Sim/`); and Agibot-provided A3 materials. |
 | Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace (Python + C++ planners) for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
-A fresh clone includes the public `model_21800` checkpoint, its exact deploy
-ONNX/parameters, and a MuJoCo video. Other generated Isaac assets, training logs,
+A fresh clone includes a Git LFS pointer for the public `model_21800`
+checkpoint; `git lfs pull` materializes it. The exact deploy ONNX/parameters
+and a MuJoCo video are ordinary tracked files. Other generated Isaac assets, training logs,
 checkpoints, exported `.onnx` files, and ROS build artifacts remain git-ignored;
 Agibot-provided materials under `agibot/` are tracked.
+
+## Reproduce the working environment on a new machine
+
+[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md) is the single source of
+truth for workstation installation. It records the current working machine and
+provides complete copy-paste flows for two isolated environments:
+
+- `grasping`: a digest-pinned NVIDIA Distrobox with Isaac Sim 5.1.0, Python
+  3.11, Isaac Lab 0.54.2, PyTorch 2.7.0+cu128 and `rsl_rl` 3.1.2;
+- `hope`: Ubuntu 24.04 with ROS 2 Jazzy and the native C++/MuJoCo build
+  dependencies.
+
+Do not replace individual packages with their latest releases during initial
+setup. First reproduce the pinned environment and pass its CUDA/import/asset
+smoke; treat a later Isaac or PyTorch upgrade as a separate migration.
 
 ## Run `model_21800`
 
 ```bash
-python3 -m venv .venv-mujoco
-source .venv-mujoco/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
 a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
 ```
@@ -44,12 +61,14 @@ host-only contract tests, isolated racket-contact A/B test, process-free Gate
 
 ```bash
 # 1. Prepare the A3 Isaac asset (bundled racket-equipped URDF)
-cd hope_training/whole_body_tracking
-python3 scripts/prepare_a3_isaac_asset.py --force
+distrobox enter grasping
+if [[ -n "${CONDA_PREFIX:-}" ]]; then conda deactivate; fi
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
+source setup_train_env.sh
+hope_isaac_py scripts/prepare_a3_isaac_asset.py --force
 
-# 2. Train the deploy-grade rally policy (inside your Isaac Lab Python environment).
+# 2. Train the deploy-grade rally policy (inside the pinned Isaac environment).
 #    The complete validated forehand/backhand reference pair is included.
-source setup_train_env.sh        # defines the `hope_isaac_py` Isaac Sim launcher
 hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
     motion_file_2=../motions/preprocessed/hope_backhand.npz
@@ -352,10 +371,13 @@ and [mocap/README.md](mocap/README.md).
 
 Each piece has its own dependencies — install only what the step you are on needs:
 
-- **Training / export**: NVIDIA Isaac Sim + a compatible Isaac Lab installation
-  (with `rsl_rl`), its matching Python/PyTorch environment, and a CUDA GPU
+- **Training / export**: the pinned NVIDIA `grasping` Distrobox documented in
+  [`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md); the checked working
+  stack is Isaac Sim 5.1.0, Isaac Lab 0.54.2, PyTorch 2.7.0+cu128 and
+  `rsl_rl` 3.1.2
 - **MuJoCo evaluation / reference runner**: `mujoco`, `onnxruntime`, `numpy` (no GPU needed)
-- **Planner workspace**: ROS 2 Jazzy (`rclpy`), `numpy`, `pyyaml`
+- **Planner workspace**: the Ubuntu 24.04/ROS 2 Jazzy `hope` Distrobox from the
+  same setup guide (`rclpy`, `numpy`, `pyyaml`, C++ build dependencies)
 - **Real arena**: OptiTrack Motive streams **NatNet** through the independently built/launched `NatNet2ROS2` workspace and the HOPE-side `optitrack_mct_relay` (`mocap_backend:=optitrack`; set Motive **Up Axis = Z** and see [docs/OPTITRACK.md](docs/OPTITRACK.md)). Chingmu CMTracker/MCServer streams **VRPN** through the independent `VRPN2ROS2` workspace and HOPE-side `pose_to_posearray` (`mocap_backend:=vrpn`). In either case configure the named 6-DOF competition rigid bodies `Ball`, `P1`, and `P2`; `Table` is calibration-only and is not streamed during competition.
 
 ## Related Repositories

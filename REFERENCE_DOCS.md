@@ -18,6 +18,7 @@ docs win:
 
 | Topic | Current, authoritative |
 |-------|------------------------|
+| New-machine environment / Distrobox | [`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md) |
 | Observation / action contract | [`docs/POLICY_INTERFACE.md`](docs/POLICY_INTERFACE.md) (compact summary: [`docs/interfaces/policy_io.md`](docs/interfaces/policy_io.md)) |
 | Planner pipeline and `RacketCommand` / flat wire | [`docs/PLANNER_INTERFACE.md`](docs/PLANNER_INTERFACE.md) (topics table: [`docs/interfaces/ros_topics.md`](docs/interfaces/ros_topics.md)) |
 | World / table frame contract (`table_p1_to_p2_v1`) | [`docs/interfaces/frames.md`](docs/interfaces/frames.md) |

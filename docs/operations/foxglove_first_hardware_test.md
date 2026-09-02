@@ -142,19 +142,8 @@ cd "$HOPE_ROOT"
 
 sudo apt-get update
 sudo apt-get install -y \
-  openssh-client openssh-server rsync tmux curl netcat-openbsd podman
+  openssh-client openssh-server rsync tmux curl netcat-openbsd
 sudo systemctl enable --now ssh.service
-
-if ! command -v distrobox >/dev/null 2>&1; then
-  if ! sudo apt-get install -y distrobox; then
-    curl -s \
-      https://raw.githubusercontent.com/89luca89/distrobox/main/install |
-      sh -s -- --prefix "$HOME/.local"
-    grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.bashrc" ||
-      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-    export PATH="$HOME/.local/bin:$PATH"
-  fi
-fi
 
 command -v distrobox >/dev/null
 distrobox --version
@@ -193,7 +182,7 @@ distrobox enter hope -- bash -lc '
 '
 ```
 
-以后没有修改 `HOPE_OPEN/hope_ws` 的 OptiTrack/bringup/flight-packet 源码时，
+以后没有修改 `$HOPE_ROOT/hope_ws` 的 OptiTrack/bringup/flight-packet 源码时，
 不需要每次重编。Foxglove 启动链额外运行 Laptop 数据适配器：它从原生 `/poses`
 生成 `/ball/flight_packet`，但不修改后续已检入的 estimator、bounce、target 或
 schema-2 算法。

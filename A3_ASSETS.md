@@ -40,6 +40,11 @@ uses the racket-equipped package above.
 
 ## Isaac Lab Prepared Copy
 
+On a new workstation, first create the verified `grasping` environment by
+following [docs/DISTROBOX_SETUP.md](docs/DISTROBOX_SETUP.md). Run the commands
+below inside that Distrobox after deactivating Conda and sourcing
+`setup_train_env.sh`; do not use the host `python3` for Isaac asset work.
+
 Isaac Lab loads the prepared asset from:
 
 ```text
@@ -50,8 +55,11 @@ Generate it with (from `hope_training/whole_body_tracking/` — the script lives
 package's `scripts/`):
 
 ```bash
-python3 scripts/prepare_a3_isaac_asset.py --force
-python3 scripts/prepare_a3_isaac_asset.py --check
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
+if [[ -n "${CONDA_PREFIX:-}" ]]; then conda deactivate; fi
+source setup_train_env.sh
+hope_isaac_py scripts/prepare_a3_isaac_asset.py --force
+hope_isaac_py scripts/prepare_a3_isaac_asset.py --check
 ```
 
 The script copies the URDF package into the Python package asset directory,

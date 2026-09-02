@@ -60,12 +60,17 @@ It uses the **open-source NatNet depacketizer**, so it runs on any platform
 
 ## Build
 
-Build and source the adapter workspace independently:
+On a new Laptop, first create the Ubuntu 24.04/ROS 2 Jazzy `hope` environment
+through [`DISTROBOX_SETUP.md`](DISTROBOX_SETUP.md). Build and source the
+adapter workspace independently inside that container:
 
 ```bash
-cd NatNet2ROS2
+distrobox enter hope
+source /opt/ros/jazzy/setup.bash
+cd "$HOME/workspace/HOPE/NatNet2ROS2"
 rosdep install --from-paths src --ignore-src -r -y   # Eigen, Boost, ROS 2 interfaces, ...
-colcon build --symlink-install
+colcon build --symlink-install \
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 source install/setup.bash
 ```
 

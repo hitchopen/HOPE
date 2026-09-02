@@ -8,7 +8,9 @@ Tested target: Linux + ROS 2 Jazzy.
 
 ## Build
 
-From the `VRPN2ROS2` workspace root:
+Use the Ubuntu 24.04/ROS 2 Jazzy `hope` Distrobox documented in the workspace
+[`README`](../../README.md). From the `VRPN2ROS2` workspace root inside that
+container:
 
 ```
 rosdep install --from-paths src --ignore-src -r -y

@@ -3,14 +3,16 @@
 This smoke starts only synthetic ball transport, the C++ flight packetizer and
 the C++ Planner. It does not start the native Runner, HAL or robot control.
 
-Run on an Ubuntu 24.04 host with ROS 2 Jazzy, or inside the `hope` distrobox
-created by [`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md):
+Run the following from the host; the first command enters the Ubuntu
+24.04/ROS 2 Jazzy `hope` Distrobox created by
+[`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md). The documented host
+does not need a second ROS installation:
 
 ```bash
-cd "$HOME/workspace/HOPE_OPEN"
+distrobox enter hope
 source /opt/ros/jazzy/setup.bash
 
-cd hope_ws
+cd "$HOME/workspace/HOPE/hope_ws"
 rosdep install --from-paths src --ignore-src --rosdistro jazzy -y
 colcon build --symlink-install \
   --packages-select hope_msgs hope_bringup hope_planner_cpp \
@@ -29,7 +31,8 @@ ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true
 In a second terminal, source the same ROS and workspace overlays:
 
 ```bash
-cd "$HOME/workspace/HOPE_OPEN/hope_ws"
+distrobox enter hope
+cd "$HOME/workspace/HOPE/hope_ws"
 source /opt/ros/jazzy/setup.bash
 source install/local_setup.bash
 
