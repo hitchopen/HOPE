@@ -37,13 +37,14 @@ replay and HDU/field qualification explicitly promote them.
 
 ## Local build and tests
 
-The commands below assume the ROS-equipped `hope` container already exists.
-On a new machine, create it using
+The commands below use the Ubuntu 24.04/ROS 2 Jazzy `hope` container. On a new
+machine, reproduce it using
 [`docs/DISTROBOX_SETUP.md`](../../../docs/DISTROBOX_SETUP.md) first.
 
 ```bash
 distrobox enter hope
 source /opt/ros/jazzy/setup.bash
+cd "$HOME/workspace/HOPE/hope_ws"
 colcon build --symlink-install \
   --packages-select hope_msgs hope_planner_cpp \
   --cmake-args \

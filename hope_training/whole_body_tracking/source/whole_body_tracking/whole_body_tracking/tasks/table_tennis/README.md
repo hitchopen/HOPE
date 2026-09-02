@@ -32,12 +32,14 @@ which is the single source of truth and is regression-tested against the ITTF/HO
 This needs Isaac Sim / Isaac Lab, which live in the **`grasping` distrobox**. The launcher
 `hope_isaac_py` (defined by `setup_train_env.sh`) runs Isaac's bundled Python with the working-tree
 PYTHONPATH, so your local edits to this task win. On a new machine, first read
-[`docs/DISTROBOX_SETUP.md`](../../../../../../../docs/DISTROBOX_SETUP.md): this
-repository does not create the Isaac-equipped `grasping` container.
+[`docs/DISTROBOX_SETUP.md`](../../../../../../../docs/DISTROBOX_SETUP.md): it
+pins and creates the same Isaac-equipped `grasping` container used by the
+working HOPE workstation.
 
 ```bash
 distrobox enter grasping
-cd /path/to/your/clone/hope_training/whole_body_tracking
+if [[ -n "${CONDA_PREFIX:-}" ]]; then conda deactivate; fi
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
 source setup_train_env.sh                          # defines hope_isaac_py + sets PYTHONPATH
 
 hope_isaac_py scripts/play_table_tennis.py                 # 1 court, robot free-standing, drag OFF (Purdue parity)

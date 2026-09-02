@@ -42,13 +42,17 @@ deployed policy.
 
 ## Launching a run
 
-On a new machine, complete steps 0–4 of
-[QUICKSTART_A3_ISAAC.md](../QUICKSTART_A3_ISAAC.md) first: clone with Git LFS,
-prepare the A3 asset, enter the Isaac environment, source
-`setup_train_env.sh`, install the extension, and run the smoke checks.
+On a new machine, first reproduce the pinned workstation environment in
+[`DISTROBOX_SETUP.md`](DISTROBOX_SETUP.md), then complete steps 0–4 of
+[QUICKSTART_A3_ISAAC.md](../QUICKSTART_A3_ISAAC.md): materialize Git LFS,
+enter `grasping`, deactivate Conda, source `setup_train_env.sh`, prepare the A3
+asset, and run the bounded smoke checks. The pinned launcher uses the
+working-tree source directly; no editable install is required.
 
 ```bash
-cd hope_training/whole_body_tracking
+distrobox enter grasping
+if [[ -n "${CONDA_PREFIX:-}" ]]; then conda deactivate; fi
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
 source setup_train_env.sh        # defines the hope_isaac_py launcher
 hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true \
     motion_file=../motions/preprocessed/hope_forehand.npz \
