@@ -31,10 +31,20 @@ $BALLFIT_DATA_ROOT/
 
 ## Environment
 
-`pip install -r requirements-ballfit.txt` (numpy/scipy/matplotlib always; the `c3d`
-reader is needed ONLY for `extract_canonical.py` — everything downstream runs from
-the extracted npz). Use a Python environment with `c3d` installed for that step;
-a stock system python3 typically lacks it.
+This offline fitting tool uses an isolated host-Python virtual environment; it
+does not run in the Isaac `grasping` or ROS `hope` Distrobox. On a new
+workstation, complete the host prerequisites in
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md), then run:
+
+```bash
+cd "$HOME/workspace/HOPE/hope_training/ball_physics_fit"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-ballfit.txt
+```
+
+NumPy, SciPy and Matplotlib are always used. The `c3d` reader is needed only
+for `extract_canonical.py`; everything downstream runs from the extracted NPZ.
 
 ## Pipeline (run in order)
 

@@ -7,8 +7,14 @@ HOPE planner or the `/poses` aggregator.
 
 ## Build
 
+On a new Laptop, first create the Ubuntu 24.04/ROS 2 Jazzy `hope` environment
+through [`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md), then build
+inside it:
+
 ```bash
-cd VRPN2ROS2
+distrobox enter hope
+source /opt/ros/jazzy/setup.bash
+cd "$HOME/workspace/HOPE/VRPN2ROS2"
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 source install/setup.bash

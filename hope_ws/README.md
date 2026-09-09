@@ -5,8 +5,14 @@ source-specific relays that convert external mocap data into the canonical
 `/poses` interface. It builds independently from both raw motion-capture
 drivers.
 
+On a new Laptop, first create the Ubuntu 24.04/ROS 2 Jazzy `hope` environment
+through [`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md), then build
+inside it:
+
 ```bash
-cd hope_ws
+distrobox enter hope
+source /opt/ros/jazzy/setup.bash
+cd "$HOME/workspace/HOPE/hope_ws"
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 source install/setup.bash

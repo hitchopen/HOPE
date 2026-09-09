@@ -3,6 +3,10 @@
 The supported Planner is `hope_planner_cpp`. The old Python `hope_planner`
 package is an offline reference only and is excluded from colcon.
 
+On a new Laptop, first create the Ubuntu 24.04/ROS 2 Jazzy `hope` Distrobox
+through [`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md). All Laptop ROS
+commands below run in that environment.
+
 ## Choose the procedure
 
 | Goal | Procedure |

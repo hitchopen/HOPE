@@ -34,16 +34,15 @@ no extra assets**.
 
 ## Build the C++ runner
 
-Install the normal host build packages once (Ubuntu/Debian):
+On a new workstation, create the Ubuntu 24.04/ROS 2 Jazzy `hope` container
+through [`DISTROBOX_SETUP.md`](DISTROBOX_SETUP.md). Keep this native build out
+of the Isaac `grasping` environment and out of the Ubuntu 26.04 host Python.
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y cmake g++ libmsgpack-dev libzmq3-dev cppzmq-dev \
-  libeigen3-dev libyaml-cpp-dev libgtest-dev zlib1g-dev wget
-```
+distrobox enter hope
+source /opt/ros/jazzy/setup.bash
 
-```bash
-cd a3_deploy/a3_deploy_example
+cd "$HOME/workspace/HOPE/a3_deploy/a3_deploy_example"
 source setup_a3_env.sh            # ROS 2 env + public ONNX Runtime and Unitree SDK2
 cmake -S . -B build
 cmake --build build --target a3_deploy_onnx_ref_pingpong -j4

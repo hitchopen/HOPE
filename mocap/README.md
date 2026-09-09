@@ -1,5 +1,10 @@
 # Motion capture interface
 
+Laptop ROS commands in this document run inside the Ubuntu 24.04/ROS 2 Jazzy
+`hope` Distrobox. A new Laptop must first complete
+[`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md); do not build these
+workspaces with host or Conda Python.
+
 HOPE drives its planner from an external motion-capture system that streams rigid-body
 poses into ROS 2. During competition the arena streams the named rigid bodies `Ball`,
 `P1`, and `P2` (`Ball` is first in `/poses`; the default VRPN bringup aggregates only it). A

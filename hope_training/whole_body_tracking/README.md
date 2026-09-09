@@ -25,11 +25,11 @@ evaluation design, see [`docs/TRAIN_POLICY.md`](../../docs/TRAIN_POLICY.md).
 
 ## Requirements
 
-- Linux with an NVIDIA CUDA-capable GPU for normal training;
-- mutually compatible Isaac Sim and Isaac Lab installations, including
-  `rsl_rl`;
-- the Python interpreter shipped with that Isaac installation;
-- Git LFS when playing the published `model_21800.pt` checkpoint.
+The supported reproduction environment is the pinned `grasping` Distrobox in
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md). The working-machine
+baseline is Isaac Sim 5.1.0, Python 3.11.13, Isaac Lab 0.54.2, PyTorch
+2.7.0+cu128, Hydra 1.3.2 and `rsl-rl-lib` 3.1.2 on an NVIDIA GPU. Git LFS is
+also required when playing the published `model_21800.pt` checkpoint.
 
 Do not use an arbitrary host or Conda Python for Isaac commands. The included
 `setup_train_env.sh` finds common Isaac installations and defines
@@ -41,21 +41,23 @@ export ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
 export ISAACLAB_ROOT=/absolute/path/to/IsaacLab
 ```
 
-In the common HOPE Distrobox environment, enter the container before sourcing
-the setup script. On a new machine, read
-[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md) first: the repository
-does not create the Isaac-equipped `grasping` container.
+On a new machine, create the pinned container through
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md), then enter it before
+sourcing the setup script. Its shell may activate Conda `base`; deactivate it
+first. Bare `python` in the image is not the supported Isaac interpreter.
 
 ```bash
 distrobox enter grasping
-cd /absolute/path/to/HOPE/hope_training/whole_body_tracking
+if [[ -n "${CONDA_PREFIX:-}" ]]; then conda deactivate; fi
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
 source setup_train_env.sh
 ```
 
 ## First-time setup on a new machine
 
-From the repository root, materialize the published checkpoint if you intend
-to run it in Isaac:
+First complete the host and `grasping` sections of
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md). From the repository
+root, materialize the published checkpoint if you intend to run it in Isaac:
 
 ```bash
 git lfs install
@@ -65,21 +67,26 @@ test "$(stat -c %s hope_training/whole_body_tracking/checkpoints/model_21800.pt)
 
 Training from scratch does not require `model_21800.pt`.
 
-Enter the Isaac environment, then install this package into the selected Isaac
-Python:
+Enter `grasping` and initialize the launcher:
 
 ```bash
-cd /absolute/path/to/HOPE/hope_training/whole_body_tracking
+distrobox enter grasping
+if [[ -n "${CONDA_PREFIX:-}" ]]; then conda deactivate; fi
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
 source setup_train_env.sh
-hope_isaac_py -m pip install -e source/whole_body_tracking
-hope_isaac_py -c "import importlib.util; assert importlib.util.find_spec('whole_body_tracking'); print('HOPE package OK')"
+hope_isaac_py -c "import hydra, omegaconf, torch, importlib.util; assert torch.cuda.is_available(); assert importlib.util.find_spec('isaaclab'); assert importlib.util.find_spec('whole_body_tracking'); print('HOPE package path and runtime OK')"
 ```
+
+`setup_train_env.sh` places the checked-out source first on `PYTHONPATH`, so the
+pinned image does not need an editable package install. Directly importing the
+task package before Kit starts can fail on `omni.*`; use the `find_spec` probe
+above or one of the shipped Isaac entrypoints.
 
 Prepare the bundled racket-equipped Agibot A3 URDF:
 
 ```bash
-python3 scripts/prepare_a3_isaac_asset.py --force
-python3 scripts/prepare_a3_isaac_asset.py --check
+hope_isaac_py scripts/prepare_a3_isaac_asset.py --force
+hope_isaac_py scripts/prepare_a3_isaac_asset.py --check
 ```
 
 The source package is
@@ -87,10 +94,10 @@ The source package is
 is written to
 `source/whole_body_tracking/whole_body_tracking/assets/agibot_a3/`.
 
-Run the host-only regression tests without starting Isaac:
+Run the regression tests through the pinned interpreter without starting Kit:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider tests
+PYTHONDONTWRITEBYTECODE=1 hope_isaac_py -m pytest -q -p no:cacheprovider tests
 ```
 
 ## Train
@@ -181,6 +188,12 @@ The exported actor consumes the same 110-D observation and produces the same
 - `training env NOT ready`: enter the Isaac/Distrobox environment and source
   `setup_train_env.sh` again, or set `ISAAC_PYTHON` and `ISAACLAB_ROOT` in the
   local override file.
+- `ModuleNotFoundError: hydra` or an Isaac warning about active Conda: enter
+  `grasping`, deactivate Conda, re-source `setup_train_env.sh`, and use
+  `hope_isaac_py` instead of bare Python or `python.sh`.
+- `ModuleNotFoundError: omni.timeline` during a direct package import: the task
+  was imported before Kit startup; use the documented `find_spec` check or a
+  shipped entrypoint.
 - `torch.load` fails on a tiny checkpoint: run the Git LFS commands above and
   confirm `model_21800.pt` is larger than 1 MB.
 - A3 URDF or mesh error: rerun asset preparation with `--force`, followed by

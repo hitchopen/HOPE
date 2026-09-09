@@ -61,8 +61,15 @@ There is no swing-side observation — the side travels on the wire as
 
 ## Quickstart (MuJoCo sim, Python harness)
 
+This is the host-Python path from
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md), not an Isaac or ROS
+shell. On a new workstation, create an isolated virtual environment first:
+
 ```bash
-pip install -r reference/requirements.txt          # numpy pyyaml onnxruntime mujoco
+cd "$HOME/workspace/HOPE/a3_deploy/a3_deploy_example"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r reference/requirements.txt
 scripts/run_pingpong_sim.sh --view --realtime      # windowed, wall-clock 50 Hz
 scripts/run_pingpong_sim.sh --duration 20          # headless, 20 s
 ```
@@ -76,11 +83,15 @@ layout and integration seams.
 
 ## Building the C++ runner
 
-On Ubuntu/Debian, install `cmake`, `g++`, `libmsgpack-dev`, `libzmq3-dev`,
-`cppzmq-dev`, `libeigen3-dev`, `libyaml-cpp-dev`, `libgtest-dev`, `zlib1g-dev`
-and `wget` first. Then:
+Use the Ubuntu 24.04/ROS 2 Jazzy `hope` Distrobox created by
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md); its canonical
+package list includes the CMake, compiler, ZeroMQ, Eigen, YAML, GTest and zlib
+dependencies used here. Then:
 
 ```bash
+distrobox enter hope
+source /opt/ros/jazzy/setup.bash
+cd "$HOME/workspace/HOPE/a3_deploy/a3_deploy_example"
 source setup_a3_env.sh        # ROS 2 env + public ONNX Runtime and Unitree SDK2
 cmake -S . -B build
 cmake --build build --target a3_deploy_onnx_ref_pingpong -j4

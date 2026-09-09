@@ -8,8 +8,16 @@ model-specific constants are loaded from the published policy directory.
 
 ## Install & run
 
+Use the isolated host-Python environment from the parent
+[quickstart](../README.md#quickstart-mujoco-sim-python-harness). Do not install
+these packages into `grasping`, `hope`, or the host system Python:
+
 ```bash
-pip install -r requirements.txt
+cd "$HOME/workspace/HOPE/a3_deploy/a3_deploy_example"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r reference/requirements.txt
+cd reference
 export PYTHONPATH="$PWD"          # or use ../scripts/run_pingpong_sim.sh
 python -m a3_deploy_onnx_ref_pingpong \
     --config ../config/hope_pingpong_runtime.yaml \

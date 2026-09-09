@@ -81,7 +81,10 @@ table contacts.
 
 ## Local setup and generation
 
-From this directory:
+This is an offline host-Python workflow, not an Isaac, ROS, or robot runtime.
+On a new workstation, first complete the host prerequisites in
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md), then use the
+isolated virtual environment below from this directory:
 
 ```bash
 python3 -m venv .venv

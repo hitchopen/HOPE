@@ -8,7 +8,7 @@ after any step.
 
 | Step | Needs |
 |------|-------|
-| Train / play / Isaac eval | Isaac Sim + a compatible Isaac Lab install (with `rsl_rl`) and NVIDIA CUDA GPU; use the Python shipped with that Isaac installation |
+| Train / play / Isaac eval | the pinned GPU-enabled `grasping` Distrobox from `docs/DISTROBOX_SETUP.md` |
 | Export ONNX | the training install (torch + onnx) |
 | MuJoCo sim-to-sim eval | `mujoco`, `onnxruntime`, `numpy` (no GPU needed) |
 | Deploy build + closed-loop rehearsal | C++ toolchain (CMake), ROS 2, `onnxruntime` (bundled under `a3_deploy/`) |
@@ -18,35 +18,60 @@ For the same loop with more depth per step, see [`docs/TRAIN_POLICY.md`](docs/TR
 (training/evaluation/export) and [`docs/RUN_ON_AGIBOT.md`](docs/RUN_ON_AGIBOT.md) (deploy); the
 document index is [`REFERENCE_DOCS.md`](REFERENCE_DOCS.md).
 
-## 0. Clone
+On a new workstation, start with
+[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md). It records the exact
+working machine, pins the complete Isaac/PyTorch image, and separately creates
+the ROS 2 `hope` environment. The generic upstream Isaac Lab installer is an
+alternate migration path, not the reproducible HOPE setup.
+
+## 0. Set up the workstation and clone
+
+On a fresh Ubuntu host, complete sections 1 and 2 of
+[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md). Those steps install and
+verify the NVIDIA driver, Podman CDI, Distrobox and Git LFS; clone HOPE under
+`$HOME`; and create the pinned `grasping` environment.
+
+If the workstation is already prepared and only the clone is missing:
 
 ```bash
-git clone https://github.com/hitchopen/HOPE.git
-cd HOPE
+mkdir -p "$HOME/workspace"
+git clone https://github.com/hitchopen/HOPE.git "$HOME/workspace/HOPE"
+cd "$HOME/workspace/HOPE"
+git lfs install
+git lfs pull
 ```
 
-## 1. Install the training extension
+## 1. Enter and verify the training environment
 
-Follow the [Isaac Lab install guide](https://isaac-sim.github.io/IsaacLab/), then enter its
-GPU/Isaac shell. Source the HOPE launcher first so the editable install cannot accidentally land
-in an unrelated host/Conda Python:
+Enter the pinned container. Its interactive shell may activate Conda `base`;
+deactivate it and source the repository launcher before any Isaac command:
 
 ```bash
-cd hope_training/whole_body_tracking
+distrobox enter grasping
+
+if [[ -n "${CONDA_PREFIX:-}" ]]; then
+  conda deactivate
+fi
+
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
 source setup_train_env.sh
-hope_isaac_py -m pip install -e source/whole_body_tracking
-hope_isaac_py -c "import hydra, omegaconf, importlib.util; assert importlib.util.find_spec('whole_body_tracking'); print('HOPE Python dependencies OK')"
+nvidia-smi -L
+cat /workspace/isaacsim/VERSION
+hope_isaac_py -c "import hydra, omegaconf, torch, importlib.util; assert torch.cuda.is_available(); assert importlib.util.find_spec('isaaclab'); assert importlib.util.find_spec('whole_body_tracking'); print('HOPE training environment OK')"
 ```
 
-The editable package declares `hydra-core` and `omegaconf`; no separate host-Python install is
-required. This check intentionally does not import the task package: Isaac extensions import their
-runtime modules only after `AppLauncher` starts Kit.
+The verified launcher resolves to `/workspace/isaacsim/python.sh` and adds the
+working-tree package before installed packages on `PYTHONPATH`; no editable
+`pip install` is required for the pinned environment. Do not replace
+`hope_isaac_py` with bare `python` or call `import whole_body_tracking` before
+Kit starts. Isaac entrypoints import task modules after `AppLauncher` starts.
 
 If you intend to play the published `model_21800.pt`, install Git LFS on the
 host before cloning, or materialize the checkpoint after cloning. Run these
 commands from the repository root:
 
 ```bash
+cd "$HOME/workspace/HOPE"
 git lfs install
 git lfs pull --include=hope_training/whole_body_tracking/checkpoints/model_21800.pt
 test "$(stat -c %s hope_training/whole_body_tracking/checkpoints/model_21800.pt)" -gt 1000000
@@ -64,8 +89,8 @@ The repository ships the Agibot-provided A3 ping-pong URDF package under
 `hope_training/whole_body_tracking/`:
 
 ```bash
-python3 scripts/prepare_a3_isaac_asset.py --force
-python3 scripts/prepare_a3_isaac_asset.py --check
+hope_isaac_py scripts/prepare_a3_isaac_asset.py --force
+hope_isaac_py scripts/prepare_a3_isaac_asset.py --check
 ```
 
 This copies the meshes and rewrites `package://.../meshes/*.STL` references so Isaac Lab can
@@ -78,24 +103,21 @@ To use your own vendor-supplied copy instead, place it under `a3_deploy/URDF/` (
 [`a3_deploy/URDF/README.md`](a3_deploy/URDF/README.md)) and add
 `--source-root a3_deploy/URDF/<your_a3_package>`.
 
-## 3. Set Up the Training Shell (`hope_isaac_py`)
-
-Distrobox is optional for training. If the host has no `distrobox` command,
-the installation choices and the difference between `hope` and `grasping` are
-documented in [`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md). This
-repository does not create the Isaac-equipped `grasping` container.
+## 3. Understand the training launcher (`hope_isaac_py`)
 
 `setup_train_env.sh` puts the working-tree package source first on `PYTHONPATH` and defines a
 `hope_isaac_py` launcher that runs your Isaac Sim Python with that path. Source it (do not
-execute) in every training shell:
+execute) after entering `grasping` in every training shell:
 
 ```bash
-cd hope_training/whole_body_tracking
+distrobox enter grasping
+if [[ -n "${CONDA_PREFIX:-}" ]]; then conda deactivate; fi
+cd "$HOME/workspace/HOPE/hope_training/whole_body_tracking"
 source setup_train_env.sh
 ```
 
-It probes for a usable Isaac Sim Python on its own. If the probe picks the wrong interpreter,
-or your Isaac Lab is a source checkout, create the git-ignored local override
+The pinned image is auto-detected. Only a deliberately custom Isaac install
+should need the git-ignored local override
 `setup_train_env.local.sh` (auto-sourced) next to it:
 
 ```bash
@@ -104,16 +126,10 @@ export ISAAC_PYTHON=/absolute/path/to/isaacsim/python.sh
 export ISAACLAB_ROOT=/absolute/path/to/IsaacLab   # source checkouts only
 ```
 
-Do not run this step from an ordinary host Python unless Isaac Sim and Isaac
-Lab are installed there. A successful source prints `training env ready` and
-the selected Isaac Python; otherwise `hope_isaac_py` exits immediately with a
-setup error. In the common HOPE/Omnidrones Distrobox, enter the container first:
-
-```bash
-distrobox enter grasping
-cd /absolute/path/to/HOPE/hope_training/whole_body_tracking
-source setup_train_env.sh
-```
+Do not run this step from ordinary host, ROS, or Conda Python. A successful
+source prints `training env ready` and the selected Isaac paths; otherwise
+`hope_isaac_py` exits immediately with a setup error. The complete version
+probe and custom-install boundary are in `docs/DISTROBOX_SETUP.md`.
 
 The public setup does not configure external logging. New runs remain local; the
 published `model_21800` checkpoint is documented in
@@ -135,17 +151,17 @@ with no policy and no checkpoint — use it to verify the asset, ball flight, an
 training. Drop `--headless` for a window; other options: `--num_envs 9`, `--fix_base`,
 `--enable_aero`.
 
-Pure-Python unit tests need no GPU or Isaac install:
+Run the package tests through the same pinned interpreter:
 
 ```bash
-python3 -m pytest tests/ -q
+hope_isaac_py -m pytest tests/ -q
 ```
 
 Before training, you can run the published deployment actor in plain MuJoCo from
 the repository root:
 
 ```bash
-python3 -m venv .venv-mujoco && source .venv-mujoco/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
 a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --duration 10
 ```

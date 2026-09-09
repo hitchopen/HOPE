@@ -16,10 +16,18 @@ The package and executable names remain compatible with the original driver.
 
 ## Build
 
+On a new Laptop, first create the Ubuntu 24.04/ROS 2 Jazzy `hope` environment
+through [`docs/DISTROBOX_SETUP.md`](../docs/DISTROBOX_SETUP.md). Run the build
+inside that container so ROS message generation uses `/usr/bin/python3` rather
+than host or Conda Python:
+
 ```bash
-cd NatNet2ROS2
+distrobox enter hope
+source /opt/ros/jazzy/setup.bash
+cd "$HOME/workspace/HOPE/NatNet2ROS2"
 rosdep install --from-paths src --ignore-src -r -y
-colcon build --symlink-install
+colcon build --symlink-install \
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 source install/setup.bash
 ```
 

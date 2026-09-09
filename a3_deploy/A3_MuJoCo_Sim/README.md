@@ -44,6 +44,16 @@ The original exported URDF source package is not required at runtime. Runtime as
 
 ## Build
 
+For the supported HOPE workstation, first create the Ubuntu 24.04/ROS 2 Jazzy
+`hope` Distrobox through
+[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md), then build inside it:
+
+```bash
+distrobox enter hope
+source /opt/ros/jazzy/setup.bash
+cd "$HOME/workspace/HOPE/a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim"
+```
+
 Build requirements:
 
 - Linux with a C++20 compiler, for example GCC 11+ or Clang 14+.
@@ -53,7 +63,8 @@ Build requirements:
 - OpenGL/X11 development libraries for MuJoCo/GLFW viewer support.
 - ROS2 development environment when `AIMRT_MUJOCO_SIM_BUILD_WITH_ROS2=ON`.
 
-Ubuntu package sketch:
+The canonical `hope` installation already supplies these packages. For a
+deliberately custom Ubuntu environment, the equivalent package sketch is:
 
 ```bash
 sudo apt update
