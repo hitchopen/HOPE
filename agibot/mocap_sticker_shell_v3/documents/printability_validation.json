@@ -1,0 +1,91 @@
+{
+  "status": "GEOMETRY_CHECKED_PRINTABLE_PROTOTYPE",
+  "date": "2026-09-09",
+  "units": "mm",
+  "source_coordinate_frame": "shell_CAD_Y_up",
+  "physical_fit_tested": false,
+  "crash_tested": false,
+  "hardware_thread_confirmed": false,
+  "all_ten_obsolete_external_mounts_and_bores_removed": true,
+  "marker_transforms_unchanged": true,
+  "assembled_half_intersection_volume_mm3": 0.0,
+  "parts": [
+    {
+      "file": "printable/a3_marker_shell_v3_half_a.stl",
+      "sha256": "9b03a06955fb22116666be46f6322f3a7c93b24fab1a04c9dc1307e5870228d3",
+      "triangles": 83340,
+      "vertices": 41618,
+      "watertight": true,
+      "connected_components": 1,
+      "consistent_winding": true,
+      "all_edges_used_twice": true,
+      "transverse_crossings": 0,
+      "coplanar_overlaps": 0,
+      "native_intersection_pairs": 0,
+      "volume_mm3": 132420.37452454524,
+      "bounds_mm": [
+        [
+          -87.7899398803711,
+          -84.87408447265625,
+          -9.796319961547852
+        ],
+        [
+          87.79000854492188,
+          109.20001220703125,
+          79.90754699707031
+        ]
+      ],
+      "reference_surface_sample_count": 27474,
+      "baseline_absolute_sampled_CAD_error_mm": 0.10850299985821749,
+      "final_absolute_sampled_CAD_error_mm": 0.10850299985821749,
+      "largest_increase_in_sampled_CAD_distance_mm": 0.014469564080442752
+    },
+    {
+      "file": "printable/a3_marker_shell_v3_half_b.stl",
+      "sha256": "99c9792bea31973eb2bea6c0d640183fe993d20739308817c6cfe16eb1859c18",
+      "triangles": 102652,
+      "vertices": 51246,
+      "watertight": true,
+      "connected_components": 1,
+      "consistent_winding": true,
+      "all_edges_used_twice": true,
+      "transverse_crossings": 0,
+      "coplanar_overlaps": 0,
+      "native_intersection_pairs": 0,
+      "volume_mm3": 144839.22762986782,
+      "bounds_mm": [
+        [
+          -87.99522399902344,
+          -84.8742446899414,
+          -87.3783187866211
+        ],
+        [
+          87.79019927978516,
+          109.20001220703125,
+          3.5000007152557373
+        ]
+      ],
+      "reference_surface_sample_count": 29896,
+      "baseline_absolute_sampled_CAD_error_mm": 0.16736715443371866,
+      "final_absolute_sampled_CAD_error_mm": 0.16736715443371866,
+      "largest_increase_in_sampled_CAD_distance_mm": 0.01648268581060378
+    }
+  ],
+  "old_bore_probe_count": 250,
+  "new_station_count": 24,
+  "scope": "Closed mesh geometry and sampled source-surface retention checked. Not a physical fit, printer-process, strength, impact or live tracking certification.",
+  "flush_pin": {
+    "file": "printable/a3_marker_shell_v3_flush_pin.stl",
+    "sha256": "f57259bcf324e2b41aae8441b94ff6d50de911d98a023801ff1b90d9d5b35792",
+    "nominal_diameter_mm": 3.45,
+    "length_mm": 1.3,
+    "fit": "Provisional interference fit; verify on a coupon before installing."
+  },
+  "local_wall_sampling": {
+    "front_f1_minimum_vertical_gap_mm": 1.503,
+    "front_f2_f5_minimum_sampled_clearance_mm": 2.494,
+    "rear_minimum_sampled_clearance_mm": 2.41,
+    "old_axis_probe_minimum_material_path_mm": 2.29267879076572,
+    "limits": "Different sampling methods, not a certified global minimum thickness. The approximately 1.5 mm local f1 edge is thinner than the nominal 2.5 mm skin."
+  }
+}
