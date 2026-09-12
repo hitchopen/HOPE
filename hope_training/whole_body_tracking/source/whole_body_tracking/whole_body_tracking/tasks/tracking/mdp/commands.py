@@ -41,10 +41,14 @@ class MotionLoader:
     def __init__(
         self,
         motion_file,
-        body_indexes: Sequence[int],
+        body_indexes: Sequence[int] | torch.Tensor,
         device: str = "cpu",
         articulation_body_count: int | None = None,
     ):
+        # Motion arrays are selected in NumPy before transfer to the simulator.
+        # Live articulation indexes may already reside on the GPU.
+        if isinstance(body_indexes, torch.Tensor):
+            body_indexes = body_indexes.detach().cpu().numpy()
         files = [motion_file] if isinstance(motion_file, str) else list(motion_file)
         assert len(files) >= 1, "MotionLoader needs at least one motion file"
         jp, jv, bp, bq, bl, ba = [], [], [], [], [], []
