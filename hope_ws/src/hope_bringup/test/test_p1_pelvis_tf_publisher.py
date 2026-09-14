@@ -10,6 +10,8 @@ import pytest
 
 
 _SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "p1_pelvis_tf_publisher"
+sys.path.insert(0, str(_SCRIPT.parent))
+from p1_marker_layout import layout_metadata
 
 
 def _load_module():
@@ -28,11 +30,13 @@ def test_loads_and_normalizes_p1_to_pelvis_transform(tmp_path):
     path.write_text(
         json.dumps(
             {
+                "approved": True,
+                "marker_layout": layout_metadata(),
                 "p1_to_pelvis": {
                     "parent_frame": "P1",
                     "child_frame": "pelvis_link",
                     "translation_m": [0.0024, 0.0, 0.1490],
-                    "quaternion_xyzw": [0.0, 0.0, 0.0, 2.0],
+                    "quaternion_xyzw": [0.0, 0.0, 0.0, 1.2],
                 }
             }
         ),
@@ -53,6 +57,8 @@ def test_rejects_zero_norm_quaternion(tmp_path):
     path.write_text(
         json.dumps(
             {
+                "approved": True,
+                "marker_layout": layout_metadata(),
                 "p1_to_pelvis": {
                     "parent_frame": "P1",
                     "child_frame": "pelvis_link",
@@ -64,7 +70,7 @@ def test_rejects_zero_norm_quaternion(tmp_path):
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="non-zero norm"):
+    with pytest.raises(ValueError, match="norm is outside"):
         module.load_calibration(path)
 
 
@@ -75,6 +81,7 @@ def test_loads_approved_marker_cad_receipt(tmp_path):
         json.dumps(
             {
                 "approved": True,
+                "marker_layout": layout_metadata(),
                 "p1_to_pelvis_link": {
                     "parent_frame": "P1",
                     "child_frame": "pelvis_link",
@@ -98,4 +105,13 @@ def test_rejects_unapproved_marker_receipt(tmp_path):
     path = tmp_path / "rejected.json"
     path.write_text(json.dumps({"approved": False}), encoding="utf-8")
     with pytest.raises(ValueError, match="not approved"):
+        module.load_calibration(path)
+
+
+@pytest.mark.parametrize("document", [{"approved": True}, {}])
+def test_cannot_bypass_runtime_layout_or_approval_gate(tmp_path, document):
+    module = _load_module()
+    path = tmp_path / "legacy.json"
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match="v3 sticker layout|not approved"):
         module.load_calibration(path)

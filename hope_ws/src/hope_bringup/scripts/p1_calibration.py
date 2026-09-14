@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 
 from base_pose_contract import receipt_id_u52
+from p1_marker_layout import validate_receipt_layout
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ def load_p1_calibration(path: Path) -> P1Calibration:
         raise ValueError("P1 calibration document must be a JSON object")
     if document.get("approved") is not True:
         raise ValueError("P1 calibration receipt is not approved")
+    validate_receipt_layout(document)
 
     try:
         if "p1_to_pelvis" in document:

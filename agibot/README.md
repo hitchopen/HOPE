@@ -89,8 +89,8 @@ not interchangeable:
   ball/stud/spacer offset still needs measurement.
 - **Original ten-marker shell:** five front (`f1`–`f5`) and five rear
   (`b1`–`b5`) markers. Its source geometry and coordinate reference remain
-  under [pku/](pku/README.md). The calibration procedure below is specific
-  to this layout, not the 24-station v3 shell.
+  under [pku/](pku/README.md) for historical reference. Its calibration
+  receipts and ball-centre coordinates are not valid for the v3 stickers.
 
 For A3, `pelvis_link` uses ROS axes **X forward, Y left, Z up**. CAD print
 orientation is not a robot-frame registration. Use the v3
@@ -99,16 +99,42 @@ and its metre-valued transform tables; rotating a part for printing does not
 change those tables. Mesh validation does not certify physical fit or crash
 survival for either shell.
 
-### Optional ten-marker P1-to-pelvis calibration
+### V3 sticker P1-to-pelvis calibration
 
-This setup-only tool registers Motive's P1-local marker centres to the
-original hip-shell CAD centres (`f1`–`f5`, `b1`–`b5`). Live same-frame samples
-must pass the installed-layout and residual gates. The named non-collinear
-layout makes the fixed six-DOF transform observable while the robot is
-stationary in PD_STAND.
+`nightly_built` uses **24 round 12 mm stickers, S01–S24**, and the canonical
+[sticker optical-centre table](mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv).
+Both calibration tools read this single table; `colcon` installs it with
+`hope_bringup`. It is already in `pelvis_link` metres, X forward / Y left /
+Z up, including the accepted **0.20 mm** sticker-plus-adhesive thickness.
+Do not add another thickness, CAD-axis rotation, centroid offset, or the old
+ball stand-off. The mounting quaternions in the table are CAD conventions;
+the optical fit uses marker positions, not a round sticker's unobservable roll.
 
-Only run this procedure when the approved integration requires a new
-registration and the installed hardware matches that layout. Do not assume
+The setup tool solves `p_P1 = R_P1_pelvis * p_pelvis + t_P1_pelvis` from the
+live Motive MODELDEF and these CAD centres. It does **not** assume an identity
+transform: Motive's pivot and axes remain configurable. The table is nominal
+CAD geometry, not proof of the installed shell's fit or a physical calibration.
+
+Migration prerequisites:
+
+1. Fit and inspect the v3 shell and all S01–S24 stickers. Use sticker mode
+   only; 12 mm balls require a separately measured ball-centre table/profile.
+2. Redefine Motive `P1` with all 24 stations. The
+   [authoring definition](mocap_sticker_shell_v3/motive_asset/P1_stickers_definition.json)
+   is a reference, **not** a native Motive-importable asset or an approved
+   receipt. Its native-axis conversion still needs a real Motive round-trip
+   and live verification. Enable both rigid bodies and labeled markers.
+3. Restart the NatNet adapter after changing the asset so MODELDEF is fresh.
+   Use verified S01–S24 names when available; otherwise the calibrator matches
+   geometry with ambiguity/residual gates. Stream order and numeric member
+   IDs alone do not identify a station. An explicit `--mapping` is only for
+   physically verified member-ID-to-station correspondence.
+4. Rebuild/source `hope_ws` and generate a **new live receipt**. Old ten-marker
+   receipts are rejected even when marked approved. The checked-in P1 YAML
+   default is now uncalibrated; its zero/identity values are inert placeholders.
+
+Only run this procedure in the approved setup session with the robot safely
+supported as required and the installed hardware matching the table. Do not assume
 that a PREPARE/Ready button invokes it: the legacy TTY orchestration and the
 integrated Runner console have different control paths. Follow the selected
 [Foxglove/operator procedure](../foxglove/README.md).
@@ -126,22 +152,41 @@ source hope_ws/install/setup.bash
 ros2 run hope_bringup p1_marker_cad_calibrator \
   --topic /optitrack/rigid_body_markers \
   --asset-name P1 \
-  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
   --minimum-frames 200 \
   --capture-duration 4 \
   --stationary-prepare \
   --attest-installed-layout \
-  --allow-nominal-only-markers \
   --output calibration/p1_to_pelvis.json
 ```
 
-The attestation/nominal-marker flags are explicit setup assumptions, not a
-substitute for checking the installed layout. An accepted fit atomically
+S01–S24 are the default; no marker-list override is needed. All 24 must be
+**defined** in MODELDEF, but they need not be visible in the same frame. The
+collector accumulates at least 30 non-occluded, point-cloud-solved samples for
+each sticker across the capture. If a station stays hidden, correct the camera
+coverage in the approved setup procedure; do not bypass the gate or move an
+active robot to satisfy it. Default quality limits remain 3 mm registration
+RMS / 6 mm maximum, 5 mm pairwise RMS, and 4 mm live RMS / 5 mm maximum.
+
+`--attest-installed-layout` confirms the physical installation, not a measured
+pelvis reference. The service uses the same v3 defaults and treats an operator
+calibration request as that attestation; verify the installation before invoking
+it. An accepted fit atomically
 replaces `calibration/p1_to_pelvis.json` on that external computer. The relay
 then reads the fixed `P1 → pelvis_link` transform for the run, composes it with
 live `world → P1`, and publishes `/a3/base_pose_flat` plus the unshifted
 diagnostic `/a3/mocap/pelvis_pose`. No recalculation occurs during play. The
 robot receives `/a3/base_pose_flat`, not the JSON.
+
+The receipt records the layout ID `A3_marker_shell_v3_stickers_12mm`, table
+SHA-256, per-member S-name correspondence, CAD transforms and live residuals.
+Both the relay and optional static-TF publisher check the current layout/table
+identity and explicit approval. A failed capture leaves the previous file
+untouched and writes a rejected diagnostic receipt when analysis completes;
+an old-layout file remains unusable. Historical receipts are retained for audit.
+If the canonical table changes, review its coordinates, update the pinned
+hash/profile in `hope_bringup/scripts/p1_marker_layout.py` and matching tests,
+and rebuild both the installed table and code in the same change. Never bypass
+a hash mismatch; a changed table requires fresh live calibration.
 
 Do not confuse this result with `/a3/calibration/pelvis_pose`, the independent
 input to the older pose-pair calibrator. No checked-in hardware node produces

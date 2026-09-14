@@ -93,7 +93,7 @@ ros2 launch motion_capture_tracking natnet2ros2.launch.py \
 This adds `/optitrack/rigid_body_markers` for capture; it does not itself run
 robot calibration. The A3 installed-layout requirements, capture procedure
 and receipt lifecycle are maintained in
-[agibot/README.md](../agibot/README.md#optional-ten-marker-p1-to-pelvis-calibration).
+[agibot/README.md](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
 
 ## ROS 2 output downsampling
 

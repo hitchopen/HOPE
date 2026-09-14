@@ -5,7 +5,7 @@ Chain:  NatNet2ROS2 /optitrack/poses  -->  optitrack_mct_relay
         --> hope_ball_flight_packetizer --> /ball/flight_packet --> hope_planner
 
 When launched directly on the external computer, this owns NatNet2ROS2, the
-per-run P1 calibration service, the laptop-local calibration JSON, the base
+per-run v3 S01-S24 sticker calibration service, the laptop-local calibration JSON, the base
 pose relay, and the static HOPE arena frames. ``hope_bringup.launch.py`` also
 includes this file in relay-only mode for its legacy independently launched
 NatNet workflow.
@@ -16,8 +16,10 @@ HOPE ``geometry_msgs/PoseArray`` contract on ``/poses``. NatNet2ROS2 publishes
 no raw TF, so this relay remains the HOPE TF authority.
 
 Before running against a live rig (see docs/OPTITRACK.md), verify
-``/optitrack/poses`` is live and that PREPARE replaces the laptop-local
-``calibration/p1_to_pelvis.json`` before policy entry.
+``/optitrack/poses`` is live and generate a fresh approved v3 sticker receipt at
+``calibration/p1_to_pelvis.json`` through the selected operator integration
+before policy entry. The old ten-marker receipt is not a fallback. Restart
+NatNet after redefining P1 so the 24-marker MODELDEF is refreshed.
 Rigid-body names are mapped in config/optitrack_relay.yaml: P1/P2 and the
 strict 6-DOF ball rigid body named Ball.
 """

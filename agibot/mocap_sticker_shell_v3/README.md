@@ -100,6 +100,14 @@ ball/stud/spacer offset before producing a ball-centre table and matching
 Motive calibration. The recovered 6 mm stand-off of the obsolete registration
 markers must not be reused for the new ball hardware.
 
+`nightly_built` calibration uses the **sticker optical-centre CSV directly**
+for all S01–S24 stations and installs the same table with `hope_bringup`.
+After changing the shell/Motive asset, restart NatNet and generate a fresh live
+P1-to-pelvis receipt; old ten-marker receipts are rejected. Follow the
+[v3 calibration procedure](../README.md#v3-sticker-p1-to-pelvis-calibration).
+This software integration does not make the CAD table or authoring asset a
+physically verified calibration.
+
 ## Source records and engineering archive
 
 The repository [license](../../LICENSE) and original source records are

@@ -195,59 +195,37 @@ works on the A3 adapter's aarch64 platform.
 
 ### Optional marker-CAD calibration: P1 to an A3 `pelvis_link`
 
-The integrated Foxglove console can use all ten waist markers to compute this
-alignment without an independent pelvis tracker. Its `Calibration` button calls
-`/hope/calibrate`: while the authoritative Runner remains in fresh `PD_STAND`,
-the Laptop recomputes the fixed `P1 -> pelvis_link` registration, composes the
-current stationary `world -> P1` pose into a `world -> pelvis_link` audit
-snapshot, and atomically stores both in `calibration/p1_to_pelvis.json`. The
-separate `Refresh x_hit` button calls `/hope/refresh_x_hit`; it does not rerun
-the marker calibration.
+The current `nightly_built` profile is the **24-station v3 sticker shell,
+S01–S24**, not the old ten-ball shell. Use the
+[v3 setup and calibration procedure](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
+for asset preparation, rebuilding, live capture and acceptance limits.
 
-When an approved setup procedure calls for this transform, first put the MDU
-Runner in settled PD_STAND, then run `p1_marker_cad_calibrator` manually on
-`/optitrack/rigid_body_markers`.
-Motive supplies
-the P1-local ModelDef marker centres plus live labeled-marker samples; the tool
-registers those centres to the A3 v2 hip-shell CAD (`f1`–`f5`, `b1`–`b5`) and
-checks every selected marker's live residual and definition stability.
+The service and CLI share the canonical sticker optical-centre CSV already
+expressed in ROS `pelvis_link` metres (X forward, Y left, Z up), including the
+0.20 mm sticker thickness. Both register Motive's local MODELDEF to those
+positions; neither assumes the Motive pivot is already at the pelvis origin.
+All 24 stations must be defined; each must provide sufficient physical live
+samples during capture, but not necessarily in the same frame. Restart
+NatNet after redefining P1. Old ten-marker/ball-mode receipts are rejected.
 
-The non-collinear named 3-D marker layout observes all six degrees of the fixed
-`P1 → pelvis_link` transform even while the robot is stationary in PD_STAND.
-An approved result atomically replaces `calibration/p1_to_pelvis.json`,
-relative to the external computer's HOPE repository root (for example,
-`/home/user/HOPE/calibration/p1_to_pelvis.json`). A failed fit cannot install a
-current-run calibration. Run the calculation only after PD_STAND has already
-been established by the approved robot procedure:
+The integrated Foxglove console's `Calibration` button calls
+`/hope/calibrate` while the authoritative Runner remains in fresh
+`PD_STAND`. The laptop service recomputes `P1 → pelvis_link` and atomically
+stores the approved v3 receipt in `calibration/p1_to_pelvis.json`. The
+`Refresh x_hit` button calls `/hope/refresh_x_hit`; it does not recalibrate.
+Other operator paths may require the manual command in the linked procedure.
 
-```bash
-ros2 run hope_bringup p1_marker_cad_calibrator \
-  --topic /optitrack/rigid_body_markers \
-  --asset-name P1 \
-  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
-  --minimum-frames 200 \
-  --capture-duration 4 \
-  --stationary-prepare \
-  --attest-installed-layout \
-  --allow-nominal-only-markers \
-  --output calibration/p1_to_pelvis.json
-```
-
-After the replacement, the computer-side `hope_base_pose_flat_relay` reads the
-canonical `p1_to_pelvis` object from that JSON and composes it with the live
-`world → P1` pose. The additional `world_to_pelvis_snapshot` object records
-the stationary calibration instant for audit only; it is not published as a
-static transform after the robot moves. The computer publishes
-`/a3/base_pose_flat` for policy localization and the unshifted diagnostic
-`/a3/mocap/pelvis_pose`. It does not recalculate while the robot is playing.
-The robot consumes `/a3/base_pose_flat`; it never stores, reads, or receives
-the JSON. The SHA-derived PREPARE receipt gate described by the imported
-adapter is not part of the native Runner admission contract.
+The laptop relay composes the saved transform with live `world → P1` and
+publishes `/a3/base_pose_flat` plus diagnostic `/a3/mocap/pelvis_pose`.
+The saved `world_to_pelvis_snapshot` is an audit of the calibration instant,
+not a static world transform for a moving robot. No recalculation occurs
+during play; the robot consumes the live topic, not the laptop-local JSON.
 
 #### Legacy independent pose-pair method
 
-The following older method is retained for a genuinely independent external
-6-DOF reference or a simulation test. Do this only in a
+The following older method is retained as an audit for a genuinely independent
+external 6-DOF reference or a simulation test. It does not approve production
+runtime receipts. Do this only in a
 **setup/calibration session**. The calibrator does not require
 the `Table` rigid body; `Table` remains disabled in competition. The normal
 deployment keeps Motive's dynamic `world → P1` rigid-body pose and adds the
@@ -279,7 +257,7 @@ independent external 6-DOF tracker or state estimator to a topic such as
 simulation check only if the P1 input is also expressed in `odom`.
 
 No checked-in real-robot node publishes `/a3/calibration/pelvis_pose`. It is an
-input to this legacy tool, not the output of the ten-marker calculation. Never
+input to this legacy tool, not the output of the v3 sticker calculation. Never
 feed `/a3/mocap/pelvis_pose` or any other P1-derived result into it, because
 that would make the measurement circular.
 
@@ -292,7 +270,7 @@ ros2 run hope_bringup p1_pelvis_calibrator \
   --reference-frame world \
   --pelvis-frame pelvis_link \
   --p1-frame P1 \
-  --output calibration/p1_to_pelvis.json
+  --output calibration/p1_pose_pair_audit.json
 ```
 
 It verifies that both topics have publishers, collects 200 synchronized samples
@@ -308,8 +286,14 @@ does not claim to verify source independence, which cannot be inferred from
 two pose topics. A missing pelvis producer fails after the discovery timeout
 instead of being counted as 200 TF misses. Writing the JSON record is required.
 It also contains the constant `p1_to_pelvis` transform, residual quality
-metrics, optional Motive-pivot registration values, and the CAD cross-check.
-Load it during normal bringup:
+metrics, optional Motive-pivot registration values, and the v3 CAD cross-check.
+It is explicitly `approved: false`: independent-source provenance and installed
+marker validation are not established by this audit. Do not edit its approval
+flag or use it to replace the production receipt.
+
+An optional static-TF publisher can instead load the **approved v3 marker-CAD
+receipt** generated by the production procedure above (not this audit file),
+only when no other node owns this same TF:
 
 ```bash
 ros2 run hope_bringup p1_pelvis_tf_publisher \
@@ -332,25 +316,17 @@ calibrator. The measured correction should then be approximately identity. In
 that configuration, do not run `p1_pelvis_tf_publisher`; doing so would apply
 the correction twice.
 
-The v2 CAD table and the current
-`a3_hip_marker_shell_p1_mocap_balls_0702.x_t` shell define all ten markers
-(`f1`–`f5`, `b1`–`b5`), and a physical mocap experiment confirmed that all ten
-points are visible. The default tool configuration therefore uses the complete
-ten-marker set, whose centroid is `[-0.0024, 0, -0.1490] m` in `pelvis_link`.
-If its axes are already aligned, the current-shell CAD cross-check is a Motive
-pivot translation of `[+2.4, 0, +149.0] mm`. The live calibration result
-remains authoritative because it captures the installed marker plate and its
-actual orientation.
-Marker stream order and per-marker topic names do not affect this tool: it
-consumes the solved 6-DOF `/P1/pose`, while its CAD centroid calculation is
-order-independent. Only an offline reconstruction directly from individual
-marker coordinates would require a verified marker-ID-to-CAD correspondence.
+The legacy tool's CAD cross-check now uses all 24 v3 sticker centres. Their
+nominal centroid is `[-0.0030432118, 0.0004662525, -0.0905124363] m` in
+`pelvis_link`. It is not a default pivot correction: Motive's asset pivot is
+configurable. Marker stream order does not affect this audit's solved-pose
+math or its centroid calculation.
 
-The production marker/CAD route described at the top of this section supersedes
-the old checked-in P1 transform in `hope_world_frame.yaml`. The runtime relay
-now reads the approved JSON directly. Use exactly one route per calibration
-receipt — marker/CAD registration or the independent pose-pair method — never
-stack both corrections (see [interfaces/frames.md](interfaces/frames.md)).
+The production marker/CAD route supersedes the old checked-in P1 transform.
+The runtime relay and optional TF publisher both require an approved receipt
+with the current v3 layout and table hash. The P1 YAML default remains
+uncalibrated until a fresh live receipt is generated. Never stack corrections
+(see [interfaces/frames.md](interfaces/frames.md)).
 
 ## Bringup
 

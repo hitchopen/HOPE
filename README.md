@@ -168,10 +168,11 @@ even while ROS 2 topics appear healthy.
 
 ## Optional marker-CAD alignment: P1 to A3 `pelvis_link`
 
-The original ten-marker shell and the 24-station v3 shell use different
-layouts. Hardware selection, frame-table links and the optional ten-marker
-setup procedure are maintained in
-[agibot/README.md](agibot/README.md#pelvis-marker-hardware).
+`nightly_built` uses the **24-station v3 sticker shell (S01–S24)** and its
+sticker optical-centre transforms in ROS `pelvis_link`. A fresh live calibration
+is required; original ten-marker receipts are not interchangeable. Hardware,
+frame-table links and the setup procedure are maintained in
+[agibot/README.md](agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
 The shared mocap contract remains in [mocap/README.md](mocap/README.md).
 
 ## Database

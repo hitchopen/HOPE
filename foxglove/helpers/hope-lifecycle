@@ -337,6 +337,8 @@ run_laptop() {
         src/hope_bringup/scripts/p1_marker_cad_calibrator \
         src/hope_bringup/scripts/p1_marker_cad_calibration_server \
         src/hope_bringup/scripts/p1_marker_cad_registration_impl.py \
+        src/hope_bringup/scripts/p1_marker_layout.py \
+        ../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv \
         src/hope_msgs/msg/BallFlightSample.msg \
         src/hope_msgs/msg/BallFlightPacket.msg \
         src/hope_planner_cpp/config/model21800_flight_packetizer.yaml \

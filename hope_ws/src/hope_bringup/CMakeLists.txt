@@ -36,9 +36,16 @@ install(PROGRAMS
 install(FILES
   scripts/base_pose_contract.py
   scripts/p1_calibration.py
+  scripts/p1_marker_layout.py
   scripts/p1_marker_cad_registration_impl.py
   scripts/p1_pelvis_calibration_impl.py
   DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install the canonical hardware table, not a hand-maintained numeric twin.
+install(FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv
+  DESTINATION share/${PROJECT_NAME}/config/marker_layouts
 )
 
 if(BUILD_TESTING)
@@ -63,6 +70,8 @@ if(BUILD_TESTING)
   ament_add_pytest_test(mocap_frame_probe_test test/test_mocap_frame_probe.py)
   ament_add_pytest_test(base_pose_contract_test test/test_base_pose_contract.py)
   ament_add_pytest_test(p1_calibration_test test/test_p1_calibration.py)
+  ament_add_pytest_test(p1_marker_layout_test test/test_p1_marker_layout.py)
+  ament_add_pytest_test(p1_marker_cad_calibration_server_test test/test_p1_marker_cad_calibration_server.py)
 endif()
 
 ament_package()
