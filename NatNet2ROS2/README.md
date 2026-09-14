@@ -81,8 +81,8 @@ rigid bodies—including `Table`—as well as marker coordinates, skeletons, raw
 TF, and arbitrary assets are excluded from ROS 2.
 The downstream `optitrack_mct_relay` owns the per-body topics and TF output.
 
-The only exception is P1 initialization on the external computer. Start the
-adapter with marker output enabled before each PREPARE that begins a new run:
+The only exception is explicitly enabled P1 initialization on the external
+computer. For a setup procedure that requires marker capture, start with:
 
 ```bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
@@ -90,12 +90,10 @@ ros2 launch motion_capture_tracking natnet2ros2.launch.py \
   publish_p1_markers:=true
 ```
 
-This adds `/optitrack/rigid_body_markers` for the ten-marker capture. Every
-PREPARE recomputes the transform and atomically replaces the external
-computer's repository-relative `calibration/p1_to_pelvis.json`, even if the
-file already exists. The computer then only reads that JSON and publishes
-`/a3/base_pose_flat` for the rest of the run; no recalculation occurs while the
-robot is playing. The robot receives `/a3/base_pose_flat`, never the JSON.
+This adds `/optitrack/rigid_body_markers` for capture; it does not itself run
+robot calibration. The A3 installed-layout requirements, capture procedure
+and receipt lifecycle are maintained in
+[agibot/README.md](../agibot/README.md#optional-ten-marker-p1-to-pelvis-calibration).
 
 ## ROS 2 output downsampling
 

@@ -135,44 +135,13 @@ namespaced because its message type differs from the HOPE `/poses` `PoseArray` c
 
 ### Calibrating a humanoid P1 body to `pelvis_link`
 
-The production A3 workflow performs this calibration once at the start of
-every run. Foxglove's `/hope/control/enter_prepare` first requests and waits
-for settled PD_STAND, then asks the external computer to run
-`p1_marker_cad_calibrator` against all ten waist markers on
-`/optitrack/rigid_body_markers`. It recomputes on every PREPARE, even when the
-previous run's JSON exists.
-Motive's P1-local ModelDef
-centres are rigidly registered to the A3 v2 hip-shell CAD centres
-(`f1`–`f5`, `b1`–`b5`), while live labeled-marker samples gate the installed
-geometry and residuals. The named non-collinear 3-D constellation makes the
-fixed six-DOF transform observable during a stationary PD_STAND capture.
-
-An approved receipt atomically replaces
-`calibration/p1_to_pelvis.json`, relative to the external computer's HOPE
-repository root (for example,
-`/home/user/HOPE/calibration/p1_to_pelvis.json`). The computer-side runtime
-relay then only reads that file for the rest of the run, composes the live
-`world → P1` pose with the fixed `P1 → pelvis_link` result, publishes policy
-localization on `/a3/base_pose_flat`, and publishes the unshifted diagnostic
-pose on `/a3/mocap/pelvis_pose`. It does not recalculate while the robot is
-playing. The robot consumes `/a3/base_pose_flat`; it does not store, read, or
-receive the JSON.
-
-For a maintenance-only manual capture, after PD_STAND has already been reached
-through the approved robot procedure:
-
-```bash
-ros2 run hope_bringup p1_marker_cad_calibrator \
-  --topic /optitrack/rigid_body_markers \
-  --asset-name P1 \
-  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
-  --minimum-frames 200 \
-  --capture-duration 4 \
-  --stationary-prepare \
-  --attest-installed-layout \
-  --allow-nominal-only-markers \
-  --output calibration/p1_to_pelvis.json
-```
+The A3-specific marker-CAD procedure, installed-layout requirements and
+receipt lifecycle are maintained in
+[agibot/README.md](../agibot/README.md#optional-ten-marker-p1-to-pelvis-calibration).
+It applies to the original ten-marker shell, not the 24-station v3 layout.
+Whether capture is automated depends on the selected operator integration;
+do not assume every PREPARE/Ready action runs it. The independent pose-pair
+method below is a separate calibration route.
 
 #### Legacy independent pose-pair route
 
@@ -264,7 +233,7 @@ the P1 rigid-body pivot in Motive, save the asset/profile, restart streaming,
 and rerun the calibrator. The second result should be approximately identity.
 If the Motive pivot is corrected, do **not** run the static publisher, because
 that would apply the offset twice. See the complete
-[OptiTrack setup procedure](../docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link).
+[OptiTrack setup procedure](../docs/OPTITRACK.md#optional-marker-cad-calibration-p1-to-an-a3-pelvis_link).
 
 Build and launch the raw adapter independently, then launch the HOPE relay and
 planner:
