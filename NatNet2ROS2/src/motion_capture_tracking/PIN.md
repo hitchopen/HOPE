@@ -175,6 +175,55 @@ License: MIT (upstream `LICENSE` kept in this directory).
     supported launch file. `test/test_competition_rigid_body_filter.cpp`
     locks the allowlist's membership, case sensitivity, and canonical order.
 
+14. **Motive 3.2 / NatNet 4.2 multicast hardening (2026-08-21)**: NatNet 4.2
+    adds a quaternion rotation offset to each rigid-body model description.
+    The old parser read its first four bytes as the marker count, shifting the
+    rest of every definition. MODELDEF decoding is now length-checked, obeys
+    NatNet 4.1 `description_size`, consumes the 4.2 quaternion, and is covered
+    by 4.1/4.2 plus truncation fixtures. Multicast requires an explicit local
+    `interface_ip`; the driver logs the group/interface/buffer, rejects packets
+    from other hosts and invalid declared lengths, omits unicast-only recurring
+    keepalives, and exits cleanly with a non-zero status on a one-second frame
+    timeout. The supported standalone launch respawns the node after two
+    seconds, while managed venue supervisors retain their own lifecycle
+    recovery. The matching preflight uses the same interface,
+    performs a real 4.2 MODELDEF decode, and reports the Motive/NatNet versions,
+    multicast group/port, and all three competition assets.
+
+    Maintenance note: the C++ MODELDEF decoder in
+    `deps/libmotioncapture/include/libmotioncapture/natnet_modeldef.h` and the
+    Python venue decoder in
+    `hope_ws/src/hope_bringup/scripts/natnet_preflight.py` intentionally
+    implement the same wire schema. Port every schema, version-gate, bounds,
+    or dataset-skip fix to both implementations in the same change, with
+    matching fixtures in `deps/libmotioncapture/tests/test_natnet_modeldef.cpp`
+    and `hope_ws/src/hope_bringup/test/test_natnet_preflight_clock_sync.py`.
+
+15. **MotiveBody 3.5 / NatNet 4.5 additive frame sections (2026-08-21)**:
+    multicast cannot negotiate an older bitstream, so MotiveBody 3.5.0.1 Beta
+    1 streams native NatNet 4.5. The old FRAMEOFDATA decoder walked every
+    field with unchecked `strlen`/`memcpy` and assumed the 4.2 section order;
+    NatNet 4.5 IMU/GPIO data could therefore shift the timing suffix. NatNet
+    4.1+ frame decoding now uses each section's authoritative byte count,
+    bounds-checks rigid bodies and labeled markers, skips appended 4.5 stream
+    types until the fixed timestamp suffix, and consumes the two precision/PTP
+    timestamp words that the old decoder left behind. `test_natnet_frame.cpp`
+    covers 4.2, 4.5 extension sections, timestamps, truncation, and EOD. The
+    C++ and Python MODELDEF fixtures both cover unknown 4.5 descriptions. The
+    venue preflight identifies Motive/MotiveBody 3.5.0.1 and NatNet 4.5.x as
+    the validated profile but only warns on version differences. Multicast
+    group `239.255.42.99`, command/data ports 1510/1511, actual decode success,
+    and the 300 Hz source-rate check remain operational gates.
+
+16. **NatNet rigid-body marker member IDs (2026-08-21)**: NatNet labeled
+    markers encode a model ID in the high word and a 1-based member ID in the
+    low word. MODELDEF carries the rigid body's marker array but no separate
+    member-ID field, so the decoder assigns array position `marker_index + 1`.
+    This keeps MODELDEF marker 1 aligned with FRAMEOFDATA member 1 and restores
+    the node's deterministic ID association for P1 calibration; the geometric
+    association remains only as a fallback. The MODELDEF fixture locks member
+    IDs 1 and 2, matching the FRAMEOFDATA fixture's first member ID of 1.
+
 ## Re-pin procedure
 
 ```bash
@@ -197,7 +246,8 @@ rm -rf NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/deps/{vrpn,
   (`header` + `NamedPose[]{string name, geometry_msgs/Pose pose}`) when
   `topics.poses.version: 1`; a V2 with vendor timestamp/latencies exists. Both
   versions carry only available `Ball`, `P1`, `P2` entries, in that order.
-- Params actually read by the node: `type`, `hostname`, `topics.frame_id`, `topics.header_time`
+- Params actually read by the node: `type`, `hostname`, `interface_ip`,
+  `topics.frame_id`, `topics.header_time`
   (`ros`=arrival time, `camera`=vendor clock, `camera_utc`=NatNet-echo mapped
   CameraMidExposureTimestamp in the adapter host's ROS system-time/Unix epoch,
   `ros_latency_compensated`=legacy local ROS receive time minus NatNet

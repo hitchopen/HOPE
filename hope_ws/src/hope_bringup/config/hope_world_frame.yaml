@@ -54,21 +54,21 @@ hope_world:
     # T_marker_base for each Motive rigid-body asset. CAD constrains the
     # shell-to-pelvis transform, but Motive's pivot and axes are configurable.
     # The operational transform must therefore come from a Motive asset export
-    # plus a multi-heading calibration receipt.
+    # plus a fresh v3 sticker live-calibration receipt.
     #
     # Zero values below are inert placeholders, never an identity assertion.
     p1:
-      marker_layout_id: A3_hip_shell_P1_0702
-      calibrated: true
-      calibration_sha256: 47a66d19e99d1940ec4edd9d06ae8b0c3dab08262397e54bf6add2ea541d55a0
-      xyz_m: [0.018738792771180856, 0.000029360682041056726, 0.14784471860656687]
-      quaternion_wxyz: [0.9953052770028697, -0.005766257821088485, 0.05477410483653936, -0.07958613748849415]
+      marker_layout_id: A3_marker_shell_v3_stickers_12mm
+      calibrated: false
+      calibration_sha256: ""
+      xyz_m: [0.0, 0.0, 0.0]
+      quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
       note: >-
-        Approved registration for the redefined Motive P1 rigid body (NatNet
-        rigid-body id 26): 10-marker ModelDef-to-A3 CAD fit with
-        operator-confirmed physical f1/b1 mounts and 33.21 deg live
-        multi-heading validation. Receipt:
-        hope_ws/calibration_receipts/p1_marker_cad_registration_20260805_redefined_p1_strict.json
+        Uncalibrated after the v3 sticker-shell migration. Do not reuse the
+        historical ten-ball receipt. Restart NatNet after redefining P1 with
+        S01-S24, then generate a fresh approved marker-CAD receipt at
+        calibration/p1_to_pelvis.json. Runtime loads that file; these values
+        are inert placeholders, not an assertion that P1 equals pelvis_link.
     p2:
       marker_layout_id: unknown
       calibrated: false
@@ -79,9 +79,9 @@ hope_world:
 
   provenance:
     cad:
-      path: agibot/pku/hip_marker_shell/a3_hip_marker_shell_p1_mocap_balls_0702.x_t
-      sha256: af8183e7ad76d3d35caa6dad573f79c06bcd07fb5e9e009876edbb3a2fa57ff6
-      format: Parasolid_XT_36.0.119
+      path: agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv
+      sha256: 3b304f521b85ebac8c8595d1666322ef3c64f9dcd40ffa0d339da25b431bdb90
+      format: CSV_ROS_pelvis_link_metres_sticker_optical_centres
     urdf:
       path: agibot/URDF/A3T2.5-URDF-std-pingpang/urdf/URDF-JOINT-LINK.urdf
       sha256: 0d83529cf808e2e68036f8168bd8b7a1c9a97d9c536eb9a14981ea4105d6b9ae
@@ -90,9 +90,9 @@ hope_world:
       path: agibot/URDF/A3T2.5-URDF-std-pingpang/meshes/pelvis_link.STL
       sha256: 162899b2ba775cbdff24a7ded7908b057aae559326715eae7d6aee220578907f
     cad_shell_to_urdf_pelvis_candidate:
-      # Shape-only registration; useful for axis diagnosis, forbidden at runtime.
+      # Published CAD-mm to pelvis_link-m registration used by the v3 table.
+      # Already applied to the CSV; never apply it again during calibration.
       runtime_usable: false
       quaternion_wxyz: [0.5, 0.5, 0.5, 0.5]
-      translation_m_approx: [0.0, 0.0, -0.1455]
-      trimmed_rms_m_approx: 0.0023
+      translation_m: [0.0, 0.0, -0.145800095037096]
       limitation: Does not determine the Motive rigid-body pivot or axes.

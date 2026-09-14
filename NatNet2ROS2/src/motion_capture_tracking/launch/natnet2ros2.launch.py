@@ -25,6 +25,7 @@ def generate_launch_description():
     )
 
     hostname = LaunchConfiguration("hostname")
+    interface_ip = LaunchConfiguration("interface_ip")
     mocap_type = LaunchConfiguration("mocap_type")
     header_time = LaunchConfiguration("header_time")
     output_rate_hz = LaunchConfiguration("output_rate_hz")
@@ -35,7 +36,16 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "hostname",
-                description="REQUIRED: Motive/NatNet server IP or hostname.",
+                description="REQUIRED: Motive/NatNet server IPv4 address.",
+            ),
+            DeclareLaunchArgument(
+                "interface_ip",
+                default_value="",
+                description=(
+                    "IPv4 address assigned to this computer's wired "
+                    "Motive-network NIC. Required for live multicast; an empty "
+                    "value is accepted only for mock/unicast operation."
+                ),
             ),
             DeclareLaunchArgument(
                 "mocap_type",
@@ -79,10 +89,16 @@ def generate_launch_description():
                 namespace="optitrack",
                 name="motion_capture_tracking_node",
                 output="screen",
+                # The driver exits non-zero after a bounded stream timeout.
+                # Restart here as well as in managed venue supervisors so the
+                # documented standalone launch recovers when Motive resumes.
+                respawn=True,
+                respawn_delay=2.0,
                 parameters=[
                     str(config_path),
                     {
                         "hostname": hostname,
+                        "interface_ip": interface_ip,
                         "type": mocap_type,
                         "topics.header_time": header_time,
                         "topics.output_rate_hz": ParameterValue(

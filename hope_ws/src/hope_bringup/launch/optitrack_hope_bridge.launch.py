@@ -5,7 +5,7 @@ Chain:  NatNet2ROS2 /optitrack/poses  -->  optitrack_mct_relay
         --> hope_ball_flight_packetizer --> /ball/flight_packet --> hope_planner
 
 When launched directly on the external computer, this owns NatNet2ROS2, the
-per-run P1 calibration service, the laptop-local calibration JSON, the base
+per-run v3 S01-S24 sticker calibration service, the laptop-local calibration JSON, the base
 pose relay, and the static HOPE arena frames. ``hope_bringup.launch.py`` also
 includes this file in relay-only mode for its legacy independently launched
 NatNet workflow.
@@ -16,22 +16,49 @@ HOPE ``geometry_msgs/PoseArray`` contract on ``/poses``. NatNet2ROS2 publishes
 no raw TF, so this relay remains the HOPE TF authority.
 
 Before running against a live rig (see docs/OPTITRACK.md), verify
-``/optitrack/poses`` is live and that PREPARE replaces the laptop-local
-``calibration/p1_to_pelvis.json`` before policy entry.
+``/optitrack/poses`` is live and generate a fresh approved v3 sticker receipt at
+``calibration/p1_to_pelvis.json`` through the selected operator integration
+before policy entry. The old ten-marker receipt is not a fallback. Restart
+NatNet after redefining P1 so the 24-marker MODELDEF is refreshed.
 Rigid-body names are mapped in config/optitrack_relay.yaml: P1/P2 and the
 strict 6-DOF ball rigid body named Ball.
 """
 
+import ipaddress
 from pathlib import Path
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def _validate_natnet_interface(context):
+    start_natnet = LaunchConfiguration("start_natnet").perform(context).lower()
+    if start_natnet not in {"1", "true", "yes", "on"}:
+        return []
+
+    interface_ip = LaunchConfiguration("motive_interface_ip").perform(context)
+    try:
+        address = ipaddress.IPv4Address(interface_ip)
+    except ipaddress.AddressValueError as exc:
+        raise RuntimeError(
+            "start_natnet:=true requires "
+            "motive_interface_ip:=<LOCAL_MOTIVE_NIC_IPV4>"
+        ) from exc
+    if address.is_unspecified or address.is_multicast:
+        raise RuntimeError(
+            "motive_interface_ip must be an explicit local unicast IPv4 address"
+        )
+    return []
 
 
 def generate_launch_description():
@@ -42,6 +69,7 @@ def generate_launch_description():
     start_natnet = LaunchConfiguration("start_natnet")
     start_calibration = LaunchConfiguration("start_calibration")
     motive_hostname = LaunchConfiguration("motive_hostname")
+    motive_interface_ip = LaunchConfiguration("motive_interface_ip")
     position_scale = LaunchConfiguration("position_scale")
     p1_calibration_file = LaunchConfiguration("p1_calibration_file")
     base_pose_output_topic = LaunchConfiguration("base_pose_output_topic")
@@ -62,6 +90,14 @@ def generate_launch_description():
             "motive_hostname",
             default_value="192.168.100.111",
             description="Motive/NatNet server IPv4 address",
+        ),
+        DeclareLaunchArgument(
+            "motive_interface_ip",
+            default_value="",
+            description=(
+                "Local wired-NIC IPv4 used for NatNet multicast. Required "
+                "when start_natnet is true."
+            ),
         ),
         DeclareLaunchArgument(
             "p1_calibration_file",
@@ -94,6 +130,7 @@ def generate_launch_description():
             default_value="",
             description="Optional Laptop flight-packet audit CSV path.",
         ),
+        OpaqueFunction(function=_validate_natnet_interface),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -105,6 +142,7 @@ def generate_launch_description():
             condition=IfCondition(start_natnet),
             launch_arguments={
                 "hostname": motive_hostname,
+                "interface_ip": motive_interface_ip,
                 # Each PREPARE performs one fit. Keeping the publisher alive
                 # does not trigger recalibration during policy execution.
                 "publish_p1_markers": "true",

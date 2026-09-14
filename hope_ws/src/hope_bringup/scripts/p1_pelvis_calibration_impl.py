@@ -9,7 +9,7 @@ transform::
 
     ^P1 T_pelvis_link
 
-The normal runtime use is:
+The transform convention is:
 
     world --dynamic mocap--> P1 --static calibration--> pelvis_link
 
@@ -20,7 +20,9 @@ methods.
 NatNet is read-only with respect to Motive asset definitions; this tool
 therefore never attempts to mutate Motive. It writes an auditable result and
 prints the settings for an operator to apply in Motive's Builder/Modify pane.
-It does not consume a Table topic or TF.
+It does not consume a Table topic or TF. Its v3 result is an unapproved
+independent-pose audit, not a runtime receipt; installed sticker validation
+and the production receipt are provided by p1_marker_cad_calibrator.
 
 The pelvis input must be a genuinely independent full 6-DOF measurement. The
 A3 hardware interface currently present in this repository publishes an IMU,
@@ -41,26 +43,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from p1_marker_layout import (
+    MARKER_NAMES, SOURCE_RELATIVE, layout_metadata, load_marker_transforms,
+)
 
 Vector3 = tuple[float, float, float]
 Quaternion = tuple[float, float, float, float]  # ROS order: x, y, z, w
 
-# Source: agibot/pku/README.md, marker-coordinate table v2. These are ball
-# centres in pelvis_link, in metres. The 0702 Parasolid asset and its layout
-# define all ten points, and physical mocap testing confirmed that f1-f5 and
-# b1-b5 are all visible. The complete ten-marker set is therefore the default.
-MARKER_NAMES = ("f1", "f2", "f3", "f4", "f5", "b1", "b2", "b3", "b4", "b5")
+# Same v3 sticker optical-centre table as the marker-CAD calibration service.
+# This legacy pose-pair tool uses these points only as a centroid cross-check.
 MODEL_NOMINAL: dict[str, Vector3] = {
-    "f1": (0.090, 0.000, -0.130),
-    "f2": (0.080, 0.050, -0.140),
-    "f3": (0.080, -0.050, -0.140),
-    "f4": (0.078, -0.030, -0.180),
-    "f5": (0.078, 0.030, -0.180),
-    "b1": (-0.090, 0.000, -0.100),
-    "b2": (-0.085, 0.055, -0.130),
-    "b3": (-0.085, -0.055, -0.130),
-    "b4": (-0.085, -0.030, -0.180),
-    "b5": (-0.085, 0.030, -0.180),
+    name: record["translation_m"] for name, record in load_marker_transforms().items()
 }
 CURRENT_SHELL_MARKER_NAMES = MARKER_NAMES
 
@@ -198,7 +191,7 @@ def _mean_vector(vectors: Sequence[Vector3]) -> Vector3:
 
 def parse_marker_names(value: str) -> tuple[str, ...]:
     """Parse a CAD marker-position set; its stream/order is intentionally irrelevant."""
-    names = tuple(name.strip().lower() for name in value.split(",") if name.strip())
+    names = tuple(name.strip().upper() for name in value.split(",") if name.strip())
     if len(names) < 3:
         raise ValueError("at least three marker names are required")
     if len(set(names)) != len(names):
@@ -400,7 +393,7 @@ def result_document(
     pelvis_frame: str,
     marker_names: Sequence[str] = CURRENT_SHELL_MARKER_NAMES,
 ) -> dict:
-    """Build a self-contained record usable by a setup checklist or launch file."""
+    """Build an unapproved independent-pose audit for the setup checklist."""
     correction_axis, correction_angle = axis_angle(correction.quaternion)
     # Motive's Translation Offset is applied along its *current* local axes.
     # Once those axes have been rotated to pelvis_link, express the old-P1 to
@@ -409,12 +402,15 @@ def result_document(
     nominal_centroid = marker_centroid(marker_names)
     nominal_pivot_to_pelvis = tuple(-value for value in nominal_centroid)
     return {
+        "approved": False,
+        "approval_note": (
+            "Independent pose-pair audit only; does not verify the installed v3 "
+            "marker definition or per-sticker live samples. Generate the runtime "
+            "receipt with p1_marker_cad_calibrator."
+        ),
+        "marker_layout": layout_metadata(),
         "cad_cross_check": {
-            "source": "agibot/pku/README.md marker coordinates v2",
-            "parasolid_asset": (
-                "agibot/pku/hip_marker_shell/"
-                "a3_hip_marker_shell_p1_mocap_balls_0702.x_t"
-            ),
+            "source": SOURCE_RELATIVE,
             "current_shell_marker_names": list(CURRENT_SHELL_MARKER_NAMES),
             "selected_marker_names": list(marker_names),
             "marker_centroid_in_pelvis_link_m": [float(value) for value in nominal_centroid],
@@ -424,8 +420,9 @@ def result_document(
             "warning": (
                 "CAD is a cross-check only. The independent live pelvis pose is authoritative. "
                 "Marker stream order is irrelevant: live calibration uses only the solved P1 pose. "
-                "The 0702 shell uses all ten verified-visible points f1-f5 and b1-b5 by default; "
-                "override --marker-names only for a deliberately different physical marker set."
+                "The default is all 24 v3 sticker optical centres S01-S24, already "
+                "in ROS pelvis_link metres including 0.20 mm sticker thickness. "
+                "The centroid does not determine Motive's configurable pivot."
             ),
         },
         "calibration": {
@@ -465,9 +462,8 @@ def result_document(
             "child_frame": pelvis_frame,
             **_json_transform(correction),
             "usage": (
-                "Publish this constant P1-to-pelvis_link transform as a runtime static TF. "
-                "Alternatively, absorb it into the Motive P1 pivot definition and disable the "
-                "static TF. Never apply both."
+                "Independent-pose audit estimate only, not approved for runtime. "
+                "Compare with a fresh v3 marker-CAD calibration; never stack corrections."
             ),
         },
         "motive_pivot_registration": {
@@ -521,16 +517,10 @@ def _print_result(document: dict) -> None:
         f"duration {observability['minimum_duration_s']:.2f} s; "
         f"accepted rate {observability['minimum_accepted_rate_hz']:.1f} Hz"
     )
-    print("\nSaved constant P1 -> pelvis_link transform (normal runtime use):")
-    print(
-        "  ros2 run tf2_ros static_transform_publisher "
-        f"--x {fallback['translation_m'][0]:.9f} --y {fallback['translation_m'][1]:.9f} "
-        f"--z {fallback['translation_m'][2]:.9f} "
-        f"--qx {fallback['quaternion_xyzw'][0]:.9f} --qy {fallback['quaternion_xyzw'][1]:.9f} "
-        f"--qz {fallback['quaternion_xyzw'][2]:.9f} --qw {fallback['quaternion_xyzw'][3]:.9f} "
-        f"--frame-id {fallback['parent_frame']} --child-frame-id {fallback['child_frame']}"
-    )
-    print("\nOptional Motive direct-registration values (do not also publish the static TF):")
+    print("\nAudit-only P1 -> pelvis_link estimate (NOT approved for runtime):")
+    print(f"  translation_m={fallback['translation_m']}")
+    print(f"  quaternion_xyzw={fallback['quaternion_xyzw']}")
+    print("\nCandidate Motive registration values for setup review, not automatic application:")
     print(
         "  1. Rotate P1's pivot axes to the reported pelvis axes: "
         f"axis ({motive['rotation_axis_in_p1'][0]:.6f}, "
@@ -589,8 +579,8 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--marker-names", default=",".join(CURRENT_SHELL_MARKER_NAMES),
         help=(
-            "comma-separated CAD marker-position set; order is irrelevant and defaults to all ten "
-            "verified-visible 0702-shell markers (f1,f2,f3,f4,f5,b1,b2,b3,b4,b5)"
+            "comma-separated CAD marker-position set for the audit cross-check; "
+            "order is irrelevant and defaults to all 24 v3 stickers (S01-S24)"
         ),
     )
     parser.add_argument("--samples", type=int, default=200, help="accepted synchronized samples to collect")
@@ -641,7 +631,7 @@ def _parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output", type=Path, required=True,
-        help="persistent p1_to_pelvis JSON record (required)",
+        help="audit JSON path, e.g. calibration/p1_pose_pair_audit.json; not the runtime receipt",
     )
     arguments = parser.parse_args()
     if arguments.samples < 3:
@@ -925,8 +915,8 @@ def main() -> int:
             return 1
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-        print(f"\nWrote required p1_to_pelvis calibration record: {args.output}")
-        print("\nCALIBRATION PASS")
+        print(f"\nWrote unapproved independent-pose audit record: {args.output}")
+        print("\nAUDIT QUALITY PASS — runtime requires a fresh v3 marker-CAD receipt")
         return 0
     except ValueError as exc:
         print(f"CALIBRATION FAIL: {exc}", file=sys.stderr)

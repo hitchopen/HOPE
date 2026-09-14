@@ -5,65 +5,31 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from pathlib import Path
 from typing import Sequence
 
-
-def _finite_vector(value: object, length: int, field: str) -> list[float]:
-    if not isinstance(value, list) or len(value) != length:
-        raise ValueError(f"{field} must be a JSON array of length {length}")
-    result = [float(component) for component in value]
-    if not all(math.isfinite(component) for component in result):
-        raise ValueError(f"{field} contains a non-finite value")
-    return result
+from p1_calibration import load_p1_calibration
 
 
 def load_calibration(path: Path) -> tuple[str, str, list[float], list[float]]:
-    """Load either approved calibrator receipt spelling."""
-    document = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(document, dict):
-        raise ValueError("P1 calibration document must be a JSON object")
-    if "approved" in document and document["approved"] is not True:
-        raise ValueError("P1 calibration receipt is not approved")
-    try:
-        if "p1_to_pelvis" in document:
-            transform = document["p1_to_pelvis"]
-            translation_value = transform["translation_m"]
-        else:
-            transform = document["p1_to_pelvis_link"]
-            translation_value = transform["xyz_m"]
-        parent = transform["parent_frame"]
-        child = transform["child_frame"]
-        translation = _finite_vector(translation_value, 3, "translation_m")
-        quaternion = _finite_vector(transform["quaternion_xyzw"], 4, "quaternion_xyzw")
-    except (KeyError, TypeError) as exc:
-        raise ValueError(f"invalid P1 calibration document: missing {exc}") from exc
-
-    if not isinstance(parent, str) or not parent:
-        raise ValueError("parent_frame must be a non-empty string")
-    if not isinstance(child, str) or not child:
-        raise ValueError("child_frame must be a non-empty string")
-    if parent == child:
-        raise ValueError("parent_frame and child_frame must differ")
-
-    norm = math.sqrt(sum(component * component for component in quaternion))
-    if norm < 1e-12:
-        raise ValueError("quaternion_xyzw must have non-zero norm")
-    quaternion = [component / norm for component in quaternion]
-    return parent, child, translation, quaternion
+    """Share the runtime relay's approval and v3 layout/TF-table checks."""
+    calibration = load_p1_calibration(path)
+    return (
+        calibration.parent_frame, calibration.child_frame,
+        list(calibration.translation_m), list(calibration.quaternion_xyzw),
+    )
 
 
 def _parse_arguments(arguments: Sequence[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
-        description="Publish the static P1 -> pelvis_link TF saved by p1_pelvis_calibrator."
+        description="Publish the static P1 -> pelvis_link TF from an approved v3 sticker receipt."
     )
     parser.add_argument(
         "--calibration-file",
         type=Path,
         required=True,
-        help="p1_to_pelvis JSON file written by p1_pelvis_calibrator",
+        help="approved v3 JSON receipt written by p1_marker_cad_calibrator",
     )
     return parser.parse_known_args(arguments)
 

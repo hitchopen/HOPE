@@ -21,7 +21,7 @@ not used by the integrated UI. The browser calls the native Runner endpoints:
 | Our role: Server | `/hope/runner/set_server` | `local_role=SERVER` |
 | Our role: Receiver | `/hope/runner/set_receiver` | `local_role=RECEIVER` |
 | Stand | `/hope/runner/enter_pd_stand` | same action queue as `s` |
-| Calibration | `/hope/calibrate` | ten-marker `P1 -> pelvis_link`, persisted world-pelvis audit snapshot, then fresh matching base receipt |
+| Calibration | `/hope/calibrate` | v3 24-sticker `P1 -> pelvis_link`, persisted world-pelvis audit snapshot, then fresh matching base receipt |
 | Refresh x_hit | `/hope/refresh_x_hit` | Planner request/status file contract only |
 | Ready | `/hope/runner/enter_motion` | same action queue as `m` |
 | Ready to Serve | `/hope/runner/ready_to_serve` | real serve controller `Start()` |

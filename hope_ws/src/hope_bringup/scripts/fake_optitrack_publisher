@@ -33,7 +33,7 @@ class FakeOptitrackPublisher(Node):
         # serve = [px, py, pz, vx, vy, vz] in the table frame (z=0 at table surface).
         self.declare_parameter("serve_forehand", [2.3, -1.00, 0.40, -5.0, 0.2, 1.0])
         self.declare_parameter("serve_backhand", [2.3, -0.52, 0.40, -5.0, -0.2, 1.0])
-        self.declare_parameter("rate_hz", 360.0)      # OptiTrack rigs commonly run 360
+        self.declare_parameter("rate_hz", 300.0)      # Competition Motive native rate
         self.declare_parameter("drag_k", 0.15)        # MUST match hope_planner drag_k
         self.declare_parameter("restitution_h", 0.85)  # MUST match hope_planner
         self.declare_parameter("restitution_v", 0.85)  # MUST match hope_planner

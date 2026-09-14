@@ -5,7 +5,6 @@ import struct
 import threading
 import time
 
-
 SCRIPT = Path(__file__).parents[1] / "scripts" / "natnet_preflight.py"
 SPEC = importlib.util.spec_from_file_location("natnet_preflight", SCRIPT)
 natnet_preflight = importlib.util.module_from_spec(SPEC)
@@ -71,3 +70,86 @@ def test_clock_sync_samples_match_echo_tokens():
     assert len(samples) == 10
     assert all(rtt >= 0.0 for rtt, _ in samples)
     assert all(server_ticks > 0 for _, server_ticks in samples)
+
+
+def test_competition_profile_accepts_motivebody_natnet_45():
+    assert natnet_preflight.competition_version_warnings(
+        "MotiveBody", (3, 5, 0, 1), (4, 5, 0, 0)) == []
+    # SERVERINFO may retain the legacy application name even for MotiveBody.
+    assert natnet_preflight.competition_version_warnings(
+        "Motive", (3, 5, 0, 1), (4, 5, 0, 0)) == []
+    assert natnet_preflight.competition_version_warnings(
+        "MotiveBody", (3, 5, 0, 1), (4, 5, 9, 9)) == []
+
+
+def test_competition_profile_warns_but_does_not_block_beta_2():
+    warnings = natnet_preflight.competition_version_warnings(
+        "MotiveBody", (3, 5, 0, 2), (4, 5, 0, 0))
+    assert len(warnings) == 1
+    assert "versions are advisory" in warnings[0]
+
+
+def test_competition_profile_warns_but_does_not_block_old_natnet_42():
+    warnings = natnet_preflight.competition_version_warnings(
+        "Motive", (3, 2, 0, 2), (4, 2, 0, 0))
+    assert len(warnings) == 2
+    assert any("NatNet 4.5" in warning for warning in warnings)
+    assert all("continuing" in warning for warning in warnings)
+
+
+def make_rigid_body_description(name, rigid_body_id, include_rotation):
+    description = bytearray()
+    description.extend(name.encode() + b"\x00")
+    description.extend(struct.pack("<ii3f", rigid_body_id, -1,
+                                   0.1, -0.2, 0.3))
+    if include_rotation:
+        description.extend(struct.pack("<4f", 0.1, 0.2, 0.3, 0.9))
+    description.extend(struct.pack("<i", 1))
+    description.extend(struct.pack("<3fi", 1.0, 2.0, 3.0, 1001))
+    description.extend(b"marker_0\x00")
+    return struct.pack("<ii", 1, len(description)) + description
+
+
+def make_modeldef_42():
+    unknown = struct.pack("<iii", 99, 4, 0x12345678)
+    datasets = unknown + b"".join([
+        make_rigid_body_description("Ball", 101, True),
+        make_rigid_body_description("P1", 102, True),
+        make_rigid_body_description("P2", 103, True),
+    ])
+    payload = struct.pack("<i", 4) + datasets
+    return struct.pack("<HH", natnet_preflight.NAT_MODELDEF, len(payload)) + payload
+
+
+def make_modeldef_45():
+    extensions = b"".join(
+        struct.pack("<iii", dataset_type, 4, 0x12340000 + dataset_type)
+        for dataset_type in (7, 8)
+    )
+    anchor = struct.pack("<iii", 9, 4, 0x12340009)
+    datasets = extensions + b"".join([
+        make_rigid_body_description("Ball", 101, True),
+        make_rigid_body_description("P1", 102, True),
+        make_rigid_body_description("P2", 103, True),
+    ]) + anchor
+    payload = struct.pack("<i", 6) + datasets
+    return struct.pack("<HH", natnet_preflight.NAT_MODELDEF, len(payload)) + payload
+
+
+def test_modeldef_assets_decodes_natnet_42_rotation_offsets():
+    packet = make_modeldef_42()
+    assert natnet_preflight.modeldef_assets(packet, 4, 2) == ["Ball", "P1", "P2"]
+
+
+def test_modeldef_assets_skips_natnet_45_extension_descriptions():
+    packet = make_modeldef_45()
+    assert natnet_preflight.modeldef_assets(packet, 4, 5) == ["Ball", "P1", "P2"]
+
+
+def test_modeldef_assets_rejects_truncated_natnet_42_packet():
+    packet = make_modeldef_42()
+    try:
+        natnet_preflight.modeldef_assets(packet[:-1], 4, 2)
+    except ValueError:
+        return
+    raise AssertionError("truncated sized NatNet MODELDEF was accepted")
