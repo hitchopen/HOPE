@@ -32,27 +32,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from p1_marker_layout import (
+    LAYOUT_ID, MARKER_NAMES, SOURCE_RELATIVE, layout_metadata, load_marker_transforms,
+)
 
 Vector3 = tuple[float, float, float]
 Quaternion = tuple[float, float, float, float]  # ROS xyzw
 
-MARKER_NAMES = ("f1", "f2", "f3", "f4", "f5", "b1", "b2", "b3", "b4", "b5")
+CAD_MARKER_TRANSFORMS = load_marker_transforms()
 CAD_MARKERS_PELVIS_M: dict[str, Vector3] = {
-    "f1": (0.090, 0.000, -0.130),
-    "f2": (0.080, 0.050, -0.140),
-    "f3": (0.080, -0.050, -0.140),
-    "f4": (0.078, -0.030, -0.180),
-    "f5": (0.078, 0.030, -0.180),
-    "b1": (-0.090, 0.000, -0.100),
-    "b2": (-0.085, 0.055, -0.130),
-    "b3": (-0.085, -0.055, -0.130),
-    "b4": (-0.085, -0.030, -0.180),
-    "b5": (-0.085, 0.030, -0.180),
+    name: record["translation_m"] for name, record in CAD_MARKER_TRANSFORMS.items()
 }
-NOMINAL_ONLY_MARKERS = frozenset(("f1", "b1"))
-CURRENT_SHELL_MARKERS = tuple(
-    name for name in MARKER_NAMES if name not in NOMINAL_ONLY_MARKERS
-)
+CURRENT_SHELL_MARKERS = MARKER_NAMES
 
 
 @dataclass(frozen=True)
@@ -395,17 +386,16 @@ def rigid_registration(
 
 
 def canonical_marker_name(value: str) -> str | None:
-    tokens = re.findall(r"(?<![a-z0-9])([fb][1-5])(?![a-z0-9])", value.lower())
+    tokens = re.findall(
+        r"(?<![a-z0-9])(s(?:0[1-9]|1[0-9]|2[0-4]))(?![a-z0-9])", value.lower()
+    )
     if len(set(tokens)) == 1:
-        return tokens[0]
-    compact = value.lower().replace("ball_", "").replace("_joint", "")
-    if compact in MARKER_NAMES:
-        return compact
+        return tokens[0].upper()
     return None
 
 
 def parse_marker_names(value: str) -> tuple[str, ...]:
-    names = tuple(item.strip().lower() for item in value.split(",") if item.strip())
+    names = tuple(item.strip().upper() for item in value.split(",") if item.strip())
     if len(names) < 3:
         raise ValueError("at least three CAD marker names are required")
     if len(set(names)) != len(names):
@@ -426,10 +416,10 @@ def parse_explicit_mapping(value: str) -> dict[int, str]:
             member_id = int(member_text.strip())
         except (ValueError, TypeError) as exc:
             raise ValueError(
-                "mapping entries must use member_id=CAD_name, e.g. 0=f2"
+                "mapping entries must use member_id=CAD_name, e.g. 1=S01"
             ) from exc
-        name = name_text.strip().lower()
-        if member_id < 0 or name not in CAD_MARKERS_PELVIS_M:
+        name = name_text.strip().upper()
+        if member_id <= 0 or name not in CAD_MARKERS_PELVIS_M:
             raise ValueError(f"invalid mapping entry: {item}")
         if member_id in result:
             raise ValueError(f"duplicate member ID in mapping: {member_id}")
@@ -443,21 +433,16 @@ def cad_names_for_markers(
     markers: Sequence[ModelMarker],
     requested: Sequence[str] | None = None,
 ) -> tuple[str, ...]:
+    if len(markers) != len(MARKER_NAMES):
+        raise ValueError(
+            f"P1 ModelDef contains {len(markers)} markers; v3 sticker calibration "
+            "requires all 24 defined stations S01-S24, not the old 8/10-marker body"
+        )
     if requested is not None:
-        if len(requested) != len(markers):
-            raise ValueError(
-                f"selected {len(requested)} CAD markers but Motive defines "
-                f"{len(markers)} P1 markers"
-            )
+        if len(requested) != 24 or set(requested) != set(MARKER_NAMES):
+            raise ValueError("v3 sticker calibration requires the complete S01-S24 CAD set")
         return tuple(requested)
-    if len(markers) == len(CURRENT_SHELL_MARKERS):
-        return CURRENT_SHELL_MARKERS
-    if len(markers) == len(MARKER_NAMES):
-        return MARKER_NAMES
-    raise ValueError(
-        f"P1 ModelDef contains {len(markers)} markers; automatic selection "
-        "supports only the realized 8-marker shell or the complete 10-marker table"
-    )
+    return MARKER_NAMES
 
 
 def _distance_matrix(points: Sequence[Vector3]) -> list[list[float]]:
@@ -489,6 +474,13 @@ def resolve_correspondence(
         raise ValueError("Motive and CAD marker sets have different sizes")
     if len({marker.member_id for marker in markers}) != len(markers):
         raise ValueError("Motive ModelDef member IDs are not unique")
+    if any(marker.member_id <= 0 for marker in markers):
+        raise ValueError("NatNet marker member IDs must be positive (one-based)")
+    if any(
+        len(marker.position) != 3 or not all(math.isfinite(v) for v in marker.position)
+        for marker in markers
+    ):
+        raise ValueError("Motive ModelDef contains invalid/non-finite marker positions")
     if len(set(cad_names)) != len(cad_names):
         raise ValueError("CAD marker set is not unique")
 
@@ -684,8 +676,8 @@ def analyze_capture(
     max_live_max_m: float,
     minimum_rotation_span_deg: float,
     operator_attested_installed_layout: bool,
-    allow_nominal_only_markers: bool,
 ) -> tuple[dict, list[str]]:
+    cad_names = cad_names_for_markers(capture.markers, cad_names)
     correspondence = resolve_correspondence(
         capture.markers, cad_names, explicit_mapping
     )
@@ -722,16 +714,17 @@ def analyze_capture(
             f"marker correspondence is ambiguous: best-to-second margin {measured}"
         )
 
-    selected_nominal_only = sorted(set(cad_names) & NOMINAL_ONLY_MARKERS)
-    if selected_nominal_only and not allow_nominal_only_markers:
-        blockers.append(
-            "selected f1/b1, but the reference 0702 shell documents them as "
-            "nominal-only; confirm installed/measured mounts and rerun with "
-            "--allow-nominal-only-markers"
-        )
     if not operator_attested_installed_layout:
         blockers.append(
             "missing --attest-installed-layout operator confirmation"
+        )
+    if (
+        not math.isfinite(capture.definition_drift_max_m)
+        or capture.definition_drift_max_m > 1e-6
+    ):
+        blockers.append(
+            "Motive marker definition changed during capture; "
+            "restart the adapter and recalibrate"
         )
 
     per_marker_live = {}
@@ -803,6 +796,9 @@ def analyze_capture(
                 "cad_position_in_pelvis_link_m": list(
                     CAD_MARKERS_PELVIS_M[cad_name]
                 ),
+                "cad_mounting_quaternion_xyzw": list(
+                    CAD_MARKER_TRANSFORMS[cad_name]["quaternion_xyzw"]
+                ),
                 "fit_residual_m": registration.residuals_m[
                     capture.markers.index(marker)
                 ],
@@ -810,7 +806,8 @@ def analyze_capture(
         )
 
     document = {
-        "schema": "hope.p1_marker_cad_registration_receipt.v1",
+        "schema": "hope.p1_marker_cad_registration_receipt.v2",
+        "marker_layout": layout_metadata(),
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "approved": not blockers,
         "blockers": blockers,
@@ -845,9 +842,12 @@ def analyze_capture(
             "definition_drift_max_m": capture.definition_drift_max_m,
         },
         "cad": {
-            "coordinate_source": "agibot/pku/README.md marker table v2",
+            "coordinate_source": SOURCE_RELATIVE,
             "selected_marker_names": list(cad_names),
-            "nominal_only_marker_names": selected_nominal_only,
+            "orientation_semantics": (
+                "CAD mounting convention only; the rigid fit uses optical-centre "
+                "positions, not measured sticker orientation"
+            ),
             "operator_attested_installed_layout": (
                 operator_attested_installed_layout
             ),
@@ -909,6 +909,7 @@ def analyze_capture(
         ),
         "hope_world_frame_yaml_candidate": {
             "path": "hope_world.mocap_to_base_link.p1",
+            "marker_layout_id": LAYOUT_ID,
             "calibrated": not blockers,
             "calibration_sha256": (
                 "fill with SHA-256 of the finalized receipt file"
@@ -1136,8 +1137,8 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-names",
         default="auto",
         help=(
-            "'auto', or comma-separated CAD names. Auto selects f2-f5,b2-b5 "
-            "for 8 points and f1-f5,b1-b5 for 10 points."
+            "'auto' selects all 24 v3 sticker stations S01-S24; an explicit "
+            "list must contain the same complete set. Visibility may vary per frame."
         ),
     )
     parser.add_argument(
@@ -1145,7 +1146,8 @@ def _parse_arguments() -> argparse.Namespace:
         default="",
         help=(
             "optional verified member_id=CAD_name list, e.g. "
-            "'0=f2,1=f3,...'; otherwise NatNet names or geometry are used"
+            "'1=S01,2=S02,...'; otherwise NatNet station names or geometry are used. "
+            "Member-ID order alone is not proof of physical correspondence."
         ),
     )
     parser.add_argument("--minimum-frames", type=int, default=300)
@@ -1177,14 +1179,6 @@ def _parse_arguments() -> argparse.Namespace:
         help=(
             "confirm the selected physical marker centres and rigid shell "
             "installation match the cited A3 CAD"
-        ),
-    )
-    parser.add_argument(
-        "--allow-nominal-only-markers",
-        action="store_true",
-        help=(
-            "allow f1/b1 only after their physical mounts have been installed "
-            "and independently confirmed"
         ),
     )
     args = parser.parse_args()
@@ -1279,7 +1273,6 @@ def main() -> int:
             max_live_max_m=args.max_live_max_mm * 1.0e-3,
             minimum_rotation_span_deg=args.minimum_rotation_span_deg,
             operator_attested_installed_layout=args.attest_installed_layout,
-            allow_nominal_only_markers=args.allow_nominal_only_markers,
         )
     except (OSError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         print(f"calibration failed: {exc}", file=sys.stderr)

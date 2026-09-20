@@ -12,6 +12,7 @@ from rclpy.node import Node
 from std_srvs.srv import Trigger
 
 from p1_calibration import load_p1_calibration
+from p1_marker_layout import MARKER_NAMES
 
 
 class P1MarkerCadCalibrationServer(Node):
@@ -32,14 +33,13 @@ class P1MarkerCadCalibrationServer(Node):
         )
         self.declare_parameter("asset_name", "P1")
         self.declare_parameter(
-            "marker_names", "f1,f2,f3,f4,f5,b1,b2,b3,b4,b5"
+            "marker_names", ",".join(MARKER_NAMES)
         )
         self.declare_parameter("mapping", "")
         self.declare_parameter("minimum_frames", 200)
         self.declare_parameter("capture_duration_s", 4.0)
         self.declare_parameter("capture_timeout_s", 15.0)
         self.declare_parameter("attest_installed_layout", True)
-        self.declare_parameter("allow_nominal_markers", True)
         self.declare_parameter(
             "service_name", "/a3/calibration/recompute_p1"
         )
@@ -89,8 +89,6 @@ class P1MarkerCadCalibrationServer(Node):
             command.extend(["--mapping", mapping])
         if bool(self.get_parameter("attest_installed_layout").value):
             command.append("--attest-installed-layout")
-        if bool(self.get_parameter("allow_nominal_markers").value):
-            command.append("--allow-nominal-only-markers")
         return command
 
     def _recompute(self, _request, response):

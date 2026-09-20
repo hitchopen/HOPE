@@ -93,11 +93,14 @@ that runs `optitrack_mct_relay` must nevertheless have the independent
 
 In Motive's Data Streaming pane:
 
-| Setting | Required value | Notes |
-|---------|----------------|-------|
+| Setting | Required or validated value | Notes |
+|---------|-----------------------------|-------|
+| Motive build | **MotiveBody 3.5.0.1 Beta 1** | Validated profile; version differences warn but do not reject preflight |
+| NatNet bitstream | **4.5.x** | Validated profile; multicast always uses Motive's native bitstream, and version differences are advisory |
 | Enable NatNet | ✅ Enabled | This backend consumes NatNet (cmd port 1510) |
 | Up Axis | **Z Axis** | Critical — aligns with the HOPE REP 103 Z-up frame; the relay applies no frame conversion |
-| Transmission | Unicast preferred | Auto-negotiated from the server response; unicast keeps venue switches happy |
+| Transmission | **Multicast** | Competition profile; default group `239.255.42.99` and data port `1511` |
+| Local Interface | **192.168.50.1** | Motive PC's arena NIC; pass this server address as `hostname`, not as the adapter's `interface_ip` |
 | Rigid Bodies | **ON** | Competition assets named exactly `Ball`, `P1`, and `P2` |
 | Labeled/Unlabeled Markers | OFF (optional) | Not consumed — the ball is a rigid-body asset |
 | Skeletons | OFF | Not used |
@@ -125,9 +128,14 @@ In Motive's Data Streaming pane:
 - Units stream in **metres** → `position_scale:=1.0` (default). Sanity check:
   `/P1/pose` reading hundreds means a millimetre feed → `0.001`.
 
+Set Motive's **Local Interface** to its wired arena-network NIC. The adapter
+must be on the same VLAN/L2 segment unless multicast routing is explicitly
+provided. The managed switch must pass IGMP membership traffic; when IGMP
+snooping is enabled, ensure the venue supplies an IGMP querier.
+
 Note: the "VRPN port 3883" Motive also exposes is its legacy VRPN broadcast —
-NOT used by this backend (NatNet cmd 1510; the data port and
-unicast-vs-multicast are auto-negotiated from the server response).
+NOT used by this backend (NatNet cmd 1510; data port 1511 and multicast group
+`239.255.42.99` for the competition profile).
 
 ### Acquisition timestamps
 
@@ -187,59 +195,37 @@ works on the A3 adapter's aarch64 platform.
 
 ### Optional marker-CAD calibration: P1 to an A3 `pelvis_link`
 
-The integrated Foxglove console can use all ten waist markers to compute this
-alignment without an independent pelvis tracker. Its `Calibration` button calls
-`/hope/calibrate`: while the authoritative Runner remains in fresh `PD_STAND`,
-the Laptop recomputes the fixed `P1 -> pelvis_link` registration, composes the
-current stationary `world -> P1` pose into a `world -> pelvis_link` audit
-snapshot, and atomically stores both in `calibration/p1_to_pelvis.json`. The
-separate `Refresh x_hit` button calls `/hope/refresh_x_hit`; it does not rerun
-the marker calibration.
+The current `nightly_built` profile is the **24-station v3 sticker shell,
+S01–S24**, not the old ten-ball shell. Use the
+[v3 setup and calibration procedure](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
+for asset preparation, rebuilding, live capture and acceptance limits.
 
-When an approved setup procedure calls for this transform, first put the MDU
-Runner in settled PD_STAND, then run `p1_marker_cad_calibrator` manually on
-`/optitrack/rigid_body_markers`.
-Motive supplies
-the P1-local ModelDef marker centres plus live labeled-marker samples; the tool
-registers those centres to the A3 v2 hip-shell CAD (`f1`–`f5`, `b1`–`b5`) and
-checks every selected marker's live residual and definition stability.
+The service and CLI share the canonical sticker optical-centre CSV already
+expressed in ROS `pelvis_link` metres (X forward, Y left, Z up), including the
+0.20 mm sticker thickness. Both register Motive's local MODELDEF to those
+positions; neither assumes the Motive pivot is already at the pelvis origin.
+All 24 stations must be defined; each must provide sufficient physical live
+samples during capture, but not necessarily in the same frame. Restart
+NatNet after redefining P1. Old ten-marker/ball-mode receipts are rejected.
 
-The non-collinear named 3-D marker layout observes all six degrees of the fixed
-`P1 → pelvis_link` transform even while the robot is stationary in PD_STAND.
-An approved result atomically replaces `calibration/p1_to_pelvis.json`,
-relative to the external computer's HOPE repository root (for example,
-`/home/user/HOPE/calibration/p1_to_pelvis.json`). A failed fit cannot install a
-current-run calibration. Run the calculation only after PD_STAND has already
-been established by the approved robot procedure:
+The integrated Foxglove console's `Calibration` button calls
+`/hope/calibrate` while the authoritative Runner remains in fresh
+`PD_STAND`. The laptop service recomputes `P1 → pelvis_link` and atomically
+stores the approved v3 receipt in `calibration/p1_to_pelvis.json`. The
+`Refresh x_hit` button calls `/hope/refresh_x_hit`; it does not recalibrate.
+Other operator paths may require the manual command in the linked procedure.
 
-```bash
-ros2 run hope_bringup p1_marker_cad_calibrator \
-  --topic /optitrack/rigid_body_markers \
-  --asset-name P1 \
-  --marker-names f1,f2,f3,f4,f5,b1,b2,b3,b4,b5 \
-  --minimum-frames 200 \
-  --capture-duration 4 \
-  --stationary-prepare \
-  --attest-installed-layout \
-  --allow-nominal-only-markers \
-  --output calibration/p1_to_pelvis.json
-```
-
-After the replacement, the computer-side `hope_base_pose_flat_relay` reads the
-canonical `p1_to_pelvis` object from that JSON and composes it with the live
-`world → P1` pose. The additional `world_to_pelvis_snapshot` object records
-the stationary calibration instant for audit only; it is not published as a
-static transform after the robot moves. The computer publishes
-`/a3/base_pose_flat` for policy localization and the unshifted diagnostic
-`/a3/mocap/pelvis_pose`. It does not recalculate while the robot is playing.
-The robot consumes `/a3/base_pose_flat`; it never stores, reads, or receives
-the JSON. The SHA-derived PREPARE receipt gate described by the imported
-adapter is not part of the native Runner admission contract.
+The laptop relay composes the saved transform with live `world → P1` and
+publishes `/a3/base_pose_flat` plus diagnostic `/a3/mocap/pelvis_pose`.
+The saved `world_to_pelvis_snapshot` is an audit of the calibration instant,
+not a static world transform for a moving robot. No recalculation occurs
+during play; the robot consumes the live topic, not the laptop-local JSON.
 
 #### Legacy independent pose-pair method
 
-The following older method is retained for a genuinely independent external
-6-DOF reference or a simulation test. Do this only in a
+The following older method is retained as an audit for a genuinely independent
+external 6-DOF reference or a simulation test. It does not approve production
+runtime receipts. Do this only in a
 **setup/calibration session**. The calibrator does not require
 the `Table` rigid body; `Table` remains disabled in competition. The normal
 deployment keeps Motive's dynamic `world → P1` rigid-body pose and adds the
@@ -271,7 +257,7 @@ independent external 6-DOF tracker or state estimator to a topic such as
 simulation check only if the P1 input is also expressed in `odom`.
 
 No checked-in real-robot node publishes `/a3/calibration/pelvis_pose`. It is an
-input to this legacy tool, not the output of the ten-marker calculation. Never
+input to this legacy tool, not the output of the v3 sticker calculation. Never
 feed `/a3/mocap/pelvis_pose` or any other P1-derived result into it, because
 that would make the measurement circular.
 
@@ -284,7 +270,7 @@ ros2 run hope_bringup p1_pelvis_calibrator \
   --reference-frame world \
   --pelvis-frame pelvis_link \
   --p1-frame P1 \
-  --output calibration/p1_to_pelvis.json
+  --output calibration/p1_pose_pair_audit.json
 ```
 
 It verifies that both topics have publishers, collects 200 synchronized samples
@@ -300,8 +286,14 @@ does not claim to verify source independence, which cannot be inferred from
 two pose topics. A missing pelvis producer fails after the discovery timeout
 instead of being counted as 200 TF misses. Writing the JSON record is required.
 It also contains the constant `p1_to_pelvis` transform, residual quality
-metrics, optional Motive-pivot registration values, and the CAD cross-check.
-Load it during normal bringup:
+metrics, optional Motive-pivot registration values, and the v3 CAD cross-check.
+It is explicitly `approved: false`: independent-source provenance and installed
+marker validation are not established by this audit. Do not edit its approval
+flag or use it to replace the production receipt.
+
+An optional static-TF publisher can instead load the **approved v3 marker-CAD
+receipt** generated by the production procedure above (not this audit file),
+only when no other node owns this same TF:
 
 ```bash
 ros2 run hope_bringup p1_pelvis_tf_publisher \
@@ -324,33 +316,28 @@ calibrator. The measured correction should then be approximately identity. In
 that configuration, do not run `p1_pelvis_tf_publisher`; doing so would apply
 the correction twice.
 
-The v2 CAD table and the current
-`a3_hip_marker_shell_p1_mocap_balls_0702.x_t` shell define all ten markers
-(`f1`–`f5`, `b1`–`b5`), and a physical mocap experiment confirmed that all ten
-points are visible. The default tool configuration therefore uses the complete
-ten-marker set, whose centroid is `[-0.0024, 0, -0.1490] m` in `pelvis_link`.
-If its axes are already aligned, the current-shell CAD cross-check is a Motive
-pivot translation of `[+2.4, 0, +149.0] mm`. The live calibration result
-remains authoritative because it captures the installed marker plate and its
-actual orientation.
-Marker stream order and per-marker topic names do not affect this tool: it
-consumes the solved 6-DOF `/P1/pose`, while its CAD centroid calculation is
-order-independent. Only an offline reconstruction directly from individual
-marker coordinates would require a verified marker-ID-to-CAD correspondence.
+The legacy tool's CAD cross-check now uses all 24 v3 sticker centres. Their
+nominal centroid is `[-0.0030432118, 0.0004662525, -0.0905124363] m` in
+`pelvis_link`. It is not a default pivot correction: Motive's asset pivot is
+configurable. Marker stream order does not affect this audit's solved-pose
+math or its centroid calculation.
 
-The production marker/CAD route described at the top of this section supersedes
-the old checked-in P1 transform in `hope_world_frame.yaml`. The runtime relay
-now reads the approved JSON directly. Use exactly one route per calibration
-receipt — marker/CAD registration or the independent pose-pair method — never
-stack both corrections (see [interfaces/frames.md](interfaces/frames.md)).
+The production marker/CAD route supersedes the old checked-in P1 transform.
+The runtime relay and optional TF publisher both require an approved receipt
+with the current v3 layout and table hash. The P1 YAML default remains
+uncalibrated until a fresh live receipt is generated. Never stack corrections
+(see [interfaces/frames.md](interfaces/frames.md)).
 
 ## Bringup
 
 ### Preflight (before launch, no ROS required)
 
 ```bash
-ros2 run hope_bringup natnet_preflight.py --hostname <MOTIVE_PC_IP>
-# or directly: ./hope_ws/src/hope_bringup/scripts/natnet_preflight.py --hostname <MOTIVE_PC_IP>
+ros2 run hope_bringup natnet_preflight.py \
+  --hostname <MOTIVE_PC_IP> --interface-ip <ADAPTER_WIRED_IP>
+# or directly:
+./hope_ws/src/hope_bringup/scripts/natnet_preflight.py \
+  --hostname <MOTIVE_PC_IP> --interface-ip <ADAPTER_WIRED_IP>
 ```
 
 `natnet_preflight.py` speaks the NatNet command protocol itself and separates
@@ -359,11 +346,15 @@ silent): Motive unreachable / streaming disabled, Motive ignoring the
 model-definition request (see the adapter driver's PIN.md patch #9 — on
 Motive 3.1 / NatNet 4.1 this used to hang the driver's constructor before it
 created any publisher), NatNet echo clock synchronization unavailable, and
-frames not reaching this host (wrong interface, multicast routed out a VPN
-tunnel, firewall). It reports the minimum echo RTT / midpoint uncertainty,
-verifies the `Ball` and `P1` assets in the model definition, and gates on the
-measured frame rate (`--min-hz`, default 250). Exit code 0 means the bridge
-should come up.
+frames not reaching this host (wrong interface, multicast/IGMP, firewall).
+It identifies MotiveBody 3.5.0.1 Beta 1 / NatNet 4.5.x as the validated
+software profile but treats version differences as warnings. It still requires
+the competition multicast group `239.255.42.99` and data port `1511`, decodes
+the sized model definition while safely skipping unknown descriptions,
+verifies `Ball`, `P1`, and `P2`, reports the minimum echo RTT / midpoint
+uncertainty, and gates on the measured frame rate (`--min-hz`, default 270 for
+the 300 Hz competition source). An actual decode failure remains blocking.
+Exit code 0 means the bridge should come up.
 
 ### Launch
 
@@ -372,7 +363,7 @@ Start the raw adapter from its own workspace:
 ```bash
 source NatNet2ROS2/install/setup.bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP>
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 ```
 
 Then start the independently built HOPE relay and planner. Source the adapter
@@ -384,11 +375,27 @@ source hope_ws/install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
-`hostname` is a REQUIRED argument with no default — venue values are passed
-explicitly to the adapter, never baked in. Driver/timestamp config:
+`hostname` is required and `interface_ip` is required for live multicast; venue
+values are never baked in. `hostname` is the Motive server address;
+`interface_ip` is the local wired NIC address used for `IP_ADD_MEMBERSHIP`.
+The empty interface default exists only so the mock backend can launch without
+a physical NIC; a multicast server fails closed. Driver/timestamp config:
 [`hope_optitrack.yaml`](../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml).
 Relay config (name → topic mapping, scale):
 [`config/optitrack_relay.yaml`](../hope_ws/src/hope_bringup/config/optitrack_relay.yaml).
+
+The supported `natnet2ros2.launch.py` process exits cleanly on a bounded
+one-second stream timeout and respawns after two seconds, so standalone launch
+recovers after Motive resumes streaming or multicast membership returns. A
+bare `ros2 run motion_capture_tracking motion_capture_tracking_node` has no
+respawn supervisor and is for attended diagnostics only.
+
+Managed rally startup requires either
+`--mocap-interface-ip <ADAPTER_WIRED_IP>` or the equivalent
+`HOPE_MOTIVE_INTERFACE_IP` environment variable. Foxglove lifecycle startup
+reads `HOPE_MOTIVE_INTERFACE_IP` from
+`~/.config/hope-foxglove/lifecycle.env`. Both paths validate that the route to
+Motive uses that source address before starting NatNet.
 
 ### Verify
 
@@ -439,9 +446,9 @@ For bag replay, record `/optitrack/poses` at a live session
 
 ## Source/output rate and the C++ packetizer window
 
-The camera rate and ROS output rate are now intentionally distinct. OptiTrack
-rigs commonly capture at 360 Hz, while NatNet2ROS2 receives every frame and
-publishes at a configurable maximum of 200 Hz by default. The production C++
+The camera rate and ROS output rate are intentionally distinct. Competition
+Motive captures at 300 Hz, while NatNet2ROS2 receives every frame and publishes
+at a configurable maximum of 200 Hz by default. The production C++
 packetizer uses the time-based `flight_window_s` parameter, not the retired
 Python Planner's sample-count `fit_window`. Its default is 0.18 s in
 [`model21800_flight_packetizer.yaml`](../hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml).
@@ -462,7 +469,7 @@ Motive LAN to the robot's network. Where DDS multicast discovery does not work
 # Laptop (runs the independent raw adapter; peers with the robot host):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <ROBOT_HOST_IP> -- \
   ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-    hostname:=<MOTIVE_PC_IP>
+    hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 
 # Robot host (sources the interface package, then runs HOPE relay + planner):
 ./hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --peer <LAPTOP_IP> -- \
@@ -477,7 +484,7 @@ whitelist derived from the route to each peer) and sets
 
 | Symptom | Cause / fix |
 |---|---|
-| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`, firewall on UDP 1510/1511, not on the Motive LAN, or all frames are failing the configured timestamp gates. Inspect the adapter log, `ping` the Motive PC, then run `natnet_preflight.py --hostname <MOTIVE_PC_IP>` to pinpoint the failing stage. |
+| Driver starts but 0 Hz on `/optitrack/poses` | Wrong `hostname`/`interface_ip`, firewall on UDP 1510/1511, broken IGMP membership, not on the Motive VLAN, or all frames are failing the timestamp gates. Run `natnet_preflight.py --hostname <MOTIVE_PC_IP> --interface-ip <ADAPTER_WIRED_IP>` to pinpoint the failing stage. |
 | `/optitrack/poses` exists with `Publisher count: 0`, nothing logged | Pre-patch-#9 driver hung in its constructor: Motive 3.1 / NatNet 4.1 silently drops payload-less model-definition requests. Fixed in the pinned adapter driver (type-mask request + bounded handshake — it now retries and then exits with an error instead of hanging); `natnet_preflight.py` reports this Motive behavior explicitly. |
 | `/optitrack/poses` continues near 200 Hz with `poses: []` | NatNet transport and timestamp gates are live, but no valid exact-name `Ball`, `P1`, or `P2` asset is present in the selected frames. Check Motive tracking/streaming and case-sensitive asset names. The relay intentionally emits no downstream pose or TF. |
 | Objects stream but nothing relayed | Motive asset names don't match the exact adapter allowlist and `optitrack_relay.yaml` (`Ball`/`P1`/`P2`, case-sensitive), or only empty heartbeats are arriving. Check `ros2 topic echo --once /optitrack/poses`. |

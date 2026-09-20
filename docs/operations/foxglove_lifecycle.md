@@ -70,7 +70,13 @@ export ROBOT_USER="${ROBOT_USER:-agi}"
 export LAPTOP_IP=<laptop-wifi-ip>
 export HDU_IP=<hdu-wifi-ip>
 export MDU_IP=<mdu-internal-ip>
+export MOTIVE_INTERFACE_IP=<laptop-motive-nic-ip>
 ```
+
+Store the same local wired-NIC address as `HOPE_MOTIVE_INTERFACE_IP` in
+`~/.config/hope-foxglove/lifecycle.env`. The lifecycle helper validates that
+the route to the Motive address uses this source IP and passes it to the
+NatNet multicast launch; an empty or mismatched value fails before startup.
 
 The HDU robot account must have non-interactive SSH authentication to the
 Laptop operator account and the MDU robot account. The Laptop must retain its

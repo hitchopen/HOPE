@@ -299,6 +299,9 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("hope_marker_monitor.py", lifecycle_helper)
         self.assertIn("marker_monitor.log", lifecycle_helper)
         self.assertIn('--peer "$hdu_ip"', lifecycle_helper)
+        self.assertIn("HOPE_MOTIVE_INTERFACE_IP", lifecycle_helper)
+        self.assertIn("require_motive_interface", lifecycle_helper)
+        self.assertIn('motive_interface_ip:="$motive_interface_ip"', lifecycle_helper)
         self.assertIn("set +u\n  source /opt/ros/jazzy/setup.bash", lifecycle_helper)
         self.assertIn("set +u\n  source /agibot/software/v0/entry/env/env.sh", lifecycle_helper)
 

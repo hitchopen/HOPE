@@ -24,7 +24,7 @@ Example for the OptiTrack laptop-bridge topology:
   # Laptop: independently built NatNet2ROS2 adapter -> robot host.
   with_fastdds_unicast.sh --peer <ROBOT_HOST_IP> -- \
     ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-      hostname:=<MOTIVE_PC_IP>
+      hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_MOTIVE_NIC_IP>
 
   # Robot host: source NatNet2ROS2 interfaces, then run the HOPE relay/planner.
   with_fastdds_unicast.sh --peer <LAPTOP_IP> -- \

@@ -114,7 +114,7 @@ the stream for trajectory estimation.
 ```bash
 source NatNet2ROS2/install/setup.bash
 ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-  hostname:=<MOTIVE_PC_IP>
+  hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_WIRED_IP>
 
 # In the HOPE terminal, source both installs for NamedPoseArray type support.
 source NatNet2ROS2/install/setup.bash

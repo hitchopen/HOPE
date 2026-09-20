@@ -74,6 +74,7 @@ namespace libmotioncapture {
     int32_t id;
     int32_t parentId;
     Eigen::Vector3f parentOffset;
+    Eigen::Quaternionf parentRotationOffset;
     std::vector<RigidBodyMarkerDefinition> markers;
   };
 

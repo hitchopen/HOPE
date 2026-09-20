@@ -47,7 +47,7 @@ All calls use `std_srvs/Trigger`; request payload editing is disabled.
 
 | Button | Service | Exact effect |
 |---|---|---|
-| Calibration | `/hope/calibrate` | recompute ten-marker `P1 -> pelvis_link`, persist a stationary world-pelvis snapshot, and wait for the matching live base receipt |
+| Calibration | `/hope/calibrate` | recompute v3 24-sticker `P1 -> pelvis_link`, persist a stationary world-pelvis snapshot, and wait for the matching live base receipt |
 | Refresh x_hit | `/hope/refresh_x_hit` | refresh only the current Planner x_hit request/status contract |
 | Stand | `/hope/runner/enter_pd_stand` | same Runner transition as keyboard `s` |
 | Ready | `/hope/runner/enter_motion` | same Runner transition as keyboard `m`; the UI enables it only after PD_STAND and a fresh HDU-observed Pelvis base, while Runner semantics remain unchanged |

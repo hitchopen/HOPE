@@ -54,15 +54,20 @@ records. Discipline:
 
 - The values are **never** hand-typed identities. P1's approved marker/CAD
   receipt is written atomically and the relay derives its wire ID from the
-  exact file SHA-256. Historical evidence remains under
+  exact file SHA-256. Runtime requires the v3 S01–S24 sticker layout ID and
+  canonical optical-centre table hash; old ten-marker receipts are rejected.
+  The checked-in P1 YAML is uncalibrated pending a new live receipt.
+  Historical evidence remains under
   [`hope_ws/calibration_receipts/`](../../hope_ws/calibration_receipts).
-- Two calibration routes exist; **use one, never both**: the production
-  CAD-registration route (`p1_marker_cad_calibrator`, which registers the live
-  Motive marker layout against the A3 hip-shell CAD at
-  [`agibot/pku/hip_marker_shell/`](../../agibot/pku/hip_marker_shell)), or the
-  legacy pose-pair route (`p1_pelvis_calibrator` plus
-  `p1_pelvis_tf_publisher`), which is valid only with a genuinely independent
-  `world → pelvis_link` source. See
+- The production route is `p1_marker_cad_calibrator`, which registers live
+  Motive MODELDEF centres against the
+  [v3 sticker table](../../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv).
+  Those points are already in ROS `pelvis_link` metres including sticker
+  thickness; no second axis/thickness correction is allowed. The legacy
+  `p1_pelvis_calibrator` is an independent pose-pair audit requiring a genuine
+  independent `world → pelvis_link` source; it does not approve runtime receipts.
+  `p1_pelvis_tf_publisher` shares the production relay's receipt checks.
+  Never stack two corrections or publish competing TF authorities. See
   [`docs/OPTITRACK.md`](../OPTITRACK.md) for the operational walkthrough.
 
 Each ROS 2 pose contains position `(x, y, z)` and quaternion orientation
