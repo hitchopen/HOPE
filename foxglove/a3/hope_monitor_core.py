@@ -83,7 +83,7 @@ def estop_backend_status(
         return EstopBackendStatus(
             action_ready=False,
             full_ready=False,
-            detail="E-STOP LATCHED | inspect robot and use approved local recovery",
+            detail="E-STOP LATCHED | use Reset Software E-stop to clear the software inhibit",
         )
     if vendor_ready and runner_ready:
         return EstopBackendStatus(
@@ -202,7 +202,19 @@ def parse_chrony_status(
     max_offset_ms: float,
     max_skew_ppm: float,
 ) -> NtpProbeResult:
-    """Parse chrony output using the same source-selection rule as preflight."""
+    """Parse chrony output using the same source-selection rule as preflight.
+
+    ``max_skew_ppm <= 0`` keeps skew as telemetry only.  Chrony's Skew field is
+    the uncertainty of its frequency estimate, not the current wall-clock
+    offset.  It can remain above 5 ppm after a daemon restart even when the
+    selected-source correction is already sub-millisecond, so it must not
+    strand the robot services in a time-calibration maintenance transaction.
+    """
+
+    if not math.isfinite(max_offset_ms) or max_offset_ms <= 0.0:
+        raise ValueError("max_offset_ms must be positive and finite")
+    if not math.isfinite(max_skew_ppm) or max_skew_ppm < 0.0:
+        raise ValueError("max_skew_ppm must be non-negative and finite")
 
     fields = tracking_csv.strip().split(",")
     if len(fields) < 14:
@@ -215,11 +227,12 @@ def parse_chrony_status(
     selected_source = any(line.startswith("^*") for line in sources_text.splitlines())
     utc_qualified = leap_normal and selected_source
     finite = all(math.isfinite(value) for value in (offset_ms, skew_ppm))
+    skew_gate_pass = max_skew_ppm <= 0.0 or skew_ppm <= max_skew_ppm
     gate_pass = (
         utc_qualified
         and finite
         and abs(offset_ms) <= max_offset_ms
-        and skew_ppm <= max_skew_ppm
+        and skew_gate_pass
     )
     return NtpProbeResult(
         offset_ms=offset_ms,

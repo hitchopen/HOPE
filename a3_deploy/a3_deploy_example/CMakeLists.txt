@@ -29,30 +29,98 @@ option(ENABLE_TRT_INFERENCE "Build TensorRT/CUDA inference targets" OFF)
 option(ENABLE_RKNN_INFERENCE "Build Rockchip RKNN inference backend" OFF)
 option(USE_BUNDLED_ONNXRUNTIME_AARCH64
        "Use repo-local ONNX Runtime package on aarch64/arm64" ON)
-set(A3_THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty" CACHE PATH
-    "A3 vendor dependency root (onnxruntime, RKNN, unitree_sdk2, joint_msgs)")
+
+set(A3_THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty" CACHE PATH "Third-party dependency root")
+set(A3_UNITREE_SDK2_ROOT "${A3_THIRDPARTY_ROOT}/unitree_sdk2" CACHE PATH "Unitree SDK2 root")
 get_filename_component(A3_THIRDPARTY_ROOT "${A3_THIRDPARTY_ROOT}" ABSOLUTE)
-set(A3_UNITREE_SDK2_ROOT "${A3_THIRDPARTY_ROOT}/unitree_sdk2" CACHE PATH
-    "Unitree SDK2 root containing CMakeLists.txt and architecture libraries")
 get_filename_component(A3_UNITREE_SDK2_ROOT "${A3_UNITREE_SDK2_ROOT}" ABSOLUTE)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 find_package(Threads REQUIRED)
 
+# Bundled ORT selection is recomputed on every configure. Older revisions
+# forced extracted paths into the CMake cache, so discard only entries that
+# point into this build tree. User-provided package roots remain untouched when
+# USE_BUNDLED_ONNXRUNTIME_AARCH64 is disabled.
+set(GS_ONNXRUNTIME_AARCH64_EXTRACT_BASE
+    "${CMAKE_BINARY_DIR}/_deps/onnxruntime_aarch64")
+foreach(_gs_ort_cache_var
+        onnxruntime_DIR
+        onnxruntime_ROOT
+        onnxruntime_INCLUDE_DIR
+        onnxruntime_LIBRARY)
+  if(DEFINED CACHE{${_gs_ort_cache_var}})
+    get_property(_gs_ort_cached_value CACHE "${_gs_ort_cache_var}"
+                 PROPERTY VALUE)
+    string(FIND "${_gs_ort_cached_value}"
+           "${GS_ONNXRUNTIME_AARCH64_EXTRACT_BASE}/"
+           _gs_ort_generated_prefix_index)
+    if(_gs_ort_generated_prefix_index EQUAL 0)
+      unset(${_gs_ort_cache_var} CACHE)
+    endif()
+  endif()
+endforeach()
+unset(GS_BUNDLED_ONNXRUNTIME_LIB_DIR CACHE)
+unset(GS_BUNDLED_ONNXRUNTIME_ARCHIVE_SHA256 CACHE)
+
+set(GS_ONNXRUNTIME_AARCH64_CPU_FALLBACK OFF)
+set(GS_ONNXRUNTIME_AARCH64_GPU_BUNDLE OFF)
+
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64"
    AND USE_BUNDLED_ONNXRUNTIME_AARCH64)
-  set(GS_ONNXRUNTIME_AARCH64_TARBALL
+  set(GS_ONNXRUNTIME_AARCH64_GPU_TARBALL
       "${A3_THIRDPARTY_ROOT}/onnxruntime/onnxruntime_gpu_1.19.2_aarch64.tar.gz")
-  if(EXISTS "${GS_ONNXRUNTIME_AARCH64_TARBALL}")
-    set(GS_ONNXRUNTIME_AARCH64_EXTRACT_DIR
-        "${CMAKE_BINARY_DIR}/_deps/onnxruntime_aarch64")
-    set(GS_ONNXRUNTIME_AARCH64_PREFIX
-        "${GS_ONNXRUNTIME_AARCH64_EXTRACT_DIR}/onnxruntime_gpu_1.19.2")
-    set(GS_ONNXRUNTIME_AARCH64_CONFIG_DIR
-        "${GS_ONNXRUNTIME_AARCH64_PREFIX}/lib/cmake/onnxruntime")
+  set(GS_ONNXRUNTIME_AARCH64_CPU_TARBALL
+      "${A3_THIRDPARTY_ROOT}/onnxruntime/onnxruntime-linux-aarch64-1.19.2.tgz")
+  set(GS_ONNXRUNTIME_AARCH64_CPU_SHA256
+      "5e30145277d6d6fcb0e8f14f0d0ab5048af7b13ffd608023bb1e2875621fab07")
+  # Preserve the private GPU bundle as the first choice. The official
+  # Microsoft CPU release is a fallback for the Build4 package; it has a
+  # different archive root and must not be renamed as the GPU payload.
+  if(EXISTS "${GS_ONNXRUNTIME_AARCH64_GPU_TARBALL}")
+    file(SHA256 "${GS_ONNXRUNTIME_AARCH64_GPU_TARBALL}"
+         GS_ONNXRUNTIME_AARCH64_ARCHIVE_SHA256)
+    set(GS_ONNXRUNTIME_AARCH64_TARBALL
+        "${GS_ONNXRUNTIME_AARCH64_GPU_TARBALL}")
+    set(GS_ONNXRUNTIME_AARCH64_ARCHIVE_ROOT
+        "onnxruntime_gpu_1.19.2")
+    set(GS_ONNXRUNTIME_AARCH64_GPU_BUNDLE ON)
+  elseif(EXISTS "${GS_ONNXRUNTIME_AARCH64_CPU_TARBALL}")
+    file(SHA256 "${GS_ONNXRUNTIME_AARCH64_CPU_TARBALL}"
+         GS_ONNXRUNTIME_AARCH64_CPU_ACTUAL_SHA256)
+    if(NOT GS_ONNXRUNTIME_AARCH64_CPU_ACTUAL_SHA256 STREQUAL
+           GS_ONNXRUNTIME_AARCH64_CPU_SHA256)
+      message(FATAL_ERROR
+        "Official aarch64 ONNX Runtime CPU archive SHA-256 mismatch: "
+        "expected ${GS_ONNXRUNTIME_AARCH64_CPU_SHA256}, got "
+        "${GS_ONNXRUNTIME_AARCH64_CPU_ACTUAL_SHA256}: "
+        "${GS_ONNXRUNTIME_AARCH64_CPU_TARBALL}")
+    endif()
+    set(GS_ONNXRUNTIME_AARCH64_TARBALL
+        "${GS_ONNXRUNTIME_AARCH64_CPU_TARBALL}")
+    set(GS_ONNXRUNTIME_AARCH64_ARCHIVE_SHA256
+        "${GS_ONNXRUNTIME_AARCH64_CPU_ACTUAL_SHA256}")
+    set(GS_ONNXRUNTIME_AARCH64_ARCHIVE_ROOT
+        "onnxruntime-linux-aarch64-1.19.2")
+    set(GS_ONNXRUNTIME_AARCH64_CPU_FALLBACK ON)
+  endif()
 
-    if(NOT EXISTS "${GS_ONNXRUNTIME_AARCH64_CONFIG_DIR}/onnxruntimeConfig.cmake")
+  if(GS_ONNXRUNTIME_AARCH64_TARBALL)
+    set(GS_ONNXRUNTIME_AARCH64_EXTRACT_DIR
+        "${GS_ONNXRUNTIME_AARCH64_EXTRACT_BASE}/${GS_ONNXRUNTIME_AARCH64_ARCHIVE_SHA256}")
+    set(GS_ONNXRUNTIME_AARCH64_PREFIX
+        "${GS_ONNXRUNTIME_AARCH64_EXTRACT_DIR}/${GS_ONNXRUNTIME_AARCH64_ARCHIVE_ROOT}")
+
+    set(GS_ONNXRUNTIME_AARCH64_NEEDS_EXTRACTION OFF)
+    if(NOT EXISTS
+       "${GS_ONNXRUNTIME_AARCH64_PREFIX}/include/onnxruntime_cxx_api.h"
+       OR NOT EXISTS
+       "${GS_ONNXRUNTIME_AARCH64_PREFIX}/lib/libonnxruntime.so")
+      set(GS_ONNXRUNTIME_AARCH64_NEEDS_EXTRACTION ON)
+    endif()
+
+    if(GS_ONNXRUNTIME_AARCH64_NEEDS_EXTRACTION)
       file(MAKE_DIRECTORY "${GS_ONNXRUNTIME_AARCH64_EXTRACT_DIR}")
       execute_process(
         COMMAND ${CMAKE_COMMAND} -E tar xzf "${GS_ONNXRUNTIME_AARCH64_TARBALL}"
@@ -64,22 +132,97 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64"
       endif()
     endif()
 
-    set(onnxruntime_DIR "${GS_ONNXRUNTIME_AARCH64_CONFIG_DIR}" CACHE PATH
-        "Repo-local aarch64 ONNX Runtime config dir" FORCE)
+    if(NOT EXISTS
+       "${GS_ONNXRUNTIME_AARCH64_PREFIX}/include/onnxruntime_cxx_api.h"
+       OR NOT EXISTS
+       "${GS_ONNXRUNTIME_AARCH64_PREFIX}/lib/libonnxruntime.so")
+      message(FATAL_ERROR
+        "Bundled aarch64 ONNX Runtime archive is missing its "
+        "include/onnxruntime_cxx_api.h or lib/libonnxruntime.so payload")
+    endif()
+    # Both available 1.19.2 bundles ship a CMake config whose include path
+    # assumes an include/onnxruntime subdirectory that is absent from the
+    # archives. Use this repository's find module with their actual layout.
+    set(onnxruntime_ROOT "${GS_ONNXRUNTIME_AARCH64_PREFIX}")
+    set(onnxruntime_INCLUDE_DIR
+        "${GS_ONNXRUNTIME_AARCH64_PREFIX}/include")
+    set(onnxruntime_LIBRARY
+        "${GS_ONNXRUNTIME_AARCH64_PREFIX}/lib/libonnxruntime.so")
     set(GS_BUNDLED_ONNXRUNTIME_LIB_DIR
         "${GS_ONNXRUNTIME_AARCH64_PREFIX}/lib" CACHE INTERNAL
         "Repo-local ONNX Runtime library directory")
+    set(GS_BUNDLED_ONNXRUNTIME_ARCHIVE_SHA256
+        "${GS_ONNXRUNTIME_AARCH64_ARCHIVE_SHA256}" CACHE INTERNAL
+        "SHA-256 of the selected repo-local ONNX Runtime archive")
     list(PREPEND CMAKE_PREFIX_PATH "${GS_ONNXRUNTIME_AARCH64_PREFIX}")
     message(STATUS
       "Using bundled aarch64 ONNX Runtime: ${GS_ONNXRUNTIME_AARCH64_PREFIX}")
   else()
     message(WARNING
-      "Bundled aarch64 ONNX Runtime tarball not found: "
-      "${GS_ONNXRUNTIME_AARCH64_TARBALL}; falling back to find_package")
+      "Bundled aarch64 ONNX Runtime tarballs not found: "
+      "${GS_ONNXRUNTIME_AARCH64_GPU_TARBALL} or "
+      "${GS_ONNXRUNTIME_AARCH64_CPU_TARBALL}; falling back to find_package")
   endif()
 endif()
 
-find_package(onnxruntime REQUIRED)
+if(GS_ONNXRUNTIME_AARCH64_CPU_FALLBACK OR
+   GS_ONNXRUNTIME_AARCH64_GPU_BUNDLE)
+  # Existing cache entries may point at the x86 host. Replace them only for
+  # bundle discovery, then restore caller-provided values for later configures.
+  foreach(_gs_ort_cache_var
+          onnxruntime_DIR
+          onnxruntime_ROOT
+          onnxruntime_INCLUDE_DIR
+          onnxruntime_LIBRARY)
+    set(_gs_saved_${_gs_ort_cache_var}_defined OFF)
+    if(DEFINED CACHE{${_gs_ort_cache_var}})
+      get_property(_gs_saved_${_gs_ort_cache_var}_value
+                   CACHE "${_gs_ort_cache_var}" PROPERTY VALUE)
+      set(_gs_saved_${_gs_ort_cache_var}_defined ON)
+    endif()
+    unset(${_gs_ort_cache_var} CACHE)
+  endforeach()
+
+  set(onnxruntime_ROOT "${GS_ONNXRUNTIME_AARCH64_PREFIX}" CACHE PATH
+      "Temporary repo-local aarch64 ONNX Runtime root" FORCE)
+  set(onnxruntime_INCLUDE_DIR
+      "${GS_ONNXRUNTIME_AARCH64_PREFIX}/include" CACHE PATH
+      "Temporary repo-local aarch64 ONNX Runtime include directory" FORCE)
+  set(onnxruntime_LIBRARY
+      "${GS_ONNXRUNTIME_AARCH64_PREFIX}/lib/libonnxruntime.so" CACHE FILEPATH
+      "Temporary repo-local aarch64 ONNX Runtime library" FORCE)
+  find_package(onnxruntime REQUIRED MODULE)
+
+  foreach(_gs_ort_cache_var
+          onnxruntime_DIR
+          onnxruntime_ROOT
+          onnxruntime_INCLUDE_DIR
+          onnxruntime_LIBRARY)
+    unset(${_gs_ort_cache_var} CACHE)
+    if(_gs_saved_${_gs_ort_cache_var}_defined)
+      if(_gs_ort_cache_var STREQUAL "onnxruntime_LIBRARY")
+        set(_gs_restored_ort_cache_type FILEPATH)
+      else()
+        set(_gs_restored_ort_cache_type PATH)
+      endif()
+      set(${_gs_ort_cache_var}
+          "${_gs_saved_${_gs_ort_cache_var}_value}"
+          CACHE ${_gs_restored_ort_cache_type}
+          "User-provided ONNX Runtime cache entry restored after bundled selection"
+          FORCE)
+    endif()
+  endforeach()
+
+  # Keep directory-scope values aligned with the imported target. Restored
+  # cache values are intentionally visible only to the next configure.
+  set(onnxruntime_ROOT "${GS_ONNXRUNTIME_AARCH64_PREFIX}")
+  set(onnxruntime_INCLUDE_DIR
+      "${GS_ONNXRUNTIME_AARCH64_PREFIX}/include")
+  set(onnxruntime_LIBRARY
+      "${GS_ONNXRUNTIME_AARCH64_PREFIX}/lib/libonnxruntime.so")
+else()
+  find_package(onnxruntime REQUIRED)
+endif()
 
 if(ENABLE_RKNN_INFERENCE)
   if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
@@ -323,13 +466,7 @@ set(BUILD_EXAMPLES
     OFF
     CACHE BOOL "Build unitree_sdk2 examples" FORCE)
 
-if(NOT EXISTS "${A3_UNITREE_SDK2_ROOT}/CMakeLists.txt")
-  message(FATAL_ERROR
-    "Unitree SDK2 is missing. Source setup_a3_env.sh before configuring, or "
-    "set A3_UNITREE_SDK2_ROOT to a complete Unitree SDK2 checkout.")
-endif()
-add_subdirectory("${A3_UNITREE_SDK2_ROOT}"
-                 "${CMAKE_BINARY_DIR}/thirdparty/unitree_sdk2")
+add_subdirectory("${A3_UNITREE_SDK2_ROOT}" "${CMAKE_BINARY_DIR}/thirdparty/unitree_sdk2")
 
 # Add unitree_sdk2 include directories
 target_include_directories(${PROJECT_NAME}

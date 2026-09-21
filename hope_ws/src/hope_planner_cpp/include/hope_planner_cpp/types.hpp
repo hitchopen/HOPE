@@ -16,10 +16,11 @@ constexpr std::size_t kMaxEstimatorSamples = 192;
 constexpr std::size_t kInputRingCapacity = 1024;
 
 struct BallPhysics {
-  double drag_k = 0.1261;
-  double magnus_k = 0.00444;
+  // 2026-08-23/24 engineering candidates; mirrors ball_physics_venue.yaml.
+  double drag_k = 0.1317;
+  double magnus_k = 0.00327844;
   double restitution_h = 0.64;
-  double restitution_v = 0.9215;
+  double restitution_v = 0.9607;
   // Nakashima/Ace Coulomb prior (not venue-fit).
   double nakashima_friction_mu = 0.25;
   // Retained OptiTrack grip law from ball_physics_venue.yaml.  This is a
@@ -180,6 +181,24 @@ struct FlightPacketMetadata {
   std::uint8_t transmit_count = 0;
 };
 
+// Simulator-only audit for a discrete question-bank fixture.  The physical
+// Stage-2 prediction is retained independently; an exact bank command may be
+// emitted only when this residual ledger passes.
+struct QuestionFixtureAudit {
+  bool active = false;
+  bool physical_match = false;
+  std::string contract = "disabled";
+  std::string bank_sha256 = "disabled";
+  std::string receipt_sha256 = "disabled";
+  std::int64_t bank_row_id = -1;
+  StrikeTarget physical_strike;
+  double physical_tts_s = std::numeric_limits<double>::quiet_NaN();
+  double position_error_max_m = std::numeric_limits<double>::quiet_NaN();
+  double velocity_error_max_mps = std::numeric_limits<double>::quiet_NaN();
+  double tts_error_s = std::numeric_limits<double>::quiet_NaN();
+  double fixture_tts_s = std::numeric_limits<double>::quiet_NaN();
+};
+
 struct SolveAudit {
   double estimator_ms = 0.0;
   double stage2_ms = 0.0;
@@ -195,6 +214,7 @@ struct SolveAudit {
       std::numeric_limits<double>::quiet_NaN();
   std::string segment_boundary_reason = "none";
   FlightPacketMetadata flight_packet;
+  QuestionFixtureAudit question_fixture;
   std::string reason = "not_run";
 };
 

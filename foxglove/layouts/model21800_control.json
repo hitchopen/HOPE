@@ -92,13 +92,13 @@
       ]
     },
     "Indicator!markers": {
-      "path": "/hope/mocap/p1_markers_complete.data",
+      "path": "/hope/mocap/markers_complete.data",
       "style": "background",
       "fallbackColor": "#607d8b",
-      "fallbackLabel": "P1 MARKERS: NO LAPTOP DATA",
+      "fallbackLabel": "SELECTED MARKERS: NO LAPTOP DATA",
       "rules": [
-        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "P1 MARKERS 10/10"},
-        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "P1 MARKERS INCOMPLETE"}
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "SELECTED MARKERS 10/10"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "SELECTED MARKERS INCOMPLETE"}
       ]
     },
     "Indicator!runnerfault": {
@@ -117,7 +117,7 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "SERVE STATE: NO DATA",
       "rules": [
-        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "READY: PLACE BALL ON PALM"},
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "READY TO PLAY: GRIPPER NON-GATING"},
         {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "NOT READY TO SERVE"}
       ]
     },
@@ -133,7 +133,7 @@
     },
     "RawMessages!ntp": {"topicPath": "/hope/ntp/text", "diffEnabled": false, "diffMethod": "custom"},
     "RawMessages!latency": {"topicPath": "/hope/clock/message_text", "diffEnabled": false, "diffMethod": "custom"},
-    "RawMessages!markers": {"topicPath": "/hope/mocap/p1_marker_text", "diffEnabled": false, "diffMethod": "custom"},
+    "RawMessages!markers": {"topicPath": "/hope/mocap/marker_text", "diffEnabled": false, "diffMethod": "custom"},
     "RawMessages!pelvis": {"topicPath": "/hope/pelvis/text", "diffEnabled": false, "diffMethod": "custom"},
     "RawMessages!runner": {"topicPath": "/hope/runner/summary", "diffEnabled": false, "diffMethod": "custom"},
     "RawMessages!opponent": {"topicPath": "/hope/opponent/summary", "diffEnabled": false, "diffMethod": "custom"},
@@ -160,15 +160,25 @@
       "maxYValue": 100,
       "followingViewWidth": 120
     },
-    "ServiceCall!calibration": {
-      "serviceName": "/hope/calibrate",
+    "ServiceCall!calibrationv2": {
+      "serviceName": "/hope/calibrate_v2",
       "requestPayload": "{}",
       "layout": "vertical",
       "editingMode": false,
       "timeoutSeconds": 40,
-      "buttonText": "CALIBRATION / WORLD→PELVIS JSON",
-      "buttonTooltip": "Use only after stable PD_STAND. Recompute the 10-marker P1→pelvis transform, persist the derived world→pelvis audit snapshot in JSON, and wait for a matching fresh base receipt. Does not refresh x_hit.",
+      "buttonText": "CALI V2 / LEGACY PANTS",
+      "buttonTooltip": "Use only after stable PD_STAND with the V2 marker carrier installed. Recompute the ten-point marker→pelvis transform, persist the world→pelvis audit snapshot, and wait for a matching fresh base receipt. Does not refresh x_hit.",
       "buttonColor": "#1565c0"
+    },
+    "ServiceCall!calibrationv3": {
+      "serviceName": "/hope/calibrate_v3",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 40,
+      "buttonText": "CALI V3 / NEW PANTS",
+      "buttonTooltip": "Use only after stable PD_STAND with the V3 marker carrier installed. Use the new V03 ten-point table, persist the world→pelvis audit snapshot, and wait for a matching fresh base receipt. Does not refresh x_hit.",
+      "buttonColor": "#6a1b9a"
     },
     "ServiceCall!refreshxhit": {
       "serviceName": "/hope/refresh_x_hit",
@@ -200,25 +210,35 @@
       "buttonTooltip": "Same Runner transition as keyboard m. It adds no hidden x_hit, role, localization, or clock gate.",
       "buttonColor": "#ef6c00"
     },
+    "ServiceCall!prepareserve": {
+      "serviceName": "/hope/runner/prepare_serve",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "buttonText": "SERVE — RAISE HAND",
+      "buttonTooltip": "SERVER only. Smoothly transitions all 31 joints from official PD_STAND to serve025 CSV frame 0 while automatically running OPEN then GRAB. Load the ball only after the transition stops.",
+      "buttonColor": "#6a1b9a"
+    },
     "ServiceCall!readytoserve": {
       "serviceName": "/hope/runner/ready_to_serve",
       "requestPayload": "{}",
       "layout": "vertical",
       "editingMode": false,
       "timeoutSeconds": 3,
-      "buttonText": "READY TO SERVE",
-      "buttonTooltip": "Starts the existing serve pre-position. Wait for Runner state AWAIT_BALL_ON_PALM before placing the ball.",
-      "buttonColor": "#6a1b9a"
+      "buttonText": "READY TO SERVE — PLAY",
+      "buttonTooltip": "Accepted in WAIT_READY_TO_SERVE. Load the ball into the already-closed claw, clear all hands and the swing zone, then start the full31 serve025 timeline at frame 0.",
+      "buttonColor": "#ad1457"
     },
-    "ServiceCall!serve": {
-      "serviceName": "/hope/runner/serve",
+    "ServiceCall!opengripper": {
+      "serviceName": "/hope/runner/open_gripper",
       "requestPayload": "{}",
       "layout": "vertical",
       "editingMode": false,
       "timeoutSeconds": 3,
-      "buttonText": "SERVE — BALL ON PALM CONFIRMED",
-      "buttonTooltip": "Accepted only when the authoritative Runner serve state is AWAIT_BALL_ON_PALM. This commits toss/serve.",
-      "buttonColor": "#ad1457"
+      "buttonText": "OPEN GRIPPER",
+      "buttonTooltip": "Manual PD_STAND command. Gripper state and cleanup telemetry do not gate this action.",
+      "buttonColor": "#ef6c00"
     },
     "ServiceCall!setserver": {
       "serviceName": "/hope/runner/set_server",
@@ -331,7 +351,12 @@
             "first": {
               "direction": "row",
               "first": "ServiceCall!stand",
-              "second": "ServiceCall!calibration",
+              "second": {
+                "direction": "row",
+                "first": "ServiceCall!calibrationv2",
+                "second": "ServiceCall!calibrationv3",
+                "splitPercentage": 50
+              },
               "splitPercentage": 50
             },
             "second": {
@@ -345,29 +370,34 @@
               "second": {
                 "direction": "column",
                 "first": {
+                  "direction": "column",
+                "first": {
                   "direction": "row",
-                  "first": "ServiceCall!readytoserve",
-                  "second": {
-                    "direction": "row",
-                    "first": "Indicator!readytoserve",
-                    "second": "ServiceCall!serve",
-                    "splitPercentage": 45
-                  },
-                  "splitPercentage": 33
+                  "first": "ServiceCall!prepareserve",
+                  "second": "ServiceCall!readytoserve",
+                  "splitPercentage": 50
+                },
+                "second": "Indicator!readytoserve",
+                  "splitPercentage": 50
                 },
                 "second": {
-                  "direction": "row",
-                  "first": {
-                    "direction": "row",
-                    "first": "Indicator!runnerfault",
-                    "second": "ServiceCall!passive",
-                    "splitPercentage": 45
-                  },
+                  "direction": "column",
+                  "first": "ServiceCall!opengripper",
                   "second": {
                     "direction": "row",
-                    "first": "Indicator!estopready",
-                    "second": "ServiceCall!estop",
-                    "splitPercentage": 45
+                    "first": {
+                      "direction": "row",
+                      "first": "Indicator!runnerfault",
+                      "second": "ServiceCall!passive",
+                      "splitPercentage": 45
+                    },
+                    "second": {
+                      "direction": "row",
+                      "first": "Indicator!estopready",
+                      "second": "ServiceCall!estop",
+                      "splitPercentage": 45
+                    },
+                    "splitPercentage": 50
                   },
                   "splitPercentage": 50
                 },

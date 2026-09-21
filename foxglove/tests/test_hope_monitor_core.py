@@ -68,14 +68,34 @@ class ChronyStatusTests(unittest.TestCase):
         self.assertFalse(result.utc_qualified)
         self.assertFalse(result.gate_pass)
 
-    def test_gate_rejects_large_offset_or_skew(self):
+    def test_gate_rejects_large_offset(self):
         result = parse_chrony_status(
             tracking_csv(offset_s="-0.011", skew_ppm="5.1"),
             "^* 192.0.2.10 2 6 377 20 +2us[+3us] +/- 4ms\n",
             max_offset_ms=10.0,
-            max_skew_ppm=5.0,
+            max_skew_ppm=0.0,
         )
         self.assertTrue(result.utc_qualified)
+        self.assertFalse(result.gate_pass)
+
+    def test_skew_is_audit_only_when_limit_is_zero(self):
+        result = parse_chrony_status(
+            tracking_csv(offset_s="0.0004", skew_ppm="13.0"),
+            "^* 192.0.2.10 2 6 377 20 +2us[+3us] +/- 4ms\n",
+            max_offset_ms=10.0,
+            max_skew_ppm=0.0,
+        )
+        self.assertTrue(result.utc_qualified)
+        self.assertTrue(result.gate_pass)
+        self.assertAlmostEqual(result.skew_ppm, 13.0)
+
+    def test_explicit_positive_skew_limit_remains_available(self):
+        result = parse_chrony_status(
+            tracking_csv(offset_s="0.0004", skew_ppm="5.1"),
+            "^* 192.0.2.10 2 6 377 20 +2us[+3us] +/- 4ms\n",
+            max_offset_ms=10.0,
+            max_skew_ppm=5.0,
+        )
         self.assertFalse(result.gate_pass)
 
     def test_malformed_tracking_is_rejected(self):

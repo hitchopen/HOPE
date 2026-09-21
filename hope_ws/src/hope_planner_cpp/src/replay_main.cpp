@@ -67,9 +67,9 @@ struct Arguments {
   int estimator_iterations = 3;
   bool adaptive_horizon = false;
   double max_predict_time_cap_s = 3.0;
-  double drag_k = 0.1261;
+  double drag_k = 0.1317;
   double restitution_h = 0.64;
-  double restitution_v = 0.9215;
+  double restitution_v = 0.9607;
   double bounce_min_reversal_m = 0.00005;
   double bounce_min_excursion_m = 0.001;
   int bounce_confirmation_samples = 5;
@@ -84,7 +84,7 @@ struct Arguments {
   double spin_max_gap_s = 0.05;
   double spin_max_rev_s = 20.0;
   double spin_huber_delta_rev_s = 2.0;
-  double magnus_k = 0.00444;
+  double magnus_k = 0.00327844;
   double nakashima_friction_mu = 0.25;
   double table_tangential_gain = 0.369;
   double table_friction_cap_mu = 2.0;
@@ -293,8 +293,8 @@ Arguments parse_arguments(int argc, char** argv) {
              "[--window 0.18] [--min-span 0.08] [--min-samples 12] "
              "[--huber-delta 0.003] [--recency-half-life 0] [--iterations 3] "
              "[--adaptive-horizon] [--max-predict-time-cap 3.0] "
-             "[--drag-k 0.1261] [--restitution-h 0.64] "
-             "[--restitution-v 0.9215] "
+             "[--drag-k 0.1317] [--restitution-h 0.64] "
+             "[--restitution-v 0.9607] "
              "[--bounce-min-reversal 0.00005] [--bounce-min-excursion 0.001] "
              "[--bounce-confirmation-samples 5] "
              "[--bounce-confirmation-max-span 0.05] "
@@ -305,7 +305,7 @@ Arguments parse_arguments(int argc, char** argv) {
              "[--control-zero-spin] "
              "[--spin-window 0.10] [--spin-min-span 0.05] "
              "[--spin-max-gap 0.05] [--spin-max-rev 20] "
-             "[--spin-huber-delta-rev 2] [--magnus-k 0.00444] "
+             "[--spin-huber-delta-rev 2] [--magnus-k 0.00327844] "
              "[--nakashima-friction-mu 0.25] "
              "[--table-tangential-gain 0.369] "
              "[--table-friction-cap-mu 2.0]\n";

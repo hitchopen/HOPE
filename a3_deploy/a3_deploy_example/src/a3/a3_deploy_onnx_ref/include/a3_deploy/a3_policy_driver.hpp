@@ -56,6 +56,9 @@ struct A3PolicyDriverOptions {
   std::int64_t     trigger_offset_ns = 0;
   std::int64_t     trigger_min_period_ns = 0;
   bool             send_safe_halt_before_first_command = true;
+  // Observer only: receives the final command at the transport boundary and
+  // the SendCommand result. Success means published, not actuator-applied ACK.
+  std::function<void(const robot_io::RobotCommand&, bool)> command_delivery_observer;
 };
 
 class A3PolicyDriver : public a3_rt::A3BasedTask {
@@ -106,6 +109,7 @@ class A3PolicyDriver : public a3_rt::A3BasedTask {
   // suppresses publication. Backend SendCommand failure handling is R05 and is
   // intentionally unchanged here.
   bool EmitSafeHalt_(const robot_io::RobotState& state) noexcept;
+  bool SendAndObserve_() noexcept;
 
   robot_io::RobotIOBackend& backend_;
   PolicyFn                  policy_;

@@ -92,8 +92,8 @@ def test_formal_gate3_script_dependency_closure_is_complete_and_executable():
     assert "--preflight-only" in entry
     assert "physical MuJoCo" in engine or "MuJoCo ball/table/net/racket" in engine
     assert "/agi/A3_MuJoCo_Sim" not in engine
-    assert "p1_marker_cad_registration_20260805_redefined_p1_strict.json" in engine
-    assert "p1_calibration_file:=" in engine
+    assert "hope-gate3-sim-calibration.json" in engine
+    assert "ucb_calibration_file:=" in engine
     assert "hope_planner_cpp_node" in engine
     assert "hope_ball_flight_packetizer" in engine
     assert "model21800_hardware.yaml" in engine
@@ -110,7 +110,7 @@ def test_formal_gate3_script_dependency_closure_is_complete_and_executable():
     assert "Gate3CherryPick" not in conductor
 
     sim_mocap = (SCRIPTS / "pp_gate3_sim_mocap.py").read_text()
-    assert "import NamedPose, NamedPoseArrayV2" not in sim_mocap
+    assert "import NamedPose, NamedPoseArrayV2" in sim_mocap
     assert "NamedPoseArray" in sim_mocap
 
     ball_launcher = (SCRIPTS / "pp_gate3_ball_launcher.py").read_text()

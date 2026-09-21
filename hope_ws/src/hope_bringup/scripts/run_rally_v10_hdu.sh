@@ -16,8 +16,6 @@ Options:
   --mocap-backend NAME       avatar_pro (default, ChingMu/VRPN) or optitrack
                              (Motive/NatNet via the vendored
                              motion_capture_tracking driver).
-  --mocap-interface-ip IPV4  HDU/laptop local IPv4 on the Motive network.
-                             Required for optitrack multicast; not the Motive IP.
   --x-hit METRES             Already-confirmed fixed world plane; bypasses the runtime freeze.
   --x-hit-offset METRES      Settled base-X to fixed-plane offset (default 0.58).
   --side MODE                backhand (default), forehand, or both.
@@ -31,7 +29,7 @@ Options:
                              NatNet command port is fixed in optitrack_mct.yaml.
   --update-freq HZ           Mocap camera rate. avatar_pro: VRPN poll rate
                              (default 300.0). optitrack: expected Motive rate
-                             (default 300.0) — probe threshold only; Motive
+                             (default 360.0) — probe threshold only; Motive
                              owns the actual rate.
   --fit-window N             Deprecated compatibility option. Converts N mocap
                              samples into the C++ packetizer flight window N/HZ.
@@ -39,14 +37,15 @@ Options:
   --workspace PATH           HDU ROS workspace (default $HOME/hope_ws).
   --session-id ID            Shared HDU/MDU log session ID. Default: UTC timestamp.
   --session-root PATH        Session root (default /tmp/hope_real).
-  --frame-preflight          Require the static Ball/P1 frame probe.
+  --frame-preflight          Require the static Ball/UCB_P1 frame probe.
   --skip-frame-preflight     Disable it (OptiTrack enables it by default).
+  --require-ppt              Also require PPT near the canonical identity pose.
   --preflight-only           Check host/network/packages without starting ROS nodes.
   --print-cmd                Print the three managed ROS commands and exit.
   -h, --help                 Show this help.
 
 This entrypoint is HDU-only. It supervises the mocap bridge/relay, the C++
-flight packetizer, and the model_21800 C++ planner as one foreground process
+flight packetizer, and the production C++ Planner as one foreground process
 group. Without
 --x-hit, racket commands are blocked until the robot is in PD_STAND and the
 operator presses c in this HDU terminal to freeze x_hit from a stable base-X
@@ -74,7 +73,6 @@ print_shell_command() {
 
 MOCAP_BACKEND="avatar_pro"
 MOCAP_IP=""
-MOCAP_INTERFACE_IP="${HOPE_MOTIVE_INTERFACE_IP:-}"
 X_HIT=""
 X_HIT_OFFSET="0.58"
 SIDE="backhand"
@@ -82,7 +80,7 @@ SIDE="backhand"
 # exists only for the legacy one-shot frame probe/evidence JSON.
 MARKER_TO_BASE="0.0,0.0,0.0"
 # Empty = backend-derived default (avatar_pro: 0.001 / 3883 / 300.0;
-# optitrack: 1.0 / no port / 300.0). Explicit flags always win.
+# optitrack: 1.0 / no port / 360.0). Explicit flags always win.
 POSITION_SCALE=""
 PORT=""
 UPDATE_FREQ=""
@@ -92,6 +90,7 @@ WORKSPACE="${HOME}/hope_ws"
 SESSION_ROOT="/tmp/hope_real"
 SESSION_ID="${HOPE_REAL_SESSION_ID:-}"
 FRAME_PREFLIGHT_MODE="auto"
+REQUIRE_PPT=0
 PREFLIGHT_ONLY=0
 PRINT_CMD=0
 
@@ -103,10 +102,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mocap-ip|--vrpn-ip)
       MOCAP_IP="${2:-}"
-      shift 2
-      ;;
-    --mocap-interface-ip)
-      MOCAP_INTERFACE_IP="${2:-}"
       shift 2
       ;;
     --x-hit)
@@ -165,6 +160,10 @@ while [[ $# -gt 0 ]]; do
       FRAME_PREFLIGHT_MODE="off"
       shift
       ;;
+    --require-ppt)
+      REQUIRE_PPT=1
+      shift
+      ;;
     --preflight-only)
       PREFLIGHT_ONLY=1
       shift
@@ -187,21 +186,15 @@ done
 
 case "${MOCAP_BACKEND}" in
   avatar_pro)
-    [[ -z "${MOCAP_INTERFACE_IP}" ]] ||
-      die "--mocap-interface-ip/HOPE_MOTIVE_INTERFACE_IP is optitrack-only"
     [[ -n "${POSITION_SCALE}" ]] || POSITION_SCALE="0.001"
     [[ -n "${PORT}" ]] || PORT="3883"
     [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="300.0"
     ;;
   optitrack)
-    [[ -n "${MOCAP_INTERFACE_IP}" ]] ||
-      die "--mocap-interface-ip (or HOPE_MOTIVE_INTERFACE_IP) is required for OptiTrack multicast"
-    [[ "${MOCAP_INTERFACE_IP}" =~ ^([0-9]{1,3}[.]){3}[0-9]{1,3}$ ]] ||
-      die "--mocap-interface-ip must be an IPv4 address"
     [[ -n "${POSITION_SCALE}" ]] || POSITION_SCALE="1.0"
     [[ -z "${PORT}" ]] ||
       die "--port is a VRPN (avatar_pro) flag; the NatNet command port is fixed in optitrack_mct.yaml"
-    [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="300.0"
+    [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="360.0"
     ;;
   *)
     die "--mocap-backend must be one of: avatar_pro, optitrack"
@@ -283,13 +276,14 @@ case "${SIDE}" in
 esac
 
 PLANNER_CONFIG_DIR="${WORKSPACE}/src/hope_planner_cpp/config"
+PLANNER_CPP_CONFIG="${PLANNER_CONFIG_DIR}/model21800_hardware.yaml"
+PACKETIZER_CONFIG="${PLANNER_CONFIG_DIR}/model21800_flight_packetizer.yaml"
 X_HIT_REQUEST_FILE="/tmp/hope_rally_v10_x_hit.request"
 X_HIT_STATUS_FILE="/tmp/hope_rally_v10_x_hit.status"
 if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   BRIDGE_CMD=(
     ros2 launch hope_bringup optitrack_hope_bridge.launch.py
-    "motive_hostname:=${MOCAP_IP}"
-    "motive_interface_ip:=${MOCAP_INTERFACE_IP}"
+    "hostname:=${MOCAP_IP}"
     "position_scale:=${POSITION_SCALE}"
     "debug_csv_path:=${SESSION_DIR}/mocap_raw.csv"
     "debug_session_id:=${SESSION_ID}"
@@ -297,21 +291,25 @@ if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   )
 else
   BRIDGE_CMD=(
-    ros2 run hope_bringup pose_to_posearray --ros-args
-    -p 'input_topics:=[/vrpn_mocap/Ball/pose_id_0]'
-    -p trigger_index:=0
+    ros2 launch hope_bringup avatar_pro_hope_bridge.launch.py
+    "server:=${MOCAP_IP}"
+    "port:=${PORT}"
+    "update_freq:=${UPDATE_FREQ}"
+    ball_tracking_mode:=rigid_body
+    ball_object:=Ball
+    "position_scale:=${POSITION_SCALE}"
   )
 fi
 PACKETIZER_CMD=(
   ros2 run hope_planner_cpp hope_ball_flight_packetizer --ros-args
-  --params-file "${PLANNER_CONFIG_DIR}/model21800_flight_packetizer.yaml"
+  --params-file "${PACKETIZER_CONFIG}"
   -p "flight_window_s:=${FLIGHT_WINDOW_S}"
   -p "session_id:=${SESSION_ID}"
   -p "debug_csv_path:=${SESSION_DIR}/flight_packetizer.csv"
 )
 PLANNER_CMD=(
   ros2 run hope_planner_cpp hope_planner_cpp_node --ros-args
-  --params-file "${PLANNER_CONFIG_DIR}/model21800_hardware.yaml"
+  --params-file "${PLANNER_CPP_CONFIG}"
   -p flight_packet_input_enabled:=true
   -p flight_packet_topic:=/ball/flight_packet
   -p base_pose_flat_input_topic:=/a3/base_pose_flat
@@ -347,8 +345,8 @@ machine="$(uname -m)"
 [[ -f /opt/ros/jazzy/setup.bash ]] || die "/opt/ros/jazzy/setup.bash is missing"
 [[ -f "${WORKSPACE}/install/local_setup.bash" ]] ||
   die "${WORKSPACE}/install/local_setup.bash is missing; deploy/build the HDU workspace first"
-[[ -f "${PLANNER_CONFIG_DIR}/model21800_hardware.yaml" ]] || die "C++ planner config is missing"
-[[ -f "${PLANNER_CONFIG_DIR}/model21800_flight_packetizer.yaml" ]] || die "C++ packetizer config is missing"
+[[ -f "${PLANNER_CPP_CONFIG}" ]] || die "C++ Planner config is missing: ${PLANNER_CPP_CONFIG}"
+[[ -f "${PACKETIZER_CONFIG}" ]] || die "C++ packetizer config is missing: ${PACKETIZER_CONFIG}"
 
 set +u
 # shellcheck disable=SC1091
@@ -362,8 +360,6 @@ command -v python3 >/dev/null || die "python3 is required for the VRPN TCP prefl
 command -v tee >/dev/null || die "tee is required for the field session log"
 command -v awk >/dev/null || die "awk is required for numeric/interface checks"
 command -v ip >/dev/null || die "iproute2 is required to verify the HDU internal interface"
-# NOTE: driver now lives in the standalone NatNet2ROS2/ (or VRPN2ROS2/) workspace;
-# build and source that workspace into the HDU overlay so these packages resolve.
 if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   ros2 pkg prefix motion_capture_tracking >/dev/null ||
     die "motion_capture_tracking is not installed in the HDU overlay (deploy without --skip-optitrack)"
@@ -388,14 +384,12 @@ export FASTRTPS_DEFAULT_PROFILES_FILE="${DDS_PROFILE}"
 rm -f -- "${X_HIT_REQUEST_FILE}" "${X_HIT_STATUS_FILE}"
 
 if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
-  route_line="$(ip -o route get "${MOCAP_IP}" 2>/dev/null | head -n 1)"
-  [[ -n "${route_line}" ]] || die "no route to Motive PC ${MOCAP_IP}"
-  route_src="$(awk '{for (i=1; i<=NF; ++i) if ($i == "src") {print $(i+1); exit}}' <<<"${route_line}")"
-  [[ "${route_src}" == "${MOCAP_INTERFACE_IP}" ]] ||
-    die "Motive route uses source ${route_src:-NONE}, not --mocap-interface-ip ${MOCAP_INTERFACE_IP}"
-  ros2 run hope_bringup natnet_preflight.py \
-    --hostname "${MOCAP_IP}" --interface-ip "${MOCAP_INTERFACE_IP}" ||
-    die "NatNet 4.5 multicast preflight failed"
+  # NatNet is UDP (command 1510 / data auto-discovered): there is no port to
+  # connect() to before launch. Preflight = ICMP reachability only; mocap
+  # liveness is proven AFTER the bridge starts by the mocap_rate_probe below.
+  ping -c 3 -W 2 "${MOCAP_IP}" >/dev/null ||
+    die "Motive PC ${MOCAP_IP} is not reachable (ping); check the group-control Wi-Fi route"
+  echo "[rally-v10-hdu] Motive host reachable (ping): ${MOCAP_IP}; NatNet liveness checked after bridge start"
 else
   python3 - "${MOCAP_IP}" "${PORT}" <<'PY'
 import socket
@@ -431,8 +425,7 @@ fi
 
 mkdir -p -- "${SESSION_DIR}"
 python3 - "${SESSION_DIR}/session.json" "${SESSION_ID}" "$$" "${MOCAP_BACKEND}" \
-    "${MOCAP_IP}" "${MOCAP_INTERFACE_IP}" "${POSITION_SCALE}" \
-    "${UPDATE_FREQ}" "${FLIGHT_WINDOW_S}" \
+    "${MOCAP_IP}" "${POSITION_SCALE}" "${UPDATE_FREQ}" "${FLIGHT_WINDOW_S}" \
     "${SOLVE_PERIOD}" "${MARKER_TO_BASE}" "${PLANNER_X_HIT}" "${X_HIT_OFFSET}" \
     "${WORKSPACE}" <<'PY'
 import hashlib
@@ -442,8 +435,7 @@ import socket
 import sys
 import time
 
-(output, session_id, launcher_pid, backend, mocap_ip, mocap_interface_ip,
- scale, rate, flight_window_s, solve_period,
+(output, session_id, launcher_pid, backend, mocap_ip, scale, rate, flight_window_s, solve_period,
  marker_to_base, x_hit, x_hit_offset, workspace) = sys.argv[1:]
 workspace_path = pathlib.Path(workspace)
 sources = {
@@ -467,7 +459,6 @@ report = {
     "start_wall_time_ns": time.time_ns(),
     "mocap_backend": backend,
     "mocap_ip": mocap_ip,
-    "mocap_interface_ip": mocap_interface_ip or None,
     "position_scale": float(scale),
     "update_frequency_hz": float(rate),
     "flight_window_s": float(flight_window_s),
@@ -563,13 +554,13 @@ kill -0 "${BRIDGE_PID}" 2>/dev/null || die "bridge exited during startup"
 if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   # NatNet liveness gate (one-shot probe node, the sanctioned pattern — NOT a
   # long-running ros2 topic echo/hz): the robot rigid body streams whenever
-  # Motive is truly up, so /P1/pose is the hard requirement. The ball may
+  # Motive is truly up, so /UCB_P1/pose is the hard requirement. The ball may
   # legitimately be out of the volume -> soft warning only.
   P1_MIN_HZ="$(awk -v rate="${UPDATE_FREQ}" 'BEGIN {printf "%.1f", rate * 0.5}')"
   ros2 run hope_bringup mocap_rate_probe.py \
-      --topic /P1/pose --min-hz "${P1_MIN_HZ}" --window 5 --discover-timeout 15 || {
+      --topic /UCB_P1/pose --min-hz "${P1_MIN_HZ}" --window 5 --discover-timeout 15 || {
     kill -INT "${BRIDGE_PID}" 2>/dev/null || true
-    die "no /P1/pose stream from the OptiTrack bridge (Motive not streaming, P1 asset missing/misnamed, or NatNet blocked)"
+    die "no /UCB_P1/pose stream (Motive not streaming, UCB_P1 missing, or NatNet blocked)"
   }
   ros2 run hope_bringup mocap_rate_probe.py \
       --topic /ball/point --min-hz 1 --window 3 --discover-timeout 5 ||
@@ -584,6 +575,9 @@ if [[ "${FRAME_PREFLIGHT}" -eq 1 ]]; then
     --policy-z-offset 0.76
     --json "${SESSION_DIR}/frame_preflight.json"
   )
+  if [[ "${REQUIRE_PPT}" -eq 1 ]]; then
+    FRAME_PROBE_CMD+=(--require-table)
+  fi
   "${FRAME_PROBE_CMD[@]}" || {
     kill -INT "${BRIDGE_PID}" 2>/dev/null || true
     die "mocap frame preflight failed; planner was not started (inspect ${SESSION_DIR}/frame_preflight.json)"

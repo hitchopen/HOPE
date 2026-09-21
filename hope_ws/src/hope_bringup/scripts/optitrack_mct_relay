@@ -1,48 +1,51 @@
 #!/usr/bin/env python3
 """Relay motion_capture_tracking (OptiTrack/NatNet) output into the HOPE mocap interface.
 
-OptiTrack counterpart of the VRPN path (``vrpn_mocap`` + ``pose_to_posearray``).
-The independently built ``NatNet2ROS2`` workspace depacketizes NatNet from
-Motive and publishes a rate-capped NamedPoseArray containing only the available
-competition rigid bodies:
+Sibling of ``avatar_pro_vrpn_relay`` for OptiTrack venues. The vendored
+``motion_capture_tracking`` node (NatNet2ROS2/src/motion_capture_tracking, see its
+PIN.md) depacketizes NatNet from Motive and publishes ONE NamedPoseArray per
+camera frame carrying every tracked object:
 
-* Motive-native rigid bodies ``P1`` and ``P2`` under their asset names, and
-* the ping-pong ball as a Motive rigid-body asset named ``Ball``. The HOPE
-  standard requires the ball to be tracked as a strict 6-DOF rigid body
-  (marker dots added to a standard ball — verified workable on both OptiTrack
-  and Chingmu); single-marker/point tracking does not meet the spec.
+* Motive-native rigid bodies (``UCB_P1``/``UCB_P2``/``PPT``) under their asset
+  names, and
+* the ping-pong ball tracked from the unlabeled-marker point cloud by
+  librigidbodytracker (single fully-coated retroreflective ball -> one marker),
+  under the name given in the node's ``rigid_bodies`` config (``Ball``).
 
 This relay maps those named entries onto the HOPE-standard topics the planner
-consumes: ``/poses`` (geometry_msgs/PoseArray, ball at index 0 — the
-hope_planner input contract, same as ``pose_to_posearray`` produces on the
-VRPN side), plus ``/ball/point``, ``/P1/pose``, ``/P2/pose`` and TF.
-Compared with the VRPN adapter:
+consumes -- the same output contract as ``avatar_pro_vrpn_relay``:
+``/poses`` (PoseArray, ball at index 0), ``/ball/point``, ``/table/pose``,
+``/UCB_P1/pose``, ``/UCB_P2/pose`` and TF. Differences from the VRPN relay:
 
-* no runtime topic discovery -- the driver already names everything; mapping
-  is a pure name lookup;
+* no runtime topic discovery and no motion-based ball auto-detection -- the
+  driver already names everything; mapping is a pure name lookup;
 * ``position_scale`` defaults to 1.0 (Motive streams metres; the parameter is
-  kept because some venue feeds turn out to stream millimetres);
-* orientation sanitizing (defensive): a non-finite quaternion from the
-  driver is replaced with identity so NaN never reaches ``/poses`` or TF —
-  with the required rigid-body ball this should not occur in practice.
+  kept because of the 2026-07-07 millimetre-feed incident on the VRPN side);
+* the V2 input preserves the vendor camera timestamp and Camera/Motive
+  latencies in the optional raw trace;
+* orientation handling is fail-closed for UCB_P1/UCB_P2/PPT: an invalid body
+  quaternion drops that pose instead of pretending it is identity. The ball
+  remains position-only and may use identity when its orientation is absent.
 
 ``/poses`` is published ONLY when the incoming frame contains the ball entry
 (occluded ball -> the driver omits it) so a stale ball position is never
 re-emitted at rigid-body timestamps -- the planner's velocity polyfit relies
-on this, exactly like the ball-triggered publishing of ``pose_to_posearray``.
-The driver deliberately sends an empty-array heartbeat when a valid selected
-NatNet frame contains none of the three competition bodies. That callback
-feeds this relay's throttled missing-ball diagnostic without generating a
-placeholder pose, TF, or planner sample.
+on this, exactly like the VRPN relay's ball-synchronized publishing.
 
-The standalone adapter launch owns the ``/optitrack`` namespace and publishes
-no raw TF. ``optitrack_hope_bridge.launch.py`` starts only this relay and the
-optional HOPE world frame; it never starts the NatNet driver.
+The mct node itself must be launched with its ``poses`` topic remapped to
+``input_poses_topic`` (default ``/optitrack/poses``) and ``/tf`` remapped away
+(e.g. ``/optitrack/tf``): its raw output would otherwise collide with the HOPE
+``/poses`` contract (different message type!) and double-publish TF frames.
+``optitrack_hope_bridge.launch.py`` wires this up.
 """
 
 from __future__ import annotations
 
+import csv
+import json
 import math
+import time
+from pathlib import Path
 
 import rclpy
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
@@ -50,44 +53,69 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from tf2_ros import TransformBroadcaster
 
+from source_time_rate_gate import SourceTimeRateGate
+from table_side_transform import (
+    normalize_table_side,
+    transform_pose_xyzw,
+)
 
-def _finite_quat(q) -> bool:
-    return (
+
+def _valid_quat(q) -> bool:
+    if not (
         math.isfinite(q.x) and math.isfinite(q.y)
         and math.isfinite(q.z) and math.isfinite(q.w)
-    )
+    ):
+        return False
+    norm_sq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w
+    return math.isfinite(norm_sq) and norm_sq > 1.0e-12
 
 
 class OptitrackMctRelay(Node):
-    """Convert motion_capture_tracking NamedPoseArray frames into HOPE-standard topics."""
+    """Convert motion_capture_tracking NamedPoseArrayV2 frames into HOPE topics."""
 
     def __init__(self, named_pose_array_type) -> None:
         super().__init__("optitrack_mct_relay")
         self._named_pose_array_type = named_pose_array_type
 
         self.declare_parameter("input_poses_topic", "/optitrack/poses")
-        self.declare_parameter("p1_object", "P1")
-        self.declare_parameter("p2_object", "P2")
-        # Ball entry name = the Motive rigid-body asset name. STANDARDIZED:
-        # ball object is named 'Ball' (robots: P1/P2) — see mocap/README.md.
-        # The ball MUST be a strict 6-DOF rigid body (HOPE spec).
+        self.declare_parameter("ppt_object", "PPT")
+        self.declare_parameter("p1_object", "UCB_P1")
+        self.declare_parameter("p2_object", "UCB_P2")
+        # Ball entry name = the librigidbodytracker rigid-body name in the mct
+        # node config (config/optitrack_mct.yaml). STANDARDIZED like the VRPN
+        # side 2026-07-03: ball object is named 'Ball' (robots: UCB_P1/UCB_P2).
         self.declare_parameter("ball_object", "Ball")
         self.declare_parameter("world_frame", "world")
-        self.declare_parameter("p1_pose_topic", "/P1/pose")
-        self.declare_parameter("p2_pose_topic", "/P2/pose")
+        self.declare_parameter("table_pose_topic", "/table/pose")
+        self.declare_parameter("p1_pose_topic", "/UCB_P1/pose")
+        self.declare_parameter("p2_pose_topic", "/UCB_P2/pose")
         self.declare_parameter("ball_point_topic", "/ball/point")
+        self.declare_parameter("ball_pose_topic", "/ball/pose")
         self.declare_parameter("poses_topic", "/poses")
-        self.declare_parameter("pose_array_order", ["ball", "P1", "P2"])
+        self.declare_parameter(
+            "pose_array_order", ["ball", "PPT", "UCB_P1", "UCB_P2"]
+        )
         self.declare_parameter("publish_tf", True)
         self.declare_parameter("publish_pose_array", True)
         # Warn (throttled) when frames keep arriving without a ball entry for
         # this long -- ball out of the volume / tracker lost the marker.
         self.declare_parameter("ball_stale_warn_s", 2.0)
+        self.declare_parameter("ball_output_rate_hz", 150.0)
         # Uniform scale applied to every relayed POSITION (poses, ball point, TF).
-        # Motive streams METRES -> 1.0. Kept as a parameter because some venue
-        # feeds (seen on the VRPN side) turn out to stream millimetres.
+        # Motive streams METRES -> 1.0. Kept as a parameter because the VRPN
+        # venue feed turned out to stream millimetres (field 2026-07-07).
         self.declare_parameter("position_scale", 1.0)
+        self.declare_parameter("table_side", "P1")
+        self.declare_parameter("table_length_m", 2.74)
+        self.declare_parameter("table_width_m", 1.525)
+        # Optional lossless field trace. One row per recognized object in each
+        # incoming NatNet frame records both driver-native and normalized
+        # coordinates, making unit/frame mistakes visible without a rosbag.
+        self.declare_parameter("debug_csv_path", "")
+        self.declare_parameter("debug_session_id", "")
+        self.declare_parameter("debug_flush_rows", 256)
 
+        self._ppt_object = str(self.get_parameter("ppt_object").value)
         self._p1_object = str(self.get_parameter("p1_object").value)
         self._p2_object = str(self.get_parameter("p2_object").value)
         self._ball_object = str(self.get_parameter("ball_object").value)
@@ -96,15 +124,58 @@ class OptitrackMctRelay(Node):
         self._publish_pose_array = bool(self.get_parameter("publish_pose_array").value)
         self._pose_array_order = [str(item) for item in self.get_parameter("pose_array_order").value]
         self._stale_warn_s = float(self.get_parameter("ball_stale_warn_s").value)
+        self._ball_output_rate_hz = float(
+            self.get_parameter("ball_output_rate_hz").value
+        )
+        self._ball_output_gate = SourceTimeRateGate(self._ball_output_rate_hz)
         self._position_scale = float(self.get_parameter("position_scale").value)
+        self._table_side = normalize_table_side(
+            self.get_parameter("table_side").value
+        )
+        self._table_length_m = float(
+            self.get_parameter("table_length_m").value
+        )
+        self._table_width_m = float(
+            self.get_parameter("table_width_m").value
+        )
         if self._position_scale != 1.0:
             self.get_logger().info(
                 f"position_scale={self._position_scale} (relayed positions are scaled; "
                 "Motive normally streams metres -> 1.0)")
 
+        self._debug_file = None
+        self._debug_csv = None
+        self._debug_rows_since_flush = 0
+        self._debug_frame_seq = 0
+        self._debug_flush_rows = max(
+            1, int(self.get_parameter("debug_flush_rows").value)
+        )
+        self._debug_session_id = str(self.get_parameter("debug_session_id").value)
+        debug_csv_path = str(self.get_parameter("debug_csv_path").value).strip()
+        if debug_csv_path:
+            path = Path(debug_csv_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._debug_file = path.open("w", newline="", encoding="utf-8", buffering=1024 * 1024)
+            self._debug_csv = csv.writer(self._debug_file)
+            self._debug_csv.writerow([
+                "session_id", "frame_seq", "receipt_wall_ns", "receipt_monotonic_ns",
+                "ros_stamp_ns", "vendor_timestamp_us", "camera_latency_us",
+                "motive_latency_us", "natnet_capture_age_us",
+                "natnet_clock_uncertainty_us", "source_age_at_relay_us",
+                "latencies_json", "source_frame",
+                "object_name", "object_key",
+                "raw_x", "raw_y", "raw_z", "normalized_x", "normalized_y",
+                "normalized_z", "qx", "qy", "qz", "qw",
+                "orientation_sanitized", "pose_accepted", "orientation_status",
+                "position_scale", "table_side",
+            ])
+            self._debug_file.flush()
+            self.get_logger().info(f"OptiTrack raw/normalized CSV -> {path}")
+
         self._name_to_key = {
-            self._p1_object: "P1",
-            self._p2_object: "P2",
+            self._ppt_object: "PPT",
+            self._p1_object: "UCB_P1",
+            self._p2_object: "UCB_P2",
             self._ball_object: "ball",
         }
 
@@ -120,6 +191,7 @@ class OptitrackMctRelay(Node):
         self._last_ball_rx = 0.0
         self._last_stale_warn = 0.0
         self._sanitized_orientation_names: set[str] = set()
+        self._rejected_orientation_names: set[str] = set()
 
         self._tf_broadcaster = TransformBroadcaster(self)
         self._pose_array_pub = self.create_publisher(
@@ -128,21 +200,31 @@ class OptitrackMctRelay(Node):
         self._ball_pub = self.create_publisher(
             PointStamped, str(self.get_parameter("ball_point_topic").value), sensor_qos
         )
+        self._ball_pose_pub = self.create_publisher(
+            PoseStamped, str(self.get_parameter("ball_pose_topic").value), sensor_qos
+        )
         self._pose_publishers = {
-            "P1": self.create_publisher(
+            "PPT": self.create_publisher(
+                PoseStamped, str(self.get_parameter("table_pose_topic").value), sensor_qos
+            ),
+            "UCB_P1": self.create_publisher(
                 PoseStamped, str(self.get_parameter("p1_pose_topic").value), sensor_qos
             ),
-            "P2": self.create_publisher(
+            "UCB_P2": self.create_publisher(
                 PoseStamped, str(self.get_parameter("p2_pose_topic").value), sensor_qos
             ),
         }
+
         input_topic = str(self.get_parameter("input_poses_topic").value)
         self._sub = self.create_subscription(
             named_pose_array_type, input_topic, self._on_frame, sensor_qos
         )
         self.get_logger().info(
-            f"relaying {input_topic} (NamedPoseArray) -> HOPE topics; objects: "
-            f"ball='{self._ball_object}' P1='{self._p1_object}' P2='{self._p2_object}'"
+            f"relaying {input_topic} (NamedPoseArrayV2) -> HOPE topics; objects: "
+            f"ball='{self._ball_object}' PPT='{self._ppt_object}' "
+            f"UCB_P1='{self._p1_object}' UCB_P2='{self._p2_object}' "
+            f"table_side={self._table_side}; ball outputs capped at "
+            f"{self._ball_output_rate_hz:.1f} Hz by source timestamp"
         )
 
     # ---- message handling ------------------------------------------------
@@ -151,19 +233,60 @@ class OptitrackMctRelay(Node):
         return self.get_clock().now().nanoseconds * 1e-9
 
     def _on_frame(self, msg) -> None:
-        if not msg.poses:
-            self._warn_no_competition_bodies()
-            return
-
+        self._debug_frame_seq += 1
+        receipt_wall_ns = time.time_ns()
+        receipt_monotonic_ns = time.monotonic_ns()
+        ros_stamp_ns = int(msg.header.stamp.sec) * 1_000_000_000 + int(msg.header.stamp.nanosec)
+        vendor_timestamp_us = int(msg.timestamp)
+        latency_map = {
+            str(item.source): int(item.latency) for item in msg.latencies
+        }
+        latency_json = json.dumps(latency_map, sort_keys=True, separators=(",", ":"))
+        camera_latency_us = latency_map.get("Camera", -1)
+        motive_latency_us = latency_map.get("Motive", -1)
+        natnet_capture_age_us = latency_map.get("NatNetCaptureAge", -1)
+        natnet_clock_uncertainty_us = latency_map.get(
+            "NatNetClockUncertainty", -1
+        )
+        source_age_at_relay_us = (receipt_wall_ns - ros_stamp_ns) / 1000.0
         ball_in_frame = False
+        ball_pose_orientation_valid = False
         for named in msg.poses:
             key = self._name_to_key.get(named.name)
             if key is None:
                 continue
-            stamped = self._normalize(named.name, named.pose, msg.header)
+            stamped, orientation_status = self._normalize(
+                named.name, key, named.pose, msg.header
+            )
+            self._write_debug_row(
+                receipt_wall_ns,
+                receipt_monotonic_ns,
+                ros_stamp_ns,
+                vendor_timestamp_us,
+                camera_latency_us,
+                motive_latency_us,
+                natnet_capture_age_us,
+                natnet_clock_uncertainty_us,
+                source_age_at_relay_us,
+                latency_json,
+                str(msg.header.frame_id),
+                named.name,
+                key,
+                named.pose,
+                stamped.pose if stamped is not None else None,
+                orientation_status,
+            )
+            if stamped is None:
+                self._latest.pop(key, None)
+                continue
             self._latest[key] = stamped
             if key == "ball":
                 ball_in_frame = True
+                if orientation_status == "valid":
+                    # A separate topic preserves orientation validity. /poses
+                    # remains position-load-bearing and may carry identity for
+                    # a single-marker/temporarily orientation-less ball.
+                    ball_pose_orientation_valid = True
                 continue  # ball is emitted last, after the rigid bodies
             self._pose_publishers[key].publish(stamped)
             if self._publish_tf:
@@ -177,9 +300,79 @@ class OptitrackMctRelay(Node):
                 self.get_logger().info(f"ball '{self._ball_object}' acquired")
             self._ball_seen = True
             self._last_ball_rx = self._now()
-            self._emit_ball(self._latest["ball"])
+            if self._ball_output_gate.accept(ros_stamp_ns):
+                if ball_pose_orientation_valid:
+                    self._ball_pose_pub.publish(self._latest["ball"])
+                self._emit_ball(self._latest["ball"])
         else:
             self._warn_ball_stale()
+
+    def _write_debug_row(
+        self,
+        receipt_wall_ns: int,
+        receipt_monotonic_ns: int,
+        ros_stamp_ns: int,
+        vendor_timestamp_us: int,
+        camera_latency_us: int,
+        motive_latency_us: int,
+        natnet_capture_age_us: int,
+        natnet_clock_uncertainty_us: int,
+        source_age_at_relay_us: float,
+        latency_json: str,
+        source_frame: str,
+        object_name: str,
+        object_key: str,
+        raw: Pose,
+        normalized: Pose | None,
+        orientation_status: str,
+    ) -> None:
+        if self._debug_csv is None:
+            return
+        accepted = normalized is not None
+        sanitized = orientation_status == "ball_identity"
+        normalized_values = (
+            (
+                normalized.position.x,
+                normalized.position.y,
+                normalized.position.z,
+                normalized.orientation.x,
+                normalized.orientation.y,
+                normalized.orientation.z,
+                normalized.orientation.w,
+            )
+            if accepted
+            else (math.nan,) * 7
+        )
+        self._debug_csv.writerow([
+            self._debug_session_id,
+            self._debug_frame_seq,
+            receipt_wall_ns,
+            receipt_monotonic_ns,
+            ros_stamp_ns,
+            vendor_timestamp_us,
+            camera_latency_us,
+            motive_latency_us,
+            natnet_capture_age_us,
+            natnet_clock_uncertainty_us,
+            source_age_at_relay_us,
+            latency_json,
+            source_frame,
+            object_name,
+            object_key,
+            raw.position.x,
+            raw.position.y,
+            raw.position.z,
+            *normalized_values,
+            1 if sanitized else 0,
+            1 if accepted else 0,
+            orientation_status,
+            self._position_scale,
+            self._table_side,
+        ])
+        self._debug_rows_since_flush += 1
+        if self._debug_rows_since_flush >= self._debug_flush_rows:
+            self._debug_file.flush()
+            self._debug_rows_since_flush = 0
 
     def _warn_ball_stale(self) -> None:
         if self._stale_warn_s <= 0.0:
@@ -197,22 +390,8 @@ class OptitrackMctRelay(Node):
         else:
             self.get_logger().warn(
                 f"mocap frames arriving but ball '{self._ball_object}' has never been "
-                "tracked; check Motive streaming, the exact asset name, and marker visibility"
+                "tracked; check the mct rigid_bodies config / marker visibility"
             )
-
-    def _warn_no_competition_bodies(self) -> None:
-        if self._stale_warn_s <= 0.0:
-            return
-        now = self._now()
-        if now - self._last_stale_warn < self._stale_warn_s:
-            return
-        self._last_stale_warn = now
-        self.get_logger().warn(
-            "NatNet frames are arriving, but the filtered frame contains none of "
-            f"'{self._ball_object}', '{self._p1_object}', or '{self._p2_object}'; "
-            "check Motive tracking/streaming and exact case-sensitive asset names. "
-            "No downstream pose or TF is being published"
-        )
 
     def _emit_ball(self, normalized: PoseStamped) -> None:
         out = PointStamped()
@@ -225,7 +404,9 @@ class OptitrackMctRelay(Node):
         if self._publish_pose_array:
             self._publish_poses(normalized.header.stamp)
 
-    def _normalize(self, name: str, pose: Pose, header) -> PoseStamped:
+    def _normalize(
+        self, name: str, key: str, pose: Pose, header
+    ) -> tuple[PoseStamped | None, str]:
         normalized = PoseStamped()
         normalized.header.stamp = header.stamp
         normalized.header.frame_id = header.frame_id or self._world_frame
@@ -234,22 +415,57 @@ class OptitrackMctRelay(Node):
         out.position.x = pose.position.x * s
         out.position.y = pose.position.y * s
         out.position.z = pose.position.z * s
-        if _finite_quat(pose.orientation):
-            out.orientation = pose.orientation
+        if _valid_quat(pose.orientation):
+            norm = math.sqrt(
+                pose.orientation.x * pose.orientation.x
+                + pose.orientation.y * pose.orientation.y
+                + pose.orientation.z * pose.orientation.z
+                + pose.orientation.w * pose.orientation.w
+            )
+            out.orientation.x = pose.orientation.x / norm
+            out.orientation.y = pose.orientation.y / norm
+            out.orientation.z = pose.orientation.z / norm
+            out.orientation.w = pose.orientation.w / norm
+            orientation_status = "valid"
+        elif key != "ball":
+            if name not in self._rejected_orientation_names:
+                self._rejected_orientation_names.add(name)
+                self.get_logger().error(
+                    f"'{name}' has an invalid rigid-body quaternion; dropping "
+                    "the pose until Motive reports a valid orientation"
+                )
+            return None, "dropped_invalid"
         else:
-            # Defensive: identity keeps a non-finite driver quaternion out
-            # of /poses and TF (should not occur with the required rigid-body
-            # ball). Position-only consumers are unaffected.
+            # Ball prediction consumes only the tracked center position.
             out.orientation.w = 1.0
+            orientation_status = "ball_identity"
             if name not in self._sanitized_orientation_names:
                 self._sanitized_orientation_names.add(name)
                 self.get_logger().info(
-                    f"'{name}' streamed a non-finite quaternion; "
-                    "publishing identity (check the rigid-body asset — the HOPE "
-                    "spec requires a strict 6-DOF ball)"
+                    f"'{name}' has no orientation; retaining its position-only "
+                    "ball sample with identity orientation"
                 )
+        position, quaternion = transform_pose_xyzw(
+            (out.position.x, out.position.y, out.position.z),
+            (
+                out.orientation.x,
+                out.orientation.y,
+                out.orientation.z,
+                out.orientation.w,
+            ),
+            self._table_side,
+            self._table_length_m,
+            self._table_width_m,
+        )
+        out.position.x, out.position.y, out.position.z = position
+        (
+            out.orientation.x,
+            out.orientation.y,
+            out.orientation.z,
+            out.orientation.w,
+        ) = quaternion
         normalized.pose = out
-        return normalized
+        return normalized, orientation_status
 
     def _broadcast_tf(self, object_key: str, msg: PoseStamped) -> None:
         tf_msg = TransformStamped()
@@ -276,20 +492,28 @@ class OptitrackMctRelay(Node):
         ]
         self._pose_array_pub.publish(msg)
 
+    def destroy_node(self):
+        if self._debug_file is not None:
+            self._debug_file.flush()
+            self._debug_file.close()
+            self._debug_file = None
+            self._debug_csv = None
+        return super().destroy_node()
+
 
 def main(args=None) -> None:
     try:
-        from motion_capture_tracking_interfaces.msg import NamedPoseArray
+        from motion_capture_tracking_interfaces.msg import NamedPoseArrayV2
     except ImportError as exc:
         raise SystemExit(
             "optitrack_mct_relay needs motion_capture_tracking_interfaces "
-            "from the independent NatNet2ROS2 workspace. Install/source that "
-            "interface package on this host, or use the VRPN "
+            "(vendored in NatNet2ROS2/src/motion_capture_tracking_interfaces). "
+            "Build and source the workspace overlay, or use the avatar_pro "
             f"backend instead. Import error: {exc}"
         )
 
     rclpy.init(args=args)
-    node = OptitrackMctRelay(NamedPoseArray)
+    node = OptitrackMctRelay(NamedPoseArrayV2)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

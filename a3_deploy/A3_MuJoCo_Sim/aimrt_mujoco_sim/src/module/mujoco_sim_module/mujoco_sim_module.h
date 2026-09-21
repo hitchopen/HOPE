@@ -70,6 +70,7 @@ class MujocoSimModule : public aimrt::ModuleBase {
   void RegisterPublisherGenFunc();
   void ApplyDefaultCameraFocus();
   void UpdateDefaultCameraFollowLocked();
+  void ApplyHumanLikeVendorDynamicsProfile();
   void InitializeDebugCsv();
   void WriteDebugCsv(std::uint64_t wall_time_ns);
   void InitializeGate3Ball();
@@ -129,6 +130,7 @@ class MujocoSimModule : public aimrt::ModuleBase {
   int debug_torso_body_id_ = -1;
   int debug_left_foot_body_id_ = -1;
   int debug_right_foot_body_id_ = -1;
+  int debug_floor_geom_id_ = -1;
   int debug_racket_site_id_ = -1;
   std::string debug_pd_mode_ = "explicit";
 
@@ -141,7 +143,8 @@ class MujocoSimModule : public aimrt::ModuleBase {
   int gate3_racket_site_id_ = -1;
   int gate3_table_geom_id_ = -1;
   int gate3_net_geom_id_ = -1;
-  double gate3_ball_drag_k_ = 0.1261;
+  // 2026-08-23 new-ball Motive fit; mirrors configs/ball_physics_venue.yaml.
+  double gate3_ball_drag_k_ = 0.1220;
   double gate3_ball_restitution_h_ = 0.64;
   double gate3_ball_restitution_v_ = 0.9215;
   std::array<double, 6> gate3_ball_pre_step_velocity_{};

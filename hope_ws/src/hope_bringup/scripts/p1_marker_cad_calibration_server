@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
-"""Laptop-side service that refreshes the P1 calibration once per run."""
+"""Laptop-side service that refreshes one marker-to-pelvis profile."""
 
 from __future__ import annotations
 
+import json
+import math
 import os
+import hashlib
+import shutil
 from pathlib import Path
+from p1_marker_layout import MARKER_NAMES as STICKER_NAMES
 import subprocess
+import tempfile
 
 import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 
 from p1_calibration import load_p1_calibration
-from p1_marker_layout import MARKER_NAMES
 
 
-class P1MarkerCadCalibrationServer(Node):
+class UcbRobotCadCalibrationServer(Node):
     def __init__(self) -> None:
-        super().__init__("p1_marker_cad_calibration_server")
+        super().__init__("ucb_robot_cad_calibration_server")
         self.declare_parameter(
             "calibrator_executable",
             str(Path(__file__).with_name("p1_marker_cad_calibrator")),
@@ -26,23 +31,48 @@ class P1MarkerCadCalibrationServer(Node):
         # HOPE repository root so the authoritative file remains in the repo's
         # calibration directory, independent of the robot filesystem.
         self.declare_parameter(
-            "calibration_file", "calibration/p1_to_pelvis.json"
+            "calibration_file", "calibration/ucb_robot_to_pelvis.json"
         )
         self.declare_parameter(
             "marker_topic", "/optitrack/rigid_body_markers"
         )
-        self.declare_parameter("asset_name", "P1")
+        self.declare_parameter("asset_name", "UCB_P1")
+        self.declare_parameter("marker_layout", "stickers_v3")
+        self.declare_parameter("table_side", "P1")
+        self.declare_parameter("table_length_m", 2.74)
+        self.declare_parameter("table_width_m", 1.525)
         self.declare_parameter(
-            "marker_names", ",".join(MARKER_NAMES)
+            "marker_names", ",".join(STICKER_NAMES)
         )
         self.declare_parameter("mapping", "")
         self.declare_parameter("minimum_frames", 200)
         self.declare_parameter("capture_duration_s", 4.0)
         self.declare_parameter("capture_timeout_s", 15.0)
         self.declare_parameter("attest_installed_layout", True)
+        self.declare_parameter("allow_nominal_markers", False)
+        self.declare_parameter("max_registration_rms_mm", 3.0)
+        # Keep the calibrator CLI strict by default. The Foxglove hardware
+        # launch explicitly uses the 8 mm new-robot commissioning gate while
+        # retaining the 4 mm aggregate live-RMS gate.
+        self.declare_parameter("max_live_max_mm", 5.0)
         self.declare_parameter(
             "service_name", "/a3/calibration/recompute_p1"
         )
+
+        self._asset_name = str(self.get_parameter("asset_name").value)
+        self._marker_layout = str(
+            self.get_parameter("marker_layout").value
+        ).lower()
+        self._table_side = str(self.get_parameter("table_side").value).upper()
+        if self._marker_layout not in {"v2", "v3", "stickers_v3"}:
+            raise ValueError("marker_layout must be stickers_v3, v2 or v3")
+        if self._table_side not in {"P1", "P2"}:
+            raise ValueError("table_side must be P1 or P2")
+        expected_asset = f"UCB_{self._table_side}"
+        if self._asset_name != expected_asset:
+            raise ValueError(
+                f"asset_name must be {expected_asset} for {self._table_side}"
+            )
 
         self._service = self.create_service(
             Trigger,
@@ -50,8 +80,8 @@ class P1MarkerCadCalibrationServer(Node):
             self._recompute,
         )
         self.get_logger().info(
-            "laptop P1 calibration service ready; each request replaces the "
-            "local JSON only after an approved fit"
+            "laptop marker calibration service ready; each request replaces "
+            "the local JSON only after an approved fit"
         )
 
     def _output_path(self) -> Path:
@@ -66,12 +96,35 @@ class P1MarkerCadCalibrationServer(Node):
         )
         if capture_timeout_s <= 0.0:
             raise ValueError("capture_timeout_s must be positive")
+        max_live_max_mm = float(
+            self.get_parameter("max_live_max_mm").value
+        )
+        if not math.isfinite(max_live_max_mm) or max_live_max_mm <= 0.0:
+            raise ValueError("max_live_max_mm must be positive and finite")
+        max_registration_rms_mm = float(
+            self.get_parameter("max_registration_rms_mm").value
+        )
+        if (
+            not math.isfinite(max_registration_rms_mm)
+            or max_registration_rms_mm <= 0.0
+        ):
+            raise ValueError(
+                "max_registration_rms_mm must be positive and finite"
+            )
         command = [
             str(self.get_parameter("calibrator_executable").value),
             "--topic",
             str(self.get_parameter("marker_topic").value),
             "--asset-name",
-            str(self.get_parameter("asset_name").value),
+            self._asset_name,
+            "--marker-layout",
+            self._marker_layout,
+            "--table-side",
+            self._table_side,
+            "--table-length-m",
+            str(float(self.get_parameter("table_length_m").value)),
+            "--table-width-m",
+            str(float(self.get_parameter("table_width_m").value)),
             "--output",
             str(output_path),
             "--marker-names",
@@ -82,6 +135,10 @@ class P1MarkerCadCalibrationServer(Node):
             str(float(self.get_parameter("capture_duration_s").value)),
             "--timeout",
             str(capture_timeout_s),
+            "--max-live-max-mm",
+            str(max_live_max_mm),
+            "--max-registration-rms-mm",
+            str(max_registration_rms_mm),
             "--stationary-prepare",
         ]
         mapping = str(self.get_parameter("mapping").value).strip()
@@ -89,51 +146,122 @@ class P1MarkerCadCalibrationServer(Node):
             command.extend(["--mapping", mapping])
         if bool(self.get_parameter("attest_installed_layout").value):
             command.append("--attest-installed-layout")
+        if bool(self.get_parameter("allow_nominal_markers").value):
+            command.append("--allow-nominal-only-markers")
         return command
+
+    @staticmethod
+    def _failure_detail(completed: subprocess.CompletedProcess[str]) -> str:
+        """Prefer actionable calibration blockers over ROS startup warnings."""
+        combined = "\n".join(
+            part.strip()
+            for part in (completed.stderr, completed.stdout)
+            if part and part.strip()
+        )
+        if not combined:
+            return f"calibrator exited {completed.returncode}"
+
+        lines = [line.strip() for line in combined.splitlines() if line.strip()]
+        filtered = [
+            line
+            for line in lines
+            if "ROS_LOCALHOST_ONLY is deprecated" not in line
+            and "'localhost_only' is disabled" not in line
+        ]
+        if not filtered:
+            filtered = lines
+
+        blocker_index = next(
+            (index for index, line in enumerate(filtered) if line == "blockers:"),
+            None,
+        )
+        if blocker_index is not None:
+            blockers = filtered[blocker_index:]
+            preserved = [
+                line
+                for line in filtered[:blocker_index]
+                if line.startswith("preserved_last_approved_receipt:")
+            ]
+            filtered = blockers + preserved
+
+        return "\n".join(filtered)[-1200:]
 
     def _recompute(self, _request, response):
         try:
             output_path = self._output_path()
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            command = self._command(output_path)
-            timeout_s = (
-                float(self.get_parameter("capture_timeout_s").value) + 5.0
-            )
-            completed = subprocess.run(
-                command,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=timeout_s,
-                env=os.environ.copy(),
-            )
-            if completed.returncode != 0:
-                detail = (
-                    completed.stderr
-                    or completed.stdout
-                    or f"calibrator exited {completed.returncode}"
-                ).strip()
-                raise RuntimeError(detail[-1200:])
-            calibration = load_p1_calibration(output_path)
-            if calibration.parent_frame != "P1":
-                raise ValueError("calibration parent frame is not P1")
-            if calibration.child_frame != "pelvis_link":
-                raise ValueError("calibration child frame is not pelvis_link")
+            with tempfile.TemporaryDirectory(
+                prefix=f".{output_path.name}.{self._marker_layout}.",
+                dir=output_path.parent,
+            ) as staging_directory:
+                staging_path = Path(staging_directory) / output_path.name
+                command = self._command(staging_path)
+                timeout_s = (
+                    float(self.get_parameter("capture_timeout_s").value) + 5.0
+                )
+                completed = subprocess.run(
+                    command,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_s,
+                    env=os.environ.copy(),
+                )
+                if completed.returncode != 0:
+                    raise RuntimeError(self._failure_detail(completed))
+                calibration = load_p1_calibration(staging_path)
+                document = json.loads(staging_path.read_text(encoding="utf-8"))
+                if calibration.parent_frame != self._asset_name:
+                    raise ValueError(
+                        f"calibration parent frame is not {self._asset_name}"
+                    )
+                if calibration.child_frame != "pelvis_link":
+                    raise ValueError("calibration child frame is not pelvis_link")
+                cad = document.get("cad")
+                runtime_world = document.get("runtime_world")
+                if not isinstance(cad, dict) or not isinstance(runtime_world, dict):
+                    raise ValueError("calibration receipt profile metadata is missing")
+                if cad.get("marker_layout") != self._marker_layout:
+                    raise ValueError(
+                        "calibration receipt is not marker layout "
+                        f"{self._marker_layout}"
+                    )
+                if runtime_world.get("table_side") != self._table_side:
+                    raise ValueError(
+                        f"calibration receipt is not table side {self._table_side}"
+                    )
+                # Retain approved venue versions independently of the HDU/UI.
+                archive = output_path.parent / "venues"
+                archive.mkdir(exist_ok=True)
+                for receipt_path in (output_path, staging_path):
+                    if receipt_path.is_file():
+                        digest = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+                        archived = archive / (digest + ".json")
+                        if not archived.exists():
+                            shutil.copyfile(receipt_path, archived)
+                os.replace(staging_path, output_path)
+                directory_fd = os.open(output_path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
         except subprocess.TimeoutExpired:
             response.success = False
-            response.message = "laptop P1 calibration timed out"
+            response.message = "laptop marker calibration timed out"
             self.get_logger().error(response.message)
             return response
         except (OSError, UnicodeError, TypeError, ValueError, RuntimeError) as exc:
             response.success = False
             response.message = str(exc)[-1200:]
-            self.get_logger().error(f"laptop P1 calibration failed: {exc}")
+            self.get_logger().error(f"laptop marker calibration failed: {exc}")
             return response
 
         response.success = True
         response.message = calibration.receipt_sha256
         self.get_logger().info(
-            f"replaced laptop P1 calibration {output_path} "
+            "replaced laptop marker calibration "
+            f"layout={self._marker_layout} asset={self._asset_name} "
+            f"{output_path} "
             f"sha={calibration.receipt_sha256}"
         )
         return response
@@ -141,7 +269,7 @@ class P1MarkerCadCalibrationServer(Node):
 
 def main() -> None:
     rclpy.init()
-    node = P1MarkerCadCalibrationServer()
+    node = UcbRobotCadCalibrationServer()
     try:
         rclpy.spin(node)
     finally:

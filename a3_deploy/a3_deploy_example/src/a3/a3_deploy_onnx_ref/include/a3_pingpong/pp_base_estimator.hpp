@@ -52,6 +52,60 @@ inline Vec3 sole_in_pelvis(const std::array<LegLink, 6>& leg, const Vec3& sole_o
   return t + R * sole_off;
 }
 
+namespace leg_fk_detail {
+inline const std::array<LegLink, 6>& left_leg() {
+  static const std::array<LegLink, 6> kLeft = {{
+      {Vec3(0, 0.122983, -0.178753), Vec4(0.991445, -0.130526, 0, 0), 1, 0},    // hip_pitch
+      {Vec3(0, 0.0113163, -0.042233), Vec4(0.991445, 0.130526, 0, 0), 0, 3},    // hip_roll
+      {Vec3(0, 0, 0), Vec4(1, 0, 0, 0), 2, 6},                                   // hip_yaw
+      {Vec3(0, 0, -0.37), Vec4(1, 0, 0, 0), 1, 9},                               // knee
+      {Vec3(0, 0, -0.415), Vec4(1, 0, 0, 0), 1, 14},                            // ankle_pitch
+      {Vec3(0, 0, 0), Vec4(1, 0, 0, 0), 0, 19}}};                               // ankle_roll
+  return kLeft;
+}
+inline const std::array<LegLink, 6>& right_leg() {
+  static const std::array<LegLink, 6> kRight = {{
+      {Vec3(0, -0.122983, -0.178753), Vec4(0.991445, 0.130526, 0, 0), 1, 1},
+      {Vec3(-0.0011, -0.011316, -0.042233), Vec4(0.991445, -0.130526, 0, 0), 0, 4},
+      {Vec3(0, 0, 0), Vec4(1, 0, 0, 0), 2, 7},
+      {Vec3(0, 0, -0.37), Vec4(1, 0, 0, 0), 1, 10},
+      {Vec3(0, 0, -0.415), Vec4(1, 0, 0, 0), 1, 15},
+      {Vec3(0, 0, 0), Vec4(1, 0, 0, 0), 0, 20}}};
+  return kRight;
+}
+inline const Vec3& sole_offset() {
+  static const Vec3 kSole(0.04, 0.0, -0.072);  // ankle_roll origin -> ground contact
+  return kSole;
+}
+}  // namespace leg_fk_detail
+
+// Schema33 Layer C: both sole contact points in the WORLD frame (mocap pelvis pose +
+// leg FK), for the support-geometry envelope channel.  Index 0 = left, 1 = right.
+inline std::array<Vec3, 2> sole_positions_w(const Eigen::VectorXd& q_isaac,
+                                            const Vec3& base_pos_w,
+                                            const Vec4& base_quat) {
+  const Mat3 Rb = mat_from_quat(base_quat);
+  return {base_pos_w + Rb * sole_in_pelvis(leg_fk_detail::left_leg(),
+                                            leg_fk_detail::sole_offset(), q_isaac),
+          base_pos_w + Rb * sole_in_pelvis(leg_fk_detail::right_leg(),
+                                            leg_fk_detail::sole_offset(), q_isaac)};
+}
+
+// Schema34 actor column 111 uses the ankle-roll LINK origins, matching Isaac Lab's
+// ``robot.data.body_pos_w[left/right_ankle_roll_Link]`` exactly.  This is deliberately
+// distinct from sole_positions_w(): the latter includes the contact-point offset and remains
+// the Schema33 recovery-envelope source.
+inline std::array<Vec3, 2> ankle_roll_positions_w(
+    const Eigen::VectorXd& q_isaac, const Vec3& base_pos_w,
+    const Vec4& base_quat) {
+  const Mat3 Rb = mat_from_quat(base_quat);
+  const Vec3 zero_offset = Vec3::Zero();
+  return {base_pos_w + Rb * sole_in_pelvis(
+                               leg_fk_detail::left_leg(), zero_offset, q_isaac),
+          base_pos_w + Rb * sole_in_pelvis(
+                               leg_fk_detail::right_leg(), zero_offset, q_isaac)};
+}
+
 // Pelvis world height (m) from leg-FK + IMU, assuming the support foot's sole is
 // on the ground. max() over feet picks the grounded one (robust to weight shift).
 inline double estimate_base_height(const Eigen::VectorXd& q_isaac, const Vec4& base_quat) {

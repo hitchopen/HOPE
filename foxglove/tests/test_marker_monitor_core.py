@@ -44,9 +44,15 @@ class MarkerMonitorCoreTests(unittest.TestCase):
     def test_text_distinguishes_stale_from_a_live_zero(self):
         self.assertEqual(
             marker_count_text(0, fresh=False),
-            "P1 live markers = 0/10 | NO FRESH LAPTOP DATA",
+            "UCB_P1 live markers = 0/10 | NO FRESH LAPTOP DATA",
         )
-        self.assertEqual(marker_count_text(0, fresh=True), "P1 live markers = 0/10")
+        self.assertEqual(
+            marker_count_text(0, fresh=True), "UCB_P1 live markers = 0/10"
+        )
+        self.assertEqual(
+            marker_count_text(10, fresh=True, asset_name="UCB_P2"),
+            "UCB_P2 live markers = 10/10",
+        )
 
 
 if __name__ == "__main__":

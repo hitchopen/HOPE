@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Synthetic motion_capture_tracking feed for OptiTrack-relay testing WITHOUT Motive.
 
-Publishes /optitrack/poses (motion_capture_tracking_interfaces/NamedPoseArray —
+Publishes /optitrack/poses (motion_capture_tracking_interfaces/NamedPoseArrayV2 —
 the vendored driver's remapped output) at ``rate_hz``, mimicking what the real
-node emits: every frame carries the static rigid bodies (P1, Table) and, while a
+node emits: every frame carries the static rigid bodies (UCB_P1, PPT) and, while a
 serve is in flight, the ball entry. Between serves the ball is OMITTED from the
 frames — exactly how the driver behaves when the ball leaves the volume — which
 exercises the relay's /poses gating (rigid-body topics keep updating, /poses
@@ -13,7 +13,7 @@ The ball flight reuses the fake_ball_publisher quadratic-drag + table-bounce
 model; drag_k / restitution_* MUST match hope_planner's params for closed-loop
 tests. Positions are metres in the HOPE table frame (z=0 at the table surface).
 
-Typical use (bench, no hardware):
+Typical use (bench, inside the hope distrobox):
   ros2 run hope_bringup fake_optitrack_publisher
   ros2 launch hope_bringup optitrack_mct_relay.launch.py   # relay under test
 """
@@ -33,22 +33,23 @@ class FakeOptitrackPublisher(Node):
         # serve = [px, py, pz, vx, vy, vz] in the table frame (z=0 at table surface).
         self.declare_parameter("serve_forehand", [2.3, -1.00, 0.40, -5.0, 0.2, 1.0])
         self.declare_parameter("serve_backhand", [2.3, -0.52, 0.40, -5.0, -0.2, 1.0])
-        self.declare_parameter("rate_hz", 300.0)      # Competition Motive native rate
-        self.declare_parameter("drag_k", 0.15)        # MUST match hope_planner drag_k
-        self.declare_parameter("restitution_h", 0.85)  # MUST match hope_planner
-        self.declare_parameter("restitution_v", 0.85)  # MUST match hope_planner
+        self.declare_parameter("rate_hz", 360.0)      # OptiTrack rigs commonly run 360
+        # Shared venue physics: 2026-08-23/24 equal-session drag/table candidate.
+        self.declare_parameter("drag_k", 0.1317)       # MUST match hope_planner drag_k
+        self.declare_parameter("restitution_h", 0.64)  # MUST match hope_planner C_h
+        self.declare_parameter("restitution_v", 0.9607)  # MUST match hope_planner C_v
         self.declare_parameter("table_x_max", 2.74)
         self.declare_parameter("end_x", -0.6)
         self.declare_parameter("pause_s", 1.0)        # ball absent from frames this long
         self.declare_parameter("max_flight_s", 3.0)
         self.declare_parameter("frame_id", "world")
         self.declare_parameter("ball_name", "Ball")
-        self.declare_parameter("p1_name", "P1")
-        self.declare_parameter("table_name", "Table")
+        self.declare_parameter("p1_name", "UCB_P1")
+        self.declare_parameter("ppt_name", "PPT")
         # Static rigid-body poses [x, y, z] (identity orientation): robot base
         # near the table's robot end, table marker at the origin corner.
         self.declare_parameter("p1_position", [-0.5, -0.7625, 0.9])
-        self.declare_parameter("table_position", [0.0, 0.0, 0.0])
+        self.declare_parameter("ppt_position", [0.0, 0.0, 0.0])
 
         gp = self.get_parameter
         self._serves = [
@@ -66,9 +67,9 @@ class FakeOptitrackPublisher(Node):
         self._frame = str(gp("frame_id").value)
         self._ball_name = str(gp("ball_name").value)
         self._p1_name = str(gp("p1_name").value)
-        self._table_name = str(gp("table_name").value)
+        self._ppt_name = str(gp("ppt_name").value)
         self._p1_pos = [float(v) for v in gp("p1_position").value]
-        self._table_pos = [float(v) for v in gp("table_position").value]
+        self._ppt_pos = [float(v) for v in gp("ppt_position").value]
         self._g = np.array([0.0, 0.0, -9.81])
 
         qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -80,8 +81,8 @@ class FakeOptitrackPublisher(Node):
         self._reset()
         self.create_timer(self._dt, self._tick)
         self.get_logger().info(
-            f"fake OptiTrack NamedPoseArray @{1.0/self._dt:.0f} Hz on /optitrack/poses "
-            f"(bodies: {self._ball_name} in flight only, {self._p1_name}, {self._table_name})")
+            f"fake OptiTrack NamedPoseArrayV2 @{1.0/self._dt:.0f} Hz on /optitrack/poses "
+            f"(bodies: {self._ball_name} in flight only, {self._p1_name}, {self._ppt_name})")
 
     def _reset(self):
         s = self._serves[self._serve_i % len(self._serves)]
@@ -127,27 +128,29 @@ class FakeOptitrackPublisher(Node):
         # The real driver streams EVERY camera frame; rigid bodies are always
         # present, the ball entry only while it is tracked.
         msg = self._array_type()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        stamp = self.get_clock().now()
+        msg.header.stamp = stamp.to_msg()
         msg.header.frame_id = self._frame
+        msg.timestamp = stamp.nanoseconds // 1000
         if ball_in_flight:
             msg.poses.append(self._named_pose(self._ball_name, self._p))
         msg.poses.append(self._named_pose(self._p1_name, self._p1_pos))
-        msg.poses.append(self._named_pose(self._table_name, self._table_pos))
+        msg.poses.append(self._named_pose(self._ppt_name, self._ppt_pos))
         self._pub.publish(msg)
 
 
 def main(args=None):
     try:
-        from motion_capture_tracking_interfaces.msg import NamedPose, NamedPoseArray
+        from motion_capture_tracking_interfaces.msg import NamedPose, NamedPoseArrayV2
     except ImportError as exc:
         raise SystemExit(
             "fake_optitrack_publisher needs motion_capture_tracking_interfaces "
-            "from the independent NatNet2ROS2 workspace; install/source that "
-            f"interface package on this host. Import error: {exc}"
+            "(vendored in NatNet2ROS2/src/motion_capture_tracking_interfaces); build "
+            f"and source the workspace overlay. Import error: {exc}"
         )
 
     rclpy.init(args=args)
-    node = FakeOptitrackPublisher(NamedPoseArray, NamedPose)
+    node = FakeOptitrackPublisher(NamedPoseArrayV2, NamedPose)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

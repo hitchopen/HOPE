@@ -1,5 +1,10 @@
 # Foxglove Runner 首次部署与现场测试手册
 
+> Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for
+> current Kernel Mode, Xbox, Serve-to-Ready, calibration-layout and package
+> instructions. The public checkpoint remains model_21800. The foundational
+> host/SSH setup below still applies; older UI labels are superseded by that guide.
+
 本文用于把当前 HOPE checkout 部署到一台 Laptop、一个 HDU 和一个 MDU，
 并完成第一次有人值守测试。完成“一次性部署”后，正常
 session 不再手工执行旧 runbook 的 STEP 0、STEP 1、STEP 2A/2B、STEP 4

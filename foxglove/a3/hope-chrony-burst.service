@@ -1,0 +1,17 @@
+[Unit]
+Description=HOPE fixed privileged chrony burst
+Requires=chrony.service
+After=chrony.service
+
+[Service]
+Type=oneshot
+User=_chrony
+Group=_chrony
+ExecStart=/usr/bin/chronyc -h /run/chrony/chronyd.sock burst 8/8
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/chrony
+RestrictAddressFamilies=AF_UNIX
+UMask=0077

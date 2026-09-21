@@ -6,32 +6,28 @@ usage() {
 Usage:
   with_fastdds_unicast.sh [options] -- COMMAND [ARG ...]
 
-Runs COMMAND with a generated Fast DDS profile that adds an explicit list of
-unicast peers (multicast discovery itself stays enabled at SUBNET range; set
-ROS_AUTOMATIC_DISCOVERY_RANGE=OFF yourself to fully disable it) — for venue Wi-Fi /
-segmented LANs where DDS multicast discovery does not work (a common setup
-when a laptop bridges the OptiTrack/Motive LAN to the robot's network).
-
 Options:
   --peer IPV4              Remote Fast DDS peer. Repeat for every remote box.
   --interface NAME         Local DDS interface. Repeat as needed. By default,
                            interfaces are derived from `ip route get PEER`.
-  --domain-id N            ROS domain (default: $ROS_DOMAIN_ID or 0).
+  --domain-id N            ROS domain (default: $ROS_DOMAIN_ID or 232).
   --max-initial-peers N    Participant ports probed per peer (default: 32).
   -h, --help               Show this help.
 
-Example for the OptiTrack laptop-bridge topology:
-  # Laptop: independently built NatNet2ROS2 adapter -> robot host.
-  with_fastdds_unicast.sh --peer <ROBOT_HOST_IP> -- \
-    ros2 launch motion_capture_tracking natnet2ros2.launch.py \
-      hostname:=<MOTIVE_PC_IP> interface_ip:=<ADAPTER_MOTIVE_NIC_IP>
+Examples for the OptiTrack laptop-bridge topology:
+  # Laptop: Motive bridge -> HDU over the laptop Wi-Fi route.
+  with_fastdds_unicast.sh --peer 172.23.20.135 -- \
+    ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
+      hostname:=192.168.100.111
 
-  # Robot host: source NatNet2ROS2 interfaces, then run the HOPE relay/planner.
-  with_fastdds_unicast.sh --peer <LAPTOP_IP> -- \
-    ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
+  # HDU: Laptop input plus MDU output; routes select wifi_hdu and eth_hdu.
+  with_fastdds_unicast.sh --peer 172.23.20.46 --peer 10.42.10.12 -- \
+    ros2 run hope_planner_cpp hope_planner_cpp_node ...
 
-When the venue Wi-Fi changes, replace only the peer IPs. The wrapper derives
-each local interface and address from the active route; no XML edit is needed.
+When the venue Wi-Fi changes, replace only the Wi-Fi peer IPs. The wrapper
+derives each local interface and address from the active route; no XML edit is
+needed. Keep the MDU peer at 10.42.10.12 unless the robot-internal network itself
+changes.
 EOF
 }
 
@@ -55,7 +51,7 @@ is_ipv4() {
 declare -a PEERS=()
 declare -a REQUESTED_INTERFACES=()
 declare -a COMMAND=()
-DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+DOMAIN_ID="${ROS_DOMAIN_ID:-232}"
 MAX_INITIAL_PEERS="32"
 
 while [[ $# -gt 0 ]]; do
@@ -103,8 +99,8 @@ done
   die "--max-initial-peers must be a positive integer"
 
 # Fast DDS discovery-unicast port for the last probed participant must remain
-# within uint16. This matters near domain 232, whose base port is already
-# 65400.
+# within uint16. This matters at the production domain 232, whose base port is
+# already 65400.
 LAST_DISCOVERY_PORT=$((7400 + 250 * 10#${DOMAIN_ID} + 10 + 2 * (10#${MAX_INITIAL_PEERS} - 1)))
 ((LAST_DISCOVERY_PORT <= 65535)) ||
   die "domain ${DOMAIN_ID} with max-initial-peers ${MAX_INITIAL_PEERS} reaches invalid UDP port ${LAST_DISCOVERY_PORT}"

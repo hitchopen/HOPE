@@ -1,6 +1,8 @@
 // Minimal entry point for running model_15200 (ping-pong, 180-obs/31-act) on the
 // A3 via AGI's native runner. Reuses robot_io::A3AimrtBackend (iceoryx/ros2 sync)
-// + a3_deploy::A3PolicyDriver (50 Hz RT loop + watchdog + safe-halt) UNCHANGED;
+// + a3_deploy::A3PolicyDriver (watchdog + safe-halt). With --serve, the
+// serve025 full31 action and the policy path share one 100 Hz publisher; the
+// 50 Hz learned policy command is held on the intervening callback.
 // only the front-end is ours (a3_pingpong::PpPolicy CommandFn). AGI's original
 // a3_deploy_onnx_ref + main.cpp are untouched (separate CMake target).
 //
@@ -22,9 +24,11 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -36,6 +40,10 @@
 
 #include "a3_deploy/a3_policy_driver.hpp"
 #include "a3_pingpong/pp_command_safety.hpp"
+#include "a3_pingpong/pp_hybrid_lower_policy.hpp"
+#include "a3_pingpong/pp_humanlike_policy.hpp"
+#include "a3_pingpong/pp_teleop_input.hpp"
+#include "a3_pingpong/pp_mode_cadence.hpp"
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_reference_playback.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
@@ -54,6 +62,11 @@ constexpr bool kV17R1StationaryMujocoReplayBinary = false;
 constexpr bool kV17R10P0Gate3Binary = true;
 #else
 constexpr bool kV17R10P0Gate3Binary = false;
+#endif
+#ifdef PP_SCHEMA24_TRAINING_SCREEN_GATE3_BINARY
+constexpr bool kSchema24TrainingScreenGate3Binary = true;
+#else
+constexpr bool kSchema24TrainingScreenGate3Binary = false;
 #endif
 #if defined(__x86_64__) || defined(_M_X64)
 constexpr bool kGate3QdesAuditOnlySupported = true;
@@ -155,7 +168,7 @@ std::string DefaultServeAsset(const fs::path& cfgdir,
   // arbitrary runtime cfg (including artifacts/...) until it reaches the
   // repository root; packaged deployments always take the branch above.
   return Resolve(
-      "a3_deploy/a3_deploy_example/assets/a3_runtime/motions/" + filename,
+      "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/" + filename,
       cfgdir);
 }
 
@@ -236,8 +249,8 @@ void PrintObsDebugBlock(const a3_pingpong::PpPolicy::ObsDebug& d,
   // else = 180' and indexed o[170..179] on a 177-D (and would on a 110-D) obs — OUT OF BOUNDS
   // (Eigen UB in release). Every supported layout now has its own offsets; unknown dims print
   // only the stats line above.
-  if (n == a3_pingpong::kObsDim110 || n == a3_pingpong::kObsDim113 ||
-      n == a3_pingpong::kObsDim118) {
+  if (n == a3_pingpong::kObsDim110 || n == a3_pingpong::kObsDim112 ||
+      n == a3_pingpong::kObsDim113 || n == a3_pingpong::kObsDim118) {
     // hitter_pure: [96:99] grav, [99:101] e_base,x, [101:103] Δstation(world),
     // [103:106] racket rel base(world), [106:109] vel_w, [109] tts. No swing_type.
     std::printf("   e_base_x=[%+.3f %+.3f]  base_target_dxy=[%+.4f %+.4f]  "
@@ -245,6 +258,9 @@ void PrintObsDebugBlock(const a3_pingpong::PpPolicy::ObsDebug& d,
                 o[99], o[100], o[101], o[102], o[103], o[104], o[105]);
     std::printf("   racket_target_vel_w=[%+.3f %+.3f %+.3f]  tts=%.3f  [%s]\n",
                 o[106], o[107], o[108], o[109], src);
+    if (n == a3_pingpong::kObsDim112)
+      std::printf("   reach_level(planner)=%.0f swing_foot_sign(planner)=%+.0f\n",
+                  o[110], o[111]);
     if (n == a3_pingpong::kObsDim113 || n == a3_pingpong::kObsDim118)
       std::printf("   base_velocity_xy=[%+.4f %+.4f] localization_age=%.3f\n",
                   o[110], o[111], o[112]);
@@ -298,6 +314,20 @@ void PrintClampAudit(const char* phase, const a3_pingpong::PpPolicy& policy) {
   std::printf("\n");
 }
 
+void PrintQdesSlewAudit(const char* phase, const a3_pingpong::PpPolicy& policy) {
+  if (!policy.v12_slew_active() || policy.qdes_slew_ticks() == 0) return;
+  std::printf(
+      "[qdes-slew] phase=%s ticks=%llu saturated_ticks=%llu last_scale=%.3f "
+      "last_saturated=%d last_saturated_legs=%d last_max_clip=%.4f "
+      "session_max_clip=%.4f envelope_level=%d envelope_mode=%s\n",
+      phase, static_cast<unsigned long long>(policy.qdes_slew_ticks()),
+      static_cast<unsigned long long>(policy.qdes_slew_saturated_ticks()),
+      policy.qdes_slew_scale(), policy.qdes_slew_saturated_count(),
+      policy.qdes_slew_saturated_leg_count(), policy.qdes_slew_max_clip_rad(),
+      policy.qdes_slew_max_clip_rad_session(), policy.envelope_level(),
+      policy.envelope_mode_name());
+}
+
 void PrintQdesProjectorAudit(const char* phase, const a3_pingpong::PpPolicy& policy) {
   if (!policy.bounded_qdes_active() || policy.qdes_projector_ticks() == 0) return;
   const int isaac = policy.worst_projected_isaac_joint();
@@ -348,12 +378,53 @@ void PrintRefDiagBlock(const a3_pingpong::RefPlaybackDiagSnapshot& d) {
 
 int main(int argc, char** argv) {
   setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffer so status survives kill
+  // Uses the exact live ONNX/deploy loader, before any transport or actuator
+  // initialization. Gate3 must not implement a second compatibility validator.
+  if (Has(argc, argv, "--inspect-policy")) {
+    try {
+      const fs::path directory = Flag(argc, argv, "--policy-dir", "");
+      if (directory.empty()) throw std::runtime_error("--inspect-policy requires --policy-dir");
+      a3_pingpong::PpOnnxPolicy policy(
+          (directory / "exported/policy.onnx").string(),
+          a3_pingpong::PpOnnxLoadProfile::kProductionStrict,
+          (directory / "params/deploy.yaml").string());
+      const auto deploy = a3_pingpong::PpDeployConfig::Load(
+          (directory / "params/deploy.yaml").string(),
+          (directory / "exported/policy.onnx").string());
+      YAML::Emitter out;
+      out << YAML::BeginMap << YAML::Key << "inspection_version" << YAML::Value << 1
+          << YAML::Key << "policy_abi" << YAML::Value << policy.policy_abi()
+          << YAML::Key << "observation_dim" << YAML::Value << policy.obs_dim()
+          << YAML::Key << "action_dim" << YAML::Value << 31
+          << YAML::Key << "step_dt" << YAML::Value << deploy.step_dt
+          << YAML::Key << "runtime_contract" << YAML::Value << policy.runtime_contract()
+          << YAML::Key << "training_recipe" << YAML::Value << policy.training_recipe()
+          << YAML::Key << "training_recipe_version" << YAML::Value << policy.training_recipe_version()
+          << YAML::EndMap;
+      std::cout << out.c_str() << '\n';
+      return 0;
+    } catch (const std::exception& e) {
+      std::cerr << "POLICY_INSPECTION_FAILED: " << e.what() << '\n';
+      return 2;
+    }
+  }
+  // Validation-only entry exits before config, backend, gripper or policy init.
+  if (Has(argc, argv, "--validate-serve-timeline")) {
+    a3_pingpong::PpServe025FullbodyTimeline timeline;
+    std::string error;
+    if (!timeline.LoadCsv(Flag(argc, argv, "--validate-serve-timeline", ""), error)) {
+      std::cerr << error << "\n";
+      return 2;
+    }
+    std::cout << "SERVE_TIMELINE_VALID frames=468 hz=100\n";
+    return 0;
+  }
   const std::string cfg_path = Flag(argc, argv, "--runtime-cfg", "");
   if (cfg_path.empty()) {
     std::cerr << "usage: " << argv[0]
               << " --runtime-cfg PATH [--aimrt-cfg PATH]"
-                 " [--policy-dir PATH]"
-                 " [--start passive|pd_stand|shadow|motion|serve]"
+                 " [--policy-dir PATH] [--teleop-policy-dir PATH]"
+                 " [--start passive|pd_stand|shadow|motion]"
                  " [--level 0|1]\n"
                  "       [--backhand] [--legs-passive] [--waist-passive] [--auto-leg-hold]"
                  " [--arm-hold-nominal [--arm-hold-blend S]] [--hold-recover S]"
@@ -370,12 +441,18 @@ int main(int argc, char** argv) {
                  "       [--loc-mode fabricated|perfect_tracking|oracle|external_base]"
                  " [--perfect-tracking] [--oracle-pelvis] [--no-imu-yaw]\n"
                  "       [--oracle-shm PATH] [--oracle-max-age S]"
-                 " [--trace-csv PATH] [--obs-csv PATH] [--session-id ID] [--shadow-frozen-clock]\n"
+                 " [--trace-csv PATH] [--obs-csv PATH] [--no-data-csv] [--session-id ID] [--shadow-frozen-clock]\n"
                  "       [--leg-gain-scale F] [--ankle-gain-scale F] [--motion-blend-sec S]"
                  " [--squat-guard-rad R] [--tilt-guard G] [--leg-clamp-rad R]"
                  " [--leg-stand-gains] [--leg-smooth-alpha A]\n"
-                 "       [--serve] [--serve-clip FIXED_CSV"
-                 " --serve-manifest FIXED_JSON]"
+                 "       [--hybrid-lower --hybrid-lower-model PATH]"
+                 " [--hybrid-lower-owner legs|roll_legs|roll_pitch_legs|waist_legs]"
+                 " [--hybrid-lower-backend ort_cpu]"
+                 " [--hybrid-lower-vx MPS --hybrid-lower-vy MPS"
+                 " --hybrid-lower-yaw RADPS] [--hybrid-lower-walk-phase]"
+                 " [--hybrid-lower-station-hold]\n"
+                 "       [--serve [--serve-gripper-socket ABS_PATH]]"
+                 " [--serve-timeline FULL31_CSV] [--kernel-mode] [--serve-only]"
                  "\n"
                  "       [--stationary-v17-r1-replay] (x86 MuJoCo-only "
                  "non-certifying binary)"
@@ -383,8 +460,15 @@ int main(int argc, char** argv) {
                  " [--allow-fixed-y-homing]"
                  "\n"
                  "       [--v17-r10-gate3] (x86 MuJoCo/Gate3-only R10 P0)"
+                 " [--schema24-training-screen-gate3] (x86 MuJoCo/Gate3-only; "
+                 "hardware forbidden)"
                  " [--gate3-qdes-audit-only] (x86 MuJoCo Gate3 telemetry; no "
                  "q_des fail-fast/clamp)"
+                 " [--schema3-sim-optional-reach] (x86 MuJoCo Gate3-only "
+                 "Schema31/32 L1/L2 training-candidate lane; legacy alias "
+                 "--schema31-sim-optional-reach)"
+                 " [--gate3-force-every-flight] (x86 MuJoCo Gate3-only; "
+                 "bypass rapid-preempt temporal admission gates)"
                  "\n";
     return 2;
   }
@@ -398,6 +482,8 @@ int main(int argc, char** argv) {
   const bool stationary_v17_r1_replay =
       Has(argc, argv, "--stationary-v17-r1-replay");
   const bool v17_r10_gate3 = Has(argc, argv, "--v17-r10-gate3");
+  const bool schema24_training_screen_gate3 =
+      Has(argc, argv, "--schema24-training-screen-gate3");
   const bool moving_station_replay =
       Has(argc, argv, "--allow-trained-lateral-recovery");
   const bool fixed_y_homing_replay =
@@ -434,17 +520,41 @@ int main(int argc, char** argv) {
                 : "this x86 R10 Gate3 binary requires --v17-r10-gate3\n");
     return 2;
   }
-  if (stationary_v17_r1_replay && v17_r10_gate3) {
-    std::cerr << "legacy stationary replay and V17-r10 Gate3 are mutually exclusive\n";
+  if (schema24_training_screen_gate3 !=
+      kSchema24TrainingScreenGate3Binary) {
+    std::cerr
+        << (schema24_training_screen_gate3
+                ? "--schema24-training-screen-gate3 is unavailable in the "
+                  "production/aarch64 binary\n"
+                : "this x86 Schema24 Gate3-screen binary requires "
+                  "--schema24-training-screen-gate3\n");
+    return 2;
+  }
+  const int isolated_profile_count =
+      static_cast<int>(stationary_v17_r1_replay) +
+      static_cast<int>(v17_r10_gate3) +
+      static_cast<int>(schema24_training_screen_gate3);
+  if (isolated_profile_count > 1) {
+    std::cerr << "isolated replay/Gate3 profiles are mutually exclusive\n";
     return 2;
   }
 
   // LIVE PLANNER mode (Path B): racket target from /racket/command_flat + mocap base pose
   // from /a3/base_pose_flat, both over the AimRT ros2 backend; body-drive stays iceoryx.
-  const bool planner_mode = Has(argc, argv, "--planner");
+  const bool kernel_mode = Has(argc, argv, "--kernel-mode");
+  const bool serve_only = Has(argc, argv, "--serve-only") && !kernel_mode;
+  // Keep the deployed native policy/transport contract for Stand gains. Pure
+  // Serve never computes policy commands or admits MOTION, and does not wait
+  // for a Planner/base producer.
+  const bool planner_mode = Has(argc, argv, "--planner") || serve_only || kernel_mode;
   const bool policy_native = Has(argc, argv, "--policy-native");
   const bool gate3_qdes_audit_only =
       Has(argc, argv, "--gate3-qdes-audit-only");
+  const bool schema31_sim_optional_reach =
+      Has(argc, argv, "--schema3-sim-optional-reach") ||
+      Has(argc, argv, "--schema31-sim-optional-reach");
+  const bool gate3_force_every_flight =
+      Has(argc, argv, "--gate3-force-every-flight");
   const bool demo_mode = Has(argc, argv, "--demo");
   const bool legacy_vel_box_center = Has(argc, argv, "--vel-box-center");
   if (demo_mode && !planner_mode) {
@@ -459,6 +569,20 @@ int main(int argc, char** argv) {
       (!kGate3QdesAuditOnlySupported || !planner_mode || !policy_native)) {
     std::cerr << "--gate3-qdes-audit-only is restricted to the x86 MuJoCo "
                  "Gate3 planner + policy-native path\n";
+    return 2;
+  }
+  if (schema31_sim_optional_reach &&
+      (!kGate3QdesAuditOnlySupported || !gate3_qdes_audit_only ||
+       !planner_mode || !policy_native)) {
+    std::cerr << "--schema3-sim-optional-reach is restricted to the explicit "
+                 "x86 MuJoCo Gate3 planner + policy-native + q_des-audit lane\n";
+    return 2;
+  }
+  if (gate3_force_every_flight &&
+      (!kGate3QdesAuditOnlySupported || !gate3_qdes_audit_only ||
+       !planner_mode || !policy_native)) {
+    std::cerr << "--gate3-force-every-flight is restricted to the explicit "
+                 "x86 MuJoCo Gate3 planner + policy-native + q_des-audit lane\n";
     return 2;
   }
   if (stationary_v17_r1_replay) {
@@ -493,6 +617,33 @@ int main(int argc, char** argv) {
     std::cerr << "V17-r10 Gate3 requires --planner --policy-native, planned "
                  "velocity, strike enabled, and no --stream-target\n";
     return 2;
+  }
+  if (schema24_training_screen_gate3) {
+    if (!planner_mode || !policy_native || !gate3_qdes_audit_only ||
+        demo_mode) {
+      std::cerr << "Schema24 Gate3 screen requires --planner --policy-native "
+                   "--gate3-qdes-audit-only and planned velocity\n";
+      return 2;
+    }
+    constexpr const char* kForbiddenSchema24Gate3Flags[] = {
+        "--reference-playback", "--demo", "--vel-box-center",
+        "--station-only", "--no-station-ready", "--no-stay-if-reachable",
+        "--stream-target", "--legs-passive", "--waist-passive",
+        "--auto-leg-hold", "--leg-clamp-rad", "--leg-smooth-alpha",
+        "--leg-stand-gains", "--no-yaw-align", "--no-fall-guard",
+        "--swing-speed", "--gain-scale", "--leg-gain-scale",
+        "--ankle-gain-scale", "--ready-x-max", "--ready-y-max",
+        "--ready-speed-max", "--ready-dwell", "--gate-x-max",
+        "--gate-station-step-max", "--station-step-margin",
+    };
+    for (const char* flag : kForbiddenSchema24Gate3Flags) {
+      if (Has(argc, argv, flag)) {
+        std::cerr << "Schema24 Gate3 screen fixes its policy behavior; "
+                     "override is forbidden: "
+                  << flag << "\n";
+        return 2;
+      }
+    }
   }
   if (legacy_vel_box_center) {
     std::cerr << "[pingpong] WARN: --vel-box-center is deprecated; use --demo\n";
@@ -597,8 +748,10 @@ int main(int argc, char** argv) {
   const bool loc_mode_explicit = Has(argc, argv, "--loc-mode") ||
       Has(argc, argv, "--perfect-tracking") || Has(argc, argv, "--oracle-pelvis");
   if (planner_mode && !loc_mode_explicit) loc_mode_s = "external_base";
+  if (kernel_mode) loc_mode_s = "kernel_imu_local_actor_test";
   a3_pingpong::LocMode loc_mode = a3_pingpong::LocMode::kFabricated;
-  if (loc_mode_s == "perfect_tracking" || loc_mode_s == "B" || loc_mode_s == "b")
+  if (kernel_mode) loc_mode = a3_pingpong::LocMode::kKernelImuLocal;
+  else if (loc_mode_s == "perfect_tracking" || loc_mode_s == "B" || loc_mode_s == "b")
     loc_mode = a3_pingpong::LocMode::kPerfectTracking;
   else if (loc_mode_s == "oracle" || loc_mode_s == "C" || loc_mode_s == "c")
     loc_mode = a3_pingpong::LocMode::kOracle;
@@ -620,12 +773,20 @@ int main(int argc, char** argv) {
                  "sim-only oracle localization\n";
     return 2;
   }
+  if (schema24_training_screen_gate3 &&
+      loc_mode != a3_pingpong::LocMode::kExternalBase &&
+      loc_mode != a3_pingpong::LocMode::kOracle) {
+    std::cerr << "Schema24 Gate3 screen requires drift-observing "
+                 "external_base or sim-only oracle localization\n";
+    return 2;
+  }
   const std::string oracle_shm =
       Flag(argc, argv, "--oracle-shm", odbg_str("oracle_shm_path", "/dev/shm/pp_oracle_pelvis"));
   const double oracle_max_age_s = std::stod(
       Flag(argc, argv, "--oracle-max-age", odbg["oracle_max_age_s"]
                ? std::to_string(odbg["oracle_max_age_s"].as<double>()) : "0.1"));
-  const std::string obs_csv_path = Flag(argc, argv, "--obs-csv", odbg_str("obs_csv", ""));
+  const bool no_data_csv = Has(argc, argv, "--no-data-csv");
+  const std::string obs_csv_path = no_data_csv ? "" : Flag(argc, argv, "--obs-csv", odbg_str("obs_csv", ""));
   const std::string session_id = Flag(argc, argv, "--session-id", "");
 
   Mode default_mode = Has(argc, argv, "--start")
@@ -637,34 +798,73 @@ int main(int argc, char** argv) {
                  "--official-stand\n";
     return 2;
   }
-  const bool serve_requested =
-      Has(argc, argv, "--serve") || default_mode == Mode::kServe ||
-      Has(argc, argv, "--serve-clip") || Has(argc, argv, "--serve-manifest") ||
-      Has(argc, argv, "--serve-slow-clip") ||
-      Has(argc, argv, "--serve-slow-manifest");
+  const bool serve_requested = serve_only || kernel_mode ||
+      Has(argc, argv, "--serve") ||
+      Has(argc, argv, "--serve-timeline") ||
+      Has(argc, argv, "--serve-gripper-socket");
+  if (default_mode == Mode::kServe) {
+    std::cerr
+        << "--start serve is forbidden: start PASSIVE/PD_STAND, set the "
+           "SERVER role, then use PREPARE_SERVE through the Runner contract\n";
+    return 2;
+  }
   if (Has(argc, argv, "--serve-drive-clip") ||
       Has(argc, argv, "--serve-drive-manifest") ||
       Has(argc, argv, "--serve-adaptive-branch") ||
       Has(argc, argv, "--serve-slow-clip") ||
-      Has(argc, argv, "--serve-slow-manifest")) {
+      Has(argc, argv, "--serve-slow-manifest") ||
+      Has(argc, argv, "--serve-clip") ||
+      Has(argc, argv, "--serve-manifest") ||
+      Has(argc, argv, "--serve-transition") ||
+      Has(argc, argv, "--serve-entry") ||
+      Has(argc, argv, "--serve-timed") ||
+      Has(argc, argv, "--serve-recovery")) {
     std::cerr
-        << "the retired adaptive/drive/slow serve flags are forbidden; "
-           "production now loads one qualified fixed clip through "
-           "--serve-clip/--serve-manifest\n";
+        << "the build_4 palm/adaptive/drive/slow serve flags are retired; "
+           "the active path is the single --serve-timeline named SDK31 CSV\n";
     return 2;
   }
   if (serve_requested && reference_playback_selected) {
     std::cerr << "serve and reference-playback are mutually exclusive\n";
     return 2;
   }
+  if (serve_requested &&
+      default_mode != Mode::kPassive &&
+      default_mode != Mode::kPdStand) {
+    std::cerr
+        << "the integrated serve Runner must start PASSIVE or PD_STAND; "
+           "role-aware actions own every transition to SERVE/MOTION\n";
+    return 2;
+  }
+  if (serve_requested &&
+      std::abs(policy_hz - 50.0) > 1.0e-9) {
+    std::cerr
+        << "integrated serve Runner requires an unchanged 50 Hz ONNX "
+           "contract; the 100 Hz Driver holds each receive policy command for "
+           "the intervening tick outside direct 100 Hz SERVE playback\n";
+    return 2;
+  }
+  double driver_hz =
+      serve_requested ? a3_pingpong::kServePolicyHz : policy_hz;
+  const std::string teleop_policy_dir = Flag(argc, argv, "--teleop-policy-dir", "");
+  std::unique_ptr<a3_pingpong::PpHumanLikePolicy> locomotion;
+  if (!teleop_policy_dir.empty()) {
+    if (std::abs(policy_hz-50.0)>1e-9)
+      throw std::invalid_argument("teleop requires the existing 50 Hz receive policy contract");
+    locomotion = std::make_unique<a3_pingpong::PpHumanLikePolicy>(teleop_policy_dir);
+  }
+  const auto wall_seconds = [] { return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count(); };
+  const auto steady_seconds = [] { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
   // Optional PD_STAND warmup: hold nominal for N s (robot settles upright),
   // then auto-switch to the requested mode. Matches a safe bring-up + lets a
   // non-interactive run reach MOTION from a stable stand.
   const double warmup_sec = std::stod(Flag(argc, argv, "--warmup-sec", "0"));
   const Mode target_mode = default_mode;
+  const std::uint64_t runner_boot_id = NewRunnerBootId();
+  a3_pingpong::PpTeleopInput teleop_input(runner_boot_id);
   a3_pingpong::PpRunnerControl runner_control(
       warmup_sec > 0 ? Mode::kPdStand : default_mode,
-      NewRunnerBootId(), session_id);
+      runner_boot_id, session_id, 16, serve_only);
 
   // --- backend ---
   auto backend = std::make_unique<robot_io::A3AimrtBackend>();
@@ -676,6 +876,10 @@ int main(int argc, char** argv) {
       [&runner_control](const std::vector<double>& values) {
         runner_control.EnqueueFlatRequest(values);
       });
+  if (locomotion) backend->SetLocomotionInputCallback(
+      [&](const std::vector<double>& values) {
+        teleop_input.Receive(values, wall_seconds(), steady_seconds());
+      });
   std::cout << "[pingpong] A3AimrtBackend initialised; model=" << model_path;
   if (!deploy_cfg_path.empty()) {
     std::cout << " deploy_cfg=" << deploy_cfg_path
@@ -686,6 +890,7 @@ int main(int argc, char** argv) {
   // --- our front-end ---
   a3_pingpong::PpPolicyConfig pcfg;
   pcfg.deploy_cfg_path = deploy_cfg_path;
+  pcfg.dt = policy_dt;
   // Planner mode MUST start idle (level 0): the swing level is driven ONLY by the engage
   // machine. Starting at level 1 makes PlannerEngageStep_ see "already swinging" on the
   // first tick and skip the real engage (target/velocity never frozen -> a dead swing).
@@ -750,6 +955,11 @@ int main(int argc, char** argv) {
   // swing_rest semantics). single_swing gives the linear clock + clip-end completion the
   // engage machine relies on; swing_rest_s>=0 arms the inter-swing rest timer.
   pcfg.planner_mode = planner_mode;
+  pcfg.kernel_mode = kernel_mode;
+  if (kernel_mode) {
+    pcfg.yaw_align = true;
+    std::cout << "[kernel] IMU entry heading + stance-foot odometry; estimated XY/vxy and FK height; no OptiTrack/Planner; not authoritative localization\n";
+  }
   pcfg.gate3_qdes_audit_only = gate3_qdes_audit_only;
   if (planner_mode) {
     pcfg.policy_native = policy_native;
@@ -798,6 +1008,8 @@ int main(int argc, char** argv) {
     // while keeping planner WHERE + WHEN. Keep --vel-box-center as a deprecated alias so
     // existing Gate-3 scripts remain runnable during migration.
     pcfg.vel_cmd_box_center = demo_mode || legacy_vel_box_center;
+    pcfg.schema31_sim_optional_reach = schema31_sim_optional_reach;
+    pcfg.gate3_force_every_flight = gate3_force_every_flight;
   }
   if (stationary_v17_r1_replay) {
     pcfg.onnx_load_profile =
@@ -812,12 +1024,30 @@ int main(int argc, char** argv) {
   if (v17_r10_gate3) {
     pcfg.onnx_load_profile = a3_pingpong::PpOnnxLoadProfile::kV17R10P0Gate3;
   }
+  if (schema24_training_screen_gate3) {
+    pcfg.onnx_load_profile =
+        a3_pingpong::PpOnnxLoadProfile::kSchema24TrainingScreenGate3;
+  }
   // YAW-ALIGN default ON (hardware fix: boot-drifted IMU yaw polluted motion_anchor_ori_b
   // by a constant -12..-38 deg in MDU captures -> the policy fought a fictional torso yaw
   // error with legs/waist and fell during free-standing swings; no-op in sim). Opt out for
   // A/B debugging only.
-  pcfg.yaw_align = !Has(argc, argv, "--no-yaw-align");
+  pcfg.yaw_align = kernel_mode || !Has(argc, argv, "--no-yaw-align");
   auto pp = std::make_unique<a3_pingpong::PpPolicy>(model_path, pcfg);
+  if (pp->onnx().uses_late_reveal_raw_tts_contract()) {
+    if (std::abs(pp->onnx().hitter_pingpong_policy_dt_s() - policy_dt) >
+        1.0e-12) {
+      std::cerr << "late-reveal Hitter policy period mismatch: ONNX dt="
+                << pp->onnx().hitter_pingpong_policy_dt_s()
+                << " s, runtime dt=" << policy_dt << " s; refusing to run\n";
+      return 2;
+    }
+    if (std::abs(swing_speed - 1.0) > 1.0e-12) {
+      std::cerr << "late-reveal Hitter Planner requires --swing-speed 1.0; "
+                   "a stretched clock would corrupt raw TTS\n";
+      return 2;
+    }
+  }
   if (stationary_v17_r1_replay &&
       !pp->onnx().is_v17_r1_stationary_replay()) {
     std::cerr << "stationary replay loader did not bind the exact V17-r1 "
@@ -827,6 +1057,12 @@ int main(int argc, char** argv) {
   if (v17_r10_gate3 && !pp->onnx().is_v17_r10_p0_gate3()) {
     std::cerr << "V17-r10 Gate3 loader did not bind the exact recipe-10 P0 "
                  "contract; refusing to run\n";
+    return 2;
+  }
+  if (schema24_training_screen_gate3 &&
+      !pp->onnx().is_schema24_training_screen_gate3()) {
+    std::cerr << "Schema24 Gate3-screen loader did not bind the exact "
+                 "TRAINING_SCREENED non-deployable contract; refusing to run\n";
     return 2;
   }
   if (stationary_v17_r1_replay)
@@ -844,6 +1080,12 @@ int main(int argc, char** argv) {
         << "[v17-r10-gate3] PROFILE ACCEPTED: immutable session station, "
            "schema-2 three-revision planner, ball-clock release, frozen target; "
            "x86 simulation only, hardware_authorized=false\n";
+  if (schema24_training_screen_gate3)
+    std::cout
+        << "[schema24-training-screen-gate3] PROFILE ACCEPTED: immutable "
+           "session HOME, coherent question bank, table-clearance training "
+           "debt; x86 MuJoCo screening only, deployment_qualified=false, "
+           "hardware_authorized=false\n";
   if (pp->onnx().has_bounded_qdes_contract() &&
       std::abs(pp->onnx().qdes_projector_dt_s() - policy_dt) > 1.0e-9) {
     std::cerr << "bounded_qdes runtime period mismatch: ONNX projector dt="
@@ -853,14 +1095,79 @@ int main(int argc, char** argv) {
     return 2;
   }
 
+  // Optional two-policy composition. This stays inside this Runner: Hope's
+  // receive policy produces the full command first, then the robot-side HumanLike
+  // 3630->15 policy replaces its owned lower-body joints before the publisher.
+  const bool hybrid_lower_requested =
+      Has(argc, argv, "--hybrid-lower") ||
+      Has(argc, argv, "--hybrid-lower-model");
+  const bool hybrid_lower_station_hold =
+      Has(argc, argv, "--hybrid-lower-station-hold");
+  const double hybrid_lower_station_kp = std::max(
+      0.0, std::stod(Flag(argc, argv, "--hybrid-lower-station-kp", "0.8")));
+  const double hybrid_lower_station_vmax = std::max(
+      0.0, std::stod(Flag(argc, argv, "--hybrid-lower-station-vmax", "0.20")));
+  const double hybrid_lower_heading_kp = std::max(
+      0.0, std::stod(Flag(argc, argv, "--hybrid-lower-heading-kp", "1.0")));
+  const double hybrid_lower_yaw_max = std::max(
+      0.0, std::stod(Flag(argc, argv, "--hybrid-lower-yaw-max", "0.40")));
+  std::unique_ptr<a3_pingpong::PpHybridLowerPolicy> hybrid_lower;
+  if (hybrid_lower_requested) {
+    const std::string owner_name =
+        Flag(argc, argv, "--hybrid-lower-owner", "roll_pitch_legs");
+    a3_pingpong::PpHybridLowerOwner owner;
+    if (owner_name == "legs") {
+      owner = a3_pingpong::PpHybridLowerOwner::kLegs;
+    } else if (owner_name == "roll_legs" ||
+               owner_name == "waist_roll_legs") {
+      owner = a3_pingpong::PpHybridLowerOwner::kWaistRollAndLegs;
+    } else if (owner_name == "roll_pitch_legs" ||
+               owner_name == "waist_rp_legs") {
+      owner =
+          a3_pingpong::PpHybridLowerOwner::kWaistRollPitchAndLegs;
+    } else if (owner_name == "waist_legs" || owner_name == "waist+legs") {
+      owner = a3_pingpong::PpHybridLowerOwner::kWaistAndLegs;
+    } else {
+      std::cerr << "--hybrid-lower-owner must be legs, roll_legs, "
+                   "roll_pitch_legs, or waist_legs\n";
+      return 2;
+    }
+
+    const std::string lower_model =
+        Flag(argc, argv, "--hybrid-lower-model", "");
+    if (lower_model.empty()) {
+      std::cerr << "--hybrid-lower requires --hybrid-lower-model PATH\n";
+      return 2;
+    }
+
+    a3_pingpong::PpHybridLowerConfig hybrid_config;
+    hybrid_config.model_path = Resolve(lower_model, cfgdir);
+    hybrid_config.backend =
+        Flag(argc, argv, "--hybrid-lower-backend", "ort_cpu");
+    hybrid_config.owner = owner;
+    hybrid_config.outer_policy_dt = 0.01;
+    hybrid_config.smart_walk_zero_settled =
+        !Has(argc, argv, "--hybrid-lower-walk-phase");
+    hybrid_config.command_velocity_xyz = {
+        std::stod(Flag(argc, argv, "--hybrid-lower-vx", "0")),
+        std::stod(Flag(argc, argv, "--hybrid-lower-vy", "0")),
+        std::stod(Flag(argc, argv, "--hybrid-lower-yaw", "0"))};
+    hybrid_lower =
+        std::make_unique<a3_pingpong::PpHybridLowerPolicy>(hybrid_config);
+    if (!hybrid_lower->Initialize()) return 2;
+    // HumanLike's observation/action loop is native 100 Hz. receive policy stays
+    // at its trained 50 Hz and is held for the intervening 10 ms command.
+    driver_hz = 100.0;
+  }
+
   // ---- LIVE PLANNER input wiring (Path B) ----
   // Backend AimRT subscribers (set BEFORE Start()) push decoded Float64MultiArrays into
   // thread-safe holders that PpPolicy reads on the 50 Hz driver thread. The racket topic
   // feeds the engage machine; the base topic feeds LocMode::kExternalBase.
   std::shared_ptr<a3_pingpong::PpBasePoseInput> base_in;
-  std::shared_ptr<a3_pingpong::PpBallStateInput> serve_ball_in;
   if (planner_mode) {
-    auto racket_in = std::make_shared<a3_pingpong::PpRacketTargetInput>();
+    auto racket_in = std::make_shared<a3_pingpong::PpRacketTargetInput>(
+        pp->expected_planner_wire_schema());
     base_in = std::make_shared<a3_pingpong::PpBasePoseInput>();
     pp->SetRacketInput(racket_in);
     pp->SetBasePoseInput(base_in);
@@ -868,20 +1175,8 @@ int main(int argc, char** argv) {
         [racket_in](const std::vector<double>& a) { racket_in->SetFromFlat(a); });
     backend->SetBasePoseCallback(
         [base_in](const std::vector<double>& a) { base_in->SetFromFlat(a); });
-    if (serve_requested) {
-      serve_ball_in = std::make_shared<a3_pingpong::PpBallStateInput>();
-      backend->SetBallStateCallback(
-          [serve_ball_in](const std::vector<double>& a) {
-            serve_ball_in->SetFromFlat(a);
-          });
-    }
     std::cout << "[pingpong] LIVE PLANNER: racket <- /racket/command_flat, base <- "
                  "/a3/base_pose_flat (std_msgs/Float64MultiArray, ros2); body-drive iceoryx\n";
-    if (serve_requested) {
-      std::cout << "[pingpong] SERVE observer: ball state <- "
-                   "/serve/ball_state_flat (position-only 31-sample fit; "
-                   "local-receipt freshness)\n";
-    }
     std::cout << (pcfg.vel_cmd_box_center
                       ? "[pingpong] planner velocity mode: DEMO box-center (--demo); "
                         "planner landing velocity is overridden\n"
@@ -910,6 +1205,21 @@ int main(int argc, char** argv) {
     }
   }
   std::cout << "[pingpong] localization mode = " << pp->loc_mode_name() << "\n";
+  std::cout << "[pingpong] q_des action contract = "
+            << (pp->onnx().has_v12_affine_safe_slew_qdes_contract()
+                    ? "v12_affine_safe_slew_qdes_v1 (V11 affine-safe + per-tick slew, "
+                      "executed_qdes_raw_v12 feedback, bounded projector OFF)"
+                    : (pp->onnx().has_v11_affine_safe_qdes_contract()
+                           ? "v11_affine_safe_qdes_v1 (no rate limiter)"
+                           : (pp->bounded_qdes_active() ? "bounded/feasible projector"
+                                                        : "legacy affine")))
+            << "\n";
+  std::cout << "[pingpong] recovery envelope (Layer C) mode = " << pp->envelope_mode_name()
+            << " (" << a3_pingpong::kRecoveryEnvelopeModeEnv << ")"
+            << (pp->envelope_mode() == a3_pingpong::RecoveryEnvelopeMode::kProduction
+                    ? "; L2 blocks new flight commits, L3 expires the pending flight"
+                    : "; telemetry only, never blocks")
+            << "\n";
   std::cout << "[pingpong] racket/base target yaw frame = "
             << (pcfg.use_imu_yaw_for_targets
                     ? "IMU-yaw (absolute; needs a real world-yaw localizer)"
@@ -930,81 +1240,78 @@ int main(int argc, char** argv) {
   auto ref = std::make_unique<a3_pingpong::PpReferencePlayback>(pp->isaac_to_sdk(), rcfg);
   ref->SetGroup(ParseRefGroup(Flag(argc, argv, "--ref-group", "0")));
   std::unique_ptr<a3_pingpong::PpServeController> serve;
-  std::string serve_clip_path;
-  std::string serve_manifest_path;
+  std::string serve_timeline_path;
   if (serve_requested) {
-    if (!planner_mode || !policy_native) {
-      std::cerr << "serve-to-rally handoff requires --planner --policy-native\n";
-      return 2;
-    }
-    if (!pp->onnx().is_rally_v17_recipe()) {
-      std::cerr << "serve handoff is qualified only for an ONNX artifact whose "
-                   "training recipe is rally_v17\n";
-      return 2;
-    }
-    if (std::abs(policy_hz - a3_pingpong::kServePolicyHz) > 1.0e-9) {
-      std::cerr << "serve clip is qualified only at exactly 50 Hz\n";
-      return 2;
-    }
-    const double serve_arm_gain_scale = gain_scale.load();
-    const double serve_leg_gain_scale =
-        Has(argc, argv, "--leg-gain-scale")
-            ? std::stod(Flag(argc, argv, "--leg-gain-scale", "1.0"))
-            : serve_arm_gain_scale;
-    const double serve_ankle_gain_scale =
-        Has(argc, argv, "--ankle-gain-scale")
-            ? std::stod(Flag(argc, argv, "--ankle-gain-scale", "1.0"))
-            : serve_leg_gain_scale;
-    if (std::abs(serve_arm_gain_scale - 1.0) > 1.0e-12 ||
-        std::abs(serve_leg_gain_scale - 1.0) > 1.0e-12 ||
-        std::abs(serve_ankle_gain_scale - 1.0) > 1.0e-12) {
-      std::cerr
-          << "serve qualification fixes arm/leg/ankle runtime gain scales at "
-             "1.0 so its final PD blend exactly matches V17 static gains\n";
-      return 2;
-    }
-    serve_clip_path = Has(argc, argv, "--serve-clip")
-                          ? Resolve(Flag(argc, argv, "--serve-clip", ""), cfgdir)
-                          : DefaultServeAsset(cfgdir, "pp_serve_v1_fixed.csv");
-    serve_manifest_path =
-        Has(argc, argv, "--serve-manifest")
-            ? Resolve(Flag(argc, argv, "--serve-manifest", ""), cfgdir)
+    serve_timeline_path =
+        Has(argc, argv, "--serve-timeline")
+            ? Resolve(Flag(argc, argv, "--serve-timeline", ""), cfgdir)
             : DefaultServeAsset(
-                  cfgdir, "pp_serve_v1_fixed.manifest.json");
+                  cfgdir,
+                  "a3p_op3_serve025_new_build4_deep_1p07_compact50_"
+                  "lowdrop35_strikewindow180_full31_balanced_face20deg_"
+                  "forwardhit_v4.csv");
+    const std::string gripper_socket =
+        Flag(argc, argv, "--serve-gripper-socket", "");
+    if (!gripper_socket.empty() &&
+        !fs::path(gripper_socket).is_absolute()) {
+      std::cerr
+          << "--serve-gripper-socket must be an absolute private socket\n";
+      return 2;
+    }
     try {
-      a3_pingpong::PpServeClip fixed_clip =
-          a3_pingpong::PpServeClip::Load(
-          serve_clip_path, serve_manifest_path, pp->onnx().default_q());
-      a3_pingpong::ServeControllerConfig scfg;
-      // The deploy state packet has no foot-contact channel.  Runtime READY
-      // therefore uses every observable term (joints, IMU heading/tilt/rate,
-      // and fresh mocap base position/velocity); the exact MuJoCo qualifier
-      // additionally requires both feet in contact and low foot slip.
-      scfg.require_external_base = true;
-      scfg.base_max_age_s = pcfg.external_base_max_age_s;
+      a3_pingpong::PpServe025FullbodyTimeline timeline;
+      std::string timeline_error;
+      if (!timeline.LoadCsv(serve_timeline_path, timeline_error)) {
+        throw std::runtime_error(timeline_error);
+      }
+      std::string gripper_error;
+      std::unique_ptr<a3_pingpong::PpGripperWorker> gripper;
+      if (!gripper_socket.empty()) {
+        gripper = a3_pingpong::PpGripperWorker::Connect(
+            gripper_socket, gripper_error);
+        if (!gripper) {
+          std::cerr
+              << "[serve] WARN: gripper bridge unavailable; "
+                 "OPEN/GRAB/RELEASE disabled but arm flow remains enabled: "
+              << gripper_error << "\n";
+        }
+      } else {
+        std::cerr
+            << "[serve] WARN: no gripper socket; OPEN/GRAB/RELEASE disabled "
+               "but arm flow remains enabled\n";
+      }
       serve = std::make_unique<a3_pingpong::PpServeController>(
-          std::move(fixed_clip), stand_q, scfg, base_in, serve_ball_in);
+          std::move(timeline), pp->official_stand_q(),
+          pp->official_stand_kp(), pp->official_stand_kd(),
+          std::move(gripper));
+      if (!serve_only) serve->SetPolicyHandoffFrame(
+          std::stoul(Flag(argc, argv, "--serve-handoff-frame", "110")));
+      serve->SetPolicyReturnSeconds(std::stod(Flag(argc, argv, "--serve-return-sec", "1.0")));
     } catch (const std::exception& error) {
       std::cerr << "serve artifact/controller preflight failed: "
                 << error.what() << "\n";
       return 2;
     }
-    std::cout << "[serve] palm-only deterministic controller qualified: clip="
-              << serve_clip_path << " manifest=" << serve_manifest_path
-              << " fixed_sha256=" << serve->clip().clip_sha256()
-              << " frames=" << serve->clip().size() << "\n"
-              << "[serve] left end effector: one rigid palm, 0 hand/finger DOF; "
-                 "release is arm acceleration plus palm drop-away; "
-                 "preflight requires the RallyV17 Gate3 station "
-                 "(-0.50,-0.7625) m within 0.05 m and +X heading; "
-              << "frame " << a3_pingpong::kServeBranchSelectionFrame
-              << " requires a fresh in-envelope ball estimate, then executes "
-                 "the single fixed strike; stale/out-of-envelope estimates "
-                 "finish a toss-only safe return and never hand off to V17; "
-                 "arm Kp/Kd scale=2.5/1.25, left proximal boost=1.35/1.15 "
-                 "(qualified, fixed); final 0.5 s quintic gain blend -> "
-                 "a3_pd_stand_static\n";
-    if (default_mode == Mode::kServe) serve->Start();
+    std::cout
+        << "[serve] serve025 named SDK31 timeline loaded: csv="
+        << serve_timeline_path
+        << " handoff_frame=" << serve->handoff_frame()
+        << " frames=" << serve->frame_count()
+        << " @100Hz, one original CSV FRAME per command tick; no adaptor"
+        << "\n"
+        << "[serve] fixed flow: SERVER + PD_STAND -> PREPARE_SERVE "
+           "(smooth official-stand to CSV frame 0 + immediate GRAB) -> "
+           "READY_TO_SERVE -> full31 CSV action; RELEASE frame=48, "
+           "strike frame=60, contact frame=78. During the action all SDK31 "
+           "q_des/dq_des come directly from the selected SDK31 CSV "
+           "with no second runtime velocity multiplier. No stand-pose leg "
+           "fill or overlay is "
+           "applied. Kp/Kd remain the unscaled official PD_STAND gains and "
+           "tau_ff remains zero. The gripper uses "
+           "the direct HAL RPC; its telemetry "
+           "and tracking telemetry never gate motion. Recovery hands the same "
+           "Runner directly to the existing P1/P2 receive policy through the "
+           "continuous static-policy handoff.\n";
   }
   std::cout << "[pingpong] joint map OK; neck PASSIVE (q=0,kp=" << a3_pingpong::kHeadKp
             << ",kd=" << a3_pingpong::kHeadKd << "); start=" << ModeName(default_mode)
@@ -1021,11 +1328,15 @@ int main(int argc, char** argv) {
   }
 
   // --- optional per-tick CSV trace (every joint: des/q/qd/kp/kd) for offline diag ---
-  const std::string trace_path = Flag(argc, argv, "--trace-csv", "");
+  const std::string trace_path = no_data_csv ? "" : Flag(argc, argv, "--trace-csv", "");
   std::ofstream trace;
   if (!trace_path.empty()) {
     trace.open(trace_path);
     if (trace) {
+      // The actual-q ledger recomputes excess from the same exported bounds and
+      // measured q. Preserve round-trip double precision so CSV formatting
+      // cannot manufacture a cross-source mismatch near the tolerance edge.
+      trace << std::setprecision(17);
       const auto& nm = a3_pingpong::backend_joint_order();
       trace << "tick,ts,wall_time_ns,mode,level,gain,swing,legs_passive,gravx,gravy,gravz"
                ",planner_status,lifecycle_event,lifecycle_reason,localization_fresh"
@@ -1037,8 +1348,12 @@ int main(int argc, char** argv) {
                ",engage_first_tick_qdes_l2,valid_age_s,ready_timer_active"
                ",ready_reported,ready_dwell_s,lifecycle_seq";
       trace << ",shot_seq,planner_msg_seq,planner_flight_id,planner_revision_id"
-               ",planner_stable_revision_count,frozen_command_seq,frozen_flight_id"
+               ",planner_stable_revision_count,frozen_command_seq,frozen_producer_epoch"
+               ",frozen_flight_id"
                ",frozen_revision_id,frozen_strike_time,frozen_raw_tts"
+               ",swing_sign,reach_level,swing_foot_sign"
+               ",planner_completion_seq,planner_completed_producer_epoch"
+               ",planner_completed_flight_id,planner_completion_kind"
                ",base_x,base_y,base_z,base_qw,base_qx,base_qy,base_qz"
                ",target_x,target_y,target_z,target_vx,target_vy,target_vz"
                ",racket_fk_valid,racket_x,racket_y,racket_z"
@@ -1048,13 +1363,25 @@ int main(int argc, char** argv) {
                ",qdes_projector_infeasible,qdes_projector_max_norm_debt"
                ",qdes_feasible_action_util_max,qdes_feasible_interval_width_min"
                ",qdes_feasible_rate_util_max,qdes_feasible_rate_bound"
-               ",qdes_feasible_tracking_bound,qdes_feasible_torque_bound";
+               ",qdes_feasible_tracking_bound,qdes_feasible_torque_bound"
+               ",actual_q_hard_tolerance_rad,actual_q_hard_audit_only"
+               ",actual_q_hard_violation_count,actual_q_hard_max_excess_rad";
+      for (const auto& n : nm) trace << ",actual_q_hard_lo_" << n;
+      for (const auto& n : nm) trace << ",actual_q_hard_hi_" << n;
+      for (const auto& n : nm) trace << ",actual_q_hard_excess_" << n;
       for (const auto& n : nm) trace << ",des_" << n;
       for (const auto& n : nm) trace << ",clamp_viol_" << n;
       for (const auto& n : nm) trace << ",q_" << n;
       for (const auto& n : nm) trace << ",qd_" << n;
       for (const auto& n : nm) trace << ",kp_" << n;
       for (const auto& n : nm) trace << ",kd_" << n;
+      // v12_affine_safe_slew_qdes_v1 telemetry + RECOVERY ENVELOPE (Layer C). Appended
+      // after the per-joint blocks so every existing column keeps its position.
+      trace << ",qdes_slew_scale,qdes_slew_saturated_count,qdes_slew_saturated_leg_count"
+               ",qdes_slew_max_clip_rad"
+               ",envelope_level,envelope_mode,envelope_home_dist_m,envelope_speed_mps"
+               ",envelope_tilt_rad,envelope_block_reason"
+               ",envelope_support_anchor_error_m";
       trace << "\n";
       std::cout << "[pingpong] trace CSV -> " << trace_path << "\n";
     } else {
@@ -1147,18 +1474,27 @@ int main(int argc, char** argv) {
   // do NOT snap through the ~1.5-2 rad stand->windup jump. Convex blend of two
   // in-range poses -> stays in range. 0 disables.
   const double motion_blend_sec = std::stod(Flag(argc, argv, "--motion-blend-sec", "0.5"));
+  if (!std::isfinite(motion_blend_sec) || motion_blend_sec < 0)
+    throw std::invalid_argument("--motion-blend-sec must be finite and nonnegative");
   // V17 field logs showed policy-native silently forcing this to zero, which
   // exposed the full stand->policy q_des discontinuity. Keep at least 0.5 s.
   const double policy_motion_blend_sec =
       policy_native ? std::max(0.5, motion_blend_sec) : motion_blend_sec;
+  const double serve_policy_blend_sec = std::stod(Flag(argc, argv, "--serve-policy-blend-sec", "0.5"));
+  if (!std::isfinite(serve_policy_blend_sec) || serve_policy_blend_sec < 0)
+    throw std::invalid_argument("--serve-policy-blend-sec must be finite and nonnegative");
+  double active_policy_blend_sec = policy_motion_blend_sec;
   const bool v17_command_safety = pp->onnx().is_rally_v17_recipe();
   a3_pingpong::PpCommandSafetyMonitor command_safety;
   bool authoritative_mocap_stale_warned = false;  // driver-thread only (no race)
   Mode prev_mode_for_blend = Mode::kPassive;       // driver-thread only (no race)
-  std::uint64_t stand_enter_tick = 0;              // PD_STAND entry blend (2026-07-04)
-  Eigen::VectorXd stand_blend_q_start;
+  a3_pingpong::PpCommandTransition mode_transition;
+  robot_io::RobotCommand last_delivered_command;
+  bool last_delivered_valid = false;
+  Mode last_delivered_mode = Mode::kPassive;
+  Mode computed_mode = Mode::kPassive;
+  double transition_elapsed_s = 0.0;
   std::uint64_t motion_enter_tick = 0;
-  Eigen::VectorXd blend_q_start;
   int prev_level_for_blend = level;                // legacy re-arm state; native mode ignores toggles
   int prev_swing_dir_for_blend = pcfg.start_backhand ? -1 : 1;
   // Trace-only state. It measures the first final q_des jump of each engaged
@@ -1175,23 +1511,57 @@ int main(int argc, char** argv) {
   a3_pingpong::PpPolicy* ppp = pp.get();
   a3_pingpong::PpReferencePlayback* refp = ref.get();
   a3_pingpong::PpServeController* servep = serve.get();
-  auto command_fn = [ppp, refp, servep, &runner_control, &gain_scale, &leg_gain_scale, &ankle_gain_scale,
+  a3_pingpong::PpHybridLowerPolicy* hybridp = hybrid_lower.get();
+  if (locomotion) driver_hz = 500.0;
+  std::atomic<int> teleop_phase{0}; // off, entering, active, stopping
+  std::atomic<double> teleop_progress{0};
+  std::array<std::atomic<double>,3> teleop_velocity{};
+  a3_pingpong::PpCommandTransition teleop_transition;
+  bool teleop_entered = false;
+  std::uint64_t teleop_tick = 0;
+  int teleop_quiet_ticks = 0, teleop_fall_ticks = 0;
+  robot_io::RobotCommand hybrid_hope_command_cache;
+  bool hybrid_hope_command_valid = false;
+  bool hybrid_run_hope_next = true;
+  double hybrid_cached_blend_alpha = 1.0;
+  bool hybrid_station_anchor_set = false;
+  Eigen::Vector2d hybrid_station_anchor_w = Eigen::Vector2d::Zero();
+  double hybrid_heading_anchor_rad = 0.0;
+  std::uint64_t hybrid_station_last_log_tick = 0;
+  auto command_fn_50hz = [ppp, refp, servep, hybridp, &runner_control, &gain_scale, &leg_gain_scale, &ankle_gain_scale,
                      stand_q, stand_kp, stand_kd,
-                     official_stand, auto_leg_hold, policy_native,
+                     official_stand, auto_leg_hold, policy_native, kernel_mode,
                      squat_guard_rad, tilt_guard, leg_stand_gains,
                      trace_ptr, obscsv_ptr, loc_mode_int, session_id,
                      &shadow_tick, shadow_free_clock, motion_blend_sec,
-                     policy_motion_blend_sec, policy_dt,
-                     &prev_mode_for_blend, &motion_enter_tick, &blend_q_start,
+                     policy_motion_blend_sec, serve_policy_blend_sec, &active_policy_blend_sec, policy_dt,
+                     &prev_mode_for_blend, &motion_enter_tick,
                      &prev_level_for_blend, &prev_swing_dir_for_blend,
                      &trace_previous_shot_seq, &trace_previous_q_des,
-                     &stand_enter_tick, &stand_blend_q_start,
+                     &mode_transition, &last_delivered_command, &last_delivered_valid,
+                     &last_delivered_mode, &computed_mode, &transition_elapsed_s,
                      fall_guard, fall_guard_gz, &fall_guard_ticks,
                      v17_command_safety, &command_safety,
-                     &authoritative_mocap_stale_warned](
+                     &authoritative_mocap_stale_warned,
+                     &hybrid_hope_command_cache,
+                     &hybrid_hope_command_valid,
+                     &hybrid_run_hope_next,
+                     &hybrid_cached_blend_alpha,
+                     base_in,
+                     hybrid_lower_station_hold,
+                     hybrid_lower_station_kp,
+                     hybrid_lower_station_vmax,
+                     hybrid_lower_heading_kp,
+                     hybrid_lower_yaw_max,
+                     &hybrid_station_anchor_set,
+                     &hybrid_station_anchor_w,
+                     &hybrid_heading_anchor_rad,
+                     &hybrid_station_last_log_tick](
                         std::uint64_t tick, const robot_io::RobotState& st,
                         robot_io::RobotCommand& cmd) -> bool {
     Mode m = runner_control.mode();
+    const std::uint64_t driver_tick = tick;
+    if (hybridp != nullptr) tick = driver_tick / 2;
     const int N = 31;
     bool publish = true;
     const auto wall_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -1259,9 +1629,7 @@ int main(int argc, char** argv) {
     // Re-arm the pose-blend on MOTION entry. Legacy diagnostic modes also re-arm
     // it on level/side changes; policy-native field mode must not suppress the
     // first 0.5 s of every ball while the strike clock keeps advancing.
-    // so q_des ramps from the CURRENT measured pose -> no snap when stiff official stand gains
-    // (re)engage at the 1->0 toggle, NOR when the reference jumps to the other clip's windup on a
-    // dir switch (the swing clock restarts at windup in PpPolicy; this blends the command to match).
+    // The source is the last delivered complete command, including gains and velocity.
     const int cur_level = ppp->level();
     const int cur_swing_dir = ppp->swing_dir();
     const bool level_just_changed = (cur_level != prev_level_for_blend);
@@ -1272,7 +1640,11 @@ int main(int argc, char** argv) {
     const bool stand_just_entered = (m == Mode::kPdStand && prev_mode_for_blend != Mode::kPdStand);
     const bool rearm_blend = motion_just_entered ||
         (!policy_native && (level_just_changed || dir_just_changed));
+    if (motion_just_entered) active_policy_blend_sec =
+        prev_mode_for_blend == Mode::kServe ? serve_policy_blend_sec : policy_motion_blend_sec;
     if (rearm_blend) motion_enter_tick = tick;
+    ppp->set_mode_handoff_hold(m == Mode::kMotion &&
+        static_cast<double>(tick-motion_enter_tick)*policy_dt < active_policy_blend_sec);
     // Re-capture the IMU yaw-align offsets whenever the POLICY (SHADOW/MOTION) engages
     // from a non-policy mode — the operator may have moved/turned the robot in between.
     const bool policy_just_engaged =
@@ -1280,12 +1652,26 @@ int main(int argc, char** argv) {
         prev_mode_for_blend != Mode::kMotion && prev_mode_for_blend != Mode::kShadow;
     const bool serve_to_policy =
         policy_just_engaged && prev_mode_for_blend == Mode::kServe;
-    if (serve_to_policy) {
+    if (serve_to_policy && !policy_native) {
       ppp->rearm_static_policy_handoff();
     } else if (policy_just_engaged) {
       ppp->rearm_yaw_align();
     }
+    if ((policy_just_engaged || motion_just_entered) && hybridp != nullptr) {
+      hybridp->Reset();
+      hybrid_run_hope_next = true;
+      hybrid_hope_command_valid = false;
+      hybrid_station_anchor_set = false;
+    }
+    if (hybridp != nullptr && m != Mode::kMotion && m != Mode::kShadow) {
+      hybrid_run_hope_next = true;
+      hybrid_hope_command_valid = false;
+      hybrid_station_anchor_set = false;
+    }
+    const bool serve_just_entered = m == Mode::kServe && prev_mode_for_blend != m;
     prev_mode_for_blend = m;
+    computed_mode = m;
+    if (m == Mode::kPassive || m == Mode::kShadow) mode_transition.Reset();
     if (m == Mode::kPassive) {  // limp: hold current pose, zero gains
       cmd.q_des = st.q.size() == N ? st.q : Eigen::VectorXd::Zero(N);
       cmd.dq_des = Eigen::VectorXd::Zero(N);
@@ -1303,18 +1689,6 @@ int main(int argc, char** argv) {
         cmd.kp = Eigen::VectorXd::Constant(N, stand_kp);
         cmd.kd = Eigen::VectorXd::Constant(N, stand_kd);
       }
-      // pose-blend on PD_STAND ENTRY (2026-07-04): 's' pressed mid-swing used to slam the
-      // stiff (kp~2000 knee) static stand target onto a moving robot with NO ramp — the
-      // same catapult class as the auto-leg-hold level drop, and the one transition the
-      // MOTION-only blend below did not cover. Ramp q_des from the entry pose.
-      if (motion_blend_sec > 1e-6 && st.q.size() == N) {
-        if (stand_just_entered) { stand_blend_q_start = st.q; stand_enter_tick = tick; }
-        if (stand_blend_q_start.size() == N) {
-          const double elapsed = static_cast<double>(tick - stand_enter_tick) * policy_dt;
-          const double a = std::min(1.0, std::max(0.0, elapsed / motion_blend_sec));
-          if (a < 1.0) cmd.q_des = (1.0 - a) * stand_blend_q_start + a * cmd.q_des;
-        }
-      }
     } else if (m == Mode::kReferencePlayback) {
       if (!refp->ComputeCommand(tick, st, cmd)) return false;
     } else if (m == Mode::kServe) {
@@ -1323,23 +1697,45 @@ int main(int argc, char** argv) {
                      "[serve] mode entered without a qualified controller\n");
         return false;
       }
+      const bool prepare_requested = runner_control.ConsumeServePrepare();
+      if (serve_just_entered || prepare_requested) {
+        if (last_delivered_valid) servep->SetEntryCommand(last_delivered_command);
+        // Start on the command thread before consuming the old COMPLETE state.
+        // Publishing SERVE from the action worker and calling Start afterwards
+        // races this callback on every repeat of the serve -> ready -> serve loop.
+        servep->Start();
+      }
       if (!servep->ComputeCommand(tick, st, cmd)) return false;
-      if (servep->ConsumeHandoffRequest()) {
-        // This tick still publishes the clip's exact V17 default q_des.  The
-        // next tick enters MOTION through the dedicated static-handoff path:
-        // planner/yaw state is reset, V17 affine previous-action history is
-        // zeroed, and the first policy command remains this exact default.
-        runner_control.SetRuntimeMode(Mode::kMotion);
-        std::fprintf(stderr,
-                     "[serve] strict 0.5 s handoff READY -> V17 MOTION armed\n");
-      } else if (servep->state() ==
+      if (servep->state() ==
                  a3_pingpong::ServeControllerState::kAborted) {
-        // A phase-aware abort has already reached the exact default pose.
         runner_control.SetRuntimeMode(Mode::kPdStand);
         std::fprintf(stderr,
-                     "[serve] phase-aware abort complete -> PD_STAND\n");
+                     "[serve] abort recovery complete -> PD_STAND"
+                     " (cleanup_required=%d)\n",
+                     servep->cleanup_required() ? 1 : 0);
+      } else if (servep->state() ==
+                 a3_pingpong::ServeControllerState::kComplete) {
+        runner_control.CompleteServe();
+        std::fprintf(stderr, runner_control.serve_only()
+            ? "[serve] CSV complete -> PD_STAND (Pure Serve)\n"
+            : kernel_mode ? "[serve] measured stand recovery complete -> MOTION (Kernel stance-odometry actor, no mocap)\n"
+            : "[serve] measured stand recovery complete -> MOTION; entering P1/P2 "
+              "receive policy through continuous handoff\n");
+      } else if (servep->state() ==
+                 a3_pingpong::ServeControllerState::kFault) {
+        runner_control.SetRuntimeMode(Mode::kPdStand);
+        const std::string serve_fault = servep->fault_reason();
+        std::fprintf(stderr,
+                     "[serve] controller fault -> PD_STAND; reason=%s; "
+                     "restart/inspect before retry\n",
+                     serve_fault.empty() ? "unknown" : serve_fault.c_str());
       }
     } else {  // SHADOW or MOTION: run the policy
+      const bool run_hope_this_tick =
+          hybridp == nullptr || hybrid_run_hope_next ||
+          !hybrid_hope_command_valid;
+      double motion_blend_alpha = 1.0;
+      if (run_hope_this_tick) {
       // In SHADOW the driver's publish-gated `tick` is frozen, so drive the swing
       // from a free-running counter for a representative no-publish preview (the obs
       // then evolves through the swing like MOTION). MOTION uses the driver tick.
@@ -1383,18 +1779,90 @@ int main(int argc, char** argv) {
           cmd.kp[i] *= s; cmd.kd[i] *= s;
         }
       }
-      // pose-blend on MOTION entry OR level toggle: ramp q_des from the entry/toggle pose
-      // to the (new) target over motion_blend_sec, so stiff legs don't snap through the
-      // windup jump NOR through the 1->0 official-stand re-engage. (convex combo of two
-      // in-range poses -> in range; no clamp needed.)
-      if (m == Mode::kMotion && policy_motion_blend_sec > 1e-6) {
-        if (rearm_blend && st.q.size() == N) blend_q_start = st.q;
-        if (blend_q_start.size() == N && cmd.q_des.size() == N) {
-          const double elapsed = static_cast<double>(tick - motion_enter_tick) * policy_dt;
-          const double a = std::min(1.0, std::max(0.0, elapsed / policy_motion_blend_sec));
-          if (a < 1.0) cmd.q_des = (1.0 - a) * blend_q_start + a * cmd.q_des;
-        }
+      // The complete post-compose command is blended below, including gains.
+      if (m == Mode::kMotion && active_policy_blend_sec > 1e-6) {
+        const double elapsed = static_cast<double>(tick - motion_enter_tick) * policy_dt;
+        motion_blend_alpha = std::clamp(elapsed / active_policy_blend_sec, 0.0, 1.0);
       }
+        if (hybridp != nullptr) {
+          hybrid_hope_command_cache = cmd;
+          hybrid_hope_command_valid = true;
+          hybrid_cached_blend_alpha = motion_blend_alpha;
+        }
+      } else {
+        // Hold receive policy's complete post-gain/post-blend command for the
+        // intervening 10 ms. HumanLike below still sees the newest plant state
+        // and evaluates a fresh 100 Hz lower-body action.
+        cmd = hybrid_hope_command_cache;
+        motion_blend_alpha = hybrid_cached_blend_alpha;
+      }
+      // Compose after Hope's gain scaling, then blend the complete result below.
+      // AGI owns the selected joints once the entry blend finishes. This emits
+      // one final 31-DOF RobotCommand through the existing Runner publisher.
+      if (hybridp != nullptr && hybrid_lower_station_hold && base_in != nullptr) {
+        a3_pingpong::PpBaseSample base_sample;
+        std::array<double, 3> lower_command =
+            hybridp->config().command_velocity_xyz;
+        if (base_in->Latest(base_sample, 0.20, true)) {
+          const double qw = base_sample.quat[0];
+          const double qx = base_sample.quat[1];
+          const double qy = base_sample.quat[2];
+          const double qz = base_sample.quat[3];
+          const double yaw = std::atan2(
+              2.0 * (qw * qz + qx * qy),
+              1.0 - 2.0 * (qy * qy + qz * qz));
+          if (!hybrid_station_anchor_set) {
+            hybrid_station_anchor_w = base_sample.pos.head<2>();
+            hybrid_heading_anchor_rad = yaw;
+            hybrid_station_anchor_set = true;
+          }
+
+          Eigen::Vector2d station_target_w = hybrid_station_anchor_w;
+          const auto planner = ppp->planner_trace_snapshot(tick);
+          if (planner.pending_active &&
+              std::isfinite(planner.pending_station_x) &&
+              std::isfinite(planner.pending_station_y)) {
+            station_target_w = Eigen::Vector2d(
+                planner.pending_station_x, planner.pending_station_y);
+          }
+          Eigen::Vector2d velocity_w =
+              hybrid_lower_station_kp *
+              (station_target_w - base_sample.pos.head<2>());
+          const double speed = velocity_w.norm();
+          if (speed > hybrid_lower_station_vmax && speed > 1.0e-9)
+            velocity_w *= hybrid_lower_station_vmax / speed;
+          const double cy = std::cos(yaw);
+          const double sy = std::sin(yaw);
+          lower_command[0] += cy * velocity_w[0] + sy * velocity_w[1];
+          lower_command[1] += -sy * velocity_w[0] + cy * velocity_w[1];
+          double yaw_error = hybrid_heading_anchor_rad - yaw;
+          yaw_error = std::atan2(std::sin(yaw_error), std::cos(yaw_error));
+          lower_command[2] += std::clamp(
+              hybrid_lower_heading_kp * yaw_error,
+              -hybrid_lower_yaw_max, hybrid_lower_yaw_max);
+
+          if (driver_tick >= hybrid_station_last_log_tick + 100) {
+            hybrid_station_last_log_tick = driver_tick;
+            std::printf(
+                "[hybrid-lower station] base=(%+.3f,%+.3f,%+.1fdeg) "
+                "target=(%+.3f,%+.3f) cmd=(%+.3f,%+.3f,%+.3f)\n",
+                base_sample.pos[0], base_sample.pos[1],
+                yaw * 180.0 / 3.14159265358979323846,
+                station_target_w[0], station_target_w[1],
+                lower_command[0], lower_command[1], lower_command[2]);
+          }
+        }
+        hybridp->SetCommandVelocityTarget(lower_command);
+      }
+      if (!kernel_mode && hybridp != nullptr &&
+          !hybridp->Apply(
+              st, cmd,
+              !ppp->legs_passive(), !ppp->waist_passive())) {
+        throw std::runtime_error(
+            "hybrid-lower inference/compose failed");
+      }
+      if (hybridp != nullptr)
+        hybrid_run_hope_next = !run_hope_this_tick;
       publish = (m == Mode::kMotion);  // SHADOW computes but does not publish
       // --- OBS CSV row (only when the policy ran, so obs is current) ---
       if (obscsv_ptr) {
@@ -1415,6 +1883,30 @@ int main(int argc, char** argv) {
         }
       }
     }
+    if (publish && (m == Mode::kPdStand || m == Mode::kMotion)) {
+      const bool entry = stand_just_entered || (m == Mode::kMotion && rearm_blend);
+      const double duration = m == Mode::kMotion ? active_policy_blend_sec : motion_blend_sec;
+      if (entry) {
+        mode_transition.Reset();
+        transition_elapsed_s = 0.0;
+        if (duration > 1e-6) {
+          robot_io::RobotCommand source = last_delivered_command;
+          if (!last_delivered_valid || last_delivered_mode == Mode::kPassive ||
+              last_delivered_mode == Mode::kShadow) {
+            source = cmd;
+            source.q_des = st.q;
+            source.dq_des = st.dq;
+            source.tau_ff.setZero();
+            source.kp.setZero();
+            source.kd.setZero();
+          }
+          mode_transition.Begin(source, cmd, duration);
+        }
+      }
+      mode_transition.Apply(transition_elapsed_s, cmd);
+      transition_elapsed_s += hybridp != nullptr ? 0.01 : policy_dt;
+    }
+
     // Final command safety runs after every override and entry blend. An
     // exception is caught by A3PolicyDriver and becomes a latched safe-halt.
     if (publish && cmd.q_des.size() == N) {
@@ -1430,6 +1922,12 @@ int main(int argc, char** argv) {
       auto& o = *trace_ptr;
       const auto g = ppp->last_proj_grav();
       const auto planner = ppp->planner_trace_snapshot(tick);
+      const bool actor_mode =
+          m == Mode::kMotion || m == Mode::kShadow;
+      const double trace_reach_level =
+          actor_mode ? planner.reach_level : 0.0;
+      const double trace_swing_foot_sign =
+          actor_mode ? planner.swing_foot_sign : 0.0;
       const bool has = (st.q.size() == N && st.dq.size() == N &&
                         cmd.q_des.size() == N && cmd.kp.size() == N && cmd.kd.size() == N);
       double engage_first_tick_qdes_l2 = 0.0;
@@ -1461,9 +1959,16 @@ int main(int argc, char** argv) {
         << planner.lifecycle_seq << ',' << planner.shot_seq << ',' << planner.planner_msg_seq << ','
         << planner.planner_flight_id << ',' << planner.planner_revision_id << ','
         << planner.planner_stable_revision_count << ','
-        << planner.frozen_command_seq << ',' << planner.frozen_flight_id << ','
+        << planner.frozen_command_seq << ',' << planner.frozen_producer_epoch << ','
+        << planner.frozen_flight_id << ','
         << planner.frozen_revision_id << ',' << planner.frozen_strike_time << ','
         << planner.frozen_raw_tts << ','
+        << planner.swing_sign << ',' << trace_reach_level << ','
+        << trace_swing_foot_sign << ','
+        << planner.planner_completion_seq << ','
+        << planner.planner_completed_producer_epoch << ','
+        << planner.planner_completed_flight_id << ','
+        << planner.planner_completion_kind << ','
         << planner.base_pos_w[0] << ',' << planner.base_pos_w[1] << ',' << planner.base_pos_w[2] << ','
         << planner.base_quat_w[0] << ',' << planner.base_quat_w[1] << ','
         << planner.base_quat_w[2] << ',' << planner.base_quat_w[3] << ','
@@ -1486,7 +1991,17 @@ int main(int argc, char** argv) {
         << ppp->qdes_feasible_rate_utilization_max() << ','
         << ppp->qdes_feasible_rate_bound_count() << ','
         << ppp->qdes_feasible_tracking_bound_count() << ','
-        << ppp->qdes_feasible_torque_bound_count();
+        << ppp->qdes_feasible_torque_bound_count() << ','
+        << ppp->actual_q_hard_tolerance_rad() << ','
+        << (ppp->actual_q_hard_audit_only() ? 1 : 0) << ','
+        << ppp->actual_q_hard_violation_count() << ','
+        << ppp->actual_q_hard_max_excess_rad();
+      for (int i = 0; i < N; ++i)
+        o << ',' << ppp->actual_q_hard_lo_for_backend(i);
+      for (int i = 0; i < N; ++i)
+        o << ',' << ppp->actual_q_hard_hi_for_backend(i);
+      for (int i = 0; i < N; ++i)
+        o << ',' << ppp->actual_q_hard_excess_for_backend(i);
       for (int i = 0; i < N; ++i) o << ',' << (has ? cmd.q_des[i] : 0.0);
       const auto& clamp_viol = ppp->last_clamp_viol();
       for (int i = 0; i < N; ++i)
@@ -1495,6 +2010,12 @@ int main(int argc, char** argv) {
       for (int i = 0; i < N; ++i) o << ',' << (has ? st.dq[i] : 0.0);
       for (int i = 0; i < N; ++i) o << ',' << (has ? cmd.kp[i] : 0.0);
       for (int i = 0; i < N; ++i) o << ',' << (has ? cmd.kd[i] : 0.0);
+      o << ',' << ppp->qdes_slew_scale() << ',' << ppp->qdes_slew_saturated_count() << ','
+        << ppp->qdes_slew_saturated_leg_count() << ',' << ppp->qdes_slew_max_clip_rad()
+        << ',' << planner.envelope_level << ',' << planner.envelope_mode << ','
+        << planner.envelope_home_dist_m << ',' << planner.envelope_speed_mps << ','
+        << planner.envelope_tilt_rad << ',' << planner.envelope_block_reason << ','
+        << planner.envelope_support_anchor_error_m;
       o << '\n';
       if (has) {
         trace_previous_q_des = cmd.q_des;
@@ -1505,15 +2026,122 @@ int main(int argc, char** argv) {
     return publish;
   };
 
-  if (!backend->Start()) { std::cerr << "backend Start failed\n"; return 5; }
+  // TELEOP owns every 500 Hz callback. Other modes retain their native
+  // cadence: Serve and the optional legacy hybrid at 100 Hz, receive at 50 Hz.
+  // Reset the cadence on mode entry so the next CSV frame is a full 10 ms later.
+  std::uint64_t driver_callback_count = 0;
+  std::uint64_t logical_50hz_tick = 0;
+  a3_pingpong::PpModeCadence mode_cadence;
+  bool held_publish = false;
+  robot_io::RobotCommand held_command;
+  auto command_fn = [&, command_fn_50hz = std::move(command_fn_50hz)](std::uint64_t driver_tick,
+                                                                      const robot_io::RobotState& state,
+                                                                      robot_io::RobotCommand& command) mutable -> bool {
+    ++driver_callback_count;
+    if (locomotion) {
+      const Mode mode = runner_control.mode();
+      if (mode == Mode::kTeleop) {
+        computed_mode = mode;
+        prev_mode_for_blend = mode;
+        mode_cadence.Reset();
+        if (!teleop_entered) {
+          robot_io::RobotCommand source = last_delivered_command;
+          if (!last_delivered_valid) {
+            source.q_des = state.q;
+            source.dq_des = state.dq;
+            source.kp = source.kd = source.tau_ff = Eigen::VectorXd::Zero(31);
+          }
+          locomotion->Reset(state, source);
+          teleop_input.Disarm();
+          teleop_tick = 0;
+          teleop_quiet_ticks = 0;
+          teleop_fall_ticks = 0;
+          command = locomotion->Step(state, Eigen::Vector3d::Zero());
+          teleop_transition.Begin(source, command, 2.0);
+          teleop_transition.Apply(0, command);
+          teleop_entered = true;
+        } else {
+          const bool stopping = runner_control.TeleopStopRequested();
+          const bool active = teleop_tick >= 1000 && !stopping;
+          const auto target = teleop_input.Sample(active, wall_seconds(), steady_seconds());
+          command = locomotion->Step(state, target);
+          teleop_transition.Apply(teleop_tick * .002, command);
+          if (stopping && teleop_tick >= 1000 && locomotion->settled() && state.dq.cwiseAbs().maxCoeff() < .5 &&
+              state.imu_gyro.norm() < .15)
+            ++teleop_quiet_ticks;
+          else teleop_quiet_ticks = 0;
+          if (teleop_quiet_ticks >= 150) runner_control.SetRuntimeMode(Mode::kPdStand);
+        }
+        const double gz = -(1.0 - 2.0 * (state.imu_quat_wxyz[1] * state.imu_quat_wxyz[1] +
+                                         state.imu_quat_wxyz[2] * state.imu_quat_wxyz[2]));
+        teleop_fall_ticks = gz > fall_guard_gz ? teleop_fall_ticks + 1 : 0;
+        if (fall_guard && teleop_fall_ticks >= 30) throw std::runtime_error("teleop fall guard");
+        teleop_phase.store(runner_control.TeleopStopRequested() ? 3 : (teleop_tick < 1000 ? 1 : 2));
+        teleop_progress.store(std::min(1., teleop_tick * .002 / 2.));
+        const auto filtered = locomotion->filtered_velocity();
+        for (int i = 0; i < 3; ++i) teleop_velocity[i].store(filtered[i]);
+        ++teleop_tick;
+        return true;
+      }
+      if (teleop_entered) {
+        teleop_entered = false;
+        teleop_input.Disarm();
+      }
+      teleop_phase.store(0);
+      teleop_progress.store(0);
+      for (auto& value : teleop_velocity) value.store(0);
+      const unsigned period = (mode == Mode::kServe || hybridp != nullptr) ? 5 : 10;
+      if (mode_cadence.Due(driver_callback_count, static_cast<int>(mode), period)) {
+        robot_io::RobotCommand next;
+        held_publish = command_fn_50hz(logical_50hz_tick++, state, next);
+        held_command = next;
+      }
+      command = held_command;
+      return held_publish;
+    }
+    if (!serve_requested || hybridp != nullptr) { return command_fn_50hz(driver_tick, state, command); }
+    const Mode mode = runner_control.mode();
+    if (mode == Mode::kServe) {
+      mode_cadence.Reset();
+      return command_fn_50hz(driver_tick, state, command);
+    }
+    const bool evaluate = mode_cadence.Due(driver_callback_count, static_cast<int>(mode), 2);
+    if (evaluate) {
+      robot_io::RobotCommand next;
+      const bool publish = command_fn_50hz(logical_50hz_tick++, state, next);
+      held_command = next;
+      held_publish = publish;
+    }
+    command = held_command;
+    return held_publish;
+  };
+
+  if (!backend->Start()) {
+    std::cerr << "backend Start failed\n";
+    return 5;
+  }
   std::cout << "[pingpong] backend started\n";
 
   a3_deploy::A3PolicyDriverOptions dopt;
-  dopt.policy_hz = policy_hz;
+  dopt.policy_hz = driver_hz;
+  dopt.command_delivery_observer = [ppp, &last_delivered_command,
+      &last_delivered_valid, &last_delivered_mode, &computed_mode](
+      const robot_io::RobotCommand& cmd, bool sent) {
+    ppp->RecordCommandDelivery(cmd, sent);
+    // Invoked on the same driver thread after SendCommand; failed deliveries
+    // must never become the source of the next mode handoff.
+    if (sent) {
+      last_delivered_command = cmd;
+      last_delivered_valid = true;
+      last_delivered_mode = computed_mode;
+    }
+  };
   a3_deploy::CommandFn cfn = command_fn;  // disambiguate the PolicyFn/CommandFn ctor
   a3_deploy::A3PolicyDriver driver(*backend, cfn, dopt);
   if (!driver.StartDriver()) { std::cerr << "StartDriver failed\n"; backend->Stop(); return 6; }
-  std::cout << "[pingpong] driver started @ " << dopt.policy_hz << " Hz\n";
+  std::cout << "[pingpong] driver started @ " << dopt.policy_hz
+            << " Hz (SERVE direct=100 Hz; ONNX logical rate=" << policy_hz
+            << " Hz)\n";
 
   std::signal(SIGINT, OnSig);
   std::signal(SIGTERM, OnSig);
@@ -1522,23 +2150,25 @@ int main(int argc, char** argv) {
   // queue.  The AimRT callback never writes Runner mode or role directly.
   std::thread runner_action_worker([&]() {
     while (!g_stop.load()) {
+      if (servep != nullptr) servep->PollAsync();
       const bool serve_active = servep != nullptr && servep->active();
+      // Capability means this Runner loaded the named-schema serve stack.
+      // Runtime health is reported by serve_state/gripper_state; do not make
+      // the wire schema self-contradictory when either one fault-latches.
+      const bool serve_capability = servep != nullptr;
       const int serve_state =
           servep == nullptr ? -1 : static_cast<int>(servep->state());
-      const double arm_scale = gain_scale.load();
-      const double leg_override = leg_gain_scale.load();
-      const double leg_scale =
-          leg_override >= 0.0 ? leg_override : arm_scale;
-      const double ankle_override = ankle_gain_scale.load();
-      const double ankle_scale =
-          ankle_override >= 0.0 ? ankle_override : leg_scale;
-      const bool serve_gain_scales_nominal =
-          std::abs(arm_scale - 1.0) <= 1.0e-12 &&
-          std::abs(leg_scale - 1.0) <= 1.0e-12 &&
-          std::abs(ankle_scale - 1.0) <= 1.0e-12;
+      const int gripper_state =
+          servep == nullptr
+              ? -1
+              : static_cast<int>(servep->gripper_state());
+      const bool cleanup_required =
+          servep != nullptr && servep->cleanup_required();
       const auto decisions = runner_control.ProcessPending(
-          driver.CommandFaultLatched(), serve_active, servep != nullptr,
-          serve_state, serve_gain_scales_nominal);
+          driver.CommandFaultLatched(), serve_active, serve_capability,
+          serve_state, true, gripper_state,
+          cleanup_required, locomotion != nullptr,
+          teleop_input.Ready(wall_seconds(),steady_seconds()));
       for (const auto& decision : decisions) {
         if (decision.hold_reference) {
           refp->Hold(decision.request.action ==
@@ -1549,11 +2179,31 @@ int main(int argc, char** argv) {
         if (decision.request_serve_abort && servep != nullptr) {
           servep->RequestAbort();
         }
-        if (decision.request_serve_start && servep != nullptr) {
-          servep->Start();
+        // PREPARE_SERVE publishes the mode; the command thread initializes the
+        // controller and captures its last delivered entry command together.
+        if (decision.request_confirm_ball_loaded &&
+            servep != nullptr) {
+          servep->ConfirmBallLoaded();
         }
-        if (decision.request_serve_confirm && servep != nullptr) {
-          servep->ConfirmBallOnPalm();
+        if (decision.request_confirm_grip_secure &&
+            servep != nullptr) {
+          servep->ConfirmGripSecure();
+        }
+        if (decision.request_ready_to_serve && servep != nullptr) {
+          servep->TriggerReadyToServe();
+        }
+        if (decision.request_open_gripper && servep != nullptr) {
+          std::string open_error;
+          if (!servep->RequestOpenGripper(open_error)) {
+            std::cerr
+                << "[serve] cleanup OPEN admission raced/faulted: "
+                << open_error << "\n";
+          }
+        }
+        if (decision.request.action ==
+                a3_pingpong::RunnerAction::kEmergencyPassive &&
+            serve_active && servep != nullptr) {
+          servep->EmergencyStop();
         }
         std::cout << "-> [runner-control] source="
                   << (decision.request.remote ? "FOXGLOVE" : "KEYBOARD")
@@ -1575,11 +2225,16 @@ int main(int argc, char** argv) {
                        "runner before another serve\n";
         }
         const Mode current = runner_control.mode();
+        const bool capability_now = servep != nullptr;
         runner_control.ObserveExternalState(
             !no_publish && current != Mode::kShadow && driver.HasSentCommand(),
             policy_native,
-            driver.CommandFaultLatched(), servep != nullptr,
-            servep == nullptr ? -1 : static_cast<int>(servep->state()));
+            driver.CommandFaultLatched(), capability_now,
+            servep == nullptr ? -1 : static_cast<int>(servep->state()),
+            servep == nullptr
+                ? -1
+                : static_cast<int>(servep->gripper_state()),
+            servep != nullptr && servep->cleanup_required());
         // Publish the acknowledgement immediately; the 5 Hz heartbeat below
         // remains the stale/liveness source.  This prevents a following
         // keyboard action from hiding a remote request's result.
@@ -1602,15 +2257,25 @@ int main(int argc, char** argv) {
     if (ags >= 0.0) std::snprintf(ankle_gain_banner, sizeof ankle_gain_banner, "%.2f", ags);
     else std::snprintf(ankle_gain_banner, sizeof ankle_gain_banner, "=leg");
   }
+  const std::string action_source_banner =
+      hybridp == nullptr
+          ? "ONNX receive policy (learned 31-DOF action every tick)"
+          : "ONNX x2: receive policy upper 50Hz + AGI lower 100Hz (one publisher)";
+  const std::string post_onnx_banner =
+      hybridp == nullptr
+          ? "neck[3,4] HELD | receive policy owns remaining body command"
+          : std::string("neck[3,4] HELD | AGI owns ") +
+                a3_pingpong::PpHybridLowerOwnerName(hybridp->config().owner) +
+                " q/dq/tau/kp/kd | receive policy owns the rest";
   std::printf(
       "[pingpong] ================= RUN CONFIG =================\n"
       "[pingpong]  start_mode   = %-9s  (s=PD_STAND hold/NO swing, m=MOTION publish)\n"
       "[pingpong]  level        = %-9d  (0=hold/windup, 1=SWING)\n"
       "[pingpong]  swing_dir    = %-9s  (f=forehand / b=backhand keys)\n"
       "[pingpong]  target_src   = %s\n"
-      "[pingpong]  execution    = %-9s  (native=ball-clock release; policy owns rally lifecycle; SERVE uses exact-default static handoff)\n"
-      "[pingpong]  action_src   = ONNX policy (LEARNED 31-DOF action every tick; q_des = default_q + a*action_scale)\n"
-      "[pingpong]  post_onnx    = neck[3,4] HELD q=0 kp40 kd2 | legs %-6s | q_des CLAMPED to A3 limits (nothing else overridden)\n"
+      "[pingpong]  execution    = %-9s  (policy=50Hz held; SERVE=original 100Hz CSV direct; one Runner/publisher)\n"
+      "[pingpong]  action_src   = %s\n"
+      "[pingpong]  post_onnx    = %s\n"
       "[pingpong]  loc_mode     = %s\n"
       "[pingpong]  legs_passive = %-9s  (true=legs HELD; validates UPPER-BODY/waist swing only)\n"
       "[pingpong]  leg_hold     = %-9s  (official=AGI ground-stand gains [GROUND, proven] | trained=ONNX leg PD [HOIST])\n"
@@ -1631,7 +2296,8 @@ int main(int argc, char** argv) {
           ? "PLANNER  (live: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2; engage machine drives swing)"
           : "SCRIPTED (fixed front-right TEST target; NO live planner -- f/b only flips y-sign+clip)",
       policy_native ? "native" : "legacy",
-      pcfg.legs_passive ? "HELD" : "policy", pp->loc_mode_name(),
+      action_source_banner.c_str(), post_onnx_banner.c_str(),
+      pp->loc_mode_name(),
       pcfg.legs_passive ? "true" : "false",
       pcfg.legs_passive ? (legs_official_gains ? "official" : "trained") : "n/a (policy)",
       pcfg.waist_passive ? (waist_official_gains ? "official" : "trained") : "swing",
@@ -1651,8 +2317,13 @@ int main(int argc, char** argv) {
   std::cout << "[keys] p=PASSIVE(limp)  s=PD_STAND(hold, NO swing)  h=SHADOW(compute, no publish)"
                "  m=MOTION(publish)\n";
   if (servep != nullptr) {
-    std::cout << "[serve keys] v=approach rigid-palm READY / confirm ball-on-palm"
-                 "  x=phase-aware abort  p=EMERGENCY limp\n";
+    std::cout
+        << "[serve keys] S=SERVER R=RECEIVER "
+           "v=PREPARE(strong stand+immediate GRAB+raise concurrently) "
+           "l/g=legacy no-op "
+           "Space=READY TO SERVE/play "
+           "o=OPEN(manual) x=phase-aware abort "
+           "p=EMERGENCY limp\n";
   }
   std::cout << "[keys] 0=level0(hold/windup)  1=level1(SWING)  f=forehand  b=backhand"
                "  [=gain-  ]=gain+  ,=swing slower  .=swing faster  q=quit\n";
@@ -1689,17 +2360,37 @@ int main(int argc, char** argv) {
             runner_control.EnqueueLocalAction(
                 a3_pingpong::RunnerAction::kEnterMotion);
             break;
+          case 'S':
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kSetServer);
+            break;
+          case 'R':
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kSetReceiver);
+            break;
           case 'v':
             if (servep == nullptr) {
               std::cout << "-> SERVE unavailable; launch with --serve\n";
-            } else if (servep->state() ==
-                       a3_pingpong::ServeControllerState::kAwaitBall) {
-              runner_control.EnqueueLocalAction(
-                  a3_pingpong::RunnerAction::kServe);
             } else {
               runner_control.EnqueueLocalAction(
-                  a3_pingpong::RunnerAction::kReadyToServe);
+                  a3_pingpong::RunnerAction::kPrepareServe);
             }
+            break;
+          case 'l':
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kConfirmBallLoaded);
+            break;
+          case 'g':
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kConfirmGripSecure);
+            break;
+          case ' ':
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kReadyToServe);
+            break;
+          case 'o':
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kOpenGripper);
             break;
           case '0':
           case '1':
@@ -1709,6 +2400,10 @@ int main(int argc, char** argv) {
           case '5':
           case '6':
           case '7':
+            if (runner_control.mode() == Mode::kTeleop) {
+              std::cout << "-> return to PD_STAND before reference/policy diagnostics\n";
+              break;
+            }
             if (reference_playback_selected ||
                 runner_control.mode() == Mode::kReferencePlayback) {
               const int gi = c - '0';
@@ -1752,6 +2447,10 @@ int main(int argc, char** argv) {
                     ppp->set_swing_dir(-1);
                     std::cout << "-> swing dir = BACKHAND (scripted target +y, clip1)\n"; break;
           case 'r':
+            if (runner_control.mode() == Mode::kTeleop) {
+              std::cout << "-> return to PD_STAND before REFERENCE_PLAYBACK\n";
+              break;
+            }
             if (runner_control.mode() == Mode::kServe && servep != nullptr &&
                 servep->active()) {
               std::cout << "-> REFERENCE_PLAYBACK rejected while SERVE owns q_des\n";
@@ -1764,10 +2463,14 @@ int main(int argc, char** argv) {
             }
             break;
           case 'x':
+            if (runner_control.mode() == Mode::kTeleop) {
+              runner_control.EnqueueLocalAction(a3_pingpong::RunnerAction::kEnterPdStand);
+              break;
+            }
             if (runner_control.mode() == Mode::kServe && servep != nullptr &&
                 servep->active()) {
-              servep->RequestAbort();
-              std::cout << "-> SERVE phase-aware abort requested\n";
+              runner_control.EnqueueLocalAction(
+                  a3_pingpong::RunnerAction::kEnterPdStand);
             } else {
               refp->Hold("operator_hold");
               runner_control.SetRuntimeMode(Mode::kReferencePlayback);
@@ -1796,8 +2499,18 @@ int main(int argc, char** argv) {
           servep == nullptr ? -1 : static_cast<int>(servep->state());
       runner_control.ObserveExternalState(
           command_publishing, policy_native,
-          driver.CommandFaultLatched(), servep != nullptr, serve_state);
+          driver.CommandFaultLatched(),
+          servep != nullptr, serve_state,
+          servep == nullptr
+              ? -1
+              : static_cast<int>(servep->gripper_state()),
+          servep != nullptr && servep->cleanup_required());
       backend->PublishRunnerState(runner_control.EncodeState());
+      if (locomotion) backend->PublishLocomotionState({
+          1.,static_cast<double>(runner_boot_id),1.,static_cast<double>(teleop_phase.load()),
+          teleop_input.Age(steady_seconds()),teleop_progress.load(),
+          teleop_velocity[0].load(),teleop_velocity[1].load(),teleop_velocity[2].load(),
+          teleop_input.armed()?1.:0.});
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
   });
@@ -1816,6 +2529,7 @@ int main(int argc, char** argv) {
     const std::uint64_t ticks = driver.PolicyTickCount();
     const std::uint64_t halts = driver.SafeHaltCount();
     auto now = std::chrono::steady_clock::now();
+    if (warming && runner_control.mode() == Mode::kTeleop) warming = false;
     if (warming &&
         std::chrono::duration<double>(now - t_start).count() >= warmup_sec) {
       runner_control.SetRuntimeMode(target_mode);
@@ -1830,20 +2544,39 @@ int main(int argc, char** argv) {
       const auto d = servep->TakeDiag();
       std::printf(
           "[status] mode=SERVE state=%s phase=%s frame=%zu/%zu "
+          "transition=%zu/%zu gripper=%s gripper_fault=%s "
+          "cleanup_required=%d "
           "ready_ticks=%d local_ready=%d q_or_tracking_err=%.3f "
+          "tracking_warning=%d "
           "joint_speed=%.3f tilt=%.3f yaw_rate=%.3f "
-          "branch=%s ball_vx=%.4f ball_age=%.3f ball_n=%d branch_reason=%s "
-          "toss_only_abort=%d abort_after_commit=%d fault=%s "
+          "gravx=%.3f stance_pitch_offset=(hip=%.3f,knee=%.3f,ankle=%.3f,waist=%.3f) "
+          "support_err=%.3f waist_err=%.3f "
+          "release_ack=%d release_dispatch_ns=%llu "
+          "release_first_publish_ns=%llu abort_after_strike=%d fault=%s "
           "rate=%.1fHz ticks=%llu halts=%llu\n",
           a3_pingpong::ServeControllerStateName(d.state),
-          a3_pingpong::ServePhaseName(d.phase), d.frame,
-          servep->clip().size(), d.ready_ticks, d.local_ready ? 1 : 0,
-          d.max_q_error, d.max_joint_speed, d.tilt_rad, d.yaw_rate_rad_s,
-          d.selected_branch.empty() ? "pending" : d.selected_branch.c_str(),
-          d.ball_vx_mps, d.ball_age_s, d.ball_estimator_samples,
-          d.branch_reason.empty() ? "-" : d.branch_reason.c_str(),
-          d.toss_only_abort ? 1 : 0,
-          d.abort_after_commit ? 1 : 0,
+          d.phase.c_str(), d.frame, servep->frame_count(),
+          d.transition_tick,
+          a3_pingpong::kServe025FullbodyTransitionTicks,
+          a3_pingpong::ServeGripperStateName(d.gripper_state),
+          d.gripper_fault_reason.empty()
+              ? "-"
+              : d.gripper_fault_reason.c_str(),
+          d.cleanup_required ? 1 : 0,
+          d.ready_ticks, d.local_ready ? 1 : 0,
+          d.max_q_error_rad, d.tracking_warning ? 1 : 0,
+          d.max_joint_speed_rad_s,
+          d.tilt_rad, d.yaw_rate_rad_s,
+          d.projected_gravity_x, d.hip_pitch_offset_rad,
+          d.knee_pitch_offset_rad, d.ankle_pitch_offset_rad,
+          d.waist_pitch_offset_rad, d.sagittal_support_error_rad,
+          d.max_waist_error_rad,
+          d.release_acknowledged ? 1 : 0,
+          static_cast<unsigned long long>(
+              d.release_dispatch_monotonic_ns),
+          static_cast<unsigned long long>(
+              d.release_first_publish_monotonic_ns),
+          d.abort_after_strike ? 1 : 0,
           d.fault_reason.empty() ? "-" : d.fault_reason.c_str(), hz,
           static_cast<unsigned long long>(ticks),
           static_cast<unsigned long long>(halts));
@@ -1908,6 +2641,7 @@ int main(int argc, char** argv) {
                          ppp->planner_mode() ? ppp->planner_status() : std::string{});  // obs slices + stats
       PrintClampAudit("periodic", *ppp);
       PrintQdesProjectorAudit("periodic", *ppp);
+      PrintQdesSlewAudit("periodic", *ppp);
       // one-shot warning if any joint is hitting its clamp on a large fraction of
       // ticks (the documented waist_roll mismatch): the policy keeps commanding
       // beyond the A3 limit. NOT a fault (clamp keeps it safe) — a tuning flag.
@@ -1925,12 +2659,37 @@ int main(int argc, char** argv) {
         }
       }
     }
+    if (hybridp != nullptr) {
+      const auto hd = hybridp->diag();
+      std::printf(
+          "[hybrid-lower] owner=%s outer_ticks=%llu actor_steps=%llu "
+          "failures=%llu infer_mean=%.3fms infer_max=%.3fms\n",
+          a3_pingpong::PpHybridLowerOwnerName(hybridp->config().owner),
+          static_cast<unsigned long long>(hd.outer_ticks),
+          static_cast<unsigned long long>(hd.inference_steps),
+          static_cast<unsigned long long>(hd.failures),
+          hd.mean_inference_ms,
+          hd.max_inference_ms);
+    }
     last_ticks = ticks; t_prev = now;
   }
 
   std::cout << "[pingpong] stopping...\n";
   PrintClampAudit("final", *ppp);
   PrintQdesProjectorAudit("final", *ppp);
+  PrintQdesSlewAudit("final", *ppp);
+  if (hybridp != nullptr) {
+    const auto hd = hybridp->diag();
+    std::printf(
+        "[hybrid-lower] FINAL owner=%s outer_ticks=%llu actor_steps=%llu "
+        "failures=%llu infer_mean=%.3fms infer_max=%.3fms\n",
+        a3_pingpong::PpHybridLowerOwnerName(hybridp->config().owner),
+        static_cast<unsigned long long>(hd.outer_ticks),
+        static_cast<unsigned long long>(hd.inference_steps),
+        static_cast<unsigned long long>(hd.failures),
+        hd.mean_inference_ms,
+        hd.max_inference_ms);
+  }
   if (kb.joinable()) kb.join();
   if (runner_action_worker.joinable()) runner_action_worker.join();
   if (runner_state_publisher.joinable()) runner_state_publisher.join();

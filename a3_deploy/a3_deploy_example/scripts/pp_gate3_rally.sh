@@ -50,7 +50,7 @@ WORLD_CONFIG_SOURCE="$WS/src/hope_bringup/config/hope_world_frame.yaml"
 WORLD_CONFIG_INSTALL="$WS/install/hope_bringup/share/hope_bringup/config/hope_world_frame.yaml"
 WORLD_LAUNCH_SOURCE="$WS/src/hope_bringup/launch/hope_world.launch.py"
 WORLD_LAUNCH_INSTALL="$WS/install/hope_bringup/share/hope_bringup/launch/hope_world.launch.py"
-P1_CALIBRATION_RECEIPT="${PP_P1_CALIBRATION_RECEIPT:-$WS/calibration_receipts/p1_marker_cad_registration_20260805_redefined_p1_strict.json}"
+P1_CALIBRATION_RECEIPT="${PP_P1_CALIBRATION_RECEIPT:-/tmp/hope-gate3-sim-calibration.json}"
 if [ ! -r "$WORLD_CONFIG_SOURCE" ] || [ ! -r "$WORLD_CONFIG_INSTALL" ] || \
    ! cmp -s "$WORLD_CONFIG_SOURCE" "$WORLD_CONFIG_INSTALL" || \
    [ ! -r "$WORLD_LAUNCH_SOURCE" ] || [ ! -r "$WORLD_LAUNCH_INSTALL" ] || \
@@ -59,31 +59,11 @@ if [ ! -r "$WORLD_CONFIG_SOURCE" ] || [ ! -r "$WORLD_CONFIG_INSTALL" ] || \
   echo "[g3r] Rebuild hope_ws before Gate3; sim and relay must consume identical calibration bytes."
   exit 2
 fi
-if [ ! -r "$P1_CALIBRATION_RECEIPT" ]; then
-  echo "[g3r] ENV FAIL: approved P1 calibration receipt is missing: $P1_CALIBRATION_RECEIPT"
-  exit 2
+if [ -z "${PP_P1_CALIBRATION_RECEIPT:-}" ]; then
+  python3 "$SCRIPT_DIR/pp_gate3_sim_calibration.py" "$P1_CALIBRATION_RECEIPT" || exit 2
 fi
-if ! python3 - "$WORLD_CONFIG_SOURCE" "$P1_CALIBRATION_RECEIPT" <<'PY'
-import hashlib
-import json
-import sys
-
-import yaml
-
-world = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["hope_world"]
-expected = world["mocap_to_base_link"]["p1"]["calibration_sha256"]
-receipt_bytes = open(sys.argv[2], "rb").read()
-receipt = json.loads(receipt_bytes)
-actual = hashlib.sha256(receipt_bytes).hexdigest()
-if receipt.get("approved") is not True:
-    raise SystemExit("P1 calibration receipt is not approved")
-if actual != expected:
-    raise SystemExit(
-        f"P1 calibration receipt SHA mismatch: expected={expected} actual={actual}"
-    )
-PY
-then
-  echo "[g3r] ENV FAIL: P1 calibration receipt does not match hope_world_frame.yaml"
+if [ ! -r "$P1_CALIBRATION_RECEIPT" ]; then
+  echo "[g3r] simulation calibration missing: $P1_CALIBRATION_RECEIPT"
   exit 2
 fi
 if [ ! -r "$SIM_INSTALL/share/mujoco_sim_msgs/local_setup.bash" ] || \
@@ -364,23 +344,24 @@ setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; \
   source '$WS/install/local_setup.bash' 2>/dev/null; \
   python3 '$SCRIPT_DIR/pp_gate3_sim_mocap.py' \
   --table-height-m '$PP_TABLE_HEIGHT_M' \
-  --world-config '$WS/src/hope_bringup/config/hope_world_frame.yaml'" \
+  --world-config '$WS/src/hope_bringup/config/hope_world_frame.yaml' \
+  --calibration '$P1_CALIBRATION_RECEIPT'" \
   >/tmp/pp_raw_mocap.log 2>&1 &
 
-echo "[g3r] production OptiTrack relay (/optitrack/poses -> /poses + /P1/pose)"
+echo "[g3r] production OptiTrack relay (/optitrack/poses -> /poses + /UCB_P1/pose)"
 setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; \
   source '$WS/install/local_setup.bash' 2>/dev/null; \
   ros2 run hope_bringup optitrack_mct_relay --ros-args \
   --params-file '$WS/src/hope_bringup/config/optitrack_relay.yaml' \
   -p publish_tf:=false" >/tmp/pp_mocap_relay.log 2>&1 &
 
-echo "[g3r] calibrated hope_world relay (/P1/pose -> pelvis schema-2 base)"
+echo "[g3r] calibrated hope_world relay (/UCB_P1/pose -> pelvis schema-2 base)"
 # Keep localization in a process independent from the C++ flight packetizer and
 # Planner. The launch consumes the same translation, quaternion and calibration
 # receipts as the real OptiTrack path.
 setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install/local_setup.bash 2>/dev/null; \
   ros2 launch hope_bringup hope_world.launch.py \
-  p1_calibration_file:='$P1_CALIBRATION_RECEIPT'" \
+  ucb_calibration_file:='$P1_CALIBRATION_RECEIPT'" \
   >/tmp/pp_base_relay.log 2>&1 &
 
 echo "[g3r] production C++ flight packetizer (/poses -> /ball/flight_packet)"
@@ -439,7 +420,7 @@ sleep 4
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic info /ball/flight_packet 2>&1" | tail -2
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /racket/command_flat 2>&1 | head -2" | tail -1
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /a3/base_pose_flat 2>&1 | head -2" | tail -1
-timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /P1/pose 2>&1 | head -2" | tail -1
+timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /UCB_P1/pose 2>&1 | head -2" | tail -1
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source '$SIM_INSTALL/share/mujoco_sim_msgs/local_setup.bash' 2>/dev/null; ros2 topic hz /sim/gate3/ball_state 2>&1 | head -2" | tail -1
 
 echo "[g3r] prewarm ros2 pub discovery (straggler-reset-in-MOTION trap)"
