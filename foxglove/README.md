@@ -1,3 +1,8 @@
+# Current Runner workflow
+
+See [Runner, Xbox and field operation](../docs/operations/runtime_xbox.md) for
+the current public model_21800 workflow, installation and mode semantics.
+
 # HOPE A3 Foxglove Operator Interface
 
 > **Formal model_21800 operator stack.** This directory combines monitoring,

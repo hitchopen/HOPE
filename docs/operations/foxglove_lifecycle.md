@@ -1,5 +1,10 @@
 # Foxglove Runner three-machine lifecycle
 
+> Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for
+> current Kernel Mode, Xbox, Serve-to-Ready, calibration-layout and package
+> instructions. The public checkpoint remains model_21800. The foundational
+> host/SSH setup below still applies; older UI labels are superseded by that guide.
+
 This layer replaces the repeated terminal work in hardware-runbook STEP
 0/1/2A/2B/4/5 with a fixed HDU-resident supervisor. It does not expose a
 remote shell. Foxglove can only:

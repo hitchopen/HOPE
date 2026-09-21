@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
-"""Synthetic ball feed for planner/runner testing WITHOUT motion capture.
+"""Synthetic ball feed for planner/runner testing WITHOUT mocap.
 
-Publishes ``/poses`` (geometry_msgs/PoseArray, ball at index 0 — the
-hope_planner input contract) at ``rate_hz``, simulating serves toward the robot
-with the same quadratic-drag + table-bounce model the planner assumes.
-Alternates a forehand-side and a backhand-side serve.
+Publishes /poses (geometry_msgs/PoseArray, ball at index 0 — the hope_planner
+input contract) at ``rate_hz``, simulating serves toward the robot with the
+same quadratic-drag + table-bounce model the planner assumes. Alternates a
+forehand-side and a backhand-side serve.
 
-IMPORTANT: ``drag_k`` / ``restitution_*`` here should match the planner's ball
-physics (configs/ball_physics.yaml) so the planner's predictions track the
-simulated ball. Positions are in the table frame (z = 0 at the table surface).
+IMPORTANT: ``drag_k`` / ``restitution_*`` here MUST match hope_planner's params,
+or the planner's predictions won't match the simulated ball and every command
+will be invalid/late. Positions are in whatever frame the downstream chain
+treats as the HOPE table frame (z=0 at the table surface).
+
+Typical uses:
+  # arena-convention frames (robot at table (-0.5, -0.7625)):
+  ros2 run hope_bringup fake_ball_publisher
+  # AGI-MuJoCo closed-loop (sim world == table world, robot at origin):
+  ros2 run hope_bringup fake_ball_publisher --ros-args \
+      -p serve_forehand:="[2.8, -0.24, 0.40, -5.0, 0.2, 1.0]" \
+      -p serve_backhand:="[2.8,  0.24, 0.40, -5.0, -0.2, 1.0]"
 """
 
 import numpy as np
@@ -21,24 +30,28 @@ from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPo
 class FakeBallPublisher(Node):
     def __init__(self):
         super().__init__("fake_ball_publisher")
-        # serve = [px, py, pz, vx, vy, vz] in the table frame (z = 0 at the surface).
+        # serve = [px, py, pz, vx, vy, vz] in the table frame (z=0 at table surface).
+        # Defaults assume the arena convention (table x 0..2.74, robot near x=-0.5).
         self.declare_parameter("serve_forehand", [2.3, -1.00, 0.40, -5.0, 0.2, 1.0])
         self.declare_parameter("serve_backhand", [2.3, -0.52, 0.40, -5.0, -0.2, 1.0])
-        # Optional serve sweep: a flat N*6 list of serves cycled in order. When set
-        # (length >= 6 and a multiple of 6) it replaces the two-serve alternation.
-        # The [0.0] default is a "not set" sentinel (rclpy cannot infer a
+        # OPTIONAL placement sweep: a flat N*6 list of serves cycled IN ORDER. When set
+        # (length >= 6 and a multiple of 6) it REPLACES the two-serve fh/bh alternation —
+        # the Gate-3 coverage sweep passes 10 serves (5 per clip spanning the trained y
+        # boxes) here. The [0.0] default is a "not set" sentinel (rclpy cannot infer a
         # DOUBLE_ARRAY from an empty list); any length < 6 keeps the legacy pair.
         self.declare_parameter("serves", [0.0])
         self.declare_parameter("rate_hz", 300.0)
-        self.declare_parameter("drag_k", 0.1261)        # match the planner's drag
-        self.declare_parameter("restitution_h", 0.63)   # match the planner's table tangential retention
-        self.declare_parameter("restitution_v", 0.92)   # match the planner's table normal restitution
-        self.declare_parameter("ball_radius", 0.020)    # m; centroid contacts the table at z = radius
+        # Shared venue physics: 2026-08-23/24 equal-session drag/table candidate.
+        self.declare_parameter("drag_k", 0.1317)        # MUST match hope_planner drag_k
+        self.declare_parameter("restitution_h", 0.64)   # MUST match hope_planner C_h
+        self.declare_parameter("restitution_v", 0.9607) # MUST match hope_planner C_v
         self.declare_parameter("table_x_max", 2.74)     # bounce only over the table
         self.declare_parameter("end_x", -0.6)           # serve ends past the robot
         self.declare_parameter("pause_s", 1.0)          # gap between serves
         self.declare_parameter("max_flight_s", 3.0)
-        # 0 preserves the infinite cycle; set to an exact serve count to stop after it.
+        # 0 preserves the legacy infinite cycle.  Gate harnesses set this to their
+        # exact serve count so a completed sweep cannot leak another serve into the
+        # conductor's tail/recovery window.
         self.declare_parameter("max_serves", 0)
         self.declare_parameter("frame_id", "world")
 
@@ -55,7 +68,6 @@ class FakeBallPublisher(Node):
         self._k = float(gp("drag_k").value)
         self._ch = float(gp("restitution_h").value)
         self._cv = float(gp("restitution_v").value)
-        self._radius = float(gp("ball_radius").value)
         self._x_max = float(gp("table_x_max").value)
         self._end_x = float(gp("end_x").value)
         self._pause_len = float(gp("pause_s").value)
@@ -104,10 +116,8 @@ class FakeBallPublisher(Node):
         a = -self._k * np.linalg.norm(self._v) * self._v + self._g
         self._v = self._v + a * self._dt
         self._p = self._p + self._v * self._dt
-        # Centroid table contact at z = ball radius (same convention as the planner's
-        # predictor and configs/ball_physics.yaml).
-        if self._p[2] <= self._radius and self._v[2] < 0.0 and 0.0 <= self._p[0] <= self._x_max:
-            self._p[2] = self._radius
+        if self._p[2] <= 0.0 and self._v[2] < 0.0 and 0.0 <= self._p[0] <= self._x_max:
+            self._p[2] = 0.001
             self._v[0] *= self._ch
             self._v[1] *= self._ch
             self._v[2] = -self._cv * self._v[2]

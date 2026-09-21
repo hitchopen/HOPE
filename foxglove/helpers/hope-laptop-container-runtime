@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+readonly runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
+[[ -r "$runtime_env" ]] || exit 66
+source "$runtime_env"
+source /opt/ros/jazzy/setup.bash
+cd "$HOPE_LIFECYCLE_ROOT/hope_ws"
+source install/local_setup.bash
+set -u
+
+readonly laptop_dir="$HOPE_LIFECYCLE_ROOT/real_logs/$HOPE_LIFECYCLE_SESSION_ID/laptop"
+mkdir -p "$laptop_dir"
+{
+  date -u --iso-8601=seconds
+  uname -a
+  sha256sum \
+    src/hope_bringup/launch/optitrack_hope_bridge.launch.py \
+    src/hope_bringup/launch/hope_world.launch.py \
+    src/hope_bringup/scripts/optitrack_mct_relay \
+    src/hope_bringup/scripts/p1_marker_cad_calibrator \
+    src/hope_bringup/scripts/p1_marker_cad_calibration_server \
+    src/hope_bringup/scripts/p1_marker_cad_registration_impl.py \
+    src/hope_bringup/scripts/table_side_transform.py \
+    src/hope_msgs/msg/BallFlightSample.msg \
+    src/hope_msgs/msg/BallFlightPacket.msg \
+    src/hope_planner_cpp/config/model21800_flight_packetizer.yaml \
+    src/hope_planner_cpp/src/flight_packetizer_node.cpp \
+    src/hope_bringup/scripts/hope_base_pose_flat_relay \
+    src/hope_bringup/scripts/base_pose_contract.py \
+    src/hope_bringup/scripts/p1_calibration.py \
+    src/hope_bringup/config/optitrack_relay.yaml \
+    ../NatNet2ROS2/src/motion_capture_tracking/src/motion_capture_tracking_node.cpp \
+    ../NatNet2ROS2/src/motion_capture_tracking/include/motion_capture_tracking/rigid_body_marker_association.hpp \
+    ../NatNet2ROS2/src/motion_capture_tracking/include/motion_capture_tracking/rigid_body_name_aliases.hpp \
+    ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/src/optitrack.cpp \
+    ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_clock_sync.h
+} > "$laptop_dir/artifact_sha256.txt"
+
+ros2 daemon stop || true
+readonly dds_wrap="$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
+exec "$dds_wrap" --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" -- \
+  bash -c '
+    set -euo pipefail
+    marker_root="$1"
+    laptop_dir="$2"
+    motive_ip="$3"
+    session_id="$4"
+    hope_root="$5"
+    table_side="$6"
+    interface_ip="$7"
+    case "$table_side" in
+      P1) tracked_asset=UCB_P1 ;;
+      P2) tracked_asset=UCB_P2 ;;
+      *) exit 64 ;;
+    esac
+    export PYTHONPATH="$marker_root${PYTHONPATH:+:$PYTHONPATH}"
+    marker_pid=""
+    stop_marker() {
+      if [[ -n "$marker_pid" ]] && kill -0 "$marker_pid" 2>/dev/null; then
+        kill -INT "$marker_pid" 2>/dev/null || true
+        wait "$marker_pid" 2>/dev/null || true
+      fi
+    }
+    trap stop_marker EXIT
+    python3 "$marker_root/hope_marker_monitor.py" \
+      --ros-args --params-file "$marker_root/marker_monitor.yaml" \
+      -p asset_name:="$tracked_asset" \
+      > >(tee -a "$laptop_dir/marker_monitor.log") 2>&1 &
+    marker_pid=$!
+    sleep 1
+    kill -0 "$marker_pid" 2>/dev/null
+    ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
+      hostname:="$motive_ip" interface_ip:="$interface_ip" start_mocap_node:=true \
+      publish_ucb_markers:=true start_world:=true start_calibration:=true \
+      table_side:="$table_side" \
+      tracked_marker_frame:="$tracked_asset" \
+      tracked_pose_topic:="/$tracked_asset/pose" \
+      ucb_calibration_file:="$hope_root/calibration/ucb_robot_to_pelvis.json" \
+      base_pose_output_topic:=/a3/base_pose_laptop_flat \
+      debug_csv_path:="" \
+      debug_session_id:="$session_id" \
+      start_flight_packetizer:=true \
+      flight_packet_topic:=/ball/flight_packet \
+      flight_packet_debug_csv_path:="" \
+      > >(tee -a "$laptop_dir/laptop_bridge.log") 2>&1
+  ' hope-laptop-runtime \
+    "$HOPE_LIFECYCLE_MARKER_ROOT" "$laptop_dir" \
+    "$HOPE_LIFECYCLE_MOTIVE_IP" "$HOPE_LIFECYCLE_SESSION_ID" \
+    "$HOPE_LIFECYCLE_ROOT" "$HOPE_LIFECYCLE_TABLE_SIDE" "${HOPE_LIFECYCLE_MOTIVE_INTERFACE_IP:-}"

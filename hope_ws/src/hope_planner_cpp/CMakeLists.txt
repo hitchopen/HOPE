@@ -30,11 +30,14 @@ add_library(hope_planner_core
   src/spin_estimator.cpp
   src/trajectory_predictor.cpp
   src/racket_target_planner.cpp
+  src/reach_permission.cpp
   src/schema2_packer.cpp
+  src/schema3_packer.cpp
   src/audit_logger.cpp
   src/post_net_one_shot.cpp
   src/incoming_trajectory.cpp
   src/flight_packet.cpp
+  src/question_bank_fixture.cpp
 )
 target_include_directories(hope_planner_core
   PUBLIC
@@ -131,6 +134,10 @@ if(BUILD_TESTING)
   ament_add_gtest(test_flight_packet test/test_flight_packet.cpp)
   target_link_libraries(test_flight_packet hope_planner_core Eigen3::Eigen)
   target_include_directories(test_flight_packet PRIVATE include)
+
+  ament_add_gtest(test_question_bank_fixture test/test_question_bank_fixture.cpp)
+  target_link_libraries(test_question_bank_fixture hope_planner_core Eigen3::Eigen)
+  target_include_directories(test_question_bank_fixture PRIVATE include)
 
   ament_add_gtest(test_planner_node_one_shot
     test/test_planner_node_one_shot.cpp

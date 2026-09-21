@@ -13,8 +13,18 @@ Environment=ROS_STATIC_PEERS=
 EnvironmentFile=-/etc/hope-foxglove/network.env
 Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+# ':' disables systemd's own $VAR expansion for this command. Bash must own
+# the array/default expansions below so the semicolon-separated peers reach
+# the wrapper unchanged.
+ExecStart=:/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
   source /home/agi/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash && \
+  IFS=";" read -r -a hope_static_peers <<< "${ROS_STATIC_PEERS:-}" && \
+  hope_peer_args=() && \
+  for hope_peer in "${hope_static_peers[@]}"; do \
+    if [[ -n "$hope_peer" ]]; then hope_peer_args+=(--peer "$hope_peer"); fi; \
+  done && \
+  exec /home/agi/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh \
+    --domain-id "$ROS_DOMAIN_ID" "${hope_peer_args[@]}" -- \
   ros2 run foxglove_bridge foxglove_bridge \
     --ros-args --params-file /etc/hope-foxglove/bridge_params.yaml'
 Restart=on-failure

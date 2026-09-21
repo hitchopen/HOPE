@@ -18,7 +18,7 @@ from hope_runner_control_core import (  # noqa: E402
 
 def valid_state() -> list[float]:
     return [
-        1.0,  # schema
+        2.0,  # schema
         1234.0,  # boot
         8.0,  # state sequence
         1.0,  # PD_STAND
@@ -32,6 +32,8 @@ def valid_state() -> list[float]:
         1.0,  # ROLE_CHANGED
         0.0,  # serve unavailable
         -1.0,  # serve state unavailable
+        -1.0,  # gripper state unavailable
+        0.0,  # no retained-ball cleanup
         99.0,  # last action id
         2.0,  # SET_RECEIVER
         1.0,  # APPLIED
@@ -41,20 +43,38 @@ def valid_state() -> list[float]:
 
 
 class RunnerControlWireTests(unittest.TestCase):
-    def test_fixed_request_encoder_exposes_only_seven_actions(self):
+    def test_fixed_request_encoder_exposes_only_ten_actions(self):
         self.assertEqual(
             encode_runner_request(42, "ENTER_MOTION"),
-            [1.0, 42.0, 4.0, 0.0],
+            [2.0, 42.0, 4.0, 0.0],
         )
         self.assertEqual(
-            encode_runner_request(43, "READY_TO_SERVE"),
-            [1.0, 43.0, 7.0, 0.0],
+            encode_runner_request(43, "PREPARE_SERVE"),
+            [2.0, 43.0, 7.0, 0.0],
         )
         self.assertEqual(
-            encode_runner_request(44, "SERVE"),
-            [1.0, 44.0, 8.0, 0.0],
+            encode_runner_request(44, "CONFIRM_BALL_LOADED"),
+            [2.0, 44.0, 8.0, 0.0],
         )
-        for forbidden in ("ENTER_SHADOW", "QUIT_RUNNER", "START_SERVE", ""):
+        self.assertEqual(
+            encode_runner_request(45, "READY_TO_SERVE"),
+            [2.0, 45.0, 9.0, 0.0],
+        )
+        self.assertEqual(
+            encode_runner_request(46, "OPEN_GRIPPER"),
+            [2.0, 46.0, 10.0, 0.0],
+        )
+        self.assertEqual(
+            encode_runner_request(48, "CONFIRM_GRIP_SECURE"),
+            [2.0, 48.0, 12.0, 0.0],
+        )
+        for forbidden in (
+            "CONFIRM_LOADING_ZONE_CLEAR",
+            "ENTER_SHADOW",
+            "QUIT_RUNNER",
+            "START_SERVE",
+            "",
+        ):
             with self.assertRaises(DecodeError):
                 encode_runner_request(42, forbidden)
 
@@ -67,13 +87,15 @@ class RunnerControlWireTests(unittest.TestCase):
         self.assertEqual(state.role_epoch, 1)
         self.assertEqual(state.serve_capability, "UNAVAILABLE")
         self.assertEqual(state.serve_state, "UNAVAILABLE")
+        self.assertEqual(state.gripper_state, "UNAVAILABLE")
+        self.assertFalse(state.serve_cleanup_required)
         self.assertEqual(state.last_action_id, 99)
         self.assertEqual(state.last_action_result, "APPLIED")
 
     def test_rejects_wrong_size_schema_flags_and_unknown_codes(self):
         for mutation in (
             valid_state()[:-1],
-            [2.0] + valid_state()[1:],
+            [1.0] + valid_state()[1:],
             valid_state()[:4] + [2.0] + valid_state()[5:],
             valid_state()[:7] + [9.0] + valid_state()[8:],
         ):
@@ -89,9 +111,28 @@ class RunnerControlWireTests(unittest.TestCase):
         available = valid_state()
         available[12] = 1.0
         available[13] = 3.0
+        available[14] = 2.0
         state = decode_runner_state(available)
         self.assertEqual(state.serve_capability, "AVAILABLE")
-        self.assertEqual(state.serve_state, "AWAIT_BALL_ON_PALM")
+        self.assertEqual(state.serve_state, "WAIT_BALL_LOAD")
+        self.assertEqual(state.gripper_state, "OPEN")
+
+        available_without_gripper = valid_state()
+        available_without_gripper[12] = 1.0
+        available_without_gripper[13] = 3.0
+        state = decode_runner_state(available_without_gripper)
+        self.assertEqual(state.serve_capability, "AVAILABLE")
+        self.assertEqual(state.gripper_state, "UNAVAILABLE")
+
+        retained = valid_state()
+        retained[12] = 1.0
+        retained[13] = 18.0
+        retained[14] = 4.0
+        retained[15] = 1.0
+        state = decode_runner_state(retained)
+        self.assertEqual(state.serve_state, "WAIT_GRIP_SECURE")
+        self.assertEqual(state.gripper_state, "GRABBED")
+        self.assertTrue(state.serve_cleanup_required)
 
     def test_opponent_role_is_explicitly_only_an_inference(self):
         self.assertEqual(opponent_expected_role("SERVER"), "RECEIVER")

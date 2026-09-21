@@ -179,7 +179,7 @@ if(ENABLE_A3_ROS_MSGS)
     # whether cmake is invoked from the top-level a3_deploy_example/
     # project or directly from this directory.
     add_subdirectory(
-      ${A3_THIRDPARTY_ROOT}/joint_msgs
+      ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/joint_msgs
       ${CMAKE_CURRENT_BINARY_DIR}/joint_msgs_build)
 
     foreach(_jm_suffix
@@ -598,9 +598,9 @@ target_sources(${A3_EXECUTABLE_NAME} PRIVATE ${ROBOT_IO_SOURCES})
 target_include_directories(${A3_EXECUTABLE_NAME}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${A3_EXECUTABLE_NAME} BEFORE PRIVATE
-  ${A3_UNITREE_SDK2_ROOT}/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
 target_link_directories(${A3_EXECUTABLE_NAME} PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(${A3_EXECUTABLE_NAME} PRIVATE ${PROJECT_NAME}
   ${EXE_LIBS})
@@ -651,9 +651,9 @@ target_sources(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${ROBOT_IO_SOURCES})
 target_include_directories(${A3_PINGPONG_EXECUTABLE_NAME}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${A3_PINGPONG_EXECUTABLE_NAME} BEFORE PRIVATE
-  ${A3_UNITREE_SDK2_ROOT}/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
 target_link_directories(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${PROJECT_NAME}
   ${EXE_LIBS})
@@ -697,9 +697,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
     BEFORE PRIVATE
-    ${A3_UNITREE_SDK2_ROOT}/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
   target_link_directories(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
     PRIVATE ${CUDA_LINK_DIRS})
   target_link_libraries(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
@@ -746,9 +746,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     BEFORE PRIVATE
-    ${A3_UNITREE_SDK2_ROOT}/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
   target_link_directories(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     PRIVATE ${CUDA_LINK_DIRS})
   target_link_libraries(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
@@ -775,6 +775,55 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
   set_target_properties(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${GS_RUNTIME_OUTPUT_DIR}"
                OUTPUT_NAME ${A3_V17_R10_GATE3_EXECUTABLE_NAME}
+               CXX_STANDARD 20
+               CXX_STANDARD_REQUIRED ON
+               CXX_EXTENSIONS OFF
+               BUILD_WITH_INSTALL_RPATH TRUE
+               BUILD_RPATH "$ORIGIN;/opt/ros/jazzy/lib;/opt/ros/humble/lib"
+               INSTALL_RPATH "$ORIGIN;/opt/ros/jazzy/lib;/opt/ros/humble/lib")
+
+  # Host-only executable for Schema24 TRAINING_SCREENED actors.  The distinct
+  # compile-time identity prevents production/aarch64 binaries from selecting
+  # this non-deployable loader profile through argv alone.
+  set(A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME
+    a3_deploy_onnx_ref_pingpong_schema24_gate3_screen)
+  add_executable(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/a3_deploy/a3_pingpong_main.cpp)
+  target_sources(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE ${ROBOT_IO_SOURCES})
+  target_include_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
+  target_include_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    BEFORE PRIVATE
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
+  target_link_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE ${CUDA_LINK_DIRS})
+  target_link_libraries(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE ${PROJECT_NAME} ${EXE_LIBS})
+  target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE PP_SCHEMA24_TRAINING_SCREEN_GATE3_BINARY=1)
+  if(A3_AIMRT_BACKEND_AVAILABLE)
+    target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ENABLE_A3_AIMRT_BACKEND=1)
+    target_link_libraries(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ${A3_AIMRT_BACKEND_LIBS})
+  endif()
+  if(rclcpp_FOUND AND std_msgs_FOUND)
+    target_include_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ${MSGPACK_INCLUDE_DIRS})
+    target_link_libraries(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ${ROS2_LIBS} pthread)
+    target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE HAS_ROS2=1)
+  else()
+    target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE HAS_ROS2=0)
+  endif()
+  set_target_properties(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${GS_RUNTIME_OUTPUT_DIR}"
+               OUTPUT_NAME ${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
                CXX_STANDARD 20
                CXX_STANDARD_REQUIRED ON
                CXX_EXTENSIONS OFF
@@ -1096,6 +1145,10 @@ target_sources(run_tests PRIVATE ${ROBOT_IO_SOURCES})
 target_link_directories(run_tests PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(run_tests PRIVATE GTest::GTest GTest::Main ${EXE_LIBS})
 target_include_directories(run_tests PUBLIC ${EXE_INCLUDES})
+if(A3_ROS_MSGS_AVAILABLE)
+  find_package(rclcpp REQUIRED)
+  target_link_libraries(run_tests PRIVATE rclcpp::rclcpp ${A3_ROS_MSGS_LIBS})
+endif()
 
 # A3 AimRT backend wiring (PR 7): only active when configure succeeded.
 if(A3_AIMRT_BACKEND_AVAILABLE)

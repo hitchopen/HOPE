@@ -83,6 +83,7 @@ bool WaitUntil(Predicate pred, std::chrono::milliseconds timeout) {
 
 class CapturingBackend final : public robot_io::RobotIOBackend {
  public:
+  bool accept_commands = true;
   bool Init(const std::string&) override { return true; }
   bool Start() override { return true; }
   void Stop() override {}
@@ -98,7 +99,7 @@ class CapturingBackend final : public robot_io::RobotIOBackend {
   bool SendCommand(const RobotCommand& cmd) override {
     std::lock_guard<std::mutex> lk(mu_);
     commands_.push_back(cmd);
-    return true;
+    return accept_commands;
   }
 
   std::string Name() const override { return "capturing"; }
@@ -366,6 +367,37 @@ TEST(A3PolicyDriver, RunsPolicyThroughTransientUnalignedFrames) {
   }
   EXPECT_TRUE(saw_nonzero_kp)
       << "transient unaligned frames should still publish policy PD commands";
+}
+
+TEST(A3PolicyDriver, DeliveryObserverSeesTransportRejectionWithoutClaimingPublication) {
+  CapturingBackend backend;
+  backend.accept_commands = false;
+  std::atomic<int> observations{0};
+  std::atomic<int> accepted{0};
+  A3PolicyDriverOptions opt;
+  opt.policy_hz = 100.;
+  opt.watchdog.max_frame_age_ns = 500'000'000;
+  opt.command_delivery_observer = [&](const RobotCommand& command, bool sent) {
+    if (command.q_des.size() == 31 && command.q_des[0] == .125) ++observations;
+    if (sent) ++accepted;
+  };
+  a3_deploy::CommandFn command = [](std::uint64_t, const RobotState&, RobotCommand& out) {
+    out.q_des = Eigen::VectorXd::Constant(31, .125);
+    out.dq_des = out.tau_ff = out.kd = Eigen::VectorXd::Zero(31);
+    out.kp = Eigen::VectorXd::Constant(31, 1.);
+    return true;
+  };
+  A3PolicyDriver driver(backend, command, opt);
+  ASSERT_TRUE(driver.StartDriver());
+  RobotState state;
+  state.timestamp_ns = NowNs();
+  state.q = state.dq = state.tau_est = Eigen::VectorXd::Zero(31);
+  backend.Emit(state);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  driver.StopDriver();
+  EXPECT_GT(observations.load(), 0);
+  EXPECT_EQ(accepted.load(), 0);
+  EXPECT_FALSE(driver.HasSentCommand());
 }
 
 TEST(A3PolicyDriver, SafeHaltsWhenFrameIsIncomplete) {

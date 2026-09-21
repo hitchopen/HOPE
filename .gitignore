@@ -119,3 +119,15 @@ pw.txt
 .idea/
 .vscode/
 _to_delete/
+
+# Published controller playback assets; learned/private models remain ignored.
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_timeline_v1.csv
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_ready_stability_ankleback_v1.csv
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_entry_v1.csv
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_recovery_v1.csv
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_timed_serve_v1.csv

@@ -5,8 +5,12 @@
 #include "hope_planner_cpp/flight_packet.hpp"
 #include "hope_planner_cpp/incoming_trajectory.hpp"
 #include "hope_planner_cpp/post_net_one_shot.hpp"
+#include "hope_planner_cpp/question_bank_fixture.hpp"
 #include "hope_planner_cpp/racket_target_planner.hpp"
+#include "hope_planner_cpp/reach_permission.hpp"
+#include "hope_planner_cpp/session_home_reference.hpp"
 #include "hope_planner_cpp/schema2_packer.hpp"
+#include "hope_planner_cpp/schema3_packer.hpp"
 #include "hope_planner_cpp/spin_estimator.hpp"
 #include "hope_planner_cpp/spsc_ring.hpp"
 #include "hope_planner_cpp/trajectory_predictor.hpp"
@@ -77,7 +81,8 @@ class PlannerNode final : public rclcpp::Node {
   bool try_take_flight_packet(TrajectorySnapshot& snapshot) noexcept;
   bool has_pending_flight_packet() const noexcept;
   std::size_t flight_packet_queue_depth() const noexcept;
-  double select_swing_sign(double intercept_y, double base_y) noexcept;
+  double select_swing_sign(
+      double intercept_y, double base_x, double base_y) noexcept;
   double active_x_hit() const noexcept;
 
   static std::int64_t steady_now_ns() noexcept;
@@ -95,6 +100,7 @@ class PlannerNode final : public rclcpp::Node {
   std::unique_ptr<TrajectoryPredictor> post_net_predictor_;
   std::unique_ptr<RacketTargetPlanner> target_planner_;
   std::unique_ptr<IncomingTrajectory> incoming_trajectory_;
+  std::unique_ptr<QuestionBankFixture> question_fixture_;
 
   SpscRing<BallSample, kInputRingCapacity> input_ring_;
   LatestSnapshotMailbox snapshot_mailbox_;
@@ -136,7 +142,7 @@ class PlannerNode final : public rclcpp::Node {
   int ball_pose_index_ = 0;
   int input_qos_depth_ = 64;
   double solve_period_s_ = 0.033;
-  double expected_mocap_hz_ = 360.0;
+  double expected_mocap_hz_ = 150.0;
   double policy_z_offset_ = 0.76;
   double x_hit_bh_delta_ = 0.0;
   bool x_hit_follow_robot_ = false;
@@ -151,6 +157,7 @@ class PlannerNode final : public rclcpp::Node {
   double x_hit_calibration_max_age_s_ = 0.2;
   int x_hit_calibration_min_samples_ = 10;
   double x_hit_calibration_max_span_m_ = 0.01;
+  bool x_hit_freeze_session_home_ = false;
   std::string x_hit_request_file_;
   std::string x_hit_status_file_;
   std::string session_id_;
@@ -159,9 +166,21 @@ class PlannerNode final : public rclcpp::Node {
   std::string flight_packet_topic_ = "/ball/flight_packet";
   double post_net_commit_delay_s_ = 0.05;
   double post_net_future_bounce_tangential_gain_ = 0.075;
+  bool question_fixture_enabled_ = false;
+  double question_fixture_max_position_error_m_ = 0.03;
+  double question_fixture_max_velocity_error_mps_ = 0.10;
+  double question_fixture_max_tts_error_s_ = 0.03;
 
   double swing_side_split_y_ = -0.25;
   double swing_side_hysteresis_y_ = 0.04;
+  std::string swing_side_reference_mode_ = "live_base_v1";
+  // An explicit pre-flight session-boundary freeze owns HOME when requested;
+  // otherwise the first valid solve does. Process-start base packets can
+  // precede reset/placement and are never HOME by themselves. Side,
+  // support-intent and target-tuple classifiers share this exact reference.
+  SessionHomeReference session_home_reference_;  // guarded by base_mutex_
+  std::atomic<double> last_swing_side_reference_y_{
+      std::numeric_limits<double>::quiet_NaN()};
   double last_swing_sign_ = 0.0;
   double target_land_y_fh_ = std::numeric_limits<double>::quiet_NaN();
   double target_land_y_bh_ = std::numeric_limits<double>::quiet_NaN();
@@ -169,6 +188,11 @@ class PlannerNode final : public rclcpp::Node {
   double delta_t_flight_bh_ = std::numeric_limits<double>::quiet_NaN();
 
   bool publish_flat_command_ = true;
+  int racket_flat_schema_ = 2;
+  ReachPermissionConfig reach_permission_config_;
+  std::uint64_t reach_permission_flight_id_ = 0;
+  ReachPermission reach_permission_latched_;
+  ReachPermission reach_permission_geometry_latched_;
   bool publish_base_flat_ = false;
   bool publish_serve_ball_flat_ = true;
   std::vector<double> marker_to_base_xyz_{0.0, 0.0, 0.0};

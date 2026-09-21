@@ -1,3 +1,6 @@
+#include <optional>
+#include "motion_capture_tracking/rigid_body_marker_association.hpp"
+#include "motion_capture_tracking/rigid_body_name_aliases.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -78,6 +81,19 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
   node->declare_parameter<bool>(
       "topics.rigid_body_markers.modeldef_y_up_to_z_up", false);
 
+  node->declare_parameter<std::vector<std::string>>("rigid_body_name_aliases", {});
+  node->declare_parameter<std::vector<std::string>>("rigid_body_name_allowlist", {"Ball", "P1", "P2"});
+  const auto aliases = motion_capture_tracking::detail::parse_rigid_body_name_aliases(
+      node->get_parameter("rigid_body_name_aliases").as_string_array());
+  const auto allowed_names = node->get_parameter("rigid_body_name_allowlist").as_string_array();
+  if (allowed_names.empty() || std::find(allowed_names.begin(), allowed_names.end(), "") != allowed_names.end()) {
+    throw std::runtime_error("rigid_body_name_allowlist must contain explicit nonempty names");
+  }
+  const auto canonical_name = [&aliases](const std::string& name) {
+    const auto found = aliases.find(name);
+    return found == aliases.end() ? name : found->second;
+  };
+  std::map<uint32_t, int64_t> marker_member_id_offsets;
   std::string motionCaptureType = node->get_parameter("type").as_string();
   std::string motionCaptureHostname = node->get_parameter("hostname").as_string();
   std::string motionCaptureInterfaceIp =
@@ -352,9 +368,10 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
         for (const auto& definition_entry : definitions) {
           const auto& definition = definition_entry.second;
           if (!rigid_body_markers_asset_name.empty() &&
-              definition.name != rigid_body_markers_asset_name) {
+              canonical_name(definition.name) != rigid_body_markers_asset_name) {
             continue;
           }
+          if (canonical_name(definition.name) != definition.name && rigid_bodies.count(canonical_name(definition.name))) continue;
           const auto rigid_body_iter = rigid_bodies.find(definition.name);
           if (rigid_body_iter == rigid_bodies.end()) {
             continue;
@@ -366,7 +383,7 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
           output.header.frame_id = frame_id;
           output.timestamp = mocap->timeStamp();
           output.rigid_body_id = definition.id;
-          output.rigid_body_name = definition.name;
+          output.rigid_body_name = canonical_name(definition.name);
           output.rigid_body_pose.position.x = rigid_body.position().x();
           output.rigid_body_pose.position.y = rigid_body.position().y();
           output.rigid_body_pose.position.z = rigid_body.position().z();
@@ -386,85 +403,49 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
                 }
                 return position;
               };
-          const uint32_t model_id =
-              static_cast<uint32_t>(definition.id) & 0xffffU;
-          std::vector<const libmotioncapture::LabeledMarker*> samples(
-              definition.markers.size(), nullptr);
-          std::set<size_t> used_sample_indices;
+          const uint32_t model_id = static_cast<uint32_t>(definition.id) & 0xffffU;
+        std::vector<
+            motion_capture_tracking::detail::MarkerAssociationDefinition>
+            association_definitions;
+        association_definitions.reserve(definition.markers.size());
+        for (const auto& marker_definition : definition.markers) {
+          const Eigen::Vector3f expected_world =
+              rigid_body.position() +
+              rigid_body.rotation() *
+                  model_position_in_stream_axes(marker_definition);
+          association_definitions.push_back(
+              {marker_definition.memberId,
+               {expected_world.x(), expected_world.y(), expected_world.z()}});
+        }
+        std::vector<motion_capture_tracking::detail::MarkerAssociationSample>
+            association_samples;
+        association_samples.reserve(labeled_markers.size());
+        for (const auto& sample : labeled_markers) {
+          association_samples.push_back(
+              {sample.modelId, sample.memberId,
+               {sample.position.x(), sample.position.y(), sample.position.z()},
+               sample.params});
+        }
 
-          for (size_t marker_index = 0;
-               marker_index < definition.markers.size(); ++marker_index) {
-            const auto& marker = definition.markers[marker_index];
-            for (size_t sample_index = 0;
-                 sample_index < labeled_markers.size(); ++sample_index) {
-              const auto& sample = labeled_markers[sample_index];
-              if (sample.modelId == model_id &&
-                  sample.memberId == marker.memberId) {
-                samples[marker_index] = &sample;
-                used_sample_indices.insert(sample_index);
-                break;
-              }
-            }
-          }
-
-          struct Candidate {
-            float distance;
-            size_t marker_index;
-            size_t sample_index;
-          };
-          std::vector<Candidate> candidates;
-          for (size_t marker_index = 0;
-               marker_index < definition.markers.size(); ++marker_index) {
-            if (samples[marker_index] != nullptr) {
-              continue;
-            }
-            const Eigen::Vector3f expected_world =
-                rigid_body.position() + rigid_body.rotation() *
-                model_position_in_stream_axes(definition.markers[marker_index]);
-            for (size_t sample_index = 0;
-                 sample_index < labeled_markers.size(); ++sample_index) {
-              if (used_sample_indices.count(sample_index) != 0U) {
-                continue;
-              }
-              const auto& sample = labeled_markers[sample_index];
-              const bool visible_point_cloud_sample =
-                  (sample.params & 0x01U) == 0U &&
-                  (sample.params & 0x02U) != 0U;
-              if (!visible_point_cloud_sample) {
-                continue;
-              }
-              const float distance =
-                  (sample.position - expected_world).norm();
-              if (distance <=
-                  rigid_body_markers_geometric_match_max_distance) {
-                candidates.push_back(
-                    {distance, marker_index, sample_index});
-              }
-            }
-          }
-          std::sort(
-              candidates.begin(), candidates.end(),
-              [](const Candidate& left, const Candidate& right) {
-                return left.distance < right.distance;
-              });
-          bool used_geometric_fallback = false;
-          for (const auto& candidate : candidates) {
-            if (samples[candidate.marker_index] != nullptr ||
-                used_sample_indices.count(candidate.sample_index) != 0U) {
-              continue;
-            }
-            samples[candidate.marker_index] =
-                &labeled_markers[candidate.sample_index];
-            used_sample_indices.insert(candidate.sample_index);
-            used_geometric_fallback = true;
-          }
-          if (used_geometric_fallback) {
-            RCLCPP_WARN_ONCE(
-                node->get_logger(),
-                "P1 labeled-marker IDs require geometric association "
-                "(max %.1f mm)",
-                rigid_body_markers_geometric_match_max_distance * 1000.0);
-          }
+        const auto cached_offset_iter =
+            marker_member_id_offsets.find(model_id);
+        const std::optional<int64_t> cached_offset =
+            cached_offset_iter == marker_member_id_offsets.end()
+                ? std::nullopt
+                : std::optional<int64_t>(cached_offset_iter->second);
+        const auto association =
+            motion_capture_tracking::detail::associate_rigid_body_markers(
+                association_definitions, association_samples, model_id,
+                rigid_body_markers_geometric_match_max_distance,
+                cached_offset);
+        if (association.confirmed_member_id_offset.has_value()) {
+          marker_member_id_offsets[model_id] = *association.confirmed_member_id_offset;
+        }
+        std::vector<const libmotioncapture::LabeledMarker*> samples(definition.markers.size(), nullptr);
+        for (size_t i = 0; i < samples.size(); ++i) {
+          const auto index = association.sample_indices[i];
+          if (index != motion_capture_tracking::detail::MarkerAssociationResult::no_sample) samples[i] = &labeled_markers[index];
+        }
 
           for (size_t marker_index = 0;
                marker_index < definition.markers.size(); ++marker_index) {
@@ -515,11 +496,12 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
       // liveness distinguishable from competition-body tracking loss while
       // exposing no non-allowlisted data.
       for (const auto allowed_name :
-        motion_capture_tracking::detail::competitionRigidBodyNames())
+        allowed_names)
       {
         for (const auto &entry : rigid_bodies) {
           const auto &rigid_body = entry.second;
-          if (rigid_body.name() != allowed_name) {
+          if (canonical_name(rigid_body.name()) != allowed_name ||
+              (rigid_body.name() != allowed_name && rigid_bodies.count(allowed_name))) {
             continue;
           }
 

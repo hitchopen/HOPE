@@ -105,10 +105,10 @@
     <geom name="gate3_table_visual" type="box" pos="1.37 -0.7625 0.745"
           size="1.37 0.7625 0.015" rgba="0.05 0.25 0.65 0.75" />
     <geom name="gate3_table_collision" type="box" pos="1.37 -0.7625 0.750"
-          size="1.37 0.7625 0.010" contype="0" conaffinity="2"
+          size="1.37 0.7625 0.010" contype="0" conaffinity="3"
           friction="0.25 0.001 0.0001" rgba="0 0 0 0" />
     <geom name="gate3_net_collision" type="box" pos="1.37 -0.7625 0.83625"
-          size="0.006 0.7625 0.07625" contype="0" conaffinity="2"
+          size="0.006 0.7625 0.07625" contype="0" conaffinity="3"
           friction="0.1 0.001 0.0001" rgba="0.9 0.9 0.9 0.75" />
     <light pos="0 0 10" dir="0 0 -1" directional="true" />
     <light name="spotlight" target="pelvis_link" pos="0 -1 2" dir="0 0 -1" mode="targetbodycom" />
@@ -319,6 +319,23 @@
                   <joint name="left_ankle_roll_joint" pos="0 0 0" axis="1 0 0" range="-0.349066 0.349066" actuatorfrcrange="-54.75 54.75" actuatorfrclimited="true" damping="2.0" frictionloss="0.778" armature="0.02012630058" />
                   <geom type="mesh" rgba="1 1 1 1" mesh="left_ankle_roll_Link" />
                   <geom name="left_ankle_roll_collision" class="collision" type="mesh" mesh="collision_left_ankle_roll_hull" />
+                  <!-- Keep the HumanLike sole points in MuJoCo's compile-time
+                       BVH.  The normal HOPE profile disables their masks after
+                       load and retains the hull above; the vendor profile
+                       disables the hull and retains these exact a3_t2d5 points. -->
+                  <geom name="left_foot1_collision" class="collision" size="0.005" pos="0.185 0 -0.053" type="sphere" />
+                  <geom name="left_foot2_collision" class="collision" size="0.005" pos="-0.084 0 -0.067" type="sphere" />
+                  <geom name="left_foot3_collision" class="collision" size="0.005" pos="0.145 0.044 -0.065" type="sphere" />
+                  <geom name="left_foot4_collision" class="collision" size="0.005" pos="0.145 -0.044 -0.065" type="sphere" />
+                  <geom name="left_foot5_collision" class="collision" size="0.005" pos="0.065 0.051 -0.067" type="sphere" />
+                  <geom name="left_foot6_collision" class="collision" size="0.005" pos="0.065 -0.051 -0.067" type="sphere" />
+                  <geom name="left_foot7_collision" class="collision" size="0.005" pos="-0.037 0.036 -0.067" type="sphere" />
+                  <geom name="left_foot8_collision" class="collision" size="0.005" pos="-0.037 -0.036 -0.067" type="sphere" />
+                  <geom name="left_foot9_collision" class="collision" size="0.005" pos="0.105 0.051 -0.067" type="sphere" />
+                  <geom name="left_foot10_collision" class="collision" size="0.005" pos="0.105 -0.051 -0.067" type="sphere" />
+                  <geom name="left_foot11_collision" class="collision" size="0.005" pos="0.04 0 -0.067" type="sphere" />
+                  <geom name="left_foot12_collision" class="collision" size="0.005" pos="0 -0.033 -0.065" type="sphere" />
+                  <geom name="left_foot13_collision" class="collision" size="0.005" pos="0 0.033 -0.065" type="sphere" />
                   <site name="left_foot" rgba="1 0 0 1" pos="0.04 0 -0.067" />
                 </body>
               </body>
@@ -357,6 +374,19 @@
                   <joint name="right_ankle_roll_joint" pos="0 0 0" axis="1 0 0" range="-0.349066 0.349066" actuatorfrcrange="-54.75 54.75" actuatorfrclimited="true" damping="2.0" frictionloss="0.778" armature="0.02012630058" />
                   <geom type="mesh" rgba="1 1 1 1" mesh="right_ankle_roll_Link" />
                   <geom name="right_ankle_roll_collision" class="collision" type="mesh" mesh="collision_right_ankle_roll_hull" />
+                  <geom name="right_foot1_collision" class="collision" size="0.005" pos="0.185 0 -0.053" type="sphere" />
+                  <geom name="right_foot2_collision" class="collision" size="0.005" pos="-0.084 0 -0.067" type="sphere" />
+                  <geom name="right_foot3_collision" class="collision" size="0.005" pos="0.145 0.044 -0.065" type="sphere" />
+                  <geom name="right_foot4_collision" class="collision" size="0.005" pos="0.145 -0.044 -0.065" type="sphere" />
+                  <geom name="right_foot5_collision" class="collision" size="0.005" pos="0.065 0.051 -0.067" type="sphere" />
+                  <geom name="right_foot6_collision" class="collision" size="0.005" pos="0.065 -0.051 -0.067" type="sphere" />
+                  <geom name="right_foot7_collision" class="collision" size="0.005" pos="-0.037 0.036 -0.067" type="sphere" />
+                  <geom name="right_foot8_collision" class="collision" size="0.005" pos="-0.037 -0.036 -0.067" type="sphere" />
+                  <geom name="right_foot9_collision" class="collision" size="0.005" pos="0.105 0.051 -0.067" type="sphere" />
+                  <geom name="right_foot10_collision" class="collision" size="0.005" pos="0.105 -0.051 -0.067" type="sphere" />
+                  <geom name="right_foot11_collision" class="collision" size="0.005" pos="0.04 0 -0.067" type="sphere" />
+                  <geom name="right_foot12_collision" class="collision" size="0.005" pos="0 -0.033 -0.065" type="sphere" />
+                  <geom name="right_foot13_collision" class="collision" size="0.005" pos="0 0.033 -0.065" type="sphere" />
                   <site name="right_foot" rgba="1 0 0 1" pos="0.04 0 -0.067" />
                 </body>
               </body>

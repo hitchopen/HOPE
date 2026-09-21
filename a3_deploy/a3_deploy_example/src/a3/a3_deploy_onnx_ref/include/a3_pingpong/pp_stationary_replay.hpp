@@ -1,8 +1,10 @@
 #pragma once
 
 #include <cmath>
+#include <iterator>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace a3_pingpong {
 
@@ -19,6 +21,10 @@ enum class PpOnnxLoadProfile {
   // contract.  hardware_authorized=false remains fatal in production and on
   // the aarch64 field binary.
   kV17R10P0Gate3,
+  // A Schema24 actor whose question bank is only TRAINING_SCREENED.  This
+  // profile is compiled into one x86 MuJoCo/Gate3 executable and is never
+  // selectable by the production or aarch64 runner.
+  kSchema24TrainingScreenGate3,
 };
 
 inline bool IsLowercaseSha256(std::string_view value) {
@@ -28,6 +34,114 @@ inline bool IsLowercaseSha256(std::string_view value) {
       return false;
   }
   return true;
+}
+
+struct Schema24TrainingScreenGate3Metadata {
+  std::string_view training_recipe;
+  std::string_view recipe_version;
+  std::string_view runtime_contract;
+  std::string_view deployment_status;
+  std::string_view validator_profile;
+  std::string_view qualification_status;
+  std::string_view hardware_authorized;
+  std::string_view gate3_screen_contract;
+  std::string_view reward_contract;
+  std::string_view question_bank_contract;
+  std::string_view question_bank_certification_contract;
+  std::string_view table_clearance_contract;
+  std::string_view training_admissibility;
+  std::string_view deployment_qualification;
+  std::string_view source_tree_matches_training;
+  std::string_view checkpoint_sha256;
+  std::string_view training_source_tree_sha256;
+  std::string_view export_source_tree_sha256;
+  std::string_view frozen_env_sha256;
+  std::string_view motion_forehand_sha256;
+  std::string_view motion_backhand_sha256;
+  std::string_view question_bank_sha256;
+  std::string_view question_bank_receipt_sha256;
+};
+
+inline std::string ValidateSchema24TrainingScreenGate3Metadata(
+    const Schema24TrainingScreenGate3Metadata& metadata) {
+  auto require = [](std::string_view actual, std::string_view expected,
+                    std::string_view label) -> std::string {
+    if (actual == expected) return {};
+    return "Schema24 Gate3-screen metadata mismatch: " + std::string(label);
+  };
+  constexpr std::string_view kTrainingSourceSha =
+      "d8d97791ddeb067ef851832bb70001220ca4a0f70030419f5c7ebb39ce0692c6";
+  const std::pair<std::string_view, std::string_view> exact[] = {
+      {metadata.training_recipe,
+       "hitter_pingpong_build2_fixed_home_feasible_v1"},
+      {metadata.recipe_version, "1"},
+      {metadata.runtime_contract, "rally_final_v2"},
+      {metadata.deployment_status, "gate3_screen_only"},
+      {metadata.validator_profile,
+       "schema24_training_screen_gate3_only_v1"},
+      {metadata.qualification_status,
+       "training_screened_not_deployable"},
+      {metadata.hardware_authorized, "false"},
+      {metadata.gate3_screen_contract,
+       "schema24_training_screen_gate3_only_v1"},
+      {metadata.reward_contract,
+       "fixed_home_post_strike_drift_table_clearance_v1"},
+      {metadata.question_bank_contract,
+       "fixed_home_coherent_question_bank_v1"},
+      {metadata.question_bank_certification_contract,
+       "fixed_home_training_admissibility_atlas_v1"},
+      {metadata.table_clearance_contract,
+       "swept_racket_obb_table_aabb_v1"},
+      {metadata.training_admissibility, "TRAINING_SCREENED"},
+      {metadata.deployment_qualification, "NOT_PROVEN"},
+      {metadata.source_tree_matches_training, "true"},
+      {metadata.training_source_tree_sha256, kTrainingSourceSha},
+      {metadata.export_source_tree_sha256, kTrainingSourceSha},
+      {metadata.frozen_env_sha256,
+       "f5b05ffc360566df0079d62985b9bb6a589b325d2668cf889815f29e4f75a97a"},
+      {metadata.motion_forehand_sha256,
+       "a6c68513720b12b168379cd6fa13f8b77607b4fa0bf7e828c4e1d81eda6f2094"},
+      {metadata.motion_backhand_sha256,
+       "67d04e13deeed068bdb003e379e18330dcd29210d280188fab7af26c0764eaac"},
+      {metadata.question_bank_sha256,
+       "3c039e9ec709eed7ef0986618862287345c89d5b6b72730119c9c4dd8a48164e"},
+      {metadata.question_bank_receipt_sha256,
+       "3ed0a13867a10604d5c792714107c4f3394704527956bb58b55d83d9389b3e4f"},
+  };
+  constexpr std::string_view labels[] = {
+      "training_recipe",
+      "recipe_version",
+      "runtime_contract",
+      "deployment_status",
+      "validator_profile",
+      "qualification_status",
+      "hardware_authorized",
+      "gate3_screen_contract",
+      "reward_contract",
+      "question_bank_contract",
+      "question_bank_certification_contract",
+      "table_clearance_contract",
+      "training_admissibility",
+      "deployment_qualification",
+      "source_tree_matches_training",
+      "training_source_tree_sha256",
+      "export_source_tree_sha256",
+      "frozen_env_sha256",
+      "motion_forehand_sha256",
+      "motion_backhand_sha256",
+      "question_bank_sha256",
+      "question_bank_receipt_sha256",
+  };
+  static_assert(std::size(exact) == std::size(labels));
+  for (std::size_t index = 0; index < std::size(exact); ++index) {
+    if (auto error = require(exact[index].first, exact[index].second,
+                             labels[index]);
+        !error.empty())
+      return error;
+  }
+  if (!IsLowercaseSha256(metadata.checkpoint_sha256))
+    return "Schema24 Gate3-screen metadata mismatch: checkpoint_sha256";
+  return {};
 }
 
 struct V17R3QualificationMetadata {

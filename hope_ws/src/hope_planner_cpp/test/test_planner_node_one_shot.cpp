@@ -1,6 +1,7 @@
 #include "hope_planner_cpp/planner_node.hpp"
 
 #include <geometry_msgs/msg/pose_array.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <gtest/gtest.h>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
@@ -31,7 +32,7 @@ std::filesystem::path temporary_path(const std::string& suffix) {
        std::to_string(stamp) + suffix);
 }
 
-TEST(PlannerNodeOneShot, PostNetFlightProducesOnlyOneCommandAndSolveRow) {
+TEST(PlannerNodeOneShot, PostNetFlightUsesSolveTimeHomeAndProducesOneCommand) {
   ::setenv("ROS_DOMAIN_ID", "228", 1);
   ::setenv("ROS_LOCALHOST_ONLY", "1", 1);
   int argc = 0;
@@ -47,6 +48,8 @@ TEST(PlannerNodeOneShot, PostNetFlightProducesOnlyOneCommandAndSolveRow) {
   options.append_parameter_override("debug_csv_path", csv_path.string());
   options.append_parameter_override("debug_session_id", "post_net_one_shot_test");
   options.append_parameter_override("spin_shadow_enabled", false);
+  options.append_parameter_override("swing_side_reference_mode", "session_home_v1");
+  options.append_parameter_override("robot_pose_topic", "/test/session_home_pose");
 
   auto planner = std::make_shared<PlannerNode>(options);
   auto io_node = std::make_shared<rclcpp::Node>("one_shot_test_io");
@@ -66,17 +69,35 @@ TEST(PlannerNodeOneShot, PostNetFlightProducesOnlyOneCommandAndSolveRow) {
       "/poses", rclcpp::QoS(rclcpp::KeepLast(128))
                     .best_effort()
                     .durability_volatile());
+  auto base_publisher = io_node->create_publisher<geometry_msgs::msg::PoseStamped>(
+      "/test/session_home_pose", rclcpp::QoS(rclcpp::KeepLast(10))
+                                     .best_effort()
+                                     .durability_volatile());
   rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 3);
   executor.add_node(planner);
   executor.add_node(io_node);
 
   const auto discovery_deadline = std::chrono::steady_clock::now() + 5s;
-  while (publisher->get_subscription_count() == 0 &&
+  while ((publisher->get_subscription_count() == 0 ||
+          base_publisher->get_subscription_count() == 0) &&
          std::chrono::steady_clock::now() < discovery_deadline) {
     executor.spin_some(20ms);
     std::this_thread::sleep_for(10ms);
   }
   ASSERT_GT(publisher->get_subscription_count(), 0U);
+  ASSERT_GT(base_publisher->get_subscription_count(), 0U);
+
+  // Gate3 publishes a process-start origin before reset/placement. That
+  // transport packet must not become HOME. No ball solve happens until after
+  // the authoritative placement packet at y=-0.7625.
+  geometry_msgs::msg::PoseStamped base_pose;
+  base_pose.pose.orientation.w = 1.0;
+  base_pose.pose.position.y = 0.0;
+  base_publisher->publish(base_pose);
+  executor.spin_some(20ms);
+  base_pose.pose.position.y = -0.7625;
+  base_publisher->publish(base_pose);
+  executor.spin_some(20ms);
 
   const auto now = std::chrono::system_clock::now().time_since_epoch();
   const auto start_ns =
@@ -108,6 +129,7 @@ TEST(PlannerNodeOneShot, PostNetFlightProducesOnlyOneCommandAndSolveRow) {
   executor.remove_node(io_node);
   executor.remove_node(planner);
   publisher.reset();
+  base_publisher.reset();
   command_subscription.reset();
   io_node.reset();
   planner.reset();
@@ -118,6 +140,9 @@ TEST(PlannerNodeOneShot, PostNetFlightProducesOnlyOneCommandAndSolveRow) {
     ASSERT_EQ(one_shot_packet.size(), 19U);
     EXPECT_DOUBLE_EQ(one_shot_packet[0], 2.0);
     ASSERT_DOUBLE_EQ(one_shot_packet[1], 1.0);
+    // The incoming lane is around y=-0.52. Relative to the solve-time HOME
+    // (-0.7625) it is BH; relative to the startup origin it would be FH.
+    EXPECT_DOUBLE_EQ(one_shot_packet[2], -1.0);
     EXPECT_DOUBLE_EQ(one_shot_packet[16], 1.0);
   }
 

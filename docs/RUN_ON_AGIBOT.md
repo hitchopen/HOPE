@@ -1,5 +1,9 @@
 # Running on the Agibot A3
 
+For the current public Runner package, Xbox controls and Kernel Mode, see
+[Runtime operation](operations/runtime_xbox.md) and its
+[validation limits](operations/runtime_public_validation.md).
+
 The deploy side of HOPE lives under [`a3_deploy/`](../a3_deploy).
 **`a3_deploy/`** is a revised fork of the official AgiBot A3 deploy stack. It ships:
 

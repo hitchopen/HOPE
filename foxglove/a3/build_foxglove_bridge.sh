@@ -26,6 +26,9 @@ readonly FOXGLOVE_PATCHED_FILE="ros/src/foxglove_bridge/src/message_definition_c
 readonly ROSX_PATCHED_FILE="src/ros_utils/message_definition_cache.cpp"
 readonly FOXGLOVE_PATCHED_FILE_SHA256="ff879cd712a4d167169c5d229a0f67e2c112f42b65ecb62404d6dc51cb44a8f1"
 readonly ROSX_PATCHED_FILE_SHA256="c3100994dea0fdc6dc2b87614ed35b1582d95819cd3f714a062910da64e36d16"
+readonly FOXGLOVE_CPP_SDK_ARCHIVE="${FOXGLOVE_CPP_SDK_ARCHIVE:-}"
+readonly FOXGLOVE_CPP_SDK_ARCHIVE_SHA256="0710f2ec5abc3954acf6203b93a96768dccd19d742af9b78fcd8fbbba5f6225a"
+readonly FOXGLOVE_CPP_SDK_TREE_SHA256="97f5e6d5f26d48d7ad60c2aff59dfd44b51ed92f3cde027245f121f44a7fe6ae"
 
 die() {
     echo "ERROR: $*" >&2
@@ -87,6 +90,55 @@ apply_verified_patch() {
         die "${label} patched source checksum mismatch."
 }
 
+prepare_offline_cpp_sdk() {
+    local archive="$1"
+    local archive_real extract_root source_dir tree_sha backup
+
+    archive_real="$(readlink -f -- "${archive}")" || \
+        die "offline Foxglove C++ SDK archive is missing: ${archive}"
+    [[ -f "${archive_real}" ]] || \
+        die "offline Foxglove C++ SDK archive is not a file: ${archive_real}"
+    echo "${FOXGLOVE_CPP_SDK_ARCHIVE_SHA256}  ${archive_real}" | \
+        sha256sum --check --status || \
+        die "offline Foxglove C++ SDK archive checksum mismatch."
+
+    extract_root="${FOXGLOVE_WORKSPACE}/offline/foxglove-cpp-sdk-${FOXGLOVE_CPP_SDK_ARCHIVE_SHA256:0:12}"
+    source_dir="${extract_root}/foxglove"
+    if [[ -d "${source_dir}" ]]; then
+        tree_sha="$({
+            cd "${source_dir}"
+            find . -type f -print0 | LC_ALL=C sort -z | \
+                xargs -0 sha256sum | sha256sum | awk '{print $1}'
+        })"
+    else
+        tree_sha=""
+    fi
+    if [[ -e "${extract_root}" && "${tree_sha}" != "${FOXGLOVE_CPP_SDK_TREE_SHA256}" ]]; then
+        backup="${extract_root}.invalid.$(date -u +%Y%m%dT%H%M%SZ)"
+        [[ ! -e "${backup}" ]] || die "offline SDK backup path already exists: ${backup}"
+        mv -- "${extract_root}" "${backup}"
+        echo "Archived incomplete offline Foxglove C++ SDK: ${backup}" >&2
+    fi
+    if [[ ! -d "${source_dir}" ]]; then
+        install -d -m 0755 "${extract_root}"
+        (
+            cd "${extract_root}"
+            cmake -E tar xf "${archive_real}"
+        )
+    fi
+
+    tree_sha="$({
+        cd "${source_dir}"
+        find . -type f -print0 | LC_ALL=C sort -z | \
+            xargs -0 sha256sum | sha256sum | awk '{print $1}'
+    })"
+    [[ "${tree_sha}" == "${FOXGLOVE_CPP_SDK_TREE_SHA256}" ]] || \
+        die "extracted offline Foxglove C++ SDK tree checksum mismatch."
+    [[ -f "${source_dir}/lib/cmake/foxglove-sdk/foxglove-sdkConfig.cmake" ]] || \
+        die "offline Foxglove C++ SDK CMake package is missing."
+    printf '%s\n' "${source_dir}"
+}
+
 mkdir -p "${FOXGLOVE_WORKSPACE}"
 checkout_pinned_source \
     "${FOXGLOVE_SDK_REPOSITORY}" "${FOXGLOVE_ROS_COMMIT}" \
@@ -104,15 +156,26 @@ apply_verified_patch \
     "${ROSX_PATCHED_FILE}" "${ROSX_PATCHED_FILE_SHA256}" \
     "rosx_introspection"
 
+cmake_args=(
+    -DCMAKE_BUILD_TYPE=Release
+    -DBUILD_TESTING=OFF
+    -DFOXGLOVE_BRIDGE_REMOTE_ACCESS=OFF
+)
+if [[ -n "${FOXGLOVE_CPP_SDK_ARCHIVE}" ]]; then
+    offline_cpp_sdk_dir="$(prepare_offline_cpp_sdk "${FOXGLOVE_CPP_SDK_ARCHIVE}")"
+    cmake_args+=(
+        "-DFETCHCONTENT_SOURCE_DIR_FOXGLOVE_SDK=${offline_cpp_sdk_dir}"
+        -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+    )
+    echo "Using verified offline Foxglove C++ SDK: ${offline_cpp_sdk_dir}"
+fi
+
 cd "${FOXGLOVE_SOURCE}/ros"
 colcon build \
     --base-paths "${FOXGLOVE_SOURCE}/ros/src" "${ROSX_SOURCE}" \
     --packages-up-to foxglove_bridge \
     --cmake-clean-cache \
-    --cmake-args \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_TESTING=OFF \
-        -DFOXGLOVE_BRIDGE_REMOTE_ACCESS=OFF
+    --cmake-args "${cmake_args[@]}"
 
 echo "Built pinned ${FOXGLOVE_ROS_RELEASE}: ${FOXGLOVE_SOURCE}/ros/install/foxglove_bridge"
 sha256sum "${FOXGLOVE_SOURCE}/ros/install/foxglove_bridge/lib/foxglove_bridge/foxglove_bridge"

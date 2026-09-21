@@ -3,7 +3,7 @@
 <package format="3">
   <name>hope_bringup</name>
   <version>0.0.0</version>
-  <description>Bringup launch files and configuration for the HOPE ROS 2 stack.</description>
+  <description>Bringup assets for the HOPE ROS 2 stack, including the canonical world frame.</description>
   <maintainer email="maintainer@example.com">HOPE Maintainers</maintainer>
   <license>Apache-2.0</license>
 
@@ -15,17 +15,15 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>hope_planner_cpp</exec_depend>
-  <!-- VRPN2ROS2 is an independently built/launched workspace. The VRPN
-       relay consumes only standard geometry_msgs/PoseStamped, so hope_ws has
-       no build or runtime package dependency on vrpn_mocap. -->
-  <!-- The OptiTrack backend (optitrack_mct_relay / optitrack_hope_bridge /
-       fake_optitrack_publisher) additionally needs the independently built
-       NatNet2ROS2 workspace's motion_capture_tracking_interfaces package at
-       runtime. INTENTIONALLY not declared as a dependency: those scripts
-       import the msg lazily and fail with an actionable error, so hope_ws
-       remains independently buildable for VRPN-only deployments.
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>vrpn_mocap</exec_depend>
+  <!-- The OptiTrack backend (optitrack_mct_relay / optitrack_hope_bridge)
+       additionally needs the vendored motion_capture_tracking +
+       motion_capture_tracking_interfaces packages from this workspace.
+       INTENTIONALLY not declared as a dependency: the relay imports the msg
+       lazily and fails with an actionable error, so AvatarPro-only
+       deployments (deploy with skip-optitrack) stay buildable without them.
        soft-dep: motion_capture_tracking_interfaces (OptiTrack backend only) -->
 
   <test_depend>ament_lint_auto</test_depend>

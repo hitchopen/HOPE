@@ -1,6 +1,8 @@
 import hashlib
 import json
 from pathlib import Path
+import stat
+import subprocess
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -118,6 +120,18 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertIn("ab747a0d3970d3297a5652b82e7645ab1d11feb9", build)
         self.assertIn("--packages-up-to foxglove_bridge", build)
         self.assertIn("apply_verified_patch", build)
+        self.assertIn("FOXGLOVE_CPP_SDK_ARCHIVE", build)
+        self.assertIn(
+            "0710f2ec5abc3954acf6203b93a96768dccd19d742af9b78fcd8fbbba5f6225a",
+            build,
+        )
+        self.assertIn(
+            "97f5e6d5f26d48d7ad60c2aff59dfd44b51ed92f3cde027245f121f44a7fe6ae",
+            build,
+        )
+        self.assertIn("cmake -E tar xf", build)
+        self.assertIn("FETCHCONTENT_SOURCE_DIR_FOXGLOVE_SDK", build)
+        self.assertIn("FETCHCONTENT_FULLY_DISCONNECTED=ON", build)
         build_lines = build.splitlines()
         self.assertLess(
             build_lines.index("source /opt/ros/jazzy/setup.bash"),
@@ -157,6 +171,9 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertNotIn("JointState", monitor)
         self.assertNotIn("load_robot_urdf_for_foxglove", monitor)
         self.assertIn('declare_parameter("tf_stale_after_s", 0.5)', monitor)
+        self.assertIn('declare_parameter("enable_tf_fallback", True)', monitor)
+        self.assertIn("ExternalShutdownException", monitor)
+        self.assertIn("rclpy.try_shutdown()", monitor)
         self.assertIn('"/hope/system/cpu_load_percent"', monitor)
         self.assertIn('"/hope/ntp/text"', monitor)
         self.assertIn('Path("/proc/stat")', monitor)
@@ -166,7 +183,7 @@ class AssetInvariantTests(unittest.TestCase):
         self.assertNotIn("robot_model_root", unit)
         self.assertNotIn("robot_asset_root_url", unit)
         self.assertIn("cpu_publish_period_s:=1.0", unit)
-
+        self.assertIn("enable_tf_fallback:=false", unit)
     def test_estop_proxy_is_assert_only(self):
         monitor = (FOXGLOVE_DIR / "a3/hope_monitor.py").read_text()
         self.assertIn("combine_estop_results", monitor)
@@ -209,6 +226,75 @@ class AssetInvariantTests(unittest.TestCase):
     def test_downloaded_urdf_directory_is_ignored(self):
         ignore = (REPO_ROOT / ".gitignore").read_text().splitlines()
         self.assertIn("/foxglove/urdf/", ignore)
+
+    def test_new_robot_p1_commissioning_gate_is_explicit_and_bounded(self):
+        launch = (
+            REPO_ROOT
+            / "hope_ws/src/hope_bringup/launch/optitrack_hope_bridge.launch.py"
+        ).read_text()
+        server = (
+            REPO_ROOT
+            / "hope_ws/src/hope_bringup/scripts/p1_marker_cad_calibration_server"
+        ).read_text()
+        runbook = (
+            REPO_ROOT / "docs/operations/foxglove_first_hardware_test.md"
+        ).read_text()
+
+        self.assertIn('"ucb_marker_match_max_distance_m"', launch)
+        self.assertIn('default_value="0.008"', launch)
+        self.assertIn('"ucb_max_live_max_mm"', launch)
+        self.assertIn('default_value="8.0"', launch)
+        self.assertIn("New-robot commissioning currently uses 8 mm", launch)
+        self.assertNotIn("current damaged P1", launch)
+        self.assertIn('self.declare_parameter("max_live_max_mm", 5.0)', server)
+        self.assertIn(
+            'self.declare_parameter("max_registration_rms_mm", 3.0)', server
+        )
+        self.assertIn('"--max-live-max-mm"', server)
+        self.assertIn('"--max-registration-rms-mm"', server)
+        self.assertIn('"ucb_v2_max_registration_rms_mm"', launch)
+        self.assertIn('default_value="3.25"', launch)
+        self.assertIn('"ucb_v3_max_registration_rms_mm"', launch)
+        self.assertIn('default_value="3.0"', launch)
+        self.assertIn("ROS_LOCALHOST_ONLY is deprecated", server)
+
+    def test_optitrack_driver_recovers_after_motive_link_returns(self):
+        launch = (
+            REPO_ROOT
+            / "hope_ws/src/hope_bringup/launch/optitrack_hope_bridge.launch.py"
+        ).read_text()
+        self.assertIn("respawn=True", launch)
+        self.assertIn("respawn_delay=2.0", launch)
+
+    def test_new_robot_clock_assets_are_pinned_in_the_runbook(self):
+        bringup = REPO_ROOT / "hope_ws/src/hope_bringup"
+        source = (bringup / "config/hope-hdu.sources").read_text()
+        laptop_access = (
+            bringup / "config/chrony-hope-laptop-server.conf"
+        ).read_text()
+        runbook = (
+            REPO_ROOT / "docs/operations/foxglove_first_hardware_test.md"
+        ).read_text()
+
+        self.assertIn(
+            "server 10.42.0.73 iburst prefer minpoll 2 maxpoll 4",
+            source,
+        )
+        self.assertNotIn("172.23.21.123", source)
+        self.assertNotIn("172.23.20.135", source)
+        self.assertIn("chronyc allow 10.42.0.1/32", laptop_access)
+        self.assertNotIn("172.23.20.46", laptop_access)
+
+
+
+
+
+    def test_offline_foxglove_bridge_staging_is_pinned_and_recoverable(self):
+        runbook = (
+            REPO_ROOT / "docs/operations/foxglove_first_hardware_test.md"
+        ).read_text()
+
+
 
 
 if __name__ == "__main__":

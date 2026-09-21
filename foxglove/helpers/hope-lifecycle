@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
+# HOPE_RUNNER_MODE=model21800
+# HOPE_HARDWARE_PROFILE=A3_T3D0_ELINK_HAND_V2
 # Fixed, role-specific process helper for the Runner Laptop/HDU/MDU lifecycle.
-# The HDU ROS supervisor is the only intended caller. No command, path, user,
-# environment-variable name, or arbitrary argument is accepted from Foxglove.
+# The HDU ROS supervisors are the only intended callers. No command, path,
+# user, environment-variable name, or arbitrary argument is accepted from
+# Foxglove. The two root-only MDU clock actions accept no data arguments.
 
 set -euo pipefail
 umask 077
@@ -21,13 +24,22 @@ readonly LAPTOP_SHARE="${HOPE_LAPTOP_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}
 readonly LAPTOP_USER="${HOPE_LAPTOP_USER:-$(id -un)}"
 readonly ROBOT_USER="${HOPE_ROBOT_USER:-agi}"
 readonly HDU_WS="${HOPE_HDU_WS:-$HOME/hope_ws}"
-readonly MOTIVE_INTERFACE_IP="${HOPE_MOTIVE_INTERFACE_IP:-}"
 readonly LAPTOP_SESSION=hope-optitrack
 readonly HDU_BASE_SESSION=hope-base
 readonly HDU_PLANNER_SESSION=hope-planner
+readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport
+readonly MDU_ELINK_SESSION=hope-elink
 readonly MDU_HAL_SESSION=hope-hal
 readonly MDU_RUNNER_SESSION=hope-runner
 readonly MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
+readonly MDU_ROS_PREFIX=/opt/ros/jazzy
+readonly MDU_ROS_PYTHON_SITE="${MDU_ROS_PREFIX}/lib/python3.11/site-packages"
+readonly MDU_VENDOR_ROS_PREFIX=/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package
+readonly MDU_VENDOR_PYTHON_SITE="${MDU_VENDOR_ROS_PREFIX}/lib/python3.11/site-packages"
+readonly MDU_ROBOT_MODEL_FILE=/agibot/data/info/model
+readonly MDU_SUPPORTED_ROBOT_MODEL=A3_T3D0
+readonly MDU_ELINK_CONFIG=/opt/agibot/config/hal_elink/hal_elink_a3_cfg.yaml
+readonly MDU_HAL_GRIPPER_BASE_CONFIG=/opt/agibot/config/hal_ethercat/hal_ethercat_a3_t3d0_cfg.yaml
 
 emit() {
   local step="$1" state="$2" reason="$3"
@@ -63,30 +75,51 @@ valid_ipv4() {
   (( 10#${parts[0]} == 192 && 10#${parts[1]} == 168 ))
 }
 
-require_motive_interface() {
-  local step="$1" route_line route_src
-  valid_ipv4 "$MOTIVE_INTERFACE_IP" ||
-    die "$step" MOTIVE_INTERFACE_IP_INVALID
-  command -v ip >/dev/null || die "$step" IPROUTE2_MISSING
-  route_line="$(ip -o route get "$MOTIVE_IP" 2>/dev/null | head -n 1)"
-  [[ -n "$route_line" ]] || die "$step" MOTIVE_ROUTE_MISSING
-  route_src="$(awk '{for (i=1; i<=NF; ++i) if ($i == "src") {print $(i+1); exit}}' <<<"$route_line")"
-  [[ "$route_src" == "$MOTIVE_INTERFACE_IP" ]] ||
-    die "$step" MOTIVE_INTERFACE_ROUTE_MISMATCH
+network_static_peers() {
+  local env_file=/etc/hope-foxglove/network.env
+  local line value="" count=0
+  [[ -r "$env_file" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      ROS_STATIC_PEERS=*)
+        value="${line#ROS_STATIC_PEERS=}"
+        ((count += 1))
+        ;;
+    esac
+  done < "$env_file"
+  (( count == 1 )) || return 1
+  printf '%s\n' "$value"
+}
+
+static_peer_list_contains() {
+  local peer_list="$1" expected="$2" peer
+  local IFS=';'
+  read -r -a peers <<< "$peer_list"
+  for peer in "${peers[@]}"; do
+    [[ "$peer" == "$expected" ]] && return 0
+  done
+  return 1
 }
 
 parse_common() {
-  [[ "$#" == 5 ]] || return 1
+  [[ "$#" == 6 || "$#" == 8 ]] || return 1
   SESSION_ID="$1"
   LAPTOP_WIFI_IP="$2"
   HDU_WIFI_IP="$3"
   MDU_INTERNAL_IP="$4"
   MOTIVE_IP="$5"
+  TABLE_SIDE="$6"
+  FIELD_MODE="${7:-OPTITRACK}"
+  SERVE_CSV_SHA="${8:-DEFAULT}"
+  [[ "$FIELD_MODE" != PURE_SERVE ]] || FIELD_MODE=KERNEL
+  [[ "$FIELD_MODE" == OPTITRACK || "$FIELD_MODE" == KERNEL ]] || return 1
+  [[ "$SERVE_CSV_SHA" == DEFAULT || "$SERVE_CSV_SHA" =~ ^[0-9a-f]{64}$ ]] || return 1
   [[ "$SESSION_ID" =~ ^model21800_[0-9]{8}T[0-9]{6}Z$ ]] || return 1
   valid_ipv4 "$LAPTOP_WIFI_IP" || return 1
   valid_ipv4 "$HDU_WIFI_IP" || return 1
   valid_ipv4 "$MDU_INTERNAL_IP" || return 1
-  valid_ipv4 "$MOTIVE_IP" || return 1
+  [[ "$MOTIVE_IP" == NONE ]] || valid_ipv4 "$MOTIVE_IP" || return 1
+  [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
 }
 
 require_user() {
@@ -128,6 +161,18 @@ has_unmanaged_hal() {
   return 1
 }
 
+has_unmanaged_elink() {
+  local pid
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] || continue
+    if ! pid_in_systemd_unit "$pid" agibot_pm.service; then
+      printf 'hope-lifecycle: hal_elink pid %s is outside agibot_pm.service\n' "$pid" >&2
+      return 0
+    fi
+  done < <(pgrep -f '[a]imrt_main .*hal_elink_a3(_ultra)?_(cfg|gripper)[.]yaml' || true)
+  return 1
+}
+
 start_tmux() {
   local session="$1"
   shift
@@ -151,15 +196,206 @@ stop_tmux() {
   /usr/bin/tmux kill-session -t "$session"
 }
 
+wait_for_session_log() {
+  local session="$1" log_file="$2" marker="$3" attempts="$4"
+  local attempt
+  for ((attempt = 0; attempt < attempts; attempt++)); do
+    if [[ -r "$log_file" ]] && grep -Fq -- "$marker" "$log_file"; then
+      return 0
+    fi
+    tmux_exists "$session" || return 1
+    sleep 0.25
+  done
+  return 1
+}
+
+time_calibration_require_root() {
+  [[ "$(id -u)" == 0 ]] || die TIME_CALIBRATION ROOT_REQUIRED
+  [[ "$#" == 0 ]] || die TIME_CALIBRATION INVALID_ARGUMENTS
+  [[ "${SUDO_USER:-}" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || \
+    die TIME_CALIBRATION INVALID_SUDO_USER
+}
+
+time_calibration_check_mdu() {
+  time_calibration_require_root "$@"
+  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
+    die TIME_CALIBRATION RUNNER_PRESENT
+  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
+  has_unmanaged_elink && die TIME_CALIBRATION NON_VENDOR_ELINK_PRESENT
+  /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
+    die TIME_CALIBRATION MDU_PTP4L_NOT_ACTIVE
+  /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
+    die TIME_CALIBRATION MDU_PHC2SYS_NOT_ACTIVE
+  /usr/bin/systemctl is-active --quiet agibot_pm.service || \
+    die TIME_CALIBRATION MDU_AGIBOT_PM_NOT_ACTIVE
+  emit TIME_CALIBRATION COMPLETE MDU_PREFLIGHT_READY
+}
+
+time_calibration_recover_mdu() {
+  time_calibration_require_root "$@"
+  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
+    die TIME_CALIBRATION RUNNER_PRESENT
+  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
+  has_unmanaged_elink && die TIME_CALIBRATION NON_VENDOR_ELINK_PRESENT
+
+  if /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service &&
+     /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service &&
+     /usr/bin/systemctl is-active --quiet agibot_pm.service; then
+    emit TIME_CALIBRATION COMPLETE MDU_BASELINE_ALREADY_READY
+    return
+  fi
+
+  # Recovery is intentionally receipt-bound. Never turn arbitrary stopped
+  # robot services back on merely because a calibration request arrived.
+  local run_dir=/run/hope-time-calibration
+  local active_file="$run_dir/mdu-active-services"
+  local state_file="$run_dir/mdu-state"
+  local boot_file="$run_dir/mdu-boot-id"
+  local current_boot
+  current_boot="$(< /proc/sys/kernel/random/boot_id)"
+  [[ -r "$active_file" && -r "$state_file" && -r "$boot_file" ]] || \
+    die TIME_CALIBRATION MDU_BASELINE_RECEIPT_MISSING
+  [[ "$(< "$boot_file")" == "$current_boot" ]] || \
+    die TIME_CALIBRATION MDU_BASELINE_BOOT_CHANGED
+  [[ "$(< "$state_file")" == STOPPED ]] || \
+    die TIME_CALIBRATION MDU_BASELINE_NOT_STOPPED
+
+  time_calibration_restore_mdu
+}
+
+time_calibration_stop_mdu() {
+  time_calibration_require_root "$@"
+  local run_dir=/run/hope-time-calibration
+  local active_file="$run_dir/mdu-active-services"
+  local state_file="$run_dir/mdu-state"
+  local boot_file="$run_dir/mdu-boot-id"
+  local current_boot state=""
+  current_boot="$(< /proc/sys/kernel/random/boot_id)"
+  /usr/bin/install -d -o root -g root -m 0700 "$run_dir"
+  exec 9>"$run_dir/mdu.lock"
+  /usr/bin/flock -n 9 || die TIME_CALIBRATION ALREADY_RUNNING
+
+  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
+    die TIME_CALIBRATION RUNNER_PRESENT
+  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
+
+  [[ -r "$state_file" ]] && state="$(< "$state_file")"
+  if [[ "$state" != STOPPING && "$state" != STOPPED ]] ||
+     [[ ! -r "$boot_file" || "$(< "$boot_file")" != "$current_boot" ]]; then
+    : > "$active_file"
+    local service
+    for service in \
+      agibot_roudi.service \
+      agibot_top.service \
+      agibot_ui.service \
+      agibot_pm.service; do
+      if /usr/bin/systemctl cat "$service" >/dev/null 2>&1 &&
+         /usr/bin/systemctl is-active --quiet "$service"; then
+        printf '%s\n' "$service" >> "$active_file"
+      fi
+    done
+    printf '%s\n' "$current_boot" > "$boot_file"
+  fi
+  printf 'STOPPING\n' > "$state_file"
+
+  local -a active_services=()
+  mapfile -t active_services < "$active_file"
+  if ((${#active_services[@]})); then
+    # Stop dependants before RouDi. The vendor clock installer uses this
+    # sequence; a single RouDi-first transaction can strand agibot_pm stop.
+    local service
+    for service in \
+      agibot_pm.service \
+      agibot_ui.service \
+      agibot_top.service \
+      agibot_roudi.service; do
+      if printf '%s\n' "${active_services[@]}" | grep -Fxq -- "$service"; then
+        /usr/bin/systemctl stop "$service" || \
+          die TIME_CALIBRATION MDU_VENDOR_STOP_FAILED
+      fi
+    done
+  fi
+  /usr/bin/systemctl stop \
+    agibot-mdu-phc2sys.service \
+    agibot-mdu-ptp4l.service || die TIME_CALIBRATION MDU_PTP_STOP_FAILED
+
+  ! pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null || \
+    die TIME_CALIBRATION RUNNER_REMAINS
+  ! pgrep -f '[a]imrt_main_hal' >/dev/null || \
+    die TIME_CALIBRATION HAL_REMAINS
+  ! /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
+    die TIME_CALIBRATION MDU_PTP4L_REMAINS
+  ! /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
+    die TIME_CALIBRATION MDU_PHC2SYS_REMAINS
+  printf 'STOPPED\n' > "$state_file"
+  emit TIME_CALIBRATION COMPLETE MDU_CLOCK_CONSUMERS_STOPPED
+}
+
+time_calibration_restore_mdu() {
+  time_calibration_require_root "$@"
+  local run_dir=/run/hope-time-calibration
+  local active_file="$run_dir/mdu-active-services"
+  local state_file="$run_dir/mdu-state"
+  local boot_file="$run_dir/mdu-boot-id"
+  local current_boot
+  current_boot="$(< /proc/sys/kernel/random/boot_id)"
+  [[ -d "$run_dir" ]] || die TIME_CALIBRATION MDU_RESTORE_RECEIPT_MISSING
+  exec 9>"$run_dir/mdu.lock"
+  /usr/bin/flock -n 9 || die TIME_CALIBRATION ALREADY_RUNNING
+  [[ -r "$active_file" && -r "$state_file" && -r "$boot_file" ]] || \
+    die TIME_CALIBRATION MDU_RESTORE_RECEIPT_MISSING
+  [[ "$(< "$boot_file")" == "$current_boot" ]] || \
+    die TIME_CALIBRATION MDU_RESTORE_BOOT_CHANGED
+  [[ "$(< "$state_file")" == STOPPED ]] || \
+    die TIME_CALIBRATION MDU_NOT_IN_STOPPED_STATE
+
+  /usr/bin/systemctl start \
+    agibot-mdu-ptp4l.service \
+    agibot-mdu-phc2sys.service || die TIME_CALIBRATION MDU_PTP_RESTORE_FAILED
+  /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
+    die TIME_CALIBRATION MDU_PTP4L_NOT_ACTIVE
+  /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
+    die TIME_CALIBRATION MDU_PHC2SYS_NOT_ACTIVE
+  sleep 5
+
+  local service
+  while IFS= read -r service; do
+    [[ -n "$service" ]] || continue
+    case "$service" in
+      agibot_roudi.service|agibot_top.service|agibot_ui.service|agibot_pm.service) ;;
+      *) die TIME_CALIBRATION INVALID_MDU_RESTORE_RECEIPT ;;
+    esac
+    /usr/bin/systemctl start "$service" || \
+      die TIME_CALIBRATION MDU_VENDOR_RESTORE_FAILED
+  done < "$active_file"
+  while IFS= read -r service; do
+    [[ -n "$service" ]] || continue
+    /usr/bin/systemctl is-active --quiet "$service" || \
+      die TIME_CALIBRATION MDU_VENDOR_NOT_ACTIVE
+  done < "$active_file"
+  printf 'RESTORED\n' > "$state_file"
+  emit TIME_CALIBRATION COMPLETE MDU_PTP_AND_VENDOR_RESTORED
+}
+
 prepare_laptop() {
+  local tracked_marker_frame world_transform=identity
   require_user "$LAPTOP_USER" SESSION
+  case "$TABLE_SIDE" in
+    P1) tracked_marker_frame=UCB_P1 ;;
+    P2) tracked_marker_frame=UCB_P2 ;;
+    *) die SESSION INVALID_TABLE_SIDE ;;
+  esac
   cd "$HOPE_ROOT"
   mkdir -p "real_logs/$SESSION_ID/laptop"
   mkdir -p calibration
+  [[ "$TABLE_SIDE" == P1 ]] || world_transform=rotate_z_pi_about_table_center
   printf '%s\n' "$SESSION_ID" > real_logs/.active_session_id
-  cp /tmp/model21800_rockchip_candidate_sha256.txt \
-    "real_logs/$SESSION_ID/laptop/rockchip_candidate_sha256.txt" \
-    2>/dev/null || true
+  {
+    printf 'session_id=%s\n' "$SESSION_ID"
+    printf 'table_side=%s\n' "$TABLE_SIDE"
+    printf 'tracked_marker_frame=%s\n' "$tracked_marker_frame"
+    printf 'world_transform=%s\n' "$world_transform"
+  } > "real_logs/$SESSION_ID/laptop/runtime_frame_config.txt"
   {
     echo 'laptop UTC source for camera exposure and absolute strike deadline:'
     date -u --iso-8601=ns
@@ -221,55 +457,66 @@ MDU_CLOCK
 
 preflight_laptop() {
   require_user "$LAPTOP_USER" PREFLIGHT
-  require_motive_interface PREFLIGHT
-  tmux_exists "$LAPTOP_SESSION" && die PREFLIGHT MANAGED_LAPTOP_STACK_PRESENT
-  pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null && \
-    die PREFLIGHT UNMANAGED_BRIDGE_PRESENT
-  pgrep -u "$LAPTOP_USER" -f '[h]ope_marker_monitor.py' >/dev/null && \
-    die PREFLIGHT UNMANAGED_MARKER_PRESENT
-  [[ -d "$HOPE_ROOT/hope_ws/install" ]] || die PREFLIGHT LAPTOP_OVERLAY_MISSING
-  [[ -x "$HOPE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/p1_marker_cad_calibrator" ]] || \
-    die PREFLIGHT LAPTOP_CALIBRATOR_MISSING
-  [[ -x "$HOPE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/p1_marker_cad_calibration_server" ]] || \
-    die PREFLIGHT LAPTOP_CALIBRATION_SERVICE_MISSING
-  [[ -x "$HOPE_ROOT/hope_ws/install/motion_capture_tracking/lib/motion_capture_tracking/motion_capture_tracking_node" ]] || \
-    die PREFLIGHT LAPTOP_NATNET_NODE_MISSING
-  [[ -x "$HOPE_ROOT/hope_ws/install/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_packetizer" ]] || \
-    die PREFLIGHT LAPTOP_FLIGHT_PACKETIZER_MISSING
-  [[ -r "$LAPTOP_SHARE/hope_marker_monitor.py" ]] || \
-    die PREFLIGHT LAPTOP_MARKER_NODE_MISSING
-  [[ -r "$LAPTOP_SHARE/hope_marker_monitor_core.py" ]] || \
-    die PREFLIGHT LAPTOP_MARKER_CORE_MISSING
-  [[ -r "$LAPTOP_SHARE/marker_monitor.yaml" ]] || \
-    die PREFLIGHT LAPTOP_MARKER_CONFIG_MISSING
-  command -v distrobox >/dev/null || die PREFLIGHT DISTROBOX_MISSING
-  command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
-  emit PREFLIGHT COMPLETE LAPTOP_READY
+  # Laptop remains the session/log collector, but its optional OptiTrack,
+  # marker, calibration and packetizer stack is no longer a Runner startup
+  # dependency.  Do not reject an absent overlay, Motive connection or an
+  # independently managed mocap session here.
+  [[ -d "$HOPE_ROOT" ]] || die PREFLIGHT LAPTOP_ROOT_MISSING
+  command -v ssh >/dev/null || die PREFLIGHT SSH_MISSING
+  command -v rsync >/dev/null || die PREFLIGHT RSYNC_MISSING
+  emit PREFLIGHT COMPLETE LAPTOP_LOG_COLLECTOR_READY
 }
 
 prepare_hdu() {
   require_user "$ROBOT_USER" SESSION
   printf '%s\n' "$SESSION_ID" > /tmp/hope_model21800_session_id
   mkdir -p "/tmp/hope_real/$SESSION_ID/hdu"
+  printf 'table_side=%s\n' "$TABLE_SIDE" > \
+    "/tmp/hope_real/$SESSION_ID/hdu/runtime_frame_config.txt"
   emit SESSION COMPLETE HDU_PREPARED
 }
 
 preflight_hdu() {
-  local planner_prefix messages_prefix
+  local planner_prefix messages_prefix static_peers
   require_user "$ROBOT_USER" PREFLIGHT
   tmux_exists "$HDU_BASE_SESSION" && die PREFLIGHT MANAGED_BASE_PRESENT
   tmux_exists "$HDU_PLANNER_SESSION" && die PREFLIGHT MANAGED_PLANNER_PRESENT
+  tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
+    die PREFLIGHT MANAGED_RUNNER_TRANSPORT_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope_world.launch.py' >/dev/null && die PREFLIGHT UNMANAGED_BASE_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope-base-pose-transport-relay' >/dev/null && \
     die PREFLIGHT UNMANAGED_BASE_RELAY_PRESENT
+  pgrep -u "$ROBOT_USER" -f '[h]ope-runner-transport-relay' >/dev/null && \
+    die PREFLIGHT UNMANAGED_RUNNER_TRANSPORT_PRESENT
   pgrep -u "$ROBOT_USER" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)' >/dev/null && \
     die PREFLIGHT UNMANAGED_PLANNER_PRESENT
+  if [[ "$FIELD_MODE" == KERNEL ]]; then
+    [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
+      die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+    [[ -r /opt/ros/jazzy/setup.bash ]] || die PREFLIGHT ROS_MISSING
+    [[ -x "$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh" ]] || \
+      die PREFLIGHT DDS_WRAPPER_MISSING
+    static_peers="$(network_static_peers)" || die PREFLIGHT HDU_DDS_PEERS_INVALID
+    static_peer_list_contains "$static_peers" "$MDU_INTERNAL_IP" || \
+      die PREFLIGHT HDU_DDS_MDU_PEER_MISSING
+    command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
+    emit PREFLIGHT COMPLETE HDU_KERNEL_READY
+    return
+  fi
   [[ -r "$HDU_WS/install/local_setup.bash" ]] || \
     die PREFLIGHT HDU_BASE_OVERLAY_MISSING
   [[ -r "$HDU_WS/install_model21800_fix/local_setup.bash" ]] || \
     die PREFLIGHT HDU_OVERLAY_MISSING
   [[ -x /usr/local/libexec/hope-base-pose-transport-relay ]] || \
     die PREFLIGHT BASE_TRANSPORT_RELAY_MISSING
+  [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
+    die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+  static_peers="$(network_static_peers)" || \
+    die PREFLIGHT HDU_DDS_PEERS_INVALID
+  static_peer_list_contains "$static_peers" "$LAPTOP_WIFI_IP" || \
+    die PREFLIGHT HDU_DDS_LAPTOP_PEER_MISSING
+  static_peer_list_contains "$static_peers" "$MDU_INTERNAL_IP" || \
+    die PREFLIGHT HDU_DDS_MDU_PEER_MISSING
   set +u
   source /opt/ros/jazzy/setup.bash
   source "$HDU_WS/install/local_setup.bash"
@@ -294,118 +541,180 @@ preflight_hdu() {
 prepare_mdu() {
   require_user "$ROBOT_USER" SESSION
   printf '%s\n' "$SESSION_ID" > /tmp/hope_model21800_session_id
-  mkdir -p "/tmp/hope_real/$SESSION_ID/mdu"
+  mkdir -p "/tmp/hope_real/$SESSION_ID/mdu/system"
+  printf 'table_side=%s\n' "$TABLE_SIDE" > \
+    "/tmp/hope_real/$SESSION_ID/mdu/runtime_frame_config.txt"
   emit SESSION COMPLETE MDU_PREPARED
+}
+
+
+render_t3_elink_config() {
+  python3 - "$MDU_ELINK_CONFIG" <<'PY_T3_HAL'
+import copy
+from pathlib import Path
+import sys
+import yaml
+
+source = Path(sys.argv[1])
+if not source.is_file() or source.is_symlink():
+    raise SystemExit("T3 factory config must be a regular file")
+raw = source.read_text()
+base = yaml.safe_load(raw)
+topic = "/body_drive/hand_joint_command"
+subscribers = base["aimrt"]["channel"]["sub_topics_options"]
+indices = [i for i, item in enumerate(subscribers) if item["topic_name"] == topic]
+if len(indices) != 1:
+    raise SystemExit("Expected exactly one T3 hand command subscriber")
+index = indices[0]
+if subscribers[index]["enable_backends"] not in (["iceoryx"], ["iceoryx", "ros2"]):
+    raise SystemExit("Unexpected T3 hand command backend")
+hand = base["ElinkModule"]["topic"]["upper"]["hand"]
+if hand["command_topic"] != topic:
+    raise SystemExit("ElinkModule hand command topic differs")
+if type(hand.get("enable")) is not bool:
+    raise SystemExit("Expected explicit boolean Elink topic.upper.hand.enable")
+if base["ElinkModule"]["elink"]["upper"]["hand_enable"] is not True:
+    raise SystemExit("Factory Elink hand transport is disabled")
+workers = {item["name"] for item in base["aimrt"]["executor"]["executors"]}
+if not {"hand_elink_server_worker", "hand_control_worker"} <= workers:
+    raise SystemExit("Factory Elink hand executors are missing")
+# Replace only the two YAML values; retain comments and formatting elsewhere.
+tree = yaml.compose(raw)
+def node_at(path):
+    node = tree
+    for key in path:
+        if isinstance(key, int):
+            node = node.value[key]
+        else:
+            matches = [value for name, value in node.value if name.value == key]
+            if len(matches) != 1:
+                raise SystemExit(f"Expected unique YAML key: {key}")
+            node = matches[0]
+    return node
+replacements = []
+for path, value in (
+    (("aimrt", "channel", "sub_topics_options", index, "enable_backends"), "[iceoryx, ros2]"),
+    (("ElinkModule", "topic", "upper", "hand", "enable"), "true"),
+):
+    node = node_at(path)
+    end = node.end_mark.index
+    if isinstance(node, yaml.SequenceNode) and not node.flow_style:
+        end = node.value[-1].end_mark.index
+        value = "  " + value
+    replacements.append((node.start_mark.index, end, value))
+rendered = raw
+for start, end, value in sorted(replacements, reverse=True):
+    rendered = rendered[:start] + value + rendered[end:]
+expected = copy.deepcopy(base)
+expected["aimrt"]["channel"]["sub_topics_options"][index]["enable_backends"] = ["iceoryx", "ros2"]
+expected["ElinkModule"]["topic"]["upper"]["hand"]["enable"] = True
+if yaml.safe_load(rendered) != expected:
+    raise SystemExit("T3 Elink config differs beyond hand topic enable and command backend")
+sys.stdout.write(rendered)
+PY_T3_HAL
+}
+
+check_t3_hardware_config() {
+  local step="$1"
+  [[ -f "$MDU_ROBOT_MODEL_FILE" && ! -L "$MDU_ROBOT_MODEL_FILE" ]] || \
+    die "$step" MDU_ROBOT_MODEL_MISSING
+  [[ "$(<"$MDU_ROBOT_MODEL_FILE")" == "$MDU_SUPPORTED_ROBOT_MODEL" ]] || \
+    die "$step" UNSUPPORTED_MDU_MODEL_FOR_GRIPPER
+  [[ -f "$MDU_ELINK_CONFIG" && ! -L "$MDU_ELINK_CONFIG" ]] || \
+    die "$step" ELINK_CONFIG_MISSING
+  [[ -f "$MDU_HAL_GRIPPER_BASE_CONFIG" && ! -L "$MDU_HAL_GRIPPER_BASE_CONFIG" ]] || \
+    die "$step" HAL_GRIPPER_CONFIG_MISSING
+  render_t3_elink_config >/dev/null || die "$step" T3_ELINK_GRIPPER_CONFIG_INVALID
+}
+
+check_t3_elink_ready() {
+  local step="$1" system_dir="/tmp/hope_real/$SESSION_ID/mdu/system"
+  local elink_log="$system_dir/hal_elink.log"
+  local elink_config="$system_dir/hal_elink_a3_gripper.yaml"
+  grep -Fq -- "Enter ElinkKeepAliveLoop" "$elink_log" || die "$step" ELINK_NOT_READY
+  grep -Fq -- "load config file: $elink_config" "$elink_log" || \
+    die "$step" ELINK_CONFIG_NOT_LOADED
+  grep -Fq -- "subscribe topic '/body_drive/hand_joint_command' success" "$elink_log" || \
+    die "$step" ELINK_HAND_ROS2_SUBSCRIBER_NOT_REGISTERED
+  grep -Eq -- '/body_drive/hand_joint_command[[:space:]]+\|[[:space:]]+pb:aimdk[.]protocol[.]HandCommandChannel[[:space:]]+\|[[:space:]]+ElinkModule[[:space:]]+\|[^|]*ros2' \
+    "$elink_log" || die "$step" ELINK_HAND_TOPIC_BACKEND_NOT_REGISTERED
+}
+
+check_t3_hal_ready() {
+  local step="$1" system_dir="/tmp/hope_real/$SESSION_ID/mdu/system"
+  local hal_log="$system_dir/hal_ethercat.log"
+  check_t3_elink_ready "$step"
+  grep -Fq -- "load config file: $MDU_HAL_GRIPPER_BASE_CONFIG" "$hal_log" || \
+    die "$step" HAL_GRIPPER_CONFIG_NOT_LOADED
+  grep -Fq -- "ethercat controller start success." "$hal_log" || \
+    die "$step" HAL_NOT_READY
 }
 
 preflight_mdu() {
   require_user "$ROBOT_USER" PREFLIGHT
+  tmux_exists "$MDU_ELINK_SESSION" && die PREFLIGHT MANAGED_ELINK_PRESENT
   tmux_exists "$MDU_HAL_SESSION" && die PREFLIGHT MANAGED_HAL_PRESENT
   tmux_exists "$MDU_RUNNER_SESSION" && die PREFLIGHT MANAGED_RUNNER_PRESENT
   pgrep -u "$ROBOT_USER" -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && die PREFLIGHT UNMANAGED_RUNNER_PRESENT
   systemctl is-active --quiet agibot_pm.service || die PREFLIGHT AGIBOT_PM_NOT_ACTIVE
   has_unmanaged_hal && die PREFLIGHT UNMANAGED_HAL_PRESENT
+  has_unmanaged_elink && die PREFLIGHT UNMANAGED_ELINK_PRESENT
+  check_t3_hardware_config PREFLIGHT
+  command -v python3 >/dev/null || die PREFLIGHT PYTHON3_MISSING
   [[ -x "$MDU_DEPLOY/run_a3_pingpong.sh" ]] || die PREFLIGHT RUNNER_PACKAGE_MISSING
+  [[ -x "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" ]] || \
+    die PREFLIGHT RUNNER_EXECUTABLE_MISSING
+  if [[ "$FIELD_MODE" == KERNEL ]]; then
+    # Read-only capability checks reject mixed old/new deployments before HAL.
+    grep -aFq -- '--kernel-mode' "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" || \
+      die PREFLIGHT KERNEL_RUNNER_UPDATE_REQUIRED
+    grep -Fq -- '--kernel-mode' "$MDU_DEPLOY/run_a3_pingpong.sh" || \
+      die PREFLIGHT KERNEL_WRAPPER_UPDATE_REQUIRED
+  fi
+  [[ -s "$MDU_DEPLOY/policy/exported/policy.onnx" ]] || \
+    die PREFLIGHT POLICY_FILE_MISSING
+  [[ -s "$MDU_DEPLOY/policy/params/deploy.yaml" ]] || \
+    die PREFLIGHT POLICY_CONFIG_MISSING
+  [[ -s "$MDU_DEPLOY/config/a3_runtime_config.pingpong.hitter_pingpong.yaml" ]] || \
+    die PREFLIGHT RUNTIME_CONFIG_MISSING
+  [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
+    die PREFLIGHT AIMRT_CONFIG_MISSING
+  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv" ]] || \
+    die PREFLIGHT SERVE025_TIMELINE_MISSING
+  [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
+    die PREFLIGHT GRIPPER_BRIDGE_MISSING
   command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
   emit PREFLIGHT COMPLETE MDU_READY
 }
 
 run_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
-  require_motive_interface OPTITRACK
-  exec /usr/bin/distrobox enter hope -- /bin/bash -lc '
-    set -eo pipefail
-    source /opt/ros/jazzy/setup.bash
-    hope_root="$4"
-    cd "$hope_root/hope_ws"
-    source install/local_setup.bash
-    set -u
-    session_id="$1"
-    hdu_ip="$2"
-    motive_ip="$3"
-    motive_interface_ip="$6"
-    laptop_dir="$hope_root/real_logs/$session_id/laptop"
-    marker_root="$5"
-    mkdir -p "$laptop_dir"
-    {
-      date -u --iso-8601=seconds
-      uname -a
-      sha256sum \
-        src/hope_bringup/launch/optitrack_hope_bridge.launch.py \
-        src/hope_bringup/launch/hope_world.launch.py \
-        src/hope_bringup/scripts/optitrack_mct_relay \
-        src/hope_bringup/scripts/p1_marker_cad_calibrator \
-        src/hope_bringup/scripts/p1_marker_cad_calibration_server \
-        src/hope_bringup/scripts/p1_marker_cad_registration_impl.py \
-        src/hope_bringup/scripts/p1_marker_layout.py \
-        ../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv \
-        src/hope_msgs/msg/BallFlightSample.msg \
-        src/hope_msgs/msg/BallFlightPacket.msg \
-        src/hope_planner_cpp/config/model21800_flight_packetizer.yaml \
-        src/hope_planner_cpp/src/flight_packetizer_node.cpp \
-        src/hope_bringup/scripts/hope_base_pose_flat_relay \
-        src/hope_bringup/scripts/base_pose_contract.py \
-        src/hope_bringup/scripts/p1_calibration.py \
-        src/hope_bringup/config/optitrack_relay.yaml \
-        ../NatNet2ROS2/src/motion_capture_tracking/src/motion_capture_tracking_node.cpp \
-        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/src/optitrack.cpp \
-        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_clock_sync.h \
-        ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_modeldef.h
-    } > "$laptop_dir/artifact_sha256.txt"
-    ros2 daemon stop || true
-    dds_wrap="$hope_root/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
-    "$dds_wrap" --domain-id 232 --peer "$hdu_ip" -- \
-      bash -c '\''
-        set -euo pipefail
-        marker_root="$1"
-        laptop_dir="$2"
-        motive_ip="$3"
-        motive_interface_ip="$4"
-        session_id="$5"
-        hope_root="$6"
-        export PYTHONPATH="$marker_root${PYTHONPATH:+:$PYTHONPATH}"
-        marker_pid=""
-        stop_marker() {
-          if [[ -n "$marker_pid" ]] && kill -0 "$marker_pid" 2>/dev/null; then
-            kill -INT "$marker_pid" 2>/dev/null || true
-            wait "$marker_pid" 2>/dev/null || true
-          fi
-        }
-        trap stop_marker EXIT
-        python3 "$marker_root/hope_marker_monitor.py" \
-          --ros-args --params-file "$marker_root/marker_monitor.yaml" \
-          > >(tee -a "$laptop_dir/marker_monitor.log") 2>&1 &
-        marker_pid=$!
-        sleep 1
-        kill -0 "$marker_pid" 2>/dev/null
-        ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
-          motive_hostname:="$motive_ip" \
-          motive_interface_ip:="$motive_interface_ip" \
-          start_world:=true start_calibration:=true \
-          p1_calibration_file:="$hope_root/calibration/p1_to_pelvis.json" \
-          base_pose_output_topic:=/a3/base_pose_laptop_flat \
-          debug_csv_path:="$laptop_dir/mocap_raw.csv" \
-          debug_session_id:="$session_id" \
-          start_flight_packetizer:=true \
-          flight_packet_topic:=/ball/flight_packet \
-          flight_packet_debug_csv_path:="$laptop_dir/flight_packets.csv" \
-          > >(tee -a "$laptop_dir/laptop_bridge.log") 2>&1
-      '\'' hope-laptop-runtime \
-        "$marker_root" "$laptop_dir" "$motive_ip" "$motive_interface_ip" \
-        "$session_id" "$hope_root"
-  ' hope-laptop "$SESSION_ID" "$HDU_WIFI_IP" "$MOTIVE_IP" "$HOPE_ROOT" \
-    "$LAPTOP_SHARE" "$MOTIVE_INTERFACE_IP"
+  valid_ipv4 "$MOTIVE_IP" || die OPTITRACK MOTIVE_IP_REQUIRED
+  local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
+  mkdir -p "$(dirname "$runtime_env")"
+  {
+    printf 'HOPE_LIFECYCLE_SESSION_ID=%q\n' "$SESSION_ID"
+    printf 'HOPE_LIFECYCLE_HDU_IP=%q\n' "$HDU_WIFI_IP"
+    printf 'HOPE_LIFECYCLE_MOTIVE_IP=%q\n' "$MOTIVE_IP"
+    printf 'HOPE_LIFECYCLE_MOTIVE_INTERFACE_IP=%q\n' "${HOPE_MOTIVE_INTERFACE_IP:-}"
+    printf 'HOPE_LIFECYCLE_ROOT=%q\n' "$HOPE_ROOT"
+    printf 'HOPE_LIFECYCLE_MARKER_ROOT=%q\n' "$LAPTOP_SHARE"
+    printf 'HOPE_LIFECYCLE_TABLE_SIDE=%q\n' "$TABLE_SIDE"
+  } > "$runtime_env"
+  exec /usr/bin/distrobox enter hope -- \
+    "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime"
 }
 
 start_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
-  require_motive_interface OPTITRACK
+  valid_ipv4 "$MOTIVE_IP" || die OPTITRACK MOTIVE_IP_REQUIRED
   if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null; then
     die OPTITRACK UNMANAGED_BRIDGE_PRESENT
   fi
   start_tmux "$LAPTOP_SESSION" "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
-    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die OPTITRACK ALREADY_RUNNING
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
+    die OPTITRACK ALREADY_RUNNING
   sleep 2
   tmux_exists "$LAPTOP_SESSION" || die OPTITRACK START_FAILED
   emit OPTITRACK COMPLETE BRIDGE_RUNNING
@@ -437,10 +746,11 @@ start_base() {
   local attempt
   start_tmux "$HDU_BASE_SESSION" "$SELF" _run-base \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
-    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die BASE_RELAY ALREADY_RUNNING
-  # Startup is process-based, not a data-admission gate. The relay may come up
-  # before Motive publishes its first pose; live base freshness remains visible
-  # to the operator and gates only the Foxglove Ready button.
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
+    die BASE_RELAY ALREADY_RUNNING
+  # Startup is process-based, not a data-admission gate. The relay may run with
+  # no Laptop bridge or Motive stream; base freshness remains audit telemetry
+  # and never gates lifecycle completion or the Foxglove Ready button.
   for attempt in {1..20}; do
     if tmux_exists "$HDU_BASE_SESSION" && \
        pgrep -u "$ROBOT_USER" -f \
@@ -454,6 +764,51 @@ start_base() {
   done
   stop_tmux "$HDU_BASE_SESSION"
   die BASE_RELAY HDU_TRANSPORT_RELAY_START_FAILED
+}
+
+run_runner_transport() {
+  require_user "$ROBOT_USER" RUNNER_TRANSPORT
+  set +u
+  source /opt/ros/jazzy/setup.bash
+  if [[ "$FIELD_MODE" != KERNEL ]]; then
+    source "$HDU_WS/install/local_setup.bash"
+  fi
+  set -u
+  local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
+  mkdir -p "$hdu_dir"
+  {
+    date -u --iso-8601=seconds
+    uname -a
+    sha256sum /usr/local/libexec/hope-runner-transport-relay
+  } > "$hdu_dir/runner_transport_artifact_sha256.txt"
+  local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+    python3 /usr/local/libexec/hope-runner-transport-relay \
+    > >(tee -a "$hdu_dir/runner_transport_relay.log") 2>&1
+}
+
+start_runner_transport() {
+  require_user "$ROBOT_USER" RUNNER_TRANSPORT
+  tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
+    die RUNNER_TRANSPORT ALREADY_RUNNING
+  local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
+  local relay_log="$hdu_dir/runner_transport_relay.log"
+  local attempt
+  start_tmux "$HDU_RUNNER_TRANSPORT_SESSION" "$SELF" _run-runner-transport \
+    "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
+    die RUNNER_TRANSPORT ALREADY_RUNNING
+  for ((attempt = 0; attempt < 60; attempt++)); do
+    if [[ -r "$relay_log" ]] && \
+       grep -Fq -- "RUNNER TRANSPORT HEALTHY" "$relay_log"; then
+      emit RUNNER_TRANSPORT COMPLETE BIDIRECTIONAL_DDS_HEALTHY
+      return 0
+    fi
+    tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" || break
+    sleep 0.25
+  done
+  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
+  die RUNNER_TRANSPORT BIDIRECTIONAL_DDS_NOT_HEALTHY
 }
 
 run_planner() {
@@ -475,7 +830,6 @@ run_planner() {
   printf '%s\n' "$attempt_id" > "$hdu_dir/current_planner_attempt"
   date -u --iso-8601=seconds > "$attempt_dir/attempt_start_utc.txt"
   cat /proc/sys/kernel/random/uuid > "$attempt_dir/instance_uuid.txt"
-  ln -sfn "$attempt_id/planner.csv" "$hdu_dir/planner.csv"
   ln -sfn "$attempt_id/planner.log" "$hdu_dir/planner.log"
   ln -sfn "$attempt_id/artifact_sha256.txt" "$hdu_dir/planner_artifact_sha256.txt"
   local request_file="$hdu_dir/x_hit.request"
@@ -490,7 +844,7 @@ run_planner() {
     printf 'session_id: %s\n' "$SESSION_ID"
     printf 'x_hit_calibration_request_file: %s\n' "$request_file"
     printf 'x_hit_calibration_status_file: %s\n' "$status_file"
-    printf 'debug_csv_path: %s\n' "$attempt_dir/planner.csv"
+    printf '%s\n' "debug_csv_path: ''"
   } > "$attempt_dir/runtime_overrides.yaml"
   {
     date -u --iso-8601=seconds
@@ -512,7 +866,7 @@ run_planner() {
         --params-file "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
         -p "x_hit_calibration_request_file:=$request_file" \
         -p "x_hit_calibration_status_file:=$status_file" \
-        -p "debug_csv_path:=$attempt_dir/planner.csv" \
+        -p "debug_csv_path:=''" \
         -p "debug_session_id:=$SESSION_ID" \
     > >(tee "$attempt_dir/planner.log") 2>&1
   planner_rc=$?
@@ -528,10 +882,28 @@ start_planner() {
     die PLANNER UNMANAGED_PLANNER_PRESENT
   start_tmux "$HDU_PLANNER_SESSION" "$SELF" _run-planner \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
-    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die PLANNER ALREADY_RUNNING
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
+    die PLANNER ALREADY_RUNNING
   sleep 2
   tmux_exists "$HDU_PLANNER_SESSION" || die PLANNER START_FAILED
   emit PLANNER COMPLETE PLANNER_RUNNING
+}
+
+run_elink() {
+  require_user "$ROBOT_USER" HAL
+  set +u
+  source /agibot/software/v0/entry/env/env.sh
+  set -u
+  local system_dir="/tmp/hope_real/$SESSION_ID/mdu/system"
+  export EM_APP_NAME=hal_elink
+  export LOG_PATH="$system_dir/hal_elink"
+  export ROS_LOG_DIR="$LOG_PATH/ros"
+  mkdir -p "$ROS_LOG_DIR"
+  cd /agibot/software/v0
+  local elink_config="$system_dir/hal_elink_a3_gripper.yaml"
+  [[ -f "$elink_config" && ! -L "$elink_config" ]] || die HAL T3_SESSION_CONFIG_MISSING
+  exec bash scripts/hal_elink/start_hal_elink.sh -c "$elink_config" \
+    > >(tee -a "$system_dir/hal_elink.log") 2>&1
 }
 
 run_hal() {
@@ -539,24 +911,57 @@ run_hal() {
   set +u
   source /agibot/software/v0/entry/env/env.sh
   set -u
+  local system_dir="/tmp/hope_real/$SESSION_ID/mdu/system"
+  export EM_APP_NAME=hal_ethercat
+  export LOG_PATH="$system_dir/hal_ethercat"
+  export ROS_LOG_DIR="$LOG_PATH/ros"
+  mkdir -p "$ROS_LOG_DIR"
   cd /agibot/software/v0
-  exec bash scripts/hal_ethercat/start_hal_ethercat.sh
+  exec bash scripts/hal_ethercat/start_hal_ethercat.sh -c "$MDU_HAL_GRIPPER_BASE_CONFIG" \
+    > >(tee -a "$system_dir/hal_ethercat.log") 2>&1
 }
 
 start_hal() {
+  local system_dir="/tmp/hope_real/$SESSION_ID/mdu/system"
+  local elink_log="$system_dir/hal_elink.log"
+  local hal_log="$system_dir/hal_ethercat.log"
+  local gripper_receipt="$system_dir/gripper_config_receipt.txt"
   require_user "$ROBOT_USER" HAL
   pgrep -u "$ROBOT_USER" -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && die HAL UNMANAGED_RUNNER_PRESENT
   systemctl is-active --quiet agibot_pm.service || die HAL AGIBOT_PM_NOT_ACTIVE
   has_unmanaged_hal && die HAL UNMANAGED_HAL_PRESENT
+  mkdir -p "$system_dir"
+  check_t3_hardware_config HAL
+  local elink_config="$system_dir/hal_elink_a3_gripper.yaml"
+  render_t3_elink_config > "$elink_config" || die HAL T3_ELINK_GRIPPER_CONFIG_INVALID
+  printf 'HOPE_GRIPPER_CONFIG_T3_V2 transport=hand_command_topic_pb owner=hal_elink_t3d0 elink_factory_path=%s elink_factory_sha256=%s ethercat_path=%s ethercat_sha256=%s session_path=%s session_sha256=%s\n' \
+    "$MDU_ELINK_CONFIG" "$(sha256sum "$MDU_ELINK_CONFIG" | cut -c1-64)" \
+    "$MDU_HAL_GRIPPER_BASE_CONFIG" "$(sha256sum "$MDU_HAL_GRIPPER_BASE_CONFIG" | cut -c1-64)" \
+    "$elink_config" "$(sha256sum "$elink_config" | cut -c1-64)" \
+    > "$gripper_receipt"
+  cat "$gripper_receipt"
   sudo -n systemctl stop agibot_pm.service || die HAL AGIBOT_PM_STOP_FAILED
   systemctl is-active --quiet agibot_pm.service && die HAL AGIBOT_PM_STOP_FAILED
   pgrep -f '[a]imrt_main_hal' >/dev/null && die HAL HAL_REMAINS_AFTER_AGIBOT_PM_STOP
+  pgrep -f '[a]imrt_main .*hal_elink_a3(_ultra)?_(cfg|gripper)[.]yaml' >/dev/null && \
+    die HAL ELINK_REMAINS_AFTER_AGIBOT_PM_STOP
+  : > "$elink_log"
+  : > "$hal_log"
+  start_tmux "$MDU_ELINK_SESSION" "$SELF" _run-elink \
+    "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
+    die HAL ELINK_ALREADY_RUNNING
+  wait_for_session_log "$MDU_ELINK_SESSION" "$elink_log" \
+    "Enter ElinkKeepAliveLoop" 160 || die HAL ELINK_START_FAILED
+  check_t3_elink_ready HAL
+  emit HAL STARTING ELINK_READY_WITH_GRIPPER_TOPIC
   start_tmux "$MDU_HAL_SESSION" "$SELF" _run-hal \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
-    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die HAL ALREADY_RUNNING
-  sleep 3
-  tmux_exists "$MDU_HAL_SESSION" || die HAL START_FAILED
-  emit HAL COMPLETE HAL_RUNNING
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || die HAL ALREADY_RUNNING
+  wait_for_session_log "$MDU_HAL_SESSION" "$hal_log" \
+    "ethercat controller start success." 240 || die HAL SERVO_ENABLE_TIMEOUT
+  check_t3_hal_ready HAL
+  emit HAL COMPLETE HAL_RUNNING_WITH_GRIPPER_TOPIC
 }
 
 run_runner() {
@@ -584,17 +989,37 @@ run_runner() {
     uname -a
     sha256sum a3_deploy_onnx_ref_pingpong run_a3_pingpong.sh \
       "$A3_PINGPONG_RUNTIME_CFG" policy/exported/policy.onnx \
-      policy/params/deploy.yaml /opt/agibot/entry/system/timesync.sh \
+      policy/params/deploy.yaml \
+      /opt/agibot/entry/system/timesync.sh \
       /etc/systemd/system/agibot-mdu-ptp4l.service \
       /etc/systemd/system/agibot-mdu-phc2sys.service \
       /etc/systemd/system/agibot_pm.service
   } > "$session_dir/artifact_sha256.txt"
+  local -a field_runner_args=(--planner)
+  if [[ "$FIELD_MODE" == KERNEL ]]; then
+    field_runner_args=(--kernel-mode)
+    if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
+      local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+      [[ -r "$selected_csv" ]] || die RUNNER SELECTED_CSV_MISSING
+      [[ "$(sha256sum "$selected_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
+        die RUNNER SELECTED_CSV_CHANGED
+      field_runner_args+=(--serve-timeline "$selected_csv")
+    fi
+  fi
+  if [[ -d "$PWD/teleop_humanlike" ]]; then
+    local teleop_asset
+    for teleop_asset in humanlike.yaml policy.onnx lin_vel_encoder.onnx; do
+      [[ -r "$PWD/teleop_humanlike/$teleop_asset" ]] || die RUNNER TELEOP_ASSET_MISSING
+      sha256sum "$PWD/teleop_humanlike/$teleop_asset" >> "$session_dir/artifact_sha256.txt"
+    done
+    field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
+  fi
+  printf 'mode=%s\ncsv_sha256=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" > "$session_dir/field_selection.txt"
   set +e
   taskset -c 4-7 ./run_a3_pingpong.sh \
-    --policy-dir "$PWD/policy" --planner --policy-native --no-fall-guard \
+    --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native --serve \
+    --no-fall-guard --no-data-csv \
     --start passive --official-stand \
-    --trace-csv "$session_dir/runner_trace.csv" \
-    --obs-csv "$session_dir/runner_obs.csv" \
     --session-id "$SESSION_ID" \
     > >(tee -a "$session_dir/runner.log") 2>&1
   runner_rc=$?
@@ -604,16 +1029,64 @@ run_runner() {
   exit "$runner_rc"
 }
 
+runner_inputs_ready() {
+  local runner_log="$1" input
+  local -a required_inputs=(
+    waist leg arm neck pelvis_imu torso_imu
+  )
+  # Runner's `ready=yes` is SubscriberBase::IsReady(): it can only become
+  # true after a converted sample has reached that input's ring buffer.  Do
+  # not require the separately streamed `samples=N` fragment on the same
+  # physical line. AimRT writes to stderr concurrently and can split that
+  # fragment with an initialization log, even though all six inputs are live.
+  for input in "${required_inputs[@]}"; do
+    grep -Eq "(^|[[:space:]])${input}[[:space:]]+ready=yes([^[:alpha:]_]|$)" \
+      "$runner_log" || return 1
+  done
+  grep -Fq -- \
+    "serve025 bridge ready; startup sent no gripper command" "$runner_log"
+}
+
 start_runner() {
+  local system_dir="/tmp/hope_real/$SESSION_ID/mdu/system"
+  local real_root="/tmp/hope_real/$SESSION_ID/mdu/real"
+  local attempt attempt_id prior_attempt="" runner_log
   require_user "$ROBOT_USER" RUNNER
+  tmux_exists "$MDU_ELINK_SESSION" || die RUNNER ELINK_NOT_RUNNING
   tmux_exists "$MDU_HAL_SESSION" || die RUNNER HAL_NOT_RUNNING
+  check_t3_hal_ready RUNNER
   pgrep -u "$ROBOT_USER" -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && die RUNNER UNMANAGED_RUNNER_PRESENT
+  if [[ -r "$real_root/current_attempt" ]]; then
+    prior_attempt="$(<"$real_root/current_attempt")"
+  fi
   start_tmux "$MDU_RUNNER_SESSION" "$SELF" _run-runner \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
-    "$MDU_INTERNAL_IP" "$MOTIVE_IP" || die RUNNER ALREADY_RUNNING
-  sleep 3
-  tmux_exists "$MDU_RUNNER_SESSION" || die RUNNER START_FAILED
-  emit RUNNER COMPLETE RUNNER_PASSIVE
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
+    die RUNNER ALREADY_RUNNING
+  for ((attempt = 0; attempt < 72; attempt++)); do
+    if [[ -r "$real_root/current_attempt" ]]; then
+      attempt_id="$(<"$real_root/current_attempt")"
+      if [[ "$attempt_id" =~ ^attempt_[0-9]{3}$ && \
+            "$attempt_id" != "$prior_attempt" ]]; then
+        runner_log="$real_root/$attempt_id/runner.log"
+        if [[ -r "$runner_log" ]]; then
+          grep -Fq -- "not all 6 topics ready within 5s" "$runner_log" && \
+            die RUNNER HAL_INPUTS_NOT_READY
+          grep -Fq -- "[a3p-gripper] ERROR:" "$runner_log" && \
+            die RUNNER GRIPPER_BRIDGE_UNAVAILABLE
+          grep -Fq -- "serve gripper bridge unavailable" "$runner_log" && \
+            die RUNNER GRIPPER_BRIDGE_UNAVAILABLE
+          if runner_inputs_ready "$runner_log"; then
+            emit RUNNER COMPLETE RUNNER_PASSIVE
+            return 0
+          fi
+        fi
+      fi
+    fi
+    tmux_exists "$MDU_RUNNER_SESSION" || die RUNNER START_FAILED
+    sleep 0.25
+  done
+  die RUNNER HAL_INPUTS_NOT_READY
 }
 
 stop_mdu() {
@@ -622,6 +1095,7 @@ stop_mdu() {
   emit RUNNER COMPLETE RUNNER_STOPPED
   stop_tmux "$MDU_HAL_SESSION"
   emit HAL COMPLETE HAL_STOPPED
+  stop_tmux "$MDU_ELINK_SESSION"
   sudo -n systemctl start agibot_pm.service || die RUNNER_HAL AGIBOT_PM_RESTORE_FAILED
   systemctl is-active --quiet agibot_pm.service || die RUNNER_HAL AGIBOT_PM_NOT_ACTIVE
   emit RUNNER_HAL COMPLETE AGIBOT_PM_RESTORED
@@ -629,6 +1103,8 @@ stop_mdu() {
 
 stop_hdu() {
   require_user "$ROBOT_USER" PLANNER_BASE
+  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
+  emit RUNNER_TRANSPORT COMPLETE RUNNER_TRANSPORT_STOPPED
   stop_tmux "$HDU_PLANNER_SESSION"
   emit PLANNER COMPLETE PLANNER_STOPPED
   stop_tmux "$HDU_BASE_SESSION"
@@ -708,6 +1184,41 @@ main() {
   [[ "$#" -ge 1 ]] || exit 64
   local action="$1"
   shift
+  case "$action" in
+    field-assets-laptop)
+      require_user "$LAPTOP_USER" FIELD_ASSETS
+      export PYTHONPATH="$HOPE_ROOT/hope_ws/src/hope_bringup/scripts${PYTHONPATH:+:$PYTHONPATH}"
+      exec python3 "$HOPE_ROOT/foxglove/a3/hope_field_assets.py" laptop --root "$HOPE_ROOT/calibration"
+      ;;
+    field-assets-mdu)
+      require_user "$ROBOT_USER" FIELD_ASSETS
+      # Match the packaged Runner's dynamic-library environment. Sourcing
+      # these files starts no HAL, gripper or ROS node.
+      set +u
+      source /agibot/software/v0/entry/env/env.sh
+      source /opt/ros/jazzy/setup.bash
+      set -u
+      export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      exec python3 /usr/local/lib/hope-foxglove/hope_field_assets.py mdu \
+        --root /agibot/hope-field-assets --validator "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong"
+      ;;
+    time-calibration-preflight-mdu)
+      time_calibration_check_mdu "$@"
+      return
+      ;;
+    time-calibration-recover-mdu)
+      time_calibration_recover_mdu "$@"
+      return
+      ;;
+    time-calibration-stop-mdu)
+      time_calibration_stop_mdu "$@"
+      return
+      ;;
+    time-calibration-restore-mdu)
+      time_calibration_restore_mdu "$@"
+      return
+      ;;
+  esac
   parse_common "$@" || {
     emit CONFIG FAILED INVALID_ARGUMENTS
     exit 64
@@ -721,6 +1232,7 @@ main() {
     prepare-mdu) prepare_mdu ;;
     start-laptop) start_laptop ;;
     start-base) start_base ;;
+    start-runner-transport) start_runner_transport ;;
     start-planner) start_planner ;;
     start-hal) start_hal ;;
     start-runner) start_runner ;;
@@ -730,7 +1242,9 @@ main() {
     collect) collect_logs ;;
     _run-laptop) run_laptop ;;
     _run-base) run_base ;;
+    _run-runner-transport) run_runner_transport ;;
     _run-planner) run_planner ;;
+    _run-elink) run_elink ;;
     _run-hal) run_hal ;;
     _run-runner) run_runner ;;
     *)

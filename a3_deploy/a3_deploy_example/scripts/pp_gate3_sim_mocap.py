@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Expose MuJoCo through the public raw NamedPoseArray boundary as OptiTrack."""
+"""Expose MuJoCo through the public raw NamedPoseArrayV2 boundary as OptiTrack."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 import rclpy
 import yaml
 from geometry_msgs.msg import Pose, PoseStamped
-from motion_capture_tracking_interfaces.msg import NamedPose, NamedPoseArray
+from motion_capture_tracking_interfaces.msg import NamedPose, NamedPoseArrayV2
 from mujoco_sim_msgs.msg import Gate3BallState
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -63,7 +63,7 @@ class Gate3SimMocap(Node):
             depth=10,
         )
         self._pub = self.create_publisher(
-            NamedPoseArray, "/optitrack/poses", sensor_qos
+            NamedPoseArrayV2, "/optitrack/poses", sensor_qos
         )
         self._pelvis: PoseStamped | None = None
         self._frames = 0
@@ -93,12 +93,8 @@ class Gate3SimMocap(Node):
         if self._pelvis is None:
             self._frames_without_pelvis += 1
             return
-        # The public NatNet relay consumes the stable NamedPoseArray contract.
-        # build_1 briefly used NamedPoseArrayV2 here while its corresponding
-        # relay lived in a separate workspace; publishing V2 to the public
-        # relay's V1 subscription leaves the topic visible in the ROS graph but
-        # delivers zero samples.
-        frame = NamedPoseArray()
+        # Match the production relay message type, including its source header.
+        frame = NamedPoseArrayV2()
         frame.header = msg.header
         frame.header.frame_id = "world"
 
@@ -130,7 +126,7 @@ class Gate3SimMocap(Node):
         table.position.x = 1.370
         table.position.y = -0.7625
         table.orientation.w = 1.0
-        entries = [self._named("P1", p1), self._named("PPT", table)]
+        entries = [self._named("UCB_P1", p1), self._named("PPT", table)]
         if msg.active:
             ball = Pose()
             (
@@ -149,7 +145,7 @@ class Gate3SimMocap(Node):
 
     def _health(self) -> None:
         self.get_logger().info(
-            "GATE3 RAW MOCAP frames=%d dropped_without_pelvis=%d ball/P1/PPT "
+            "GATE3 RAW MOCAP frames=%d dropped_without_pelvis=%d ball/UCB_P1/PPT "
             "positions are table-surface-frame; P1 is the calibrated marker "
             "(not the pelvis)"
             % (self._frames, self._frames_without_pelvis)
@@ -165,11 +161,19 @@ def main() -> int:
         required=True,
         help="calibrated hope_world_frame.yaml used by the production relay",
     )
+    parser.add_argument("--calibration", type=Path)
     args, ros_args = parser.parse_known_args()
-    with args.world_config.open("r", encoding="utf-8") as handle:
-        marker_to_base_xyz, marker_to_base_quaternion = (
-            calibrated_p1_marker_contract(yaml.safe_load(handle))
-        )
+    if args.calibration:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "hope_ws/src/hope_bringup/scripts"))
+        from p1_calibration import load_p1_calibration
+        receipt = load_p1_calibration(args.calibration)
+        marker_to_base_xyz = receipt.translation_m
+        x, y, z, w = receipt.quaternion_xyzw
+        marker_to_base_quaternion = (w, x, y, z)
+    else:
+        with args.world_config.open("r", encoding="utf-8") as handle:
+            marker_to_base_xyz, marker_to_base_quaternion = calibrated_p1_marker_contract(yaml.safe_load(handle))
     rclpy.init(args=ros_args)
     node = Gate3SimMocap(
         args.table_height_m,

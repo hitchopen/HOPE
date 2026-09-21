@@ -5,6 +5,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def _load_world_config():
@@ -79,8 +80,14 @@ def generate_launch_description():
     offsets = config["mocap_to_base_link"]
     contract = config["contract"]
     x_hit = config["planner"]["x_hit"]
-    p1_calibration_file = LaunchConfiguration("p1_calibration_file")
+    ucb_calibration_file = LaunchConfiguration("ucb_calibration_file")
     base_pose_output_topic = LaunchConfiguration("base_pose_output_topic")
+    table_side = LaunchConfiguration("table_side")
+    tracked_marker_frame = LaunchConfiguration("tracked_marker_frame")
+    tracked_pose_topic = LaunchConfiguration("tracked_pose_topic")
+    table_length_m = LaunchConfiguration("table_length_m")
+    table_width_m = LaunchConfiguration("table_width_m")
+    require_marker_identity = LaunchConfiguration("require_marker_identity")
 
     nodes = [
         _static_tf(frames["world"], frames["table_center"], landmarks["table_center"], [0.0, 0.0, 0.0]),
@@ -89,7 +96,7 @@ def generate_launch_description():
         _static_tf(frames["world"], frames["net_center"], landmarks["net_center"], [0.0, 0.0, 0.0]),
         _static_tf(frames["world"], frames["floor_origin"], landmarks["floor_origin"], [0.0, 0.0, 0.0]),
         _static_tf(frames["world"], frames["virtual_hit_plane"], [x_hit, 0.0, 0.0], [0.0, 0.0, 0.0]),
-        # Do not publish P1 -> pelvis_link into the vendor TF tree: the vendor
+        # Do not publish UCB_P1 -> pelvis_link into the vendor TF tree: the vendor
         # stack already owns pelvis_link below odom.  The relay publishes the
         # independently composed world pose on /a3/mocap/pelvis_pose instead.
         _calibrated_marker_tf(frames, offsets, "p2"),
@@ -102,13 +109,16 @@ def generate_launch_description():
             name="hope_base_pose_flat_relay",
             output="screen",
             parameters=[{
-                "input_topic": f"/{frames['p1_mocap']}/pose",
+                "input_topic": tracked_pose_topic,
                 "output_topic": base_pose_output_topic,
                 "expected_input_frame": frames["world"],
-                "expected_marker_frame": frames["p1_mocap"],
+                "expected_marker_frame": tracked_marker_frame,
                 "pelvis_frame": "pelvis_link",
                 "pelvis_pose_topic": "/a3/mocap/pelvis_pose",
-                "calibration_file": p1_calibration_file,
+                "calibration_file": ucb_calibration_file,
+                "require_marker_identity": ParameterValue(
+                    require_marker_identity, value_type=bool
+                ),
                 "policy_z_offset": config["planner"]["policy_z_offset"],
                 "world_frame_calibrated": bool(
                     contract.get("venue_calibrated", False)
@@ -116,6 +126,9 @@ def generate_launch_description():
                 "world_frame_sha256": str(
                     contract.get("calibration_sha256", "")
                 ),
+                "table_side": table_side,
+                "table_length_m": table_length_m,
+                "table_width_m": table_width_m,
                 # Production launches this relay next to NatNet on the laptop.
                 # The input header is already mapped into that host's
                 # disciplined ROS system-time epoch.
@@ -126,16 +139,33 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "p1_calibration_file",
-                default_value="calibration/p1_to_pelvis.json",
+                "ucb_calibration_file",
+                default_value="calibration/ucb_robot_to_pelvis.json",
                 description=(
-                    "laptop-local approved P1 -> pelvis_link calibration receipt"
+                    "laptop-local approved selected-UCB -> pelvis_link receipt"
                 ),
             ),
             DeclareLaunchArgument(
                 "base_pose_output_topic",
                 default_value="/a3/base_pose_flat",
                 description="schema-2 base-pose output topic",
+            ),
+            DeclareLaunchArgument("table_side", default_value="P1"),
+            DeclareLaunchArgument("tracked_marker_frame", default_value="UCB_P1"),
+            DeclareLaunchArgument("tracked_pose_topic", default_value="/UCB_P1/pose"),
+            DeclareLaunchArgument(
+                "table_length_m", default_value=str(config["table_m"]["length"])
+            ),
+            DeclareLaunchArgument(
+                "table_width_m", default_value=str(config["table_m"]["width"])
+            ),
+            DeclareLaunchArgument(
+                "require_marker_identity",
+                default_value="false",
+                description=(
+                    "Require the live OptiTrack rigid-body ID to match the "
+                    "calibration receipt source before publishing valid base pose."
+                ),
             ),
             *nodes,
         ]

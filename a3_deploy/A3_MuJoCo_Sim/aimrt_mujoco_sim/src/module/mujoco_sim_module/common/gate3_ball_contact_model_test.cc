@@ -15,11 +15,8 @@ TEST(Gate3BallContactModel, MatchesPlannerNormalContactReference) {
   EXPECT_NEAR(result.linear_velocity[0], 4.54502597, 1.0e-8);
   EXPECT_NEAR(result.linear_velocity[1], 0.048, 1.0e-9);
   EXPECT_NEAR(result.linear_velocity[2], -0.144, 1.0e-9);
-  // These values pass through normalized floating-point vectors.  GCC 13
-  // differs from the original compiler by less than 5e-8 here; 1e-7 remains
-  // far below any physical or telemetry resolution used by Gate3.
-  EXPECT_NEAR(result.angular_velocity[1], 11.7, 1.0e-7);
-  EXPECT_NEAR(result.angular_velocity[2], 3.9, 1.0e-7);
+  EXPECT_NEAR(result.angular_velocity[1], 11.7, 1.0e-8);
+  EXPECT_NEAR(result.angular_velocity[2], 3.9, 1.0e-8);
 }
 
 TEST(Gate3BallContactModel, NormalOrientationIsSignInvariant) {
@@ -38,8 +35,8 @@ TEST(Gate3BallContactModel, NormalOrientationIsSignInvariant) {
 
 TEST(Gate3BallContactModel, FlightAccelerationContainsDragGravityFreeMagnus) {
   const auto acceleration = FlightAcceleration(
-      Vec3{4.0, 0.0, 0.0}, Vec3{0.0, 10.0, 0.0}, 0.1261);
-  EXPECT_NEAR(acceleration[0], -2.0176, 1.0e-12);
+      Vec3{4.0, 0.0, 0.0}, Vec3{0.0, 10.0, 0.0}, 0.1220);
+  EXPECT_NEAR(acceleration[0], -1.952, 1.0e-12);
   EXPECT_NEAR(acceleration[1], 0.0, 1.0e-12);
   EXPECT_NEAR(acceleration[2], -0.1776, 1.0e-12);
 }

@@ -1,29 +1,35 @@
 optitrack_mct_relay:
   ros__parameters:
-    # NOTE: the Motive PC hostname/IP and raw driver configuration belong to
-    # the independently launched NatNet2ROS2 workspace, NOT this relay.
+    # NOTE: the Motive PC hostname/IP is a launch arg of
+    # optitrack_hope_bridge.launch.py (hostname), NOT here. The mct driver
+    # config (rigid bodies, single-marker ball tracker) lives in
+    # optitrack_mct.yaml.
     #
-    # Where the independent NatNet2ROS2 adapter publishes its
-    # NamedPoseArray after the launch-file remap. Raw driver topics live under
+    # Where the vendored motion_capture_tracking node publishes its
+    # NamedPoseArrayV2 after the launch-file remap. Raw driver topics live under
     # /optitrack/* on purpose -- the bare /poses name is the HOPE contract
     # (geometry_msgs/PoseArray) that THIS relay produces.
     input_poses_topic: "/optitrack/poses"
 
-    # STANDARDIZED object names (the HOPE tracked-object taxonomy, see
-    # mocap/README.md): Motive competition rigid-body ASSETS must be named
-    # EXACTLY P1 / P2, and the ball entry is named Ball. A mismatch = no data
-    # relayed; check with
-    # `ros2 topic echo --once /optitrack/poses` after the driver is up.
-    p1_object: "P1"        # our robot's marker-cluster rigid body (standardized)
-    p2_object: "P2"        # opponent marker-cluster rigid body (standardized)
-    # Ball entry name in the NamedPoseArray. HOPE requires a Motive-native
-    # strict 6-DOF rigid-body asset; the standardized asset name is Ball.
+    # STANDARDIZED downstream object names: robot rigid-body assets remain
+    # exactly UCB_P1 / UCB_P2 (+ PPT for the table if used). The upstream ball
+    # may be `Ball` or `ball`; optitrack_mct.yaml canonicalizes both to `Ball`
+    # before this relay. Check with `ros2 topic echo --once /optitrack/poses`
+    # after the driver is up.
+    ppt_object: "PPT"      # table rigid body (optional)
+    p1_object: "UCB_P1"    # P1-side robot base rigid body
+    p2_object: "UCB_P2"    # P2-side robot base rigid body
+    # Ball entry name in the NamedPoseArray. MODE A (current venue): the
+    # Motive rigid-body ASSET name. MODE B (single-marker): the
+    # librigidbodytracker body name from optitrack_mct.yaml. Either way the
+    # standardized downstream name is Ball; the relay does not care which
+    # source spelling or tracking mode produced it.
     ball_object: "Ball"
 
     # Unit conversion for every relayed position (poses, ball point, TF). THE
     # CHAIN WORKS IN METRES and Motive/NatNet streams METRES -> 1.0. Kept as a
-    # parameter because some venue feeds (seen on the VRPN side) turn out to
-    # stream millimetres; if /P1/pose ever reads hundreds, set 0.001.
+    # parameter because the VRPN venue feed turned out to stream millimetres
+    # (field 2026-07-07); if /UCB_P1/pose ever reads hundreds, set 0.001.
     position_scale: 1.0
 
     world_frame: "world"
@@ -33,14 +39,22 @@ optitrack_mct_relay:
     # planner's velocity polyfit must never see a re-emitted stale ball).
     ball_stale_warn_s: 2.0
 
+    # Downsample only the ball bundle (/poses, /ball/* and ball TF) before it
+    # crosses Laptop -> HDU. Rigid-body/table pose outputs stay at Motive rate.
+    # The source-time gate never buffers a sample or adds a timer-stage delay.
+    ball_output_rate_hz: 150.0
+
     # Published HOPE-standard topics.
-    p1_pose_topic: "/P1/pose"
-    p2_pose_topic: "/P2/pose"
+    table_pose_topic: "/table/pose"
+    p1_pose_topic: "/UCB_P1/pose"
+    p2_pose_topic: "/UCB_P2/pose"
     ball_point_topic: "/ball/point"
+    # Published only when Motive reports a valid Ball rigid-body quaternion.
+    # Planner spin shadow consumes this; ball position remains /ball/point.
+    ball_pose_topic: "/ball/pose"
     poses_topic: "/poses"
 
     # Keep ball first so the C++ packetizer's ball_pose_index=0 contract works.
-    # Competition output contains Ball/P1/P2 only.
-    pose_array_order: ["ball", "P1", "P2"]
+    pose_array_order: ["ball", "PPT", "UCB_P1", "UCB_P2"]
     publish_tf: true
     publish_pose_array: true
