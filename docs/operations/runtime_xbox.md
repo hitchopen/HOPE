@@ -107,20 +107,17 @@ by default. `--policy-dir` is an explicit operator override. Model and parameter
 are copied together to `policy/`; packaged paths are relative. Do not substitute
 a development checkpoint when building a public release.
 
-For Xbox walking, obtain the matching HumanLike artifacts from your robot/SDK
-provider and keep them outside Git. Pass their directory explicitly:
+The public runtime includes the matching HumanLike inference bundle at
+`assets/a3_runtime/teleop_humanlike/`. The builder includes its `humanlike.yaml`,
+`policy.onnx` and `lin_vel_encoder.onnx` by default under `teleop_humanlike/`.
+The lifecycle discovers this directory and passes it to Runner, so the standard
+public package has the files required for **Enter Teleop**. Runtime readiness
+and operator input requirements still apply.
 
-```bash
-bash scripts/build_a3_deploy_pkg.sh --arch rockchip \
-  --teleop-policy-dir /absolute/path/to/humanlike
-```
-
-The directory must contain `humanlike.yaml`, `policy.onnx` and
-`lin_vel_encoder.onnx`. They are staged under `teleop_humanlike/`. Their
-observation/action contract must match the native HumanLike adapter. Without
-these files the package supports Stand/Serve/receive, but **Enter Teleop** is
-unavailable and Xbox motion is preview-only. Shipping the adapter does not
-redistribute a manufacturer's weights.
+Use `--teleop-policy-dir /absolute/path/to/humanlike` to select another compatible
+bundle. `--without-teleop` deliberately builds a Stand/Serve/receive package
+without learned locomotion. These vendor-origin inference assets are separate
+from the unchanged HOPE model_21800 receive policy and private HOPE training.
 
 The gripper bridge includes declarative E-link command presets in
 `scripts/serve_gripper_presets.py`; it does not import a private vendor `grip.py`.
@@ -195,18 +192,30 @@ service. It reads the same `lifecycle.env`; set `HOPE_XBOX_HDU_IP` in a service
 drop-in. The gamepad must be visible inside the `hope` container. `LT`, axes and
 A/B/X/Y are read locally, so a Foxglove browser gamepad preview is not required.
 
-Build and install the console on the Laptop:
+Install the ready-made console on the Laptop:
+
+1. Download [hopeopen.hope-a3-console-1.8.8.foxe](../../foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe)
+   from this checkout. On GitHub, use the file's download button.
+2. Open the `.foxe` in Foxglove Desktop's Extensions screen to install it.
+3. Import `foxglove/layouts/model21800_console.json` and connect to the HDU control
+   bridge on port 8766. Confirm the field addresses, mode and P1/P2 selection.
+
+No Node.js build is required to install the committed `.foxe`. To rebuild it:
 
 ```bash
 cd "$HOPE_ROOT/foxglove/extensions/hope-a3-console"
 npm ci
-npm run build
-npm run local-install
+npm run package
 ```
 
-Import `foxglove/layouts/model21800_console.json` and connect to the HDU control
-bridge on port 8766. Confirm the field addresses, mode and P1/P2 selection before
-starting a session.
+Verify the complete published asset set from a clone or source archive:
+
+```bash
+python3 "$HOPE_ROOT/foxglove/scripts/check_public_runtime.py"
+```
+
+See [Public runtime files](../../foxglove/PUBLIC_RUNTIME_FILES.md) for the
+payload inventory, required host/robot software and release procedure.
 
 ## Calibration and clocks
 

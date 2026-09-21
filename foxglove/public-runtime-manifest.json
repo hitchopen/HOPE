@@ -1,0 +1,291 @@
+{
+  "schema": 1,
+  "console_version": "1.8.8",
+  "installer": "foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe",
+  "files": {
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv": {
+      "sha256": "108f3b8a813b8dbd64d982220505a232b63b4e44f5cba96f387b8a2bb3b342c2",
+      "bytes": 591864
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_timeline_v1.csv": {
+      "sha256": "c5eecca0ee89738fa8666e09596b4dad9c60b374411a4b6e3423482de04ae4e7",
+      "bytes": 589325
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_ready_stability_ankleback_v1.csv": {
+      "sha256": "3fceaf2214f4d1b7d3994725312b06254aecbb61b0ddb67d2441da2dbb352523",
+      "bytes": 590850
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_entry_v1.csv": {
+      "sha256": "db74f7461e0fe93886f0f1cdc84ed740561203bbf48ec485a5316f93da79fa53",
+      "bytes": 248378
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_recovery_v1.csv": {
+      "sha256": "dbb59e646c103020a393feb3ebcff7504794116d47b0c92dac5b1732c87a590d",
+      "bytes": 183150
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_timed_serve_v1.csv": {
+      "sha256": "f03e3f0f7825d8f079b5ec36b14c52723db145f8e8989212dc1530f16815ba4e",
+      "bytes": 88088
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/humanlike.yaml": {
+      "sha256": "163c13d71c4ed5c04886e07be3c634b0d130d14b3c59dd53f7152a10cd3dc175",
+      "bytes": 6261
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/lin_vel_encoder.onnx": {
+      "sha256": "fbe99516ba907d68ee33846e4a48af150be30a96617de5814ffbb2f03ea97724",
+      "bytes": 7943664
+    },
+    "a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/policy.onnx": {
+      "sha256": "1353f4360cbe17ae294e67967f18974eaf08540f8886ca0f31081a331a41d5c5",
+      "bytes": 3596488
+    },
+    "a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx": {
+      "sha256": "6bf1a2418f8538e23577a0153f2fe6a1e78dee91f41650a232259432a84a4dc8",
+      "bytes": 1123897
+    },
+    "a3_deploy/a3_deploy_example/models/model_21800/policy/params/deploy.yaml": {
+      "sha256": "1c463c536211933e00b4393937add4a9fc0e60a8b682ca6486cde72dfb565cb0",
+      "bytes": 9126
+    },
+    "a3_deploy/a3_deploy_example/scripts/a3p_gripper_bridge.py": {
+      "sha256": "cb089c7ee7e05197d5ac86a0594d6c55091a080e87422a3a362dd8ea251be53c",
+      "bytes": 29474
+    },
+    "a3_deploy/a3_deploy_example/scripts/build_a3_deploy_pkg.sh": {
+      "sha256": "7aa02eba8e4f92fbe6bebe6f3456a5d7cf9c3394a47f01dd799b74c92cba804b",
+      "bytes": 71711
+    },
+    "a3_deploy/a3_deploy_example/scripts/serve_gripper_presets.py": {
+      "sha256": "778bd928c424abe7cea50a87ea18a6561e9ac13ff9ab81e3747209e911027e4c",
+      "bytes": 369
+    },
+    "a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.pingpong.hitter_pingpong.yaml": {
+      "sha256": "60290b57f0fe32b6d97b72b429576c760be34502e92f7ab0e0b0313f2e2690e5",
+      "bytes": 543
+    },
+    "foxglove/a3/bridge_params.yaml": {
+      "sha256": "b28b5a4992771a55b2d40f1ba4d183036d823a5a050c48632792be950b6c805e",
+      "bytes": 652
+    },
+    "foxglove/a3/bridge_params_control.yaml": {
+      "sha256": "9c7fbce4659bb80f626e54a81b184afd3157c6f04f64b61456c4bba8290d9ca2",
+      "bytes": 2832
+    },
+    "foxglove/a3/build_foxglove_bridge.sh": {
+      "sha256": "7009eba6f85ecec1337ae3075573283b5676866a2af3f7d69c63462fcd64f9c8",
+      "bytes": 7879
+    },
+    "foxglove/a3/fastdds_bridge_profile.xml": {
+      "sha256": "31b8b9bd7346ec26c02e71727b920160adc4f6d31aec69c8f9a52bc3a9ed4f9f",
+      "bytes": 983
+    },
+    "foxglove/a3/hope-chrony-burst.service": {
+      "sha256": "00b475b2ec82fc14cc5c96351cfb44336cfcab0d743a6f26dfb2d3e65247eca8",
+      "bytes": 360
+    },
+    "foxglove/a3/hope-command-proxy.service": {
+      "sha256": "e47366a72418ab0ffd303e84f2390c03f5e1d4ca460fea6443f9f33969ae67e5",
+      "bytes": 1876
+    },
+    "foxglove/a3/hope-foxglove-bridge.service": {
+      "sha256": "c94c93d863bb35dc49f9b597a2f974f7e1e9f37bf8df71d5017e7b632da08c56",
+      "bytes": 1389
+    },
+    "foxglove/a3/hope-foxglove-control-bridge.service": {
+      "sha256": "22f20c151cc693de1f23cd59e056262660ed778c453139f9037490ce31012443",
+      "bytes": 1541
+    },
+    "foxglove/a3/hope-lifecycle-supervisor.service": {
+      "sha256": "5a86ab45dfb0c9db23e6e6d90b6caabe8daba45ebe6187ec184a30a9e823359d",
+      "bytes": 1286
+    },
+    "foxglove/a3/hope-monitor.service": {
+      "sha256": "cfadcdc7bb0970a60d1debde46dc65bcc4e0f1c9c0f2694d0faf2c470dc8501e",
+      "bytes": 2055
+    },
+    "foxglove/a3/hope-observer.service": {
+      "sha256": "7f02f7f850663ccff83f83e8ef80ce432fdbee55dad382d0339fb8ec927b77b2",
+      "bytes": 1040
+    },
+    "foxglove/a3/hope-pingpong-telemetry-record": {
+      "sha256": "55f35c906e2d35f12cd2bad1ff6915cb830cfe60b765f30bce0ae87e2ce66caa",
+      "bytes": 1674
+    },
+    "foxglove/a3/hope-pingpong-telemetry-record.service": {
+      "sha256": "616cf1a8cf7a856e519d6691d17706262ebb6848236fce626fe82c24c5dd282e",
+      "bytes": 501
+    },
+    "foxglove/a3/hope-time-calibration.service": {
+      "sha256": "77b012cb76a9fa0ac9d25c2e3cdb379b0501329fd38337a3fb8e52a76350c99a",
+      "bytes": 1176
+    },
+    "foxglove/a3/hope_base_pose_transport_relay.py": {
+      "sha256": "07ec37e60cdb48e390db2806debb75b0b5337d270b04b272fe2bcac5dfaf4efe",
+      "bytes": 3209
+    },
+    "foxglove/a3/hope_command_core.py": {
+      "sha256": "c3f85444d5fe6779d138906c44cdbd0644dca98f9bc918d6aaa0be5876651814",
+      "bytes": 3692
+    },
+    "foxglove/a3/hope_command_proxy.py": {
+      "sha256": "7853c1989cb9dcdc7aa5806d75cc1520f500a68cce6ee5eb07eb6ac4c48d9f4f",
+      "bytes": 25073
+    },
+    "foxglove/a3/hope_field_assets.py": {
+      "sha256": "9075f66164dda82c899598b853396b7e55330db845c94b44301bff73da9b4394",
+      "bytes": 7151
+    },
+    "foxglove/a3/hope_field_operations.py": {
+      "sha256": "beab5d395c2200c1f7573b0257c05b76964b71b9dbf1cb27976533da78bbaad5",
+      "bytes": 8941
+    },
+    "foxglove/a3/hope_lifecycle_core.py": {
+      "sha256": "8f958c8d8f13f0782712d57016bc51e84a5746f9ec3fe8c0371d3625da904749",
+      "bytes": 7488
+    },
+    "foxglove/a3/hope_lifecycle_supervisor.py": {
+      "sha256": "9e623dc205c161dcf382d2c92b1889c63750b4f7365e62763b0d2ec07d65b96c",
+      "bytes": 29542
+    },
+    "foxglove/a3/hope_monitor.py": {
+      "sha256": "561a7bd3ba8fed596b5618c694caf9dc3c21d8ba84cfb5fc1cb36c853833e7f0",
+      "bytes": 61214
+    },
+    "foxglove/a3/hope_monitor_core.py": {
+      "sha256": "0f6874c388b8be50fa980dd2855e565da44cd3586dcaa9d416d2d4c66f083091",
+      "bytes": 18994
+    },
+    "foxglove/a3/hope_observer.py": {
+      "sha256": "7a7a6f20c2ae682b05bed9147407e079ffe8c7323b9fbda9d7decec7e74d9618",
+      "bytes": 32510
+    },
+    "foxglove/a3/hope_observer_core.py": {
+      "sha256": "c9d538f27932970821158fe570ac18bbaebe98d4586d03825357661c32807152",
+      "bytes": 9729
+    },
+    "foxglove/a3/hope_runner_control_core.py": {
+      "sha256": "174d3f1f833da5c82fd748547c08994c2d5d10d73ff789ca143f24962b0d87fc",
+      "bytes": 9288
+    },
+    "foxglove/a3/hope_runner_transport_relay.py": {
+      "sha256": "d390be365fb5d046a678b32fe472ee1a7c4bddba60701a318434e0fc92bf283c",
+      "bytes": 7819
+    },
+    "foxglove/a3/hope_time_calibration.py": {
+      "sha256": "fe3e1ad7f0c02ca25ac040c848bcc573a294da1a580ea72ce45029d18a8d86fd",
+      "bytes": 18041
+    },
+    "foxglove/a3/hope_time_calibration_core.py": {
+      "sha256": "b3406f74e5dfef3c770c115cb307a3ba30b74ed85b0ba4bdbbc36fff0276f052",
+      "bytes": 25852
+    },
+    "foxglove/a3/install_mdu_elink_gripper_backend.sh": {
+      "sha256": "48419d2d9a2b048d64d6049da0ec59f4b316d06507100cb1f1a17abb3c90f537",
+      "bytes": 4848
+    },
+    "foxglove/a3/network.env.example": {
+      "sha256": "491e4adccf4a896abab950fa8542c73e14703be73961dca25b9b0c33f3e57c5a",
+      "bytes": 452
+    },
+    "foxglove/extensions/hope-a3-console/CHANGELOG.md": {
+      "sha256": "339a72e74e0a12af4750a274ab18bcf5eb238eac6dd2f8a9dd9232f8c5f93257",
+      "bytes": 3461
+    },
+    "foxglove/extensions/hope-a3-console/LICENSE": {
+      "sha256": "73d0e09c2ec2ba848c46e62f6e14096218a56e0b18efe51e9d8961829f534c8a",
+      "bytes": 11182
+    },
+    "foxglove/extensions/hope-a3-console/README.md": {
+      "sha256": "940184faf13d97e4aeb7a7195e96d289eece2f660e4e3f90eb0f31ef67a5e7cc",
+      "bytes": 1520
+    },
+    "foxglove/extensions/hope-a3-console/THIRD_PARTY_NOTICES.txt": {
+      "sha256": "d0b1ad6ab9bd5c25b436582eefedb1e5c7094396ccabae6dd2a0f18a2d637df8",
+      "bytes": 14196
+    },
+    "foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe": {
+      "sha256": "92ec47a52331f262b1d5660188396fa6e62c4a4c8bad38f1b7d5e3de944c38f9",
+      "bytes": 1064443
+    },
+    "foxglove/extensions/hope-a3-console/package-lock.json": {
+      "sha256": "f07cdd1211f702013ea2b0a53d17a55a2aaaa6a5a01bc0d3c5aed6e348fb7b5f",
+      "bytes": 206432
+    },
+    "foxglove/extensions/hope-a3-console/package.json": {
+      "sha256": "40ade85bfed6f1ba5170e2015e7f284bcbf9aa3a4b51a2c25b4ce6c494a12556",
+      "bytes": 1481
+    },
+    "foxglove/extensions/hope-a3-console/src/HopeA3Console.tsx": {
+      "sha256": "400140e96fe7abda12a1c0b5a17050a66259625bd62e206a4eac27b6d60f39fc",
+      "bytes": 70105
+    },
+    "foxglove/extensions/hope-a3-console/src/index.ts": {
+      "sha256": "06ab284298b32b76adcf9122ba39baaa1f5e0ff5e993ecfcc74832afadde7ab5",
+      "bytes": 286
+    },
+    "foxglove/extensions/hope-a3-console/src/styles.css": {
+      "sha256": "00791bb1eedf217f02d233a298c9da36df3a4241dccb8be7eefb5383d96b527d",
+      "bytes": 17222
+    },
+    "foxglove/extensions/hope-a3-console/src/teleopStatus.ts": {
+      "sha256": "28a04c3b58c590e890d39cd5875e3c8ed8697eca9de23c639640e56c58766702",
+      "bytes": 2327
+    },
+    "foxglove/helpers/hope-laptop-container-runtime": {
+      "sha256": "43d258e75773759175a0eff24569367e256890a0c9e6b4e2e58ab8259971b95b",
+      "bytes": 3908
+    },
+    "foxglove/helpers/hope-lifecycle": {
+      "sha256": "e0f9103902476c79f2c251ffbc5f929b6df15b37200dd0dfa8b8543716d6a12a",
+      "bytes": 50648
+    },
+    "foxglove/laptop/hope-foxglove-assets.service": {
+      "sha256": "fd622abc778582a121f5fb8bd0a5a201f0c7235358256fe94a9247d8b05602b4",
+      "bytes": 322
+    },
+    "foxglove/laptop/hope-xbox-input.service": {
+      "sha256": "e13f6a683b9ee61bb427fdf8f2a626ea3804a6f3cca9ba7a71e1f6677e8867d7",
+      "bytes": 678
+    },
+    "foxglove/laptop/hope_marker_monitor.py": {
+      "sha256": "b5468b5610e6cf28d5093c96fa460e92826a736c29c540cdefead2f90f0c1a05",
+      "bytes": 5443
+    },
+    "foxglove/laptop/hope_marker_monitor_core.py": {
+      "sha256": "d7dfe828454f2c24cb13cd8861aba26f5ecc152857470a114a4eb09e5796aff3",
+      "bytes": 2098
+    },
+    "foxglove/laptop/hope_xbox_actions.py": {
+      "sha256": "4dd4807c3baae34b8c3ccca63f2147a94f8aa63e309275e3dbf34d495fd9b41f",
+      "bytes": 8331
+    },
+    "foxglove/laptop/hope_xbox_preview.py": {
+      "sha256": "c0aa5a4889977937a29dc63b9fd8f9f164e53ba819111f56f52c884e491e62a3",
+      "bytes": 16976
+    },
+    "foxglove/laptop/marker_monitor.yaml": {
+      "sha256": "5cb45e1753a5db0241e5935ea990deec5ec5cc7f4fa89e7d36f688e8308b6a80",
+      "bytes": 171
+    },
+    "foxglove/laptop/run_xbox_input.sh": {
+      "sha256": "308c0b3d6616e296fe8a8cd01a15712c1354a138d3232cbee39b57c2fec9c82f",
+      "bytes": 678
+    },
+    "foxglove/layouts/a3_monitor.json": {
+      "sha256": "33b84fee8beba98022e22f675cfa62d3de0592ab8d6e7d9ebe31c3e7a7271901",
+      "bytes": 12054
+    },
+    "foxglove/layouts/model21800_console.json": {
+      "sha256": "94b9c50228d10f46ae001007593e05b660ca6815f8874f71b9f3103e3e8bf11f",
+      "bytes": 1980
+    },
+    "foxglove/layouts/model21800_control.json": {
+      "sha256": "9f8465cc39e563853175671fb145617c7e1a8e2de89f6c8f9bec217bd3907083",
+      "bytes": 15154
+    },
+    "foxglove/layouts/model21800_observer.json": {
+      "sha256": "eae0904e2f4c685b1ed5de3fb61ba18278d5f06ef2f9360c066c0c0963d34411",
+      "bytes": 7678
+    }
+  }
+}

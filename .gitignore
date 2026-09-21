@@ -131,3 +131,11 @@ a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/*
 !a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_entry_v1.csv
 !a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_recovery_v1.csv
 !a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_spin001_deploy_parity_timed_serve_v1.csv
+
+# Published HumanLike inference assets used by the native Xbox adapter.
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/
+a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/README.md
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/humanlike.yaml
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/policy.onnx
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/lin_vel_encoder.onnx

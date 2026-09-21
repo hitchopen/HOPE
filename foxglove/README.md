@@ -1,5 +1,10 @@
 # Current Runner workflow
 
+For direct installation, use the committed
+[Console 1.8.8 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe)
+and [public runtime file inventory](PUBLIC_RUNTIME_FILES.md). Node.js is needed
+only to rebuild the extension, not to install this package.
+
 See [Runner, Xbox and field operation](../docs/operations/runtime_xbox.md) for
 the current public model_21800 workflow, installation and mode semantics.
 
@@ -149,7 +154,7 @@ foxglove/
 Set the target once per session; every command below uses it:
 
 ```bash
-export A3_HOST=<robot-ip-or-hostname>
+export A3_HOST='<robot-ip-or-hostname>'
 ```
 
 ### 1. Stage and build foxglove_bridge (once per robot)

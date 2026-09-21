@@ -1,24 +1,22 @@
-# A3 Runtime Assets
+# Public A3 runtime assets
 
-This folder keeps the default A3 deploy runtime assets inside
-`a3_deploy_example`, so a tracked-only archive of this directory can build and
-package the reference deploy binary without depending on the original training
-workspace.
+The supported public package uses the model_21800 receive policy at
+`../../models/model_21800/policy/` (relative to this directory). Its ONNX and
+`params/deploy.yaml` are published together and remain unchanged.
 
-Contents:
+This directory supplies the runtime assets required by the shared Runner:
 
-- `models/model_step_098000_a3.onnx`: default ORT CPU policy model.
-- `models/model_step_026000_smpl.onnx`: SMPL teleop policy model.
-- `models/model_step_098000_a3_fast.onnx`: A3-fast teleop policy model.
-- `rknn_models/`: matching Rockchip RKNN models for the three ONNX policies.
-- `motions/*.csv`: default flat A3 reference motions used by
-  `reference_motion.motion_dir`.
-- `remote_motions/*.csv`: independent direction-key clips used by
-  `reference_motion.remote_motion_dir`; these are not appended to the normal
-  playback list.
-- `teleop_motions/BMD_0319_a3_filtered_20260319_164305__stand_Skeleton0.csv`:
-  standing reference for MOTION idle and TELEOP startup.
+- `serve/motions/`: six published SDK-order playback CSVs, including the default
+  `a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv`.
+- `teleop_humanlike/`: `humanlike.yaml`, actor and velocity encoder used by the
+  native Xbox locomotion adapter; included by default in public packages.
+- `motions/pp_serve_v1_fixed.csv` and its manifest: retained public legacy clip.
 
-The source config at
-`src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.yaml` refers to these files
-with paths relative to the `a3_deploy_example` root.
+Build with `scripts/build_a3_deploy_pkg.sh` from `a3_deploy_example/`. It selects
+the public ping-pong YAML and model_21800 by default. `--without-teleop` explicitly
+omits the HumanLike assets. The older generic A3 configs refer to additional
+vendor models/RKNN/reference datasets; those are not dependencies of this public
+ping-pong package and are not the default public workflow.
+
+The release inventory and file checks are in
+[`foxglove/PUBLIC_RUNTIME_FILES.md`](../../../../foxglove/PUBLIC_RUNTIME_FILES.md).

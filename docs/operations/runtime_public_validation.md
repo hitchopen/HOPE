@@ -10,8 +10,10 @@ The branch contains selected Runner, Foxglove, Planner, localization, simulator,
 build and operating-documentation updates. It does not merge private branch
 history. Existing public `hope_training/`, `experiments/` and
 `a3_deploy/a3_deploy_example/models/` are unchanged from the main baseline.
-No new training configuration, checkpoint, private experiment output, vendor
-HumanLike weight, hardware calibration receipt or generated binary is added.
+No new HOPE training configuration/checkpoint, private experiment output or
+hardware calibration receipt is added. A later packaging update publishes the
+Foxglove installer and vendor-origin HumanLike inference bundle needed for Xbox
+locomotion; these are separate from the unchanged HOPE receive-model bundle.
 The serve CSVs are controller playback assets needed by the published runtime.
 Runtime source retains metadata-driven support for multiple observation contracts;
 that source is not a distribution of the corresponding trained policies.
@@ -56,6 +58,24 @@ were not revalidated as part of this port.
 For full physical-ball Gate3 setup, preflight, calibration and report interpretation,
 see [the Gate3 guide](../MODEL_21800.md#what-the-current-gate-3-test-validates).
 The controller-only results below do not replace that run.
+
+## Installer and runtime asset completeness
+
+The Console 1.8.8 `.foxe`, font notices and HumanLike actor/encoder/config are now
+published with the source. The package builder includes HumanLike by default;
+`--without-teleop` removes the optional bundle when explicitly requested.
+
+The release-file verifier passes against a source-only export with no local
+`node_modules/` or `dist/`. Default x86 asset staging from that export succeeds
+when supplied the already built native binaries/dependency cache, and the
+packaged HumanLike files byte-match the published assets. The native adapter
+loads that staged bundle successfully. Explicit `--without-teleop` restaging
+removes its stale files. This is source-asset completeness and staging validation,
+not a fresh native compile on a new machine or a new hardware gait evaluation.
+
+The packaging update also passes 203 Foxglove/package Python tests (398 subtests)
+and all 6 Xbox status tests. See [Public runtime files](../../foxglove/PUBLIC_RUNTIME_FILES.md)
+for direct installation and the standard-library-only verifier.
 
 ## Repeated serve / Ready simulation
 
@@ -144,8 +164,8 @@ and `--ready-seconds .05 .15 .5` for the nearby interruption matrix.
   extended or qualified for that variant in this port.
 - Gate3 creates a clearly labelled simulation-only calibration receipt rather
   than copying a field robot's calibration into the public repository.
-- Teleop control code is included. The optional vendor HumanLike models must be
-  supplied separately by the operator; the default package cannot enter learned
-  Teleop without them. No vendor policy redistribution is implied.
+- Teleop control code and the matching HumanLike inference assets are included.
+  The public package builder stages them by default; `--without-teleop` opts out.
+  The vendor-origin assets are documented separately from HOPE model_21800.
 
 See [Runtime operation](runtime_xbox.md) for installation and controls.
