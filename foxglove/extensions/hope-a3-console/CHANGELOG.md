@@ -5,7 +5,7 @@
 - Publish the installer built from the public Xbox/Kernel Mode console source.
 - Include 24-sticker calibration, legacy V2/V3 controls, fixed Xbox status layout
   and software E-stop reset.
-- Include font notices and a source/artifact manifest for release verification.
+- Include the extension license and bundled font notices.
 
 ## 1.2.4
 

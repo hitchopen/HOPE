@@ -18,5 +18,5 @@ omits the HumanLike assets. The older generic A3 configs refer to additional
 vendor models/RKNN/reference datasets; those are not dependencies of this public
 ping-pong package and are not the default public workflow.
 
-The release inventory and file checks are in
-[`foxglove/PUBLIC_RUNTIME_FILES.md`](../../../../foxglove/PUBLIC_RUNTIME_FILES.md).
+See [Runtime operation](../../../../docs/operations/runtime_xbox.md) for installation
+and package build instructions.

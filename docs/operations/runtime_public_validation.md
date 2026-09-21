@@ -65,8 +65,8 @@ The Console 1.8.8 `.foxe`, font notices and HumanLike actor/encoder/config are n
 published with the source. The package builder includes HumanLike by default;
 `--without-teleop` removes the optional bundle when explicitly requested.
 
-The release-file verifier passes against a source-only export with no local
-`node_modules/` or `dist/`. Default x86 asset staging from that export succeeds
+The installer and runtime assets were checked in a source-only export with no
+local `node_modules/` or `dist/`. Default x86 asset staging from that export succeeds
 when supplied the already built native binaries/dependency cache, and the
 packaged HumanLike files byte-match the published assets. The native adapter
 loads that staged bundle successfully. Explicit `--without-teleop` restaging
@@ -74,8 +74,8 @@ removes its stale files. This is source-asset completeness and staging validatio
 not a fresh native compile on a new machine or a new hardware gait evaluation.
 
 The packaging update also passes 203 Foxglove/package Python tests (398 subtests)
-and all 6 Xbox status tests. See [Public runtime files](../../foxglove/PUBLIC_RUNTIME_FILES.md)
-for direct installation and the standard-library-only verifier.
+and all 6 Xbox status tests. See [Runtime operation](runtime_xbox.md)
+for installation instructions.
 
 ## Repeated serve / Ready simulation
 

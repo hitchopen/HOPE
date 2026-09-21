@@ -1,8 +1,8 @@
 # Current Runner workflow
 
 For direct installation, use the committed
-[Console 1.8.8 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe)
-and [public runtime file inventory](PUBLIC_RUNTIME_FILES.md). Node.js is needed
+[Console 1.8.8 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe).
+Node.js is needed
 only to rebuild the extension, not to install this package.
 
 See [Runner, Xbox and field operation](../docs/operations/runtime_xbox.md) for
