@@ -53,6 +53,10 @@ The x86 build used a locally available dependency cache; a fresh machine still
 needs the documented dependencies. An ARM package and real hardware behavior
 were not revalidated as part of this port.
 
+For full physical-ball Gate3 setup, preflight, calibration and report interpretation,
+see [the Gate3 guide](../MODEL_21800.md#what-the-current-gate-3-test-validates).
+The controller-only results below do not replace that run.
+
 ## Repeated serve / Ready simulation
 
 The harness uses the public model, the default forward-hit CSV, native action
