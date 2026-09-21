@@ -404,6 +404,6 @@ The public model remains **model_21800**. The runtime now supports Xbox LT
 locomotion, A/B/X/Y mode requests, LB+RB software stop, Kernel Mode, continuous
 serve/receive transitions, and saved field calibration/serve files. See the
 [operator guide](docs/operations/runtime_xbox.md) and
-[validation limits](docs/operations/runtime_public_validation.md). The
-[public runtime files](foxglove/PUBLIC_RUNTIME_FILES.md) include the ready-to-install
-Foxglove `.foxe`, HumanLike locomotion bundle, serve CSVs and release verifier.
+[validation limits](docs/operations/runtime_public_validation.md). This checkout
+includes the ready-to-install Foxglove `.foxe`, HumanLike locomotion bundle and
+serve CSVs.

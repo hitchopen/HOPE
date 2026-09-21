@@ -208,14 +208,9 @@ npm ci
 npm run package
 ```
 
-Verify the complete published asset set from a clone or source archive:
-
-```bash
-python3 "$HOPE_ROOT/foxglove/scripts/check_public_runtime.py"
-```
-
-See [Public runtime files](../../foxglove/PUBLIC_RUNTIME_FILES.md) for the
-payload inventory, required host/robot software and release procedure.
+When publishing a rebuilt console, commit its installer with the matching source
+and update download links and the exact `.foxe` filename allowed by the extension's
+`.gitignore`. Keep `node_modules/`, `dist/` and superseded installers out of Git.
 
 ## Calibration and clocks
 

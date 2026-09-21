@@ -13,8 +13,7 @@ in `bridge_params_control.yaml`; Runner remains the body-command owner.
 
 Install the matching control-plane helpers, configs and service units from this
 same checkout. See [Runtime operation](../../../docs/operations/runtime_xbox.md)
-for the complete setup and [release contents](../../PUBLIC_RUNTIME_FILES.md)
-for artifact verification. A Foxglove panel installation alone does not install
+for the complete setup. A Foxglove panel installation alone does not install
 robot-side services or start motion.
 
 To rebuild the installer from the public source:
@@ -27,5 +26,6 @@ npm run package
 `npm run package` performs the production build and packages the JavaScript,
 fonts, manifest and notices into the `.foxe`. `dist/` and `node_modules/` are
 build inputs/outputs; the ready-to-install `.foxe` is committed as an ordinary
-Git blob. When changing console source, regenerate the package and release
-manifest together; do not reuse an older private development installer.
+Git blob. When changing console source, regenerate the installer from that source.
+When changing the release version, update the exact filename allowed by this
+directory's `.gitignore` and the download links, and remove the superseded installer.

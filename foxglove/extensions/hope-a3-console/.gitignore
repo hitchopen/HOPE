@@ -1,4 +1,5 @@
 node_modules/
 dist/
-# Published .foxe installers are tracked alongside their source.
-!*.foxe
+*.foxe
+# Only the current public installer is tracked alongside its source.
+!hopeopen.hope-a3-console-1.8.8.foxe
