@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.8
+
+- Publish the installer built from the public Xbox/Kernel Mode console source.
+- Include 24-sticker calibration, legacy V2/V3 controls, fixed Xbox status layout
+  and software E-stop reset.
+- Include font notices and a source/artifact manifest for release verification.
+
 ## 1.2.4
 
 - Keep Ready as the native keyboard `m` action, but disable its UI button until

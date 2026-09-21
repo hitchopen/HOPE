@@ -1,0 +1,17 @@
+name: Public runtime files
+
+on:
+  push:
+    branches: [main, public-runtime-xbox]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-public-payload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify installer, source manifest and runtime assets
+        run: python3 foxglove/scripts/check_public_runtime.py

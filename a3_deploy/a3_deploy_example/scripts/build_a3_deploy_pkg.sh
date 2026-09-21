@@ -13,8 +13,9 @@ Options:
   --runtime-cfg PATH   Source A3 runtime YAML. Defaults to the repo A3 config.
   --policy-dir PATH    Unitree-style policy directory override containing
                        params/deploy.yaml and exported/policy.onnx.
-  --teleop-policy-dir PATH  Optional current HumanLike directory with humanlike.yaml,
-                       policy.onnx and lin_vel_encoder.onnx; staged as teleop_humanlike.
+  --teleop-policy-dir PATH  HumanLike directory override with humanlike.yaml,
+                       policy.onnx and lin_vel_encoder.onnx; defaults to the bundled assets.
+  --without-teleop    Explicitly omit the HumanLike locomotion assets.
   --smpl-zmq-host HOST Override packaged smpl_zmq.host. By default x86_64 uses
                        localhost, while rockchip and thor use the fixed HDU
                        address 10.42.10.10 when the source config still has a
@@ -55,7 +56,7 @@ REPO_ROOT="${GEAR_ROOT}"
 ARCH=""
 RUNTIME_CFG="${GEAR_ROOT}/src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
 POLICY_DIR_OVERRIDE="${GEAR_ROOT}/models/model_21800/policy"
-TELEOP_POLICY_DIR=""
+TELEOP_POLICY_DIR="${GEAR_ROOT}/assets/a3_runtime/teleop_humanlike"
 SMPL_ZMQ_HOST_OVERRIDE=""
 INSIDE_DOCKER=0
 BUILD_ONLY=0
@@ -79,6 +80,10 @@ while [[ $# -gt 0 ]]; do
     --teleop-policy-dir)
       TELEOP_POLICY_DIR="${2:-}"
       shift 2
+      ;;
+    --without-teleop)
+      TELEOP_POLICY_DIR=""
+      shift
       ;;
     --smpl-zmq-host)
       SMPL_ZMQ_HOST_OVERRIDE="${2:-}"
@@ -728,7 +733,7 @@ def copy_into(src, rel_dir, dst_name=None):
     shutil.copy2(src, dst)
     return str(Path(rel_dir) / dst.name)
 
-# Opt-in per package. Remove stale optional assets on a non-teleop rebuild.
+# The public bundle is the default. Remove stale assets on --without-teleop rebuilds.
 teleop_destination = pkg_dir / "teleop_humanlike"
 if teleop_policy_dir:
     source = resolve_path(teleop_policy_dir, "teleop-policy-dir", required=True)
