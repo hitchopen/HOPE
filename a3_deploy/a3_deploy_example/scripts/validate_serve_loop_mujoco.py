@@ -144,15 +144,21 @@ if __name__ == '__main__':
     p.add_argument('--library', type=Path, required=True)
     p.add_argument('--policy-dir', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--cycles', type=int, default=5,
+                   help='number of complete serve/Ready cycles per case')
+    p.add_argument('--ready-seconds', type=float, nargs='+', default=[0, .1, 3],
+                   help='Ready dwell times; values below 0.5 interrupt the receive blend')
     p.add_argument('--csv', type=Path, default=sim.MOTION_ROOT / 'a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv')
     args = p.parse_args()
+    if args.cycles < 1 or any(not np.isfinite(t) or t < 0 for t in args.ready_seconds):
+        p.error('cycles must be positive and Ready dwell times must be finite and nonnegative')
     report = {}
     failed = False
     for kernel, degrees in [(True, 0), (True, 90), (True, 169.2), (False, 0)]:
-        for dwell in (0, .1, 3):
+        for dwell in args.ready_seconds:
             key = f'{"kernel" if kernel else "normal"}_{degrees}_wait{dwell}'
             try:
-                report[key] = run(args.library, args.policy_dir, args.csv, kernel, np.radians(degrees), dwell)
+                report[key] = run(args.library, args.policy_dir, args.csv, kernel, np.radians(degrees), dwell, args.cycles)
             except (AssertionError, RuntimeError) as error:
                 failed = True
                 report[key] = {'status': 'FAIL', 'error': str(error), 'kernel': kernel, 'yaw_deg': degrees, 'ready_seconds': dwell}

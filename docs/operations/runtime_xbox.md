@@ -54,10 +54,14 @@ ball trajectory when OptiTrack is absent.
 
 ## Serve loop and transitions
 
-**Validation limit:** the public model passes most tested loops, but a Normal
-Play loop interrupted 0.1 s into Ready still falls in the local simulator.
-Command continuity alone does not establish balance. See the
-[validation report](runtime_public_validation.md) before evaluating this sequence.
+The short-Ready re-entry regression is fixed in the shared preparation controller.
+After returning the command to official stand, it waits for tilt ≤ 0.03 rad and
+body angular speed ≤ 0.05 rad/s continuously for 0.30 s before raising the loading
+arm. Joint position/speed checks still apply. This prevents a nearly nominal
+joint pose from being mistaken for settled whole-body support. A disturbance
+restarts the quiet interval. The checks use the IMU in both Normal Play and Kernel
+Mode and require no extra OptiTrack input. See the
+[validation report](runtime_public_validation.md) for the 200-cycle simulation.
 
 The sequence is **Start to Serve → Serve → Ready → Start to Serve**. Repeated A
 requests work after Ready; Y coordinates Stand-to-Teleop through fresh Runner

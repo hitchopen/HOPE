@@ -18,6 +18,13 @@ constexpr int kDof = robot_io::kA3Dof;
 constexpr double kStandEndpointToleranceRad = 1.0e-6;
 constexpr double kTrackingWarningRad = 0.35;
 constexpr double kPrepareStandSeconds = .5;
+// A near-nominal joint pose can still be rocking about the feet after an
+// interrupted receive blend. Raising the arm during that residual swing can
+// tip the plant. Require a small, sustained IMU support envelope before the
+// loading trajectory; this uses body-frame measurements in both play modes.
+constexpr double kPrepareStandTiltRad = .03;
+constexpr double kPrepareStandAngularSpeedRadS = .05;
+constexpr std::size_t kPrepareStandQuietTicks = 30;
 constexpr int kWaistYawSdk = 0;
 constexpr int kWaistRollSdk = 1;
 constexpr int kWaistPitchSdk = 2;
@@ -592,10 +599,11 @@ bool PpServeController::ComputeCommand(
       const bool quiet = !entry_transition_.active() &&
           (state.q - official_stand_q_sdk_).cwiseAbs().maxCoeff() <= .12 &&
           state.dq.cwiseAbs().maxCoeff() <= .3 &&
-          gravity[2] <= -std::cos(.10) && state.imu_gyro.norm() <= .15;
+          gravity[2] <= -std::cos(kPrepareStandTiltRad) &&
+          state.imu_gyro.norm() <= kPrepareStandAngularSpeedRadS;
       policy_return_quiet_ticks_ = quiet ? policy_return_quiet_ticks_ + 1 : 0;
       if (!entry_transition_.active()) phase_ = "WAIT_PREPARE_STAND_SETTLE";
-      if (policy_return_quiet_ticks_ >= 20) {
+      if (policy_return_quiet_ticks_ >= kPrepareStandQuietTicks) {
         entry_command_ = command;
         transition_tick_ = 0;
         state_.store(ServeControllerState::kTransitionToLoad, std::memory_order_release);

@@ -194,13 +194,30 @@ TEST(PpServeController, EntryPreservesMovingCommandAndReplacesSeedOnReentry) {
       ASSERT_TRUE(controller.ComputeCommand(t, state, command));
     ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd, 1e-12);
     EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
-    state.imu_gyro[1] = .2;
-    for (std::size_t t = 0; t < 20; ++t)
+    // Joint positions/velocities are nominal, but the base is still rocking.
+    // The former 0.15 rad/s envelope incorrectly admitted this state.
+    state.imu_gyro[1] = .10;
+    for (std::size_t t = 0; t < 30; ++t)
       ASSERT_TRUE(controller.ComputeCommand(t, state, command));
     EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
     state.imu_gyro.setZero();
+    // A turning point has low angular speed without a settled support pose.
+    state.imu_quat_wxyz = Eigen::Vector4d(std::cos(.06 / 2), 0, std::sin(.06 / 2), 0);
+    for (std::size_t t = 0; t < 30; ++t)
+      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
+    // Heading must not affect the check; a disturbance resets the quiet dwell.
+    state.imu_quat_wxyz = Eigen::Vector4d(0, 0, 0, 1);
     for (std::size_t t = 0; t < 20; ++t)
       ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
+    state.imu_gyro[0] = .10;
+    ASSERT_TRUE(controller.ComputeCommand(0, state, command));
+    state.imu_gyro.setZero();
+    for (std::size_t t = 0; t < 29; ++t)
+      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
+    ASSERT_TRUE(controller.ComputeCommand(29, state, command));
     EXPECT_EQ(controller.state(), ServeControllerState::kTransitionToLoad);
     for (std::size_t t = 0; t < a3_pingpong::kServe025FullbodyTransitionTicks; ++t)
       ASSERT_TRUE(controller.ComputeCommand(t, state, command));
