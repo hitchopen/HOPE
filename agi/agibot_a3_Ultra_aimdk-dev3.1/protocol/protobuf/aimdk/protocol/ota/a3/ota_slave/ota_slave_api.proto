@@ -1,0 +1,245 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+import "aimdk/protocol/ota/a3/ota_base.proto";
+
+/**
+ * @brief OTA 开始上传文件的请求
+ */
+message OTAStartFileUploadRequest {
+    RequestHeader header = 1;
+    int32 master_soc_index = 2;   // ota_master 所在 soc 的索引
+    string file_name = 3;         // 文件名称
+    string file_path = 4;         // 文件路径
+    string file_hash = 5;         // 文件 hash
+}
+
+message OTAStartFileUploadResponse {
+    enum OTAStartFileUploadReturnCode {
+        OTAStartFileUploadReturnCode_UNKNOWN = 0;
+        OTAStartFileUploadReturnCode_Local = 1;               // 本地说明，master 和 slave 在同一个 soc 上，直接进行下一步就行，无需上传
+        OTAStartFileUploadReturnCode_Remote = 2;              // 远程说明，master 和 slave 不在同一个 soc 上，需要上传
+        OTAStartFileUploadReturnCode_Fail = 3;                // 在本地，由于某些原因，无法到达下一步
+        OTAStartFileUploadReturnCode_Authorization_Fail = 4;  // 鉴权失败
+        OTAStartFileUploadReturnCode_Repeated = 5;            // 重复的任务，忽略
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief OTA 上传文件
+ */
+message OTAUploadFileRequest {
+    RequestHeader header = 1;
+    string hash = 2;   // 文件切片的 hash
+    int32 size = 3;    // 文件切片的大小
+    bytes datas = 4;   // 文件切片
+    int32 index = 5;
+    int32 total = 6;
+}
+
+message OTAUploadFileResponse {
+    enum OTAUploadFileReturnCode {
+        OTAUploadFileReturnCode_UNKNOWN = 0;
+        OTAUploadFileReturnCode_Success = 1;       // 上传成功
+        OTAUploadFileReturnCode_Fail = 2;          // 上传失败，对方不接受重试
+        OTAUploadFileReturnCode_AcceptRetry = 3;   // 上传失败，对方接受重试
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief OTA 结束上传文件
+ */
+message OTAFinishFileUploadRequest {
+    RequestHeader header = 1;
+    string file_name = 2;
+    string file_hash = 3;
+    int32 total = 4;
+}
+
+message OTAFinishFileUploadResponse {
+    enum OTAFinishFileUploadReturnCode {
+        ReturnCode_UNKNOWN = 0;
+        OTAFinishFileUploadReturnCode_Success = 1; // 上传成功
+        OTAFinishFileUploadReturnCode_Fail = 2;    // 上传失败，对方不接受重试
+        OTAUploadFileReturnCode_AcceptRetry = 3;   // 上传失败，对方接受重试
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief OTA 开始升级
+ */
+message OTAStartRequest {
+    RequestHeader header = 1;
+
+    // 当前版本号
+    int64 current_version = 2;
+}
+
+message OTAStartResponse {
+    enum OTAStartReturnCode {
+        OTAStartReturnCode_UNKNOWN = 0;
+        OTAStartReturnCode_Success = 1;     // 开始升级
+        OTAStartReturnCode_Upgrading = 2;   // 正在升级中
+        OTAStartReturnCode_Refuse = 3;      // 拒绝升级，原因未知
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief OTA 继续升级
+ */
+message OTAContinueRequest {
+    RequestHeader header = 1;
+
+    // 当前版本号
+    int64 current_version = 2;
+}
+
+message OTAContinueResponse {
+    enum OTAContinueReturnCode {
+        OTAContinueReturnCode_UNKNOWN = 0;
+        OTAContinueReturnCode_Success = 1;      // 继续升级
+        OTAContinueReturnCode_Upgrading = 2;    // 正在升级中
+        OTAContinueReturnCode_Refuse = 3;       // 拒绝继续升级，原因未知
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief OTA 重新回滚
+ */
+message OTARetryRollbackRequest {
+    RequestHeader header = 1;
+
+    // 当前版本号
+    int64 current_version = 2;
+}
+
+message OTARetryRollbackResponse {
+    enum OTARetryRollbackReturnCode {
+        OTARetryRollbackReturnCode_UNKNOWN = 0;
+        OTARetryRollbackReturnCode_Success = 1;    // 重新回滚
+        OTARetryRollbackReturnCode_Upgrading = 2;  // 正在回滚中
+        OTARetryRollbackReturnCode_Refuse = 3;     // 拒绝回滚，原因未知
+    }
+
+    ResponseHeader header = 1;
+};
+
+/**
+ * @brief OTA 获取当前升级进度
+ */
+message GetCurrentOTAProcessRequest {
+    RequestHeader header = 1;
+}
+
+message GetCurrentOTAProcessResponse {
+    ResponseHeader header = 1;
+    OTAStage stage = 2;
+    uint32 process = 3;
+    uint32 error_num = 4;
+    string error_msg = 5;
+}
+
+/**
+ * @brief 重置 OTA 状态。
+ * 
+ * @details 在开始文件传输之前，需要查询 OTA 的当前状态。
+ * - 当 OTA 处于以下状态时，可以进行状态重置：
+ *   - Idle 状态
+ *   - Pause 状态
+ *   - Failure 状态
+ *   - OTAStage_Upgrading_Success 状态
+ *   - OTAStage_Rollbacking_Success 状态
+ * - 如果 OTA 处于以下状态，ota_master 将持续等待：
+ *   - Upgrading 状态
+ *   - Rollbacking 状态
+ * 
+ * @note aima 会重置 ota_master 的状态。
+ */
+ message ResetOTAStatusRequest {
+    RequestHeader header = 1;
+}
+
+
+message ResetOTAStatusResponse {
+    enum ResetOTAStatusReturnCode {
+        ResetOTAStatusReturnCode_UNKNOWN = 0;
+        ResetOTAStatusReturnCode_Success = 1;   // 重置成功
+        ResetOTAStatusReturnCode_Fail = 2;      // 重置失败
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief OTA 执行 ota_master 的一条 bash 命令
+ */
+message OTAExecuteBashCommandRequest {
+    RequestHeader header = 1;
+    string command = 2;
+}
+
+message OTAExecuteBashCommandResponse {
+    enum OTAExecuteBashCommandReturnCode {
+        OTAExecuteBashCommandReturnCode_UNKNOWN = 0;
+        OTAExecuteBashCommandReturnCode_Success = 1;   // 执行成功
+        OTAExecuteBashCommandReturnCode_Fail = 2;      // 执行失败
+    }
+
+    ResponseHeader header = 1;
+    string result = 2;
+}
+
+
+/**
+ * @brief OTA 执行分区切换的操作
+ */
+message ActiveOTARequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief OTA 分区切换操作应答
+ */
+message ActiveOTAResponse {
+  enum GetFunctionProgressReturnCode {
+    ActiveOTAReturnCode_UNKNOWN = 0;
+    ActiveOTAReturnCode_Success = 1;   // 执行成功
+    ActiveOTAReturnCode_Fail = 2;      // 执行失败
+  }
+
+   ResponseHeader header = 1;
+}
+
+
+/**
+ * @brief 开始重启SOC node
+ */
+message EnableRebootSocRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 重启SOC操作应答
+ */
+message EnableRebootSocResponse {
+  enum EnableRebootSocReturnCode {
+    EnableRebootSocReturnCode_UNKNOWN = 0;
+    EnableRebootSocReturnCode_Success = 1;   // 执行成功
+    EnableRebootSocReturnCode_Fail = 2;      // 执行失败
+  }
+
+   ResponseHeader header = 1;
+}

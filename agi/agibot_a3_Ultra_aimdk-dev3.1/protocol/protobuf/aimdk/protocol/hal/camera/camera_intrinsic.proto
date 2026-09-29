@@ -1,0 +1,110 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief 畸变类型
+ */
+enum CameraModel {
+  CameraModel_UNKNOWN = 0;
+  // 畸变
+  CameraModel_PINHOLE = 1;
+
+  CameraModel_FISHEYE = 2;
+
+  CameraModel_CMEI = 3;
+}
+
+message CameraCommIntrinsic {
+  double fx = 1;
+  double fy = 2;
+  double cx = 3;
+  double cy = 4;
+}
+
+message PinholeDistortion {
+  double k1 = 1;
+  double k2 = 2;
+  double p1 = 3;
+  double p2 = 4;
+  double k3 = 5;
+  double k4 = 6;
+}
+
+message FisheyeDistortion {
+  double k1 = 1;
+  double k2 = 2;
+  double k3 = 3;
+  double k4 = 4;
+}
+
+
+message CameraDistortion {
+  oneof distortion {
+      PinholeDistortion pinhole_distortion = 1;
+      FisheyeDistortion fisheye_distortion = 2;
+  }
+}
+
+
+// 双目旋转矩阵
+message StereoRotationMatrix {
+  double R_00 = 1;
+  double R_01 = 2;
+  double R_02 = 3;
+  double R_10 = 4;
+  double R_11 = 5;
+  double R_12 = 6;
+  double R_20 = 7;
+  double R_21 = 8;
+  double R_22 = 9;
+}
+
+
+// 双目平移矩阵
+message StereoTranslationVector {
+  double tx = 1;
+  double ty = 2;
+  double tz = 3;
+}
+
+message MonocularCameraIntrinsic {
+  CameraCommIntrinsic intrinsic = 1;
+  CameraDistortion cam_distortion = 2;
+}
+
+// 单目相机
+message MonocularCameraIntrinsicInfo {
+  string sn = 1;  
+  int32 width = 2;
+  int32 height = 3;
+  CameraModel model = 4;
+  MonocularCameraIntrinsic monocular_camera_intrinsic = 5;
+}
+
+// 双目相机
+message StereoCameraIntrinsicInfo {
+  string sn = 1;  
+  int32 width = 2;
+  int32 height = 3;
+  CameraModel model = 4;
+  MonocularCameraIntrinsic cam0_intrinsic = 5;
+  MonocularCameraIntrinsic cam1_intrinsic = 6;
+  StereoRotationMatrix rotation_matrix = 7;
+  StereoTranslationVector  translation_vector = 8;
+}
+
+
+// 相机内参
+message SingleCameraIntrinsicInfo {
+  oneof camera_intrinsic_info {
+    MonocularCameraIntrinsicInfo  mono_camera_intrinsic_info = 1;
+    StereoCameraIntrinsicInfo stereo_camera_intrinsic_info = 2;
+  }
+}
+
+message CameraIntrinsicsResponse {
+  ResponseHeader header = 1;  // 响应头
+  repeated SingleCameraIntrinsicInfo camera_intrinsics = 2;
+}

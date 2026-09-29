@@ -1,0 +1,24 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+// 手指
+message Finger {
+  int32 thumb_pos_0 = 1;  // 拇指第一关节
+  int32 thumb_pos_1 = 2;  // 拇指第二关节
+  int32 index_pos = 3;    // 食指
+  int32 middle_pos = 4;   // 中指
+  int32 ring_pos = 5;     // 无名指
+  int32 pinky_pos = 6;    // 小指
+}
+
+// 手腕
+message Wrist {
+  int32 x = 1;  // x轴
+  int32 y = 2;  // y轴
+}
+
+// Inspire手部
+message InspireHand {
+  Finger finger = 1;  // 手指
+  Wrist wrist = 2;    // 手腕
+}

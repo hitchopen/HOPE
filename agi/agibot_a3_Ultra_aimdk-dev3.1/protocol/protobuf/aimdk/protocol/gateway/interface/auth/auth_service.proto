@@ -1,0 +1,14 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/gateway/interface/auth/interaction_auth.proto";
+
+
+/**
+ * 交互认证服务
+ * agent -> gateway
+ */
+service InteractionAuthService {
+  rpc GetInteractionAuthJWT(CommonRequest) returns (InteractionAuthResponse);
+}

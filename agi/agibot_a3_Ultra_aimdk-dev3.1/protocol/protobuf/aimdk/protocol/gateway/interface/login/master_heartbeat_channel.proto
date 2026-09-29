@@ -1,0 +1,24 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+import "aimdk/protocol/gateway/robot_heartbeat.proto";
+import "aimdk/protocol/gateway/interface/login/access_control_msg.proto";
+
+/**
+ * @brief aima-master 上报心跳(/aima/master_heartbeat)
+ */
+message MasterHeartBeatChannel {
+  Header header = 1;
+  string master_id = 2;  // aima-master 标识ID
+}
+
+
+/**
+ * @brief 机器人广播登陆状态消息(/aima/login_status)
+ */
+message RobotLoginStatusChannel {
+  Header header = 1;
+  RobotInfo robot_info = 2;
+  repeated LoginStatusData login_status_data = 3;
+}

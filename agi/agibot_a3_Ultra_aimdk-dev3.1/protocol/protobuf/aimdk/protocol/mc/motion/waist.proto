@@ -1,0 +1,18 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+message WaistMoveValue {
+  // 腰部水平位移(x,y范围会设置成0，不允许调整)
+  double x = 1;
+  double y = 2;
+
+  // 腰部垂直位移(范围-0.15 ~ +0.04，单位：m)
+  double z = 3;
+
+
+  // 腰部旋转角度（RPY的范围都是-30 ~ +30°）
+  // （数据传输使用弧度：-0.5236～0.5236，单位：rad）
+  double roll = 4;
+  double pitch = 5;
+  double yaw = 6;
+}

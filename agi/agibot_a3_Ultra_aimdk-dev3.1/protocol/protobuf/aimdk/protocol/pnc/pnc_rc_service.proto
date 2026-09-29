@@ -1,0 +1,40 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/pnc/pnc_rc_state.proto";
+import public "aimdk/protocol/pnc/pnc_rc_cmd.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/header.proto";
+
+service PncRcService {
+    /**
+   * @brief 获取 pnc 模块状态
+   * @param CommonRequest
+   * @return PncStateResponse pnc 模块的状态
+   */
+   rpc GetState(CommonRequest) returns (PncRcStateResponse);
+
+   /**
+    * @brief 设置 pnc 控制指令
+    * @param PncCmdRequest 控制指令
+    * @return CommonResponse 设置结果，包含成功/拒绝/错误。
+    */
+   rpc SetCmd(PncRcCmdRequest) returns (CommonResponse);
+}
+
+/**
+ * @brief 获取 pnc 状态调用的响应结果
+ */
+ message PncRcStateResponse {
+  ResponseHeader header = 1;
+  PncRcState data = 2;
+}
+
+/**
+ * @brief 设置 pnc 控制指令的请求数据
+ */
+message PncRcCmdRequest {
+  RequestHeader header = 1;
+  PncRcCmd data = 2;
+}
+

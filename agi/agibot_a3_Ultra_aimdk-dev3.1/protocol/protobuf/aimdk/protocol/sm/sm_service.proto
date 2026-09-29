@@ -1,0 +1,110 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/sm/sm_internal.proto";
+
+
+/**
+ * @brief sm 对外提供的业务接口
+ */
+service SmService {
+  /**
+   * @brief 检查机器人是否就绪(启动完成)
+   */
+  rpc CheckRobotConnectable(CheckRobotConnectableReq) returns (CheckRobotConnectableRsp);
+
+  /**
+   * @brief 检查机器人是否就绪(启动完成)
+   */
+  rpc SetRobotConnectable(SetRobotConnectableReq) returns (SetRobotConnectableRsp);
+
+  /**
+   * @brief 激活机器人
+   */
+  rpc ActivateRobot(CommonRequest) returns(CommonResponse);
+
+  /**
+   * @brief 检查机器人是否激活
+   */
+  rpc CheckRobotActive(CommonRequest) returns (CheckRobotActiveRsp);
+
+  /**
+   * @brief 停用机器人
+   */
+  rpc DeactivateRobot(CommonRequest) returns(CommonResponse);
+
+}
+
+/**
+ * @brief 受 SM 模块管理的模块服务接口，除了 EM, SM 外的所有模块都将接入
+ */
+service SmNodeService {
+  /**
+   * @brief 由 SM 模块发起的、要求被管理模块执行给定的状态切换动作
+   * @param SmActionRequest 状态切换动作的内容
+   * @return 处理结果。本接口是异步接口，若 SM 模块的动作不违背管理逻辑，都将返回成功。
+   */
+  rpc ExecuteAction(SmActionRequest) returns (CommonResponse);
+
+  /**
+   * @brief 由 SM 模块发起的、要求被管理模块执行降级处理动作。模块降级处理必须成功。
+   * @param SmFallbackRequest 降级动作的内容
+   * @return 处理结果。本接口是异步接口，若 SM 模块的动作不违背管理逻辑，都将返回成功。
+   */
+  rpc ExecuteFallback(SmFallbackRequest) returns (CommonResponse);
+}
+
+/**
+ * @brief 检查机器人是否就绪(启动完成)请求体
+ */
+message CheckRobotActiveRsp{
+  ResponseHeader header = 1;
+  bool active = 2;
+}
+
+/**
+ * @brief 检查机器人是否就绪(启动完成)请求体
+ */
+message CheckRobotConnectableReq {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 检查机器人是否可连接的状态的响应体,如果不可连接,则header中code为非0并且返回具体msg
+ */
+message CheckRobotConnectableRsp {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 检查机器人是否就绪(启动完成)请求体
+ */
+message SetRobotConnectableReq {
+  RequestHeader header = 1;
+  bool enable = 2;
+}
+
+/**
+ * @brief 检查机器人是否可连接的状态的响应体,如果不可连接,则header中code为非0并且返回具体msg
+ */
+message SetRobotConnectableRsp {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 发给接入 SM 管理的状态切换动作请求
+ */
+message SmActionRequest {
+  RequestHeader header = 1;
+  SmAction      action = 2;
+}
+
+/**
+ * @brief 发给接入 SM 管理的降级动作请求
+ */
+message SmFallbackRequest {
+  RequestHeader header   = 1;
+  SmFallback    fallback = 2;
+}

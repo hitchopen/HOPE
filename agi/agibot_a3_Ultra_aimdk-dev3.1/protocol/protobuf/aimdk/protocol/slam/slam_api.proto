@@ -1,0 +1,357 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/qr_pose.proto";
+import "aimdk/protocol/common/pixel_pose.proto";
+
+/**
+ * @brief 2D栅格地图的地图信息
+ */
+message SLAM2DMapInfo {
+  // 地图分辨率 米/像素
+  double resolution = 1;
+
+  // 地图宽度
+  uint32 width = 2;
+
+  // 地图高度
+  uint32 height = 3;
+
+  // 地图原点
+  PixelPose origin = 4;
+}
+
+/**
+ * @brief 开始建图接口请求，内带timestamp可以不做处理。
+ */
+message SLAMStartMappingRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 开始建图接口响应，返回接口调用相关信息
+ */
+message SLAMStartMappingResponse {
+  ResponseHeader header = 1;
+}
+
+enum SLAMStopMappingCommandType {
+  SLAMStopMappingCommandType_Save = 0;
+  SLAMStopMappingCommandType_Cancel = 1;
+}
+
+/**
+ * @brief 停止建图接口请求，内带timestamp可以不做处理。
+ */
+message SLAMStopMappingRequest {
+  // 停止建图请求头
+  RequestHeader header = 1;
+
+  // 停止建图命令类型
+  SLAMStopMappingCommandType command_type = 2;
+
+  // 地图保存地址
+  string map_saving_dir = 3;
+}
+
+enum SLAMStopRelocCommandType {
+  SLAMStopRelocCommandType_Save = 0;
+  SLAMStopRelocCommandType_Cancel = 1;
+}
+
+/**
+ * @brief 停止建图接口响应，返回接口调用相关信息
+ */
+message SLAMStopMappingResponse {
+  ResponseHeader header = 1;
+  SLAM2DMapInfo map_info = 2;
+}
+
+/**
+ * @brief 启动常规重定位请求，内带timestamp可以不做处理。
+ */
+message SLAMStartNormalRelocRequest {
+  RequestHeader header = 1;
+  string related_map_dir = 2;
+}
+
+/**
+ * @brief 启动常规重定位响应，返回接口调用相关信息
+ */
+message SLAMStartNormalRelocResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 停止常规重定位请求
+ */
+message SLAMStopNormalRelocRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 停止重定位命令类型
+  SLAMStopRelocCommandType command_type = 2;
+
+  // 停止常规重定位需要的位姿
+  SE3Pose reloc_pose = 3;
+}
+
+/**
+ * @brief 停止常规重定位响应
+ */
+message SLAMStopNormalRelocResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 启动全局重定位请求，内带timestamp可以不做处理。
+ */
+message SLAMStartGlobalRelocRequest {
+  RequestHeader header = 1;
+  string related_map_dir = 2;
+}
+
+/**
+ * @brief 启动全局重定位响应，返回接口调用相关信息
+ */
+message SLAMStartGlobalRelocResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 停止全局重定位请求
+ */
+message SLAMStopGlobalRelocRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 停止全局重定位响应
+ */
+message SLAMStopGlobalRelocResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 启动QR重定位请求，内带timestamp可以不做处理。
+ */
+message SLAMStartQRRelocRequest {
+  RequestHeader header = 1;
+
+  // 重定位关联的地图路径
+  string related_map_dir = 2;
+
+  // 地图已存的二维码点
+  repeated QRPose qr_poses = 3;
+}
+
+/**
+ * @brief 启动QR重定位响应，返回接口调用相关信息
+ */
+message SLAMStartQRRelocResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 停止QR重定位请求
+ */
+message SLAMStopQRRelocRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 停止QR重定位响应
+ */
+message SLAMStopQRRelocResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 启动QR定位请求，is_mapping用于标记接收建图发布的odom还是定位发布的odom。
+ */
+message SLAMStartQRLocalizationRequest {
+  RequestHeader header = 1;
+
+  // 是否是建图模式
+  bool is_mapping = 2;
+}
+
+/**
+ * @brief 启动QR定位请响应
+ */
+message SLAMStartQRLocalizationResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 停止QR定位请求
+ */
+message SLAMStopQRLocalizationRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 停止QR定位响应
+ */
+message SLAMStopQRLocalizationResponse {
+  ResponseHeader header = 1;
+}
+
+message SLAMStartLocalizationRequest {
+  RequestHeader header = 1;
+  string map_path = 2;
+  SE3Pose reloc_pose = 3;
+}
+
+message SLAMStartLocalizationResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 停止定位请求
+ */
+message SLAMStopLocalizationRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 停止定位响应
+ */
+message SLAMStopLocalizationResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求SLAM某一算法状态
+ */
+message SLAMGetCurrentStateRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求SLAM某一算法状态的响应，表示算法是否运行
+ */
+message SLAMGetCurrentStateResponse {
+  ResponseHeader header = 1;
+  bool isRunning = 2;
+}
+
+/**
+ * @brief 请求更新栅格地图
+ * @note
+ * 更新后的临时地图保存在 $(save_map_path)/tmp
+ */
+message SLAMUpdateOccupancyMapRequest {
+  RequestHeader header = 1;
+  string save_map_path = 2;
+}
+
+/**
+ * @brief 请求更新栅格地图的响应
+ */
+message SLAMUpdateOccupancyMapResponse {
+  ResponseHeader header = 1;
+  bool is_success = 2;
+}
+
+/**
+ * @brief 开关实时更新功能
+ * @note
+ */
+message SLAMToggleUpdateOccupancyMapRequest {
+  RequestHeader header = 1;
+  bool enable_update = 2;
+}
+
+message SLAMToggleUpdateOccupancyMapResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 查询实时更新功能状态是开启还是关闭
+ * @note
+ */
+message SLAMOccupancyMapStateRequest {
+  RequestHeader header = 1;
+}
+
+message SLAMOccupancyMapStateResponse {
+  ResponseHeader header = 1;
+  bool status = 2;
+}
+
+message SLAMStartIncrementalMappingRequest {
+  RequestHeader header = 1;
+  SE3Pose initial_pose = 2;
+  string initial_map_path = 3;
+}
+
+message SLAMStartIncrementalMappingResponse {
+  ResponseHeader header = 1;
+}
+
+enum ExplorationCommand {
+  ExplorationCommand_UNKNOWN = 0;
+  ExplorationCommand_START = 1;
+  ExplorationCommand_PAUSE = 2;
+  ExplorationCommand_CONTINUE = 3;
+  ExplorationCommand_RETURN_HOME = 4;
+  ExplorationCommand_STOP = 5;
+
+}
+
+message ExploreMappingReq {
+  RequestHeader header = 1;
+  ExplorationCommand command =2;
+}
+
+message ExploreMappingResp {
+  ResponseHeader header = 1;
+}
+
+
+enum ExplorationState{
+  EXPLORATION_STATE_UNKNOWN = 0;
+  EXPLORATION_STATE_EXPLORING = 1;
+  EXPLORATION_STATE_PAUSED = 2;
+  EXPLORATION_STATE_RETURNING = 3;
+  EXPLORATION_STATE_BLOCKED = 4;
+  EXPLORATION_STATE_FINISHED = 5;
+  EXPLORATION_STATE_IDLE = 6;
+  EXPLORATION_STATE_EXCEPTION = 7; //short term exception
+  EXPLORATION_STATE_ERROR = 8; //long term exception
+}
+
+
+// topic: /exploration/status
+message ExplorationStatusMsg{
+  Header header = 1;
+  ExplorationState state = 2;
+}
+
+enum ManualSource {
+  MANUAL_SOURCE_UNKNOWN = 0;
+  MANUAL_SOURCE_2D = 1;
+  MANUAL_SOURCE_3D = 2;
+}
+
+/*
+* 手动给定初始位置，UWB默认是ManualSource 来源是MANUAL_SOURCE_2D
+* 只需要填充 yaw ，单位是弧度。
+*/
+message ManualInitialPose {
+  SE3Pose pose = 1;
+  double yaw = 2;           // 可选（2D场景用）
+  ManualSource source = 3;  // ⭐ 标志是2D还是3D
+}
+
+message ManualLocalizationResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ManualLocalizationRequest{
+  RequestHeader header = 1;
+  ManualInitialPose initial_pose =2;
+}

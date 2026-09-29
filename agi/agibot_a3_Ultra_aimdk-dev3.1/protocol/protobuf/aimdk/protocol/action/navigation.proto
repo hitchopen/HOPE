@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+/**
+ * @brief 导航 Action 参数
+ */
+message NavParam {
+
+  /**
+   * @brief 导航类型
+   */
+  enum NavType {
+    Type_UNKNOWN = 0;
+    Type_NORMAL = 1;
+    Type_HR = 2;
+    Type_HR_ARRIVAL = 3;
+    Type_HR_L_CURISE = 4;
+    Type_HR_DEPARTURE = 5;
+    Type_NAV_TYPE_HR_HANGER = 6;
+    Type_NAV_TYPE_POS = 7;
+    Type_NAV_TYPE_CART_FORWARD = 8;
+    Type_NAV_TYPE_CART_BACK = 9;
+    Type_NAV_TYPE_HR_CART_FORWARD = 10;
+    Type_NAV_TYPE_HR_CART_BACK = 11;
+  }
+  int64 nav_type = 1;
+  int64 map_id = 2;
+  int64 guidline_id = 3;
+  int64 target_id = 4;
+}
+
+/**
+ * @brief 导航 Action 输出格式
+ */
+message NavResult {
+  bool is_success = 1;
+  int64 error_code = 2;
+}

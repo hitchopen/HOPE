@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/ota/ota_gateway/ota_gateway_api.proto";
+
+/**
+ * @brief OTA Gateway 状态机信息
+ */
+message OTAGatewayStateMachineInfo {
+    /// 状态机
+    OTAGatewayStateMachine state = 1;
+
+    /// 当前版本
+    string current_version = 2;
+
+    /// 是否有新任务
+    bool has_new_task = 3;
+
+    /// 当前固件版本
+    string current_fw_version = 4;
+}
+
+/**
+ * @brief OTA Gateway 下载结果
+ */
+enum OTAGatewayDownloadResult {
+    /// 下载成功
+    OTAGatewayDownloadResult_Success = 0;
+
+    /// 下载失败
+    OTAGatewayDownloadResult_Fail = 1;
+
+    /// 下载中
+    OTAGatewayDownloadResult_Downloading = 2;
+}
+
+/**
+ * @brief OTA Gateway 下载信息
+ */
+message OTAGatewayDownloadInfo {
+    /// 下载进度
+    int32 progress = 1;
+
+    /// 下载结果
+    OTAGatewayDownloadResult result = 2;
+
+    /// 下载结果的描述
+    string msg = 3;
+
+    /// 对应的故障码
+    int64 code = 4;
+}
+
+/**
+ * @brief OTA Gateway 的心跳信息
+ */
+message OTAGatewayHeartbeatInfo {
+    /// 状态机信息
+    OTAGatewayStateMachineInfo state_machine_info = 1;
+
+    /// 下载信息
+    OTAGatewayDownloadInfo download_info = 2;
+
+    /// 各个SOC的磁盘可用空间（单位：字节），key为SOC索引（如0, 1）
+    map<int32, uint64> soc_disk_space = 3;
+
+}
+
+/**
+ * @brief OTA Gateway 的心跳
+ */
+message OTAGatewayHeartbeatChannel {
+    /// 发送时刻的时间戳
+    Header header = 1;
+
+    /// 心跳信息
+    OTAGatewayHeartbeatInfo info = 2;
+}

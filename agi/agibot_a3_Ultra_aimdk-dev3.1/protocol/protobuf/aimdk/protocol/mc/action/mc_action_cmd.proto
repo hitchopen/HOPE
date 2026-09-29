@@ -1,0 +1,150 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+enum McAction {
+  // 默认模式
+  // 运控启动之后的默认action
+  McAction_DEFAULT = 0;
+
+  // // 被动模式
+  // // 初始启动需切换到当前action，才能进行后续操作
+  // McAction_PASSIVE_DEFAULT = 1;
+
+  // 下肢被动上肢伺服模式
+  // 下肢不使能，手臂可以接收外部关节伺服指令
+  McAction_PASSIVE_UPPER_BODY_JOINT_SERVO = 1;
+
+  // 下肢被动上肢RRT规划模式
+  // 下肢不使能，上肢路径规划，rpc接收目标关节角或SE3位置
+  McAction_PASSIVE_UPPER_BODY_PLANNING_MOVE = 2;
+
+  // 下肢被动上肢躲避碰撞模式
+  // 下肢不使能，上肢发生碰撞后，规划将失效，切到该模式可以移动到非碰撞位置
+  McAction_PASSIVE_UPPER_BODY_COLLISON_ESCAPE = 3;
+
+  // 下肢被动上肢NMPC规划模式
+  // 下肢不使能，上肢路径规划，rpc接收目标关节角或SE3位置，运动中途可以中断改目标位置
+  McAction_PASSIVE_UPPER_BODY_ONLINE_PLANNING = 4;
+
+  // 位控站立模式
+  // 上肢和下肢关节动作到标准站立位置
+  McAction_JOINT_DEFAULT = 100;
+
+  // 位控关节锁定模式
+  // 上肢和下肢锁定在当前位置
+  McAction_JOINT_FREEZE = 101;
+
+  // 位控蜷缩模式
+  // 辅助站起前的蜷缩位控
+  McAction_CURLED_UP = 102;
+
+  // 包装坐姿模式
+  // 进入包装前的蜷缩位控
+  McAction_PACKAGE_SIT = 103;
+
+  // 力控站立模式
+  // 下肢力控站立，上肢动作到设定的默认位置，不能控制手臂
+  // 此模式允许对机身(腰)进行伺服控制，包括下蹲、弯腰（pitch）、转身（yaw）和左右摇摆（roll）等。
+  McAction_STAND_DEFAULT = 201;
+
+  // 力控站立上肢锁定模式
+  // 下肢力控站立，上肢锁定在当前位置
+  McAction_STAND_ARM_FREEZE = 202;
+
+  // 力控站立上肢伺服模式
+  // 下肢站立，手臂可以接受外部关节伺服指令
+  McAction_STAND_ARM_EXT_JOINT_SERVO = 203;
+
+  // 力控站立上肢规划模式
+  // 用于客户实现上肢路径规划，rpc通信接收关节角度，支持任意数量路径点（建议500以下）
+  McAction_STAND_ARM_EXT_JOINT_TRAJ = 204;
+
+  // 力控站立上肢规划在线模式
+  // 用于客户实现上肢路径规划，实时话题接收14个关节角度、速度等，按点位队列顺序执行
+  McAction_STAND_ARM_EXT_JOINT_ONLINE_TRAJ = 205;
+
+  // 行走模式
+  // 行走时手臂会摆动，支持平地和5°以下斜坡地形全向行走，允许驻坡，禁止外部对上肢进行控制
+  McAction_LOCOMOTION_DEFAULT = 301;
+
+  // 下肢行走上肢伺服模式
+  // 支持平地地形全向行走，允许外部对上肢进行边走边控制
+  McAction_LOCOMOTION_ARM_EXT_JOINT_SERVO = 302;
+
+  // 强化位控站立模式
+  // 机器人强化位控站立，直腿站立
+  McAction_RL_JOINT_DEFAULT = 400;
+
+  // 强化行走模式
+  // 强化学习训练的行走模式，直腿行走
+  McAction_RL_LOCOMOTION_DEFAULT = 401;
+
+  // 强化行走上肢伺服模式
+  // 下肢可以强化行走，上肢可以接受外部关节伺服指令，边走边做动作
+  McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO = 402;
+
+  // 强化站立上肢RRT规划模式
+  // 下肢力控站立，上肢路径规划，rpc接收目标关节角或SE3位置
+  McAction_RL_LOCOMOTION_ARM_EXT_PLANNING_MOVE = 403;
+
+  // 强化站立上肢躲避碰撞模式
+  // 下肢力控站立，上肢躲避自碰撞
+  McAction_RL_LOCOMOTION_ARM_EXT_COLLISON_ESCAPE = 404;
+
+  // 带腰全身运控模式
+  McAction_RL_WHOLE_BODY_EXT_JOINT_SERVO = 405;
+
+  // 全身舞蹈模式
+  McAction_RL_WHOLE_BODY_DANCE = 406;
+
+  // 强化站立上肢NMPC规划模式
+  // 下肢力控站立，带腰上肢路径规划，rpc接收目标关节角或SE3位置，运动中途可以中断改目标位置
+  McAction_RL_WHOLE_BODY_EXT_ONLINE_PLANNING = 407;
+
+  // 上肢NPMC规划模式
+  // 下肢强化学习拟人行走
+  McAction_RL_LOCOMOTION_EXT_ONLINE_PLANNING = 408;
+
+  // 坐下模式
+  // 机器人坐下
+  McAction_SIT_DOWN = 501;
+
+  // 站起模式
+  // 机器人站起
+  McAction_STAND_UP = 502;
+
+  // 移动平台位控坐下模式
+  // 机器人移动平台坐下
+  McAction_MOBILE_PLATFORM_SIT_DOWN = 503;
+
+  // 移动平台位控站起模式
+  // 机器人移动平台站起
+  McAction_MOBILE_PLATFORM_STAND_UP = 504;
+
+  // 强化深坐坐下后辅助靠在椅背上
+  // 机器人坐下
+  McAction_RL_SIT_DOWN_PASSIVE_POWER_OFF = 505;
+
+  // 强化深坐站起前辅助到达初始姿态
+  // 机器人站起
+  McAction_RL_STAND_UP_PREP_POWER_OFF = 506;
+
+  // 强化浅坐
+  // 机器人坐下
+  McAction_RL_SIT_DOWN = 507;
+
+  // 强化浅坐站起
+  // 机器人站起
+  McAction_RL_STAND_UP = 508;
+
+  // 强化深坐，需人辅助
+  // 机器人坐下
+  McAction_RL_SIT_DOWN_POWER_OFF = 509;
+
+  // 强化深坐站起
+  // 机器人站起
+  McAction_RL_STAND_UP_POWER_OFF = 510;
+
+  // 机器人使用扩展命令
+  McAction_USE_EXT_CMD = 5000;
+}

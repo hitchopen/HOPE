@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/fault/mcu_fault.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的故障状态查询和控制服务
+ */
+service HalFaultService {
+  /**
+   * @brief 清除MCU的故障信息。
+   * @param ClearMcuFaultReq: 故障信息清除请求
+   * @return CommonResponse: 故障信息清除响应
+   */
+  rpc ClearMcuFault(ClearMcuFaultReq) returns (CommonResponse);
+}

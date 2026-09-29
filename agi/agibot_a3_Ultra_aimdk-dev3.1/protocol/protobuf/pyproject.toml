@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "a2_aimdk"
+description = "Agibot A2 AimDK Protocol Buffers Generated Code"
+authors = [
+     { name="Zhang Yi", email="zhangyi@agibot.com" }
+   ]
+dependencies = ["protobuf>=3.31.12"]
+dynamic = ["version"]

@@ -1,0 +1,15 @@
+
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/audio/audio.proto";
+
+service HalAudioService {
+    rpc PlayFile(FileRequest) returns (AudioCommonResponse);
+    rpc StopPlay(FileRequest) returns (AudioCommonResponse);
+    rpc SetAudioVolume(VolumeRequest) returns (AudioCommonResponse);
+    rpc GetAudioVolume(CommonRequest) returns (VolumeResponse);
+    rpc GetMicSourceRequest (CommonRequest) returns (MicSourceResponse);
+    rpc SetMicSourceRequest (MicSourceRequest) returns (CommonResponse);
+}

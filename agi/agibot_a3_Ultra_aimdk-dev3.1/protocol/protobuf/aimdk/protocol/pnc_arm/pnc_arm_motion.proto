@@ -1,0 +1,93 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/joint.proto";
+import public "aimdk/protocol/common/scalar_trajectory.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/common/se3_velocity.proto";
+import public "aimdk/protocol/common/se3_acceleration.proto";
+import public "aimdk/protocol/common/twist.proto";
+import public "aimdk/protocol/common/wrench.proto";
+import public "aimdk/protocol/pnc_arm/pnc_arm_state.proto";
+
+/**
+ * @brief pnc_arm 运动相关的数据结构定义
+ */
+
+/*******************************************************************************************/
+
+/**
+ * @brief 规划组
+ */
+enum PlanningGroup {
+  PlanningGroup_UNKNOWN = 0;                // 未知
+  PlanningGroup_LEFT_ARM = 1;               // 左臂
+  PlanningGroup_LEFT_ARM_WAIST = 2;         // 左臂腰部
+  PlanningGroup_RIGHT_ARM = 3;              // 右臂
+  PlanningGroup_RIGHT_ARM_WAIST = 4;        // 右臂腰部
+  PlanningGroup_DUAL_ARM = 5;               // 双臂
+  PlanningGroup_DUAL_ARM_WAIST = 6;         // 双臂腰部
+  PlanningGroup_HEAD = 7;                   // 头部
+}
+
+
+/**
+ * @brief 规划类型
+ */
+enum PlanningMode {
+  PlanningMode_UNKNOWN = 0;      // 无效规划
+  PlanningMode_DEFAULT = 1;      // 默认避障规划。left_target right_target
+  PlanningMode_CLOSURE = 2;      // 闭链规划，抓物体后调用，obj_center
+  PlanningMode_GRAB = 3;         // 抓取，obj_center
+  PlanningMode_PLACE = 4;        // 放置
+  PlanningMode_LINEAR_MOVE = 5;  // 线性运动
+}
+
+/**
+ * @brief 柔顺握手类型
+ */
+enum PncArmInteractiveMotionType {
+  InteractiveMotionType_UNKNOWN = 0;
+  InteractiveMotionType_HAND_SHAKE = 1;
+  InteractiveMotionType_FIST_BUMP = 2;
+  InteractiveMotionType_FREE_MOVE = 3;
+}
+
+/*******************************************************************************************/
+
+/**
+ * @brief 运动约束
+ */
+message MotionConstraint {
+  double velocity_scale = 1;
+  double acceleration_scale = 2;
+  SE3Velocity max_se3_velocity = 3;
+  SE3Acceleration max_se3_acceleration = 4;
+}
+
+/**
+ * @brief 运动目标
+ */
+message PncArmPlanningTarget {
+  enum PncArmType {
+    TARGET_UNKNOWN = 0;
+    SE3 = 1;
+    JOINT = 2;
+    EE = 3;
+  }
+
+  PncArmType type = 1;
+  SE3Pose left = 2;
+  SE3Pose right = 3;
+  repeated double joints = 4;
+}
+
+/**
+ * @brief 运动参考
+ */
+message PncArmPlanningReference {
+  // 参考的关节角度，数量需要与group的关节数量一致
+  repeated double joint_position = 1;
+  ScalarTrajectory trajectory = 2;
+}

@@ -1,0 +1,105 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/gateway/robot_heartbeat.proto";
+import "aimdk/protocol/common/common.proto";
+import "aimdk/protocol/task_engine/task_engine.proto";
+import "aimdk/protocol/slam/slam_channel.proto";
+import "aimdk/protocol/setting/wifi.proto";
+import "aimdk/protocol/sm/sm_channel.proto";
+import "aimdk/protocol/ota/ota_gateway/ota_gateway_channel.proto";
+import public "aimdk/protocol/mc/base/mc_state.proto";
+import public "aimdk/protocol/motion_control/info/mc_info_channel.proto";
+import public "aimdk/protocol/setting/bluetooth.proto";
+import public "aimdk/protocol/ota/a3/ota_master_channel.proto";
+import public "aimdk/protocol/motion_control/info/mc_robot_posture_state.proto";
+
+/**
+ * @brief 机器人心跳(/aima/heartbeat)
+ */
+message RobotHeartBeatChannel {
+  // 机器人心跳
+  RobotInfo robot_info = 1;
+
+  // 电池信息
+  BatteryInfo battery_state = 2;
+
+  // 定位状态
+  LocStatusHeartBeat loc_heartbeat = 3;
+
+  // 网络状态
+  // @deprecated 使用 whole_net_state 替代
+  NetWorkState net_state = 4 [deprecated = true];
+
+  // 硬件状态
+  HardWareState hardware_state = 5;
+
+  //任务状态
+  TaskEngineHeartBeat task_state = 6;
+
+  //机器人系统状态
+  RobotSystemState robot_state = 7;
+
+  //手动控制状态
+  ManualCtrlState manual_ctrl_state = 8;
+
+  //灯光状态
+  LightState light_state = 9;
+
+  // sm状态
+  SmSystemStateChannel sm_state = 10;
+
+  //机器人运动状态
+  MotionState motion_state = 11 [deprecated = true];
+
+  // Ota状态
+  OTAGatewayHeartbeatInfo ota_gateway_state = 12;
+
+  //遥操作状态
+  TeleoperationState teleoperation_state = 13;
+
+  // mc_state
+  McState mc_state = 14;
+
+  // relocate status
+  RelocStatusHeartBeat reloc_heartbeat = 15;
+
+  // asr string
+  string asr_string = 16;
+
+  // mic source
+  uint32 mic_source = 17;
+
+  // 整机网络状态
+  WholeNetState whole_net_state = 18;
+
+  // 机器人配置信息
+  RobotConfigInfo robot_config_info = 19;
+
+  // mp_state
+  MpState mp_state = 20;
+
+  // 蓝牙状态
+  BlueToothState bluetooth_state = 21;
+
+  // 机器人关节状态
+  RobotJointState robot_joint_state = 22;
+
+  // 机器人主动控制相关
+  RobotActiveControl robot_active_control = 23;
+
+  // 运动控制动作信息
+  MotionControlActionInfoChannel motion_control_action_info = 24 [deprecated = true];
+
+  // A3 OTA心跳信息
+  OTAMasterHeartbeatInfo ota_master_info = 25;
+
+  // A3 多电池状态信息
+  repeated BatteryInfo battery_states = 26;
+
+  // 机器人姿态状态
+  McRobotPostureState mc_robot_posture_state = 27[deprecated = true];
+
+  // 运动控制动作信息
+  McInfo motion_control_info = 28;
+};

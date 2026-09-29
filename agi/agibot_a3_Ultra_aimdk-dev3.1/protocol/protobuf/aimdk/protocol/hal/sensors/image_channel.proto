@@ -1,0 +1,18 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/image.proto";
+
+message PubImageDataChannel {
+  /** 消息头 */
+  Header header = 1;
+
+  /**
+   * 图像数据映射，可选择包含同一帧数据里的彩色、深度图像等。
+   * 键是标识图像类型的字符串（例如，"depth" 或 "color"），值是包含图像数据的 `PubImageData` 对象。
+   * - "depth"：深度图像。
+   * - "color"：彩色图像。
+   */
+  map<string, PubImageData> data = 2;
+}

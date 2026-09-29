@@ -1,0 +1,15 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/hal/state/emergency_state.proto";
+
+
+/**
+ * @brief 由 HAL 上报的机器人的急停状态。
+ *        topic: /aima/emergency_state
+ */
+message EmergencyStateChannel {
+  Header header = 1;
+  EmergencyState data = 2;
+}

@@ -1,0 +1,58 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/timestamp.proto";
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/hds/alert.proto";
+
+/**
+ * @brief 降级信息
+ */
+message Fallback {
+  enum ActionType {
+    Type_UNKNOWN = 0;
+    Type_ALERT = 1;
+    Type_LED = 2; // 灯光
+    Type_AUDIO = 3; // 播报
+    Type_FACE = 4; //表情
+  }
+  message Action {
+    ActionType type = 1;
+    uint32 priority = 2;
+    map<string, string> attributes = 3;
+  }
+
+  // 该降级决策产生的时间戳
+  Timestamp timestamp = 1;
+
+  // 整机行为后处理信号值（复用之前的后处理信号值字段）
+  uint32 code = 2;
+
+  // 告警级别，依据当前最紧急的降级策略确定
+  AlertLevel alert_level = 3;
+
+  // 交互告警类型
+  // 出海认证相关，已废弃
+  uint32 warn_policy = 4 [deprecated = true];
+
+  // 能力限制列表
+  repeated string capability_limits = 5;
+
+  // 后处理操作列表，目前支持 告警、LED、语音，后续可扩展
+  repeated Action actions = 6;
+
+  // 降级信息，用于扩展、打印调试
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief 降级信息消息
+ *        topic: /aima/hds/fallback
+ */
+message FallbackChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据内容
+  Fallback data = 2;
+}

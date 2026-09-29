@@ -1,0 +1,26 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/common/se3_trajectory.proto";
+
+/**
+ * @brief 逆向运动请求
+ */
+message FootKinematics {
+  enum Type {
+    UNKNOWN = 0;
+    LEFT = 1;
+    RIGHT = 2;
+  }
+
+  Type type = 1;
+  SE3Pose pose = 2;         // body frame, xyz
+  SE3Velocity velocity = 3; // body frame, m/s
+  double contact_phase = 4; // 0.0~1.0 : 0:swing; 1:contact
+}
+
+message FootKinematicsData {
+  // 一般情况下，存在2个数据，一个是左脚，一个是右脚
+  repeated FootKinematics foot = 1;
+}

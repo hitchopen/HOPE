@@ -1,0 +1,99 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+// 关节信息
+message JointState {
+  /**
+   * 关节名称
+   */
+  string name = 1;
+
+  /**
+   * 关节消息的序号
+   */
+  uint32 sequence = 2;
+
+  /**
+   * 关节角度，单位：弧度 or m
+   */
+  double position = 3;
+
+  /**
+   * 关节角速度，单位：弧度/秒 or m/s
+   */
+  double velocity = 4;
+
+  /**
+   * 关节扭矩，单位：N or N*m
+   */
+  double effort = 5;
+}
+
+message JointCommand {
+  /**
+   * 关节名称
+   */
+  string name = 1;
+
+  /**
+   * 关节消息的序号
+   */
+  uint32 sequence = 2;
+
+  /**
+   * 关节角度，单位：弧度 or m
+   */
+  double position = 3;
+
+  /**
+   * 关节角速度，单位：弧度/秒 or m/s
+   */
+  double velocity = 4;
+
+  /**
+   * 关节扭矩，单位：N
+   */
+  double effort = 5;
+
+  /**
+   * 阻尼，单位： N·m/rad or N/m
+   */
+  double stiffness = 6;
+
+  /**
+   * 阻尼单位： N·s/m or N·m·s/rad
+   */
+  double damping = 7;
+}
+
+message JointParam {
+  /**
+   * 关节名称
+   */
+  string name = 1;
+
+  /**
+   * 关节位置上限，单位：弧度或者米
+   */
+  double position_upper_limit = 2;
+
+  /**
+   * 关节位置下限，单位：弧度或者米
+   */
+  double position_lower_limit = 3;
+
+  /**
+   * 关节速度限制，单位：弧度/秒或者米/秒
+   */
+  double velocity_limit = 4;
+
+  /**
+   * 关节加速度限制，单位：弧度/秒^2或者米/秒^2
+   */
+  double acceleration_limit = 5;
+
+  /**
+   * 关节扭矩限制，单位：N或者N·m
+   */
+  double effort_limit = 6;
+}

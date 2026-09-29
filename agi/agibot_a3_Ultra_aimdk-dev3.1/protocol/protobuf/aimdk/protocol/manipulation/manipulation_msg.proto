@@ -1,0 +1,197 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec3.proto";
+import public "aimdk/protocol/common/header.proto";
+
+enum ManipulationType {
+  ManipulationType_Unknow   = 0;
+  ManipulationType_Grasp    = 1;
+  ManipulationType_Delivery = 2;
+  ManipulationType_Release  = 3;
+  ManipulationType_Reset    = 4;
+}
+
+enum ManipulationHandType {
+  ManipulationHandType_Unkonw = 0;
+  ManipulationHandType_Left   = 1;
+  ManipulationHandType_Right  = 2;
+}
+
+enum ManipulationResType {
+  ManipulationResType_Unknow  = 0;
+  ManipulationResType_Success = 1;
+  ManipulationResType_Failure = 2;
+}
+
+enum ManipulateInteractiveType {
+  ManipulateInteractiveType_Unknow  = 0;
+  ManipulateInteractiveType_Active  = 1;
+  ManipulateInteractiveType_Passive = 2;
+}
+
+enum ManipulationControlType {
+  ManipulationControlType_Unknow = 0;
+  ManipulationControlType_Stop   = 1;
+}
+
+enum ManipulationStandType {
+  ManipulationStandType_Unknow = 0;
+  ManipulationStandType_Stand  = 1;
+  ManipulationStandType_Walk   = 2;
+}
+
+enum ManipulationLiftType {
+  ManipulationLiftType_UNKNOWN = 0;
+  ManipulationLiftType_HIGH    = 1;
+  ManipulationLiftType_LOW     = 2;
+}
+
+message ManipulateChessMsg {
+  float center_x = 1;
+  float center_y = 2;
+  float center_z = 3;
+  int32 index_x  = 4;
+  int32 index_y  = 5;
+  Vec3 corner1   = 6;
+  Vec3 corner2   = 7;
+  Vec3 corner3   = 8;
+  Vec3 corner4   = 9;
+  Vec3 place_pos = 10;
+}
+
+message ManipulationRequest {
+  RequestHeader header                       = 1;
+  string manipulation_name                   = 2;
+  ManipulationHandType hand_type             = 3;
+  ManipulateInteractiveType interactive_type = 4;
+  ManipulationStandType stand_type           = 5;
+  ManipulateChessMsg chess_msg               = 6;
+  repeated string manipulation_params        = 7;
+  bool interrupted                           = 8;
+  ManipulationLiftType lift_type             = 9;
+  FailedResetType cancel_reset_type          = 10; // 当抓取失败时，是否需要reset
+}
+
+message ManipulationResponse {
+  ResponseHeader header      = 1;
+  ManipulationResType result = 2;
+  string msg                 = 3;
+}
+
+message ManipulationControlRequest {
+  RequestHeader header                = 1;
+  ManipulationControlType type        = 2;
+  FailedResetType cancel_reset_type   = 3;
+}
+
+message ManipulationSelectRequest {
+  RequestHeader header         = 1;
+  uint32 index                 = 2;
+}
+
+enum ManipulateDetectStateType {
+  ManipulateDetectStateType_Unkonw   = 0;
+  ManipulateDetectStateType_Idke     = 1;
+  ManipulateDetectStateType_Running  = 2;
+  ManipulateDetectStateType_Finished = 3;
+  ManipulateDetectStateType_Failure  = 4;
+}
+
+enum ManipulationState {
+  ManipulationState_Unkonw  = 0;
+  ManipulationState_Idle    = 1;
+  ManipulationState_Running = 2;
+}
+
+enum FailedResetType {
+  FailedResetType_UNKNOWN       = 0;// 默认不reset， 即FailedResetType_NotReset
+  FailedResetType_NotReset      = 1; // 不reset
+  FailedResetType_DefaultReset  = 2; // 默认reset， 腰手同时复位
+  FailedResetType_ArmFirst      = 3; // 用于货架等场景，避免reset碰到上层货架
+}
+
+message ManipulationStateResponse {
+  ResponseHeader         header            = 1;
+  ManipulationState      state             = 2;
+  string                 manipulation_name = 3;
+  ManipulatePickErrorMsg err_msg           = 4 ;
+}
+
+message ManipulationConfigRequest {
+  RequestHeader header = 1;
+  string name          = 2;
+  string config        = 3;
+}
+
+message ManipulationConfigResponse {
+  ResponseHeader header   = 1;
+  ManipulationResType res = 2;
+  string msg              = 3;
+}
+
+message ManipulationDetectBox {
+  uint32 x1 = 1;
+  uint32 y1 = 2;
+  uint32 x2 = 3;
+  uint32 y2 = 4;
+}
+
+enum ManipulationHandState {
+  ManipulationHandState_Unkonw = 0;
+  ManipulationHandState_True   = 1;
+  ManipulationHandState_False  = 2;
+}
+
+message ManipulationHandStateResponse {
+  ResponseHeader header       = 1;
+  ManipulationHandState left  = 2;
+  ManipulationHandState right = 3;
+}
+
+message ServoPickEEPoseResponse {
+  ResponseHeader header       = 1;
+  ManipulationHandState left  = 2;
+  ManipulationHandState right = 3;
+}
+
+/**
+ * @brief 操作器检测物品时的状态
+   topic : /manipulator/detect/state
+   backend : mqtt
+ */
+message ManipulateDetectState {
+  Header header                       = 1;
+  ManipulateDetectStateType state     = 2;
+  repeated ManipulationDetectBox boxs = 3;
+  bytes image                         = 4;
+}
+
+/**
+ * @brief 操作器检测物品时的状态
+   topic : /manipulator/run/image
+   backend : mqtt
+ */
+message ManipulateDetectImage {
+  Header header                   = 1;
+  bytes image                     = 2;
+}
+
+/**
+ * @brief 操作器的运行状态
+   topic : /manipulator/run/state
+   backend : mqtt
+ */
+message ManipulateRunState {
+  Header header            = 1;
+  ManipulationState state  = 2;
+  string manipulation_name = 3;
+}
+
+enum ManipulatePickErrorMsg {
+  ManipulatePickErrorMsg_Unknown         = 0;  // 未知
+  ManipulatePickErrorMsg_Succeed         = 1;  //抓取成功
+  ManipulatePickErrorMsg_NoTarget        = 2;  // 无可抓取目标
+  ManipulatePickErrorMsg_NotSelectTarget = 3;  // 未选择抓取目标
+  ManipulatePickErrorMsg_PickFailed      = 4;  // 抓取失败
+}

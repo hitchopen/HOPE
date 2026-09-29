@@ -1,0 +1,75 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+message TtsReq {
+  string speak_sentence = 1;
+  string appid = 2;
+  string access_token = 3;
+  string uid = 4;
+  string voice = 5;
+  string voice_type = 6;
+  uint64 speed = 7;
+  uint64 volume = 8;
+  uint64 pitch = 9;
+  string emotion = 10;
+  string language = 11;
+  bool need_play_sound = 12;
+}
+
+message TtsRsp {
+  int64 status = 1;
+  string msg = 2;
+  string base64_audio_data = 3;
+}
+
+message PlayAudioReq {
+  string base64_audio_data = 1;
+}
+
+message PlayAudioRsp {
+  int64 status = 1;
+  string msg = 2;
+}
+
+message InfoPlayTtsReq {
+  int64 is_reset = 1;      // 重置，如果为1，则会终止所有的语音和动作
+  string audio_id = 2;     // 语音的id，全局唯一，属于同一大段话，id不变
+  string mc_id = 3;        // 对应的动作id
+  int64 req_time_ts = 4;   // 该小段请求开始的时间戳
+  int64 play_dura_ms = 5;  // 该小段语音的时长
+  int64 is_end = 6;        // 为1的话，就为该大段话的最后一句话
+}
+
+message InfoPlayTtsRsp {
+  int64 status = 1;
+}
+
+message SetAndPlayTtsReq {
+  int64 is_reset = 1;            // 重置，如果为1，则会终止所有的语音和动作
+  string audio_id = 2;           // 语音的id，全局唯一，属于同一大段话，id不变，推荐时间戳
+  string mc_id = 3;              // 动作id
+  int64 is_end = 4;              // 为1的话，就为该大段话的最后一句话
+  string base64_audio_data = 5;  // 具体的音频内容
+}
+
+message SetAndPlayTtsRsp {
+  int64 status = 1;
+}
+
+message AppAsrInfoReq {
+  string ts = 1;        // 时间戳
+  string info_str = 2;  // 具体的内容
+}
+
+message AppAsrInfoRsp {
+  int64 status = 1;
+}
+
+service TtsService {
+  rpc GenerateTtsSpeech(TtsReq) returns (TtsRsp);
+  rpc PlayAudio(PlayAudioReq) returns (PlayAudioRsp);
+  rpc AsyncPlayAudio(PlayAudioReq) returns (PlayAudioRsp);
+  rpc SetInfoPlayTts(InfoPlayTtsReq) returns (InfoPlayTtsRsp);
+  rpc SetAndPlayTts(SetAndPlayTtsReq) returns (SetAndPlayTtsRsp);
+  rpc SetAppAsrInfo(AppAsrInfoReq) returns (AppAsrInfoRsp);
+}

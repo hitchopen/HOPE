@@ -1,0 +1,39 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/sm/sm_internal.proto";
+
+
+enum SmState {
+  SmState_UNDEFINED    = 0;
+  SmState_INITIALIZING = 1;
+  SmState_STARTING     = 2;
+  SmState_INACTIVE     = 3;
+  SmState_ACTIVATING   = 4;
+  SmState_ACTIVE       = 5;
+  SmState_DEACTIVATING = 6;
+  SmState_SHUTINGDOWN  = 7;
+}
+
+message SmModuleState {
+  // 当前模块的状态
+  SmState state = 1;
+
+  // 上一个执行的状态切换动作
+  SmAction last_action = 2;
+
+  // 上一个执行的状态切换动作的执行结果
+  SmOpStatus last_result = 3;
+
+  // 上一个执行的降级动作
+  SmFallback last_fallback = 4;
+}
+
+message SmNodeState {
+  // 本节点的名称
+  string node_name = 1;
+
+  // 本节点内所有模块的状态
+  map<string, SmModuleState> module_states = 2;
+}

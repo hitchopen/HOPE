@@ -1,0 +1,52 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 告警影响的模块
+ */
+enum AlertImpactName {
+  AlertImpactModule_UNDEFINED = 0;
+
+  // 任务启动
+  AlertImpactModule_Task_Start = 1;
+
+  // 任务执行
+  AlertImpactModule_Task_Run = 2;
+
+  // 自主移动
+  AlertImpactModule_Autonomous_Move = 3;
+
+  // 遥控移动
+  AlertImpactModule_Remote_Control_Move = 4;
+
+  // 单臂动作
+  AlertImpactModule_Single_Arm_Action = 5;
+
+  // 双臂动作
+  AlertImpactModule_Dual_Arm_Action = 6;
+
+  // 头部动作
+  AlertImpactModule_Head_Action = 7;
+
+  // 腰部动作
+  AlertImpactModule_Waist_Action = 8;
+
+  // 腿部动作
+  AlertImpactModule_Leg_Action = 9;
+
+  // 地图定位
+  AlertImpactModule_Mapping_And_Loc = 10;
+
+  // 障碍物躲避
+  AlertImpactModule_Obstacle_Avoidance = 11;
+
+  // 运动控制
+  AlertImpactModule_Motion_Control = 12;
+
+  // 技能
+  AlertImpactModule_Skill = 13;
+};
+

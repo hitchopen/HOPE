@@ -1,0 +1,67 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief 状态管理动作，作用于某一个 AimRTe 进程
+ */
+message SmAction {
+  enum Type {
+    Type_UNDEFINED  = 0;
+    Type_ACTIVATE   = 1;
+    Type_DEACTIVATE = 2;
+  }
+
+  // 需要被控制的模块名称，支持正则表达式
+  string module_name_pattern = 1;
+
+  // 状态切换的动作类型
+  Type type = 2;
+
+  // 该 SM action 执行前后所处的系统状态的名称
+  string previous_state = 3;
+  string next_state     = 4;
+
+  // 传递给业务模块的额外参数
+  string parameter = 5;
+}
+
+/**
+ * @brief 降级动作，作用于某一个 AimRTe 进程
+ */
+message SmFallback {
+  enum Type {
+    Type_UNDEFINED     = 0;
+    Type_FALLBACK      = 1;
+    Type_FALLBACK_DONE = 2;
+  }
+
+  // 需要被控制的模块名称，支持正则表达式
+  string module_name_pattern = 1;
+
+  // 状态切换的动作类型
+  Type type = 2;
+
+  // 降级码
+  int32 diag_code = 3;
+
+  // 该降级动作触发时的系统状态名称
+  string current_state = 4;
+
+  // 传递给业务模块的额外参数
+  string parameter = 5;
+}
+
+/**
+ * @brief 状态管理动作的执行结果
+ */
+message SmOpStatus {
+  // 状态内容是否有效
+  bool has_value = 1;
+
+  // 零代表成功，其余代表失败，
+  // 具体的值含义取决于业务定义，框架不处理、仅透传至 SM 模块
+  int32 code = 2;
+
+  // 模块设置的处理结果信息，仅用于调试记录
+  string message = 3;
+}

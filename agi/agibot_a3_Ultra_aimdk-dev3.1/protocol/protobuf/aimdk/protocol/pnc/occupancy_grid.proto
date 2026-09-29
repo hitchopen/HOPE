@@ -1,0 +1,28 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+
+/**
+ * @brief 2D栅格地图，可与ros的nav_msgs/msg/OccupancyGrid互转
+ */
+message OccupancyGrid {
+  // 地图时间戳及坐标系
+  Header header = 1;
+
+  // 地图分辨率 米/像素
+  double resolution = 2;
+
+  // 地图宽度
+  uint32 width = 3;
+
+  // 地图高度
+  uint32 height = 4;
+
+  // 地图原点
+  SE3Pose origin = 5;
+
+  // 地图数据, 行优先顺序
+  bytes data = 6;
+}

@@ -1,0 +1,126 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/ta/ta_whole_body_command.proto";
+
+/**
+ * @brief TA 全身运动指令通道消息
+ * topic: /ta/whole_body_command
+ *
+ * 由 Teleop Avatar 模块以 60Hz 频率发布，MC（Motion Control）模块订阅。
+ * 包含TA从VR骨骼追踪数据经IK求解后生成的全身运动控制指令。
+ *
+ * 该消息替代原有的 /motion/control/leg_joint_command（sensor_msgs/JointState，
+ * 91元素扁平double数组）接口，提供结构化的proto接口。
+ */
+message TaWholeBodyCommandChannel {
+  // 消息头（包含序号、时间戳、frame_id等）
+  Header header = 1;
+
+  // 全身运动指令数据
+  TaWholeBodyCommand data = 2;
+}
+
+/**
+ * @brief TA 实时链路工作状态
+ */
+enum TaRealtimeWorkState {
+  TA_REALTIME_WORK_STATE_UNKNOWN = 0;
+  TA_REALTIME_WORK_STATE_STARTING = 1;
+  TA_REALTIME_WORK_STATE_WAITING_INPUT = 2;
+  TA_REALTIME_WORK_STATE_PARTIAL_INPUT = 3;
+  TA_REALTIME_WORK_STATE_ACTIVE = 4;
+  TA_REALTIME_WORK_STATE_STALE_INPUT = 5;
+  TA_REALTIME_WORK_STATE_STOPPED = 6;
+}
+
+/**
+ * @brief TA 接管状态
+ */
+enum TaTakeoverState {
+  TA_TAKEOVER_STATE_UNKNOWN = 0;
+  TA_TAKEOVER_STATE_INACTIVE = 1;
+  TA_TAKEOVER_STATE_ACTIVE = 2;
+  TA_TAKEOVER_STATE_TRANSITIONING = 3;
+  TA_TAKEOVER_STATE_EMERGENCY_STOPPED = 4;
+}
+
+/**
+ * @brief TA 标定状态
+ */
+enum TaCalibrationState {
+  TA_CALIBRATION_STATE_UNKNOWN = 0;
+  TA_CALIBRATION_STATE_UNCALIBRATED = 1;
+  TA_CALIBRATION_STATE_CALIBRATING = 2;
+  TA_CALIBRATION_STATE_CALIBRATED = 3;
+}
+
+/**
+ * @brief TA 控制参考状态
+ */
+enum TaControlReferenceState {
+  TA_CONTROL_REFERENCE_STATE_UNKNOWN = 0;
+  TA_CONTROL_REFERENCE_STATE_ABSOLUTE = 1;
+  TA_CONTROL_REFERENCE_STATE_RELATIVE = 2;
+  TA_CONTROL_REFERENCE_STATE_RESETTING = 3;
+}
+
+/**
+ * @brief TA 遥操身体范围
+ */
+enum TaTeleopBodyMode {
+  TA_TELEOP_BODY_MODE_UNKNOWN = 0;
+  TA_TELEOP_BODY_MODE_FULL_BODY = 1;
+  TA_TELEOP_BODY_MODE_UPPER_BODY = 2;
+}
+
+/**
+ * @brief TA 对外实时状态数据
+ *
+ * 该消息只暴露稳定业务状态，完整调试诊断仍使用
+ * aimrt.teleop_avatar.TeleopAvatarRealtimeStatus。
+ */
+message TaRealtimeStatus {
+  // TA 实时输入/求解/输出链路工作状态
+  TaRealtimeWorkState work_state = 1;
+
+  // 外层接管状态，来源于 TA orchestrator lifecycle
+  TaTakeoverState takeover_state = 2;
+
+  // 动捕/重定向标定状态
+  TaCalibrationState calibration_state = 3;
+
+  // 绝对/相对/复位中控制参考状态
+  TaControlReferenceState control_reference_state = 4;
+
+  // 当前全身或上半身遥操状态
+  TaTeleopBodyMode body_mode = 5;
+
+  // 面向上层应用的简短状态描述
+  string status_message = 6;
+
+  // 标定流程或标定结果描述
+  string calibration_message = 7;
+
+  // 当前 TA WBC source，例如 mocap_retarget 或 motion_matching
+  string active_source = 8;
+
+  // 当前 MC action，例如 PASSIVE、MOTION、AVATAR
+  string mc_current_action = 9;
+
+  // 是否正在使用 MOTION 下的原地上身子模式
+  bool in_place_upper_body_active = 10;
+}
+
+/**
+ * @brief TA 对外实时状态通道消息
+ * topic: /ta/realtime_status
+ */
+message TaRealtimeStatusChannel {
+  // 消息头（包含序号、时间戳、frame_id等）
+  Header header = 1;
+
+  // TA 对外实时状态数据
+  TaRealtimeStatus data = 2;
+}

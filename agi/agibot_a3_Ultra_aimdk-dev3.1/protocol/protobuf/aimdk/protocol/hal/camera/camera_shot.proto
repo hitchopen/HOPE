@@ -1,0 +1,47 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+
+/**
+ * @brief 表示相机拍摄的不同类型图像的枚举。
+ */
+enum CameraImageType {
+
+    CameraImageType_UNKNOWN = 0;
+    // 标准彩色图像。
+    CameraImageType_COLOR = 1;
+
+    // 深度图像。
+    CameraImageType_DEPTH = 2;
+
+    // 红外图像。
+    CameraImageType_IR = 3;
+
+}
+
+
+message SingleCameraShot {
+    string name = 1;
+    CameraImageType image_type = 2;
+    string pixel_format = 3;
+    bytes data = 4;
+}
+
+
+message CameraShotResponse {
+    ResponseHeader header = 1;  // 响应头
+    repeated SingleCameraShot camera_shot = 2; // 相机图像
+}
+
+
+message SingleCameraMetrics {
+    string name = 1;
+    double fps = 2;
+}
+
+message CameraMetricsResponse {
+    ResponseHeader header = 1;  // 响应头
+    repeated SingleCameraMetrics camera_metrics = 2; // 相机图像
+}

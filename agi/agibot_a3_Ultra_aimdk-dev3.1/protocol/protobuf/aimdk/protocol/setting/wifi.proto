@@ -1,0 +1,88 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+
+/**
+ * @brief wifi设置操作类型
+ */
+enum WifiControlOperation {
+  WifiControlOperation_Undefined = 0;
+  WifiControlOperation_OpenWifi = 1;        // 打开wifi
+  WifiControlOperation_CloseWifi = 2;       // 关闭wifi
+  WifiControlOperation_ScanWifi = 3;        // 扫描wifi
+  WifiControlOperation_ConnectWifi = 4;     // 连接wifi
+  WifiControlOperation_DisconnectWifi = 5;  // 断开wifi
+  WifiControlOperation_GetWifiState = 6;    // 查询wifi状态
+};
+
+/**
+ * @brief wifi密码加密类型
+ */
+enum WifiSecurity {
+  WifiSecurity_Undefined = 0;
+  WifiSecurity_None = 1;      // 无密码
+  WifiSecurity_WEP = 2;       // WEP
+  WifiSecurity_WPA = 3;       // WPA
+  WifiSecurity_WPA2 = 4;      // WPA2
+  WifiSecurity_WPA_WPA2 = 5;  // WPA2/WPA
+};
+
+/**
+ * @brief 机器人wifi网卡状态
+ */
+enum WifiConnectState {
+  WifiConnectState_Undefined = 0;
+  WifiConnectState_Disconnected = 1; // 未连接
+  WifiConnectState_Connected = 2;    // 已连接
+  WifiConnectState_Closed = 3;       // wifi已关闭
+  WifiConnectState_Connecting = 4;  // 连接中
+}
+
+/**
+ * @brief 机器人wifi状态
+ */
+message WifiState {
+  WifiConnectState connect_state = 1; // wifi状态
+  string connect_ssid = 2;            // 机器人当前连接的wifi名称
+  int32 signal_strength = 3;          // 网络信号强度 0-100
+}
+
+enum SimState {
+  SimState_Undefined = 0;
+  SimState_Ready = 1;    // sim卡已就绪
+  SimState_NotReady = 2; // sim卡未就绪
+}
+
+/**
+ * @brief 机器人5G状态
+ */
+message Network5GState {
+  bool connect_state = 1;      // 5G网口状态
+  int32 signal_strength = 2;   // 网络信号强度 0-100
+  SimState sim_state = 3;      // sim卡状态
+}
+
+/**
+ * @brief 机器人网络状态
+ */
+message NetWorkState {
+  WifiState wifi_state = 1;        // wifi状态
+  Network5GState net_5g_state = 2; // 5G状态
+  string host_name = 3;            // 主机名
+};
+
+/**
+ * @brief wifi信息
+ */
+message WifiInfo {
+  string ssid = 1;            // wifi名称
+  string pwd = 2;             // wifi密码
+  int32 signal_strength = 3;  // wifi信号强度
+  bool is_connected = 4;      // 是否连接
+  bool is_hidden = 5;         // 是否隐藏
+  WifiSecurity security = 6;  // 密码类型(none为不需要密码)
+  WifiConnectState connect_state = 7; // 连接状态
+  string ipv4 = 8;            // ip地址
+};
+

@@ -1,0 +1,28 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+message TeleopPairingRequest {
+    enum PairingCommand {
+        CONNECT = 0;
+        DISCONNECT = 1;
+    }
+    string pairing_id = 1;
+    string robot_aid = 2;
+    string teleop_device_id = 3;
+    PairingCommand pairing_command = 4;
+    int64 timestamp_ms = 5;
+}
+
+message TeleopPairingResponse {
+    enum PairingStatus {
+        SUCCESS = 0;
+        FAILURE = 1;
+    }
+    string pairing_id = 1;
+    string robot_aid = 2;
+    string teleop_device_id = 3;
+    TeleopPairingRequest.PairingCommand pairing_command = 4;  // 跨 message 引用
+    PairingStatus pairing_status = 5;
+    string error_message = 6;
+    int64 timestamp_ms = 7;
+}

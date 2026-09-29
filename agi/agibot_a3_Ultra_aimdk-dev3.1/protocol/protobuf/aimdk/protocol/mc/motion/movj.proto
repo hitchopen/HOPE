@@ -1,0 +1,67 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/common/planning.proto";
+import public "aimdk/protocol/mc/data/joint.proto";
+import public "aimdk/protocol/mc/common/move_pose_mode.proto";
+import public "aimdk/protocol/mc/motion/motion_param.proto";
+
+/**
+ * @brief MovJ请求
+ */
+message MovJRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 规划组
+  McPlanningGroup group = 2;
+
+  // 运动参数，包括速度、加速度、减速度等
+  MotionParam param = 3;
+
+  // 关节角度，单位：弧度
+  repeated double angles = 4;
+}
+
+/**
+ * @brief MovJ请求
+ */
+message JointControlRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  enum JointGroup {
+    UNKNOWN = 0;
+    LEFT_ARM = 1;
+    RIGHT_ARM = 4;
+    DUAL_ARM = 7;
+    WAIST_LIFT = 11;
+    WAIST_PITCH = 12;
+    HEAD = 13;
+  }
+
+  // 关节组
+  JointGroup group = 2;
+
+  message Control {
+    enum Mode {
+      // 绝对角度模式
+      ABSOLUTE = 0;
+      // 相对角度模式
+      RELATIVE = 1;
+    }
+
+    // 关节名称
+    string name = 1;
+
+    // 控制模式
+    Mode mode = 2;
+
+    // 关节角度，单位：弧度
+    double angle = 3;
+  };
+
+  // 控制指令
+  repeated Control cmds = 3;
+}

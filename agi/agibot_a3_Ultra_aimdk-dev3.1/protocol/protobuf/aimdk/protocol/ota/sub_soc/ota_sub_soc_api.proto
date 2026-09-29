@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 查询子soc的某个文件的下载进度信息
+ */
+message OtaQuerySubSocDownloadInfoRequest {
+  RequestHeader header = 1;
+  string file_name = 2;
+  string hash = 3;
+  uint32 total = 4;
+
+  // 是否回滚，如果回滚的话，不执行脚本，利用本地的参数进行恢复
+  // 参数保存保存在ota目录，以soc1的hash值命名
+  bool is_rollback = 5;
+};
+
+/**
+ * @brief 查询子soc的某个文件的下载进度信息的返回值
+ */
+message OtaQuerySubSocDownloadInfoResponse {
+  enum Type {
+    Type_SUCCESS = 0;
+    Type_FAILURE = 1;
+  }
+
+  ResponseHeader header = 1;
+
+  // 一致性判断，如果该值为false，需要重新开始上传，同时子soc会删除缓存的文件
+  bool is_consistent = 2;
+
+  int64 next = 3;
+};
+
+/**
+ * @brief 查询子soc的文件解压缩进度和参数更新进度
+ */
+message OtaQuerySubSocProgressRequest {
+  RequestHeader header = 1;
+};
+
+/**
+ * @brief 查询子soc的文件解压缩进度和参数更新进度的响应
+ */
+message OtaQuerySubSocProgressResponse {
+  enum Type {
+    Type_SUCCESS = 0;
+    Type_FAILURE = 1;
+    Type_UNPACK = 2;
+    Type_UPDATE_PARAMS = 3;
+  }
+
+  ResponseHeader header = 1;
+  int32 progress = 2;
+};
+
+/**
+ * @brief 请求子soc重命名
+ */
+message OtaSubSocRenameRequest {
+  RequestHeader header = 1;
+  string hash = 2;
+}
+
+/**
+ * @brief 请求子soc重命名的响应
+ */
+message OtaSubSocRenameResponse {
+  enum Type {
+    // 如果vn目录不存在也认为重命名成功，可能是重入了
+    Type_SUCCESS = 0;
+
+    Type_FAILURE = 1;
+  }
+
+  ResponseHeader header = 1;
+}

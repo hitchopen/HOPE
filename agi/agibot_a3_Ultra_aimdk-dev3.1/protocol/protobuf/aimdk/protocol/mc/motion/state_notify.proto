@@ -1,0 +1,13 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 请求消息
+ */
+message SitStandStateNotifyRequest {
+    RequestHeader header = 1;
+    string state_notify = 2;    // 通知mc当前坐下站起状态
+}

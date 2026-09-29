@@ -1,0 +1,41 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/timestamp.proto";
+
+/**
+ * @brief 异常类型
+ */
+enum ExceptionType {
+  // 正常类型 该类型异常需要周期性上报
+  ExceptionType_Normal = 0;
+
+  // 触发式异常(异常产生时上报一次) 设置该异常为产生状态
+  ExceptionType_Trigger_Appear = 1;
+
+  // 触发式异常(异常消失时上报一次) 设置该异常为消失状态
+  ExceptionType_Trigger_Disappear = 2;
+}
+
+/**
+ * @brief 模块异常信息,由各个模块上报
+ */
+message ModuleException {
+  // 该异常产生的时间戳
+  Timestamp timestamp = 1;
+
+  // 异常类型
+  ExceptionType type = 2;
+
+  // 模块ID
+  uint32 module_id = 3;
+
+  // 模块异常码
+  uint32 code = 4;
+
+  // 异常信息
+  string info = 5;
+
+  // 模块名称
+  string module_name = 6;
+}

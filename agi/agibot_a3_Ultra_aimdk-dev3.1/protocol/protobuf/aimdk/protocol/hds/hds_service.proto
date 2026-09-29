@@ -1,0 +1,189 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/hds/alert.proto";
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief 告警系统提供给外部的rpc服务
+ */
+service HDSService {
+  /**
+   * @brief 查询系统中存活的告警事件
+   */
+  rpc GetAlertList(GetAlertListReq) returns (GetAlertListRsp);
+
+  /**
+   * @brief 查询系统中的告警事件
+   */
+  rpc GetTotalAlertList(GetTotalAlertListReq) returns (GetTotalAlertListRsp);
+
+  /**
+   * @brief 查询系统中告警数量
+   */
+  rpc GetAlertCount(CommonRequest) returns (GetAlertCountRsp);
+
+  /**
+   * @brief 查询当前系统中的异常事件
+   */
+  rpc GetExceptionEvent(GetExceptionEventReq) returns (GetExceptionEventRsp);
+
+  /**
+   * @brief 屏蔽异常码
+   */
+  rpc SetBlockExceptionCode(SetBlockExceptionCodeReq) returns (CommonResponse);
+
+  /**
+   * @brief 获取屏蔽异常码列表
+   */
+  rpc GetBlockedExceptionCodeList(CommonRequest) returns (GetBlockedExceptionCodeListRsp);
+}
+
+/**
+ * @brief 屏蔽异常码请求体
+ */
+message SetBlockExceptionCodeReq {
+  RequestHeader header = 1;
+  string code = 2; // 异常码
+  bool is_permanent = 3;  // 是否永久屏蔽(true: 永久屏蔽, false: 临时屏蔽,程序重启后失效) 默认永久屏蔽
+  bool is_blocked = 4; // 是否屏蔽 
+}
+
+/**
+ * @brief 获取屏蔽异常码列表响应体
+ */
+message GetBlockedExceptionCodeListRsp {
+  ResponseHeader header = 1; // 响应头
+  repeated string code_list = 2; // 屏蔽的异常码列表
+}
+
+/**
+ * @brief 查询系统中存活的告警事件响应体
+ */
+message GetAlertCountRsp {
+  ResponseHeader header = 1;
+  int32 total_count = 2;  // 告警总数
+  int32 active_count = 3; // 活跃告警数
+  int32 cleared_count = 4; // 清除告警数
+}
+
+/**
+ * @brief 获取当前告警信息请求体
+ */
+message GetAlertListReq {
+  RequestHeader header = 1;
+}
+
+message GetAlertListRspData {
+  repeated Alert alerts = 1;
+}
+
+/**
+ * @brief 获取当前告警信息响应体
+ */
+message GetAlertListRsp {
+  ResponseHeader header = 1;
+
+  // 当前所有的告警列表
+  GetAlertListRspData data = 2;
+}
+
+/**
+ * @brief 获取所有告警信息请求体
+ */
+message GetTotalAlertListReq {
+  RequestHeader header = 1;
+
+  // 要查询告警的开始时间戳
+  uint64 start_timestamp = 2;
+
+  // 查询个数限制
+  int32 limit_size = 3;
+}
+
+message GetTotalAlertListRspData {
+  repeated Alert alerts = 1;
+}
+
+/**
+ * @brief 获取所有告警信息响应体
+ */
+message GetTotalAlertListRsp {
+  ResponseHeader header = 1;
+  GetTotalAlertListRspData data = 2;
+}
+
+/**
+ * @brief 查询指定异常事件请求体
+ */
+message GetExceptionEventReq{
+  RequestHeader header = 1;
+
+  // 要查询告警的开始时间戳
+  uint64 start_timestamp = 2;
+
+  // 查询个数限制
+  int32 limit_size = 3;
+
+  //查询条件
+  string query = 4;
+
+}
+
+/**
+ * @brief 异常信息，展示给aim-master
+ */
+message ExceptionEvent{
+
+  enum Type{
+    UNKNOWN = 0;
+    Appear = 1;
+    Disappear = 2;
+  }
+
+  // 该异常产生的时间戳
+  Timestamp timestamp = 1;
+
+  Type type = 2;
+
+  // 异常码
+  string code = 3;
+
+  // 异常码对应的模块ID
+  string module_id = 4;
+
+  // 异常码对应的模块异常码
+  string sub_code = 5;
+
+  // 异常码上报的模块名称
+  string module_name = 6;
+
+  // 异常ID
+  string id = 7;
+
+  // 异常描述(可能为空)
+  string enum_name = 8;
+
+  //异常信息(可能为空)
+  string info = 9;
+
+  //该异常码产生的告警
+  string alert_list = 10;
+
+  // 是否屏蔽(true: 屏蔽, false: 不屏蔽)
+  bool is_blocked = 11;
+
+}
+
+message GetExceptionEventRspData {
+  repeated ExceptionEvent event_list = 1;
+}
+
+/**
+ * @brief 查询指定异常事件响应体
+ */
+message GetExceptionEventRsp {
+  ResponseHeader header = 1;
+  GetExceptionEventRspData data = 2;
+}

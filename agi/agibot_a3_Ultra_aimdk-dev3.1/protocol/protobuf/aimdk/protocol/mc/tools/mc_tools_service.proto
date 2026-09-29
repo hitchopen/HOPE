@@ -1,0 +1,22 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/mc/tools/mc_tools_cfg.proto";
+
+service McToolService {
+  // 添加工具
+  rpc AddToolsConfig(McAddToolRequest) returns (CommonResponse);
+
+  // 获取工具 (列表)
+  rpc GetToolConfig(CommonRequest) returns (McGetToolResponse);
+
+  // 设置工具（使能工具）
+  rpc SetRobotTool(McRobotToolRequest) returns (CommonResponse);
+
+  // 获取当前（使能的）工具
+  rpc GetRobotTool(CommonRequest) returns (McRobotToolResponse);
+
+  // 设置当前（使能的）工具的PayLoad
+  rpc SetPayload(McToolPayloadRequest) returns (CommonResponse);
+}

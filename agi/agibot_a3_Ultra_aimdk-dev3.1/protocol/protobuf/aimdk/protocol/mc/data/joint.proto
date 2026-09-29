@@ -1,0 +1,57 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/joint.proto";
+
+/**
+ * @brief 运控公共状态响应
+ */
+message McJointStatesResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 关节状态，包括角度和速度、扭矩
+  repeated JointState states = 2;
+}
+
+/**
+ * @brief 运控公共状态响应
+ */
+message McJointCommandsResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 关节指令
+  repeated JointCommand commands = 2;
+}
+
+/**
+ * @brief 运控公共参数响应
+ */
+message McJointParamsResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 关节参数
+  repeated JointParam params = 2;
+}
+
+message McJointPosition {
+  // 关节名称
+  string name = 1;
+
+  // 关节角度
+  double position = 2;
+}
+
+/**
+ * @brief 运控公共角度响应
+ */
+message McJointAnglesResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 关节角度，单位：弧度 or m
+  repeated McJointPosition joints = 2;
+}

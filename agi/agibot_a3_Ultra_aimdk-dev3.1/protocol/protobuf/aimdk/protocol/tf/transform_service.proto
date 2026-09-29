@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+import "aimdk/protocol/common/timestamp.proto";
+
+message GetTransFormationReq {
+  RequestHeader header = 1;
+  string target_frame = 2;
+  string source_frame = 3;
+}
+
+message GetTransFormationRsp {
+  ResponseHeader header = 1;
+  TransformStamped transform_stamped = 2;
+}
+
+message TsHeader {
+  Timestamp stamp = 1;
+  string frame_id = 2;
+}
+
+// Define the TransformStamped message
+message TransformStamped {
+  TsHeader header = 1;
+  string child_frame_id = 2;
+  SE3Pose transform = 3;
+}
+
+service TransFormService {
+  rpc GetTransFormation(GetTransFormationReq) returns (GetTransFormationRsp);
+}

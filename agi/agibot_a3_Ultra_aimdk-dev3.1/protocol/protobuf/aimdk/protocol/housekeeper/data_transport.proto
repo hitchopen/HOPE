@@ -1,0 +1,46 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+enum TransportType {
+  TRANSPORT_TYPE_UNSPECIFIED = 0;
+  TRANSPORT_TYPE_DOWNLOAD = 1;
+  TRANSPORT_TYPE_UPLOAD = 2;
+}
+
+message TransportReq {
+  RequestHeader header = 1;
+  TransportType type = 2;
+  string local_path = 3;
+  string remote_path = 4;
+}
+
+message TransportResp {
+ ResponseHeader header = 1;
+}
+
+enum TransportStatus {
+  TRANSPORT_STATUS_UNSPECIFIED = 0;
+  TRANSPORT_STATUS_IN_QUEUE = 1;    // 排队中
+  TRANSPORT_STATUS_IN_PROGRESS = 2; // 下载、上传中
+  TRANSPORT_STATUS_SUCCESS = 3;     // 下载、上传成功
+  TRANSPORT_STATUS_FAILED = 4;      // 失败，配合error message查看失败原因
+}
+
+message ProgressReq {
+  RequestHeader header = 1;
+  TransportType type = 2;
+  string local_path = 3;
+}
+
+message ProgressResp {
+  ResponseHeader header = 1;
+  string local_path = 2;
+  TransportStatus status = 3;
+}
+
+service DataTransportService {
+  rpc Transport(TransportReq) returns (TransportResp);
+  rpc Progress(ProgressReq) returns (ProgressResp);
+}

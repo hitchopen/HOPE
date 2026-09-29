@@ -1,0 +1,45 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/interaction/interaction_task.proto";
+
+message AudioVolumeRequest {
+    RequestHeader header = 1;           // 请求头
+    uint32 audio_volume = 2;            //系统音量
+    bool is_mute = 3;                   //静音
+}
+
+message AudioVolumeResponse {
+    ResponseHeader header = 1;           // 响应头
+    uint32 audio_volume = 2;            //系统音量
+    bool is_mute = 3;                   //静音
+}
+
+/**
+ * 交互服务
+ * agent -> interaction
+ */
+service InteractionService {
+  rpc SendMethodAction(InteractionEmotionActionRequest) returns (CommonResponse);
+  rpc SendText(InteractionTextRequest) returns (CommonResponse);
+  rpc SetAudioVolume(AudioVolumeRequest) returns (CommonResponse);
+  rpc GetAudioVolume(CommonRequest) returns (AudioVolumeResponse);
+}
+
+service InteractionStatusService {
+  rpc SetStatus(InteractionStatusRequest) returns (CommonResponse);
+  rpc GetStatus(CommonRequest) returns (InteractionStatusResponse);
+}
+
+service InteractionTaskService {
+  rpc StartInteractionTask(InteractionTaskRequest) returns (InteractionTaskResponse);
+  rpc GetInteractionTaskStatus(InteractionTaskStatusRequest) returns (InteractionTaskStatusResponse);
+  rpc StopInteractionTask(InteractionTaskStopRequest) returns (CommonResponse);
+  rpc ResumeInteractionTask(InteractionTaskResumeRequest) returns (CommonResponse);
+  rpc CancelInteractionTask(InteractionTaskCancelRequest) returns (CommonResponse);
+
+  rpc StartSpeceialInteractionTask(InteractionSpecialTaskRequest) returns (CommonResponse);
+  rpc CallInteractionTask(CommonRequest) returns (CommonResponse);
+}

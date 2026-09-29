@@ -1,0 +1,29 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/sm/sm_state.proto";
+import "aimdk/protocol/sm/sm_api.proto";
+
+/**
+ * @brief 受 SM 模块管理的节点的状态上报链路
+ *        topic: /aimrte/sm/node_state
+ */
+message SmNodeStateChannel {
+  Header      header = 1;
+  SmNodeState data   = 2;
+}
+
+/**
+ * @brief SM 模块定时发布系统的状态
+ *        topic: /aima/sm/system_state
+ */
+message SmSystemStateChannel {
+  Header      header = 1;
+
+  // 系统状态
+  string cur_state = 2;
+
+  // 系统当前情况
+  SystemStatus cur_status = 3;
+}

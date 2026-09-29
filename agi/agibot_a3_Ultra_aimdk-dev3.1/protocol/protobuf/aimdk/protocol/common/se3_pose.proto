@@ -1,0 +1,22 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec3.proto";
+import public "aimdk/protocol/common/quaternion.proto";
+import public "aimdk/protocol/common/rpy.proto";
+
+/**
+ * SE3位姿（四元数姿态表示）
+ */
+message SE3Pose {
+  Vec3 position = 1;           // 3d 位姿，单位：米
+  Quaternion orientation = 2;  // 四元数
+}
+
+/**
+ * SE3位姿（RPY角度表示）
+ */
+message SE3RpyPose {
+  Vec3 position = 1;  // 3d 位姿，单位：米
+  Rpy rpy = 2;        // RPY角度
+}

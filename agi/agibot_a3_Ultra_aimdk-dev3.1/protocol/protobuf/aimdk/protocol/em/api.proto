@@ -1,0 +1,182 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+
+
+/**
+ * @brief 启动app的结果
+ */
+message EmStartAppResult {
+  /**
+   * @brief 状态类型
+   */
+  enum Type {
+    Type_UNDEFINED = 0;
+
+    // 启动成功
+    Type_SUCCESS = 1;
+
+    // 启动失败，app不存在
+    Type_NOT_FOUND = 2;
+
+    // 启动成功，但是等待期间 app 退出
+    Type_EXITED = 3;
+
+    // 启动失败，由 OS 返回启动失败
+    Type_FAILED = 4;
+
+    // 启动失败，app已经存在
+    Type_ALREADY_EXISTS = 5;
+  }
+
+  // app name
+  string app = 1;
+
+  // 功能组逻辑上的状态
+  Type type = 2;
+
+  // exit code(0 for success)
+  int32 exit_code = 3;
+
+  // 错误信息
+  string error = 4;
+
+  // started app pid; available when type success or exited.
+  int32 pid = 5;
+}
+
+message EmStartAppResponse {
+  ResponseHeader header = 1;
+
+  EmStartAppResult result = 2;
+}
+
+message EmStartAppRequest {
+  RequestHeader header = 1;
+  string app = 2;
+}
+
+
+/**
+ * @brief 启动多个app
+ */
+message EmStartAppsRequest {
+  RequestHeader header = 1;
+  repeated string apps = 2;
+}
+
+message EmStartAppsResponse {
+  ResponseHeader header = 1;
+  repeated EmStartAppResult results = 2;
+}
+
+
+/**
+* @ brief 关闭应用
+*/
+message EmStopAppRequest {
+  RequestHeader header = 1;
+  string app = 2;
+}
+
+message EmStopAppResult {
+  enum Type {
+    Type_UNDEFINED = 0;
+    Type_SUCCESS = 1;
+    // app 字段未找到
+    Type_NOT_FOUND = 2;
+    // 错误原因在 error 中
+    Type_FAILED = 3;
+    // 请求时，app 已经退出（pid）不存在
+    Type_EXITED = 4;
+    // 请求时，app 正在退出，一般是已经有其他 stop 请求正在进行中
+    Type_STOPPING = 5;
+  }
+
+  string app = 1;
+  Type type = 2;
+  int32 exit_code = 3;
+  string error = 4;
+}
+
+message EmStopAppResponse {
+  ResponseHeader header = 1;
+  EmStopAppResult result = 2;
+}
+
+message EmStopAppsRequest {
+  RequestHeader header = 1;
+  repeated string apps = 2;
+}
+
+message EmStopAppsResponse {
+  ResponseHeader header = 1;
+  repeated EmStopAppResult results = 2;
+}
+
+
+/**
+ * @brief 获取应用信息
+ */
+message EmGetAppInfoRequest {
+  RequestHeader header = 1;
+  string app = 2;
+}
+
+message EmGetAppInfoResponse {
+  ResponseHeader header = 1;
+  EmAppInfo info = 2;
+}
+
+message EmAppInfo {
+  string app = 1;
+  int32 pid = 2;
+  enum State {
+    State_UNDEFINED = 0;
+    // 空闲， 可以被启动，与 EXITED 状态类似
+    State_IDLE = 1;
+    // 启动中, 一般这个状态可能会持续1-2秒
+    State_STARTING = 2;
+    // 运行中
+    State_RUNNING = 3;
+    // 停止中， 如果app是正常退出的，那么这个状态会很快结束， 否则可能会持续10秒左右
+    State_STOPPING = 4;
+    // 已退出, 启动过程中进程已退出
+    State_EXITED = 5;
+  }
+  State state = 3;
+}
+
+/**
+ * @brief 获取所有应用信息, 包括正在运行的和已经退出的
+ */
+message EmGetAllAppInfosRequest {
+  RequestHeader header = 1;
+}
+
+message EmGetAllAppInfosResponse {
+  ResponseHeader header = 1;
+  repeated EmAppInfo infos = 2;
+}
+
+
+service EmAppService {
+  // notice: this is a blocking call, which admit to be returned in 5 seconds
+  rpc StartApp(EmStartAppRequest) returns (EmStartAppResponse);
+
+  rpc StartApps(EmStartAppsRequest) returns (EmStartAppsResponse);
+
+  rpc StopApp(EmStopAppRequest) returns (EmStopAppResponse);
+
+  rpc StopApps(EmStopAppsRequest) returns (EmStopAppsResponse);
+
+  rpc GetAppInfo(EmGetAppInfoRequest) returns (EmGetAppInfoResponse);
+
+  rpc GetAllAppInfos(EmGetAllAppInfosRequest) returns (EmGetAllAppInfosResponse);
+
+  rpc StartWatchDog(CommonRequest) returns (CommonResponse);
+
+  rpc StopWatchDog(CommonRequest) returns (CommonResponse);
+}

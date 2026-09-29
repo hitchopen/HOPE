@@ -1,0 +1,34 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/agent/agent_data.proto";
+
+
+service AgentControlService {
+  rpc WakeControl (AgentControlRequest) returns (AgentControlResponse);
+  rpc SkillControl (AgentControlRequest) returns (AgentControlResponse);
+
+  rpc AsrControl (AgentASRRequest) returns (AgentControlResponse);
+  rpc FunctionCallControl (AgentFunctionCallRequest) returns (AgentControlResponse);
+
+  rpc WakeUpRequest (AgentWakeUpRequest) returns (CommonResponse);
+  rpc QuitVoiceRequest (CommonRequest) returns (CommonResponse);
+
+  rpc GetMicSourceRequest (CommonRequest) returns (MicSourceStateResponse);
+  rpc SetMicSourceRequest (MicSourceStateRequest) returns (CommonResponse);
+
+  rpc SetCustomWakeUpWord (AgentWakeUpWordRequest) returns (CommonResponse);
+
+  rpc SwitchMicSource (SwitchMicSourceRequest) returns (SwitchMicSourceResponse);
+  rpc GetMicStatus (GetMicStatusRequest) returns (GetMicStatusResponse);
+
+  rpc GetVoiceEnable (CommonRequest) returns (VoiceEnableResponse);
+  rpc SetVoiceEnable (VoiceEnableRequest) returns (CommonResponse);
+
+  rpc SetAgentPropertiesRequest (AgentPropertiesSetRequest) returns (CommonResponse);
+  rpc GetAgentPropertiesRequest (AgentPropertiesGetRequest) returns (AgentPropertiesGetResponse);
+
+  rpc AudioInput (AudioInputRequest) returns (AudioInputResponse);
+}

@@ -1,0 +1,99 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+enum EmbodiedResType {
+  EmbodiedResType_Unknow  = 0;
+  EmbodiedResType_Success = 1;
+  EmbodiedResType_Failure = 2;
+}
+
+// 某个任务当前运行的状态
+enum EmbodiedTaskRunningState {
+  EmbodiedTaskRunningState_Unknow     = 0;
+  EmbodiedTaskRunningState_Idel       = 1;
+  EmbodiedTaskRunningState_Runnig     = 2;
+  EmbodiedTaskRunningState_Paused     = 3;
+  EmbodiedTaskRunningState_Cancled    = 4;
+	EmbodiedTaskRunningState_Completed  = 5;
+}
+
+// embodied_agent当前运行的状态
+enum EmbodiedRunningState {
+  EmbodiedTaskState_Unkonw  = 0;
+  EmbodiedTaskState_Idle    = 1;
+  EmbodiedTaskState_Running = 2;
+  EmbodiedTaskState_Pause   = 3;
+}
+
+// embodied_agent进程运行的模式
+enum EmbodiedTaskMode {
+  EmbodiedTaskMode_Unknow           = 0;
+  EmbodiedTaskMode_NonManipulation  = 1;
+  EmbodiedTaskMode_SingleOperation  = 2;
+  EmbodiedTaskMode_AutoPick         = 3;
+  EmbodiedTaskMode_ShopAssistant    = 4;
+  EmbodiedTaskMode_Chess            = 5;
+  EmbodiedTaskMode_BarPick          = 6;
+}
+
+// 自动派发任务的错误码
+enum AutoPickTaskFinishedMsg {
+  AutoPickTaskFinishedMsg_None              = 0;
+  AutoPickTaskFinishedMsg_NoTarget          = 1;  // 无可抓取目标
+  AutoPickTaskFinishedMsg_NotSelectTarget   = 2;  // 未选择抓取目标
+  AutoPickTaskFinishedMsg_PickFailed        = 3;  // 抓取失败
+}
+
+// 三子棋任务的错误码
+enum ChessTaskFinishedMsg {
+  ChessTaskFinishedMsg_None               = 0;
+  ChessTaskFinishedMsg_BoardPositionErr   = 1;
+  ChessTaskFinishedMsg_HumanWin           = 2;
+  ChessTaskFinishedMsg_RobotWin           = 3;
+  ChessTaskFinishedMsg_ChessDraw          = 4;
+  ChessTaskFinishedMsg_InvalidEnd         = 5;
+  ChessTaskFinishedMsg_Calibrated         = 6;
+}
+
+// 店小二任务的错误码
+enum ShopAssistantTaskFinishedMsg {
+  ShopAssistantTaskFinishedMsg_None       = 0;
+}
+
+// 店小二任务的运行状态
+enum ShopAssistantTaskRunningState {
+  ShopAssistantTaskRunningState_Unknown             = 0;
+  ShopAssistantTaskRunningState_Idel                = 1;
+  ShopAssistantTaskRunningState_Fetching            = 2;
+  ShopAssistantTaskRunningState_PickingUp           = 3;
+  ShopAssistantTaskRunningState_Delivering          = 4;
+  ShopAssistantTaskRunningState_Giving              = 5;
+  ShopAssistantTaskRunningState_Returning           = 6;
+}
+
+enum BarPickModeRunningState {
+  BarPickModeRunningState_UNKNOWN             = 0;
+  BarPickModeRunningState_IDEL                = 1;
+  BarPickModeRunningState_NAVIGATINGTOWORK    = 2;
+  BarPickModeRunningState_PICKINGUP           = 3;
+  BarPickModeRunningState_GIVING              = 4;
+  BarPickModeRunningState_RETURNING           = 5;
+}
+
+enum BarPickModeFinishedMsg {
+  BarPickModeFinishedMsg_UNKNOWN              = 0;
+  BarPickModeFinishedMsg_INSUFFICIENTSTOCK    = 1;
+  BarPickModeFinishedMsg_PICKFAILED           = 2;
+  BarPickModeFinishedMsg_GIVINGTIMEOUT        = 3;
+}
+
+enum CheckTaskRunningState {
+  CheckTaskRunningState_Unknown     = 0;
+  CheckTaskRunningState_Running     = 1;
+}
+
+enum AutoPickTaskRunningState {
+ AutoPickTaskRunningState_Unknown  = 0;
+}

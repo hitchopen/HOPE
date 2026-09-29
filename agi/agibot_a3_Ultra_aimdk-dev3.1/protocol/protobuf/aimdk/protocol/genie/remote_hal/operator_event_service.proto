@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/genie/remote_hal/operator_event.proto";
+
+service OperatorEventService {
+    rpc OperatorEventService (OperatorEventRequest) returns (OperatorEventReply);
+}

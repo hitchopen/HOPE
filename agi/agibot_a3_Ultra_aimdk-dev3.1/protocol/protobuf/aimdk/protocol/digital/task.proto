@@ -1,0 +1,43 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+
+message StartHalSensorRecordRequest {
+  RequestHeader header = 1;
+  repeated string name = 2;
+}
+
+message StartHalSensorRecordResponse {
+  enum TaskStatus {
+    IN_PROGRESS = 0;
+    SUCCESS = 1;
+    FAILED = 2;
+  }
+  ResponseHeader header = 1;
+  TaskStatus status = 2;
+  string error_message = 3;
+}
+
+message StopHalSensorRecordRequest {
+  RequestHeader header = 1;
+  repeated string name = 2;
+}
+
+message StopHalSensorRecordResponse {
+  enum TaskStatus {
+    IN_PROGRESS = 0;
+    SUCCESS = 1;
+    FAILED = 2;
+  }
+  ResponseHeader header = 1;
+  TaskStatus status = 2;
+  string error_message = 3;
+  string path = 4;
+}
+
+service SyncTaskService {
+ rpc StartHalSensorRecord(StartHalSensorRecordRequest) returns (StartHalSensorRecordResponse);
+ rpc StopHalSensorRecord(StopHalSensorRecordRequest) returns (StopHalSensorRecordResponse);
+}

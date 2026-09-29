@@ -1,0 +1,42 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+enum PncAvoidStatus {
+  // 未定义状态
+  AvoidStatus_UNDEFINED = 0;
+
+  // 开始自主导航
+  AvoidStatus_START_MOVE = 1;
+
+  // 导航中路线被阻挡
+  AvoidStatus_PATH_BLOCK = 2;
+
+  // 导航中路线被阻挡后开始重规划
+  AvoidStatus_PATH_BLOCK_START_REPLAN = 3;
+
+  // 导航中路线被阻挡且重规划超时
+  AvoidStatus_PATH_BLOCK_REPLAN_TIMEOUT = 4;
+
+  // 重规划成功或原有障碍物消失，继续导航
+  AvoidStatus_CONTINUE_MOVE = 5;
+
+  // 导航任务正常结束
+  AvoidStatus_TASK_FINISH = 6;
+
+  // 导航任务异常结束
+  AvoidStatus_TASK_ERROR = 7;
+}
+/**
+ * @brief pnc 模块自主导航中的避让状态
+ *        topic:
+ *          - 用于状态输出：/pnc/avoid_status
+ */
+message PncAvoidStatusChannel {
+  // 消息头
+  Header header = 1;
+
+  // 导航运行中避让状态
+  PncAvoidStatus status = 2;
+}

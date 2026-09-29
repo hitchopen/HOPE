@@ -1,0 +1,75 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/mc/base/mc_base_service.proto";
+import public "aimdk/protocol/mc/data/mc_data_service.proto";
+import public "aimdk/protocol/mc/force/mc_force_service.proto";
+import public "aimdk/protocol/mc/kinematics/mc_kinematics_service.proto";
+import public "aimdk/protocol/mc/motion/mc_motion_service.proto";
+import public "aimdk/protocol/mc/remote/mc_remote_service.proto";
+import public "aimdk/protocol/mc/safety/mc_safety_service.proto";
+import public "aimdk/protocol/mc/servo/mc_servo_service.proto";
+import public "aimdk/protocol/mc/simulation/mc_simulation_service.proto";
+
+
+/**
+ * @brief 运控服务
+ */
+service McService {
+  // 获取任务状态
+  rpc GetTaskState(CommonTaskRequest) returns (CommonTaskResponse);
+
+  // 获取关节状态
+  rpc GetJointState(CommonRequest) returns (McJointStatesResponse);
+
+  // 获取关节参数
+  rpc GetJointParam(CommonRequest) returns (McJointParamsResponse);
+
+  // 获取关节指令
+  rpc GetJointCommand(CommonRequest) returns (McJointCommandsResponse);
+
+  // 获取关节角度 trash:///.5.vscode/settings.json
+  rpc GetJointAngle(CommonRequest) returns (McJointAnglesResponse);
+
+  // 获取TCP位置，相对于基坐标系的位姿
+  rpc GetTcpPosition(CommonRequest) returns (GetTcpPositionResponse);
+
+  // 获取Motion GPT的状态
+  rpc GetMotionGPTStatus(CommonRequest) returns (MotionGPTStateResponse);
+
+  // 获取任务规划可用组
+  rpc GetPlanningGroupAvailable(CommonRequest) returns (McPlanningGroupAvailableResponse);
+
+  // 运动学正解 kinematics
+  rpc KineForward(KineForwardRequest) returns (KineForwardResponse);
+
+  // 运动学逆解
+  rpc KineInverse(KineInverseRequest) returns (KineInverseResponse);
+
+  // 关节运动
+  rpc JointMove(MovJRequest) returns (CommonTaskResponse);
+
+  // 直线运动
+  rpc LinearMove(LinearMoveRequest) returns (CommonTaskResponse);
+
+  // SE(3)位姿运动
+  rpc Se3PoseMove(MovePoseRequest) returns (CommonTaskResponse);
+
+  // 规划运动
+  rpc PlanningMove(PlanningMoveRequest) returns (CommonTaskResponse);
+
+  // 获取控制源
+  rpc GetAimMasterControlSource(CommonRequest) returns (AimMasterControlSourceResponse);
+
+  // 设置控制源
+  rpc SetAimMasterControlSource(AimMasterControlSourceRequest) returns (AimMasterControlSourceResponse);
+
+  // 设置远程控制命令
+  rpc SetAimMasterControlCommand(AimMasterControlCommandRequest) returns (CommonResponse);
+
+  // 碰撞恢复
+  rpc CollisionRecover(CollisionRecoverRequest) returns (CommonResponse);
+
+  // 获取仿真对象
+  rpc GetSimulationObj(GetSimulationObjRequest) returns (GetSimulationObjResponse);
+}

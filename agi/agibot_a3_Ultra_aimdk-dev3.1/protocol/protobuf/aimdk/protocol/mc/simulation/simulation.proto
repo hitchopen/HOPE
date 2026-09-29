@@ -1,0 +1,20 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+
+
+/**
+ * @brief 获取仿真对象请求
+ */
+message GetSimulationObjRequest {
+  RequestHeader header = 1;   // 请求头
+  repeated string obj_id = 2;   // 物体id
+}
+
+message GetSimulationObjResponse {
+  ResponseHeader    header      = 1;    // 响应头
+  repeated SE3Pose  obj_pose    = 2;    // 物体位姿
+  int32             error_code  = 3;    // 错误码
+}

@@ -1,0 +1,10 @@
+setup.py
+ros2_plugin_proto/__init__.py
+ros2_plugin_proto.egg-info/PKG-INFO
+ros2_plugin_proto.egg-info/SOURCES.txt
+ros2_plugin_proto.egg-info/dependency_links.txt
+ros2_plugin_proto.egg-info/top_level.txt
+ros2_plugin_proto/msg/__init__.py
+ros2_plugin_proto/msg/_ros_msg_wrapper.py
+ros2_plugin_proto/srv/__init__.py
+ros2_plugin_proto/srv/_ros_rpc_wrapper.py

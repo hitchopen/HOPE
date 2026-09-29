@@ -1,0 +1,28 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+
+/**
+ * @brief 通用游戏手柄
+ */
+message UniversalGamepad {
+  float left_left_right   = 1;    // axis0
+  float left_up_down      = 2;    // axis1
+  float lt                = 3;    // axis2
+  float right_left_right  = 4;    // axis3
+  float right_up_down     = 5;    // axis4
+  float rt                = 6;    // axis5
+  int32 a                 = 7;    // buttion0
+  int32 b                 = 8;    // buttion1
+  int32 x                 = 9;    // buttion2
+  int32 y                 = 10;   // buttion3
+  int32 lb                = 11;   // buttion4
+  int32 rb                = 12;   // buttion5
+  int32 back              = 13;   // buttion6
+  int32 start             = 14;   // buttion7
+  int32 logitech          = 15;   // buttion8
+  int32 left_ga           = 16;   // buttion9
+  int32 right_ga          = 17;   // buttion10
+  int32 hat0_x            = 18;   // hat0_x
+  int32 hat0_y            = 19;   // hat0_y
+}

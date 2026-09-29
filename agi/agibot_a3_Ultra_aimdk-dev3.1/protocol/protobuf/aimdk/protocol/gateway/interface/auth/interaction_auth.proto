@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+import public "aimdk/protocol/common/header.proto";
+
+enum AuthJWTStatus {
+  AuthJWTStatus_SUCCESS = 0;
+  AuthJWTStatus_EMPTY   = 1;  // JWT为空    
+  AuthJWTStatus_EXPIRE  = 2;  // JWT过期, 还没有更新成功
+}
+
+message InteractionAuthResponse {
+  ResponseHeader header         = 1;  // 响应头
+  AuthJWTStatus auth_jwt_status = 2;
+  string jwt       = 3;
+  uint64 expire_at = 4;  // 过期unit时间戳(秒)
+}

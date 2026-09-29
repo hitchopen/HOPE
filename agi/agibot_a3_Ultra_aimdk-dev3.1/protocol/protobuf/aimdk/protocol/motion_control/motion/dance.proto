@@ -1,0 +1,66 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 跳舞类型请求p
+ */
+message MotionControlDanceTypeRequest {
+    RequestHeader header = 1;
+    string dance_name = 2;              // 选择舞蹈名称
+    bool disable_walk_after_dance = 3;  // 舞蹈结束禁止踏步
+}
+
+// 舞蹈描述信息
+message DanceInfo{
+    string dance_name = 1;        // 舞蹈名称
+    string dance_model_path = 2;  // 模型存放路径
+    string dance_data_path = 3;   // 舞蹈数据存放路径
+    double dance_duration = 4;        // 舞蹈运行持续时间
+}
+
+/**
+ * @brief 跳舞列表获取
+ */
+message MotionControlDanceResponce {
+    // 响应头
+    ResponseHeader header = 1;
+    // 舞蹈信息列表
+    repeated DanceInfo dance_list = 2;
+}
+
+// 机器舞蹈状态信息
+message MotionControlDanceState {
+  bool is_dancing = 1;      // 是否正在跳舞，true表示正在跳舞，false表示未跳舞
+  string dance_name = 2;    // 正在运行的舞蹈名称，is_dancing为true时，该字段才有效
+  double progress = 3;      // 舞蹈进度, 范围0.00~1.00，保留两位小数
+  double duration = 4;      // 正在运行的舞蹈的总时长
+}
+
+
+enum MotionControlDancePolicyTag {
+    MotionControlDancePolicyTag_UNKNOWN = 0;             // 未知
+    MotionControlDancePolicyTag_Dance = 1;               // 默认舞蹈策略
+    MotionControlDancePolicyTag_LingChuangDance = 2;     // 灵创25dof舞蹈策略
+    MotionControlDancePolicyTag_LingChuangDance29 = 3;   // 灵创29dof舞蹈策略
+}
+
+/**
+ * @brief 增加舞蹈请求
+ */
+message MotionControlAddDanceRequest {
+    RequestHeader header = 1;
+    MotionControlDancePolicyTag dance_policy_tag = 2;  // 舞蹈策略标签
+    string dance_model_path = 3;                      // 选择舞蹈model路径
+    string dance_data_path = 4;                      // 选择舞蹈data路径
+}
+
+/**
+ * @brief 增加舞蹈响应
+ */
+message MotionControlAddDanceResponce {
+    // 响应头
+    ResponseHeader header = 1;
+    string dance_name = 2;        // 返回舞蹈名称
+}

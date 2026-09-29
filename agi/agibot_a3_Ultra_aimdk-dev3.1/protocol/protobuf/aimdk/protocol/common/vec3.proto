@@ -1,0 +1,11 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief 三维向量
+ */
+message Vec3 {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}

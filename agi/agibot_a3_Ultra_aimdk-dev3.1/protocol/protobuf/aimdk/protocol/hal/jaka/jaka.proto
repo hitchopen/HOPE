@@ -1,0 +1,948 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec3.proto";
+import public "aimdk/protocol/common/quaternion.proto";
+import public "aimdk/protocol/common/rpy.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+
+/**
+ * @brief 关节位置，单位rad
+ */
+message JointPos {  // Jaka: JointValue
+  repeated double jPos = 1;
+}
+
+/**
+ * @brief 负载
+ */
+message PayLoad {
+  double mass = 1;    // 负载质量，单位：kg
+  Vec3 centroid = 2;  // 负载质心, 单位：mm
+}
+
+/**
+ * @brief 运动模式
+ */
+enum MoveMode {
+  MoveMode_ABS = 0;       // 绝对运动
+  MoveMode_INCR = 1;      // 相对运动
+  MoveMode_CONTINUE = 2;  // 连续运动
+}
+
+/**
+ * @brief 机器人状态
+ */
+message RobotState {
+  int32 estoped = 1;       // 是否急停
+  int32 poweredOn = 2;     // 是否打开电源
+  int32 servoEnabled = 3;  // 是否使能
+}
+
+/**
+ * @brief 机械臂单关节瞬时信息
+ */
+message JointMonitorData {
+  double instCurrent = 1;      // 瞬时电流
+  double instVoltage = 2;      // 瞬时电压
+  double instTemperature = 3;  // 瞬时温度
+  double instVel = 4;          // 瞬时速度 控制器1.7.0.20及以上
+  double instTorq = 5;         // 瞬时力矩
+}
+
+/**
+ * @brief 机械臂关节信息
+ */
+message RobotMonitorData {
+  double scbMajorVersion = 1;                        // scb主版本号
+  double scbMinorVersion = 2;                        // scb小版本号
+  double cabTemperature = 3;                         // 控制器温度
+  double robotAveragePower = 4;                      // 机器人平均电压
+  double robotAverageCurrent = 5;                    // 机器人平均电流
+  repeated JointMonitorData joint_monitor_data = 6;  // 机器人7个关节的监测数据
+}
+
+/**
+ * @brief 力传感器监控信息
+ */
+message TorqSernsorMonitorData {
+  string ip = 1;                   // 力矩传感器ip地址
+  int32 port = 2;                  // 力矩传感器端口号
+  PayLoad payLoad = 3;             // 工具负载
+  int32 status = 4;                // 力矩传感器状态
+  int32 errcode = 5;               // 力矩传感器异常错误码
+  repeated double actTorque = 6;   // 力矩传感器实际接触力值（勾选初始化时）或原始读数值（勾选不初始化时）
+  repeated double torque = 7;      // 力矩传感器原始读数值
+  repeated double realTorque = 8;  // 力矩传感器实际接触力值（不随初始化选项变化）
+}
+
+/**
+ * @brief 机械臂详细状态信息
+ */
+message RobotStatus {
+  int32 errcode = 1;
+  int32 inpos = 2;
+  int32 powered_on = 3;
+  int32 enabled = 4;
+  double rapidrate = 5;
+  int32 protective_stop = 6;
+  int32 emergency_stop = 7;
+  repeated double cartesiantran_pos = 8;
+  repeated double joint_pos = 9;
+  uint32 on_soft_limit = 10;
+  uint32 cur_user_id = 11;
+  int32 drag_status = 12;
+  RobotMonitorData robot_monitor_data = 13;
+  TorqSernsorMonitorData torq_sensor_monitor_data = 14;
+  int32 is_socket_connect = 15;
+  bool is_free = 16; //jaka臂末端free按键是否按下 true:按下,false:未按下
+}
+
+/**
+ * @brief 可选参数
+ */
+message OptionalCond {
+  int32 executingLineId = 1;
+}
+
+/**
+ * @brief 错误状态
+ */
+message ErrorCode {
+  int32 code = 1;
+  string message = 2;
+}
+
+/**
+ * @brief rpc GetJointPosition() 请求信息
+ */
+message GetJointPositionReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetJointPosition() 响应信息
+ */
+message GetJointPositionRsp {
+  JointPos pos = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief JointMove扩展参数
+ */
+message JointMoveExt {
+  double acc = 1;
+  double tol = 2;
+  OptionalCond option_cond = 3;
+}
+
+/**
+ * @brief rpc JointMove() 请求信息
+ */
+message JointMoveReq {
+  string robot_name = 1;
+  JointPos pos = 2;
+  MoveMode mode = 3;
+  bool is_block = 4;
+  double speed = 5;
+  JointMoveExt ext = 6;
+}
+
+/**
+ * @brief rpc JointMove() 响应信息
+ */
+message JointMoveRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief LinearMove扩展参数
+ */
+message LinearMoveExt {
+  double acc = 1;
+  double tol = 2;
+  OptionalCond option_cond = 3;
+}
+
+/**
+ * @brief rpc LinearMove() 请求信息
+ */
+message LinearMoveReq {
+  string robot_name = 1;
+  SE3RpyPose pose = 2;
+  MoveMode mode = 3;
+  bool is_block = 4;
+  double speed = 5;
+  LinearMoveExt ext = 6;
+}
+
+/**
+ * @brief rpc LinearMove() 响应信息
+ */
+message LinearMoveRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc GetRobotState() 请求信息
+ */
+message GetRobotStateReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetRobotState() 响应信息
+ */
+message GetRobotStateRsp {
+  RobotState state = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc GetRobotStatus() 请求信息
+ */
+message GetRobotStatusReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetRobotStatus() 响应信息
+ */
+message GetRobotStatusRsp {
+  RobotStatus status = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc IsInPos() 请求信息
+ */
+message IsInPosReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc IsInPos() 响应信息
+ */
+message IsInPosRsp {
+  bool is_in_pos = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc IsOnLimit() 请求信息
+ */
+message IsOnLimitReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc IsOnLimit() 响应信息
+ */
+message IsOnLimitRsp {
+  bool is_on_limit = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc GetTcpPosition() 请求信息
+ */
+message GetTcpPositionReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetTcpPosition() 响应信息
+ */
+message GetTcpPositionRsp {
+  SE3RpyPose pose = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc KineForward() 请求信息
+ */
+message KineForwardReq {
+  string robot_name = 1;
+  JointPos pos = 2;
+}
+
+/**
+ * @brief rpc KineForward() 响应信息
+ */
+message KineForwardRsp {
+  SE3RpyPose pose = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc KineInverse() 请求信息
+ */
+message KineInverseReq {
+  string robot_name = 1;
+  JointPos ref_pos = 2;
+  SE3RpyPose pose = 3;
+}
+
+/**
+ * @brief rpc KineInverse() 响应信息
+ */
+message KineInverseRsp {
+  JointPos pos = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc ClearError() 请求信息
+ */
+message ClearErrorReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc ClearError() 响应信息
+ */
+message ClearErrorRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc GetLastError() 请求信息
+ */
+message GetLastErrorReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetLastError() 响应信息
+ */
+message GetLastErrorRsp {
+  ErrorCode robot_error = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc IsInCollision() 请求信息
+ */
+message IsInCollisionReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc IsInCollision() 响应信息
+ */
+message IsInCollisionRsp {
+  bool is_in_collision = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc CollisionRecover() 请求信息
+ */
+message CollisionRecoverReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc CollisionRecover() 响应信息
+ */
+message CollisionRecoverRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc GetCollisionLevel() 请求信息
+ */
+message GetCollisionLevelReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetCollisionLevel() 响应信息
+ */
+message GetCollisionLevelRsp {
+  int32 level = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc SetCollisionLevel() 请求信息
+ */
+message SetCollisionLevelReq {
+  string robot_name = 1;
+  int32 level = 2;
+}
+
+/**
+ * @brief rpc SetCollisionLevel() 响应信息
+ */
+message SetCollisionLevelRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc EnableServoControl() 请求信息
+ */
+message EnableServoControlReq {
+  string robot_name = 1;
+  bool enable = 2;
+}
+
+/**
+ * @brief rpc EnableServoControl() 响应信息
+ */
+message EnableServoControlRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc EnableTorqueControl() 请求信息
+ */
+message EnableTorqueControlReq {
+  string robot_name = 1;
+  bool enable = 2;
+  int32 period = 3;
+}
+
+/**
+ * @brief rpc EnableTorqueControl() 响应信息
+ */
+message EnableTorqueControlRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+// InstallationAngle
+/**
+ * @brief rpc SetInstallationAngle() 请求信息
+ * @param angleX 绕X轴旋转角度
+ * @param angleZ 绕Z轴旋转角度
+ */
+message SetInstallationAngleReq {
+  string robot_name = 1;
+  double angleX = 2;
+  double angleZ = 3;
+}
+
+/**
+ * @brief rpc SetInstallationAngle() 响应信息
+ */
+message SetInstallationAngleRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc GetInstallationAngle() 请求信息
+ */
+message GetInstallationAngleReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetInstallationAngle() 响应信息
+ * @param quat 安装角度四元数
+ * @param appang 安装角度RPY角
+ */
+message GetInstallationAngleRsp {
+  Quaternion quat = 1;
+  Rpy rpy = 2;
+  int32 errcode = 3;
+  string errmsg = 4;
+}
+
+/**
+ * @brief rpc EnableAdmittanceCtrl() 请求信息
+ */
+message EnableAdmittanceCtrlReq {
+  string robot_name = 1;
+  bool enable_flag = 2;
+}
+
+/**
+ * @brief rpc EnableAdmittanceCtrl() 响应信息
+ */
+message EnableAdmittanceCtrlRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc SetFtCtrlFrame() 请求信息
+ */
+message SetFtCtrlFrameReq {
+  string robot_name = 1;
+  int32 ftFrame = 2;
+}
+
+/**
+ * @brief rpc SetFtCtrlFrame() 响应信息
+ */
+message SetFtCtrlFrameRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc DisableForceControl() 请求信息
+ */
+message DisableForceControlReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc DisableForceControl() 响应信息
+ */
+message DisableForceControlRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc SetCompliantType() 请求信息
+ */
+message SetCompliantTypeReq {
+  string robot_name = 1;
+  int32 sensor_compensation = 2;
+  int32 compliance_type = 3;
+}
+
+/**
+ * @brief rpc SetCompliantType() 响应信息
+ */
+message SetCompliantTypeRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc SetTorqueSensorMode() 请求信息
+ */
+message SetTorqueSensorModeReq {
+  string robot_name = 1;
+  int32 sensor_mode = 2;
+}
+
+/**
+ * @brief rpc SetTorqueSensorMode() 响应信息
+ */
+message SetTorqueSensorModeRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc SetTorqueSensorMode() 请求信息
+ */
+message SetAdmitCtrlConfigReq {
+  string robot_name = 1;
+  int32 axis = 2;
+  int32 opt = 3;
+  double ftUser = 4;
+  double ftConstant = 5;
+  int32 ftNnormalTrack = 6;
+  double ftReboundFK = 7;
+}
+
+/**
+ * @brief rpc SetAdmitCtrlConfig() 响应信息
+ */
+message SetAdmitCtrlConfigRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc EnableDragMode() 请求信息
+ */
+message EnableDragModeReq {
+  string robot_name = 1;
+  bool enable_flag = 2;
+}
+
+/**
+ * @brief rpc EnableDragMode() 响应信息
+ */
+message EnableDragModeRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc IsInDragMode() 请求信息
+ */
+message IsInDragModeReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc IsInDragMode() 响应信息
+ */
+message IsInDragModeRsp {
+  bool is_in_drag_mode = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc SetGravityDirection() 请求信息
+ * @param rpy rpy旋转角；T = rotx(rpy[0]) * roty(rpy[1]) * rotz(rpy[2])
+ */
+message SetGravityDirectionReq {
+  string robot_name = 1;
+  double rpy = 2;
+}
+
+/**
+ * @brief rpc SetGravityDirection() 响应信息
+ */
+message SetGravityDirectionRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc GetGravityDirection() 请求信息
+ */
+message GetGravityDirectionReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetGravityDirection() 响应信息
+ * @param rpy rpy旋转角；T = rotx(rpy[0]) * roty(rpy[1]) * rotz(rpy[2])
+ */
+message GetGravityDirectionRsp {
+  double rpy = 1;
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief rpc SetLpfFilter() 请求信息
+ * @param robot_name 手臂名字:left_arm right_arm jaka_arm
+ * @param cutoff_freq 低通滤波截止频率
+ */
+message SetLpfFilterReq {
+  string robot_name = 1;
+  double cutoff_freq = 2;
+}
+
+/**
+ * @brief rpc SetLpfFilter() 响应信息
+ */
+message SetLpfFilterRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc SetNoneFilter() 请求信息
+ * @param robot_name 手臂名字:left_arm right_arm jaka_arm
+ */
+message SetNoneFilterReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc SetNoneFilter() 响应信息
+ */
+message SetNoneFilterRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc MockJakaErrorCode() 请求信息
+ * @param robot_name 手臂名字:left_arm right_arm jaka_arm jaka_arm
+ */
+message MockJakaErrorCodeReq {
+  string robot_name = 1;
+  string module_id=2; //t3.5 module_id=9E t3.0 module_id=9F
+  string error_code=3;
+}
+
+/**
+ * @brief rpc MockJakaErrorCode() 响应信息
+ */
+message MockJakaErrorCodeRsp {
+  int32 errcode = 1;
+  string errmsg = 2;
+}
+
+/**
+ * @brief rpc GetJakaStatusLowBattery() 请求信息
+ * @param robot_name 手臂名字:left_arm right_arm
+ */
+message GetJakaStatusLowBatteryReq {
+  string robot_name = 1;
+}
+
+/**
+ * @brief rpc GetJakaStatusLowBattery() 响应信息
+ */
+message GetJakaStatusLowBatteryRsp {
+  bool is_disable = 1; //低电量时,jaka臂是否下电下使能
+  int32 errcode = 2;
+  string errmsg = 3;
+}
+
+/**
+ * @brief 由 aimrt_hal 中的 jaka_module::JakaModule 模块提供的服务
+ */
+service A2wArmControlService {
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的关节角度。
+   * @param GetJointPositionReq
+   * @return GetJointPositionRsp
+   */
+  rpc GetJointPosition(GetJointPositionReq) returns (GetJointPositionRsp);
+
+  /**
+   * @brief jaka_module::JakaModule 执行普通关节运动。
+   * @param JointMoveReq
+   * @return JointMoveRsp
+   */
+  rpc JointMove(JointMoveReq) returns (JointMoveRsp);
+
+  /**
+   * @brief jaka_module::JakaModule 执行末端线性运动。
+   * @param LinearMoveReq
+   * @return LinearMoveRsp
+   */
+  rpc LinearMove(LinearMoveReq) returns (LinearMoveRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂状态信息。
+   * @param GetRobotStateReq
+   * @return GetRobotStateRsp
+   */
+  rpc GetRobotState(GetRobotStateReq) returns (GetRobotStateRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂详细信息。
+   * @param GetRobotStatusReq
+   * @return GetRobotStatusRsp
+   */
+  rpc GetRobotStatus(GetRobotStatusReq) returns (GetRobotStatusRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂是否到达目标点的状态信息。
+   * @param IsInPosReq
+   * @return IsInPosRsp
+   */
+  rpc IsInPos(IsInPosReq) returns (IsInPosRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂是否限位的信息。
+   * @param IsOnLimitReq
+   * @return IsOnLimitRsp
+   */
+  rpc IsOnLimit(IsOnLimitReq) returns (IsOnLimitRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的末端笛卡尔位姿信息。
+   * @param GetTcpPositionReq
+   * @return GetTcpPositionRsp
+   */
+  rpc GetTcpPosition(GetTcpPositionReq) returns (GetTcpPositionRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 进行运动学正解。
+   * @param KineForwardReq
+   * @return KineForwardRsp
+   */
+  rpc KineForward(KineForwardReq) returns (KineForwardRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 进行运动学逆解。
+   * @param KineInverseReq
+   * @return KineInverseRsp
+   */
+  rpc KineInverse(KineInverseReq) returns (KineInverseRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 清理错误。
+   * @param ClearErrorReq
+   * @return ClearErrorRsp
+   */
+  rpc ClearError(ClearErrorReq) returns (ClearErrorRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂错误信息。
+   * @param GetLastErrorReq
+   * @return GetLastErrorRsp
+   */
+  rpc GetLastError(GetLastErrorReq) returns (GetLastErrorRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂是否碰撞的状态信息。
+   * @param IsInCollisionReq
+   * @return IsInCollisionRsp
+   */
+  rpc IsInCollision(IsInCollisionReq) returns (IsInCollisionRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 进行碰撞恢复。
+   * @param CollisionRecoverReq
+   * @return CollisionRecoverRsp
+   */
+  rpc CollisionRecover(CollisionRecoverReq) returns (CollisionRecoverRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂碰撞登记。
+   * @param GetCollisionLevelReq
+   * @return GetCollisionLevelRsp
+   */
+  rpc GetCollisionLevel(GetCollisionLevelReq) returns (GetCollisionLevelRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 设置机械臂碰撞登记。
+   * @param SetCollisionLevelReq
+   * @return SetCollisionLevelRsp
+   */
+  rpc SetCollisionLevel(SetCollisionLevelReq) returns (SetCollisionLevelRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 进行伺服使能控制。
+   * @param EnableServoControlReq
+   * @return EnableServoControlRsp
+   */
+  rpc EnableServoControl(EnableServoControlReq) returns (EnableServoControlRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 进行电流环控制。
+   * @param EnableTorqueControlReq
+   * @return EnableTorqueControlRsp
+   */
+  rpc EnableTorqueControl(EnableTorqueControlReq) returns (EnableTorqueControlRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 设置安装角度。
+   * @param SetInstallationAngleReq
+   * @return SetInstallationAngleRsp
+   */
+  rpc SetInstallationAngle(SetInstallationAngleReq) returns (SetInstallationAngleRsp);
+
+  /**
+   * @brief 获取 jaka_module::JakaModule 收到的机械臂安装角度。
+   * @param GetInstallationAngleReq
+   * @return GetInstallationAngleRsp
+   */
+  rpc GetInstallationAngle(GetInstallationAngleReq) returns (GetInstallationAngleRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 设置力控拖拽使能。
+   * @param EnableAdmittanceCtrlReq
+   * @return EnableAdmittanceCtrlRsp
+   */
+  rpc EnableAdmittanceCtrl(EnableAdmittanceCtrlReq) returns (EnableAdmittanceCtrlRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 设置导纳控制运动坐标系。
+   * @param SetFtCtrlFrameReq
+   * @return SetFtCtrlFrameRsp
+   */
+  rpc SetFtCtrlFrame(SetFtCtrlFrameReq) returns (SetFtCtrlFrameRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 关闭力控。
+   * @param DisableForceControlReq
+   * @return DisableForceControlRsp
+   */
+  rpc DisableForceControl(DisableForceControlReq) returns (DisableForceControlRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 设置力控类型和传感器初始化状态。
+   * @param SetCompliantTypeReq
+   * @return SetCompliantTypeRsp
+   */
+  rpc SetCompliantType(SetCompliantTypeReq) returns (SetCompliantTypeRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 开启或关闭力矩传感器。
+   * @param SetTorqueSensorModeReq
+   * @return SetTorqueSensorModeRsp
+   */
+  rpc SetTorqueSensorMode(SetTorqueSensorModeReq) returns (SetTorqueSensorModeRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 设置柔顺控制参数。
+   * @param SetAdmitCtrlConfigReq
+   * @return SetAdmitCtrlConfigRsp
+   */
+  rpc SetAdmitCtrlConfig(SetAdmitCtrlConfigReq) returns (SetAdmitCtrlConfigRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 控制机器人进入或退出拖拽模式。
+   * @param EnableDragModeReq
+   * @return EnableDragModeRsp
+   */
+  rpc EnableDragMode(EnableDragModeReq) returns (EnableDragModeRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 查询机器人是否处于拖拽模式。
+   * @param IsInDragModeReq
+   * @return IsInDragModeRsp
+   */
+  rpc IsInDragMode(IsInDragModeReq) returns (IsInDragModeRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 设置重力相对机器人基座的方向。
+   * @param SetGravityDirectionReq
+   * @return SetGravityDirectionRsp
+   */
+  rpc SetGravityDirection(SetGravityDirectionReq) returns (SetGravityDirectionRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 读取重力相对机器人基座的方向。
+   * @param GetGravityDirectionReq
+   * @return GetGravityDirectionRsp
+   */
+  rpc GetGravityDirection(GetGravityDirectionReq) returns (GetGravityDirectionRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 对jaka臂设置低通滤波截止频率
+   * @param SetLpfFilterReq
+   * @return SetLpfFilterRsp
+   */
+  rpc SetLpfFilter(SetLpfFilterReq) returns (SetLpfFilterRsp);
+
+  /**
+   * @brief 通过 jaka_module::JakaModule 对jaka臂设置不使用低通滤波
+   * @param SetNoneFilterReq
+   * @return SetNoneFilterRsp
+   */
+  rpc SetNoneFilter(SetNoneFilterReq)returns(SetNoneFilterRsp);
+
+  /**
+   * @brief 模拟jaka故障码
+   * @param MockJakaErrorCodeReq
+   * @return MockJakaErrorCodeRsp
+   */
+  rpc MockJakaErrorCode(MockJakaErrorCodeReq)returns(MockJakaErrorCodeRsp);
+
+  /**
+   * @brief 获取jaka臂在低电量情况下是否下电下使能
+   * @param GetJakaStatusLowBatteryReq
+   * @return GetJakaStatusLowBatteryRsp
+   */
+  rpc GetJakaStatusLowBattery(GetJakaStatusLowBatteryReq)returns(GetJakaStatusLowBatteryRsp);
+}

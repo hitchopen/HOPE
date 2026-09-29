@@ -1,0 +1,39 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+
+/**
+ * @brief 音量控制操作类型
+ */
+enum VolumeControlOperation {
+  VolumeControlOperation_Undefined = 0;
+  VolumeControlOperation_GetVolume = 1;  // 获取当前音量
+  VolumeControlOperation_SetVolume = 2;  // 设置音量
+}
+
+/**
+ * @brief 设置系统音量 RPC请求
+ * @param Volume 音量值(0-100)
+ */
+message SystemVolumeControlReq {
+  RequestHeader header = 1;
+  VolumeControlOperation operation = 2;  // 操作类型
+  int32 Volume = 3;                      // 音量值(0-100)
+}
+
+/**
+ * @brief 设置系统音量 RPC响应数据
+ * @param 当前Volume 音量值(0-100)
+ */
+message SystemVolumeControlRspData {
+  int32 Volume = 1;
+}
+
+/**
+ * @brief 设置系统音量 RPC响应体
+ */
+message SystemVolumeControlRsp {
+  ResponseHeader header = 1;
+  SystemVolumeControlRspData data = 2;
+}

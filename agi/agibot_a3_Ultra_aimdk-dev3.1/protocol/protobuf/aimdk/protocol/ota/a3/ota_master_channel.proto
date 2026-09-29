@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief OTA Master 任务信息
+ */
+message OTAMasterTaskInfo {
+  enum OTAMasterTaskStage {
+    OTAMasterTaskStage_UNKNOWN = 0;
+    OTAMasterTaskStage_Download = 1;    /// 下载阶段
+    OTAMasterTaskStage_Upgrade = 2;     /// 升级阶段
+    OTAMasterTaskStage_Idle = 3;        /// 空闲阶段
+  }
+
+  /// 任务阶段
+  OTAMasterTaskStage task_stage = 1;
+
+  /// 当前版本
+  string current_version = 2;
+
+  /// 是否有新任务
+  bool has_new_task = 3;
+
+  /// 静默下载
+  bool silent_download = 4;
+}
+
+/**
+ * @brief OTA Master 下载信息
+ */
+message OTAMasterDownloadInfo {
+  enum OTAMasterDownloadResult {
+    OTAMasterDownloadResult_UNKNOWN = 0;
+    OTAMasterDownloadResult_Success = 1;
+    OTAMasterDownloadResult_Fail = 2;         /// 下载失败
+    OTAMasterDownloadResult_Downloading = 3;  /// 下载中
+    OTAMasterDownloadResult_Pause = 4;        /// 下载暂停
+    OTAMasterDownloadResult_Abort = 5;        /// 取消下载
+    OTAMasterDownloadResult_Idle = 6;         /// 空闲状态
+  }
+
+  /// 下载结果
+  OTAMasterDownloadResult result = 1;
+
+  /// 对应的故障码
+  int64 code = 2;
+
+  /// 下载结果的描述
+  string reult_msg = 3;
+
+  /// 下载进度
+  int32 progress = 4;
+
+  /// 更精确的下载进度
+  float progress_float = 5;
+}
+
+/**
+ * @brief OTA Master 升级信息 (Ongoing -> Active -> Success)
+ */
+message OTAMasterUpgradeInfo {
+  enum OTAMasterUpgradeResult {
+      OTAMasterUpgradeResult_UNKNOWN = 0;
+      OTAMasterUpgradeResult_Ongoing = 1;     /// 升级中
+      OTAMasterUpgradeResult_Success = 2;     /// 升级成功
+      OTAMasterUpgradeResult_Fail = 3;        /// 升级失败
+      OTAMasterUpgradeResult_Idle = 4;        /// 空闲状态
+  }
+
+  /// 升级结果
+  OTAMasterUpgradeResult result = 1;
+
+  /// 对应的故障码
+  int64 code = 2;
+
+  /// 升级结果的描述
+  string reult_msg = 3;
+
+  /// 预估剩余时间
+  int32 remainder = 4;
+
+  /// 当前完成百分比
+  int32 rate = 5;
+}
+
+
+/**
+ * @brief OTA Master 的心跳信息
+ */
+message OTAMasterHeartbeatInfo {
+  /// 任务信息
+  OTAMasterTaskInfo  task_info = 1;
+
+  /// 下载信息
+  OTAMasterDownloadInfo download_info = 2;
+
+  /// 升级信息
+  OTAMasterUpgradeInfo  upgrade_info = 3;
+
+}
+
+/**
+ * @brief OTA Master 的心跳
+ */
+message OTAMasterHeartbeatChannel {
+  /// 发送时刻的时间戳
+  Header header = 1;
+
+  /// 心跳信息
+  OTAMasterHeartbeatInfo info = 2;
+}

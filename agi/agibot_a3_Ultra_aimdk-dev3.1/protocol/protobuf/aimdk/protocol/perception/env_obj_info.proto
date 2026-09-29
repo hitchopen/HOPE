@@ -1,0 +1,28 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+
+message EnvObjectInfo {
+  enum GeometryType {
+    UNKNOWN = 0;
+    BOX = 1;
+    CYLINDER = 2;
+    SPHERE = 3;
+  }
+
+  string name = 1;
+  SE3Pose pose = 2;
+  GeometryType type = 3;
+  string parent_frame = 4;
+  Vec3 dims = 5;     // 长宽高
+  int32 disable_collision_arm_name = 6; // 0 left arm; 1 right arm;
+}
+
+message EnvObjectArrayInfoReq {
+  // 请求头
+  RequestHeader header = 1;
+  repeated EnvObjectInfo objects = 2;
+}
+

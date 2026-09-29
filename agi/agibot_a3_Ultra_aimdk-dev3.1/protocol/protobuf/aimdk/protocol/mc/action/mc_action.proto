@@ -1,0 +1,72 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/action/mc_action_cmd.proto";
+
+enum McActionStatus {
+  // 未知状态
+  McActionStatus_UNKNOWN = 0;
+
+  // 准备中
+  McActionStatus_PREPARE = 100;
+
+  // 运行中
+  McActionStatus_RUNNING = 200;
+
+  // 完成
+  McActionStatus_DONE = 300;
+}
+
+message McActionInfo {
+  // 当前运行的Action
+  McAction current_action = 1;
+
+  // 扩展Action
+  string ext_action = 2;
+
+  // Action状态
+  McActionStatus status = 3;
+}
+
+message McActionCommand {
+  // Action
+  McAction action = 1;
+
+  // 扩展Action
+  string ext_action = 2;
+}
+
+/**
+ * @brief  机器人Action命令请求
+ */
+message McActionRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  McActionCommand command = 2;
+}
+
+/**
+ * @brief  机器人Action命令响应
+ */
+message McActionResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  McActionInfo info = 2;
+}
+
+message AvailableActionsResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  repeated string actions = 2;
+}
+
+message AvailableCommandResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  repeated McActionCommand commands = 2;
+}

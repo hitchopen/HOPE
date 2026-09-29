@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/kinematics/foot_kine.proto";
+
+/**
+ * @brief 足部运动学消息
+ * topic : /mc/kinematics/foot_kine
+ */
+message FootKinematicsChannel {
+  // 消息头
+  Header header = 1;
+
+  // 足部运动学数据
+  FootKinematicsData data = 2;
+}

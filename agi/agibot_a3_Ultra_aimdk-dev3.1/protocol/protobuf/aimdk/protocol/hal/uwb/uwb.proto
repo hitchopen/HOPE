@@ -1,0 +1,167 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+// ============================================================================
+// 子消息：定位结果中的信标信息
+// ============================================================================
+
+/**
+ * @brief 定位结果中单个信标的接收信息
+ */
+message UwbAnchorInfo {
+  // 信标短地址
+  uint32 addr = 1;
+
+  // 接收信号强度，单位 dBm；原始值换算：rx_rssi = _rx_rssi / -2
+  float rx_rssi = 2;
+
+  // 近期该信标的收包率，范围 [0, 1]；原始值换算：rx_rate = _rx_rate / 255
+  float rx_rate = 3;
+}
+
+// ============================================================================
+// 子消息：DDOA 距离差数据中的单条记录
+// ============================================================================
+
+/**
+ * @brief 一对信标之间的距离差（DDOA）
+ *        ddoa = dis_tag_to_a1 - dis_tag_to_a0，单位 m
+ */
+message UwbDdoaData {
+  // 基准信标地址 a0
+  uint32 a0 = 1;
+
+  // 对比信标地址 a1
+  uint32 a1 = 2;
+
+  // 距离差，单位 m；原始值换算：ddoa = ddoa_cm * 0.01
+  float ddoa = 3;
+}
+
+// ============================================================================
+// 子消息：信标信号数据中的单条记录
+// ============================================================================
+
+/**
+ * @brief 单个信标的 UWB 信号测量值
+ */
+message UwbAnchorSignalData {
+  // 信标短地址
+  uint32 addr = 1;
+
+  // 第一路径指数；原始值换算：fp_index = _fp_index * 0.1
+  float fp_index = 2;
+
+  // 第一路径到峰值的差值（dB），有符号
+  int32 fp_to_peak = 3;
+
+  // 多径置信度；原始值换算：mc = _mc * 0.01
+  float mc = 4;
+
+  // 接收信号强度，单位 dBm；原始值换算：rx_rssi = -_rx_rssi * 0.5
+  float rx_rssi = 5;
+
+  // 第一路径信号强度，单位 dBm；原始值换算：fp_rssi = -_fp_rssi * 0.5
+  float fp_rssi = 6;
+
+  // UWB 时钟偏差，单位 ppm；原始值换算：uwb_clock_offset_ppm = _uwb_clock_offset_ppm * 0.01
+  float uwb_clock_offset_ppm = 7;
+
+  // MCU 时钟偏差，单位 ppm；原始值换算：mcu_clock_offset_ppm = _mcu_clock_offset_ppm * 0.01
+  float mcu_clock_offset_ppm = 8;
+
+  // 近期收包率，范围 [0, 1]；原始值换算：rx_rate = _rx_rate / 255
+  float rx_rate = 9;
+}
+
+// ============================================================================
+// 主消息：三种输出数据
+// ============================================================================
+
+/**
+ * @brief UWB 标签定位结果
+ *        对应驱动 UbeaconLocationResult（msg_id = 68）
+ */
+message UwbLocationResult {
+  // 标签本地时间，单位 us，复位后从 0 开始
+  int64 local_time_us = 1;
+
+  // 定位坐标 X，单位 m
+  float pos_x = 2;
+
+  // 定位坐标 Y，单位 m
+  float pos_y = 3;
+
+  // 定位坐标 Z，单位 m
+  float pos_z = 4;
+
+  // X 方向速度，单位 m/s；原始值换算：vel_x = vel_cm[0] * 0.01
+  float vel_x = 5;
+
+  // Y 方向速度，单位 m/s
+  float vel_y = 6;
+
+  // Z 方向速度，单位 m/s
+  float vel_z = 7;
+
+  // X 方向位置噪声，单位 m；原始值换算：pos_noise_x = pos_noise_cm[0] * 0.01
+  float pos_noise_x = 8;
+
+  // Y 方向位置噪声，单位 m
+  float pos_noise_y = 9;
+
+  // Z 方向位置噪声，单位 m
+  float pos_noise_z = 10;
+
+  // X 方向速度噪声，单位 m/s；原始值换算：vel_noise_x = vel_noise_cm[0] * 0.01
+  float vel_noise_x = 11;
+
+  // Y 方向速度噪声，单位 m/s
+  float vel_noise_y = 12;
+
+  // Z 方向速度噪声，单位 m/s
+  float vel_noise_z = 13;
+
+  // 地图 ID
+  uint32 map_id = 14;
+
+  // 定位错误码，0 表示有效，非 0 表示定位失败
+  uint32 error_code = 15;
+
+  // 区域 ID
+  uint32 area_id = 16;
+
+  // 参与定位的信标列表（最多 9 个）
+  repeated UwbAnchorInfo anchors = 17;
+}
+
+/**
+ * @brief UWB 信标信号原始测量数据
+ *        对应驱动 UbeaconAnchorSignal（msg_id = 96）
+ *        每次定位对应一帧，包含所有可见信标的信号质量指标
+ */
+message UwbAnchorSignal {
+  // 标签本地时间，单位 us
+  int64 local_time_us = 1;
+
+  // 区域 ID
+  uint32 area_id = 2;
+
+  // 各信标信号测量数据（最多 9 条）
+  repeated UwbAnchorSignalData datas = 3;
+}
+
+/**
+ * @brief UWB 信标间距离差数据（DDOA）
+ *        对应驱动 UbeaconAnchorDdoas（msg_id = 104）
+ *        用于基于 DDOA 算法的定位或调试
+ */
+message UwbAnchorDdoas {
+  // 标签本地时间，单位 us
+  int64 local_time_us = 1;
+
+  // 距离差数据列表（最多 10 条）
+  repeated UwbDdoaData datas = 2;
+}

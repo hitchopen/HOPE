@@ -264,3 +264,9 @@ settings. It checks command continuity and floating-base stability separately;
 it sends no actuator commands and does not qualify real-ball performance.
 See [public runtime validation](runtime_public_validation.md) for the results
 and outstanding qualification limits of this update.
+
+## Supplied AimDK reference bundle
+
+The A3 Ultra AimDK 3.1 protocols, examples, wheel and AArch64 protocol libraries
+are available in [the consolidated SDK directory](../../agi/agibot_a3_Ultra_aimdk-dev3.1/HOPE_INTEGRATION.md).
+Main's Runner and declarative gripper presets retain their existing build paths.

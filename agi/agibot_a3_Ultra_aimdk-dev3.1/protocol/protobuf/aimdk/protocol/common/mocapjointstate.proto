@@ -1,0 +1,14 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec3.proto";
+import public "aimdk/protocol/common/quaternion.proto";
+
+message MocapJointState {
+    string name = 1;
+    uint32 id = 2;   // 动捕tracker id
+    uint32 status = 3;  // 动捕状态
+    uint32 err_code = 4;  // 动捕错误码
+    Vec3 position = 5;
+    Quaternion orientation = 6;
+}

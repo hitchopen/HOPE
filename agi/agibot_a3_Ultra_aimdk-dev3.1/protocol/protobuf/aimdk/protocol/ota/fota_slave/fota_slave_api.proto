@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief FOTA 开始上传文件的请求
+ */
+message FotaStartFileUploadRequest {
+    RequestHeader header = 1;
+    int32 master_soc_index = 2;   // ota_master 所在 soc 的索引
+    string file_name = 3;         // 文件名称
+    string file_path = 4;         // 文件路径
+    string file_hash = 5;         // 文件 hash
+}
+
+message FotaStartFileUploadResponse {
+    enum FotaStartFileUploadReturnCode {
+        FotaStartFileUploadReturnCode_Local = 0;               // 本地说明，master 和 slave 在同一个 soc 上，直接进行下一步就行，无需上传
+        FotaStartFileUploadReturnCode_Remote = 1;              // 远程说明，master 和 slave 不在同一个 soc 上，需要上传
+        FotaStartFileUploadReturnCode_Fail = 2;                // 在本地，由于某些原因，无法到达下一步
+        FotaStartFileUploadReturnCode_Authorization_Fail = 3;  // 鉴权失败
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief FOTA 上传文件
+ */
+message FotaUploadFileRequest {
+    RequestHeader header = 1;
+    string hash = 2;   // 文件切片的 hash
+    int32 size = 3;    // 文件切片的大小
+    bytes datas = 4;   // 文件切片
+    int32 index = 5;
+    int32 total = 6;
+}
+
+message FotaUploadFileResponse {
+    enum FotaUploadFileReturnCode {
+        FotaUploadFileReturnCode_Success = 0;       // 上传成功
+        FotaUploadFileReturnCode_Fail = 1;          // 上传失败，对方不接受重试
+        FotaUploadFileReturnCode_AcceptRetry = 2;   // 上传失败，对方接受重试
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief FOTA 结束上传文件
+ */
+message FotaFinishFileUploadRequest {
+    RequestHeader header = 1;
+    string file_name = 2;
+    string file_hash = 3;
+    int32 total = 4;
+}
+
+message FotaFinishFileUploadResponse {
+    enum FotaFinishFileUploadReturnCode {
+        FotaFinishFileUploadReturnCode_Success = 0; // 上传成功
+        FotaFinishFileUploadReturnCode_Fail = 1;    // 上传失败，对方不接受重试
+        FotaUploadFileReturnCode_AcceptRetry = 2;   // 上传失败，对方接受重试
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief FOTA 开始升级
+ */
+message FotaStartOTARequest {
+    RequestHeader header = 1;
+
+    // 当前版本号
+    int64 current_version = 2;
+}
+
+message FotaStartOTAResponse {
+    enum FotaStartOTAReturnCode {
+        FotaStartOTAReturnCode_Success = 0;     // 开始升级
+        FotaStartOTAReturnCode_Upgrading = 1;   // 正在升级中
+        FotaStartOTAReturnCode_Refuse = 2;      // 拒绝升级，原因未知
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief FOTA 继续升级
+ */
+message FotaContinueOTARequest {
+    RequestHeader header = 1;
+
+    // 当前版本号
+    int64 current_version = 2;
+}
+
+message FotaContinueOTAResponse {
+    enum FotaContinueOTAReturnCode {
+        FotaContinueOTAReturnCode_Success = 0;      // 继续升级
+        FotaContinueOTAReturnCode_Upgrading = 1;    // 正在升级中
+        FotaContinueOTAReturnCode_Refuse = 2;       // 拒绝继续升级，原因未知
+    }
+
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief FOTA 重新回滚
+ */
+message FotaRetryRollbackRequest {
+    RequestHeader header = 1;
+
+    // 当前版本号
+    int64 current_version = 2;
+}
+
+message FotaRetryRollbackResponse {
+    enum FotaRetryRollbackReturnCode {
+        FotaRetryRollbackReturnCode_Success = 0;    // 重新回滚
+        FotaRetryRollbackReturnCode_Upgrading = 1;  // 正在回滚中
+        FotaRetryRollbackReturnCode_Refuse = 2;     // 拒绝回滚，原因未知
+    }
+
+    ResponseHeader header = 1;
+};
+
+/**
+ * @brief FOTA 获取当前升级进度
+ */
+message GetCurrentFotaProcessRequest {
+    RequestHeader header = 1;
+}
+
+message GetCurrentFotaProcessResponse {
+    enum FotaStage {
+        FotaStage_Idle = 0;
+        FotaStage_Upgrading = 1;            // 升级中
+        FotaStage_Upgrading_Success = 2;    // 升级成功
+        FotaStage_Rollbacking = 3;          // 回滚中
+        FotaStage_Rollbacking_Success = 4;  // 回滚成功
+        FotaStage_Pause = 5;                // pause
+        FotaStage_Failure = 6;              // failue
+    }
+
+    ResponseHeader header = 1;
+    FotaStage stage = 2;
+    uint32 process = 3;
+    uint32 error_num = 4;
+    string error_msg = 5;
+}
+
+/**
+ * @brief 重置 FOTA 状态。
+ *
+ * @details 在开始文件传输之前，需要查询 FOTA 的当前状态。
+ * - 当 FOTA 处于以下状态时，可以进行状态重置：
+ *   - Idle 状态
+ *   - Pause 状态
+ *   - Failure 状态
+ *   - FotaStage_Upgrading_Success 状态
+ *   - FotaStage_Rollbacking_Success 状态
+ * - 如果 FOTA 处于以下状态，ota_master 将持续等待：
+ *   - Upgrading 状态
+ *   - Rollbacking 状态
+ *
+ * @note aima 会重置 ota_master 的状态。
+ */
+ message ResetFotaStatusRequest {
+    RequestHeader header = 1;
+}
+
+
+message ResetFotaStatusResponse {
+    enum ResetFotaStatusReturnCode {
+        ResetFotaStatusReturnCode_Success = 0;   // 重置成功
+        ResetFotaStatusReturnCode_Fail = 1;      // 重置失败
+    }
+
+    ResponseHeader header = 1;
+}

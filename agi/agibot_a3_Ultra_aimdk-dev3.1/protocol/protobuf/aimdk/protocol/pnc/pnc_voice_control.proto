@@ -1,0 +1,20 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+message PncVoiceControlStatus {
+  enum Status {
+    Unknown = 0;
+    Moving = 1;
+    Failed = 2;
+    Stopped = 3;
+    Blocked = 4;
+    Canceled = 5;
+    Timeout = 6;
+  };
+  Header header = 1;
+  uint64 task_id = 2;
+  Status status = 3;
+  string reason = 4;
+}

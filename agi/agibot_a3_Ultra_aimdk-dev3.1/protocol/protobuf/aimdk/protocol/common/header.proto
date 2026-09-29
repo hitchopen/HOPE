@@ -1,0 +1,116 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/timestamp.proto";
+import public "aimdk/protocol/common/control_source.proto";
+
+/**
+ * @brief 一般消息的 header
+ */
+message Header {
+  // sequence ID: consecutively increasing ID
+  uint32 seq = 1;
+
+  // timestamp
+  Timestamp timestamp = 2;
+
+  // Frame this data is associated with
+  string frame_id = 3;
+
+  // 控制源（一般算法模块保持默认即可，无需设置）
+  ControlSource control_source = 4;
+
+  // 设备ID（用于鉴别AIMMASTER设备, 通常无需设置）
+  string uuid = 5;
+}
+
+/**
+ * @brief RPC 请求体的 header
+ */
+message RequestHeader {
+  // timestamp
+  Timestamp timestamp = 1;
+
+  // 控制源（一般算法模块保持默认即可，无需设置）
+  ControlSource control_source = 2;
+
+  // 设备ID（用于鉴别AIMMASTER设备, 通常无需设置）
+  string uuid = 3;
+
+  // rpc请求方id
+  string trace_id = 4;
+
+  // 请求方来源域
+  string domin = 5;
+
+}
+
+/**
+ * @brief RPC 响应体的 header
+ */
+message ResponseHeader {
+  // 处理结果
+  // - 为0: 成功
+  // - 非0: 失败
+  uint64 code = 1;
+
+  // 处理结果描述
+  string msg = 2;
+
+  // 时间戳
+  Timestamp timestamp = 3;
+
+  // rpc请求方id
+  string trace_id = 4;
+
+  // 请求方来源域
+  string domin = 5;
+
+  
+}
+
+/**
+ * @brief 可阻塞的 RPC 请求体的 header
+ */
+message BlockableRequestHeader {
+  // 时间戳
+  Timestamp timestamp = 1;
+
+  // 是否阻塞调用（默认 false）
+  bool blocked = 2;
+
+  // 控制源（一般算法模块保持默认即可，无需设置）
+  ControlSource control_source = 3;
+
+  // 设备ID（用于鉴别AIMMASTER设备, 通常无需设置）
+  string uuid = 4;
+
+  // rpc请求方id
+  string trace_id = 5;
+
+  // 请求方来源域
+  string domin = 6;
+}
+
+message BlockableResponseHeader {
+  // 处理结果
+  // - 为0: 成功
+  // - 非0: 失败
+  uint64 code = 1;
+
+  // 处理结果描述
+  string msg = 2;
+
+  // 时间戳
+  Timestamp timestamp = 3;
+
+  // 请求关联的 rpc id，若设置了非阻塞模式，该字段可用于调用者向执行者定期查询 rpc 执行情况，
+  // 该值需由执行者维护并设置，默认为零无效。
+  uint64 id = 4;
+
+  // rpc请求方id
+  string trace_id = 5;
+
+  // 请求方来源域
+  string domin = 6;
+}

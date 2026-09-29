@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+// 命名空间与 CMake 中定义的 protocol target 的命名空间对应。
+package aimdk.protocol;
+
+// 可以引入 DEPEND 的 protocol target 中的其他 protobuf 文件，其层次与命名空间对应
+import "aimdk/protocol/common/vec2.proto";
+
+/**
+ * @brief 简介这个数据类型的内容。
+ *        使用 Doxygen 注释标准，注释 message
+ *        尽量在同一个 proto 文件内，只定义与其名相关的数据类型。
+ *        protobuf 文件使用小写下划线命名。
+ */
+message Xxx {
+  // 字段注释在其上写
+  Vec2 a = 1;
+
+  // 比较清晰，也容易写长注释
+  string b = 2;
+
+  // 多个语义相近的字段，可以拼在一起，一起注释，但需要对齐等号
+  double x = 3;
+  double y = 4;
+  double z = 5;
+}

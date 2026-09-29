@@ -1,0 +1,208 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/common.proto";
+import "aimdk/protocol/setting/robot_info.proto";
+import "aimdk/protocol/setting/wifi.proto";
+import "aimdk/protocol/setting/volume.proto";
+import "aimdk/protocol/setting/robot_system_setting.proto";
+import "aimdk/protocol/setting/nvfan.proto";
+import "aimdk/protocol/setting/bluetooth.proto";
+
+/**
+ * @brief 对外提供的机器人设置相关的接口
+ */
+service RobotSettingService {
+  /**
+   * @brief 设置系统音量
+   */
+  rpc SystemVolumeControl(SystemVolumeControlReq) returns (SystemVolumeControlRsp);
+
+  /**
+   * @brief 设置系统wifi状态,其中，连接wifi为异步，需要使用GetSystemWifiState接口获取连接状态 已废弃 后期删除
+   */
+  rpc SystemWifiControl(SystemWifiControlReq) returns (SystemWifiControlRsp);
+
+  /**
+   * @brief 传入wifi名，获取连接状态 已废弃 后期删除
+   */
+  rpc GetSystemWifiState(GetSystemWifiStateReq) returns (GetSystemWifiStateRsp);
+
+  /**
+   * @brief 设置机器人信息
+   */
+  rpc RobotInfoSetting(RobotInfoSettingReq) returns (RobotInfoSettingRsp);
+
+  /**
+   * @brief 重置机器人 已废弃 后期删除
+   */
+  rpc ResetRobot(ResetRobotReq) returns (ResetRobotRsp);
+
+  /**
+   * @brief 设置机器人运动模式 已废弃，后期删除
+   */
+  rpc RobotMotionModeCtrl(RobotMotionModeCtrlReq) returns (RobotMotionModeCtrlRsp);
+
+
+  /**
+   * @brief 系统wifi热点控制，异步接口，需要使用GetSystemWifiHotSpotState接口获取状态
+   */
+  rpc SystemWifiHotSpotControl(SystemWifiHotSpotControlReq) returns (CommonResponse);
+
+
+  /**
+   * @brief 获取系统wifi热点状态
+   */
+  rpc GetSystemWifiHotSpotState(CommonRequest) returns (GetSystemWifiHotSpotStateRsp);
+
+  /**
+   * @brief 蓝牙设置，其中，连接蓝牙为异步，需要使用GetSystemBlueToothState接口获取连接状态
+   */
+  rpc SystemBlueToothControl(SystemBlueToothControlReq) returns (SystemBlueToothControlRsp);
+
+  /**
+   * @brief 获取蓝牙连接状态
+   */
+  rpc GetSystemBlueToothState(GetSystemBlueToothStateReq) returns (GetSystemBlueToothStateRsp);
+
+  /**
+   * @brief 恢复出厂设置
+   */
+  rpc FactoryReset(CommonRequest) returns (CommonResponse);
+}
+
+/**
+ * @brief 系统wifi热点状态
+ */
+enum WifiHotSpotState{
+  WifiHotSpotState_Undefined = 0;
+  WifiHotSpotState_Opened = 1;
+  WifiHotSpotState_Opening = 2;
+  WifiHotSpotState_Closed = 3;
+  WifiHotSpotState_Closing = 4;
+
+}
+
+/**
+ * @brief 获取系统wifi热点状态响应体
+ */
+message GetSystemWifiHotSpotStateRsp {
+  ResponseHeader header = 1;
+  bool is_open = 2;
+  string ssid = 3;
+  string password = 4;
+  WifiHotSpotState state = 5;
+}
+
+
+/**
+ * @brief 系统wifi热点操作类型
+ */
+enum WifiHotSpotOperation{
+  WifiHotSpotOperation_Undefined = 0;
+  //打开
+  WifiHotSpotOperation_Open = 1;
+  //关闭
+  WifiHotSpotOperation_Close = 2;
+  //设置热点密码
+  WifiHotSpotOperation_SetPassword = 3;
+  //检查热点密码
+  WifiHotSpotOperation_CheckPassword = 4;
+}
+
+/**
+ * @brief 系统wifi热点控制请求体
+ */
+message SystemWifiHotSpotControlReq{
+  RequestHeader header = 1;
+  //操作类型
+  WifiHotSpotOperation Operation = 2;
+  //热点密码
+  string password = 3;
+  //热点ssid
+  string ssid = 4;
+}
+
+/**
+ * @brief 重置机器人的请求体
+ */
+message ResetRobotReq {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 重置机器人的响应数据
+ */
+message ResetRobotRspData {
+}
+
+/**
+ * @brief 重置机器人的响应体
+ */
+message ResetRobotRsp {
+  ResponseHeader header = 1;
+  ResetRobotRspData data = 2;
+}
+
+/**
+ * @brief 设置机器人运动模式的请求体
+ */
+message RobotMotionModeCtrlReq {
+  enum Mode {
+    // 未定义
+    ModeType_UNKNOWN = 0;
+
+    // 机器人手动模式
+    ModeType_MANUAL = 1;
+
+    // 机器人自动模式
+    ModeType_AUTO = 2;
+  }
+
+  RequestHeader header = 1;
+  Mode mode = 2;
+}
+
+/**
+ * @brief 设置机器人运动模式的响应体
+ */
+message RobotMotionModeCtrlRsp {
+  ResponseHeader header = 1;
+  // 是否设置成功
+  bool is_success = 2;
+}
+
+/**
+ * @brief 蓝牙设置请求体
+ */
+ message SystemBlueToothControlReq {
+  RequestHeader header = 1;
+  BlueToothControlOperation Operation = 2;
+  BlueToothState bluetooth_state = 3;
+}
+
+/**
+ * @brief 蓝牙设置响应体
+ */
+message SystemBlueToothControlRsp {
+  ResponseHeader header = 1;
+  repeated BlueToothState paired_bluetooth_list = 2;  // 已配对蓝牙列表
+  repeated BlueToothState extra_bluetooth_list = 3;  // 其他蓝牙列表
+}
+
+/**
+ * @brief 获取蓝牙状态请求体
+ */
+message GetSystemBlueToothStateReq {
+  RequestHeader header = 1;
+  BlueToothState bluetooth_state = 2;
+}
+
+/**
+ * @brief 获取蓝牙状态响应体
+ */
+message GetSystemBlueToothStateRsp {
+  ResponseHeader header = 1;
+  BlueToothState bluetooth_state = 2;
+}

@@ -1,0 +1,25 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+
+/**
+ * @brief pnc 模块的状态描述
+ */
+enum PncRcState {
+  PncRcState_UNDEFINED = 0;
+  PncRcState_INIT      = 1;
+
+  PncRcState_IDLE    = 2;
+  PncRcState_TO_IDLE = 3;
+
+  PncRcState_SPIN_TURN    = 4;
+  PncRcState_TO_SPIN_TURN = 5;
+
+  PncRcState_LONGITUDINAL_DRIFT    = 6;
+  PncRcState_TO_LONGITUDINAL_DRIFT = 7;
+
+  PncRcState_LATERAL_DRIFT    = 8;
+  PncRcState_TO_LATERAL_DRIFT = 9;
+
+  PncRcState_ERROR = 255;
+}

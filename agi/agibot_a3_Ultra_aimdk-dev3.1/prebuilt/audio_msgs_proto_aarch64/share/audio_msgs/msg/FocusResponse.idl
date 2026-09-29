@@ -1,0 +1,20 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from audio_msgs/msg/FocusResponse.msg
+// generated code does not contain a copyright notice
+
+
+module audio_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "必要项，标识调用方来源")
+    struct FocusResponse {
+      string pkg_name;
+
+      @verbatim (language="comment", text=
+        "必要项，焦点结果" "\n"
+        "true: 获取到焦点" "\n"
+        "false: 丢失焦点")
+      boolean focus_gain;
+    };
+  };
+};

@@ -1,0 +1,4 @@
+source;share/ros2_plugin_proto/local_setup.bash
+source;share/ros2_plugin_proto/local_setup.dsv
+source;share/ros2_plugin_proto/local_setup.sh
+source;share/ros2_plugin_proto/local_setup.zsh

@@ -1,0 +1,20 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+
+/**
+ * @brief 控制源，由安全模块向 MC 设置，用于 MC 过滤不匹配的控制源输入
+ */
+enum ControlSource {
+  // 默认值，一般是自动算法发起
+  ControlSource_AUTO = 0;
+
+  // 手动控制，从遥控模块发起
+  ControlSource_MANUAL = 1;
+
+  // 安全模块，从安全模块发起
+  ControlSource_SAFE = 2;
+
+  // 无效控制源，为 MC 的默认值
+  ControlSource_DISABLED = 255;
+}

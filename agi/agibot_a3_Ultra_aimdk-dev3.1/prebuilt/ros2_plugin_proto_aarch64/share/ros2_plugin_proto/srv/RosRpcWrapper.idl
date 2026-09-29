@@ -1,0 +1,23 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from ros2_plugin_proto/srv/RosRpcWrapper.srv
+// generated code does not contain a copyright notice
+
+
+module ros2_plugin_proto {
+  module srv {
+    struct RosRpcWrapper_Request {
+      string serialization_type;
+
+      sequence<string> context;
+
+      sequence<octet> data;
+    };
+    struct RosRpcWrapper_Response {
+      int64 code;
+
+      string serialization_type;
+
+      sequence<octet> data;
+    };
+  };
+};

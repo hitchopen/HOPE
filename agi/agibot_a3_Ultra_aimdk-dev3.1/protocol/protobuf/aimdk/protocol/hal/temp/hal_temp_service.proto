@@ -1,0 +1,35 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/temp/temp.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的电机温度状态查询服务
+ */
+service HalTempService {
+  /**
+   * @brief 获取当前腿部电机温度状态信息。
+   * @param CommonRequest: 获取腿部电机温度状态请求
+   * @return TempStateRsp: 获取腿部电机温度状态响应
+   */
+  rpc GetTempState(CommonRequest) returns (TempStateRsp);
+}
+
+service HalLegTempService {
+  /**
+   * @brief 获取当前腿部电机温度状态信息。
+   * @param CommonRequest: 获取腿部电机温度状态请求
+   * @return TempStateRsp: 获取腿部电机温度状态响应
+   */
+  rpc GetLegTempState(CommonRequest) returns (TempStateRsp);
+}
+
+service HalArmTempService {
+  /**
+   * @brief 获取当前手臂电机温度状态信息。
+   * @param CommonRequest: 获取手臂电机温度状态请求
+   * @return TempStateRsp: 获取手臂电机温度状态响应
+   */
+  rpc GetArmTempState(CommonRequest) returns (TempStateRsp);
+}

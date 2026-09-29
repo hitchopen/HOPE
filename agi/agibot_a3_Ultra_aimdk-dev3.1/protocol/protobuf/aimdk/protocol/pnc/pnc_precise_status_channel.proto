@@ -1,0 +1,33 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+enum PncPreciseStatus {
+  // 未定义状态
+  PreciseStatus_UNKNOWN = 0;
+
+  // 无任务或任务已结束
+  PreciseStatus_IDLE = 1;
+
+  // 普通粗导航过程
+  PreciseStatus_NORMAL_NAVI = 2;
+
+  // 普通粗导航已到点
+  PreciseStatus_NORMAL_NAVI_ARRIVE = 3;
+
+  // 精导航运动中
+  PreciseStatus_PRECISE_MOVE = 4;
+}
+/**
+ * @brief pnc 模块硅基送高精导航任务的状态，任务过程中会以2Hz发布任务状态，若超过2秒不发布或发布IDLE则可视为任务已结束
+ *        topic:
+ *          - 用于状态输出：/pnc/precise_status
+ */
+message PncPreciseStatusChannel {
+  // 消息头
+  Header header = 1;
+
+  // 导航运行中避让状态
+  PncPreciseStatus status = 2;
+}

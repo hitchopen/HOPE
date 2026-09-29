@@ -147,3 +147,8 @@ a3_deploy/a3_deploy_example/assets/a3_runtime/robots/*
 **/outputs/
 **/output.log
 events.out.tfevents.*
+
+# Consolidated, supplied AimDK bundle; do not expose other local agi payloads.
+!/agi/
+/agi/*
+!/agi/agibot_a3_Ultra_aimdk-dev3.1/

@@ -1,0 +1,45 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/calibration/calibration_api.proto";
+
+service CalibrationExecutionService {
+  // ------------------------- Server's Functions ------------------------- 
+  /**
+  * @brief 启动标定程序
+  **/
+  rpc CalibrationStart(CalibrationStartRequest) returns (CalibrationStartResponse); 
+
+  /**
+  * @brief 结束标定程序
+  **/
+  rpc CalibrationStop(CalibrationStopRequest) returns (CalibrationStopResponse); 
+
+
+  // ------------------------- Client's Functions ------------------------- 
+  // todo: implement some client functions
+}
+
+service DataCollectionStatusService {
+  // ------------------------- Server's Functions ------------------------- 
+  // todo: implement some service functions
+
+
+  // ------------------------- Client's Functions ------------------------- 
+  /**
+  * @brief 发送数据采集状态
+  **/
+  rpc SendDataCollectionStatus(DataCollectionStatusRequest) returns (DataCollectionStatusResponse);
+}
+
+service CalibrationStatusService {
+  // ------------------------- Server's Functions ------------------------- 
+  // todo: implement some service functions
+
+
+  // ------------------------- Client's Functions ------------------------- 
+  /**
+  * @brief 发送标定状态
+  **/
+  rpc SendCalibrationStatus(CalibrationStatusRequest) returns (CalibrationStatusResponse); 
+}

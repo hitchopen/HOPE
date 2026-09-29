@@ -1,0 +1,18 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+/**
+ * @brief 原地站立请求
+ */
+message StandRequest {
+  RequestHeader header = 1;  // 通用请求头
+
+  // 上肢控制类型：保持不动、回到标准姿态
+  enum Stance {
+    FREEZE = 0;  // 保持不动
+    STAND = 1;   // 回到标准姿态
+  }
+
+  Stance stance = 2;
+}

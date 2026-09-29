@@ -1,0 +1,161 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/hand/hand.proto";
+import public "aimdk/protocol/hal/neck/neck.proto";
+import public "aimdk/protocol/mc/motion/movj.proto";
+import public "aimdk/protocol/mc/motion/move.proto";
+import public "aimdk/protocol/mc/motion/planning.proto";
+import public "aimdk/protocol/mc/motion/stand.proto";
+import public "aimdk/protocol/mc/motion/locomotion.proto";
+import public "aimdk/protocol/mc/motion/mc_adjust.proto";
+import public "aimdk/protocol/mc/motion/collision.proto";
+import public "aimdk/protocol/mc/motion/state_notify.proto";
+
+/**
+ * @brief 运控运动服务
+ */
+service McMotionService {
+  // 关节运动
+  rpc JointMove(MovJRequest) returns (CommonTaskResponse);
+
+  // 线性运动
+  rpc LinearMove(LinearMoveRequest) returns (CommonTaskResponse);
+
+  // 轨迹运动
+  rpc TrajectoryMove(MoveTrajectoryRequest) returns (CommonTaskResponse);
+
+  // 关节控制
+  rpc JointControl(JointControlRequest) returns (CommonTaskResponse);
+
+  // 设置机器人步态
+  rpc SetLocomotionGait(LocomotionGaitRequest) returns (CommonResponse);
+
+  // 获取机器人步态
+  rpc GetLocomotionGait(CommonRequest) returns (LocomotionGaitResponse);
+
+  // 原地站立
+  rpc Stand(StandRequest) returns (CommonTaskResponse);
+
+  // 安全停止
+  rpc SafeStop(CommonRequest) returns (CommonTaskResponse);
+
+  // GoHome
+  rpc GoHomePose(CommonRequest) returns (CommonTaskResponse);
+
+  // 规划运动
+  rpc PlanningMove(PlanningMoveRequest) returns (CommonTaskResponse);
+
+  // 交互运动
+  rpc InteractiveMove(InteractiveMoveRequest) returns (CommonTaskResponse);
+
+  // 获取临时规划运动的结果
+  rpc GetTempPlanningResult(CommonTaskRequest) returns (TempPlanningMoveResponse);
+
+  // 设置手部命令
+  rpc SetHandCommand(HandCommandRequest) returns (CommonResponse);
+
+  // 设置头部命令
+  rpc SetNeckCommand(NeckCommandRequest) returns (CommonResponse);
+
+  // 全身关节运动
+  rpc SendAdjustCommand(AdjustCommandRequest) returns (CommonResponse);
+
+  // 获取末端位置
+  rpc GetAdjustEndPositions(CommonRequest) returns (AdjustEndPositionsResponse);
+
+  // 消除上肢断联
+  rpc DisabaleArmContact(CommonRequest) returns (CommonResponse);
+
+  // 使能或失能碰撞检测
+  rpc SetCollisionDetectionState(CollisionRequest) returns (CommonResponse);
+
+  // 查询碰撞检测功能是否开启
+  rpc GetCollisionDetectionState(CommonRequest) returns (CollisionResponse);
+
+  // 运动学计算
+  rpc ComputeKinematics(ComputeKinematicsRequest) returns (ComputeKinematicsResponse);
+
+  // 主动动作暂停/继续rpc
+  rpc ActiveMotionControl(ActiveMotionControlRequest) returns (CommonResponse);
+
+  // 使能或失能预测碰撞检测
+  rpc SetFutureCollisionDetectionState(CollisionRequest) returns (CommonResponse);
+
+  // 使能或失能某条轨迹的预测碰撞检测
+  rpc SetTrajectoryCollisionDetectionState(CollisionRequest) returns (CommonResponse);
+
+  // 查询预测碰撞检测功能是否开启
+  rpc GetFutureCollisionDetectionState(CommonRequest) returns (CollisionResponse);
+
+  // 选择舞蹈
+  rpc SelectDanceType(DanceTypeRequest) returns (CommonResponse);
+
+  // 获取可选舞蹈列表
+  rpc GetDanceTypeList(CommonRequest) returns (McDanceResponce);
+
+  // 坐下站起状态通知
+  rpc SitStandStateNotify(SitStandStateNotifyRequest) returns (CommonResponse);
+}
+
+
+/**
+ * @brief 上肢PNC运控服务
+ */
+service PncArmMotionService {
+  // 关节运动
+  rpc JointMove(MovJRequest) returns (CommonTaskResponse);
+
+  // 线性运动
+  rpc LinearMove(LinearMoveRequest) returns (CommonTaskResponse);
+
+  // 轨迹运动
+  rpc TrajectoryMove(MoveTrajectoryRequest) returns (CommonTaskResponse);
+
+  // 设置手部命令
+  rpc SetHandCommand(HandCommandRequest) returns (CommonResponse);
+
+  // 关节控制
+  rpc JointControl(JointControlRequest) returns (CommonTaskResponse);
+
+  // GoHome
+  rpc GoHomePose(CommonRequest) returns (CommonTaskResponse);
+
+  // 规划运动
+  rpc PlanningMove(PlanningMoveRequest) returns (CommonTaskResponse);
+
+  // 交互运动
+  rpc InteractiveMove(InteractiveMoveRequest) returns (CommonTaskResponse);
+
+  // 获取临时规划运动的结果
+  rpc GetTempPlanningResult(CommonTaskRequest) returns (TempPlanningMoveResponse);
+
+  // 消除上肢断联
+  rpc DisabaleArmContact(CommonRequest) returns (CommonResponse);
+
+  // 使能或失能碰撞检测
+  rpc SetCollisionDetectionState(CollisionRequest) returns (CommonResponse);
+
+  // 查询碰撞检测功能是否开启
+  rpc GetCollisionDetectionState(CommonRequest) returns (CollisionResponse);
+
+  // 运动学计算
+  rpc ComputeKinematics(ComputeKinematicsRequest) returns (ComputeKinematicsResponse);
+
+  // 主动动作暂停/继续rpc
+  rpc ActiveMotionControl(ActiveMotionControlRequest) returns (CommonResponse);
+
+  // 使能或失能预测碰撞检测
+  rpc SetFutureCollisionDetectionState(CollisionRequest) returns (CommonResponse);
+
+  // 使能或失能某条轨迹的预测碰撞检测
+  rpc SetTrajectoryCollisionDetectionState(CollisionRequest) returns (CommonResponse);
+
+  // 查询预测碰撞检测功能是否开启
+  rpc GetFutureCollisionDetectionState(CommonRequest) returns (CollisionResponse);
+
+  // 获取任务状态
+  rpc GetTaskState(CommonTaskRequest) returns (CommonTaskResponse);
+}

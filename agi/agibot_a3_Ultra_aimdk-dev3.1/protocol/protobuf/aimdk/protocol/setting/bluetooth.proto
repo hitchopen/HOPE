@@ -1,0 +1,54 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+
+/**
+ * @brief 蓝牙设置操作类型
+ */
+enum BlueToothControlOperation {
+  BlueToothControlOperation_Undefined = 0;
+  BlueToothControlOperation_OpenBlueTooth = 1;        // 打开蓝牙
+  BlueToothControlOperation_CloseBlueTooth = 2;       // 关闭蓝牙
+  BlueToothControlOperation_ScanBlueTooth = 3;        // 扫描extra蓝牙列表
+  BlueToothControlOperation_ConnectBlueTooth = 4;     // 连接蓝牙
+  BlueToothControlOperation_DisconnectBlueTooth = 5;  // 断开蓝牙
+  BlueToothControlOperation_GetBlueToothState = 6;    // 查询蓝牙状态
+  BlueToothControlOperation_DelBlueToothDevice = 7;   // 删除蓝牙设备
+  BlueToothControlOperation_ScanPairedBlueTooth = 8;  // 扫描paired蓝牙列表
+};
+
+/**
+ * @brief 蓝牙连接状态
+ */
+enum BlueToothConnectState {
+  BlueToothConnectState_Undefined = 0;
+  BlueToothConnectState_Disconnected = 1; // 未连接
+  BlueToothConnectState_Connected = 2;    // 已连接
+  BlueToothConnectState_Closed = 3;       // 已关闭
+  BlueToothConnectState_Connecting = 4;  // 连接中
+}
+
+/**
+ * @brief 蓝牙类型
+ */
+enum BlueToothType {
+  BlueToothType_Unknown  = 0;
+  BlueToothType_Headset  = 1;
+  BlueToothType_Keyboard = 2;
+  BlueToothType_Mouse    = 3;
+  BlueToothType_Tablet   = 4;
+  BlueToothType_Phone    = 5;
+  BlueToothType_Computer = 6;
+}
+
+/**
+ * @brief 蓝牙状态
+ */
+message BlueToothState {
+  BlueToothConnectState connect_state = 1; // 蓝牙状态
+  BlueToothType type = 2;   // 蓝牙类型
+  string device = 3;         // 蓝牙名称
+  string mac = 4;            // mac地址
+  int32 signal_strength = 5; // 信号强度
+};

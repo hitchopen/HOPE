@@ -1,0 +1,15 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+
+/**
+ * @brief pnc 模块的指令
+ */
+enum PncRcCmd {
+  PncRcCmd_UNDEFINED = 0;
+
+  PncRcCmd_TO_IDLE               = 1;
+  PncRcCmd_TO_SPIN_TURN          = 2;
+  PncRcCmd_TO_LONGITUDINAL_DRIFT = 3;
+  PncRcCmd_TO_LATERAL_DRIFT      = 4;
+}

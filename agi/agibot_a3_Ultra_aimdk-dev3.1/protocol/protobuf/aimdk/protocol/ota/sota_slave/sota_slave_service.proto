@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/ota/sota_slave/sota_slave_api.proto";
+
+/**
+ * @brief SOTA Slave Service
+ */
+service SotaSlaveService {
+    /**
+     * @brief OTA 开始文件上传服务
+     */
+    rpc SotaStartFileUpload(SotaStartFileUploadRequest) returns (SotaStartFileUploadResponse);
+
+    /**
+     * @brief OTA 文件上传服务
+     */
+    rpc SotaUploadFile(SotaUploadFileRequest) returns (SotaUploadFileResponse);
+
+    /**
+     * @brief OTA 结束文件上传服务
+     */
+    rpc SotaFinishFileUpload(SotaFinishFileUploadRequest) returns (SotaFinishFileUploadResponse);
+
+    /**
+     * @brief OTA 开始 sota 服务
+     */
+    rpc SotaStartOTA(SotaStartOTARequest) returns (SotaStartOTAResponse);
+
+    /**
+     * @brief OTA 继续 sota 服务
+     */
+    rpc SotaContinue(SotaContinueOTARequest) returns (SotaContinueOTAResponse);
+
+    /**
+     * @brief OTA 重试回滚
+     */
+    rpc SotaRetryRollback(SotaRetryRollbackRequest) returns (SotaRetryRollbackResponse);
+
+    /**
+     * @brief 查询当前 sota 进度
+     */
+    rpc GetCurrentSotaProcess(GetCurrentSotaProcessRequest) returns (GetCurrentSotaProcessResponse);
+
+    /**
+     * @brief 重置 SOTA 状态。
+     * 
+     * @details 在开始文件传输之前，需要查询 SOTA 的当前状态。
+     * - 当 SOTA 处于以下状态时，可以进行状态重置：
+     *   - Idle 状态
+     *   - Pause 状态
+     *   - Failure 状态
+     *   - SotaStage_Upgrading_Success 状态
+     *   - SotaStage_Rollbacking_Success 状态
+     * - 如果 SOTA 处于以下状态，ota_master 将持续等待：
+     *   - Upgrading 状态
+     *   - Rollbacking 状态
+     * 
+     * @note aima 会重置 ota_master 的状态。
+     */
+    rpc ResetSotaStatus(ResetSotaStatusRequest) returns (ResetSotaStatusResponse);
+
+    /**
+     * @brief 执行 bash 命令
+     */
+    rpc SotaExecuteBashCommand(SotaExecuteBashCommandRequest) returns (SotaExecuteBashCommandResponse);
+
+    /**
+     * @brief OTA 调用 sota 执行功能函数
+     */
+    rpc SotaExecuteFunction(SotaExecuteFunctionRequest) returns (SotaExecuteFunctionResponse);
+
+    /**
+     * @brief OTA 查询功能进度
+     */
+    rpc GetFunctionProgress(GetFunctionProgressRequest) returns (GetFunctionProgressResponse);
+
+    /**
+     * @brief OTA 获取 socx 的信息
+     */
+    rpc GetSocxInfo(GetSocxInfoRequest) returns (GetSocxInfoResponse);
+}

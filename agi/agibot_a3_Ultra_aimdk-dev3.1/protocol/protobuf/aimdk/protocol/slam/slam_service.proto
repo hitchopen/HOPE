@@ -1,0 +1,165 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/slam/slam_api.proto";
+
+service SLAMMappingService {
+  /**
+   * @brief 开始建图 rpc 接口
+   * @note
+   * 1. SLAM 模块提供的启动建图接口，此接口会启动建图算法。
+   * 2. 启动建图算法同时需要不停的推送建图数据给客户端，实时数据 SLAMRealtimeMappingChannel
+   * 3. SLAM 模块会返回 rsp，表示接口调用是否成功 code，相关信息 msg。
+   */
+  rpc SLAMStartMapping(SLAMStartMappingRequest) returns (SLAMStartMappingResponse);
+
+  /**
+   * @brief 停止建图 rpc 接口
+   * @note
+   * 1. SLAM 提供的停止建图接口，此接口会停止建图算法。
+   * 2. 停止建图有两种形式，通过 command_type 进行区分：
+   *     a. 停止建图，并保存地图，此时会告知 SLAM 需要保存地图的地址。地图保存进度需要调用进度接口实时告知 map manager
+   *     b. 停止建图，但不保存地图, 此时需要舍弃建图。
+   * 3. 服务端会返回 rsp，表示接口调用状态的 header，因为保存时耗时较长，此处直接返回的是接口调用情况。保存成功与否在实时进度接口中反馈。
+   */
+  rpc SLAMStopMapping(SLAMStopMappingRequest) returns (SLAMStopMappingResponse);
+
+  /**
+   * @brief 获取当前SLAM算法状态的接口
+   * @note
+   * 用于支持MM状态同步
+   */
+  rpc SLAMGetCurrentMappingState(SLAMGetCurrentStateRequest) returns (SLAMGetCurrentStateResponse);
+
+  rpc SLAMStartIncrementalMapping(SLAMStartIncrementalMappingRequest) returns (SLAMStartIncrementalMappingResponse);
+}
+
+service SLAMRelocalizationService {
+  /**
+   * @brief 启动常规重定位rpc
+   * @details 请求启动常规重定位接口，请求参数包括重定位关联的地图所在文件夹路径
+   * SLAM需要停止实时定位(如果有的话)并且将对应的 2D 地图开启重定位算法。
+   * SLAM开启重定位算法后，会向推送点云实时2D数据，点云数据格式: SLAMRealtimeLidarChannel
+   */
+  rpc SLAMStartNormalRelocalization(SLAMStartNormalRelocRequest) returns (SLAMStartNormalRelocResponse);
+
+  /**
+   * @brief 停止常规重定位 rpc
+   * @details 停止常规重定位接口，可选择取消或者保存常规重定位的结果。
+   * 1. 取消：SLAM 会停止常规重定位算法。
+   * 2. 保存：SLAM 会停止常规重定位算法，并将重定位结果保存并直接根据结果开启新的实时定位。
+   * @note 停止常规重定位需要输入重定位位姿，并计算出重定位结果用来开启实时定位。
+   */
+  rpc SLAMStopNormalRelocalization(SLAMStopNormalRelocRequest) returns (SLAMStopNormalRelocResponse);
+
+  /**
+   * @brief 启动二维码重定位 rpc
+   * @details 请求启动二维码重定位接口，请求参数包括重定位关联的地图所在文件夹路径
+   * SLAM 需要停止实时定位(如果有的话)并且将对应的 2D 地图开启重定位算法。
+   * SLAM 开启二维码重定位算法后，会推送实时的摄像头数据，数据格: PubImageData
+   */
+  rpc SLAMStartQRRelocalization(SLAMStartQRRelocRequest) returns (SLAMStartQRRelocResponse);
+
+  /**
+   * @brief 停止QR重定位 rpc
+   * @details 主动停止二维码重定位，SLAM 会停止二维码重定位算法。
+   */
+  rpc SLAMStopQRRelocalization(SLAMStopQRRelocRequest) returns (SLAMStopQRRelocResponse);
+
+  /**
+   * @brief 获取当前SLAM算法状态的接口
+   * @note
+   * 用于支持MM状态同步
+   */
+  rpc SLAMGetCurrentRelocalizationState(SLAMGetCurrentStateRequest) returns (SLAMGetCurrentStateResponse);
+
+  /**
+   * @brief 启动全局重定位rpc
+   * @details 请求启动全局重定位接口，请求参数包括重定位关联的地图所在文件夹路径
+   */
+  rpc SLAMStartGlobalRelocalization(SLAMStartGlobalRelocRequest) returns (SLAMStartGlobalRelocResponse);
+
+  /**
+   * @brief 停止全局重定位 rpc
+   * @details 停止全局重定位接口。
+   */
+  rpc SLAMStopGlobalRelocalization(SLAMStopGlobalRelocRequest) returns (SLAMStopGlobalRelocResponse);
+}
+
+service SLAMQRRecordService {
+  /**
+   * @brief 启动 QR 定位请求
+   * @note
+   * 1.SLAM 会启动QR定位算法。
+   * 2.QR 定位算法启动后，会进行二维码自动检测，并将视频流实时推送给客户端: PubImageData
+   * 3.QR 定位算法会自动结束，SLAM 会将定位结果告知 map manager:SetQRLocalizationResult
+   */
+  rpc SLAMStartQRLocalization(SLAMStartQRLocalizationRequest) returns (SLAMStartQRLocalizationResponse);
+
+  /**
+   * @brief 停止 QR 定位请求
+   * @note
+   * 1.SLAM 会结束 QR 定位算法。
+   */
+  rpc SLAMStopQRLocalization(SLAMStopQRLocalizationRequest) returns (SLAMStopQRLocalizationResponse);
+
+  /**
+   * @brief 获取当前SLAM算法状态的接口
+   * @note
+   * 用于支持MM状态同步
+   */
+  rpc SLAMGetCurrentQRRecordState(SLAMGetCurrentStateRequest) returns (SLAMGetCurrentStateResponse);
+}
+
+service SLAMLocalizationService {
+  /**
+   * @brief 停止定位请求
+   * @note
+   * 1.SLAM 会立即停止定位算法。
+   */
+  rpc SLAMStartLocalization(SLAMStartLocalizationRequest) returns (SLAMStartLocalizationResponse);
+
+  /**
+   * @brief 停止定位请求
+   * @note
+   * 1.SLAM 会立即停止定位算法。
+   */
+  rpc SLAMStopLocalization(SLAMStopLocalizationRequest) returns (SLAMStopLocalizationResponse);
+
+
+  /**
+   * @brief 获取当前SLAM算法状态的接口
+   * @note
+   * 用于支持MM状态同步
+   */
+  rpc SLAMGetCurrentLocalizationState(SLAMGetCurrentStateRequest) returns (SLAMGetCurrentStateResponse);
+
+  /**
+   * @brief 发起更新栅格地图请求
+   * @note
+   * 定位模块会开始更新保存栅格地图
+   */
+  rpc SLAMUpdateOccupancyMap(SLAMUpdateOccupancyMapRequest) returns (SLAMUpdateOccupancyMapResponse);
+
+  /**
+   * @brief 开启或关闭实时更新栅格地图功能
+   * @note
+   * 根据request内enable_update的值决定开启或关闭功能
+   */
+  rpc SLAMToogleUpdateOccupancyMap(SLAMToggleUpdateOccupancyMapRequest) returns (SLAMToggleUpdateOccupancyMapResponse);
+
+  /**
+   * @brief 查询实时更新栅格地图功能的状态是开启还是关闭
+   */
+  rpc SLAMCheckUpdateOccupancyMapState(SLAMOccupancyMapStateRequest) returns (SLAMOccupancyMapStateResponse);
+}
+
+service ExplorationService {
+  rpc ExploreMapping(ExploreMappingReq) returns (ExploreMappingResp);
+}
+
+/* 新增UWB 手动角度初始化 */
+service ManualLocalizationService {
+  rpc SetManualInitialPose (ManualLocalizationRequest) returns (ManualLocalizationResponse);
+}
+

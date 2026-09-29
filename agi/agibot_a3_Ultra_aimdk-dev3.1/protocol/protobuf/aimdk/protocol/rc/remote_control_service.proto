@@ -1,0 +1,118 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/rc/remote_command.proto";
+//import public "aimdk/protocol/rc/remote_control_channel.proto";
+import public "aimdk/protocol/mc/action/mc_action.proto";
+import public "aimdk/protocol/motion_player/motion_command.proto";
+import public "aimdk/protocol/rc/remote_player.proto";
+import public "aimdk/protocol/mc/motion/mc_adjust.proto";
+
+/**
+ * @brief 运控远程服务
+ */
+service RemoteControlService {
+
+  // 设置远程控制模式
+  rpc SetRemoteControlEnableMode(RcEnableModeRequest) returns (CommonResponse);
+  // 获取远程控制模式
+  rpc GetRemoteControlEnableMode(CommonRequest) returns (RcGetEnableModeResponse);
+
+  // action相关
+  rpc SetAction(McActionRequest) returns (CommonResponse);
+  // 查询机器人Action命令
+  rpc GetAction(CommonRequest) returns (McActionResponse);
+  // 查询机器人可用的Action
+  rpc GetAvailableActions(CommonRequest) returns (AvailableActionsResponse);
+  // 查询机器人可用的Action命令
+  rpc GetAvailableCommands(CommonRequest) returns (AvailableCommandResponse);
+
+  // motion_player 相关
+  rpc SendMotionCommand(MotionCommandRequest) returns (CommonResponse);
+  rpc GetMotionStatus(CommonRequest) returns (MotionCommandResponse);
+  rpc GetMotionList(CommonRequest) returns (MotionListResponse);
+
+
+  // rpc SetJointStepAngle(RCJointStepAngleRequest) returns (CommonResponse);
+
+  // 使能/不使能 RC定时发送关节状态
+  rpc EnableRcSendJointStates(CommonRequest) returns (CommonResponse);
+  rpc DisableRcSendJointStates(CommonRequest) returns (CommonResponse);
+
+  rpc ChangeJointState(RcJointStatesChangeRequest) returns (CommonResponse);
+  rpc ChangeJointDescartesStates(RcJointStatesDescartesChangeRequest) returns (CommonResponse);
+
+  // 设置关节软限位
+  rpc SetJointParams(RcJointParamRequest) returns (CommonResponse);
+
+  // mc adjust 命令
+  rpc SendMotionAdjustCommand(AdjustCommandRequest) returns (RcCommonResponse);
+
+  // 控制状态使能功能
+  rpc JointControlSwitchCommand(RcJointControlSwitchRequest) returns (RcCommonResponse);
+
+  // 头部颈部动作功能
+  rpc NeckControlCommand(RcNeckControlRequest) returns (RcCommonResponse);
+}
+
+/**
+ * @brief 动作播放远程服务
+ */
+service RcMotionPlayerService {
+  // 开始发送动作信息
+  rpc BeginSendMotionStream(RcMotionStreamBeginRequest) returns (CommonResponse);
+  // 结束发送动作信息
+  rpc EndSendMotionStream(RcMotionStreamEndRequest) returns (CommonResponse);
+  // 发送动作信息，会发送多次，需要将动作信息拼接起来
+  rpc SendMotionStream(RcMotionStreamRequest) returns (CommonResponse);
+  // 获取动作列表
+  rpc GetMotionList(CommonRequest) returns (RcMotionListResponse);
+  // 增加动作
+  rpc CreateMotion(RcCreateMotionRequest) returns (RcMotionCommonResponse);
+  // 删除动作
+  rpc DeleteMotion(RcDeleteMotionRequest) returns (RcMotionCommonResponse);
+  // 重命名动作
+  rpc RenameMotion(RcRenameMotionRequest) returns (RcMotionCommonResponse);
+  // 播放动作
+  rpc PlayerMotion(RcPlayerMotionRequest) returns (CommonResponse);
+  // reset motion
+  rpc ResetMotion(CommonRequest) returns (CommonResponse);
+  // 保存录制动作
+  rpc SaveRecordedMotion(RcRecordedMotionRequest) returns (CommonResponse);
+  // 丢弃录制动作
+  rpc DiscardRecordedMotion(RcRecordedMotionRequest) returns (CommonResponse);
+  // 批量上传动作
+  rpc BatchUploadMotion(RcBatchUploadMotionRequest) returns (CommonResponse);
+  // 取消批量上传动作
+  rpc BatchUploadMotionCancel(CancelUploadRequest) returns (CommonResponse);
+}
+
+/**
+ * @brief 表情播放服务
+ */
+service RcEmoticonPlayerService {
+  // 开始发送表情信息
+  rpc BeginSendEmoticonStream(RcEmoticonStreamBeginRequest) returns (CommonResponse);
+  // 结束发送表情信息
+  rpc EndSendEmoticonStream(RcEmoticonStreamEndRequest) returns (CommonResponse);
+  // 发送表情信息，会发送多次，需要将表情信息拼接起来
+  rpc SendEmoticonStream(RcEmoticonStreamRequest) returns (CommonResponse);
+  // 获取表情列表
+  rpc GetEmoticonList(CommonRequest) returns (RcEmoticonListResponse);
+  // 增加表情
+  rpc CreateEmoticon(RcCreateEmoticonRequest) returns (RcEmoticonCommonResponse);
+  // 删除表情
+  rpc DeleteEmoticon(RcDeleteEmoticonRequest) returns (RcEmoticonCommonResponse);
+  // 重命名表情
+  rpc RenameEmoticon(RcRenameEmoticonRequest) returns (RcEmoticonCommonResponse);
+  // 播放表情
+  rpc PlayerEmoticon(RcPlayerEmoticonRequest) returns (RcPlayerEmoticonResponse);
+  // 批量上传表情
+  rpc BatchUploadEmoticon(RcBatchUploadEmoticonRequest) returns (CommonResponse);
+  // 取消批量上传表情
+  rpc BatchUploadEmoticonCancel(CancelUploadRequest) returns (CommonResponse);
+  // 编辑表情
+  rpc EditEmoticon(RcEditEmoticonRequest) returns (RcEmoticonCommonResponse);
+}

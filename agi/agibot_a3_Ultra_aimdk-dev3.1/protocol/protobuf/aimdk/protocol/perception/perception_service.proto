@@ -1,0 +1,120 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/perception/multi_scale_objects.proto";
+import public "aimdk/protocol/common/box.proto";
+import public "aimdk/protocol/perception/bbox6d.proto";
+import public "aimdk/protocol/perception/env_obj_info.proto";
+import public "aimdk/protocol/perception/perception_target_point.proto";
+
+message ObjectDetectionRequest {
+  RequestHeader header = 1;  // 请求头
+  string camera_id = 2; // 相机ID
+  bytes image = 3; // 直传图像
+  TargetType target_type = 4; //目标类型枚举
+}
+
+message ObjectDetectionResponse {
+  ResponseHeader header = 1; // 响应头
+  repeated Box box2d = 2; // 二维边界框
+}
+
+enum TargetType {
+  DETECT_UNKNOWN = 0;
+  PLASTIC_BOX = 1;
+  METAL_SHELF = 2;
+}
+
+message ObjectPoseEstimationRequest {
+  RequestHeader header = 1;  // 请求头
+  string camera_id = 2; // 相机ID
+  bytes image = 3; // 直传图像
+  TargetType target_type = 4; //目标类型枚举
+}
+
+message ObjectPoseEstimationResponse {
+  ResponseHeader header = 1; // 响应头
+  repeated Box box2d = 2; // 二维边界框
+  repeated Bbox6d bbox6d = 3; // 三维边界框
+}
+
+message StartMultiTrackingRequest {
+  RequestHeader header = 1;  // 请求头
+  repeated string prompts = 2; // 操作提示词
+}
+
+message GetTargetPointRequest {
+  RequestHeader header = 1;
+  TargetPointType type = 2; // 指定到点类型, 粗到点 or 精到点
+}
+
+message GetTargetPointResponse {
+  ResponseHeader header = 1;
+  PerceptionTargetPoint target_point = 2;
+}
+
+message SetTargetPointRequest {
+  RequestHeader header = 1;
+  TargetPointType type = 2; // 指定到点类型, 粗到点 or 精到点
+  SE3Pose pose_map = 3; // 到点位姿, map坐标系
+}
+
+message SetTargetPointResponse {
+  ResponseHeader header = 1;
+}
+
+message StartMultiTrackingResponse {
+  ResponseHeader header = 1; // 响应头
+  repeated Box box2d = 2; // 二维边界框
+  repeated Bbox6d bbox6d = 3; // 三维边界框
+  repeated uint64 obj_ids = 4; //临时框id
+  repeated string labels = 5;
+}
+
+message SetMultiTrackingIdsRequest {
+  RequestHeader header = 1;  // 请求头
+  repeated uint64 obj_ids = 2;
+}
+
+/**
+ * @brief 感知服务
+ */
+service PerceptionService {
+  rpc AddMultiScaleObjects(MultiScaleObjectsRequest) returns (CommonResponse);
+  // 发送感知数据
+  rpc SendEnvObjInfos(EnvObjectArrayInfoReq) returns (CommonResponse);
+}
+
+/**
+ * @brief 2D目标检测服务
+ */
+service Object2dDetectionService {
+  rpc Get2dDection(ObjectDetectionRequest) returns (ObjectDetectionResponse);
+}
+
+/**
+ * @brief 6D位姿检测服务
+ */
+service Object6dPoseEstimationService {
+  rpc Get6dPose(ObjectPoseEstimationRequest) returns (ObjectPoseEstimationResponse);
+
+  // 开启多目标跟踪
+  rpc StartMultiTracking(StartMultiTrackingRequest) returns (StartMultiTrackingResponse);
+
+  // 设置多目标ID
+  rpc SetMultiTrackingIds(SetMultiTrackingIdsRequest) returns (CommonResponse);
+
+}
+
+/**
+ * @brief 视觉目标引导服务
+ */
+service TargetGuidanceService {
+
+  // 获取到点信息
+  rpc GetTargetPoint(GetTargetPointRequest) returns (GetTargetPointResponse);
+
+  // 设置到点信息
+  rpc SetTargetPoint(SetTargetPointRequest) returns (SetTargetPointResponse);
+
+}

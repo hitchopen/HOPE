@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+
+/**
+ * @brief OTA Service 阶段定义
+ */
+
+enum OTAStage {
+    OTAStage_UNKNOWN = 0;
+    OTAStage_Idle = 1;
+    OTAStage_Upgrading = 2;            // 升级中
+    OTAStage_Upgrading_Success = 3;    // 升级成功
+    OTAStage_Rollbacking = 4;          // 回滚中
+    OTAStage_Rollbacking_Success = 5;  // 回滚成功
+    OTAStage_Pause = 6;                // pause
+    OTAStage_Failure = 7;              // failue
+    // 补充详细过程阶段
+    OTAStage_PrepareReady = 8;         // 包准备完成
+    OTAStage_Upgrading_Image = 9;      // 更新镜像中
+    OTAStage_Wait_Active = 10;         // 等待切换分区中
+    OTAStage_Finish_Active = 11;       // 完成切换分区
+    OTAStage_Peripheral_Ready = 12;    // 更新外设完成(mcu, imu等)
+}

@@ -1,0 +1,83 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief 机器人控制模式
+ */
+enum RobotControlMode {
+  RobotControlMode_DISABLE = 0;
+
+  // 自主控制模式
+  RobotControlMode_AUTO = 100;
+
+  // 手动控制模式
+  RobotControlMode_MANUAL = 200;
+}
+
+/**
+ * @brief 设置机器人控制模式请求体
+ */
+message SetRobotControlModeRequest {
+  // 请求头
+  RequestHeader header = 1;
+  RobotControlMode mode = 2;
+}
+
+
+/**
+ * @brief 软急停的请求
+ */
+message EStopRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 是否进行软急停
+  bool active = 2;
+}
+
+/**
+ * @brief 安全停止的请求，由 Guardian 接管对 MC 的控制，
+ *        让机器人站立在原地。
+ */
+message SafeStopRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 是否进行安全停止
+  bool active = 2;
+}
+
+/**
+ * @brief Guardian 模块提供的服务
+ */
+service GuardianService {
+  /**
+   * @brief 请求机器人改变软急停的状态
+   * @param EStopRequest   软急停的请求数据
+   * @param CommonResponse 软急停请求总是会被处理，响应结果将总是成功
+   */
+  rpc SetEStop(EStopRequest) returns(CommonResponse);
+
+  /**
+   * @brief 请求机器人进入安全停止的状态
+   * @param SafeStopRequest 安全停止的请求数据
+   * @param CommonResponse 安全停止的请求结果，仅机器人初始化完毕、处于手动、自动、或安全停止时返回成功。
+   */
+  rpc SetSafeStop(SafeStopRequest) returns(CommonResponse);
+
+  /**
+   * @brief 尝试激活机器人，从 ControlState::Type_INITIALIZED 转换到 ControlState::Type_Manual
+   * @param CommonRequest 空数据
+   * @param CommonResponse 激活结果（成功或失败）
+   */
+  rpc Activate(CommonRequest) returns(CommonResponse);
+
+  /**
+    * @brief 设置机器人控制模式
+   */
+  rpc SetRobotControlMode(SetRobotControlModeRequest) returns (CommonResponse);
+
+}

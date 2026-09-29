@@ -1,0 +1,64 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/camera/camera_intrinsic.proto";
+import public "aimdk/protocol/hal/camera/camera_shot.proto";
+
+
+message CameraCommRequest {
+  RequestHeader header = 1;  // 请求头
+  repeated string camera_name = 2; // 相机名称
+}
+
+message CameraVersion {
+  string camera_name = 1; // 相机名称
+  string version = 2; // 相机固件版本
+} 
+
+
+message CameraFirmwareResponse {
+  ResponseHeader header = 1;  // 响应头
+  repeated CameraVersion camera_version = 2; // 相机固件信息
+}
+
+
+/**
+ * @brief 由 hal camera 中提供的相机内参、拍照服务
+ * 启动和关闭推流服务待添加
+ */
+service HalCameraService {
+  /**
+   * @brief 获取相机内参。
+   * @param CameraCommRequest: 获取相机请求
+   * @return CameraIntrinsicsResponse: 获取相机内参响应
+   */
+  rpc GetCameraIntrinsicsState(CameraCommRequest) returns (CameraIntrinsicsResponse);
+
+
+  /**
+   * @brief 拍照。
+   * @param CameraCommRequest: 获取相机请求
+   * @return CameraShotResponse: 获取相机内参响应
+   */
+  rpc TakeShot(CameraCommRequest) returns (CameraShotResponse);
+
+
+  /**
+   * @brief 相机指标测试
+   * @param CameraCommRequest: 获取相机请求
+   * @return CameraMetricsResponse: 获取相机帧率等指标
+   */
+  rpc GetCameraMetrics(CameraCommRequest) returns (CameraMetricsResponse);
+
+}
+
+
+service HalCameraFirmwareService {
+    /**
+   * @brief 固件查询
+   * @param CameraCommRequest: 获取相机请求
+   * @return CameraFirmwareResponse: 获取相机固件响应
+   */
+  rpc GetCameraFirmwareVersion(CameraCommRequest) returns (CameraFirmwareResponse);
+}

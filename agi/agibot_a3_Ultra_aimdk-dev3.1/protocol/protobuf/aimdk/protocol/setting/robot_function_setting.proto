@@ -1,0 +1,245 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/common.proto";
+
+/**
+ * @brief 对外提供机器人功能设置相关的接口
+ */
+service RobotFunctionSettingService {
+  /**
+   * @brief 授权密码相关
+   */
+  rpc AuthorizationPasswordControl(AuthorizationPasswordControlReq) returns (AuthorizationPasswordControlRsp);
+
+  /**
+   * @brief 配置管理相关
+   */
+  rpc ConfigControl(ConfigControlReq) returns (ConfigControlRsp);
+
+  /**
+   * @brief 系统时区相关
+   */
+  rpc TimedateControl(TimedateControlReq) returns (TimedateControlRsp);
+
+  /**
+   * @brief 国际/地区选择相关
+   */
+  rpc RegionControl(RegionControlReq) returns (RegionControlRsp);
+
+  /**
+   * @brief 读取文件
+   */
+  rpc FileConrtol(FileConrtolReq) returns (FileConrtolRsp);
+
+  /**
+   * @brief 屏幕亮度相关
+   */
+  rpc BrightnessControl(BrightnessControlReq) returns (BrightnessControlRsp);
+}
+
+/**
+ * @brief 授权密码操作类型
+ */
+enum AuthorizationPasswordOperation {
+  //查询
+  AuthorizationPasswordOperation_GetPassword = 0;
+  //修改
+  AuthorizationPasswordOperation_SetPassword = 1;
+  //校验
+  AuthorizationPasswordOperation_CheckPassword = 2;
+}
+
+/**
+ * @brief 授权密码控制请求体
+ */
+message AuthorizationPasswordControlReq {
+  RequestHeader header = 1;
+  //操作类型
+  AuthorizationPasswordOperation Operation = 2;
+  //授权密码
+  string password = 3;
+  // sha256密码
+  string sha256password = 4;
+}
+
+/**
+ * @brief 授权密码控制响应体
+ */
+message AuthorizationPasswordControlRsp {
+  ResponseHeader header = 1;
+  //授权密码
+  string password = 2;
+}
+
+/**
+ * @brief 配置项
+ */
+message RobotConfig {
+  string key = 1; // key即配置落盘名，例如："walkingSpeed"
+  string value = 2; // 请注意：value是string类型
+  string extra = 3;
+}
+
+/**
+ * @brief 配置控制请求体
+ */
+enum ConfigControlOperation {
+  // 查询
+  ConfigControlOperation_GetConfig = 0;
+  // 修改
+  ConfigControlOperation_SetConfig = 1;
+  // 动态修改/增加
+  ConfigControlOperation_SetDynamicConfig = 2;
+  // 删除动态配置
+  ConfigControlOperation_DeleteDynamicConfig = 3;
+  // 动态修改/增加（不受恢复出厂设置影响）
+  ConfigControlOperation_SetFrozenConfig = 4;
+}
+
+/**
+ * @brief 配置控制请求体
+ */
+message ConfigControlReq {
+  RequestHeader header = 1;
+  ConfigControlOperation Operation = 2;
+  repeated RobotConfig configs = 3;
+}
+
+/**
+ * @brief 配置控制响应体
+ */
+message ConfigControlRsp {
+  ResponseHeader header = 1;
+  repeated RobotConfig configs = 2;
+}
+
+/**
+ * @brief 配置列表
+ */
+message RobotSettingConfigList {
+  Timestamp timestamp = 1;
+  uint32 seq = 2;
+  repeated RobotConfig configs = 3;
+}
+
+/**
+ * @brief 系统时区操作类型
+ */
+enum TimedateControlOperation {
+  // 查询
+  TimedateControlOperation_GetTimezone = 0;
+  // 修改
+  TimedateControlOperation_SetTimezone = 1;
+}
+
+/**
+ * @brief 系统时区控制请求体
+ */
+message TimedateControlReq {
+  RequestHeader header = 1;
+  // 操作类型
+  TimedateControlOperation Operation = 2;
+  // 时区
+  string timezone = 3;
+}
+
+/**
+ * @brief 系统时区控制响应体
+ */
+message TimedateControlRsp {
+  ResponseHeader header = 1;
+  string timezone = 2;
+}
+
+/**
+ * @brief 国际/地区选择操作类型
+ */
+enum RegionControlOperation {
+  // 查询
+  RegionControlOperation_GetRegionConfig = 0;
+}
+
+/**
+ * @brief 国际/地区配置
+ */
+message RegionConfig {
+  string region_id = 1;
+  string region_name_des = 2;
+  string region_name_cn = 3;
+  string region_name_en = 4;
+  string default_site = 5;
+  repeated string optional_sites = 6;
+}
+
+/**
+ * @brief 站点配置
+ */
+message SiteConfig {
+  string site_id = 1;
+  string site_name_cn = 2;
+  string site_name_en = 3;
+  string site_file = 4;
+}
+
+/**
+ * @brief 国际/地区选择控制请求体
+ */
+message RegionControlReq {
+  RequestHeader header = 1;
+  RegionControlOperation Operation = 2;
+}
+
+/**
+ * @brief 国际/地区选择控制响应体
+ */
+message RegionControlRsp {
+  ResponseHeader header = 1;
+  repeated RegionConfig region_config_list = 2;
+  repeated SiteConfig site_config_list = 3;
+  string last_region_id = 4;
+  string last_site_id = 5;
+}
+
+/**
+ * @brief 读取文件请求体
+ */
+message FileConrtolReq {
+  RequestHeader header = 1;
+  string filename = 2;
+}
+
+/**
+ * @brief 读取文件响应体
+ */
+message FileConrtolRsp {
+  ResponseHeader header = 1;
+  string filestr = 2;
+}
+
+/**
+ * @brief 屏幕亮度操作类型
+ */
+enum BrightnessControlOperation {
+  BrightnessControlOperation_UNKNOWN = 0;
+  BrightnessControlOperation_GETBRIGHTNESS = 1;
+  BrightnessControlOperation_SETBRIGHTNESS = 2;
+}
+
+/**
+ * @brief 屏幕亮度请求体
+ */
+message BrightnessControlReq {
+  RequestHeader header = 1;
+  BrightnessControlOperation operation = 2;
+  int32 brightness = 3;
+}
+
+/**
+ * @brief 屏幕亮度响应体
+ */
+message BrightnessControlRsp {
+  ResponseHeader header = 1;
+  int32 brightness = 2;
+}

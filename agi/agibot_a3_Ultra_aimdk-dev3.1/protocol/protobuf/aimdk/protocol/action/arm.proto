@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+message ArmParam {
+  int32 pick_obj_seq = 1;
+  string app_name = 2;
+  string task_name = 3;
+}
+
+message ArmResult {
+  int64 error_code = 1;
+}

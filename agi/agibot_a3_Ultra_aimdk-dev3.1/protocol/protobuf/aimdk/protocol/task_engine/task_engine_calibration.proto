@@ -1,0 +1,156 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+import "aimdk/protocol/hal/sensors/rs2_camera.proto";
+import "aimdk/protocol/calibration/calibration_api.proto";
+
+// AimMaster查询标定类型
+message TaskCalibrationTypeRequest {
+  RequestHeader header = 1;
+}
+
+message CalibrationTypeName {
+  // 标定类型
+  string calibration_types = 1;
+  // 标定类型的中文名称
+  string calibration_type_names = 2;
+}
+
+message TaskCalibrationTypeResponse {
+  ResponseHeader header = 1;
+  // 标定类型数组
+  repeated CalibrationTypeName type_names = 2;
+}
+
+// AimMaster发送命令开始执行标定
+message TaskCalibrationStartRequest {
+  RequestHeader header = 1;
+  // 要执行的标定类型
+  string calibration_type = 2;
+}
+
+message TaskCalibrationStartResponse {
+  ResponseHeader header = 1;
+}
+
+message TaskCalibrationSensorParamers {
+  // 传感器参数的中文名称
+  string parameter_name = 1;
+  // 传感器参数的值
+  double value = 2;
+}
+
+message TaskCalibrationSensorData {
+  // 传感器类型
+  CalibrationSensorType sensor_type = 1;
+  // 传感器类型的中文名称
+  string sensor_type_chs = 2;
+  // 标定失败时的描述信息
+  string calibration_desc = 3;
+  // 标定是否成功
+  CalibrationStatus status = 4;
+  // 传感器外参
+  SE3Pose extrinsic = 5;
+  // 传感器参数
+  repeated TaskCalibrationSensorParamers sensor_parameters = 6;
+}
+
+// TE通知AimMaster标定结束
+// topic: /task_engine/calibration_status
+message TaskCalibrationStatus {
+  Header header = 1;
+  // 标定结果的状态
+  CalibrationStatus calibration_status = 2;
+  // 标定结果
+  repeated TaskCalibrationSensorData calibration_sensor_data = 3;
+}
+
+enum ArmCalibParamState{
+  CALIB_PARAM_STATE_UNKNOWN = 0;     // 未知状态（默认值）
+  CALIB_PARAM_STATE_COLLECTING = 1;  // 采集中
+  CALIB_PARAM_STATE_CALIBRATING = 2; // 校验中
+  CALIB_PARAM_STATE_SUCCEEDED = 3;   // 校验成功
+  CALIB_PARAM_STATE_FAILED = 4;      // 校验失败
+  CALIB_PARAM_STATE_EXCEPTION  = 5;  // 校验异常
+}
+
+message ArmCalibParam{
+  string para_name =1;
+  string id = 2;
+  string desc =3;
+  bool status =4 ; // 传感器是否异常
+}
+
+// add robot calibration
+// TE通知AimMaster参数校验消息
+// topic: /task_engine/calib_para_status
+message ArmCalibParamStatus{
+  string type = 1 ; // ""collecting" or "completed"
+  string url  = 2 ; // 视频或者图片路径
+  ArmCalibParamState state = 3 ;  // 校验状态
+  repeated ArmCalibParam sensor_data = 4; // 校验结果
+}
+
+
+message RobotCalibarationPara{
+  string para_name =1;
+  string id = 2;
+  string desc =3;
+  bool status =4 ; // 传感器是否异常
+  bool hit =5;     // 传感器是否勾选中
+}
+
+enum CalibrationState{
+  CALIBRATION_STATE_UNKNOWN = 0;     // 未知状态（默认值）
+  CALIBRATION_STATE_COLLECTING = 1;  // 采集中
+  CALIBRATION_STATE_CALIBRATING = 2; // 标定中
+  CALIBRATION_STATE_FAILED = 3;      // 标定失败
+  CALIBRATION_STATE_SUCCEEDED = 4;   // 标定成功
+  CALIBRATION_STATE_EXCEPTION = 5;   // 标定异常
+}
+
+// TE通知AimMaster机械臂状态消息
+// topic: /task_engine/robot_calib_status
+message RobotCalibarationStatus{
+  CalibrationState state =1;     // 标定状态
+  string url =2;                 // 视频与图像信息
+  string fail_desc =3;            // 失败描述
+  repeated RobotCalibarationPara sensor_data = 4; // 标定后的传感器信息
+}
+
+message UpdateRobotCalibrationRequest{
+  RequestHeader header=1;
+  repeated RobotCalibarationPara sensor_data=2;
+}
+
+message UpdateRobotCalibrationRespond{
+  ResponseHeader header = 1;
+}
+
+
+
+
+
+
+// AimMaster查询标定结果
+//message CalibrationResultRequest {
+//  RequestHeader header = 1;
+//  string calibration_id = 2;
+//}
+
+//message CalibrationResultResponse {
+//  ResponseHeader header = 1;
+//  repeated CalibrationSensorData calibration_parameters = 2;
+//}
+
+// AimMaster 查询标定结果的id列表
+//message CalibrationiIdListRequest {
+//  RequestHeader header = 1;
+//}
+
+//message CalibrationIdListResponse {
+//  ResponseHeader header = 1;
+//  repeated string calibration_ids = 2;
+//}

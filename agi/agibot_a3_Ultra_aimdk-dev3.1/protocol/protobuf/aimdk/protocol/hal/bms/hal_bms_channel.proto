@@ -1,0 +1,19 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/hal/bms/bms.proto";
+
+/**
+ * @brief 由 HAL 上报的机器人的BMS状态。
+ *        topic: /aima/bms
+ */
+message BmsStateChannel {
+  // 消息头
+  Header header = 1;
+
+  // 单个BMS状态数据
+  BmsState data = 2;
+  // 多个bms状态数据
+  repeated BmsState bms_datas = 3;
+}

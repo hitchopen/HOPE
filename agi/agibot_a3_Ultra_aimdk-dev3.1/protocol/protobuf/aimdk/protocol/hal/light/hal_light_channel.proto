@@ -1,0 +1,54 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/hal/light/light.proto";
+
+/**
+ * @brief 由 HAL 上报的机器人的RGB灯光状态。
+ *        topic: /aima/rgb_light
+ */
+message RgbLightStateChannel {
+  // 消息头
+  Header header = 1;
+
+  // RGB灯光状态数据
+  RgbLightState data = 2;
+}
+
+/**
+ * @brief 由 HAL_LED 上报的机器人的头部LED灯光状态。
+ *        topic: /aima/head/rgb_light
+ */
+message HeadLedStateChannel {
+  // 消息头
+  Header header = 1;
+
+  // 头部LED灯光状态数据
+  HeadLedState data = 2;
+}
+
+
+/**
+ * @brief 由 HAL 上报的机器人的补光灯灯光状态。
+ *        topic: /aima/fill_light
+ */
+message FillLightStateChannel {
+  // 消息头
+  Header header = 1;
+
+  // 补光灯灯光状态数据
+  FillLightState data = 2;
+}
+
+/**
+ * @brief 由 HAL 上报的机器人的灯带灯光状态。
+ *        topic: /aima/light_strip
+ */
+message LightStripStateChannel {
+  // 消息头
+  Header header = 1;
+
+  // 灯带灯光状态数据
+  LightStripState data = 2;
+}
