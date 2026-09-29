@@ -42,7 +42,7 @@ This document describes the HOPE whole-body controller (WBC) simulation training
 | 6 | **Robot asset format** | USD (downloaded from GCS bucket) | USD (GCS bucket, HuggingFace, or URDF import) with detailed explanation of USD format and three source variants | HITTER assumes familiarity with USD. Section 4.3 explains what USD is, documents three non-interchangeable G1 USD sources, and notes the Isaac Sim ≥ 5.0 URDF import path. |
 | 7 | **MDP reward structure** | Three components: imitation + goal tracking + regularization (Section IV) | Same three components, documented with explicit observation vector dimensions and activation timing | HITTER describes the reward structure qualitatively. Section 4.6 provides the quantitative formulation. |
 | 8 | **PPO hyperparameters** | MLP [512, 256, 128] published; other PPO params not published | MLP [512, 256, 128] confirmed; remaining params documented with source annotations (**[H]** = HITTER, **[B]** = BeyondMimic code, **[R]** = RSL-RL default) | HITTER publishes the network architecture and confirms PPO + asymmetric actor-critic, but does not publish LR, batch size, γ, λ, or other PPO coefficients. Section 4.8 annotates each parameter's provenance. |
-| 9 | **Motion preprocessing** | Not described (internal pipeline) | Full `csv_to_npz.py` workflow with WandB Registry setup | BeyondMimic's preprocessing pipeline is open-source; HITTER does not describe this step. |
+| 9 | **Motion preprocessing** | Not described (internal pipeline) | CSV-to-NPZ preprocessing with local motion files | BeyondMimic's preprocessing pipeline is open-source; HITTER does not describe this step. |
 | 10 | **Deployment** | Described as "deployed zero-shot to the real robot" | Deferred to a separate deployment document; ONNX export and sim-to-sim verification covered here | HOPE separates training from deployment for clarity. |
 | 11 | **Forehand/backhand selection** | Based on ball Y position relative to robot center | Same logic, documented as a WBC observation (swing type = ±1) | HITTER describes this in a single sentence; Section 4.6 specifies the observation encoding. |
 | 12 | **Racket sensing architecture** | Racket pose is never measured by mocap; inferred via FK from joint encoders | Same: racket tracking by mocap is explicitly prohibited; FK chain `base_link → ... → wrist → T_mount → racket` computes paddle state | HOPE formalizes this as a competition rule. The mocap system tracks only the table origin (PPT), humanoid base_links (P1/P2), and ball. See companion Mocap doc Section 3.1 and this doc Section 2.8. |
@@ -186,7 +186,7 @@ A practical workflow for building a swing library from broadcast footage:
 4. Run GVHMR on each clip → per-stroke .pt files with SMPL-X parameters
 5. Visually verify each extraction in the GVHMR viewer
 6. Retarget to G1/A3 via GMR (Phase 2)
-7. Register in WandB as named motions (e.g., "forehand_loop_fast", "backhand_chop_defense")
+7. Store the processed motion clips locally as named NPZ files.
 ```
 
 This workflow can produce dozens of stroke variations from a single match, enabling multi-skill policy training beyond the two-stroke (forehand + backhand) setup in the HITTER paper.
@@ -467,7 +467,7 @@ The retargeted G1 joint trajectory (a `.pkl` or `.csv` file in Unitree conventio
 
 ### 3.1  Conversion to BeyondMimic Format
 
-BeyondMimic uses Unitree's CSV convention for retargeted motions. The `csv_to_npz.py` script in the `whole_body_tracking` repository performs the conversion and uploads to the WandB registry:
+BeyondMimic uses Unitree's CSV convention for retargeted motions. The `csv_to_npz.py` script in the `whole_body_tracking` repository performs the conversion to a local NPZ file:
 
 ```bash
 cd whole_body_tracking
@@ -486,29 +486,18 @@ This script:
 2. Builds the G1 URDF model in Isaac Sim
 3. Runs forward kinematics to compute all body link poses, velocities, and accelerations
 4. Packages the result as an `.npz` file
-5. Uploads to the WandB Registry under the configured collection
+5. Saves the NPZ locally for training and replay.
 
-### 3.2  WandB Registry Setup
+### 3.2  Local Motion Files
 
-BeyondMimic uses WandB (Weights & Biases) to manage motion data and training runs:
-
-1. Create a WandB account and organization
-2. In the WandB dashboard, navigate to **Registry → Core** and create a new collection named `Motions` with artifact type "All Types"
-3. Set the `WANDB_ENTITY` environment variable to your organization name:
-   ```bash
-   export WANDB_ENTITY=your-org-name
-   ```
+Keep converted NPZ files locally. The supported HOPE workflow accepts `motion_file` and
+`motion_file_2` paths; see [Replacing reference motions](docs/REPLACE_MOTIONS.md).
+No remote motion registry or account is required.
 
 ### 3.3  Verifying the Preprocessed Motion
 
-Replay the processed motion in Isaac Sim to confirm it loaded correctly:
-
-```bash
-python scripts/replay_npz.py \
-    --registry_name=your-org-name-org/wandb-registry-motions/hope_forehand
-```
-
-This renders the G1 model playing back the reference motion. Verify that the swing timing, racket trajectory, and body posture match the original human reference.
+Use the local motion inspection and replay steps in [Replacing reference motions](docs/REPLACE_MOTIONS.md).
+Verify swing timing, racket trajectory and posture before using a clip for training.
 
 ---
 
@@ -702,33 +691,17 @@ Each training episode simulates a single rally:
 
 ### 4.7  Training Command
 
-**Standard BeyondMimic motion tracking (baseline, no racket target):**
+The supported HOPE A3 entry reads local motion files and saves local checkpoints:
 
 ```bash
-python scripts/rsl_rl/train.py \
-    --task=Tracking-Flat-G1-v0 \
-    --registry_name your-org-org/wandb-registry-motions/hope_forehand \
-    --headless \
-    --logger wandb \
-    --log_project_name hope_wbc \
-    --run_name forehand_tracking
+cd hope_training/whole_body_tracking
+source setup_train_env.sh
+hope_isaac_py scripts/train.py task=HOPEPingPong algo=ppo headless=true
 ```
 
-**HOPE ping-pong WBC (with racket target tracking):**
-
-This requires the HOPE-specific environment configuration. The environment extends `Tracking-Flat-G1-v0` with the additional observations and rewards from Section 4.6:
-
-```bash
-python scripts/rsl_rl/train.py \
-    --task=HOPE-PingPong-G1-v0 \
-    --registry_name your-org-org/wandb-registry-motions/hope_forehand \
-    --headless \
-    --logger wandb \
-    --log_project_name hope_wbc \
-    --run_name hope_forehand_racket_tracking
-```
-
-**Typical training time:** 2–4 hours on a single RTX 4090 for motion tracking convergence. The HOPE extensions (racket target tracking + base repositioning) add approximately 50% more training time due to the larger observation space and additional reward terms.
+Use `motion_file=/absolute/forehand.npz` and `motion_file_2=/absolute/backhand.npz`
+to select different references. See [the training quickstart](QUICKSTART_A3_ISAAC.md)
+for environment setup and configuration.
 
 ### 4.8  Training Hyperparameters
 
@@ -781,13 +754,11 @@ This improves value estimation and handles sparse rewards more effectively.
 After training, evaluate the policy in simulation:
 
 ```bash
-python scripts/rsl_rl/play.py \
-    --task=Tracking-Flat-G1-v0 \
-    --num_envs=2 \
-    --wandb_path=your-org/hope_wbc/run_id
+hope_isaac_py scripts/play.py task=HOPEPingPong num_envs=2 \
+    checkpoint=/absolute/path/model.pt
 ```
 
-The WandB run path can be found in the run overview page. It follows the format `{organization}/{project_name}/{8-char-id}`.
+Checkpoints are selected by local filesystem path.
 
 **Evaluation metrics for HOPE:**
 
@@ -973,7 +944,7 @@ The A3's multi-DOF flexible waist is an advantage for retargeting — it provide
 
 ### 4A.5  Motion Preprocessing for mjlab
 
-mjlab uses the same CSV → NPZ preprocessing pipeline as the Isaac Lab path, with the same WandB registry for motion management:
+mjlab uses the same CSV → NPZ preprocessing pipeline as the Isaac Lab path, with local NPZ files for motion management:
 
 ```bash
 # From the mjlab repository (or unitree_rl_mjlab)
@@ -993,7 +964,6 @@ The `--render` flag generates a preview video of the processed motion for verifi
 # Train A3 motion tracking policy
 MUJOCO_GL=egl uv run train \
     Mjlab-Tracking-Flat-Agibot-A3 \
-    --registry-name your-org/motions/hope_a3_forehand \
     --env.scene.num-envs 4096
 
 # Multi-GPU training (if available)
@@ -1002,11 +972,9 @@ MUJOCO_GL=egl uv run train \
     --gpu-ids "[0, 1]" \
     --env.scene.num-envs 4096
 
-# Evaluate during training (in a separate terminal)
-uv run play \
-    Mjlab-Tracking-Flat-Agibot-A3-Play \
-    --wandb-run-path your-org/mjlab/run-id
 ```
+
+For the supported local checkpoint evaluation workflow, use Section 4.9.
 
 The training hyperparameters (PPO, network architecture, learning rate schedule) are identical to the Isaac Lab path described in Section 4.8. The BeyondMimic MDP formulation is physics-engine-agnostic — the same reward functions and observation terms work whether PhysX or MuJoCo computes the dynamics.
 
@@ -1053,10 +1021,8 @@ After training, the policy must be exported for real-time inference on the robot
 BeyondMimic exports trained policies as ONNX models with embedded metadata (joint order, PD gains, action scaling). The `motion_tracking_controller` repository contains the export script:
 
 ```bash
-# From the motion_tracking_controller repository
-python scripts/export_onnx.py \
-    --wandb_path=your-org/hope_wbc/run_id \
-    --output_path=hope_forehand_policy.onnx
+cd hope_training/whole_body_tracking
+hope_isaac_py scripts/export_onnx.py --checkpoint /absolute/path/model.pt
 ```
 
 The exported ONNX file contains:
@@ -1108,7 +1074,7 @@ This runs the ONNX policy in a MuJoCo environment with the same G1 model, confir
 │                                                              │
 │  csv_to_npz.py → Forward kinematics                          │
 │  Computes body poses, velocities, accelerations              │
-│  Uploads to WandB Registry as .npz                           │
+│  Stores local motion clips as .npz                          │
 └──────────────────┬───────────────────────────────────────────┘
                    │
           ┌────────┴────────┐

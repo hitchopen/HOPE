@@ -1,7 +1,7 @@
 # Current Runner workflow
 
 For direct installation, use the committed
-[Console 1.8.8 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe).
+[Console 1.8.9 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.9.foxe).
 Node.js is needed
 only to rebuild the extension, not to install this package.
 

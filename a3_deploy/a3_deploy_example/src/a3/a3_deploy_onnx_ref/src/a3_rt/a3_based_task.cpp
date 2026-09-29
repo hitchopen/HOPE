@@ -141,13 +141,10 @@ void A3BasedTask::ThreadMain() {
 
     if (run_ns > period_ns) {
       overrun_count_.fetch_add(1, std::memory_order_relaxed);
-      // Reset schedule to "now" so one slow tick does not cause a burst of
-      // catch-up ticks (matches motion_control_a3 ResetClock() behaviour).
-      if (clock_gettime(CLOCK_MONOTONIC, &next) != 0) break;
-      next_wake_ns = ToNs(next) + period_ns;
-    } else {
-      next_wake_ns += period_ns;
     }
+    // A late wake is just as capable of expiring the next deadline as slow
+    // work. Never replay elapsed control periods in a catch-up burst.
+    next_wake_ns = NextWakeNs(next_wake_ns, ToNs(t1), period_ns);
   }
 
   OnStop();

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.9
+
+- Restore Xbox face-button mode changes after reconnects.
+- Align Kernel Serve completion with the slow arm return to Stand.
+- Include updated Runner lifecycle and startup validation behavior.
+
 ## 1.8.8
 
 - Publish the installer built from the public Xbox/Kernel Mode console source.

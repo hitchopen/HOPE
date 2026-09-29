@@ -7,7 +7,7 @@ The supported public package uses the model_21800 receive policy at
 This directory supplies the runtime assets required by the shared Runner:
 
 - `serve/motions/`: six published SDK-order playback CSVs, including the default
-  `a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv`.
+  `a3p_op3_serve025_photo_right30_advance20_v12.csv`.
 - `teleop_humanlike/`: `humanlike.yaml`, actor and velocity encoder used by the
   native Xbox locomotion adapter; included by default in public packages.
 - `motions/pp_serve_v1_fixed.csv` and its manifest: retained public legacy clip.

@@ -255,7 +255,7 @@ if __name__ == "__main__":
         "--csv",
         type=Path,
         default=sim.MOTION_ROOT
-        / "a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv",
+        / "a3p_op3_serve025_photo_right30_advance20_v12.csv",
     )
     p.add_argument("--receive-policy-dir", type=Path)
     p.add_argument("--output", type=Path, required=True)

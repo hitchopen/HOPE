@@ -77,6 +77,14 @@ class XboxActionTests(unittest.TestCase):
         self.assertFalse(seq.busy)
         self.assertIn('automatically', seq.status)
 
+    def test_b_acknowledges_completed_kernel_serve_in_stand(self):
+        seq = ActionSequence()
+        self.assertTrue(seq.request('B', state('SERVE', 'SERVER', 'WAIT_READY_TO_SERVE'), 0))
+        self.assertEqual(seq.advance(state('SERVE', 'SERVER', 'WAIT_READY_TO_SERVE'), 0), 'ready_to_serve')
+        seq.acknowledge(True)
+        self.assertIsNone(seq.advance(state('PD_STAND', 'SERVER', 'COMPLETE'), 5))
+        self.assertFalse(seq.busy)
+
     def test_x_receiver_ready_and_y_stand_then_teleop(self):
         seq = ActionSequence()
         seq.request('X', state('MOTION','SERVER','COMPLETE'), 0)

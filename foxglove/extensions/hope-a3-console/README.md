@@ -1,6 +1,6 @@
 # HOPE A3 Console
 
-Download `hopeopen.hope-a3-console-1.8.8.foxe` from this directory and open it in
+Download `hopeopen.hope-a3-console-1.8.9.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to

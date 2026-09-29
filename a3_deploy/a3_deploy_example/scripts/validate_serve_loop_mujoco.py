@@ -16,7 +16,7 @@ import validate_spin001_serve_mujoco as sim
 from runner_sim_profile import apply_hope_contact_profile
 
 
-def run(library, policy_dir, csv, kernel, yaw, ready_seconds, cycles=5):
+def run(library, policy_dir, csv, kernel, yaw, ready_seconds, cycles=5, stand_offset=0.):
     ptr = np.ctypeslib.ndpointer(dtype=np.float64, flags="C_CONTIGUOUS")
     lib = ctypes.CDLL(str(library.resolve()))
     lib.probe_create.argtypes = [ctypes.c_char_p, ptr]
@@ -28,6 +28,7 @@ def run(library, policy_dir, csv, kernel, yaw, ready_seconds, cycles=5):
     lib.probe_control_action.argtypes = [ctypes.c_void_p, ctypes.c_int]
     lib.probe_mode.argtypes = [ctypes.c_void_p]
     lib.probe_serve.argtypes = [ctypes.c_void_p, ptr, ptr, ptr, ptr]
+    lib.probe_serve_with_gyro.argtypes = [ctypes.c_void_p, ptr, ptr, ptr, ptr, ptr]
     lib.probe_begin.argtypes = [ctypes.c_void_p, ptr, ptr, ctypes.c_double]
     lib.probe_apply.argtypes = [ctypes.c_void_p, ctypes.c_double, ptr]
     create = lib.receive_create_kernel if kernel else lib.receive_create
@@ -42,6 +43,8 @@ def run(library, policy_dir, csv, kernel, yaw, ready_seconds, cycles=5):
     receive = create(str(policy_dir / 'exported/policy.onnx').encode(),
                      str(policy_dir / 'params/deploy.yaml').encode())
     assert receive
+    lib.receive_set_stand_offset.argtypes = [ctypes.c_void_p, ctypes.c_double]
+    assert lib.receive_set_stand_offset(receive, stand_offset) == 0
     stand = np.empty((5, 31))
     lib.receive_stand_command(receive, stand)
     probe = lib.probe_create(str(csv.resolve()).encode(), stand)
@@ -80,7 +83,8 @@ def run(library, policy_dir, csv, kernel, yaw, ready_seconds, cycles=5):
         assert tilt < .8 and data.qpos[2] >= .55, f'plant fell at {data.time:.3f}s'
 
     def serve_tick():
-        phase = lib.probe_serve_with_gyro(probe, data.qpos[qa].copy(), data.qvel[va].copy(), data.xquat[pelvis].copy(), data.qvel[3:6].copy(), command)
+        phase = lib.probe_serve_with_gyro(probe, data.qpos[qa].copy(), data.qvel[va].copy(),
+            data.xquat[pelvis].copy(), data.qvel[3:6].copy(), command)
         assert phase >= 0
         step()
         return phase
@@ -99,18 +103,21 @@ def run(library, policy_dir, csv, kernel, yaw, ready_seconds, cycles=5):
                                'q_dq_tau_kp_kd': np.max(abs(command-before), axis=1).tolist()})
             np.testing.assert_array_equal(command, before)
             ticks = 1
+            # Bounded entry transition followed by the five-second arm raise.
             while phase != 5 and ticks < 1200:  # WAIT_READY_TO_SERVE
                 phase = serve_tick()
                 ticks += 1
-            assert phase == 5, f'repeat prepare did not reach loading pose cycle={cycle} phase={phase} qerr={max(abs(data.qpos[qa]-stand[0]))} dq={max(abs(data.qvel[va]))}'
+            assert phase == 5, ('repeat prepare did not reach loading pose: '
+                f'phase={phase} q_error={np.max(abs(data.qpos[qa]-stand[0])):.4f} '
+                f'dq={np.max(abs(data.qvel[va])):.4f} gyro={np.linalg.norm(data.qvel[3:6]):.4f}')
             for _ in range(30):  # operator loads ball while stationary
                 assert serve_tick() == 5
             assert lib.probe_control_action(probe, 9) == 3  # ACCEPTED_PENDING
             play_ticks = 0
-            while phase != 12 and play_ticks < 500:
+            while phase != 12 and play_ticks < 1000:
                 phase = serve_tick()
                 play_ticks += 1
-            assert phase == 12 and 111 < play_ticks < 500
+            assert phase == 12 and 111 < play_ticks < 1000, f"serve failed to settle: phase={phase}, ticks={play_ticks}, q_error={np.max(abs(data.qpos[qa]-stand[0])):.4f}"
             assert lib.probe_mode(probe) == 3  # automatic READY / MOTION
             lib.receive_rearm(receive, 1)
             target = stand.copy()
@@ -134,6 +141,7 @@ def run(library, policy_dir, csv, kernel, yaw, ready_seconds, cycles=5):
         lib.probe_destroy(probe)
         lib.receive_destroy(receive)
     return {'status':'PASS', 'kernel':kernel, 'yaw_deg':float(np.degrees(yaw)),
+            'stand_lateral_offset_rad':stand_offset,
             'ready_seconds':ready_seconds, 'cycles':loop_results, 'boundaries':boundaries,
             'max_tilt_rad':max_tilt, 'min_root_height_m':min_height, 'seconds':float(data.time),
             'scope':'Runner action admission, native Serve/receive, final command feedback; no HAL or physical ball'}
@@ -144,11 +152,13 @@ if __name__ == '__main__':
     p.add_argument('--library', type=Path, required=True)
     p.add_argument('--policy-dir', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--stand-offset', type=float, default=.03,
+                   help='lateral Stand offset matching the selected CSV; v12 uses 0.03 rad')
     p.add_argument('--cycles', type=int, default=5,
                    help='number of complete serve/Ready cycles per case')
     p.add_argument('--ready-seconds', type=float, nargs='+', default=[0, .1, 3],
                    help='Ready dwell times; values below 0.5 interrupt the receive blend')
-    p.add_argument('--csv', type=Path, default=sim.MOTION_ROOT / 'a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv')
+    p.add_argument('--csv', type=Path, default=sim.MOTION_ROOT / 'a3p_op3_serve025_photo_right30_advance20_v12.csv')
     args = p.parse_args()
     if args.cycles < 1 or any(not np.isfinite(t) or t < 0 for t in args.ready_seconds):
         p.error('cycles must be positive and Ready dwell times must be finite and nonnegative')
@@ -158,7 +168,7 @@ if __name__ == '__main__':
         for dwell in args.ready_seconds:
             key = f'{"kernel" if kernel else "normal"}_{degrees}_wait{dwell}'
             try:
-                report[key] = run(args.library, args.policy_dir, args.csv, kernel, np.radians(degrees), dwell, args.cycles)
+                report[key] = run(args.library, args.policy_dir, args.csv, kernel, np.radians(degrees), dwell, args.cycles, args.stand_offset)
             except (AssertionError, RuntimeError) as error:
                 failed = True
                 report[key] = {'status': 'FAIL', 'error': str(error), 'kernel': kernel, 'yaw_deg': degrees, 'ready_seconds': dwell}

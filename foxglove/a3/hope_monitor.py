@@ -72,6 +72,7 @@ except ImportError:  # Endpoint stays available; only the vendor RPC is degraded
     RosRpcWrapper = None
 
 from hope_monitor_core import (
+    read_ipv4_interface_signature,
     NtpProbeResult,
     ServiceProbeResult,
     build_software_estop_request,
@@ -388,6 +389,19 @@ class HopeMonitor(Node):
         self.create_timer(0.2, self._poll_control_state)
         self.create_timer(0.2, self._poll_pelvis)
         self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
+        self._dds_interfaces = read_ipv4_interface_signature()
+        self.create_timer(1.0, self._poll_dds_interfaces)
+
+    def _poll_dds_interfaces(self):
+        current = read_ipv4_interface_signature()
+        if current is None:
+            return
+        if self._dds_interfaces is None:
+            self._dds_interfaces = current
+        elif current != self._dds_interfaces:
+            # systemd recreates DDS on the new addresses. The persistent E-stop
+            # latch remains authoritative across this monitor-only restart.
+            raise RuntimeError("Network interfaces changed; reconnecting monitor DDS")
 
     # ---- CPU load ----------------------------------------------------------
     @staticmethod

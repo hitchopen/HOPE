@@ -689,9 +689,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("SERVE025_TIMELINE_MISSING", helper)
         self.assertIn("GRIPPER_BRIDGE_MISSING", helper)
         self.assertIn(
-            "a3p_op3_serve025_new_build4_deep_1p07_compact50_"
-            "lowdrop35_strikewindow180_full31_balanced_face20deg_"
-            "forwardhit_v4.csv",
+            "a3p_op3_serve025_photo_right30_advance20_v12.csv",
             helper,
         )
         self.assertNotIn("SPIN001_ENTRY_SHA256_MISMATCH", helper)
@@ -904,6 +902,26 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
                 check=False,
             )
             self.assertNotEqual(incomplete.returncode, 0)
+
+    def test_runner_input_gate_handles_split_name_and_rejects_missing_or_no(self):
+        helper_path = FOXGLOVE_DIR / "helpers/hope-lifecycle"
+        injected = "\x1b[0;32m[2026-09-27][Info] AimRT initialization\nreport\n\x1b[0m\n"
+        normal = "".join(f"  {name} ready=yes samples=6\n" for name in
+                         ("waist", "leg", "arm", "neck", "pelvis_imu", "torso_imu"))
+        bridge = "serve025 bridge ready; startup sent no gripper command\n"
+        split = normal.replace("pelvis_imu ready=yes", "pelvis_imu" + injected + " ready=yes")
+        cases = [(split + bridge, 0),
+                 (split.replace("pelvis_imu", "missing_imu") + bridge, 1),
+                 (split.replace(" ready=yes", " ready=no", 1) + bridge, 1),
+                 (split.replace("pelvis_imu" + injected + " ready=yes", "pelvis_imu" + injected + " ready=no") + bridge, 1),
+                 (split, 1)]
+        with tempfile.TemporaryDirectory() as directory:
+            runner_log = Path(directory) / "runner.log"
+            for content, expected in cases:
+                runner_log.write_text(content)
+                result = subprocess.run(["bash", "-c", 'source "$1"; runner_inputs_ready "$2"',
+                                         "bash", str(helper_path), str(runner_log)], check=False)
+                self.assertEqual(result.returncode, expected)
 
     def test_lifecycle_vendor_hal_cgroup_matching_is_exact(self):
         helper = FOXGLOVE_DIR / "helpers/hope-lifecycle"

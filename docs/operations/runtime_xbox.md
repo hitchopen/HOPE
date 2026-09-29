@@ -16,7 +16,7 @@ own body motion.
 | Input | Action |
 | --- | --- |
 | A | Select server and prepare **Start to Serve**; raise the loading hand |
-| B | Play the selected serve, then automatically enter **Ready / MOTION** |
+| B | Play the selected serve; Kernel returns slowly to **Stand**, Normal Play enters **Ready / MOTION** |
 | X | Select receiver and enter **Ready / MOTION** |
 | Y | Request **Stand**, wait for the Runner's standing state, then enter **Teleop** |
 | Hold LT + left stick | Body-frame forward/backward and lateral velocity |
@@ -43,8 +43,8 @@ starts motion. Hardware recovery remains an operator action.
 | A/B/X/Y and transition controller | Shared | Shared |
 | Interpretation | Full receive workflow with valid field geometry | Local actor/transition testing; local odometry is not a venue calibration |
 
-Kernel Mode permits X and automatic Serve-to-Ready without an OptiTrack
-calibration. It runs the selected receive actor. It must not publish a fabricated
+Kernel Mode permits X to enter the selected receive actor without an OptiTrack
+calibration. Serve completion instead lowers the arms slowly and returns to Stand. It must not publish a fabricated
 world calibration receipt or make Normal Play consume its local pose as mocap.
 Both pelvis and torso IMU acquisition remain part of the hardware state contract.
 
@@ -54,34 +54,42 @@ ball trajectory when OptiTrack is absent.
 
 ## Serve loop and transitions
 
-The short-Ready re-entry regression is fixed in the shared preparation controller.
-After returning the command to official stand, it waits for tilt ≤ 0.03 rad and
-body angular speed ≤ 0.05 rad/s continuously for 0.30 s before raising the loading
-arm. Joint position/speed checks still apply. This prevents a nearly nominal
-joint pose from being mistaken for settled whole-body support. A disturbance
-restarts the quiet interval. The checks use the IMU in both Normal Play and Kernel
-Mode and require no extra OptiTrack input. See the
-[validation report](runtime_public_validation.md) for the 200-cycle simulation.
+Stand/Teleop-to-Serve transitions carry position, velocity, feed-forward torque and
+PD gains together. The last delivered command seeds the transition. Loading-arm
+motion uses bounded pitch support; entry does not add an operator settlement gate.
+In Kernel mode, the selected CSV's validated final stance sets the matching Stand width.
 
-The sequence is **Start to Serve → Serve → Ready → Start to Serve**. Repeated A
-requests work after Ready; Y coordinates Stand-to-Teleop through fresh Runner
-state rather than a UI-only selection. Pose, velocity, feed-forward torque and
-PD gains transition together. The outgoing command actually delivered to the
-robot seeds the next transition and the receive policy's action history.
+In Kernel mode the sequence is **Start to Serve → Serve → slow arm lowering → Stand**.
+Normal Play retains the receive-policy handoff. Repeated A requests prepare the next
+serve; Y coordinates Stand-to-Teleop through fresh Runner state. Reconnecting a
+controller reopens the device and restores face-button edges.
 
 The default serve is:
 
 ```text
-a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_photo_right30_advance20_v12.csv
 ```
 
-This is a named SDK 31-joint CSV with 468 frames at 100 Hz. The runtime's normal
-post-contact handoff starts at frame 110. A one-second command transition returns
-to the official standing target, followed by measured settling and a 0.5-second
-receive blend. The physical settling condition can lengthen this interval;
-one second is not a promised total Serve-to-Ready latency. The same handoff runs
-in both modes. `--serve-handoff-frame` and `--serve-return-sec` are explicit
-Runner options. `--serve-only` retains complete CSV playback for isolated tests.
+This is a named SDK 31-joint CSV with 468 frames at 100 Hz. The post-contact handoff
+starts at frame 110. Kernel mode uses a 2.5-second full-command return, then measured
+settling into Stand. Normal Play uses a one-second return and the existing receive
+blend. `--serve-handoff-frame` and `--serve-return-sec` remain explicit options.
+`--serve-only` retains complete CSV playback for isolated tests.
+
+**v12 is the attended Kernel-mode serve clip.** Select Kernel before starting it.
+Normal Play still requires a CSV whose final pose matches its nominal Stand; the
+wide v12 clip fails that preflight. The v12 wide-stance Normal Play/receive loop is
+not qualified: a separate simulation stalled during settling, and a trial with a
+longer return fell. Those trials are not included in the passing Kernel results.
+
+The v12 clip keeps the wider stance and rightward paddle placement, and advances
+right-arm interception by 20 ms. Its early-release simulation cases improved;
+80 ms delayed releases still fail. This is not a calibrated hardware hit-rate claim.
+The packaged Rockchip profile sends the release command at frame 47; physical jaw
+opening and ball detachment are not confirmed by the software publish receipt.
+
+The [gripper URDF](../../a3_deploy/a3_deploy_example/assets/a3_runtime/robots/A3PingPong-with-gripper/README.md)
+includes relative mesh paths and documents missing collision-mesh fallbacks.
 
 The field panel can upload a replacement CSV. The MDU validates its complete
 schema with the actual Runner before storing it by SHA-256. Load the desired
@@ -194,7 +202,7 @@ A/B/X/Y are read locally, so a Foxglove browser gamepad preview is not required.
 
 Install the ready-made console on the Laptop:
 
-1. Download [hopeopen.hope-a3-console-1.8.8.foxe](../../foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.8.foxe)
+1. Download [hopeopen.hope-a3-console-1.8.9.foxe](../../foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.9.foxe)
    from this checkout. On GitHub, use the file's download button.
 2. Open the `.foxe` in Foxglove Desktop's Extensions screen to install it.
 3. Import `foxglove/layouts/model21800_console.json` and connect to the HDU control

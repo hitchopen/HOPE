@@ -84,6 +84,9 @@ class A3PolicyDriver : public a3_rt::A3BasedTask {
 
   std::uint64_t PolicyTickCount() const noexcept { return policy_tick_count_.load(std::memory_order_relaxed); }
   std::uint64_t SafeHaltCount()   const noexcept { return safe_halt_count_.load(std::memory_order_relaxed); }
+  std::uint64_t IncompleteFrameCount() const noexcept { return incomplete_frame_count_.load(std::memory_order_relaxed); }
+  std::int64_t LastFrameAgeNs() const noexcept { return last_frame_age_ns_.load(std::memory_order_relaxed); }
+  std::int64_t LastFrameSkewNs() const noexcept { return last_frame_skew_ns_.load(std::memory_order_relaxed); }
   bool CommandFaultLatched() const noexcept {
     return command_fault_latched_.load(std::memory_order_acquire);
   }
@@ -133,6 +136,8 @@ class A3PolicyDriver : public a3_rt::A3BasedTask {
 
   std::atomic<std::uint64_t> policy_tick_count_{0};
   std::atomic<std::uint64_t> safe_halt_count_{0};
+  std::atomic<std::uint64_t> incomplete_frame_count_{0};
+  std::atomic<std::int64_t> last_frame_age_ns_{0}, last_frame_skew_ns_{0};
   // A thrown policy/inference exception or non-finite command is not treated as
   // a one-tick dropout. It latches safe halt until this driver is destroyed and
   // the runner is deliberately restarted. CommandFn false remains the existing

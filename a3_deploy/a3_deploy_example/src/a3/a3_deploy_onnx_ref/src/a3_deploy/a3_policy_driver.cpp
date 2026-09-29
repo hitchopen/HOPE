@@ -249,6 +249,9 @@ void A3PolicyDriver::RunOnceWithState_(
 
   const bool complete = s->sync_complete;
   const bool aligned = complete && s->sync_aligned;
+  last_frame_age_ns_.store(now - s->timestamp_ns, std::memory_order_relaxed);
+  last_frame_skew_ns_.store(s->sync_skew_ns, std::memory_order_relaxed);
+  if (!complete) incomplete_frame_count_.fetch_add(1, std::memory_order_relaxed);
   const auto verdict = watchdog_.Check(now, s->timestamp_ns, aligned);
 
   if (command_fault_latched_.load(std::memory_order_acquire)) {

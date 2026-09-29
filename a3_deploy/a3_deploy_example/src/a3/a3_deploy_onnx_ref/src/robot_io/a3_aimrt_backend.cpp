@@ -140,6 +140,10 @@ bool A3AimrtBackend::ParseConfig_(const std::string& config) {
         }
       } else if (key == "sync_hz") {
         sync_cfg_.sync_hz = std::stod(val);
+      } else if (key == "sync_cpu") {
+        sync_cfg_.sync_cpu = std::stoi(val);
+        if (sync_cfg_.sync_cpu < -1 || sync_cfg_.sync_cpu >= 1024)
+          throw std::runtime_error("sync_cpu must be -1 or a valid CPU index");
       } else if (key == "align_delay_ms") {
         sync_cfg_.align_delay_ns =
             static_cast<std::int64_t>(std::stod(val) * 1'000'000.0);

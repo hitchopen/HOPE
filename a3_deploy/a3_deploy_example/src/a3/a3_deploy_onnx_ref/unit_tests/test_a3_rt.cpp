@@ -66,6 +66,26 @@ class FirstWakeTask : public a3_rt::A3BasedTask {
 
 }  // namespace
 
+TEST(A3BasedTaskTest, LateWakeDoesNotReplayExpiredPeriods) {
+  constexpr std::int64_t ms = 1'000'000;
+  EXPECT_EQ(a3_rt::NextWakeNs(100*ms, 100*ms+1000, 2*ms), 102*ms);
+  EXPECT_EQ(a3_rt::NextWakeNs(100*ms, 165*ms, 2*ms), 167*ms);
+  EXPECT_EQ(a3_rt::NextWakeNs(100*ms, 102*ms, 2*ms), 104*ms);
+  EXPECT_EQ(a3_rt::NextWakeNs(100*ms, 108*ms, 2*ms), 110*ms);
+}
+
+TEST(A3BasedTaskTest, ExpiredFirstWakeCannotCauseControlBurst) {
+  a3_rt::A3BasedTask::Options opt;
+  opt.period_ns = 2'000'000;
+  opt.first_wake_monotonic_ns = MonotonicNowNs() - 100'000'000;
+  CountingTask task(opt, std::chrono::microseconds(0));
+  ASSERT_TRUE(task.Start());
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  task.Stop();
+  EXPECT_GT(task.run_calls.load(), 0u);
+  EXPECT_LE(task.run_calls.load(), 15u);  // Old loop dispatches >50 expired ticks.
+}
+
 // -----------------------------------------------------------------------------
 // Frequency accuracy: 100 Hz for ~1 second, expect ~100 ticks, no overrun.
 // -----------------------------------------------------------------------------

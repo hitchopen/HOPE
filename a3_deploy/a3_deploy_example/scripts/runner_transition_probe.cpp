@@ -1,6 +1,7 @@
 // Local simulation ABI. Links the production controller; has no HAL or transport.
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
+#include "a3_pingpong/pp_teleop_entry.hpp"
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_hybrid_lower_policy.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
@@ -22,8 +23,10 @@ struct ReceiveProbe {
 struct Probe {
     std::unique_ptr<a3_pingpong::PpServeController> serve;
     a3_pingpong::PpCommandTransition transition;
+    a3_pingpong::PpTeleopEntry teleop_entry;
     a3_pingpong::PpRunnerControl control{a3_pingpong::RunnerMode::kPdStand, 1, "simulation"};
     bool managed = false;
+    bool kernel_completion = false;
 };
 
 RobotCommand Read(const double* p) {
@@ -84,6 +87,10 @@ int probe_return_seconds(void* p, double seconds) {
   try { static_cast<Probe*>(p)->serve->SetPolicyReturnSeconds(seconds); return 0; }
   catch (...) { return -1; }
 }
+int probe_release_lead_frames(void* p, unsigned frames) {
+  try { static_cast<Probe*>(p)->serve->SetReleaseLeadFrames(frames); return 0; }
+  catch (...) { return -1; }
+}
 int receive_observation_size(void* p) {
   return static_cast<ReceiveProbe*>(p)->policy->last_obs_unsafe().size();
 }
@@ -99,6 +106,11 @@ void receive_stand_command(void* p, double* out) {
   command.kp = policy.official_stand_kp();
   command.kd = policy.official_stand_kd();
   Write(command, out);
+}
+
+int receive_set_stand_offset(void* p, double radians) {
+  try { static_cast<ReceiveProbe*>(p)->policy->SetStandLateralOffset(radians); return 0; }
+  catch (...) { return -1; }
 }
 
 void receive_rearm(void* p, int from_serve) {
@@ -178,6 +190,20 @@ int humanlike_reset(void* p, const double* state, const double* entry) {
   } catch (...) { return -1; }
 }
 
+int probe_teleop_begin(void* p, const double* source, const double* stand) {
+  try { static_cast<Probe*>(p)->teleop_entry.Begin(Read(source), Read(stand)); return 0; }
+  catch (...) { return -1; }
+}
+int probe_teleop_step(void* p, void* actor, double elapsed, const double* state,
+                      const double* velocity, double* out) {
+  try {
+    auto& entry = static_cast<Probe*>(p)->teleop_entry;
+    Write(entry.Step(elapsed, State(state), *static_cast<a3_pingpong::PpHumanLikePolicy*>(actor),
+                     Eigen::Map<const Eigen::Vector3d>(velocity)), out);
+    return entry.active() ? 1 : 0;
+  } catch (...) { return -1; }
+}
+
 int humanlike_step(void* p, const double* state, const double* velocity, double* out) {
   try {
     auto& policy = *static_cast<a3_pingpong::PpHumanLikePolicy*>(p);
@@ -219,6 +245,9 @@ int probe_control_action(void* v, int action) {
   if (d[0].request_ready_to_serve) p.serve->TriggerReadyToServe();
   if (d[0].request_serve_abort) p.serve->RequestAbort();
   return static_cast<int>(d[0].result);
+}
+void probe_kernel_completion(void* v, int enabled) {
+  static_cast<Probe*>(v)->kernel_completion = enabled != 0;
 }
 int probe_mode(void* v) { return static_cast<int>(static_cast<Probe*>(v)->control.mode()); }
 void probe_runner_state(void* v, double* out) {
@@ -266,7 +295,7 @@ int probe_serve_with_gyro(void* v, const double* q, const double* dq, const doub
     if (!serve.ComputeCommand(0, s, c)) return -1;
     Write(c, out);
     if (p.managed && serve.state() == a3_pingpong::ServeControllerState::kComplete)
-      p.control.CompleteServe();
+      p.control.CompleteServe(p.kernel_completion);
     return static_cast<int>(serve.state());
   } catch (...) { return -1; }
 }

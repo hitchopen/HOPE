@@ -679,7 +679,7 @@ preflight_mdu() {
     die PREFLIGHT RUNTIME_CONFIG_MISSING
   [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
     die PREFLIGHT AIMRT_CONFIG_MISSING
-  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv" ]] || \
+  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_photo_right30_advance20_v12.csv" ]] || \
     die PREFLIGHT SERVE025_TIMELINE_MISSING
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
@@ -1030,21 +1030,23 @@ run_runner() {
 }
 
 runner_inputs_ready() {
-  local runner_log="$1" input
-  local -a required_inputs=(
-    waist leg arm neck pelvis_imu torso_imu
-  )
-  # Runner's `ready=yes` is SubscriberBase::IsReady(): it can only become
-  # true after a converted sample has reached that input's ring buffer.  Do
-  # not require the separately streamed `samples=N` fragment on the same
-  # physical line. AimRT writes to stderr concurrently and can split that
-  # fragment with an initialization log, even though all six inputs are live.
-  for input in "${required_inputs[@]}"; do
-    grep -Eq "(^|[[:space:]])${input}[[:space:]]+ready=yes([^[:alpha:]_]|$)" \
-      "$runner_log" || return 1
-  done
-  grep -Fq -- \
-    "serve025 bridge ready; startup sent no gripper command" "$runner_log"
+  # AimRT can insert a complete colored (even multiline) log record between
+  # the separately streamed channel name and ready flag. Remove those records,
+  # then require all six explicit ready=yes pairs; never infer readiness from
+  # a running process or from the other five channels.
+  python3 - "$1" <<'PY_READY'
+from pathlib import Path
+import re
+import sys
+
+text = Path(sys.argv[1]).read_text(errors="replace")
+clean = re.sub(r"\x1b\[[0-9;]*m.*?\x1b\[0m", "", text, flags=re.S)
+required = ("waist", "leg", "arm", "neck", "pelvis_imu", "torso_imu")
+ready = all(re.search(r"(?:^|\s)" + name + r"\s+ready=yes(?![A-Za-z_])", clean)
+            for name in required)
+bridge = "serve025 bridge ready; startup sent no gripper command" in text
+sys.exit(0 if ready and bridge else 1)
+PY_READY
 }
 
 start_runner() {

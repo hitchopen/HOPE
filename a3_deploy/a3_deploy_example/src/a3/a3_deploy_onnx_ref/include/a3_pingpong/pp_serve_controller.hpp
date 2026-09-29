@@ -17,6 +17,27 @@
 
 namespace a3_pingpong {
 
+// A selected CSV may request a symmetric wider Stand, but cannot redefine
+// the model's other joints. Check every SDK joint before changing the stance.
+inline double ServeStandLateralOffset(const Eigen::VectorXd& nominal,
+                                     const Eigen::VectorXd& complete) {
+  if (nominal.size() != 31 || complete.size() != 31 ||
+      !nominal.allFinite() || !complete.allFinite())
+    throw std::invalid_argument("serve Stand requires finite SDK31 poses");
+  const double raw = complete[20] - nominal[20];
+  if (raw < -1e-6 || raw > .06 + 1e-6)
+    throw std::invalid_argument("serve Stand lateral offset outside [0, 0.06] rad");
+  const double offset = std::clamp(raw, 0.0, .06);
+  Eigen::VectorXd expected = nominal;
+  expected[20] += offset;
+  expected[24] -= offset;
+  expected[26] -= offset;
+  expected[30] += offset;
+  if ((complete - expected).cwiseAbs().maxCoeff() > 1e-6)
+    throw std::invalid_argument("CSV COMPLETE is not the model Stand or its symmetric lateral stance");
+  return offset;
+}
+
 // The single Runner/publisher is 100 Hz while serving so every original
 // selected SDK31 CSV FRAME maps one-to-one to one command tick. Outside SERVE,
 // the learned receive policy contract remains 50 Hz and its command is held for
@@ -120,6 +141,9 @@ class PpServeController final {
 
   void SetPolicyHandoffFrame(std::size_t frame);
   void SetPolicyReturnSeconds(double seconds);
+  // Optional hand delay compensation only; all body CSV frames stay exact.
+  void SetReleaseLeadFrames(std::size_t frames);
+  std::size_t release_frame() const noexcept { return kServe025ReleaseFrame - release_lead_frames_; }
   std::size_t handoff_frame() const noexcept { return policy_handoff_frame_; }
   void Start();
   void ConfirmBallLoaded();
@@ -171,6 +195,9 @@ class PpServeController final {
   void SetTransitionCommand_(std::size_t tick,
                              const robot_io::RobotState& state,
                              robot_io::RobotCommand& command);
+  void ApplyPitchSupport_(const robot_io::RobotState& state,
+                          robot_io::RobotCommand& command,
+                          double envelope, double envelope_velocity);
   void SetTimelineCommand_(std::size_t frame,
                            const robot_io::RobotState& state,
                            robot_io::RobotCommand& command);
@@ -188,6 +215,7 @@ class PpServeController final {
 
   std::size_t policy_handoff_frame_ = kServe025CompleteFrame;
   double policy_return_seconds_ = 1.0;
+  std::size_t release_lead_frames_ = 0;
   PpServe025FullbodyTimeline timeline_;
   Eigen::VectorXd official_stand_q_sdk_;
   Eigen::VectorXd official_stand_kp_sdk_;
@@ -196,6 +224,10 @@ class PpServeController final {
   robot_io::RobotCommand last_command_;
   robot_io::RobotCommand entry_command_;
   PpCommandTransition entry_transition_;
+  double prepare_balance_rad_{0.0};
+  double prepare_balance_velocity_{0.0};
+  double swing_balance_rad_{0.0};
+  double swing_balance_velocity_{0.0};
   PpCommandTransition policy_return_transition_;
   std::size_t policy_return_tick_{0};
   int policy_return_quiet_ticks_{0};
