@@ -1,0 +1,34 @@
+syntax = "proto3";
+package aimdk.protocol;
+import public "aimdk/protocol/common/rpc.proto";
+
+// 关节信息
+message TempState {
+  /**
+   * 关节名称
+   */
+  string name = 1;
+
+  /**
+   * 关节消息的序号
+   */
+  uint32 sequence = 2;
+
+  /**
+   * 关节电机温度，单位：摄氏度
+   */
+  int32 temp = 3;
+
+  /**
+   * 关节线圈温度，单位：摄氏度
+   */
+  int32 coil_temp = 4;
+}
+
+message TempStateRsp {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // 电机温度状态数据
+  repeated TempState data = 2;
+}

@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+// define your messages here
+message AsrReq {
+  string base64_audio_data = 1;
+}
+
+message AsrRsp {
+  int64 status = 1;
+  string msg = 2;
+  string speak_sentence = 3;
+}
+
+service AsrService {
+  rpc Asr(AsrReq) returns (AsrRsp);
+}

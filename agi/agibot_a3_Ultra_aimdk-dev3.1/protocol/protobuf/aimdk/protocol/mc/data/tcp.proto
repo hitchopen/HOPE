@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+
+
+/**
+ * @brief 获得Tcp位置响应
+ */
+message GetTcpPositionResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // TCP位姿
+  repeated SE3Pose tcp_position = 2;
+}

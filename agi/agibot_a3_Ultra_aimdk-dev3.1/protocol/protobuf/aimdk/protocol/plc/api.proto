@@ -1,0 +1,26 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/plc/plc_service.proto";
+
+service PlcService {
+  /**
+   * @brief 读取PLC数据
+   */
+  rpc PlcRead(PlcReadReq) returns (PlcReadRsp);
+
+  /**
+   * @brief 读取PLC 数组数据
+   */
+  rpc PlcReadArray(PlcReadArrayReq) returns (PlcReadArrayRsp);
+
+  /**
+   * @brief 写入PLC数据
+   */
+  rpc PlcWrite(PlcWriteReq) returns (PlcWriteRsp);
+
+  /**
+   * @brief 写入PLC 数组数据
+   */
+  rpc PlcWriteArray(PlcWriteArrayReq) returns (PlcWriteArrayRsp);
+}

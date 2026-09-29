@@ -1,0 +1,30 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+// 夹爪手部命令
+message AgiClawHandCommand {
+  // 夹爪配置指令
+  uint32 cmd = 1;
+  // 夹爪最大释放范围 0 ~ 作业宽度（由设计而定）,单位：%
+  uint32 pos = 2;
+  // 0%-100%夹爪最大夹持力
+  uint32 force = 3;
+  // 0：idle  1：夹持   2：释放
+  uint32 clamp_method = 4;
+  // reserve
+  uint32 finger_pos = 5;
+  // 0%-100%夹爪速度
+  uint32 vel = 6;
+}
+
+// 夹爪手部状态
+message AgiClawHandState {
+  // 0x11：正在锁定；0x12：锁定成功：0x13：锁定失败；0x14：工件脱落；0x21：正在释放；0x22：释放成功；0x23：释放失败（夹爪堵塞）；
+  uint32 state = 1;
+  // 夹爪作业宽度（由设计而定）,单位：%
+  uint32 pos = 2;
+  // 温度，单位：℃
+  uint32 temperature = 3;
+  // reserve
+  uint32 finger_pos = 4;
+}

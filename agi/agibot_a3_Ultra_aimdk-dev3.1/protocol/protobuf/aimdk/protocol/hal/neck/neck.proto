@@ -1,0 +1,44 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/joint.proto";
+import public "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief 脖子关节状态
+ */
+message NeckState {
+  JointState shake = 1;
+  JointState nod = 2;
+}
+
+/**
+ * @brief 脖子关节控制指令
+ */
+message NeckCommand {
+  JointCommand shake = 1;
+  JointCommand nod = 2;
+}
+
+/**
+ * @brief 获取机器人脖子状态响应
+ */
+message NeckStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 脖子状态
+  NeckState data = 2;
+}
+
+/**
+ * @brief 设置机器人脖子控制请求
+ */
+message NeckCommandRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 脖子控制
+  NeckCommand data = 2;
+}

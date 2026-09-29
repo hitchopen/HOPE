@@ -1,0 +1,14 @@
+msg/AudioData.idl
+msg/AudioData.msg
+msg/AudioInfo.idl
+msg/AudioInfo.msg
+msg/AudioPlayback.idl
+msg/AudioPlayback.msg
+msg/FocusRequester.idl
+msg/FocusRequester.msg
+msg/FocusResponse.idl
+msg/FocusResponse.msg
+srv/AbandonAudioFocus.idl
+srv/AbandonAudioFocus.srv
+srv/RequestAudioFocus.idl
+srv/RequestAudioFocus.srv

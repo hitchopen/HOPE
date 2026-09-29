@@ -14,7 +14,17 @@ EnvironmentFile=-/etc/hope-foxglove/network.env
 Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
 Environment=PYTHONPATH=/usr/local/lib/hope-foxglove
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+# ':' disables systemd's own $VAR expansion for this command. Bash must own
+# the array/default expansions below so the semicolon-separated peers are not
+# erased before the wrapper receives them.
+ExecStart=:/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+  IFS=";" read -r -a hope_static_peers <<< "${ROS_STATIC_PEERS:-}" && \
+  hope_peer_args=() && \
+  for hope_peer in "${hope_static_peers[@]}"; do \
+    if [[ -n "$hope_peer" ]]; then hope_peer_args+=(--peer "$hope_peer"); fi; \
+  done && \
+  exec /home/agi/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh \
+    --domain-id "$ROS_DOMAIN_ID" "${hope_peer_args[@]}" -- \
   python3 /usr/local/bin/hope_command_proxy.py \
     --ros-args \
     -p session_id_path:=/tmp/hope_model21800_session_id \
@@ -22,9 +32,11 @@ ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
     -p planner_process_fragment:=hope_planner_cpp_node \
     -p x_hit_timeout_s:=5.0 \
     -p runner_action_timeout_s:=2.0 \
-    -p calibration_service:=/a3/calibration/recompute_p1 \
-    -p calibration_timeout_s:=25.0 \
-    -p base_pose_timeout_s:=5.0 \
+    -p calibration_service_v2:=/a3/calibration/recompute_ucb_robot_v2 \
+    -p calibration_service_v3:=/a3/calibration/recompute_ucb_robot_v3 \
+    -p calibration_service_discovery_timeout_s:=20.0 \
+    -p calibration_timeout_s:=45.0 \
+    -p base_pose_timeout_s:=10.0 \
     -p runner_state_stale_after_s:=1.5'
 Restart=on-failure
 RestartSec=5

@@ -1,0 +1,65 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+
+enum AccessControlRequestType {
+  BEGIN_LOGIN = 0;         // 初次登陆    --rsp--> HOLD / REQUEST_WAIT
+  CONFIRM_TRANSFER = 1;    // 确认权限转移 --rsp--> LOGOUT
+  REFUSE_TO_TRANSFER = 2;  // 否认权限转移 --rsp--> HOLD
+  ABANDON_APPLY = 3;       // 放弃权限申请 --rsp--> LOGOUT
+  LOGOUT_APPLY = 4;        // 登出        --rsp--> LOGOUT
+}
+
+
+/**
+ *  aima-master 登陆状态:
+ *
+ *  HOLD -> WAIT_JUDEG -> LOGOUT
+ *  REQUEST_WAIT -> HOLD
+ *  HOLD -> WAIT_JUDEG -> HOLD
+ *  REQUEST_WAIT -> LOGOUT
+ */
+enum LoginStatus {
+  HOLD         = 0;  // 持有权限
+  REQUEST_WAIT = 1;  // 请求等待中
+  WAIT_JUDGE   = 2;  // 等待权限转移判断
+  LOGOUT       = 3;  // 登出
+}
+
+
+message AccessControlRequest {
+  RequestHeader header = 1;  // 请求头
+  string master_id = 2;      // aima-master 标识ID
+  AccessControlRequestType req_type = 3;  // 登陆请求类型
+  string master_name = 4;    // aima-master 标签
+}
+
+
+message AccessControlResponse {
+  ResponseHeader header = 1;  // 响应头
+  string master_id = 2;       // aima-master 标识ID
+  LoginStatus login_status = 3;  // 登陆状态
+  string master_name = 4;     // aima-master 标签
+}
+
+
+message LoginStatusData {
+  string master_id = 1;  // aima-master 标识ID
+  LoginStatus login_status = 2;  // 登陆状态
+  // 当前待申请权限的requester序号, 从1开始生成, 按申请时间从小到大排序, 供aima-master判断requester的列表顺序
+  uint32 requester_seq = 3;
+  string master_name = 4;  // aima-master 标签
+}
+
+
+message GetPackageInfoResponse {
+  ResponseHeader header = 1;   // 响应头
+  string package_version = 2;  // 版本字符串
+}
+
+message GetRobotInfoResponse {
+  ResponseHeader header = 1;   // 响应头
+  string sn = 2;               // 机器人sn字符串
+  string package_version = 3;  // 版本字符串
+}

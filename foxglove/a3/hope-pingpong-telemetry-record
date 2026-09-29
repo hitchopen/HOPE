@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+source /opt/ros/jazzy/setup.bash
+set -u
+
+export ROS_DOMAIN_ID=232
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export FASTRTPS_DEFAULT_PROFILES_FILE="${FASTRTPS_DEFAULT_PROFILES_FILE:-/etc/hope-foxglove/fastdds_bridge_profile.xml}"
+
+record_root=/agibot/data/bag/hope_pingpong_telemetry
+record_stamp=$(date +%Y%m%d_%H%M%S)
+record_output="${HOPE_RECORD_OUTPUT:-${record_root}/hope_pingpong_telemetry_${record_stamp}}"
+
+mkdir -p "$record_root"
+printf 'hope-pingpong-telemetry: output=%s\n' "$record_output"
+
+exec /opt/ros/jazzy/bin/ros2 bag record \
+  --storage mcap \
+  --output "$record_output" \
+  --storage-preset-profile none \
+  --polling-interval 1000 \
+  --max-cache-size 1048576 \
+  --disable-keyboard-controls \
+  --node-name hope_pingpong_telemetry_recorder \
+  --topics \
+  /hope/field/status \
+  /ball/flight_packet \
+  /a3/base_pose_flat \
+  /racket/command_flat \
+  /poses \
+  /hope/lifecycle/summary \
+  /hope/lifecycle/session_id \
+  /hope/lifecycle/time_calibration/state \
+  /hope/lifecycle/time_calibration/step \
+  /hope/lifecycle/time_calibration/result \
+  /hope/lifecycle/time_calibration/operation_id \
+  /hope/lifecycle/time_calibration/busy \
+  /hope/ntp/text \
+  /hope/ntp/gate_pass \
+  /hope/clock/message_text \
+  /hope/runner/state_flat \
+  /hope/runner/state_hdu_flat \
+  /hope/runner/summary \
+  /hope/runner/control_request_flat \
+  /hope/runner/control_request_hdu_flat \
+  /hope/planner/attempt \
+  /hope/command/summary \
+  /hope/x_hit/status \
+  /hope/base/summary \
+  /hope/calibration/status \
+  /hope/safety/estop_text \
+  /hope/safety/estop_latched \
+  /hope/session/text \
+  /hope/opponent/summary

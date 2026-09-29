@@ -1,0 +1,42 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief 规划组
+ */
+enum McPlanningGroup {
+  McPlanningGroup_UNKNOWN = 0;                // 未知
+  McPlanningGroup_LEFT_ARM = 1;               // 左臂
+  McPlanningGroup_LEFT_ARM_WAIST = 2;         // 左臂腰部
+  McPlanningGroup_LEFT_ARM_WAIST_WHEEL = 3;   // 左臂腰部轮子
+  McPlanningGroup_RIGHT_ARM = 4;              // 右臂
+  McPlanningGroup_RIGHT_ARM_WAIST = 5;        // 右臂腰部
+  McPlanningGroup_RIGHT_ARM_WAIST_WHEEL = 6;  // 右臂腰部轮子
+  McPlanningGroup_DUAL_ARM = 7;               // 双臂
+  McPlanningGroup_DUAL_ARM_WAIST = 8;         // 双臂腰部
+  McPlanningGroup_DUAL_ARM_WAIST_WHEEL = 9;   // 双臂腰部轮子
+  McPlanningGroup_DUAL_ARM_WAIST_HEAD = 10;   // 双臂腰部头部
+  McPlanningGroup_WAIST_LIFT = 11;            // 腰部升降
+  McPlanningGroup_WAIST_PITCH = 12;           // 腰部俯仰
+  McPlanningGroup_HEAD = 13;                  // 头部
+}
+
+enum McPlanningMode {
+  McPlanningMode_DEFAULT = 0;        // 默认避障规划。left_target right_target
+  McPlanningMode_CLOSURE = 100;      // 闭链规划，抓物体后调用，obj_center
+  McPlanningMode_GRAB = 200;         // 抓取，obj_center
+  McPlanningMode_PLACE = 300;        // 放置
+  McPlanningMode_LINEAR_MOVE = 400;  // 线性运动
+}
+
+/**
+ * @brief 任务规划世界模型
+ */
+message McPlanningWorldModel {
+}
+
+/**
+ * @brief 任务规划场景
+ */
+message McPlanningScene {
+}

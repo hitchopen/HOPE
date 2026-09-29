@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/genie/remote_hal/robot_frame_data.proto";
+
+// 定义 ForceTorque 消息（表示力和力矩的数据结构）
+message ForceTorque {
+    optional double force_x = 1;  // x轴方向上的力
+    optional double force_y = 2;  // y轴方向上的力
+    optional double force_z = 3;  // z轴方向上的力
+    optional double torque_x = 4; // x轴方向上的力矩
+    optional double torque_y = 5; // y轴方向上的力矩
+    optional double torque_z = 6; // z轴方向上的力矩
+}
+
+// 腰部信息
+message Waist {
+    optional double pitch = 1;
+    optional double lift = 2;
+    optional double waist_1 = 3; // (only G02)
+    optional double waist_2 = 4; // (only G02)
+    optional double waist_3 = 5; // (only G02)
+    optional double waist_4 = 6; // (only G02)
+    optional double waist_5 = 7; // (only G02)
+}
+
+
+// 头部信息
+message Head {
+    optional double yaw = 1;    // 头部偏航角度
+    optional double pitch = 2;  // 头部俯仰角度
+    optional double roll = 3;   // 头部滚转角度(only G02)
+}
+
+// 机械臂信息
+message Arm {
+    optional double arm1_position = 1;  // 手臂关节位置（7个关节）
+    optional double arm2_position = 2;  // 手臂关节位置（7个关节）
+    optional double arm3_position = 3;  // 手臂关节位置（7个关节）
+    optional double arm4_position = 4;  // 手臂关节位置（7个关节）
+    optional double arm5_position = 5;  // 手臂关节位置（7个关节）
+    optional double arm6_position = 6;  // 手臂关节位置（7个关节）
+    optional double arm7_position = 7;  // 手臂关节位置（7个关节）
+}
+
+// 底盘信息
+message Chassis {
+    optional double linear_velocity_x = 1;     // 底盘横向速度 (only G02)
+    optional double linear_velocity_y = 2;   // 底盘纵向速度 
+    optional double angular_velocity = 3;  // 底盘角速度
+}
+
+// error code 
+message G02_ErrorCode {
+    repeated uint64 type = 1; // 错误类型
+    repeated uint64 code = 2; // 错误码
+    repeated string description = 3; // 错误描述
+}
+
+// 导航/重定位聚合状态（由 remote_hal 计算后下发，VR 侧用于 UI gating）
+enum NavRelocState {
+    NAV_RELOC_STATE_UNKNOWN = 0; // 未知/初始化中
+    NAVIGABLE = 1; // 可导航（定位正常且无任务）
+    NAVIGATING = 2; // 正在导航中
+    NEED_RELOCATE = 3; // 需要重定位（定位丢失或置信度低）
+}
+
+// RTC 推流状态
+message RtcStreamStatus {
+    optional uint32 stream_id = 1;      // 流ID (0-7)
+    optional int32 status = 2;          // 0=正常，-1=无数据
+    optional float fps = 3;             // 实际帧率
+    optional uint32 width = 4;          // 分辨率宽度
+    optional uint32 height = 5;         // 分辨率高度
+    optional float bitrate = 6;         // 实际码率 (Mbps)
+}
+
+// RTC 推流状态列表（用于 cosine_bus 传输）
+message RtcStreamStatusList {
+    repeated RtcStreamStatus streams = 1; // 所有流的状态列表
+}
+
+// 定义 RobotStateVr 消息（表示机器人状态）
+message RobotStateVr {
+    optional double latency = 1;  // 延迟
+    optional string mode = 2;  // 当前模式
+    optional ForceTorque left_hand = 3;  // 左手六维力数据
+    optional ForceTorque right_hand = 4; // 右手六维力数据
+    optional Waist waist = 5;   // 腰部状态
+    optional Head head = 6;     // 头部状态
+    optional Arm left_arm = 7;  // 左臂关节状态
+    optional Arm right_arm = 8; // 右臂关节状态
+    optional Chassis chassis = 9; // 底盘状态
+    optional float left_end = 10; // 左末端状态
+    optional float right_end = 11; // 右末端状态
+    optional string urdf_type = 12; // 机器人类型
+    optional string robot_reset_state = 13; // 机器人复位状态
+    optional G02_ErrorCode error_code = 14; // 机器人错误码
+    optional double robot_battery_1 = 15; // 机器人电池1电量
+    optional double robot_battery_2 = 16; // 机器人电池2电量
+    optional string robot_mode = 17; // 机器人模式
+    optional double relative_jitter = 18; // 相对抖动值
+    optional PointPose current_map_pose = 19; // 当前地图坐标
+    optional NavRelocState nav_reloc_state = 20; // 导航/重定位聚合状态（VR UI gating 用）
+    optional RtcStreamStatusList rtc_stream_status_list = 21;  // RTC推流状态列表
+}

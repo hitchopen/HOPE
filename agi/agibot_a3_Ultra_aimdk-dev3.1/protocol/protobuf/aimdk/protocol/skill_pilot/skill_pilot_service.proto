@@ -1,0 +1,235 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/mc/motion/planning.proto";
+
+message StandbyModeRequest {
+  RequestHeader header = 1;   // 请求头
+  bool enable = 2;            // 设置待机开关
+}
+
+message StandbyTimeRequest {
+  RequestHeader header = 1;   // 请求头
+  uint64 duration = 2;        // 设置待机时长，单位s
+}
+
+message StandbyConfigResponse {
+  ResponseHeader header = 1;  // 响应头
+  bool enable = 2;            // 待机开关
+  uint64 duration = 3;        // 待机时长，单位s
+}
+
+enum AtomicSkillType{
+  Test      = 0; // 测试
+  Audio     = 1; // 语音
+  Emoticon  = 2; // 表情
+  Motion    = 3; // 动作
+  Light     = 4; // 灯光
+}
+
+enum AtomicSkillSubType{
+  NotUsed = 0;
+  Audio_File = 1;
+  Audio_TTS = 2;
+  Motion_Pose = 3;
+  Motion_Dance = 4;
+  Motion_Action = 5;
+  Audio_NLG = 6;
+}
+
+message AtomicSkill{
+  AtomicSkillType skill_type        = 1[deprecated = true];   // 技能类型
+  AtomicSkillSubType skill_sub_type = 2[deprecated = true];   // 技能子类型
+  uint64 start_time                 = 3[deprecated = true];   // 技能开始时间，相对于前一个同类型技能来说，若是第一个则是有个等待时间
+  optional uint64 duration          = 4;                      // 技能使用时间
+  string path                       = 5[deprecated = true];   // 资源路径
+  bytes mask                        = 6[deprecated = true];   // 执行函数掩码
+  string name                       = 7;                      // 名称
+  string data                       = 8;                      // 元数据
+  optional uint64 offset            = 9;                      // 相对于前一个同类技能的偏移时间
+  optional uint64 loop_duration     = 10;                     // 循环查询时间，若设置为0表示默认时间，不同技能默认时间不同，比如action切换默认30秒
+}
+
+enum SkillCommandType{
+  Unknown = 0;
+  Start   = 1;
+  Pause   = 2;
+  Stop    = 3;
+  Resume  = 4;
+  Plan    = 5;
+}
+
+// 不同原子技能的依赖关系通过Dependency来定义
+// 相同原子技能的依赖关系在SkillCommandRequest的skills数组中按照顺序定义
+message Dependency {
+  uint64 dependent  = 1; // 依赖者
+  uint64 dependee   = 2; // 被依赖者
+  uint64 offset     = 3; // 相对时间
+}
+
+message CompositeSkill {
+  repeated AtomicSkill atomic_skills = 1;              // 原子技能组合，相同原子技能依赖关系
+  repeated Dependency dependencies = 2;         // 不同原子技能依赖关系
+}
+
+// 开始技能
+// + command = Start
+// + skills
+// 暂停/恢复/结束技能
+// + command = Pause/Resume/Stop
+// + session_id
+message SkillCommandRequest {
+  RequestHeader header = 1;                             // 请求头
+  string source = 2[deprecated = true];                 // 来源，例如客户端填写aimmaster，仅用于打印
+  SkillCommandType command = 3;                         // 技能命令类型
+  repeated AtomicSkill skills = 4[deprecated = true];   // 原子技能组合
+  optional string session_id = 5;                       // 技能会话id，主要用于暂停和结束
+  optional uint64 wait_time = 6;                        // 若可以等待则设置为大于0的整数，单位是ms，考虑已有组合技能在运行
+  optional SkillSessionType type = 7;                   // 技能类型，若不设置则是普通类型
+  CompositeSkill skill = 8;                             // 组合技能
+}
+
+message SkillCommandResponse{
+  ResponseHeader header = 1;  // 响应头
+  uint64 available_time = 2;  // 最早可用时间
+  string session_id = 3;      // 若技能正确安排，则有uuid
+}
+
+// 开始技能
+// + command = Start
+// + path
+// 暂停技能
+// + command = Pause
+// + session_id
+// 结束技能
+// + command = Stop
+// + session_id
+message SkillPackageRequest {
+  RequestHeader header = 1;                   // 请求头
+  string source=2[deprecated = true];         // 来源，例如客户端填写aimmaster，仅用于打印
+  SkillCommandType command = 3;               // 技能命令类型
+  optional string path =4;                    // 技能包路径
+  optional string session_id = 5;             // 技能会话id，主要用于暂停和结束
+}
+
+message SkillPackageResponse {
+  ResponseHeader header = 1;  // 响应头
+  uint64 available_time = 2;  // 最早可用时间
+  string session_id = 3;      // 若技能正确安排，则有uuid
+}
+
+enum RestPointCommand {
+  SitDown = 0;
+  StandUp = 1;
+  LowPowerCancel  = 2;  // 低电量回休息点使能时，可以主动取消当次
+}
+
+// 话题: /skill/pilot/rest_point_status
+message RestPointStatus {
+  uint64 low_power_countdown = 1; // 低电量回休息点倒计时
+  bool is_sitting = 2;            // 当前是否在坐下状态
+}
+
+message RestPointRequest {
+  ResponseHeader header = 1;  // 响应头
+  RestPointCommand command = 2;
+}
+
+enum SkillSessionType {
+  UnknownType = 0;
+  Normal = 1;               // 普通
+  SitUpOrDown = 2 [deprecated = true];  // 站起和坐下
+  NormalSitDown = 3;        // 坐下
+  NormalStandUp = 4;        // 站起
+  LowPowerSitDown = 5;      // 低电量坐下
+  Talent = 6;               // 才艺
+  ResetCalligraphy = 7;     // 停止书法才艺
+  PosturalTransition = 8;   // 跌倒爬起
+  SmartIdle = 9;            // 灵动待机
+}
+
+enum SkillSessionStatus {
+  InPlan = 0;               // 技能编排成功进入队列
+  Running = 1;              // 技能运行中
+  RunningSuccess = 2;       // 技能运行成功
+  RunningFailed = 3;        // 技能运行失败
+  Running2 = 4 [deprecated = true];             // 技能运行中，临时方案
+  Paused = 5;               // 暂停
+  Stopped = 6;              // 停止
+  Continue = 7;             // 继续
+}
+
+enum RestPointSitDownStage {
+  RestPoint_UNKNOWN   = 0;
+  RestPointNormalPnc  = 1;         // 普通导航
+  RestPointSitDownPnc = 2;         // 休息点识别并开始坐下流程
+}
+
+message SkillStatus {
+  SkillSessionType type = 1;
+  string session_id = 2;
+  SkillSessionStatus status = 3;
+  oneof running_stage {
+    RestPointSitDownStage rest_point_running_stage = 4;
+  }
+}
+
+enum PosturalTransitionType {
+  PosturalTransitionType_UNKNOWN =0;
+  PosturalTransitionType_GetUp = 1;
+  PosturalTransitionType_LieDown = 2;
+  PosturalTransitionType_PackageGetUp = 3;
+  PosturalTransitionType_PackageLieDown = 4;
+}
+
+message PosturalTransitionRequest {
+  ResponseHeader header = 1;  // 响应头
+  PosturalTransitionType type = 2;
+}
+
+// 寻机
+message FindRobotReq {
+  RequestHeader header = 1;  //请求头
+}
+
+message FindRobotResp {
+  ResponseHeader header = 1;  //响应头
+  int32  error_code = 2; // 错误码 0代表成功
+  string error_msg  = 3; // 错误信息
+}
+
+enum AgingTestCommand {
+  AgingTestCommand_UNKNOWN = 0;
+  AgingTestCommand_Start   = 1;
+  AgingTestCommand_Stop    = 2;
+  AgingTestCommand_Pause   = 3;
+}
+
+message AgingTestRequest {
+  RequestHeader header     = 1;
+  AgingTestCommand command = 2; //客户端下发的指令类型
+  uint64 duration_ms       = 3;  // 0 = 不限时
+}
+
+message AgingTestResponse {
+  ResponseHeader header = 1;
+  int32  error_code     = 2; // 错误码 0代表成功
+  string error_msg      = 3; // 错误信息
+}
+
+service SkillPilotService {
+  rpc SetStandbyMode(StandbyModeRequest) returns (CommonResponse);
+  rpc SetStandbyTime(StandbyTimeRequest) returns (CommonResponse);
+  rpc GetStandbyConfig(CommonRequest) returns (StandbyConfigResponse);
+  rpc InteractiveMove(InteractiveMoveRequest) returns (CommonTaskResponse);
+  rpc SkillCommand(SkillCommandRequest) returns (SkillCommandResponse);                 // 自由组合技能
+  rpc SkillPackage(SkillPackageRequest) returns (SkillCommandResponse);                 // 技能包，固定组合技能
+  rpc RestPoint(RestPointRequest) returns (SkillCommandResponse);                       // 休息点
+  rpc PosturalTransition(PosturalTransitionRequest) returns (SkillCommandResponse);     // 姿势切换
+  rpc FindRobot(FindRobotReq) returns (FindRobotResp);                                  // 寻机
+  rpc AgingTest(AgingTestRequest) returns (AgingTestResponse);                          // 老化测试开始
+
+}

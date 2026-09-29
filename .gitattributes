@@ -10,3 +10,7 @@
 # Published executable model bundle and rendered demonstration.
 a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx binary
 docs/assets/model_21800_gate3_mujoco.mp4 binary linguist-generated=true
+
+# Direct-install Foxglove releases remain ordinary Git blobs, not LFS pointers.
+*.foxe binary linguist-generated=true
+a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/*.onnx binary

@@ -1,0 +1,54 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+// 关节数据
+message JointData {
+  string name = 1;
+  double position = 2;
+  double velocity = 3;
+  double torque = 4;
+  double temperature = 5;
+}
+
+// 手部关节数据
+message HandGripperData {
+  string name = 1;
+  double position = 2;
+  double velocity = 3;
+  double current = 4;
+}
+
+// 电池信息
+message Battery {
+  double voltage = 1;
+  double current = 2;
+  double temperature = 3;
+  double level = 4;
+  bool failure = 5;
+}
+
+// 控制器信息
+message Controller {
+  int32 cpu = 1;
+  int32 ram = 2;
+}
+
+// 传感器信息
+message Sensor {
+  bool camera = 1;
+  bool lidar = 2;
+  bool imu = 3;
+}
+
+
+// 所有关节信息
+message JointInfo {
+  repeated JointData neck = 1;
+  repeated JointData waist = 2;
+  repeated JointData leftLeg = 3;
+  repeated JointData rightLeg = 4;
+  repeated JointData leftArm = 5;
+  repeated JointData rightArm = 6;
+  repeated HandGripperData leftHandGripper = 7;
+  repeated HandGripperData rightHandGripper = 8;
+}

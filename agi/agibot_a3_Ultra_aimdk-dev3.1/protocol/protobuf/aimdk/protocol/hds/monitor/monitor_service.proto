@@ -1,0 +1,86 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/hds/process/process_heartbeat.proto";
+
+/**
+ * @brief 系统监控服务
+ */
+service MonitorService{
+
+  /**
+   * @brief 设置监控模块的心态（由SM设置）
+   *        1. SM 进入稳态之后设置该接口
+   *        2. HDS 监控接口中的进程名称列表，如果心跳超时，则会上报异常
+   */
+  rpc SetupListenHeartbeat(SetupListenHeartbeatReq) returns (CommonResponse);
+
+  /**
+  * @brief 设置屏蔽心跳告警
+  * @param is_shield 是否屏蔽
+  * 1. sm 在状态切换前设置为true，这样在进程被关闭后，就不会上报进程心跳异常告警
+  * 2. 状态切换后设置为false，则继续监听 SetupListenHeartbeat 接口中的进程心跳，有故障则上报
+  */
+  rpc SetShieldHeartbeatAlert(SetShieldHeartbeatAlertReq) returns (CommonResponse);
+
+  /**
+   * @brief 获取系统所有进程统计信息(rpc,topic)等
+   */
+  rpc GetProcessInfo(CommonRequest) returns (GetProcessInfoRsp);
+
+
+  /**
+   * @breif 获取系统所有进程存活信息
+   *       1. 如果收到进程心跳，则会进行记录
+   *       2. 收到心跳后心跳丢失，则会上报失活 
+   */
+   rpc GetProcessAliveInfo(CommonRequest) returns (GetProcessAliveInfoRsp); 
+
+}
+
+/**
+ * @brief 设置屏蔽心跳告警请求体
+ */
+message SetShieldHeartbeatAlertReq{
+  RequestHeader header = 1;
+
+  //是否屏蔽
+  bool is_shield = 2;
+}
+
+message ProcAliveInfo{
+  bool is_alive=1;  //是否存活
+  bool is_supervise=2; //是否被sm监管中
+}
+
+
+
+/**
+ * @brief 获取所有进程心跳响应体
+ */
+message GetProcessAliveInfoRsp{
+  ResponseHeader header = 1;
+
+  map<string,ProcAliveInfo> data =2;
+}
+
+/**
+ * @brief 设置监控模块心态请求体
+ */
+message SetupListenHeartbeatReq{
+  RequestHeader header = 1;
+
+  repeated string process_list = 2;
+}
+
+/**
+ * @brief 获取系统所有进程统计信息响应体
+ */
+message GetProcessInfoRsp{
+  ResponseHeader header = 1;
+
+  map<string, ProcMiddlewareInfo> middleware_info_map = 2;
+  map<string, ProcResourceInfo> resource_info_map = 3;
+}

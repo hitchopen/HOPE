@@ -1,0 +1,38 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/motion_control/action/mc_action.proto";
+import public "aimdk/protocol/motion_control/motion/locomotion.proto";
+import public "aimdk/protocol/motion_control/motion/dance.proto";
+
+/**
+ * @brief MC状态发布话题
+ * topic : /mc/state/action_info
+ */
+message MotionControlActionInfoChannel {
+  // 消息头
+  Header header = 1;
+  // 数据
+  MotionControlActionInfo data = 2;
+}
+
+/**
+ * @brief MC状态发布话题
+ * topic : /mc/state/motion_info
+ */
+message MotionControlMotionInfoChannel {
+  // 消息头
+  Header header = 1;
+  // 数据
+  MotionControlLocomotionVelocity vel = 2;       // mc实际速度信息发布（不是比例系数）
+  MotionControlDanceState dance_state = 3;      // mc舞蹈状态信息发布
+
+  // 步态
+  MotionControlLocomotionGaitType gait_type = 4;   // 步态类型
+  bool is_walking = 5;                            // 是否在行走
+  VelocityLimitValue vel_limit_value = 6;         // 速度限制值
+
+  // 中断信息
+  bool is_recovery = 7;
+}

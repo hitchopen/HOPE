@@ -1,0 +1,76 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+message Point {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+message Point32 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message Vector3 {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+message Polygon { repeated Point32 points = 1; }
+
+message PointStamped {
+  Header header = 1;
+  Point point = 2;
+}
+
+message TrackedObstacleInfo {
+  uint32 track_id = 1;
+  uint32 type_id = 2;
+  bool is_moving = 3;
+  bool is_movable = 4;
+  bool is_in_blind = 5;
+  // 观测/跟踪到的次数
+  uint32 num_observation = 6;
+  bool is_no_static_occluded = 7;
+  // 障碍物中心点 laser坐标系
+  Point center = 8;
+  // 障碍物中心点
+  Point center_in_map = 9;
+  // 速度
+  Vector3 velocity_in_map = 10;
+  // 障碍物中心点，融合时序&多模态信息
+  Point smoothed_center_in_map = 11;
+  // 障碍物在Odom坐标系下的中心点
+  Point center_in_odom = 12;
+  // 速度
+  Vector3 velocity_in_odom = 13;
+  // 障碍物中心点，融合时序&多模态信息
+  Point smoothed_center_in_odom = 14;
+  // 障碍物polygon
+  Polygon polygon_in_map = 15;
+  // 障碍物polygon
+  Polygon polygon_in_odom = 16;
+  // 预测的未来帧障碍物中心点
+  repeated PointStamped prediction_center_in_odom = 17;
+  // 障碍物在Odom坐标系下的中心点
+  Point center_in_wcs = 18;
+  // 速度
+  Vector3 velocity_in_wcs = 19;
+  // 障碍物中心点，融合时序&多模态信息
+  Point smoothed_center_in_wcs = 20;
+  // 障碍物polygon
+  Polygon polygon = 21;
+  // 障碍物polygon
+  Polygon polygon_in_wcs = 22;
+  // 预测的未来帧障碍物中心点
+  repeated PointStamped prediction_center_in_wcs = 23;
+}
+
+message TrackedObstacles {
+  repeated TrackedObstacleInfo Infotracked_obstacle = 1;
+}

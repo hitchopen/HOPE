@@ -1,0 +1,216 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/qr_pose.proto";
+import "aimdk/protocol/common/pixel_pose.proto";
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+
+//// 发布重定位结果
+message PubRelocalizationResult {
+  bool success = 1;
+  string msg = 2;
+  SE3Pose pose = 3;
+}
+
+//// 发布实时点云数据
+message PubRelocalizationRealtimeLidarPoints {
+  double lidar_range = 1;
+  repeated Pixel lidar_points = 2;
+}
+
+//// rpc 与客户端交互的接口结构
+/**
+ * @brief relocalization 接口命令
+ */
+enum RelocalizationCommand {
+  RelocalizationCommand_NORMAL_START  = 0;
+  RelocalizationCommand_NORMAL_CANCEL = 1;
+  RelocalizationCommand_NORMAL_SAVE   = 2;
+  RelocalizationCommand_QR_START      = 3;
+  RelocalizationCommand_QR_CANCEL     = 4;
+  RelocalizationCommand_GLOBAL_START     = 5;
+  RelocalizationCommand_GLOBAL_CANCEL     = 6;
+}
+
+// 启动Normal relocalization建图请求
+message RelocalizationStartNormalReq {
+  RequestHeader header = 1;
+  RelocalizationCommand command = 2;
+
+  // 当前重定位关联的map id
+  uint64 map_id = 3;
+}
+
+message RelocalizationStartNormalData {
+}
+
+// 启动Normal relocalization响应
+message RelocalizationStartNormalRsp {
+  ResponseHeader header = 1;
+  RelocalizationStartNormalData data = 2;
+}
+
+// 停止Normal relocalization建图请求
+message RelocalizationStopNormalReq {
+  RequestHeader header = 1;
+  RelocalizationCommand command = 2;
+
+  // 当前重定位关联的map id
+  uint64 map_id = 3;
+
+  // 操作的位姿
+  PixelPose pose = 4;
+}
+
+message RelocalizationStopNormalData {
+}
+
+// 停止Normal relocalization响应
+message RelocalizationStopNormalRsp {
+  ResponseHeader header = 1;
+  RelocalizationStopNormalData data = 2;
+}
+
+// 启动自动重定位请求
+message RelocalizationStartGlobalReq {
+  RequestHeader header = 1;
+  RelocalizationCommand command = 2;
+
+  // 当前重定位关联的map id
+  uint64 map_id = 3;
+  // 从客户端来的请求id; 如果没有，服务端将生成
+  string client_uuid = 4;
+}
+
+// 启动自动重定位响应
+message RelocalizationStartGlobalRsp {
+  ResponseHeader header = 1;
+}
+
+// 停止自动重定位请求
+message RelocalizationStopGlobalReq {
+  RequestHeader header = 1;
+  RelocalizationCommand command = 2;
+}
+
+// 停止自动重定位请求
+message RelocalizationStopGlobalRsp {
+  ResponseHeader header = 1;
+}
+
+// 启动QR重定位请求
+message RelocalizationStartQRReq {
+  RequestHeader header = 1;
+  RelocalizationCommand command = 2;
+
+  // 当前重定位关联的map id
+  uint64 map_id = 3;
+}
+
+message RelocalizationStartQRData {}
+
+// 启动 QR重定位响应
+message RelocalizationStartQRRsp {
+  ResponseHeader header = 1;
+  RelocalizationStartQRData data = 2;
+}
+
+// 停止QR重定位请求
+message RelocalizationStopQRReq {
+  RequestHeader header = 1;
+  RelocalizationCommand command = 2;
+}
+
+message RelocalizationStopQRData {}
+
+message RelocalizationStopQRRsp {
+  ResponseHeader header = 1;
+  RelocalizationStopQRData data = 2;
+}
+
+message SetRelocalizationResultReq {
+  RequestHeader header = 1;
+  PubRelocalizationResult result = 2;
+}
+
+message SetRelocalizationResultData {}
+
+message SetRelocalizationResultRsp {
+  ResponseHeader header = 1;
+  SetRelocalizationResultData data = 2;
+}
+
+message SetFreeProbeResultReq {
+  RequestHeader header = 1;
+  PubRelocalizationResult result = 2;
+  bool skip_check_relocalization_state = 3;
+}
+
+message StartFreeProbeReq {
+  RequestHeader header = 1;
+  string reloc_uuid = 2;
+}
+
+// rpc接口
+service RelocalizationService {
+  /**
+   * @brief 启动常规重定位rpc
+   * @details 客户端请求启动常规重定位，请求参数包括：重定位命令、当前重定位关联的map id
+   * 服务端会先停止实时定位(如果有的话)并且将对应的2D地图开启重定位算法。
+   * 服务端开启重定位算法后，会向客户端推送点云2D数据，点云数据格式:PubImageData
+   */
+  rpc StartNormalRelocalization(RelocalizationStartNormalReq) returns (RelocalizationStartNormalRsp);
+
+  /**
+   * @brief 停止常规重定位rpc
+   * @details 客户端请求主动停止常规重定位，可选择取消或者保存常规重定位的结果。
+   * 1. 取消：服务端会停止常规重定位算法，并根据之前重定位结果恢复实时定位(如果可能的话)。
+   * 2. 保存：服务端会停止常规重定位算法，并将重定位结果保存并直接根据结果开启新的实时定位。
+   * @note 常规重定位保存需要3D地图信息(对于客户端来说传入map_id)以及客户操作的位姿信息
+   *       常规重定位会返回6D位姿作为结果保存。
+   */
+  rpc StopNormalRelocalization(RelocalizationStopNormalReq) returns (RelocalizationStopNormalRsp);
+
+  /**
+   * @brief 启动QR重定位rpc
+   * @details 客户端请求启动QR重定位，请求参数包括：重定位命令、当前重定位关联的map id(3d), 关联的QR位姿list
+   * 服务端会先停止实时定位(如果有的话)并且将对应的3D地图开启QR重定位算法。启动重定位算法会实时推送摄像头数据：PubImageData,
+   * 并且QR重定位算法有自动退出的能力，并且向客户端推送成功与否，客户端要保存其结果6D位姿并且开启实时定位。
+   */
+  rpc StartQRRelocalization(RelocalizationStartQRReq) returns (RelocalizationStartQRRsp);
+
+  /**
+   * @brief 停止QR重定位rpc
+   * @details 客户端主动停止二维码重定位，服务端会停止二维码重定位算法。
+   */
+  rpc StopQRRelocalization(RelocalizationStopQRReq) returns (RelocalizationStopQRRsp);
+
+  /* 给SLAM模块的接口 */
+  rpc SetRelocalizationResult(SetRelocalizationResultReq) returns (SetRelocalizationResultRsp);
+
+  /**
+   * @brief 启动自动重定位rpc
+   * @details 客户端请求启动常规重定位，请求参数包括：重定位命令、当前重定位关联的map id
+   */
+  rpc StartGlobalRelocalization(RelocalizationStartGlobalReq) returns (RelocalizationStartGlobalRsp);
+
+  /**
+   * @brief 停止自动重定位rpc
+   * @details 客户端请求主动停止常规重定位，可选择取消或者保存常规重定位的结果。
+   */
+  rpc StopGlobalRelocalization(RelocalizationStopGlobalReq) returns (RelocalizationStopGlobalRsp);
+
+  /**
+   * @brief 启动自由探索时调用；自由探索业务中可以多次请求/结束自动重定位；
+   * @details 客户端请求主动停止常规重定位，可选择取消或者保存常规重定位的结果。
+   */
+  rpc StartFreeProbe(StartFreeProbeReq) returns (CommonResponse);
+
+  /**
+   * @brief 自由探索结束后，由PNC通知整个业务结束
+   * @details 客户端请求主动停止常规重定位，可选择取消或者保存常规重定位的结果。
+   */
+  rpc SetFreeProbeResult(SetFreeProbeResultReq) returns (CommonResponse);
+
+}

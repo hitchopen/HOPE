@@ -1,0 +1,169 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 人形脸部状态
+ *  topic: /channel/humanoid/face/status
+ */
+message HumanoidFaceStatus {
+    int32 code = 1;
+}
+
+/**
+ * @brief 自定义轮播文字
+ *  topic: /humanoid/face/freetext
+ */
+message HumanoidFaceFreeText {
+    string msg = 1;
+    string color=2;
+}
+
+/**
+ * @brief 表情播放器的运行状态
+ */
+enum HFAPlayerStatus {
+    // 空闲
+    HFAPlayerStatus_IDLE = 0;
+
+    // 开始执行
+    HFAPlayerStatus_START = 1;
+
+    // 运行中
+    HFAPlayerStatus_Running = 2;
+
+    // 播放完成
+    HFAPlayerStatus_Finished = 3;
+
+    // 打断
+    HFAPlayerStatus_Stoped = 4;
+}
+
+/**
+ * @brief 当前表情播放器状态信息
+ *  topic: /aimmaster/face/heartbeat
+ */
+message HFAHeartbeat {
+    // Header 包含时间辍, trace_id、 domain
+    Header header = 1;
+    // 表情文件的路径
+    string e_path = 2;
+    // 表情id，可以为空
+    int32 e_id = 3;
+    // 当前执行次数
+    int32 current = 4;
+    // 累计需要执行次数
+    int32 total = 5;
+     // AA 为层级， BB 为（100- 权重系数 * 100），参考优先级策略表，举例： L1 100% = 100， L3 80% = 320，可以为空
+    int32 priority = 6;
+    // 当前状态， idle: 空闲， start: 开始（仅广播一次），触发时广播，不按照固定频率  running：播放中， finished：结束（仅广播一次），触发时广播，不按照固定频率， stoped： 打断（仅广播一次），触发时广播，不按照固定频率
+    HFAPlayerStatus status = 7;
+    // 剩余时长，单位：秒；如果重复，会将剩余重复时间计算在内
+    double time_to_end_ms = 8;
+}
+
+/**
+ * @brief 播放表情
+ *  topic: /aimmaster/face/play
+ */
+message HFAEmoction {
+    // Header 包含时间辍, trace_id、 domain
+    Header header = 1;
+
+    // 表情文件的路径
+    string e_path = 2;
+
+    // 表情id，可以为空
+    int32 e_id = 3;
+
+    // 重复次数，-1，0，1-99999， -1: 99999次，> 99999 为 99999， 99999 以表情时长为1s计算，大致为1+天， 0: 根据优先级判定，如果当前播放表情<=该优先级，取消当前播放
+    int32 repeat = 4;
+
+    // AA 为层级， BB 为（100- 权重系数 * 100），参考优先级策略表，举例： L1 100% = 100， L3 80% = 320，可以为空
+    int32 priority = 5;
+
+    // 此字段用于展示或取消展示，会取消所有表情播放， 当取消的场景，e_path、e_id、repeat、priority 均可以为空
+    bool is_stop = 6;
+}
+
+/**
+ * @brief 播放系统类型
+ */
+ enum HFASystemType {
+    //  unknow: 未知，不处理
+    HFASystemType_unknow = 0;
+
+    //  通知：notify
+    HFASystemType_notify = 1;
+
+    // 充电：battery
+    HFASystemType_battery = 2;
+
+    ///静默：silent
+    HFASystemType_silent = 3;
+
+    // 提示词：prompt
+    HFASystemType_prompt = 4;
+
+    // 操作模式：operation
+    HFASystemType_operation = 5;
+
+    // 交互中：talking
+    HFASystemType_talking = 6;
+
+    // 聆听中: listening
+    HFASystemType_listening = 7;
+}
+
+/**
+ * @brief 后台服务
+ *  topic: /aimmaster/face/system
+ */
+message HFASystem {
+    // Header 包含时间辍, trace_id、 domain
+    Header header = 1;
+
+    // 播放系统类型
+    HFASystemType type = 2;
+
+    // 启用或停止
+    bool enable = 3;
+}
+
+/**
+ * @brief 通用开关
+ *  topic: /aimmaster/face/info
+ */
+message HumanoidFaceInfo {
+    // 类型
+    string type = 1;
+
+    // 启用或停止
+    bool enable = 2;
+
+    // 信息
+    string msg = 3;
+}
+
+/**
+ * @brief 播放图片
+ *  topic: /aimmaster/image/play
+ */
+message HFImage {
+    // Header 包含时间辍, trace_id、 domain
+    Header header = 1;
+
+    // 图片文件的路径，可以为空
+    string path = 2;
+
+    // 图片数据，可以为空
+    bytes image = 3;
+
+    // 转场动画，暂无，预留，当收到播放图片的时候，如果当前正在播放图片，则采用转场动画进行切换
+    int32 animation = 4;
+
+    // 此字段用于展示或取消展示，会取消所有图片播放
+    bool is_stop = 5;
+}

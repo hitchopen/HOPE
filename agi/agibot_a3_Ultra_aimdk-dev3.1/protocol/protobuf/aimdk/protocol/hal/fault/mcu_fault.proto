@@ -1,0 +1,25 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief MCU故障清除控制指令
+ */
+message ClearMcuFaultCommand {
+  // 模块ID
+  uint32 module_id = 1;
+  // 事件ID
+  uint32 event_id = 2;
+}
+
+/**
+ * @brief MCU故障清除控制请求
+ */
+message ClearMcuFaultReq {
+  // 消息头
+  RequestHeader header = 1;
+
+  // 灯带控制指令
+  ClearMcuFaultCommand cmd = 2;
+}

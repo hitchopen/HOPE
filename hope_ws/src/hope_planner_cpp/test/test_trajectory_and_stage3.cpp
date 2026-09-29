@@ -7,6 +7,7 @@ namespace hope_planner_cpp {
 namespace {
 
 TEST(TrajectoryAndStage3, MatchesThePythonScalarReference) {
+  // Golden values use the 2026-08-23/24 engineering physics candidate.
   BallPhysics physics;
   PlannerConfig config;
   config.x_hit = 0.15;
@@ -27,11 +28,11 @@ TEST(TrajectoryAndStage3, MatchesThePythonScalarReference) {
   ASSERT_TRUE(strike.valid) << strike.reason;
   EXPECT_NEAR(strike.ball_position.x(), 0.15, 1e-12);
   EXPECT_NEAR(strike.ball_position.y(), -0.44583333, 1e-8);
-  EXPECT_NEAR(strike.ball_position.z(), 0.30292193, 1e-8);
-  EXPECT_NEAR(strike.ball_velocity.x(), -2.24334337, 1e-8);
-  EXPECT_NEAR(strike.ball_velocity.y(), 0.18694528, 1e-8);
-  EXPECT_NEAR(strike.ball_velocity.z(), 0.11741171, 1e-8);
-  EXPECT_NEAR(strike.strike_source_time_s, 123.41005860349028, 1e-10);
+  EXPECT_NEAR(strike.ball_position.z(), 0.32482849618220022, 1e-8);
+  EXPECT_NEAR(strike.ball_velocity.x(), -2.2222423506951761, 1e-8);
+  EXPECT_NEAR(strike.ball_velocity.y(), 0.18518686255793151, 1e-8);
+  EXPECT_NEAR(strike.ball_velocity.z(), 0.18474390147945227, 1e-8);
+  EXPECT_NEAR(strike.strike_source_time_s, 123.41225305436849, 1e-10);
   EXPECT_EQ(strike.predicted_bounces, 1);
 
   const RacketCommand command = stage3.plan(
@@ -39,15 +40,15 @@ TEST(TrajectoryAndStage3, MatchesThePythonScalarReference) {
   ASSERT_TRUE(command.valid) << command.reason;
   EXPECT_TRUE(command.clears_net);
   EXPECT_FALSE(command.bypasses_net_posts);
-  EXPECT_NEAR(command.velocity.x(), 1.98456672, 1e-8);
-  EXPECT_NEAR(command.velocity.y(), -0.27380446, 1e-8);
-  EXPECT_NEAR(command.velocity.z(), 0.53137587, 1e-8);
-  EXPECT_NEAR(command.normal.x(), 0.95750697, 1e-8);
-  EXPECT_NEAR(command.normal.y(), -0.13210424, 1e-8);
-  EXPECT_NEAR(command.normal.z(), 0.25637641, 1e-8);
-  EXPECT_NEAR(command.outgoing_ball_velocity.x(), 4.33657509, 1e-8);
-  EXPECT_NEAR(command.outgoing_ball_velocity.y(), -0.72086549, 1e-8);
-  EXPECT_NEAR(command.outgoing_ball_velocity.z(), 1.87921184, 1e-8);
+  EXPECT_NEAR(command.velocity.x(), 2.0019087745012918, 1e-8);
+  EXPECT_NEAR(command.velocity.y(), -0.27676397921076445, 1e-8);
+  EXPECT_NEAR(command.velocity.z(), 0.50034781141521933, 1e-8);
+  EXPECT_NEAR(command.normal.x(), 0.96154701177380075, 1e-8);
+  EXPECT_NEAR(command.normal.y(), -0.13293391815170605, 1e-8);
+  EXPECT_NEAR(command.normal.z(), 0.24032460871435926, 1e-8);
+  EXPECT_NEAR(command.outgoing_ball_velocity.x(), 4.3617531685177013, 1e-8);
+  EXPECT_NEAR(command.outgoing_ball_velocity.y(), -0.72505081770656621, 1e-8);
+  EXPECT_NEAR(command.outgoing_ball_velocity.z(), 1.8303172614475833, 1e-8);
 }
 
 TEST(TrajectoryAndStage3, KeepsMathematicalNoCrossingInvalid) {
@@ -134,12 +135,12 @@ TEST(TrajectoryAndStage3, VenueGripSpinPathProducesFiniteCrossing) {
   // 1 ms Stage-2 integrator. This anchors the full flight/contact/crossing
   // path, not merely finiteness of the C++ result.
   EXPECT_NEAR(result.ball_position.x(), 0.15, 1.0e-12);
-  EXPECT_NEAR(result.ball_position.y(), -0.46401110440006949, 1.0e-9);
-  EXPECT_NEAR(result.ball_position.z(), 0.28809310753079093, 1.0e-9);
-  EXPECT_NEAR(result.ball_velocity.x(), -2.5655457961134989, 1.0e-9);
-  EXPECT_NEAR(result.ball_velocity.y(), 0.12888004786570353, 1.0e-9);
-  EXPECT_NEAR(result.ball_velocity.z(), -0.089614952199157896, 1.0e-9);
-  EXPECT_NEAR(result.strike_source_time_s, 123.39008443740325, 1.0e-10);
+  EXPECT_NEAR(result.ball_position.y(), -0.46261832412462123, 1.0e-9);
+  EXPECT_NEAR(result.ball_position.z(), 0.31448053104194496, 1.0e-9);
+  EXPECT_NEAR(result.ball_velocity.x(), -2.5251616994552961, 1.0e-9);
+  EXPECT_NEAR(result.ball_velocity.y(), 0.13378372389668103, 1.0e-9);
+  EXPECT_NEAR(result.ball_velocity.z(), 0.049669376072277609, 1.0e-9);
+  EXPECT_NEAR(result.strike_source_time_s, 123.39237824750332, 1.0e-10);
 }
 
 TEST(TrajectoryAndStage3, ZeroEffectiveFutureBounceGainArrivesEarlier) {

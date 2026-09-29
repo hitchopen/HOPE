@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+message PlcCheckParam {
+  string key = 1;
+  string expected_value = 2;
+}
+
+message PlcCheckResult {
+  bool is_success = 1;
+  string data = 2;
+}

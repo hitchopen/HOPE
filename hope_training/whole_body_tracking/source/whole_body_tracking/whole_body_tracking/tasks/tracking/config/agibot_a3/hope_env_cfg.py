@@ -1199,7 +1199,7 @@ class HOPEPingPongHitterPureRallyV5AgibotA3EnvCfg(HOPEPingPongHitterPureRallyV4A
         # post-mortem established is "positive-income windows must not be policy-stretchable". Settled
         # states out-earn unsettled ones (~5 vs ~3 per step), so the farm gradient is weak, but the cap
         # bounds it structurally; expected [25,125] countdown + 50 covers a full-band station flip.
-        # Tripwire: a RISING hold_extra_steps trend in wandb = the policy is farming the extension —
+        # Tripwire: a RISING hold_extra_steps trend in local metrics = the policy is farming the extension —
         # ablate with task.racket.hold_until_settled=false.
         self.commands.racket_target.hold_settle_max_extra_steps = 50
         # (any swing) streaming planner: refine the target mid-approach (deploy-honest).

@@ -1,0 +1,104 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief 电源重置请求
+ */
+message PowerResetReq {
+  // 消息头
+  RequestHeader header = 1;
+
+  // 延迟关机时间:0-255s
+  uint32 delay_shutdown_time = 2;
+}
+
+enum DeviceType {
+  wheel = 0;
+  steer = 1;
+  waist = 2;
+  lift = 3;
+  jaka = 4;
+  upper = 5;
+}
+
+/**
+ * @brief 下电请求
+ */
+ message ShutDownReq {
+  // 消息头
+  RequestHeader header = 1;
+  //下电设备
+  DeviceType device_type = 2;
+  // 延迟关机时间:5-255s
+  uint32 delay_shutdown_time = 3;
+}
+
+/**
+ * @brief 设备供电状态请求
+ */
+ message GetDevicePowerStateReq {
+  // 消息头
+  RequestHeader header = 1;
+  //设备
+  DeviceType device_type = 2;
+}
+
+/**
+ * @brief 获取设备供电状态请求
+ */
+ message GetDevicePowerStateResp {
+  // 消息头
+  RequestHeader header = 1;
+  //设备
+  DeviceType device_type = 2;
+  //供电状态
+  uint32 is_power = 3;
+}
+
+
+/**
+ * @brief 设置关机超时时间请求
+ */
+ message SetPowerOffTimeoutReq {
+  // 消息头
+  RequestHeader header = 1;
+  //超时时间:5-255秒
+  uint32 timeout = 2;
+}
+
+/**
+ * @brief 设置关机超时时间响应
+ */
+ message SetPowerOffTimeoutResp {
+  // 消息头
+  ResponseHeader header = 1;
+}
+
+service HalPowerService {
+  /**
+   * @brief 获取当前BMS状态信息。
+   * @param PowerResetReq: 重置电源请求
+   * @return CommonResponse
+   */
+  rpc ResetPower(PowerResetReq) returns (CommonResponse);
+  /**
+   * @brief 电机下电接口
+   * @param ShutDownReq: 下电请求
+   * @return CommonResponse
+   */
+  rpc ShutDownDevice(ShutDownReq) returns (CommonResponse);
+  /**
+   * @brief 获取电机供电状态
+   * @param GetDevicePowerStateReq: 请求
+   * @return GetDevicePowerStateResp: 响应
+   */
+  rpc GetDevicePowerState(GetDevicePowerStateReq) returns (GetDevicePowerStateResp);
+  /**
+   * @brief 设置A3关机超时时间
+   * @param SetPowerOffTimeoutReq: 请求
+   * @return SetPowerOffTimeoutResp: 响应
+   */
+  rpc SetPowerOffTimeout(SetPowerOffTimeoutReq) returns (SetPowerOffTimeoutResp);
+}

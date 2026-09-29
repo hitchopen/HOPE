@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/ota/a3/ota_master_api.proto";
+import "aimdk/protocol/ota/ota_api.proto";
+
+/**
+ * @brief OTAMaster Service
+ */
+service OTAMasterService {
+    /**
+     * @brief 查询 OTA  所处状态机
+     */
+    rpc StateMachineQuery(OTAStateMachineQueryRequest) returns (OTAStateMachineQueryResponse);
+
+    /**
+     * @brief 查询 OTA  当前新的升级任务信息
+     */
+    rpc NewTaskQuery(OTANewTaskQueryRequest) returns (OTANewTaskQueryResponse);
+
+    /**
+     * @brief 开始下载 OTA 文件
+     */
+    rpc StartDownload(OTAStartDownloadRequest) returns (OTAStartDownloadResponse);
+
+    /**
+     * @brief 暂停下载 OTA 文件
+     */
+    rpc PauseDownload(OTAPauseDownloadRequest) returns (OTAPauseDownloadResponse);
+
+    /**
+     * @brief 继续下载 OTA 文件
+     */
+    rpc ContinueDownload(OTAContinueDownloadRequest) returns (OTAContinueDownloadResponse);
+
+    /**
+     * @brief 终止下载 OTA 文件
+     */
+    rpc AbortDownload(OTAAbortDownloadRequest) returns (OTAAbortDownloadResponse);
+
+    /**
+     * @brief 开始升级
+     */
+    rpc StartUpgrade(OTAStartUpgradeRequest) returns (OTAStartUpgradeResponse);
+
+    /**
+    * @brief 获取机器人与ota升级相关的信息
+    */
+    rpc GetRobotOTAInfo(GetRobotOtaInfoRequest) returns (GetRobotOtaInfoResponse);
+
+    /**
+    * @brief 获取机器人的升级结果
+    */
+    rpc GetOTAResult(GetOTAResultRequest) returns (GetOTAResultResponse);
+
+    /**
+     * @brief 修改OTA运行期间的配置信息
+     * @note  仅作为内部测试使用
+    */
+    rpc UpdateOTAConfigInOperation(UpdateOTAConfigRequest) returns (UpdateOTAConfigResponse);
+}

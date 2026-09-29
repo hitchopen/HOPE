@@ -15,6 +15,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   scripts/agibot_mdu_timesync_supervised.sh
+  scripts/avatar_pro_vrpn_relay
   scripts/fake_ball_publisher
   scripts/fake_optitrack_publisher
   scripts/mocap_frame_probe.py
@@ -36,6 +37,8 @@ install(PROGRAMS
 install(FILES
   scripts/base_pose_contract.py
   scripts/p1_calibration.py
+  scripts/source_time_rate_gate.py
+  scripts/table_side_transform.py
   scripts/p1_marker_layout.py
   scripts/p1_marker_cad_registration_impl.py
   scripts/p1_pelvis_calibration_impl.py
@@ -54,6 +57,9 @@ if(BUILD_TESTING)
   set(ament_cmake_copyright_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
   find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(table_side_transform_test test/test_table_side_transform.py)
+  ament_add_pytest_test(source_time_rate_gate_test test/test_source_time_rate_gate.py)
+  ament_add_pytest_test(natnet_preflight_test test/test_natnet_preflight.py)
   ament_add_pytest_test(pose_to_posearray_test test/test_pose_to_posearray.py
     TIMEOUT 60
   )
@@ -70,6 +76,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(mocap_frame_probe_test test/test_mocap_frame_probe.py)
   ament_add_pytest_test(base_pose_contract_test test/test_base_pose_contract.py)
   ament_add_pytest_test(p1_calibration_test test/test_p1_calibration.py)
+  ament_add_pytest_test(public_sticker_integration_test test/test_public_sticker_integration.py)
   ament_add_pytest_test(p1_marker_layout_test test/test_p1_marker_layout.py)
   ament_add_pytest_test(p1_marker_cad_calibration_server_test test/test_p1_marker_cad_calibration_server.py)
 endif()

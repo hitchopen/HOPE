@@ -1,0 +1,43 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 碰撞功能请求消息
+ */
+message CollisionRequest {
+    RequestHeader header = 1;
+    bool enable = 2;
+}
+
+
+/**
+ * @brief 碰撞功能状态响应消息
+ */
+message CollisionResponse {
+    ResponseHeader header = 1;
+    bool CollisionDetectionState = 2;
+}
+
+/**
+ * @brief 跳舞类型请求
+ */
+message DanceTypeRequest {
+    RequestHeader header = 1;
+    string dance_name = 2;    // 选择舞蹈名称
+}
+
+/**
+ * @brief 跳舞列表获取
+ */
+message McDanceResponce {
+    // 响应头
+    ResponseHeader header = 1;
+    
+    repeated string dance_name = 2;        // 舞蹈名称
+    repeated string dance_model_path = 3;  // 模型存放路径
+    repeated string dance_data_path = 4;   // 舞蹈数据存放路径
+    repeated double dance_time = 5;        // 返回舞蹈运行持续时间 
+}

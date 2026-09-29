@@ -9,15 +9,17 @@ from __future__ import annotations
 
 from pathlib import Path
 import threading
+import json
 import time
 
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray, String
 from std_srvs.srv import Trigger
+from hope_monitor_core import read_ipv4_interface_signature
 
 from hope_command_core import (
     calibration_receipt_id,
@@ -44,8 +46,21 @@ from hope_runner_control_core import (
 
 
 class HopeCommandProxy(Node):
+    def _poll_dds_interfaces(self):
+        current = read_ipv4_interface_signature()
+        if current is None:
+            return
+        if self._dds_interfaces is None:
+            self._dds_interfaces = current
+        elif current != self._dds_interfaces and not self._action_lock.locked():
+            # Restart only this RPC proxy, after any in-flight action finishes.
+            # Existing Runner ownership and modes are unaffected.
+            raise RuntimeError("Network interfaces changed; reconnecting command proxy DDS")
+
     def __init__(self) -> None:
         super().__init__("hope_command_proxy", start_parameter_services=False)
+        self._dds_interfaces = read_ipv4_interface_signature()
+        self.create_timer(1.0, self._poll_dds_interfaces)
         self.declare_parameter(
             "session_id_path", "/tmp/hope_model21800_session_id"
         )
@@ -54,10 +69,19 @@ class HopeCommandProxy(Node):
         self.declare_parameter("x_hit_timeout_s", 5.0)
         self.declare_parameter("runner_action_timeout_s", 2.0)
         self.declare_parameter(
-            "calibration_service", "/a3/calibration/recompute_p1"
+            "calibration_service_v2", "/a3/calibration/recompute_ucb_robot_v2"
         )
-        self.declare_parameter("calibration_timeout_s", 25.0)
-        self.declare_parameter("base_pose_timeout_s", 5.0)
+        self.declare_parameter(
+            "calibration_service_v3", "/a3/calibration/recompute_ucb_robot_v3"
+        )
+        # Cross-host DDS discovery is fast on the original venue LAN but can
+        # take several seconds after the Laptop bridge starts on the field
+        # Wi-Fi. Keep one transport-independent contract for both venues. The
+        # calibration server itself may spend up to 30 s waiting for all ten
+        # physical markers, so the proxy must not cancel it at 25 s.
+        self.declare_parameter("calibration_service_discovery_timeout_s", 20.0)
+        self.declare_parameter("calibration_timeout_s", 45.0)
+        self.declare_parameter("base_pose_timeout_s", 10.0)
         self.declare_parameter("runner_state_stale_after_s", 1.5)
 
         self._session_id_path = Path(
@@ -74,6 +98,9 @@ class HopeCommandProxy(Node):
         self._calibration_timeout_s = float(
             self.get_parameter("calibration_timeout_s").value
         )
+        self._calibration_service_discovery_timeout_s = float(
+            self.get_parameter("calibration_service_discovery_timeout_s").value
+        )
         self._base_pose_timeout_s = float(
             self.get_parameter("base_pose_timeout_s").value
         )
@@ -86,6 +113,10 @@ class HopeCommandProxy(Node):
             raise ValueError("runner_action_timeout_s must be positive")
         if self._calibration_timeout_s <= 0.0:
             raise ValueError("calibration_timeout_s must be positive")
+        if self._calibration_service_discovery_timeout_s <= 0.0:
+            raise ValueError(
+                "calibration_service_discovery_timeout_s must be positive"
+            )
         if self._base_pose_timeout_s <= 0.0:
             raise ValueError("base_pose_timeout_s must be positive")
         if self._runner_state_stale_after_s <= 0.0:
@@ -105,11 +136,19 @@ class HopeCommandProxy(Node):
         if self._runner_request_id == 0:
             self._runner_request_id = 1
         self._callback_group = ReentrantCallbackGroup()
-        self._calibration_client = self.create_client(
-            Trigger,
-            str(self.get_parameter("calibration_service").value),
-            callback_group=self._callback_group,
-        )
+        self.declare_parameter("calibration_service_stickers_v3", "/a3/calibration/recompute_p1")
+        self._calibration_clients = {
+            profile: self.create_client(
+                Trigger,
+                str(self.get_parameter(parameter_name).value),
+                callback_group=self._callback_group,
+            )
+            for profile, parameter_name in (
+                ("STICKERS_V3", "calibration_service_stickers_v3"),
+                ("V2", "calibration_service_v2"),
+                ("V3", "calibration_service_v3"),
+            )
+        }
         receipt_qos = QoSProfile(
             depth=1,
             reliability=ReliabilityPolicy.RELIABLE,
@@ -121,17 +160,22 @@ class HopeCommandProxy(Node):
         self._calibration_status_publisher = self.create_publisher(
             String, "/hope/calibration/status", receipt_qos
         )
-        self._publish_calibration_status(
-            False, "NOT CALIBRATED SINCE COMMAND PROXY START"
+        self._calibration_profile_publisher = self.create_publisher(
+            String, "/hope/calibration/profile", receipt_qos
         )
+        self._publish_calibration_status(
+            False, "WAITING FOR SAVED CALIBRATION AND LIVE BASE RECEIPT"
+        )
+        self.create_subscription(String, "/hope/field/status", self._field_status_callback,
+                                 10, callback_group=self._callback_group)
         self._runner_request_publisher = self.create_publisher(
             Float64MultiArray,
-            "/hope/runner/control_request_flat",
+            "/hope/runner/control_request_hdu_flat",
             10,
         )
         self._runner_state_subscription = self.create_subscription(
             Float64MultiArray,
-            "/hope/runner/state_flat",
+            "/hope/runner/state_hdu_flat",
             self._runner_state_callback,
             10,
             callback_group=self._callback_group,
@@ -143,12 +187,15 @@ class HopeCommandProxy(Node):
             10,
             callback_group=self._callback_group,
         )
-        self._calibration_service = self.create_service(
-            Trigger,
-            "/hope/calibrate",
-            self._calibrate,
-            callback_group=self._callback_group,
-        )
+        self._calibration_services = {
+            profile: self.create_service(
+                Trigger,
+                f"/hope/calibrate_{profile.lower()}",
+                self._calibration_callback(profile),
+                callback_group=self._callback_group,
+            )
+            for profile in ("STICKERS_V3", "V2", "V3")
+        }
         self._refresh_service = self.create_service(
             Trigger,
             "/hope/refresh_x_hit",
@@ -167,14 +214,18 @@ class HopeCommandProxy(Node):
                 ("set_receiver", "SET_RECEIVER"),
                 ("enter_pd_stand", "ENTER_PD_STAND"),
                 ("enter_motion", "ENTER_MOTION"),
+                ("enter_teleop", "ENTER_TELEOP"),
                 ("emergency_passive", "EMERGENCY_PASSIVE"),
+                ("prepare_serve", "PREPARE_SERVE"),
+                ("confirm_ball_loaded", "CONFIRM_BALL_LOADED"),
+                ("confirm_grip_secure", "CONFIRM_GRIP_SECURE"),
                 ("ready_to_serve", "READY_TO_SERVE"),
-                ("serve", "SERVE"),
+                ("open_gripper", "OPEN_GRIPPER"),
             )
         }
         self.get_logger().info(
-            "Runner command proxy started: seven fixed local-Runner actions plus "
-            "separate world-to-pelvis calibration and Planner refresh_x_hit"
+            "Runner command proxy started: ten fixed local-Runner actions plus "
+            "separate V2/V3 world-to-pelvis calibration and Planner refresh_x_hit"
         )
 
     def _runner_state_callback(self, message: Float64MultiArray) -> None:
@@ -185,21 +236,34 @@ class HopeCommandProxy(Node):
                 self._runner_state_error = f"MALFORMED RUNNER STATE: {exc}"
                 self._runner_state_condition.notify_all()
             return
-        session_changed = False
         with self._runner_state_condition:
-            previous = self._runner_state
-            session_changed = bool(
-                previous is not None
-                and previous.session_fingerprint != state.session_fingerprint
-            )
             self._runner_state = state
             self._runner_state_received_monotonic = time.monotonic()
             self._runner_state_error = ""
             self._runner_state_condition.notify_all()
-        if session_changed:
+
+    def _field_status_callback(self, message: String) -> None:
+        # The saved receipt survives Runner sessions. Success here means that
+        # the current live base actually uses that saved receipt, not a new fit.
+        if self._action_lock.locked():
+            return
+        try:
+            metadata = json.loads(message.data).get("calibration")
+            if not metadata:
+                self._publish_calibration_status(False, "NO SAVED CALIBRATION")
+                return
+            expected = calibration_receipt_id(metadata["sha256"])
+            with self._base_packet_condition:
+                packet = self._base_packet
+                valid = (packet is not None and packet.valid
+                         and packet.calibration_id == expected
+                         and time.monotonic() - self._base_packet_received_monotonic <= 1.0)
             self._publish_calibration_status(
-                False, "NOT CALIBRATED FOR CURRENT RUNNER SESSION"
-            )
+                valid, f"SAVED {metadata['name']} · " +
+                ("LIVE RECEIPT VALID" if valid else "WAITING FOR MATCHING LIVE BASE"),
+                metadata["profile"].upper())
+        except (ValueError, KeyError, TypeError, AttributeError):
+            self._publish_calibration_status(False, "INVALID SAVED CALIBRATION STATUS")
 
     def _base_pose_callback(self, message: Float64MultiArray) -> None:
         try:
@@ -331,9 +395,20 @@ class HopeCommandProxy(Node):
             return f"Runner mode is {state.run_mode}; settled PD_STAND is required"
         return ""
 
-    def _publish_calibration_status(self, success: bool, detail: str) -> None:
+    def _publish_calibration_status(
+        self, success: bool, detail: str, profile: str = "NONE"
+    ) -> None:
         self._calibration_success_publisher.publish(Bool(data=success))
         self._calibration_status_publisher.publish(String(data=detail))
+        self._calibration_profile_publisher.publish(String(data=profile))
+
+    def _calibration_callback(self, profile: str):
+        def callback(
+            request: Trigger.Request, response: Trigger.Response
+        ) -> Trigger.Response:
+            return self._calibrate(profile, request, response)
+
+        return callback
 
     @staticmethod
     def _wait_for_future(future, timeout_s: float) -> bool:
@@ -366,29 +441,47 @@ class HopeCommandProxy(Node):
                 self._base_packet_condition.wait(timeout=remaining)
 
     def _calibrate(
-        self, _request: Trigger.Request, response: Trigger.Response
+        self,
+        profile: str,
+        _request: Trigger.Request,
+        response: Trigger.Response,
     ) -> Trigger.Response:
         if not self._action_lock.acquire(blocking=False):
             response.success = False
             response.message = "another explicit operator action is already in progress"
             return response
-        self._publish_calibration_status(False, "CALIBRATION STARTING")
+        calibration_client = self._calibration_clients[profile]
+        self._publish_calibration_status(
+            False, f"CALI {profile} STARTING", profile
+        )
         try:
             try:
                 session_id = self._current_session_id()
                 runner_error = self._runner_pd_stand_error(session_id)
                 if runner_error:
                     raise DecodeError(runner_error)
-                if not self._calibration_client.service_is_ready():
-                    raise DecodeError(
-                        "laptop /a3/calibration/recompute_p1 service is unavailable"
+                if not calibration_client.service_is_ready():
+                    self._publish_calibration_status(
+                        False,
+                        f"CALI {profile} · WAITING FOR LAPTOP SERVICE DISCOVERY",
+                        profile,
                     )
+                    if not calibration_client.wait_for_service(
+                        timeout_sec=self._calibration_service_discovery_timeout_s
+                    ):
+                        raise DecodeError(
+                            f"laptop CALI {profile} service was not discovered "
+                            f"within "
+                            f"{self._calibration_service_discovery_timeout_s:.1f}s"
+                        )
 
                 self._publish_calibration_status(
                     False,
-                    "CAPTURING 10 MARKERS · deriving world→pelvis JSON snapshot",
+                    f"CALI {profile} · CAPTURING 10 MARKERS · "
+                    "deriving world→pelvis JSON snapshot",
+                    profile,
                 )
-                future = self._calibration_client.call_async(Trigger.Request())
+                future = calibration_client.call_async(Trigger.Request())
                 if not self._wait_for_future(future, self._calibration_timeout_s):
                     future.cancel()
                     raise TimeoutError("10-marker calibration service timed out")
@@ -411,7 +504,10 @@ class HopeCommandProxy(Node):
                 calibration_completed = time.monotonic()
 
                 self._publish_calibration_status(
-                    False, "WAITING FOR FRESH world→pelvis_link RECEIPT"
+                    False,
+                    f"CALI {profile} · WAITING FOR FRESH "
+                    "world→pelvis_link RECEIPT",
+                    profile,
                 )
                 self._wait_for_calibrated_base(receipt_id, calibration_completed)
                 runner_error = self._runner_pd_stand_error(session_id)
@@ -422,20 +518,27 @@ class HopeCommandProxy(Node):
 
                 self._publish_calibration_status(
                     False,
-                    "WORLD→PELVIS READY · JSON receipt persisted; x_hit unchanged",
+                    f"CALI {profile} · WORLD→PELVIS READY · "
+                    "JSON receipt persisted; x_hit unchanged",
+                    profile,
                 )
             except (OSError, DecodeError, TimeoutError, ValueError) as exc:
                 detail = str(exc)
-                self._publish_calibration_status(False, f"CALIBRATION FAILED · {detail}")
+                self._publish_calibration_status(
+                    False, f"CALI {profile} FAILED · {detail}", profile
+                )
                 response.success = False
                 response.message = f"calibration not confirmed: {detail}"
                 return response
 
             detail = (
-                f"calibration_sha={receipt_sha} base_calibration_id={receipt_id} "
+                f"profile={profile} calibration_sha={receipt_sha} "
+                f"base_calibration_id={receipt_id} "
                 "world_to_pelvis_snapshot=persisted x_hit=unchanged"
             )
-            self._publish_calibration_status(True, f"CALIBRATION COMPLETE · {detail}")
+            self._publish_calibration_status(
+                True, f"CALI {profile} COMPLETE · {detail}", profile
+            )
             response.success = True
             response.message = detail
             return response
@@ -488,12 +591,12 @@ def main() -> None:
     executor.add_node(node)
     try:
         executor.spin()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         executor.shutdown()
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

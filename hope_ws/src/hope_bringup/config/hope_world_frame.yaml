@@ -15,16 +15,16 @@ hope_world:
     calibration_sha256: 23c3d8651c696c4f49d192d6cd246bbd393054ffc540163d6b7fdd92eff369f2
     calibration_note: >-
       Operator-attested manual Motive origin (+X P1-to-P2, +Y left, +Z up)
-      with a grounded Ball/P1 vertical probe; no PPT required. Receipt:
+      with a grounded Ball/robot vertical probe; no PPT required. Receipt:
       hope_ws/calibration_receipts/manual_motive_world_origin_20260731.json
 
   frames:
     world: world
     table_rigid_body: PPT
-    p1_mocap: P1
-    p1_base_link: P1_base_link
-    p2_mocap: P2
-    p2_base_link: P2_base_link
+    p1_mocap: UCB_P1
+    p1_base_link: UCB_P1_base_link
+    p2_mocap: UCB_P2
+    p2_base_link: UCB_P2_base_link
     table_center: table_center
     p1_half_center: p1_half_center
     p2_half_center: p2_half_center
@@ -37,6 +37,19 @@ hope_world:
     width: 1.525
     surface_height: 0.76
     net_height: 0.1525
+
+  runtime_table_sides:
+    P1:
+      tracked_marker_frame: UCB_P1
+      operation: identity
+      note: Motive world is already the policy P1-to-P2 convention.
+    P2:
+      tracked_marker_frame: UCB_P2
+      operation: rotate_z_pi_about_table_center
+      position_equation: ["x'=length-x", "y'=-width-y", "z'=z"]
+      note: >-
+        Apply to every relayed ball and rigid-body pose before packetization or
+        base composition; never switch while the lifecycle is running.
 
   landmarks_m:
     table_center: [1.37, -0.7625, 0.0]
@@ -67,7 +80,7 @@ hope_world:
         Uncalibrated after the v3 sticker-shell migration. Do not reuse the
         historical ten-ball receipt. Restart NatNet after redefining P1 with
         S01-S24, then generate a fresh approved marker-CAD receipt at
-        calibration/p1_to_pelvis.json. Runtime loads that file; these values
+        calibration/ucb_robot_to_pelvis.json. Runtime loads that file; these values
         are inert placeholders, not an assertion that P1 equals pelvis_link.
     p2:
       marker_layout_id: unknown

@@ -1,0 +1,34 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/hal/uwb/uwb.proto";
+
+/**
+ * @brief 单个 UWB 标签的完整数据，包含三种测量结果
+ */
+message UwbTagData {
+  // 定位结果（msg_id = 68）
+  UwbLocationResult location_result = 1;
+
+  // 信标信号原始测量数据（msg_id = 96）
+  UwbAnchorSignal anchor_signal = 2;
+
+  // 信标间距离差数据（msg_id = 104）
+  UwbAnchorDdoas anchor_ddoas = 3;
+}
+
+/**
+ * @brief 由 HAL 上报的 UWB 双标签数据
+ *        topic: /hal/chest_middle_uwb/uwb
+ */
+message UwbChannel {
+  // 消息头
+  Header header = 1;
+
+  // 左侧标签数据
+  UwbTagData left_tag = 2;
+
+  // 右侧标签数据
+  UwbTagData right_tag = 3;
+}

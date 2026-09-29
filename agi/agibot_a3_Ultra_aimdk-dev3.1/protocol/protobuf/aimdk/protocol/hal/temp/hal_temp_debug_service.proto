@@ -1,0 +1,28 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+//调整关节温度阈值请求
+message ModifyTempThresholdRequest {
+  int32 motor_l1_temp = 1; //mos一级过温阈值,如果不想改变直接给小于-40的值
+  int32 motor_l2_temp = 2; //mos二级过温阈值,如果不想改变直接给小于-40的值
+  int32 coil_l1_temp = 3; //线圈一级过温阈值，如果不想改变直接给小于-40的值
+  int32 motor_l1_temp_restore = 4; //mos一级过温恢复阈值，如果不想改变直接给小于-40的值
+  int32 motor_l2_temp_restore = 5; //mos二级过温恢复阈值，如果不想改变直接给小于-40的值
+  int32 coil_l1_temp_restore = 6; //线圈一级过温恢复阈值，如果不想改变直接给小于-40的值
+}
+
+//调整关节温度阈值响应
+message ModifyTempThresholdRepsonse {
+    int32 err_code = 1;
+    string err_msg = 2;
+}
+
+service HalArmTempDebugService {
+    rpc ModifyArmTempThreshold(ModifyTempThresholdRequest) returns (ModifyTempThresholdRepsonse);
+}
+
+service HalLegTempDebugService {
+    rpc ModifyLegTempThreshold(ModifyTempThresholdRequest) returns (ModifyTempThresholdRepsonse);
+}

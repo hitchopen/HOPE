@@ -1,0 +1,192 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/common.proto";
+import "aimdk/protocol/setting/wifi.proto";
+import "aimdk/protocol/setting/robot_function_setting.proto";
+import "aimdk/protocol/setting/nvfan.proto";
+import "aimdk/protocol/setting/robot_info.proto";
+
+/**
+ * @brief 对外提供机器人orin系统设置相关的接口
+ */
+service RobotOrinSettingService {
+  /**
+   * @breif 获取系统网络状态
+   */
+  rpc GetSystemNetworkState(CommonRequest) returns (GetSystemNetworkStateRsp);
+
+  /**
+   * @brief 设置Orin上系统wifi状态,其中，连接wifi为异步，需要使用GetSystemWifiState接口获取连接状态
+   */
+  rpc SystemOrinWifiControl(SystemWifiControlReq) returns (SystemWifiControlRsp);
+
+  /**
+   * @brief 传入wifi名，获取Orin上连接状态
+   */
+  rpc GetOrinSystemWifiState(GetSystemWifiStateReq) returns (GetSystemWifiStateRsp);
+
+  /**
+   * @brief setting模块内部使用，用于重置orin路由
+   */
+  rpc ResetOrinWifiState(ResetOrinWifiStateReq) returns (CommonResponse);
+
+  /**
+   * @brief 获取nvfan当前配置。
+   * @param CommonRequest: 获取nvfan当前配置请求
+   * @return NvFanProfileRsp: 获取nvfan当前配置响应
+   */
+  rpc GetNvFanProfile(CommonRequest) returns (NvFanProfileRsp);
+
+  /**
+   * @brief 设置nvfan控制指令。
+   * @param NvFanCommandReq: 设置nvfan控制指令请求
+   * @return CommonResponse: 设置nvfan控制指令响应
+   */
+  rpc SetNvFanCommand(NvFanCommandReq) returns (CommonResponse);
+}
+
+/**
+ * @brief 对外提供机器人x86系统设置相关的接口
+ */
+service RobotX86SettingService {
+  /**
+   * @brief 设置X86上系统wifi状态,其中，连接wifi为异步，需要使用GetSystemWifiState接口获取连接状态
+   */
+  rpc SystemX86WifiControl(SystemWifiControlReq) returns (SystemWifiControlRsp);
+
+  /**
+   * @brief 传入wifi名，获取X86上连接状态
+   */
+  rpc GetX86SystemWifiState(GetSystemWifiStateReq) returns (GetSystemWifiStateRsp);
+
+  /**
+   * @brief setting模块内部使用，用于重置x86系统时区
+   */
+  rpc SetX86Timedate(TimedateControlReq) returns (TimedateControlRsp);
+
+  /**
+   * @brief 重置x86系统
+   */
+  rpc FactoryReset(CommonRequest) returns (CommonResponse);
+
+  /**
+   * @brief 重启机器人
+   */
+  rpc RebootRobot(CommonRequest) returns (CommonResponse);
+
+  /**
+   * @brief 设置机器人名称
+   */
+  rpc SetX86RobotInfo(RobotInfoSettingReq) returns (RobotInfoSettingRsp);
+
+  /**
+   * @brief 设置成群控模式
+   */
+  rpc SetTaixinToGCS(SetTaixinToGCSReq) returns (CommonResponse);
+
+  /**
+   * @brief 设置成普通模式
+   */
+  rpc SetTaixinToCommon(CommonRequest) returns (CommonResponse);
+
+  /**
+   * @brief 获取泰芯遥控器相关信息
+   */
+  rpc GetTaixinInfo(CommonRequest) returns (GetTaixinInfoRsp);
+}
+
+/**
+ * @brief 网络接口状态
+ */
+message NetInterfaceState {
+  bool is_open = 1;
+  string name = 2;
+  string ipv4 = 3;
+  string mac = 4;
+}
+
+/**
+ * @brief 获取系统网络状态响应体
+ */
+message GetSystemNetworkStateRsp {
+  ResponseHeader header = 1;
+  repeated NetInterfaceState interface_list = 2;
+}
+
+/**
+ * @brief 设置系统wifi状态 RPC请求
+ * @param Operation 操作类型
+ */
+ message SystemWifiControlReq {
+  RequestHeader header = 1;
+  WifiControlOperation Operation = 2;
+  WifiInfo connect_wifi_info = 3;
+}
+
+/**
+ * @brief 获取系统wifi状态请求体
+ * @param ssid 要查询的当前正在连接的wifi名，为空时返回当前连接的wifi状态
+ */
+message GetSystemWifiStateReq {
+  RequestHeader header = 1;
+  string ssid = 2;
+}
+
+/**
+ * @brief 获取系统wifi状态响应体
+ */
+message GetSystemWifiStateRsp {
+  ResponseHeader header = 1;
+  WifiInfo wifi_info = 2;
+  string msg = 3;
+}
+
+/**
+ * @brief 设置系统wifi状态 RPC响应数据
+ */
+message SystemWifiControlRspData {
+  repeated WifiInfo wifi_list = 1;  // 附近wifi列表
+}
+
+/**
+ * @brief 设置系统wifi状态 RPC响应体
+ */
+message SystemWifiControlRsp {
+  ResponseHeader header = 1;
+  SystemWifiControlRspData data = 2;
+}
+
+/**
+ * @brief orin wifi开关请求
+ */
+message ResetOrinWifiStateReq {
+  RequestHeader header = 1;
+  bool enable_wifi = 2;
+}
+
+/**
+ * @brief 泰芯遥控器设置成群控模式请求体
+ */
+message SetTaixinToGCSReq {
+  RequestHeader header = 1;
+  string ip = 2;                // ip
+  string subnet_mask = 3;       // 子网掩码
+  string gateway = 4;           // 网关
+  string ssid = 5;              // ssid
+  int32 bss_bw = 6;             // 带宽
+  repeated int32 chan_list = 7; // 中心频点
+  string key_mgmt = 8;          // 加密方式
+  string wpa_psk = 9;           // 仅开启加密后需要
+}
+
+/**
+ * @brief 获取泰芯遥控器相关信息请求体
+ */
+message GetTaixinInfoRsp {
+  ResponseHeader header = 1;
+  string module_type = 2;
+  string fw_version = 3;
+  string mac = 4;
+}

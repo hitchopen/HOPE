@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/demo/ball.proto";
+import "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 由 example 中的 ping::Module 发出、pong::Module 接收的信道。
+ * @note topic name: /example/ping_pong_ball
+ */
+message BallChannel {
+  Header header = 1;
+
+  // 携带的信息的球
+  Ball ball = 2;
+}

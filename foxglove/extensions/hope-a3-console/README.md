@@ -1,39 +1,31 @@
 # HOPE A3 Console
 
-Foxglove extension implementing the attended operator console against the
-native model_21800 Runner contract.
+Download `hopeopen.hope-a3-console-1.8.9.foxe` from this directory and open it in
+Foxglove Desktop's Extensions screen to install the console. No Node.js build is
+needed for this prebuilt release. Import
+[`model21800_console.json`](../../layouts/model21800_console.json) and connect to
+`ws://<HDU-IP>:8766` after installing the matching HDU/Laptop services.
 
-The panel uses one opt-in data source, `ws://<HDU-IP>:8766`. It never publishes
-topics and cannot access generic parameters. Buttons call only the explicit
-services listed in `foxglove/a3/bridge_params_control.yaml`. The
-lifecycle configuration call uses a `SetParameters`-shaped request only so the
-four named IPv4 strings can be transported; the dedicated server rejects every
-other name/type and accepts confirmation only while stopped.
+The public console supports Xbox A/B/X/Y mode actions, LT movement, LB+RB software
+E-stop and software reset; Normal Play and Kernel Mode; and the public 24-sticker
+calibration plus separate legacy V2/V3 profiles. It calls the dedicated services
+in `bridge_params_control.yaml`; Runner remains the body-command owner.
+
+Install the matching control-plane helpers, configs and service units from this
+same checkout. See [Runtime operation](../../../docs/operations/runtime_xbox.md)
+for the complete setup. A Foxglove panel installation alone does not install
+robot-side services or start motion.
+
+To rebuild the installer from the public source:
 
 ```bash
-npm install
-npm run lint
+npm ci
 npm run package
 ```
 
-Install the generated `.foxe` through Foxglove Desktop's Extensions screen,
-then import `foxglove/layouts/model21800_console.json`.
-
-The recommended receiver sequence shown by the UI is Stand, Calibration,
-Refresh x_hit, then Ready. Calibration captures the ten physical P1 markers,
-replaces the approved `P1 -> pelvis_link` receipt, stores the derived stationary
-`world -> pelvis_link` audit snapshot in the same JSON, and waits for the base
-relay to publish a fresh matching packet. It does not refresh Planner x_hit;
-the separate `Refresh x_hit` button uses the existing atomic Planner contract.
-Neither operation becomes a hidden Runner MOTION admission gate. Ready to Serve
-and Serve remain disabled unless the authoritative Runner reports a loaded
-serve controller and the appropriate serve phase.
-
-The CPU card reports aggregate HDU load and the process with the largest CPU
-delta. E-stop is assert-only: the panel follows the persistent HDU latch and
-does not expose a reset operation.
-
-The system-lifecycle card is backed by the separately installed HDU supervisor
-documented in `docs/operations/foxglove_lifecycle.md`. `START SYSTEM`
-replaces runbook STEP 0/1/2A/2B/4/5 and leaves the Runner in PASSIVE; it does
-not replace physical robot support or access to the hardware E-stop.
+`npm run package` performs the production build and packages the JavaScript,
+fonts, manifest and notices into the `.foxe`. `dist/` and `node_modules/` are
+build inputs/outputs; the ready-to-install `.foxe` is committed as an ordinary
+Git blob. When changing console source, regenerate the installer from that source.
+When changing the release version, update the exact filename allowed by this
+directory's `.gitignore` and the download links, and remove the superseded installer.

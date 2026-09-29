@@ -1,0 +1,33 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+
+/**
+ * @brief offset = ((t2 - t1) + (t3 - t4)) / 2
+ * @brief 时间差需要am收发时间，orin的收发时间才能确定
+ */
+message TimestampOffset{
+  /**
+ * @brief 收到请求的时间（t2）,单位ms
+ */
+  int64 recv_timstamp = 1;
+
+  /**
+   * @brief 返回的系统时间（t3），单位ms
+   */
+  int64 orin_timestamp = 2;
+}
+
+
+
+/**
+ * @brief 获取TimeOffset状态响应
+ */
+message TimeOffsetRsp {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // TimeOffset状态数据
+  TimestampOffset data = 2;
+}

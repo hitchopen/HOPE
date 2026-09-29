@@ -17,13 +17,12 @@ env/
 logs/
 outputs/
 checkpoints/
+*.pt
 *.pth
 *.ckpt
 *.log
 
-# PyTorch .pt files are distributable model assets and are not globally ignored.
-# Generated checkpoint directories remain ignored above; explicitly publish
-# reviewed checkpoint assets such as model_21800 below.
+# Only explicitly reviewed checkpoints are published.
 # Published model_21800 warm-start checkpoint (machine-bound exact-resume state removed).
 !hope_training/whole_body_tracking/checkpoints/
 !hope_training/whole_body_tracking/checkpoints/model_21800.pt
@@ -40,7 +39,9 @@ checkpoints/
 *.tar.gz
 *.deb
 *.so
+*.so.*
 *.a
+*.foxe
 
 # ROS 2 workspace build artifacts
 hope_ws/build/
@@ -119,3 +120,35 @@ pw.txt
 .idea/
 .vscode/
 _to_delete/
+
+# Published controller playback assets; learned/private models remain ignored.
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/*
+
+# Published HumanLike inference assets used by the native Xbox adapter.
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/
+a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/README.md
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/humanlike.yaml
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/policy.onnx
+!a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/lin_vel_encoder.onnx
+
+# Attended serve assets and gripper model; generated run data stays local.
+!a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/**
+!a3_deploy/a3_deploy_example/assets/a3_runtime/robots/
+a3_deploy/a3_deploy_example/assets/a3_runtime/robots/*
+!a3_deploy/a3_deploy_example/assets/a3_runtime/robots/A3PingPong-with-gripper/
+!a3_deploy/a3_deploy_example/assets/a3_runtime/robots/A3PingPong-with-gripper/**
+**/wandb/
+**/logs/
+**/log/
+**/outputs/
+**/output.log
+events.out.tfevents.*
+
+# Consolidated, supplied AimDK bundle; do not expose other local agi payloads.
+!/agi/
+/agi/*
+!/agi/agibot_a3_Ultra_aimdk-dev3.1/

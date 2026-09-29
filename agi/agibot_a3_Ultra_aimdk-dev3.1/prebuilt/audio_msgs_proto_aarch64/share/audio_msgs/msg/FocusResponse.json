@@ -1,0 +1,36 @@
+{
+  "type_description_msg": {
+    "type_description": {
+      "type_name": "audio_msgs/msg/FocusResponse",
+      "fields": [
+        {
+          "name": "pkg_name",
+          "type": {
+            "type_id": 17,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": ""
+          },
+          "default_value": ""
+        },
+        {
+          "name": "focus_gain",
+          "type": {
+            "type_id": 15,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": ""
+          },
+          "default_value": ""
+        }
+      ]
+    },
+    "referenced_type_descriptions": []
+  },
+  "type_hashes": [
+    {
+      "type_name": "audio_msgs/msg/FocusResponse",
+      "hash_string": "RIHS01_5d6bd7180180aaa59f771ee61295cba7bfe765e486e757185fe82a85591f988b"
+    }
+  ]
+}

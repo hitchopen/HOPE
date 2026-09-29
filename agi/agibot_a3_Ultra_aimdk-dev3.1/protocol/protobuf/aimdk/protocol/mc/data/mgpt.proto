@@ -1,0 +1,34 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 运动GPT状态
+ */
+enum MotionGPTState {
+  MotionGPTState_WAIT_MGPT_COMMAND      = 0;    // 等待命令
+  MotionGPTState_MOVING_TO_FIRST_POINT  = 1;    // 移动到第一个点
+  MotionGPTState_ARRIVED_FIRST_POINT    = 2;    // 到达第一个点
+  MotionGPTState_MOVING_TO_FINAL_POINT  = 3;    // 移动到最后一个点
+  MotionGPTState_ARRIVED_FINAL_POINT    = 4;    // 到达最后一个点
+  MotionGPTState_MGPT_FINISHED          = 5;    // 已完成
+}
+
+/**
+ * @brief 运动GPT状态请求
+ */
+message MotionGPTStateRequest {
+  RequestHeader   header  = 1;    // 请求头
+  MotionGPTState  state   = 2;    // 状态
+}
+
+/**
+ * @brief 运动GPT状态响应
+ */
+message MotionGPTStateResponse {
+  // 响应头
+  ResponseHeader header = 1;    // 请求头
+  MotionGPTState state  = 2;    // 状态
+}

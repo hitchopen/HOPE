@@ -1,0 +1,85 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+enum OperationMode {
+  // 未定义，一般是程序遗漏设置，才会是该值
+  OperationMode_UNDEFINED = 0;
+  // Profile position mode
+  OperationMode_PP = 1;
+  // Velocity mode
+  OperationMode_VL = 2;
+  // Profile velocity mode
+  OperationMode_PV = 3;
+  // Torque profile mode
+  OperationMode_TQ = 4;
+  // Homing mode
+  OperationMode_HM = 6;
+  // Interpolated position mode
+  OperationMode_IP = 7;
+  // Cyclic synchronous position mode
+  OperationMode_CSP = 8;
+  // Cyclic synchronous velocity mode
+  OperationMode_CSV = 9;
+  // Cyclic synchronous torque mode
+  OperationMode_CST = 10;
+  // 阻尼模式
+  OperationMode_DAMPING = 11;
+}
+
+/**
+ * @brief 当前机器人某个从站节点的运动模式状态描述
+ */
+message NodeOperationModeState {
+  // 从站ID号，需要基于机器人型号查询该机型硬件架构
+  int32 slave_node_id = 1;
+  // 从站名称
+  string slave_node_name = 2;
+  // 运动模式状态
+  OperationMode mode = 3;
+}
+
+/**
+ * @brief 当前机器人某个从站节点的运动模式控制指令
+ */
+message NodeOperationModeCommand {
+  // 从站ID号，需要基于机器人型号查询该机型硬件架构
+  int32 slave_node_id = 1;
+  // 从站名称
+  string slave_node_name = 2;
+  // 运动模式指令
+  OperationMode mode = 3;
+}
+
+/**
+ * @brief 当前机器人的运动模式状态描述
+ */
+message OperationModeState { repeated NodeOperationModeState state_list = 1; }
+
+/**
+ * @brief 当前机器人的运动模式状态描述
+ */
+message OperationModeCommand { repeated NodeOperationModeCommand cmd_list = 1; }
+
+/**
+ * @brief 下发运动模式命令
+ */
+message OperationModeCommandReq {
+  // 消息头
+  RequestHeader header = 1;
+
+  // 运动模式命令
+  OperationModeCommand cmd = 2;
+}
+
+/**
+ * @brief 获取运动模式状态响应
+ */
+message OperationModeStateRsp {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // 运动模式状态数据
+  OperationModeState data = 2;
+}

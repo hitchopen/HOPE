@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+// MC jaka工作状态
+enum McJakaWorkMode {
+  McJakaWorkMode_DEFAULT = 0;
+  McJakaWorkMode_SERVO = 1;
+}
+
+message McJakaStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  McJakaWorkMode work_mode = 2;
+}

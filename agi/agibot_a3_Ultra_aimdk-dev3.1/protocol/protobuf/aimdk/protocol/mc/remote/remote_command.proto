@@ -1,0 +1,52 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+enum McRemoteControlMode {
+  // 未知模式
+  McRemoteControlMode_UNKNOWN = 0;
+
+  // 自主控制模式
+  McRemoteControlMode_AUTO = 100;
+
+  // 全身控制模式
+  McRemoteControlMode_FULL_BODY = 200;
+
+  // 上身控制模式
+  McRemoteControlMode_UPPER_BODY = 300;
+}
+
+/**
+ * @brief 遥控控制操纵杆
+ */
+message McRemoteControlAxis {
+  // 上下方向摇杆
+  double up_down = 1;  // 0-1: 上，-1-0: 下
+
+  // 左右方向摇杆
+  double left_right = 2;  // -1-0: 左，0-1: 右
+}
+
+/**
+ * @brief 遥控控制按钮
+ */
+message McRemoteControlButton {
+  // 上下方向摇杆
+  bool up = 1;
+  bool down = 2;
+
+  // 左右方向摇杆
+  bool left = 3;
+  bool right = 4;
+}
+
+// 完整的遥控控制消息
+message McRemoteControlInfo {
+  // 遥控控制模式
+  McRemoteControlMode mode = 1;
+  // 左摇杆
+  McRemoteControlAxis left_axis = 2;
+  // 右按键
+  McRemoteControlButton right_button = 3;
+}

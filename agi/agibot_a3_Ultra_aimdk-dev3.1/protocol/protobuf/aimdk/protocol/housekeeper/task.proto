@@ -1,0 +1,103 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+message CreateAsyncTaskReq {              // 创建异步任务请求
+  enum TaskType {
+    UNSPECIFIED = 0;
+    PULL_DATA = 1;
+    STORE_DATA = 2;
+  }
+  RequestHeader header = 1;
+  TaskType task_type = 2;                 // 任务类型
+  PullDataParam pull_data_param = 3;      // 拉取数据参数
+}
+
+message CreateAsyncTaskRsp {
+  enum TaskStatus {
+    SUCCESS = 0;           // 任务已创建
+    FAILED = 1;            // 任务创建失败
+  }
+  ResponseHeader header = 1;
+  TaskStatus status = 2;
+  string task_id = 3;       // 任务标识ID
+  string error_message = 4; // 错误信息
+}
+
+message PullDataParam {
+  int64 start_time = 1;                  // unix time, milliseconds
+  int64 end_time = 2;                    // unix time, milliseconds
+  repeated string modules = 3;           // 模块过滤
+  int32 max_chunk_size = 4;     // 单个分片最大大小限制（MB）
+}
+
+message FileChunk {
+  string chunk_id = 1;             // 分片ID
+  string download_url = 2;         // 分片下载地址
+  int64 size = 3;                  // 分片大小(字节)
+  string md5 = 4;                  // 分片MD5校验值
+}
+
+message PullDataResult {
+  string file_name = 1;             // 完整文件名
+  int64 total_size = 2;           // 文件总大小
+  string md5 = 3;                 // 完整文件MD5校验值
+  int32 chunk_count = 4;          // 分片总数
+  repeated FileChunk chunks = 5;  // 文件分片列表
+}
+
+message AsyncTaskStatusInfo {
+  enum TaskStatus {
+    IN_PROGRESS = 0;       // 任务处理中
+    DONE = 1;              // 任务完成
+    FAILED = 2;            // 任务失败
+  }
+  string task_id = 1;             // 任务ID
+  TaskStatus status = 2;
+  string task_message = 3;
+  PullDataResult pull_data_result = 4;
+}
+
+message FileNode {
+  enum Type {
+    UNKNOWN = 0;
+    FILE = 1;
+    DIRECTORY = 2;
+  }
+  string name = 1;                    // 文件或目录名称
+  Type type = 2;                      // 节点类型：文件或目录
+  int64 size = 3;                     // 文件大小(MB)，目录为0
+  string path = 4;                    // 相对路径
+  repeated FileNode children = 5;     // 子节点（对目录有效）
+}
+
+message GetFileListReq {
+  RequestHeader header = 1;
+}
+
+message GetFileListRsp {
+  ResponseHeader header = 1;
+  repeated FileNode files = 2;        // 文件和目录的树形结构
+}
+
+message GetFileSizeReq{
+  RequestHeader header = 1;
+  int64  start_time = 2; //unix time, the number of seconds
+  int64  end_time = 3;   //unix time, the number of seconds
+}
+
+message GetFileSizeRsp{
+  ResponseHeader header = 1;
+  int64 log_file_size = 2;      //单位Bytes
+  int64 process_duration = 3;   //单位秒
+}
+
+service DeviceAsyncTaskService {
+  rpc CreateAsyncTask(CreateAsyncTaskReq) returns (CreateAsyncTaskRsp);
+}
+
+service DeviceSyncTaskService {
+  rpc GetFileList(GetFileListReq) returns (GetFileListRsp);
+  rpc GetFileSize(GetFileSizeReq) returns (GetFileSizeRsp);
+}

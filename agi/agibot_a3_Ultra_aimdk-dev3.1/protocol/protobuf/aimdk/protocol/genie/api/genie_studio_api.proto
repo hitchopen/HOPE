@@ -1,0 +1,663 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+
+// ============================================
+// 服务器代理服务
+// gs_client 作为消息转发代理
+// 将本地终端请求转发到服务器，再将服务器返回数据返回给终端
+// ============================================
+
+service ServerProxyService {
+  // 登录接口
+  rpc AuthLogin(LoginRequest) returns (LoginResponse);
+
+  // 退出登录接口
+  rpc AuthLoginout(CommonRequest) returns (CommonResponse);
+  
+  // 请求任务列表接口
+  rpc GetTaskList(GetTaskListRequest) returns (GetTaskListResponse);
+  
+  // 请求任务详情接口
+  rpc GetTaskDetail(GetTaskDetailRequest) returns (GetTaskDetailResponse);
+  
+  // 请求Job列表接口
+  rpc GetJobList(GetJobListRequest) returns (GetJobListResponse);
+  
+  // 请求Job详情接口
+  rpc GetJobDetail(GetJobDetailRequest) returns (GetJobDetailResponse);
+
+  // 领取采集包接口
+  rpc ClaimJobAssignment(ClaimJobAssignmentRequest) returns (ClaimJobAssignmentResponse);
+  
+  // 请求历史数据清单接口
+  rpc GetAssignmentHistory(GetAssignmentHistoryRequest) returns (GetAssignmentHistoryResponse);
+
+  // 创建采集记录接口
+  rpc CreateEpisode(CreateEpisodeRequest) returns (CreateEpisodeResponse);
+}
+
+// ============================================
+// 基础消息类型
+// ============================================
+
+// 分页请求参数
+message PaginationRequest {
+  int32 page_num = 1;       // 页码，从1开始
+  int32 page_size = 2;      // 每页大小
+}
+
+// 分页信息
+message PaginationInfo {
+  int32 total = 1;          // 总记录数
+  int32 page_num = 2;       // 当前页码
+  int32 page_size = 3;      // 每页大小
+}
+
+// 认证信息（用于需要token的接口）
+message AuthInfo {
+  string access_token = 1;  // 访问令牌
+  string token_type = 2;    // 令牌类型，默认为 "Bearer"
+}
+
+// ============================================
+// 1. 登录接口
+// 对应 HTTP: POST /api/v1/login/auth
+// ============================================
+
+message LoginRequest {
+  RequestHeader header = 1;
+  string username = 2;      // 用户名
+  string password = 3;      // 密码
+  string tenant = 4;        // 租户
+}
+
+message LoginData {
+  string access_token = 1;  // JWT访问令牌，用于后续接口调用
+}
+
+message LoginResponse {
+  ResponseHeader header = 1;
+  LoginData data = 2;
+}
+
+// ============================================
+// 2. 任务列表接口
+// 对应 HTTP: GET /api/v1/collect/task/list?page_num={page_num}&page_size={page_size}
+// ============================================
+
+message GetTaskListRequest {
+  RequestHeader header = 1;
+  PaginationRequest pagination = 2;
+  repeated uint32 ids = 3;                  // 任务 id 列表
+  string name = 4;                          // 任务名称模糊匹配
+  string desc = 5;                          // 任务描述模糊匹配
+  int32 status = 6;                         // 任务状态
+  repeated uint32 tags = 7;                 // 任务标签 ids
+  repeated uint32 task_scene_tags = 8;      // 任务场景标签 ids
+  repeated uint32 task_collect_modes = 9;   // 采集模式 ids
+  repeated uint32 task_attribute_tags = 10; // 任务属性标签 ids
+  repeated uint32 task_resource = 11;       // 物体 ids
+  string team = 12;                         // 指定组织
+  string source = 13;                       // 来源
+  string data_format = 14;                  // 数据格式：Agibot / Lerobot
+  string type = 15;                         // 任务类型：GENIE / SIM
+  string created_at = 16;                   // 创建时间（ISO-8601）
+  uint32 device_type_id = 17;               // 设备类型 id
+  uint32 task_collect_ontology = 18;        // 本体类型标签 id
+  string uuid = 19;                         // 跨平台 UUID
+}
+
+// 任务标签
+message TaskTag {
+  int64 id = 1;
+  int64 tenant_id = 2;      // 租户id
+  string code = 3;          // 标签编码
+  string label = 4;         // 标签名称
+  int64 pid = 5;            // 父标签ID
+  int32 level = 6;          // 标签层级
+  int32 status = 7;         // 状态
+  string created_at = 8;    // 创建时间
+  string updated_at = 9;    // 更新时间
+}
+
+// 任务进度信息
+message TaskProgress {
+  int32 normal_collect = 1;              // 常规采集量
+  int32 normal_collect_total = 2;        // 常规总量
+  int32 abnormal_collect = 3;            // 非常规采集量
+  int32 normal_review = 4;               // 常规审核量
+  int32 normal_review_total = 5;         // 常规审核总量
+  int32 abnormal_review = 6;             // 非常规审核量
+  int32 abnormal_review_total = 7;       // 非常规审核总量
+  int32 normal_first_check_pass = 8;     // 常规一审通过
+  int32 abnormal_first_check_pass = 9;   // 非常规一审通过
+  int32 normal_second_check_pass = 10;   // 常规二审通过
+  int32 abnormal_second_check_pass = 11; // 非常规二审通过
+  int32 approved_episode = 12;           // 已批准的episode数
+}
+
+// 任务模板
+message JobTemplate {
+  int64 id = 1;
+  int64 tenant_id = 2;
+  int64 task_id = 3;
+  int32 action_level = 4;       // 动作难度 1简单 2普通 3困难
+  int32 auto_change_var = 5;
+  string initial_scene = 6;
+  string action_step = 7;       // JSON格式的动作步骤
+  int32 duration = 8;           // 持续时间（毫秒）
+  int32 min_duration = 9;       // 最小持续时间（毫秒）
+  int32 countdown = 10;         // 倒计时（毫秒）
+  int32 abnormal_rate = 11;     // 异常率
+  int32 status = 12;
+  int32 action_step_type = 13;
+  string multi_axis = 14;
+  string created_at = 15;
+  string updated_at = 16;
+  int64 deleted_at = 17;
+}
+
+// 任务标签详情
+message TaskTagDetail {
+  repeated TaskTag task_attribute_tag = 1;              // 任务属性标签
+  repeated TaskTag task_atomic_ability_single_arm = 2;  // 单臂原子能力
+  repeated TaskTag task_collect_mode = 3;               // 采集模式
+  repeated TaskTag task_remote_control_kind = 4;        // 遥控类型
+  repeated TaskTag task_scene_classification = 5;       // 场景分类
+  repeated TaskTag task_project = 6;                    // 所属项目
+  repeated TaskTag task_stage = 7;                      // 任务阶段
+  repeated TaskTag task_collect_type = 8;               // 采集方式
+  repeated TaskTag task_visual_range = 9;               // 任务视距
+}
+
+// 任务信息
+message TaskInfo {
+  int64 id = 1;                         // 任务ID
+  int64 tenant_id = 2;                  // 租户id
+  string name = 3;                      // 任务名称
+  string type = 4;                      // 任务类型，如 GENIE
+  string content = 5;                   // 任务备注
+  string annotation_guideline = 6;      // 标注指南
+  int32 status = 7;                     // 任务状态
+  int64 device_type_id = 8;             // 设备类型ID
+  string creator = 9;                   // 创建者
+  string creator_name = 10;             // 创建者名称
+  string creator_id = 11;               // 创建者ID
+  string updater = 12;                  // 更新者
+  string updater_name = 13;             // 更新者名称
+  string updater_id = 14;               // 更新者ID
+  string config = 15;                   // 配置JSON
+  string assign_team = 16;              // 分配团队
+  int32 need_recheck = 17;              // 是否需要复核
+  string source = 18;                   // 来源
+  string data_format = 19;              // 数据格式，如 Agibot
+  string created_at = 20;               // 创建时间
+  string updated_at = 21;               // 更新时间
+  int64 deleted_at = 22;                // 删除时间
+  string instruction = 23;              // 指令
+  string check_list = 24;               // 检查列表JSON
+  string uuid = 25;                     // UUID
+  int32 collector_count = 26;           // 采集者数量
+  int32 checker_count = 27;             // 检查者数量
+  int32 job_count = 28;                 // Job数量
+  int32 task_resource_count = 29;       // 任务资源数量
+  int32 action_step_count = 30;         // 动作步数
+  int32 not_check_count = 31;           // 未检查数量
+  int32 first_review_pending = 32;      // 一审待处理
+  int32 re_review_pending = 33;         // 复审待处理
+  TaskTagDetail tag_detail = 34;        // 标签详情
+  TaskProgress progress = 35;           // 进度信息
+  int32 error_frames_total = 36;        // 错误帧总数
+  JobTemplate job_template = 37;        // Job模板
+}
+
+message DeviceInfo {
+  uint32 id = 1;
+  string name = 2;
+  string img = 3;
+}
+
+message GetTaskListResponse {
+  ResponseHeader header = 1;
+  
+  message TaskListData {
+    int32 total = 1;
+    int32 page_num = 2;
+    int32 page_size = 3;
+    repeated TaskInfo list = 4;
+  }
+  
+  TaskListData data = 2;
+  repeated DeviceInfo device_info = 3; // 设备类型ID和设备信息对应关系
+}
+
+// ============================================
+// 3. 任务详情接口
+// 对应 HTTP: GET /api/v1/collect/task/detail?task_id={task_id}
+// ============================================
+
+message GetTaskDetailRequest {
+  RequestHeader header = 1;
+  int64 task_id = 2;
+}
+
+// 任务变量
+message TaskVariable {
+  int64  id           = 1;
+  int64  tenant_id    = 2;  // 租户id
+  int64  task_id      = 3;  // 任务id
+  int64  job_id       = 4;  // job ID，未创建实例任务时，job id为0
+  int32  type         = 5;  // 变量类型, 1:物体类型, 2:赋值类型, 3:场景变量
+  string name         = 6;  // 变量名，缺省值为UUID
+  string display_name = 7;  // 变量显示名，缺省值为空
+  string values       = 8;  // 变量枚举值，物体类型为物体IDs
+  int32  combination  = 9;  // 是否为组合变量，0:否, 1:是
+  int32  status       = 10; // 变量状态, 1:启动, 2:禁用
+  string created_at   = 11;
+  string updated_at   = 12;
+  int64  deleted_at   = 13;
+}
+
+message DataCheckerInfo {
+  uint32 total        = 1;
+  uint32 page_num     = 2;
+  uint32 page_size    = 3;
+
+  message Checker {
+    uint64 id                 = 1;
+    uint32 tenant_id          = 2;
+    uint64 task_id            = 3;
+    uint32 role               = 4;
+    string username           = 5;
+    string display_name       = 6;
+    string user_id            = 7;
+    uint32 status             = 8;
+    string created_at         = 9;
+    string updated_at         = 10;
+    uint64 deleted_at         = 11;
+    uint32 required_count     = 12;
+    uint32 processed_count    = 13;
+  }
+
+  // 审核员列表
+  repeated Checker list = 4;
+
+  // 角色统计
+  message RoleStat {
+    uint32 collector_count       = 1;
+    uint32 checker_count         = 2;
+    uint32 first_checker_count   = 3;
+    uint32 second_checker_count  = 4;
+    uint32 annotation_count      = 5;
+    uint32 review_count          = 6;
+    uint32 acceptance_count      = 7;
+  }
+  RoleStat role_stat_info = 5;
+}
+
+message TaskResource {
+  string content      = 1;
+  string created_at   = 2;
+  string creator      = 3;
+  string creator_id   = 4;
+  string creator_name = 5;
+  int64  deleted_at   = 6;
+  string extra        = 7;
+  int64  id           = 8;
+  string img          = 9;
+  string name         = 10;
+  int64  tenant_id    = 11;
+  string updated_at   = 12;
+  string updater      = 13;
+  string updater_id   = 14;
+  string updater_name = 15;
+}
+
+message GetTaskDetailResponse {
+  ResponseHeader header = 1;
+  
+  message TaskDetailData {
+    TaskInfo task = 1;
+    string device_type_name = 2;
+    JobTemplate job_template = 3;
+    repeated TaskVariable task_variables = 4;
+    TaskTagDetail tag_detail = 5;
+    repeated TaskResource task_resources = 6;
+    repeated string bounded_collection_label = 7;
+    bool check_action_step = 8;
+    bool check_success_frame = 9;
+    bool is_cot_enabled = 10;
+    bool is_vlm_enabled = 11;
+  }
+  
+  TaskDetailData data = 2;
+  
+  DataCheckerInfo data_checker_info = 3;
+}
+
+// ============================================
+// 4. Job 列表接口
+// 对应 HTTP: GET /api/v1/collect/task/job?task_id={task_id}&page_num={page_num}&page_size={page_size}
+// ============================================
+
+message GetJobListRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;                   // 任务id，必填项
+  PaginationRequest pagination = 3;     // 分页信息，必填项
+  uint64 job_id = 4;                    // 通过 job id 检索
+  repeated uint64 task_resource_id = 5; // 操作物体 id 列表
+  string user_id = 6;                   // 采集员 user_id
+  string checker = 7;                   // 审核员 user_id
+  string start_date = 8;                // RFC3339 格式的开始时间
+  string end_date = 9;                  // RFC3339 格式的结束时间
+  string uuid = 10;                     // 按跨平台 UUID 检索 job
+  string sort_by = 11;                  // 排序字段：id, updated_at, created_at，默认：id
+  string order = 12;                    // 排序方式：asc, desc，默认：desc
+  int32 stage = 13;                     // 按 episode 的 stage 字段筛选（历史兼容）
+  repeated uint32 episode_status = 14;  // 按 episode 状态筛选，可多选
+  string stage_code = 15;               // 按 episode_stage 的 stage_code 筛选
+  string stage_status = 16;             // 按 episode_stage 的 stage_status 筛选
+}
+
+// Job 进度信息
+message JobProgress {
+  int32 normal_collect = 1;
+  int32 normal_collect_total = 2;
+  int32 abnormal_collect = 3;
+  int32 normal_review = 4;
+  int32 normal_review_total = 5;
+  int32 abnormal_review = 6;
+  int32 abnormal_review_total = 7;
+  int32 normal_first_check_pass = 8;
+  int32 abnormal_first_check_pass = 9;
+  int32 normal_second_check_pass = 10;
+  int32 abnormal_second_check_pass = 11;
+  int32 approved_episode = 12;
+}
+
+// 审核结果统计
+message ReviewResultCount {
+  int32 approved_cnt = 1;     // 通过数
+  int32 unapproved_cnt = 2;   // 未通过数
+  int32 abnormal_cnt = 3;     // 异常数据
+}
+
+message TaskResourceDetail {
+  int32 id = 1;
+  string name = 2;
+  int32 abnormal_cnt = 3;
+}
+
+message TaskStageItem {
+  string stage_code = 1;
+  string stage_name = 2;
+  string default_next_stage_code = 3;
+  int32 role = 4;
+}
+
+message TaskUser {
+  uint32 id                 = 1;
+  uint32 tenant_id          = 2;
+  uint32 task_id            = 3;
+  int32 role                = 4;
+  string username           = 5;
+  string display_name       = 6;
+  string user_id            = 7;
+  uint32 status             = 8;
+  string created_at         = 9;
+  string updated_at         = 10;
+  int64 deleted_at          = 11;
+}
+
+message EpisodeStageStatItem {
+  string stage_code = 1;
+  string stage_status = 2;
+  int32 count = 3;
+}
+
+// Job 信息
+message JobInfo {
+  int64 id = 1;                     // Job ID
+  string uuid = 2;
+  string name = 3;                  // Job 名称
+  string description = 4;
+  string remark = 5;                // 备注
+  int32 duration = 6;               // 持续时间
+  string created_at = 7;
+  string updated_at = 8;
+  int32 required_member = 9;        // 需要成员数
+  int32 required_verify = 10;       // 需要验证数
+  int32 required_repeat = 11;       // 需要重复数
+  string collector = 12;            // 采集者信息，如 "1/1"
+  bool is_assign = 13;              // 是否已分配
+  bool is_enough = 14;              // 是否足够
+  int32 not_check_count = 15;       // 未检查数量
+  int64 assignment_id = 16;         // 任务ID
+  bool is_finish = 17;              // 是否完成
+  JobProgress progress = 18;        // 进度
+  bool is_job_assign = 19;          // 是否已分配Job
+  int32 status = 20;                // 状态
+  string errmsg = 21;               // 错误信息
+  repeated string task_resources = 22;  // 操作物体
+  repeated TaskResourceDetail task_resource_items = 23;
+  repeated TaskVariable variables = 24;
+  ReviewResultCount review_result_count = 25;
+  int64 error_frames_total = 26;
+  int64 invalid_count = 27;
+  repeated TaskUser task_users = 28;
+  repeated EpisodeStageStatItem episode_stage_stats = 29;
+}
+
+message GetJobListResponse {
+  ResponseHeader header = 1;
+  
+  message JobListData {
+    int32 total = 1;
+    int32 page_num = 2;
+    int32 page_size = 3;
+    bool is_can_assign = 4;            // 是否是该任务下的采集员
+    int32 action_level = 5;            // 动作难度等级
+    int32 duration = 6;                // 采集时长
+    int32 countdown = 7;               // 倒计时
+    int32 abnormal_rate = 8;           // 非常规采集占比
+    string initial_scene = 9;          // 初始场景
+    int32 auto_change_var = 10;        // 自动变更频率
+    string action_step = 11;           // 动作步骤
+    string task_content = 12;          // 任务备注
+    string annotation_guideline = 13;  // 标注说明
+    string config = 14;                // 审核标签
+    int32 need_recheck = 15;           // 是否需要复检
+    string data_format = 16;           // 数据格式
+    bool review_workflow_enable = 17;  // 是否开启审核工作流
+    repeated TaskVariable task_variable = 18;  // 任务变量
+    repeated TaskStageItem task_stages = 19;
+    repeated int32 user_task_roles = 20;
+    string axis_info = 21;
+    repeated TaskTag task_tags = 22;
+    repeated JobInfo list = 23;
+  }
+  
+  JobListData data = 2;
+}
+
+// ============================================
+// 5. 领取采集包接口
+// 对应 HTTP: POST /api/v1/collect/task/job/assignment
+// ============================================
+
+enum ClaimJobAssignmentOperation {
+  ClaimJobAssignmentOperation_UNKNOWN = 0;
+  //首次领取
+  ClaimJobAssignmentOperation_FIRST = 1;
+  //再次领取
+  ClaimJobAssignmentOperation_AGAIN = 2;
+}
+
+message ClaimJobAssignmentRequest {
+  RequestHeader header = 1;
+  int64 job_id = 2;         // Job ID
+  string type = 3;          // 委派类型，1：采集员，2：审核员
+  ClaimJobAssignmentOperation operation = 4;
+}
+
+message ClaimJobAssignmentResponse {
+  ResponseHeader header = 1;
+  int64 assignment_id = 2;
+}
+
+// ============================================
+// 6. Job 详情接口
+// 对应 HTTP: GET /api/v1/collect/task/job/${jobId}
+// ============================================
+
+message GetJobDetailRequest {
+  RequestHeader header = 1;
+  int64 job_id = 2;
+}
+
+message ResourceInfoData {
+  int32 total = 1;
+  repeated ResourceInfo resources = 2;
+}
+
+message ResourceInfo {
+  int32 id   = 1;
+  string img = 2;
+  string name = 3;
+}
+
+message GetJobDetailResponse {
+  ResponseHeader header = 1;
+  
+  message JobDetailData {
+    int64 id = 1;
+    int64 tenant_id = 2;
+    int64 task_id = 3;
+    string name = 4;
+    string description = 5;
+    string remark = 6;
+    int32 action_level = 7;
+    int32 auto_change_var = 8;
+    int32 countdown = 9;
+    int32 abnormal_rate = 10;
+    int32 duration = 11;
+    int32 required_repeat = 12;
+    int32 required_member = 13;
+    int32 required_verify = 14;
+    string lerobot_path = 15;
+    string extra = 16;            // JSON格式的额外信息
+    int32 status = 17;
+    string err_msg = 18;
+    string created_at = 19;
+    string updated_at = 20;
+    int64 deleted_at = 21;
+    int32 assignment_count = 22;
+    string annotation_guideline = 23;
+  }
+  
+  JobDetailData data = 2;
+  ResourceInfoData resource = 3; // 操作物体列表
+}
+
+// ============================================
+// 7. 历史数据清单接口
+// 对应 HTTP: GET /api/v1/collect/task/job/assignment?id={id}&page_num={page_num}&page_size={page_size}
+// ============================================
+
+message GetAssignmentHistoryRequest {
+  RequestHeader header = 1;
+  int64 id = 2;             // Assignment ID
+  int32 page_num = 3;
+  int32 page_size = 4;
+}
+
+// Episode（历史数据）
+message Episode {
+  int64 id = 1;
+  int64 tenant_id = 2;
+  int32 data_type = 3;              // 数据类型
+  int64 task_id = 4;
+  int64 job_id = 5;
+  int64 assignment_id = 6;
+  int32 status = 7;
+  int32 new_status = 8;
+  string sn_code = 9;               // 设备序列号
+  string path = 10;                 // 存储路径
+  int64 size = 11;                  // 文件大小
+  int32 duration = 12;              // 持续时间
+  string text = 13;                 // JSON格式的文本信息
+  string review_path = 14;          // 审核路径
+  string extra = 15;
+  string created_at = 16;
+  string updated_at = 17;
+  int32 stage = 18;
+  string checker = 19;
+  string raw_path = 20;
+  string framed_path = 21;
+  int32 error_frames_total = 22;
+  repeated string checkers = 23;
+  string review_comment = 24;       // 错误标签
+}
+
+// 动作步骤详情
+message ActionStepDetail {
+  string description = 1;
+  string extra = 2;
+  string axis_info = 3;
+  string instruction = 4;
+  repeated TaskResource task_resources = 5;
+  repeated TaskVariable task_variables = 6;
+  repeated TaskTag task_tags = 7;
+}
+
+// 历史数据详情
+message HistoryDetail {
+  int32 total = 1;
+  int32 min_duration = 2;
+  int32 action_level = 3;
+  int32 duration = 4;
+  int32 auto_change_var = 5;
+  int64 task_id = 6;
+  int64 job_id = 7;
+  string name = 8;
+  string token = 9;                 // Episode token
+  int32 required_repeat = 10;
+  int32 receive_package_cnt = 11;
+  int32 abnormal_count = 12;
+  string collect_progress = 13;     // 采集进度，如 "2/1111"
+  bool is_finish = 14;
+  repeated Episode episodes = 15;   // 历史数据列表
+  ActionStepDetail action_step = 16;
+}
+
+message GetAssignmentHistoryResponse {
+  ResponseHeader header = 1;
+  
+  message AssignmentHistoryData {
+    int32 total = 1;
+    int32 page_num = 2;
+    int32 page_size = 3;
+    HistoryDetail detail = 4;
+  }
+  
+  AssignmentHistoryData data = 2;
+}
+
+message CreateEpisodeRequest {
+  RequestHeader header = 1;
+  string token = 2;
+  string sn_code = 3;
+  string path = 4;
+  int32 data_type = 5;
+  uint64 size = 6;
+  double duration = 7;
+  string text = 8;
+}
+
+message CreateEpisodeResponse {
+  ResponseHeader header = 1;
+  int64 episode_id = 2;
+}

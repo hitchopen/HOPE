@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+// 感知3D Occupancy输出协议
+message PerceptionOcc3D {
+  
+  // 消息 header
+  Header header = 1;
+
+  // 体素网格原点（base_link坐标系）
+  message Origin {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+  }
+  Origin origin = 2;
+
+  // 体素分辨率（单位：米）
+  float voxel_size_x = 3;
+  float voxel_size_y = 4;
+  float voxel_size_z = 5;
+
+  // 网格尺寸（x, y, z方向的体素数）
+  uint32 grid_size_x = 6;
+  uint32 grid_size_y = 7;
+  uint32 grid_size_z = 8;
+
+  // 语义类别定义
+  enum SemanticLabel {
+    SEMANTIC_NOT_OCCUPIED = 0; // 未占据体素
+    SEMANTIC_FLOOR = 1;   // 地面
+    SEMANTIC_WALL = 2;    // 墙体
+    SEMANTIC_CEILING = 3; // 天花板
+    SEMANTIC_TABLE = 4;   // 桌子
+    SEMANTIC_CHAIR = 5;   // 椅子
+    SEMANTIC_DOOR = 6;    // 门
+    SEMANTIC_WINDOW = 7;  // 窗
+    SEMANTIC_SOFA = 8;    // 沙发
+    SEMANTIC_BED = 9;     // 床
+    SEMANTIC_CABINET = 10;// 柜子
+    SEMANTIC_PERSON = 11; // 人
+    SEMANTIC_OBJECT = 12; // 其他物体
+    SEMANTIC_UNKNOWN = 99; // 占据体素但语义未知
+  }
+
+  // 语义类别数组，按z优先、再y、再x顺序展开，长度=grid_size_z*grid_size_y*grid_size_x
+  // SEMANTIC_NOT_OCCUPIED(0) 表示未占据体素
+  // SEMANTIC_UNKNOWN(99) 表示占据体素但语义未知
+  // 其他值对应具体语义类别
+  repeated SemanticLabel semantic_label = 10;
+
+  // 预留扩展字段
+  map<string, string> extra = 100;
+} 

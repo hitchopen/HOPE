@@ -1,9 +1,8 @@
 """Relay-only launch for the OptiTrack backend (bag replay / bench debugging).
 
-Feeds a live or recorded /optitrack/poses (NamedPoseArray) stream through
+Feeds a live or recorded /optitrack/poses (NamedPoseArrayV2) stream through
 optitrack_mct_relay without starting the NatNet driver or the world frame.
-Pairs with ``fake_optitrack_publisher`` for a no-hardware smoke test. The
-independent NatNet2ROS2 workspace supplies the live stream.
+Sibling of avatar_pro_vrpn_relay.launch.py.
 """
 
 from pathlib import Path

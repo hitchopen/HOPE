@@ -1,0 +1,13 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec3.proto";
+import public "aimdk/protocol/common/quaternion.proto";
+
+/**
+ * SE3 加速度
+ */
+message SE3Acceleration {
+  Vec3 linear = 1;   // 线加速度，单位：米/秒^2
+  Vec3 angular = 2;  // 角加速度，单位：弧度/秒^2
+}

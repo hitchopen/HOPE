@@ -1,0 +1,96 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 任务类型
+ */
+enum RotaUpdateType {
+  UPDATE_TYPE_UNKNOWN = 0; // 未知
+  UPDATE_TYPE_CREATE = 1;  // 资源创建/更新
+  UPDATE_TYPE_DELETE = 2;  // 资源删除
+}
+
+/**
+ * @brief 资源模式
+ */
+enum RotaPackageType {
+  PACKAGE_TYPE_UNKNOWN = 0;     // 未知
+  PACKAGE_TYPE_FULL = 1;        // 全量包
+  PACKAGE_TYPE_INCREMENTAL = 2; // 增量包
+}
+
+/**
+ * @brief 资源项
+ */
+message ResourceItem {
+  string md5 = 1;              // md5
+  string file_path = 2;        // 文件路径
+  string item_key = 3;         // 资源项key
+  int64 charge_type = 4;       // 收费类型
+  int64 update_type = 5;       // 更新类型
+  int64 expire_time_stamp = 6; // 过期时间戳
+  string extra_info = 7;       // 额外信息
+  string description = 8;      // 描述
+  repeated string tags = 9;    // 标签
+  repeated string scenes = 10; // 场景
+}
+
+/**
+ * @brief 资源更新通知
+ */
+message RotaUpdateNotify {
+  string message_id = 1;                        // 消息ID
+  string resource_key = 2;                      // 资源key
+  string resource_path = 3;                     // 资源绝对路径
+  string version = 4;                           // 版本
+  RotaUpdateType update_type = 5;               // 更新类型
+  RotaPackageType package_type = 6;             // 包类型
+  repeated ResourceItem resource_item_list = 7; // 资源项列表
+}
+
+// 版本相关消息
+message GetVersionReq {
+  RequestHeader header = 1;
+  string resource_key = 2;
+}
+
+// 资源版本信息
+message ResourceVersion {
+  string resource_key = 1;
+  string version = 2;
+  repeated string files = 3;
+}
+
+// 获取资源版本信息响应
+message GetVersionResp {
+  ResponseHeader header = 1;
+  ResourceVersion current_version = 2;
+  ResourceVersion new_version = 3;
+}
+
+// 更新资源版本信息请求
+message UpdateVersionReq {
+  RequestHeader header = 1;
+  string resource_key = 2;
+  string version = 3;
+  int32 status = 4; // 0-Success, 1-Fail
+  string msg = 5;
+}
+
+// 更新资源版本信息响应
+message UpdateVersionResp { ResponseHeader header = 1; }
+
+// 资源更新后处理请求
+message UpdateVersionPostReq {
+  RequestHeader header = 1;
+  string resource_key = 2;
+  string version = 3;
+}
+
+// 资源更新后处理响应
+message UpdateVersionPostResp {
+  ResponseHeader header = 1;
+  bool success = 2;
+}

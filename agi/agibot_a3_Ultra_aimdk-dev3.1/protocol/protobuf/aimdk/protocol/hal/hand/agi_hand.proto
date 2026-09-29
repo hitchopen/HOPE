@@ -1,0 +1,52 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+message FingerPos {
+  // 拇指第一关节，取值范围：0-2000
+  int32 thumb_pos_0 = 1;
+  // 拇指第二关节，取值范围：0-2000
+  int32 thumb_pos_1 = 2;
+  // 食指，取值范围：0-2000
+  int32 index_pos = 3;
+  // 中指，取值范围：0-2000
+  int32 middle_pos = 4;
+  // 无名指，取值范围：0-2000
+  int32 ring_pos = 5;
+  // 小指，取值范围：0-2000
+  int32 pinky_pos = 6;
+}
+
+message FingerToq {
+  // 拇指第一关节，取值范围：0-5700（5700代表57N）
+  int32 thumb_toq_0 = 1;
+  // 拇指第二关节，取值范围：0-5700（5700代表57N）
+  int32 thumb_toq_1 = 2;
+  // 食指，取值范围：0-5700（5700代表57N）
+  int32 index_toq = 3;
+  // 中指，取值范围：0-5700（5700代表57N）
+  int32 middle_toq = 4;
+  // 无名指，取值范围：0-5700（5700代表57N）
+  int32 ring_toq = 5;
+  // 小指，取值范围：0-5700（5700代表57N）
+  int32 pinky_toq = 6;
+}
+
+// 手指
+message FingerCommand {
+  FingerPos pos = 1;
+  FingerToq toq = 2;
+}
+
+message FingerState {
+  FingerPos pos = 1;
+  FingerToq toq = 2;
+}
+
+// Agibot手部
+message AgibotHandCommand {
+  FingerCommand finger = 1; // 手指
+}
+
+message AgibotHandState {
+  FingerState finger = 1; // 手指
+}

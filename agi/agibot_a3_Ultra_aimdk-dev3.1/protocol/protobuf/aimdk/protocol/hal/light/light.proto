@@ -1,0 +1,223 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief 补光灯状态
+ */
+message FillLightState {
+    // 档位：0-10
+    uint32 level = 1;
+}
+
+/**
+ * @brief 补光灯控制指令
+ */
+message FillLightCommand {
+    // 档位：0-10
+    uint32 level = 1;
+}
+
+/**
+ * @brief RGB灯效，0:熄灭，1：单色光，2：呼吸灯，3：闪烁灯，4：流水灯,5:慢闪，6:灵动闪烁
+ */
+enum RgbEffectStatus {
+    RgbEffectStatus_IDLE = 0;
+    RgbEffectStatus_MONOCHROME = 1;
+    RgbEffectStatus_BREATHING = 2;
+    RgbEffectStatus_FLASHING = 3;
+    RgbEffectStatus_FLOWING = 4;
+    RgbEffectStatus_SLOWFLASHING = 5;
+    RgbEffectStatus_DYNAMICLASHING = 6;
+}
+
+/**
+ * @brief RGB灯光状态
+ */
+message RgbLightState {
+    // 范围：0~255
+    uint32 red = 1;
+    // 范围：0~255
+    uint32 green = 2;
+    // 范围：0~255
+    uint32 blue = 3;
+    // RGB灯效
+    RgbEffectStatus effect = 4;
+    // 灯光控制权： 0代表嵌入式接管， 1代表端侧接管
+    uint32 control = 5;
+}
+
+/**
+ * @brief RGB灯光控制指令
+ */
+message RgbLightCommand {
+    // 范围：0~255
+    uint32 red = 1;
+    // 范围：0~255
+    uint32 green = 2;
+    // 范围：0~255
+    uint32 blue = 3;
+    // RGB灯效
+    RgbEffectStatus effect = 4;
+    // 灯光控制权： 0代表嵌入式接管， 1代表端侧接管
+    uint32 control = 5;
+}
+
+/**
+ * @brief 灯带状态
+ */
+message LightStripState {
+    // 范围：0~255
+    uint32 red = 1;
+    // 范围：0~255
+    uint32 green = 2;
+    // 范围：0~255
+    uint32 blue = 3;
+    // RGB灯效
+    RgbEffectStatus effect = 4;
+}
+
+/**
+ * @brief 灯带控制指令
+ */
+message LightStripCommand {
+    // 范围：0~255
+    uint32 red = 1;
+    // 范围：0~255
+    uint32 green = 2;
+    // 范围：0~255
+    uint32 blue = 3;
+    // RGB灯效
+    RgbEffectStatus effect = 4;
+}
+
+/**
+ * @brief 获取灯光状态响应
+ */
+message FillLightStateRsp {
+    // 消息头
+    ResponseHeader header = 1;
+
+    // 灯光状态数据
+    FillLightState data = 2;
+}
+
+/**
+ * @brief 灯光控制请求
+ */
+message FillLightCommandReq {
+    // 消息头
+    RequestHeader header = 1;
+
+    // 灯光控制指令
+    FillLightCommand cmd = 2;
+}
+
+/**
+ * @brief 获取RGB灯光状态响应
+ */
+message RgbLightStateRsp {
+    // 消息头
+    ResponseHeader header = 1;
+
+    // RGB灯光状态数据
+    RgbLightState data = 2;
+}
+
+/**
+ * @brief RGB灯光控制请求
+ */
+message RgbLightCommandReq {
+    // 消息头
+    RequestHeader header = 1;
+
+    // RGB灯光控制指令
+    RgbLightCommand cmd = 2;
+}
+
+/**
+ * @brief 获取灯带状态响应
+ */
+message LightStripStateRsp {
+    // 消息头
+    ResponseHeader header = 1;
+
+    // 灯带状态数据
+    LightStripState data = 2;
+}
+
+/**
+ * @brief 灯带控制请求
+ */
+message LightStripCommandReq {
+    // 消息头
+    RequestHeader header = 1;
+
+    // 灯带控制指令
+    LightStripCommand cmd = 2;
+}
+
+/**
+ * @brief 头部LED灯效，1:熄灭，2：纯色，3：呼吸灯，4：爆闪，5：闪烁，6：脉冲，7：流水灯
+ */
+enum HeadLedEffectStatus {
+    HeadLedEffectStatus_UNKNOWN = 0;
+    HeadLedEffectStatus_IDLE = 1;
+    HeadLedEffectStatus_SOLID_COLOR = 2;
+    HeadLedEffectStatus_BREATHE = 3;
+    HeadLedEffectStatus_BLINK = 4;
+    HeadLedEffectStatus_FLASHING = 5;
+    HeadLedEffectStatus_PULSE = 6;
+    HeadLedEffectStatus_FLOWING = 7;
+}
+
+/**
+ * @brief 头部LED控制指令
+ */
+message HeadLedCommand {
+    // 范围：0~255
+    uint32 red = 1;
+    // 范围：0~255
+    uint32 green = 2;
+    // 范围：0~255
+    uint32 blue = 3;
+    // LED灯效
+    HeadLedEffectStatus effect = 4;
+}
+
+/**
+ * @brief 头部LED控制请求
+ */
+message HeadLedCommandReq {
+    // 消息头
+    RequestHeader header = 1;
+
+    // 头部LED控制指令
+    HeadLedCommand cmd = 2;
+}
+
+/**
+ * @brief 头部LED状态
+ */
+message HeadLedState {
+    // 范围：0~255
+    uint32 red = 1;
+    // 范围：0~255
+    uint32 green = 2;
+    // 范围：0~255
+    uint32 blue = 3;
+    // LED灯效
+    HeadLedEffectStatus effect = 4;
+}
+
+/**
+ * @brief 获取头部LED状态响应
+ */
+message HeadLedStateRsp {
+    // 消息头
+    ResponseHeader header = 1;
+
+    // LED状态数据
+    HeadLedState data = 2;
+}

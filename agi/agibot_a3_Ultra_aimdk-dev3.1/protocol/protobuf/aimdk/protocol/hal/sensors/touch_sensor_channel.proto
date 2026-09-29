@@ -1,0 +1,23 @@
+syntax = "proto3";
+package aimdk.protocol;
+import public "aimdk/protocol/common/header.proto";
+
+enum TouchSensorAction {
+    TouchSensorAction_UNKNOWN = 0;//无动作
+    TouchSensorAction_SINGLE = 1; //单拍
+    TouchSensorAction_DOUBLE = 2; //双拍
+    TouchSensorAction_MULTI = 3;  //多拍
+    TouchSensorAction_HOLD = 4;   //长按
+}
+
+message TouchSensorDataChannel {
+    // 消息头
+    Header header = 1;
+    // left touch sensor 动作
+    TouchSensorAction left_action = 2;
+    // right touch sensor 动作
+    TouchSensorAction right_action = 3;
+    //多拍action下，拍肩次数。只有在多拍的action下,拍肩次数才不会为0，其他action，拍肩次数都是为0
+    int32 left_touch_count = 4; 
+    int32 right_touch_count = 5;
+}

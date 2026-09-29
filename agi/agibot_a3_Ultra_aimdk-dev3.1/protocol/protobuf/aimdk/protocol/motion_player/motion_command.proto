@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+
+enum MotionCommandStatus {
+  // 空闲
+  MotionCommandStatus_IDLE = 0;
+
+  // 开始执行
+  MotionCommandStatus_START = 1;
+
+  // 运行中
+  MotionCommandStatus_OPERATING = 2;
+
+  // 暂停
+  MotionCommandStatus_PAUSE = 3;
+
+  // 停止
+  MotionCommandStatus_STOP = 4;
+}
+
+message MotionCommandRequest {
+  RequestHeader header = 1;  // 请求头
+  string motion_id = 2;   // 动作名称
+  int64 duration_ms = 3;  // 设置动作最长运行时间
+  bool cmd_pause = 4;  // 暂停动作
+  bool cmd_reset = 5;  // 立即恢复到初始姿势
+  bool cmd_repeat = 6; // 是否循环播放
+  bool cmd_end = 7;    // 是否播放完动作自动复位
+}
+
+// 动作状态的channel消息 事件型发送
+message MotionStatusChannel {
+  Header header = 1;                       // 包含时间戳的消息头
+  string motion_id = 2;                   // 动作名称
+  int64 time_to_end_ms = 3;             // 动作预估剩余执行时间
+  MotionCommandStatus status = 4;             // 当前动作执行状态
+}
+
+message MotionCommandResponse {
+  ResponseHeader header = 1;  // 响应头
+  int64 time_to_end_ms = 2;   // 动作剩余时间
+  MotionCommandStatus status = 3; // 工作状态
+  bool is_neck_enable = 4; // 指示是否控制头部
+  string motion_id = 5; // 动作名称
+}
+
+message MotionStatusRequest {
+  RequestHeader header = 1;  // 请求头
+}
+
+message MotionInfo {
+  string motion_id =1; // 动作名称
+  uint32 motion_num = 2; // 动作编号
+  uint32 motion_duration_ms = 3; // 动作时长
+}
+
+message MotionListResponse {
+  ResponseHeader header = 1;  // 响应头
+  repeated MotionInfo motion = 2; // 动作数据
+}
+
+service MotionCommandService {
+  rpc SendMotionCommand(MotionCommandRequest) returns (CommonResponse);
+  rpc GetMotionStatus(CommonRequest) returns (MotionCommandResponse);
+  rpc GetMotionList(CommonRequest) returns (MotionListResponse);
+  rpc DisableMotionPlayer(CommonRequest) returns (CommonResponse);
+  rpc EnableMotionPlayer(CommonRequest) returns (CommonResponse);
+  rpc DisableNeckMotionPlayer(CommonRequest) returns (CommonResponse);
+  rpc EnableNeckMotionPlayer(CommonRequest) returns (CommonResponse);
+}

@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/hal/hand/hand.proto";
+
+// 机器人手部状态
+message HandStateChannel {
+  Header header = 1;   // 消息头
+  HandState data = 2;  // 手部状态
+}
+
+// 机器人手部指令
+message HandCommandChannel {
+  Header header = 1;     // 消息头
+  HandCommand data = 2;  // 手部指令
+}

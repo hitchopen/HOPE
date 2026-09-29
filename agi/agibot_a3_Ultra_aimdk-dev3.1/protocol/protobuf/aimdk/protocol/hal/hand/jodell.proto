@@ -1,0 +1,9 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+// 夹爪手部
+message ClawHand {
+  uint32 position = 1;
+  uint32 velocity = 2;
+  uint32 force = 3;
+}

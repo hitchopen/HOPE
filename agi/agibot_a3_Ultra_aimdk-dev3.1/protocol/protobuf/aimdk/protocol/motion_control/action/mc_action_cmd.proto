@@ -1,0 +1,40 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+enum MotionControlAction {
+  // 未知，不处理
+  MotionControlAction_UNKNOWN = 0;
+
+  // A3模式
+  // 1~99：安全模式
+  MotionControlAction_PASSIVE = 1;
+
+  MotionControlAction_DAMPING = 2;
+
+  // 100~199：位控模式
+  MotionControlAction_PD_STAND = 100;
+
+  // 200~4999：力控模式
+  MotionControlAction_LOCOMOTION = 200;
+  
+  MotionControlAction_MOTION = 210;
+
+  MotionControlAction_AVATAR = 220;
+
+  MotionControlAction_DANCE = 250;
+
+  MotionControlAction_SIT_DOWN = 300;
+
+  MotionControlAction_STAND_UP = 350;
+
+  MotionControlAction_LIE_DOWN = 400;
+
+  MotionControlAction_GET_UP = 450;
+
+  MotionControlAction_PACKAGE_LIE_DOWN = 500;
+
+  MotionControlAction_PACKAGE_GET_UP = 550;
+
+  // 机器人使用扩展命令
+  MotionControlAction_USE_EXT_CMD = 5000;
+}

@@ -228,10 +228,19 @@ bool A3PolicyDriver::EmitSafeHalt_(const robot_io::RobotState& state) noexcept {
     return false;
   }
   BuildSafeHaltCommand(state.q, cmd_out_);
-  backend_.SendCommand(cmd_out_);
-  has_sent_command_.store(true, std::memory_order_release);
-  safe_halt_count_.fetch_add(1, std::memory_order_relaxed);
-  return true;
+  const bool sent = SendAndObserve_();
+  if (sent) safe_halt_count_.fetch_add(1, std::memory_order_relaxed);
+  return sent;
+}
+
+bool A3PolicyDriver::SendAndObserve_() noexcept {
+  const bool sent = backend_.SendCommand(cmd_out_);
+  if (sent) has_sent_command_.store(true, std::memory_order_release);
+  if (opt_.command_delivery_observer) {
+    try { opt_.command_delivery_observer(cmd_out_, sent); }
+    catch (...) { std::fprintf(stderr, "[a3_policy_driver] command delivery observer failed\n"); }
+  }
+  return sent;
 }
 
 void A3PolicyDriver::RunOnceWithState_(
@@ -240,6 +249,9 @@ void A3PolicyDriver::RunOnceWithState_(
 
   const bool complete = s->sync_complete;
   const bool aligned = complete && s->sync_aligned;
+  last_frame_age_ns_.store(now - s->timestamp_ns, std::memory_order_relaxed);
+  last_frame_skew_ns_.store(s->sync_skew_ns, std::memory_order_relaxed);
+  if (!complete) incomplete_frame_count_.fetch_add(1, std::memory_order_relaxed);
   const auto verdict = watchdog_.Check(now, s->timestamp_ns, aligned);
 
   if (command_fault_latched_.load(std::memory_order_acquire)) {
@@ -299,8 +311,7 @@ void A3PolicyDriver::RunOnceWithState_(
                              "startup-silent; safe halt suppressed");
       return;
     }
-    backend_.SendCommand(cmd_out_);
-    has_sent_command_.store(true, std::memory_order_release);
+    SendAndObserve_();
     policy_tick_count_.fetch_add(1, std::memory_order_relaxed);
   } else {
     EmitSafeHalt_(*s);

@@ -1,0 +1,109 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/sm/sm_state.proto";
+
+/*
+ * 系统状态迁移请求
+ */
+message MigrateSystemStateRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 请求迁移的系统状态名
+  string state = 2;
+}
+
+/*
+ * 系统状态迁移响应
+ */
+message MigrateSystemStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+}
+
+/*
+ * 获取系统状态请求
+ */
+message GetSystemStateRequest {
+  // 请求头
+  RequestHeader header = 1;
+}
+
+enum SystemStatus {
+  SystemStatus_IN_INITIAL = 0;
+  SystemStatus_IN_READY = 1;
+  SystemStatus_IN_MOVE = 2;
+  SystemStatus_IN_ROLLBACK = 3;
+  SystemStatus_IN_RECOVERY = 4;
+}
+
+/*
+ * 获取系统状态响应
+ */
+message GetSystemStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 系统状态
+  string cur_state = 2;
+
+  // 系统当前情况
+  SystemStatus cur_status = 3;
+}
+
+/*
+ * 动作列表类型
+ */
+message ActionListType {
+  // 动作列表
+  repeated string action = 1;
+}
+
+/*
+ * 设置子状态请求
+ */
+message SetChildStateRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 父系统状态
+  string parent_state = 2;
+
+  // 子系统状态
+  string child_state = 3;
+
+  // 子状态迁移列表
+  repeated string transfer_list = 4;
+
+  // 子状态动作列表
+  repeated ActionListType action_list = 5;
+}
+
+/*
+ * 设置子状态响应
+ */
+message SetChildStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+}
+
+message GetSystemRunningStatusResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 系统启动次数
+  int32 startup_count = 2;
+
+  // 系统运行时长
+  int64 uptime = 3; // 单位为秒
+}
+
+message GetSmModuleStatusResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // smnode状态
+  repeated SmNodeState states = 2;
+}

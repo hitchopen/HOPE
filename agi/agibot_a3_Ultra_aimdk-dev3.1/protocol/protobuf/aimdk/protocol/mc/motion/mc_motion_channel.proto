@@ -1,0 +1,172 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/hal/hand/hand.proto";
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/motion/locomotion.proto";
+import public "aimdk/protocol/mc/motion/waist.proto";
+
+/**
+ * @brief 遥控器控制通道
+ * topic : /motion/control/locomotion_velocity
+ */
+message McLocomotionVelocityChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  LocomotionVelocity data = 2;
+}
+
+/**
+ * @brief 人形腰部控制
+ * topic : /motion/control/move_waist
+ */
+message McMoveWaistChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  WaistMoveValue data = 2;
+}
+
+/**
+ * @brief 人形腰部控制--腰部升降
+ * topic : /motion/control/move_waist_lift
+ */
+
+message McMoveWaistLiftChannel {
+  // 消息头
+  Header header = 1;
+
+  // 腰部垂直位移(范围-0.15 ~ +0.04，单位：m)
+  double waist_lift_value = 2;
+}
+
+/**
+ * @brief 人形腰部控制--腰部左歪右歪
+ * topic : /motion/control/move_waist_sideways
+ */
+
+message McMoveWaistSidewaysChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  double waist_sideways_value = 2;
+}
+
+/**
+ * @brief 人形腰部控制--腰部前俯后仰
+ * topic : /motion/control/move_waist_pitch
+ */
+
+message McMoveWaistPitchChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  double waist_pitch_value = 2;
+}
+
+/**
+ * @brief 人形腰部控制--腰部扭动
+ * topic : /motion/control/move_waist_twist
+ */
+
+message McMoveWaistTwistChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  double waist_twist_value = 2;
+}
+
+/**
+ * @brief 手部指令通道
+ * topic : /motion/control/hand_command
+ */
+message McHandCommandChannel {
+  Header header = 1;    // 消息头
+  HandCommand data = 2; // 手部指令
+}
+
+//###########################################################################################\\
+
+/**
+ * @brief 单摇杆阿克曼
+ */
+message MotorAckermannJoystickChannel {
+  // 消息头
+  Header header = 1;
+  // rad s; + 逆时针, - 顺时针; gamepad_control: turn_range
+  double turn_pos = 2;
+  // m s; + 前进行, - 后退; gamepad_control: max_velocity
+  double move_vel = 3;
+}
+
+/**
+ * @brief 原地旋转
+ */
+message MotorRotationChannel {
+  // 消息头
+  Header header = 1;
+  // rad s; + 逆时针, - 顺时针; gamepad_control: max_w
+  double rot_vel = 2;
+}
+
+/**
+ * @brief 头部俯仰
+ */
+message MotorHeadPitchChannel {
+  // 消息头
+  Header header = 1;
+  // rad s; + 下弯, - 上弯; arm_joint_limits: - name: "head_link"
+  double head_pitch_vel = 2;
+}
+
+/**
+ * @brief 腰部，弯腰
+ */
+message MotorWaistPitchChannel {
+  // 消息头
+  Header header = 1;
+  // rad s; + 下弯, - 上弯;  arm_joint_limits: - name: "idx10_joint_body_link3"
+  double waist_pitch_vel = 2;
+}
+
+/**
+ * @brief 腰部，升降
+ */
+message MotorWaistLiftChannel {
+  // 消息头
+  Header header = 1;
+  // m s; + 上升, - 下降;  arm_joint_limits: - name: "idx09_joint_body_link2"
+  double waist_lift_vel = 2;
+}
+
+
+
+
+
+
+//******************************************************************************
+
+/**
+ * @brief 双臂控制消息
+ * topic : /motion/control/joint_arm_control
+ */
+ message McArmControlChannel {
+  // 消息头，序号和时间戳等信息
+  Header header = 1;
+
+  // 控制标记位，0是左臂，1是右臂，2是双臂
+  uint32 flag = 2;
+
+  // 关节角度、速度、加速度，力
+  // 一般包含14个元素, 前7个对应左臂，后7个对应右臂
+  repeated double positions = 3;     /**< The position of the trajectory. Unit rad*/
+  repeated double velocities = 4;    /**< The velocity of the trajectory. Unit rad/s */
+  repeated double accelerations = 5; /**< The acceleration of the trajectory. Unit rad/s^2*/
+  repeated double effort = 6;        /**< The effort of the trajectory. Unit N */
+}

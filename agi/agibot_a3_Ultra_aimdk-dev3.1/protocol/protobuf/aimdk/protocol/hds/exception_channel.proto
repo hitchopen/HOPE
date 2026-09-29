@@ -1,0 +1,15 @@
+syntax = "proto3";
+import "aimdk/protocol/hds/exception.proto";
+import "aimdk/protocol/common/timestamp.proto";
+package aimdk.protocol;
+
+/**
+ * @brief 模块异常上报channel topic:(/aima/hds/exception) 告警系统订阅该话题
+ */
+message ModuleExceptionChannel {
+  // 该帧消息发布的时间辍
+  Timestamp timestamp = 1;
+
+  // 该帧异常包含的异常码列表
+  repeated ModuleException exception_list = 2;
+}

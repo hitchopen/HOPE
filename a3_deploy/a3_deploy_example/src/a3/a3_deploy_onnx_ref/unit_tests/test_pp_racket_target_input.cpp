@@ -16,7 +16,8 @@ std::vector<double> Schema2Racket(std::uint64_t command_seq,
                                   double x_offset = 0.0,
                                   double vx_offset = 0.0,
                                   double strike_offset_s = 0.0,
-                                  double producer_offset_s = 0.0) {
+                                  double producer_offset_s = 0.0,
+                                  std::uint64_t flight_id = 77) {
   const double producer = PpNowWallSec() + producer_offset_s;
   const double sec = std::floor(producer);
   const double nsec = std::floor((producer - sec) * 1.0e9);
@@ -29,7 +30,7 @@ std::vector<double> Schema2Racket(std::uint64_t command_seq,
       2.0 + vx_offset, 0.4, 0.8,
       tts, strike, 0.0,
       sec, nsec, static_cast<double>(command_seq),
-      77.0, static_cast<double>(revision), 8.0, 0.12};
+      static_cast<double>(flight_id), static_cast<double>(revision), 8.0, 0.12};
 }
 
 TEST(PpRacketTargetInput, Schema2TracksRevisionStabilityAsTelemetry) {
@@ -43,6 +44,8 @@ TEST(PpRacketTargetInput, Schema2TracksRevisionStabilityAsTelemetry) {
   ASSERT_TRUE(latest.has_valid);
   EXPECT_EQ(latest.cmd.schema, 2);
   EXPECT_EQ(latest.cmd.flight_id, 77U);
+  EXPECT_EQ(latest.producer_epoch, 1U);
+  EXPECT_EQ(latest.cmd.producer_epoch, 1U);
   EXPECT_EQ(latest.cmd.revision_id, 3U);
   EXPECT_EQ(latest.cmd.stable_revision_count, 3);
   EXPECT_GE(latest.valid_age_s, 0.0);
@@ -112,16 +115,46 @@ TEST(PpRacketTargetInput, Schema2DuplicateRevisionDoesNotPoisonRetainedCommand) 
   EXPECT_EQ(latest.cmd.command_seq, 1U);
 }
 
-TEST(PpRacketTargetInput, PlannerRestartOpensNewSequenceEpoch) {
+TEST(PpRacketTargetInput, CounterRollbackAfterGapIsRejectedWithoutEpochGuess) {
   PpRacketTargetInput input;
-  input.SetFromFlat(Schema2Racket(100, 100));
+  input.SetFromFlat(Schema2Racket(100, 100, 0.0, 0.0, 0.0, 0.0, 34));
+  EXPECT_EQ(input.Latest().producer_epoch, 1U);
   std::this_thread::sleep_for(std::chrono::milliseconds(60));
-  input.SetFromFlat(Schema2Racket(1, 1, 0.02));
-  const auto latest = input.Latest();
-  ASSERT_TRUE(latest.has_valid);
-  EXPECT_EQ(latest.cmd.command_seq, 1U);
-  EXPECT_EQ(latest.cmd.revision_id, 1U);
-  EXPECT_NEAR(latest.cmd.pos_w[0], 0.60, 1.0e-12);
+  input.SetFromFlat(Schema2Racket(1, 1, 0.02, 0.0, 0.0, 0.0, 1));
+  const auto retained = input.Latest();
+  ASSERT_TRUE(retained.has_valid);
+  EXPECT_EQ(retained.producer_epoch, 1U);
+  EXPECT_EQ(retained.cmd.producer_epoch, 1U);
+  EXPECT_EQ(retained.cmd.command_seq, 100U);
+  EXPECT_EQ(retained.cmd.flight_id, 34U);
+  EXPECT_EQ(retained.cmd.revision_id, 100U);
+  EXPECT_NEAR(retained.cmd.pos_w[0], 0.58, 1.0e-12);
+  EXPECT_FALSE(retained.invalid_after);
+  EXPECT_GE(retained.valid_age_s, 0.050);
+
+  // The same receiver continues only from a genuinely monotonic wire packet;
+  // its nominal producer epoch remains one.
+  input.SetFromFlat(Schema2Racket(101, 1, 0.03, 0.0, 0.0, 0.0, 35));
+  const auto next = input.Latest();
+  EXPECT_EQ(next.producer_epoch, 1U);
+  EXPECT_EQ(next.cmd.flight_id, 35U);
+  EXPECT_EQ(next.cmd.command_seq, 101U);
+}
+
+TEST(PpRacketTargetInput, EqualCounterAfterGapCannotClaimProducerRestart) {
+  PpRacketTargetInput input;
+  input.SetFromFlat(Schema2Racket(1, 1, 0.0, 0.0, 0.0, 0.0, 34));
+  std::this_thread::sleep_for(std::chrono::milliseconds(60));
+  input.SetFromFlat(Schema2Racket(1, 1, 0.02, 0.0, 0.0, 0.0, 1));
+  const auto retained = input.Latest();
+  ASSERT_TRUE(retained.has_valid);
+  EXPECT_EQ(retained.producer_epoch, 1U);
+  EXPECT_EQ(retained.cmd.producer_epoch, 1U);
+  EXPECT_EQ(retained.cmd.command_seq, 1U);
+  EXPECT_EQ(retained.cmd.flight_id, 34U);
+  EXPECT_NEAR(retained.cmd.pos_w[0], 0.58, 1.0e-12);
+  EXPECT_FALSE(retained.invalid_after);
+  EXPECT_GE(retained.valid_age_s, 0.050);
 }
 
 TEST(PpRacketTargetInput, LegacySchemaRemainsReadableButUnrevisioned) {
@@ -132,6 +165,7 @@ TEST(PpRacketTargetInput, LegacySchemaRemainsReadableButUnrevisioned) {
   const auto latest = input.Latest();
   ASSERT_TRUE(latest.has_valid);
   EXPECT_EQ(latest.cmd.schema, 1);
+  EXPECT_EQ(latest.producer_epoch, 0U);
   EXPECT_EQ(latest.cmd.stable_revision_count, 0);
 }
 

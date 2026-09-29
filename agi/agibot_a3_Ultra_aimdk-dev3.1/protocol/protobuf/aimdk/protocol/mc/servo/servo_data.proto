@@ -1,0 +1,41 @@
+syntax = "proto3";
+package aimdk.protocol;
+import public "aimdk/protocol/common/se3_pose.proto";
+
+/**
+ * @brief 伺服运动抵达目标判定
+ */
+message ServoMoveGoalReachCondition {
+  double position_tolerance = 1;
+  double orientation_tolerance = 2;
+  double keep_time = 3;
+}
+
+/**
+ * @brief 伺服运动速度
+ */
+message ServoMoveVelocity {
+  double linear = 1;
+  double angular = 2;
+}
+
+/**
+ * @brief 伺服运动指令
+ */
+message ServoMoveCommand {
+  SE3Pose left = 1;
+  SE3Pose right = 2;
+  ServoMoveVelocity servo_velocity = 3;
+  ServoMoveGoalReachCondition goal_reach_condition = 4;
+}
+
+/**
+ * @brief 伺服运动姿态结果
+ */
+message ServoMoveResult {
+  enum Status {
+    SUCCESS = 0;
+    FAILURE = 1;
+  }
+  Status status = 1;
+}

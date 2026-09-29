@@ -1,0 +1,319 @@
+{
+  "type_description_msg": {
+    "type_description": {
+      "type_name": "audio_msgs/srv/AbandonAudioFocus",
+      "fields": [
+        {
+          "name": "request_message",
+          "type": {
+            "type_id": 1,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": "audio_msgs/srv/AbandonAudioFocus_Request"
+          },
+          "default_value": ""
+        },
+        {
+          "name": "response_message",
+          "type": {
+            "type_id": 1,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": "audio_msgs/srv/AbandonAudioFocus_Response"
+          },
+          "default_value": ""
+        },
+        {
+          "name": "event_message",
+          "type": {
+            "type_id": 1,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": "audio_msgs/srv/AbandonAudioFocus_Event"
+          },
+          "default_value": ""
+        }
+      ]
+    },
+    "referenced_type_descriptions": [
+      {
+        "type_name": "audio_msgs/msg/FocusRequester",
+        "fields": [
+          {
+            "name": "pkg_name",
+            "type": {
+              "type_id": 17,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          },
+          {
+            "name": "priority",
+            "type": {
+              "type_id": 7,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          },
+          {
+            "name": "priority_weight",
+            "type": {
+              "type_id": 7,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          }
+        ]
+      },
+      {
+        "type_name": "audio_msgs/msg/FocusResponse",
+        "fields": [
+          {
+            "name": "pkg_name",
+            "type": {
+              "type_id": 17,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          },
+          {
+            "name": "focus_gain",
+            "type": {
+              "type_id": 15,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          }
+        ]
+      },
+      {
+        "type_name": "audio_msgs/srv/AbandonAudioFocus_Event",
+        "fields": [
+          {
+            "name": "info",
+            "type": {
+              "type_id": 1,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": "service_msgs/msg/ServiceEventInfo"
+            },
+            "default_value": ""
+          },
+          {
+            "name": "request",
+            "type": {
+              "type_id": 97,
+              "capacity": 1,
+              "string_capacity": 0,
+              "nested_type_name": "audio_msgs/srv/AbandonAudioFocus_Request"
+            },
+            "default_value": ""
+          },
+          {
+            "name": "response",
+            "type": {
+              "type_id": 97,
+              "capacity": 1,
+              "string_capacity": 0,
+              "nested_type_name": "audio_msgs/srv/AbandonAudioFocus_Response"
+            },
+            "default_value": ""
+          }
+        ]
+      },
+      {
+        "type_name": "audio_msgs/srv/AbandonAudioFocus_Request",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "type_id": 1,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": "std_msgs/msg/Header"
+            },
+            "default_value": ""
+          },
+          {
+            "name": "focus_requester",
+            "type": {
+              "type_id": 1,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": "audio_msgs/msg/FocusRequester"
+            },
+            "default_value": ""
+          }
+        ]
+      },
+      {
+        "type_name": "audio_msgs/srv/AbandonAudioFocus_Response",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "type_id": 1,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": "std_msgs/msg/Header"
+            },
+            "default_value": ""
+          },
+          {
+            "name": "focus_response",
+            "type": {
+              "type_id": 1,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": "audio_msgs/msg/FocusResponse"
+            },
+            "default_value": ""
+          }
+        ]
+      },
+      {
+        "type_name": "builtin_interfaces/msg/Time",
+        "fields": [
+          {
+            "name": "sec",
+            "type": {
+              "type_id": 6,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          },
+          {
+            "name": "nanosec",
+            "type": {
+              "type_id": 7,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          }
+        ]
+      },
+      {
+        "type_name": "service_msgs/msg/ServiceEventInfo",
+        "fields": [
+          {
+            "name": "event_type",
+            "type": {
+              "type_id": 3,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          },
+          {
+            "name": "stamp",
+            "type": {
+              "type_id": 1,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": "builtin_interfaces/msg/Time"
+            },
+            "default_value": ""
+          },
+          {
+            "name": "client_gid",
+            "type": {
+              "type_id": 51,
+              "capacity": 16,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          },
+          {
+            "name": "sequence_number",
+            "type": {
+              "type_id": 8,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          }
+        ]
+      },
+      {
+        "type_name": "std_msgs/msg/Header",
+        "fields": [
+          {
+            "name": "stamp",
+            "type": {
+              "type_id": 1,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": "builtin_interfaces/msg/Time"
+            },
+            "default_value": ""
+          },
+          {
+            "name": "frame_id",
+            "type": {
+              "type_id": 17,
+              "capacity": 0,
+              "string_capacity": 0,
+              "nested_type_name": ""
+            },
+            "default_value": ""
+          }
+        ]
+      }
+    ]
+  },
+  "type_hashes": [
+    {
+      "type_name": "audio_msgs/srv/AbandonAudioFocus",
+      "hash_string": "RIHS01_712f2e0fd02064345dbc56069f83b4ab657cfc2ad2c587309e46eb17340ee7bd"
+    },
+    {
+      "type_name": "audio_msgs/msg/FocusRequester",
+      "hash_string": "RIHS01_122a06ff96165437f94a8b7bace94514918544ec72897ce109b3a88d253c3fd2"
+    },
+    {
+      "type_name": "audio_msgs/msg/FocusResponse",
+      "hash_string": "RIHS01_5d6bd7180180aaa59f771ee61295cba7bfe765e486e757185fe82a85591f988b"
+    },
+    {
+      "type_name": "audio_msgs/srv/AbandonAudioFocus_Event",
+      "hash_string": "RIHS01_9a784115ec3d0610bf68d003ff352339738c51950dc20f3910cb99994f197e08"
+    },
+    {
+      "type_name": "audio_msgs/srv/AbandonAudioFocus_Request",
+      "hash_string": "RIHS01_5893d0f70df3bebee883722c1781eb948f4d94f2ed121b234907796b45c98028"
+    },
+    {
+      "type_name": "audio_msgs/srv/AbandonAudioFocus_Response",
+      "hash_string": "RIHS01_fdfa869290554e0b00f9e1e80d97c638ec8406e75b1099243ceda3e028b5cdc0"
+    },
+    {
+      "type_name": "builtin_interfaces/msg/Time",
+      "hash_string": "RIHS01_b106235e25a4c5ed35098aa0a61a3ee9c9b18d197f398b0e4206cea9acf9c197"
+    },
+    {
+      "type_name": "service_msgs/msg/ServiceEventInfo",
+      "hash_string": "RIHS01_41bcbbe07a75c9b52bc96bfd5c24d7f0fc0a08c0cb7921b3373c5732345a6f45"
+    },
+    {
+      "type_name": "std_msgs/msg/Header",
+      "hash_string": "RIHS01_f49fb3ae2cf070f793645ff749683ac6b06203e41c891e17701b1cb597ce6a01"
+    }
+  ]
+}

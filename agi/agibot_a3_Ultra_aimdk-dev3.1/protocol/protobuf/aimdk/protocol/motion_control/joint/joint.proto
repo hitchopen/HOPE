@@ -1,0 +1,28 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/joint.proto";
+
+/**
+ * @brief 运控公共状态响应
+ */
+message JointStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 关节状态，包括角度和速度、扭矩
+  repeated JointState states = 2;
+}
+
+/**
+ * @brief 运控公共状态响应
+ */
+message JointCommandRequest {
+  // 响应头
+  RequestHeader header = 1;
+
+  // 关节指令
+  repeated JointCommand commands = 2;
+}
+

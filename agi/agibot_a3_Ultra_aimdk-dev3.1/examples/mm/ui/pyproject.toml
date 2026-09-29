@@ -1,0 +1,12 @@
+[project]
+name = "ui"
+version = "0.1.0"
+description = "PySide6 map UI"
+readme = "readme.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6>=6.10.1",
+    "PyYAML>=6.0.3",
+]
+
+[tool.uv]

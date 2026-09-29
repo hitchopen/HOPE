@@ -1,0 +1,32 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/ota/sub_soc/ota_sub_soc_api.proto";
+import "aimdk/protocol/ota/ota_api.proto";
+
+service OTASubSocService {
+  /**
+   * @brief 查询子soc的下载缓存信息
+   */
+  rpc OtaQuerySubSocDownloadInfo(OtaQuerySubSocDownloadInfoRequest) returns (OtaQuerySubSocDownloadInfoResponse);
+
+  /**
+   * @brief 上传ota文件
+   */
+  rpc OTAFileUpload(OTAUploadFileReq) returns (OTAUploadFileRsp);
+
+  /**
+   * @brief 完成ota文件上传
+   */
+  rpc FinishOTAFileUpload(FinishOTAUploadReq) returns (FinishOTAUploadRsp);
+
+  /**
+   * @brief 查询子soc的文件解压缩进度和参数更新进度的响应
+   */
+  rpc OtaQuerySubSocProgress(OtaQuerySubSocProgressRequest) returns (OtaQuerySubSocProgressResponse);
+
+  /**
+   * @brief 请求子soc重命名
+   */
+  rpc OtaSubSocRename(OtaSubSocRenameRequest) returns (OtaSubSocRenameResponse);
+}

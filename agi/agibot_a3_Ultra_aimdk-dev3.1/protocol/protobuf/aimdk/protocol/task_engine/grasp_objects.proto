@@ -1,0 +1,28 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/common/vec3.proto";
+
+// 定义 grasp_obj 数据结构
+message GraspObject {
+    string object_id = 1;           // 物体唯一标识，例如 "box_1"
+    Vec3 dims = 2;                  // 物体长宽高
+    SE3Pose pose = 3;               // 物体pose
+    string frame_id = 4;           // 所属坐标系，例如 "left_arm_link07"
+}
+
+// 请求更新多个 grasp_obj
+message UpdateGraspObjectsRequest {
+    repeated GraspObject grasp_objs = 1;
+}
+
+// 响应更新 grasp_obj
+message UpdateGraspObjectsResponse {
+    bool success = 1;
+}
+
+// 定义 RPC 服务
+service GraspObjService {
+    rpc UpdateGraspObjects (UpdateGraspObjectsRequest) returns (UpdateGraspObjectsResponse);
+}

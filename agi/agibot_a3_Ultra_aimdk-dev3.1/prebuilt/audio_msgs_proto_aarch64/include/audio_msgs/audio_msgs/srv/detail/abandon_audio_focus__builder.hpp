@@ -1,0 +1,207 @@
+// generated from rosidl_generator_cpp/resource/idl__builder.hpp.em
+// with input from audio_msgs:srv/AbandonAudioFocus.idl
+// generated code does not contain a copyright notice
+
+// IWYU pragma: private, include "audio_msgs/srv/abandon_audio_focus.hpp"
+
+
+#ifndef AUDIO_MSGS__SRV__DETAIL__ABANDON_AUDIO_FOCUS__BUILDER_HPP_
+#define AUDIO_MSGS__SRV__DETAIL__ABANDON_AUDIO_FOCUS__BUILDER_HPP_
+
+#include <algorithm>
+#include <utility>
+
+#include "audio_msgs/srv/detail/abandon_audio_focus__struct.hpp"
+#include "rosidl_runtime_cpp/message_initialization.hpp"
+
+
+namespace audio_msgs
+{
+
+namespace srv
+{
+
+namespace builder
+{
+
+class Init_AbandonAudioFocus_Request_focus_requester
+{
+public:
+  explicit Init_AbandonAudioFocus_Request_focus_requester(::audio_msgs::srv::AbandonAudioFocus_Request & msg)
+  : msg_(msg)
+  {}
+  ::audio_msgs::srv::AbandonAudioFocus_Request focus_requester(::audio_msgs::srv::AbandonAudioFocus_Request::_focus_requester_type arg)
+  {
+    msg_.focus_requester = std::move(arg);
+    return std::move(msg_);
+  }
+
+private:
+  ::audio_msgs::srv::AbandonAudioFocus_Request msg_;
+};
+
+class Init_AbandonAudioFocus_Request_header
+{
+public:
+  Init_AbandonAudioFocus_Request_header()
+  : msg_(::rosidl_runtime_cpp::MessageInitialization::SKIP)
+  {}
+  Init_AbandonAudioFocus_Request_focus_requester header(::audio_msgs::srv::AbandonAudioFocus_Request::_header_type arg)
+  {
+    msg_.header = std::move(arg);
+    return Init_AbandonAudioFocus_Request_focus_requester(msg_);
+  }
+
+private:
+  ::audio_msgs::srv::AbandonAudioFocus_Request msg_;
+};
+
+}  // namespace builder
+
+}  // namespace srv
+
+template<typename MessageType>
+auto build();
+
+template<>
+inline
+auto build<::audio_msgs::srv::AbandonAudioFocus_Request>()
+{
+  return audio_msgs::srv::builder::Init_AbandonAudioFocus_Request_header();
+}
+
+}  // namespace audio_msgs
+
+
+namespace audio_msgs
+{
+
+namespace srv
+{
+
+namespace builder
+{
+
+class Init_AbandonAudioFocus_Response_focus_response
+{
+public:
+  explicit Init_AbandonAudioFocus_Response_focus_response(::audio_msgs::srv::AbandonAudioFocus_Response & msg)
+  : msg_(msg)
+  {}
+  ::audio_msgs::srv::AbandonAudioFocus_Response focus_response(::audio_msgs::srv::AbandonAudioFocus_Response::_focus_response_type arg)
+  {
+    msg_.focus_response = std::move(arg);
+    return std::move(msg_);
+  }
+
+private:
+  ::audio_msgs::srv::AbandonAudioFocus_Response msg_;
+};
+
+class Init_AbandonAudioFocus_Response_header
+{
+public:
+  Init_AbandonAudioFocus_Response_header()
+  : msg_(::rosidl_runtime_cpp::MessageInitialization::SKIP)
+  {}
+  Init_AbandonAudioFocus_Response_focus_response header(::audio_msgs::srv::AbandonAudioFocus_Response::_header_type arg)
+  {
+    msg_.header = std::move(arg);
+    return Init_AbandonAudioFocus_Response_focus_response(msg_);
+  }
+
+private:
+  ::audio_msgs::srv::AbandonAudioFocus_Response msg_;
+};
+
+}  // namespace builder
+
+}  // namespace srv
+
+template<typename MessageType>
+auto build();
+
+template<>
+inline
+auto build<::audio_msgs::srv::AbandonAudioFocus_Response>()
+{
+  return audio_msgs::srv::builder::Init_AbandonAudioFocus_Response_header();
+}
+
+}  // namespace audio_msgs
+
+
+namespace audio_msgs
+{
+
+namespace srv
+{
+
+namespace builder
+{
+
+class Init_AbandonAudioFocus_Event_response
+{
+public:
+  explicit Init_AbandonAudioFocus_Event_response(::audio_msgs::srv::AbandonAudioFocus_Event & msg)
+  : msg_(msg)
+  {}
+  ::audio_msgs::srv::AbandonAudioFocus_Event response(::audio_msgs::srv::AbandonAudioFocus_Event::_response_type arg)
+  {
+    msg_.response = std::move(arg);
+    return std::move(msg_);
+  }
+
+private:
+  ::audio_msgs::srv::AbandonAudioFocus_Event msg_;
+};
+
+class Init_AbandonAudioFocus_Event_request
+{
+public:
+  explicit Init_AbandonAudioFocus_Event_request(::audio_msgs::srv::AbandonAudioFocus_Event & msg)
+  : msg_(msg)
+  {}
+  Init_AbandonAudioFocus_Event_response request(::audio_msgs::srv::AbandonAudioFocus_Event::_request_type arg)
+  {
+    msg_.request = std::move(arg);
+    return Init_AbandonAudioFocus_Event_response(msg_);
+  }
+
+private:
+  ::audio_msgs::srv::AbandonAudioFocus_Event msg_;
+};
+
+class Init_AbandonAudioFocus_Event_info
+{
+public:
+  Init_AbandonAudioFocus_Event_info()
+  : msg_(::rosidl_runtime_cpp::MessageInitialization::SKIP)
+  {}
+  Init_AbandonAudioFocus_Event_request info(::audio_msgs::srv::AbandonAudioFocus_Event::_info_type arg)
+  {
+    msg_.info = std::move(arg);
+    return Init_AbandonAudioFocus_Event_request(msg_);
+  }
+
+private:
+  ::audio_msgs::srv::AbandonAudioFocus_Event msg_;
+};
+
+}  // namespace builder
+
+}  // namespace srv
+
+template<typename MessageType>
+auto build();
+
+template<>
+inline
+auto build<::audio_msgs::srv::AbandonAudioFocus_Event>()
+{
+  return audio_msgs::srv::builder::Init_AbandonAudioFocus_Event_info();
+}
+
+}  // namespace audio_msgs
+
+#endif  // AUDIO_MSGS__SRV__DETAIL__ABANDON_AUDIO_FOCUS__BUILDER_HPP_

@@ -1,0 +1,20 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * Scalar轨迹点
+ */
+message ScalarTrajectoryPoint {
+  double time_since_reference = 1;   /**< time since reference. Unit s. */
+  repeated double positions = 2;     /**< The position of the trajectory. Unit rad or m. */
+  repeated double velocities = 3;    /**< The velocity of the trajectory. Unit rad/s or m/s. */
+  repeated double accelerations = 4; /**< The acceleration of the trajectory. Unit rad/s^2 or m/s^2. */
+}
+
+/**
+ * Scalar轨迹
+ */
+message ScalarTrajectory {
+  double reference_time = 1;                 /**< All trajectories specify times relative to this reference time. */
+  repeated ScalarTrajectoryPoint points = 2; /**< The trajectory points. */
+}

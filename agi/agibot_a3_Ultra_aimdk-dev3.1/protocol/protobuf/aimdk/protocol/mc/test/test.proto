@@ -1,0 +1,10 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/mc/motion/planning.proto";
+
+message GetPlanningMoveTargetResponse {
+  ResponseHeader header = 1;
+  PlanningMoveRequest planning_move_request = 2;
+}

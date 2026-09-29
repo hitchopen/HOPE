@@ -1,0 +1,84 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 读取PLC数据请求体
+ */
+message PlcReadReq {
+  RequestHeader header = 1;
+  string key = 2;
+}
+
+message PlcReadRspData {
+  string value = 1;
+}
+
+/**
+ * @brief 读取PLC数据响应体
+ */
+message PlcReadRsp {
+  ResponseHeader header = 1;
+  PlcReadRspData data = 2;
+}
+
+/**
+ * @brief 读取PLC数组数据请求体
+ */
+message PlcReadArrayReq {
+  RequestHeader header = 1;
+  string key = 2;
+}
+
+message PlcReadArrayRspData {
+  repeated string value = 1;
+}
+
+/**
+ * @brief 读取PLC数组数据响应体
+ */
+message PlcReadArrayRsp {
+  ResponseHeader header = 1;
+  PlcReadArrayRspData data = 2;
+}
+
+/**
+ * @brief 写入PLC数据请求体
+ */
+message PlcWriteReq {
+  RequestHeader header = 1;
+  string key = 2;
+  string value = 3;
+}
+
+message PlcWriteRspData {
+}
+
+/**
+ * @brief 写入PLC数据响应体
+ */
+message PlcWriteRsp {
+  ResponseHeader header = 1;
+  PlcReadRspData data = 2;
+}
+
+/**
+ * @brief 写入PLC array数据请求体
+ */
+message PlcWriteArrayReq {
+  RequestHeader header = 1;
+  string key = 2;
+  repeated string value = 3;
+}
+
+message PlcWriteArrayRspData {
+}
+
+/**
+ * @brief 写入PLC数据响应体
+ */
+message PlcWriteArrayRsp {
+  ResponseHeader header = 1;
+  PlcReadRspData data = 2;
+}

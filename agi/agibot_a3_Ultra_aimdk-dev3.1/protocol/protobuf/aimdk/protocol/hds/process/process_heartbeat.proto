@@ -1,0 +1,73 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+
+
+/*
+ * @brief 中间件话题信息
+ */
+message ProcMiddlewareTopicInfo{
+  message TopicInfo{
+    string name = 1;  //话题名
+    double hz = 2;   //当前频率
+    string type = 3;     //类型名
+    repeated string backends = 4;  //通讯后端
+    double min = 5;  //话题最小时间差(ms)
+    double max = 6;  //话题最大时间差(ms)
+    double std_dev = 7; //标准差(ms)
+    int32 window = 8; //统计滑动窗口大小(ms)
+    double timeout_thres = 9; //超时阈值(ms)
+    bool is_active = 10;  //是否活跃(只要收到过一帧消息，则置为true，如果未开启filter，会一直为false)
+  };
+
+  repeated TopicInfo sub_topics = 1;
+  repeated TopicInfo pub_topics = 2;
+}
+
+/*
+ * @brief 中间件rpc信息
+ */
+message ProcMiddlewareRpcInfo{
+
+  message RpcInfo{
+    string func_name = 1;  //函数名
+    string req_type = 2;  //请求类型
+    string rsp_type = 3;  //响应类型
+    repeated string backends = 4;  //通讯后端
+  };
+
+  repeated RpcInfo rpc_clients = 1;
+  repeated RpcInfo rpc_servers = 2;
+}
+
+
+/*
+ * @brief 中间件信息
+ */
+message ProcMiddlewareInfo{
+  ProcMiddlewareTopicInfo topic_info = 1; //话题信息
+  ProcMiddlewareRpcInfo rpc_info = 2;   //rpc信息
+  map<string, string> plugin_info = 3;  //插件信息插件名->配置yaml
+}
+
+/**
+ * @brief 资源信息
+ */
+message ProcResourceInfo{
+  uint64 pid = 1;                    // 进程ID
+  uint64 mem_usage = 2;              // 当前进程内存使用量(kb)
+  float  mem_usage_ratio = 3;         // 当前进程内存使用率
+  float  cpu_usage_ratio = 4;         // 当前进程cpu使用率
+  uint64 thread_count = 5;           // 当前进程线程数
+  string cpu_sched_policy = 6;       // 当前进程调度策略
+  int32  cpu_sched_priority = 7;      // 当前进程调度优先级
+  repeated int32 bounding_cpus = 8;  // 当前进程绑定cpu
+  uint32 soc_index = 9;              // 当前进程所在的soc索引
+}
+
+
+message ProcessHeartbeat {
+  string name = 1;  //进程名
+  ProcMiddlewareInfo middleware_info = 2;
+  ProcResourceInfo resource_info = 3;
+}

@@ -1,0 +1,67 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/ota/ota_api.proto";
+
+service OTAService {
+  /**
+   * @brief 获取机器人与ota升级相关的信息
+   */
+  rpc GetRobotOtaInfo(GetRobotOtaInfoRequest) returns (GetRobotOtaInfoResponse);
+
+  /**
+   * @brief 升级ota
+   */
+  rpc OtaUpdate(OtaUpdateRequest) returns (OtaUpdateResponse);
+
+  /**
+   * @brief 进入ota failure状态后，调用该接口回滚
+   */
+  rpc OtaContinue(OtaContinueRequest) returns (OtaContinueResponse);
+
+  /**
+   * @brief 停止ota升级，回滚
+   */
+  rpc OtaStop(OtaStopRequest) returns (OtaStopResponse);
+
+  /**
+   * @brief 请求获取当前机器人ota进度信息
+   */
+  rpc GetCurrentOtaProgress(GetCurrentOtaProgressRequest) returns (GetCurrentOtaProgressResponse);
+
+  /**
+   * @brief SM发送的继续历史ota
+   */
+  rpc ContinueHistoryOta(ContinueHistoryOtaRequest) returns (ContinueHistoryOtaResponse);
+
+  /**
+   * @brief 开始上传ota文件
+   */
+  rpc StartOTAFileUpload(StartOTAUploadReq) returns (StartOTAUploadRsp);
+
+  /**
+   * @brief 上传ota文件
+   */
+  rpc OTAFileUpload(OTAUploadFileReq) returns (OTAUploadFileRsp);
+
+  /**
+   * @brief 完成ota文件上传
+   */
+  rpc FinishOTAFileUpload(FinishOTAUploadReq) returns (FinishOTAUploadRsp);
+
+  /**
+   * @brief 开始ota执行解压缩及后续流程
+   */
+  rpc StartOTA(StartOTAReq) returns (StartOTARsp);
+
+  /**
+   * @brief 请求 OTA 执行某个功能码，功能码由 OTA 模块定义
+   */
+  rpc OTAExecuteFunction(OTAExecuteFunctionRequest) returns (OTAExecuteFunctionResponse);
+
+  /**
+   * @brief 查询各个SOC的磁盘可用空间
+   */
+  rpc GetSocDiskSpace(GetSocDiskSpaceRequest) returns (GetSocDiskSpaceResponse);
+
+}

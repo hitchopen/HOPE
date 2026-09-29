@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+// ============================================
+// RTC Master 服务
+// 调用方：aimmaster
+// ============================================
+
+/**
+ * @brief 网络环境枚举
+ */
+enum NetworkEnvironment {
+  NETWORK_ENVIRONMENT_UNKNOWN = 0;    // 未知
+  NETWORK_ENVIRONMENT_DIRECT = 1;     // 直连（不连 webrtc）
+  NETWORK_ENVIRONMENT_PUBLIC = 2;     // 公网
+  NETWORK_ENVIRONMENT_PRIVATE = 3;    // 局域网
+}
+
+/**
+ * @brief RTC 引擎类型枚举
+ */
+enum RtcEngineType {
+  RTC_ENGINE_TYPE_UNKNOWN = 0;        // 未知
+  RTC_ENGINE_TYPE_AGORA = 1;          // 声网
+  RTC_ENGINE_TYPE_AGI = 2;            // 自研局域网
+  RTC_ENGINE_TYPE_TRRO = 3;           // 腾讯
+}
+
+/**
+ * @brief RTC 连接状态枚举
+ */
+enum RtcConnectionState {
+  RTC_CONNECTION_STATE_UNKNOWN = 0;        // 未知
+  RTC_CONNECTION_STATE_DISCONNECTED = 1;   // 未连接
+  RTC_CONNECTION_STATE_CONNECTING = 2;     // 连接中
+  RTC_CONNECTION_STATE_CONNECTED = 3;      // 已连接
+  RTC_CONNECTION_STATE_RECONNECTING = 4;   // 重连中
+  RTC_CONNECTION_STATE_DISCONNECTING = 5;  // 断开中
+  RTC_CONNECTION_STATE_ERROR = 6;          // 错误
+}
+
+// ============================================
+// 1. 读取连接参数
+// ============================================
+
+message GetRtcConnectionConfigRequest {
+  aimdk.protocol.RequestHeader header = 1;
+}
+
+message GetRtcConnectionConfigResponse {
+  aimdk.protocol.ResponseHeader header = 1;
+  NetworkEnvironment network_environment = 2;  // 网络环境
+  RtcEngineType rtc_engine_type = 3;           // RTC 引擎类型
+  string server_ip = 4;                        // 信令服务器 IP
+  string rtc_server_ip = 5;                    // 媒体服务器 IP
+  string channel_id = 6;                       // 房间号（频道 ID）
+}
+
+// ============================================
+// 2. 设置连接参数
+// ============================================
+
+message SetRtcConnectionConfigRequest {
+  aimdk.protocol.RequestHeader header = 1;
+  NetworkEnvironment network_environment = 2;  // 网络环境
+  RtcEngineType rtc_engine_type = 3;           // RTC 引擎类型
+  string server_ip = 4;                        // 信令服务器 IP
+  string rtc_server_ip = 5;                    // 媒体服务器 IP
+  string channel_id = 6;                       // 房间号（频道 ID）
+  string robot_ip = 7;                         // 连接机器 IP
+
+}
+
+message SetRtcConnectionConfigResponse {
+  aimdk.protocol.ResponseHeader header = 1;
+}
+
+// ============================================
+// 3. 连接状态推送（aimrt channel）
+// ============================================
+/**
+ * @brief
+ *  topic: /tele/connection_status
+ */
+
+ message RtcConnectionStatus {
+  RtcConnectionState connection_state = 1;  // 与 webrtc 服务器的连接状态
+  bool has_vr_access = 2;                   // 是否有 vr 接入（以收到 udp 下行数据为准）
+  int32 network_delay_ms = 3;               // 网络延迟，单位 ms
+  NetworkEnvironment network_environment = 4;  // 网络环境
+  bool is_calibrated = 5;                   // 是否需要校准
+  TeleoperationMode teleoperation_mode = 6;  // 遥操作模式 全身/半身
+  TeleoperationControlMode control_mode = 7;             // 控制模式 绝对/相对
+
+}
+
+enum TeleoperationMode {
+  TELEOPERATION_MODE_UNKNOWN = 0;  // 未知
+  TELEOPERATION_MODE_FULL = 1;     // 全身
+  TELEOPERATION_MODE_HALF = 2;     // 半身
+}
+
+enum TeleoperationControlMode {
+  TELEOPERATION_CONTROL_MODE_UNKNOWN = 0;  // 未知
+  TELEOPERATION_CONTROL_MODE_ABSOLUTE = 1;     // 绝对
+  TELEOPERATION_CONTROL_MODE_RELATIVE = 2;     // 相对
+}
+
+// ============================================
+// 6. 连接 / 断开 RTC 服务
+// ============================================
+
+message ConnectRtcServiceRequest {
+  aimdk.protocol.RequestHeader header = 1;
+}
+
+message ConnectRtcServiceResponse {
+  aimdk.protocol.ResponseHeader header = 1;
+}
+
+message DisconnectRtcServiceRequest {
+  aimdk.protocol.RequestHeader header = 1;
+}
+
+message DisconnectRtcServiceResponse {
+  aimdk.protocol.ResponseHeader header = 1;
+}
+
+service RtcMasterService {
+  // 读取连接参数
+  rpc GetRtcConnectionConfig(GetRtcConnectionConfigRequest) returns (GetRtcConnectionConfigResponse);
+  // 设置连接参数
+  rpc SetRtcConnectionConfig(SetRtcConnectionConfigRequest) returns (SetRtcConnectionConfigResponse);
+  // 注：连接状态通过 aimrt channel 推送（RtcConnectionStatus），见上方 message 定义
+  // 连接 RTC 服务（使用 SetRtcConnectionConfig 设置的参数）
+  rpc ConnectRtcService(ConnectRtcServiceRequest) returns (ConnectRtcServiceResponse);
+  // 断开 RTC 服务
+  rpc DisconnectRtcService(DisconnectRtcServiceRequest) returns (DisconnectRtcServiceResponse);
+}

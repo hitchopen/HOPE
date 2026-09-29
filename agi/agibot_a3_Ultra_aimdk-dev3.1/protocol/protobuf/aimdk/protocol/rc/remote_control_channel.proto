@@ -1,0 +1,74 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/rc/remote_command.proto";
+import public "aimdk/protocol/mc/motion/mc_adjust.proto";
+
+/**
+ * @brief 遥控器控制通道
+ */
+message RemoteControlChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  RemoteControlInfo data = 2;
+}
+
+/**
+ * @brief 遥控器控制通道
+   topic : /rc/command
+ */
+message RemoteControlCommandChannel {
+  // 消息头
+  Header header = 1;
+
+  // 指令
+  RemoteControlCommand command = 2;
+}
+
+/** 
+ * @brief 机器人各关节的状态，RC定时发送
+ * @topic : /rc/virtual/joint_states
+ */
+message RcJointStates {
+  // 消息头
+  Header header          = 1;
+
+  // 轮式机器人 还是 腿式机器人
+  RcRobotType robot_type = 2;
+
+  // 关节状态
+  repeated RcJoint joint = 3;
+
+  // MC 末端位置
+  repeated AdjustEndPosition end_positions = 5;
+}
+
+/**
+ * @brief 播放表情话题
+ */
+message RcEmoticonPlayerChannel {
+  // 消息头
+  RequestHeader header = 1;
+  // 表情id
+  uint32 emoticon_id = 2;
+  // 表情路径
+  string  emoticon_path = 3;
+}
+
+/**
+ * @brief 腰部位置控制
+ * /rc/virtual/waist/command
+ */
+message RcWaistCommandChannel {
+  // 消息头
+  RequestHeader header = 1;
+
+  // 腰部垂直位移(范围-0.15 ~ +0.04，单位：m)
+  double waist_lift_value = 2;
+
+  // 弯腰角度(单位 弧度)
+  double waist_pitch_value = 3;
+}

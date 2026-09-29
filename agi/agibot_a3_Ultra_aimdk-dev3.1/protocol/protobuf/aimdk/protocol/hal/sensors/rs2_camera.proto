@@ -1,0 +1,87 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/hal/sensors/cameras_intrinsic.proto";
+
+/**
+ * @brief 图像类型，包括深度和彩色
+ */
+enum ImageType {
+  ImageType_UNDEFINED = 0;
+  ImageType_DEPTH = 1;
+  ImageType_COLOR = 2;
+}
+
+/**
+ * @brief 压缩图像数据
+ */
+message CompressedImage {
+  string format = 2;
+  bytes data = 3;
+}
+
+/**
+ * @brief 相机内参
+ */
+message CameraInfo {
+  int32 width = 1;
+  int32 height = 2;
+  float ppx = 3;
+  float ppy = 4;
+  float fx = 5;
+  float fy = 6;
+  DistortionType model = 7;
+  repeated float coeffs = 8;
+}
+
+/**
+ * @brief rpc GetCameraInfo() 的请求数据
+ */
+message GetCameraInfoRequest {
+  string name = 1;
+  ImageType stream_type = 2;
+}
+
+/**
+ * @brief rpc GetCameraInfo() 的响应数据
+ */
+message GetCameraInfoResponse {
+  repeated CameraInfo info = 1;
+}
+
+/**
+ * @brief rpc GetCameraData() 的请求数据
+ */
+message GetCameraDataRequest {
+  string name = 1;
+}
+
+/**
+ * @brief rpc GetCameraData() 的响应数据
+ */
+message GetCameraDataResponse {
+  string name = 1;
+  CameraInfo color_info = 2;
+  CompressedImage color_image = 3;
+  CameraInfo depth_info = 4;
+  CompressedImage depth_image = 5;
+}
+
+/**
+ * @brief 由 aimrt_hal 中的 realsense_camera_module::RealsenseCameraModule 模块提供的服务
+ */
+service CameraService {
+  /**
+   * @brief 获取 realsense_camera_module::RealsenseCameraModule 收到的相机内参信息。
+   * @param GetCameraInfoRequest 相机序列号
+   * @return GetCameraInfoResponse 相机内参
+   */
+
+  rpc GetCameraInfo(GetCameraInfoRequest) returns (GetCameraInfoResponse);
+  /**
+   * @brief 获取 realsense_camera_module::RealsenseCameraModule 收到的相机数据，包括相机内参、彩色和深度图像信息。
+   * @param GetCameraDataRequest 相机序列号
+   * @return GetCameraDataResponse 详细数据
+   */
+  rpc GetCameraData(GetCameraDataRequest) returns (GetCameraDataResponse);
+}

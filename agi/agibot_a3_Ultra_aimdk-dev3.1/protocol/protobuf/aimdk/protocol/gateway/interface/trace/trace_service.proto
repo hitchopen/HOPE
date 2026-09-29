@@ -1,0 +1,26 @@
+syntax = "proto3";
+package aimdk.protocol;
+import "aimdk/protocol/gateway/interface/trace/state_info.proto";
+
+/**
+ * @brief 提供给国家创新中心的HTTP上报数据接口(只用到了客户端，服务端实际没有用到)
+ */
+service TraceHttpService {
+    rpc ReportHttpTrace(ReportHttpTraceReq) returns (ReportHttpTraceRsp);
+}
+
+message ReportHttpTraceReq {
+  string sn = 1; // 设备的序列号
+  string model = 2; // 设备的型号名称
+  string type = 3; // 设备的类型
+  string manufacturer = 4; // 设备的制造商
+  Battery battery = 5; // 电池信息
+  Controller controller = 6; // 控制器信息
+  Sensor sensor = 7; // 传感器信息
+  JointInfo joint = 8; // 关节信息
+}
+
+message ReportHttpTraceRsp {
+    int32 status = 1; // 响应代码
+    string msg = 2; // 响应消息
+}

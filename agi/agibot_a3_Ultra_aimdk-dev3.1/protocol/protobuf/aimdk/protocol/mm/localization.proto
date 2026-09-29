@@ -1,0 +1,402 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/se3_pose.proto";
+import "aimdk/protocol/common/qr_pose.proto";
+import "aimdk/protocol/common/pixel_pose.proto";
+import "aimdk/protocol/common/timestamp.proto";
+import "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 推送当前地图导航点信息
+ */
+message PubNaviPoint {
+  // 发送时刻的时间戳
+  Timestamp timestamp = 1;
+
+  // map id 
+  uint64 map_id = 2;
+
+  // 导航点信息
+  repeated PixelNaviPointDataType points = 3;
+}
+
+/**
+ * @brief 推送给客户端实时位姿
+ */
+message PubCurrentPose {
+  // 发送时刻的时间戳
+  Timestamp timestamp = 1;
+
+  // 当前时刻位姿数据
+  SE3Pose pose = 2;
+
+  // 当前时刻像素坐标数据
+  PixelPose position = 3;
+
+  // 当前定位关联的地图id
+  uint64 map_id = 4;
+}
+
+/**
+ * @brief 高精度导航点数据类型
+ */
+message HRPointDataType {
+  // 导航点id
+  int32 point_id = 1;
+
+  // 导航点名称
+  string name = 2;
+
+  // 高精度导航点位姿
+  SE3Pose pose = 3;
+
+  // 高精度导航点关联的二维码
+  repeated QRPose qr_poses = 4;
+
+  // 高精度点时间戳
+  bool use_head = 5;
+}
+
+/**
+ * @brief 推送给客户端高精度点位的识别结果
+ */
+message PubHRPointRecordRes {
+  // 高精度点位识别结果以及时间戳
+  ResponseHeader header = 1;
+
+  // 高精度点位关联的二维码List
+  repeated QRPose qr_pose = 2;
+
+  // 高精度点时间戳
+  bool use_head = 3;
+}
+
+/**
+ * @brief 拓扑结构绘制指令
+ */
+enum TopoCommand {
+  TopoCommand_UNDEFINED         = 0;
+  TopoCommand_SET_NAVI_POINT    = 1;  // 设置导航点
+  TopoCommand_SET_QR_POINT      = 2;  // 设置二维码导航点
+  TopoCommand_DELETE_POINT      = 3;  // 删除对应导航点
+  TopoCommand_SET_PATH          = 4;  // 设置路径
+  TopoCommand_DELETE_PATH       = 5;  // 删除对应路径
+  TopoCommand_GET_TOPO_MSG      = 6;  // 获取当前地图的拓扑消息
+  TopoCommand_SET_REGION        = 7;  // 设置区域信息
+  TopoCommand_DELETE_REGION     = 8;  // 删除区域信息
+  TopoCommand_SET_HR_POINT      = 9;  // 设置高精度点
+}
+
+/**
+ * @brief 导航点类型
+ */
+enum NaviPointType {
+  NaviPointType_UNDEFINED     = 0;
+  NaviPointType_NAVI_POINT    = 1;
+  NaviPointType_STANDBY_POINT = 2;
+  NaviPointType_CHARGE_POINT  = 3;
+  NaviPointType_QR_POINT      = 4;
+  NaviPointType_HR_POINT      = 5;
+  NaviPointType_SILISOON_POINT = 6;
+}
+
+message PixelNaviPointDataType {
+  // 导航点id:
+  // id = 0  代表增加导航点,
+  // id > 0  代表修改对应id,
+  int32 point_id = 1;
+
+  // 导航点名称
+  string name = 2;
+
+  // 导航点类型
+  NaviPointType point_type = 3;
+
+  // 导航点像素坐标
+  PixelPose pixel_pose = 4;
+
+  // 当前时刻位姿数据
+  SE3Pose pose = 5;
+}
+
+message SetNaviPointReq {
+  RequestHeader header= 1;
+  TopoCommand command = 2;
+  uint64 map_id = 3;
+  PixelNaviPointDataType point = 4;
+  bool is_auto = 5;
+}
+
+message SetNaviPointData {
+  // 返回的导航点id, id=-1 代表已删除
+  int32 point_id = 1;
+}
+
+message SetNaviPointRsp {
+  ResponseHeader header = 1;
+  SetNaviPointData data   = 2;
+}
+
+message QRPointDataType {
+  // 二维码点id:
+  // id = 0  代表增加,
+  // id > 0  代表修改对应id,
+  int32 point_id = 1;
+
+  // 名称
+  string name = 2;
+
+  // 二维码的值
+  int32 qr_code = 3;
+
+  // 二维码的6D位姿信息
+  SE3Pose qr_pose = 4;
+}
+
+message SetQRPointReq {
+  RequestHeader header = 1;
+  TopoCommand command = 2;
+  uint64 map_id = 3;
+  QRPointDataType point = 4;
+}
+
+message SetQRPointData {
+  // 返回的导航点id, id = -1代表删除
+  int32 point_id = 1;
+}
+
+message SetQRPointRsp {
+  ResponseHeader header = 1;
+  SetQRPointData data        = 2;
+}
+
+message PixelPathDataType {
+  // 路径名称
+  string name = 1;
+
+  // 路径点id:
+  int32 path_id = 2;
+
+  // 路径点集合
+  repeated PixelPose poses = 3;
+
+  // 标记是否是录制
+  bool is_recording = 4;
+}
+
+message SetPathReq {
+  RequestHeader header = 1;
+  TopoCommand command = 2;
+  uint64 map_id = 3;
+  PixelPathDataType path = 4;
+}
+
+message SetPathRspData {
+  int32 path_id = 1;
+}
+
+message SetPathRsp {
+  ResponseHeader header = 1;
+  SetPathRspData data           = 2;
+}
+
+enum RegionType {
+  RegionType_UNDEFINED     = 0;
+  RegionType_WORKSPACE     = 1;
+  RegionType_WALL          = 2;
+}
+
+enum RegionDrawingType {
+  RegionDrawingType_UNDEFINED = 0;
+  RegionDrawingType_CLOSURE = 1;
+  RegionDrawingType_LINES = 2;
+}
+
+message RegionReqDataType {
+  // 区域名称
+  string name = 1;
+
+  // 区域类型
+  RegionType type = 2;
+
+  // 区域绘制类型
+  RegionDrawingType drawing_type = 3;
+
+  // 区域id
+  int32 region_id = 4;
+
+  // 区域顶点
+  repeated Pixel vertices = 5;
+}
+
+message SetRegionReq {
+  RequestHeader header = 1;
+  TopoCommand command = 2;
+
+  // 关联的地图id
+  uint64 map_id = 3;
+
+  // 区域信息
+  repeated RegionReqDataType regions = 4;
+}
+
+message SetRegionRspData {
+  int32 region_id = 1;
+}
+
+message SetRegionRsp {
+  ResponseHeader header = 1;
+  SetRegionRspData data = 2;
+}
+
+message GetTopoMsgsReq {
+  RequestHeader header = 1;
+  TopoCommand command = 2;
+  uint64 map_id = 3;
+}
+
+message GetTopoMsgsData {
+  // 像素导航点拓扑信息
+  repeated PixelNaviPointDataType points = 1;
+
+  // 像素path拓扑信息
+  repeated PixelPathDataType paths = 2;
+
+  // 区域region信息
+  repeated RegionReqDataType regions = 3;
+}
+
+message GetTopoMsgsRsp {
+  ResponseHeader header = 1;
+  GetTopoMsgsData data       = 2;
+}
+
+message StartRecordHRPointReq {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 高精度导航点关联的地图
+  uint64 map_id = 2;
+
+  // 是否使用头部相机
+  bool use_head = 3;
+}
+
+message StartRecordHRPointData {}
+
+message StartRecordHRPointRsp {
+  ResponseHeader header = 1;
+  StartRecordHRPointData data = 2;
+}
+
+message CancelRecordHRPointReq {
+  // 请求头
+  RequestHeader header = 1;
+}
+
+message CancelRecordHRPointData {}
+
+message CancelRecordHRPointRsp {
+  ResponseHeader header = 1;
+  CancelRecordHRPointData data = 2;
+}
+
+message SetHRPointReq {
+  RequestHeader header = 1;
+  TopoCommand command = 2;
+  uint64 map_id = 3;
+  HRPointDataType point = 4;
+}
+
+message SetHRPointRspData {
+  int32 point_id = 1;
+}
+
+message SetHRPointRsp {
+  ResponseHeader header = 1;
+  SetHRPointRspData data = 2;
+}
+
+message GetHRPointReq {
+  RequestHeader header = 1;
+  int32 point_id = 2;
+  uint64 map_id = 3;
+}
+
+message GetHRPointRsp {
+  ResponseHeader header = 1;
+  HRPointDataType hr_point = 2;
+}
+
+service LocalizationService {
+  /**
+   * @brief 设置导航点rpc
+   * @note
+   * 1. 客户端发送导航点信息，发送的信息带有设置的地图id，导航点id，导航点名称，导航点类型，导航点像素坐标
+   * 2. 服务端根据客户端发送的导航点信息，增加，删除，更新导航点信息，并返回导航点id
+   * 3. 手动设置导航点不能是QR点
+   */
+  rpc SetNaviPoint(SetNaviPointReq) returns (SetNaviPointRsp);
+
+  /**
+   * @brief 设置二维码点rpc，二维码点是一个特殊信息，需要单独一个接口
+   * @note
+   * 1. 客户端发送录制导航点信息，发送的信息带有设置的地图id，点id，二维码点名称，需要带有二维码的值以及其6D位姿信息
+   * 2. 服务端根据客户端发送的导航点信息，增加导航点信息，并返回导航点id
+   */
+  rpc SetQRCodePoint(SetQRPointReq) returns (SetQRPointRsp);
+
+  /**
+   * @brief 绘制路径rpc （手绘和录制都是这个接口）
+   * @note
+   * 1. 客户端发送录制路径信息，包含路径名称，路径点集合
+   * 2. 服务端根据客户端发送的导航点信息，存储绘制路径信息
+   */
+  rpc SetPath(SetPathReq) returns (SetPathRsp);
+
+  /**
+   * @brief 绘制区域rpc
+   * @note
+   * 1. 客户端发送区域信息，包括增删查改的区域id，name，类型type，以及前后顺序的顶点集合，首尾相连的。
+   * 2. 服务端存储为对应的拓扑结构
+   */
+  rpc SetRegion(SetRegionReq) returns (SetRegionRsp);
+
+  /**
+   * @brief 获取所有的拓扑数据rpc
+   * @note
+   * 1. 客户端发送获取map_id响应地图的拓扑信息的请求
+   * 2. 服务端按照存储的拓扑信息，按点和路线等打包传给客户端
+   */
+  rpc GetTopoMsgs(GetTopoMsgsReq) returns (GetTopoMsgsRsp);
+
+  /**
+   * @brief 开始录制高精度导航点
+   * @note
+   * 1. 客户端发送录制关联的高精度点请求，会推送实时数据流
+   * 2. 如果识别成功，会向客户端推送识别结果以及QR list数据，数据结构PubHRPointRecordRes
+   * 3. 客户端之后调用SetHRPoint设置高精度点
+   */
+  rpc StartRecordHRPoint(StartRecordHRPointReq) returns (StartRecordHRPointRsp);
+
+  /**
+   * @brief 停止录制高精度导航点
+   * @note
+   * 客户端停止高精度点录制接口
+   */
+  rpc CancelRecordHRPoint(CancelRecordHRPointReq) returns (CancelRecordHRPointRsp);
+
+  /**
+   * @brief 设置高精度导航点
+   * @note
+   * 客户端设置高精度点位的接口，可选择增加，删除，修改。
+   */
+  rpc SetHRPoint(SetHRPointReq) returns (SetHRPointRsp);
+
+  /**
+   * @brief 获取对应的高精度点的接口
+   */
+  rpc GetHRPoint(GetHRPointReq) returns (GetHRPointRsp);
+}

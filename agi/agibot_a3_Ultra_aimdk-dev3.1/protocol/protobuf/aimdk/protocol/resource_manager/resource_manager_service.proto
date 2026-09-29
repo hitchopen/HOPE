@@ -1,0 +1,44 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/resource_manager/rota_common.proto";
+import public "aimdk/protocol/resource_manager/resource_common.proto";
+
+// 资源ota接口
+service ResourceOtaService {
+  // 获取资源版本信息
+  rpc GetVersion(GetVersionReq) returns (GetVersionResp);
+  // 更新资源版本信息
+  rpc UpdateVersion(UpdateVersionReq) returns (UpdateVersionResp);
+}
+
+// 资源管理接口
+service ResourceService {
+  // 获取表情（旧版接口，1.3.0之前版本使用）
+  rpc GetEmoticon(GetEmoticonReq) returns (GetEmoticonResp);
+  // 获取动作（旧版接口，1.3.0之前版本使用）
+  rpc GetMotion(GetMotionReq) returns (GetMotionResp);
+
+  /*************************** 资源相关 ***************************/
+  // 获取资源
+  rpc GetResource(GetResourceReq) returns (GetResourceResp);
+  // 获取资源列表
+  rpc GetResourceList(GetResourceListReq) returns (GetResourceListResp);
+  // 创建资源
+  rpc CreateResource(CreateResourceReq) returns (CreateResourceResp);
+  // 更新资源
+  rpc UpdateResource(UpdateResourceReq) returns (UpdateResourceResp);
+  // 删除资源
+  rpc DeleteResource(DeleteResourceReq) returns (DeleteResourceResp);
+  // 导入资源
+  rpc ImportResource(ImportResourceReq) returns (ImportResourceResp);
+  // 导出资源
+  rpc ExportResource(ExportResourceReq) returns (ExportResourceResp);
+  // 资源迁入请求
+  rpc ResourceMigrationIn(ResourceMigrationInReq) returns (ResourceMigrationInResp);
+  // 资源迁移请求
+  rpc ResourceMigrationOut(ResourceMigrationOutReq) returns (ResourceMigrationOutResp);
+  // 获取资源迁移任务状态
+  rpc GetResourceMigrationTaskStatus(GetResourceMigrationTaskStatusReq) returns (GetResourceMigrationTaskStatusResp);
+}

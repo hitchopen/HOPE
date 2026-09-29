@@ -1,5 +1,10 @@
 # Foxglove Runner operator interface
 
+> Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for
+> current Kernel Mode, Xbox, Serve-to-Ready, calibration-layout and package
+> instructions. The public checkpoint remains model_21800. The foundational
+> host/SSH setup below still applies; older UI labels are superseded by that guide.
+
 This is the handoff contract for the single robot controlled by our Runner.
 Foxglove is an operator UI and calls only fixed services. Runner remains the
 authority for robot mode, command state, local role, and serve-controller

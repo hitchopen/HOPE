@@ -1,0 +1,43 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/hand/hand.proto";
+import public "aimdk/protocol/hal/neck/neck.proto";
+import public "aimdk/protocol/motion_control/joint/joint.proto";
+
+/**
+ * @brief 运控关节控制服务
+ */
+service MotionControlJointService {
+  // 获取腿部关节状态
+  rpc GetLegJointState(CommonRequest) returns (JointStateResponse);
+
+  // 获取手臂关节状态
+  rpc GetArmJointState(CommonRequest) returns (JointStateResponse);
+
+  // 获取腰部关节状态
+  rpc GetWaistJointState(CommonRequest) returns (JointStateResponse);
+
+  // 获取机器人头部状态
+  rpc GetNeckJointState(CommonRequest) returns (NeckStateResponse);
+
+  // 获取机器人手部状态
+  rpc GetHandJointState(CommonRequest) returns (HandStateResponse);
+
+  // 控制腿部关节
+  rpc SetLegJointCommand(JointCommandRequest) returns (CommonResponse);
+
+  // 控制手臂关节
+  rpc SetArmJointCommand(JointCommandRequest) returns (CommonResponse);
+
+  // 控制腰部关节
+  rpc SetWaistJointCommand(JointCommandRequest) returns (CommonResponse);
+
+  // 控制机器人头部
+  rpc SetNeckJointCommand(NeckCommandRequest) returns (CommonResponse);
+
+  // 控制机器人手部
+  rpc SetHandJointCommand(HandCommandRequest) returns (CommonResponse);
+
+}

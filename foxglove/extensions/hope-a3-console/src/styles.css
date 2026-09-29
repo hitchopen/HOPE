@@ -11,6 +11,7 @@ button {
 }
 
 .hope-console {
+  container: hope-console / inline-size;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -18,10 +19,24 @@ button {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 22px;
+  padding: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
   color: #ffffff;
   background: #0e1a2b;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+/* Cards keep their content height inside Foxglove's fixed-height panel. */
+.hope-console > * {
+  flex: none;
+  min-width: 0;
+}
+
+.hope-console button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .eyebrow,
@@ -65,13 +80,18 @@ button {
   min-width: 0;
   flex-direction: column;
   gap: 6px;
+  flex: 1;
 }
 
 .source-value {
   gap: 10px;
   font-family: "IBM Plex Mono", monospace;
   font-size: 24px;
-  white-space: nowrap;
+  flex-wrap: wrap;
+}
+
+.source-value > span:first-child {
+  min-width: 0;
 }
 
 .source-dot,
@@ -103,7 +123,10 @@ button {
 .estop-button {
   width: 250px;
   min-width: 220px;
-  height: 96px;
+  min-height: 96px;
+  height: auto;
+  flex: 0 0 250px;
+  padding: 12px;
   margin-left: auto;
   border: 2px solid #ff6b6b;
   border-radius: 12px;
@@ -152,6 +175,7 @@ button {
   color: var(--text);
   font-family: "IBM Plex Mono", monospace;
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .operator-notice-danger {
@@ -231,8 +255,21 @@ button:disabled {
   gap: 14px;
 }
 
+.lifecycle-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+}
+
 .lifecycle-header {
   justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.lifecycle-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 300px;
 }
 
 .lifecycle-state {
@@ -250,18 +287,16 @@ button:disabled {
 }
 
 .lifecycle-result {
-  max-width: 48%;
-  overflow: hidden;
+  min-width: 0;
+  flex: 0 1 320px;
   color: #aebbca;
   font-size: 13px;
   text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .config-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: 10px;
 }
 
@@ -273,6 +308,10 @@ button:disabled {
   color: #8fa0b4;
   font-size: 12px;
   letter-spacing: 0.05em;
+}
+
+.config-field > span {
+  flex: 1;
 }
 
 .config-field input {
@@ -293,8 +332,41 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(19, 168, 184, 0.16);
 }
 
+.table-side-selector {
+  border: 1px solid rgba(19, 168, 184, 0.32);
+  border-radius: 9px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 10px;
+  background: rgba(14, 26, 43, 0.46);
+}
+
+.table-side-selector > div {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.table-side-selector button {
+  border: 1px solid rgba(174, 187, 202, 0.34);
+  border-radius: 999px;
+  padding: 9px 12px;
+  color: #aebbca;
+  background: transparent;
+  cursor: pointer;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+}
+
+.table-side-selector .side-selected {
+  border-color: #13a8b8;
+  color: #ffffff;
+  background: rgba(19, 168, 184, 0.22);
+  box-shadow: 0 0 0 3px rgba(19, 168, 184, 0.12);
+}
+
 .lifecycle-actions button {
-  min-width: 150px;
   border: 1px solid rgba(174, 187, 202, 0.34);
   border-radius: 8px;
   padding: 11px 14px;
@@ -323,10 +395,70 @@ button:disabled {
 }
 
 .config-helper {
+  grid-column: 1 / -1;
   min-width: 0;
   color: #7c8aa0;
   font-size: 11px;
   line-height: 1.4;
+}
+
+.time-calibration-row {
+  border: 1px solid rgba(232, 163, 61, 0.42);
+  border-radius: 10px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: rgba(232, 163, 61, 0.08);
+}
+
+.time-calibration-copy {
+  min-width: 0;
+  flex: 1 1 300px;
+}
+
+.time-calibration-state {
+  margin: 4px 0;
+  color: #f3c888;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.time-calibration-button {
+  min-width: 190px;
+  border: 1px solid rgba(232, 163, 61, 0.72);
+  border-radius: 8px;
+  padding: 12px 15px;
+  color: #f7d49f;
+  background: rgba(232, 163, 61, 0.16);
+  cursor: pointer;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.time-calibration-complete {
+  border-color: rgba(63, 191, 106, 0.52);
+  background: rgba(63, 191, 106, 0.08);
+}
+
+.time-calibration-complete .time-calibration-state {
+  color: #77db98;
+}
+
+.time-calibration-failed-safe-stop,
+.time-calibration-interrupted {
+  border-color: rgba(209, 32, 42, 0.58);
+  background: rgba(209, 32, 42, 0.1);
+}
+
+.time-calibration-failed-safe-stop .time-calibration-state,
+.time-calibration-interrupted .time-calibration-state {
+  color: #ff858c;
 }
 
 .metric-grid,
@@ -337,7 +469,7 @@ button:disabled {
 }
 
 .metric-grid {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .metric-card,
@@ -383,7 +515,7 @@ button:disabled {
 }
 
 .process-grid {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .process-tile {
@@ -505,8 +637,6 @@ button:disabled {
 }
 
 .sequence-card {
-  flex: 1;
-  min-height: 0;
   padding: 18px 22px;
   display: flex;
   flex-direction: column;
@@ -525,7 +655,7 @@ button:disabled {
 }
 
 .sequence-summary {
-  min-width: 220px;
+  min-width: 0;
   flex: 1 1 280px;
   display: flex;
   flex-direction: column;
@@ -544,7 +674,7 @@ button:disabled {
 }
 
 .role-label {
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .role-controls button {
@@ -558,15 +688,15 @@ button:disabled {
 }
 
 .action-grid {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .action-button {
-  height: 80px;
+  min-height: 80px;
   border: 1px dashed rgba(174, 187, 202, 0.34);
   border-radius: 11px;
-  padding: 0 20px;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -633,7 +763,7 @@ button:disabled {
 
 .sequence-footer .action-button {
   width: 260px;
-  height: 60px;
+  min-height: 60px;
   flex: none;
   border-color: rgba(255, 107, 107, 0.55);
   color: #ffb3b3;
@@ -644,11 +774,11 @@ button:disabled {
   background: rgba(209, 32, 42, 0.12);
 }
 
-@media (max-width: 700px) {
+/* Foxglove can show a narrow panel inside a wide desktop window. */
+@container hope-console (max-width: 760px) {
   .metric-grid,
   .process-grid,
-  .action-grid,
-  .config-grid {
+  .action-grid {
     grid-template-columns: 1fr;
   }
 
@@ -658,7 +788,7 @@ button:disabled {
 
   .source-row,
   .lifecycle-header,
-  .lifecycle-actions,
+  .time-calibration-row,
   .sequence-header,
   .sequence-footer {
     align-items: stretch;
@@ -666,25 +796,62 @@ button:disabled {
   }
 
   .estop-button,
-  .lifecycle-actions button,
+  .time-calibration-button,
   .sequence-footer .action-button {
     width: 100%;
     margin-left: 0;
   }
 
+  .estop-button,
+  .lifecycle-header > div,
+  .lifecycle-header > div:first-child,
+  .time-calibration-copy,
+  .sequence-summary,
+  .role-controls,
+  .sequence-footer > span {
+    flex: none;
+  }
+
   .role-controls {
     flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .lifecycle-result {
-    max-width: 100%;
     text-align: left;
+  }
+
+  .cpu-header {
+    flex-wrap: wrap;
+  }
+
+  .cpu-diagnostics {
+    flex-basis: 100%;
+    margin-left: 0;
+    align-items: flex-start;
+  }
+
+  .cpu-diagnostics .topic-path {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .sequence-footer > span {
+    white-space: normal;
   }
 }
 
-@media (max-width: 500px) {
-  .hope-console {
+@container hope-console (max-width: 420px) {
+  .lifecycle-card,
+  .sequence-card,
+  .metric-card,
+  .cpu-card {
     padding: 14px;
+  }
+
+  .table-side-selector,
+  .lifecycle-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .cpu-plot {
@@ -694,4 +861,72 @@ button:disabled {
   .metric-value {
     font-size: 52px;
   }
+}
+
+
+/* Field controls remain visible independently of the Runner action sequence. */
+.field-toolbar, .field-assets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+.field-toolbar > div { min-width: 0; }
+.field-toolbar, .field-card {
+  background: #151e27;
+  border: 1px solid #324454;
+  border-radius: 10px;
+  padding: 16px;
+}
+.field-card, .record-control { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.field-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.field-buttons button, .record-control button {
+  border: 1px solid #536777;
+  background: #233342;
+  color: #e6eef5;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.field-buttons button[aria-pressed="true"] { border-color: #6bd4be; background: #204b45; }
+.field-buttons button:disabled, .record-control button:disabled { opacity: .45; cursor: default; }
+.field-buttons button:focus-visible, .record-control button:focus-visible { outline: 2px solid #6bd4be; outline-offset: 3px; }
+.record-control { border-left: 1px solid #324454; padding-left: 16px; }
+.record-active > .eyebrow { color: #ff8b85; }
+.record-active button { background: #682f35; border-color: #e87676; }
+.asset-path { overflow-wrap: anywhere; font-size: 12px; }
+.recalibration-actions { display: grid; gap: 8px; border-top: 1px solid #536777; padding-top: 8px; }
+.field-card p, .field-toolbar p { margin: 0; }
+@container hope-console (max-width: 760px) {
+  .field-toolbar, .field-assets { grid-template-columns: minmax(0, 1fr); }
+  .record-control { border-left: 0; border-top: 1px solid #324454; padding-left: 0; padding-top: 12px; }
+}
+
+.diagnostics-content { display: flex; flex-direction: column; gap: 14px; }
+
+/* Status changes must not move the controls or the cards below them. */
+.teleop-details {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  grid-auto-rows: 24px;
+  column-gap: 12px;
+  align-items: center;
+  color: #aebbca;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.teleop-details > span,
+.teleop-entry-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teleop-entry-status {
+  height: 20px;
+  line-height: 20px;
+  font-size: 13px;
+  color: #aebbca;
 }

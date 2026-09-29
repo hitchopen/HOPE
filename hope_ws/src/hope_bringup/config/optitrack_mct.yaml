@@ -1,0 +1,126 @@
+# Parameters for the vendored motion_capture_tracking node (OptiTrack backend).
+# Wildcard header: this file is passed ONLY to that node (namespace /optitrack)
+# by optitrack_hope_bridge.launch.py, which also overrides `hostname` from its
+# launch arg and remaps poses -> /optitrack/poses, /tf -> /optitrack/tf.
+#
+# ---- BALL MODES (pick ONE, never both) --------------------------------------
+# MODE A — vendor rigid-body ball: the Motive asset may be named `Ball` or
+#   `ball` (>=3 markers), streamed like UCB_P1/PPT. The adapter canonicalizes
+#   lowercase `ball` to the downstream name `Ball`. Keep the
+#   librigidbodytracker block
+#   below COMMENTED OUT (an enabled tracker body would fight the same-named
+#   vendor body and lock onto stray points). Motive: Rigid Bodies ON; Unlabeled
+#   Markers not needed (OFF is cleanest). Set the asset PIVOT to the sphere
+#   CENTER in Motive — the planner's bounce geometry assumes ball-center
+#   positions. Occlusion drops the asset's tracking-valid bit and the driver
+#   omits it from the frame (verified: rigidBodies() filters on it), so the
+#   relay's /poses gating works unchanged. Expect dropouts on fast/spinning
+#   balls if fewer than 3 markers stay co-visible (design doc §5.3 caveat).
+# MODE B — single unlabeled marker (design doc §5.1/5.2 reference design):
+#   fully-coated retroreflective ball = ONE point at the ball center, tracked
+#   from the unlabeled cloud by librigidbodytracker. Uncomment the block below.
+#   Motive: Unlabeled Markers ON and Labeled Markers OFF become LOAD-BEARING
+#   (the tracker re-acquires by nearest-neighbour with a search radius that
+#   grows during occlusion — stray points in the cloud WILL be grabbed).
+# -----------------------------------------------------------------------------
+# Other Motive-side requirements (both ball modes, mocap reference doc §6.3):
+# NatNet enabled, Up Axis = Z, and robot rigid-body assets named exactly
+# UCB_P1/UCB_P2 (+ PPT if used). NatNet transport is discovered from
+# NAT_SERVERINFO: both
+# Multicast and Unicast are supported.  With interface_ip left at 0.0.0.0, the
+# multicast membership is joined on the Laptop interface selected by the route
+# to the Motive hostname; Unicast retains its data-socket registration and
+# keepalive path. Assets created/renamed in Motive while the bridge runs SELF-HEAL in
+# ~1-2 s (vendored patch #6 re-requests the model definition when an unnamed
+# body streams); restart the bridge only as a fallback.
+/**:
+  ros__parameters:
+    # one of "optitrack" (open-source NatNet depacketizer, all platforms) or
+    # "mock" (bench testing without Motive; streams rigid_bodies statically).
+    # The other libmotioncapture backends are trimmed from the HOPE vendor
+    # copy (see hope_ws/src/motion_capture_tracking/PIN.md).
+    type: "optitrack"
+    # Both field spellings are accepted at the Motive boundary. Everything
+    # downstream still receives the single canonical name `Ball`, so the
+    # relay, TF and Planner contracts remain venue-independent. If a Motive
+    # project exposes both spellings at once, the exact canonical `Ball` asset
+    # wins and the lowercase alias is suppressed by the adapter.
+    rigid_body_name_aliases: ["ball=Ball", "P1=UCB_P1", "P2=UCB_P2"]
+    # Motive may temporarily retain old/diagnostic assets. Never expose them
+    # as ROS poses or TF children: the allowlist runs after alias resolution,
+    # so only these canonical names cross the driver.
+    rigid_body_name_allowlist: ["Ball", "PPT", "UCB_P1", "UCB_P2"]
+    # Motive PC IP is NOT set here BY OPERATOR POLICY: venue-variable values
+    # are passed explicitly per run via the REQUIRED launch arg
+    # (optitrack_hope_bridge.launch.py hostname:=<MOTIVE_PC_IP>; 2026-07-18
+    # former venue value: 10.21.115.250, Unicast, 360 Hz; current field value:
+    # 192.168.50.1, Multicast; NatNet command port remains 1510).
+    # For a bare `ros2 run motion_capture_tracking motion_capture_tracking_node`
+    # debug session, add `-p hostname:=<MOTIVE_PC_IP>` yourself.
+
+    topics:
+      frame_id: "world"
+      output_rate_hz: 200.0
+      # NatNet CameraMidExposureTimestamp is Motive QPC time, not Unix. The
+      # adapter uses NAT_ECHOREQUEST/RESPONSE to map it into this Laptop's
+      # CLOCK_REALTIME epoch. The relay preserves this header through /poses.
+      # Mapping quality is logged below and never becomes a Planner/runner gate.
+      header_time: "camera_utc"
+      max_clock_sync_uncertainty_ms: 2.0
+      max_capture_age_ms: 100.0
+      poses:
+        version: 2        # NamedPoseArrayV2: camera timestamp + latency trace
+        qos:
+          mode: "sensor"  # SensorDataQoS keep-last-1: right for a 300-360 Hz feed
+          deadline: 100.0 # Hz (publisher deadline QoS)
+      tf:
+        child_frame_id: "{}"  # raw body names; /tf is remapped to /optitrack/tf
+      rigid_body_markers:
+        # Calibration-only aggregate: selected UCB_P1/UCB_P2 pose + ModelDef
+        # marker centres + same-frame labeled samples. The launch arguments
+        # override enabled and asset_name from the selected table side.
+        # Motive's Streaming / Labeled Markers switch must also be ON to
+        # populate live samples.
+        enabled: false
+        asset_name: "UCB_P1"
+        # Motive sessions without legacy passive-marker IDs are associated by
+        # nearest expected ModelDef position. This is below the UCB_P1 layout's
+        # nearest-marker spacing and is used only by the calibration stream.
+        geometric_match_max_distance_m: 0.005
+        # Motive 3.1/NatNet 4.1 field verification: streamed poses/points obey
+        # Z Up, but ModelDef marker coordinates remain in Motive's Y-up axes.
+        # Convert (x,y,z) -> (x,-z,y) before publishing/association.
+        modeldef_y_up_to_z_up: true
+
+    # Point-cloud binary log for librigidbodytracker analysis ("" = disabled).
+    logfilepath: ""
+
+    # ---- MODE B block: single-marker ball via librigidbodytracker ----------
+    # COMMENTED OUT for the rigid-body-ball venue (MODE A above). To use the
+    # design-doc single-marker ball, uncomment ALL THREE sections and flip the
+    # Motive marker streaming per MODE B notes. UCB_P1/UCB_P2/PPT must NEVER be listed
+    # here: they are Motive-native assets and stream automatically.
+    # marker_configurations:
+    #   ball_marker:
+    #     offset: [0.0, 0.0, 0.0]
+    #     points:
+    #       p0: [0.0, 0.0, 0.0]   # single marker at the body origin
+    # dynamics_configurations:
+    #   ball_dynamics:
+    #     # m/s per axis. Also the re-acquisition gate: search radius =
+    #     # max_velocity * time-since-last-lock. Hard smashes exceed the
+    #     # 10 m/s used in the design-doc sketch -> 15.
+    #     max_velocity: [15.0, 15.0, 15.0]
+    #     # Orientation limits are meaningless for a single marker (ICP keeps
+    #     # the initial orientation); set wide so they can never trip.
+    #     max_angular_velocity: [100.0, 100.0, 100.0]
+    #     max_roll: 3.2
+    #     max_pitch: 3.2
+    #     max_fitness_score: 0.001
+    # rigid_bodies:
+    #   Ball:                     # STANDARDIZED name; must match the relay's ball_object
+    #     # First-lock guess: place the ball near the table when the driver
+    #     # starts (approx. table centre, design doc §5.2).
+    #     initial_position: [1.37, -0.7625, 0.2]
+    #     marker: "ball_marker"
+    #     dynamics: "ball_dynamics"

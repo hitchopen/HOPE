@@ -270,19 +270,19 @@
       "path": "/hope/control/calibration_ready.data",
       "style": "background",
       "fallbackColor": "#607d8b",
-      "fallbackLabel": "P1 CALIBRATION: NO DATA",
+      "fallbackLabel": "BASE CALIBRATION: NO DATA",
       "rules": [
         {
           "operator": "=",
           "rawValue": "true",
           "color": "#2e7d32",
-          "label": "P1 -> PELVIS READY"
+          "label": "MARKER -> PELVIS READY"
         },
         {
           "operator": "=",
           "rawValue": "false",
           "color": "#ef6c00",
-          "label": "P1 CALIBRATION REQUIRED"
+          "label": "BASE CALIBRATION REQUIRED"
         }
       ]
     },
@@ -303,7 +303,7 @@
       "editingMode": false,
       "timeoutSeconds": 3,
       "buttonText": "1. ENTER PREPARE",
-      "buttonTooltip": "Request PD_STAND. After the runner reports settled, use the 10 Motive waist markers once and atomically overwrite the computer-local calibration/p1_to_pelvis.json.",
+      "buttonTooltip": "Request PD_STAND. After the runner reports settled, use the 10 Motive waist markers once and atomically overwrite the computer-local calibration/ucb_robot_to_pelvis.json.",
       "buttonColor": "#ef6c00"
     },
     "CallService!policy": {

@@ -1,0 +1,32 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/mc/remote/aim_master.proto";
+import public "aimdk/protocol/mc/remote/remote_command.proto";
+
+/**
+ * @brief 运控远程服务
+ */
+service McRemoteService {
+  // // 获取控制源
+  // rpc GetAimMasterControlSource(CommonRequest) returns (AimMasterControlSourceResponse);
+
+  // // 设置控制源
+  // rpc SetAimMasterControlSource(AimMasterControlSourceRequest) returns (AimMasterControlSourceResponse);
+
+  // // 设置远程控制命令
+  // rpc SetAimMasterControlCommand(AimMasterControlCommandRequest) returns (CommonResponse);
+
+  // // 进入远程控制模式
+  // rpc EnterRemoteControlMode(CommonRequest) returns (CommonResponse);
+
+  // // 退出远程控制模式
+  // rpc ExitRemoteControlMode(CommonRequest) returns (CommonResponse);
+
+  // // 设置远程控制模式
+  // rpc SetRemoteControlMode(McRemoteControlSetModeRequest) returns (CommonResponse);
+
+  // // 获取远程控制模式
+  // rpc GetRemoteControlMode(CommonRequest) returns (McRemoteControlGetModeResponse);
+}

@@ -1,0 +1,35 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/demo/ball.proto";
+import "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 由 example 中的 pong::Module 模块提供的服务
+ */
+service DemoService {
+  /**
+   * @brief 获取 pong::Module 收到的最新的球信息。
+   * @param GetLatestBallRequest 空消息
+   * @return GetLatestBallResponse 最新的球信息
+   */
+  rpc GetLatestBall(GetLatestBallRequest) returns (GetLatestBallResponse);
+}
+
+/**
+ * @brief rpc GetLatestBall() 的请求数据
+ */
+message GetLatestBallRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief rpc GetLatestBall() 的响应数据
+ */
+message GetLatestBallResponse {
+  ResponseHeader header = 1;
+
+  // 最后一个收到的球数据
+  Ball ball = 2;
+}

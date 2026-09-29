@@ -1,0 +1,25 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se2_pose.proto";
+
+message PncSwarmControlPose {
+  SE2Pose pose = 1;
+
+  double twist_vx  = 2;
+
+  double twist_vy  = 3;
+
+  double twist_angular  = 4;
+
+}
+
+message PncSwarmControlTrajectory {
+  Header header = 1;
+
+  // 路径点轨迹
+  repeated PncSwarmControlPose pose  = 2;
+
+  float arrive_time = 3;
+}

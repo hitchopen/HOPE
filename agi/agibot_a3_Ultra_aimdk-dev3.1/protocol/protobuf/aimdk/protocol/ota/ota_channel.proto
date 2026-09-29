@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/ota/ota_api.proto";
+
+/**
+ * @brief OTA 进度
+ *        话题名称: /ota/schedule
+ */
+message OTAScheduleChannel {
+  // 发送时刻的时间戳
+  Header header = 1;
+
+  // 预估剩余时间
+  int32 remainder = 2;
+
+  // 当前完成百分比
+  int32 rate = 3;
+}
+
+/**
+ * @brief OTA 结果
+ *        话题名称: /ota/result
+ */
+message OTAResultChannel {
+  // 发送时刻的时间戳
+  Header header = 1;
+
+  int32 code = 2;
+  string msg = 3;
+  string version = 4;
+}
+
+/**
+ * @brief OTA 心跳
+ *        话题名称: /ota/heartbeat
+ */
+message OTAHeartbeatChannel {
+  // 发送时刻的时间戳
+  Header header = 1;
+
+  // 状态
+  OTAStates state = 2;
+}

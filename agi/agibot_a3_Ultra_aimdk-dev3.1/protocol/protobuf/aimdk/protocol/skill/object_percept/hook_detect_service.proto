@@ -1,0 +1,94 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief ...
+ */
+message PointLineDetectRequest {
+  RequestHeader header = 1;
+
+  int32 height = 2;
+  int32 width = 3;
+
+  bytes image = 4;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message PointLineDetectResponse {
+  message Point {
+    int32 x = 1;
+    int32 y = 2;
+  }
+
+  message Line {
+    Point pt1 = 1;
+    Point pt2 = 2;
+  }
+
+  ResponseHeader header = 1;
+
+  int32 height = 2;
+  int32 width = 3;
+
+  repeated Point points = 4;
+  repeated Line lines = 5;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message StereoHookRequest {
+  RequestHeader header = 1;
+
+  int32 height = 2;
+  int32 width = 3;
+  bytes left = 4;
+  bytes right = 5;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message StereoHookResponse {
+  ResponseHeader header = 1;
+
+  int32 height = 2;
+  int32 width = 3;
+
+  bytes disp = 4;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+service HookDetectService {
+  /**
+   * @brief ...
+   * @param  PointLineDetectRequest  ...
+   * @return PointLineDetectResponse ...
+   */
+  rpc PointLineDetect(PointLineDetectRequest) returns (PointLineDetectResponse);
+
+  /**
+   * @brief ...
+   * @param  StereoHookRequest  ...
+   * @return StereoHookResponse ...
+   */
+  rpc StereoHookDetect(StereoHookRequest) returns (StereoHookResponse);
+}

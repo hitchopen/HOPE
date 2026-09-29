@@ -1,0 +1,33 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+ColumnLimit: 120
+
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+
+IndentPPDirectives: BeforeHash
+BreakStringLiterals: false
+
+# 连续多行赋值的等号对齐
+AlignConsecutiveAssignments: true
+
+# 嵌套的语句换行后，向前缩进两格（Google 风格默认缩进 4 格）
+ContinuationIndentWidth: 2
+
+# 花控号在函数、类、命名空间的定义处换行
+# BreakBeforeBraces: Linux
+
+# 括号中内容过长，自动把所有内容换到下一行
+AlignAfterOpenBracket: AlwaysBreak
+
+# 不要把短 lambda 合并成一行，空 lambda 除外
+AllowShortLambdasOnASingleLine: Empty
+
+#BracedInitializerIndentWidth: 2
+
+---
+Language: Proto
+BasedOnStyle: Google
+ColumnLimit: 0
+...

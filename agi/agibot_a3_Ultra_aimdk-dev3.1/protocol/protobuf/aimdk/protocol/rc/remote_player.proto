@@ -1,0 +1,224 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 动作类型
+ */
+enum MotionType {
+  Untyped = 0;            // 未分类
+  Speech = 1;             // 定时演讲
+  RandomInBroadcast = 2;  // 播报中随机
+  SkillMotion = 3;        // 技能动作
+  Show = 4;               // 表演类
+}
+
+message RcMotionInfo {
+  uint32 motion_id    = 1; // 动作id
+  string motion_name  = 2; // 动作名称
+  uint64 time_stamp   = 3; // 时间戳
+  bool is_change      = 4; // 是否支持修改，某人轮式不可修改，足式可以修改
+  string description  = 5; // 描述
+  string display_name_zh = 6; // 显示的中文名
+  string display_name_en = 7; // 显示的英文名
+  string url          = 8; // 动作下载路径
+  string thumbnail_url = 9; // 缩略图下载路径
+  string md5          = 10; // 文件 md5
+  uint32 duration     = 20; // 动作时长
+  string motion_play_path = 30; // 动作播放文件
+  MotionType type     = 35; // 动作类型
+}
+
+message RcMotionStreamRequest {
+  RequestHeader header = 1; // 请求头
+  string client_md5    = 2; // 客户端MD5
+  uint32 total_frame   = 3; // 总帧数
+  uint32 current_frame = 4; // 当前帧ear
+  bytes motion_stream  = 5; // 动作流
+}
+
+message RcMotionListResponse {
+  ResponseHeader header             = 1; // 响应头
+  repeated RcMotionInfo motion_list = 2; // 动作列表
+}
+
+message RcDeleteMotionRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 motion_id     = 2; // 动作id
+}
+
+message RcRenameMotionRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 motion_id     = 2; // 动作id
+  string motion_name   = 3; // 动作名称
+  string description  = 4; // 描述 
+  string display_name_zh = 6; // 显示的中文名
+  string display_name_en = 7; // 显示的英文名  
+}
+
+message RcPlayerMotionRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 motion_id     = 2; // 动作id
+}
+
+message RcMotionStreamBeginRequest {
+  RequestHeader header = 1; // 响应头
+  string file_name     = 2; // 文件名
+  string client_md5    = 3; // 客户端MD5
+}
+
+message RcMotionStreamEndRequest {
+  RequestHeader header = 1; // 响应头
+  string file_name     = 2; // 文件名
+  string client_md5    = 3; // 客户端MD5
+}
+
+message UploadFile {
+  string file_url      = 1; // 文件 URL
+  string client_md5    = 2; // 客户端MD5
+}
+
+message RcCreateMotionRequest {
+  RequestHeader header = 1; // 请求头
+  string name          = 2; // 动作名
+  UploadFile file     = 3; // 上传文件
+  string description   = 6; // 表情描述
+  string display_name_zh = 7; // 显示的中文名
+  string display_name_en = 8; // 显示的英文名
+}
+
+message RcMotionCommonResponse {
+  ResponseHeader header = 1; // 响应头
+  uint32 motion_id     = 2; // 动作id
+}
+
+message RcRecordedMotionRequest {
+  RequestHeader header      = 1; // 请求头
+  string        id_name     = 2; // mp 生成的数字名
+  string        name        = 3; // 动作名
+  string        description = 4; // 描述
+  string display_name_zh = 6; // 显示的中文名
+  string display_name_en = 7; // 显示的英文名
+}
+
+message RcBatchUploadMotionRequest {
+  RequestHeader header      = 1; // 请求头
+  repeated UploadFile files = 2; // 批量文件
+}
+
+message CancelUploadRequest {
+  RequestHeader header = 1; // 请求头
+  string    upload_dir = 2; // 本次上传文件的临时文件夹路径 
+}
+
+// 表情Emoticon相关 
+
+message RcEmoticonInfo {
+  uint32 emoticon_id   = 1; // 表情id
+  string emoticon_name = 2; // 表情名称
+  string expand_name = 3;   // 拓展名称 如"svg"，不需要加.，rc拼接的时候会加上
+  uint64 time_stamp  = 4; // 时间戳
+  bool is_change = 5;     // 是否支持修改，某人轮式不可修改，足式可以修改
+  string display_name_zh = 6; // 显示的中文名
+  string display_name_en = 7; // 显示的英文名
+  string description  = 8; // 描述
+  string bqb_url      = 9; // 表情压缩包文件下载路径
+  string emoticon_url = 10; // 表情文件下载路径
+  string thumbnail_url = 11; // 预览文件下载路径
+  string cover_url    = 12; // 封面文件下载路径
+  string bqb_local_path      = 13; // 表情压缩包本地路径
+  string emoticon_local_path = 14; // 表情文件本地路径
+  string thumbnail_local_path = 15; // 预览文件本地路径
+  string cover_local_path    = 16; // 封面文件本地路径
+  uint32 duration     = 20; // 表情时长
+}
+
+message RcEmoticonStreamRequest {
+  RequestHeader header = 1; // 请求头
+  string client_md5    = 2; // 客户端MD5
+  uint32 total_frame   = 3; // 总帧数
+  uint32 current_frame = 4; // 当前帧ear
+  bytes emoticon_stream  = 5; // 表情流
+}
+
+message RcEmoticonListResponse {
+  ResponseHeader header             = 1; // 响应头
+  repeated RcEmoticonInfo emoticon_list = 2; // 表情列表
+}
+
+message RcCreateEmoticonRequest {
+  RequestHeader header = 1; // 请求头
+  string name          = 2; // 表情名
+  UploadFile emoticon  = 3; // 表情文件
+  UploadFile thumbnail = 4; // 缩略图文件
+  UploadFile cover     = 5; // 封面
+  string description   = 6; // 表情描述
+  uint32 duration      = 7; // 表情时长
+  string display_name_zh = 8; // 显示的中文名
+  string display_name_en = 9; // 显示的英文名
+}
+
+message RcEditEmoticonRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 emoticon_id   = 2; // 表情id
+  string name          = 3; // 表情名
+  UploadFile emoticon  = 4; // 表情文件
+  UploadFile thumbnail = 5; // 缩略图文件
+  UploadFile cover     = 6; // 封面
+  string description   = 7; // 表情描述
+  uint32 duration      = 8; // 表情时长
+  string display_name_zh = 9; // 显示的中文名
+  string display_name_en = 10; // 显示的英文名
+}
+
+message RcDeleteEmoticonRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 emoticon_id = 2; // 表情id
+}
+
+message RcRenameEmoticonRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 emoticon_id     = 2; // 表情id
+  string emoticon_name   = 3; // 表情名称
+}
+
+message RcEmoticonCommonResponse {
+  ResponseHeader header = 1; // 响应头
+  uint32 emoticon_id     = 2; // 表情 id
+}
+
+message RcPlayerEmoticonRequest {
+  RequestHeader header = 1; // 响应头
+  uint32 emoticon_id = 2; // 表情id
+  bool is_need_data = 3; // 是否需要表情内容，如果为true，则rsp的emticon_data有数据
+}
+
+message RcPlayerEmoticonResponse {
+  ResponseHeader header = 1; // 请求头
+  uint32 emoticon_id = 2; // 表情id
+  string emoticon_name = 3; // 表情名称
+  string expand_name = 4; // 拓展名称
+  string emoticon_path = 5;  // 表情路径
+  bytes emticon_data = 6;    // 表情内容
+}
+
+message RcEmoticonStreamBeginRequest {
+  RequestHeader header = 1; // 响应头
+  string file_name     = 2; // 文件名
+  string expand_name   = 3; // 拓展名称 如"svg"，不需要加.，rc拼接的时候会加上
+  string client_md5    = 4; // 客户端MD5
+}
+
+message RcEmoticonStreamEndRequest {
+  RequestHeader header = 1; // 响应头
+  string file_name     = 2; // 文件名
+  string expand_name   = 3; // 拓展名称 如"svg"，不需要加.，rc拼接的时候会加上
+  string client_md5    = 4; // 客户端MD5
+}
+
+message RcBatchUploadEmoticonRequest {
+  RequestHeader header      = 1; // 请求头
+  repeated UploadFile files = 2; // 批量文件
+}

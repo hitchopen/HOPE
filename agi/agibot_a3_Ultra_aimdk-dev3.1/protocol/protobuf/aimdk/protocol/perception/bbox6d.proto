@@ -1,0 +1,14 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/se3_pose.proto";
+
+/**
+ * @brief 运动姿态请求
+ */
+message Bbox6d {
+  int32 cls = 1;     // 类别
+  float score = 2;   // 概率
+  SE3Pose pose = 3;  // 6D位姿
+  Vec3 dims = 4;     // 长宽高
+}

@@ -20,6 +20,11 @@
 //  the absolute strike deadline is converted once at receipt into the MDU's
 //  monotonic domain; later countdown never follows CLOCK_REALTIME corrections.
 //  Cross-host wall-clock deltas remain audit-only and never gate a command.
+//  Schema 2 has no producer boot/session nonce. A counter rollback therefore
+//  cannot be distinguished from delayed transport reorder: this receiver
+//  rejects every non-monotonic command_seq and never guesses a live restart.
+//  Restarting the Planner requires restarting the Runner (or a future wire
+//  schema carrying an authoritative producer nonce).
 //
 //  Flat wire layouts (indices are fixed; element [0] is a schema tag):
 //    RACKET legacy /racket/command_flat   (>=11 doubles)
@@ -33,6 +38,10 @@
 //      [12]=producer_sec [13]=producer_nsec [14]=command_seq
 //      [15]=flight_id [16]=revision_id [17]=estimator_sample_count
 //      [18]=estimator_span_s
+//    RACKET optional reach /racket/command_flat (21 doubles)
+//      schema 3 preserves schema 2 indices [1..18]
+//      [19]=reach_level(0 fixed,1 short lift,2 microstep)
+//      [20]=swing_foot_sign(-1 right,0 none,+1 left)
 //    BASE legacy /a3/base_pose_flat (>=9 doubles; forbidden for V17 MOTION)
 //      [0]=schema(1)  [1]=valid(0/1)  [2..4]=pos(x,y,z)
 //      [5..8]=quat(w,x,y,z)
@@ -56,7 +65,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
+#include <map>
 #include <mutex>
+#include <stdexcept>
 #include <vector>
 
 #include "a3_deploy/numeric_safety.hpp"
@@ -100,11 +111,16 @@ struct PpRacketMsg {
   int schema = 1;
   double producer_wall_s = 0.0;
   std::uint64_t command_seq = 0;
+  // Local Runner identity epoch. Schema 2 has no producer boot nonce, so this
+  // is fixed at 1 for the life of one receiver; zero remains legacy schema 1.
+  std::uint64_t producer_epoch = 0;
   std::uint64_t flight_id = 0;
   std::uint64_t revision_id = 0;
   int estimator_samples = 0;
   double estimator_span_s = 0.0;
   int stable_revision_count = 0;
+  double reach_level = 0.0;
+  double swing_foot_sign = 0.0;
   // local MDU wall receipt minus HDU producer wall time.  Audit only: it must
   // never decide command freshness or Planner release.
   double producer_clock_delta_s = 0.0;
@@ -115,6 +131,16 @@ struct PpRacketMsg {
 // (the planner_invalid_grace_s flutter tolerance from the Python runner).
 class PpRacketTargetInput {
  public:
+  explicit PpRacketTargetInput(int expected_revisioned_schema = 0)
+      : expected_revisioned_schema_(expected_revisioned_schema) {
+    if (expected_revisioned_schema_ != 0 &&
+        expected_revisioned_schema_ != 2 &&
+        expected_revisioned_schema_ != 3) {
+      throw std::invalid_argument(
+          "expected Planner wire schema must be 0, 2, or 3");
+    }
+  }
+
   // Fed from the AimRT subscriber thread. `a` is the decoded Float64MultiArray.
   void SetFromFlat(const std::vector<double>& a) {
     const double now_wall = PpNowWallSec();
@@ -129,12 +155,23 @@ class PpRacketTargetInput {
       Reject_(now_wall, "valid must be 0 or 1");
       return;
     }
+    if (expected_revisioned_schema_ != 0 &&
+        a[0] != static_cast<double>(expected_revisioned_schema_)) {
+      // Mixed/duplicate publishers must not consume sequence space or replace
+      // the expected-schema mailbox. Ignore before any lifecycle state moves.
+      WarnIgnored_("wire schema incompatible with loaded artifact");
+      return;
+    }
     if (a[0] == 1.0) {
       SetSchema1_(a, now_wall, now_steady);
       return;
     }
     if (a[0] == 2.0) {
-      SetSchema2_(a, now_wall, now_steady);
+      SetSchema2Or3_(a, now_wall, now_steady, false);
+      return;
+    }
+    if (a[0] == 3.0) {
+      SetSchema2Or3_(a, now_wall, now_steady, true);
       return;
     }
     Reject_(now_wall, "unsupported schema");
@@ -148,6 +185,7 @@ class PpRacketTargetInput {
     double control_time_to_strike_s = -1e9; // monotonic absolute-deadline countdown
     bool invalid_after = false;  // an invalid arrived AFTER the newest valid
     std::uint64_t seq = 0;       // accepted packet or schema-2 command sequence
+    std::uint64_t producer_epoch = 0; // coherent with cmd; zero for legacy schema 1
   };
 
   Snapshot Latest() const {
@@ -159,11 +197,14 @@ class PpRacketTargetInput {
     if (last_valid_receipt_steady_ < 0.0) return s;  // no valid yet
     s.has_valid = true;
     s.cmd = last_valid_;
+    s.producer_epoch = last_valid_.producer_epoch;
     s.valid_age_s = now_steady - last_valid_receipt_steady_;
-    s.producer_age_s = last_valid_.schema == 2
+    const bool absolute_deadline_schema =
+        last_valid_.schema == 2 || last_valid_.schema == 3;
+    s.producer_age_s = absolute_deadline_schema
         ? now_wall - last_valid_.producer_wall_s : s.valid_age_s;
     s.control_time_to_strike_s =
-        last_valid_.schema == 2 && last_valid_.deadline_steady_s > 0.0
+        absolute_deadline_schema && last_valid_.deadline_steady_s > 0.0
         ? last_valid_.deadline_steady_s - now_steady
         : last_valid_.time_to_strike - s.valid_age_s;
     s.invalid_after = last_invalid_event_seq_ > last_valid_event_seq_;
@@ -233,15 +274,17 @@ class PpRacketTargetInput {
     any_ = true;
   }
 
-  void SetSchema2_(const std::vector<double>& a, double now_wall,
-                   double now_steady) {
-    if (a.size() != 19) {
-      Reject_(now_wall, "schema2 size!=19");
+  void SetSchema2Or3_(const std::vector<double>& a, double now_wall,
+                      double now_steady, bool schema3) {
+    const std::size_t expected_size = schema3 ? 21 : 19;
+    if (a.size() != expected_size) {
+      Reject_(now_wall, schema3 ? "schema3 size!=21" : "schema2 size!=19");
       return;
     }
-    for (std::size_t i = 2; i < 19; ++i) {
+    for (std::size_t i = 2; i < expected_size; ++i) {
       if (!a3_deploy::numeric_safety::IsFinite(a[i])) {
-        Reject_(now_wall, "schema2 non-finite required field");
+        Reject_(now_wall, schema3 ? "schema3 non-finite required field" :
+                                   "schema2 non-finite required field");
         return;
       }
     }
@@ -270,6 +313,16 @@ class PpRacketTargetInput {
       Reject_(now_wall, "schema2 swing_sign must be +1 or -1");
       return;
     }
+    if (schema3) {
+      const bool legal_permission =
+          (a[19] == 0.0 && a[20] == 0.0) ||
+          ((a[19] == 1.0 || a[19] == 2.0) &&
+           (a[20] == -1.0 || a[20] == 1.0));
+      if (!legal_permission || (!wire_valid && (a[19] != 0.0 || a[20] != 0.0))) {
+        Reject_(now_wall, "schema3 reach permission tuple invalid");
+        return;
+      }
+    }
     if ((wire_valid && (a[9] <= 0.0 || a[10] <= 0.0)) ||
         (!wire_valid && (a[9] < 0.0 || a[10] < 0.0)) || a[18] < 0.0) {
       Reject_(now_wall, "schema2 timing/sample span invalid");
@@ -295,51 +348,67 @@ class PpRacketTargetInput {
     // evidence, matching the operator-owned safety decision for this runner.
     m.deadline_steady_s = now_steady + (m.strike_time - now_wall);
     m.frame_code = static_cast<int>(a[11]);
-    m.schema = 2;
+    m.schema = schema3 ? 3 : 2;
     m.producer_wall_s = producer_wall;
     m.command_seq = command_seq;
     m.flight_id = flight_id;
     m.revision_id = revision_id;
     m.estimator_samples = static_cast<int>(estimator_samples);
     m.estimator_span_s = a[18];
+    m.reach_level = schema3 ? a[19] : 0.0;
+    m.swing_foot_sign = schema3 ? a[20] : 0.0;
     m.producer_clock_delta_s = now_wall - producer_wall;
 
     bool reordered = false;
-    bool producer_restarted = false;
+    bool reach_label_mutation = false;
     {
       std::lock_guard<std::mutex> lk(mu_);
       ++event_seq_;
-      producer_restarted = have_wire_seq_ && command_seq < last_wire_seq_ &&
-          last_wire_receipt_steady_ >= 0.0 &&
-          now_steady - last_wire_receipt_steady_ > 0.050;
-      if (producer_restarted) {
-        // A restarted HDU Planner starts its command/revision counters again.
-        // A real transport reorder has no 50 ms publisher gap, so preserve
-        // the last command for a reorder and open a new wire epoch for a
-        // producer restart.  Neither case becomes a planner-invalid event.
-        have_wire_seq_ = false;
-        have_schema2_valid_ = false;
-        stable_revision_count_ = 0;
-      }
-      if (!producer_restarted &&
-          ((have_wire_seq_ && command_seq <= last_wire_seq_) ||
+      const bool transport_reordered =
+          (have_wire_seq_ && command_seq <= last_wire_seq_) ||
           (m.valid && have_schema2_valid_ &&
            flight_id == last_schema2_flight_id_ &&
-           revision_id <= last_schema2_revision_id_))) {
+           revision_id <= last_schema2_revision_id_);
+      const auto permission_it =
+          schema3_permission_by_flight_.find(flight_id);
+      const bool mutates_schema3_flight_permission =
+          m.valid && m.schema == 3 &&
+          permission_it != schema3_permission_by_flight_.end() &&
+          (m.reach_level != permission_it->second.first ||
+           m.swing_foot_sign != permission_it->second.second);
+      if (transport_reordered) {
         // Ignore a duplicate/reordered transport sample without poisoning the
-        // retained latest valid command.  Its local receipt timestamp is not
+        // retained latest valid command. Its local receipt timestamp is not
         // refreshed, so ordinary command_timeout still expires it naturally.
         any_ = true;
         reordered = true;
+      } else if (mutates_schema3_flight_permission) {
+        // Reach permission is part of the physical-flight identity, not a
+        // continuously revised target field. Ignore the whole revision and do
+        // not refresh age/sequence or poison the retained first-flight tuple.
+        // A later revision carrying the original labels may still advance.
+        any_ = true;
+        reach_label_mutation = true;
       } else {
+        m.producer_epoch = 1;
         have_wire_seq_ = true;
         last_wire_seq_ = command_seq;
-        last_wire_receipt_steady_ = now_steady;
         seq_ = command_seq;
         if (m.valid) {
+          if (m.schema == 3 &&
+              permission_it == schema3_permission_by_flight_.end()) {
+            schema3_permission_by_flight_.emplace(
+                flight_id,
+                std::make_pair(m.reach_level, m.swing_foot_sign));
+            while (schema3_permission_by_flight_.size() > 256U)
+              schema3_permission_by_flight_.erase(
+                  schema3_permission_by_flight_.begin());
+          }
           const bool same_track = have_schema2_valid_ &&
               flight_id == last_schema2_flight_id_ &&
-              m.swing_sign == last_schema2_valid_.swing_sign;
+              m.swing_sign == last_schema2_valid_.swing_sign &&
+              m.reach_level == last_schema2_valid_.reach_level &&
+              m.swing_foot_sign == last_schema2_valid_.swing_foot_sign;
           const bool stable = same_track &&
               (m.pos_w - last_schema2_valid_.pos_w).norm() <= 0.030 + 1.0e-12 &&
               (m.vel_w - last_schema2_valid_.vel_w).norm() <= 0.250 + 1.0e-12 &&
@@ -364,9 +433,10 @@ class PpRacketTargetInput {
         any_ = true;
       }
     }
+    if (reach_label_mutation)
+      WarnIgnored_("schema3 same-flight reach permission mutation");
     if (reordered)
       WarnIgnored_("schema2 sequence/revision duplicate or reordered");
-    if (producer_restarted) WarnProducerRestart_(command_seq);
     if (std::fabs(m.producer_clock_delta_s) > 0.010)
       WarnClockSkew_(m.producer_clock_delta_s);
   }
@@ -394,16 +464,6 @@ class PpRacketTargetInput {
                    "age was not refreshed (count=%llu)\n",
                    reason, static_cast<unsigned long long>(n));
     }
-  }
-
-  void WarnProducerRestart_(std::uint64_t command_seq) {
-    const std::uint64_t n =
-        producer_restart_count_.fetch_add(1, std::memory_order_relaxed) + 1;
-    std::fprintf(stderr,
-                 "[pp input audit] racket producer counter restart -> new wire "
-                 "epoch at command_seq=%llu (count=%llu)\n",
-                 static_cast<unsigned long long>(command_seq),
-                 static_cast<unsigned long long>(n));
   }
 
   void WarnReject_(const char* reason) {
@@ -440,10 +500,8 @@ class PpRacketTargetInput {
   std::atomic<std::uint64_t> reject_count_{0};
   std::atomic<std::uint64_t> clock_skew_count_{0};
   std::atomic<std::uint64_t> ignored_count_{0};
-  std::atomic<std::uint64_t> producer_restart_count_{0};
   std::uint64_t seq_ = 0;
   std::uint64_t last_wire_seq_ = 0;
-  double last_wire_receipt_steady_ = -1.0;
   std::uint64_t last_schema2_flight_id_ = 0;
   std::uint64_t last_schema2_revision_id_ = 0;
   PpRacketMsg last_schema2_valid_{};
@@ -453,6 +511,9 @@ class PpRacketTargetInput {
   std::uint64_t event_seq_ = 0;
   std::uint64_t last_valid_event_seq_ = 0;
   std::uint64_t last_invalid_event_seq_ = 0;
+  std::map<std::uint64_t, std::pair<double, double>>
+      schema3_permission_by_flight_;
+  const int expected_revisioned_schema_ = 0;
 };
 
 // ---------------------------- pre-serve ball state -------------------------

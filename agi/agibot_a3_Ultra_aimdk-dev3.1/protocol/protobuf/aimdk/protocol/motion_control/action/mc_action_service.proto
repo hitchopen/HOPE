@@ -1,0 +1,22 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/motion_control/action/mc_action.proto";
+
+/**
+ * @brief 运控运动服务
+ */
+service MotionControlActionService {
+  // 设置机器人Action命令
+  rpc SetAction(MotionControlActionRequest) returns (CommonResponse);
+
+  // 查询机器人Action命令
+  rpc GetAction(CommonRequest) returns (MotionControlActionResponse);
+
+  // 查询机器人可切换到的Action
+  rpc GetNextActions(CommonRequest) returns (MultiActionsResponse);
+
+  // 查询机器人可用的Action
+  rpc GetAvailableActions(CommonRequest) returns (MultiActionsResponse);
+}

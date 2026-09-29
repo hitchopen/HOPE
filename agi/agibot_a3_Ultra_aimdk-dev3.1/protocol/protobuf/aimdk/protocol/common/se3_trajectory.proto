@@ -1,0 +1,25 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/se3_acceleration.proto";
+import public "aimdk/protocol/common/se3_velocity.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/common/timestamp.proto";
+
+/**
+ * SE3轨迹点
+ */
+message SE3TrajectoryPoint {
+  double time_since_reference = 1;  /**< time since reference. Unit s. */
+  SE3Pose pose = 2;                 /**< The se3 pose of the trajectory. */
+  SE3Velocity velocity = 3;         /**< The se3 velocity of the trajectory. */
+  SE3Acceleration acceleration = 4; /**< The se3 acceleration of the trajectory. */
+}
+
+/**
+ * SE3轨迹
+ */
+message SE3Trajectory {
+  double reference_time = 1;              /**< time since reference. Unit s. */
+  repeated SE3TrajectoryPoint points = 2; /**< The se3 trajectory points. */
+}

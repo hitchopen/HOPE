@@ -1,0 +1,46 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 机器人的控制状态
+ */
+message ControlState {
+  enum Type {
+    Type_UNDEFINED = 0;
+
+    // 机器人正在初始化，此时，机器人无法被控制
+    Type_INITIALIZING = 1;
+
+    // 机器人初始化完毕，等待被激活、并进入可被控制的状态。
+    Type_INITIALIZED = 2;
+
+    // 急停状态，由嵌入式或硬件对机器人进行急停控制
+    Type_ESTOP = 3;
+
+    // 可接入遥控器指令的手动控制状态
+    Type_Manual = 11;
+
+    // 可接入算法/功能指令的自动控制状态
+    Type_Auto = 12;
+
+    // 安全停止状态，由 Guardian 模块控制机器人
+    Type_SafeStop = 13;
+  }
+
+  Type type = 1;
+}
+
+/**
+ * @brief 由 guardian 报告的状态数据
+ * @note topic /aima/control_state
+ */
+message ControlStateChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  ControlState data = 2;
+}

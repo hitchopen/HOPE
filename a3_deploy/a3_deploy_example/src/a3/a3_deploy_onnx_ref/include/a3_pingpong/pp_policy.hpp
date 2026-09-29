@@ -39,6 +39,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -47,15 +48,19 @@
 #include <utility>
 
 #include "a3_deploy/numeric_safety.hpp"
+#include "a3_pingpong/pp_footstep_task.hpp"
 #include "a3_pingpong/pp_base_estimator.hpp"
+#include "a3_pingpong/pp_kernel_odometry.hpp"
 #include "a3_pingpong/pp_joint_limits.hpp"
 #include "a3_pingpong/pp_joint_map.hpp"
 #include "a3_pingpong/pp_obs_builder.hpp"
+#include "a3_pingpong/pp_execution_history.hpp"
 #include "a3_pingpong/pp_onnx_policy.hpp"
 #include "a3_pingpong/pp_oracle_pose.hpp"
 #include "a3_pingpong/pp_planner_lifecycle.hpp"
 #include "a3_pingpong/pp_planner_input.hpp"
 #include "a3_pingpong/pp_qdes_contract.hpp"
+#include "a3_pingpong/pp_recovery_envelope.hpp"
 #include "a3_pingpong/pp_reference_clock.hpp"
 #include "a3_pingpong/pp_velocity_gate.hpp"
 #include "a3_pingpong/pp_static_handoff.hpp"
@@ -101,7 +106,8 @@ inline Vec3 torso_pos_from_base(const Vec3& base_pos, const Vec4& base_quat,
 // obs LAYOUT is identical in all three modes; only the *values* of these terms
 // change. See SIM_DEPLOY_REHEARSAL.md.
 enum class LocMode {
-  kFabricated,       // A (legacy): nominal frozen base pose + waist-FK torso.
+  kKernelImuLocal = 4, // TEST ONLY: entry-relative IMU yaw + stance-foot odometry; no global pose.
+  kFabricated = 0,       // A (legacy): nominal frozen base pose + waist-FK torso.
                      //   -> motion_anchor_pos_b is a FICTIONAL tracking error.
   kPerfectTracking,  // B (hardware-safe): assume position tracking is perfect.
                      //   torso_pos_w := ref anchor (motion_anchor_pos_b == 0);
@@ -120,6 +126,7 @@ struct PpPolicyConfig {
   // Unitree-style policy directory contract. Empty keeps legacy ONNX-metadata
   // loading for old artifacts; formal HitterPingPong deploy always sets it.
   std::string deploy_cfg_path;
+  bool kernel_mode = false; // No-mocap actor WAIT test; never admits world-frame planner shots.
   int level = 1;                 // 0 = hold wind-up (quasi-stand), 1 = periodic forehand
   bool legs_passive = false;     // hold leg joints at nominal (firm PD) — for a HOISTED demo
                                  // where balance isn't needed; stops leg twitch from the
@@ -213,10 +220,18 @@ struct PpPolicyConfig {
   bool policy_native = false;
   // x86 Gate3 policy audit only.  Keep the actor's finite final q_des unchanged
   // even when it escapes the exported safe interval or the backend hard limits,
-  // and keep measured actual-q hard-limit excesses as telemetry.  Record every
-  // would-be intervention instead of throwing/clamping.  The production runner
-  // never enables this flag.
+  // and record the would-be intervention instead of throwing/clamping.  The
+  // production runner never enables this flag.
   bool gate3_qdes_audit_only = false;
+  // Explicit x86 MuJoCo/Gate3-only lane for Schema31/32's L1/L2 training
+  // candidate family.  Production leaves this false and the metadata-derived
+  // runtime accepts only (reach_level,swing_foot_sign)=(0,0).
+  bool schema31_sim_optional_reach = false;
+  // x86 MuJoCo Gate3-only capability probe. Every fresh, finite, identity-valid
+  // flight with positive TTS commits even when the previous swing is still in
+  // a temporal support/protected-tail window. Production always leaves this
+  // false; it changes lifecycle admission only and never alters actor q_des.
+  bool gate3_force_every_flight = false;
   double shot_reuse_tolerance_s = 0.25;
   double engage_min_tts_s = 1.0;      // never START a swing later than this (deep-clip snap -> fall)
   // DEEP PREFIX-SKIP (2026-07-13, 110-D only): the v13 windups open with a near-static
@@ -429,6 +444,80 @@ class PpPolicy {
         legs_passive_(cfg.legs_passive), waist_passive_(cfg.waist_passive),
         leg_clamp_rad_(cfg.leg_clamp_rad), leg_smooth_alpha_(cfg.leg_smooth_alpha),
         last_action_(Eigen::VectorXd::Zero(kNumJoints)) {
+    if ((cfg_.loc_mode == LocMode::kKernelImuLocal) != cfg_.kernel_mode ||
+        (cfg_.kernel_mode && (!cfg_.planner_mode || !cfg_.policy_native)))
+      throw std::invalid_argument("kernel mode requires the dedicated IMU-local policy-native test configuration");
+    // RECOVERY ENVELOPE (Layer C) mode. PP_ENVELOPE_MODE=capability (default) is
+    // telemetry-only so Gate3 keeps exposing policy failures; production lets L2/L3
+    // refuse/expire planner flights. Anything else is a start-up configuration error.
+    envelope_mode_ =
+        ParseRecoveryEnvelopeMode(std::getenv(kRecoveryEnvelopeModeEnv));
+    std::fprintf(stderr,
+        "[pp envelope] mode=%s (%s) levels: L0 d<0.05 v<0.20 tilt<4deg | "
+        "L1 d<0.10 v<0.35 tilt<7deg | L2 d<0.15 v<0.50 tilt<10deg | L3 otherwise; "
+        "decrease hold 0.30 s%s\n",
+        RecoveryEnvelopeModeName(envelope_mode_), kRecoveryEnvelopeModeEnv,
+        envelope_mode_ == RecoveryEnvelopeMode::kProduction
+            ? "; production: L2 blocks new flight commits, L3 expires the pending flight"
+            : "; capability: telemetry only, never blocks");
+    if (cfg_.schema31_sim_optional_reach) {
+      if (!cfg_.gate3_qdes_audit_only || !cfg_.planner_mode ||
+          !cfg_.policy_native) {
+        throw std::runtime_error(
+            "pingpong: Schema31/32 optional-reach candidate is restricted to "
+            "the explicit x86 MuJoCo Gate3 planner/policy-native lane");
+      }
+      onnx_.enable_schema31_sim_optional_reach();
+    }
+    if (cfg_.gate3_force_every_flight) {
+      if (!cfg_.gate3_qdes_audit_only || !cfg_.planner_mode ||
+          !cfg_.policy_native) {
+        throw std::runtime_error(
+            "pingpong: force-every-flight is restricted to the explicit "
+            "x86 MuJoCo Gate3 planner/policy-native lane");
+      }
+      std::fprintf(
+          stderr,
+          "[pp gate3] force-every-flight ENABLED: temporal preempt gates are "
+          "bypassed; finite wire, monotonic flight identity and positive TTS "
+          "remain mandatory\n");
+    }
+    HitterPingPongContinuousV2RuntimeMode continuous_v2_mode;
+    continuous_v2_mode.planner_mode = cfg_.planner_mode;
+    continuous_v2_mode.policy_native = cfg_.policy_native;
+    continuous_v2_mode.single_swing = cfg_.single_swing;
+    continuous_v2_mode.initial_level = cfg_.level;
+    continuous_v2_mode.stream_target = cfg_.stream_target;
+    continuous_v2_mode.station_only = cfg_.station_only;
+    continuous_v2_mode.replay_mode =
+        cfg_.fixed_station_replay || cfg_.moving_station_replay ||
+        cfg_.fixed_y_homing_replay ||
+        cfg_.onnx_load_profile ==
+            PpOnnxLoadProfile::kV17R1StationaryMujocoReplay;
+    continuous_v2_mode.target_override = cfg_.vel_cmd_box_center;
+    continuous_v2_mode.policy_output_override =
+        cfg_.legs_passive || cfg_.waist_passive || cfg_.auto_leg_hold ||
+        cfg_.arm_hold_nominal || std::fabs(cfg_.leg_clamp_rad) > 1.0e-12 ||
+        std::fabs(cfg_.leg_smooth_alpha - 1.0) > 1.0e-12;
+    continuous_v2_mode.clock_override =
+        !std::isfinite(cfg_.dt) ||
+        std::fabs(cfg_.dt - onnx_.hitter_pingpong_policy_dt_s()) > 1.0e-12 ||
+        !std::isfinite(cfg_.swing_speed) ||
+        std::fabs(cfg_.swing_speed - 1.0) > 1.0e-12;
+    continuous_v2_mode.qdes_audit_only = cfg_.gate3_qdes_audit_only;
+    continuous_v2_mode.target_support_gate = cfg_.target_gate_enable;
+    continuous_v2_mode.stay_if_reachable = cfg_.stay_if_reachable_enable;
+    continuous_v2_mode.command_timeout_s = cfg_.command_timeout_s;
+    validate_hitter_pingpong_continuous_v2_runtime_mode(
+        onnx_.uses_continuous_rally_v2_contract(), continuous_v2_mode);
+    validate_hitter_pingpong_continuous_v3_runtime_mode(
+        onnx_.uses_continuous_rally_v3_contract(), continuous_v2_mode);
+    validate_hitter_pingpong_continuous_v4_runtime_mode(
+        onnx_.uses_continuous_rally_v4_contract(), continuous_v2_mode);
+    validate_hitter_pingpong_build2_rapid_preempt_runtime_mode(
+        onnx_.uses_build2_schema22_rapid_preempt_contract(), continuous_v2_mode);
+    validate_hitter_pingpong_build2_fixed_home_runtime_mode(
+        onnx_.uses_build2_fixed_home_contract(), continuous_v2_mode);
     if (onnx_.is_rally_v17_recipe() &&
         !onnx_.is_v17_r1_stationary_replay() &&
         !onnx_.uses_authoritative_mocap_pose())
@@ -439,7 +528,7 @@ class PpPolicy {
           onnx_.base_localization_max_age_s();
       cfg_.external_base_gyro_propagation_max_s =
           onnx_.base_localization_max_propagation_s();
-      if (cfg_.loc_mode != LocMode::kExternalBase)
+      if (cfg_.loc_mode != LocMode::kExternalBase && !cfg_.kernel_mode)
         throw std::runtime_error(
             "pingpong: authoritative full-pose observations require "
             "external-base mocap localization");
@@ -451,8 +540,8 @@ class PpPolicy {
       std::fprintf(
           stderr,
           "[pp qdes-audit] X86 GATE3 ONLY: finite policy q_des is published "
-          "unchanged; q_des and measured actual-q limit exceedances are "
-          "telemetry, not fail-fast or runner clamps\n");
+          "unchanged; safe/hard-limit exceedances are telemetry, not fail-fast "
+          "or runner clamps\n");
     }
     if (onnx_.is_v17_r10_p0_gate3()) {
       if (!cfg_.planner_mode || !cfg_.policy_native || cfg_.station_only ||
@@ -768,15 +857,23 @@ class PpPolicy {
               "pos/vel/base metadata; refusing an ambiguous deploy contract");
         hp_base_target_range_ = onnx_.hp_base_range();
         rally_final_station_control_ = true;
-        if (onnx_.is_v17_r10_p0_gate3()) {
+        if (onnx_.is_v17_r10_p0_gate3() ||
+            onnx_.uses_build2_fixed_home_contract()) {
           if (onnx_.has_hitter_pure_station_y_step_range())
             throw std::runtime_error(
-                "pingpong: V17-r10 fixed station forbids station-step metadata");
+                "pingpong: fixed-HOME contract forbids station-step metadata");
           cfg_.gate_station_step_max = 0.0;
-          std::fprintf(stderr,
-              "[pp] V17-r10 fixed-station contract: immutable MOTION-entry "
-              "session anchor; READY is telemetry; release follows ball clock; "
-              "target freezes at engage\n");
+          if (onnx_.is_v17_r10_p0_gate3()) {
+            std::fprintf(stderr,
+                "[pp] V17-r10 fixed-station contract: immutable MOTION-entry "
+                "session anchor; READY is telemetry; release follows ball clock; "
+                "target freezes at engage\n");
+          } else {
+            std::fprintf(stderr,
+                "[pp] HitterPingPong fixed-HOME contract: immutable session "
+                "HOME in every phase; strike drift is policy-recovered; "
+                "station-step metadata absent\n");
+          }
         } else {
           if (!onnx_.has_hitter_pure_station_y_step_range())
             throw std::runtime_error(
@@ -816,17 +913,12 @@ class PpPolicy {
       std::fprintf(stderr,
           "[pp] hitter_pure training_recipe=%s (stay-if-reachable %s: fh y band "
           "[%.2f,%.2f] bh [%.2f,%.2f] about the held station)\n",
-          onnx_.is_rally_v17_recipe() ? "rally_v17" :
-          (onnx_.is_rally_v15_recipe() ? "rally_v15" :
-          (onnx_.is_rally_v14_recipe() ? "rally_v14" :
-          (onnx_.is_rally_v13_recipe() ? "rally_v13" :
-          (onnx_.is_rally_v12_recipe() ? "rally_v12" :
-          (onnx_.is_rally_v11_recipe() ? "rally_v11" :
-          (onnx_.is_rally_v10_recipe() ? "rally_v10" :
-          (onnx_.is_rally_v9_recipe() ? "rally_v9" : "rally_v8"))))))),
+          onnx_.training_recipe().c_str(),
           stay_if_reachable_ ? "ON" : "OFF (CLI)",
           hp_y_band_[0][0], hp_y_band_[0][1], hp_y_band_[1][0], hp_y_band_[1][1]);
     }
+    if (onnx_.uses_small_station_contract())
+      std::fprintf(stderr, "[pp] validated_policy_abi=%s\n", onnx_.policy_abi());
     if (cfg_.fixed_station_replay)
       std::fprintf(
           stderr,
@@ -851,7 +943,8 @@ class PpPolicy {
     if (onnx_.is_rally_v10_recipe() || onnx_.is_rally_v11_recipe() ||
         onnx_.is_rally_v12_recipe() || onnx_.is_rally_v13_recipe() ||
         onnx_.is_rally_v14_recipe() || onnx_.is_rally_v15_recipe() ||
-        onnx_.is_rally_v17_recipe()) {
+        onnx_.is_rally_v17_recipe() ||
+        onnx_.is_hitter_pingpong_recovery_tts_recipe()) {
       const auto& joint_names = onnx_.joint_names();
       const auto& default_q = onnx_.default_q();
       for (std::size_t i = 0; i < joint_names.size(); ++i) {
@@ -868,6 +961,7 @@ class PpPolicy {
           "pingpong: --station-only requires a 110-D RallyFinal runtime contract; "
           "refusing a mode that could fall through to swing engage");
     nominal_q_sdk_ = to_sdk_order(onnx_.default_q(), isaac_to_sdk_);  // nominal pose in SDK order
+    official_stand_q_sdk_ = nominal_q_sdk_;
     qdes_projected_isaac_ = onnx_.default_q();
     leg_qdes_smooth_ = nominal_q_sdk_;  // seed the leg q_des EMA at nominal (no jump on first release)
     // Official robust-stand PD gains (a3_pd_stand_*, 29-DOF policy view) scattered
@@ -895,6 +989,10 @@ class PpPolicy {
   void SetRacketInput(std::shared_ptr<PpRacketTargetInput> r) { racket_in_ = std::move(r); }
   void SetBasePoseInput(std::shared_ptr<PpBasePoseInput> b) { base_in_ = std::move(b); }
   bool planner_mode() const { return cfg_.planner_mode; }
+  int expected_planner_wire_schema() const {
+    if (!onnx_.uses_schema27_optional_reach_obs()) return 0;
+    return onnx_.optional_reach_schema3_wire_required() ? 3 : 2;
+  }
   std::string planner_status() const {
     std::lock_guard<std::mutex> lk(planner_mu_);
     return planner_status_;
@@ -931,10 +1029,20 @@ class PpPolicy {
     std::uint64_t planner_revision_id = 0;
     int planner_stable_revision_count = 0;
     std::uint64_t frozen_command_seq = 0;
+    std::uint64_t frozen_producer_epoch = 0;
     std::uint64_t frozen_flight_id = 0;
     std::uint64_t frozen_revision_id = 0;
     double frozen_strike_time = 0.0;
     double frozen_raw_tts = 0.0;
+    double swing_sign = 0.0;
+    double reach_level = 0.0;
+    double swing_foot_sign = 0.0;
+    std::uint64_t planner_completion_seq = 0;
+    std::uint64_t planner_completed_producer_epoch = 0;
+    std::uint64_t planner_completed_flight_id = 0;
+    std::string planner_completion_kind = "none";
+    std::uint64_t preempt_candidate_flight_id = 0;
+    std::uint64_t preempt_candidate_revision_id = 0;
     Vec3 base_pos_w = Vec3::Zero();
     Vec4 base_quat_w = Vec4(1.0, 0.0, 0.0, 0.0);
     Vec3 target_pos_w = Vec3::Zero();
@@ -943,6 +1051,16 @@ class PpPolicy {
     Vec3 racket_pos_w = Vec3::Zero();
     Vec3 racket_vel_w = Vec3::Zero();
     Vec3 racket_normal_w = Vec3::Zero();
+    // RECOVERY ENVELOPE (Layer C) telemetry
+    int envelope_level = kRecoveryEnvelopeLevelSafeHold;
+    const char* envelope_mode = "capability";
+    double envelope_home_dist_m = NAN;
+    double envelope_speed_mps = 0.0;
+    double envelope_tilt_rad = 0.0;
+    // Schema33: largest sole-vs-analytic-HOME-anchor error (leg FK + mocap pose); NaN until
+    // the session HOME exists.
+    double envelope_support_anchor_error_m = NAN;
+    const char* envelope_block_reason = kRecoveryEnvelopeReasonNone;
   };
 
   PlannerTraceSnapshot planner_trace_snapshot(std::uint64_t tick_idx) const {
@@ -956,7 +1074,8 @@ class PpPolicy {
     d.localization_fresh =
         (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_) ||
         (cfg_.loc_mode == LocMode::kOracle && oracle_fresh_) ||
-        (cfg_.loc_mode != LocMode::kExternalBase && cfg_.loc_mode != LocMode::kOracle);
+        (cfg_.loc_mode != LocMode::kExternalBase && cfg_.loc_mode != LocMode::kOracle &&
+         !cfg_.kernel_mode);
     d.base_speed_valid = base_speed_xy_valid_;
     d.base_speed_xy = base_speed_xy_est_;
     d.pending_active = planner_pending_station_active_;
@@ -986,10 +1105,26 @@ class PpPolicy {
     d.planner_revision_id = planner_current_revision_id_;
     d.planner_stable_revision_count = planner_current_stable_revision_count_;
     d.frozen_command_seq = planner_frozen_command_seq_;
+    d.frozen_producer_epoch = planner_frozen_producer_epoch_;
     d.frozen_flight_id = planner_frozen_flight_id_;
     d.frozen_revision_id = planner_frozen_revision_id_;
     d.frozen_strike_time = planner_frozen_strike_time_;
     d.frozen_raw_tts = planner_frozen_raw_tts_;
+    const bool active_reach_flight = hitter_optional_reach_active_flight(
+        planner_engaged_, level_.load());
+    d.swing_sign = active_reach_flight ? planner_frozen_sign_ : 0.0;
+    d.reach_level = active_reach_flight ? planner_frozen_reach_level_ : 0.0;
+    d.swing_foot_sign = active_reach_flight
+        ? planner_frozen_swing_foot_sign_ : 0.0;
+    d.planner_completion_seq = planner_completion_state_.sequence;
+    d.planner_completed_producer_epoch =
+        planner_completion_state_.completed_identity.producer_epoch;
+    d.planner_completed_flight_id =
+        planner_completion_state_.completed_identity.flight_id;
+    d.planner_completion_kind =
+        planner_flight_completion_kind_name(planner_completion_state_.kind);
+    d.preempt_candidate_flight_id = planner_preempt_candidate_flight_id_;
+    d.preempt_candidate_revision_id = planner_preempt_candidate_revision_id_;
     d.base_pos_w = last_base_pos_;
     d.base_quat_w = last_base_quat_w_;
     d.target_pos_w = last_target_pos_w_;
@@ -998,12 +1133,20 @@ class PpPolicy {
     d.racket_pos_w = last_racket_pos_w_;
     d.racket_vel_w = last_racket_vel_w_;
     d.racket_normal_w = last_racket_normal_w_;
+    d.envelope_level = envelope_.level();
+    d.envelope_mode = RecoveryEnvelopeModeName(envelope_mode_);
+    d.envelope_home_dist_m = envelope_home_dist_m_;
+    d.envelope_speed_mps = envelope_speed_mps_;
+    d.envelope_tilt_rad = envelope_tilt_rad_;
+    d.envelope_support_anchor_error_m = envelope_support_anchor_error_m_;
+    d.envelope_block_reason = envelope_block_reason_;
     return d;
   }
 
   LocMode loc_mode() const { return cfg_.loc_mode; }
   const char* loc_mode_name() const {
     switch (cfg_.loc_mode) {
+      case LocMode::kKernelImuLocal: return "kernel_imu_local_actor_test";
       case LocMode::kFabricated: return "fabricated(A)";
       case LocMode::kPerfectTracking: return "perfect_tracking(B)";
       case LocMode::kOracle: return "oracle(C)";
@@ -1058,7 +1201,18 @@ class PpPolicy {
 
   // Official robust stand (matches AGI's PD_STAND): pose = nominal (== a3_default_angles),
   // gains = production a3_pd_stand_*. All in 31-DOF SDK order.
-  const Eigen::VectorXd& official_stand_q() const { return nominal_q_sdk_; }
+  const Eigen::VectorXd& official_stand_q() const { return official_stand_q_sdk_; }
+  // Startup-only stance selection. Keep learned observation/action defaults
+  // unchanged. This describes the standing posture, not a footstep controller.
+  void SetStandLateralOffset(double radians) {
+    if (!std::isfinite(radians) || radians < 0.0 || radians > .06)
+      throw std::invalid_argument("stand lateral offset must be in [0, 0.06] rad");
+    official_stand_q_sdk_ = nominal_q_sdk_;
+    official_stand_q_sdk_[20] += radians;
+    official_stand_q_sdk_[24] -= radians;
+    official_stand_q_sdk_[26] -= radians;
+    official_stand_q_sdk_[30] += radians;
+  }
   const Eigen::VectorXd& official_stand_kp() const { return official_kp_sdk_; }
   const Eigen::VectorXd& official_stand_kd() const { return official_kd_sdk_; }
 
@@ -1105,6 +1259,7 @@ class PpPolicy {
   // sustained-quiet clock (--arm-hold-nominal) for the fresh MOTION entry.
   void rearm_yaw_align() {
     yaw_align_pending_.store(true);
+    kernel_odometry_.Reset();
     hold_station_set_ = false;
     arm_quiet_ticks_ = 0;    // fresh MOTION entry: restart the arm-hold sustained-quiet clock
     arm_hold_armed_ = true;  // ...and re-arm the pre-swing arm hold
@@ -1115,6 +1270,19 @@ class PpPolicy {
     const RuntimeHandoffReset handoff =
         runtime_handoff_reset(onnx_.has_bounded_qdes_contract());
     last_action_.setZero();
+    core_action_shadow_owned_.setZero();
+    // v12 slew: the executed-target integrator restarts from default_q on every
+    // SHADOW/MOTION entry (training resets q_hat_prev = default at episode start), and
+    // Layer C restarts its level hysteresis for the fresh session.
+    qdes_slew_initialized_ = false;
+    envelope_.Reset();
+    envelope_support_anchor_error_m_ = NAN;
+    schema34_signed_replant_need_ = 0.0;
+    footstep_task_.Reset();
+    compact_history_.Reset();
+    compact_observation_cache_.resize(0);
+    footstep_task_have_tick_ = false;
+    envelope_block_reason_ = kRecoveryEnvelopeReasonNone;
     last_action_seed_pending_ = handoff.seed_measured_qdes_feedback;
     if (handoff.seed_measured_qdes_feedback) {
       qdes_projector_initialized_ = false;
@@ -1149,10 +1317,37 @@ class PpPolicy {
       planner_engage_expected_strike_lateness_s_ = 0.0;
       planner_late_phase_clamped_ = false;
       planner_frozen_command_seq_ = 0;
+      planner_schema22_producer_epoch_ = 0;
+      planner_current_producer_epoch_ = 0;
+      planner_frozen_producer_epoch_ = 0;
       planner_frozen_flight_id_ = 0;
       planner_frozen_revision_id_ = 0;
+      planner_schema22_cold_coverage_reported_producer_epoch_ = 0;
+      planner_schema22_cold_coverage_reported_flight_id_ = 0;
+      planner_schema22_cold_tts_reported_producer_epoch_ = 0;
+      planner_schema22_cold_tts_reported_flight_id_ = 0;
+      planner_schema22_cold_retained_producer_epoch_ = 0;
+      planner_schema22_cold_retained_flight_id_ = 0;
+      planner_schema22_cold_retained_reach_level_ = 0.0;
+      planner_schema22_cold_retained_swing_foot_sign_ = 0.0;
       planner_frozen_strike_time_ = 0.0;
       planner_frozen_raw_tts_ = 0.0;
+      planner_frozen_reach_level_ = 0.0;
+      planner_frozen_swing_foot_sign_ = 0.0;
+      planner_have_consumed_shot_ = false;
+      planner_consumed_producer_epoch_ = 0;
+      planner_consumed_flight_id_ = 0;
+      planner_consumed_strike_time_ = 0.0;
+      planner_preempt_candidate_producer_epoch_ = 0;
+      planner_preempt_candidate_flight_id_ = 0;
+      planner_preempt_candidate_revision_id_ = 0;
+      planner_preempt_expired_producer_epoch_ = 0;
+      planner_preempt_expired_flight_id_ = 0;
+      planner_preempt_pending_active_ = false;
+      planner_preempt_pending_cmd_ = PpRacketMsg{};
+      planner_preempt_pending_last_fresh_steady_s_ = 0.0;
+      planner_preempt_busy_drop_producer_epoch_ = 0;
+      planner_preempt_busy_drop_flight_id_ = 0;
       planner_valid_age_s_ = -1.0;
       RecordPlannerLifecycle_("clear", "mode_rearm");
       prefirst_active_station_tracking_started_ = false;
@@ -1162,6 +1357,7 @@ class PpPolicy {
       base_velocity_xy_est_.setZero();
       ResetFiniteLateralGait_();
       station_session_origin_set_ = false;
+      native_tail_home_recovery_latched_ = false;
       planner_static_active_ = false;
       static_settle_ticks_ = 0;
       planner_policy_takeover_active_ = false;
@@ -1216,14 +1412,39 @@ class PpPolicy {
     // pose) instead of snapping into the free-running mid-cycle phase, which would mismatch the
     // body and lurch the robot. swing_speed<1 stretches the clock.
     const std::uint64_t origin = swing_clock_origin_.load();
-    const double t = (tick_idx >= origin ? tick_idx - origin : 0) * cfg_.dt * swing_speed_.load();
+    const double t = planner_swing_elapsed_s(
+        tick_idx, origin, cfg_.dt, swing_speed_.load());
     if (level_.load() == 0) {
-      tg.time_to_strike = 5.0;  // far away -> clock holds at clip start (wind-up)
+      // New HitterPingPong policies use the same side-neutral WAIT sentinel as training.
+      // Metadata-less/model_21800 exports retain the historical value and clamp below.
+      if (onnx_.uses_late_reveal_raw_tts_contract()) {
+        const auto& pending = onnx_.hitter_pingpong_pending_target();
+        tg.pos_w = Vec3(pending[0], pending[1], pending[2]);
+        if (onnx_.uses_continuous_rally_v3_contract() ||
+            onnx_.uses_continuous_rally_v4_contract()) {
+          const auto& pending_velocity =
+              onnx_.hitter_pingpong_pending_velocity();
+          tg.vel_w = Vec3(
+              pending_velocity[0], pending_velocity[1],
+              pending_velocity[2]);
+        } else {
+          tg.vel_w = Vec3::Zero();
+        }
+        tg.time_to_strike = planner_wait_tts(
+            onnx_.hitter_pingpong_wait_tts_s(),
+            onnx_.uses_visible_wait_clock_contract(), tick_idx,
+            planner_hold_start_tick_, cfg_.dt);
+      } else {
+        tg.time_to_strike = 5.0;
+      }
     } else if (cfg_.planner_mode) {
-      // LIVE PLANNER: linear clock seeded from the ENGAGE-time tts (clamped to the clip's
-      // windup length at engage) so the reference strike aligns with the ball's arrival.
-      // Same no-wrap semantics as single_swing; completion still trips on tts < min_tts.
-      tg.time_to_strike = planner_tts0_ - t;
+      // The late-reveal contract deliberately decouples actor time from reference time:
+      // actor TTS is the raw Planner deadline while planner_tts0_ may be held at the deepest
+      // near-static prefix to avoid a reference teleport. Legacy exports expose the reference
+      // clock exactly as before.
+      tg.time_to_strike =
+          (onnx_.uses_late_reveal_raw_tts_contract()
+               ? planner_actor_tts0_ : planner_tts0_) - t;
     } else if (cfg_.single_swing || cfg_.swing_rest_s >= 0.0) {
       // SINGLE-SWING: linear clock, NO fmod wrap. The periodic schedule bounds tts to
       // [-(1-lead)*period, lead*period] = [-0.9, 2.1], which (a) never reaches the clip's
@@ -1239,15 +1460,36 @@ class PpPolicy {
   }
 
   // CommandFn body. Fills a full 31-slot RobotCommand (SDK order). Always valid.
+  // Driver-thread-only: let the Runner finish its mode handoff before any
+  // planner command can engage a new shot. The waiting policy keeps evaluating
+  // during blending, so finishing the handoff cannot expose a first-action jump.
+  void set_mode_handoff_hold(bool hold) { mode_handoff_hold_ = hold; }
   bool ComputeCommand(std::uint64_t tick_idx, const robot_io::RobotState& state,
                       robot_io::RobotCommand& cmd) {
+    // Kernel is an explicit no-mocap actor test. Keep the normal observation,
+    // inference, action-feedback and Runner handoff paths below. Only world
+    // localization/Planner release differ; never advertise synthetic mocap.
     // LIVE PLANNER (Path B): decide engage/hold from the latest planner command and drive
     // the EXISTING swing controls (set_swing_dir/set_level + freeze). Runs before the swing
     // clock logic so the 0->1 edge below resets the clock to the windup as usual. No-op in
     // the scripted/keyboard path (planner_mode == false).
-    if (cfg_.planner_mode && planner_entry_pending_.exchange(false))
+    if (cfg_.planner_mode && planner_entry_pending_.exchange(false)) {
       planner_entry_tick_ = tick_idx;  // first tick of this SHADOW/MOTION session (settle clock)
-    if (cfg_.planner_mode) PlannerEngageStep_(tick_idx);
+      if (onnx_.uses_visible_wait_clock_contract()) {
+        // The pre-first-shot WAIT clock has the same externally visible origin
+        // semantics as every post-contact HOME interval.
+        planner_hold_start_tick_ = tick_idx;
+      }
+    }
+    const std::uint64_t planner_shot_seq_before_engage = planner_shot_seq_;
+    if (cfg_.kernel_mode) {
+      level_.store(0);
+      planner_engaged_ = false;
+      set_planner_status_("kernel_actor_wait_no_mocap");
+    } else if (cfg_.planner_mode && !mode_handoff_hold_) {
+      PlannerEngageStep_(tick_idx);
+    }
+    if (cfg_.planner_mode && mode_handoff_hold_) level_.store(0);
     // Reset the swing clock to its windup on level 0->1 (release from hold) OR on a
     // forehand<->backhand switch. Either way the swing must (re)start from its WINDUP
     // (tts -> clip start, matching the current near-stand body) rather than snap into the
@@ -1271,8 +1513,10 @@ class PpPolicy {
     }
     const int swing_lvl_now = level_.load();
     const int swing_dir_now = swing_dir_.load();
-    if ((swing_lvl_now == 1 && swing_level_prev_ != 1) || swing_dir_now != swing_dir_prev_)
-      swing_clock_origin_.store(tick_idx);
+    swing_clock_origin_.store(planner_swing_clock_origin_after_engage(
+        tick_idx, swing_clock_origin_.load(), swing_lvl_now, swing_level_prev_,
+        swing_dir_now, swing_dir_prev_, planner_shot_seq_before_engage,
+        planner_shot_seq_));
     // ANY 1->0 edge restarts the planner post-swing recovery clock, not just the normal
     // completion path (which also sets it, idempotently). Without this, an EXTERNAL
     // set_level(0) mid-swing (squat/tilt guard, operator key) leaves the clock stale from
@@ -1284,6 +1528,18 @@ class PpPolicy {
     swing_dir_prev_ = swing_dir_now;
     PpRacketTarget tg = ScriptedTarget(tick_idx);
     const int clip_id = clip_id_from_swing_sign(tg.swing_sign);
+    const bool raw_tts_active = cfg_.planner_mode && planner_engaged_ &&
+        onnx_.uses_late_reveal_raw_tts_contract();
+    const bool late_reveal_wait = level_.load() == 0 &&
+        onnx_.uses_late_reveal_raw_tts_contract();
+    // Both clocks decay at the same rate after COMMIT.  Only the reference clock selects the
+    // baked motion frame; the actor keeps the real deadline, including expected lateness.
+    const double legacy_reference_time_to_strike = raw_tts_active
+        ? tg.time_to_strike + (planner_tts0_ - planner_actor_tts0_)
+        : tg.time_to_strike;
+    const double reference_time_to_strike = planner_motion_reference_tts(
+        onnx_.uses_signed_tts_contact_frame_contract(), tg.time_to_strike,
+        legacy_reference_time_to_strike);
     // Clamp time_to_strike to the clip's IN-TRAINING maximum. Training computes
     // tts = (strike_frame - current_frame)*dt from the actual clip frame, so its max is
     // (strike_frame - seg_start)*dt (backhand 0.86 s, forehand 1.30 s). The scripted schedule
@@ -1294,8 +1550,28 @@ class PpPolicy {
     // (it already clamps ts to seg_start for any tts >= this bound).
     const double max_tts =
         (clip_.strike_frame(clip_id) - clip_.seg_start(clip_id)) * clip_.step_dt;
-    if (tg.time_to_strike > max_tts) tg.time_to_strike = max_tts;
-    last_tts_at_windup_ = (tg.time_to_strike >= max_tts - 1e-9);
+    if (tg.time_to_strike > max_tts && !late_reveal_wait)
+      tg.time_to_strike = max_tts;
+    last_tts_at_windup_ = (reference_time_to_strike >= max_tts - 1e-9);
+    const bool native_tail_home_contract = cfg_.planner_mode &&
+        onnx_.uses_native_tail_home_rally_contract();
+    if (native_tail_home_contract) {
+      const PlannerNativeTailHomeDecision native_tail_home =
+          planner_native_tail_home_step(
+              true, cfg_.planner_mode, swing_lvl_now, planner_engaged_,
+              station_session_origin_set_, tg.time_to_strike,
+              onnx_.hitter_pingpong_native_tail_home_s(),
+              native_tail_home_recovery_latched_);
+      if (native_tail_home.latch_recovery) {
+        native_tail_home_recovery_latched_ = true;
+        // Publish only the immutable session-HOME base target. The frozen racket
+        // target, negative actor TTS, level 1, and native motion clock remain owned
+        // by the current swing until its real segment end.
+        hold_station_w_ = station_session_origin_w_;
+        hold_station_set_ = true;
+        RecordPlannerLifecycle_("home", "native_tail_contact_plus_0p12");
+      }
+    }
     // SINGLE-SWING / REST (see PpPolicyConfig): once the clip has fully played, drop to
     // level 0 (held stand) instead of letting the periodic clock WRAP the reference from
     // the end pose back to windup (an untracked-in-training snap that topples the backhand).
@@ -1304,16 +1580,61 @@ class PpPolicy {
       const double min_tts = (clip_.strike_frame(clip_id) -
                               (clip_.seg_start(clip_id) + clip_.seg_len[clip_id] - 1)) *
                              clip_.step_dt;
-      if (tg.time_to_strike < min_tts) {
+      const bool home_preempt = cfg_.planner_mode &&
+          onnx_.uses_home_preempt_rally_contract();
+      const double completion_tts = home_preempt
+          ? -onnx_.hitter_pingpong_post_contact_rearm_s()
+          : min_tts;
+      if ((home_preempt && planner_followthrough_complete(
+                               tg.time_to_strike,
+                               onnx_.hitter_pingpong_post_contact_rearm_s())) ||
+          (!home_preempt && planner_native_clip_end_complete(
+                                reference_time_to_strike, completion_tts))) {
+        if (onnx_.uses_build2_rapid_preempt_contract() &&
+            !CompleteSchema22FrozenFlight_(
+                PlannerFlightCompletionKind::kNativeEnd)) {
+          // Completion is a control-safety boundary even if telemetry detects
+          // a duplicate/corrupt identity. Continue to level 0, but never emit a
+          // second authoritative edge for that flight.
+          RecordPlannerLifecycle_(
+              "native_completion_rejected", "completion_identity_not_monotonic");
+          set_planner_status_("native_completion_ledger");
+        }
         level_.store(0);
+        // Completion occurs after the edge cache was sampled above. Keep the cache consistent
+        // immediately so a same-side next flight cannot masquerade as a 1->1 continuation.
+        planner_sync_completion_cache(swing_level_prev_);
         if (cfg_.planner_mode) planner_hold_start_tick_ = tick_idx;  // recovery-window clock
+        if (cfg_.planner_mode && onnx_.uses_late_reveal_raw_tts_contract()) {
+          // Match training's wrap tick atomically: HOLD/default reference, neutral target and
+          // WAIT sentinel are all visible together.  Leaving planner_engaged_ true until the
+          // next tick exposed the old final target with a negative TTS during the riskiest
+          // recovery boundary.
+          planner_engaged_ = false;
+          tg.time_to_strike = onnx_.hitter_pingpong_wait_tts_s();
+          if (home_preempt && station_session_origin_set_) {
+            // Training publishes immutable HOME on this exact transition. A fresh physical
+            // flight can preempt the return on the next 50 Hz tick; no READY gate is added.
+            hold_station_w_ = station_session_origin_w_;
+            hold_station_set_ = true;
+          }
+        }
         if (cfg_.swing_rest_s >= 0.0) {
           rest_rearm_tick_ = tick_idx + static_cast<std::uint64_t>(
               std::max(0.0, cfg_.swing_rest_s) / std::max(cfg_.dt, 1e-6));
           rest_rearm_armed_ = true;
         }
-        std::fprintf(stderr, "[pp] swing complete -> level 0 (held stand)%s\n",
-                     cfg_.swing_rest_s >= 0.0 ? " (auto re-arm after rest)" : "; press 1 to swing again");
+        if (home_preempt) {
+          std::fprintf(
+              stderr,
+              "[pp] contact follow-through complete -> HOME/PENDING "
+              "(fresh flight may preempt)\n");
+        } else {
+          std::fprintf(stderr, "[pp] swing complete -> level 0 (held stand)%s\n",
+                       cfg_.swing_rest_s >= 0.0
+                           ? " (auto re-arm after rest)"
+                           : "; press 1 to swing again");
+        }
       }
     }
     // Auto re-arm after the rest (only if WE dropped the level; a manual '0' clears it).
@@ -1333,9 +1654,11 @@ class PpPolicy {
       const double min_tts_clip = (clip_.strike_frame(clip_id) -
                                    (clip_.seg_start(clip_id) + clip_.seg_len[clip_id] - 1)) *
                                   clip_.step_dt;
-      if (tg.time_to_strike < min_tts_clip) tg.time_to_strike = min_tts_clip;
+      if (tg.time_to_strike < min_tts_clip && !raw_tts_active)
+        tg.time_to_strike = min_tts_clip;
     }
-    const int time_step = clip_.time_step_for(clip_id, tg.time_to_strike);
+    const int time_step = clip_.time_step_for(
+        clip_id, raw_tts_active ? reference_time_to_strike : tg.time_to_strike);
 
     PpRefs refs = onnx_.refs(time_step);
     // HOLD = a STATIONARY reference (2026-07-05, train==deploy lockstep): clip frame 0
@@ -1363,6 +1686,9 @@ class PpPolicy {
       throw std::runtime_error(
           "ping-pong measured joint state has wrong size or contains NaN/Inf");
     }
+    last_actual_q_hard_violation_count_ = 0;
+    last_actual_q_hard_max_excess_rad_ = 0.0;
+    last_actual_q_hard_excess_sdk_.fill(0.0);
     for (int i = 0; i < kNumJoints; ++i) {
       const int sdk = isaac_to_sdk_[i];
       const bool exported_limit_contract =
@@ -1373,11 +1699,16 @@ class PpPolicy {
                                                 : kSdkJointPosHi[sdk];
       const double tolerance = exported_limit_contract
           ? onnx_.qdes_actual_q_hard_tolerance_rad() : 0.0;
-      const bool actual_q_audit_only = actual_q_hard_limit_audit_only(
-          cfg_.gate3_qdes_audit_only, exported_limit_contract,
-          onnx_.qdes_actual_q_hard_audit_only());
+      const double excess =
+          std::max({lo - st.q[i], st.q[i] - hi, 0.0});
+      last_actual_q_hard_excess_sdk_[sdk] = excess;
+      last_actual_q_hard_max_excess_rad_ =
+          std::max(last_actual_q_hard_max_excess_rad_, excess);
+      if (excess > tolerance) ++last_actual_q_hard_violation_count_;
       const auto disposition = classify_actual_q_hard_limit(
-          st.q[i], lo, hi, tolerance, actual_q_audit_only);
+          st.q[i], lo, hi, tolerance,
+          actual_q_hard_limit_audit_only(cfg_.gate3_qdes_audit_only,
+              exported_limit_contract, onnx_.qdes_actual_q_hard_audit_only()));
       if (disposition == ActualQHardLimitDisposition::kFault) {
         throw std::runtime_error(
             "ping-pong PHYSICAL SAFETY FAULT: measured q exceeds hard limit for joint '" +
@@ -1444,6 +1775,7 @@ class PpPolicy {
         } else {
           yaw_align_pending_.store(false);
           yaw_align_defer_ticks_ = 0;
+          if (cfg_.kernel_mode) kernel_odometry_.Reset();
           yaw0_base_inv_ = quat_inv(yaw_quat(st.base_quat_w));
           yaw0_torso_inv_ = quat_inv(yaw_quat(st.torso_quat_w));
         const auto yaw_deg = [](const Vec4& q) {
@@ -1474,6 +1806,17 @@ class PpPolicy {
     oracle_age_s_ = -1.0;
     std::uint64_t localization_seq = 0;
     switch (cfg_.loc_mode) {
+      case LocMode::kKernelImuLocal: {
+        // IMU attitudes above are relative to the heading captured on entry.
+        // Stance-foot anchors estimate local translation; UpdateBaseMotion_
+        // filters its velocity with the model's normal observation contract.
+        // This is not authoritative mocap: slip and flight remain unobserved.
+        st.base_pos_w = kernel_odometry_.Step(st.q, st.qd, st.base_quat_w, st.base_ang_vel_b, cfg_.dt);
+        localization_seq = tick_idx + 1;
+        st.torso_pos_w = torso_pos_from_base(st.base_pos_w, st.base_quat_w, st.q);
+        base_fresh_ = false;
+        break;
+      }
       case LocMode::kOracle: {  // ===== C: SIMULATION ONLY (true MuJoCo pose) =====
         PpOracleSample s;
         if (oracle_ && oracle_->Latest(s, cfg_.oracle_max_age_s)) {
@@ -1571,8 +1914,12 @@ class PpPolicy {
     }
     const bool localized_base =
         (cfg_.loc_mode == LocMode::kOracle && oracle_fresh_) ||
-        (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_);
+        (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_) || cfg_.kernel_mode;
     UpdateBaseMotion_(tick_idx, st.base_pos_w, localized_base, localization_seq);
+    validate_hitter_pingpong_continuous_v4_mocap_observation(
+        onnx_.uses_hitter_pure_headslots_vxy_obs() && !cfg_.kernel_mode, base_fresh_,
+        base_velocity_xy_valid_,
+        {base_velocity_xy_est_[0], base_velocity_xy_est_[1]});
     st.base_velocity_xy_w = base_velocity_xy_valid_ ? base_velocity_xy_est_ : Vec2::Zero();
     if (onnx_.uses_position_mocap_obs()) {
       const double max_age = onnx_.base_localization_max_age_s();
@@ -1580,11 +1927,15 @@ class PpPolicy {
           ? std::clamp(oracle_age_s_ / max_age, 0.0, 1.0)
           : 1.0;
     }
-    if (rally_final_station_control_ && localized_base && !station_session_origin_set_) {
+    if ((rally_final_station_control_ ||
+         onnx_.uses_home_preempt_rally_contract() ||
+         onnx_.uses_native_tail_home_rally_contract() ||
+         onnx_.uses_build2_rapid_preempt_contract()) &&
+        localized_base && !station_session_origin_set_) {
       station_session_origin_w_ = Vec2(st.base_pos_w[0], st.base_pos_w[1]);
       station_session_origin_set_ = true;
       std::fprintf(stderr,
-          "[pp station] session origin=(%+.3f,%+.3f); absolute trained box "
+          "[pp station] localized MOTION-entry HOME=(%+.3f,%+.3f); absolute trained box "
           "x[%.2f,%.2f] y[%.2f,%.2f]\n",
           station_session_origin_w_[0], station_session_origin_w_[1],
           hp_base_target_range_[0], hp_base_target_range_[1],
@@ -1714,8 +2065,8 @@ class PpPolicy {
           // commanding the exact default and must not introduce a new
           // default->measured command step at the controller boundary.
           planner_static_q0_ = serve_static_handoff_pending_
-              ? nominal_q_sdk_
-              : (state.q.size() == kNumJoints ? state.q : nominal_q_sdk_);
+              ? official_stand_q_sdk_
+              : (state.q.size() == kNumJoints ? state.q : official_stand_q_sdk_);
           const bool from_serve = serve_static_handoff_pending_;
           serve_static_handoff_pending_ = false;
           // The policy is out of control from here until the next engage: arm the
@@ -1725,6 +2076,10 @@ class PpPolicy {
           const RuntimeHandoffReset handoff =
               runtime_handoff_reset(onnx_.has_bounded_qdes_contract());
           last_action_.setZero();
+          core_action_shadow_owned_.setZero();
+          // v12 slew: the STATIC stand holds nominal (= default_q); the policy resumes
+          // from q_hat_prev = default_q exactly like a training reset.
+          qdes_slew_initialized_ = false;
           last_action_seed_pending_ = handoff.seed_measured_qdes_feedback;
           if (handoff.seed_measured_qdes_feedback)
             qdes_projector_initialized_ = false;
@@ -1739,7 +2094,7 @@ class PpPolicy {
         const double a = std::min(1.0,
             (tick_idx - planner_static_start_tick_) * cfg_.dt /
                 std::max(cfg_.hold_blend_s, 1e-3));
-        cmd.q_des = (1.0 - a) * planner_static_q0_ + a * nominal_q_sdk_;
+        cmd.q_des = (1.0 - a) * planner_static_q0_ + a * official_stand_q_sdk_;
         cmd.dq_des = Eigen::VectorXd::Zero(kNumJoints);
         cmd.tau_ff = Eigen::VectorXd::Zero(kNumJoints);
         cmd.kp = official_kp_sdk_;
@@ -1758,10 +2113,44 @@ class PpPolicy {
     // racket-reach x (so the footwork policy is not commanded to walk to a fixed world point
     // during the hold — the wbc_runner rest-hold semantics). Untouched when not planner_mode.
     if (cfg_.planner_mode) {
-      if (planner_engaged_) {   // active swing -> frozen world target
+      if (hitter_optional_reach_active_flight(
+              planner_engaged_, level_.load())) {
+        // Active swing -> frozen world target. A safety/guard transition to
+        // level 0 invalidates the active-flight view immediately even if the
+        // lifecycle cleanup runs on the following control tick.
         tg.pos_w = planner_frozen_pos_w_;
         tg.vel_w = planner_frozen_vel_w_;
+        // Position, velocity, timing, side and optional-reach labels cross the same flight
+        // commit edge. Same-flight stream refinements may update only position/velocity; the
+        // permission tuple remains frozen until the next cold/rapid flight commit.
+        if (onnx_.uses_schema27_optional_reach_obs()) {
+          tg.reach_level = planner_frozen_reach_level_;
+          tg.swing_foot_sign = planner_frozen_swing_foot_sign_;
+        }
       } else if (onnx_.is_hitter_pure_obs()) {
+        if (onnx_.uses_late_reveal_raw_tts_contract()) {
+          // Training hides the final side/target throughout WAIT. Publish the recipe's one
+          // station-anchored pending tuple until COMMIT atomically reveals the Planner tuple.
+          // V1/v2 used zero pending velocity; v3 deliberately supplies its trained nonzero
+          // sentinel. The 110-D actor has no swing-sign field, so target+velocity+TTS carry the
+          // complete WAIT/ACTIVE distinction without changing observation shape.
+          const auto& pending = onnx_.hitter_pingpong_pending_target();
+          const Vec2 anchor_xy = hold_station_set_
+              ? hold_station_w_
+              : Vec2(st.base_pos_w[0], st.base_pos_w[1]);
+          tg.pos_w = Vec3(anchor_xy[0] + pending[0],
+                          anchor_xy[1] + pending[1], pending[2]);
+          if (onnx_.uses_continuous_rally_v3_contract() ||
+              onnx_.uses_continuous_rally_v4_contract()) {
+            const auto& pending_velocity =
+                onnx_.hitter_pingpong_pending_velocity();
+            tg.vel_w = Vec3(
+                pending_velocity[0], pending_velocity[1],
+                pending_velocity[2]);
+          } else {
+            tg.vel_w = Vec3::Zero();
+          }
+        } else {
         // 110 hitter_pure idle (2026-07-08 fix, from the first rally-gate fall): the hold
         // target must be WORLD-FIXED at the hold-station anchor — the same obs family as
         // the Gate-2.5-proven scripted hold (world-fixed box-center target + box-center
@@ -1791,6 +2180,7 @@ class PpPolicy {
                             : 0.5 * (hp_z_band_[hc][0] + hp_z_band_[hc][1]));
         tg.vel_w = planner_pending_station_active_
             ? planner_pending_vel_w_ : cfg_.racket_vel_w_clip[hc];
+        }
       } else {                  // idle/rest (incl. before the first engage) -> base-anchored hold
         const Vec4 base_yaw = yaw_quat(st.base_quat_w);
         Vec3 hb(cfg_.hold_anchor_x_b, planner_hold_pos_b_engage_[1], 0.0);
@@ -1801,6 +2191,26 @@ class PpPolicy {
     }
 
     last_proj_grav_ = projected_gravity_body(st.base_quat_w);
+
+    // RECOVERY ENVELOPE (Layer C): classify this tick from actor-visible quantities only
+    // (HOME distance of the held/fresh mocap base, the obs-path filtered base speed, and
+    // the obs-path projected-gravity tilt). PlannerEngageStep_ consumes the level on the
+    // NEXT tick (the same one-tick lag the planner already has on the base pose). The v12
+    // slew below reuses the same tilt/speed for its leg budget.
+    UpdateRecoveryEnvelope_(tick_idx, st);
+    tg.signed_external_reach = tg.reach_level * tg.swing_foot_sign;
+    tg.signed_replant_need = schema34_signed_replant_need_;
+    if (onnx_.uses_schema34_step_task_obs() && station_session_origin_set_) {
+      const auto fk = footstep_kinematics(st);
+      const auto rb = mat_from_quat(st.base_quat_w);
+      const bool body_ready = (st.base_pos_w.head<2>() - station_session_origin_w_).norm() <= .04 &&
+          st.base_velocity_xy_w.norm() <= .12 && std::abs(std::atan2(rb(1, 0), rb(0, 0))) <= .12 &&
+          std::acos(std::clamp(rb(2, 2), -1., 1.)) <= .14;
+      footstep_task_.Step(fk, station_session_origin_w_, 0., tg.reach_level, tg.swing_foot_sign, tg.time_to_strike, cfg_.dt, body_ready, footstep_task_have_tick_);
+      footstep_task_have_tick_ = true;
+      tg.signed_replant_need = footstep_task_.signed_phase();
+      tg.footstep_task_errors = footstep_task_.errors(fk);
+    }
 
     // 177-D hitter_footwork base-station channel (base_target_pos_b = yaw-frame Δxy from the
     // current base to the commanded station). During a swing the station rides the SAME reach
@@ -1813,28 +2223,55 @@ class PpPolicy {
     // it removes the only anchor and the policy free-wanders meters during holds, then falls
     // off-station (2026-07-06 MuJoCo deploy-faithful CSV phase analysis: falls at |torso|
     // 1-2 m with ±0.1 m stations; live-station holds: model_17400 0 falls x 3 seeds).
-    // Δ=0 remains ONLY the localization-dropout fallback (perfect_tracking / fabricated /
-    // stale mocap/oracle), where any nonzero Δ would be fictional and chased open-loop.
+    // Δ=0 remains ONLY the cold-start localization fallback, before a verified station exists.
+    // During a transient/stale sample repair-v3 keeps the held base pose and last verified world
+    // station, matching its training exposure. Legacy 177-D and earlier 110-D artifacts retain
+    // their historical delta-zero fallback; their training semantics are outside this repair.
     // 2026-07-07: the fixed-world anchor now applies to 110-D hitter_pure TOO (it was Δ=0
     // at idle — see the idle_station_dzero_110 branch below for the refuting evidence).
     if (onnx_.obs_dim() == kObsDim177 || onnx_.is_hitter_pure_obs()) {
-      const bool base_real =
+      const bool base_tracks_translation =
           (cfg_.loc_mode == LocMode::kOracle && oracle_fresh_) ||
-          (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_);
-      if (!base_real) {
-        tg.base_target_xy = Vec2(st.base_pos_w[0], st.base_pos_w[1]);  // dropout: Δ=0
-        // Preserve the last verified world anchor through a transient/stale sample.  The
-        // current tick still receives the safe fictional-motion fallback (Δ=0), while
-        // recovery resumes toward the SAME station once localization becomes fresh again.
-        // Session/runtime resets remain the only paths that intentionally discard the anchor.
+          (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_) || cfg_.kernel_mode;
+      if (!base_tracks_translation) {
+        if (onnx_.is_hitter_pingpong_recovery_tts_recipe()) {
+          tg.base_target_xy = Vec2(
+              planner_stale_station_coordinate(
+                  hold_station_set_, hold_station_w_[0], st.base_pos_w[0]),
+              planner_stale_station_coordinate(
+                  hold_station_set_, hold_station_w_[1], st.base_pos_w[1]));
+        } else {
+          tg.base_target_xy = Vec2(st.base_pos_w[0], st.base_pos_w[1]);
+        }
       } else if (level_.load() == 1) {
-        const int c = clip_id_from_swing_sign(tg.swing_sign);
-        // stay-if-reachable (rally_v8): the in-swing station channel must agree with the
-        // engage-derived station — an in-band target keeps the held station instead of
-        // re-centering, so the policy sees the SAME "stay" command it trained on.
-        tg.base_target_xy = station_from_target_(Vec2(tg.pos_w[0], tg.pos_w[1]), c);
-        hold_station_w_ = tg.base_target_xy;  // post-swing hold recovers AT the strike station
-        hold_station_set_ = true;
+        if (onnx_.uses_small_station_contract() && cfg_.planner_mode &&
+            hold_station_set_) {
+          // COMMIT owns the absolute SmallStation command. Re-deriving it from
+          // the racket box here bypasses the commit projection and overwrites
+          // both the actor's active command and its subsequent WAIT anchor.
+          tg.base_target_xy = hold_station_w_;
+        } else if (onnx_.uses_build2_fixed_home_contract() &&
+            station_session_origin_set_) {
+          // Schema23 has one immutable session HOME.  Ball position and side may change the
+          // racket command, but no phase is allowed to turn either into a new base station.
+          tg.base_target_xy = station_session_origin_w_;
+          hold_station_w_ = station_session_origin_w_;
+          hold_station_set_ = true;
+        } else if (onnx_.uses_native_tail_home_rally_contract() &&
+            native_tail_home_recovery_latched_ &&
+            station_session_origin_set_) {
+          tg.base_target_xy = station_session_origin_w_;
+          hold_station_w_ = station_session_origin_w_;
+          hold_station_set_ = true;
+        } else {
+          const int c = clip_id_from_swing_sign(tg.swing_sign);
+          // stay-if-reachable (rally_v8): the in-swing station channel must agree with the
+          // engage-derived station — an in-band target keeps the held station instead of
+          // re-centering, so the policy sees the SAME "stay" command it trained on.
+          tg.base_target_xy = station_from_target_(Vec2(tg.pos_w[0], tg.pos_w[1]), c);
+          hold_station_w_ = tg.base_target_xy;  // post-swing hold recovers AT the strike station
+          hold_station_set_ = true;
+        }
       } else if (onnx_.obs_dim() == kObsDim110 && cfg_.idle_station_dzero_110) {
         // LEGACY 110 idle: Δ=0 (station := current base). First design, justified as
         // "hitter_pure trains NO hold so idle never demands station-keeping" — REFUTED by the
@@ -1895,8 +2332,8 @@ class PpPolicy {
       last_target_vel_w_ = tg.vel_w;
     }
 
-    // 175-D deploy_parity vs 177-D hitter_footwork vs 180-D full (model_15200) vs 110-D
-    // hitter_pure. Auto-selected from the loaded ONNX input dim. build_obs_175 drops
+    // 175-D deploy_parity vs 177-D hitter_footwork vs 180-D full (model_15200) vs
+    // 110/112/127-D hitter_pure. Auto-selected from the loaded ONNX input dim. build_obs_175 drops
     // motion_anchor_pos_b + base_target_pos_b and reframes the racket target relative to the
     // CURRENT racket FK (pp_racket_fk.hpp) — no world base pos. build_obs_177 = the 175 layout
     // + base_target_pos_b(2) re-inserted (above). build_obs_110 = HITTER Table-I exact: NO
@@ -1919,12 +2356,39 @@ class PpPolicy {
       }
       last_action_seed_pending_ = false;
     }
-    const Eigen::VectorXd obs = (onnx_.obs_dim() == kObsDim118)
+    if (onnx_.uses_schema27_optional_reach_obs() &&
+        (onnx_.optional_reach_runtime_enabled()
+             ? !hitter_optional_reach_tuple_is_legal(
+                   tg.reach_level, tg.swing_foot_sign)
+             : (tg.reach_level != 0.0 ||
+                tg.swing_foot_sign != 0.0))) {
+      throw std::runtime_error(
+          "Schema27 actor received reach permissions incompatible with its "
+          "enabled/disabled artifact contract");
+    }
+    const Eigen::VectorXd obs = onnx_.uses_compact_execution_obs()
+        ? BuildCompactObservation_(st, tg, tick_idx)
+        : (onnx_.obs_dim() == kObsDim118)
         ? build_obs_118(st, tg, last_action_, onnx_.default_q())
         : (onnx_.obs_dim() == kObsDim113)
         ? build_obs_113(st, tg, last_action_, onnx_.default_q())
+        : (onnx_.obs_dim() == kObsDim127)
+        ? build_obs_127_headslots_vxy_reach_core_shadow(
+              st, tg, last_action_, onnx_.default_q(),
+              core_action_shadow_owned_)
+        : (onnx_.obs_dim() == kObsDim112)
+        ? (onnx_.uses_schema34_step_task_obs()
+               ? build_obs_112_headslots_step_task(st, tg, last_action_, onnx_.default_q())
+               : onnx_.uses_schema34_signed_support_obs()
+               ? build_obs_112_headslots_vxy_signed_support(
+                     st, tg, last_action_, onnx_.default_q())
+               : build_obs_112_headslots_vxy_reach(
+                     st, tg, last_action_, onnx_.default_q()))
         : (onnx_.obs_dim() == kObsDim110)
-        ? build_obs_110(st, tg, last_action_, onnx_.default_q())
+        ? (onnx_.uses_hitter_pure_headslots_vxy_obs()
+               ? build_obs_110_headslots_vxy(
+                     st, tg, last_action_, onnx_.default_q())
+               : build_obs_110(st, tg, last_action_, onnx_.default_q()))
         : (onnx_.obs_dim() == kObsDim175)
         ? build_obs_175(refs, st, tg, last_action_, onnx_.default_q(), cfg_.use_imu_yaw_for_targets)
         : (onnx_.obs_dim() == kObsDim177)
@@ -1934,16 +2398,36 @@ class PpPolicy {
       throw std::runtime_error("ping-pong observation contains NaN/Inf");
     }
     { std::lock_guard<std::mutex> lk(obs_mu_); last_obs_ = obs; }  // for obs-debug
-    const Eigen::VectorXd action = onnx_.mean_action(obs, time_step);
+    Eigen::VectorXd action;
+    Eigen::VectorXd next_core_action_shadow;
+    if (onnx_.uses_schema28_core_shadow_obs()) {
+      auto outputs = onnx_.mean_action_and_core_shadow(obs, time_step);
+      action = std::move(outputs.first);
+      next_core_action_shadow = std::move(outputs.second);
+      if (next_core_action_shadow.size() != kCoreActionShadowDim ||
+          !PpAllFinite(next_core_action_shadow)) {
+        throw std::runtime_error(
+            "ping-pong ONNX core shadow has wrong size or contains NaN/Inf");
+      }
+    } else {
+      action = onnx_.mean_action(obs, time_step);
+    }
     if (action.size() != kNumJoints || !PpAllFinite(action)) {
       throw std::runtime_error("ping-pong ONNX action has wrong size or contains NaN/Inf");
+    }
+    if (onnx_.uses_schema28_core_shadow_obs()) {
+      core_action_shadow_owned_ = std::move(next_core_action_shadow);
     }
     const Eigen::VectorXd tq_nominal_isaac = onnx_.target_q(action);
     if (tq_nominal_isaac.size() != kNumJoints || !PpAllFinite(tq_nominal_isaac)) {
       throw std::runtime_error("ping-pong decoded target_q has wrong size or contains NaN/Inf");
     }
-    const Eigen::VectorXd tq_isaac =
-        ProjectBoundedQdes_(tq_nominal_isaac, st.q, st.qd);
+    // v12_affine_safe_slew_qdes_v1: stateful per-tick slew of the V11 nominal (leg budget
+    // scaled by this tick's actor-visible tilt/speed). The bounded projector NEVER runs
+    // for v12; every other contract keeps its existing path.
+    const Eigen::VectorXd tq_isaac = onnx_.has_v12_affine_safe_slew_qdes_contract()
+        ? ApplyV12SlewQdes_(action, tq_nominal_isaac)
+        : ProjectBoundedQdes_(tq_nominal_isaac, st.q, st.qd);
     if (!PpAllFinite(tq_isaac))
       throw std::runtime_error("ping-pong projected target_q contains NaN/Inf");
 
@@ -2081,9 +2565,13 @@ class PpPolicy {
           safe_interval_max_excess_[sdk] =
               std::max(safe_interval_max_excess_[sdk], excess);
           if (!cfg_.gate3_qdes_audit_only) {
-            throw std::runtime_error(
-                "ping-pong QDES SAFETY FAULT: final plant q_des escapes ONNX safe "
-                "interval for joint '" + onnx_.joint_names()[i] + "'");
+            std::ostringstream detail;
+            detail.precision(17);
+            detail << "ping-pong QDES SAFETY FAULT: final plant q_des escapes ONNX safe "
+                   << "interval for joint '" << onnx_.joint_names()[i]
+                   << "': q=" << q_sdk[sdk] << " lo=" << onnx_.qdes_safe_lo()[i]
+                   << " hi=" << onnx_.qdes_safe_hi()[i] << " excess=" << excess;
+            throw std::runtime_error(detail.str());
           }
         }
       }
@@ -2172,6 +2660,17 @@ class PpPolicy {
       qdes_projected_isaac_ = from_sdk_order(q_sdk, isaac_to_sdk_);
       qdes_projector_initialized_ = true;
       last_action_ = onnx_.qdes_feedback(qdes_projected_isaac_);
+    } else if (onnx_.has_v12_affine_safe_slew_qdes_contract()) {
+      // Commit the FINAL Runner command, including downstream overrides/hard clamp.
+      // ApplyV12SlewQdes runs before those operations; its provisional feedback must
+      // never seed the next tick after a downstream operation changed the target.
+      qdes_slew_hat_isaac_ = from_sdk_order(q_sdk, isaac_to_sdk_);
+      const auto& default_q = onnx_.default_q();
+      const auto& action_scale = onnx_.action_scale();
+      CommitV12FinalTarget(kNumJoints, qdes_slew_hat_isaac_.data(), default_q.data(),
+          action_scale.data(), qdes_slew_passive_mask_.data(),
+          qdes_slew_hat_isaac_.data(), qdes_slew_feedback_isaac_.data());
+      last_action_ = qdes_slew_feedback_isaac_;
     } else {
       last_action_ = action;
     }
@@ -2200,7 +2699,7 @@ class PpPolicy {
   int last_time_step() const { return last_time_step_; }
   Vec3 last_proj_grav() const { return last_proj_grav_; }
   bool authoritative_mocap_required() const {
-    return onnx_.uses_authoritative_mocap_pose();
+    return onnx_.uses_authoritative_mocap_pose() && !cfg_.kernel_mode;
   }
   bool authoritative_mocap_fresh() const {
     return !authoritative_mocap_required() || base_fresh_;
@@ -2267,8 +2766,94 @@ class PpPolicy {
     return w;
   }
   bool bounded_qdes_active() const { return onnx_.has_bounded_qdes_contract(); }
+  double actual_q_hard_tolerance_rad() const {
+    return onnx_.has_safe_qdes_interval_contract()
+        ? onnx_.qdes_actual_q_hard_tolerance_rad() : 0.0;
+  }
+  bool actual_q_hard_audit_only() const {
+    return actual_q_hard_limit_audit_only(cfg_.gate3_qdes_audit_only,
+        onnx_.has_safe_qdes_interval_contract(), onnx_.qdes_actual_q_hard_audit_only());
+  }
+  int actual_q_hard_violation_count() const {
+    return last_actual_q_hard_violation_count_;
+  }
+  double actual_q_hard_max_excess_rad() const {
+    return last_actual_q_hard_max_excess_rad_;
+  }
+  double actual_q_hard_lo_for_backend(int slot) const {
+    if (slot < 0 || slot >= kNumJoints) return 0.0;
+    if (!onnx_.has_safe_qdes_interval_contract()) return kSdkJointPosLo[slot];
+    for (int i = 0; i < kNumJoints; ++i)
+      if (isaac_to_sdk_[i] == slot) return onnx_.qdes_hard_lo()[i];
+    return 0.0;
+  }
+  double actual_q_hard_hi_for_backend(int slot) const {
+    if (slot < 0 || slot >= kNumJoints) return 0.0;
+    if (!onnx_.has_safe_qdes_interval_contract()) return kSdkJointPosHi[slot];
+    for (int i = 0; i < kNumJoints; ++i)
+      if (isaac_to_sdk_[i] == slot) return onnx_.qdes_hard_hi()[i];
+    return 0.0;
+  }
+  double actual_q_hard_excess_for_backend(int slot) const {
+    return (slot >= 0 && slot < kNumJoints)
+        ? last_actual_q_hard_excess_sdk_[slot] : 0.0;
+  }
   std::uint64_t qdes_projector_ticks() const { return qdes_projector_ticks_; }
   int qdes_projector_active_count() const { return last_qdes_projector_active_count_; }
+  // --- v12_affine_safe_slew_qdes_v1 telemetry (per policy tick) ---
+  bool v12_slew_active() const { return onnx_.has_v12_affine_safe_slew_qdes_contract(); }
+  // Called after every final Runner/body override and transport attempt. A
+  // failed send restores the last published target instead of feeding a
+  // command the transport rejected back into the policy. Hardware-internal
+  // clamps/holds still require an execution ACK; SendCommand cannot prove them.
+  Eigen::VectorXd BuildCompactObservation_(const PpRobotState& state, const PpRacketTarget& target, std::uint64_t tick) {
+    if (compact_observation_cache_.size() == 324 && compact_observation_tick_ == tick)
+      return compact_observation_cache_;
+    const auto prefix_vec = build_obs_112_headslots_vxy_reach(state, target, last_action_, onnx_.default_q());
+    CompactExecutionHistory324::Prefix prefix{};
+    CompactExecutionHistory324::Joints sent{}, actual{};
+    std::copy(prefix_vec.data(), prefix_vec.data() + 112, prefix.begin());
+    for (int i = 0; i < kNumJoints; ++i) {
+      sent[i] = have_delivered_qdes_ ? last_delivered_qdes_sdk_[isaac_to_sdk_[i]] : onnx_.default_q()[i];
+      actual[i] = state.q[i];
+    }
+    const auto result = compact_history_.Build(prefix, sent, actual, tick);
+    compact_observation_cache_ = Eigen::Map<const Eigen::VectorXd>(result.data(), result.size());
+    compact_observation_tick_ = tick;
+    return compact_observation_cache_;
+  }
+
+  void RecordCommandDelivery(const robot_io::RobotCommand& cmd, bool sent) {
+    if (!onnx_.has_v12_affine_safe_slew_qdes_contract()) return;
+    if (sent) {
+      last_delivered_qdes_sdk_ = cmd.q_des;
+      have_delivered_qdes_ = true;
+    }
+    const auto& q = have_delivered_qdes_ ? last_delivered_qdes_sdk_ : nominal_q_sdk_;
+    const auto& default_q = onnx_.default_q();
+    const auto& scale = onnx_.action_scale();
+    for (int i = 0; i < kNumJoints; ++i) {
+      qdes_slew_hat_isaac_[i] = q[isaac_to_sdk_[i]];
+      qdes_slew_passive_mask_[i] = isaac_to_sdk_[i] == kHeadSlot0 || isaac_to_sdk_[i] == kHeadSlot1;
+    }
+    CommitV12FinalTarget(kNumJoints, qdes_slew_hat_isaac_.data(), default_q.data(),
+        scale.data(), qdes_slew_passive_mask_.data(),
+        qdes_slew_hat_isaac_.data(), qdes_slew_feedback_isaac_.data());
+    qdes_slew_initialized_ = have_delivered_qdes_;
+    last_action_ = qdes_slew_feedback_isaac_;
+  }
+
+  std::uint64_t qdes_slew_ticks() const { return qdes_slew_ticks_; }
+  double qdes_slew_scale() const { return last_qdes_slew_scale_; }
+  int qdes_slew_saturated_count() const { return last_qdes_slew_saturated_count_; }
+  int qdes_slew_saturated_leg_count() const { return last_qdes_slew_saturated_leg_count_; }
+  double qdes_slew_max_clip_rad() const { return last_qdes_slew_max_clip_rad_; }
+  std::uint64_t qdes_slew_saturated_ticks() const { return qdes_slew_saturated_ticks_; }
+  double qdes_slew_max_clip_rad_session() const { return qdes_slew_max_clip_rad_session_; }
+  // --- RECOVERY ENVELOPE (Layer C) ---
+  RecoveryEnvelopeMode envelope_mode() const { return envelope_mode_; }
+  const char* envelope_mode_name() const { return RecoveryEnvelopeModeName(envelope_mode_); }
+  int envelope_level() const { return envelope_.level(); }
   int qdes_projector_rate_count() const { return last_qdes_projector_rate_count_; }
   int qdes_projector_tracking_count() const {
     return last_qdes_projector_tracking_count_;
@@ -2314,10 +2899,14 @@ class PpPolicy {
   }
   Vec3 last_base_pos() const { return last_base_pos_; }
   const Eigen::VectorXd& last_action() const { return last_action_; }
+  const Eigen::VectorXd& core_action_shadow_owned() const {
+    return core_action_shadow_owned_;
+  }
   const std::array<int, 31>& isaac_to_sdk() const { return isaac_to_sdk_; }
   PpOnnxPolicy& onnx() { return onnx_; }
 
  private:
+  KernelStanceOdometry kernel_odometry_;
   void ApplyFixedYHomingObservation_(PpRacketTarget& target,
                                      const Vec2& measured_base_xy,
                                      bool in_hold,
@@ -2628,6 +3217,131 @@ class PpPolicy {
     return projected;
   }
 
+  // v12_affine_safe_slew_qdes_v1 runner step. `nominal_isaac` is target_q(action) (the V11
+  // affine-safe request); the pure vector helper recomputes the same value internally from
+  // the same inputs and slews toward it from the previous EXECUTED target. Head slots are
+  // pinned to default_q (no slew, feedback 0). The leg budget uses this tick's envelope
+  // tilt/speed (computed in UpdateRecoveryEnvelope_ before the policy ran).
+  Eigen::VectorXd ApplyV12SlewQdes_(const Eigen::VectorXd& action,
+                                    const Eigen::VectorXd& nominal_isaac) {
+    if (action.size() != kNumJoints || nominal_isaac.size() != kNumJoints)
+      throw std::runtime_error("v12 slew received a non-31D action/nominal vector");
+    const auto& default_q = onnx_.default_q();
+    const auto& action_scale = onnx_.action_scale();
+    const auto& safe_lo = onnx_.qdes_safe_lo();
+    const auto& safe_hi = onnx_.qdes_safe_hi();
+    const auto& slew = onnx_.qdes_slew_limit_rad_per_tick();
+    const auto& leg_mask = onnx_.qdes_slew_leg_mask();
+    if (default_q.size() != kNumJoints || action_scale.size() != kNumJoints ||
+        safe_lo.size() != kNumJoints || safe_hi.size() != kNumJoints ||
+        slew.size() != kNumJoints || leg_mask.size() != kNumJoints)
+      throw std::runtime_error("v12 slew ONNX metadata arrays are not 31-D");
+    if (!qdes_slew_initialized_) {
+      qdes_slew_hat_isaac_ = default_q;
+      for (int i = 0; i < kNumJoints; ++i)
+        qdes_slew_passive_mask_[i] =
+            isaac_to_sdk_[i] == kHeadSlot0 || isaac_to_sdk_[i] == kHeadSlot1;
+      qdes_slew_initialized_ = true;
+    }
+    Eigen::VectorXd q_hat(kNumJoints);
+    Eigen::VectorXd feedback(kNumJoints);
+    const V12SlewVectorTelemetry t = ApplyV12SlewSafeQdesVector(
+        kNumJoints, action.data(), default_q.data(), action_scale.data(),
+        safe_lo.data(), safe_hi.data(), qdes_slew_hat_isaac_.data(), slew.data(),
+        leg_mask.data(), qdes_slew_passive_mask_.data(), envelope_tilt_rad_,
+        envelope_speed_mps_, onnx_.qdes_slew_scale_params(), q_hat.data(),
+        feedback.data());
+    if (!PpAllFinite(q_hat) || !PpAllFinite(feedback))
+      throw std::runtime_error("v12 slew produced a non-finite q_hat/feedback");
+    // Drift guard: the executable-joint nominal decoded by target_q must be what the slew
+    // walked toward (both call ComputeV11AffineSafeQdes on identical inputs).
+    for (int i = 0; i < kNumJoints; ++i) {
+      if (qdes_slew_passive_mask_[i]) continue;
+      const double expected = ComputeV11AffineSafeQdes(
+          action[i], default_q[i], action_scale[i], safe_lo[i], safe_hi[i]);
+      if (std::fabs(expected - nominal_isaac[i]) > 1.0e-12)
+        throw std::runtime_error(
+            "v12 slew nominal drifted from target_q() at Isaac joint " + std::to_string(i));
+    }
+    qdes_slew_hat_isaac_ = q_hat;
+    qdes_slew_feedback_isaac_ = feedback;
+    last_qdes_slew_scale_ = t.scale;
+    last_qdes_slew_saturated_count_ = t.saturated_count;
+    last_qdes_slew_saturated_leg_count_ = t.saturated_leg_count;
+    last_qdes_slew_max_clip_rad_ = t.max_clip_rad;
+    qdes_slew_max_clip_rad_session_ =
+        std::max(qdes_slew_max_clip_rad_session_, t.max_clip_rad);
+    if (t.saturated_count > 0) ++qdes_slew_saturated_ticks_;
+    ++qdes_slew_ticks_;
+    return q_hat;
+  }
+
+  // RECOVERY ENVELOPE (Layer C) per-tick classification. Inputs are exactly the
+  // actor-visible quantities of the obs path: st.base_pos_w (held pose when mocap is
+  // stale), st.base_velocity_xy_w (zero when stale), projected gravity of st.base_quat_w.
+  // HOME distance is NaN until the localized session HOME exists -> L3 (fail closed; in
+  // production that only blocks what localized_session_home_unset already blocks).
+  void UpdateRecoveryEnvelope_(std::uint64_t tick_idx, const PpRobotState& st) {
+    envelope_tilt_rad_ = TiltFromProjectedGravity(last_proj_grav_[0], last_proj_grav_[1]);
+    envelope_speed_mps_ = st.base_velocity_xy_w.norm();
+    envelope_home_dist_m_ = station_session_origin_set_
+        ? (Vec2(st.base_pos_w[0], st.base_pos_w[1]) - station_session_origin_w_).norm()
+        : NAN;
+    // Schema33 support-geometry channel: both soles from leg FK + the same actor-visible
+    // mocap pelvis pose, against the analytic HOME anchors used in training
+    // (HOME +/- 0.134 m along world +y, zero stagger, HOME yaw 0).  NaN before the
+    // session HOME exists so it cannot change the level (the pelvis channels already
+    // fail closed there).
+    envelope_support_anchor_error_m_ = NAN;
+    schema34_signed_replant_need_ = 0.0;
+    if (station_session_origin_set_ && st.q.size() >= 21) {
+      const std::array<Vec3, 2> soles =
+          sole_positions_w(st.q, st.base_pos_w, st.base_quat_w);
+      const Vec2 left_anchor = station_session_origin_w_ + Vec2(0.0, 0.5 * 0.268);
+      const Vec2 right_anchor = station_session_origin_w_ - Vec2(0.0, 0.5 * 0.268);
+      const double left_err = (Vec2(soles[0][0], soles[0][1]) - left_anchor).norm();
+      const double right_err = (Vec2(soles[1][0], soles[1][1]) - right_anchor).norm();
+      if (std::isfinite(left_err) && std::isfinite(right_err))
+        envelope_support_anchor_error_m_ = std::max(left_err, right_err);
+
+      // Schema34 column 111 matches training's current ankle-roll LINK origins (not sole
+      // contact points), deterministic farther-foot tie break, and smoothstep over 2.5--5 cm.
+      // It reads no contact, force, latch, or hidden phase.
+      const std::array<Vec3, 2> ankles =
+          ankle_roll_positions_w(st.q, st.base_pos_w, st.base_quat_w);
+      const double left_ankle_err =
+          (Vec2(ankles[0][0], ankles[0][1]) - left_anchor).norm();
+      const double right_ankle_err =
+          (Vec2(ankles[1][0], ankles[1][1]) - right_anchor).norm();
+      if (std::isfinite(left_ankle_err) && std::isfinite(right_ankle_err)) {
+        const bool farther_left = left_ankle_err >= right_ankle_err;
+        const double farther_err = farther_left ? left_ankle_err : right_ankle_err;
+        const double normalized = std::clamp((farther_err - 0.025) / 0.025, 0.0, 1.0);
+        const double strength = normalized * normalized * (3.0 - 2.0 * normalized);
+        schema34_signed_replant_need_ = (farther_left ? 1.0 : -1.0) * strength;
+      }
+    }
+    const RecoveryEnvelopeMonitor::Update u = envelope_.Step(
+        envelope_home_dist_m_, envelope_speed_mps_, envelope_tilt_rad_,
+        std::max(cfg_.dt, 0.0), envelope_support_anchor_error_m_);
+    if (u.changed) {
+      std::fprintf(stderr,
+          "[pp envelope] tick=%llu level %d -> %d (instant=%d mode=%s) home_dist=%.3f m "
+          "speed=%.3f m/s tilt=%.2f deg support_anchor_err=%.3f m%s\n",
+          static_cast<unsigned long long>(tick_idx), u.previous_level, u.level,
+          u.instant_level, RecoveryEnvelopeModeName(envelope_mode_),
+          envelope_home_dist_m_, envelope_speed_mps_,
+          envelope_tilt_rad_ * 180.0 / M_PI, envelope_support_anchor_error_m_,
+          envelope_mode_ == RecoveryEnvelopeMode::kProduction
+              ? (u.level >= kRecoveryEnvelopeLevelSafeHold
+                     ? " -> production: expire pending flight, block commits"
+                     : (u.level == kRecoveryEnvelopeLevelRecovering
+                            ? " -> production: block new flight commits"
+                            : " -> production: planner free"))
+              : " (capability: telemetry only)");
+    }
+  }
+
   void set_planner_status_(const char* s) {
     std::lock_guard<std::mutex> lk(planner_mu_);
     if (planner_status_ != s) planner_status_ = s;
@@ -2693,6 +3407,753 @@ class PpPolicy {
     }
   }
 
+  struct HitterPureTargetSupportCheck {
+    bool ok = false;
+    bool velocity_ok = false;
+    bool absolute_station_ok = false;
+    double base_step_m = 0.0;
+    double command_step_m = 0.0;
+  };
+
+  bool Schema27TargetInsideExportedSupport_(
+      const Vec3& pos_w, const Vec3& vel_w, double swing_sign) const {
+    if (!onnx_.optional_reach_runtime_enabled()) return true;
+    if (!station_session_origin_set_ || !pos_w.allFinite() ||
+        !vel_w.allFinite() ||
+        (swing_sign != -1.0 && swing_sign != 1.0)) {
+      return false;
+    }
+    const int clip = clip_id_from_swing_sign(swing_sign);
+    const auto& pos_boxes = onnx_.hp_pos_boxes();
+    const auto& vel_boxes = onnx_.hp_vel_boxes();
+    if (clip < 0 || clip >= 2 || pos_boxes.size() != 2 ||
+        vel_boxes.size() != 2) {
+      return false;
+    }
+    const Vec3 relative_pos(
+        pos_w.x() - station_session_origin_w_.x(),
+        pos_w.y() - station_session_origin_w_.y(), pos_w.z());
+    const bool schema28 = onnx_.uses_schema28_core_shadow_obs();
+    const auto inside = [schema28](const Vec3& value,
+                                   const std::array<double, 6>& box,
+                                   bool position) {
+      for (int axis = 0; axis < 3; ++axis) {
+        // Schema28's x support is a calibrated HOME-relative plane. The
+        // 1.5-mm tolerance is an explicit fail-closed engineering allowance
+        // for HOME/target sensing, not bank certification or a widened reach
+        // box. Every other axis remains closed at the exported envelope.
+        const double tolerance =
+            schema28 && position && axis == 0 ? 0.0015 : 0.0;
+        if (value[axis] < box[2 * axis] - tolerance ||
+            value[axis] > box[2 * axis + 1] + tolerance) {
+          return false;
+        }
+      }
+      return true;
+    };
+    return inside(relative_pos, pos_boxes[clip], true) &&
+           inside(vel_w, vel_boxes[clip], false);
+  }
+
+  // Legacy/schema21 idle admission retains its state-aware target/readiness gate here. Schema22
+  // cold-idle and busy admission both use the exact immutable command support instead: neither
+  // external edge may depend on measured base error or READY/settle state.
+  HitterPureTargetSupportCheck CheckHitterPureTargetSupport_(
+      int clip, const Vec3& pos_w, const Vec3& vel_w, const Vec2& station,
+      const Vec3& base_pos, const Vec2& transition_anchor) const {
+    HitterPureTargetSupportCheck out;
+    if (clip < 0 || clip >= 2 || !pos_w.allFinite() || !vel_w.allFinite() ||
+        !station.allFinite() || !base_pos.allFinite() ||
+        !transition_anchor.allFinite()) {
+      return out;
+    }
+    out.base_step_m =
+        (station - Vec2(base_pos[0], base_pos[1])).norm();
+    out.command_step_m = (station - transition_anchor).norm();
+    out.absolute_station_ok = true;
+    if (rally_final_station_control_) {
+      out.absolute_station_ok = station_session_origin_set_ &&
+          station[0] - station_session_origin_w_[0] >=
+              hp_base_target_range_[0] - cfg_.gate_station_step_margin &&
+          station[0] - station_session_origin_w_[0] <=
+              hp_base_target_range_[1] + cfg_.gate_station_step_margin &&
+          station[1] - station_session_origin_w_[1] >=
+              hp_base_target_range_[2] - cfg_.gate_station_step_margin &&
+          station[1] - station_session_origin_w_[1] <=
+              hp_base_target_range_[3] + cfg_.gate_station_step_margin;
+    }
+    out.velocity_ok = cfg_.vel_cmd_box_center || !hp_vel_box_set_ ||
+        vel_in_hp_box_(clip, vel_w);
+    out.ok = std::isfinite(out.base_step_m) &&
+        std::isfinite(out.command_step_m) &&
+        pos_w[2] >= hp_z_band_[clip][0] - cfg_.gate_z_margin &&
+        pos_w[2] <= hp_z_band_[clip][1] + cfg_.gate_z_margin &&
+        out.base_step_m <=
+            cfg_.gate_station_step_max + cfg_.station_ready_y_max &&
+        out.command_step_m <= cfg_.gate_station_step_max &&
+        out.absolute_station_ok &&
+        vel_w.norm() <= cfg_.gate_speed_max && out.velocity_ok;
+    return out;
+  }
+
+  PlannerRapidStaticCommandSupport CheckRapidStaticCommandSupport_(
+      int clip, int frame_code, const Vec3& pos_w,
+      const Vec3& effective_vel_w, const Vec2& station) const {
+    const bool velocity_ok =
+        rapid_velocity_in_exact_support_(clip, effective_vel_w);
+    return planner_schema22_exact_command_support(
+        clip, frame_code, pos_w[2], effective_vel_w.norm(), velocity_ok,
+        station[0], station[1], station_session_origin_set_,
+        station_session_origin_w_[0], station_session_origin_w_[1],
+        hp_z_band_[clip][0], hp_z_band_[clip][1],
+        rapid_velocity_exact_speed_max_(clip));
+  }
+
+  // Old schema-22 actors only observed HOME x and at most +/-6 cm of HOME y.
+  // Keep that base command inside the exported HOME-command support even when the real ball
+  // asks the arm to cover a larger target-space tail. The unprojected request
+  // is still classified and logged below so distribution-coverage debt remains
+  // visible rather than becoming a hidden runtime filter.
+  Vec2 ProjectSchema22StationToHome_(const Vec2& requested_station) const {
+    if (onnx_.uses_small_station_contract()) {
+      return Vec2(std::clamp(requested_station[0], station_session_origin_w_[0] + hp_base_target_range_[0],
+                            station_session_origin_w_[0] + hp_base_target_range_[1]),
+                  std::clamp(requested_station[1], station_session_origin_w_[1] + hp_base_target_range_[2],
+                            station_session_origin_w_[1] + hp_base_target_range_[3]));
+    }
+    if (onnx_.uses_build2_fixed_home_contract()) {
+      // Schema23 deliberately keeps requested_station only for distribution-coverage telemetry.
+      // The command channel itself is always the session HOME captured from localization.
+      return station_session_origin_w_;
+    }
+    const auto projected = planner_schema22_project_station_to_home(
+        requested_station[0], requested_station[1],
+        station_session_origin_set_, station_session_origin_w_[0],
+        station_session_origin_w_[1]);
+    return Vec2(projected[0], projected[1]);
+  }
+
+  bool ReportSchema22CoreBoxCoverage_(
+      const char* phase, std::uint64_t flight_id, int clip, int frame_code,
+      const Vec3& pos_w, const Vec3& effective_vel_w,
+      const Vec2& requested_station, const Vec2& commanded_station,
+      bool force) {
+    const auto support = CheckRapidStaticCommandSupport_(
+        clip, frame_code, pos_w, effective_vel_w, requested_station);
+    if (planner_schema22_core_box_coverage_disposition(support) ==
+        PlannerSchema22CoreBoxCoverageDisposition::kCovered) {
+      return false;
+    }
+    if (force || (gate_warn_tick_++ % 25) == 0) {
+      std::fprintf(
+          stderr,
+          "[pp distribution coverage] %s observed %s flight=%llu "
+          "outside_exported_core_box=1 frame=%d "
+          "requested_station=(%+.3f,%+.3f) "
+          "commanded_station=(%+.3f,%+.3f) abs_ok=%d "
+          "requested_step=%.3f step_ok=%d z=%+.3f z_ok=%d "
+          "vel=(%+.3f,%+.3f,%+.3f) speed_ok=%d vel_ok=%d\n",
+          phase, clip == 0 ? "fh" : "bh",
+          static_cast<unsigned long long>(flight_id), frame_code,
+          requested_station[0], requested_station[1], commanded_station[0],
+          commanded_station[1], support.absolute_station_ok ? 1 : 0,
+          support.command_step_m, support.command_step_ok ? 1 : 0,
+          pos_w[2], support.z_ok ? 1 : 0, effective_vel_w[0],
+          effective_vel_w[1], effective_vel_w[2],
+          support.speed_ok ? 1 : 0, support.velocity_ok ? 1 : 0);
+    }
+    return true;
+  }
+
+  void ClearRapidPreemptLedger_() {
+    planner_preempt_candidate_producer_epoch_ = 0;
+    planner_preempt_candidate_flight_id_ = 0;
+    planner_preempt_candidate_revision_id_ = 0;
+    planner_preempt_expired_producer_epoch_ = 0;
+    planner_preempt_expired_flight_id_ = 0;
+    planner_preempt_pending_active_ = false;
+    planner_preempt_pending_cmd_ = PpRacketMsg{};
+    planner_preempt_pending_last_fresh_steady_s_ = 0.0;
+    planner_preempt_busy_drop_producer_epoch_ = 0;
+    planner_preempt_busy_drop_flight_id_ = 0;
+  }
+
+  // Close the exact schema-2 flight currently frozen in the actor before any
+  // identity replacement or level-0 transition. The latched state is exported
+  // on every trace tick; only its monotonic sequence denotes a new edge.
+  bool CompleteSchema22FrozenFlight_(PlannerFlightCompletionKind kind) {
+    if (!onnx_.uses_build2_rapid_preempt_contract()) return true;
+    const PlannerFlightIdentity identity{
+        planner_frozen_producer_epoch_, planner_frozen_flight_id_};
+    if (!planner_record_flight_completion_once(
+            true, identity, kind, planner_completion_state_)) {
+      std::fprintf(
+          stderr,
+          "%s ERROR rejected duplicate/invalid completion kind=%s "
+          "producer_epoch=%llu flight=%llu retained_seq=%llu "
+          "retained_epoch=%llu retained_flight=%llu\n",
+          kPlannerCompletionLogPrefix,
+          planner_flight_completion_kind_name(kind),
+          static_cast<unsigned long long>(identity.producer_epoch),
+          static_cast<unsigned long long>(identity.flight_id),
+          static_cast<unsigned long long>(planner_completion_state_.sequence),
+          static_cast<unsigned long long>(
+              planner_completion_state_.completed_identity.producer_epoch),
+          static_cast<unsigned long long>(
+              planner_completion_state_.completed_identity.flight_id));
+      return false;
+    }
+    std::fprintf(
+        stderr,
+        "%s planner_completion_seq=%llu planner_completed_producer_epoch=%llu "
+        "planner_completed_flight_id=%llu planner_completion_kind=%s\n",
+        kPlannerCompletionLogPrefix,
+        static_cast<unsigned long long>(planner_completion_state_.sequence),
+        static_cast<unsigned long long>(identity.producer_epoch),
+        static_cast<unsigned long long>(identity.flight_id),
+        planner_flight_completion_kind_name(kind));
+    return true;
+  }
+
+  // Treat an explicitly authoritative producer epoch as part of every flight
+  // identity. Current schema-2 wire has no boot nonce and PpRacketTargetInput
+  // therefore pins this to one; these transitions remain fail-closed plumbing
+  // for a future schema that can prove an epoch change. At idle a new epoch
+  // clears the old admission ledger. During an active swing, its first flight
+  // is consumed as a baseline and cannot silently replace the old active one.
+  bool PrepareSchema22ProducerEpoch_(
+      const PpRacketTargetInput::Snapshot& snap, bool active_swing) {
+    const std::uint64_t old_epoch = planner_schema22_producer_epoch_;
+    const auto decision = planner_producer_epoch_decision(
+        snap.producer_epoch, old_epoch, active_swing);
+    switch (decision) {
+      case PlannerProducerEpochDecision::kInitialize:
+        planner_schema22_producer_epoch_ = snap.producer_epoch;
+        return true;
+      case PlannerProducerEpochDecision::kSame:
+        return true;
+      case PlannerProducerEpochDecision::kResetIdle:
+        planner_schema22_producer_epoch_ = snap.producer_epoch;
+        ClearRapidPreemptLedger_();
+        planner_have_consumed_shot_ = false;
+        planner_consumed_producer_epoch_ = 0;
+        planner_consumed_flight_id_ = 0;
+        planner_consumed_strike_time_ = 0.0;
+        RecordPlannerLifecycle_("producer_epoch_reset", "idle_ledger_reset");
+        std::fprintf(
+            stderr,
+            "[pp planner] producer epoch reset idle old=%llu new=%llu; "
+            "admission ledger cleared\n",
+            static_cast<unsigned long long>(old_epoch),
+            static_cast<unsigned long long>(snap.producer_epoch));
+        return true;
+      case PlannerProducerEpochDecision::kResetActiveBaseline:
+        planner_schema22_producer_epoch_ = snap.producer_epoch;
+        ClearRapidPreemptLedger_();
+        planner_consumed_producer_epoch_ = snap.producer_epoch;
+        planner_consumed_flight_id_ = snap.cmd.flight_id;
+        planner_consumed_strike_time_ = snap.cmd.strike_time;
+        planner_have_consumed_shot_ = true;
+        RecordPlannerLifecycle_(
+            "producer_epoch_reset", "active_first_flight_baseline");
+        std::fprintf(
+            stderr,
+            "[pp planner] producer epoch reset active old=%llu new=%llu; "
+            "flight=%llu baselined without changing active epoch=%llu flight=%llu\n",
+            static_cast<unsigned long long>(old_epoch),
+            static_cast<unsigned long long>(snap.producer_epoch),
+            static_cast<unsigned long long>(snap.cmd.flight_id),
+            static_cast<unsigned long long>(planner_frozen_producer_epoch_),
+            static_cast<unsigned long long>(planner_frozen_flight_id_));
+        set_planner_status_("preempt_epoch_baseline");
+        return false;
+      case PlannerProducerEpochDecision::kRejectOlder:
+        set_planner_status_("planner_old_producer_epoch");
+        return false;
+      case PlannerProducerEpochDecision::kInvalid:
+      default:
+        set_planner_status_("planner_invalid_producer_epoch");
+        return false;
+    }
+  }
+
+  // Schema-22 busy admission. Unlike the historical level-1 early return, this consumes only
+  // an explicitly new schema-2 flight and only inside the trained old-contact commit-delay
+  // window (which is stricter than the protected contact+0.12 tail). Measured state, previous
+  // raw action, and q_des/projector state stay untouched: the 110-D actor owns the Markov
+  // transition end to end.
+  bool PlannerRapidPreemptStep_(std::uint64_t tick_idx) {
+    if (!onnx_.uses_build2_rapid_preempt_contract() || !planner_engaged_ ||
+        !racket_in_) {
+      return false;
+    }
+    const auto snap = racket_in_->Latest();
+    planner_current_msg_seq_ = snap.seq;
+    planner_current_producer_epoch_ = snap.producer_epoch;
+    planner_current_flight_id_ = snap.cmd.flight_id;
+    planner_current_revision_id_ = snap.cmd.revision_id;
+    planner_current_stable_revision_count_ = snap.cmd.stable_revision_count;
+    if (!snap.has_valid) {
+      set_planner_status_("swinging_no_next_flight");
+      return false;
+    }
+    planner_valid_age_s_ = snap.valid_age_s;
+    planner_current_tts_ = snap.control_time_to_strike_s;
+    planner_current_strike_time_ = snap.cmd.strike_time;
+    if (onnx_.uses_schema27_optional_reach_obs() &&
+        !onnx_.planner_reach_wire_is_compatible(
+            snap.cmd.schema, snap.cmd.reach_level,
+            snap.cmd.swing_foot_sign)) {
+      set_planner_status_("preempt_reach_wire_contract");
+      return false;
+    }
+    if (!PrepareSchema22ProducerEpoch_(snap, true)) return false;
+
+    const auto identity = planner_rapid_candidate_identity_decision(
+        {snap.producer_epoch, snap.cmd.flight_id}, snap.cmd.revision_id,
+        snap.cmd.command_seq,
+        {planner_frozen_producer_epoch_, planner_frozen_flight_id_},
+        {planner_consumed_producer_epoch_, planner_consumed_flight_id_},
+        {planner_preempt_expired_producer_epoch_,
+         planner_preempt_expired_flight_id_},
+        planner_preempt_pending_active_,
+        {planner_preempt_pending_cmd_.producer_epoch,
+         planner_preempt_pending_cmd_.flight_id},
+        planner_preempt_pending_cmd_.revision_id,
+        planner_preempt_pending_cmd_.command_seq);
+    if (identity == PlannerRapidCandidateIdentityDecision::kSameFrozenFlight) {
+      if (cfg_.stream_target) StreamTargetStep_(tick_idx);
+      set_planner_status_("swinging");
+      return false;
+    }
+    if (identity == PlannerRapidCandidateIdentityDecision::kInvalid ||
+        identity == PlannerRapidCandidateIdentityDecision::kRejectConsumedFlight ||
+        identity == PlannerRapidCandidateIdentityDecision::kRejectExpiredFlight ||
+        identity == PlannerRapidCandidateIdentityDecision::kRejectNonmonotonicFlight) {
+      set_planner_status_(
+          identity == PlannerRapidCandidateIdentityDecision::kRejectExpiredFlight
+              ? "preempt_expired"
+              : "preempt_invalid_identity");
+      return false;
+    }
+    if (snap.invalid_after) {
+      set_planner_status_("preempt_invalid_candidate");
+      return false;
+    }
+
+    auto command_is_finite = [this](const PpRacketMsg& cmd, double tts) {
+      return cmd.valid &&
+          (!onnx_.uses_schema27_optional_reach_obs()
+               ? cmd.schema == 2
+               : onnx_.planner_reach_wire_is_compatible(
+                     cmd.schema, cmd.reach_level,
+                     cmd.swing_foot_sign)) &&
+          cmd.producer_epoch > 0 &&
+          cmd.flight_id > 0 &&
+          cmd.revision_id > 0 && cmd.command_seq > 0 &&
+          cmd.pos_w.allFinite() && cmd.vel_w.allFinite() &&
+          std::isfinite(cmd.swing_sign) &&
+          std::isfinite(cmd.time_to_strike) &&
+          std::isfinite(cmd.strike_time) && cmd.strike_time > 0.0 &&
+          std::isfinite(cmd.deadline_steady_s) &&
+          cmd.deadline_steady_s > 0.0 && std::isfinite(tts) &&
+          cmd.frame_code == 0;
+    };
+    const double now_steady_s = PpNowSteadySec();
+    const bool fresh_candidate = std::isfinite(snap.valid_age_s) &&
+        snap.valid_age_s >= 0.0 && snap.valid_age_s <= cfg_.command_timeout_s;
+    if ((identity == PlannerRapidCandidateIdentityDecision::kLatchFreshFlight ||
+         identity == PlannerRapidCandidateIdentityDecision::kUpdatePendingRevision) &&
+        (!fresh_candidate || snap.cmd.producer_epoch != snap.producer_epoch ||
+         snap.control_time_to_strike_s <= 0.0 ||
+         !command_is_finite(snap.cmd, snap.control_time_to_strike_s))) {
+      set_planner_status_("preempt_invalid_candidate");
+      return false;
+    }
+
+    if (identity == PlannerRapidCandidateIdentityDecision::kBusyDropDifferentFlight) {
+      if (planner_preempt_busy_drop_producer_epoch_ != snap.producer_epoch ||
+          planner_preempt_busy_drop_flight_id_ != snap.cmd.flight_id) {
+        planner_preempt_busy_drop_producer_epoch_ = snap.producer_epoch;
+        planner_preempt_busy_drop_flight_id_ = snap.cmd.flight_id;
+        RecordPlannerLifecycle_("preempt_busy_drop", "pending_flight_already_latched");
+        std::fprintf(
+            stderr,
+            "[pp preempt] BUSY_DROP flight=%llu while pending flight=%llu remains frozen\n",
+            static_cast<unsigned long long>(snap.cmd.flight_id),
+            static_cast<unsigned long long>(planner_preempt_pending_cmd_.flight_id));
+      }
+    } else if (identity == PlannerRapidCandidateIdentityDecision::kLatchFreshFlight ||
+               identity == PlannerRapidCandidateIdentityDecision::kUpdatePendingRevision) {
+      if (identity ==
+              PlannerRapidCandidateIdentityDecision::kLatchFreshFlight &&
+          onnx_.optional_reach_runtime_enabled()) {
+        const bool target_tuple_matches =
+            station_session_origin_set_ &&
+            Schema27TargetInsideExportedSupport_(
+                snap.cmd.pos_w, snap.cmd.vel_w, snap.cmd.swing_sign) &&
+            hitter_schema27_reach_permission_matches_home_target_tuple(
+                snap.cmd.pos_w[1], station_session_origin_w_[1],
+                snap.cmd.swing_sign, snap.cmd.reach_level,
+                snap.cmd.swing_foot_sign);
+        if (!target_tuple_matches && !cfg_.gate3_force_every_flight) {
+          set_planner_status_("schema27_preempt_home_tuple_mismatch");
+          return false;
+        }
+        if (!target_tuple_matches && cfg_.gate3_force_every_flight) {
+          std::fprintf(
+              stderr,
+              "[pp gate3 force-every-flight] BYPASS preempt target-support "
+              "gate flight=%llu reach=(%.0f,%+.0f)\n",
+              static_cast<unsigned long long>(snap.cmd.flight_id),
+              snap.cmd.reach_level, snap.cmd.swing_foot_sign);
+        }
+      }
+      if (identity ==
+              PlannerRapidCandidateIdentityDecision::kUpdatePendingRevision &&
+          !hitter_optional_reach_revision_preserves_flight_permission(
+              onnx_.uses_schema27_optional_reach_obs(),
+              planner_preempt_pending_cmd_.reach_level,
+              planner_preempt_pending_cmd_.swing_foot_sign,
+              snap.cmd.reach_level, snap.cmd.swing_foot_sign)) {
+        set_planner_status_("schema27_preempt_reach_label_mutation");
+        return false;
+      }
+      const double sign = snap.cmd.swing_sign;
+      if (std::fabs(sign) <= 0.5) {
+        set_planner_status_("preempt_missing_side");
+        return false;
+      }
+      const int next_clip = clip_id_from_swing_sign(sign);
+      const Vec2 requested_station = station_from_target_with_anchor_(
+          Vec2(snap.cmd.pos_w[0], snap.cmd.pos_w[1]), next_clip,
+          station_session_origin_w_, station_session_origin_set_);
+      const Vec2 commanded_station =
+          ProjectSchema22StationToHome_(requested_station);
+      const Vec3 effective_vel_w =
+          (onnx_.is_hitter_pure_obs() && cfg_.vel_cmd_box_center)
+              ? cfg_.racket_vel_w_clip[next_clip] : snap.cmd.vel_w;
+      ReportSchema22CoreBoxCoverage_(
+          "preempt candidate", snap.cmd.flight_id, next_clip,
+          snap.cmd.frame_code, snap.cmd.pos_w, effective_vel_w,
+          requested_station, commanded_station,
+          identity == PlannerRapidCandidateIdentityDecision::kLatchFreshFlight);
+      planner_preempt_pending_cmd_ = snap.cmd;
+      planner_preempt_pending_active_ = true;
+      planner_preempt_candidate_producer_epoch_ = snap.producer_epoch;
+      planner_preempt_candidate_flight_id_ = snap.cmd.flight_id;
+      planner_preempt_candidate_revision_id_ = snap.cmd.revision_id;
+      planner_preempt_pending_last_fresh_steady_s_ =
+          now_steady_s - snap.valid_age_s;
+      planner_preempt_busy_drop_producer_epoch_ = 0;
+      planner_preempt_busy_drop_flight_id_ = 0;
+      if (identity == PlannerRapidCandidateIdentityDecision::kLatchFreshFlight) {
+        RecordPlannerLifecycle_("preempt_latch", "fresh_flight");
+        std::fprintf(
+            stderr,
+            "[pp preempt] latch fresh flight=%llu revision=%llu next_tts=%.3f\n",
+            static_cast<unsigned long long>(snap.cmd.flight_id),
+            static_cast<unsigned long long>(snap.cmd.revision_id),
+            snap.control_time_to_strike_s);
+      }
+    }
+    if (!planner_preempt_pending_active_) {
+      set_planner_status_("swinging_no_next_flight");
+      return false;
+    }
+
+    const PpRacketMsg candidate = planner_preempt_pending_cmd_;
+    const double candidate_tts = candidate.deadline_steady_s - now_steady_s;
+    if (!command_is_finite(candidate, candidate_tts)) {
+      set_planner_status_("preempt_invalid_candidate");
+      return false;
+    }
+    if (!planner_rapid_pending_is_fresh(
+            now_steady_s, planner_preempt_pending_last_fresh_steady_s_,
+            cfg_.command_timeout_s)) {
+      planner_preempt_pending_active_ = false;
+      planner_preempt_pending_cmd_ = PpRacketMsg{};
+      planner_preempt_candidate_producer_epoch_ = 0;
+      planner_preempt_candidate_flight_id_ = 0;
+      planner_preempt_candidate_revision_id_ = 0;
+      RecordPlannerLifecycle_("preempt_stale", "pending_command_timeout");
+      set_planner_status_("preempt_stale");
+      return false;
+    }
+    Vec3 pos_w = candidate.pos_w;
+    Vec3 vel_w = candidate.vel_w;
+    if (!pos_w.allFinite() || !vel_w.allFinite()) {
+      set_planner_status_("preempt_invalid_candidate");
+      return false;
+    }
+    const Vec2 target_xy(pos_w[0], pos_w[1]);
+    if (std::fabs(candidate.swing_sign) <= 0.5) {
+      set_planner_status_("preempt_missing_side");
+      return false;
+    }
+    const double sign = candidate.swing_sign;
+    const int next_clip = clip_id_from_swing_sign(sign);
+    const Vec2 requested_station = station_from_target_with_anchor_(
+        target_xy, next_clip, station_session_origin_w_,
+        station_session_origin_set_);
+    const Vec2 station = ProjectSchema22StationToHome_(requested_station);
+
+    // The external D edge has no READY/policy-state or exported core-box gate in
+    // training. Wire validity, identity, freshness and the protected temporal
+    // window remain fail-closed; distribution support is reported when the
+    // candidate is latched above.
+    const Vec3 effective_vel_w =
+        (onnx_.is_hitter_pure_obs() && cfg_.vel_cmd_box_center)
+            ? cfg_.racket_vel_w_clip[next_clip] : vel_w;
+
+    // Layer C (production): while a swing is in flight, L2/L3 refuse committing the
+    // latched NEXT flight; the current swing is never cut. L3 additionally drops the
+    // candidate exactly like an expired-below-support flight so it is not re-latched
+    // every tick while the robot is in safe hold.
+    {
+      const RecoveryEnvelopeGate envelope_gate =
+          RecoveryEnvelopeGateFor(envelope_mode_, envelope_.level());
+      if (envelope_gate.block_new_commits) {
+        envelope_block_reason_ = envelope_gate.reason;
+        if (envelope_gate.expire_pending) {
+          if (planner_preempt_expired_producer_epoch_ !=
+              candidate.producer_epoch) {
+            planner_preempt_expired_producer_epoch_ = candidate.producer_epoch;
+            planner_preempt_expired_flight_id_ = candidate.flight_id;
+          } else {
+            planner_preempt_expired_flight_id_ =
+                std::max(planner_preempt_expired_flight_id_, candidate.flight_id);
+          }
+          planner_preempt_pending_active_ = false;
+          planner_preempt_pending_cmd_ = PpRacketMsg{};
+          planner_preempt_pending_last_fresh_steady_s_ = 0.0;
+          planner_preempt_candidate_producer_epoch_ = 0;
+          planner_preempt_candidate_flight_id_ = 0;
+          planner_preempt_candidate_revision_id_ = 0;
+          if (RecordPlannerLifecycle_("preempt_expired", envelope_gate.reason)) {
+            std::fprintf(
+                stderr,
+                "[pp envelope] L3 expired latched next flight=%llu (%s); current swing "
+                "continues untouched\n",
+                static_cast<unsigned long long>(candidate.flight_id),
+                envelope_gate.reason);
+          }
+        } else if (RecordPlannerLifecycle_("preempt_blocked", envelope_gate.reason)) {
+          std::fprintf(
+              stderr,
+              "[pp envelope] L2 blocked commit of next flight=%llu (%s); candidate stays "
+              "latched\n",
+              static_cast<unsigned long long>(candidate.flight_id),
+              envelope_gate.reason);
+        }
+        set_planner_status_(envelope_gate.reason);
+        return false;
+      }
+    }
+    const auto& preempt_support =
+        onnx_.hitter_pingpong_preempt_entry_tts_support_s();
+    const auto& commit_delay_support =
+        onnx_.hitter_pingpong_preempt_commit_delay_support_s();
+    const double old_signed_tts = planner_running_tts(
+        planner_actor_tts0_, tick_idx, swing_clock_origin_.load(), cfg_.dt,
+        swing_speed_.load());
+    const int lifecycle_schema =
+        onnx_.uses_schema27_optional_reach_obs() ? 2 : candidate.schema;
+    const PlannerFlightIdentity candidate_identity{
+        candidate.producer_epoch, candidate.flight_id};
+    const PlannerFlightIdentity frozen_identity{
+        planner_frozen_producer_epoch_, planner_frozen_flight_id_};
+    const auto decision = cfg_.gate3_force_every_flight
+        ? planner_gate3_force_every_flight_decision(
+              true, planner_engaged_, lifecycle_schema, candidate_identity,
+              frozen_identity, candidate_tts)
+        : planner_rapid_preempt_decision(
+              true, planner_engaged_, lifecycle_schema, candidate_identity,
+              frozen_identity, old_signed_tts,
+              onnx_.hitter_pingpong_preempt_no_preempt_s(), candidate_tts,
+              preempt_support[0], preempt_support[1],
+              commit_delay_support[0], commit_delay_support[1]);
+    switch (decision) {
+      case PlannerRapidPreemptDecision::kWaitProtectedFollowthrough:
+        set_planner_status_("preempt_wait_protected_followthrough");
+        return false;
+      case PlannerRapidPreemptDecision::kWaitBeforeCommitDelaySupport:
+        set_planner_status_("preempt_wait_commit_delay_support");
+        return false;
+      case PlannerRapidPreemptDecision::kExpiredAfterCommitDelaySupport:
+        if (planner_preempt_expired_producer_epoch_ !=
+            candidate.producer_epoch) {
+          planner_preempt_expired_producer_epoch_ = candidate.producer_epoch;
+          planner_preempt_expired_flight_id_ = candidate.flight_id;
+        } else {
+          planner_preempt_expired_flight_id_ =
+              std::max(planner_preempt_expired_flight_id_, candidate.flight_id);
+        }
+        planner_preempt_pending_active_ = false;
+        planner_preempt_pending_cmd_ = PpRacketMsg{};
+        planner_preempt_pending_last_fresh_steady_s_ = 0.0;
+        planner_preempt_candidate_producer_epoch_ = 0;
+        planner_preempt_candidate_flight_id_ = 0;
+        planner_preempt_candidate_revision_id_ = 0;
+        RecordPlannerLifecycle_(
+            "preempt_expired", "old_contact_commit_delay_above_training_support");
+        std::fprintf(
+            stderr,
+            "[pp preempt] expired flight=%llu old_contact_elapsed=%.3f above "
+            "delay support %.2f; current native tail remains active\n",
+            static_cast<unsigned long long>(candidate.flight_id),
+            -old_signed_tts, commit_delay_support[1]);
+        set_planner_status_("preempt_expired");
+        return false;
+      case PlannerRapidPreemptDecision::kWaitAboveSupport:
+        set_planner_status_("preempt_wait_tts_support");
+        return false;
+      case PlannerRapidPreemptDecision::kExpiredBelowSupport:
+        if (planner_preempt_expired_producer_epoch_ !=
+            candidate.producer_epoch) {
+          planner_preempt_expired_producer_epoch_ = candidate.producer_epoch;
+          planner_preempt_expired_flight_id_ = candidate.flight_id;
+        } else {
+          planner_preempt_expired_flight_id_ =
+              std::max(planner_preempt_expired_flight_id_, candidate.flight_id);
+        }
+        planner_preempt_pending_active_ = false;
+        planner_preempt_pending_cmd_ = PpRacketMsg{};
+        planner_preempt_pending_last_fresh_steady_s_ = 0.0;
+        planner_preempt_candidate_producer_epoch_ = 0;
+        planner_preempt_candidate_flight_id_ = 0;
+        planner_preempt_candidate_revision_id_ = 0;
+        RecordPlannerLifecycle_("preempt_expired", "tts_below_training_support");
+        std::fprintf(
+            stderr,
+            "[pp preempt] expired flight=%llu next_tts=%.3f below support %.2f; "
+            "current native tail remains active\n",
+            static_cast<unsigned long long>(candidate.flight_id), candidate_tts,
+            preempt_support[0]);
+        set_planner_status_("preempt_expired");
+        return false;
+      case PlannerRapidPreemptDecision::kCommit:
+        if (cfg_.gate3_force_every_flight) {
+          std::fprintf(
+              stderr,
+              "[pp gate3 force-every-flight] COMMIT flight=%llu "
+              "old_tts=%+.3f next_tts=%.3f (temporal gates bypassed)\n",
+              static_cast<unsigned long long>(candidate.flight_id),
+              old_signed_tts, candidate_tts);
+        }
+        break;
+      case PlannerRapidPreemptDecision::kDisabled:
+      case PlannerRapidPreemptDecision::kInvalidCandidate:
+      case PlannerRapidPreemptDecision::kSameFlight:
+      default:
+        set_planner_status_("preempt_invalid_candidate");
+        return false;
+    }
+
+    const Vec4 base_yaw = yaw_quat(last_base_quat_w_);
+    if (!last_base_pos_.allFinite() || !base_yaw.allFinite()) {
+      set_planner_status_("preempt_invalid_base_state");
+      return false;
+    }
+    const Vec3 target_b = quat_rotate_inverse(base_yaw, pos_w - last_base_pos_);
+    if (!target_b.allFinite()) {
+      set_planner_status_("preempt_invalid_candidate");
+      return false;
+    }
+    const auto edge = planner_rapid_preempt_edge(tick_idx, sign, planner_shot_seq_);
+
+    // This tick replaces the frozen actor tuple. First emit the authoritative
+    // completion edge for the old (epoch, flight); failing that ledger check
+    // leaves the old native tail and every policy state variable untouched.
+    if (!CompleteSchema22FrozenFlight_(
+            PlannerFlightCompletionKind::kRapidPreempt)) {
+      RecordPlannerLifecycle_(
+          "preempt_completion_rejected", "completion_identity_not_monotonic");
+      set_planner_status_("preempt_completion_ledger");
+      return false;
+    }
+
+    // One driver tick owns the complete edge. Do not call set_swing_dir(): its legacy level-1
+    // behavior queues an opposite-side switch and would expose new target/TTS with the old clip.
+    pending_swing_dir_.store(edge.pending_swing_direction);
+    swing_dir_.store(edge.swing_direction);
+    swing_clock_origin_.store(edge.clock_origin_tick);
+    planner_shot_seq_ = edge.shot_sequence;
+    planner_tts0_ = candidate_tts;
+    planner_actor_tts0_ = candidate_tts;
+    planner_engage_raw_tts_ = candidate_tts;
+    planner_engage_clock_tts0_ = candidate_tts;
+    const double next_max_tts =
+        (clip_.strike_frame(next_clip) - clip_.seg_start(next_clip)) * clip_.step_dt;
+    planner_engage_requested_phase_s_ =
+        std::max(0.0, next_max_tts - candidate_tts);
+    planner_engage_actual_phase_s_ = planner_engage_requested_phase_s_;
+    planner_engage_expected_strike_lateness_s_ = 0.0;
+    planner_late_phase_clamped_ = false;
+    planner_frozen_pos_w_ = pos_w;
+    planner_frozen_vel_w_ = effective_vel_w;
+    planner_frozen_sign_ = sign;
+    planner_frozen_command_seq_ = candidate.command_seq;
+    planner_frozen_producer_epoch_ = candidate.producer_epoch;
+    planner_frozen_flight_id_ = candidate.flight_id;
+    planner_frozen_revision_id_ = candidate.revision_id;
+    planner_frozen_strike_time_ = candidate.strike_time;
+    planner_frozen_raw_tts_ = candidate_tts;
+    planner_frozen_reach_level_ = candidate.reach_level;
+    planner_frozen_swing_foot_sign_ = candidate.swing_foot_sign;
+    planner_consumed_producer_epoch_ = candidate.producer_epoch;
+    planner_consumed_flight_id_ = candidate.flight_id;
+    planner_consumed_strike_time_ = candidate.strike_time;
+    planner_have_consumed_shot_ = true;
+    planner_hold_pos_b_engage_ = target_b;
+    planner_hold_z_w_ = pos_w[2];
+    planner_have_hold_ = true;
+    planner_engaged_ = true;
+    hold_station_w_ = station;
+    hold_station_set_ = true;
+    native_tail_home_recovery_latched_ = false;
+    planner_preempt_pending_active_ = false;
+    planner_preempt_pending_cmd_ = PpRacketMsg{};
+    planner_preempt_pending_last_fresh_steady_s_ = 0.0;
+    planner_preempt_busy_drop_producer_epoch_ = 0;
+    planner_preempt_busy_drop_flight_id_ = 0;
+    planner_preempt_candidate_producer_epoch_ = 0;
+    planner_preempt_candidate_flight_id_ = 0;
+    planner_preempt_candidate_revision_id_ = 0;
+    ClearPendingStation_(tick_idx, "rapid_preempt_commit");
+    RecordPlannerLifecycle_("preempt", "fresh_flight_after_protected_followthrough");
+    std::fprintf(
+        stderr,
+        "[pp preempt] COMMIT %s flight=%llu revision=%llu old_tts=%+.3f "
+        "next_tts=%.3f station=(%+.3f,%+.3f) shot_seq=%llu; "
+        "policy state/action/q_des preserved\n",
+        sign > 0.0 ? "forehand" : "backhand",
+        static_cast<unsigned long long>(candidate.flight_id),
+        static_cast<unsigned long long>(candidate.revision_id), old_signed_tts,
+        candidate_tts, station[0], station[1],
+        static_cast<unsigned long long>(planner_shot_seq_));
+    // Gate3 joins runner trace edges to the human-readable engage stream by flight. A rapid
+    // commit is one real engagement edge, so emit exactly one row in the same parseable shape as
+    // idle admission; same-flight refinements never reach this success path.
+    std::fprintf(
+        stderr,
+        "%s %s locked (preempt): tgt base-rel (%+.2f,%+.2f,%+.2f) "
+        "tts=%.2fs (clock tts0=%.2fs) station=(%+.3f,%+.3f) "
+        "dx=%.3f dy=%.3f speed=%s%.3f flight=%llu revision=%llu stable=%d "
+        "late_phase_clamped=%d\n",
+        kPlannerEngageLogPrefix, sign > 0.0 ? "forehand" : "backhand",
+        target_b[0], target_b[1], target_b[2], candidate_tts,
+        planner_tts0_, station[0], station[1],
+        std::fabs(last_base_pos_[0] - station[0]),
+        std::fabs(last_base_pos_[1] - station[1]),
+        base_speed_xy_valid_ ? "" : "INVALID/", base_speed_xy_est_,
+        static_cast<unsigned long long>(candidate.flight_id),
+        static_cast<unsigned long long>(candidate.revision_id),
+        candidate.stable_revision_count, planner_late_phase_clamped_ ? 1 : 0);
+    set_planner_status_("preempt_engage");
+    return true;
+  }
+
   void UpdateBaseMotion_(std::uint64_t tick_idx, const Vec3& pos_w, bool localized,
                          std::uint64_t sample_seq) {
     if (!localized) {
@@ -2708,7 +4169,7 @@ class PpPolicy {
       // (0711) — speed_ready never held, so station transitions could NEVER settle-engage.
       // Real dropouts (mocap loss) are 100s of ms and still invalidate; the 0.2 s
       // external_base_max_age_s gate independently protects the obs path.
-      const std::uint64_t fresh_ticks = onnx_.uses_position_mocap_obs()
+      const std::uint64_t fresh_ticks = onnx_.uses_mocap_velocity_observation()
           ? static_cast<std::uint64_t>(std::max(
                 1.0, std::ceil(onnx_.base_localization_max_age_s() /
                                std::max(cfg_.dt, 1e-6))))
@@ -2727,12 +4188,12 @@ class PpPolicy {
       // Short EMA rejects millimetre-level mocap differentiation noise without hiding a
       // still-moving base. V15 takes alpha from the ONNX/YAML contract; older policies retain
       // the historical 0.25 scalar-speed estimator.
-      const double alpha = onnx_.uses_position_mocap_obs()
+      const double alpha = onnx_.uses_mocap_velocity_observation()
           ? onnx_.base_velocity_ema_alpha() : 0.25;
       // V15 training starts the filter from zero at reset and applies alpha even to the first
       // differentiated displacement (and again after a stale interval).  Older contracts keep
       // their historical first-sample=instantaneous behavior.
-      base_velocity_xy_est_ = onnx_.uses_position_mocap_obs()
+      base_velocity_xy_est_ = onnx_.uses_mocap_velocity_observation()
           ? alpha * inst + (1.0 - alpha) * base_velocity_xy_est_
           : (base_velocity_xy_valid_
               ? alpha * inst + (1.0 - alpha) * base_velocity_xy_est_ : inst);
@@ -2746,7 +4207,7 @@ class PpPolicy {
       // V15's first post-reset actor observation carries a fresh zero velocity.  Keep the
       // readiness speed invalid until a second position arrives, but seed the actor filter as a
       // valid zero so the next differentiated sample receives the same EMA alpha as training.
-      base_velocity_xy_valid_ = onnx_.uses_position_mocap_obs();
+      base_velocity_xy_valid_ = onnx_.uses_mocap_velocity_observation();
       base_velocity_xy_est_.setZero();
     }
     base_motion_prev_xy_ = xy;
@@ -2763,6 +4224,8 @@ class PpPolicy {
   // and drive the EXISTING controls (set_swing_dir + set_level(1)). Uses the PREVIOUS tick's
   // localized base (1-tick lag @50 Hz is negligible) so it can run before localization.
   void PlannerEngageStep_(std::uint64_t tick_idx) {
+    const bool raw_tts_contract =
+        onnx_.uses_late_reveal_raw_tts_contract();
     // Policy-native production keeps its historical telemetry-only readiness
     // semantics. The isolated stationary replay is intentionally stricter:
     // every legacy release gate is fail-closed while the learned full-body
@@ -2771,7 +4234,17 @@ class PpPolicy {
         cfg_.policy_native &&
         !cfg_.fixed_station_replay &&
         !cfg_.moving_station_replay;
+    // RECOVERY ENVELOPE (Layer C) gate for this tick, from the level classified on the
+    // previous tick. Capability mode never blocks; production blocks NEW flight commits
+    // at L2 and additionally expires the pending flight at L3.
+    const RecoveryEnvelopeGate envelope_gate =
+        RecoveryEnvelopeGateFor(envelope_mode_, envelope_.level());
+    envelope_block_reason_ = kRecoveryEnvelopeReasonNone;
     if (level_.load() == 1) {  // in flight
+      if (onnx_.uses_build2_rapid_preempt_contract()) {
+        PlannerRapidPreemptStep_(tick_idx);
+        return;
+      }
       // 110-D STREAMING (paper Fig. 3): keep consuming same-side refinements while the swing
       // flies. Every other contract keeps the proven frozen-target behavior.
       if (onnx_.is_hitter_pure_obs() && cfg_.stream_target) StreamTargetStep_(tick_idx);
@@ -2779,6 +4252,17 @@ class PpPolicy {
       return;
     }
     planner_engaged_ = false;  // level 0: idle/hold (ready-hold override uses planner_have_hold_)
+
+    // Layer C, production L3: expire the pending flight into the neutral WAIT tuple (the
+    // same ClearPendingStation_ path as shot_expired) so the trained HOME-return hold takes
+    // over. No q_des is touched here; the learned level-0 policy keeps balancing.
+    if (envelope_gate.expire_pending) {
+      if (planner_pending_station_active_)
+        ClearPendingStation_(tick_idx, envelope_gate.reason);
+      envelope_block_reason_ = envelope_gate.reason;
+      set_planner_status_(envelope_gate.reason);
+      return;
+    }
 
     // The learned clip already contains its recovery.  The additional legacy
     // inter-swing rest is audit-only in normal policy-native field execution,
@@ -2807,6 +4291,7 @@ class PpPolicy {
     }
     const auto snap = racket_in_->Latest();
     planner_current_msg_seq_ = snap.seq;
+    planner_current_producer_epoch_ = snap.producer_epoch;
     planner_current_flight_id_ = snap.cmd.flight_id;
     planner_current_revision_id_ = snap.cmd.revision_id;
     planner_current_stable_revision_count_ = snap.cmd.stable_revision_count;
@@ -2818,16 +4303,54 @@ class PpPolicy {
       set_planner_status_("no_command");
       return;
     }
-    const bool revisioned_v17 =
+    const bool revisioned_planner_contract =
         onnx_.is_v17_r10_p0_gate3() ||
-        onnx_.is_v17_r12_v11_qdes_tuple_hardware();
+        onnx_.is_v17_r12_v11_qdes_tuple_hardware() ||
+        onnx_.uses_fresh_shot_external_commit_contract();
+    const bool schema27_reach_wire =
+        onnx_.uses_schema27_optional_reach_obs();
+    if (schema27_reach_wire &&
+        !onnx_.planner_reach_wire_is_compatible(
+            snap.cmd.schema, snap.cmd.reach_level,
+            snap.cmd.swing_foot_sign)) {
+      ClearPendingStation_(tick_idx, "planner_reach_wire_contract");
+      if ((gate_warn_tick_++ % 25) == 0) {
+        std::fprintf(
+            stderr,
+            "[pp input] Schema27 %s artifact requires schema-%d Planner data "
+            "with a legal reach tuple (got schema=%d level=%.0f foot=%+.0f "
+            "flight=%llu revision=%llu)\n",
+            onnx_.optional_reach_runtime_enabled()
+                ? "enabled"
+                : onnx_.optional_reach_schema3_wire_required()
+                    ? "level0-only candidate"
+                    : "disabled",
+            onnx_.optional_reach_schema3_wire_required() ? 3 : 2,
+            snap.cmd.schema, snap.cmd.reach_level,
+            snap.cmd.swing_foot_sign,
+            static_cast<unsigned long long>(snap.cmd.flight_id),
+            static_cast<unsigned long long>(snap.cmd.revision_id));
+      }
+      set_planner_status_("planner_reach_wire_contract");
+      return;
+    }
+    // Validate the artifact/wire binding before touching the producer-epoch or
+    // admission ledgers. An incompatible Schema-2/Schema-3 packet must be a
+    // state-free fail-closed event, not a lifecycle reset followed by a reject.
+    if (onnx_.uses_build2_rapid_preempt_contract() &&
+        !PrepareSchema22ProducerEpoch_(snap, false)) {
+      ClearPendingStation_(tick_idx, "producer_epoch");
+      return;
+    }
     if (planner_revision_release_blocked(
-            revisioned_v17, snap.cmd.schema, snap.cmd.stable_revision_count)) {
+            revisioned_planner_contract,
+            schema27_reach_wire ? 2 : snap.cmd.schema,
+            snap.cmd.stable_revision_count)) {
       ClearPendingStation_(tick_idx, "planner_schema");
       if ((gate_warn_tick_++ % 25) == 0) {
         std::fprintf(
             stderr,
-            "[pp input] V17 requires schema-2 planner data "
+            "[pp input] this policy contract requires its exact planner schema "
             "(schema=%d flight=%llu revision=%llu)\n",
             snap.cmd.schema,
             static_cast<unsigned long long>(snap.cmd.flight_id),
@@ -2836,7 +4359,7 @@ class PpPolicy {
       set_planner_status_("planner_schema");
       return;
     }
-    if (revisioned_v17 && snap.cmd.stable_revision_count < 3 &&
+    if (revisioned_planner_contract && snap.cmd.stable_revision_count < 3 &&
         (gate_warn_tick_++ % 25) == 0) {
       std::fprintf(
             stderr,
@@ -2848,14 +4371,100 @@ class PpPolicy {
             static_cast<unsigned long long>(snap.cmd.revision_id));
     }
 
+    if (onnx_.uses_build2_rapid_preempt_contract() &&
+        (!snap.cmd.valid || snap.producer_epoch == 0 ||
+         snap.cmd.producer_epoch != snap.producer_epoch ||
+         snap.cmd.flight_id == 0 || snap.cmd.revision_id == 0 ||
+         snap.cmd.command_seq == 0 ||
+         !std::isfinite(snap.cmd.strike_time) ||
+         snap.cmd.strike_time <= 0.0 ||
+         !std::isfinite(snap.cmd.deadline_steady_s) ||
+         snap.cmd.deadline_steady_s <= 0.0)) {
+      ClearPendingStation_(tick_idx, "schema22_invalid_identity");
+      set_planner_status_("schema22_invalid_identity");
+      return;
+    }
+
     const double tts = snap.control_time_to_strike_s;
     planner_valid_age_s_ = snap.valid_age_s;
     planner_current_tts_ = tts;
     planner_current_strike_time_ = snap.cmd.strike_time;
-    const bool command_stale = snap.valid_age_s > cfg_.command_timeout_s;
+    const bool schema22_contract =
+        onnx_.uses_build2_rapid_preempt_contract();
+    // Layer C, production L2: refuse NEW flight commits with the exact block/expire
+    // mechanism used for tts_below_training_support (an already pending station keeps
+    // its target but cannot release; nothing new is created).
+    if (envelope_gate.block_new_commits) {
+      BlockOrExpirePendingStation_(tick_idx, tts, envelope_gate.reason);
+      envelope_block_reason_ = envelope_gate.reason;
+      set_planner_status_(envelope_gate.reason);
+      return;
+    }
+    // Policy-native readiness gates are advisory, but an expired/non-finite
+    // physical deadline is not a recoverable distribution miss.
+    if (schema22_contract && (!std::isfinite(tts) || tts <= 0.0)) {
+      BlockOrExpirePendingStation_(tick_idx, tts, "expired");
+      set_planner_status_(std::isfinite(tts) ? "expired" : "invalid_tts");
+      return;
+    }
+    const bool same_verified_schema22_cold_flight = schema22_contract &&
+        planner_schema22_cold_retained_producer_epoch_ ==
+            snap.producer_epoch &&
+        planner_schema22_cold_retained_flight_id_ == snap.cmd.flight_id;
+    if (same_verified_schema22_cold_flight &&
+        !hitter_optional_reach_revision_preserves_flight_permission(
+            onnx_.uses_schema27_optional_reach_obs(),
+            planner_schema22_cold_retained_reach_level_,
+            planner_schema22_cold_retained_swing_foot_sign_,
+            snap.cmd.reach_level, snap.cmd.swing_foot_sign)) {
+      BlockOrExpirePendingStation_(
+          tick_idx, tts, "schema27_cold_reach_label_mutation");
+      set_planner_status_("schema27_cold_reach_label_mutation");
+      return;
+    }
+    const auto schema22_receipt = schema22_contract
+        ? planner_schema22_cold_receipt_decision(
+              same_verified_schema22_cold_flight, snap.valid_age_s,
+              cfg_.command_timeout_s, snap.invalid_after)
+        : PlannerSchema22ColdReceiptDecision::kAcceptFreshReceipt;
+    if (schema22_contract &&
+        schema22_receipt !=
+            PlannerSchema22ColdReceiptDecision::kAcceptFreshReceipt &&
+        schema22_receipt !=
+            PlannerSchema22ColdReceiptDecision::kAcceptRetainedFlight) {
+      const char* reason = schema22_receipt ==
+              PlannerSchema22ColdReceiptDecision::kRejectInvalidAge
+          ? "schema22_invalid_command_age"
+          : (schema22_receipt ==
+                     PlannerSchema22ColdReceiptDecision::
+                         kRejectInvalidInitialReceipt
+                 ? "schema22_invalid_initial_receipt"
+                 : "schema22_stale_initial_receipt");
+      BlockOrExpirePendingStation_(tick_idx, tts, reason);
+      set_planner_status_(reason);
+      return;
+    }
+    if (schema22_receipt ==
+            PlannerSchema22ColdReceiptDecision::kAcceptRetainedFlight &&
+        (snap.valid_age_s > cfg_.command_timeout_s || snap.invalid_after) &&
+        (gate_warn_tick_++ % 25) == 0) {
+      std::fprintf(
+          stderr,
+          "[pp planner telemetry] retained schema22 cold flight=%llu "
+          "age=%.3f s invalid_after=%d remains admitted while waiting for "
+          "positive TTS %.3f s\n",
+          static_cast<unsigned long long>(snap.cmd.flight_id),
+          snap.valid_age_s, snap.invalid_after ? 1 : 0, tts);
+    }
+    const bool authoritative_continuous =
+        onnx_.uses_continuous_rally_v3_contract() ||
+        onnx_.uses_continuous_rally_v4_contract();
+    const bool command_stale = !schema22_contract && planner_command_age_unhealthy(
+        snap.valid_age_s, cfg_.command_timeout_s, authoritative_continuous);
     if (command_stale) {
       if (planner_command_health_blocks_release(
-              release_gates_advisory, command_stale)) {
+              release_gates_advisory, command_stale,
+              authoritative_continuous)) {
         BlockOrExpirePendingStation_(tick_idx, tts, "stale");
         set_planner_status_("stale");
         return;
@@ -2869,11 +4478,13 @@ class PpPolicy {
             snap.valid_age_s, cfg_.command_timeout_s);
       }
     }
-    const bool invalid_after_grace =
-        snap.invalid_after && snap.valid_age_s > cfg_.planner_invalid_grace_s;
+    const bool invalid_after_grace = !schema22_contract && planner_invalid_revision_unhealthy(
+        snap.invalid_after, snap.valid_age_s,
+        cfg_.planner_invalid_grace_s, authoritative_continuous);
     if (invalid_after_grace) {
       if (planner_command_health_blocks_release(
-              release_gates_advisory, invalid_after_grace)) {
+              release_gates_advisory, invalid_after_grace,
+              authoritative_continuous)) {
         BlockOrExpirePendingStation_(tick_idx, tts, "planner_invalid");
         set_planner_status_("planner_invalid");
         return;
@@ -3023,9 +4634,17 @@ class PpPolicy {
     // The latest-value mailbox intentionally retains the newest valid command.
     // Once a physical shot has engaged, do not let that same absolute strike
     // event arm another swing after the first clip completes.
-    if (planner_have_consumed_shot_ &&
-        same_planner_shot(snap.cmd.strike_time, planner_consumed_strike_time_,
-                          cfg_.shot_reuse_tolerance_s)) {
+    const bool same_consumed_shot = onnx_.uses_build2_rapid_preempt_contract()
+        ? planner_same_flight_identity(
+              {snap.producer_epoch, snap.cmd.flight_id},
+              {planner_consumed_producer_epoch_,
+               planner_consumed_flight_id_})
+        : same_planner_shot_identity(
+              onnx_.uses_fresh_shot_external_commit_contract(),
+              snap.cmd.flight_id, planner_consumed_flight_id_,
+              snap.cmd.strike_time, planner_consumed_strike_time_,
+              cfg_.shot_reuse_tolerance_s);
+    if (planner_have_consumed_shot_ && same_consumed_shot) {
       ClearPendingStation_(tick_idx, "shot_consumed");
       set_planner_status_("shot_consumed");
       return;
@@ -3037,6 +4656,14 @@ class PpPolicy {
     // once the robot has turned).
     Vec3 pos_w = snap.cmd.pos_w;
     Vec3 vel_w = snap.cmd.vel_w;
+    if (onnx_.uses_build2_rapid_preempt_contract() &&
+        (snap.cmd.frame_code != 0 || !pos_w.allFinite() ||
+         !vel_w.allFinite() || !std::isfinite(snap.cmd.swing_sign))) {
+      BlockOrExpirePendingStation_(tick_idx, tts,
+                                   "schema22_invalid_command");
+      set_planner_status_("schema22_invalid_command");
+      return;
+    }
     if (snap.cmd.frame_code == 1) {
       pos_w = base_pos + quat_rotate(base_yaw, snap.cmd.pos_w);
       vel_w = quat_rotate(base_yaw, snap.cmd.vel_w);
@@ -3052,20 +4679,15 @@ class PpPolicy {
     // the y-sign split.
     double sign;
     if (onnx_.is_hitter_pure_obs()) {
-      if ((onnx_.is_rally_final_v3_recipe() || onnx_.is_rally_station_recipe()) &&
+      if ((onnx_.is_rally_final_v3_recipe() ||
+           onnx_.is_rally_station_recipe() ||
+           onnx_.uses_build2_rapid_preempt_contract()) &&
           std::fabs(snap.cmd.swing_sign) <= 0.5) {
         if ((gate_warn_tick_++ % 50) == 0)
           std::fprintf(stderr,
               "[pp gate] REJECT(110 %s) missing explicit swing_sign; planner flat "
               "schema must publish the intercept-selected forehand/backhand side\n",
-              onnx_.is_rally_v17_recipe() ? "RallyV17" :
-              (onnx_.is_rally_v14_recipe() ? "RallyV14" :
-              (onnx_.is_rally_v13_recipe() ? "RallyV13" :
-              (onnx_.is_rally_v12_recipe() ? "RallyV12" :
-              (onnx_.is_rally_v11_recipe() ? "RallyV11" :
-              (onnx_.is_rally_v10_recipe() ? "RallyV10" :
-              (onnx_.is_rally_v9_recipe() ? "RallyV9" :
-              (onnx_.is_rally_v8_recipe() ? "RallyV8" : "FinalV3"))))))));
+              onnx_.training_recipe().c_str());
         BlockOrExpirePendingStation_(tick_idx, tts, "missing_side");
         set_planner_status_("missing_side");
         return;
@@ -3088,9 +4710,107 @@ class PpPolicy {
       sign = swing_sign_from_target_y(tgt_b[1]);
     }
     const int eng_clip = clip_id_from_swing_sign(sign);
+    if (!same_verified_schema22_cold_flight &&
+        onnx_.optional_reach_runtime_enabled()) {
+      const bool target_tuple_matches =
+          station_session_origin_set_ &&
+          Schema27TargetInsideExportedSupport_(
+              snap.cmd.pos_w, snap.cmd.vel_w, snap.cmd.swing_sign) &&
+          hitter_schema27_reach_permission_matches_home_target_tuple(
+              snap.cmd.pos_w[1], station_session_origin_w_[1],
+              snap.cmd.swing_sign, snap.cmd.reach_level,
+              snap.cmd.swing_foot_sign);
+      if (!target_tuple_matches && !cfg_.gate3_force_every_flight) {
+        BlockOrExpirePendingStation_(
+            tick_idx, tts, "schema27_cold_home_tuple_mismatch");
+        set_planner_status_("schema27_cold_home_tuple_mismatch");
+        return;
+      }
+      if (!target_tuple_matches && cfg_.gate3_force_every_flight) {
+        std::fprintf(
+            stderr,
+            "[pp gate3 force-every-flight] BYPASS cold target-support gate "
+            "flight=%llu reach=(%.0f,%+.0f)\n",
+            static_cast<unsigned long long>(snap.cmd.flight_id),
+            snap.cmd.reach_level, snap.cmd.swing_foot_sign);
+      }
+    }
+    if (schema22_contract && !same_verified_schema22_cold_flight) {
+      // The first fresh receipt has now passed schema/identity/deadline,
+      // freshness, world-frame, finite payload and explicit-side checks. Keep
+      // this last-valid physical flight while its positive TTS counts down to
+      // actor entry; mailbox age is not another release clock.
+      planner_schema22_cold_retained_producer_epoch_ = snap.producer_epoch;
+      planner_schema22_cold_retained_flight_id_ = snap.cmd.flight_id;
+      planner_schema22_cold_retained_reach_level_ = snap.cmd.reach_level;
+      planner_schema22_cold_retained_swing_foot_sign_ =
+          snap.cmd.swing_foot_sign;
+      std::fprintf(
+          stderr,
+          "[pp planner] retained fresh schema22 cold flight=%llu at "
+          "age=%.3f s tts=%.3f s until actor-entry scheduling\n",
+          static_cast<unsigned long long>(snap.cmd.flight_id),
+          snap.valid_age_s, tts);
+    }
+    if (onnx_.uses_fresh_shot_external_commit_contract()) {
+      const auto& support =
+          onnx_.hitter_pingpong_actor_entry_tts_support(eng_clip);
+      const auto schema22_tts_decision = schema22_contract
+          ? planner_schema22_cold_tts_decision(
+                tts, support[0], support[1])
+          : PlannerSchema22ColdTtsDecision::kCommitInSupport;
+      const auto legacy_tts_decision = schema22_contract
+          ? PlannerActorEntryTtsDecision::kCommitInSupport
+          : planner_actor_entry_tts_decision(tts, support[0], support[1]);
+      if ((schema22_contract && schema22_tts_decision ==
+                           PlannerSchema22ColdTtsDecision::
+                               kRejectExpiredOrInvalid) ||
+          (!schema22_contract && legacy_tts_decision ==
+                            PlannerActorEntryTtsDecision::
+                                kRejectBelowSupport)) {
+        BlockOrExpirePendingStation_(tick_idx, tts,
+                                     "tts_below_training_support");
+        set_planner_status_("tts_below_training_support");
+        return;
+      }
+      if (schema22_contract && schema22_tts_decision ==
+              PlannerSchema22ColdTtsDecision::
+                  kCommitBelowSupportTelemetry &&
+          (planner_schema22_cold_tts_reported_producer_epoch_ !=
+               snap.producer_epoch ||
+           planner_schema22_cold_tts_reported_flight_id_ !=
+               snap.cmd.flight_id)) {
+        std::fprintf(
+            stderr,
+            "[pp distribution coverage] cold TTS %.6f s below %s "
+            "actor-entry support [%.3f,%.3f]; positive command admitted\n",
+            tts, sign > 0.0 ? "FH" : "BH", support[0], support[1]);
+        planner_schema22_cold_tts_reported_producer_epoch_ =
+            snap.producer_epoch;
+        planner_schema22_cold_tts_reported_flight_id_ = snap.cmd.flight_id;
+      }
+    }
     Vec2 station = Vec2::Zero();
-    if (onnx_.is_hitter_pure_obs())
-      station = station_from_target_(Vec2(pos_w[0], pos_w[1]), eng_clip);
+    if (onnx_.is_hitter_pure_obs()) {
+      station = onnx_.uses_build2_rapid_preempt_contract()
+          ? station_from_target_with_anchor_(
+                Vec2(pos_w[0], pos_w[1]), eng_clip,
+                station_session_origin_w_, station_session_origin_set_)
+          : station_from_target_(Vec2(pos_w[0], pos_w[1]), eng_clip);
+    }
+    const Vec2 requested_station = station;
+    if (onnx_.uses_build2_rapid_preempt_contract() &&
+        !station_session_origin_set_) {
+      // HOME is a session invariant established only from a fresh localized
+      // MOTION-entry base. A ball may never redefine it.
+      BlockOrExpirePendingStation_(tick_idx, tts,
+                                   "localized_session_home_unset");
+      set_planner_status_("localized_session_home_unset");
+      return;
+    }
+    if (onnx_.uses_build2_rapid_preempt_contract()) {
+      station = ProjectSchema22StationToHome_(requested_station);
+    }
     if (onnx_.is_v17_r10_p0_gate3()) {
       if (!station_session_origin_set_) {
         ClearPendingStation_(tick_idx, "origin_unset");
@@ -3196,30 +4916,40 @@ class PpPolicy {
         (clip_.strike_frame(eng_clip) - clip_.seg_start(eng_clip)) * clip_.step_dt;
 
     bool target_release_blocked = false;
-    if (cfg_.target_gate_enable) {
+    if (onnx_.uses_build2_rapid_preempt_contract()) {
+      const Vec3 effective_vel_w =
+          (onnx_.is_hitter_pure_obs() && cfg_.vel_cmd_box_center)
+              ? cfg_.racket_vel_w_clip[eng_clip] : vel_w;
+      const bool first_coverage_report_for_flight =
+          planner_schema22_cold_coverage_reported_producer_epoch_ !=
+              snap.producer_epoch ||
+          planner_schema22_cold_coverage_reported_flight_id_ !=
+              snap.cmd.flight_id;
+      const bool outside_core_box = ReportSchema22CoreBoxCoverage_(
+          "cold command", snap.cmd.flight_id, eng_clip, snap.cmd.frame_code,
+          pos_w, effective_vel_w, requested_station, station,
+          first_coverage_report_for_flight);
+      if (outside_core_box && first_coverage_report_for_flight) {
+        planner_schema22_cold_coverage_reported_producer_epoch_ =
+            snap.producer_epoch;
+        planner_schema22_cold_coverage_reported_flight_id_ =
+            snap.cmd.flight_id;
+      }
+    } else if (cfg_.target_gate_enable) {
       bool ok;
       if (onnx_.is_hitter_pure_obs()) {
         // METADATA-driven gate against the TRAINED distribution: per-clip z band, required
         // station step, speed cap. No fixed base-relative box — the paper's robot WALKS to
         // targets the arm alone cannot cover (Fig. 4), so reachability is a station question.
-        const double base_step = (station - Vec2(base_pos[0], base_pos[1])).norm();
         const Vec2 transition_anchor = planner_pending_station_active_
             ? ((cfg_.station_only && planner_station_ready_reported_)
                    ? hold_station_w_ : planner_pending_origin_station_w_)
             : (hold_station_set_ ? hold_station_w_ : Vec2(base_pos[0], base_pos[1]));
-        const double command_step = (station - transition_anchor).norm();
-        bool absolute_station_ok = true;
-        if (rally_final_station_control_) {
-          absolute_station_ok = station_session_origin_set_ &&
-              station[0] - station_session_origin_w_[0] >=
-                  hp_base_target_range_[0] - cfg_.gate_station_step_margin &&
-              station[0] - station_session_origin_w_[0] <=
-                  hp_base_target_range_[1] + cfg_.gate_station_step_margin &&
-              station[1] - station_session_origin_w_[1] >=
-                  hp_base_target_range_[2] - cfg_.gate_station_step_margin &&
-              station[1] - station_session_origin_w_[1] <=
-                  hp_base_target_range_[3] + cfg_.gate_station_step_margin;
-        }
+        const auto support = CheckHitterPureTargetSupport_(
+            eng_clip, pos_w, vel_w, station, base_pos,
+            transition_anchor);
+        const double base_step = support.base_step_m;
+        const double command_step = support.command_step_m;
         // x-READINESS (see cfg.gate_station_x_max): x-locked models never trained an
         // x-station step — refuse to swing until the walk-back puts the base ON the plane.
         const double x_err = station[0] - base_pos[0];
@@ -3244,14 +4974,8 @@ class PpPolicy {
         // Per-clip trained VELOCITY support, per axis ± gate_vel_margin.  V10 samples core OR
         // planner; its bounding union is safety metadata and union-only corners are rejected.
         // Moot under --demo (the demand is replaced by the validated planner-contained center).
-        const bool vel_ok = cfg_.vel_cmd_box_center || !hp_vel_box_set_ ||
-                            vel_in_hp_box_(eng_clip, vel_w);
-        ok = pos_w[2] >= hp_z_band_[eng_clip][0] - cfg_.gate_z_margin &&
-             pos_w[2] <= hp_z_band_[eng_clip][1] + cfg_.gate_z_margin &&
-             base_step <= cfg_.gate_station_step_max + cfg_.station_ready_y_max &&
-             command_step <= cfg_.gate_station_step_max &&
-             absolute_station_ok &&
-             vel_w.norm() <= cfg_.gate_speed_max && vel_ok;
+        const bool vel_ok = support.velocity_ok;
+        ok = support.ok;
         if (!ok && (gate_warn_tick_++ % 50) == 0) {
           const auto& vb = hp_vel_box_[eng_clip];
           const char* target_label = release_gates_advisory
@@ -3353,7 +5077,8 @@ class PpPolicy {
     // at its windup. The policy first walks laterally to the derived station, then must be
     // position- and speed-ready for a sustained dwell before the clock can arm. No actor input
     // changes: the existing 110-D station delta and racket target carry the pending command.
-    if (rally_final_station_control_ && cfg_.station_ready_enable) {
+    if (rally_final_station_control_ && cfg_.station_ready_enable &&
+        !raw_tts_contract) {
       const bool first_pending = !planner_pending_station_active_;
       const bool shot_changed = !first_pending && planner_shot_changed(
           snap.cmd.strike_time, planner_pending_strike_time_, cfg_.shot_reuse_tolerance_s);
@@ -3572,10 +5297,13 @@ class PpPolicy {
       // command that arrives later engages immediately from a phase-continuous
       // near-static start.
       const bool late_commit =
+          raw_tts_contract ||
           onnx_.is_rally_v14_recipe() ||
           onnx_.is_v17_r12_v11_qdes_tuple_hardware();
       const double hard_late_tts = late_commit
-          ? engage_hard_late_cutoff_(eng_clip)
+          ? (raw_tts_contract
+                 ? engage_raw_tts_reference_floor_(eng_clip)
+                 : engage_hard_late_cutoff_(eng_clip))
           : engage_late_cutoff_(eng_clip);
       const double cutoff = std::min(cfg_.engage_min_tts_s, hard_late_tts);
       if (planner_timing_blocks_release(
@@ -3596,7 +5324,32 @@ class PpPolicy {
       const double commit_tts = late_commit
           ? engage_target_sample_tts_(eng_clip)
           : max_tts0;
+      // Keep replacing preliminary Planner revisions throughout the proven near-static prefix.
+      // The raw-TTS policy changes what becomes actor-visible at COMMIT, not when a preliminary
+      // prediction becomes final. This preserves the actor-entry TTS distribution measured in
+      // the Build1 Runner traces; a positive command first seen after the boundary still commits
+      // immediately.
       if (tts > commit_tts) {
+        if (raw_tts_contract && onnx_.uses_home_preempt_rally_contract() &&
+            station_session_origin_set_) {
+          const double lateral_offset =
+              std::fabs(station[1] - station_session_origin_w_[1]);
+          const int station_class = lateral_offset < 1.0e-5
+              ? 0
+              : (lateral_offset < 0.12 ? 1 : 2);
+          const double preposition_lead_s =
+              onnx_.hitter_pingpong_preposition_lead_s(station_class);
+          if (station_class > 0 &&
+              tts <= commit_tts + preposition_lead_s) {
+            const bool changed = !hold_station_set_ ||
+                (hold_station_w_ - station).norm() > 1.0e-6;
+            hold_station_w_ = station;
+            hold_station_set_ = true;
+            if (changed) {
+              RecordPlannerLifecycle_("preposition", "base_target_only_wait");
+            }
+          }
+        }
         set_planner_status_(late_commit ? "tracking_latest_revision" : "waiting_tts");
         return;
       }
@@ -3604,8 +5357,9 @@ class PpPolicy {
       // arrives deeper than the qualified prefix, engage it immediately but
       // start at the deepest near-static frame instead of teleporting the actor
       // into a large dynamic pose. No stability/READY condition is consulted.
-      const auto phase_start = planner_phase_continuous_start(
-          late_commit, tts, hard_late_tts);
+      const auto phase_start = planner_contact_frame_start(
+          onnx_.uses_signed_tts_contact_frame_contract(), late_commit, tts,
+          hard_late_tts);
       planner_tts0_ = phase_start.clock_tts_s;
       planner_late_phase_clamped_ = phase_start.late_phase_clamped;
       planner_engage_expected_strike_lateness_s_ =
@@ -3618,6 +5372,7 @@ class PpPolicy {
       planner_tts0_ = std::min(tts, max_tts0);
       planner_late_phase_clamped_ = false;
     }
+    planner_actor_tts0_ = tts;
     planner_engage_raw_tts_ = tts;
     planner_engage_clock_tts0_ = planner_tts0_;
     planner_engage_requested_phase_s_ = std::max(0.0, max_tts0 - tts);
@@ -3631,35 +5386,62 @@ class PpPolicy {
                                 ? cfg_.racket_vel_w_clip[eng_clip]
                                 : vel_w;
     planner_frozen_sign_ = sign;
+    // A committed physical shot starts a fresh native tail. The previous shot's
+    // HOME latch must not own this shot's pre-contact base target.
+    native_tail_home_recovery_latched_ = false;
+    if (raw_tts_contract) {
+      // The new station is hidden throughout WAIT and becomes actor-visible atomically with the
+      // final target/TTS, matching the training command.  Old exports retain pre-positioning.
+      hold_station_w_ = station;
+      hold_station_set_ = true;
+      set_swing_dir(sign >= 0.0 ? 1 : -1);
+    }
     // Freeze the complete identity/timing tuple from the exact same mailbox
     // snapshot as position and velocity. These fields are audit only; actor
     // observations and the frozen-target control contract are unchanged.
     planner_frozen_command_seq_ = snap.cmd.command_seq;
+    planner_frozen_producer_epoch_ = snap.producer_epoch;
     planner_frozen_flight_id_ = snap.cmd.flight_id;
     planner_frozen_revision_id_ = snap.cmd.revision_id;
     planner_frozen_strike_time_ = snap.cmd.strike_time;
     planner_frozen_raw_tts_ = tts;
+    planner_frozen_reach_level_ = onnx_.uses_schema27_optional_reach_obs()
+        ? planner_schema22_cold_retained_reach_level_
+        : snap.cmd.reach_level;
+    planner_frozen_swing_foot_sign_ =
+        onnx_.uses_schema27_optional_reach_obs()
+            ? planner_schema22_cold_retained_swing_foot_sign_
+            : snap.cmd.swing_foot_sign;
     planner_hold_pos_b_engage_ = tgt_b;
     planner_hold_z_w_ = pos_w[2];
     planner_have_hold_ = true;
     planner_engaged_ = true;
     ++planner_shot_seq_;
+    if (onnx_.uses_build2_rapid_preempt_contract()) {
+      ClearRapidPreemptLedger_();
+    }
     const bool was_pending_station = planner_pending_station_active_;
     const bool station_was_ready = planner_station_ready_reported_;
     if (a3_deploy::numeric_safety::IsFinite(snap.cmd.strike_time) &&
         snap.cmd.strike_time > 0.0) {
+      planner_consumed_producer_epoch_ = snap.producer_epoch;
+      planner_consumed_flight_id_ = snap.cmd.flight_id;
       planner_consumed_strike_time_ = snap.cmd.strike_time;
       planner_have_consumed_shot_ = true;
     }
     ClearPendingStation_(tick_idx, "engaged");  // hold station remains the recovery/next-transition anchor
     set_swing_dir(sign >= 0.0 ? 1 : -1);
     set_level(1);
+    // Planner engagement is the authoritative start edge. Reset explicitly because an internally
+    // completed swing may accept a same-side flight immediately; relying only on the later edge
+    // detector used to consume that flight against the previous clock origin.
+    swing_clock_origin_.store(tick_idx);
     std::fprintf(stderr,
-        "[pp engage] %s %s: tgt base-rel (%+.2f,%+.2f,%+.2f) tts=%.2fs "
+        "%s %s %s: tgt base-rel (%+.2f,%+.2f,%+.2f) tts=%.2fs "
         "(clock tts0=%.2fs) station=(%+.3f,%+.3f) dx=%.3f dy=%.3f "
         "speed=%s%.3f flight=%llu revision=%llu stable=%d "
         "late_phase_clamped=%d%s\n",
-        sign > 0 ? "forehand" : "backhand",
+        kPlannerEngageLogPrefix, sign > 0 ? "forehand" : "backhand",
         (onnx_.is_hitter_pure_obs() && cfg_.stream_target) ? "engaged (streaming)" : "locked",
         tgt_b[0], tgt_b[1], tgt_b[2], tts, planner_tts0_, station[0], station[1],
         std::fabs(base_pos[0] - station[0]), std::fabs(base_pos[1] - station[1]),
@@ -3685,8 +5467,19 @@ class PpPolicy {
     if (!racket_in_) return;
     const auto snap = racket_in_->Latest();
     planner_current_msg_seq_ = snap.seq;
+    planner_current_producer_epoch_ = snap.producer_epoch;
     if (!snap.has_valid || snap.invalid_after) return;
     if (snap.valid_age_s > cfg_.command_timeout_s) return;
+    if (onnx_.uses_schema27_optional_reach_obs() &&
+        !onnx_.planner_reach_wire_is_compatible(
+            snap.cmd.schema, snap.cmd.reach_level,
+            snap.cmd.swing_foot_sign))
+      return;
+    if (!planner_stream_target_matches_frozen_flight(
+            onnx_.uses_build2_rapid_preempt_contract(),
+            {snap.producer_epoch, snap.cmd.flight_id},
+            {planner_frozen_producer_epoch_, planner_frozen_flight_id_}))
+      return;
     const std::uint64_t origin = swing_clock_origin_.load();
     const double t = (tick_idx >= origin ? tick_idx - origin : 0) * cfg_.dt * swing_speed_.load();
     if (planner_tts0_ - t < cfg_.stream_tts_floor_s) return;  // freeze near the strike
@@ -3722,15 +5515,17 @@ class PpPolicy {
   // (target snaps to the nearest band edge). x is always the fixed plane subtraction. The
   // clamp anchors on hold_station_w_ (the previous commanded station — the same anchor V8
   // training samples transitions from); with no held station yet it falls back to band-center.
-  Vec2 station_from_target_(const Vec2& tgt_xy, int clip) const {
+  Vec2 station_from_target_with_anchor_(
+      const Vec2& tgt_xy, int clip, const Vec2& command_anchor_w,
+      bool command_anchor_set) const {
     Vec2 station(tgt_xy[0] - reach_offset_clip_[clip][0],
                  tgt_xy[1] - reach_offset_clip_[clip][1]);
-    if (stay_if_reachable_ && hold_station_set_) {
+    if (stay_if_reachable_ && command_anchor_set) {
       const double lo = hp_y_band_[clip][0], hi = hp_y_band_[clip][1];
       if (hi > lo) {
-        const double rel_y = tgt_xy[1] - hold_station_w_[1];
+        const double rel_y = tgt_xy[1] - command_anchor_w[1];
         if (rel_y >= lo && rel_y <= hi)
-          station[1] = hold_station_w_[1];      // reachable by arm extension: stay
+          station[1] = command_anchor_w[1];      // reachable by arm extension: stay
         else if (rel_y > hi)
           station[1] = tgt_xy[1] - hi;          // minimum step toward +y (band edge)
         else
@@ -3738,6 +5533,11 @@ class PpPolicy {
       }
     }
     return station;
+  }
+
+  Vec2 station_from_target_(const Vec2& tgt_xy, int clip) const {
+    return station_from_target_with_anchor_(
+        tgt_xy, clip, hold_station_w_, hold_station_set_);
   }
 
   // 110 late-command phase boundary for one clip.  For model_21800 this is no longer an
@@ -3756,11 +5556,23 @@ class PpPolicy {
     return planner_prefix_hard_late_tts(windup);
   }
 
+  double engage_raw_tts_reference_floor_(int clip) const {
+    const double windup =
+        (clip_.strike_frame(clip) - clip_.seg_start(clip)) * clip_.step_dt;
+    return planner_late_reveal_reference_floor_tts(
+        windup, onnx_.hitter_pingpong_entry_prefix_phase_cap());
+  }
+
   // model_21800/rally_v14 keeps replacing the pending snapshot throughout the
   // whole near-static prefix and atomically freezes it at the fixed dynamic
   // boundary. A positive command first seen after that instant is still
   // accepted immediately by planner_phase_continuous_start().
   double engage_target_sample_tts_(int clip) const {
+    if (onnx_.uses_actor_entry_support_commit_contract()) {
+      const auto& support =
+          onnx_.hitter_pingpong_actor_entry_tts_support(clip);
+      return planner_actor_entry_commit_tts(support[0], support[1]);
+    }
     const double windup =
         (clip_.strike_frame(clip) - clip_.seg_start(clip)) * clip_.step_dt;
     return planner_target_sample_tts(
@@ -3778,6 +5590,36 @@ class PpPolicy {
           v[0], v[1], v[2], m);
     const auto& box = hp_vel_box_[clip];
     return velocity_in_box(box, v[0], v[1], v[2], m);
+  }
+
+  static double velocity_box_speed_max_(
+      const std::array<double, 6>& box) {
+    const double vx = std::max(std::fabs(box[0]), std::fabs(box[1]));
+    const double vy = std::max(std::fabs(box[2]), std::fabs(box[3]));
+    const double vz = std::max(std::fabs(box[4]), std::fabs(box[5]));
+    return std::sqrt(vx * vx + vy * vy + vz * vz);
+  }
+
+  bool rapid_velocity_in_exact_support_(int clip, const Vec3& v) const {
+    if (clip < 0 || clip >= 2 || !v.allFinite()) return false;
+    if (hp_vel_components_set_) {
+      return velocity_in_component_support(
+          hp_vel_core_box_[clip], hp_vel_planner_box_[clip],
+          v[0], v[1], v[2], kVelocityBoxContractTolerance);
+    }
+    return hp_vel_box_set_ && velocity_in_box(
+        hp_vel_box_[clip], v[0], v[1], v[2],
+        kVelocityBoxContractTolerance);
+  }
+
+  double rapid_velocity_exact_speed_max_(int clip) const {
+    if (clip < 0 || clip >= 2) return 0.0;
+    if (hp_vel_components_set_) {
+      return std::max(
+          velocity_box_speed_max_(hp_vel_core_box_[clip]),
+          velocity_box_speed_max_(hp_vel_planner_box_[clip]));
+    }
+    return hp_vel_box_set_ ? velocity_box_speed_max_(hp_vel_box_[clip]) : 0.0;
   }
 
   // One-shot first-tick diagnostic dump (stderr). action = raw Isaac-order policy
@@ -3836,6 +5678,23 @@ class PpPolicy {
         {"actions(last)", 65, 31}, {"projected_gravity", 96, 3}, {"base_forward_xy", 99, 2},
         {"base_target_delta_xy(world)", 101, 2}, {"racket_target_rel_base(world)", 103, 3},
         {"racket_target_vel_w", 106, 3}, {"time_to_strike", 109, 1}};
+    static const Blk blks110_vxy[] = {
+        {"base_ang_vel", 0, 3}, {"joint_pos_rel", 3, 31}, {"joint_vel", 34, 31},
+        {"actions(last)[0:11]", 65, 11}, {"base_velocity_x(mocap)", 76, 1},
+        {"actions(last)[12:16]", 77, 4}, {"base_velocity_y(mocap)", 81, 1},
+        {"actions(last)[17:31]", 82, 14}, {"projected_gravity", 96, 3},
+        {"base_forward_xy", 99, 2}, {"base_target_delta_xy(world)", 101, 2},
+        {"racket_target_rel_base(world)", 103, 3}, {"racket_target_vel_w", 106, 3},
+        {"time_to_strike", 109, 1}};
+    static const Blk blks112_vxy_reach[] = {
+        {"base_ang_vel", 0, 3}, {"joint_pos_rel", 3, 31}, {"joint_vel", 34, 31},
+        {"actions(last)[0:11]", 65, 11}, {"base_velocity_x(mocap)", 76, 1},
+        {"actions(last)[12:16]", 77, 4}, {"base_velocity_y(mocap)", 81, 1},
+        {"actions(last)[17:31]", 82, 14}, {"projected_gravity", 96, 3},
+        {"base_forward_xy", 99, 2}, {"base_target_delta_xy(world)", 101, 2},
+        {"racket_target_rel_base(world)", 103, 3}, {"racket_target_vel_w", 106, 3},
+        {"time_to_strike", 109, 1}, {"reach_level(planner)", 110, 1},
+        {"swing_foot_sign(planner)", 111, 1}};
     static const Blk blks113[] = {
         {"base_ang_vel", 0, 3}, {"joint_pos_rel", 3, 31}, {"joint_vel", 34, 31},
         {"executed_qdes_feedback", 65, 31}, {"projected_gravity", 96, 3},
@@ -3853,16 +5712,22 @@ class PpPolicy {
         {"gait_clock(left,right)", 114, 2}, {"locomotion_mode", 116, 1},
         {"upper_intervention(deploy=0)", 117, 1}};
     std::fprintf(stderr, " OBS blocks (%d-D):\n", (int)obs.size());
+    const bool obs110_vxy = obs.size() == kObsDim110 &&
+        onnx_.uses_hitter_pure_headslots_vxy_obs();
     const Blk* blks = (obs.size() == kObsDim175) ? blks175
                     : (obs.size() == kObsDim177) ? blks177
                     : (obs.size() == kObsDim118) ? blks118
                     : (obs.size() == kObsDim113) ? blks113
+                    : (obs.size() == kObsDim112) ? blks112_vxy_reach
+                    : obs110_vxy ? blks110_vxy
                     : (obs.size() == kObsDim110) ? blks110
                                                  : blks180;
     const int nblk = (obs.size() == kObsDim175) ? (int)(sizeof(blks175) / sizeof(Blk))
                    : (obs.size() == kObsDim177) ? (int)(sizeof(blks177) / sizeof(Blk))
                    : (obs.size() == kObsDim118) ? (int)(sizeof(blks118) / sizeof(Blk))
                    : (obs.size() == kObsDim113) ? (int)(sizeof(blks113) / sizeof(Blk))
+                   : (obs.size() == kObsDim112) ? (int)(sizeof(blks112_vxy_reach) / sizeof(Blk))
+                   : obs110_vxy ? (int)(sizeof(blks110_vxy) / sizeof(Blk))
                    : (obs.size() == kObsDim110) ? (int)(sizeof(blks110) / sizeof(Blk))
                                                 : (int)(sizeof(blks180) / sizeof(Blk));
     for (int i = 0; i < nblk; ++i)
@@ -3879,6 +5744,17 @@ class PpPolicy {
           last_qdes_projector_tracking_count_, last_qdes_projector_torque_count_,
           last_qdes_projector_infeasible_count_,
           last_qdes_projector_max_normalized_error_);
+    }
+    if (onnx_.has_v12_affine_safe_slew_qdes_contract()) {
+      std::fprintf(stderr, " Q_DES(v12 nominal,Isaac): %s\n", S(onnx_.target_q(action)).c_str());
+      std::fprintf(stderr, " Q_DES(v12 slewed,Isaac) : %s\n", S(qdes_slew_hat_isaac_).c_str());
+      std::fprintf(stderr,
+          " SLEW: scale=%.3f saturated=%d (legs %d) max_clip=%.4f rad tilt=%.2f deg "
+          "speed=%.3f m/s | ENVELOPE: level=%d mode=%s home_dist=%.3f m\n",
+          last_qdes_slew_scale_, last_qdes_slew_saturated_count_,
+          last_qdes_slew_saturated_leg_count_, last_qdes_slew_max_clip_rad_,
+          envelope_tilt_rad_ * 180.0 / M_PI, envelope_speed_mps_, envelope_.level(),
+          RecoveryEnvelopeModeName(envelope_mode_), envelope_home_dist_m_);
     }
     std::fprintf(stderr, " Q_DES(SDK)[31]       : %s\n", S(q_sdk).c_str());
     std::fprintf(stderr, " KP(SDK)[31]          : %s\n", S(kp_sdk).c_str());
@@ -3956,14 +5832,21 @@ class PpPolicy {
   // it, so the deploy inversion must keep the CURRENT station when the target is in-band and
   // otherwise make the MINIMUM lateral move (nearest band edge). The legacy unconditional
   // band-CENTER subtraction turns every serve into a step, erasing the trained behavior.
-  // Set from the ONNX recipe (rally_v8) at ctor; CLI --no-stay-if-reachable is the A/B escape.
+  // Set for station recipes at construction. Legacy recipes retain the CLI A/B escape;
+  // schema22 fail-closes unless this remains enabled. Schema23 always commands session HOME
+  // and treats the corresponding support/reachability flags as telemetry-only.
   bool stay_if_reachable_ = false;
   bool station_session_origin_set_ = false;
   Vec2 station_session_origin_w_ = Vec2::Zero();
+  // Schema-21 Build2 minimal rootfix only: after contact+0.12 the base target
+  // points at immutable session HOME while level 1 and the native motion tail
+  // continue. It is cleared only at mode rearm or the next accepted shot.
+  bool native_tail_home_recovery_latched_ = false;
   // 177-D hold-station anchor (driver thread only): the fixed WORLD station fed to the
   // base_target obs during level-0 holds (captured at hold entry; carried from the last
-  // swing's station after a completed swing). Cleared on localization dropout and by
-  // rearm_yaw_align() (mode re-entry — the robot may have been carried/moved).
+  // swing's station after a completed swing). Repair-v3 preserves it through an actor-visible
+  // localization outage; rearm_yaw_align() still clears it on mode re-entry because the robot may
+  // have been carried or moved. Historical recipes retain their old outage fallback.
   Vec2 hold_station_w_ = Vec2::Zero();
   bool hold_station_set_ = false;
   bool fixed_y_homing_active_ = false;
@@ -3985,9 +5868,18 @@ class PpPolicy {
   int finite_gait_settle_ticks_ = 0;
   std::array<int, 31> isaac_to_sdk_{};
   Eigen::VectorXd nominal_q_sdk_;
+  Eigen::VectorXd official_stand_q_sdk_;
   Eigen::VectorXd official_kp_sdk_;
   Eigen::VectorXd official_kd_sdk_;
+  CompactExecutionHistory324 compact_history_;
+  Eigen::VectorXd compact_observation_cache_;
+  std::uint64_t compact_observation_tick_ = 0;
   Eigen::VectorXd last_action_;
+  // Schema28-only recurrent Markov state. It is policy-owned evidence from the
+  // frozen core, never an actuator override. Cold/mode rearm resets it exactly
+  // to the training reset value and the ONNX auxiliary output advances it.
+  Eigen::VectorXd core_action_shadow_owned_ =
+      Eigen::VectorXd::Zero(kCoreActionShadowDim);
   // Armed at mode rearm / static handoff (and at construction: the very first policy tick is
   // a training reset too); consumed by the first policy tick's measured-posture seed.
   bool last_action_seed_pending_ = true;
@@ -4008,6 +5900,31 @@ class PpPolicy {
   int last_qdes_feasible_torque_bound_count_ = 0;
   std::uint64_t qdes_projector_ticks_ = 0;
   std::array<std::uint64_t, kNumJoints> qdes_projector_joint_count_{};
+  // --- v12_affine_safe_slew_qdes_v1 state (driver thread only) ---
+  bool qdes_slew_initialized_ = false;                 // q_hat_prev := default_q on first tick
+  bool have_delivered_qdes_ = false;
+  Eigen::VectorXd last_delivered_qdes_sdk_ = Eigen::VectorXd::Zero(kNumJoints);
+  Eigen::VectorXd qdes_slew_hat_isaac_ = Eigen::VectorXd::Zero(kNumJoints);      // q_hat
+  Eigen::VectorXd qdes_slew_feedback_isaac_ = Eigen::VectorXd::Zero(kNumJoints); // a_fb
+  std::array<bool, kNumJoints> qdes_slew_passive_mask_{};  // Isaac slots that map to head SDK slots
+  double last_qdes_slew_scale_ = 1.0;
+  int last_qdes_slew_saturated_count_ = 0;
+  int last_qdes_slew_saturated_leg_count_ = 0;
+  double last_qdes_slew_max_clip_rad_ = 0.0;
+  std::uint64_t qdes_slew_ticks_ = 0;
+  std::uint64_t qdes_slew_saturated_ticks_ = 0;
+  double qdes_slew_max_clip_rad_session_ = 0.0;
+  // --- RECOVERY ENVELOPE (Layer C; driver thread only) ---
+  RecoveryEnvelopeMode envelope_mode_ = RecoveryEnvelopeMode::kCapability;
+  RecoveryEnvelopeMonitor envelope_;
+  double envelope_home_dist_m_ = NAN;   // NaN until the session HOME exists (-> L3, fail closed)
+  double envelope_speed_mps_ = 0.0;     // obs-path filtered mocap speed (0 when stale)
+  double envelope_tilt_rad_ = 0.0;      // asin(||g_xy||) of the obs-path projected gravity
+  double envelope_support_anchor_error_m_ = NAN;  // Schema33: max sole-vs-HOME-anchor error
+  ObservableFootstepTask footstep_task_;
+  bool footstep_task_have_tick_ = false;
+  double schema34_signed_replant_need_ = 0.0;     // ankle-roll-link FK, signed farther-foot debt
+  const char* envelope_block_reason_ = kRecoveryEnvelopeReasonNone;
   int last_time_step_ = -1;
   Vec3 last_proj_grav_ = Vec3(0.0, 0.0, -1.0);
   Vec3 last_base_pos_ = Vec3(0.0, 0.0, 0.95);
@@ -4028,6 +5945,9 @@ class PpPolicy {
   std::array<std::uint64_t, kNumJoints> safe_interval_count_{};
   std::array<double, kNumJoints> safe_interval_max_excess_{};
   std::array<bool, kNumJoints> actual_q_hard_audit_active_{};
+  std::array<double, kNumJoints> last_actual_q_hard_excess_sdk_{};
+  int last_actual_q_hard_violation_count_ = 0;
+  double last_actual_q_hard_max_excess_rad_ = 0.0;
   int last_clamp_count_ = 0;     // # joints clamped on the last tick
   std::uint64_t clamp_ticks_ = 0;                        // ticks the clamp ran
   std::array<std::uint64_t, kNumJoints> clamp_count_{};  // per-slot clamp hit count
@@ -4091,25 +6011,52 @@ class PpPolicy {
   std::uint64_t planner_lifecycle_seq_ = 0;
   std::uint64_t planner_shot_seq_ = 0;
   std::uint64_t planner_current_msg_seq_ = 0;
+  std::uint64_t planner_schema22_producer_epoch_ = 0;
+  std::uint64_t planner_current_producer_epoch_ = 0;
   std::uint64_t planner_current_flight_id_ = 0;
   std::uint64_t planner_current_revision_id_ = 0;
+  std::uint64_t planner_schema22_cold_coverage_reported_producer_epoch_ = 0;
+  std::uint64_t planner_schema22_cold_coverage_reported_flight_id_ = 0;
+  std::uint64_t planner_schema22_cold_tts_reported_producer_epoch_ = 0;
+  std::uint64_t planner_schema22_cold_tts_reported_flight_id_ = 0;
+  std::uint64_t planner_schema22_cold_retained_producer_epoch_ = 0;
+  std::uint64_t planner_schema22_cold_retained_flight_id_ = 0;
+  double planner_schema22_cold_retained_reach_level_ = 0.0;
+  double planner_schema22_cold_retained_swing_foot_sign_ = 0.0;
   int planner_current_stable_revision_count_ = 0;
   std::uint64_t planner_frozen_command_seq_ = 0;
+  std::uint64_t planner_frozen_producer_epoch_ = 0;
   std::uint64_t planner_frozen_flight_id_ = 0;
   std::uint64_t planner_frozen_revision_id_ = 0;
   double planner_frozen_strike_time_ = 0.0;
   double planner_frozen_raw_tts_ = 0.0;
+  PlannerFlightCompletionState planner_completion_state_{};
   bool planner_have_hold_ = false;      // at least one swing engaged (diagnostic)
   bool planner_have_consumed_shot_ = false;
+  std::uint64_t planner_consumed_producer_epoch_ = 0;
+  std::uint64_t planner_consumed_flight_id_ = 0;
   double planner_consumed_strike_time_ = 0.0;
+  std::uint64_t planner_preempt_candidate_producer_epoch_ = 0;
+  std::uint64_t planner_preempt_candidate_flight_id_ = 0;
+  std::uint64_t planner_preempt_candidate_revision_id_ = 0;
+  std::uint64_t planner_preempt_expired_producer_epoch_ = 0;
+  std::uint64_t planner_preempt_expired_flight_id_ = 0;
+  bool planner_preempt_pending_active_ = false;
+  PpRacketMsg planner_preempt_pending_cmd_{};
+  double planner_preempt_pending_last_fresh_steady_s_ = 0.0;
+  std::uint64_t planner_preempt_busy_drop_producer_epoch_ = 0;
+  std::uint64_t planner_preempt_busy_drop_flight_id_ = 0;
   double planner_tts0_ = 0.0;           // engage-time tts, clamped to the clip windup length;
                                         // seeds the swing clock so the strike meets the ball
+  double planner_actor_tts0_ = 0.0;     // raw Planner TTS exposed to late-reveal actors
   Vec3 planner_frozen_pos_w_ = Vec3::Zero();
   // Hold/pre-engage target velocity: initialised in the ctor to the forehand box-center
   // vel (a ZERO vel target is outside every trained target-vel box = an obs state
   // training never saw); overwritten by each engage's frozen velocity.
   Vec3 planner_frozen_vel_w_ = Vec3::Zero();
   double planner_frozen_sign_ = 1.0;
+  double planner_frozen_reach_level_ = 0.0;
+  double planner_frozen_swing_foot_sign_ = 0.0;
   // base-rel target at engage (hold anchor); defaults = a centered, racket-reachable ready
   // stance so the pre-first-engage hold is safe even before any command arrives.
   Vec3 planner_hold_pos_b_engage_ = Vec3(0.40, 0.0, 0.0);
@@ -4121,6 +6068,7 @@ class PpPolicy {
   std::atomic<bool> planner_entry_pending_{true};
   bool planner_static_active_ = false;
   bool serve_static_handoff_pending_ = false;
+  bool mode_handoff_hold_ = false;
   std::uint64_t planner_static_start_tick_ = 0;
   // static-handoff base-settle dwell (driver thread only; see BASE-SETTLE guard)
   std::uint64_t static_settle_ticks_ = 0;

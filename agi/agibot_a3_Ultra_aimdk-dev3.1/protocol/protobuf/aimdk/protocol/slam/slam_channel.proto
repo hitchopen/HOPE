@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/slam/slam_api.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se2_pose.proto";
+import "aimdk/protocol/common/pixel_pose.proto";
+
+// 建图实时推送数据
+message SLAMRealtimeMappingChannel {
+  // 数据头
+  Header header = 1;
+
+  // 当前位置
+  PixelPose cur_pos = 2;
+
+  // 地图信息
+  SLAM2DMapInfo map_info = 3;
+
+  // 雷达点
+  repeated Pixel lidar_points = 4;
+
+  // 行走轨迹
+  repeated Pixel trajectory = 5;
+
+  // 地图数据
+  bytes map_data = 6;
+}
+
+/**
+ * @brief 常规重定位推送的实时点云信息
+ */
+message SLAMRealtimeLidarChannel {
+  // 数据头
+  Header header = 1;
+
+  // 雷达范围
+  double lidar_range = 2;
+
+  // 雷达点云
+  repeated Pixel lidar_points = 3;
+}
+
+/**
+ * @brief 推送实时定位心跳
+ */
+enum LocalizationStatus {
+  // 0 无定位，也没有准备初始化
+  LocalizationStatus_IDLE = 0;
+
+  // 1 初始化过程中，位姿无效
+  LocalizationStatus_INITIALIZING = 1;
+
+  // 2 正常定位
+  LocalizationStatus_GOOD = 2;
+
+  // 3 异常定位，输出DR递推
+  LocalizationStatus_FOLLOWING_DR = 3;
+
+  // 4 定位失败
+  LocalizationStatus_FAIL = 4;
+}
+
+message LocStatusHeartBeat {
+  LocalizationStatus loc_status = 1;
+}
+
+/**
+ * @brief 推送重定位的心跳，启动重定位流程后有效
+ * @topic /aima/mm/relocate_status
+ */
+message RelocStatusHeartBeat {
+  //重定位状态，复用LocalizationStatus定义
+  LocalizationStatus loc_status = 1;
+  string reloc_uuid             = 2; //重定位的sessionid，方便端侧区分不同命令的uuid
+  uint64 error_code             = 3; //重定位失败的错误码，只在FAIL状态有效
+  enum RelocateBizType {
+    AUTO_RELOCATE = 0;
+    FREE_EXPLORE  = 1;
+  }
+  RelocateBizType type          = 4; //重定位的业务状态，默认为自动重定位消息AUTO_RELOCATE
+}
+
+/**
+ * @brief 推送实时更新栅格地图是否生效的flag
+ */
+message UpdateOccupancyMapFlag {
+  bool enable_update = 1;
+}

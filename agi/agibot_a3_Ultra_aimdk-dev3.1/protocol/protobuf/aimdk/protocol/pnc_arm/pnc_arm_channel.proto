@@ -1,0 +1,65 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/pnc_arm/pnc_arm_motion.proto";
+import public "aimdk/protocol/pnc_arm/pnc_arm_state.proto";
+
+/**
+ * @brief pnc_arm模块状态topic
+ * topic : /pnc_arm/state
+ */
+message PncArmStateChannel {
+  // 消息头，序号和时间戳等信息
+  Header header = 1;
+  PncArmState state = 2;
+}
+
+/**
+ * @brief 在线规划控制topic
+ * topic : /pnc_arm/motion/online_planning
+ */
+message PncArmOnlinePlanningChannel {
+  // 消息头，序号和时间戳等信息
+  Header header = 1;
+
+  // 规划组
+  PlanningGroup group = 2;
+
+  // 模式
+  PlanningMode mode = 3;
+
+  // 目标位置
+  PncArmPlanningTarget target = 4;
+
+  // 参考位置
+  PncArmPlanningReference reference = 5;
+
+  // 运动约束
+  MotionConstraint constraint = 6;
+
+  // 相对运动位移，闭链任务用
+  SE3Pose relative_pose = 7;
+}
+
+/**
+ * @brief 双臂控制消息, 考虑干掉，用别的替代
+ * topic : /pnc_arm/motion/interpolate
+ */
+message PncArmInterpolateChannel {
+  // 消息头，序号和时间戳等信息
+  Header header = 1;
+
+  /**
+   * 控制标记位，0是joint左臂, 1是joint右臂, 2是joint双臂,
+   * 100是SE3左臂, 101是SE3右臂, 102是SE3双臂
+  */
+  uint32 flag = 2;
+
+  // 关节角度、速度、加速度，力
+  // 一般包含14个元素, 前7个对应左臂，后7个对应右臂
+  repeated double positions = 3;     /**< The position of the trajectory. Unit rad*/
+  repeated double velocities = 4;    /**< The velocity of the trajectory. Unit rad/s */
+  repeated double accelerations = 5; /**< The acceleration of the trajectory. Unit rad/s^2*/
+  repeated double effort = 6;        /**< The effort of the trajectory. Unit N */
+}

@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+// 操作事件类型
+enum OperatorEventType {
+  event_unknown = 0;
+  autonomy = 1;
+  takeover = 2;
+  stopped = 3;
+}
+
+// 操作事件详细类型
+enum OperatorEventDetailType {
+  detail_unknown = 0;
+  autonomy_backward = 1;
+  autonomy_forward = 2;
+  autonomy_model_start = 3;
+  autonomy_model_stop = 4;
+  autonomy_replay_start = 5;
+  autonomy_replay_stop = 6;
+  autonomy_segmentation_start = 7;
+  autonomy_segmentation_stop = 8;
+  autonomy_detection_start = 9;
+  autonomy_detection_stop = 10;
+  autonomy_record_start = 11;
+  autonomy_record_stop = 12;
+  takeover_start = 13;
+  takeover_stop = 14;
+  takeover_reset = 15;
+  autonomy_drop = 21;
+  takeover_backward = 22;
+  takeover_forward = 23;
+  takeover_pending = 24;
+  takeover_restart_genie_app = 100;
+  takeover_soft_emergency_stop = 101; // 软紧急停止
+  takeover_soft_emergency_recovery = 102; // 软紧急恢复
+  takeover_teleop_relaxed_mode = 103; // 遥操作松弛模式（retarget信号弱约束）
+  takeover_teleop_strict_mode = 104; // 遥操作严格模式（retarget信号强约束）
+  takeover_remote_fault_clear = 105; // 远程故障清错
+  autonomy_arm_navigation_points = 200; // 机械臂末端导航至目标点
+}
+
+// 操作事件请求消息
+message OperatorEventRequest {
+    optional uint64 timestamp = 1;            // 时间戳（毫秒）
+    optional OperatorEventType operator_event = 2;
+    optional OperatorEventDetailType operator_event_detail = 3;
+    optional string operator_device = 4;
+    optional string robot_aid = 5;
+    optional string vr_id = 6;
+}
+
+// 操作事件回复消息
+message OperatorEventReply {
+    optional uint64 timestamp = 1;            // 时间戳（毫秒）
+    optional bool result = 2;
+    optional string result_desception = 3;
+    optional string robot_aid = 4;
+    optional string vr_id = 5;
+}
+

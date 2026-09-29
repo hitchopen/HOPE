@@ -1,0 +1,12 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec2.proto";
+
+/**
+ * SE2 加速度
+ */
+message SE2Acceleration {
+  Vec2 linear = 1;   // 线加速度，单位：米/秒^2
+  Vec2 angular = 2;  // 角加速度，单位：弧度/秒^2
+}

@@ -1,0 +1,34 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/common/arm.proto";
+
+
+/**
+ * @brief 臂状态
+ */
+message ArmStatus {
+  bool error_code       = 1;    // 错误码
+  bool inpos            = 2;    // 位置
+  bool enable           = 3;    // 是否可用
+  bool protective_stop  = 4;    // 碰撞保护
+  bool on_soft_limit    = 5;    // 软限位
+  // 根据实际情况补充
+}
+
+/**
+ * @brief 臂状态请求
+ */
+message ArmStatusRequest {
+  RequestHeader header    = 1;    // 请求头
+  ArmType       arm_type  = 2;    // 臂类型
+}
+
+/**
+ * @brief 臂状态请求响应
+ */
+message ArmStatusResponse {
+  ResponseHeader  header      = 1;    // 响应头
+  ArmStatus       arm_status  = 2;    // 臂状态信息
+}

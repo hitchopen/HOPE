@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * MCU 是否支持双分区固件更新
+ */
+enum McuType {
+  McuType_UNKNOW = 0;
+  McuType_SUPPROT_AB = 1;
+  McuType_UNSUPPORT_AB = 2;
+}
+
+/**
+ * 每个 MCU 应该记录的信息
+ */
+message McuInfo {
+  string name = 1;
+  string current_version = 2;
+  McuType type = 3;
+  string current_partition = 4;
+  string next_partition = 5;
+}
+
+/**
+ * 获取 MCU 信息的请求
+ */
+message GetMcuInfoRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * 获取 MCU 信息的响应
+ */
+message GetMcuInfoResponse {
+  enum Type {
+    Type_SUCCESS = 0;
+    Type_FAILURE = 1;
+  }
+
+  ResponseHeader header = 1;
+  repeated McuInfo info = 2;
+}
+
+/**
+ * OTA 应该告知 MCU 升级包的路径以及版本信息
+ */
+message McuUpgradeInfo {
+  string name = 1;
+  string version = 2;
+  string path = 3;
+
+  // mcu 的产品编码，嵌入式用于避免升级到错误的升级包
+  string product_code = 4;
+}
+
+/**
+ * 请求 MCU 升级的请求
+ */
+message RequestMcuUpgradeRequest {
+  RequestHeader header = 1;
+  McuUpgradeInfo info = 2;
+}
+
+/**
+ * 请求 MCU 升级的响应
+ */
+message RequestMcuUpgradeResponse {
+  enum Type {
+    Type_SUCCESS = 0;
+
+    // 失败原因可以详细列举
+    Type_FAILURE = 1;
+  }
+
+  ResponseHeader header = 1;
+}
+
+/**
+ * 获取 MCU 升级状态的请求
+ */
+message GetMcuUpgradeStateRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * 获取 MCU 升级状态的响应
+ */
+message GetMcuUpgradeStateResponse {
+  enum Type {
+    Type_SUCCESS = 0;
+    Type_FAILURE = 1;
+    Type_CONTINUE = 2;
+  }
+
+  ResponseHeader header = 1;
+}
+
+/**
+ * 请求切换 MCU 分区的请求
+ */
+message RequestChangeMcuPartitionRequest {
+  RequestHeader header = 1;
+  string name = 2;
+  string partition = 3;
+}
+
+/**
+ * 请求切换 MCU 分区的响应
+ */
+message RequestChangeMcuPartitionResponse {
+  enum Type {
+    Type_SUCCESS = 0;
+    Type_FAILURE = 1;
+  }
+
+  ResponseHeader header = 1;
+}
+
+/**
+ * 请求 MCU 重启的请求
+ */
+message RequestMcuRebootRequest {
+  RequestHeader header = 1;
+  string name = 2;
+}
+
+/**
+ * 请求 MCU 重启的响应
+ */
+message RequestMcuRebootResponse {
+  enum Type {
+    Type_SUCCESS = 0;
+    Type_FAILURE = 1;
+  }
+
+  ResponseHeader header = 1;
+}

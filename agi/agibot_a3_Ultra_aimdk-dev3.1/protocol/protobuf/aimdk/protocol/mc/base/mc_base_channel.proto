@@ -1,0 +1,15 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/mc/base/mc_state.proto";
+
+/**
+ * @brief 遥控器控制通道
+ * topic : /mc/base/state
+ */
+ message McStateChannel {
+  // 消息头
+  Header header = 1;
+
+  McState state = 2;
+}

@@ -1,0 +1,342 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+
+enum RemoteControlMode {
+  // 未知模式
+  RemoteControlMode_UNKNOWN = 0;
+
+  // 断开连接模式（如急停等）
+  RemoteControlMode_DISCONNECTED = 1;
+
+  // 自主控制模式
+  RemoteControlMode_AUTO = 100;
+
+  // 全身控制模式
+  RemoteControlMode_FULL_BODY = 200;
+
+  // 上身控制模式
+  RemoteControlMode_UPPER_BODY = 300;
+}
+
+enum RemoteControlCommand {
+  // 未知命令
+  RemoteControlCommand_UNKNOW = 0;
+
+  // 弯腰
+  RemoteControlCommand_WAIST_PITCH = 1;
+
+  // 转身
+  RemoteControlCommand_WAIST_TWIST = 2;
+
+  // 下蹲
+  RemoteControlCommand_WAIST_LIFT = 3;
+
+  // 左歪
+  RemoteControlCommand_WAIST_SIDEWAYS_LEFT = 4;
+
+  // 右歪
+  RemoteControlCommand_WAIST_SIDEWAYS_RIGHT = 5;
+
+  // 左转身
+  RemoteControlCommand_WAIST_TWIST_LEFT = 6;
+
+  // 右转身
+  RemoteControlCommand_WAIST_TWIST_RIGHT = 7;
+}
+
+/**
+ * @brief 遥控控制操纵杆
+ */
+message RemoteControlAxis {
+  // 上下方向摇杆
+  double up_down = 1;  // 0-1: 上，-1-0: 下
+
+  // 左右方向摇杆
+  double left_right = 2;  // -1-0: 左，0-1: 右
+}
+
+/**
+ * @brief 遥控控制按钮
+ */
+message RemoteControlButton {
+  // 上下方向摇杆
+  bool up = 1;
+  bool down = 2;
+
+  // 左右方向摇杆
+  bool left = 3;
+  bool right = 4;
+}
+
+/**
+ * @brief 完整的遥控控制消息
+ */
+message RemoteControlInfo {
+  // 遥控控制模式
+  RemoteControlMode mode = 1;
+
+  // 左摇杆
+  RemoteControlAxis left_axis = 2;
+
+  // 右按键
+  RemoteControlButton right_button = 3;
+}
+
+enum RemoteControlEnableMode {
+  ControlMode_DISABLE = 0;
+
+  // 自主控制模式
+  ControlMode_AUTO = 100;
+
+  // 手动控制模式
+  ControlMode_MANUAL = 200;
+}
+
+// 设置遥控模式
+message RcEnableModeRequest {
+  // 请求头
+  RequestHeader header = 1;
+  RemoteControlEnableMode mode = 2;
+}
+
+// 获取遥控模式
+message RcGetEnableModeResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 模式
+  RemoteControlEnableMode mode = 2;
+}
+
+
+/**
+ * @brief 笛卡尔坐标系位置
+ */
+enum RcDescartesPos {
+  RcDescartesPos_unknown = 0;
+  RcDescartesPos_X  = 1;
+  RcDescartesPos_Y  = 2;
+  RcDescartesPos_Z  = 3;
+  RcDescartesPos_Rx = 4;
+  RcDescartesPos_Ry = 5;
+  RcDescartesPos_Rz = 6;
+}
+
+/**
+ * @brief 左臂还是右臂的笛卡尔
+ */
+enum RcDescartesJoint {
+  RcDescartesJoint_Left_Arm  = 0;
+  RcDescartesJoint_Right_Arm = 1;
+}
+
+/**
+ * @brief 关节类型，线性还是旋转
+ */
+enum RcJointType {
+  RCJointType_Line     = 0;
+  RCJointType_Rotate   = 1;
+}
+
+/**
+ * @brief 机器人类型，轮式还是腿式
+ */
+enum RcRobotType {
+  RcRobotType_Wheel = 0;
+  RcRobotType_Leg   = 1;
+}
+
+
+/**
+ * @brief 机器人关节的状态
+  轮式 joint_id - 关节 - 关节类型 映射关系
+    1  - WL   - 线性 - 腰部升降
+    2  - WP   - 旋转 - 腰部旋转
+    3  - HP   - 旋转 - 头部
+    4  - LAJ1 - 旋转 - 左臂1
+    5  - LAJ2 - 旋转 - 左臂2
+    6  - LAJ3 - 旋转 - 左臂3
+    7  - LAJ4 - 旋转 - 左臂4
+    8  - LAJ5 - 旋转 - 左臂5
+    9  - LAJ6 - 旋转 - 左臂6
+    10 - LAJ7 - 旋转 - 左臂7
+    11 - RAJ1 - 旋转 - 右臂1
+    12 - RAJ2 - 旋转 - 右臂2
+    13 - RAJ3 - 旋转 - 右臂3
+    14 - RAJ4 - 旋转 - 右臂4
+    15 - RAJ5 - 旋转 - 右臂5
+    16 - RAJ6 - 旋转 - 右臂6
+    17 - RAJ7 - 旋转 - 右臂7
+    18 - LG1  - 旋转 - 左夹爪
+    19 - LG2  - 旋转 - 右夹爪
+
+
+
+  足式 joint_id - 关节 - 关节类型 映射关系
+    1  - HP   - 旋转 - 头部
+    2  - HY   - 旋转 - 头部
+
+    3 - LLJ1 - 旋转 - 左腿1
+    4 - LLJ2 - 旋转 - 左腿2
+    5 - LLJ3 - 旋转 - 左腿3
+    6 - LLJ4 - 旋转 - 左腿4
+    7 - LAJ1 - 旋转 - 左腿5
+    8 - LAJ2 - 旋转 - 左腿6
+
+    9 - RLJ1 - 旋转 - 右腿1
+    10 - RLJ2 - 旋转 - 右腿2
+    11 - RLJ3 - 旋转 - 右腿3
+    12 - RLJ4 - 旋转 - 右腿4
+    13 - RAJ1 - 旋转 - 右腿5
+    14 - RAJ2 - 旋转 - 右腿6
+
+    15  - LAJ1 - 旋转 - 左臂1
+    16  - LAJ2 - 旋转 - 左臂2
+    17  - LAJ3 - 旋转 - 左臂3
+    18  - LAJ4 - 旋转 - 左臂4
+    19  - LAJ5 - 旋转 - 左臂5
+    20  - LWJ1 - 旋转 - 左臂6
+    21  - LWJ2 - 旋转 - 左臂7
+
+    22 - RAJ1 - 旋转 - 右臂1
+    23 - RAJ2 - 旋转 - 右臂2
+    24 - RAJ3 - 旋转 - 右臂3
+    25 - RAJ4 - 旋转 - 右臂4
+    26 - RAJ5 - 旋转 - 右臂5
+    27 - RWJ1 - 旋转 - 右臂6
+    28 - RWJ2 - 旋转 - 右臂7
+
+    29 - LTJ1 - 旋转 - 左手1
+    30 - LTJ3 - 旋转 - 左手2
+    31 - LIJ1 - 旋转 - 左手3
+    32 - LMJ1 - 旋转 - 左手4
+    33 - LRJ1 - 旋转 - 左手5
+    34 - LLJ1 - 旋转 - 左手6
+
+    35 - RTJ1 - 旋转 - 右手1
+    36 - RTJ3 - 旋转 - 右手2
+    37 - RIJ1 - 旋转 - 右手3
+    38 - RMJ1 - 旋转 - 右手4
+    39 - RRJ1 - 旋转 - 右手5
+    40 - RLJ1 - 旋转 - 右手6
+ */
+message RcJoint {
+  uint32 joint_id        = 1; // 关节id
+  string joint_name      = 2; // 关节名称
+  RcJointType joint_type = 3; // 线性关节 还是 旋转关节
+  double value           = 4; // 关节状态
+  double h_max           = 5; // 硬限位最大值
+  double h_min           = 6; // 硬限位最小值
+  double s_max           = 7; // 软限位最大值
+  double s_min           = 8; // 软限位最小值
+}
+
+/**
+ * @brief 机器人关节的状态, 笛卡尔
+ */
+message RcJointStatesDescartesInfo {
+  // 关节
+  RcDescartesPos joint_pos = 1;
+
+  // 关节状态
+  double status            = 2;
+}
+
+/**
+ * @brief 机器人关节的状态, 笛卡尔
+ */
+message RcJointStatesDescartes {
+  RcDescartesJoint joint                               = 1;
+  repeated RcJointStatesDescartesInfo descartes_status = 2;
+}
+
+/**
+ * @brief 设置关节软限位参数
+ */
+message RcJointParam {
+  // 关节类型
+  uint32 joint_id  = 1;
+
+  // 软限位最大值
+  double s_max     = 2;
+
+  // 软限位最小值
+  double s_min     = 3;
+}
+
+/**
+ * @brief 设置关节软限位请求结构体
+ */
+message RcJointParamRequest {
+  // 消息头
+  RequestHeader header               = 1;
+
+  // 机器人类型
+  RcRobotType robot_type             = 2;
+
+  // 关节软限位参数
+  repeated RcJointParam joint_params = 3;
+}
+
+/**
+ * @brief RC接收机器人关节状态变更信息
+   @topic : /rc/virtual/joint_states_change
+ */
+message RcJointStatesChangeRequest {
+  // 消息头
+  RequestHeader header        = 1;
+
+  // 轮式机器人 还是 腿式机器人
+  RcRobotType robot_type      = 2;
+
+  // 关节
+  uint32 joint_id             = 3;
+
+  // 关节状态变化
+  double change               = 4;
+}
+
+/**
+ * @brief RC接收机器人关节状态变更信息
+   @topic : /rc/virtual/joint_descarts_change
+ */
+message RcJointStatesDescartesChangeRequest {
+  // 消息头
+  RequestHeader header             = 1;
+
+  // 关节
+  RcDescartesJoint descartes_joint = 2;
+
+  // 笛卡尔坐标系位置
+  RcDescartesPos descartes_pos     = 3;
+
+  // 关节状态变化
+  double change                    = 4;
+}
+
+message RcCommonResponse {
+  ResponseHeader header   = 1;
+  CommonState state       = 2;
+  int64 request_send_mts  = 3;
+  int64 request_recv_mts  = 4;
+}
+
+message RcJointControlSwitchRequest {
+  RequestHeader header  = 1;
+
+  // false: 禁用, true: 使能
+  bool enable           = 2;
+}
+
+message RcNeckControlRequest {
+  RequestHeader header    = 1;
+
+  // 左右角度位置，摇头（弧度）
+  double left_right_angle  = 2;
+
+  // 上下角度位置，点头（弧度）
+  double up_down_angle     = 3;
+}

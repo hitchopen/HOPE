@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+
+enum RtcEngine {
+    //声网
+    AGORA = 0;
+    // 自研
+    AGI = 1;
+}
+
+enum RtcStateEnum {
+    // 空闲
+    IDLE = 0;
+    // 运行中
+    OPERATING = 1;
+}
+
+message RtcState {
+    // 当前状态
+    RtcStateEnum current = 1;
+    // rtc 引擎
+    RtcEngine engine = 2;
+    // 频道id
+    string channel_id = 3;
+    // 推流用户id
+    string user_id = 4;
+}
+
+message StartRtcRequest {
+  RequestHeader header = 1;  // 请求头
+  RtcEngine engine = 2;      // rtc 引擎类型
+}
+
+message StartRtcResponse {
+  ResponseHeader header = 1;  // 响应头
+  RtcState state = 2;
+}
+
+message StopRtcRequest {
+  RequestHeader header = 1;  // 请求头
+  string channel_id = 2;     // 频道id
+}
+
+message StopRtcResponse {
+  ResponseHeader header = 1;  // 响应头
+  RtcState state = 2;
+}
+
+message RtcStateRequest {
+  RequestHeader header = 1;  // 请求头
+  string channel_id = 2;     // 频道id
+}
+
+message RtcStateResponse {
+  ResponseHeader header = 1;  // 响应头
+  RtcState state = 2;
+}
+
+service RtcService {
+  rpc StartRtc(StartRtcRequest) returns (StartRtcResponse);
+  rpc StopRtc(StopRtcRequest) returns (StopRtcResponse);
+  rpc GetRtcState(RtcStateRequest) returns (RtcStateResponse);
+}

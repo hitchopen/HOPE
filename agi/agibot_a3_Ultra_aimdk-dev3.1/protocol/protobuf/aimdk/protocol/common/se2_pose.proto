@@ -1,0 +1,12 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec2.proto";
+
+/**
+ * SE2位姿
+ */
+message SE2Pose {
+  Vec2 position = 1;  // 2d 位姿，单位：米
+  double angle = 2;   // 角度，单位：弧度
+}

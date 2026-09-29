@@ -16,6 +16,8 @@
 #include <utility>
 
 #include "robot_io/a3_layout_extra.hpp"
+#include "a3_rt/a3_rt.hpp"
+#include <sys/prctl.h>
 
 namespace a3_sync {
 
@@ -884,6 +886,8 @@ bool A3SyncLoop::TryBuildLatestFrameLocked(robot_io::RobotState& state) {
 }
 
 void A3SyncLoop::SyncThread() {
+  prctl(PR_SET_NAME, "a3_sync", 0, 0, 0);
+  if (!a3_rt::PinCurrentThreadToCpu(opt_.sync.sync_cpu)) return;
   const auto period_ns =
       static_cast<std::int64_t>(1e9 / opt_.sync.sync_hz);
   if (period_ns <= 0) return;

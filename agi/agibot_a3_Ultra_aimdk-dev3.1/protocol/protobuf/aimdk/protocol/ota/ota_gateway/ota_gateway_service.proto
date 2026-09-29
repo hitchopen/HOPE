@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/ota/ota_gateway/ota_gateway_api.proto";
+
+/**
+ * @brief OTA Gateway Service
+ */
+service OTAGatewayService {
+    /**
+     * @brief 查询 OTA Gateway 所处状态机
+     */
+    rpc StateMachineQuery(OTAGatewayStateMachineQueryRequest) returns (OTAGatewayStateMachineQueryResponse);
+
+    /**
+     * @brief 查询 OTA Gateway 当前新的升级任务信息
+     */
+    rpc NewTaskQuery(OTAGatewayNewTaskQueryRequest) returns (OTAGatewayNewTaskQueryResponse);
+
+    /**
+     * @brief 开始下载 OTA 文件
+     */
+    rpc StartDownload(OTAGatewayStartDownloadRequest) returns (OTAGatewayStartDownloadResponse);
+
+    /**
+     * @brief 暂停下载 OTA 文件
+     */
+    rpc PauseDownload(OTAGatewayPauseDownloadRequest) returns (OTAGatewayPauseDownloadResponse);
+
+    /**
+     * @brief 继续下载 OTA 文件
+     */
+    rpc ContinueDownload(OTAGatewayContinueDownloadRequest) returns (OTAGatewayContinueDownloadResponse);
+
+    /**
+     * @brief 终止下载 OTA 文件
+     */
+    rpc AbortDownload(OTAGatewayAbortDownloadRequest) returns (OTAGatewayAbortDownloadResponse);
+
+    /**
+     * @brief 开始升级
+     */
+    rpc StartUpgrade(OTAGatewayStartUpgradeRequest) returns (OTAGatewayStartUpgradeResponse);
+}

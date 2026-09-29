@@ -1,0 +1,12 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec3.proto";
+
+/**
+ * SE3 速度
+ */
+message SE3Velocity {
+  Vec3 linear = 1;   // 线速度，单位：米/秒
+  Vec3 angular = 2;  // 角速度，单位：弧度/秒
+}

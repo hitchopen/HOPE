@@ -1,0 +1,151 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/task_engine/task_engine.proto";
+import "aimdk/protocol/task_engine/task_engine_calibration.proto";
+
+/**
+ * @brief 任务引擎服务
+ */
+service TaskEngineService {
+  /**
+   * @brief 任务信息提供接口
+   */
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+
+  /**
+   * @brief 所有任务信息获取接口
+   */
+  rpc GetAllTasks(GetAllTasksRequest) returns (GetAllTasksResponse);
+
+  /**
+   * @brief 所有任务 FSM 信息获取接口
+   */
+  rpc GetAllFSMs(GetAllFSMsRequest) returns (GetAllFSMsResponse);
+
+  /**
+   * @brief 任务信息设置接口
+   */
+  rpc SetTask(SetTaskRequest) returns (SetTaskResponse);
+
+  /**
+   * @brief 当前任务设置接口
+   */
+  rpc SetCurrentTask(SetCurrentTaskRequest) returns (SetCurrentTaskResponse);
+
+  /**
+   * @brief 任务信息设置接口
+   */
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+
+  /**
+   * @brief 地图删除接口，删除地图会触发绑定地图任务的删除
+   */
+  rpc DeleteTaskMap(DeleteTaskMapRequest) returns (DeleteTaskMapResponse);
+
+  /**
+   * @brief 任务启动接口
+   */
+  rpc LaunchTask(LaunchTaskRequest) returns (LaunchTaskResponse);
+
+  /**
+   * @brief 任务控制接口
+   */
+  rpc CtrlTaskState(CtrlTaskStateRequest) returns (CtrlTaskStateResponse);
+}
+
+service TaskCalibrationService {
+  /**
+   * @brief 请求获取标定类型的接口
+   */
+  rpc GetCalibrationType(TaskCalibrationTypeRequest) returns (TaskCalibrationTypeResponse);
+
+  /**
+   * @brief 请求开始执行标定的接口
+   */
+  rpc CalibrationStart(TaskCalibrationStartRequest)  returns (TaskCalibrationStartResponse);
+
+  /**
+   * @brief 停止标定
+   */
+  rpc CalibrationStop(CommonRequest)  returns (CommonResponse);
+
+  rpc GetCalibrationResult(CommonRequest)  returns (TaskCalibrationStatus);
+}
+
+service TaskFactoryCalibrationService {
+  /**
+   * @brief 请求获取标定类型的接口
+   */
+  rpc GetFacCalibrationType(TaskCalibrationTypeRequest) returns (TaskCalibrationTypeResponse);
+
+  /**
+   * @brief 请求开始执行标定的接口
+   */
+  rpc StartFacCalibration(TaskCalibrationStartRequest)  returns (TaskCalibrationStartResponse);
+
+  /**
+   * @brief 停止标定
+   */
+  rpc StopFacCalibration(CommonRequest)  returns (CommonResponse);
+
+  rpc GetFacCalibrationResult(CommonRequest)  returns (TaskCalibrationStatus);
+}
+
+service TaskCalibrationValidService{
+
+  /**
+   * @brief 开始参数验证
+   */
+  rpc StartParamsValidation(CommonRequest)  returns (CommonResponse);
+
+  /**
+   * @brief 停止参数验证
+   */
+  rpc StopParamsValidation(CommonRequest) returns (CommonResponse);
+}
+
+service TaskRobotCalibrationService{
+  /**
+   * @brief 开始采集数据
+   */
+  rpc StartCalibrationCollectData(CommonRequest)  returns (CommonResponse);
+
+  /**
+   * @brief 停止采集数据
+   */
+  rpc StopCalibrationCollectData(CommonRequest) returns (CommonResponse);
+
+  /**
+   * @brief 停止标定
+   */
+  rpc StopRobotCalibration(CommonRequest) returns (CommonResponse);
+
+  /**
+   * @brief 参数写入
+   */
+  rpc UpdateCalibrationResult(UpdateRobotCalibrationRequest) returns (UpdateRobotCalibrationRespond);
+
+  /**
+   * @brief 清空参数
+   */
+  rpc ClearCalibrationResult(CommonRequest) returns (CommonResponse);
+
+  /**
+   * @brief 开始标定
+   */
+  rpc StartCommonCalibration(TaskCalibrationStartRequest) returns (CommonResponse);
+}
+
+
+
+
+//service GetCalibrationResultService {
+//    rpc CalibrationStart(CalibrationResultRequest) returns (CalibrationResultResponse);
+//}
+
+//service GetCalibrationIdListService {
+//    rpc CalibrationIdList(CalibrationiIdListRequest) returns (CalibrationIdListResponse);
+//}

@@ -1,0 +1,67 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/vec3.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+
+message ToolInertia {
+  // 惯量矩阵在X轴的主惯量
+  double ixx = 1;  // x 轴
+  double iyy = 2;  // y 轴
+  double izz = 3;  // z 轴
+  double ixy = 4;  // xy 平面
+  double ixz = 5;  // xz 平面
+  double iyz = 6;  // yz 平面
+}
+
+message McToolPayload {
+  // 负载质量
+  double mass = 1;
+  // 负载质心
+  Vec3 mass_center = 2;
+  // 负载惯量
+  ToolInertia ToolInertia = 3;
+}
+
+message McToolConfig {
+  int32 id = 1;
+  string name = 2;
+  string config_file = 3;
+  McToolPayload payload = 4;
+  SE3Pose tcp = 5;
+}
+
+// 设置机器人手部控制请求
+message McAddToolRequest {
+  RequestHeader header = 1;        // 请求头
+  repeated McToolConfig data = 2;  // 请求数据
+}
+
+// 设置机器人手部控制请求
+message McGetToolResponse {
+  RequestHeader header = 1;        // 请求头
+  repeated McToolConfig data = 2;  // 请求数据
+}
+
+message McRobotToolConfig {
+  McToolConfig left_arm = 1;
+  McToolConfig right_arm = 2;
+}
+
+// 设置机器人手部控制请求
+message McRobotToolRequest {
+  RequestHeader header = 1;    // 请求头
+  McRobotToolConfig data = 2;  // 请求数据
+}
+
+// 设置机器人手部控制请求
+message McRobotToolResponse {
+  RequestHeader header = 1;    // 请求头
+  McRobotToolConfig data = 2;  // 请求数据
+}
+
+message McToolPayloadRequest {
+  McToolPayload left_arm = 1;
+  McToolPayload right_arm = 2;
+}

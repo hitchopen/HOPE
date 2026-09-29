@@ -1,0 +1,26 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/timestamp.proto";
+
+/**
+ * @brief 通用二进制IO packet
+ */
+message IoPacket {
+    // 时间戳
+    Timestamp timestamp = 1;
+
+    // 图片数据
+    bytes io_data = 2;
+}
+
+/**
+ * @brief 通用二进制IO packet queue
+ */
+message IoPackets {
+    // 时间戳
+    Timestamp timestamp = 1;
+
+    // 图片数据
+    repeated bytes data_queue = 2;
+}

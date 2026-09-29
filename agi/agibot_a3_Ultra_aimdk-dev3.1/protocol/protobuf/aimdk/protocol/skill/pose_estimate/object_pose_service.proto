@@ -1,0 +1,54 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/skill/common/common.proto";
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+import "aimdk/protocol/common/box.proto";
+
+/**
+ * @brief ...
+ */
+message EstimateObject6DPoseRequest {
+  RequestHeader header = 1;
+
+  int32 height = 2;
+  int32 width = 3;
+
+  bytes image = 4;
+  bytes depth = 5;
+
+  repeated bytes masks = 10;
+  repeated Box boxes = 11;
+  repeated string classes = 12;
+
+  CameraIntrinsic intrinsic = 20;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message EstimateObject6DPoseResponse {
+  ResponseHeader header = 1;
+
+  // all objects' poses
+  repeated SE3Pose results = 10;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+service ObjectPoseService {
+  /**
+   * @brief ...
+   * @param  EstimateObject6DPoseRequest  ...
+   * @return EstimateObject6DPoseResponse ...
+   */
+  rpc EstimateObject6DPose(EstimateObject6DPoseRequest) returns (EstimateObject6DPoseResponse);
+}

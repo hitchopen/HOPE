@@ -1,0 +1,30 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/se3_pose.proto";
+
+
+/**
+ * @brief VR
+ */
+message QuestProVr {
+  // VR 位姿
+  SE3Pose pose = 1;
+
+  double axis_x = 3;
+  double axis_y = 4;
+
+  double index_trig = 5;
+  double hand_trig = 6;
+
+  bool key_one = 7;
+  bool key_two = 8;
+}
+
+/**
+ * @brief VR控制
+ */
+message QuestProVrController {
+  QuestProVr left = 1;
+  QuestProVr right = 2;
+}

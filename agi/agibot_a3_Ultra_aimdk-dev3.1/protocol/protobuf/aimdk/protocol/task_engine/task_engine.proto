@@ -1,0 +1,350 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 任务元信息
+ */
+message Task {
+  /**
+   * @brief 状态类型
+   */
+  enum StateType {
+    StateType_UNDEFINED = 0;
+
+    // 静默状态
+    StateType_IDLE = 1;
+
+    // 运行中
+    StateType_RUNNING = 2;
+
+    // 暂停
+    StateType_PAUSED = 3;
+
+    // 终止
+    StateType_STOPPED = 4;
+
+    // 暂停中
+    StateType_PAUSING = 5;
+
+    // 终止中
+    StateType_STOPPING = 6;
+
+    // 恢复中
+    StateType_RESUMING = 7;
+
+    // 暂停失败
+    StateType_FAILPAUSE = 8;
+
+    // 终止失败
+    StateType_FAILSTOP = 9;
+
+    // 恢复失败
+    StateType_FAILRESUME = 10;
+
+    // 运行异常
+    StateType_EXCEPTION = 11;
+
+    // 等待节拍结束的暂停
+    StateType_LAZY_PAUSING = 12;
+}
+
+  /**
+   * @brief 任务id，用于全局标识唯一一个任务。在任务创建/修改接口中，task_id > 0 视为修改任务
+   *        task_id < 0 视为创建新任务。客户端获得全部 task_id 的方式是调用 GetAllTasks 接口
+   */
+  int64 task_id = 1;
+
+  // 任务名
+  string name = 2;
+
+  // 任务 FSM 名称
+  string fsm_name = 3;
+
+  // 任务有效性
+  bool is_valid = 4;
+
+  // 任务状态
+  StateType state = 5;
+
+  // 任务执行时间，选填
+  int64 duration = 6;
+
+  // 系统任务配置后传输给task engine的yaml原文，选填
+  string setting = 7;
+
+  // Task内部的随路数据
+  bytes task_data = 8;
+
+  // 循环任务倒计时
+  uint64 count_down = 9;
+
+  // 循环次数
+  uint64 cycle_count = 10;
+}
+
+/**
+ * @brief task enigine 状态上报信息
+ */
+message TaskEngineHeartBeat {
+  RequestHeader header = 1;
+
+  // 任务信息
+  Task data = 2;
+
+  // 任务信息变化
+  bool change = 3;
+}
+
+/**
+ * @brief 任务信息请求
+ */
+message GetTaskRequest {
+  RequestHeader header = 1;
+
+  // 任务id
+  int64 task_id = 2;
+}
+
+/**
+ * @brief 任务信息响应
+ */
+message GetTaskResponse {
+  ResponseHeader header = 1;
+
+  // task任务信息
+  Task data = 2;
+}
+
+/**
+ * @brief 所有任务信息请求
+ */
+message GetAllTasksRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 所有任务信息响应
+ */
+message GetAllTasksResponse {
+  ResponseHeader header = 1;
+
+  // 任务信息列表
+  repeated Task data = 2;
+}
+
+/**
+ * @brief 所有任务 FSM 信息请求
+ */
+message GetAllFSMsRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 所有任务 FSM 信息响应
+ */
+message GetAllFSMsResponse {
+  ResponseHeader header = 1;
+
+  // FSM 信息列表
+  repeated string data = 2;
+}
+
+/**
+ * @brief 任务信息设置请求
+ */
+message SetTaskRequest {
+  RequestHeader header = 1;
+
+  // 客户端生成的任务配置yaml原文
+  string data = 2;
+}
+
+/**
+ * @brief 任务信息设置响应
+ */
+message SetTaskResponse {
+  ResponseHeader header = 1;
+
+  // 成功新建、修改后的任务id
+  int64 task_id = 2;
+
+  // 是否设置成功
+  bool is_success = 3;
+}
+
+/**
+ * @brief 设置当前任务请求（不一定是运行任务，且有任务运行时不可设置）
+ */
+message SetCurrentTaskRequest {
+  RequestHeader header = 1;
+
+  // 设置为当前任务的任务id
+  int64 task_id = 2;
+}
+
+/**
+ * @brief 设置当前任务响应
+ */
+message SetCurrentTaskResponse {
+  ResponseHeader header = 1;
+
+  // 设置任务 id
+  int64 task_id = 2;
+
+  // 是否设置成功
+  bool is_success = 3;
+}
+
+/**
+ * @brief 任务删除请求
+ */
+message DeleteTaskRequest {
+  RequestHeader header = 1;
+
+  // 任务id
+  int64 task_id = 2;
+}
+
+/**
+ * @brief 任务删除请求响应
+ */
+message DeleteTaskResponse {
+  ResponseHeader header = 1;
+
+  // 任务id
+  int64 task_id = 2;
+
+  // 是否成功
+  bool is_success = 3;
+};
+
+/**
+ * @brief 地图删除请求
+ */
+message DeleteTaskMapRequest {
+  RequestHeader header = 1;
+
+  // 地图id
+  string map_id = 2;
+}
+
+/**
+ * @brief 地图删除请求响应
+ */
+message DeleteTaskMapResponse {
+  ResponseHeader header = 1;
+
+  // 地图id
+  string map_id = 2;
+
+  // 是否成功删除
+  bool is_success = 3;
+}
+
+/**
+  * @brief 启动请求结果类型
+*/
+
+enum ReturnType {
+  ReturnType_UNDEFINED = 0;
+
+  // 请求成功
+  ReturnType_SUCCEED = 1;
+
+  // 已有任务运行，任务冲突
+  ReturnType_FAIL_TASK_CONFLICT = 2;
+
+  // 任务校验失败
+  ReturnType_FAIL_TASK_VALIDATE = 3;
+
+  // 启动条件校验失败
+  ReturnType_FAIL_TASK_CONDITION_CHECK = 4;
+
+  // 未知原因
+  ReturnType_FAIL_UNKNOWN = 99;
+}
+
+/**
+ * @brief 任务启动请求
+ */
+message LaunchTaskRequest {
+  RequestHeader header = 1;
+
+  // 任务id
+  int64 task_id = 2;
+
+  // 任务启动信息
+  bytes task_data = 3;
+}
+
+/**
+ * @brief 任务启动请求结果
+ */
+message LaunchTaskResponse {
+  ResponseHeader header = 1;
+
+  // 任务id
+  int64 task_id = 2;
+
+  // 启动请求结果
+  ReturnType res = 3;
+
+  // 错误消息
+  string message = 4;
+}
+
+/**
+ * @brief 任务状态切换请求
+ */
+message CtrlTaskStateRequest {
+  RequestHeader header = 1;
+
+  /**
+   * @brief 任务状态切换类型
+   */
+  enum Type {
+    Type_UNDEFINED = 0;
+
+    // 暂停
+    Type_PAUSE = 1;
+
+    // 继续
+    Type_RESUME = 2;
+
+    // 终止
+    Type_STOP = 3;
+
+    // 继续-跳过当前任务
+    Type_RESUME_AND_SKIP_CUR_ACTION = 10;
+  }
+
+  // 任务id, 如果不赋值则暂停当前任务
+  int64 task_id = 2;
+
+  // 控制类型
+  Type type = 3;
+
+  // 任务启动信息
+  bytes task_data = 4;
+}
+
+/**
+ * @brief 任务状态切换响应
+ */
+message CtrlTaskStateResponse {
+  ResponseHeader header = 1;
+
+  // 任务id
+  int64 task_id = 2;
+
+  // 控制结果
+  bool is_success = 3;
+
+  // 返回错误码，Resume任务时有效
+  ReturnType res = 4;
+
+  // 返回错误消息，Resume任务时有效
+  string message = 5;
+}

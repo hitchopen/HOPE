@@ -22,6 +22,7 @@ ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
     -p base_stale_after_s:=0.5 \
     -p ball_stale_after_s:=0.1 \
     -p publish_period_s:=0.2 \
+    -p ball_marker_rate_hz:=30.0 \
     -p planner_process_fragment:=hope_planner_cpp_node'
 Restart=on-failure
 RestartSec=5

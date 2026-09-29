@@ -1,13 +1,18 @@
 {
   "name": "hope-a3-console",
   "displayName": "HOPE A3 Console",
-  "description": "Single-robot model_21800 operator console for the HOPE Runner",
+  "description": "Single-robot attended operator console for the HOPE Runner",
   "publisher": "hope-open",
   "homepage": "https://github.com/hitchopen/HOPE",
-  "version": "1.2.4",
+  "version": "1.8.9",
   "license": "Apache-2.0",
   "main": "./dist/extension.js",
-  "keywords": ["foxglove", "hope", "agibot", "operator"],
+  "keywords": [
+    "foxglove",
+    "hope",
+    "agibot",
+    "operator"
+  ],
   "scripts": {
     "build": "foxglove-extension build",
     "foxglove:prepublish": "foxglove-extension build --mode production",
@@ -40,5 +45,10 @@
     "style-loader": "^4.0.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.0.0"
-  }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.txt"
+  ]
 }

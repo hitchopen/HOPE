@@ -1,0 +1,168 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+// 单核CPU监控指标
+message CpuCoreUsage {
+    uint32 cpuid        = 1; //CPU id，与cpu_info列表中的索引一致
+    uint32 usage        = 2; //CPU核心使用率百分比
+    uint32 freq_mhz     = 3; //CPU平均频率，mhz
+    uint32 temp         = 4; //CPU核心温度，°C
+    uint32 usage_usr_space  = 5; //CPU使用率-用户空间
+    uint32 usage_sys_space  = 6; //CPU使用率-内核空间
+    uint32 usage_idle       = 7; //CPU使用率-空闲
+}
+
+// CPU监控指标
+message CpuUsage {
+    repeated CpuCoreUsage cpu_infos = 1;
+    uint32 avg_freq_mhz          = 2; //平均CPU频率, mhz
+    uint32 interrupts            = 3; //中断数
+}
+
+// 内存使用指标 
+message MemoryUsage {
+    float usage = 1; //内存使用百分比 
+    float swap_usage = 2; //swap空间使用百分比
+    uint64 total_mem_mb = 3; //总内存大小MB
+    uint64 available_mem_mb = 4; //可用内存大小
+}
+
+// 磁盘分区使用指标
+message PartitionUsage {
+    string partition_name   = 1; //分区名称
+    float read_mbs          = 2; //分区读取速度,MB/s
+    float write_mbs         = 3; //分区写入速度,MB/s
+    float usage             = 4; //分区使用率
+    uint64 read_times       = 5; //读请求数量/s
+    uint64 write_times      = 6; //写请求数量/s
+    uint64 read_await_us_total = 7; //读延迟（微秒）
+    uint64 write_await_us_total = 8; //写延迟（微秒）
+    uint64 read_await_us_max   = 9;  //最大读延迟（微秒）
+    uint64 write_await_us_max  = 10; //最大写延迟（微秒）
+}
+
+// 磁盘使用指标
+message DiskUsage {
+    repeated PartitionUsage partition_infos   = 1; //分区使用情况
+    float total_read_mbs          = 2; //总体读取速度,MB/s
+    float total_write_mbs         = 3; //总体写入速度,MB/s
+    uint64 max_partition_read_await          = 4; //最大读延迟（微秒） 
+    uint64 max_partition_write_await          = 5; //最大写延迟（微秒） 
+}
+
+message NetworkIterfaceUsage {
+    string nic_name = 1; //网卡接口名称
+    float upload_speed_mbs = 2; //上传速度MB/s
+    float download_speed_mbs = 3; //上传速度MB/s
+}
+
+// 网络使用指标
+message NetworkUsage {
+    repeated NetworkIterfaceUsage nic_infos = 1;
+}
+
+// 电池状态指标
+message BatteryUsage {
+    float percent   = 1; //剩余电量
+    float voltage   = 2; //电池电压大小, mV
+    float current   = 3; //电池电流大小, mA
+    float temp      = 4; //电池温度, °C
+    bool is_plugin  = 5; //是否插入外接电源
+}
+
+message AppProcInfo {
+    string app_name     = 1; //应用名称，注意不是进程名称
+    float cpu_usage     = 2; //应用的CPU使用率
+    float mem_usage     = 3; //应用的内存使用率，百分比
+    uint64 pid          = 4; //进程pid
+    uint32 thread_count = 5; //使用的线程数 
+    uint32 fd_count     = 6; //使用fd资源数量
+}
+
+// 应用进程列表
+message ProcessList {
+    repeated AppProcInfo app_infos = 1; //进程列表信息
+}
+
+enum SCHED_POLICY {
+  TYPE_SCHED_NORMAL      = 0;
+  TYPE_SCHED_FIFO        = 1;
+  TYPE_SCHED_RR          = 2;
+  TYPE_SCHED_BATCH       = 3;
+  TYPE_SCHED_IDLE        = 5;
+  TYPE_SCHED_DEADLINE    = 6;
+}
+
+message AppHeartBeatInfo {
+    string app_name         = 1; //应用名称，注意不是进程名称
+    float cpu_usage         = 2; //应用的CPU使用率
+    float mem_usage         = 3; //应用的内存使用率，百分比
+    float mem_usage_kb      = 4; //应用的内存使用量，kb
+    uint64 pid              = 5; //进程pid
+    uint32 thread_count     = 6; //使用的线程数 
+    SCHED_POLICY cpu_sched_policy     = 7; //进程调度策略
+    uint32 cpu_sched_priority   = 8; //进程调度优先级
+    uint32 soc_index            = 9; //当前进程所在的soc索引
+}
+
+message AppHeartBeatList {
+    repeated AppHeartBeatInfo app_hearbeats = 1;
+}
+
+message GpuProcInfo {
+    string app_name = 1; //应用名称，注意不是进程名
+    uint64 pid = 2; //进程id
+    float gpu_mem_usage_mb = 3; //GPU内存使用量，MB 
+}
+
+//Nv卡的GPU模式
+enum GPUPowerMode {
+    GPUPowerMode_MAXN      = 0; //最大性能，30W目前
+    GPUPowerMode_15W       = 1;
+    GPUPowerMode_10W       = 2;
+    GPUPowerMode_5W        = 3;
+    GPUPowerMode_UNKNOWN   = 99;
+}
+
+message GpuDeviceUsage {
+    repeated GpuProcInfo app_gpu_infos  = 1; //GPU资源使用列表
+    float gpu_usage                     = 2; //系统GPU使用率 
+    float gpu_mem_use_percent           = 3; //系统GPU内存使用率
+    float mem_bandwidth_useage          = 4; //GPU内存带宽使用率
+    uint32 temp                         = 5; //GPU温度
+    GPUPowerMode power_mode             = 6; //电源模式
+}
+
+message GpuUsage {
+    repeated GpuDeviceUsage gpu_infos = 1;
+}
+
+enum SystemMsgType {
+    SystemMsgType_NONE = 0;
+    SystemMsgType_CPU_USAGE      = 1;
+    SystemMsgType_MEMORY_USAGE   = 2;
+    SystemMsgType_DISK_USAGE     = 3;
+    SystemMsgType_NETWORK_USAGE  = 4;
+    SystemMsgType_BATTERY_USAGE  = 5;
+    SystemMsgType_PROCESS_LIST   = 6;
+    SystemMsgType_HEARTBEAT_LIST = 7;
+    SystemMsgType_GPU_USAGE      = 8;
+}
+
+//系统状态监控
+//每秒上报/aima/hds/system_status_monitor_{orin/x86}
+message SystemStatusChannel {
+    uint64 timestamp            = 1; //时间戳，ms 
+    CpuUsage cpu_usage          = 2;
+    MemoryUsage memory_usage    = 3;
+    DiskUsage disk_usage        = 4;
+    NetworkUsage network_usage  = 5;
+    BatteryUsage battery_usage  = 6;
+    ProcessList process_list    = 7;
+    AppHeartBeatList heartbeat_list = 8;
+    GpuUsage gpu_usage          = 9;
+
+    //每个插件通过SytemStatusChannel来上报自己的消息片段；汇总后的系统消息是没有gist的
+    SystemMsgType gist_msg_type = 99 ;
+    uint64 gist_seq             = 100;
+}

@@ -1,4 +1,4 @@
-// 180/175/177/110/113/118-D observation builders. 180 ported from
+// 180/175/177/110/112/127/113/118-D observation builders. 180 ported from
 // hope_ws/.../hope_wbc_runner/obs_builder.py (build_obs). Layout (total 180):
 //   command(62) = ref joint_pos[31] + ref joint_vel[31]
 //   motion_anchor_pos_b(3), motion_anchor_ori_b(6)
@@ -10,13 +10,21 @@
 // projected_gravity — the HITTER-style relative-Δ station footwork channel);
 // 110 = hitter_pure (2026-07-07, HITTER Table-I exact: NO reference stream, NO
 // swing_type, WORLD-frame target vectors + explicit base forward vector e_base,x).
+// 112 = Schema27: the complete Schema26 110-D prefix plus two Planner-owned optional-reach
+// permission labels. Disabled artifacts supply exact zeros; enabled artifacts carry screened
+// target-tuple labels. No plant state is used to infer them.
+// 127 = Schema28 append-only shadow-feedback ABI: the exact 112-D composed-action
+// prefix plus the previous frozen-core actions for policy-owned waist/legs.
 // 113 = V15 legacy position-mocap extension (base velocity xy + localization age).
 // 118 = V15 HUGWBC locomotion extension (113 prefix + lateral velocity command,
 // left/right gait clocks, STAND/STEP/swing mode and train-only intervention indicator).
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <string>
+#include <vector>
 
 #include <Eigen/Dense>
 
@@ -29,10 +37,36 @@ constexpr int kObsDim = 180;
 constexpr int kObsDim175 = 175;
 constexpr int kObsDim177 = 177;
 constexpr int kObsDim110 = 110;
+constexpr int kObsDim112 = 112;
+constexpr int kObsDim127 = 127;
 constexpr int kObsDim113 = 113;
 constexpr int kObsDim118 = 118;
 constexpr int kNumJoints = 31;
+constexpr int kCoreActionShadowDim = 15;
+inline constexpr std::array<int, kCoreActionShadowDim>
+    kCoreActionShadowOwnedIndices = {
+        0, 1, 2, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30};
 constexpr int kAnchorTrackedIdx = 7;  // torso_Link in the 14-body tracked order
+constexpr int kHitterPureLastActionObsOffset = 65;
+// These are indices in the resolved Isaac/action order carried by ONNX joint_names, not backend
+// SDK slots.  The A3 backend keeps the head at SDK slots 3/4, but the deployed model action order
+// is interleaved and places head_yaw/head_pitch at 11/16.  The 110-D observation prepends 65 values
+// before its 31-D action-feedback block, hence the corresponding global observation slots 76/81.
+constexpr int kHitterPureHeadYawActionIndex = 11;
+constexpr int kHitterPureHeadPitchActionIndex = 16;
+constexpr int kHitterPureBaseVelocityXObsIndex =
+    kHitterPureLastActionObsOffset + kHitterPureHeadYawActionIndex;
+constexpr int kHitterPureBaseVelocityYObsIndex =
+    kHitterPureLastActionObsOffset + kHitterPureHeadPitchActionIndex;
+static_assert(kHitterPureBaseVelocityXObsIndex == 76);
+static_assert(kHitterPureBaseVelocityYObsIndex == 81);
+
+inline bool hitter_pure_v4_velocity_slot_joint_order_matches(
+    const std::vector<std::string>& joint_names) {
+  return joint_names.size() == kNumJoints &&
+      joint_names[kHitterPureHeadYawActionIndex] == "head_yaw_joint" &&
+      joint_names[kHitterPureHeadPitchActionIndex] == "head_pitch_joint";
+}
 
 // Reference motion at the current time_step (the ONNX side-outputs). Only the
 // anchor body (index 7) is needed from the 14-body pose arrays.
@@ -71,6 +105,11 @@ struct PpRacketTarget {
   Vec2 gait_clock = Vec2::Zero();
   double locomotion_mode = -1.0;       // +1 STEP, 0 STAND, -1 swing/recovery
   double upper_intervention = 0.0;     // training-only; deploy is always zero
+  double reach_level = 0.0;            // Planner permission: 0 fixed, 1 unload, 2 microstep
+  double swing_foot_sign = 0.0;        // Planner permission: -1 right, 0 none, +1 left
+  double signed_external_reach = 0.0;  // Schema34: reach_level * swing_foot_sign
+  double signed_replant_need = 0.0;    // Schema34: signed continuous FK-to-HOME debt
+  Eigen::Vector4d footstep_task_errors = Eigen::Vector4d::Zero();  // Schema34v3 origin XY, destination XY
 };
 
 // Assemble the 180-D observation (double precision; cast to float at the ONNX
@@ -314,8 +353,9 @@ inline Eigen::VectorXd build_obs_177(const PpRefs& refs, const PpRobotState& sta
 //     once the reference-orientation term is gone. On hardware the quats are the
 //     yaw-align-at-engage IMU attitudes and positions are mocap/table frame; the operator
 //     faces the robot toward +x at engage (same assumption as every other layout).
-//   * Callers must set target.base_target_xy to the WORLD station. Mocap-dropout fallback
-//     is delta = 0 (station := current base xy), same contract as build_obs_177.
+//   * Callers must set target.base_target_xy to the WORLD station. Repair-v3 preserves the last
+//     verified station while the actor-visible mocap pose is held during an outage; cold start
+//     uses station := current base xy. Legacy callers may retain their historical delta-zero path.
 inline Eigen::VectorXd build_obs_110(const PpRobotState& state,
                                      const PpRacketTarget& target,
                                      const Eigen::VectorXd& last_action,
@@ -358,6 +398,85 @@ inline Eigen::VectorXd build_obs_110(const PpRobotState& state,
   obs[o++] = target.time_to_strike;
 
   return obs;  // o == 110
+}
+
+// Continuous-rally-v4 keeps the exact 110-D layout and 31-D action ABI, but repurposes the two
+// passive-head action-feedback slots (which are exact zeros in all earlier recipes) as filtered
+// world-frame mocap base velocity. Keep this as a distinct builder: changing build_obs_110 would
+// silently alter every v1-v3 and legacy artifact sharing the same tensor shape.
+inline Eigen::VectorXd build_obs_110_headslots_vxy(
+    const PpRobotState& state,
+    const PpRacketTarget& target,
+    const Eigen::VectorXd& last_action,
+    const Eigen::VectorXd& default_q) {
+  Eigen::VectorXd obs = build_obs_110(state, target, last_action, default_q);
+  obs[kHitterPureBaseVelocityXObsIndex] = state.base_velocity_xy_w[0];
+  obs[kHitterPureBaseVelocityYObsIndex] = state.base_velocity_xy_w[1];
+  return obs;
+}
+
+// Schema27 is append-only: every value in [0,110) is byte-identical to Schema26. The two new
+// values are carried by the training-screened Planner target tuple. This builder never examines
+// foot contact, load, height, achieved pose, or any future/privileged plant state. Transport
+// wiring is not trajectory/deployment qualification; PpRacketTarget defaults keep both columns
+// exact zero whenever optional reach is disabled or no active flight owns them.
+inline Eigen::VectorXd build_obs_112_headslots_vxy_reach(
+    const PpRobotState& state,
+    const PpRacketTarget& target,
+    const Eigen::VectorXd& last_action,
+    const Eigen::VectorXd& default_q) {
+  Eigen::VectorXd obs(kObsDim112);
+  obs.head(kObsDim110) =
+      build_obs_110_headslots_vxy(state, target, last_action, default_q);
+  obs[kObsDim110] = target.reach_level;
+  obs[kObsDim110 + 1] = target.swing_foot_sign;
+  return obs;
+}
+
+// Schema34 preserves the 110-D prefix but reassigns the two appended columns. Column 110 is the
+// signed external Planner request (0, +/-1, +/-2); column 111 is an independent signed,
+// continuous ankle-roll-link-to-HOME recovery need reconstructed from actor-visible state.
+inline Eigen::VectorXd build_obs_112_headslots_vxy_signed_support(
+    const PpRobotState& state,
+    const PpRacketTarget& target,
+    const Eigen::VectorXd& last_action,
+    const Eigen::VectorXd& default_q) {
+  Eigen::VectorXd obs(kObsDim112);
+  obs.head(kObsDim110) =
+      build_obs_110_headslots_vxy(state, target, last_action, default_q);
+  obs[kObsDim110] = target.signed_external_reach;
+  obs[kObsDim110 + 1] = target.signed_replant_need;
+  return obs;
+}
+
+inline Eigen::VectorXd build_obs_112_headslots_step_task(
+    const PpRobotState& state, const PpRacketTarget& target,
+    const Eigen::VectorXd& last_action, const Eigen::VectorXd& default_q) {
+  Eigen::VectorXd obs = build_obs_112_headslots_vxy_signed_support(state, target, last_action, default_q);
+  obs[14] = target.footstep_task_errors[0]; obs[19] = target.footstep_task_errors[1];
+  obs[45] = target.footstep_task_errors[2]; obs[50] = target.footstep_task_errors[3];
+  return obs;
+}
+
+// Schema28 preserves [0,112) byte-for-byte, including the true previous
+// composed policy action. The appended 15-D auxiliary ONNX output is fed back
+// only to the frozen-core shadow columns on the next tick; it is not q_des,
+// does not replace any body command, and contains no measured/privileged state.
+inline Eigen::VectorXd build_obs_127_headslots_vxy_reach_core_shadow(
+    const PpRobotState& state,
+    const PpRacketTarget& target,
+    const Eigen::VectorXd& last_composed_action,
+    const Eigen::VectorXd& default_q,
+    const Eigen::VectorXd& core_action_shadow_owned) {
+  if (core_action_shadow_owned.size() != kCoreActionShadowDim) {
+    throw std::invalid_argument(
+        "Schema28 core action shadow feedback must contain exactly 15 values");
+  }
+  Eigen::VectorXd obs(kObsDim127);
+  obs.head(kObsDim112) = build_obs_112_headslots_vxy_reach(
+      state, target, last_composed_action, default_q);
+  obs.tail(kCoreActionShadowDim) = core_action_shadow_owned;
+  return obs;
 }
 
 // V15 preserves every 110-D field and ordering, then appends the two quantities needed to
