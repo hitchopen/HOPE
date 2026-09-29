@@ -19,6 +19,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray, String
 from std_srvs.srv import Trigger
+from hope_monitor_core import read_ipv4_interface_signature
 
 from hope_command_core import (
     calibration_receipt_id,
@@ -45,8 +46,21 @@ from hope_runner_control_core import (
 
 
 class HopeCommandProxy(Node):
+    def _poll_dds_interfaces(self):
+        current = read_ipv4_interface_signature()
+        if current is None:
+            return
+        if self._dds_interfaces is None:
+            self._dds_interfaces = current
+        elif current != self._dds_interfaces and not self._action_lock.locked():
+            # Restart only this RPC proxy, after any in-flight action finishes.
+            # Existing Runner ownership and modes are unaffected.
+            raise RuntimeError("Network interfaces changed; reconnecting command proxy DDS")
+
     def __init__(self) -> None:
         super().__init__("hope_command_proxy", start_parameter_services=False)
+        self._dds_interfaces = read_ipv4_interface_signature()
+        self.create_timer(1.0, self._poll_dds_interfaces)
         self.declare_parameter(
             "session_id_path", "/tmp/hope_model21800_session_id"
         )

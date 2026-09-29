@@ -14,10 +14,44 @@ import json
 import math
 import time
 import uuid
+import os
+import subprocess
 from pathlib import Path
 import sys
 
 from hope_xbox_actions import ActionSequence, ButtonEdges, EmergencyChord, face_button_names
+
+
+class ConnectionRecovery:
+    """Recreate DDS after a replaced network interface or lost monitor stream.
+
+    A stale safety stream never authorizes input. Exiting with a failure lets
+    the dedicated systemd input service rebuild its route-derived DDS profile.
+    """
+    def __init__(self, now):
+        self.started = now
+        self.route = None
+
+    def reason(self, now, route, safety_received):
+        if route is not None:
+            if self.route is not None and route != self.route:
+                return "Robot network changed; reconnecting Xbox transport"
+            self.route = route
+        if now - max(self.started, safety_received) > 8.0:
+            return "Safety status stream lost; reconnecting Xbox transport"
+        return None
+
+
+def robot_route(peer):
+    try:
+        result = subprocess.run(["ip", "-j", "route", "get", peer],
+                                capture_output=True, text=True, timeout=.2, check=True)
+        route = json.loads(result.stdout)[0]
+        interface = route["dev"]
+        index = Path("/sys/class/net", interface, "ifindex").read_text().strip()
+        return interface, index, route.get("prefsrc", route.get("src", ""))
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError):
+        return None
 
 
 def normalize_axis(value: int, minimum: int, maximum: int, deadzone: float) -> float:
@@ -154,26 +188,40 @@ def run(args):
     device = None
     session = uuid.uuid4().hex
     started = time.monotonic()
+    recovery = ConnectionRecovery(started)
+    next_health_check = started
     next_discovery = 0.0
     sequence = 0
     try:
         while args.seconds <= 0 or time.monotonic() - started < args.seconds:
             loop = time.monotonic()
             if node is not None:
-                ros.spin_once(node, timeout_sec=0)
+                # Drain more than one ready callback: both Runner streams can
+                # arrive at 50 Hz alongside the safety heartbeat and RPCs.
+                for _ in range(8):
+                    ros.spin_once(node, timeout_sec=0)
+            if args.control and loop >= next_health_check:
+                next_health_check = loop + .5
+                reason = recovery.reason(loop, robot_route(os.environ.get("HOPE_XBOX_HDU_IP", "10.42.20.10")), estop_received[1])
+                if reason:
+                    print(reason, file=sys.stderr, flush=True)
+                    raise SystemExit(75)
             error = ""
             axes = [0.0, 0.0, 0.0]
             lt, lt_value = False, 0.
             face_keys = set()
             lb = rb = False
             if device is None and loop >= next_discovery:
-                next_discovery = loop + 1
+                next_discovery = loop + .2
                 matches = []
                 for path in list_devices():
+                    candidate = None
                     try:
                         candidate = InputDevice(path)
                         capabilities = candidate.capabilities()
                     except OSError:
+                        if candidate is not None:
+                            candidate.close()
                         continue
                     if (
                         candidate.info.vendor == 0x045E
@@ -221,6 +269,10 @@ def run(args):
                     error = str(exc)
                     device.close()
                     device = None
+                    next_discovery = 0.0
+                    latch.reset()
+                    buttons.reset()
+                    actions.cancel("Controller disconnected; reconnecting automatically")
             current_state = runner_state[0] if loop - runner_state[1] <= 1.0 else None
             emergency.sample(lb, rb)
             estop_known_clear = estop_received[0] is False and loop - estop_received[1] <= 1.5
@@ -285,7 +337,9 @@ def run(args):
             if actions.busy or emergency.latched or (args.control and not estop_known_clear):
                 latch.reset()
                 enabled = False
-                state = "E_STOP" if emergency.latched else "MODE_CHANGE_IN_PROGRESS"
+                state = ("E_STOP" if emergency.latched else
+                         "WAITING_FOR_SAFETY_STATUS" if args.control and not estop_known_clear else
+                         "MODE_CHANGE_IN_PROGRESS")
             velocity = (
                 [
                     axes[0] * (args.forward if axes[0] >= 0 else args.backward),

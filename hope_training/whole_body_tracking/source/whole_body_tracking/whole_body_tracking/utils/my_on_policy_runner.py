@@ -7,7 +7,6 @@ import random
 import signal
 import time
 from collections import deque
-from dataclasses import asdict
 
 import numpy as np
 import torch
@@ -15,33 +14,15 @@ from rsl_rl.env import VecEnv
 from rsl_rl.runners.on_policy_runner import OnPolicyRunner
 from tensordict import TensorDict
 
-from isaaclab_rl.rsl_rl import export_policy_as_onnx
 
-from whole_body_tracking.utils.exporter import attach_onnx_metadata, export_motion_policy_as_onnx
-from whole_body_tracking.utils.wandb_logging import WandbScalarUploadLimiter
 
 
 class MyOnPolicyRunner(OnPolicyRunner):
-    def save(self, path: str, infos=None):
-        """Save the model and training information."""
-        super().save(path, infos)
-        if self.logger_type in ["wandb"]:
-            import wandb
-
-            policy_path = path.split("model")[0]
-            filename = policy_path.split("/")[-2] + ".onnx"
-            export_policy_as_onnx(
-                self.alg.policy,
-                normalizer=getattr(self.alg.policy, "actor_obs_normalizer", None),
-                path=policy_path,
-                filename=filename,
-            )
-            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
-            wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
+    """Standard local-checkpoint runner."""
 
 
 class MotionOnPolicyRunner(OnPolicyRunner):
-    def __init__(self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu", registry_name=None):
+    def __init__(self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu"):
         # The resolved action term is authoritative for which fixed actor outputs execute.  Bind
         # its passive columns before rsl_rl constructs the policy, so entropy optimizes the 29
         # active A3 channels while preserving the 31-D network/export shape.
@@ -104,78 +85,13 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             if passive_cols.numel() > 0:
                 active[passive_cols] = False
             bind_projection(lower, upper, active)
-        self.registry_name = registry_name
 
     def _prepare_logging_writer(self) -> None:
-        """Create a bounded W&B writer and preserve exact-resume configuration."""
+        """Keep scalar logs local; cloud logger backends are unsupported."""
         logger_type = str(self.cfg.get("logger", "tensorboard")).lower()
-        exact_wandb_resume = (
-            bool(getattr(self, "checkpoint_exact_resume", False))
-            and logger_type == "wandb"
-        )
-        if logger_type != "wandb":
-            super()._prepare_logging_writer()
-            return
-        if self.log_dir is None or self.writer is not None or self.disable_logs:
-            return
-
-        # W&B otherwise captures the full Isaac/PPO terminal stream into output.log and uploads it
-        # on finish.  Training diagnostics remain visible in the terminal and local launch log;
-        # remote runs receive scalar curves and small provenance files only.
-        if not bool(getattr(self, "wandb_capture_console", False)):
-            os.environ["WANDB_CONSOLE"] = "off"
-
-        from rsl_rl.utils.wandb_utils import WandbSummaryWriter
-
-        self.logger_type = "wandb"
-        raw_writer = WandbSummaryWriter(log_dir=self.log_dir, flush_secs=10, cfg=self.cfg)
-        self.writer = WandbScalarUploadLimiter(
-            raw_writer,
-            profile=str(getattr(self, "wandb_metric_profile", "core_v1")),
-            max_distinct_keys=int(getattr(self, "wandb_max_metric_keys", 2000)),
-        )
-
-        if not exact_wandb_resume:
-            self.writer.log_config(
-                self.env.cfg,
-                self.cfg,
-                self.alg_cfg,
-                self.policy_cfg,
-            )
-            print(
-                "[MotionOnPolicyRunner] bounded W&B logging active: "
-                f"profile={self.writer.profile}, "
-                f"max_distinct_keys={self.writer.max_distinct_keys}, "
-                "console_capture=off",
-                flush=True,
-            )
-            return
-
-        # rsl_rl writes the resolved config again whenever its W&B writer is constructed. On a
-        # resumed run W&B treats that config as immutable. Its first serialization can omit empty
-        # nested dictionaries (for example actor_obs_normalization={}), so writing the same saved
-        # runner config again may look like a value change and abort before the first PPO update.
-        # Exact resume deliberately reconnects to the same run and frozen params, therefore allow
-        # those serialization-only differences here. Fresh and ordinary warm-start runs retain the
-        # upstream fail-closed behavior.
-        import wandb
-
-        try:
-            env_cfg = self.env.cfg.to_dict()
-        except Exception:
-            env_cfg = asdict(self.env.cfg)
-        for key, value in (
-            ("runner_cfg", self.cfg),
-            ("policy_cfg", self.policy_cfg),
-            ("alg_cfg", self.alg_cfg),
-            ("env_cfg", env_cfg),
-        ):
-            wandb.config.update({key: value}, allow_val_change=True)
-        print(
-            "[MotionOnPolicyRunner] exact W&B resume attached; saved configs restored with "
-            "allow_val_change=True; bounded scalar/file upload remains active",
-            flush=True,
-        )
+        if logger_type != "tensorboard":
+            raise ValueError("HOPE supports only the local tensorboard logger")
+        super()._prepare_logging_writer()
 
     @staticmethod
     def _is_scalar_tree(value) -> bool:
@@ -1237,15 +1153,10 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                 and not self.disable_logs
                 and not bool(getattr(self, "checkpoint_exact_resume", False))
             ):
-                git_file_paths = store_code_state(
+                store_code_state(
                     self.log_dir, self.git_status_repos
                 )
-                if (
-                    self.logger_type in ["wandb", "neptune"]
-                    and git_file_paths
-                ):
-                    for path in git_file_paths:
-                        self.writer.save_file(path)
+
 
         if self.log_dir is not None and not self.disable_logs:
             self.save(
@@ -1293,13 +1204,6 @@ class MotionOnPolicyRunner(OnPolicyRunner):
     def save(self, path: str, infos=None):
         """Atomically save a checkpoint that can continue at the next PPO iteration."""
         provenance = getattr(self, "checkpoint_provenance", None)
-        logger_type = str(
-            getattr(
-                self,
-                "logger_type",
-                self.cfg.get("logger", "tensorboard"),
-            )
-        ).lower()
         sidecar = pathlib.Path(f"{path}.final_v3.json") if provenance is not None else None
         # Never leave a stale sidecar beside a failed/partial overwrite.  A successful save writes
         # the replacement atomically below; export independently re-hashes the checkpoint.
@@ -1307,17 +1211,6 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             sidecar.unlink(missing_ok=True)
         checkpoint = pathlib.Path(path)
         checkpoint.parent.mkdir(parents=True, exist_ok=True)
-        wandb_run_id = None
-        wandb_run_name = None
-        if logger_type == "wandb" and not self.disable_logs:
-            try:
-                import wandb
-
-                if wandb.run is not None:
-                    wandb_run_id = wandb.run.id
-                    wandb_run_name = wandb.run.name
-            except Exception:
-                pass
         rng_state = self._capture_rng_state()
         resume_state = {
             "schema_version": 3,
@@ -1331,8 +1224,6 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             "algorithm_learning_rate": float(self.alg.learning_rate),
             **rng_state,
             "log_dir": str(self.log_dir) if self.log_dir is not None else None,
-            "wandb_run_id": wandb_run_id,
-            "wandb_run_name": wandb_run_name,
             "environment_resume_state": self._capture_environment_resume_state(),
             "rollout_bookkeeping_state": getattr(
                 self, "_rollout_bookkeeping_state", None
@@ -1363,25 +1254,6 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             os.replace(temporary_checkpoint, checkpoint)
         finally:
             temporary_checkpoint.unlink(missing_ok=True)
-        if logger_type == "neptune" and not self.disable_logs:
-            self.writer.save_model(str(checkpoint), self.current_learning_iteration)
-        elif (
-            logger_type == "wandb"
-            and not self.disable_logs
-            and bool(getattr(self, "wandb_upload_checkpoints", False))
-        ):
-            self.writer.save_model(str(checkpoint), self.current_learning_iteration)
-        elif (
-            logger_type == "wandb"
-            and not self.disable_logs
-            and not getattr(self, "_wandb_checkpoint_skip_reported", False)
-        ):
-            print(
-                "[MotionOnPolicyRunner] W&B checkpoint upload disabled; "
-                "model_*.pt remains in the local run directory",
-                flush=True,
-            )
-            self._wandb_checkpoint_skip_reported = True
         if provenance is not None:
             digest = hashlib.sha256()
             with checkpoint.open("rb") as stream:
@@ -1396,73 +1268,6 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             temporary = pathlib.Path(f"{sidecar}.tmp")
             temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
             temporary.replace(sidecar)
-        if logger_type == "wandb":
-            import wandb
-
-            if getattr(self, "checkpoint_export_onnx", True):
-                policy_path = path.split("model")[0]
-                filename = policy_path.split("/")[-2] + ".onnx"
-                # rsl_rl moved obs normalization onto the policy (actor_obs_normalizer); the runner no
-                # longer has self.obs_normalizer. Fall back to None (-> Identity in the exporter) if absent.
-                export_motion_policy_as_onnx(
-                    self.env.unwrapped,
-                    self.alg.policy,
-                    normalizer=getattr(self.alg.policy, "actor_obs_normalizer", None),
-                    path=policy_path,
-                    filename=filename,
-                )
-                attach_onnx_metadata(
-                    self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename
-                )
-                if bool(getattr(self, "wandb_upload_onnx", False)):
-                    wandb.save(
-                        policy_path + filename,
-                        base_path=os.path.dirname(policy_path),
-                    )
-                elif not getattr(self, "_wandb_onnx_skip_reported", False):
-                    print(
-                        "[MotionOnPolicyRunner] W&B ONNX upload disabled; "
-                        "periodic ONNX remains local",
-                        flush=True,
-                    )
-                    self._wandb_onnx_skip_reported = True
-            elif not getattr(self, "_checkpoint_export_skip_reported", False):
-                print(
-                    "[MotionOnPolicyRunner] periodic ONNX export disabled by task YAML; "
-                    "resumable PT checkpoints remain enabled",
-                    flush=True,
-                )
-                self._checkpoint_export_skip_reported = True
-            if sidecar is not None:
-                # Keep remote checkpoint downloads exportable: the FinalV3 exporter requires this
-                # hash binding and must not silently degrade to a local-run-only workflow.
-                wandb.save(str(sidecar), base_path=os.path.dirname(str(sidecar)))
-            provenance_files = getattr(self, "checkpoint_provenance_files", ())
-            if provenance_files and not getattr(self, "_checkpoint_provenance_files_uploaded", False):
-                for provenance_file in provenance_files:
-                    provenance_file = pathlib.Path(provenance_file)
-                    # Preserve params/<name> under the W&B run rather than flattening three files
-                    # with checkpoint artifacts at the run root.
-                    wandb.save(
-                        str(provenance_file),
-                        base_path=str(provenance_file.parents[1]),
-                    )
-                self._checkpoint_provenance_files_uploaded = True
-
-            # Link the input motion artifact(s) to this run (lineage bookkeeping only — a W&B API
-            # failure here must not kill the training run). W&B expects registry refs to include an
-            # alias (for example, collection:latest).
-            if self.registry_name is not None:
-                registry_names = (
-                    self.registry_name if isinstance(self.registry_name, (list, tuple)) else [self.registry_name]
-                )
-                for registry_name in registry_names:
-                    try:
-                        wandb.run.use_artifact(registry_name)
-                    except Exception as e:
-                        print(f"[MotionOnPolicyRunner] WARNING: use_artifact({registry_name!r}) failed: {e}")
-                self.registry_name = None
-
     def _restore_yaml_optimizer_hyperparameters(self, optimizer_state: dict) -> None:
         """Keep a loaded optimizer's moments while restoring YAML-owned hyperparameters."""
         checkpoint_param_groups = optimizer_state.get("param_groups", [])

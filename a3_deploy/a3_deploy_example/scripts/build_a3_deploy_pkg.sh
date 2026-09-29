@@ -842,8 +842,7 @@ if unitree_policy_mode:
 # another file that satisfies the runtime named-schema and safety checks.
 serve_timeline = (
     gear_root / "assets" / "a3_runtime" / "serve" / "motions"
-    / "a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_"
-      "strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv"
+    / "a3p_op3_serve025_photo_right30_advance20_v12.csv"
 )
 if not serve_timeline.is_file():
     raise SystemExit(f"required serve025 CSV is missing: {serve_timeline}")
@@ -1440,7 +1439,7 @@ if [[ -n "${SERVE_UNSUPPORTED_OVERRIDE}" ]]; then
   exit 64
 fi
 for _required in \
-  "${SCRIPT_DIR}/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv"; do
+  "${SCRIPT_DIR}/motions/a3p_op3_serve025_photo_right30_advance20_v12.csv"; do
   if [[ ! -f "${_required}" ]]; then
     echo "packaged --serve file is missing: ${_required}" >&2
     exit 66
@@ -1471,7 +1470,7 @@ SERVE_TIMELINE_ARGS=()
 if [[ "${SERVE_TIMELINE_OVERRIDE}" == "0" ]]; then
   SERVE_TIMELINE_ARGS=(
     --serve-timeline
-    "${SCRIPT_DIR}/motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv"
+    "${SCRIPT_DIR}/motions/a3p_op3_serve025_photo_right30_advance20_v12.csv"
   )
 else
   echo "[a3_pingpong] using operator --serve-timeline override"
@@ -1755,7 +1754,7 @@ verify_package() {
     exit 1
   fi
   local serve_required=(
-    "motions/a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv"
+    "motions/a3p_op3_serve025_photo_right30_advance20_v12.csv"
     "tools/a3p_gripper_bridge.py"
     "tools/grip.py"
   )

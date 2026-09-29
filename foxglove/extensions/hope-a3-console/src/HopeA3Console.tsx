@@ -1202,7 +1202,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           </div>
           <input ref={csvInput} type="file" accept=".csv,text/csv" hidden
             onChange={(event) => { void uploadAsset(event.target.files?.[0], "csv"); event.target.value = ""; }} />
-          <p className="helper">Select Kernel Mode, upload while stopped, then Run → SERVER → Stand → Start to Serve → load ball and clear hands → Serve → Ready → Start to Serve again.</p>
+          <p className="helper">Select Kernel Mode, upload while stopped, then Run → SERVER → Stand → Start to Serve → load ball and clear hands → Serve → slowly lower arms → Stand → Start to Serve again.</p>
           <span className="helper">Uploads use the Runner CSV validator and never start motion. Normal play retains its built-in serve CSV.</span>
         </section>
       </div>
@@ -1458,7 +1458,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         <div className="teleop-entry-status" title={teleopBlocked ?? "Ready to enter Teleop."}>
           {teleopBlocked ?? "Ready to enter Teleop."}
         </div>
-        <div className="sequence-status">Wait for ACTIVE, center the sticks, then release and hold LT again. Use the left stick to move forward, backward, or sideways, and the right stick to turn. Releasing LT or losing input slows the robot to a stop. Returning to Stand waits for the feet to settle. A: SERVER + Start to Serve. B: Serve, then automatic Ready. X: RECEIVER + Ready. Y: Stand, then Teleop. Press face buttons once, without LT. LB + RB together: E-STOP.</div>
+        <div className="sequence-status">Wait for ACTIVE, center the sticks, then release and hold LT again. Use the left stick to move forward, backward, or sideways, and the right stick to turn. Releasing LT or losing input slows the robot to a stop. Returning to Stand waits for the feet to settle. A: SERVER + Start to Serve. B: Serve, then automatic Stand in Kernel Mode or Ready in normal play. X: RECEIVER + Ready. Y: Stand, then Teleop. Press face buttons once, without LT. LB + RB together: E-STOP.</div>
       </div>
 
       <div className="sequence-card">
@@ -1528,7 +1528,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               runnerReady
                 ? kernelMode ? "READY · receive policy test · Start to Serve begins the next cycle" : "READY · receiving · Start to Serve begins the next cycle"
                 : snapshot.localRole !== "RECEIVER"
-                ? "SERVER enters Ready automatically after Serve completes"
+                ? kernelMode ? "SERVER lowers arms and returns to Stand after Serve" : "SERVER enters Ready automatically after Serve completes"
                 : !runnerStanding
                   ? "LOCKED · stand first"
                   : kernelMode
@@ -1582,8 +1582,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
                 ? `LOAD BALL, CLEAR HANDS · starts selected full31 timeline at 100 Hz · gripper ${snapshot.gripperState ?? "UNAVAILABLE"} is non-gating`
                 : snapshot.serving === true
                   ? `PLAYING · ${serveState}`
-                  : kernelMode && serveState === "COMPLETE" && runnerReady
-                    ? "READY · receive policy test · Start to Serve begins the next cycle"
+                  : kernelMode && serveState === "COMPLETE" && snapshot.runnerMode === "PD_STAND"
+                    ? "STAND · arms lowered · Start to Serve begins the next cycle"
                   : serveState === "COMPLETE" && snapshot.runnerMode === "MOTION"
                     ? "READY · receiving · Start to Serve begins the next cycle"
                   : "LOCKED UNTIL WAIT_READY_TO_SERVE"
@@ -1599,7 +1599,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             onClick={() =>
               void invokeConfirmed(
                 "readyToServe",
-                kernelMode ? "Test the selected CSV now? Confirm the ball is loaded, hands are clear and the physical E-stop is reachable. Playback automatically enters the receive policy. Local position/velocity are estimated from stance feet and IMU; support the robot during validation." : "Start the serve motion now? Confirm all people are outside the loading and swing zones, the opponent is ready, and the physical E-stop is reachable. Gripper state is not checked; this action starts frame 0 immediately. A return ball can engage the receive policy after the post-contact handoff finishes and Runner reports MOTION.",
+                kernelMode ? "Test the selected CSV now? Confirm the ball is loaded, hands are clear and the physical E-stop is reachable. After the stroke, Runner slowly lowers the arms over 2.5 seconds and returns to Stand." : "Start the serve motion now? Confirm all people are outside the loading and swing zones, the opponent is ready, and the physical E-stop is reachable. Gripper state is not checked; this action starts frame 0 immediately. A return ball can engage the receive policy after the post-contact handoff finishes and Runner reports MOTION.",
               )
             }
           />

@@ -42,6 +42,7 @@
 #include "a3_pingpong/pp_command_safety.hpp"
 #include "a3_pingpong/pp_hybrid_lower_policy.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
+#include "a3_pingpong/pp_teleop_entry.hpp"
 #include "a3_pingpong/pp_teleop_input.hpp"
 #include "a3_pingpong/pp_mode_cadence.hpp"
 #include "a3_pingpong/pp_policy.hpp"
@@ -408,13 +409,32 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  // Validation-only entry exits before config, backend, gripper or policy init.
+  // Validation-only entry exits before backend/gripper initialization.
   if (Has(argc, argv, "--validate-serve-timeline")) {
     a3_pingpong::PpServe025FullbodyTimeline timeline;
     std::string error;
     if (!timeline.LoadCsv(Flag(argc, argv, "--validate-serve-timeline", ""), error)) {
       std::cerr << error << "\n";
       return 2;
+    }
+    if (Has(argc, argv, "--validate-serve-stand")) {
+      try {
+        const fs::path directory = Flag(argc, argv, "--policy-dir", "");
+        if (directory.empty()) throw std::runtime_error("--validate-serve-stand requires --policy-dir");
+        a3_pingpong::PpOnnxPolicy policy(
+            (directory / "exported/policy.onnx").string(),
+            a3_pingpong::PpOnnxLoadProfile::kProductionStrict,
+            (directory / "params/deploy.yaml").string());
+        std::array<int, 31> mapping{};
+        if (!a3_pingpong::build_src_to_sdk(policy.joint_names(), mapping))
+          throw std::runtime_error("serve Stand joint mapping invalid");
+        const double offset = a3_pingpong::ServeStandLateralOffset(
+            a3_pingpong::to_sdk_order(policy.default_q(), mapping), timeline.complete().q_sdk);
+        std::cout << "SERVE_STAND_VALID lateral_offset_rad=" << offset << '\n';
+      } catch (const std::exception& e) {
+        std::cerr << "SERVE_STAND_INVALID: " << e.what() << '\n';
+        return 2;
+      }
     }
     std::cout << "SERVE_TIMELINE_VALID frames=468 hz=100\n";
     return 0;
@@ -474,6 +494,13 @@ int main(int argc, char** argv) {
   }
   const fs::path cfgdir = fs::path(cfg_path).parent_path();
   YAML::Node cfg = YAML::LoadFile(cfg_path);
+  const int background_cpu = cfg["background_cpu"] ? cfg["background_cpu"].as<int>() : -1;
+  const int driver_cpu = cfg["driver_cpu"] ? cfg["driver_cpu"].as<int>() : -1;
+  if (background_cpu < -1 || background_cpu >= 1024 || driver_cpu < -1 || driver_cpu >= 1024)
+    throw std::invalid_argument("background_cpu/driver_cpu must be -1 or valid CPU indices");
+  if (!a3_rt::PinCurrentThreadToCpu(background_cpu))
+    throw std::runtime_error("cannot pin Runner background thread");
+  std::printf("[scheduling] background_cpu=%d driver_cpu=%d\n", background_cpu, driver_cpu);
 
   const std::string run_mode = Flag(argc, argv, "--mode", "");
   const bool reference_playback_selected =
@@ -1240,6 +1267,18 @@ int main(int argc, char** argv) {
   auto ref = std::make_unique<a3_pingpong::PpReferencePlayback>(pp->isaac_to_sdk(), rcfg);
   ref->SetGroup(ParseRefGroup(Flag(argc, argv, "--ref-group", "0")));
   std::unique_ptr<a3_pingpong::PpServeController> serve;
+  // Opt-in matching Stand/CSV stance. The strict COMPLETE-pose check below
+  // rejects a CSV made for another stance before any motion can start.
+  if (Has(argc, argv, "--stand-lateral-offset-rad")) {
+    try {
+      if (!kernel_mode || !official_stand || !serve_requested)
+        throw std::invalid_argument("stand lateral offset requires --kernel-mode --official-stand --serve");
+      pp->SetStandLateralOffset(std::stod(Flag(argc, argv, "--stand-lateral-offset-rad", "0")));
+    } catch (const std::exception& error) {
+      std::cerr << "stand stance preflight failed: " << error.what() << "\n";
+      return 2;
+    }
+  }
   std::string serve_timeline_path;
   if (serve_requested) {
     serve_timeline_path =
@@ -1247,9 +1286,7 @@ int main(int argc, char** argv) {
             ? Resolve(Flag(argc, argv, "--serve-timeline", ""), cfgdir)
             : DefaultServeAsset(
                   cfgdir,
-                  "a3p_op3_serve025_new_build4_deep_1p07_compact50_"
-                  "lowdrop35_strikewindow180_full31_balanced_face20deg_"
-                  "forwardhit_v4.csv");
+                  "a3p_op3_serve025_photo_right30_advance20_v12.csv");
     const std::string gripper_socket =
         Flag(argc, argv, "--serve-gripper-socket", "");
     if (!gripper_socket.empty() &&
@@ -1263,6 +1300,12 @@ int main(int argc, char** argv) {
       std::string timeline_error;
       if (!timeline.LoadCsv(serve_timeline_path, timeline_error)) {
         throw std::runtime_error(timeline_error);
+      }
+      if (kernel_mode && official_stand && !Has(argc, argv, "--stand-lateral-offset-rad")) {
+        const double offset = a3_pingpong::ServeStandLateralOffset(
+            pp->official_stand_q(), timeline.complete().q_sdk);
+        pp->SetStandLateralOffset(offset);
+        std::cout << "[serve] matched selected CSV Stand: lateral_offset_rad=" << offset << '\n';
       }
       std::string gripper_error;
       std::unique_ptr<a3_pingpong::PpGripperWorker> gripper;
@@ -1286,7 +1329,10 @@ int main(int argc, char** argv) {
           std::move(gripper));
       if (!serve_only) serve->SetPolicyHandoffFrame(
           std::stoul(Flag(argc, argv, "--serve-handoff-frame", "110")));
-      serve->SetPolicyReturnSeconds(std::stod(Flag(argc, argv, "--serve-return-sec", "1.0")));
+      serve->SetPolicyReturnSeconds(std::stod(Flag(argc, argv, "--serve-return-sec", kernel_mode ? "2.5" : "1.0")));
+      const std::string release_lead_default = cfg["serve_release_lead_frames"]
+          ? std::to_string(cfg["serve_release_lead_frames"].as<unsigned>()) : "0";
+      serve->SetReleaseLeadFrames(std::stoul(Flag(argc, argv, "--serve-release-lead-frames", release_lead_default)));
     } catch (const std::exception& error) {
       std::cerr << "serve artifact/controller preflight failed: "
                 << error.what() << "\n";
@@ -1296,22 +1342,21 @@ int main(int argc, char** argv) {
         << "[serve] serve025 named SDK31 timeline loaded: csv="
         << serve_timeline_path
         << " handoff_frame=" << serve->handoff_frame()
+        << " release_command_frame=" << serve->release_frame()
         << " frames=" << serve->frame_count()
         << " @100Hz, one original CSV FRAME per command tick; no adaptor"
         << "\n"
         << "[serve] fixed flow: SERVER + PD_STAND -> PREPARE_SERVE "
            "(smooth official-stand to CSV frame 0 + immediate GRAB) -> "
-           "READY_TO_SERVE -> full31 CSV action; RELEASE frame=48, "
-           "strike frame=60, contact frame=78. During the action all SDK31 "
-           "q_des/dq_des come directly from the selected SDK31 CSV "
-           "with no second runtime velocity multiplier. No stand-pose leg "
-           "fill or overlay is "
-           "applied. Kp/Kd remain the unscaled official PD_STAND gains and "
+           "READY_TO_SERVE -> full31 CSV action; release dispatch uses configured lead, "
+           "strike frame=60, contact frame=78. Arm q_des/dq_des follow the selected "
+           "SDK31 CSV without a second runtime velocity multiplier. Bounded ankle "
+           "pitch support preserves the CSV arm path and stance width. Kp/Kd remain the unscaled official PD_STAND gains and "
            "tau_ff remains zero. The gripper uses "
            "the direct HAL RPC; its telemetry "
            "and tracking telemetry never gate motion. Recovery hands the same "
-           "Runner directly to the existing P1/P2 receive policy through the "
-           "continuous static-policy handoff.\n";
+           "Runner to Stand in Kernel mode, or P1/P2 receive policy in normal "
+           "play, through the continuous command handoff.\n";
   }
   std::cout << "[pingpong] joint map OK; neck PASSIVE (q=0,kp=" << a3_pingpong::kHeadKp
             << ",kd=" << a3_pingpong::kHeadKd << "); start=" << ModeName(default_mode)
@@ -1516,7 +1561,7 @@ int main(int argc, char** argv) {
   std::atomic<int> teleop_phase{0}; // off, entering, active, stopping
   std::atomic<double> teleop_progress{0};
   std::array<std::atomic<double>,3> teleop_velocity{};
-  a3_pingpong::PpCommandTransition teleop_transition;
+  a3_pingpong::PpTeleopEntry teleop_entry;
   bool teleop_entered = false;
   std::uint64_t teleop_tick = 0;
   int teleop_quiet_ticks = 0, teleop_fall_ticks = 0;
@@ -1528,7 +1573,8 @@ int main(int argc, char** argv) {
   Eigen::Vector2d hybrid_station_anchor_w = Eigen::Vector2d::Zero();
   double hybrid_heading_anchor_rad = 0.0;
   std::uint64_t hybrid_station_last_log_tick = 0;
-  auto command_fn_50hz = [ppp, refp, servep, hybridp, &runner_control, &gain_scale, &leg_gain_scale, &ankle_gain_scale,
+  std::atomic<std::uint64_t> native_evaluations{0};
+  auto command_fn_50hz = [ppp, refp, servep, hybridp, &native_evaluations, &runner_control, &gain_scale, &leg_gain_scale, &ankle_gain_scale,
                      stand_q, stand_kp, stand_kd,
                      official_stand, auto_leg_hold, policy_native, kernel_mode,
                      squat_guard_rad, tilt_guard, leg_stand_gains,
@@ -1559,6 +1605,7 @@ int main(int argc, char** argv) {
                      &hybrid_station_last_log_tick](
                         std::uint64_t tick, const robot_io::RobotState& st,
                         robot_io::RobotCommand& cmd) -> bool {
+    native_evaluations.fetch_add(1, std::memory_order_relaxed);
     Mode m = runner_control.mode();
     const std::uint64_t driver_tick = tick;
     if (hybridp != nullptr) tick = driver_tick / 2;
@@ -1715,10 +1762,10 @@ int main(int argc, char** argv) {
                      servep->cleanup_required() ? 1 : 0);
       } else if (servep->state() ==
                  a3_pingpong::ServeControllerState::kComplete) {
-        runner_control.CompleteServe();
+        runner_control.CompleteServe(kernel_mode);
         std::fprintf(stderr, runner_control.serve_only()
             ? "[serve] CSV complete -> PD_STAND (Pure Serve)\n"
-            : kernel_mode ? "[serve] measured stand recovery complete -> MOTION (Kernel stance-odometry actor, no mocap)\n"
+            : kernel_mode ? "[serve] measured stand recovery complete -> PD_STAND (Kernel; arms lowered)\n"
             : "[serve] measured stand recovery complete -> MOTION; entering P1/P2 "
               "receive policy through continuous handoff\n");
       } else if (servep->state() ==
@@ -2029,7 +2076,6 @@ int main(int argc, char** argv) {
   // TELEOP owns every 500 Hz callback. Other modes retain their native
   // cadence: Serve and the optional legacy hybrid at 100 Hz, receive at 50 Hz.
   // Reset the cadence on mode entry so the next CSV frame is a full 10 ms later.
-  std::uint64_t driver_callback_count = 0;
   std::uint64_t logical_50hz_tick = 0;
   a3_pingpong::PpModeCadence mode_cadence;
   bool held_publish = false;
@@ -2037,7 +2083,8 @@ int main(int argc, char** argv) {
   auto command_fn = [&, command_fn_50hz = std::move(command_fn_50hz)](std::uint64_t driver_tick,
                                                                       const robot_io::RobotState& state,
                                                                       robot_io::RobotCommand& command) mutable -> bool {
-    ++driver_callback_count;
+    const auto command_now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
     if (locomotion) {
       const Mode mode = runner_control.mode();
       if (mode == Mode::kTeleop) {
@@ -2051,33 +2098,36 @@ int main(int argc, char** argv) {
             source.dq_des = state.dq;
             source.kp = source.kd = source.tau_ff = Eigen::VectorXd::Zero(31);
           }
-          locomotion->Reset(state, source);
+          robot_io::RobotCommand teleop_stand;
+          teleop_stand.q_des = ppp->official_stand_q();
+          teleop_stand.dq_des = teleop_stand.tau_ff = Eigen::VectorXd::Zero(31);
+          teleop_stand.kp = ppp->official_stand_kp();
+          teleop_stand.kd = ppp->official_stand_kd();
+          teleop_entry.Begin(source, teleop_stand);
           teleop_input.Disarm();
           teleop_tick = 0;
           teleop_quiet_ticks = 0;
           teleop_fall_ticks = 0;
-          command = locomotion->Step(state, Eigen::Vector3d::Zero());
-          teleop_transition.Begin(source, command, 2.0);
-          teleop_transition.Apply(0, command);
+          command = teleop_entry.Step(0., state, *locomotion, Eigen::Vector3d::Zero());
           teleop_entered = true;
         } else {
           const bool stopping = runner_control.TeleopStopRequested();
-          const bool active = teleop_tick >= 1000 && !stopping;
+          const bool active = !teleop_entry.active() && !stopping;
           const auto target = teleop_input.Sample(active, wall_seconds(), steady_seconds());
-          command = locomotion->Step(state, target);
-          teleop_transition.Apply(teleop_tick * .002, command);
-          if (stopping && teleop_tick >= 1000 && locomotion->settled() && state.dq.cwiseAbs().maxCoeff() < .5 &&
+          command = teleop_entry.Step(teleop_tick * .002, state, *locomotion, target);
+          if (stopping && !teleop_entry.active() && locomotion->settled() && state.dq.cwiseAbs().maxCoeff() < .5 &&
               state.imu_gyro.norm() < .15)
             ++teleop_quiet_ticks;
           else teleop_quiet_ticks = 0;
           if (teleop_quiet_ticks >= 150) runner_control.SetRuntimeMode(Mode::kPdStand);
         }
+        ppp->observe_imu(state);
         const double gz = -(1.0 - 2.0 * (state.imu_quat_wxyz[1] * state.imu_quat_wxyz[1] +
                                          state.imu_quat_wxyz[2] * state.imu_quat_wxyz[2]));
         teleop_fall_ticks = gz > fall_guard_gz ? teleop_fall_ticks + 1 : 0;
         if (fall_guard && teleop_fall_ticks >= 30) throw std::runtime_error("teleop fall guard");
-        teleop_phase.store(runner_control.TeleopStopRequested() ? 3 : (teleop_tick < 1000 ? 1 : 2));
-        teleop_progress.store(std::min(1., teleop_tick * .002 / 2.));
+        teleop_phase.store(runner_control.TeleopStopRequested() ? 3 : (teleop_entry.active() ? 1 : 2));
+        teleop_progress.store(std::min(1., teleop_tick * .002 / a3_pingpong::PpTeleopEntry::kSeconds));
         const auto filtered = locomotion->filtered_velocity();
         for (int i = 0; i < 3; ++i) teleop_velocity[i].store(filtered[i]);
         ++teleop_tick;
@@ -2090,8 +2140,9 @@ int main(int argc, char** argv) {
       teleop_phase.store(0);
       teleop_progress.store(0);
       for (auto& value : teleop_velocity) value.store(0);
-      const unsigned period = (mode == Mode::kServe || hybridp != nullptr) ? 5 : 10;
-      if (mode_cadence.Due(driver_callback_count, static_cast<int>(mode), period)) {
+      const std::int64_t period_ns = (mode == Mode::kServe || hybridp != nullptr)
+          ? 10'000'000 : 20'000'000;
+      if (mode_cadence.DueTime(command_now_ns, static_cast<int>(mode), period_ns)) {
         robot_io::RobotCommand next;
         held_publish = command_fn_50hz(logical_50hz_tick++, state, next);
         held_command = next;
@@ -2105,7 +2156,7 @@ int main(int argc, char** argv) {
       mode_cadence.Reset();
       return command_fn_50hz(driver_tick, state, command);
     }
-    const bool evaluate = mode_cadence.Due(driver_callback_count, static_cast<int>(mode), 2);
+    const bool evaluate = mode_cadence.DueTime(command_now_ns, static_cast<int>(mode), 20'000'000);
     if (evaluate) {
       robot_io::RobotCommand next;
       const bool publish = command_fn_50hz(logical_50hz_tick++, state, next);
@@ -2124,6 +2175,7 @@ int main(int argc, char** argv) {
 
   a3_deploy::A3PolicyDriverOptions dopt;
   dopt.policy_hz = driver_hz;
+  dopt.sched.cpu = driver_cpu;
   dopt.command_delivery_observer = [ppp, &last_delivered_command,
       &last_delivered_valid, &last_delivered_mode, &computed_mode](
       const robot_io::RobotCommand& cmd, bool sent) {
@@ -2517,6 +2569,8 @@ int main(int argc, char** argv) {
 
   // --- status loop ---
   std::uint64_t last_ticks = 0;
+  std::uint64_t last_native_evaluations = 0;
+  std::uint64_t last_reported_halts = 0;
   auto t_start = std::chrono::steady_clock::now();
   auto t_prev = t_start;
   bool clamp_rate_warned = false;  // one-shot high-clamp-rate warning (waist_roll audit)
@@ -2538,8 +2592,30 @@ int main(int argc, char** argv) {
     }
     double dt = std::chrono::duration<double>(now - t_prev).count();
     double hz = dt > 0 ? (ticks - last_ticks) / dt : 0;
+    const auto evaluations = native_evaluations.load(std::memory_order_relaxed);
+    const double native_hz = dt > 0 ? (evaluations - last_native_evaluations) / dt : 0;
+    last_native_evaluations = evaluations;
     const auto g = ppp->last_proj_grav();
     const Mode cur_mode = runner_control.mode();
+    if (cur_mode == Mode::kServe || cur_mode == Mode::kPdStand)
+      std::printf("[cadence] mode=%s callback_hz=%.1f native_evaluation_hz=%.1f release_command_frame=%zu\n",
+                  ModeName(cur_mode), hz, native_hz, servep ? servep->release_frame() : 0);
+    if (halts != last_reported_halts) {
+      const auto timing = driver.GetStats();
+      std::printf("[driver_timing] max_wake_lateness_ms=%.3f max_run_ms=%.3f work_overruns=%llu\n",
+                  timing.max_wake_lateness_ns / 1.e6, timing.max_run_ns / 1.e6,
+                  static_cast<unsigned long long>(timing.overrun_count));
+      std::printf("[driver_health] mode=%s halt_ticks_delta=%llu "
+                  "stale_polls=%llu unaligned_polls=%llu incomplete_polls=%llu "
+                  "unaligned_source_streak=%d latest_age_ms=%.3f latest_skew_ms=%.3f\n",
+                  ModeName(cur_mode), static_cast<unsigned long long>(halts - last_reported_halts),
+                  static_cast<unsigned long long>(driver.Watchdog().StaleCount()),
+                  static_cast<unsigned long long>(driver.Watchdog().UnalignedCount()),
+                  static_cast<unsigned long long>(driver.IncompleteFrameCount()),
+                  driver.Watchdog().CurrentUnalignedStreak(),
+                  driver.LastFrameAgeNs() / 1.e6, driver.LastFrameSkewNs() / 1.e6);
+      last_reported_halts = halts;
+    }
     if (cur_mode == Mode::kServe && servep != nullptr) {
       const auto d = servep->TakeDiag();
       std::printf(

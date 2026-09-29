@@ -9,12 +9,32 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import json
 import re
 import subprocess
 from typing import Mapping, Sequence
 
 
 CALIBRATION_SHA_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def ipv4_interface_signature(interfaces):
+    """DDS needs new sockets when addresses or USB interface identities change."""
+    return tuple(sorted(
+        (item['ifindex'], item['ifname'], address['local'])
+        for item in interfaces for address in item.get('addr_info', [])
+        if item['ifname'] != 'lo' and address.get('family') == 'inet'
+        and address.get('scope') == 'global'
+    ))
+
+
+def read_ipv4_interface_signature():
+    try:
+        result = subprocess.run(['ip', '-j', '-4', 'address', 'show'],
+                                capture_output=True, text=True, timeout=.3, check=True)
+        return ipv4_interface_signature(json.loads(result.stdout))
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return None
 
 
 def combine_estop_results(

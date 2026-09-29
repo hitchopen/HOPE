@@ -23,6 +23,13 @@
 
 namespace a3_rt {
 
+inline std::int64_t NextWakeNs(std::int64_t previous_deadline,
+                               std::int64_t completed,
+                               std::int64_t period) noexcept {
+  const auto next = previous_deadline + period;
+  return next <= completed ? completed + period : next;
+}
+
 class A3BasedTask {
  public:
   struct Options {

@@ -35,8 +35,7 @@ std::filesystem::path A3Root() {
 
 std::filesystem::path TimelinePath() {
   return A3Root() / "assets/a3_runtime/serve/motions" /
-         "a3p_op3_serve025_new_build4_deep_1p07_compact50_lowdrop35_"
-         "strikewindow180_full31_balanced_face20deg_forwardhit_v4.csv";
+         "a3p_op3_serve025_photo_right30_advance20_v12.csv";
 }
 
 PpServe025FullbodyTimeline LoadTimeline() {
@@ -165,6 +164,71 @@ TEST(PpServeController, ReadyConsumesSelectedForwardHitFramesExactly) {
   EXPECT_FALSE(controller.active());
 }
 
+TEST(PpServeController, LoadingTrajectoryVelocityMatchesPositionAndHasQuietEndpoints) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto ready = timeline.ready().q_sdk;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  const auto state = StateAt(stand);
+  robot_io::RobotCommand command, previous;
+  controller.Start();
+  for (std::size_t tick = 0; tick < a3_pingpong::kServe025FullbodyTransitionTicks; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    ASSERT_TRUE(command.q_des.allFinite());
+    EXPECT_LT(command.dq_des.cwiseAbs().maxCoeff(), 1.5);
+    if (tick > 0) {
+      const Eigen::VectorXd secant = (command.q_des - previous.q_des) / .01;
+      EXPECT_LT((secant - .5*(command.dq_des + previous.dq_des)).cwiseAbs().maxCoeff(), 1e-4);
+      EXPECT_LT((command.q_des - previous.q_des).cwiseAbs().maxCoeff(), .015);
+    } else {
+      EXPECT_TRUE(command.q_des.isApprox(stand, 1e-14));
+      EXPECT_TRUE(command.dq_des.isZero(1e-14));
+    }
+    previous = command;
+  }
+  EXPECT_TRUE(command.q_des.isApprox(ready, 1e-14));
+  EXPECT_TRUE(command.dq_des.isZero(1e-14));
+}
+
+TEST(PpServeController, SelectedCsvCanOnlyChangeSymmetricLateralStand) {
+  const auto stand = LoadTimeline().complete().q_sdk;
+  auto wide = stand;
+  wide[20] += .03; wide[24] -= .03;
+  wide[26] -= .03; wide[30] += .03;
+  EXPECT_NEAR(a3_pingpong::ServeStandLateralOffset(stand, wide), .03, 1e-12);
+  EXPECT_DOUBLE_EQ(a3_pingpong::ServeStandLateralOffset(stand, stand), 0.);
+  auto bad = wide; bad[12] += .001;
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+  bad = wide; bad[26] += .001;
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+  bad = stand; bad[20] += .07;
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+  bad = stand; bad[20] = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+}
+
+TEST(PpServeController, StandStartsLoadingWithoutAnAdditionalSettlementGate) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand source, command;
+  source.q_des = stand;
+  source.dq_des = Eigen::VectorXd::Zero(31);
+  source.tau_ff = Eigen::VectorXd::Zero(31);
+  source.kp = kp;
+  source.kd = kd;
+  controller.SetEntryCommand(source);
+  state.imu_gyro[1] = .25;
+  controller.Start();
+  state.q[22] += .15;
+  ASSERT_TRUE(controller.ComputeCommand(0, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kTransitionToLoad);
+  ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd);
+}
+
 TEST(PpServeController, EntryPreservesMovingCommandAndReplacesSeedOnReentry) {
   auto timeline = LoadTimeline();
   const auto ready = timeline.ready().q_sdk;
@@ -190,35 +254,14 @@ TEST(PpServeController, EntryPreservesMovingCommandAndReplacesSeedOnReentry) {
     EXPECT_TRUE(command.tau_ff.isApprox(source.tau_ff, 0));
     EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
     EXPECT_TRUE(controller.active());
-    for (std::size_t t = 1; t <= 50; ++t)
+    state.imu_gyro[1] = .2;
+    for (std::size_t t = 1; t < 100; ++t)
       ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
+    ASSERT_TRUE(controller.ComputeCommand(100, state, command));
     ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd, 1e-12);
-    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
-    // Joint positions/velocities are nominal, but the base is still rocking.
-    // The former 0.15 rad/s envelope incorrectly admitted this state.
-    state.imu_gyro[1] = .10;
-    for (std::size_t t = 0; t < 30; ++t)
-      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
-    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
-    state.imu_gyro.setZero();
-    // A turning point has low angular speed without a settled support pose.
-    state.imu_quat_wxyz = Eigen::Vector4d(std::cos(.06 / 2), 0, std::sin(.06 / 2), 0);
-    for (std::size_t t = 0; t < 30; ++t)
-      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
-    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
-    // Heading must not affect the check; a disturbance resets the quiet dwell.
-    state.imu_quat_wxyz = Eigen::Vector4d(0, 0, 0, 1);
-    for (std::size_t t = 0; t < 20; ++t)
-      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
-    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
-    state.imu_gyro[0] = .10;
-    ASSERT_TRUE(controller.ComputeCommand(0, state, command));
-    state.imu_gyro.setZero();
-    for (std::size_t t = 0; t < 29; ++t)
-      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
-    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
-    ASSERT_TRUE(controller.ComputeCommand(29, state, command));
     EXPECT_EQ(controller.state(), ServeControllerState::kTransitionToLoad);
+    state.imu_gyro.setZero();
     for (std::size_t t = 0; t < a3_pingpong::kServe025FullbodyTransitionTicks; ++t)
       ASSERT_TRUE(controller.ComputeCommand(t, state, command));
     ExpectPdCommand(command, ready, Eigen::VectorXd::Zero(31), kp, kd, 1e-12);
@@ -248,8 +291,8 @@ TEST(PpServeController, PreservesForwardHitRightArmVelocityExactly) {
   const auto& strike = expected.At(82);
   EXPECT_TRUE(command.q_des.isApprox(strike.q_sdk, 0.0));
   EXPECT_TRUE(command.dq_des.isApprox(strike.qd_sdk, 0.0));
-  // Current forwardhit_v4 CSV caps frame 82 elbow speed at 6.9 rad/s.
-  EXPECT_NEAR(std::abs(command.dq_des[15]), 6.9, 1.0e-9);
+  // Keep this a moving strike sample so a dropped velocity command cannot pass.
+  EXPECT_GT(std::abs(strike.qd_sdk[15]), 1.0);
 }
 
 TEST(PpServeController, MissingGripperNeverBlocksBodyTimeline) {
@@ -272,55 +315,63 @@ TEST(PpServeController, MissingGripperNeverBlocksBodyTimeline) {
 }
 
 TEST(PpServeController, ReleaseAcceptsAnyReceiptInsideFivePublishBurst) {
-  struct Shared {
-    std::mutex mutex;
-    std::vector<PpGripperCommand> commands;
-  } shared;
-  PpGripperWorkerTransport transport;
-  transport.exchange = [&shared](PpGripperCommand command,
-                                 std::chrono::milliseconds,
-                                 PpGripperReceipt& receipt,
-                                 std::string& error) {
-    {
-      std::lock_guard<std::mutex> lock(shared.mutex);
-      shared.commands.push_back(command);
+  for (std::size_t lead : {0U, 1U, 2U, 3U}) {
+    struct Shared {
+      std::mutex mutex;
+      std::vector<PpGripperCommand> commands;
+    } shared;
+    PpGripperWorkerTransport transport;
+    transport.exchange = [&shared](PpGripperCommand command,
+                                   std::chrono::milliseconds,
+                                   PpGripperReceipt& receipt,
+                                   std::string& error) {
+      {
+        std::lock_guard<std::mutex> lock(shared.mutex);
+        shared.commands.push_back(command);
+      }
+      receipt = SuccessfulReceipt(command);
+      error.clear();
+      return true;
+    };
+    auto worker = std::make_unique<PpGripperWorker>(std::move(transport));
+    std::string error;
+    ASSERT_TRUE(worker->Start(error)) << error;
+
+    auto timeline = LoadTimeline();
+    const auto expected = timeline;
+    const Eigen::VectorXd stand = timeline.complete().q_sdk;
+    PpServeController controller(
+        std::move(timeline), stand, PositiveGains(80.0),
+        PositiveGains(2.0), std::move(worker));
+    const auto state = StateAt(stand);
+    robot_io::RobotCommand command;
+    controller.SetReleaseLeadFrames(lead);
+    AdvanceToReady(controller, state, command);
+    for (int attempt = 0; attempt < 100 &&
+         controller.gripper_state() != ServeGripperState::kGrabbed; ++attempt) {
+      controller.PollAsync();
+      ASSERT_TRUE(controller.ComputeCommand(500 + attempt, state, command));
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    receipt = SuccessfulReceipt(command);
-    error.clear();
-    return true;
-  };
-  auto worker = std::make_unique<PpGripperWorker>(std::move(transport));
-  std::string error;
-  ASSERT_TRUE(worker->Start(error)) << error;
+    EXPECT_EQ(controller.gripper_state(), ServeGripperState::kGrabbed);
 
-  auto timeline = LoadTimeline();
-  const Eigen::VectorXd stand = timeline.complete().q_sdk;
-  PpServeController controller(
-      std::move(timeline), stand, PositiveGains(80.0),
-      PositiveGains(2.0), std::move(worker));
-  const auto state = StateAt(stand);
-  robot_io::RobotCommand command;
-  AdvanceToReady(controller, state, command);
-  for (int attempt = 0; attempt < 100 &&
-       controller.gripper_state() != ServeGripperState::kGrabbed; ++attempt) {
+    controller.TriggerReadyToServe();
+    for (std::size_t tick = 0; tick <= 60; ++tick) {
+      ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
+      EXPECT_TRUE(command.q_des.isApprox(expected.At(tick).q_sdk, 0.));
+      EXPECT_TRUE(command.dq_des.isApprox(expected.At(tick).qd_sdk, 0.));
+      if (tick < 48 - lead) EXPECT_EQ(controller.TakeDiag().release_dispatch_monotonic_ns, 0U);
+      else EXPECT_GT(controller.TakeDiag().release_dispatch_monotonic_ns, 0U);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     controller.PollAsync();
-    ASSERT_TRUE(controller.ComputeCommand(500 + attempt, state, command));
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    EXPECT_EQ(controller.gripper_state(), ServeGripperState::kReleased);
+    std::lock_guard<std::mutex> lock(shared.mutex);
+    ASSERT_EQ(shared.commands.size(), 3U);
+    EXPECT_EQ(shared.commands[0], PpGripperCommand::kOpen);
+    EXPECT_EQ(shared.commands[1], PpGripperCommand::kGrab);
+    EXPECT_EQ(shared.commands[2], PpGripperCommand::kRelease);
   }
-  EXPECT_EQ(controller.gripper_state(), ServeGripperState::kGrabbed);
-
-  controller.TriggerReadyToServe();
-  for (std::size_t tick = 0; tick <= 60; ++tick) {
-    ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-  controller.PollAsync();
-  EXPECT_EQ(controller.gripper_state(), ServeGripperState::kReleased);
-  std::lock_guard<std::mutex> lock(shared.mutex);
-  ASSERT_EQ(shared.commands.size(), 3U);
-  EXPECT_EQ(shared.commands[0], PpGripperCommand::kOpen);
-  EXPECT_EQ(shared.commands[1], PpGripperCommand::kGrab);
-  EXPECT_EQ(shared.commands[2], PpGripperCommand::kRelease);
 }
 
 TEST(PpServeController, NewPrepareRetriesOpenAfterPriorTransportFault) {
@@ -479,4 +530,121 @@ TEST(PpServeController, AbortRemainsAvailableDuringPostContactStandReturn) {
   controller.RequestAbort();
   ASSERT_TRUE(controller.ComputeCommand(111,state,command));
   EXPECT_EQ(controller.state(),ServeControllerState::kAborted);
+}
+
+TEST(PpServeController, ReleaseLeadIsBoundedAndCannotChangeDuringAction) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand, PositiveGains(80), PositiveGains(2), nullptr);
+  EXPECT_EQ(controller.release_frame(), 48U);
+  EXPECT_THROW(controller.SetReleaseLeadFrames(4), std::invalid_argument);
+  controller.SetReleaseLeadFrames(2);
+  EXPECT_EQ(controller.release_frame(), 46U);
+  robot_io::RobotCommand command;
+  controller.Start();
+  ASSERT_TRUE(controller.ComputeCommand(0, StateAt(stand), command));
+  EXPECT_THROW(controller.SetReleaseLeadFrames(0), std::invalid_argument);
+}
+
+TEST(PpServeController, PitchSupportContinuesThroughReadyAndPreservesCsvArms) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto ready = timeline.ready().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController level(timeline, stand, kp, kd, nullptr);
+  PpServeController tilted(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand), lean = state;
+  const Eigen::Quaterniond orientation = Eigen::AngleAxisd(1.57, Eigen::Vector3d::UnitZ()) *
+      Eigen::AngleAxisd(-.1, Eigen::Vector3d::UnitY());
+  lean.imu_quat_wxyz << orientation.w(), orientation.x(), orientation.y(), orientation.z();
+  lean.imu_gyro[1] = -.2;
+  robot_io::RobotCommand a, b;
+  level.Start(); tilted.Start();
+  double maximum = 0.;
+  for (std::size_t t = 0; t < a3_pingpong::kServe025FullbodyTransitionTicks; ++t) {
+    ASSERT_TRUE(level.ComputeCommand(t, state, a));
+    ASSERT_TRUE(tilted.ComputeCommand(t, lean, b));
+    for (int j = 0; j < 31; ++j) {
+      if (j == 23 || j == 29) {
+        const double delta = b.q_des[j] - a.q_des[j];
+        EXPECT_GE(delta, -.080001);
+        EXPECT_LE(delta, 1e-12);
+        EXPECT_LE(std::abs(b.dq_des[j] - a.dq_des[j]), .3);
+        maximum = std::max(maximum, std::abs(delta));
+      } else EXPECT_DOUBLE_EQ(a.q_des[j], b.q_des[j]);
+    }
+    if (t == 0) ExpectPdCommand(b, a.q_des, a.dq_des, kp, kd, 1e-12);
+  }
+  EXPECT_GT(maximum, .05);
+  EXPECT_LT(b.q_des[23] - ready[23], -.05);
+  const auto last = b;
+  ASSERT_TRUE(tilted.ComputeCommand(600, lean, b));
+  EXPECT_LT((b.q_des - last.q_des).cwiseAbs().maxCoeff(), .0013);
+  tilted.TriggerReadyToServe();
+  auto expected = LoadTimeline();
+  for (std::size_t frame = 0; frame < 100; ++frame) {
+    ASSERT_TRUE(tilted.ComputeCommand(601 + frame, lean, b));
+    for (int j = 0; j < 31; ++j) {
+      if (j == 23 || j == 29) {
+        EXPECT_NEAR(b.q_des[j] - expected.At(frame).q_sdk[j], -.08, 1e-9);
+      } else {
+        EXPECT_DOUBLE_EQ(b.q_des[j], expected.At(frame).q_sdk[j]);
+        EXPECT_DOUBLE_EQ(b.dq_des[j], expected.At(frame).qd_sdk[j]);
+      }
+    }
+  }
+  EXPECT_EQ(tilted.state(), ServeControllerState::kFollowThrough);
+}
+
+TEST(PpServeController, MovingPitchSupportIsContinuousOnServeButton) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  controller.Start();
+  for (std::size_t t = 0; t < a3_pingpong::kServe025FullbodyTransitionTicks; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+  const Eigen::Quaterniond q(Eigen::AngleAxisd(-.04, Eigen::Vector3d::UnitY()));
+  state.imu_quat_wxyz << q.w(), q.x(), q.y(), q.z();
+  state.imu_gyro[1] = -.08;
+  ASSERT_TRUE(controller.ComputeCommand(600, state, command));
+  const auto before = command;
+  ASSERT_LT(before.dq_des[23], -.05);
+  controller.TriggerReadyToServe();
+  ASSERT_TRUE(controller.ComputeCommand(601, state, command));
+  EXPECT_LT((command.q_des-before.q_des).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.dq_des-before.dq_des).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.kp-before.kp).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.kd-before.kd).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.tau_ff-before.tau_ff).cwiseAbs().maxCoeff(), 1e-12);
+}
+
+TEST(PpServeController, SlowStandReturnKeepsEntryContinuousAndLowersArmsOverTwoAndHalfSeconds) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  controller.SetPolicyHandoffFrame(110);
+  controller.SetPolicyReturnSeconds(2.5);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  controller.TriggerReadyToServe();
+  for (unsigned t = 0; t <= 110; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+  const auto source = command;
+  ASSERT_TRUE(controller.ComputeCommand(111, state, command));
+  ExpectPdCommand(command, source.q_des, source.dq_des, kp, kd);
+  for (unsigned t = 1; t <= 100; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(111+t, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kHandoffReady);
+  EXPECT_GT((command.q_des.segment(5,14)-stand.segment(5,14)).cwiseAbs().maxCoeff(), .1);
+  for (unsigned t = 101; t <= 250; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(111+t, state, command));
+  ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd);
+  for (unsigned t = 0; t < 20; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(400+t, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
 }

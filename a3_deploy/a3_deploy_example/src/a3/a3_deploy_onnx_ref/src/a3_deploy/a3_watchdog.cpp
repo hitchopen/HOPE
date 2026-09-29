@@ -13,10 +13,13 @@ WatchdogVerdict A3Watchdog::Check(std::int64_t now_ns,
   // always clears it (recovery).
   if (aligned) {
     unaligned_streak_.store(0, std::memory_order_relaxed);
-  } else {
+  } else if (!have_state_ts_ || state_ts_ns != last_state_ts_ns_) {
     unaligned_streak_.fetch_add(1, std::memory_order_relaxed);
   }
+  last_state_ts_ns_ = state_ts_ns;
+  have_state_ts_ = true;
 
+  // Recheck age on EVERY poll, including repeated source frames.
   const std::int64_t age = now_ns - state_ts_ns;
   if (age > cfg_.max_frame_age_ns) {
     stale_count_.fetch_add(1, std::memory_order_relaxed);
@@ -34,6 +37,7 @@ WatchdogVerdict A3Watchdog::Check(std::int64_t now_ns,
 
 void A3Watchdog::Reset() noexcept {
   unaligned_streak_.store(0, std::memory_order_relaxed);
+  have_state_ts_ = false;
 }
 
 }  // namespace a3_deploy

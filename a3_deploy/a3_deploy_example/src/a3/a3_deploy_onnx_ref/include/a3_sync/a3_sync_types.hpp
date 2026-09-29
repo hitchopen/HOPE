@@ -87,6 +87,7 @@ struct ImuSample {
 };
 
 struct SyncConfig {
+  int sync_cpu{-1};  // Optional dedicated state-assembly core; -1 inherits.
   double sync_hz{100.0};
   SyncMode sync_mode{SyncMode::MinSkewPair};
   std::int64_t max_skew_ns{3'000'000};        // 3 ms

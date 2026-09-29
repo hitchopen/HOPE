@@ -19,7 +19,7 @@ struct WatchdogConfig {
   std::int64_t max_frame_age_ns = 50'000'000;
 
   // Max consecutive aligned=false frames before triggering ChronicUnaligned.
-  // (Each policy tick checks; 5 @ 50Hz = 100ms total.)
+  // Count distinct source frames, not repeated reads by the faster driver.
   int max_consecutive_unaligned = 5;
 };
 
@@ -56,6 +56,9 @@ class A3Watchdog {
 
  private:
   WatchdogConfig cfg_;
+  // Accessed only by the driver thread, like Check/Reset.
+  std::int64_t last_state_ts_ns_{0};
+  bool have_state_ts_{false};
   std::atomic<int> unaligned_streak_{0};
   std::atomic<std::uint64_t> stale_count_{0};
   std::atomic<std::uint64_t> unaligned_count_{0};

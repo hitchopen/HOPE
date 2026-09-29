@@ -286,3 +286,24 @@ TEST(PpRunnerControl, SessionFingerprintMatchesPythonFixture) {
 }
 
 }  // namespace
+
+TEST(PpRunnerControl, KernelServeCompletesInStandAndKeepsServerRole) {
+  PpRunnerControl control(RunnerMode::kPdStand, 1, "kernel");
+  SetRole(control, RunnerAction::kSetServer, LocalRole::kServer);
+  control.SetRuntimeMode(RunnerMode::kServe);
+  control.CompleteServe(true);
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+  EXPECT_EQ(control.local_role(), LocalRole::kServer);
+  control.EnqueueLocalAction(RunnerAction::kPrepareServe);
+  ASSERT_EQ(control.ProcessPending(false, false, true, 12)[0].result,
+            RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kServe);
+}
+
+TEST(PpRunnerControl, NormalAndPureServeKeepExistingCompletionModes) {
+  for (bool pure : {false, true}) {
+    PpRunnerControl control(RunnerMode::kServe, 1, "normal", 16, pure);
+    control.CompleteServe(false);
+    EXPECT_EQ(control.mode(), pure ? RunnerMode::kPdStand : RunnerMode::kMotion);
+  }
+}

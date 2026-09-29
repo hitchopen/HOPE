@@ -139,7 +139,7 @@ class ActionSequence:
         if step == 'prepare':
             return state.run_mode == 'SERVE' and state.serve_state in ('PREPARING_STAND', 'TRANSITION_TO_LOAD', 'WAIT_READY_TO_SERVE')
         if step == 'play':
-            return (state.run_mode == 'SERVE' and state.serve_state in ('PLAYING_PRE_RELEASE', 'RELEASE_PENDING', 'STRIKE', 'FOLLOW_THROUGH', 'RECOVERY')) or (state.run_mode == 'MOTION' and state.serve_state == 'COMPLETE')
+            return (state.run_mode == 'SERVE' and state.serve_state in ('PLAYING_PRE_RELEASE', 'RELEASE_PENDING', 'STRIKE', 'FOLLOW_THROUGH', 'RECOVERY')) or (state.run_mode in ('MOTION', 'TELEOP', 'PD_STAND') and state.serve_state == 'COMPLETE')
         return state.run_mode == {'ready':'MOTION', 'teleop':'TELEOP'}[step]
 
     def advance(self, state, now, connected=True):
@@ -163,7 +163,7 @@ class ActionSequence:
             self.accepted = False
             if not self.steps:
                 self.status = {'A':'A accepted: preparing serve; load ball, clear hands, then press B',
-                               'B':'B accepted: serving; Runner enters Ready automatically',
+                               'B':'B accepted: serving; Kernel automatically lowers arms to Stand, normal play to Ready',
                                'X':'X complete: RECEIVER Ready',
                                'Y':'Y complete: Teleop selected; wait ACTIVE, release then hold LT'}[self.button]
                 return None

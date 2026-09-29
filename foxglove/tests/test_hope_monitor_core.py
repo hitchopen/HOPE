@@ -7,6 +7,7 @@ A3_DIR = Path(__file__).resolve().parents[1] / "a3"
 sys.path.insert(0, str(A3_DIR))
 
 from hope_monitor_core import (  # noqa: E402
+    ipv4_interface_signature,
     build_software_estop_request,
     combine_estop_results,
     cpu_load_percent,
@@ -21,6 +22,17 @@ from hope_monitor_core import (  # noqa: E402
     timestamp_age_s,
     top_process_cpu_load,
 )
+
+
+class InterfaceRecoveryTests(unittest.TestCase):
+    def test_added_address_and_replaced_usb_interface_change_signature(self):
+        def row(index, name, address):
+            return dict(ifindex=index, ifname=name, addr_info=[dict(family='inet', scope='global', local=address)])
+        internal = row(2, 'eth_hdu', '10.42.10.10')
+        usb = row(8, 'usb0', '10.42.20.10')
+        self.assertNotEqual(ipv4_interface_signature([internal]), ipv4_interface_signature([internal, usb]))
+        self.assertEqual(ipv4_interface_signature([internal, usb]), ipv4_interface_signature([usb, internal]))
+        self.assertNotEqual(ipv4_interface_signature([usb]), ipv4_interface_signature([row(9, 'usb0', '10.42.20.10')]))
 
 
 def tracking_csv(*, offset_s="0.002", skew_ppm="3.0", leap="Normal"):

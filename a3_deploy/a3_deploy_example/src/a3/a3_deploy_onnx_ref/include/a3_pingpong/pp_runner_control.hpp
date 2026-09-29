@@ -350,8 +350,10 @@ class PpRunnerControl {
   // from mode edges: COMPLETE -> MOTION -> SERVE can occur between callbacks.
   bool ConsumeServePrepare() noexcept { return serve_prepare_pending_.exchange(false); }
 
-  void CompleteServe() noexcept {
-    SetRuntimeMode(serve_only_ ? RunnerMode::kPdStand : RunnerMode::kMotion);
+  void CompleteServe(bool kernel_mode = false) noexcept {
+    // Kernel serving finishes in Stand after the controller lowers the arms.
+    // Normal play retains its automatic receive-policy entry.
+    SetRuntimeMode((serve_only_ || kernel_mode) ? RunnerMode::kPdStand : RunnerMode::kMotion);
   }
 
   void SetRuntimeMode(RunnerMode next) noexcept {

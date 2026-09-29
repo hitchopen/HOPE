@@ -961,6 +961,7 @@ class PpPolicy {
           "pingpong: --station-only requires a 110-D RallyFinal runtime contract; "
           "refusing a mode that could fall through to swing engage");
     nominal_q_sdk_ = to_sdk_order(onnx_.default_q(), isaac_to_sdk_);  // nominal pose in SDK order
+    official_stand_q_sdk_ = nominal_q_sdk_;
     qdes_projected_isaac_ = onnx_.default_q();
     leg_qdes_smooth_ = nominal_q_sdk_;  // seed the leg q_des EMA at nominal (no jump on first release)
     // Official robust-stand PD gains (a3_pd_stand_*, 29-DOF policy view) scattered
@@ -1200,7 +1201,18 @@ class PpPolicy {
 
   // Official robust stand (matches AGI's PD_STAND): pose = nominal (== a3_default_angles),
   // gains = production a3_pd_stand_*. All in 31-DOF SDK order.
-  const Eigen::VectorXd& official_stand_q() const { return nominal_q_sdk_; }
+  const Eigen::VectorXd& official_stand_q() const { return official_stand_q_sdk_; }
+  // Startup-only stance selection. Keep learned observation/action defaults
+  // unchanged. This describes the standing posture, not a footstep controller.
+  void SetStandLateralOffset(double radians) {
+    if (!std::isfinite(radians) || radians < 0.0 || radians > .06)
+      throw std::invalid_argument("stand lateral offset must be in [0, 0.06] rad");
+    official_stand_q_sdk_ = nominal_q_sdk_;
+    official_stand_q_sdk_[20] += radians;
+    official_stand_q_sdk_[24] -= radians;
+    official_stand_q_sdk_[26] -= radians;
+    official_stand_q_sdk_[30] += radians;
+  }
   const Eigen::VectorXd& official_stand_kp() const { return official_kp_sdk_; }
   const Eigen::VectorXd& official_stand_kd() const { return official_kd_sdk_; }
 
@@ -2053,8 +2065,8 @@ class PpPolicy {
           // commanding the exact default and must not introduce a new
           // default->measured command step at the controller boundary.
           planner_static_q0_ = serve_static_handoff_pending_
-              ? nominal_q_sdk_
-              : (state.q.size() == kNumJoints ? state.q : nominal_q_sdk_);
+              ? official_stand_q_sdk_
+              : (state.q.size() == kNumJoints ? state.q : official_stand_q_sdk_);
           const bool from_serve = serve_static_handoff_pending_;
           serve_static_handoff_pending_ = false;
           // The policy is out of control from here until the next engage: arm the
@@ -2082,7 +2094,7 @@ class PpPolicy {
         const double a = std::min(1.0,
             (tick_idx - planner_static_start_tick_) * cfg_.dt /
                 std::max(cfg_.hold_blend_s, 1e-3));
-        cmd.q_des = (1.0 - a) * planner_static_q0_ + a * nominal_q_sdk_;
+        cmd.q_des = (1.0 - a) * planner_static_q0_ + a * official_stand_q_sdk_;
         cmd.dq_des = Eigen::VectorXd::Zero(kNumJoints);
         cmd.tau_ff = Eigen::VectorXd::Zero(kNumJoints);
         cmd.kp = official_kp_sdk_;
@@ -5856,6 +5868,7 @@ class PpPolicy {
   int finite_gait_settle_ticks_ = 0;
   std::array<int, 31> isaac_to_sdk_{};
   Eigen::VectorXd nominal_q_sdk_;
+  Eigen::VectorXd official_stand_q_sdk_;
   Eigen::VectorXd official_kp_sdk_;
   Eigen::VectorXd official_kd_sdk_;
   CompactExecutionHistory324 compact_history_;

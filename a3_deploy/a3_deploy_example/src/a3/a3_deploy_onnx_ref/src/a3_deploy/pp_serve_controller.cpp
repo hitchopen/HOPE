@@ -17,14 +17,7 @@ namespace {
 constexpr int kDof = robot_io::kA3Dof;
 constexpr double kStandEndpointToleranceRad = 1.0e-6;
 constexpr double kTrackingWarningRad = 0.35;
-constexpr double kPrepareStandSeconds = .5;
-// A near-nominal joint pose can still be rocking about the feet after an
-// interrupted receive blend. Raising the arm during that residual swing can
-// tip the plant. Require a small, sustained IMU support envelope before the
-// loading trajectory; this uses body-frame measurements in both play modes.
-constexpr double kPrepareStandTiltRad = .03;
-constexpr double kPrepareStandAngularSpeedRadS = .05;
-constexpr std::size_t kPrepareStandQuietTicks = 30;
+constexpr double kPrepareStandSeconds = 1.0;
 constexpr int kWaistYawSdk = 0;
 constexpr int kWaistRollSdk = 1;
 constexpr int kWaistPitchSdk = 2;
@@ -160,6 +153,12 @@ void PpServeController::SetPolicyReturnSeconds(double seconds) {
   policy_return_seconds_ = seconds;
 }
 
+void PpServeController::SetReleaseLeadFrames(std::size_t frames) {
+  if (frames > 3 || active())
+    throw std::invalid_argument("serve release lead must be 0..3 frames and configured while idle");
+  release_lead_frames_ = frames;
+}
+
 void PpServeController::ConfirmBallLoaded() {
   // Retained for schema compatibility. The new flow has no Load Ball step.
 }
@@ -254,6 +253,9 @@ bool PpServeController::ValidateState_(
 }
 
 void PpServeController::ResetAction_() {
+  entry_transition_.Reset();
+  prepare_balance_rad_ = 0.0;
+  prepare_balance_velocity_ = 0.0;
   policy_return_transition_.Reset();
   policy_return_tick_ = 0;
   policy_return_quiet_ticks_ = 0;
@@ -444,6 +446,8 @@ void PpServeController::ProcessRequests_(
                                           std::memory_order_acq_rel)) {
     timeline_tick_ = 0;
     source_frame_ = 0;
+    swing_balance_rad_ = prepare_balance_rad_;
+    swing_balance_velocity_ = prepare_balance_velocity_;
     phase_ = timeline_.ready().phase;
     state_.store(ServeControllerState::kPlayingPreRelease,
                  std::memory_order_release);
@@ -481,6 +485,11 @@ void PpServeController::SetTransitionCommand_(
   const double alpha =
       static_cast<double>(tick) /
       static_cast<double>(kServe025FullbodyTransitionTicks - 1);
+  const double position_alpha = Smooth5_(alpha);
+  const double velocity_alpha = Smooth5Derivative_(alpha) / kDurationS;
+  const Eigen::VectorXd source_q =
+      entry_command_valid_ ? entry_command_.q_des : official_stand_q_sdk_;
+  const Eigen::VectorXd delta = timeline_.ready().q_sdk - source_q;
   if (entry_command_valid_) {
     FillPdCommand_(timeline_.ready().q_sdk, Eigen::VectorXd::Zero(kDof), command);
     // Preserve the current command exactly, then settle its residual velocity
@@ -488,20 +497,58 @@ void PpServeController::SetTransitionCommand_(
     // Using the full 5 s for both can overshoot when Ready's blend is interrupted.
     if (tick == 0) entry_transition_.Begin(entry_command_, command, kDurationS, .25);
     entry_transition_.Apply(alpha * kDurationS, command);
-    UpdateSupportTelemetry_(state, command);
-    last_command_ = command;
-    phase_ = "PD_STAND_TO_CSV_READY";
-    return;
+  } else {
+    FillPdCommand_(source_q + position_alpha * delta,
+                   velocity_alpha * delta, command);
   }
-  const double position_alpha = Smooth5_(alpha);
-  const double velocity_alpha = Smooth5Derivative_(alpha) / kDurationS;
-  const Eigen::VectorXd delta =
-      timeline_.ready().q_sdk - official_stand_q_sdk_;
-  FillPdCommand_(official_stand_q_sdk_ + position_alpha * delta,
-                 velocity_alpha * delta, command);
+  // Fold the elbows before the shoulders finish rising. Synchronous joint
+  // interpolation passes through an extended-arm pose with a larger forward
+  // moment. Each segment has zero endpoint velocity/acceleration, and the
+  // original entry-command velocity/gains/feedforward blend stays intact.
+  for (const int sdk : {5, 6, 8, 12, 13, 15}) {
+    const bool elbow = sdk == 8 || sdk == 15;
+    const double start = elbow ? 0.0 : .15;
+    const double span = elbow ? .65 : .85;
+    const double u = std::clamp((alpha - start) / span, 0.0, 1.0);
+    command.q_des[sdk] += (Smooth5_(u) - position_alpha) * delta[sdk];
+    command.dq_des[sdk] +=
+        (Smooth5Derivative_(u) / (span * kDurationS) - velocity_alpha) * delta[sdk];
+  }
+  // Transient symmetric ankle support during the arm lift. This C2 bump
+  // vanishes, including its first two derivatives, at both ends; it never
+  // modifies CSV READY or any played frame. Peak offset is 0.015 rad.
+  const double u = std::clamp(alpha, 0.0, 1.0);
+  const double v = 1.0 - u;
+  const double support_q = .015 * 64.0 * u*u*u * v*v*v;
+  const double support_dq = .015 * 192.0 * u*u * v*v * (1.0 - 2.0*u) / kDurationS;
+  for (const int sdk : {kLeftAnklePitchSdk, kRightAnklePitchSdk}) {
+    command.q_des[sdk] += support_q;
+    command.dq_des[sdk] += support_dq;
+  }
+  // Keep support continuous into READY; dropping the correction after the
+  // lift left the physical robot tipping backward while the arms were held.
+  const double elapsed = alpha * kDurationS;
+  ApplyPitchSupport_(state, command, Smooth5_(elapsed / .25),
+                     Smooth5Derivative_(elapsed / .25) / .25);
   UpdateSupportTelemetry_(state, command);
   last_command_ = command;
   phase_ = "PD_STAND_TO_CSV_READY";
+}
+
+void PpServeController::ApplyPitchSupport_(
+    const robot_io::RobotState& state, robot_io::RobotCommand& command,
+    double envelope, double envelope_velocity) {
+  const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
+  const double pitch = std::asin(std::clamp(gravity[0], -1.0, 1.0));
+  const double target = std::clamp(.9 * pitch + .2 * state.imu_gyro[1], -.08, .08);
+  const double delta = std::clamp(target - prepare_balance_rad_, -.0012, .0012);
+  prepare_balance_rad_ += delta;
+  prepare_balance_velocity_ = delta * kServe025FullbodyRunnerHz;
+  for (const int sdk : {kLeftAnklePitchSdk, kRightAnklePitchSdk}) {
+    command.q_des[sdk] += envelope * prepare_balance_rad_;
+    command.dq_des[sdk] += envelope_velocity * prepare_balance_rad_ +
+        envelope * delta * kServe025FullbodyRunnerHz;
+  }
 }
 
 void PpServeController::SetTimelineCommand_(
@@ -509,6 +556,50 @@ void PpServeController::SetTimelineCommand_(
     robot_io::RobotCommand& command) {
   const Serve025FullbodyFrame& value = timeline_.At(frame);
   FillPdCommand_(value.q_sdk, value.qd_sdk, command);
+  // Only sagittal ankle support is corrected. Arm path, CSV clock, release,
+  // leg width and gains stay unchanged. The full-command return captures this
+  // correction at the early policy handoff. Full-length playback fades it
+  // during the final second so COMPLETE still matches official Stand exactly.
+  const double remaining = static_cast<double>(kServe025CompleteFrame - frame) /
+      kServe025FullbodyRunnerHz;
+  if (this->state() == ServeControllerState::kWaitReadyToServe ||
+      this->state() == ServeControllerState::kWaitBallLoad ||
+      this->state() == ServeControllerState::kGripClosing ||
+      this->state() == ServeControllerState::kWaitGripSecure) {
+    ApplyPitchSupport_(state, command, 1., 0.);
+  } else {
+    // Hold the settled support offset during the short swing. Reacting to the
+    // intentional swing pitch changes the release-to-racket interception.
+    // Preserve support velocity on frame zero and settle it in 250 ms, using
+    // the same source-velocity basis as the full-command handoff.
+    const double u = std::clamp(static_cast<double>(frame) /
+        (kServe025FullbodyRunnerHz * .25), 0., 1.);
+    const double v = .25 * (u - 6*u*u*u + 8*u*u*u*u - 3*u*u*u*u*u);
+    const double dv = 1 - 18*u*u + 32*u*u*u - 15*u*u*u*u;
+    double offset = swing_balance_rad_ + v * swing_balance_velocity_;
+    double velocity = dv * swing_balance_velocity_;
+    // Restore feedback after contact while the arms recover, smoothly joining
+    // the frozen strike support. A constant strike offset is unsuitable once
+    // the upper-body mass returns to Stand.
+    constexpr std::size_t kResumeFrame = kServe025ContactFrame + 10;
+    if (frame >= kResumeFrame) {
+      const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
+      const double pitch = std::asin(std::clamp(gravity[0], -1., 1.));
+      const double target = std::clamp(.9 * pitch + .2 * state.imu_gyro[1], -.08, .08);
+      const double delta = std::clamp(target - prepare_balance_rad_, -.0012, .0012);
+      prepare_balance_rad_ += delta;
+      const double t = static_cast<double>(frame - kResumeFrame) /
+          (kServe025FullbodyRunnerHz * .25);
+      offset = swing_balance_rad_ + Smooth5_(t) * (prepare_balance_rad_ - swing_balance_rad_);
+      velocity = Smooth5Derivative_(t) / .25 * (prepare_balance_rad_ - swing_balance_rad_) +
+          Smooth5_(t) * delta * kServe025FullbodyRunnerHz;
+    }
+    for (const int sdk : {kLeftAnklePitchSdk, kRightAnklePitchSdk}) {
+      command.q_des[sdk] += Smooth5_(remaining) * offset;
+      command.dq_des[sdk] += Smooth5_(remaining) * velocity -
+          Smooth5Derivative_(remaining) * offset;
+    }
+  }
   UpdateSupportTelemetry_(state, command);
   last_command_ = command;
   phase_ = value.phase;
@@ -595,15 +686,9 @@ bool PpServeController::ComputeCommand(
       last_command_ = command;
       phase_ = "READY_TO_STAND_SUPPORT";
       ++transition_tick_;
-      const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
-      const bool quiet = !entry_transition_.active() &&
-          (state.q - official_stand_q_sdk_).cwiseAbs().maxCoeff() <= .12 &&
-          state.dq.cwiseAbs().maxCoeff() <= .3 &&
-          gravity[2] <= -std::cos(kPrepareStandTiltRad) &&
-          state.imu_gyro.norm() <= kPrepareStandAngularSpeedRadS;
-      policy_return_quiet_ticks_ = quiet ? policy_return_quiet_ticks_ + 1 : 0;
-      if (!entry_transition_.active()) phase_ = "WAIT_PREPARE_STAND_SETTLE";
-      if (policy_return_quiet_ticks_ >= kPrepareStandQuietTicks) {
+      // Finish this bounded command transition without an extra operator gate
+      // or an indefinite measured-quiet wait. The loading lift damps body pitch.
+      if (!entry_transition_.active()) {
         entry_command_ = command;
         transition_tick_ = 0;
         state_.store(ServeControllerState::kTransitionToLoad, std::memory_order_release);
@@ -641,7 +726,7 @@ bool PpServeController::ComputeCommand(
       // early cutoff returns to measured stand before the actor is engaged.
       const std::size_t frame = timeline_tick_;
       source_frame_ = frame;
-      if (frame >= kServe025ReleaseFrame &&
+      if (frame >= release_frame() &&
           !release_request_submitted_) {
         release_request_submitted_ = SubmitGripper_(
             PpGripperCommand::kRelease,
@@ -666,7 +751,7 @@ bool PpServeController::ComputeCommand(
           phase_ = "COMPLETE";
           state_.store(ServeControllerState::kComplete, std::memory_order_release);
         }
-      } else if (frame < kServe025ReleaseFrame) {
+      } else if (frame < release_frame()) {
         state_.store(ServeControllerState::kPlayingPreRelease,
                      std::memory_order_release);
       } else if (frame < kServe025StrikeFrame) {
@@ -688,8 +773,17 @@ bool PpServeController::ComputeCommand(
 
     case ServeControllerState::kHandoffReady: {
       FillPdCommand_(official_stand_q_sdk_, Eigen::VectorXd::Zero(kDof), command);
-      policy_return_transition_.Apply(
-          static_cast<double>(policy_return_tick_++) / kServe025FullbodyRunnerHz, command);
+      const double elapsed = static_cast<double>(policy_return_tick_++) / kServe025FullbodyRunnerHz;
+      policy_return_transition_.Apply(elapsed, command);
+      if (policy_return_seconds_ > 1.) {
+        // A slow arm return needs balance throughout the changing upper-body
+        // load. Preserve the source command at t=0 and exact Stand at t=T.
+        const double remaining = policy_return_seconds_ - elapsed;
+        const double envelope = Smooth5_(elapsed / .25) * Smooth5_(remaining / .75);
+        const double derivative = Smooth5Derivative_(elapsed / .25) / .25 * Smooth5_(remaining / .75) -
+            Smooth5_(elapsed / .25) * Smooth5Derivative_(remaining / .75) / .75;
+        ApplyPitchSupport_(state, command, envelope, derivative);
+      }
       last_command_ = command;
       UpdateSupportTelemetry_(state, command);
       const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
@@ -705,7 +799,7 @@ bool PpServeController::ComputeCommand(
         phase_ = "COMPLETE";
         std::fprintf(stderr,
             "[serve handoff] measured stand settled: return_s=%.3f q_error=%.4f "
-            "joint_speed=%.4f tilt=%.4f gyro=%.4f -> policy entry\n",
+            "joint_speed=%.4f tilt=%.4f gyro=%.4f -> serve complete\n",
             static_cast<double>(policy_return_tick_ - 1) / kServe025FullbodyRunnerHz,
             (state.q - official_stand_q_sdk_).cwiseAbs().maxCoeff(),
             state.dq.cwiseAbs().maxCoeff(),
