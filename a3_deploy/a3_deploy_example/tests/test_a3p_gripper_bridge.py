@@ -37,7 +37,7 @@ def test_packaged_runner_loads_vendor_ros_only_for_gripper_bridge() -> None:
 def test_packaged_runner_uses_single_build4_full31_serve_timeline() -> None:
     build_script = (A3_ROOT / "scripts" / "build_a3_deploy_pkg.sh").read_text()
     filename = (
-        "a3p_op3_serve025_photo_right30_advance20_v12.csv"
+        "a3p_op3_serve025_smooth_center_v14.csv"
     )
     motion_root = A3_ROOT / "assets/a3_runtime/serve/motions"
     path = motion_root / filename

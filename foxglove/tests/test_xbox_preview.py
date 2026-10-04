@@ -17,6 +17,22 @@ spec.loader.exec_module(xbox)
 
 
 class XboxInputTests(unittest.TestCase):
+    def test_idle_stream_is_10hz_and_active_stream_keeps_every_tick(self):
+        idle, active = xbox.StreamCadence(), xbox.StreamCadence()
+        self.assertEqual(sum(idle.ready(i * .02, (False,)) for i in range(50)), 10)
+        self.assertEqual(sum(active.ready(i * .02, (True,), active=True)
+                             for i in range(50)), 50)
+
+    def test_disable_disconnect_rearm_and_mode_edges_bypass_idle_gate(self):
+        gate = xbox.StreamCadence()
+        for i, key in enumerate(((1, True, True, False, 'TELEOP'),
+                                 (1, True, False, False, 'TELEOP'),
+                                 (1, False, False, False, 'TELEOP'),
+                                 (1, True, False, True, 'PD_STAND'),
+                                 (2, True, False, True, 'PD_STAND'))):
+            self.assertTrue(gate.ready(i * .02, key))
+        self.assertFalse(gate.ready(.09, key))
+
     def test_removed_device_is_reopened_without_replaying_held_buttons(self):
         clock = [0.]
         devices = []

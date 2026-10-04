@@ -78,6 +78,41 @@ TEST(PpCommandTransition, AttenuatesChangingPolicyTargetsDuringEntry) {
   EXPECT_NEAR(changed.dq_des[0], .243, 1e-12);
 }
 
+TEST(PpCommandTransition, ImpedanceHandoffBlendsActualPdTorqueAtEveryState) {
+  const auto source = Command(0, .2, 500);
+  auto destination = Command(.35, -.1, 50);
+  a3_pingpong::PpCommandTransition transition;
+  transition.BeginImpedance(source, destination, .5);
+  for (double t : {0., .02, .1, .2, .3, .48, .5}) {
+    auto target = destination;
+    target.q_des.array() += .1 * t;  // live actor keeps updating during handoff
+    const auto original = target;
+    transition.Apply(t, target);
+    const double u = t / .5;
+    const double w = u*u*u * (10 + u*(-15 + 6*u));
+    for (double q : {-.2, 0., .4}) {
+      for (double dq : {-2., 0., 1.}) {
+        const auto torque = [q,dq](const robot_io::RobotCommand& c) {
+          return c.kp[0]*(c.q_des[0]-q) + c.kd[0]*(c.dq_des[0]-dq) + c.tau_ff[0];
+        };
+        EXPECT_NEAR(torque(target), (1-w)*torque(source)+w*torque(original), 1e-10);
+      }
+    }
+  }
+  EXPECT_FALSE(transition.active());
+}
+
+TEST(PpCommandTransition, ImpedanceHandoffWithZeroGainsStaysFiniteAndContinuous) {
+  const auto source = Command(.2, .3, 0);
+  auto target = Command(-.4, -.2, 0);
+  a3_pingpong::PpCommandTransition transition;
+  transition.BeginImpedance(source, target, .5);
+  transition.Apply(.25, target);
+  EXPECT_TRUE(a3_pingpong::PpCommandTransition::Valid(target));
+  EXPECT_NEAR(target.q_des[0], -.1, 1e-12);
+  EXPECT_NEAR(target.dq_des[0], .05, 1e-12);
+}
+
 TEST(PpCommandTransition, LongPoseBlendSettlesEntryVelocityWithoutLongExtrapolation) {
   a3_pingpong::PpCommandTransition t;
   const auto source = Command(.2, 2., 40), target = Command(.2, 0., 200);

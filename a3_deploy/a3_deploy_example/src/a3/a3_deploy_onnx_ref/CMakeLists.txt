@@ -83,6 +83,19 @@ else()
 endif()
 
 file(GLOB_RECURSE PROJECT_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+list(REMOVE_ITEM PROJECT_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/a3_io/serve_hal_observer.cpp")
+# Loaded only by the ABI-pinned HAL package, never linked into Runner.
+add_library(a3_serve_hal_observer SHARED src/a3_io/serve_hal_observer.cpp)
+target_include_directories(a3_serve_hal_observer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(a3_serve_hal_observer PRIVATE ${CMAKE_DL_LIBS})
+set_target_properties(a3_serve_hal_observer PROPERTIES
+  OUTPUT_NAME serve_hal_observer CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+# No hardware I/O: exercise the exact deep-bound HAL PLT slots using a
+# disabled output node and compare its serialized command bytes.
+add_executable(a3_serve_hal_loader_probe EXCLUDE_FROM_ALL tests/serve_hal_loader_probe.cpp)
+target_include_directories(a3_serve_hal_loader_probe PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(a3_serve_hal_loader_probe PRIVATE ${CMAKE_DL_LIBS})
+set_target_properties(a3_serve_hal_loader_probe PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 list(APPEND PROJECT_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/a3_deploy/a3_manual_control.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/a3_deploy/a3_motion_library.cpp
@@ -330,19 +343,22 @@ if(A3_AIMRT_BACKEND_AVAILABLE)
       "${A3_TA_PROTO_ROOT}/aimdk/protocol/common/control_source.proto"
       "${A3_TA_PROTO_ROOT}/aimdk/protocol/common/header.proto"
       "${A3_TA_PROTO_ROOT}/aimdk/protocol/ta/ta_whole_body_command.proto"
-      "${A3_TA_PROTO_ROOT}/aimdk/protocol/ta/ta_channel.proto")
+      "${A3_TA_PROTO_ROOT}/aimdk/protocol/ta/ta_channel.proto"
+      "${A3_TA_PROTO_ROOT}/aimdk/protocol/hal/hand/serve_hand_channel.proto")
     set(A3_TA_PROTO_SRCS
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/timestamp.pb.cc"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/control_source.pb.cc"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/header.pb.cc"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_whole_body_command.pb.cc"
-      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.cc")
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.cc"
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/hal/hand/serve_hand_channel.pb.cc")
     set(A3_TA_PROTO_HDRS
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/timestamp.pb.h"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/control_source.pb.h"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/header.pb.h"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_whole_body_command.pb.h"
-      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.h")
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.h"
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/hal/hand/serve_hand_channel.pb.h")
 
     add_custom_command(
       OUTPUT ${A3_TA_PROTO_SRCS} ${A3_TA_PROTO_HDRS}

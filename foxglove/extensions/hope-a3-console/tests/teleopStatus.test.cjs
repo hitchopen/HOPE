@@ -9,8 +9,10 @@ const exportsObject = {};
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
 vm.runInNewContext(code, { exports: exportsObject, ArrayBuffer, DataView });
 const { decodeTeleopState, xboxInputFresh, teleopEntryReason } = exportsObject;
-const entry = (runnerFresh, runnerFault, mode, telemetryFresh, state, pending) =>
-  teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFresh, state, pending });
+const xbox = { connected: true, lt: false, enabled: false, axes: [0, 0, 0] };
+const entry = (runnerFresh, runnerFault, mode, telemetryFresh, state, pending, extra = {}) =>
+  teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFresh, state, pending,
+    xboxFresh: true, xbox, estop: false, ...extra });
 const state = [1, 123456, 1, 0, .02, 0, 0, 0, 0, 0];
 
 test('CDR Float64Array and JSON arrays both unlock teleop in Stand', () => {
@@ -46,13 +48,42 @@ test('expired and genuinely future-dated input stays stale', () => {
   assert.equal(xboxInputFresh(undefined, undefined, 1000), false);
 });
 
-test('button explains missing Runner, Stand, telemetry, input and fault', () => {
+test('button explains missing Runner, Stand, controller, policy and fault', () => {
   assert.match(entry(false, false, undefined, false, undefined, false), /Start the system/);
   assert.match(entry(true, false, 'PASSIVE', true, state, false), /Select Stand/);
-  assert.match(entry(true, false, 'PD_STAND', false, state, false), /telemetry/);
-  const oldInput = [...state]; oldInput[4] = .3;
-  assert.match(entry(true, false, 'PD_STAND', true, oldInput, false), /Xbox input/);
+  assert.match(entry(true, false, 'PD_STAND', true, state, false, { xboxFresh: false }), /fresh controller/);
+  const noPolicy = [...state]; noPolicy[2] = 0;
+  assert.match(entry(true, false, 'PD_STAND', true, noPolicy, false), /no teleop policy/);
   assert.match(entry(true, true, 'PD_STAND', true, state, false), /fault/);
+});
+
+test('late Xbox connection and reconnect restore entry without a panel reload or teleop display stream', () => {
+  const oldInput = [...state]; oldInput[4] = 1e9;
+  for (const telemetry of [undefined, oldInput]) {
+    const reason = (extra) => entry(true, false, 'PD_STAND', telemetry != undefined,
+      telemetry, false, extra);
+    assert.match(reason({ xboxFresh: false, xbox: undefined }), /Connect Xbox/);
+    assert.equal(reason({}), undefined);
+    assert.match(reason({ xbox: { ...xbox, connected: false } }), /Connect Xbox/);
+    assert.equal(reason({}), undefined);
+    assert.match(reason({ xboxFresh: false }), /fresh controller/);
+  }
+});
+
+test('entry still requires neutral, released controls and no pending action or E-stop', () => {
+  for (const [changed, text] of [
+    [{ lt: true }, /release LT/], [{ enabled: true }, /release LT/],
+    [{ axes: [0, .1, 0] }, /Center the sticks/], [{ axes: [NaN, 0, 0] }, /Center the sticks/],
+    [{ action_pending: true }, /request pending/], [{ estop_requested: true }, /E-stop/],
+  ]) {
+    assert.match(entry(true, false, 'PD_STAND', false, undefined, false,
+      { xbox: { ...xbox, ...changed } }), text);
+  }
+  assert.match(entry(true, false, 'PD_STAND', false, undefined, false, { estop: true }), /E-stop/);
+  assert.match(entry(true, false, 'PD_STAND', false, undefined, true), /request pending/);
+  for (const mode of ['SERVE', 'MOTION', 'PASSIVE']) {
+    assert.match(entry(true, false, mode, false, undefined, false), /Select Stand/);
+  }
 });
 
 

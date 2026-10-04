@@ -1699,9 +1699,9 @@ inline HitterPureRuntimeContract validate_hitter_pure_runtime_contract(
   const bool v17_recipe = training_recipe == "rally_v17";
   const bool runtime_v17_fixed =
       contract == HitterPureRuntimeContract::kRallyV17FixedStationBallClockV1;
-  if ((runtime_v2 &&
-       !(legacy_component_recipe || hitter_pingpong_recipe || v17_recipe)) ||
-      (legacy_component_recipe && !runtime_v2) ||
+  // Training names are provenance, not a whitelist for the v2 wire. The
+  // loader validates observation, action, clock and geometry independently.
+  if ((legacy_component_recipe && !runtime_v2) ||
       (hitter_pingpong_recipe && !runtime_v2) ||
       (v17_recipe && !(runtime_v2 || runtime_v17_fixed)) ||
       (runtime_v17_fixed && !v17_recipe)) {

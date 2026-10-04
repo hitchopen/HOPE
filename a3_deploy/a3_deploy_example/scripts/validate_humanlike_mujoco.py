@@ -44,7 +44,7 @@ def run(args, name, velocity):
     policy = lib.humanlike_create(str(args.policy_dir.resolve()).encode())
     csv = (
         sim.MOTION_ROOT
-        / "a3p_op3_serve025_photo_right30_advance20_v12.csv"
+        / "a3p_op3_serve025_smooth_center_v14.csv"
     )
     blend = lib.probe_create(str(csv).encode(), stand)
     if not policy or not blend:

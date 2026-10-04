@@ -1,5 +1,6 @@
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "robot_io/a3_layout_extra.hpp"
+#include "a3_pingpong/pp_mode_cadence.hpp"
 
 #include <gtest/gtest.h>
 
@@ -85,6 +86,18 @@ void AdvanceToReady(PpServeController& controller,
   ASSERT_EQ(controller.state(), ServeControllerState::kWaitReadyToServe);
 }
 
+void TriggerAndSettle(PpServeController& controller,
+                      const robot_io::RobotState& state,
+                      robot_io::RobotCommand& command) {
+  controller.TriggerReadyToServe();
+  for (std::size_t tick = 0; tick < a3_pingpong::kServeReplaySettleTicks; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    EXPECT_EQ(controller.TakeDiag().playback.frames, 0U);
+    EXPECT_EQ(controller.TakeDiag().phase, "PRE_PLAY_SETTLE");
+    EXPECT_EQ(controller.TakeDiag().release_dispatch_monotonic_ns, 0U);
+  }
+}
+
 PpGripperReceipt SuccessfulReceipt(PpGripperCommand command) {
   PpGripperReceipt receipt;
   receipt.ok = true;
@@ -111,6 +124,44 @@ TEST(PpServeController, Full31TimelineHasFrozenExecutionShape) {
   EXPECT_EQ(a3_pingpong::kServe025FullbodyTransitionTicks, 501U);
   EXPECT_DOUBLE_EQ(timeline.ready().time_s, 0.0);
   EXPECT_DOUBLE_EQ(timeline.complete().time_s, 4.67);
+}
+
+TEST(PpServeController, PlaybackAuditKeepsShortFrameTimingAndResetsEachAction) {
+  a3_pingpong::ServePlaybackAudit clock;
+  clock.ObserveClock(0, 1'000'000'000);
+  clock.ObserveClock(1, 1'012'000'000);
+  clock.ObserveClock(2, 1'020'000'000);
+  EXPECT_EQ(clock.frames, 3U);
+  EXPECT_EQ(clock.min_interval_ns, 8'000'000U);
+  EXPECT_EQ(clock.max_interval_ns, 12'000'000U);
+  EXPECT_EQ(clock.max_phase_error_ns, 2'000'000U);
+
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto expected = timeline;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  for (unsigned cycle = 1; cycle <= 3; ++cycle) {
+    AdvanceToReady(controller, state, command);
+    TriggerAndSettle(controller, state, command);
+    for (unsigned frame = 0; frame < 468; ++frame) {
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      EXPECT_TRUE(command.q_des.isApprox(expected.At(frame).q_sdk, 0.));
+      EXPECT_TRUE(command.dq_des.isApprox(expected.At(frame).qd_sdk, 0.));
+    }
+    const auto audit = controller.TakeDiag().playback;
+    EXPECT_EQ(audit.sequence, cycle);
+    EXPECT_EQ(audit.frames, 468U);
+    EXPECT_TRUE(audit.finished);
+    EXPECT_GT(audit.release_frame_ns, audit.first_ns);
+    EXPECT_GT(audit.contact_reference_frame_ns, audit.release_frame_ns);
+    EXPECT_DOUBLE_EQ(audit.max_csv_q_delta_rad, 0.);
+    EXPECT_DOUBLE_EQ(audit.max_csv_dq_delta_rad_s, 0.);
+    EXPECT_DOUBLE_EQ(audit.max_arm_csv_q_delta_rad, 0.);
+    EXPECT_GT(audit.max_tracking_error_rad, 0.);
+  }
 }
 
 TEST(PpServeController, RaiseHandTransitionsFromStandToCsvFrameZero) {
@@ -153,7 +204,7 @@ TEST(PpServeController, ReadyConsumesSelectedForwardHitFramesExactly) {
   robot_io::RobotCommand command;
   AdvanceToReady(controller, state, command);
 
-  controller.TriggerReadyToServe();
+  TriggerAndSettle(controller, state, command);
   for (std::size_t tick = 0;
        tick < a3_pingpong::kServe025FullbodyCommandTicks; ++tick) {
     ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
@@ -282,7 +333,7 @@ TEST(PpServeController, PreservesForwardHitRightArmVelocityExactly) {
   const auto state = StateAt(stand);
   robot_io::RobotCommand command;
   AdvanceToReady(controller, state, command);
-  controller.TriggerReadyToServe();
+  TriggerAndSettle(controller, state, command);
 
   for (std::size_t tick = 0; tick <= 82; ++tick) {
     ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
@@ -306,7 +357,7 @@ TEST(PpServeController, MissingGripperNeverBlocksBodyTimeline) {
   AdvanceToReady(controller, state, command);
   EXPECT_EQ(controller.gripper_state(), ServeGripperState::kUnavailable);
 
-  controller.TriggerReadyToServe();
+  TriggerAndSettle(controller, state, command);
   for (std::size_t tick = 0;
        tick < a3_pingpong::kServe025FullbodyCommandTicks; ++tick) {
     ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
@@ -355,7 +406,7 @@ TEST(PpServeController, ReleaseAcceptsAnyReceiptInsideFivePublishBurst) {
     }
     EXPECT_EQ(controller.gripper_state(), ServeGripperState::kGrabbed);
 
-    controller.TriggerReadyToServe();
+    TriggerAndSettle(controller, state, command);
     for (std::size_t tick = 0; tick <= 60; ++tick) {
       ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
       EXPECT_TRUE(command.q_des.isApprox(expected.At(tick).q_sdk, 0.));
@@ -485,7 +536,7 @@ TEST(PpServeController, EarlyPolicyHandoffPreservesReleaseContactAndPlayedFrames
   robot_io::RobotCommand command;
   AdvanceToReady(controller, state, command);
   EXPECT_THROW(controller.SetPolicyHandoffFrame(120), std::invalid_argument);
-  controller.TriggerReadyToServe();
+  TriggerAndSettle(controller, state, command);
   for (std::size_t tick=0; tick<=110; ++tick) {
     ASSERT_TRUE(controller.ComputeCommand(1000+tick,state,command));
     ExpectPdCommand(command,expected.At(tick).q_sdk,expected.At(tick).qd_sdk,kp,kd);
@@ -524,7 +575,7 @@ TEST(PpServeController, AbortRemainsAvailableDuringPostContactStandReturn) {
   auto state = StateAt(stand);
   robot_io::RobotCommand command;
   AdvanceToReady(controller,state,command);
-  controller.TriggerReadyToServe();
+  TriggerAndSettle(controller, state, command);
   for (int i=0;i<=110;++i) ASSERT_TRUE(controller.ComputeCommand(i,state,command));
   ASSERT_EQ(controller.state(),ServeControllerState::kHandoffReady);
   controller.RequestAbort();
@@ -580,7 +631,7 @@ TEST(PpServeController, PitchSupportContinuesThroughReadyAndPreservesCsvArms) {
   const auto last = b;
   ASSERT_TRUE(tilted.ComputeCommand(600, lean, b));
   EXPECT_LT((b.q_des - last.q_des).cwiseAbs().maxCoeff(), .0013);
-  tilted.TriggerReadyToServe();
+  TriggerAndSettle(tilted, lean, b);
   auto expected = LoadTimeline();
   for (std::size_t frame = 0; frame < 100; ++frame) {
     ASSERT_TRUE(tilted.ComputeCommand(601 + frame, lean, b));
@@ -594,6 +645,11 @@ TEST(PpServeController, PitchSupportContinuesThroughReadyAndPreservesCsvArms) {
     }
   }
   EXPECT_EQ(tilted.state(), ServeControllerState::kFollowThrough);
+  const auto audit = tilted.TakeDiag().playback;
+  EXPECT_NEAR(audit.start_support_rad, -.08, 1e-9);
+  EXPECT_NEAR(audit.max_csv_q_delta_rad, .08, 1e-9);
+  EXPECT_DOUBLE_EQ(audit.max_arm_csv_q_delta_rad, 0.);
+  EXPECT_DOUBLE_EQ(audit.max_arm_csv_dq_delta_rad_s, 0.);
 }
 
 TEST(PpServeController, MovingPitchSupportIsContinuousOnServeButton) {
@@ -631,7 +687,7 @@ TEST(PpServeController, SlowStandReturnKeepsEntryContinuousAndLowersArmsOverTwoA
   auto state = StateAt(stand);
   robot_io::RobotCommand command;
   AdvanceToReady(controller, state, command);
-  controller.TriggerReadyToServe();
+  TriggerAndSettle(controller, state, command);
   for (unsigned t = 0; t <= 110; ++t)
     ASSERT_TRUE(controller.ComputeCommand(t, state, command));
   const auto source = command;
@@ -647,4 +703,251 @@ TEST(PpServeController, SlowStandReturnKeepsEntryContinuousAndLowersArmsOverTwoA
   for (unsigned t = 0; t < 20; ++t)
     ASSERT_TRUE(controller.ComputeCommand(400+t, state, command));
   EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
+}
+
+TEST(PpServeController, RepeatedShortReplayIgnoresButtonPhaseAndSupportNoise) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto csv = timeline;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  controller.SetPolicyHandoffFrame(110);
+  controller.SetPolicyReturnSeconds(2.5);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  std::vector<robot_io::RobotCommand> reference;
+  double pinned = 0.;
+  for (unsigned cycle = 0; cycle < 3; ++cycle) {
+    state = StateAt(stand);
+    AdvanceToReady(controller, state, command);
+    const Eigen::Quaterniond q(Eigen::AngleAxisd(-.015, Eigen::Vector3d::UnitY()));
+    state.imu_quat_wxyz << q.w(), q.x(), q.y(), q.z();
+    // Different READY dwell and opposite last-sample gyro phases used to
+    // redefine the swing's position and velocity on every button press.
+    for (unsigned i = 0; i < 100 + cycle * 37; ++i) {
+      state.imu_gyro[1] = (i % 2) ? .08 : -.08;
+      ASSERT_TRUE(controller.ComputeCommand(i, state, command));
+    }
+    TriggerAndSettle(controller, state, command);
+    EXPECT_NEAR(command.dq_des[23], 0., 1e-12);
+    const auto settled = command;
+    for (unsigned frame = 0; frame <= 110; ++frame) {
+      state.imu_gyro[1] = (frame + cycle) % 2 ? .1 : -.1;
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      if (frame == 0) {
+        EXPECT_TRUE(command.q_des.isApprox(settled.q_des, 0.));
+        EXPECT_TRUE(command.dq_des.isApprox(settled.dq_des, 0.));
+      }
+      if (cycle == 0) reference.push_back(command);
+      else ExpectPdCommand(command, reference[frame].q_des,
+                           reference[frame].dq_des, reference[frame].kp,
+                           reference[frame].kd);
+      EXPECT_TRUE(command.q_des.segment(5,14).isApprox(csv.At(frame).q_sdk.segment(5,14), 0.));
+      EXPECT_TRUE(command.dq_des.segment(5,14).isApprox(csv.At(frame).qd_sdk.segment(5,14), 0.));
+    }
+    const auto audit = controller.TakeDiag().playback;
+    if (cycle == 0) pinned = audit.start_support_rad;
+    EXPECT_DOUBLE_EQ(audit.start_support_rad, pinned);
+    EXPECT_DOUBLE_EQ(audit.start_support_velocity, 0.);
+    EXPECT_EQ(audit.frames, 111U);
+    EXPECT_TRUE(audit.finished);
+    state = StateAt(stand);
+    for (unsigned tick = 0; tick < 400; ++tick)
+      ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    ASSERT_EQ(controller.state(), ServeControllerState::kComplete);
+  }
+}
+
+TEST(PpServeController, FirstPlayWaitingTimeCannotSelectSessionSupport) {
+  const auto csv = LoadTimeline();
+  const auto stand = csv.complete().q_sdk;
+  std::vector<robot_io::RobotCommand> reference;
+  for (int wait : {0, 1, 10, 100, 3000}) {
+    PpServeController controller(csv, stand, PositiveGains(90), PositiveGains(3), nullptr);
+    controller.SetPolicyHandoffFrame(110);
+    auto state = StateAt(stand);
+    const Eigen::Quaterniond q(Eigen::AngleAxisd(-.015, Eigen::Vector3d::UnitY()));
+    state.imu_quat_wxyz << q.w(), q.x(), q.y(), q.z();
+    robot_io::RobotCommand command;
+    AdvanceToReady(controller, state, command);
+    const double prepared_support = command.q_des[23] - csv.ready().q_sdk[23];
+    for (int tick = 0; tick < wait; ++tick) {
+      state.imu_gyro[1] = tick % 2 ? .08 : -.08;
+      ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    }
+    TriggerAndSettle(controller, state, command);
+    for (unsigned frame = 0; frame <= 110; ++frame) {
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      if (wait == 0) reference.push_back(command);
+      else ExpectPdCommand(command, reference[frame].q_des, reference[frame].dq_des,
+                           reference[frame].kp, reference[frame].kd);
+    }
+    EXPECT_DOUBLE_EQ(controller.TakeDiag().playback.start_support_rad, prepared_support);
+  }
+}
+
+TEST(PpServeController, NativeReleaseSharesCommandThreadAndNeverUsesWorkerForRelease) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto expected = timeline;
+  std::atomic<int> worker_releases{0};
+  PpGripperWorkerTransport transport;
+  transport.exchange = [&](PpGripperCommand edge, std::chrono::milliseconds,
+                           PpGripperReceipt& receipt, std::string&) {
+    if (edge == PpGripperCommand::kRelease) ++worker_releases;
+    receipt = SuccessfulReceipt(edge);
+    return true;
+  };
+  auto worker = std::make_unique<PpGripperWorker>(std::move(transport));
+  std::string error;
+  ASSERT_TRUE(worker->Start(error));
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), std::move(worker));
+  controller.SetReleaseLeadFrames(1);
+  const auto command_thread = std::this_thread::get_id();
+  std::vector<std::size_t> emitted_frames;
+  std::size_t frame = 0;
+  controller.SetNativeReleasePublisher([&](std::uint64_t& stamp) {
+    EXPECT_EQ(std::this_thread::get_id(), command_thread);
+    emitted_frames.push_back(frame);
+    stamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    return true;
+  });
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  for (frame = 0; frame <= 110; ++frame) {
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+    EXPECT_TRUE(command.q_des.isApprox(expected.At(frame).q_sdk, 0.));
+    EXPECT_TRUE(command.dq_des.isApprox(expected.At(frame).qd_sdk, 0.));
+    if (frame == 47) {
+      EXPECT_GT(controller.ConsumeReleaseClockRebase(), 0U);
+      EXPECT_EQ(controller.ConsumeReleaseClockRebase(), 0U);
+      EXPECT_TRUE(controller.TakeDiag().release_acknowledged);
+    }
+  }
+  EXPECT_EQ(emitted_frames, (std::vector<std::size_t>{47,57,67,77,87}));
+  EXPECT_EQ(worker_releases.load(), 0);
+}
+
+TEST(PpServeController, NativeReleaseFailureReturnsSmoothlyWithoutStrike) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  controller.SetPolicyReturnSeconds(2.5);
+  controller.SetReleaseLeadFrames(1);
+  controller.SetNativeReleasePublisher([](std::uint64_t&) { return false; });
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  for (unsigned frame = 0; frame < 47; ++frame)
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+  const auto before = command;
+  ASSERT_TRUE(controller.ComputeCommand(47, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kHandoffReady);
+  EXPECT_EQ(controller.TakeDiag().playback.frames, 47U);
+  EXPECT_TRUE(controller.TakeDiag().playback.finished);
+  ExpectPdCommand(command,before.q_des,before.dq_des,before.kp,before.kd);
+  ASSERT_TRUE(controller.ComputeCommand(48, state, command));
+  ExpectPdCommand(command,before.q_des,before.dq_des,before.kp,before.kd);
+  for (unsigned tick = 0; tick < 400; ++tick)
+    ASSERT_TRUE(controller.ComputeCommand(49+tick, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
+}
+
+TEST(PpServeController, MissingOrLateHalTelemetryDoesNotInterruptCsvReplay) {
+  for (std::int64_t delay : {0LL, 39'000'000LL, 49'000'000LL}) {
+    auto timeline = LoadTimeline();
+    const auto expected = timeline;
+    const auto stand = timeline.complete().q_sdk;
+    PpServeController controller(std::move(timeline), stand,
+        PositiveGains(90), PositiveGains(3), nullptr);
+    controller.SetReleaseLeadFrames(1);
+    controller.SetPolicyHandoffFrame(110);
+    std::uint64_t now_ns = 1'000'000'000, publication_ns = 0;
+    controller.SetNativeReleasePublisher([&](std::uint64_t& stamp) {
+      stamp = now_ns + 20'000;
+      if (!publication_ns) publication_ns = stamp;
+      return true;
+    });
+    auto state = StateAt(stand);
+    robot_io::RobotCommand command;
+    AdvanceToReady(controller, state, command);
+    TriggerAndSettle(controller, state, command);
+    a3_pingpong::PpServeCadence cadence;
+    unsigned frame = 0;
+    for (; frame <= 110; now_ns += 2'000'000) {
+      if (cadence.tracking_hal()) {
+        const auto edge = publication_ns + delay;
+        cadence.ObserveHalSelection(now_ns, delay && now_ns >= edge ? edge : 0);
+      }
+      if (!cadence.Poll(now_ns)) continue;
+      ASSERT_EQ(now_ns, 1'000'000'000 + frame * 10'000'000ULL);
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      EXPECT_TRUE(command.q_des.isApprox(expected.At(frame).q_sdk, 0.));
+      EXPECT_TRUE(command.dq_des.isApprox(expected.At(frame).qd_sdk, 0.));
+      if (const auto published = controller.ConsumeReleaseClockRebase())
+        cadence.TrackHalSelection(published);
+      ++frame;
+    }
+    EXPECT_EQ(controller.TakeDiag().playback.frames, 111U);
+    EXPECT_GT(controller.TakeDiag().playback.contact_reference_frame_ns, 0U);
+    EXPECT_TRUE(cadence.ConsumeMissedSelection());
+  }
+}
+
+TEST(PpServeController, KernelDefaultPlaysCompleteFollowThroughAndRecovery) {
+  auto timeline = LoadTimeline();
+  const auto expected = timeline;
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  EXPECT_EQ(a3_pingpong::DefaultServeHandoffFrame(false, false), 110U);
+  EXPECT_EQ(a3_pingpong::DefaultServeHandoffFrame(false, true), 467U);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  controller.SetPolicyHandoffFrame(a3_pingpong::DefaultServeHandoffFrame(true, false));
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  // The former cut occurs while the right arm is still moving quickly.
+  ASSERT_GT(expected.At(110).qd_sdk.segment(12, 7).cwiseAbs().maxCoeff(), 6.);
+  for (std::size_t frame = 0; frame <= 467; ++frame) {
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+    ASSERT_EQ(controller.TakeDiag().frame, frame);
+    ExpectPdCommand(command, expected.At(frame).q_sdk, expected.At(frame).qd_sdk, kp, kd);
+    if (frame < 467) ASSERT_NE(controller.state(), ServeControllerState::kComplete);
+    ASSERT_NE(controller.state(), ServeControllerState::kHandoffReady);
+  }
+  EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
+  EXPECT_EQ(controller.TakeDiag().playback.frames, 468U);
+  ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd);
+}
+
+TEST(PpServeController, FullReplayKeepsSupportFrozenUntilCsvRecovery) {
+  auto timeline = LoadTimeline();
+  const auto expected = timeline;
+  const auto stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand, PositiveGains(90), PositiveGains(3), nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  // Changing swing IMU must not change the pre-existing strike/follow-through.
+  state.imu_gyro[1] = .3;
+  double recovery_support = 0.;
+  for (std::size_t frame = 0; frame <= 467; ++frame) {
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+    EXPECT_TRUE(command.q_des.segment(5, 14).isApprox(expected.At(frame).q_sdk.segment(5, 14), 0.));
+    if (frame < a3_pingpong::kServe025RecoveryFrame) {
+      ASSERT_DOUBLE_EQ(command.q_des[23], expected.At(frame).q_sdk[23]);
+      ASSERT_DOUBLE_EQ(command.dq_des[23], expected.At(frame).qd_sdk[23]);
+    } else recovery_support = std::max(recovery_support, std::abs(command.q_des[23] - expected.At(frame).q_sdk[23]));
+  }
+  EXPECT_GT(recovery_support, .01);
+  EXPECT_TRUE(command.q_des.isApprox(stand, 0.));
+  EXPECT_TRUE(command.dq_des.isZero(0.));
 }

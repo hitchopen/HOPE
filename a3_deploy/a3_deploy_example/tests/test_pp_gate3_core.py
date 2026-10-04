@@ -39,7 +39,8 @@ def complete_shot(accumulator: PhysicalEvidenceAccumulator, shot_id: int) -> Non
         (True, (0.10, -0.70, 1.08), (2.0, 0.0, 1.0), 1, 1, 0),
         (True, (1.90, -0.70, 0.78), (1.4, 0.0, 1.0), 1, 2, 0),
         (True, (2.00, -0.70, 0.82), (1.3, 0.0, 0.8), 1, 2, 0),
-        (False, (0.0, 0.0, -10.0), (0.0, 0.0, 0.0), 0, 0, 0),
+        (True, (2.20, -0.70, 0.030), (1.0, 0.0, -1.0), 1, 2, 0),
+        (False, (2.21, -0.70, 0.019), (1.0, 0.0, -1.1), 1, 2, 0),
     )
     for index, (active, position, velocity, racket, table, net) in enumerate(samples):
         accumulator.ingest(
@@ -204,7 +205,8 @@ class Gate3PhysicalEvidenceTest(unittest.TestCase):
             (True, (2.4, -0.7, 1.2), (-3.0, 0.0, 1.0), 0, 0, 0),
             (True, (1.0, -0.7, 0.78), (-2.0, 0.0, 2.0), 0, 1, 0),
             (True, (0.1, -0.7, 1.0), (2.0, 0.0, 1.0), 1, 1, 0),
-            (False, (0.0, 0.0, -10.0), (0.0, 0.0, 0.0), 0, 0, 0),
+            (True, (0.50, -0.70, 0.030), (2.0, 0.0, -1.0), 1, 1, 0),
+            (False, (0.52, -0.70, 0.019), (2.0, 0.0, -1.1), 1, 1, 0),
         )):
             active, position, velocity, racket, table, net = values
             accumulator.ingest(

@@ -85,7 +85,7 @@ class XboxActionTests(unittest.TestCase):
         self.assertIsNone(seq.advance(state('PD_STAND', 'SERVER', 'COMPLETE'), 5))
         self.assertFalse(seq.busy)
 
-    def test_x_receiver_ready_and_y_stand_then_teleop(self):
+    def test_x_receiver_ready_and_y_only_from_stand(self):
         seq = ActionSequence()
         seq.request('X', state('MOTION','SERVER','COMPLETE'), 0)
         self.assertEqual(seq.advance(state('MOTION','SERVER','COMPLETE'), 0), 'enter_pd_stand')
@@ -96,13 +96,43 @@ class XboxActionTests(unittest.TestCase):
         seq.acknowledge(True)
         seq.advance(state('MOTION','RECEIVER'), .3)
         self.assertFalse(seq.busy)
-        seq.request('Y', state('MOTION','RECEIVER'), .4)
-        self.assertEqual(seq.advance(state('MOTION','RECEIVER'), .4), 'enter_pd_stand')
-        seq.acknowledge(True)
+        self.assertFalse(seq.request('Y', state('MOTION','RECEIVER'), .4))
+        self.assertIsNone(seq.advance(state(role='RECEIVER'), .5))
+        self.assertTrue(seq.request('Y', state(role='RECEIVER'), .5))
         self.assertEqual(seq.advance(state(role='RECEIVER'), .5), 'enter_teleop')
         seq.acknowledge(True)
         seq.advance(state('TELEOP','RECEIVER'), .6)
         self.assertFalse(seq.busy)
+
+    def test_y_during_serve_never_queues_locomotion_after_recovery(self):
+        for phase in ('PREPARING_STAND', 'WAIT_READY_TO_SERVE', 'STRIKE', 'RECOVERY'):
+            seq = ActionSequence()
+            keys = ButtonEdges()
+            keys.sample(True, set())
+            self.assertFalse(seq.request(keys.sample(True, {'Y'}), state('SERVE', 'SERVER', phase), 0))
+            for now in (1, 2, 10):
+                self.assertIsNone(keys.sample(True, {'Y'}))
+                self.assertIsNone(seq.advance(state('PD_STAND', 'SERVER', 'COMPLETE'), now))
+            self.assertFalse(seq.busy)
+            keys.sample(True, set())
+            self.assertTrue(seq.request(keys.sample(True, {'Y'}), state(role='SERVER'), 11))
+            self.assertEqual(seq.advance(state(role='SERVER'), 11), 'enter_teleop')
+
+    def test_y_is_cancelled_if_stand_is_left_before_dispatch(self):
+        seq = ActionSequence()
+        self.assertTrue(seq.request('Y', state(), 0))
+        self.assertIsNone(seq.advance(state('SERVE', 'SERVER', 'PREPARING_STAND'), .01))
+        self.assertFalse(seq.busy)
+        self.assertIsNone(seq.advance(state(), 10))
+
+    def test_reconnect_with_held_y_never_enters_locomotion(self):
+        keys, seq = ButtonEdges(), ActionSequence()
+        keys.sample(False, set())
+        self.assertIsNone(keys.sample(True, {'Y'}))
+        self.assertIsNone(seq.advance(state(), 1))
+        keys.sample(True, set())
+        self.assertTrue(seq.request(keys.sample(True, {'Y'}), state(), 2))
+        self.assertEqual(seq.advance(state(), 2), 'enter_teleop')
 
     def test_disconnect_boot_fault_timeout_and_rejection_cancel_tail(self):
         for bad, now, connected in [(None,1,True), (state(boot_id=43),1,True),
@@ -123,7 +153,7 @@ class XboxActionTests(unittest.TestCase):
     def test_existing_passive_receipt_does_not_block_explicit_recovery(self):
         s = state('PASSIVE', last_action='EMERGENCY_PASSIVE', last_action_id=4)
         seq = ActionSequence()
-        seq.request('Y', s, 0)
+        seq.request('A', s, 0)
         self.assertEqual(seq.advance(s, 0), 'enter_pd_stand')
 
     def test_busy_button_is_not_replayed_later(self):

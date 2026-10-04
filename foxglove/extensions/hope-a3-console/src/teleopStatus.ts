@@ -20,16 +20,30 @@ export function xboxInputFresh(receivedAt: number | undefined, sourceWallMs: num
     now - sourceWallMs >= -100 && now - sourceWallMs < 500;
 }
 
-export function teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFresh, state, pending }: {
+export type TeleopXboxInput = {
+  connected: boolean;
+  enabled: boolean;
+  lt: boolean;
+  axes: number[];
+  action_pending?: boolean;
+  estop_requested?: boolean;
+};
+
+export function teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFresh, state, pending,
+  xboxFresh, xbox, estop }: {
   runnerFresh: boolean;
   runnerFault: boolean;
   mode: string | undefined;
   telemetryFresh: boolean;
   state: number[] | undefined;
   pending: boolean;
+  xboxFresh: boolean;
+  xbox: TeleopXboxInput | undefined;
+  estop: boolean;
 }): string | undefined {
   if (!runnerFresh) { return "Start the system and wait for Runner status."; }
   if (runnerFault) { return "Runner reports a command fault."; }
+  if (estop || xbox?.estop_requested === true) { return "Reset the software E-stop before entering Teleop."; }
   if (mode === "TELEOP") {
     if (!telemetryFresh || state == undefined) { return "Teleop selected; waiting for its current phase."; }
     if (state[3] === 3) { return "Stopping and settling the feet; Stand will become available automatically."; }
@@ -38,11 +52,20 @@ export function teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFre
     return "Teleop selected; waiting for its current phase.";
   }
   if (mode !== "PD_STAND") { return "Select Stand before entering Teleop."; }
-  if (!telemetryFresh || state == undefined) { return "Waiting for Runner teleop telemetry."; }
-  if (state[2] !== 1) { return "Runner has no teleop policy loaded."; }
-  if ((state[4] ?? Infinity) > .2) {
-    return "Waiting for Xbox input at Runner; center the sticks and release LT.";
+  if (!xboxFresh || xbox?.connected !== true) {
+    return "Connect Xbox and wait for fresh controller input.";
   }
-  if (pending) { return "Teleop request pending."; }
+  if (xbox.lt || xbox.enabled || xbox.axes.length !== 3 ||
+      !xbox.axes.every((x) => Number.isFinite(x) && Math.abs(x) < 1e-6)) {
+    return "Center the sticks and release LT before entering Teleop.";
+  }
+  if (pending || xbox.action_pending === true) { return "Mode request pending."; }
+  if (telemetryFresh && state != undefined && state[2] !== 1) {
+    return "Runner has no teleop policy loaded.";
+  }
+  // This button submits a discrete request, just like Xbox Y. Teleop telemetry
+  // is a separate display stream and may lag/reconnect independently. Runner
+  // alone checks policy availability, neutral input and its 200 ms watchdog
+  // at execution time; no cached input-age sample can grant that authority.
   return undefined;
 }

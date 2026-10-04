@@ -57,7 +57,7 @@ class ActionSequence:
         self.boot = None
         self.button = None
         self.deadline = 0.
-        self.status = 'A prepare · B serve · X receive Ready · Y Stand then Teleop'
+        self.status = 'A prepare · B serve · X receive Ready · Y Teleop from Stand only'
 
     @property
     def busy(self):
@@ -110,7 +110,8 @@ class ActionSequence:
                 self.status = 'Teleop already selected; release LT, center sticks, then hold LT'
                 return False
             if mode != 'PD_STAND':
-                steps.append('stand')
+                self.status = 'Y ignored: select Stand first, then release and press Y again'
+                return False
             steps.append('teleop')
         else:
             return False
@@ -167,6 +168,11 @@ class ActionSequence:
                                'X':'X complete: RECEIVER Ready',
                                'Y':'Y complete: Teleop selected; wait ACTIVE, release then hold LT'}[self.button]
                 return None
+        # Stand must still be current at dispatch. Never defer a Y press made
+        # before/during a serve until recovery eventually reaches Stand.
+        if self.steps[0] == 'teleop' and state.run_mode != 'PD_STAND':
+            self.cancel('Y cancelled: select Stand first, then release and press Y again')
+            return None
         self.inflight = self.steps[0]
         self.deadline = now + 20.
         return self.SERVICES[self.inflight]

@@ -1,0 +1,5 @@
+# Paths relative to the repository root. Install once, or use --configure to
+# save machine-local overrides in runtime.local.yaml (ignored by Git).
+runner_dist: a3_deploy/a3_deploy_example/dist/a3_deploy_x86_64
+sim_install: a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/cmake-build-model21800-gate3/install
+hope_ws: hope_ws

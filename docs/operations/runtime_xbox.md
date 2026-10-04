@@ -18,7 +18,7 @@ own body motion.
 | A | Select server and prepare **Start to Serve**; raise the loading hand |
 | B | Play the selected serve; Kernel returns slowly to **Stand**, Normal Play enters **Ready / MOTION** |
 | X | Select receiver and enter **Ready / MOTION** |
-| Y | Request **Stand**, wait for the Runner's standing state, then enter **Teleop** |
+| Y | Enter **Teleop** only when already in **Stand**; other modes require a new press after returning to Stand |
 | Hold LT + left stick | Body-frame forward/backward and lateral velocity |
 | Hold LT + right stick | Turn |
 | Release LT or lose fresh input | Decelerate to zero; leaving Teleop waits for foot settling |
@@ -61,30 +61,39 @@ In Kernel mode, the selected CSV's validated final stance sets the matching Stan
 
 In Kernel mode the sequence is **Start to Serve → Serve → slow arm lowering → Stand**.
 Normal Play retains the receive-policy handoff. Repeated A requests prepare the next
-serve; Y coordinates Stand-to-Teleop through fresh Runner state. Reconnecting a
-controller reopens the device and restores face-button edges.
+serve. Y never queues a Stand-to-Teleop sequence during a serve or another mode.
+Reconnecting a controller reopens the device; held face buttons require release
+and a new press. Neither reconnecting nor finishing a serve selects locomotion.
+
+The Console enables **Enter Teleop** from fresh Stand and connected, neutral Xbox
+input with LT released. Its separate Teleop phase/input-age display can reconnect
+independently and does not lock the request button. Runner still validates the
+loaded policy, current Stand mode and neutral input within its 200 ms watchdog
+when processing every request; rejection is shown in the request receipt.
 
 The default serve is:
 
 ```text
-a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_photo_right30_advance20_v12.csv
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_smooth_center_v14.csv
 ```
 
-This is a named SDK 31-joint CSV with 468 frames at 100 Hz. The post-contact handoff
-starts at frame 110. Kernel mode uses a 2.5-second full-command return, then measured
+This is a named SDK 31-joint CSV with 468 frames at 100 Hz. The default handoff
+starts after the final frame (467). Kernel mode uses a 2.5-second full-command return, then measured
 settling into Stand. Normal Play uses a one-second return and the existing receive
 blend. `--serve-handoff-frame` and `--serve-return-sec` remain explicit options.
 `--serve-only` retains complete CSV playback for isolated tests.
 
-**v12 is the attended Kernel-mode serve clip.** Select Kernel before starting it.
+**v14 is the attended Kernel-mode serve clip.** Select Kernel before starting it.
 Normal Play still requires a CSV whose final pose matches its nominal Stand; the
-wide v12 clip fails that preflight. The v12 wide-stance Normal Play/receive loop is
+wide-stance clip fails that preflight. The wide-stance Normal Play/receive loop is
 not qualified: a separate simulation stalled during settling, and a trial with a
 longer return fell. Those trials are not included in the passing Kernel results.
 
-The v12 clip keeps the wider stance and rightward paddle placement, and advances
-right-arm interception by 20 ms. Its early-release simulation cases improved;
-80 ms delayed releases still fail. This is not a calibrated hardware hit-rate claim.
+The v14 clip uses a continuous right-arm spline while preserving the other joints
+and release events. Its 70 primary MuJoCo cases (0–80 ms release delay, tested
+ball offsets and hold durations) passed; three additional cases at 85 ms failed.
+This is not a calibrated hardware hit-rate claim. v13 is rejected due to observed
+hardware jitter; historical CSVs remain available for comparison.
 The packaged Rockchip profile sends the release command at frame 47; physical jaw
 opening and ball detachment are not confirmed by the software publish receipt.
 
@@ -178,7 +187,13 @@ install -m644 "$HOPE_ROOT/foxglove/laptop/hope_marker_monitor_core.py" \
 
 For the HDU control-plane update, install all `foxglove/a3/hope_*.py` modules
 into `/usr/local/bin` together, including field assets, field operations, time
-calibration and Runner transport. Install `hope_field_assets.py` additionally on the MDU at
+calibration. Runner transport and IMU clock telemetry now use the native C++ binaries
+from `foxglove/a3/native`; install them using the native-build commands in
+[the Foxglove installation guide](../../foxglove/README.md#per-robot-installation-operator-action-changes-that-robot).
+Also install `hope-imu-telemetry.service` alongside the updated monitor unit and
+keep both bridge YAMLs at `num_threads: 2`. The observer suppresses unchanged
+display-status messages with a bounded heartbeat; Runner liveness, mode and fault
+status retain their existing rate. Install `hope_field_assets.py` additionally on the MDU at
 `/usr/local/lib/hope-foxglove/hope_field_assets.py`. The Laptop helper reads it
 and the calibration validators directly from `HOPE_ROOT`.
 Update the fixed command/monitor/lifecycle service files and bridge YAMLs as a
@@ -190,7 +205,7 @@ Xbox input runs in the Laptop ROS environment:
 
 ```bash
 python3 -m venv --system-site-packages "$HOME/.local/share/hope-xbox/venv"
-"$HOME/.local/share/hope-xbox/venv/bin/pip" install pygame
+"$HOME/.local/share/hope-xbox/venv/bin/pip" install evdev
 export HOPE_XBOX_HDU_IP='<hdu-ip>'
 bash "$HOPE_ROOT/foxglove/laptop/run_xbox_input.sh"
 ```
@@ -202,7 +217,7 @@ A/B/X/Y are read locally, so a Foxglove browser gamepad preview is not required.
 
 Install the ready-made console on the Laptop:
 
-1. Download [hopeopen.hope-a3-console-1.8.9.foxe](../../foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.9.foxe)
+1. Download [hopeopen.hope-a3-console-1.8.10.foxe](../../foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.10.foxe)
    from this checkout. On GitHub, use the file's download button.
 2. Open the `.foxe` in Foxglove Desktop's Extensions screen to install it.
 3. Import `foxglove/layouts/model21800_console.json` and connect to the HDU control

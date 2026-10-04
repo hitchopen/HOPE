@@ -2,6 +2,7 @@ import math
 from pathlib import Path
 import sys
 import unittest
+from types import SimpleNamespace
 
 
 A3_DIR = Path(__file__).resolve().parents[1] / "a3"
@@ -10,6 +11,7 @@ sys.path.insert(0, str(A3_DIR))
 from hope_observer_core import (  # noqa: E402
     DecodeError,
     REQUIRED_BASE_FLAGS,
+    StatusPublisher,
     decode_base_packet,
     decode_racket_packet,
     parse_planner_attempt,
@@ -18,6 +20,43 @@ from hope_observer_core import (  # noqa: E402
     parse_x_hit_status,
     process_cmdline_matches,
 )
+
+
+class StatusPublisherTests(unittest.TestCase):
+    def test_unchanged_status_keeps_heartbeat_and_every_edge_is_immediate(self):
+        sent = []
+        clock = [0.]
+        publisher = StatusPublisher(lambda m: sent.append((clock[0], m.data)),
+                                    clock=lambda: clock[0])
+        for clock[0] in (0., .2, .4, .6, .8):
+            publisher.publish(SimpleNamespace(data="READY"))
+        self.assertEqual(sent, [(0., "READY"), (.4, "READY"), (.8, "READY")])
+        for clock[0], value in ((.81, "SERVING"), (.82, "FAULT"), (.83, "READY")):
+            publisher.publish(SimpleNamespace(data=value))
+        self.assertEqual(sent[-3:], [(.81, "SERVING"), (.82, "FAULT"), (.83, "READY")])
+
+    def test_source_loss_change_is_not_held_and_restart_has_no_cached_value(self):
+        sent = []
+        clock = [1.]
+        publish = lambda m: sent.append(m.data)
+        publisher = StatusPublisher(publish, clock=lambda: clock[0])
+        publisher.publish(SimpleNamespace(data=True))
+        clock[0] += .01
+        publisher.publish(SimpleNamespace(data=False))
+        StatusPublisher(publish, clock=lambda: clock[0]).publish(SimpleNamespace(data=False))
+        self.assertEqual(sent, [True, False, False])
+
+    def test_failed_publish_does_not_hide_retry(self):
+        attempts = []
+        def publish(message):
+            attempts.append(message.data)
+            if len(attempts) == 1:
+                raise RuntimeError("transport failed")
+        publisher = StatusPublisher(publish, clock=lambda: 1.)
+        with self.assertRaises(RuntimeError):
+            publisher.publish(SimpleNamespace(data=True))
+        publisher.publish(SimpleNamespace(data=True))
+        self.assertEqual(attempts, [True, True])
 
 
 def valid_base_packet():

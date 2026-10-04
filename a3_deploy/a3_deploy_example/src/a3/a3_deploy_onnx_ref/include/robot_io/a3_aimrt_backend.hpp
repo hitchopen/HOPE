@@ -77,6 +77,10 @@ class A3AimrtBackend : public RobotIOBackend {
   const JointLayout& GetLayout() const override;
   void RegisterStateCallback(StateCallback cb) override;
   bool SendCommand(const RobotCommand& cmd) override;
+  // Enable before Start. First release and its redundant copies are published
+  // synchronously by the same command thread as SDK31, over native iceoryx.
+  void EnableNativeServeRelease() { native_serve_release_enabled_ = true; }
+  bool PublishServeRelease(std::uint64_t& publish_monotonic_ns);
   std::string Name() const override { return "a3"; }
   double StateRateHz() const override;
   std::int64_t SyncPhaseNs() const noexcept { return actual_phase_ns_; }
@@ -157,6 +161,9 @@ class A3AimrtBackend : public RobotIOBackend {
 #endif
   std::unique_ptr<a3_sync::A3SyncLoop> sync_loop_;
 
+  // Replacement/detachment waits for an in-flight callback. Recursive to
+  // permit a callback to unregister itself; dispatch keeps its own copy alive.
+  std::recursive_mutex user_cb_mutex_;
   StateCallback user_cb_{};
   TestCaptureFn test_capture_fn_{};
   TeleopFrameCallback teleop_frame_cb_{};
@@ -183,6 +190,8 @@ class A3AimrtBackend : public RobotIOBackend {
 #endif
 
   std::atomic<std::uint32_t> seq_counter_{0};
+  bool native_serve_release_enabled_{false};
+  std::function<void()> serve_release_publish_fn_;
   std::atomic<bool>          inited_{false};
   std::atomic<bool>          started_{false};
 };

@@ -581,7 +581,9 @@ TEST(PpRuntimeContract, AcceptsOnlyPairedRuntimeV2AndComponentRecipes) {
       HitterPureRuntimeContract::kRallyFinalV2);
   EXPECT_EQ(validate_hitter_pure_runtime_contract("rally_final_v2", "rally_v17"),
             HitterPureRuntimeContract::kRallyFinalV2);
-  EXPECT_THROW(validate_hitter_pure_runtime_contract("rally_final_v2", "rally_v9"),
+  EXPECT_NO_THROW(validate_hitter_pure_runtime_contract("rally_final_v2", "rally_v9"));
+  EXPECT_NO_THROW(validate_hitter_pure_runtime_contract("rally_final_v2", "future_training_name"));
+  EXPECT_THROW(validate_hitter_pure_runtime_contract("unknown_wire", "future_training_name"),
                std::runtime_error);
   EXPECT_THROW(validate_hitter_pure_runtime_contract("rally_final_v1", "rally_v10"),
                std::runtime_error);

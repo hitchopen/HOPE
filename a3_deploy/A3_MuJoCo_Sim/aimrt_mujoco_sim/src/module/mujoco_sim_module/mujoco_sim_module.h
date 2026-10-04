@@ -15,6 +15,7 @@
 #include "aimrt_module_cpp_interface/co/task.h"
 #include "aimrt_module_cpp_interface/module_base.h"
 #include "mujoco_sim_module/publisher/publisher_base.h"
+#include "mujoco_sim_module/common/gate3_ball_layout.h"
 #include "mujoco_sim_module/subscriber/subscriber_base.h"
 
 #include "glfw_adapter.h"
@@ -74,8 +75,8 @@ class MujocoSimModule : public aimrt::ModuleBase {
   void InitializeDebugCsv();
   void WriteDebugCsv(std::uint64_t wall_time_ns);
   void InitializeGate3Ball();
-  void ApplyGate3BallDrag();
-  void UpdateGate3BallContacts();
+  void ApplyGate3BallDrag(int slot);
+  void UpdateGate3BallContacts(int slot);
 
   aimrt::co::Task<void> GuiLoop();
   aimrt::co::Task<void> SimLoop();
@@ -147,7 +148,10 @@ class MujocoSimModule : public aimrt::ModuleBase {
   double gate3_ball_drag_k_ = 0.1220;
   double gate3_ball_restitution_h_ = 0.64;
   double gate3_ball_restitution_v_ = 0.9215;
-  std::array<double, 6> gate3_ball_pre_step_velocity_{};
+  std::array<std::array<double, 6>, 9> flight_velocities_{};
+  std::array<common::gate3_ball::TableRestTracker, 9> flight_rest_{};
+  std::array<std::uint64_t, 9> flight_shot_ids_{};
+  std::array<bool, 9> flight_racket_prev_{}, flight_table_prev_{}, flight_net_prev_{};
   std::uint64_t gate3_last_shot_id_ = 0;
   bool gate3_racket_contact_prev_ = false;
   bool gate3_table_contact_prev_ = false;

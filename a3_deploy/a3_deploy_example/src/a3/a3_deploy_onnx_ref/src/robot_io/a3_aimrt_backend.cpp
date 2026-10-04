@@ -30,6 +30,7 @@
 #include "std_msgs/msg/float64_multi_array.hpp"
 
 #ifdef HAS_A3_TA_PROTO
+#include "a3_io/serve_release_message.hpp"
 #include "aimdk/protocol/ta/ta_channel.pb.h"
 #include "aimrt_module_protobuf_interface/channel/protobuf_channel.h"
 #endif
@@ -409,6 +410,24 @@ bool A3AimrtBackend::RegisterPubSub_() {
           };
       pub_mgr_ =
           std::make_unique<a3_io::A3PublisherManager>(std::move(pub_opts));
+      if (native_serve_release_enabled_) {
+#ifdef HAS_A3_TA_PROTO
+        auto hand_pub = ch.GetPublisher("/body_drive/hand_joint_command");
+        if (!aimrt::channel::RegisterPublishType<aimdk::protocol::HandCommandChannel>(hand_pub))
+          throw std::runtime_error("register native serve release failed");
+        auto proxy = std::make_shared<aimrt::channel::PublisherProxy<
+            aimdk::protocol::HandCommandChannel>>(hand_pub);
+        auto message = std::make_shared<aimdk::protocol::HandCommandChannel>();
+        a3_io::FillServeReleaseMessage(*message, 0, 0);  // Allocate before motion.
+        serve_release_publish_fn_ = [proxy, message, sequence = std::uint32_t{0}]() mutable {
+          a3_io::FillServeReleaseMessage(*message, sequence++, NowSystemNs());
+          proxy->Publish(*message);
+        };
+        std::cerr << "[a3_backend] native serve release: same command thread, /body_drive/hand_joint_command, protobuf\n";
+#else
+        throw std::runtime_error("native serve release requires protobuf support");
+#endif
+      }
     } else {
       std::cerr << "[a3_backend] command publishers disabled "
                    "(publish_enabled=false)\n";
@@ -727,6 +746,7 @@ A3AimrtBackend::ConsumeLatencyStatistics() {
 }
 
 void A3AimrtBackend::RegisterStateCallback(StateCallback cb) {
+  std::lock_guard<std::recursive_mutex> lock(user_cb_mutex_);
   user_cb_ = std::move(cb);
 }
 
@@ -786,7 +806,9 @@ bool A3AimrtBackend::PublishLocomotionState(const std::vector<double>& values) {
 }
 
 void A3AimrtBackend::OnSyncState_(const RobotState& state) {
-  if (user_cb_) user_cb_(state);
+  std::lock_guard<std::recursive_mutex> lock(user_cb_mutex_);
+  const auto callback = user_cb_;
+  if (callback) callback(state);
 }
 
 // ---------------------------------------------------------------------------
@@ -813,6 +835,19 @@ bool A3AimrtBackend::SendCommand(const RobotCommand& cmd) {
 #endif
 
   return true;
+}
+
+bool A3AimrtBackend::PublishServeRelease(std::uint64_t& publish_monotonic_ns) {
+  publish_monotonic_ns = 0;
+  if (!publish_enabled_ || !started_.load(std::memory_order_acquire) ||
+      !serve_release_publish_fn_) return false;
+  try {
+    serve_release_publish_fn_();
+    publish_monotonic_ns = NowMonotonicNs();
+    return true;
+  } catch (...) {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------

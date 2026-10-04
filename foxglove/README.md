@@ -1,7 +1,7 @@
 # Current Runner workflow
 
 For direct installation, use the committed
-[Console 1.8.9 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.9.foxe).
+[Console 1.8.10 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.10.foxe).
 Node.js is needed
 only to rebuild the extension, not to install this package.
 
@@ -254,6 +254,17 @@ robot.
 
 ```bash
 ssh "agi@$A3_HOST"
+# Build the small native data-plane tools (or copy a target-matched cross-build).
+# This step does not start a process or issue a robot command.
+source /opt/ros/jazzy/setup.bash
+cmake -S ~/foxglove_a3/native -B ~/hope_field_native_build -DCMAKE_BUILD_TYPE=Release
+cmake --build ~/hope_field_native_build -j2
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-imu-telemetry \
+  /usr/local/libexec/hope-imu-telemetry
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-runner-transport-relay-native \
+  /usr/local/libexec/hope-runner-transport-relay
+# The matching lifecycle helper executes the relay directly (without python3).
+# Deploy that helper together with the native relay; preserve venue configuration.
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/bridge_params.yaml \
   /etc/hope-foxglove/bridge_params.yaml
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/fastdds_bridge_profile.xml \
@@ -271,15 +282,36 @@ sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-foxglove-bridge.servi
   /etc/systemd/system/hope-foxglove-bridge.service
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-monitor.service \
   /etc/systemd/system/hope-monitor.service
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-imu-telemetry.service \
+  /etc/systemd/system/hope-imu-telemetry.service
 
 # If this unit's TF tree differs from the fleet defaults, edit only the
 # pelvis_frame and reference_frame values in the installed monitor unit.
 # No Motive/mocap IP is configured on the A3.
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now hope-monitor.service hope-foxglove-bridge.service
+sudo systemctl enable --now hope-imu-telemetry.service hope-monitor.service hope-foxglove-bridge.service
 systemctl status hope-monitor hope-foxglove-bridge --no-pager
 ```
+
+High-rate IMU reception, clock display publication, and Runner/teleop transport
+run in C++. A fixed native wait set receives IMU data independently of the 20 Hz
+display timer. Original HDU `CLOCK_MONOTONIC` receipt time determines freshness;
+the three `/hope/clock` display topics have one native publisher. The Python
+node retains the independent safety endpoints and slower health checks. A lost
+IMU makes freshness false after 0.5 s; a lost native process makes the Console's
+latency stream stale after its existing 0.5 s receipt timeout. The relay starts after Runner, retains
+the original payload, and never replays commands on a timer. Both bridges use two
+executor threads. The laptop samples Xbox input at 50 Hz; TELEOP, enabled input,
+and mode transitions retain that rate, while inactive heartbeats and GUI preview
+use 10 Hz with immediate state edges. Runner's 200 ms watchdog is unchanged.
+
+The read-only observer still evaluates every source and freshness gate at 5 Hz.
+Its 34 non-liveness Bool/String display statuses publish on every changed value;
+unchanged values keep a 0.4 s heartbeat, quantized to the existing 0.2 s snapshot
+ticks (normally 0.4–0.6 s). Liveness, Runner mode/session matching, fault status,
+numeric traces and ball markers retain their original publication cadence. This
+reduces duplicate display traffic without changing the IMU or command streams.
 
 > **Confirmed Stage 2 installation (2026-08-06).** On the same A3, both units
 > were installed, enabled, and observed active with zero restarts. The bridge
@@ -496,9 +528,9 @@ rates automatically.
 
 ## Timestamp latency and process-state semantics
 
-The latency plot is not a ping test. `hope_monitor.py` subscribes to the A3's
-`/ros2/body_drive/pelvis_imu/data` (`sensor_msgs/Imu`) using sensor-data QoS and
-computes, at message arrival:
+The latency plot is not a ping test. The native `hope-imu-telemetry` process
+subscribes to `/ros2/body_drive/pelvis_imu/data` (`sensor_msgs/Imu`) using
+sensor-data QoS and computes at receipt:
 
 ```text
 latency_ms = (A3 ROS system clock now - message.header.stamp) / 1e6
@@ -507,8 +539,9 @@ latency_ms = (A3 ROS system clock now - message.header.stamp) / 1e6
 It republishes the latest finite value at a bounded 20 Hz and marks the source
 stale after 0.5 s. A negative or implausibly large value is useful evidence of
 an epoch/clock problem; it is not clamped away. Change
-`message_latency_topic` only to another `sensor_msgs/Imu` topic unless the node
-is extended to support a different message type.
+the native `imu_topic` parameter only to another `sensor_msgs/Imu` topic unless
+the node is extended to support a different message type. The Python monitor's
+direct subscription is a compatibility path when `native_clock_topics=false`.
 
 The green/red `agibot_pm` tile is the local **HDU** systemd state. It is not a
 claim that the MDU vendor manager or TF publisher is ready. The adjacent

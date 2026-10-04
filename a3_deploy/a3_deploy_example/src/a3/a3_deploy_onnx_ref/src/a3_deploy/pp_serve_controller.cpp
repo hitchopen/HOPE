@@ -171,6 +171,12 @@ void PpServeController::TriggerReadyToServe() {
   ready_to_serve_requested_.store(true, std::memory_order_release);
 }
 
+void PpServeController::SetNativeReleasePublisher(NativeReleasePublisher publisher) {
+  if (state() != ServeControllerState::kIdle || !publisher)
+    throw std::invalid_argument("native release publisher must be configured while idle");
+  native_release_publisher_ = std::move(publisher);
+}
+
 void PpServeController::RequestAbort() {
   abort_requested_.store(true, std::memory_order_release);
 }
@@ -254,6 +260,8 @@ bool PpServeController::ValidateState_(
 
 void PpServeController::ResetAction_() {
   entry_transition_.Reset();
+  replay_entry_transition_.Reset();
+  replay_entry_tick_ = kServeReplaySettleTicks;
   prepare_balance_rad_ = 0.0;
   prepare_balance_velocity_ = 0.0;
   policy_return_transition_.Reset();
@@ -266,6 +274,8 @@ void PpServeController::ResetAction_() {
   prepare_grab_pending_ = true;
   prepare_open_submitted_ = false;
   release_request_submitted_ = false;
+  native_release_copies_left_ = 0;
+  release_clock_rebase_ns_.store(0, std::memory_order_release);
   release_acknowledged_ = false;
   release_dispatch_monotonic_ns_ = 0;
   release_first_publish_monotonic_ns_ = 0;
@@ -335,6 +345,23 @@ void PpServeController::PollGripper_() {
 bool PpServeController::SubmitGripper_(
     PpGripperCommand command, ServeGripperState pending_state,
     std::uint64_t now_ns) {
+  if (command == PpGripperCommand::kRelease && native_release_publisher_) {
+    release_dispatch_monotonic_ns_ = now_ns;
+    std::uint64_t published_ns = 0;
+    if (!native_release_publisher_(published_ns) || published_ns == 0) {
+      gripper_fault_reason_ = "native release publication failed";
+      gripper_state_.store(ServeGripperState::kFault, std::memory_order_release);
+      return false;
+    }
+    release_first_publish_monotonic_ns_ = published_ns;
+    release_acknowledged_ = true;  // Publication only, never physical release.
+    gripper_state_.store(ServeGripperState::kReleased, std::memory_order_release);
+    cleanup_required_.store(false, std::memory_order_release);
+    native_release_copies_left_ = 4;
+    native_release_next_frame_ = release_frame() + 10;
+    release_clock_rebase_ns_.store(published_ns, std::memory_order_release);
+    return true;
+  }
   if (!gripper_) {
     gripper_state_.store(ServeGripperState::kUnavailable,
                          std::memory_order_release);
@@ -446,8 +473,19 @@ void PpServeController::ProcessRequests_(
                                           std::memory_order_acq_rel)) {
     timeline_tick_ = 0;
     source_frame_ = 0;
-    swing_balance_rad_ = prepare_balance_rad_;
-    swing_balance_velocity_ = prepare_balance_velocity_;
+    swing_balance_rad_ = replay_support_rad_;
+    swing_balance_velocity_ = 0.;
+    robot_io::RobotCommand target;
+    FillPdCommand_(timeline_.ready().q_sdk, timeline_.ready().qd_sdk, target);
+    for (const int sdk : {kLeftAnklePitchSdk, kRightAnklePitchSdk})
+      target.q_des[sdk] += replay_support_rad_;
+    replay_entry_transition_.Begin(last_command_, target, .5, .25);
+    replay_entry_tick_ = 0;
+    const auto sequence = playback_.sequence + 1;
+    playback_ = {};
+    playback_.sequence = sequence;
+    playback_.start_support_rad = swing_balance_rad_;
+    playback_.start_support_velocity = swing_balance_velocity_;
     phase_ = timeline_.ready().phase;
     state_.store(ServeControllerState::kPlayingPreRelease,
                  std::memory_order_release);
@@ -581,7 +619,11 @@ void PpServeController::SetTimelineCommand_(
     // Restore feedback after contact while the arms recover, smoothly joining
     // the frozen strike support. A constant strike offset is unsuitable once
     // the upper-body mass returns to Stand.
-    constexpr std::size_t kResumeFrame = kServe025ContactFrame + 10;
+    // Keep the same strike and complete follow-through in both Kernel and
+    // early policy-handoff modes. Resume support when CSV recovery begins;
+    // enabling full replay must not reintroduce IMU feedback mid-swing.
+    const std::size_t kResumeFrame = policy_handoff_frame_ < kServe025CompleteFrame
+        ? policy_handoff_frame_ + 1 : kServe025RecoveryFrame;
     if (frame >= kResumeFrame) {
       const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
       const double pitch = std::asin(std::clamp(gravity[0], -1., 1.));
@@ -701,6 +743,14 @@ bool PpServeController::ComputeCommand(
       ++transition_tick_;
       if (transition_tick_ >= kServe025FullbodyTransitionTicks) {
         transition_tick_ = kServe025FullbodyTransitionTicks - 1;
+        // Capture at the deterministic end of preparation, before Play is
+        // available. The first operator's waiting time must not set support
+        // for this entire session. READY feedback and the smooth pre-play
+        // transition remain active so holding the ball stays supported.
+        if (!replay_support_valid_) {
+          replay_support_rad_ = prepare_balance_rad_;
+          replay_support_valid_ = true;
+        }
         state_.store(ServeControllerState::kWaitReadyToServe,
                      std::memory_order_release);
       }
@@ -720,6 +770,19 @@ bool PpServeController::ComputeCommand(
     case ServeControllerState::kStrike:
     case ServeControllerState::kFollowThrough:
     case ServeControllerState::kRecovery: {
+      if (replay_entry_tick_ < kServeReplaySettleTicks) {
+        FillPdCommand_(timeline_.ready().q_sdk, timeline_.ready().qd_sdk, command);
+        for (const int sdk : {kLeftAnklePitchSdk, kRightAnklePitchSdk})
+          command.q_des[sdk] += replay_support_rad_;
+        replay_entry_transition_.Apply(
+            static_cast<double>(replay_entry_tick_++) / kServe025FullbodyRunnerHz, command);
+        prepare_balance_rad_ = replay_support_rad_;
+        prepare_balance_velocity_ = 0.;
+        phase_ = "PRE_PLAY_SETTLE";
+        last_command_ = command;
+        UpdateSupportTelemetry_(state, command);
+        break;
+      }
       // Direct playback: timeline_tick_ is the original CSV frame index.
       // Stop at the configured post-contact handoff frame (legacy pure Serve
       // keeps frame 467). Played frames remain original and sequential; an
@@ -731,9 +794,63 @@ bool PpServeController::ComputeCommand(
         release_request_submitted_ = SubmitGripper_(
             PpGripperCommand::kRelease,
             ServeGripperState::kReleasing, now_ns);
+        if (native_release_publisher_ && !release_request_submitted_) {
+          // Do not swing after a failed release dispatch. Use the same smooth
+          // supported return as the normal handoff, not a sudden Stand jump.
+          robot_io::RobotCommand stand;
+          FillPdCommand_(official_stand_q_sdk_, Eigen::VectorXd::Zero(kDof), stand);
+          policy_return_transition_.Begin(last_command_, stand, policy_return_seconds_, .15);
+          policy_return_tick_ = 0;
+          policy_return_quiet_ticks_ = 0;
+          command = last_command_;
+          playback_.finished = true;
+          phase_ = "RELEASE_FAILED_RETURN";
+          state_.store(ServeControllerState::kHandoffReady, std::memory_order_release);
+          break;
+        }
+      }
+      if (native_release_publisher_ && native_release_copies_left_ &&
+          frame >= native_release_next_frame_) {
+        std::uint64_t repeated_ns = 0;
+        if (!native_release_publisher_(repeated_ns))
+          gripper_fault_reason_ = "native release redundant publication failed";
+        --native_release_copies_left_;
+        native_release_next_frame_ += 10;
       }
       SetTimelineCommand_(frame, state, command);
+      const auto evaluated_ns = native_release_publisher_ ? SteadyNowNs_() : now_ns;
+      playback_.ObserveClock(frame, evaluated_ns);
+      const int sample_index = frame == 0 ? 0 :
+          (frame == release_frame() ? 1 : (frame == kServe025ContactFrame ? 2 : -1));
+      if (sample_index >= 0) {
+        auto& sample = playback_.samples[sample_index];
+        sample.frame = frame;
+        sample.evaluation_ns = evaluated_ns;
+        sample.state_timestamp_ns = state.timestamp_ns;
+        std::copy_n(state.q.data(), 31, sample.q.begin());
+        std::copy_n(state.dq.data(), 31, sample.dq.begin());
+        std::copy_n(command.q_des.data(), 31, sample.q_des.begin());
+        std::copy_n(command.dq_des.data(), 31, sample.dq_des.begin());
+        std::copy_n(state.imu_quat_wxyz.data(), 4, sample.imu_quat.begin());
+        std::copy_n(state.imu_gyro.data(), 3, sample.gyro.begin());
+      }
+      if (frame == release_frame()) playback_.release_frame_ns = evaluated_ns;
+      if (frame == kServe025ContactFrame) playback_.contact_reference_frame_ns = evaluated_ns;
+      const auto& csv = timeline_.At(frame);
+      playback_.max_csv_q_delta_rad = std::max(playback_.max_csv_q_delta_rad,
+          (command.q_des - csv.q_sdk).cwiseAbs().maxCoeff());
+      playback_.max_csv_dq_delta_rad_s = std::max(playback_.max_csv_dq_delta_rad_s,
+          (command.dq_des - csv.qd_sdk).cwiseAbs().maxCoeff());
+      playback_.max_arm_csv_q_delta_rad = std::max(playback_.max_arm_csv_q_delta_rad,
+          (command.q_des.segment(5, 14) - csv.q_sdk.segment(5, 14)).cwiseAbs().maxCoeff());
+      playback_.max_arm_csv_dq_delta_rad_s = std::max(playback_.max_arm_csv_dq_delta_rad_s,
+          (command.dq_des.segment(5, 14) - csv.qd_sdk.segment(5, 14)).cwiseAbs().maxCoeff());
+      playback_.max_tracking_error_rad = std::max(playback_.max_tracking_error_rad,
+          (command.q_des - state.q).cwiseAbs().maxCoeff());
+      playback_.max_arm_tracking_error_rad = std::max(playback_.max_arm_tracking_error_rad,
+          (command.q_des.segment(5, 14) - state.q.segment(5, 14)).cwiseAbs().maxCoeff());
       if (frame == policy_handoff_frame_) {
+        playback_.finished = true;
         if (frame < kServe025CompleteFrame) {
           // The post-contact pose is far outside the receive actor's WAIT
           // posture (including its executed-action feedback). A live actor
@@ -856,6 +973,7 @@ void PpServeController::UpdateDiag_(
   value.gripper_state = gripper_state();
   value.phase = PhaseName_();
   value.frame = source_frame_;
+  value.playback = playback_;
   value.transition_tick = transition_tick_;
   value.cleanup_required = cleanup_required();
   value.release_acknowledged = release_acknowledged_;
@@ -889,6 +1007,10 @@ void PpServeController::UpdateDiag_(
                       value.tilt_rad <= 0.10 &&
                       value.yaw_rate_rad_s <= 0.20;
   value.ready_ticks = value.local_ready ? 1 : 0;
+  if (value.phase == "PRE_PLAY_SETTLE") {
+    value.local_ready = false;
+    value.ready_ticks = 0;
+  }
   if (value.state == ServeControllerState::kHandoffReady ||
       value.state == ServeControllerState::kPreparingStand) {
     value.ready_ticks = policy_return_quiet_ticks_;

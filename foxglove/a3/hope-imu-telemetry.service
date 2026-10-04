@@ -1,0 +1,22 @@
+[Unit]
+Description=HOPE native bounded-rate IMU clock telemetry
+After=network-online.target
+Wants=network-online.target
+Before=hope-monitor.service
+
+[Service]
+Type=simple
+User=agi
+Environment=ROS_DOMAIN_ID=232
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+EnvironmentFile=-/etc/hope-foxglove/network.env
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
+ExecStartPre=/bin/bash -c 'for ((i=0; i<150; ++i)); do /sbin/ip -4 address show dev eth_hdu | /bin/grep -q "inet 10.42.10.10/24" && exit 0; /bin/sleep 0.2; done; exit 1'
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec /usr/local/libexec/hope-imu-telemetry --ros-args -p publish_clock_topics:=true'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -158,7 +158,7 @@ if __name__ == '__main__':
                    help='number of complete serve/Ready cycles per case')
     p.add_argument('--ready-seconds', type=float, nargs='+', default=[0, .1, 3],
                    help='Ready dwell times; values below 0.5 interrupt the receive blend')
-    p.add_argument('--csv', type=Path, default=sim.MOTION_ROOT / 'a3p_op3_serve025_photo_right30_advance20_v12.csv')
+    p.add_argument('--csv', type=Path, default=sim.MOTION_ROOT / 'a3p_op3_serve025_smooth_center_v14.csv')
     args = p.parse_args()
     if args.cycles < 1 or any(not np.isfinite(t) or t < 0 for t in args.ready_seconds):
         p.error('cycles must be positive and Ready dwell times must be finite and nonnegative')

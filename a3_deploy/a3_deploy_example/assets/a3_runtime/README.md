@@ -18,5 +18,17 @@ omits the HumanLike assets. The older generic A3 configs refer to additional
 vendor models/RKNN/reference datasets; those are not dependencies of this public
 ping-pong package and are not the default public workflow.
 
+## Current attended serving assets
+
+- `serve/motions/a3p_op3_serve025_smooth_center_v14.csv`: current
+  Kernel-mode serve; smooth right-arm spline with a centered simulated return.
+  All 468 frames play before the return to Stand. Non-right-arm fields and
+  release timing are preserved. v12 remains a historical reference; v13 was
+  rejected after hardware jitter feedback.
+- `robots/A3PingPong-with-gripper/`: reviewed URDF and all referenced meshes;
+  see its README for the 20 visual-mesh collision fallbacks.
+- Timing and validation limits are in
+  [Runner and serving](../../../../docs/operations/runtime_xbox.md).
+
 See [Runtime operation](../../../../docs/operations/runtime_xbox.md) for installation
 and package build instructions.

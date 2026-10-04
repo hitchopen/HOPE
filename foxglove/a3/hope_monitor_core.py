@@ -422,6 +422,23 @@ def message_latency_ms(now_ns: int, stamp_sec: int, stamp_nanosec: int) -> float
     return (int(now_ns) - stamp_ns) / 1_000_000.0
 
 
+def decode_native_latency_sample(values, now_monotonic):
+    """Decode HDU-local native telemetry without making a queued sample fresh.
+
+    Both processes use Linux CLOCK_MONOTONIC on the same host. Native receipt
+    time, rather than this Python callback's time, owns the freshness check.
+    """
+    if len(values) != 3 or values[0] != 1.0:
+        raise ValueError("invalid native IMU sample schema")
+    latency, received = float(values[1]), float(values[2])
+    if not math.isfinite(latency):
+        raise ValueError("message header timestamp is zero or invalid")
+    if (not math.isfinite(received) or received <= 0.0
+            or not math.isfinite(now_monotonic) or received > now_monotonic):
+        raise ValueError("invalid native IMU receipt clock")
+    return latency, received
+
+
 def timestamp_age_s(now_ns: int, stamp_sec: int, stamp_nanosec: int) -> float:
     """Return local ROS time minus a positive ROS timestamp in seconds."""
 

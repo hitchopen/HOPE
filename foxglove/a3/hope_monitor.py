@@ -8,6 +8,9 @@ software latch and can independently request native Runner PASSIVE. Four
 imported `/hope/control/*` services remain as legacy compatibility internals,
 but the integrated bridges do not expose them. Motive/NatNet network
 acquisition remains outside this process.
+On the deployed HDU, native_clock_topics delegates the three /hope/clock
+display topics to hope-imu-telemetry; this process retains safety and slow health
+checks. Direct IMU and bounded native-sample modes remain available for rollback.
 Publishes:
 
   /hope/ntp/offset_ms           std_msgs/Float64  chrony System time offset
@@ -79,6 +82,7 @@ from hope_monitor_core import (
     combine_estop_results,
     cpu_load_percent,
     decode_software_estop_response,
+    decode_native_latency_sample,
     estop_backend_status,
     message_latency_ms,
     parse_calibration_service_sha,
@@ -126,6 +130,11 @@ class HopeMonitor(Node):
             "message_latency_topic", "/ros2/body_drive/pelvis_imu/data"
         )
         self.declare_parameter("message_latency_publish_hz", 20.0)
+        # Empty retains direct IMU ingestion for installations without native
+        # telemetry. The HDU service uses the bounded-rate native sample.
+        self.declare_parameter("message_latency_sample_topic", "")
+        self.declare_parameter("native_clock_topics", False)
+        self._native_clock_topics = bool(self.get_parameter("native_clock_topics").value)
         self.declare_parameter("message_latency_stale_after_s", 0.5)
         self.declare_parameter("agibot_pm_unit", "agibot_pm.service")
         self.declare_parameter("hdu_runtime_unit", "hope-observer.service")
@@ -161,15 +170,16 @@ class HopeMonitor(Node):
         self.pub_qualified = self.create_publisher(Bool, "/hope/ntp/utc_qualified", 10)
         self.pub_ntp_gate = self.create_publisher(Bool, "/hope/ntp/gate_pass", 10)
         self.pub_ntp_text = self.create_publisher(String, "/hope/ntp/text", 10)
-        self.pub_message_latency = self.create_publisher(
-            Float64, "/hope/clock/message_latency_ms", 10
-        )
-        self.pub_message_fresh = self.create_publisher(
-            Bool, "/hope/clock/message_fresh", 10
-        )
-        self.pub_message_text = self.create_publisher(
-            String, "/hope/clock/message_text", 10
-        )
+        if not self._native_clock_topics:
+            self.pub_message_latency = self.create_publisher(
+                Float64, "/hope/clock/message_latency_ms", 10
+            )
+            self.pub_message_fresh = self.create_publisher(
+                Bool, "/hope/clock/message_fresh", 10
+            )
+            self.pub_message_text = self.create_publisher(
+                String, "/hope/clock/message_text", 10
+            )
         self.pub_cpu_load = self.create_publisher(
             Float64, "/hope/system/cpu_load_percent", 10
         )
@@ -247,12 +257,17 @@ class HopeMonitor(Node):
         self._message_received_monotonic = None
         self._previous_cpu_times = None
         self._previous_process_cpu_times = {}
-        self.create_subscription(
-            Imu,
-            latency_topic,
-            self._on_latency_message,
-            qos_profile_sensor_data,
-        )
+        sample_topic = str(self.get_parameter("message_latency_sample_topic").value)
+        if self._native_clock_topics:
+            pass  # The native node owns all three public clock display topics.
+        elif sample_topic:
+            self.create_subscription(
+                Float64MultiArray, sample_topic, self._on_native_latency_message, 1
+            )
+        else:
+            self.create_subscription(
+                Imu, latency_topic, self._on_latency_message, qos_profile_sensor_data
+            )
         self._vendor_callback_group = ReentrantCallbackGroup()
         # State transitions are serialized so an older PREPARE cannot publish
         # PD_STAND after a newer PASSIVE/exit request. E-stop remains on the
@@ -388,7 +403,8 @@ class HopeMonitor(Node):
         self.create_timer(0.5, self._poll_estop_backend)
         self.create_timer(0.2, self._poll_control_state)
         self.create_timer(0.2, self._poll_pelvis)
-        self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
+        if not self._native_clock_topics:
+            self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
         self._dds_interfaces = read_ipv4_interface_signature()
         self.create_timer(1.0, self._poll_dds_interfaces)
 
@@ -466,6 +482,18 @@ class HopeMonitor(Node):
         self.pub_cpu_top_process.publish(String(data=top_text))
 
     # ---- timestamp latency -------------------------------------------------
+    def _on_native_latency_message(self, message):
+        try:
+            latency, received = decode_native_latency_sample(
+                message.data, time.monotonic()
+            )
+        except ValueError as exc:
+            self._latest_message_latency_ms = None
+            self.pub_message_text.publish(String(data=str(exc)))
+            return
+        self._latest_message_latency_ms = latency
+        self._message_received_monotonic = received
+
     def _on_latency_message(self, msg: Imu):
         try:
             latency_ms = message_latency_ms(

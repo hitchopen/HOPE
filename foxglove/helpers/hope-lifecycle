@@ -650,6 +650,12 @@ check_t3_hal_ready() {
     die "$step" HAL_NOT_READY
 }
 
+check_serve_hal_clock_package() {
+  [[ -f "$MDU_DEPLOY/serve_hal_clock.sha256" ]] || return 0
+  (cd "$MDU_DEPLOY" && sha256sum --status -c serve_hal_clock.sha256) || \
+    die "$1" SERVE_HAL_CLOCK_ABI_OR_PACKAGE_CHANGED
+}
+
 preflight_mdu() {
   require_user "$ROBOT_USER" PREFLIGHT
   tmux_exists "$MDU_ELINK_SESSION" && die PREFLIGHT MANAGED_ELINK_PRESENT
@@ -660,6 +666,7 @@ preflight_mdu() {
   has_unmanaged_hal && die PREFLIGHT UNMANAGED_HAL_PRESENT
   has_unmanaged_elink && die PREFLIGHT UNMANAGED_ELINK_PRESENT
   check_t3_hardware_config PREFLIGHT
+  check_serve_hal_clock_package PREFLIGHT
   command -v python3 >/dev/null || die PREFLIGHT PYTHON3_MISSING
   [[ -x "$MDU_DEPLOY/run_a3_pingpong.sh" ]] || die PREFLIGHT RUNNER_PACKAGE_MISSING
   [[ -x "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" ]] || \
@@ -679,7 +686,7 @@ preflight_mdu() {
     die PREFLIGHT RUNTIME_CONFIG_MISSING
   [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
     die PREFLIGHT AIMRT_CONFIG_MISSING
-  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_photo_right30_advance20_v12.csv" ]] || \
+  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_smooth_center_v14.csv" ]] || \
     die PREFLIGHT SERVE025_TIMELINE_MISSING
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
@@ -783,7 +790,7 @@ run_runner_transport() {
   } > "$hdu_dir/runner_transport_artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
-    python3 /usr/local/libexec/hope-runner-transport-relay \
+    /usr/local/libexec/hope-runner-transport-relay \
     > >(tee -a "$hdu_dir/runner_transport_relay.log") 2>&1
 }
 
@@ -793,14 +800,19 @@ start_runner_transport() {
     die RUNNER_TRANSPORT ALREADY_RUNNING
   local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
   local relay_log="$hdu_dir/runner_transport_relay.log"
-  local attempt
+  local attempt log_start=1
+  # The log is append-only across relay restarts in the same Runner session.
+  # Only this attempt's output can establish readiness.
+  if [[ -f "$relay_log" ]]; then
+    log_start=$(( $(stat -c %s -- "$relay_log") + 1 ))
+  fi
   start_tmux "$HDU_RUNNER_TRANSPORT_SESSION" "$SELF" _run-runner-transport \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
     die RUNNER_TRANSPORT ALREADY_RUNNING
   for ((attempt = 0; attempt < 60; attempt++)); do
     if [[ -r "$relay_log" ]] && \
-       grep -Fq -- "RUNNER TRANSPORT HEALTHY" "$relay_log"; then
+       tail -c "+$log_start" -- "$relay_log" | grep -F -- "RUNNER TRANSPORT HEALTHY" >/dev/null; then
       emit RUNNER_TRANSPORT COMPLETE BIDIRECTIONAL_DDS_HEALTHY
       return 0
     fi
@@ -902,6 +914,13 @@ run_elink() {
   cd /agibot/software/v0
   local elink_config="$system_dir/hal_elink_a3_gripper.yaml"
   [[ -f "$elink_config" && ! -L "$elink_config" ]] || die HAL T3_SESSION_CONFIG_MISSING
+  if [[ -f "$MDU_DEPLOY/serve_hal_clock.sha256" ]]; then
+    check_serve_hal_clock_package HAL
+    export HOPE_SERVE_HAL_CLOCK="$system_dir/serve_hal_clock.bin"
+    [[ ! -L "$HOPE_SERVE_HAL_CLOCK" ]] || die HAL SERVE_HAL_CLOCK_INVALID
+    rm -f -- "$HOPE_SERVE_HAL_CLOCK"
+    export LD_PRELOAD="$MDU_DEPLOY/libserve_hal_observer.so${LD_PRELOAD:+:$LD_PRELOAD}"
+  fi
   exec bash scripts/hal_elink/start_hal_elink.sh -c "$elink_config" \
     > >(tee -a "$system_dir/hal_elink.log") 2>&1
 }
@@ -973,6 +992,10 @@ run_runner() {
   export A3_TRANSPORT=iceoryx
   export A3_SOURCE_ROBOT_ENV=0
   export A3_PINGPONG_RUNTIME_CFG="$PWD/config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
+  if [[ -f "$MDU_DEPLOY/serve_hal_clock.sha256" ]]; then
+    check_serve_hal_clock_package RUNNER
+    export HOPE_SERVE_HAL_CLOCK="/tmp/hope_real/$SESSION_ID/mdu/system/serve_hal_clock.bin"
+  fi
   local real_root="/tmp/hope_real/$SESSION_ID/mdu/real"
   mkdir -p "$real_root"
   local attempt_number=1 attempt_id session_dir runner_rc

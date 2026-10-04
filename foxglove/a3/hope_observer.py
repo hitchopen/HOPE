@@ -30,6 +30,7 @@ from hope_observer_core import (
     BasePacket,
     DecodeError,
     RacketPacket,
+    StatusPublisher,
     XHitStatus,
     decode_base_packet,
     decode_racket_packet,
@@ -296,6 +297,22 @@ class HopeObserver(Node):
             "opponent_summary": self.create_publisher(
                 String, "/hope/opponent/summary", 10
             ),
+        }
+
+        # Keep liveness and lifecycle inputs at their original 5 Hz cadence.
+        # Other Bool/String display statuses publish on change, with a 0.4 s
+        # heartbeat evaluated on the same snapshot ticks. Numeric traces,
+        # source validation, wire subscriptions and markers are unchanged.
+        continuous = {
+            "observer_alive", "mdu_active", "session_active", "planner_alive",
+            "base_fresh", "ball_live", "command_valid", "runner_alive",
+            "runner_mode", "runner_session_matches", "runner_command_fault",
+        }
+        self._topic_publishers = {
+            key: StatusPublisher(publisher.publish)
+            if publisher.msg_type in (Bool, String) and key not in continuous
+            else publisher
+            for key, publisher in self._topic_publishers.items()
         }
 
         self.create_subscription(

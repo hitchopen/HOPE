@@ -152,3 +152,9 @@ events.out.tfevents.*
 !/agi/
 /agi/*
 !/agi/agibot_a3_Ultra_aimdk-dev3.1/
+
+# Per-machine Gate3 runtime paths
+/a3_deploy/a3_deploy_example/config/gate3/runtime.local.yaml
+
+# Generated Gate3 evidence
+/a3_deploy/a3_deploy_example/gate3/runs/

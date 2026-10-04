@@ -917,7 +917,7 @@ class PpPolicy {
           stay_if_reachable_ ? "ON" : "OFF (CLI)",
           hp_y_band_[0][0], hp_y_band_[0][1], hp_y_band_[1][0], hp_y_band_[1][1]);
     }
-    if (onnx_.uses_small_station_contract())
+    if (onnx_.uses_small_station_contract() || onnx_.uses_ball_clock_followthrough())
       std::fprintf(stderr, "[pp] validated_policy_abi=%s\n", onnx_.policy_abi());
     if (cfg_.fixed_station_replay)
       std::fprintf(
@@ -1270,6 +1270,7 @@ class PpPolicy {
     const RuntimeHandoffReset handoff =
         runtime_handoff_reset(onnx_.has_bounded_qdes_contract());
     last_action_.setZero();
+    affine_handoff_feedback_.setZero();
     core_action_shadow_owned_.setZero();
     // v12 slew: the executed-target integrator restarts from default_q on every
     // SHADOW/MOTION entry (training resets q_hat_prev = default at episode start), and
@@ -1584,13 +1585,15 @@ class PpPolicy {
           onnx_.uses_home_preempt_rally_contract();
       const double completion_tts = home_preempt
           ? -onnx_.hitter_pingpong_post_contact_rearm_s()
-          : min_tts;
+          : onnx_.uses_ball_clock_followthrough()
+                ? -onnx_.ball_clock_followthrough_s() : min_tts;
       if ((home_preempt && planner_followthrough_complete(
                                tg.time_to_strike,
                                onnx_.hitter_pingpong_post_contact_rearm_s())) ||
           (!home_preempt && planner_native_clip_end_complete(
                                 reference_time_to_strike, completion_tts))) {
-        if (onnx_.uses_build2_rapid_preempt_contract() &&
+        if ((onnx_.uses_build2_rapid_preempt_contract() ||
+             onnx_.uses_ball_clock_followthrough()) &&
             !CompleteSchema22FrozenFlight_(
                 PlannerFlightCompletionKind::kNativeEnd)) {
           // Completion is a control-safety boundary even if telemetry detects
@@ -2823,8 +2826,11 @@ class PpPolicy {
     return compact_observation_cache_;
   }
 
-  void RecordCommandDelivery(const robot_io::RobotCommand& cmd, bool sent) {
-    if (!onnx_.has_v12_affine_safe_slew_qdes_contract()) return;
+  void RecordCommandDelivery(const robot_io::RobotCommand& cmd, bool sent,
+                             bool mode_handoff = false,
+                             const robot_io::RobotState* command_state = nullptr) {
+    const bool affine_handoff = onnx_.has_v11_affine_safe_qdes_contract();
+    if (!affine_handoff && !onnx_.has_v12_affine_safe_slew_qdes_contract()) return;
     if (sent) {
       last_delivered_qdes_sdk_ = cmd.q_des;
       have_delivered_qdes_ = true;
@@ -2832,6 +2838,36 @@ class PpPolicy {
     const auto& q = have_delivered_qdes_ ? last_delivered_qdes_sdk_ : nominal_q_sdk_;
     const auto& default_q = onnx_.default_q();
     const auto& scale = onnx_.action_scale();
+    if (affine_handoff) {
+      // During entry, both setpoints AND gains differ from the actor's nominal
+      // PD controller. Encode the delivered torque as an equivalent nominal-PD
+      // target. Position-only feedback would hide the standing controller's
+      // gravity support and recreate a cold start when its stiffness fades.
+      // After entry, preserve V11 raw feedback and its saturation semantics.
+      if (mode_handoff) {
+        if (sent) {
+          if (!command_state || command_state->q.size() != kNumJoints ||
+              command_state->dq.size() != kNumJoints)
+            throw std::invalid_argument("affine mode handoff requires its command state");
+          for (int i = 0; i < kNumJoints; ++i) {
+            const int sdk = isaac_to_sdk_[i];
+            const double actual_q = command_state->q[sdk];
+            const double actual_dq = command_state->dq[sdk];
+            const double torque = cmd.kp[sdk] * (cmd.q_des[sdk] - actual_q) +
+                cmd.kd[sdk] * (cmd.dq_des[sdk] - actual_dq) + cmd.tau_ff[sdk];
+            const double equivalent_q = actual_q +
+                (torque + onnx_.kd()[i] * actual_dq) / onnx_.kp()[i];
+            affine_handoff_feedback_[i] = onnx_.last_action_head_is_zero() &&
+                                     (sdk == kHeadSlot0 || sdk == kHeadSlot1)
+                                 ? 0.0 : (equivalent_q - default_q[i]) / scale[i];
+          }
+          if (!affine_handoff_feedback_.allFinite())
+            throw std::runtime_error("non-finite affine mode handoff feedback");
+        }
+        last_action_ = affine_handoff_feedback_;
+      }
+      return;
+    }
     for (int i = 0; i < kNumJoints; ++i) {
       qdes_slew_hat_isaac_[i] = q[isaac_to_sdk_[i]];
       qdes_slew_passive_mask_[i] = isaac_to_sdk_[i] == kHeadSlot0 || isaac_to_sdk_[i] == kHeadSlot1;
@@ -3582,7 +3618,8 @@ class PpPolicy {
   // identity replacement or level-0 transition. The latched state is exported
   // on every trace tick; only its monotonic sequence denotes a new edge.
   bool CompleteSchema22FrozenFlight_(PlannerFlightCompletionKind kind) {
-    if (!onnx_.uses_build2_rapid_preempt_contract()) return true;
+    if (!onnx_.uses_build2_rapid_preempt_contract() &&
+        !onnx_.uses_ball_clock_followthrough()) return true;
     const PlannerFlightIdentity identity{
         planner_frozen_producer_epoch_, planner_frozen_flight_id_};
     if (!planner_record_flight_completion_once(
@@ -5903,6 +5940,7 @@ class PpPolicy {
   // --- v12_affine_safe_slew_qdes_v1 state (driver thread only) ---
   bool qdes_slew_initialized_ = false;                 // q_hat_prev := default_q on first tick
   bool have_delivered_qdes_ = false;
+  Eigen::VectorXd affine_handoff_feedback_ = Eigen::VectorXd::Zero(kNumJoints);
   Eigen::VectorXd last_delivered_qdes_sdk_ = Eigen::VectorXd::Zero(kNumJoints);
   Eigen::VectorXd qdes_slew_hat_isaac_ = Eigen::VectorXd::Zero(kNumJoints);      // q_hat
   Eigen::VectorXd qdes_slew_feedback_isaac_ = Eigen::VectorXd::Zero(kNumJoints); // a_fb

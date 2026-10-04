@@ -1,0 +1,26 @@
+syntax = "proto3";
+package aimdk.protocol;
+import "aimdk/protocol/common/header.proto";
+
+// Wire-compatible OP3 command subset of AimDK dev3.1 hal/hand/{agi_claw,
+// hand,hand_channel}.proto. Field numbers, full names and oneof selection
+// match the vendor schema; unrelated hand models and RPCs are not generated.
+message AgiClawHandCommand {
+  uint32 cmd = 1;
+  uint32 pos = 2;
+  uint32 force = 3;
+  uint32 clamp_method = 4;
+  uint32 finger_pos = 5;
+  uint32 vel = 6;
+}
+message SingleHandCommand {
+  oneof hand { AgiClawHandCommand agi_claw_cmd = 3; }
+}
+message HandCommand {
+  SingleHandCommand left = 1;
+  SingleHandCommand right = 2;
+}
+message HandCommandChannel {
+  Header header = 1;
+  HandCommand data = 2;
+}

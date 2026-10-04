@@ -128,11 +128,13 @@ bool A3PolicyDriver::StartDriver() {
 }
 
 void A3PolicyDriver::StopDriver() {
+  // The backend may outlive the Driver and keep producing states. Detach in
+  // both periodic and event modes before destroying callback-owned members.
+  backend_.RegisterStateCallback({});
   if (opt_.trigger_on_state) {
     event_running_.store(false, std::memory_order_release);
     event_cv_.notify_all();
     if (event_thread_.joinable()) event_thread_.join();
-    backend_.RegisterStateCallback({});
     return;
   }
   Stop();

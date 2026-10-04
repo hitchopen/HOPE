@@ -11,7 +11,9 @@ namespace a3_pingpong {
 // Driver-thread-only mode handoff. Blend the live destination controller
 // with the source pose and a decaying source-velocity term. At t=0 all five
 // command fields equal the last delivered command; at t=T they equal the
-// destination. This does not smooth individual policy actions after entry.
+// destination. BeginImpedance instead cross-fades the two complete PD torque
+// laws, using stiffness/damping-weighted setpoints. Neither mode smooths
+// individual policy actions after entry.
 class PpCommandTransition {
   public:
     static bool Valid(const robot_io::RobotCommand& c) noexcept {
@@ -31,6 +33,16 @@ class PpCommandTransition {
       duration_s_ = duration_s;
       velocity_decay_s_ = source_velocity_decay_s < 0 ? duration_s : std::min(duration_s, source_velocity_decay_s);
       active_ = true;
+      blend_impedance_ = false;
+    }
+
+    // Cross-fade the two PD controllers, rather than multiplying independently
+    // blended gains and positions (which amplifies a low-gain policy's request
+    // with the standing controller's high gain during entry).
+    void BeginImpedance(const robot_io::RobotCommand& source,
+                        const robot_io::RobotCommand& target, double duration_s) {
+      Begin(source, target, duration_s);
+      blend_impedance_ = true;
     }
 
     void Reset() noexcept { active_ = false; }
@@ -52,6 +64,24 @@ class PpCommandTransition {
       }
       const double u2 = u * u, u3 = u2 * u, u4 = u3 * u, u5 = u4 * u;
       const double h = 1 - 10 * u3 + 15 * u4 - 6 * u5;
+      if (blend_impedance_) {
+        for (Eigen::Index i = 0; i < target.q_des.size(); ++i) {
+          const double kp = h * source_.kp[i] + (1 - h) * target.kp[i];
+          const double kd = h * source_.kd[i] + (1 - h) * target.kd[i];
+          target.q_des[i] = kp > 0
+              ? (h * source_.kp[i] * source_.q_des[i] +
+                 (1 - h) * target.kp[i] * target.q_des[i]) / kp
+              : h * source_.q_des[i] + (1 - h) * target.q_des[i];
+          target.dq_des[i] = kd > 0
+              ? (h * source_.kd[i] * source_.dq_des[i] +
+                 (1 - h) * target.kd[i] * target.dq_des[i]) / kd
+              : h * source_.dq_des[i] + (1 - h) * target.dq_des[i];
+          target.kp[i] = kp;
+          target.kd[i] = kd;
+          target.tau_ff[i] = h * source_.tau_ff[i] + (1 - h) * target.tau_ff[i];
+        }
+        return;
+      }
       const double dh = (-30 * u2 + 60 * u3 - 30 * u4) / duration_s_;
       // A long pose transition must not extrapolate entry velocity for its
       // whole duration. Decay that velocity on its own smooth time scale.
@@ -72,6 +102,7 @@ class PpCommandTransition {
     double duration_s_ {0};
     double velocity_decay_s_ {0};
     bool active_ {false};
+    bool blend_impedance_ {false};
 };
 
 } // namespace a3_pingpong

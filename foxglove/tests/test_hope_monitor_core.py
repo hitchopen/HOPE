@@ -12,6 +12,7 @@ from hope_monitor_core import (  # noqa: E402
     combine_estop_results,
     cpu_load_percent,
     decode_software_estop_response,
+    decode_native_latency_sample,
     estop_backend_status,
     message_latency_ms,
     parse_calibration_service_sha,
@@ -22,6 +23,20 @@ from hope_monitor_core import (  # noqa: E402
     timestamp_age_s,
     top_process_cpu_load,
 )
+
+
+class NativeLatencyTests(unittest.TestCase):
+    def test_delayed_sample_keeps_original_receipt_time(self):
+        self.assertEqual(decode_native_latency_sample([1, -2.5, 10.0], 11.0), (-2.5, 10.0))
+        # A queued one-second-old sample must remain stale under the 0.5s gate.
+        _, received = decode_native_latency_sample([1, 2.5, 10.0], 11.0)
+        self.assertGreater(11.0 - received, 0.5)
+
+    def test_invalid_source_or_clock_never_becomes_fresh(self):
+        for values in ([2, 1, 10], [1, 2], [1, float('nan'), 10],
+                       [1, 1, float('inf')], [1, 1, 0], [1, 1, 12]):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                decode_native_latency_sample(values, 11)
 
 
 class InterfaceRecoveryTests(unittest.TestCase):

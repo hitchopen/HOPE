@@ -268,6 +268,55 @@ TEST(RingBufferBasic, ReadAtZeroIsEmpty) {
   EXPECT_FALSE(rb.read_at(0, v));  // no write yet (and idx 0 is sentinel)
 }
 
+TEST(RingBufferBasic, OverwriteInProgressCannotReturnMixedOldAndNewPayload) {
+  struct Pair { int first{0}, second{0}; };
+  RingBuffer<Pair> ring(1);
+  ring.write([](Pair& p) { p = {1, 1}; });
+  std::atomic<bool> half_written{false}, resume{false};
+  std::thread writer([&] {
+    ring.write([&](Pair& p) {
+      p.first = 2;
+      half_written.store(true, std::memory_order_release);
+      while (!resume.load(std::memory_order_acquire)) std::this_thread::yield();
+      p.second = 2;
+    });
+  });
+  while (!half_written.load(std::memory_order_acquire)) std::this_thread::yield();
+  Pair result;
+  const bool accepted = ring.read_at(1, result);
+  resume.store(true, std::memory_order_release);
+  writer.join();
+  EXPECT_FALSE(accepted) << "accepted mixed payload " << result.first << ',' << result.second;
+  ASSERT_TRUE(ring.read_at(2, result));
+  EXPECT_EQ(result.first, 2);
+  EXPECT_EQ(result.second, 2);
+}
+
+TEST(RingBufferBasic, ConcurrentWraparoundNeverAcceptsTornSamples) {
+  using Sample = std::array<std::uint64_t, 32>;
+  RingBuffer<Sample> ring(8);
+  ring.write([](Sample& s) { s.fill(1); });
+  std::atomic<bool> done{false};
+  std::atomic<unsigned> errors{0};
+  auto read = [&] {
+    do {
+      const auto newest = ring.latest_index();
+      for (auto index = newest; index > 0 && newest - index < 8; --index) {
+        Sample value{};
+        if (ring.read_at(index, value)) {
+          for (auto element : value) if (element != index) ++errors;
+        }
+      }
+    } while (!done.load());
+  };
+  std::thread first(read), second(read);
+  for (std::uint64_t index = 2; index <= 100'000; ++index)
+    ring.write([&](Sample& s) { s.fill(index); });
+  done.store(true);
+  first.join(); second.join();
+  EXPECT_EQ(errors.load(), 0U);
+}
+
 // ---------------- A3SyncLoop end-to-end -------------------------------------
 
 TEST(A3SyncLoop, LatestFrameEmitsCompleteLatestStateWithoutThreadedSync) {

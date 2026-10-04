@@ -7,6 +7,7 @@
 #include "robot_io/robot_io_backend.hpp"
 
 #include <atomic>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -38,15 +39,25 @@ inline double ServeStandLateralOffset(const Eigen::VectorXd& nominal,
   return offset;
 }
 
+// Kernel serving returns to Stand and has no receive-policy handoff.
+// Pure Serve likewise owns the complete CSV, including follow-through/recovery.
+inline constexpr std::size_t DefaultServeHandoffFrame(bool kernel_mode,
+                                                     bool serve_only) noexcept {
+  return (kernel_mode || serve_only) ? kServe025CompleteFrame : 110;
+}
+
 // The single Runner/publisher is 100 Hz while serving so every original
 // selected SDK31 CSV FRAME maps one-to-one to one command tick. Outside SERVE,
 // the learned receive policy contract remains 50 Hz and its command is held for
-// the intervening 10 ms callback. No interpolation, resampling, stand-pose
-// overlay, learned policy, posture feedback, or runtime velocity scaling
-// modifies a CSV q_des/dq_des action frame.
+// the intervening 10 ms callback. Arms follow CSV q_des/dq_des exactly, without
+// resampling or velocity scaling. Existing bounded ankle pitch support does
+// modify SDK joints 23/29; playback diagnostics report that delta explicitly.
 inline constexpr double kServePolicyHz = kServe025FullbodyRunnerHz;
 inline constexpr std::size_t kServe025ActionTicks100Hz =
     kServe025FullbodyCommandTicks;
+// Automatic pre-play normalization: 0.5 s command blend + 0.5 s quiet hold.
+// The CSV clock and release frame do not advance during these command ticks.
+inline constexpr std::size_t kServeReplaySettleTicks = 101;
 
 enum class ServeControllerState : int {
   kIdle = 0,
@@ -86,6 +97,47 @@ enum class ServeGripperState : int {
 
 const char* ServeGripperStateName(ServeGripperState state) noexcept;
 
+struct ServeReplaySample {
+  std::size_t frame{0};
+  std::uint64_t evaluation_ns{0};
+  std::int64_t state_timestamp_ns{0};
+  std::array<double, 31> q{}, dq{}, q_des{}, dq_des{};
+  std::array<double, 4> imu_quat{};
+  std::array<double, 3> gyro{};
+};
+
+// Fixed-size per-action evidence, accumulated on every CSV evaluation and
+// printed by the status thread after playback. No I/O on the control thread.
+// These are software evaluation times, not actuator delivery or ball contact.
+struct ServePlaybackAudit {
+  std::uint64_t sequence{0}, first_ns{0}, last_ns{0};
+  std::uint64_t min_interval_ns{0}, max_interval_ns{0}, max_phase_error_ns{0};
+  std::uint64_t release_frame_ns{0}, contact_reference_frame_ns{0};
+  std::size_t frames{0};
+  bool finished{false};
+  double start_support_rad{0}, start_support_velocity{0};
+  double max_csv_q_delta_rad{0}, max_csv_dq_delta_rad_s{0};
+  double max_arm_csv_q_delta_rad{0}, max_arm_csv_dq_delta_rad_s{0};
+  double max_tracking_error_rad{0}, max_arm_tracking_error_rad{0};
+  // Frame zero, release-command frame, CSV contact-reference frame.
+  // Recorded on the command thread; emitted only after playback by status.
+  std::array<ServeReplaySample, 3> samples{};
+
+  void ObserveClock(std::size_t frame, std::uint64_t now_ns) {
+    if (frames == 0) first_ns = now_ns;
+    else {
+      const auto interval = now_ns - last_ns;
+      min_interval_ns = frames == 1 ? interval : std::min(min_interval_ns, interval);
+      max_interval_ns = std::max(max_interval_ns, interval);
+    }
+    const auto expected = first_ns + frame * 10'000'000ULL;
+    const std::uint64_t error = now_ns >= expected ? now_ns - expected : expected - now_ns;
+    max_phase_error_ns = std::max(max_phase_error_ns, error);
+    last_ns = now_ns;
+    ++frames;
+  }
+};
+
 struct ServeControllerDiag {
   bool valid{false};
   ServeControllerState state{ServeControllerState::kIdle};
@@ -115,15 +167,16 @@ struct ServeControllerDiag {
   double max_waist_error_rad{0.0};
   std::string gripper_fault_reason;
   std::string fault_reason;
+  ServePlaybackAudit playback;
 };
 
 // Same-runner direct player for the named SDK31 serve025 timeline. PREPARE_SERVE
 // makes a smooth, controller-owned official-stand -> CSV-frame-0 transition.
-// READY_TO_SERVE consumes full31 q directly from the CSV and returns the same
+// READY_TO_SERVE consumes full31 q from the CSV with bounded ankle support and returns the same
 // publisher to MOTION after the CSV COMPLETE frame, or after a configured
 // early post-contact return to measured, settled official stand. CSV dq is direct with no
-// second runtime multiplier, preserving the selected CSV command exactly. No
-// q_des slot is filled or overwritten from stand pose. The CSV
+// second runtime multiplier, preserving the selected CSV arm command exactly.
+// No q_des slot is filled or overwritten from stand pose. The CSV
 // has no gain columns, so the existing unscaled official
 // PD_STAND Kp/Kd vectors remain the controller-owned gain source; tau_ff is
 // zero.
@@ -143,6 +196,11 @@ class PpServeController final {
   void SetPolicyReturnSeconds(double seconds);
   // Optional hand delay compensation only; all body CSV frames stay exact.
   void SetReleaseLeadFrames(std::size_t frames);
+  using NativeReleasePublisher = std::function<bool(std::uint64_t&)>;
+  void SetNativeReleasePublisher(NativeReleasePublisher publisher);
+  std::uint64_t ConsumeReleaseClockRebase() noexcept {
+    return release_clock_rebase_ns_.exchange(0, std::memory_order_acq_rel);
+  }
   std::size_t release_frame() const noexcept { return kServe025ReleaseFrame - release_lead_frames_; }
   std::size_t handoff_frame() const noexcept { return policy_handoff_frame_; }
   void Start();
@@ -228,6 +286,13 @@ class PpServeController final {
   double prepare_balance_velocity_{0.0};
   double swing_balance_rad_{0.0};
   double swing_balance_velocity_{0.0};
+  // Pin the bounded standing-support reference for this controller lifetime.
+  // ResetAction must not let a new button/IMU phase redefine the next replay.
+  bool replay_support_valid_{false};
+  double replay_support_rad_{0.0};
+  PpCommandTransition replay_entry_transition_;
+  std::size_t replay_entry_tick_{kServeReplaySettleTicks};
+  ServePlaybackAudit playback_;
   PpCommandTransition policy_return_transition_;
   std::size_t policy_return_tick_{0};
   int policy_return_quiet_ticks_{0};
@@ -256,6 +321,10 @@ class PpServeController final {
   bool prepare_grab_pending_{false};
   bool prepare_open_submitted_{false};
   bool release_request_submitted_{false};
+  NativeReleasePublisher native_release_publisher_;
+  unsigned native_release_copies_left_{0};
+  std::size_t native_release_next_frame_{0};
+  std::atomic<std::uint64_t> release_clock_rebase_ns_{0};
   bool release_acknowledged_{false};
   std::uint64_t gripper_generation_{0};
   std::uint64_t acknowledged_gripper_generation_{0};

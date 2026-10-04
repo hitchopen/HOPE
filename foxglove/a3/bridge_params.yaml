@@ -14,7 +14,7 @@
     param_whitelist: ["(?!)"]
     client_topic_whitelist: ["(?!)"]
     send_buffer_limit: 10000000
-    num_threads: 0
+    num_threads: 2
     use_compression: false
     capabilities:
       - services

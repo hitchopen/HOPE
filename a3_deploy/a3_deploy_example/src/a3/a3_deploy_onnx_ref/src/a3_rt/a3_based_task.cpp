@@ -129,6 +129,7 @@ void A3BasedTask::ThreadMain() {
     const std::int64_t lateness = ToNs(t0) - ToNs(next);
     StoreMax(max_wake_lateness_ns_, lateness);
 
+    current_wake_deadline_ns_.store(next_wake_ns, std::memory_order_relaxed);
     RunOnce();
 
     timespec t1{};

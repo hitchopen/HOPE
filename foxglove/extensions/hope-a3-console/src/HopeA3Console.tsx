@@ -164,6 +164,8 @@ type XboxPreview = {
   lt: boolean;
   action_status?: string;
   estop_requested?: boolean;
+  action_pending?: boolean;
+  axes: number[];
   velocity: number[];
   state: string;
   source_wall_ms: number;
@@ -180,7 +182,9 @@ function xboxPreviewValue(message: unknown): XboxPreview | undefined {
       typeof p.connected !== "boolean" || typeof p.device !== "string" ||
       typeof p.enabled !== "boolean" || typeof p.lt !== "boolean" ||
       typeof p.state !== "string" || typeof p.source_wall_ms !== "number" ||
-      !Number.isFinite(p.source_wall_ms) || !Array.isArray(p.velocity) ||
+      !Number.isFinite(p.source_wall_ms) || !Array.isArray(p.axes) ||
+      p.axes.length !== 3 || !p.axes.every((x: unknown) => typeof x === "number" && Number.isFinite(x)) ||
+      !Array.isArray(p.velocity) ||
       p.velocity.length !== 3 || !p.velocity.every((x: unknown) => typeof x === "number" && Number.isFinite(x))) { return undefined; }
     return p as unknown as XboxPreview;
   } catch { return undefined; }
@@ -911,8 +915,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     (xboxFresh && snapshot.xboxPreview?.estop_requested === true);
   const teleopFresh = isFresh(snapshot, TOPICS.teleopState, now, 1000);
   const teleop = teleopFresh ? snapshot.teleopState : undefined;
-  const teleopBlocked = teleopEntryReason({ runnerFresh, runnerFault: snapshot.runnerFault === true,
-    mode: snapshot.runnerMode, telemetryFresh: teleopFresh, state: teleop, pending: busy.teleop === true });
+  const teleopBlocked = teleopEntryReason({ runnerFresh: runnerFresh &&
+    isFresh(snapshot, TOPICS.runnerMode, now, 1_000) &&
+    isFresh(snapshot, TOPICS.runnerFault, now, 1_000), runnerFault: snapshot.runnerFault !== false,
+    mode: snapshot.runnerMode, telemetryFresh: teleopFresh, state: teleop, pending: busy.teleop === true,
+    xboxFresh, xbox: snapshot.xboxPreview, estop: estopAsserted });
   const xboxVelocity = xboxFresh ? snapshot.xboxPreview?.velocity : undefined;
   const velocityText = (values: number[] | undefined) => values == undefined
     ? "vx — · vy — · yaw —"
@@ -1455,10 +1462,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <button type="button" disabled={!runnerFresh || snapshot.runnerMode !== "TELEOP" || busy.stand === true}
             onClick={() => void invoke("stand")}>Stop and Return to Stand</button>
         </div>
-        <div className="teleop-entry-status" title={teleopBlocked ?? "Ready to enter Teleop."}>
-          {teleopBlocked ?? "Ready to enter Teleop."}
+        <div className="teleop-entry-status" title={teleopBlocked ?? "Ready to request Teleop; Runner validates current input."}>
+          {teleopBlocked ?? "Ready to request Teleop; Runner validates current input."}
         </div>
-        <div className="sequence-status">Wait for ACTIVE, center the sticks, then release and hold LT again. Use the left stick to move forward, backward, or sideways, and the right stick to turn. Releasing LT or losing input slows the robot to a stop. Returning to Stand waits for the feet to settle. A: SERVER + Start to Serve. B: Serve, then automatic Stand in Kernel Mode or Ready in normal play. X: RECEIVER + Ready. Y: Stand, then Teleop. Press face buttons once, without LT. LB + RB together: E-STOP.</div>
+        <div className="sequence-status">Wait for ACTIVE, center the sticks, then release and hold LT again. Use the left stick to move forward, backward, or sideways, and the right stick to turn. Releasing LT or losing input slows the robot to a stop. Returning to Stand waits for the feet to settle. A: SERVER + Start to Serve. B: Serve, then automatic Stand in Kernel Mode or Ready in normal play. X: RECEIVER + Ready. Y: Teleop from Stand only; presses in other modes are ignored. Press face buttons once, without LT. LB + RB together: E-STOP.</div>
       </div>
 
       <div className="sequence-card">

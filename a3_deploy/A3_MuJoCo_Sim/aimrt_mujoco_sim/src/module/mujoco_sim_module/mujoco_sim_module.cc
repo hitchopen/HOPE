@@ -511,11 +511,16 @@ void MujocoSimModule::InitializeGate3Ball() {
           gate3_table_geom_id_ >= 0 && gate3_net_geom_id_ >= 0,
       "Gate3 physical ball/table/net/racket geometry is incomplete.");
   AIMRT_CHECK_ERROR_THROW(
-      m_->nuserdata >= static_cast<int>(gate3::kRequiredUserData),
+      m_->nuserdata >= static_cast<int>(gate3::kRequiredUserData * gate3::kFlightSlots),
       "Gate3 physical telemetry needs {} userdata values, model has {}.",
       gate3::kRequiredUserData, m_->nuserdata);
   gate3_ball_qpos_addr_ = m_->jnt_qposadr[gate3_ball_joint_id_];
   gate3_ball_dof_addr_ = m_->jnt_dofadr[gate3_ball_joint_id_];
+  for (int slot = 1; slot < gate3::kFlightSlots; ++slot) {
+    const int joint = gate3::SlotJoint(m_, slot);
+    AIMRT_CHECK_ERROR_THROW(joint >= 0 && m_->jnt_type[joint] == mjJNT_FREE,
+                            "Gate3 return slot {} is missing its free joint.", slot);
+  }
   const auto read_nonnegative_env = [](const char* name, double fallback,
                                        double upper) {
     const char* raw = std::getenv(name);
@@ -551,11 +556,33 @@ void MujocoSimModule::InitializeGate3Ball() {
       gate3::kNetGeomName);
 }
 
-void MujocoSimModule::ApplyGate3BallDrag() {
+void MujocoSimModule::ApplyGate3BallDrag(int slot) {
+
+  const int joint = gate3::SlotJoint(m_, slot);
+  const int gate3_ball_body_id_ = m_->jnt_bodyid[joint];
+  const int gate3_ball_qpos_addr_ = m_->jnt_qposadr[joint];
+  const int gate3_ball_dof_addr_ = m_->jnt_dofadr[joint];
+  const int gate3_ball_geom_id_ = mj_name2id(m_, mjOBJ_GEOM, gate3::SlotName(gate3::kGeomName, slot).c_str());
+  auto* telemetry = d_->userdata + slot * gate3::kRequiredUserData;
+  auto& gate3_ball_pre_step_velocity_ = flight_velocities_[slot];
+  auto& gate3_last_shot_id_ = flight_shot_ids_[slot];
+  auto& gate3_racket_contact_prev_ = flight_racket_prev_[slot];
+  auto& gate3_table_contact_prev_ = flight_table_prev_[slot];
+  auto& gate3_net_contact_prev_ = flight_net_prev_[slot];
+  // Natural endpoints: floor crossing or two seconds of bounded table rest.
+  // A launch schedule never retires a moving flight.
+  if (telemetry[gate3::kActive] > 0.5 &&
+      ((d_->qpos[gate3_ball_qpos_addr_ + 2] < gate3::kBallRadius &&
+        d_->qvel[gate3_ball_dof_addr_ + 2] < 0.0) ||
+       flight_rest_[slot].Update(telemetry[gate3::kShotId], d_->time,
+          d_->qpos + gate3_ball_qpos_addr_, d_->qvel + gate3_ball_dof_addr_,
+          telemetry[gate3::kTableContactCount]))) {
+    telemetry[gate3::kActive] = 0.0;
+  }
   if (gate3_ball_body_id_ < 0 || gate3_ball_dof_addr_ < 0) return;
   mjtNum* wrench = d_->xfrc_applied + 6 * gate3_ball_body_id_;
   wrench[0] = wrench[1] = wrench[2] = 0.0;
-  if (d_->userdata[gate3::kActive] <= 0.5) return;
+  if (telemetry[gate3::kActive] <= 0.5) return;
 
   const mjtNum* velocity = d_->qvel + gate3_ball_dof_addr_;
   gate3_ball_pre_step_velocity_ = {
@@ -581,16 +608,29 @@ void MujocoSimModule::ApplyGate3BallDrag() {
   wrench[2] = mass * acceleration[2];
 }
 
-void MujocoSimModule::UpdateGate3BallContacts() {
+void MujocoSimModule::UpdateGate3BallContacts(int slot) {
+
+  const int joint = gate3::SlotJoint(m_, slot);
+  const int gate3_ball_body_id_ = m_->jnt_bodyid[joint];
+  const int gate3_ball_qpos_addr_ = m_->jnt_qposadr[joint];
+  const int gate3_ball_dof_addr_ = m_->jnt_dofadr[joint];
+  const int gate3_ball_geom_id_ = mj_name2id(m_, mjOBJ_GEOM, gate3::SlotName(gate3::kGeomName, slot).c_str());
+  auto* telemetry = d_->userdata + slot * gate3::kRequiredUserData;
+  auto& gate3_ball_pre_step_velocity_ = flight_velocities_[slot];
+  auto& gate3_last_shot_id_ = flight_shot_ids_[slot];
+  auto& gate3_racket_contact_prev_ = flight_racket_prev_[slot];
+  auto& gate3_table_contact_prev_ = flight_table_prev_[slot];
+  auto& gate3_net_contact_prev_ = flight_net_prev_[slot];
+  if (telemetry[gate3::kActive] <= 0.5) return;
   if (gate3_ball_geom_id_ < 0) return;
 
   const auto shot_id = static_cast<std::uint64_t>(
-      std::max<mjtNum>(0.0, d_->userdata[gate3::kShotId]));
+      std::max<mjtNum>(0.0, telemetry[gate3::kShotId]));
   if (shot_id != gate3_last_shot_id_) {
     gate3_last_shot_id_ = shot_id;
-    gate3_racket_contact_prev_ = false;
-    gate3_table_contact_prev_ = false;
-    gate3_net_contact_prev_ = false;
+    gate3_racket_contact_prev_ = slot > 0 && (static_cast<int>(telemetry[gate3::kContactBits]) & gate3::kContactRacket);
+    gate3_table_contact_prev_ = slot > 0 && (static_cast<int>(telemetry[gate3::kContactBits]) & gate3::kContactTable);
+    gate3_net_contact_prev_ = slot > 0 && (static_cast<int>(telemetry[gate3::kContactBits]) & gate3::kContactNet);
   }
 
   bool racket = false;
@@ -629,18 +669,18 @@ void MujocoSimModule::UpdateGate3BallContacts() {
   if (racket) bits |= gate3::kContactRacket;
   if (table) bits |= gate3::kContactTable;
   if (net) bits |= gate3::kContactNet;
-  d_->userdata[gate3::kContactBits] = static_cast<mjtNum>(bits);
+  telemetry[gate3::kContactBits] = static_cast<mjtNum>(bits);
   // State is published at 250 Hz, while contacts are sampled at 1 kHz.
   // Latch the per-shot peak so diagnostic force evidence cannot disappear
   // between publisher ticks. ResetTelemetry clears it at the next launch.
-  d_->userdata[gate3::kRacketNormalForce] = std::max<mjtNum>(
-      d_->userdata[gate3::kRacketNormalForce], racket_normal_force);
+  telemetry[gate3::kRacketNormalForce] = std::max<mjtNum>(
+      telemetry[gate3::kRacketNormalForce], racket_normal_force);
   if (racket && !gate3_racket_contact_prev_)
-    d_->userdata[gate3::kRacketContactCount] += 1.0;
+    telemetry[gate3::kRacketContactCount] += 1.0;
   if (table && !gate3_table_contact_prev_)
-    d_->userdata[gate3::kTableContactCount] += 1.0;
+    telemetry[gate3::kTableContactCount] += 1.0;
   if (net && !gate3_net_contact_prev_)
-    d_->userdata[gate3::kNetContactCount] += 1.0;
+    telemetry[gate3::kNetContactCount] += 1.0;
 
   // The venue fit and training virtual ball use an impulse map; MuJoCo's
   // underdamped soft-contact parameter is not that map and previously injected
@@ -834,7 +874,7 @@ void MujocoSimModule::WriteDebugCsv(std::uint64_t wall_time_ns) {
     const int body1 = m_->geom_bodyid[contact.geom1];
     const int body2 = m_->geom_bodyid[contact.geom2];
     const bool ball_contact =
-        contact.geom1 == gate3_ball_geom_id_ || contact.geom2 == gate3_ball_geom_id_;
+        gate3::IsFlightGeom(m_, contact.geom1) || gate3::IsFlightGeom(m_, contact.geom2);
     if (!ball_contact) {
       if (contact.geom1 == gate3_table_geom_id_ || contact.geom2 == gate3_table_geom_id_)
         ++robot_table_contact_count;
@@ -1016,9 +1056,9 @@ aimrt::co::Task<void> MujocoSimModule::SimLoop() {
 
       // step
       if (sim->run) {
-        ApplyGate3BallDrag();
+        for (int slot = 0; slot < gate3::kFlightSlots; ++slot) ApplyGate3BallDrag(slot);
         mj_step(m_, d_);
-        UpdateGate3BallContacts();
+        for (int slot = 0; slot < gate3::kFlightSlots; ++slot) UpdateGate3BallContacts(slot);
         sim->AddToHistory();
         const auto debug_wall_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();

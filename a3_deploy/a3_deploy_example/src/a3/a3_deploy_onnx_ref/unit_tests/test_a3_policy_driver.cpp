@@ -109,6 +109,8 @@ class CapturingBackend final : public robot_io::RobotIOBackend {
     if (cb_) cb_(state);
   }
 
+  bool HasCallback() const { return static_cast<bool>(cb_); }
+
   std::size_t CommandCount() const {
     std::lock_guard<std::mutex> lk(mu_);
     return commands_.size();
@@ -126,6 +128,17 @@ class CapturingBackend final : public robot_io::RobotIOBackend {
 };
 
 }  // namespace
+
+TEST(A3PolicyDriver, PeriodicStopDetachesStateCallbackBeforeDestruction) {
+  CapturingBackend backend;
+  a3_deploy::CommandFn command = [](std::uint64_t, const RobotState&, RobotCommand&) { return false; };
+  A3PolicyDriver driver(backend, command, {});
+  ASSERT_TRUE(driver.StartDriver());
+  ASSERT_TRUE(backend.HasCallback());
+  driver.StopDriver();
+  EXPECT_FALSE(backend.HasCallback());
+  backend.Emit(MakeState(true, true));
+}
 
 // =============================================================================
 // Part A — pure functions

@@ -4,8 +4,8 @@ std_msgs/Header header
 # neither the simulator nor the conductor may derive a swing side from it.
 uint64 shot_id
 
-# false parks the ball outside the scene and clears its velocity.
+# false releases the incoming slot for the next launch. An airborne ball is
+# transferred, with unchanged state, into a return slot and continues to ground.
 bool active
 geometry_msgs/Point position
 geometry_msgs/Vector3 linear_velocity
-

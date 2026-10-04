@@ -53,7 +53,9 @@
     param_whitelist: ["(?!)"]
     client_topic_whitelist: ["(?!)"]
     send_buffer_limit: 12000000
-    num_threads: 0
+    # Bounded executor budget on the eight-core HDU. Service callbacks remain
+    # independent of subscription work; the bridge is already native C++.
+    num_threads: 2
     use_compression: false
     capabilities:
       - services

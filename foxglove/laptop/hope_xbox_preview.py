@@ -22,6 +22,23 @@ import sys
 from hope_xbox_actions import ActionSequence, ButtonEdges, EmergencyChord, face_button_names
 
 
+class StreamCadence:
+    """Send semantic edges immediately; idle heartbeats at 10 Hz.
+
+    Active control still publishes every 50 Hz input tick. No stored message
+    is replayed: the caller always constructs a new timestamp and sequence.
+    """
+    def __init__(self):
+        self.last = -math.inf
+        self.key = None
+
+    def ready(self, now, key, *, active=False):
+        if active or key != self.key or now - self.last >= 0.1 - 1e-9:
+            self.last, self.key = now, key
+            return True
+        return False
+
+
 class ConnectionRecovery:
     """Recreate DDS after a replaced network interface or lost monitor stream.
 
@@ -192,6 +209,7 @@ def run(args):
     next_health_check = started
     next_discovery = 0.0
     sequence = 0
+    preview_cadence, control_cadence = StreamCadence(), StreamCadence()
     try:
         while args.seconds <= 0 or time.monotonic() - started < args.seconds:
             loop = time.monotonic()
@@ -283,7 +301,7 @@ def run(args):
             elif args.control and not estop_known_clear:
                 actions.cancel("Waiting for fresh E-stop status")
             elif actions.status == "Waiting for fresh E-stop status":
-                actions.status = "A prepare · B serve · X receive Ready · Y Stand then Teleop"
+                actions.status = "A prepare · B serve · X receive Ready · Y Teleop from Stand only"
             # E-stop has its own async client and never waits behind a mode RPC.
             if args.control and estop_future is not None:
                 if estop_future.done():
@@ -378,25 +396,38 @@ def run(args):
             }
             payload = json.dumps(packet, separators=(",", ":"))
             if publisher is not None:
-                message = String()
-                message.data = payload
-                publisher.publish(message)
+                preview_key = (packet["connected"], packet["enabled"], state,
+                               packet["action_status"], tuple(packet["buttons"]),
+                               packet["estop_requested"], packet["action_pending"])
+                if preview_cadence.ready(loop, preview_key):
+                    message = String()
+                    message.data = payload
+                    publisher.publish(message)
                 if control_publisher is not None:
                     if runner[0] and time.monotonic() - runner[1] <= 1.0:
-                        message = Float64MultiArray()
-                        source_id = int(session[:13], 16) or 1
-                        message.data = [
-                            1.0,
-                            float(runner[0]),
-                            float(source_id),
-                            float(sequence),
-                            packet["source_wall_ms"] * 0.001,
-                            float(device is not None),
-                            float(enabled),
-                            *velocity,
-                            float(all(abs(x) < 1e-6 for x in axes)),
-                        ]
-                        control_publisher.publish(message)
+                        mode = current_state.run_mode if current_state is not None else None
+                        neutral = all(abs(x) < 1e-6 for x in axes)
+                        control_key = (runner[0], device is not None, enabled, neutral,
+                                       mode, actions.busy, emergency.latched)
+                        # Keep the complete 50 Hz stream in TELEOP, while LT is
+                        # enabled, or during a mode transition. Disable, device
+                        # removal, neutral/rearm and boot edges bypass the gate.
+                        if control_cadence.ready(loop, control_key, active=(
+                                enabled or mode == "TELEOP" or actions.busy)):
+                            message = Float64MultiArray()
+                            source_id = int(session[:13], 16) or 1
+                            message.data = [
+                                1.0,
+                                float(runner[0]),
+                                float(source_id),
+                                float(sequence),
+                                packet["source_wall_ms"] * 0.001,
+                                float(device is not None),
+                                float(enabled),
+                                *velocity,
+                                float(neutral),
+                            ]
+                            control_publisher.publish(message)
                     else:
                         latch.reset()
             elif sequence % 10 == 1:

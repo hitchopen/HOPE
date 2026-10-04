@@ -33,6 +33,8 @@ class Gate3BallStateRos2Publisher : public PublisherBase {
   void SetFreq(uint32_t freq) override { channel_frq_ = freq; }
 
  private:
+  bool all_flights_ = false;
+  void PublishFlight(int slot);
   mjModel* m_ = nullptr;
   mjData* d_ = nullptr;
   int qpos_addr_ = -1;

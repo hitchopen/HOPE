@@ -2664,6 +2664,19 @@ class PpOnnxPolicy {
       station_y_mixture_ = {mix[0], mix[1], mix[2], mix[3], mix[4], mix[5]};
       station_side_explicit_ = true;
     }
+    const auto rally_end = LookupMetaOptional(md, alloc, "hitter_pingpong_rally_end_contract");
+    if (!rally_end.empty()) {
+      if (rally_end != "ball_clock_followthrough_v1" ||
+          runtime_contract_ != "rally_final_v2" || obs_dim_ != kObsDim110 ||
+          actor_obs_contract_ != "hitter_pure" ||
+          qdes_action_contract_ != "v11_affine_safe_qdes_v1" ||
+          !hitter_pingpong_command_contract_.empty())
+        throw std::runtime_error("unsupported rally end/observation/action contract");
+      ball_clock_followthrough_s_ = std::stod(
+          LookupMetaOptional(md, alloc, "hitter_pingpong_rally_post_strike_s"));
+      if (!std::isfinite(ball_clock_followthrough_s_) || ball_clock_followthrough_s_ <= 0.0)
+        throw std::runtime_error("rally post-strike duration must be finite and positive");
+    }
     if (!deploy_cfg_path.empty()) {
       BindDeployConfig_(model_path, deploy_cfg_path);
     }
@@ -2675,8 +2688,11 @@ class PpOnnxPolicy {
   // offline inspector and the live Runner/report receipt.
   const char* policy_abi() const {
     return compact_execution_ ? "small_station_324_v1" :
-           small_station_ ? "small_station_112_v1" : "legacy";
+           small_station_ ? "small_station_112_v1" :
+           uses_ball_clock_followthrough() ? "ball_clock_110_v1" : "legacy";
   }
+  bool uses_ball_clock_followthrough() const { return ball_clock_followthrough_s_ > 0.0; }
+  double ball_clock_followthrough_s() const { return ball_clock_followthrough_s_; }
   int obs_dim() const { return obs_dim_; }
   // Per-clip layout baked by new exports (empty on legacy models -> caller keeps its default).
   bool has_clip_layout() const { return !clip_seg_lengths_.empty(); }
@@ -3594,6 +3610,7 @@ class PpOnnxPolicy {
   bool has_hp_base_range_ = false;
   std::array<double, 2> hp_station_y_step_range_ = {0.0, 0.0};
   bool has_hp_station_y_step_range_ = false;
+  double ball_clock_followthrough_s_ = 0.0;
   std::string runtime_contract_;
   std::string training_recipe_;
   std::string training_recipe_version_;

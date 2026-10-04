@@ -45,6 +45,10 @@
 #include "a3_pingpong/pp_teleop_entry.hpp"
 #include "a3_pingpong/pp_teleop_input.hpp"
 #include "a3_pingpong/pp_mode_cadence.hpp"
+#include "a3_io/serve_hal_clock.hpp"
+#ifdef HAS_A3_TA_PROTO
+#include "a3_io/serve_release_message.hpp"
+#endif
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_reference_playback.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
@@ -379,6 +383,19 @@ void PrintRefDiagBlock(const a3_pingpong::RefPlaybackDiagSnapshot& d) {
 
 int main(int argc, char** argv) {
   setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffer so status survives kill
+  // Wire-format preflight only: no backend initialization or actuator access.
+  if (Has(argc, argv, "--inspect-serve-release-wire")) {
+#ifdef HAS_A3_TA_PROTO
+    aimdk::protocol::HandCommandChannel message;
+    a3_io::FillServeReleaseMessage(message, 7, 1'250'000'000);
+    for (unsigned char byte : message.SerializeAsString()) std::printf("%02x", byte);
+    std::printf("\n");
+    return 0;
+#else
+    std::fprintf(stderr, "native release protobuf support unavailable\n");
+    return 2;
+#endif
+  }
   // Uses the exact live ONNX/deploy loader, before any transport or actuator
   // initialization. Gate3 must not implement a second compatibility validator.
   if (Has(argc, argv, "--inspect-policy")) {
@@ -463,6 +480,7 @@ int main(int argc, char** argv) {
                  "       [--oracle-shm PATH] [--oracle-max-age S]"
                  " [--trace-csv PATH] [--obs-csv PATH] [--no-data-csv] [--session-id ID] [--shadow-frozen-clock]\n"
                  "       [--leg-gain-scale F] [--ankle-gain-scale F] [--motion-blend-sec S]"
+                 " [--policy-entry-blend-sec S]"
                  " [--squat-guard-rad R] [--tilt-guard G] [--leg-clamp-rad R]"
                  " [--leg-stand-gains] [--leg-smooth-alpha A]\n"
                  "       [--hybrid-lower --hybrid-lower-model PATH]"
@@ -1267,6 +1285,12 @@ int main(int argc, char** argv) {
   auto ref = std::make_unique<a3_pingpong::PpReferencePlayback>(pp->isaac_to_sdk(), rcfg);
   ref->SetGroup(ParseRefGroup(Flag(argc, argv, "--ref-group", "0")));
   std::unique_ptr<a3_pingpong::PpServeController> serve;
+  a3_io::ServeHalClockReader serve_hal_clock;
+  bool serve_hal_clock_enabled = false;
+  std::string serve_hal_clock_path;
+  std::uint64_t serve_hal_pid = 0;
+  std::atomic<std::uint64_t> serve_hal_selected_ns{0}, serve_hal_observed_ns{0};
+  std::atomic<bool> serve_hal_selection_missed{false};
   // Opt-in matching Stand/CSV stance. The strict COMPLETE-pose check below
   // rejects a CSV made for another stance before any motion can start.
   if (Has(argc, argv, "--stand-lateral-offset-rad")) {
@@ -1286,7 +1310,7 @@ int main(int argc, char** argv) {
             ? Resolve(Flag(argc, argv, "--serve-timeline", ""), cfgdir)
             : DefaultServeAsset(
                   cfgdir,
-                  "a3p_op3_serve025_photo_right30_advance20_v12.csv");
+                  "a3p_op3_serve025_smooth_center_v14.csv");
     const std::string gripper_socket =
         Flag(argc, argv, "--serve-gripper-socket", "");
     if (!gripper_socket.empty() &&
@@ -1328,11 +1352,33 @@ int main(int argc, char** argv) {
           pp->official_stand_kp(), pp->official_stand_kd(),
           std::move(gripper));
       if (!serve_only) serve->SetPolicyHandoffFrame(
-          std::stoul(Flag(argc, argv, "--serve-handoff-frame", "110")));
+          std::stoul(Flag(argc, argv, "--serve-handoff-frame",
+              std::to_string(a3_pingpong::DefaultServeHandoffFrame(kernel_mode, serve_only)))));
       serve->SetPolicyReturnSeconds(std::stod(Flag(argc, argv, "--serve-return-sec", kernel_mode ? "2.5" : "1.0")));
       const std::string release_lead_default = cfg["serve_release_lead_frames"]
           ? std::to_string(cfg["serve_release_lead_frames"].as<unsigned>()) : "0";
       serve->SetReleaseLeadFrames(std::stoul(Flag(argc, argv, "--serve-release-lead-frames", release_lead_default)));
+      if (!no_publish) {
+        const char* clock_path = std::getenv("HOPE_SERVE_HAL_CLOCK");
+        if (clock_path && *clock_path && locomotion && serve->release_frame() == 47) {
+          serve_hal_clock_path = clock_path;
+          serve_hal_clock_enabled = true;
+          a3_io::ServeHalSnapshot receipt;
+          const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now().time_since_epoch()).count();
+          if (serve_hal_clock.Open(clock_path) && serve_hal_clock.Read(receipt) && receipt.Ready(now_ns)) {
+            serve_hal_pid = receipt.pid;
+            std::cout << "[serve_hal_clock] attached pid=" << serve_hal_pid
+                      << " telemetry_only=1 csv_clock=fixed_100hz\n";
+          } else {
+            std::cerr << "[serve_hal_clock] telemetry unavailable at startup; retry attachment in background, no Runner or replay gate\n";
+          }
+        }
+        backend->EnableNativeServeRelease();
+        serve->SetNativeReleasePublisher([&backend](std::uint64_t& stamp) {
+          return backend->PublishServeRelease(stamp);
+        });
+      }
     } catch (const std::exception& error) {
       std::cerr << "serve artifact/controller preflight failed: "
                 << error.what() << "\n";
@@ -1352,9 +1398,9 @@ int main(int argc, char** argv) {
            "strike frame=60, contact frame=78. Arm q_des/dq_des follow the selected "
            "SDK31 CSV without a second runtime velocity multiplier. Bounded ankle "
            "pitch support preserves the CSV arm path and stance width. Kp/Kd remain the unscaled official PD_STAND gains and "
-           "tau_ff remains zero. The gripper uses "
-           "the direct HAL RPC; its telemetry "
-           "and tracking telemetry never gate motion. Recovery hands the same "
+           "tau_ff remains zero. RELEASE publishes native protobuf on the body command thread; "
+           "OPEN/GRAB use the optional bridge. Publication is not physical release feedback. "
+           "Recovery hands the same "
            "Runner to Stand in Kernel mode, or P1/P2 receive policy in normal "
            "play, through the continuous command handoff.\n";
   }
@@ -1523,8 +1569,17 @@ int main(int argc, char** argv) {
     throw std::invalid_argument("--motion-blend-sec must be finite and nonnegative");
   // V17 field logs showed policy-native silently forcing this to zero, which
   // exposed the full stand->policy q_des discontinuity. Keep at least 0.5 s.
-  const double policy_motion_blend_sec =
-      policy_native ? std::max(0.5, motion_blend_sec) : motion_blend_sec;
+  // The affine policy's low-gain controller needs time to acquire its gravity
+  // compensation while the standing impedance fades. Keep this independent of
+  // PASSIVE -> PD_STAND, whose reset/stand timing must not change.
+  const double default_policy_entry_sec = policy_native
+      ? std::max(pp->onnx().has_v11_affine_safe_qdes_contract() ? 3.0 : 0.5,
+                 motion_blend_sec)
+      : motion_blend_sec;
+  const double policy_motion_blend_sec = std::stod(Flag(
+      argc, argv, "--policy-entry-blend-sec", std::to_string(default_policy_entry_sec)));
+  if (!std::isfinite(policy_motion_blend_sec) || policy_motion_blend_sec < 0)
+    throw std::invalid_argument("--policy-entry-blend-sec must be finite and nonnegative");
   const double serve_policy_blend_sec = std::stod(Flag(argc, argv, "--serve-policy-blend-sec", "0.5"));
   if (!std::isfinite(serve_policy_blend_sec) || serve_policy_blend_sec < 0)
     throw std::invalid_argument("--serve-policy-blend-sec must be finite and nonnegative");
@@ -1535,6 +1590,7 @@ int main(int argc, char** argv) {
   Mode prev_mode_for_blend = Mode::kPassive;       // driver-thread only (no race)
   a3_pingpong::PpCommandTransition mode_transition;
   robot_io::RobotCommand last_delivered_command;
+  robot_io::RobotState command_state;
   bool last_delivered_valid = false;
   Mode last_delivered_mode = Mode::kPassive;
   Mode computed_mode = Mode::kPassive;
@@ -1585,7 +1641,7 @@ int main(int argc, char** argv) {
                      &prev_level_for_blend, &prev_swing_dir_for_blend,
                      &trace_previous_shot_seq, &trace_previous_q_des,
                      &mode_transition, &last_delivered_command, &last_delivered_valid,
-                     &last_delivered_mode, &computed_mode, &transition_elapsed_s,
+                     &last_delivered_mode, &computed_mode, &transition_elapsed_s, &command_state,
                      fall_guard, fall_guard_gz, &fall_guard_ticks,
                      v17_command_safety, &command_safety,
                      &authoritative_mocap_stale_warned,
@@ -1605,6 +1661,7 @@ int main(int argc, char** argv) {
                      &hybrid_station_last_log_tick](
                         std::uint64_t tick, const robot_io::RobotState& st,
                         robot_io::RobotCommand& cmd) -> bool {
+    command_state = st;
     native_evaluations.fetch_add(1, std::memory_order_relaxed);
     Mode m = runner_control.mode();
     const std::uint64_t driver_tick = tick;
@@ -1947,7 +2004,11 @@ int main(int argc, char** argv) {
             source.kp.setZero();
             source.kd.setZero();
           }
-          mode_transition.Begin(source, cmd, duration);
+          if (m == Mode::kMotion && policy_native &&
+              ppp->onnx().has_v11_affine_safe_qdes_contract())
+            mode_transition.BeginImpedance(source, cmd, duration);
+          else
+            mode_transition.Begin(source, cmd, duration);
         }
       }
       mode_transition.Apply(transition_elapsed_s, cmd);
@@ -2075,16 +2136,42 @@ int main(int argc, char** argv) {
 
   // TELEOP owns every 500 Hz callback. Other modes retain their native
   // cadence: Serve and the optional legacy hybrid at 100 Hz, receive at 50 Hz.
-  // Reset the cadence on mode entry so the next CSV frame is a full 10 ms later.
+  // Serve's clock runs through every mode; operator events never reset its phase.
   std::uint64_t logical_50hz_tick = 0;
   a3_pingpong::PpModeCadence mode_cadence;
+  a3_pingpong::PpServeCadence serve_cadence;
   bool held_publish = false;
   robot_io::RobotCommand held_command;
+  const a3_deploy::A3PolicyDriver* command_clock = nullptr;
   auto command_fn = [&, command_fn_50hz = std::move(command_fn_50hz)](std::uint64_t driver_tick,
                                                                       const robot_io::RobotState& state,
                                                                       robot_io::RobotCommand& command) mutable -> bool {
     const auto command_now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
+    const auto scheduled_ns = command_clock ? command_clock->CurrentWakeDeadlineNs() : 0;
+    // Share the periodic driver's deadline. Comparing its actual wake against
+    // a second deadline turns microsecond jitter into 8/12 ms CSV intervals.
+    // Real overruns still follow monotonic elapsed time, never a tick divider.
+    const auto cadence_ns = scheduled_ns > 0 ? scheduled_ns : command_now_ns;
+    if (serve_cadence.tracking_hal()) {
+      if (runner_control.mode() != Mode::kServe) {
+        serve_cadence.CancelHalTracking(cadence_ns);
+      } else {
+        a3_io::ServeHalSnapshot receipt;
+        const bool fresh = serve_hal_clock.Read(receipt) && receipt.Ready(command_now_ns);
+        if (fresh && !serve_hal_pid) serve_hal_pid = receipt.pid;
+        const bool valid = fresh && receipt.pid == serve_hal_pid && receipt.left == 2000;
+        const auto result = serve_cadence.ObserveHalSelection(command_now_ns,
+            valid ? receipt.release_edge_ns : 0);
+        if (result == a3_pingpong::PpServeCadence::Receipt::kSelected) {
+          serve_hal_observed_ns.store(command_now_ns, std::memory_order_relaxed);
+          serve_hal_selected_ns.store(receipt.release_edge_ns, std::memory_order_release);
+        }
+      }
+    }
+    const bool serve_due = serve_cadence.Poll(cadence_ns);
+    if (serve_cadence.ConsumeMissedSelection())
+      serve_hal_selection_missed.store(true, std::memory_order_release);
     if (locomotion) {
       const Mode mode = runner_control.mode();
       if (mode == Mode::kTeleop) {
@@ -2142,10 +2229,18 @@ int main(int argc, char** argv) {
       for (auto& value : teleop_velocity) value.store(0);
       const std::int64_t period_ns = (mode == Mode::kServe || hybridp != nullptr)
           ? 10'000'000 : 20'000'000;
-      if (mode_cadence.DueTime(command_now_ns, static_cast<int>(mode), period_ns)) {
+      if (mode == Mode::kServe ? serve_due :
+          mode_cadence.DueTime(cadence_ns, static_cast<int>(mode), period_ns)) {
         robot_io::RobotCommand next;
         held_publish = command_fn_50hz(logical_50hz_tick++, state, next);
         held_command = next;
+        if (mode == Mode::kServe && servep) {
+          const auto publication_ns = servep->ConsumeReleaseClockRebase();
+          if (publication_ns) {
+            if (serve_hal_clock_enabled) serve_cadence.TrackHalSelection(publication_ns);
+            else serve_cadence.NotePublication(publication_ns);
+          }
+        }
       }
       command = held_command;
       return held_publish;
@@ -2154,9 +2249,20 @@ int main(int argc, char** argv) {
     const Mode mode = runner_control.mode();
     if (mode == Mode::kServe) {
       mode_cadence.Reset();
-      return command_fn_50hz(driver_tick, state, command);
+      if (serve_due) {
+        held_publish = command_fn_50hz(driver_tick, state, held_command);
+        if (servep) {
+          const auto publication_ns = servep->ConsumeReleaseClockRebase();
+          if (publication_ns) {
+            if (serve_hal_clock_enabled) serve_cadence.TrackHalSelection(publication_ns);
+            else serve_cadence.NotePublication(publication_ns);
+          }
+        }
+      }
+      command = held_command;
+      return held_publish;
     }
-    const bool evaluate = mode_cadence.DueTime(command_now_ns, static_cast<int>(mode), 20'000'000);
+    const bool evaluate = mode_cadence.DueTime(cadence_ns, static_cast<int>(mode), 20'000'000);
     if (evaluate) {
       robot_io::RobotCommand next;
       const bool publish = command_fn_50hz(logical_50hz_tick++, state, next);
@@ -2177,9 +2283,10 @@ int main(int argc, char** argv) {
   dopt.policy_hz = driver_hz;
   dopt.sched.cpu = driver_cpu;
   dopt.command_delivery_observer = [ppp, &last_delivered_command,
-      &last_delivered_valid, &last_delivered_mode, &computed_mode](
+      &last_delivered_valid, &last_delivered_mode, &computed_mode, &mode_transition, &command_state](
       const robot_io::RobotCommand& cmd, bool sent) {
-    ppp->RecordCommandDelivery(cmd, sent);
+    ppp->RecordCommandDelivery(cmd, sent,
+        computed_mode == Mode::kMotion && mode_transition.active(), &command_state);
     // Invoked on the same driver thread after SendCommand; failed deliveries
     // must never become the source of the next mode handoff.
     if (sent) {
@@ -2190,6 +2297,7 @@ int main(int argc, char** argv) {
   };
   a3_deploy::CommandFn cfn = command_fn;  // disambiguate the PolicyFn/CommandFn ctor
   a3_deploy::A3PolicyDriver driver(*backend, cfn, dopt);
+  command_clock = &driver;
   if (!driver.StartDriver()) { std::cerr << "StartDriver failed\n"; backend->Stop(); return 6; }
   std::cout << "[pingpong] driver started @ " << dopt.policy_hz
             << " Hz (SERVE direct=100 Hz; ONNX logical rate=" << policy_hz
@@ -2571,6 +2679,7 @@ int main(int argc, char** argv) {
   std::uint64_t last_ticks = 0;
   std::uint64_t last_native_evaluations = 0;
   std::uint64_t last_reported_halts = 0;
+  std::uint64_t last_reported_serve = 0;
   auto t_start = std::chrono::steady_clock::now();
   auto t_prev = t_start;
   bool clamp_rate_warned = false;  // one-shot high-clamp-rate warning (waist_roll audit)
@@ -2580,6 +2689,9 @@ int main(int argc, char** argv) {
                 ModeName(target_mode));
   while (!g_stop.load()) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
+    // Filesystem attachment stays off the real-time command thread.
+    if (serve_hal_clock_enabled && !serve_hal_clock.IsOpen())
+      (void)serve_hal_clock.Open(serve_hal_clock_path.c_str());
     const std::uint64_t ticks = driver.PolicyTickCount();
     const std::uint64_t halts = driver.SafeHaltCount();
     auto now = std::chrono::steady_clock::now();
@@ -2597,9 +2709,78 @@ int main(int argc, char** argv) {
     last_native_evaluations = evaluations;
     const auto g = ppp->last_proj_grav();
     const Mode cur_mode = runner_control.mode();
+    if (const auto selected = serve_hal_selected_ns.exchange(0, std::memory_order_acq_rel))
+      std::printf("[serve_hal_clock] selected_ns=%llu observed_ns=%llu telemetry_only=1 csv_clock=fixed_100hz\n",
+          static_cast<unsigned long long>(selected),
+          static_cast<unsigned long long>(serve_hal_observed_ns.load(std::memory_order_relaxed)));
+    if (serve_hal_selection_missed.exchange(false, std::memory_order_acq_rel))
+      std::printf("[serve_hal_clock] selection unavailable before next CSV row; replay continued on fixed CSV clock, physical release unverified\n");
+    if (servep != nullptr) {
+      const auto d = servep->TakeDiag();
+      const auto& a = d.playback;
+      if (a.finished && a.sequence != last_reported_serve) {
+        last_reported_serve = a.sequence;
+        std::printf("[serve_playback] cycle=%llu frames=%zu scope=command_evaluation "
+            "first_ns=%llu last_ns=%llu interval_min_ms=%.6f interval_max_ms=%.6f "
+            "max_phase_error_ms=%.6f release_frame_ns=%llu contact_reference_frame_ns=%llu "
+            "start_support_rad=%.9f start_support_velocity=%.9f "
+            "csv_q_delta=%.9f csv_dq_delta=%.9f arm_csv_q_delta=%.9f arm_csv_dq_delta=%.9f "
+            "tracking_max_rad=%.9f arm_tracking_max_rad=%.9f "
+            "release_dispatch_ns=%llu release_first_publish_ns=%llu\n",
+            static_cast<unsigned long long>(a.sequence), a.frames,
+            static_cast<unsigned long long>(a.first_ns), static_cast<unsigned long long>(a.last_ns),
+            a.min_interval_ns / 1.e6, a.max_interval_ns / 1.e6, a.max_phase_error_ns / 1.e6,
+            static_cast<unsigned long long>(a.release_frame_ns),
+            static_cast<unsigned long long>(a.contact_reference_frame_ns),
+            a.start_support_rad, a.start_support_velocity,
+            a.max_csv_q_delta_rad, a.max_csv_dq_delta_rad_s,
+            a.max_arm_csv_q_delta_rad, a.max_arm_csv_dq_delta_rad_s,
+            a.max_tracking_error_rad, a.max_arm_tracking_error_rad,
+            static_cast<unsigned long long>(d.release_dispatch_monotonic_ns),
+            static_cast<unsigned long long>(d.release_first_publish_monotonic_ns));
+        for (const auto& sample : a.samples) {
+          if (sample.evaluation_ns == 0) continue;
+          std::printf("[serve_sample] cycle=%llu frame=%zu evaluation_monotonic_ns=%llu state_timestamp_ns=%lld",
+              static_cast<unsigned long long>(a.sequence), sample.frame,
+              static_cast<unsigned long long>(sample.evaluation_ns),
+              static_cast<long long>(sample.state_timestamp_ns));
+          const auto print_values = [](const char* name, const auto& values) {
+            std::printf(" %s=", name);
+            for (std::size_t i = 0; i < values.size(); ++i)
+              std::printf("%s%.9f", i ? "," : "", values[i]);
+          };
+          print_values("q", sample.q);
+          print_values("dq", sample.dq);
+          print_values("q_des", sample.q_des);
+          print_values("dq_des", sample.dq_des);
+          print_values("imu_quat", sample.imu_quat);
+          print_values("gyro", sample.gyro);
+          std::printf("\n");
+        }
+      }
+    }
     if (cur_mode == Mode::kServe || cur_mode == Mode::kPdStand)
       std::printf("[cadence] mode=%s callback_hz=%.1f native_evaluation_hz=%.1f release_command_frame=%zu\n",
                   ModeName(cur_mode), hz, native_hz, servep ? servep->release_frame() : 0);
+    if (cur_mode == Mode::kServe) {
+      // Actor-side sync_miss is not a measurement of the Serve input pipeline.
+      // Read the actual backend counters on the non-control status thread.
+      const auto sync = backend->SyncStatistics();
+      std::printf("[serve_sync] frames=%llu complete=%llu aligned=%llu "
+          "latest_group_skew_ms=%.6f latest_driver_state_age_ms=%.6f "
+          "latest_channel_age_ms=%.6f,%.6f,%.6f,%.6f,%.6f,%.6f "
+          "driver_stale_polls=%llu driver_unaligned_polls=%llu driver_incomplete_polls=%llu\n",
+          static_cast<unsigned long long>(sync.tick_total),
+          static_cast<unsigned long long>(sync.frame_complete_total),
+          static_cast<unsigned long long>(sync.frame_aligned_total),
+          sync.last_skew_ns / 1.e6, driver.LastFrameAgeNs() / 1.e6,
+          sync.last_age_waist_ns / 1.e6, sync.last_age_leg_ns / 1.e6,
+          sync.last_age_arm_ns / 1.e6, sync.last_age_neck_ns / 1.e6,
+          sync.last_age_pelvis_imu_ns / 1.e6, sync.last_age_torso_imu_ns / 1.e6,
+          static_cast<unsigned long long>(driver.Watchdog().StaleCount()),
+          static_cast<unsigned long long>(driver.Watchdog().UnalignedCount()),
+          static_cast<unsigned long long>(driver.IncompleteFrameCount()));
+    }
     if (halts != last_reported_halts) {
       const auto timing = driver.GetStats();
       std::printf("[driver_timing] max_wake_lateness_ms=%.3f max_run_ms=%.3f work_overruns=%llu\n",

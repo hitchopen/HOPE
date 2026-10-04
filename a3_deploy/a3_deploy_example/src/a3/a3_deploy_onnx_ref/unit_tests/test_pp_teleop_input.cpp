@@ -75,6 +75,45 @@ TEST(PpRunnerTeleop, AdmissionStopAndEmergencyPreserveOwnership) {
   EXPECT_EQ(c.mode(), RunnerMode::kPassive);
 }
 
+TEST(PpRunnerTeleop, ConnectedXboxCannotEnterDuringServeOrAutoEnterAfterKernelServe) {
+  using namespace a3_pingpong;
+  PpRunnerControl control(RunnerMode::kServe, 42, "kernel");
+  control.EnqueueLocalAction(RunnerAction::kEnterTeleop);
+  EXPECT_EQ(control.ProcessPending(false, true, true, 7, true, -1, false, true, true)[0].result,
+            RunnerActionResult::kRejectedWrongMode);
+  control.CompleteServe(true);
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+  // Connected, neutral input is not itself a mode request. No rejected Y
+  // request survives recovery; a fresh operator request in Stand is required.
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_TRUE(control.ProcessPending(false, false, true, 12, true, -1, false, true, true).empty());
+    EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+  }
+  control.EnqueueLocalAction(RunnerAction::kEnterTeleop);
+  EXPECT_EQ(control.ProcessPending(false, false, true, 12, true, -1, false, true, true)[0].result,
+            RunnerActionResult::kApplied);
+}
+
+TEST(PpRunnerTeleop, EntryUsesCurrentInputEvenWhenTheUiDisplayIsDelayed) {
+  using namespace a3_pingpong;
+  PpTeleopInput input(42);
+  PpRunnerControl control(RunnerMode::kPdStand, 42, "test");
+  std::vector<double> packet = {1, 42, 7, 1, 100, 1, 0, 0, 0, 0, 1};
+  ASSERT_TRUE(input.Receive(packet, 100, 10));
+  control.EnqueueLocalAction(RunnerAction::kEnterTeleop);
+  EXPECT_EQ(control.ProcessPending(false, false, false, -1, false, -1, false, true,
+                                  input.Ready(100.21, 10.21))[0].result,
+            RunnerActionResult::kRejectedTeleop);
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+  packet[2] = 8;  // Reconnected controller has a new source session.
+  packet[4] = 100.3;
+  ASSERT_TRUE(input.Receive(packet, 100.3, 10.3));
+  control.EnqueueLocalAction(RunnerAction::kEnterTeleop);
+  EXPECT_EQ(control.ProcessPending(false, false, false, -1, false, -1, false, true,
+                                  input.Ready(100.3, 10.3))[0].result,
+            RunnerActionResult::kApplied);
+}
+
 TEST(PpTeleopInput, RejectsFutureMalformedAndOutOfRangePackets) {
   a3_pingpong::PpTeleopInput input(42);
   const std::vector<double> valid = {1, 42, 7, 1, 100, 1, 0, 0, 0, 0, 1};

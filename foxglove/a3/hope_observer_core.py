@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 import re
+import time
 from typing import Sequence
 
 
@@ -40,6 +41,31 @@ X_HIT_PATTERN = re.compile(
 
 class DecodeError(ValueError):
     """Raised when a wire packet or local status record is malformed."""
+
+
+class StatusPublisher:
+    """Publish every changed scalar status plus a bounded unchanged heartbeat.
+
+    Called only after the observer has re-evaluated source freshness. This is
+    not a timer replay: it never stores a ROS message or publishes by itself.
+    """
+
+    def __init__(self, publish, *, heartbeat_s=0.4, clock=time.monotonic):
+        if not math.isfinite(heartbeat_s) or heartbeat_s <= 0:
+            raise ValueError("heartbeat_s must be finite and positive")
+        self._publish = publish
+        self._heartbeat_s = heartbeat_s
+        self._clock = clock
+        self._last_value = object()
+        self._last_sent = -math.inf
+
+    def publish(self, message):
+        now = self._clock()
+        value = message.data
+        if value == self._last_value and now - self._last_sent < self._heartbeat_s - 1e-9:
+            return
+        self._publish(message)
+        self._last_value, self._last_sent = value, now
 
 
 @dataclass(frozen=True)

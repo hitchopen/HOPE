@@ -54,12 +54,15 @@ class FirstWakeTask : public a3_rt::A3BasedTask {
 
   std::atomic<std::uint64_t> run_calls{0};
   std::atomic<std::int64_t> first_run_ns{0};
+  std::atomic<std::int64_t> first_deadline_ns{0};
 
  protected:
   void RunOnce() noexcept override {
     const auto now = MonotonicNowNs();
     std::int64_t expected = 0;
     first_run_ns.compare_exchange_strong(expected, now);
+    expected = 0;
+    first_deadline_ns.compare_exchange_strong(expected, CurrentWakeDeadlineNs());
     run_calls.fetch_add(1, std::memory_order_relaxed);
   }
 };
@@ -146,6 +149,7 @@ TEST(A3BasedTaskTest, FirstWakeMonotonicNsDelaysFirstTick) {
   const auto first_run_ns = task.first_run_ns.load(std::memory_order_relaxed);
   ASSERT_GT(first_run_ns, 0);
   EXPECT_GE(first_run_ns, target_ns);
+  EXPECT_EQ(task.first_deadline_ns.load(), target_ns);
   EXPECT_GE(task.GetStats().tick_count, 4u);
 }
 

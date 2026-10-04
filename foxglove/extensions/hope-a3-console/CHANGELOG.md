@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.10
+
+- Allow Teleop requests after Xbox reconnects using fresh Runner Stand and neutral controller input; delayed Teleop display telemetry does not lock the button. Runner retains all admission checks.
+- Y requires a new press in Stand and never queues locomotion through serve recovery.
+
 ## 1.8.9
 
 - Restore Xbox face-button mode changes after reconnects.
