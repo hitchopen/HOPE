@@ -111,13 +111,15 @@ class P1MarkerCadRegistrationTest(unittest.TestCase):
         self.assert_transform_close(result.registration.transform, self.transform)
 
     def test_rejects_legacy_or_incomplete_modeldef(self):
-        for count in (8, 10, 23):
-            with self.assertRaisesRegex(ValueError, "all 24"):
+        for count in (8, 10, 11):
+            with self.assertRaisesRegex(ValueError, "all 12"):
                 MODULE.cad_names_for_markers(self.model_markers(MODULE.MARKER_NAMES[:count]))
+        with self.assertRaisesRegex(ValueError, "all 12"):
+            MODULE.cad_names_for_markers(self.model_markers(MODULE.MARKER_NAMES) * 2)
 
     def test_only_unambiguous_v3_station_names_are_recognized(self):
-        self.assertEqual(MODULE.canonical_marker_name("P1_s24_sticker"), "S24")
-        for label in ("f1", "b1", "S00", "S25", "S010", "S01_S02", "XS01"):
+        self.assertEqual(MODULE.canonical_marker_name("P1_s22_sticker"), "S22")
+        for label in ("f1", "b1", "S00", "S25", "S010", "S01_S02", "XS01", "S07", "S08", "S24"):
             self.assertIsNone(MODULE.canonical_marker_name(label))
 
     def test_rejects_zero_member_id_and_nonfinite_position(self):
@@ -136,7 +138,7 @@ class P1MarkerCadRegistrationTest(unittest.TestCase):
             MODULE.resolve_correspondence(
                 markers,
                 MODULE.CURRENT_SHELL_MARKERS,
-                {markers[0].member_id: "S01"},
+                {markers[0].member_id: "S04"},
             )
 
     def test_live_multi_heading_capture_can_pass_all_gates(self):
@@ -181,7 +183,7 @@ class P1MarkerCadRegistrationTest(unittest.TestCase):
         self.assertEqual(blockers, [])
         self.assertTrue(document["approved"])
         self.assertEqual(document["marker_layout"], MODULE.layout_metadata())
-        self.assertEqual(len(document["correspondence"]["markers"]), 24)
+        self.assertEqual(len(document["correspondence"]["markers"]), 12)
         # The emitted v2 receipt must load through the production runtime path.
         import json
         import tempfile

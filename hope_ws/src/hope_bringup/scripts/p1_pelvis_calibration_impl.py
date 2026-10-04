@@ -420,7 +420,7 @@ def result_document(
             "warning": (
                 "CAD is a cross-check only. The independent live pelvis pose is authoritative. "
                 "Marker stream order is irrelevant: live calibration uses only the solved P1 pose. "
-                "The default is all 24 v3 sticker optical centres S01-S24, already "
+                "The default is all 12 retained v3 sticker optical centres, already "
                 "in ROS pelvis_link metres including 0.20 mm sticker thickness. "
                 "The centroid does not determine Motive's configurable pivot."
             ),
@@ -580,7 +580,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-names", default=",".join(CURRENT_SHELL_MARKER_NAMES),
         help=(
             "comma-separated CAD marker-position set for the audit cross-check; "
-            "order is irrelevant and defaults to all 24 v3 stickers (S01-S24)"
+            "order is irrelevant and defaults to all 12 retained v3 stickers"
         ),
     )
     parser.add_argument("--samples", type=int, default=200, help="accepted synchronized samples to collect")

@@ -15,9 +15,12 @@ import p1_marker_layout as layout
 
 def test_optical_centres_are_used_without_a_second_conversion():
     transforms = layout.load_marker_transforms()
-    assert tuple(transforms) == tuple(f"S{i:02d}" for i in range(1, 25))
-    assert transforms["S01"]["translation_m"] == pytest.approx(
-        (0.067929625, 0.005649080, -0.067688434), abs=1e-12
+    assert tuple(transforms) == (
+        "S04", "S05", "S11", "S12", "S13", "S14",
+        "S16", "S18", "S19", "S20", "S21", "S22",
+    )
+    assert transforms["S04"]["translation_m"] == pytest.approx(
+        (-0.023680990, 0.072053090, -0.061630517), abs=1e-12
     )
     assert layout.layout_metadata()["axes"] == {"x": "forward", "y": "left", "z": "up"}
     # The authoring asset must describe the same centres, not a centroid-shifted body.
@@ -29,6 +32,21 @@ def test_optical_centres_are_used_without_a_second_conversion():
         assert marker["position_pelvis_link_m"] == pytest.approx(
             transforms[marker["station"]]["translation_m"], abs=1e-12
         )
+
+
+def test_old_24_station_receipt_is_rejected_even_with_same_v3_name():
+    old = layout.layout_metadata()
+    old["marker_names"] = [f"S{i:02d}" for i in range(1, 25)]
+    old["source_sha256"] = "3b304f521b85ebac8c8595d1666322ef3c64f9dcd40ffa0d339da25b431bdb90"
+    with pytest.raises(ValueError, match="12-station v3"):
+        layout.validate_receipt_layout({"approved": True, "marker_layout": old})
+
+
+def test_pre_alignment_12_station_receipt_is_rejected():
+    old = layout.layout_metadata()
+    del old["asset_frame_revision"]
+    with pytest.raises(ValueError, match="pre-alignment"):
+        layout.validate_receipt_layout({"approved": True, "marker_layout": old})
 
 
 def test_corrupted_table_and_mount_seats_are_rejected(tmp_path):

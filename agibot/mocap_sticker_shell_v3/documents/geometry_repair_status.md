@@ -1,14 +1,15 @@
 # Printable geometry verification
 
-**Status: both fused STL halves pass geometry checks.** All ten obsolete
-external bosses and bores are removed. Physical fit, printer-process validation,
+**2026-10-04: both regenerated v3 STL halves pass geometry checks.** All ten obsolete
+external bosses and bores remain removed. Twelve v3 stations and their bores
+are also removed; 12 original station IDs remain. Physical fit, printer-process validation,
 hardware retention and crash testing have not been performed.
 
 ## Final exported meshes
 
 | Check | Half A | Half B |
 |---|---:|---:|
-| Triangles | 83,340 | 102,652 |
+| Triangles | 74,536 | 90,316 |
 | Connected components | 1 | 1 |
 | Closed / consistently wound | Pass | Pass |
 | Every edge used exactly twice | Pass | Pass |
@@ -28,7 +29,29 @@ The two halves have zero assembled intersection volume in the mesh boolean test.
 See [printability_validation.json](printability_validation.json) for SHA-256
 identities, bounds, volumes and machine-readable results.
 
-## How the obsolete features were removed
+## Twelve-station revision
+
+Removed: S01, S02, S03, S06, S07, S08, S09, S10, S15, S17, S23, S24.
+Retained: S04, S05, S11, S12, S13, S14, S16, S18, S19, S20, S21, S22.
+The station IDs, retained pad geometry and retained table coordinates are unchanged.
+
+Each mesh was regenerated from the archived smooth shell body plus only its
+retained stations. This restores the removed pad regions to the base skin,
+including their former bores, without subtracting holes into the inner shell.
+All 588 rays across the twelve removed optical footprints match the smooth
+base surface within 0.001 mm. All 12 retained stations pass 48 annular plane
+probes plus a bore-axis probe each: flat 12 mm top, 3.4 mm central bore and
+4.6 mm blind axial depth. Structural fasteners remain in the unchanged bases.
+
+The 57,370 original CAD reference samples were rerun. Compared to the previous
+v3 release, the maximum increase in distance is **0.000001026 mm front** and
+**0.000001701 mm rear**; there are no additional low-normal-agreement samples.
+Those tiny incremental values reflect serialized-mesh roundoff, not absolute
+CAD accuracy. Both independent intersection checks above ran again on the
+actual serialized replacement files. The earlier base-repair evidence and
+limitations below remain relevant and are explicitly historical.
+
+## Historical base repair: how the obsolete features were removed
 
 The old f1 boss was replaced using its original boundary and tangent-constrained
 outer-skin continuation, with a bounded inner patch. The remaining front and
@@ -41,13 +64,13 @@ The flat 12 mm dual-mode stations were then fused into each repaired half.
 Their 3.4 mm central bores and captive-nut pockets remain. Structural shell
 fasteners, seams and openings were excluded from the obsolete-feature deletion.
 
-All **250 ray probes** through the ten old bore locations hit closed skin.
+In the earlier base repair, all **250 ray probes** through the ten old bore locations hit closed skin.
 The former top planes are retracted by at least 2.38 mm in those probe regions.
-All **24 new stations** independently pass checks on the final meshes for their
+The previous **24-station release** independently passed checks on its meshes for their
 flat top planes, 12 mm outside diameter, 3.4 mm bore and 4.6 mm axial bore depth.
 Their marker positions and axes are unchanged.
 
-## Surface retention and thickness
+## Historical base-repair surface retention and thickness
 
 Mesh cleanup used bounded simplification and a tiny local correction, not
 global voxel reconstruction or broad automated hole filling. The rear cleanup
@@ -65,7 +88,7 @@ footprints:
 | Sampled comparison | Front | Rear |
 |---|---:|---:|
 | Archived mesh's absolute distance from original CAD, maximum | 0.108503 mm | 0.167367 mm |
-| Final mesh's absolute distance from original CAD, maximum | 0.108503 mm | 0.167367 mm |
+| Previous 24-station mesh's absolute distance from original CAD, maximum | 0.108503 mm | 0.167367 mm |
 | Largest increase in distance at a compared point | 0.014470 mm | 0.016483 mm |
 | Points whose distance increased by more than 0.05 mm | 0 | 0 |
 

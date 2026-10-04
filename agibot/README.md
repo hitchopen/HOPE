@@ -81,8 +81,10 @@ Recheck dimensions and geometry when replacing the asset.
 There are two distinct layouts; their marker names and calibration data are
 not interchangeable:
 
-- **Dual-mode shell v3:** 24 asymmetric stations with flat 12 mm sticker
-  seats and central marker-ball mounting bores. Use the
+- **Dual-mode shell v3:** 12 retained asymmetric stations with flat 12 mm sticker
+  seats and central **blind** marker-ball mounting bores with side-access
+  captive-nut pockets. The proposed through-hole/internal-nut redesign is
+  not included. Use the
   [v3 README](mocap_sticker_shell_v3/README.md) for printable parts,
   installation, hardware limits and the sticker/mount-seat transform tables.
   Ball diameter alone does not determine the installed sphere centre; the
@@ -101,7 +103,8 @@ survival for either shell.
 
 ### V3 sticker P1-to-pelvis calibration
 
-`nightly_built` uses **24 round 12 mm stickers, S01–S24**, and the canonical
+`nightly_built` uses **12 round 12 mm stickers**, retaining station IDs
+**S04, S05, S11, S12, S13, S14, S16, S18, S19, S20, S21, S22**, and the canonical
 [sticker optical-centre table](mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv).
 Both calibration tools read this single table; `colcon` installs it with
 `hope_bringup`. It is already in `pelvis_link` metres, X forward / Y left /
@@ -111,27 +114,41 @@ ball stand-off. The mounting quaternions in the table are CAD conventions;
 the optical fit uses marker positions, not a round sticker's unobservable roll.
 
 The setup tool solves `p_P1 = R_P1_pelvis * p_pelvis + t_P1_pelvis` from the
-live Motive MODELDEF and these CAD centres. It does **not** assume an identity
-transform: Motive's pivot and axes remain configurable. The table is nominal
+live Motive MODELDEF and these CAD centres. The supplied aligned asset now targets
+an **identity P1-to-pelvis correction**; the solver verifies that expectation
+instead of forcing it. Motive's pivot and axes remain configurable. The table is nominal
 CAD geometry, not proof of the installed shell's fit or a physical calibration.
 
 Migration prerequisites:
 
-1. Fit and inspect the v3 shell and all S01–S24 stickers. Use sticker mode
+1. Fit and inspect the v3 shell and all 12 retained stickers. Use sticker mode
    only; 12 mm balls require a separately measured ball-centre table/profile.
-2. Redefine Motive `P1` with all 24 stations. The
-   [authoring definition](mocap_sticker_shell_v3/motive_asset/P1_stickers_definition.json)
-   is a reference, **not** a native Motive-importable asset or an approved
-   receipt. Its native-axis conversion still needs a real Motive round-trip
-   and live verification. Enable both rigid bodies and labeled markers.
+2. Import [A3_v3_12_stickers.motive](mocap_sticker_shell_v3/motive_asset/A3_v3_12_stickers.motive)
+   into an isolated Motive project first. This native candidate already contains
+   all 12 retained stations, is named `P1` internally, and targets the CAD
+   `pelvis_link` origin. Confirm the marker count and unique streaming ID `9`;
+   the retained source UUID can replace an existing body on import.
+   Set Motive Streaming Up Axis to **Z Up**, keep the bridge's MODELDEF
+   Y-up-to-Z-up conversion enabled, and do not add a second pose rotation.
+   Import/re-export and live validation are still required. Enable rigid bodies
+   and labeled markers; do not reset the aligned pivot or orientation.
+   The companion CSV is not the import file. The separate
+   [ideal CAD authoring definition](mocap_sticker_shell_v3/motive_asset/P1_stickers_definition.json)
+   and [identity default](mocap_sticker_shell_v3/motive_asset/P1_to_pelvis_link_default.json)
+   are references, not approved receipts. Do not import the unfiltered
+   `motive_asset/source/A3.motive` export. See the
+   [shell asset section](mocap_sticker_shell_v3/README.md#supplied-optitrack-asset-and-station-evidence)
+   for provenance and the measured-point correspondence.
 3. Restart the NatNet adapter after changing the asset so MODELDEF is fresh.
-   Use verified S01–S24 names when available; otherwise the calibrator matches
+   Use verified retained Sxx names when available; otherwise the calibrator matches
    geometry with ambiguity/residual gates. Stream order and numeric member
    IDs alone do not identify a station. An explicit `--mapping` is only for
    physically verified member-ID-to-station correspondence.
-4. Rebuild/source `hope_ws` and generate a **new live receipt**. Old ten-marker
+4. Rebuild/source `hope_ws` and generate a **new live receipt**. Pre-alignment
+   12-point, old 24-station and ten-marker
    receipts are rejected even when marked approved. The checked-in P1 YAML
-   default is now uncalibrated; its zero/identity values are inert placeholders.
+   default remains uncalibrated; zero/identity is the intended aligned result,
+   not permission to operate without verification or hand-approve a receipt.
 
 Only run this procedure in the approved setup session with the robot safely
 supported as required and the installed hardware matching the table. Do not assume
@@ -159,7 +176,7 @@ ros2 run hope_bringup p1_marker_cad_calibrator \
   --output calibration/p1_to_pelvis.json
 ```
 
-S01–S24 are the default; no marker-list override is needed. All 24 must be
+The 12 retained stations are the default; no marker-list override is needed. All 12 must be
 **defined** in MODELDEF, but they need not be visible in the same frame. The
 collector accumulates at least 30 non-occluded, point-cloud-solved samples for
 each sticker across the capture. If a station stays hidden, correct the camera
@@ -178,15 +195,19 @@ diagnostic `/a3/mocap/pelvis_pose`. No recalculation occurs during play. The
 robot receives `/a3/base_pose_flat`, not the JSON.
 
 The receipt records the layout ID `A3_marker_shell_v3_stickers_12mm`, table
-SHA-256, per-member S-name correspondence, CAD transforms and live residuals.
-Both the relay and optional static-TF publisher check the current layout/table
-identity and explicit approval. A failed capture leaves the previous file
+SHA-256, asset-frame revision `pelvis_link_aligned_native_y_up_20261004`,
+per-member S-name correspondence, CAD transforms and live residuals.
+Both the relay and optional static-TF publisher check the current layout/table/
+asset-frame identity and explicit approval. A failed capture leaves the previous file
 untouched and writes a rejected diagnostic receipt when analysis completes;
 an old-layout file remains unusable. Historical receipts are retained for audit.
 If the canonical table changes, review its coordinates, update the pinned
 hash/profile in `hope_bringup/scripts/p1_marker_layout.py` and matching tests,
 and rebuild both the installed table and code in the same change. Never bypass
-a hash mismatch; a changed table requires fresh live calibration.
+a hash mismatch; a changed table requires fresh live calibration. Changing the
+asset pivot/axes also invalidates the previous receipt even when the table is
+unchanged. See [calibration/README.md](../calibration/README.md) for the runtime
+file lifecycle and the distinction between an identity reference and an approved receipt.
 
 Do not confuse this result with `/a3/calibration/pelvis_pose`, the independent
 input to the older pose-pair calibrator. No checked-in hardware node produces

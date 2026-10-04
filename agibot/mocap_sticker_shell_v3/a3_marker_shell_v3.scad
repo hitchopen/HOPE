@@ -1,4 +1,6 @@
 // A3 v3: geometry-checked printable meshes, millimetres.
+// 2026-10-04: 12 retained stations; original Sxx identities are not renumbered.
+// S04 S05 S11 S12 S13 S14 S16 S18 S19 S20 S21 S22. Print up to 12 flush pins.
 // Physical fit, material/process, hardware retention and crash testing remain required.
 // Assembly display is rotated for CAD-Y-up viewing; individual STL masters retain
 // their original CAD frame, which is used by the pelvis_link marker tables.

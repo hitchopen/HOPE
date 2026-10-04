@@ -168,11 +168,19 @@ even while ROS 2 topics appear healthy.
 
 ## Optional marker-CAD alignment: P1 to A3 `pelvis_link`
 
-`nightly_built` uses the **24-station v3 sticker shell (S01–S24)** and its
-sticker optical-centre transforms in ROS `pelvis_link`. A fresh live calibration
-is required; original ten-marker receipts are not interchangeable. Hardware,
-frame-table links and the setup procedure are maintained in
+`nightly_built` uses the **12-station v3 sticker shell (retained original IDs)**
+and the supplied [A3_v3_12_stickers.motive](agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_12_stickers.motive)
+asset, internally named **`P1`**. Its origin targets the nominal CAD `pelvis_link`
+origin and ROS axes **X forward, Y left, Z up**. With Motive Streaming **Up Axis
+= Z Up** and the existing MODELDEF axis conversion, the intended fixed
+`P1 → pelvis_link` correction is zero translation and identity rotation.
+This is an offline-checked default, not a verified live calibration: import and
+check the asset in Motive, then generate a fresh installed-layout receipt.
+Pre-alignment 12-point, old 24-station and ten-marker receipts cannot be reused.
+
+Hardware, frame-table links and the setup procedure are maintained in
 [agibot/README.md](agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
+Receipt storage and migration rules are in [calibration/README.md](calibration/README.md).
 The shared mocap contract remains in [mocap/README.md](mocap/README.md).
 
 ## Database

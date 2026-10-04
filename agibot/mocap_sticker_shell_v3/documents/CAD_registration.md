@@ -1,9 +1,62 @@
 # A3 v3 marker registration to pelvis_link
 
 Status: **nominal CAD calculation verified; physical calibration not performed**.
-Date: 2026-09-09. This note accompanies the 24-station sticker and mount-seat
+Updated: 2026-10-04. This note accompanies the retained 12-station sticker and mount-seat
 tables. The fused STL geometry is now checked; this note does not certify
 physical fit or installed calibration.
+
+## Retained v3 stations, 2026-10-04
+
+The current tables contain **S04, S05, S11, S12, S13, S14, S16, S18, S19,
+S20, S21, S22**. Only rows were removed: every retained translation, normal
+and quaternion is unchanged, as is the mapping below. The workbook retains
+formula-driven calculation and the accepted 0.20 mm sticker thickness.
+
+The replacement STL meshes contain exactly these stations; each retained top
+and bore was checked on the final mesh. Twelve removed-station footprints
+match the archived smooth shell bases. See `printability_validation.json`.
+The STEP/layout hashes and 24-station checks in the historical sections below
+identify the archived construction inputs, not a current 24-station release.
+
+All twelve stations match points in the supplied measured `A3` export (rigid-fit
+RMS 1.395 mm, maximum 1.853 mm). The fit now also rebases the measured asset to
+the nominal `pelvis_link` origin and ROS axes; it is not an approved runtime
+TF, a physical pelvis datum measurement, or proof of continuous visibility.
+Only `motive_asset/source/A3.motive` keeps the original arbitrary frame.
+
+### Measured asset alignment
+
+Let `p` be a nominal CAD sticker point in `pelvis_link` metres and `a` its
+measured point in the original A3 asset. An unscaled, proper least-squares
+rigid fit over the 12 retained pairs solves, using column vectors:
+
+```text
+a = R_original_from_pelvis * p + t_original_from_pelvis
+p_aligned_measured = transpose(R_original_from_pelvis) * (a - t_original_from_pelvis)
+native_asset_offset = [p_aligned_measured.x, p_aligned_measured.z, -p_aligned_measured.y]
+```
+
+The source pivot displacement `t_original_from_pelvis` is
+`[-0.018451862405386356, 0.09746122703986582, -0.0039261387405065025] m`.
+Full matrices, source/output hashes and per-point coordinates are recorded in
+`optitrack_asset_correspondence.json`. The original measured constellation is
+rigidly transformed, not replaced by ideal CAD values: all 66 pair distances
+change by less than `8e-13 m` after 12-decimal serialization. No scale,
+reflection or centroid-origin reset is used. All mechanical/CAD tables remain
+unchanged, including their mounting quaternions.
+
+The native offsets use Motive's Y-up basis so the existing bridge conversion
+`(x,y,z) → (x,-z,y)` yields ROS X forward, Y left, Z up with **Motive Streaming
+Up Axis = Z Up**. The exported asset is named `P1`, with streaming ID 9.
+Offline production-solver registration then recovers `P1 → pelvis_link` as
+zero translation and identity quaternion to numerical precision. This is the
+intended default correction, not an assertion that live `world → P1` is identity.
+
+Import/re-export in Motive, restart the adapter and obtain a fresh installed
+live receipt. Do not apply an additional 90-degree rotation, the old pivot
+correction, or a hand-approved identity receipt. Pre-alignment receipts are
+invalidated by the asset-frame revision. The nominal CAD origin and stored
+coordinate convention still require physical and live-stream validation.
 
 ## Coordinate mapping
 
@@ -68,7 +121,7 @@ the shell's symmetric original pattern is not being used as an unlabelled pose c
 
 ## Verification results
 
-### Flat-face revision, 2026-09-09
+### Historical flat-face revision, 2026-09-09
 
 The revised additions STEP uses flat **12.0 mm** annular station tops with
 **3.4 mm** central screw bores and small flush hole pins. It has no raised
@@ -78,16 +131,16 @@ STEP reimport. Maximum centre discrepancy remains **9.995e-12 mm**; no station
 material projects above the seat plane. Positions, normals and tangent axes
 match the previous layout exactly. The CSV/XLSX numeric values are unchanged.
 
-Current additions STEP SHA-256:
+Archived flat-face additions STEP SHA-256:
 `d22491a9f849d26a2495798cdf26dd2abe22f210eba499e3b31f4df50a58a5d8`.
-Current construction-layout SHA-256:
+Archived 24-station construction-layout SHA-256:
 `24da11aa0a430cb8a124dd106f3ac03fac321293d806261c6f00cb0e330390f6`.
 
 The original ten socket datums above are archived registration evidence,
 **not marker mounts to retain on the redesigned shell**. Their removal does
 not change this coordinate mapping if the shell frame and new stations stay
 fixed. All ten obsolete external mounts and bores are now removed in the
-geometry-checked STL masters. Final-mesh checks reconfirm all 24 planar tops
+geometry-checked STL masters. The prior final-mesh checks reconfirmed all 24 planar tops
 and open mounting bores, without moving their origins or axes. Physical fit
 and manufacturing-process validation remain outstanding. The historical
 verification and hashes below describe the earlier
@@ -120,7 +173,7 @@ For each station, the rigid mount-seat origin is the concentric screw axis at
 the flat 12 mm top plane. Its nominal sticker optical origin is
 `seat + 0.20 * n` in CAD mm.
 The 0.20 mm film-plus-adhesive thickness was approved by the user, not measured.
-The current additions STEP was independently reimported, and all 24 annular
+The archived 24-station additions STEP was independently reimported, and all 24 annular
 top centres and outward normals were checked against these construction inputs.
 
 Local axes are the CAD station's right-handed `[u, v, n]` basis. The published

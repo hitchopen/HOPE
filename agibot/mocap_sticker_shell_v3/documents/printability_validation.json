@@ -1,91 +1,743 @@
 {
+  "revision_date": "2026-10-04",
+  "model_version": "v3",
   "status": "GEOMETRY_CHECKED_PRINTABLE_PROTOTYPE",
-  "date": "2026-09-09",
   "units": "mm",
-  "source_coordinate_frame": "shell_CAD_Y_up",
-  "physical_fit_tested": false,
-  "crash_tested": false,
-  "hardware_thread_confirmed": false,
-  "all_ten_obsolete_external_mounts_and_bores_removed": true,
-  "marker_transforms_unchanged": true,
-  "assembled_half_intersection_volume_mm3": 0.0,
-  "parts": [
+  "retained_station_ids": [
+    "S04",
+    "S05",
+    "S11",
+    "S12",
+    "S13",
+    "S14",
+    "S16",
+    "S18",
+    "S19",
+    "S20",
+    "S21",
+    "S22"
+  ],
+  "removed_station_ids": [
+    "S01",
+    "S02",
+    "S03",
+    "S06",
+    "S07",
+    "S08",
+    "S09",
+    "S10",
+    "S15",
+    "S17",
+    "S23",
+    "S24"
+  ],
+  "physical_validation": "NOT_PERFORMED: printed fit, supports/material, hardware retention, crash survival and all-pose visibility remain to be tested.",
+  "halves": [
     {
-      "file": "printable/a3_marker_shell_v3_half_a.stl",
-      "sha256": "9b03a06955fb22116666be46f6322f3a7c93b24fab1a04c9dc1307e5870228d3",
-      "triangles": 83340,
-      "vertices": 41618,
-      "watertight": true,
-      "connected_components": 1,
-      "consistent_winding": true,
-      "all_edges_used_twice": true,
-      "transverse_crossings": 0,
-      "coplanar_overlaps": 0,
-      "native_intersection_pairs": 0,
-      "volume_mm3": 132420.37452454524,
-      "bounds_mm": [
-        [
-          -87.7899398803711,
-          -84.87408447265625,
-          -9.796319961547852
+      "body": 1,
+      "filename": "a3_marker_shell_v3_half_a.stl",
+      "base_sha256": "eb8c479f82bf05e686321c53f09c79de59821240bdf4902b541bc5964aaa0d5d",
+      "sha256": "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935",
+      "mesh": {
+        "triangles": 74536,
+        "vertices": 37226,
+        "watertight": true,
+        "winding_consistent": true,
+        "components": 1,
+        "all_edge_incidence_two": true,
+        "positive_volume": true,
+        "volume_mm3": 127342.97982415266,
+        "bounds_mm": [
+          [
+            -87.7899398803711,
+            -84.87408447265625,
+            -9.796319961547852
+          ],
+          [
+            87.79000854492188,
+            109.20001220703125,
+            79.90754699707031
+          ]
         ],
-        [
-          87.79000854492188,
-          109.20001220703125,
-          79.90754699707031
-        ]
+        "euler_number": -42
+      },
+      "reference_fit_sampling": {
+        "maximum_sampled_deviation_mm": 0.10850299985821749,
+        "count_over_0_05_mm": 299,
+        "archived_tessellation_comparison": {
+          "baseline_max_deviation_mm": 0.10850299985821749,
+          "max_increase_in_distance_mm": 0.014469564080442752,
+          "distance_increased_over_0_05_mm": 0,
+          "new_normal_discrepancies_under_0_5": 36
+        },
+        "normal_dot_under_0_5_count": 54,
+        "groups": {
+          "analytic_structural": {
+            "sample_count": 10585,
+            "max_deviation_mm": 0.06330001829042003,
+            "p99_deviation_mm": 0.019490976594322713,
+            "over_0_05_mm": 2,
+            "normal_dot_min": -0.9998226673945649
+          },
+          "interior": {
+            "sample_count": 8476,
+            "max_deviation_mm": 0.09143511484477723,
+            "p99_deviation_mm": 0.05707770116734512,
+            "over_0_05_mm": 154,
+            "normal_dot_min": -0.5145555614872934
+          },
+          "other_unmodified": {
+            "sample_count": 8413,
+            "max_deviation_mm": 0.10850299985821749,
+            "p99_deviation_mm": 0.05955033430833983,
+            "over_0_05_mm": 143,
+            "normal_dot_min": -0.9944454358899596
+          }
+        },
+        "largest_discrepancies": [
+          {
+            "point_mm": [
+              -76.4099704246702,
+              25.718193389014907,
+              54.26622505851565
+            ],
+            "distance_mm": 0.10850299985821749,
+            "normal_dot": 0.9999115782895398,
+            "original_face": 693
+          },
+          {
+            "point_mm": [
+              -31.89942336737529,
+              -80.27759614682277,
+              16.348807118171706
+            ],
+            "distance_mm": 0.09880370703124847,
+            "normal_dot": 0.9999485232283905,
+            "original_face": 942
+          },
+          {
+            "point_mm": [
+              60.66051917400943,
+              -19.865323814414044,
+              69.15288491693167
+            ],
+            "distance_mm": 0.09671760259764331,
+            "normal_dot": 0.9998030565294124,
+            "original_face": 937
+          },
+          {
+            "point_mm": [
+              -2.8526689783032473,
+              91.96068040361361,
+              63.58603059433208
+            ],
+            "distance_mm": 0.092407435721347,
+            "normal_dot": 0.9999508998681822,
+            "original_face": 193
+          },
+          {
+            "point_mm": [
+              -1.6358082471646234,
+              91.9520219409303,
+              63.61456062261264
+            ],
+            "distance_mm": 0.09146081874946599,
+            "normal_dot": 0.999914616354197,
+            "original_face": 193
+          },
+          {
+            "point_mm": [
+              18.550865704804004,
+              101.05120171597324,
+              61.77200723447525
+            ],
+            "distance_mm": 0.09143511484477723,
+            "normal_dot": 0.9994538286398882,
+            "original_face": 596
+          },
+          {
+            "point_mm": [
+              53.77829692990267,
+              85.87932768662922,
+              42.342920937523516
+            ],
+            "distance_mm": 0.09035392317026632,
+            "normal_dot": 0.9995434745093849,
+            "original_face": 18
+          },
+          {
+            "point_mm": [
+              63.75190952386775,
+              93.55430199246665,
+              14.873326694993473
+            ],
+            "distance_mm": 0.08791695106344391,
+            "normal_dot": 0.9996862304995979,
+            "original_face": 732
+          },
+          {
+            "point_mm": [
+              19.7524389467911,
+              99.44079260775793,
+              61.29015162365161
+            ],
+            "distance_mm": 0.08767377907973202,
+            "normal_dot": 0.9993741472519203,
+            "original_face": 596
+          },
+          {
+            "point_mm": [
+              61.45402538274104,
+              71.47982905313407,
+              29.553623544793385
+            ],
+            "distance_mm": 0.0875265146311309,
+            "normal_dot": 0.99975898090196,
+            "original_face": 20
+          },
+          {
+            "point_mm": [
+              -59.7236604740464,
+              -13.220263084210856,
+              69.59828289216908
+            ],
+            "distance_mm": 0.08680694189297905,
+            "normal_dot": 0.9997583758079447,
+            "original_face": 693
+          },
+          {
+            "point_mm": [
+              37.8502819324527,
+              77.85971476437854,
+              52.57912047462404
+            ],
+            "distance_mm": 0.08664878798760252,
+            "normal_dot": 0.9996410498336468,
+            "original_face": 20
+          },
+          {
+            "point_mm": [
+              62.303520513812266,
+              83.98890465480775,
+              29.433378238971397
+            ],
+            "distance_mm": 0.08612105447965641,
+            "normal_dot": 0.9997778213782327,
+            "original_face": 18
+          },
+          {
+            "point_mm": [
+              58.05956283706223,
+              83.48806646782171,
+              37.021440444779415
+            ],
+            "distance_mm": 0.08394323919097163,
+            "normal_dot": 0.9998274191321296,
+            "original_face": 18
+          },
+          {
+            "point_mm": [
+              -53.19047767466969,
+              82.89790293199543,
+              43.31869126768111
+            ],
+            "distance_mm": 0.08383272868163695,
+            "normal_dot": 0.9997878801299274,
+            "original_face": 21
+          }
+        ],
+        "previous_v3_release_comparison": {
+          "sample_count": 27474,
+          "max_distance_increase_mm": 1.0254986958606327e-06,
+          "new_normal_discrepancies": 0
+        }
+      },
+      "station_checks": [
+        {
+          "id": "S01",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 0.0,
+          "ray_samples": 49
+        },
+        {
+          "id": "S02",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 3.552713678800501e-15,
+          "ray_samples": 49
+        },
+        {
+          "id": "S03",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 1.3322676295501878e-14,
+          "ray_samples": 49
+        },
+        {
+          "id": "S09",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 0.0,
+          "ray_samples": 49
+        },
+        {
+          "id": "S10",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 2.6645352591003757e-15,
+          "ray_samples": 49
+        },
+        {
+          "id": "S11",
+          "retained": true,
+          "bore_depth_mm": 4.599999618788962,
+          "top_plane_max_error_mm": 3.1294328305120356e-06,
+          "top_outer_diameter_mm": 12.000003671353477,
+          "bore_diameter_mm": 3.399996108906502
+        },
+        {
+          "id": "S12",
+          "retained": true,
+          "bore_depth_mm": 4.600001961541686,
+          "top_plane_max_error_mm": 2.351172500802967e-06,
+          "top_outer_diameter_mm": 12.000006085483218,
+          "bore_diameter_mm": 3.3999928654102534
+        },
+        {
+          "id": "S13",
+          "retained": true,
+          "bore_depth_mm": 4.599999090216392,
+          "top_plane_max_error_mm": 3.02808120034026e-06,
+          "top_outer_diameter_mm": 12.000005994146177,
+          "bore_diameter_mm": 3.3999927801512193
+        },
+        {
+          "id": "S19",
+          "retained": true,
+          "bore_depth_mm": 4.6000016029661435,
+          "top_plane_max_error_mm": 3.859670462097453e-06,
+          "top_outer_diameter_mm": 12.000007742070506,
+          "bore_diameter_mm": 3.3999924668351107
+        },
+        {
+          "id": "S20",
+          "retained": true,
+          "bore_depth_mm": 4.599998844904383,
+          "top_plane_max_error_mm": 3.4699661398684967e-06,
+          "top_outer_diameter_mm": 12.000003923605,
+          "bore_diameter_mm": 3.3999959943277003
+        },
+        {
+          "id": "S21",
+          "retained": true,
+          "bore_depth_mm": 4.599999867114066,
+          "top_plane_max_error_mm": 3.4251133249063592e-06,
+          "top_outer_diameter_mm": 12.000004293053852,
+          "bore_diameter_mm": 3.399995441582421
+        },
+        {
+          "id": "S22",
+          "retained": true,
+          "bore_depth_mm": 4.599999430904306,
+          "top_plane_max_error_mm": 3.0416172823455323e-06,
+          "top_outer_diameter_mm": 12.000003400072034,
+          "bore_diameter_mm": 3.399995947512949
+        }
       ],
-      "reference_surface_sample_count": 27474,
-      "baseline_absolute_sampled_CAD_error_mm": 0.10850299985821749,
-      "final_absolute_sampled_CAD_error_mm": 0.10850299985821749,
-      "largest_increase_in_sampled_CAD_distance_mm": 0.014469564080442752
+      "independent_triangle_audit": {
+        "vertices": 37226,
+        "triangles": 74536,
+        "watertight": true,
+        "winding_consistent": true,
+        "volume_mm3": 127342.97982415266,
+        "surface_area_mm2": 120005.55977052246,
+        "edge_incidence_histogram": {
+          "2": 111804
+        },
+        "components": 1,
+        "degenerate_triangles": 0,
+        "duplicate_triangles": 0,
+        "crossing_tolerance_mm": 1e-07,
+        "aabb_candidate_pairs": 826651,
+        "transverse_crossings": [],
+        "coplanar_overlaps": [],
+        "transverse_crossing_count": 0,
+        "coplanar_overlap_count": 0,
+        "pass_mesh_geometry_checks": true,
+        "limitations": "Finite precision audit, not an exact-predicate mathematical proof or physical fit/crash validation. Coplanar overlaps include shared-edge/shared-vertex pairs with area >1e-8 mm^2; transverse tolerance is stated above."
+      },
+      "freecad_native_audit": {
+        "sha256": "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935",
+        "native_solid": true,
+        "native_nonmanifold": false,
+        "native_nonuniform_oriented_facets": 0,
+        "native_self_intersection_pair_count": 0,
+        "triangle_count": 74536,
+        "vertex_count": 37226,
+        "native_pass": true
+      }
     },
     {
-      "file": "printable/a3_marker_shell_v3_half_b.stl",
-      "sha256": "99c9792bea31973eb2bea6c0d640183fe993d20739308817c6cfe16eb1859c18",
-      "triangles": 102652,
-      "vertices": 51246,
-      "watertight": true,
-      "connected_components": 1,
-      "consistent_winding": true,
-      "all_edges_used_twice": true,
-      "transverse_crossings": 0,
-      "coplanar_overlaps": 0,
-      "native_intersection_pairs": 0,
-      "volume_mm3": 144839.22762986782,
-      "bounds_mm": [
-        [
-          -87.99522399902344,
-          -84.8742446899414,
-          -87.3783187866211
+      "body": 2,
+      "filename": "a3_marker_shell_v3_half_b.stl",
+      "base_sha256": "2d6a127b2e7ebd37db0fc9ef34dac332d3c924902a5ce296bfb76dd0376738fd",
+      "sha256": "d2e7939b64d7a0a7e378e377b4cc7fb70f47a8d3821f773efb15688db7430dff",
+      "mesh": {
+        "triangles": 90316,
+        "vertices": 45092,
+        "watertight": true,
+        "winding_consistent": true,
+        "components": 1,
+        "all_edge_incidence_two": true,
+        "positive_volume": true,
+        "volume_mm3": 137770.26304611992,
+        "bounds_mm": [
+          [
+            -87.99522399902344,
+            -84.8742446899414,
+            -87.3783187866211
+          ],
+          [
+            87.79019927978516,
+            109.20001220703125,
+            3.5000007152557373
+          ]
         ],
-        [
-          87.79019927978516,
-          109.20001220703125,
-          3.5000007152557373
-        ]
+        "euler_number": -66
+      },
+      "reference_fit_sampling": {
+        "maximum_sampled_deviation_mm": 0.16736715443371866,
+        "count_over_0_05_mm": 451,
+        "archived_tessellation_comparison": {
+          "baseline_max_deviation_mm": 0.16736715443371866,
+          "max_increase_in_distance_mm": 0.01648268581060378,
+          "distance_increased_over_0_05_mm": 0,
+          "new_normal_discrepancies_under_0_5": 773
+        },
+        "normal_dot_under_0_5_count": 988,
+        "groups": {
+          "analytic_structural": {
+            "sample_count": 8135,
+            "max_deviation_mm": 0.09113270244104037,
+            "p99_deviation_mm": 0.02290685457775948,
+            "over_0_05_mm": 3,
+            "normal_dot_min": 0.006061296581695699
+          },
+          "interior": {
+            "sample_count": 8159,
+            "max_deviation_mm": 0.16736715443371866,
+            "p99_deviation_mm": 0.08323325710749188,
+            "over_0_05_mm": 271,
+            "normal_dot_min": -0.8812297028830824
+          },
+          "other_unmodified": {
+            "sample_count": 13602,
+            "max_deviation_mm": 0.1614352520156662,
+            "p99_deviation_mm": 0.05625975880273869,
+            "over_0_05_mm": 177,
+            "normal_dot_min": -0.6411378594811694
+          }
+        },
+        "largest_discrepancies": [
+          {
+            "point_mm": [
+              23.644784817178966,
+              98.99994132865764,
+              -67.56144871555729
+            ],
+            "distance_mm": 0.16736715443371866,
+            "normal_dot": 0.9999207335700055,
+            "original_face": 492
+          },
+          {
+            "point_mm": [
+              14.041961981771943,
+              30.531803268551336,
+              -81.13111859274534
+            ],
+            "distance_mm": 0.1614352520156662,
+            "normal_dot": 0.999954935886347,
+            "original_face": 1225
+          },
+          {
+            "point_mm": [
+              -10.739947457356095,
+              18.056836508082565,
+              -82.54361246233996
+            ],
+            "distance_mm": 0.16052756136841778,
+            "normal_dot": 0.9999918521173801,
+            "original_face": 1216
+          },
+          {
+            "point_mm": [
+              59.18863631399519,
+              70.08114212980215,
+              -41.7820097006685
+            ],
+            "distance_mm": 0.15984665148992813,
+            "normal_dot": 0.9994028079779606,
+            "original_face": 261
+          },
+          {
+            "point_mm": [
+              9.822849179201363,
+              7.973579112349698,
+              -82.79474950705779
+            ],
+            "distance_mm": 0.15597665161527022,
+            "normal_dot": 0.999961441857464,
+            "original_face": 1225
+          },
+          {
+            "point_mm": [
+              41.22986682479968,
+              74.80722415811394,
+              -62.24809525401562
+            ],
+            "distance_mm": 0.15431820774548394,
+            "normal_dot": 0.9985381987006897,
+            "original_face": 261
+          },
+          {
+            "point_mm": [
+              62.41111904479918,
+              59.80911065508039,
+              -41.79907909367592
+            ],
+            "distance_mm": 0.14895838079108364,
+            "normal_dot": 0.9992528082020333,
+            "original_face": 261
+          },
+          {
+            "point_mm": [
+              42.1603758750539,
+              7.419614472035291,
+              -77.552441790246
+            ],
+            "distance_mm": 0.14873332510460882,
+            "normal_dot": 0.9999749089536232,
+            "original_face": 168
+          },
+          {
+            "point_mm": [
+              -8.080483081219345,
+              27.77898326210752,
+              -81.73862448170749
+            ],
+            "distance_mm": 0.1455996835519294,
+            "normal_dot": 0.9999441287391719,
+            "original_face": 1216
+          },
+          {
+            "point_mm": [
+              29.816363319183278,
+              30.924339122311526,
+              -76.95409786868522
+            ],
+            "distance_mm": 0.14509739952472017,
+            "normal_dot": 0.9998609228856005,
+            "original_face": 173
+          },
+          {
+            "point_mm": [
+              -52.633098341726125,
+              74.80046876679116,
+              -51.41074040486763
+            ],
+            "distance_mm": 0.14151436034789844,
+            "normal_dot": 0.9998313610966452,
+            "original_face": 247
+          },
+          {
+            "point_mm": [
+              15.64503734782884,
+              3.7583800478771887,
+              -82.50357632823452
+            ],
+            "distance_mm": 0.14149788316776027,
+            "normal_dot": 0.9998154792038233,
+            "original_face": 1225
+          },
+          {
+            "point_mm": [
+              44.2528710726749,
+              79.92250909351118,
+              -59.308452412138216
+            ],
+            "distance_mm": 0.13950868898535515,
+            "normal_dot": 0.999667154115336,
+            "original_face": 261
+          },
+          {
+            "point_mm": [
+              33.8453861954873,
+              30.81337497514367,
+              -76.26597137547729
+            ],
+            "distance_mm": 0.139098014658583,
+            "normal_dot": 0.9996868775216905,
+            "original_face": 173
+          },
+          {
+            "point_mm": [
+              37.747621186546674,
+              -54.66720109617633,
+              -64.52405499898752
+            ],
+            "distance_mm": 0.13814792289223546,
+            "normal_dot": 0.9999843639315462,
+            "original_face": 14
+          }
+        ],
+        "previous_v3_release_comparison": {
+          "sample_count": 29896,
+          "max_distance_increase_mm": 1.7006639585828709e-06,
+          "new_normal_discrepancies": 0
+        }
+      },
+      "station_checks": [
+        {
+          "id": "S04",
+          "retained": true,
+          "bore_depth_mm": 4.600003256882012,
+          "top_plane_max_error_mm": 3.294439077011768e-06,
+          "top_outer_diameter_mm": 12.000006957038629,
+          "bore_diameter_mm": 3.399993012138022
+        },
+        {
+          "id": "S05",
+          "retained": true,
+          "bore_depth_mm": 4.599999243800761,
+          "top_plane_max_error_mm": 3.086809820390668e-06,
+          "top_outer_diameter_mm": 12.000007386915561,
+          "bore_diameter_mm": 3.399992645628356
+        },
+        {
+          "id": "S06",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 1.4210854715202004e-14,
+          "ray_samples": 49
+        },
+        {
+          "id": "S07",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 0.0,
+          "ray_samples": 49
+        },
+        {
+          "id": "S08",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 1.4210854715202004e-14,
+          "ray_samples": 49
+        },
+        {
+          "id": "S14",
+          "retained": true,
+          "bore_depth_mm": 4.600000212549507,
+          "top_plane_max_error_mm": 2.4896918250916222e-06,
+          "top_outer_diameter_mm": 12.000006927284888,
+          "bore_diameter_mm": 3.3999921362506713
+        },
+        {
+          "id": "S15",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 1.7763568394002505e-15,
+          "ray_samples": 49
+        },
+        {
+          "id": "S16",
+          "retained": true,
+          "bore_depth_mm": 4.5999992776021825,
+          "top_plane_max_error_mm": 3.411647089723857e-06,
+          "top_outer_diameter_mm": 12.000003265588587,
+          "bore_diameter_mm": 3.3999965009685393
+        },
+        {
+          "id": "S17",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 8.881784197001252e-15,
+          "ray_samples": 49
+        },
+        {
+          "id": "S18",
+          "retained": true,
+          "bore_depth_mm": 4.600000721073647,
+          "top_plane_max_error_mm": 2.781040683352831e-06,
+          "top_outer_diameter_mm": 12.000006151393478,
+          "bore_diameter_mm": 3.3999935132356214
+        },
+        {
+          "id": "S23",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 1.4210854715202004e-14,
+          "ray_samples": 49
+        },
+        {
+          "id": "S24",
+          "retained": false,
+          "restored_base_max_ray_difference_mm": 1.4210854715202004e-14,
+          "ray_samples": 49
+        }
       ],
-      "reference_surface_sample_count": 29896,
-      "baseline_absolute_sampled_CAD_error_mm": 0.16736715443371866,
-      "final_absolute_sampled_CAD_error_mm": 0.16736715443371866,
-      "largest_increase_in_sampled_CAD_distance_mm": 0.01648268581060378
+      "independent_triangle_audit": {
+        "vertices": 45092,
+        "triangles": 90316,
+        "watertight": true,
+        "winding_consistent": true,
+        "volume_mm3": 137770.26304611992,
+        "surface_area_mm2": 130018.91140023616,
+        "edge_incidence_histogram": {
+          "2": 135474
+        },
+        "components": 1,
+        "degenerate_triangles": 0,
+        "duplicate_triangles": 0,
+        "crossing_tolerance_mm": 1e-07,
+        "aabb_candidate_pairs": 1136129,
+        "transverse_crossings": [],
+        "coplanar_overlaps": [],
+        "transverse_crossing_count": 0,
+        "coplanar_overlap_count": 0,
+        "pass_mesh_geometry_checks": true,
+        "limitations": "Finite precision audit, not an exact-predicate mathematical proof or physical fit/crash validation. Coplanar overlaps include shared-edge/shared-vertex pairs with area >1e-8 mm^2; transverse tolerance is stated above."
+      },
+      "freecad_native_audit": {
+        "sha256": "d2e7939b64d7a0a7e378e377b4cc7fb70f47a8d3821f773efb15688db7430dff",
+        "native_solid": true,
+        "native_nonmanifold": false,
+        "native_nonuniform_oriented_facets": 0,
+        "native_self_intersection_pair_count": 0,
+        "triangle_count": 90316,
+        "vertex_count": 45092,
+        "native_pass": true
+      }
     }
   ],
-  "old_bore_probe_count": 250,
-  "new_station_count": 24,
-  "scope": "Closed mesh geometry and sampled source-surface retention checked. Not a physical fit, printer-process, strength, impact or live tracking certification.",
+  "assembled_intersection_volume_mm3": 0.0,
+  "method": "Re-fused the unchanged smooth v3 shell bases with only the retained station meshes. No station or bore subtraction into the pelvis-fitting skin.",
+  "unchanged_registration": "CAD mm -> pelvis_link metres: [CAD_Z, CAD_X, CAD_Y - 145.800095037096] / 1000",
+  "prior_repair_limitations": "Original v3 base repairs include a locally sampled approximately 1.503 mm f1 boundary thickness and CAD tessellation errors; not a certified global minimum wall thickness or exact Hausdorff bound.",
   "flush_pin": {
-    "file": "printable/a3_marker_shell_v3_flush_pin.stl",
+    "filename": "a3_marker_shell_v3_flush_pin.stl",
     "sha256": "f57259bcf324e2b41aae8441b94ff6d50de911d98a023801ff1b90d9d5b35792",
-    "nominal_diameter_mm": 3.45,
-    "length_mm": 1.3,
-    "fit": "Provisional interference fit; verify on a coupon before installing."
+    "unchanged": true,
+    "maximum_quantity": 12
   },
-  "local_wall_sampling": {
-    "front_f1_minimum_vertical_gap_mm": 1.503,
-    "front_f2_f5_minimum_sampled_clearance_mm": 2.494,
-    "rear_minimum_sampled_clearance_mm": 2.41,
-    "old_axis_probe_minimum_material_path_mm": 2.29267879076572,
-    "limits": "Different sampling methods, not a certified global minimum thickness. The approximately 1.5 mm local f1 edge is thinner than the nominal 2.5 mm skin."
-  }
+  "openscad_smoke_checks": [
+    {
+      "half": "a",
+      "f6_export": "PASS",
+      "watertight": true,
+      "winding_consistent": true,
+      "components": 1,
+      "bed_min_z_mm": 1.4921397450962104e-13,
+      "volume_change_mm3": 0.0
+    },
+    {
+      "half": "b",
+      "f6_export": "PASS",
+      "watertight": true,
+      "winding_consistent": true,
+      "components": 1,
+      "bed_min_z_mm": 2.6290081223123707e-13,
+      "volume_change_mm3": -2.9103830456733704e-11
+    }
+  ]
 }

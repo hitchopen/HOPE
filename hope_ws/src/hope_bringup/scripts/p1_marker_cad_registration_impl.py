@@ -389,7 +389,7 @@ def canonical_marker_name(value: str) -> str | None:
     tokens = re.findall(
         r"(?<![a-z0-9])(s(?:0[1-9]|1[0-9]|2[0-4]))(?![a-z0-9])", value.lower()
     )
-    if len(set(tokens)) == 1:
+    if len(set(tokens)) == 1 and tokens[0].upper() in MARKER_NAMES:
         return tokens[0].upper()
     return None
 
@@ -416,7 +416,7 @@ def parse_explicit_mapping(value: str) -> dict[int, str]:
             member_id = int(member_text.strip())
         except (ValueError, TypeError) as exc:
             raise ValueError(
-                "mapping entries must use member_id=CAD_name, e.g. 1=S01"
+                "mapping entries must use member_id=CAD_name, e.g. 1=S19"
             ) from exc
         name = name_text.strip().upper()
         if member_id <= 0 or name not in CAD_MARKERS_PELVIS_M:
@@ -436,11 +436,11 @@ def cad_names_for_markers(
     if len(markers) != len(MARKER_NAMES):
         raise ValueError(
             f"P1 ModelDef contains {len(markers)} markers; v3 sticker calibration "
-            "requires all 24 defined stations S01-S24, not the old 8/10-marker body"
+            f"requires all {len(MARKER_NAMES)} retained v3 stations, not a superseded marker body"
         )
     if requested is not None:
-        if len(requested) != 24 or set(requested) != set(MARKER_NAMES):
-            raise ValueError("v3 sticker calibration requires the complete S01-S24 CAD set")
+        if len(requested) != len(MARKER_NAMES) or set(requested) != set(MARKER_NAMES):
+            raise ValueError("v3 sticker calibration requires the complete retained 12-station CAD set")
         return tuple(requested)
     return MARKER_NAMES
 
@@ -1137,7 +1137,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-names",
         default="auto",
         help=(
-            "'auto' selects all 24 v3 sticker stations S01-S24; an explicit "
+            "'auto' selects all 12 retained v3 sticker stations; an explicit "
             "list must contain the same complete set. Visibility may vary per frame."
         ),
     )
@@ -1146,7 +1146,7 @@ def _parse_arguments() -> argparse.Namespace:
         default="",
         help=(
             "optional verified member_id=CAD_name list, e.g. "
-            "'1=S01,2=S02,...'; otherwise NatNet station names or geometry are used. "
+            "'1=S19,2=S20,...'; otherwise NatNet station names or geometry are used. "
             "Member-ID order alone is not proof of physical correspondence."
         ),
     )

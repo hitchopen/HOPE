@@ -56,7 +56,8 @@ hope_world:
     # The operational transform must therefore come from a Motive asset export
     # plus a fresh v3 sticker live-calibration receipt.
     #
-    # Zero values below are inert placeholders, never an identity assertion.
+    # P1 targets identity with the aligned asset; these values do not approve it.
+    # Runtime still requires a fresh live receipt. P2 remains unmeasured.
     p1:
       marker_layout_id: A3_marker_shell_v3_stickers_12mm
       calibrated: false
@@ -64,11 +65,13 @@ hope_world:
       xyz_m: [0.0, 0.0, 0.0]
       quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
       note: >-
-        Uncalibrated after the v3 sticker-shell migration. Do not reuse the
-        historical ten-ball receipt. Restart NatNet after redefining P1 with
-        S01-S24, then generate a fresh approved marker-CAD receipt at
+        The pelvis-aligned 12-station P1 asset targets zero translation and
+        identity rotation with Motive Streaming Up Axis Z. Keep the existing
+        MODELDEF Y-up-to-Z-up conversion; add no extra pose rotation. Do not reuse
+        pre-alignment 12-point, historical ten-ball or 24-station receipts.
+        Restart NatNet after asset import, then generate a fresh live receipt at
         calibration/p1_to_pelvis.json. Runtime loads that file; these values
-        are inert placeholders, not an assertion that P1 equals pelvis_link.
+        describe the intended default, not a physically verified calibration.
     p2:
       marker_layout_id: unknown
       calibrated: false
@@ -80,7 +83,7 @@ hope_world:
   provenance:
     cad:
       path: agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv
-      sha256: 3b304f521b85ebac8c8595d1666322ef3c64f9dcd40ffa0d339da25b431bdb90
+      sha256: 8b1bf1eba661e2a07ae5591aa5d57b9057b496c3b57489b6d206f4855b7ada9e
       format: CSV_ROS_pelvis_link_metres_sticker_optical_centres
     urdf:
       path: agibot/URDF/A3T2.5-URDF-std-pingpang/urdf/URDF-JOINT-LINK.urdf
