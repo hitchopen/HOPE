@@ -16,6 +16,9 @@ Options:
   --mocap-backend NAME       avatar_pro (default, ChingMu/VRPN) or optitrack
                              (Motive/NatNet via the vendored
                              motion_capture_tracking driver).
+  --mocap-interface-ip IP    Local NatNet NIC IPv4 (optitrack only). Overrides
+                             HOPE_MOTIVE_INTERFACE_IP; empty or 0.0.0.0 selects
+                             the NIC using the route to the Motive server.
   --x-hit METRES             Already-confirmed fixed world plane; bypasses the runtime freeze.
   --x-hit-offset METRES      Settled base-X to fixed-plane offset (default 0.58).
   --side MODE                backhand (default), forehand, or both.
@@ -73,6 +76,7 @@ print_shell_command() {
 
 MOCAP_BACKEND="avatar_pro"
 MOCAP_IP=""
+MOCAP_INTERFACE_IP="${HOPE_MOTIVE_INTERFACE_IP:-}"
 X_HIT=""
 X_HIT_OFFSET="0.58"
 SIDE="backhand"
@@ -102,6 +106,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mocap-ip|--vrpn-ip)
       MOCAP_IP="${2:-}"
+      shift 2
+      ;;
+    --mocap-interface-ip)
+      [[ $# -ge 2 ]] || die "--mocap-interface-ip requires an IPv4 address"
+      MOCAP_INTERFACE_IP="$2"
       shift 2
       ;;
     --x-hit)
@@ -191,6 +200,19 @@ case "${MOCAP_BACKEND}" in
     [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="300.0"
     ;;
   optitrack)
+    python3 - "${MOCAP_INTERFACE_IP}" <<'PY' || die "invalid --mocap-interface-ip / HOPE_MOTIVE_INTERFACE_IP"
+import ipaddress
+import sys
+
+value = sys.argv[1]
+if value:
+    try:
+        address = ipaddress.IPv4Address(value)
+        if address.is_multicast or int(address) == 0xffffffff:
+            raise ValueError("expected a local unicast IPv4 address")
+    except ValueError as exc:
+        sys.exit(f"interface_ip: {exc}")
+PY
     [[ -n "${POSITION_SCALE}" ]] || POSITION_SCALE="1.0"
     [[ -z "${PORT}" ]] ||
       die "--port is a VRPN (avatar_pro) flag; the NatNet command port is fixed in optitrack_mct.yaml"
@@ -284,6 +306,7 @@ if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   BRIDGE_CMD=(
     ros2 launch hope_bringup optitrack_hope_bridge.launch.py
     "hostname:=${MOCAP_IP}"
+    "interface_ip:=${MOCAP_INTERFACE_IP}"
     "position_scale:=${POSITION_SCALE}"
     "debug_csv_path:=${SESSION_DIR}/mocap_raw.csv"
     "debug_session_id:=${SESSION_ID}"

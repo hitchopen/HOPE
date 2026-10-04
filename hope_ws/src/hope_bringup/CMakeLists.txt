@@ -60,6 +60,8 @@ if(BUILD_TESTING)
   ament_add_pytest_test(table_side_transform_test test/test_table_side_transform.py)
   ament_add_pytest_test(source_time_rate_gate_test test/test_source_time_rate_gate.py)
   ament_add_pytest_test(natnet_preflight_test test/test_natnet_preflight.py)
+  ament_add_pytest_test(rally_mocap_interface_test test/test_rally_mocap_interface.py)
+  ament_add_pytest_test(natnet_launch_interfaces_test test/test_natnet_launch_interfaces.py)
   ament_add_pytest_test(pose_to_posearray_test test/test_pose_to_posearray.py
     TIMEOUT 60
   )

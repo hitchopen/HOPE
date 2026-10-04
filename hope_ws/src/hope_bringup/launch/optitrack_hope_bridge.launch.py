@@ -34,16 +34,33 @@ TODO before running on hardware (see docs/operations/run_mocap.md):
     default UCB_P1 asset so P2 calibration receives UCB_P2 marker messages.
 """
 
+import ipaddress
 from pathlib import Path
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def validate_mocap_interface(context):
+    if not IfCondition(LaunchConfiguration("start_mocap_node")).evaluate(context):
+        return []
+    if LaunchConfiguration("mocap_type").perform(context) != "optitrack":
+        return []
+    value = LaunchConfiguration("interface_ip").perform(context)
+    if value:
+        try:
+            address = ipaddress.IPv4Address(value)
+            if address.is_multicast or int(address) == 0xffffffff:
+                raise ValueError("expected a local unicast IPv4 address")
+        except ValueError as exc:
+            raise RuntimeError(f"Invalid interface_ip {value!r}: {exc}") from exc
+    return []
 
 
 def generate_launch_description():
@@ -84,7 +101,11 @@ def generate_launch_description():
     table_width_m = LaunchConfiguration("table_width_m")
 
     return LaunchDescription([
-        DeclareLaunchArgument("interface_ip", default_value="", description="Wired Motive interface IPv4; empty uses route selection"),
+        DeclareLaunchArgument(
+            "interface_ip", default_value="",
+            description="Local Motive NIC IPv4; empty or 0.0.0.0 selects the "
+                        "source address of the route to the Motive server.",
+        ),
         DeclareLaunchArgument(
             "hostname",
             description="REQUIRED (no default by operator policy — venue values are "
@@ -192,6 +213,9 @@ def generate_launch_description():
                 "the strict profile contract."
             ),
         ),
+
+        # Reject invalid configuration before any nodes or respawn loops start.
+        OpaqueFunction(function=validate_mocap_interface),
 
         # Static HOPE world frame: table landmarks + mocap->base_link offsets.
         IncludeLaunchDescription(

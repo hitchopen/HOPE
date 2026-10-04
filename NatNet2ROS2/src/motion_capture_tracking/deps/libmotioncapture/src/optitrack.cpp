@@ -626,18 +626,24 @@ namespace libmotioncapture {
     pImpl->socket.get_option(actual_receive_buffer);
 
     if (response.IsMulticast) {
-      if (interface_ip.empty() || interface_ip == "0.0.0.0") {
-        throw std::runtime_error(
-          "Motive selected multicast, but interface_ip is not an explicit "
-          "local IPv4 address. Relaunch with interface_ip:=<WIRED_NIC_IP>");
-      }
       auto listen_address_boost =
+        interface_ip.empty() ? boost::asio::ip::address_v4::any() :
         boost::asio::ip::make_address_v4(interface_ip);
+      // Port build_6's Motive-route selection (324e60d12085). Joining on
+      // INADDR_ANY can select the Internet NIC on a multihomed host. Resolve
+      // the source address for the command endpoint instead; UDP connect
+      // performs a route lookup without sending a packet. Explicit NICs win.
+      if (listen_address_boost.is_unspecified()) {
+        udp::socket route_probe(io_context_cmd, udp::v4());
+        route_probe.connect(endpoint_cmd);
+        listen_address_boost = route_probe.local_endpoint().address().to_v4();
+      }
       if (listen_address_boost.is_unspecified() ||
-          listen_address_boost.is_multicast()) {
+          listen_address_boost.is_multicast() ||
+          listen_address_boost == boost::asio::ip::address_v4::broadcast()) {
         throw std::runtime_error(
-          "interface_ip must be a unicast IPv4 address assigned to the "
-          "competition adapter NIC");
+          "NatNet multicast requires a local unicast IPv4 address; check "
+          "the route to Motive or set interface_ip:=<WIRED_NIC_IP>");
       }
       std::stringstream sstr;
       sstr << (int)response.MulticastGroupAddress[0] << "."
@@ -654,7 +660,7 @@ namespace libmotioncapture {
       // Join the multicast group on a specific interface
       pImpl->socket.set_option(boost::asio::ip::multicast::join_group(multicast_address_boost, listen_address_boost));
       std::cout << "[optitrack] Using multicast from " << hostname
-                << " via local interface " << interface_ip
+                << " via local interface " << listen_address_boost.to_string()
                 << ", group " << multicast_address << ":" << port_data
                 << ", NatNet " << pImpl->version
                 << ", receive buffer " << actual_receive_buffer.value()
@@ -740,6 +746,12 @@ namespace libmotioncapture {
       std::chrono::milliseconds(FRAME_RECEIVE_TIMEOUT_MS);
     std::size_t post_frame_drain_packets = 0;
     while (true) {
+      // As in build_6, finish when the receive queue is empty. MSG_DONTWAIT
+      // alone is insufficient: Boost's synchronous wrapper can retry EAGAIN
+      // with an unbounded poll on an otherwise blocking socket.
+      if (have_frame && pImpl->socket.available() == 0) {
+        break;
+      }
       if (have_frame &&
           post_frame_drain_packets >= MAX_POST_FRAME_DRAIN_PACKETS) {
         std::cerr

@@ -7,14 +7,29 @@ heartbeat. HOPE-specific conversion to ``/poses`` and TF is performed
 separately by ``hope_bringup/optitrack_mct_relay``.
 """
 
+import ipaddress
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+
+
+def validate_mocap_interface(context):
+    if LaunchConfiguration("mocap_type").perform(context) != "optitrack":
+        return []
+    value = LaunchConfiguration("interface_ip").perform(context)
+    if value:
+        try:
+            address = ipaddress.IPv4Address(value)
+            if address.is_multicast or int(address) == 0xffffffff:
+                raise ValueError("expected a local unicast IPv4 address")
+        except ValueError as exc:
+            raise RuntimeError(f"Invalid interface_ip {value!r}: {exc}") from exc
+    return []
 
 
 def generate_launch_description():
@@ -43,8 +58,8 @@ def generate_launch_description():
                 default_value="",
                 description=(
                     "IPv4 address assigned to this computer's wired "
-                    "Motive-network NIC. Required for live multicast; an empty "
-                    "value is accepted only for mock/unicast operation."
+                    "Motive-network NIC. Empty or 0.0.0.0 selects the source "
+                    "address of the route to the Motive server."
                 ),
             ),
             DeclareLaunchArgument(
@@ -83,6 +98,7 @@ def generate_launch_description():
                     "available; recalculation still occurs only on PREPARE."
                 ),
             ),
+            OpaqueFunction(function=validate_mocap_interface),
             Node(
                 package="motion_capture_tracking",
                 executable="motion_capture_tracking_node",

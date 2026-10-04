@@ -37,11 +37,10 @@
     # explicitly per run via the REQUIRED launch arg
     # (natnet2ros2.launch.py hostname:=<MOTIVE_PC_IP>).
     # For a bare `ros2 run motion_capture_tracking motion_capture_tracking_node`
-    # debug session, add both `-p hostname:=<MOTIVE_PC_IP>` and
-    # `-p interface_ip:=<ADAPTER_WIRED_IP>` yourself. `interface_ip` is passed
-    # explicitly per run. It is this Linux
-    # computer's wired NIC address on the Motive network, not the Motive IP.
-    # Multicast intentionally fails closed when it is empty or 0.0.0.0.
+    # debug session, add `-p hostname:=<MOTIVE_PC_IP>` yourself. An empty
+    # interface_ip or 0.0.0.0 selects the source NIC of the route to Motive.
+    # Override with `-p interface_ip:=<ADAPTER_WIRED_IP>` when needed: this is
+    # the local computer's NIC address on the Motive network, not the Motive IP.
 
     topics:
       frame_id: "world"
