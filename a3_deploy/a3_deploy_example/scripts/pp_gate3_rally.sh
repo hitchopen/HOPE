@@ -302,8 +302,10 @@ pkill -9 -f "pp_gate3_sim_mocap.py" 2>/dev/null
 pkill -9 -f "pp_gate3_ball_launcher.py" 2>/dev/null
 pkill -9 -f "pp_gate3_ball_evidence.py" 2>/dev/null
 fi
-rm -f /tmp/pp_obs.csv /tmp/pp_runner_trace.csv /tmp/pp_gate3_stop_launches \
+rm -f /tmp/pp_obs.csv /tmp/pp_runner_trace.csv \
+  "${PP_STOP_LAUNCHES_FILE:-/tmp/pp_gate3_stop_launches}" \
   /tmp/pp_ball_trajectories.csv \
+  "${PP_DRAIN_REPORT_JSON:-/tmp/pp_gate3_drain_report.json}" \
   /tmp/pp_mujoco_plant_report.json \
   /tmp/pp_rally_report.json /tmp/pp_runner.log /tmp/pp_ball.log \
   /tmp/pp_contact.log /tmp/pp_raw_mocap.log /tmp/pp_mocap_relay.log \
@@ -322,7 +324,12 @@ sleep 1
 gate3_cleanup() {
   # Keep the physical simulator and recorder alive through the final flight,
   # even when a policy falls or the caller interrupts the run.
-  python3 "$SCRIPT_DIR/pp_gate3_drain_flights.py" || true
+  local drain_rc=0
+  python3 "$SCRIPT_DIR/pp_gate3_drain_flights.py" || drain_rc=$?
+  if [ "$drain_rc" -ne 0 ]; then
+    echo "[g3r] flight evidence incomplete (rc=$drain_rc); cleaning up failed run"
+    python3 "$SCRIPT_DIR/pp_gate3_drain_flights.py" --finalize-report /tmp/pp_rally_report.json
+  fi
   if [ "${PP_MANAGED_RUN:-0}" = "1" ]; then
     # Only process groups recorded by this run; never pkill another session.
     if [ -f "$PP_CHILD_PIDS_FILE" ]; then
@@ -338,7 +345,7 @@ gate3_cleanup() {
       read -r child < "$A3_IOX_ROUDI_PID_FILE"
       [[ "$child" =~ ^[0-9]+$ ]] && kill -TERM -- "-$child" 2>/dev/null
     fi
-    return 0
+    return "$drain_rc"
   fi
   pkill -9 -f "a3_deploy_onnx_ref_pingpong" 2>/dev/null
   pkill -9 -f "hope_planner_cpp_node" 2>/dev/null
@@ -356,8 +363,17 @@ gate3_cleanup() {
     pkill -9 -x iox-roudi 2>/dev/null
     rm -f /dev/shm/iox1_0_* 2>/dev/null
   fi
+  return "$drain_rc"
 }
-trap gate3_cleanup EXIT
+gate3_on_exit() {
+  local original_rc=$? cleanup_rc=0
+  trap - EXIT
+  trap '' INT TERM
+  gate3_cleanup || cleanup_rc=$?
+  if [ "$original_rc" -eq 0 ]; then original_rc=$cleanup_rc; fi
+  exit "$original_rc"
+}
+trap gate3_on_exit EXIT
 trap 'exit 130' INT TERM
 
 echo "[g3r] sim up (iceoryx body-drive + ros2 /sim/a3/pelvis_pose)"
@@ -373,6 +389,7 @@ if [ "${PP_REUSE_SIM:-0}" != "1" ]; then
     A3_GATE3_BALL_RESTITUTION_H=0.64 \
     A3_GATE3_BALL_RESTITUTION_V=0.9215 \
     A3_SIM_FLAVOR=auto A3_SIM_CFG=a3_pingpong_iceoryx_cfg.yaml ./scripts/run_sim.sh" >/tmp/pp_sim.log 2>&1 &
+  export PP_SIM_PID=$!
     if [ -n "${PP_CHILD_PIDS_FILE:-}" ]; then printf '%s\n' "$!" >> "$PP_CHILD_PIDS_FILE"; fi
   for i in $(seq 1 40); do
     grep -qiE "will wait for shutdown|Sim Start|gui" /tmp/pp_sim.log 2>/dev/null && break
@@ -520,6 +537,7 @@ setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; \
   PP_PHYSICAL_EVIDENCE_JSON='${PP_PHYSICAL_EVIDENCE_JSON:-/tmp/pp_physical_ball_report.json}' \
   PP_SERVES='${PP_SERVES:-12}' \
   python3 '$SCRIPT_DIR/pp_gate3_ball_evidence.py'" >/tmp/pp_contact.log 2>&1 &
+  export PP_EVIDENCE_PID=$!
   if [ -n "${PP_CHILD_PIDS_FILE:-}" ]; then printf '%s\n' "$!" >> "$PP_CHILD_PIDS_FILE"; fi
 
 echo "[g3r] side-neutral physical scenario=$PP_GATE3_SCENARIO geometry_profile=$PP_GATE3_PROFILE ${PP_SERVES}-shot sweep"
@@ -584,6 +602,8 @@ RC=$?
 
 echo "[g3r] stopping"
 gate3_cleanup
+CLEANUP_RC=$?
+if [ "$CLEANUP_RC" -ne 0 ]; then RC=$CLEANUP_RC; fi
 trap - EXIT INT TERM
 
 echo "========================= RESULTS (rally) ========================="
@@ -792,5 +812,9 @@ elif [ "$REPORT_RC" -ne 0 ] && \
 elif [ "$REPORT_RC" -ne 0 ]; then
   echo "[g3r] pp_rally_report advisory FAIL (set PP_REQUIRE_READY=1 for Final certification)"
 fi
+# Cleanup evidence remains authoritative even if a later report was provisional.
+python3 "$SCRIPT_DIR/pp_gate3_drain_flights.py" --finalize-report /tmp/pp_rally_report.json
+DRAIN_REPORT_RC=$?
+if [ "$DRAIN_REPORT_RC" -ne 0 ]; then RC=$DRAIN_REPORT_RC; fi
 echo "==================================================================="
 exit $RC

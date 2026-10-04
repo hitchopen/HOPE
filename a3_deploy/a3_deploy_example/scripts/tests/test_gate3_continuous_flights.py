@@ -93,9 +93,11 @@ def test_drain_does_not_cut_off_a_flight_at_thirty_seconds(tmp_path, monkeypatch
 
     def advance(seconds):
         now[0] += seconds
+        row = {"shot_id": 1, "samples": int(now[0] * 250),
+               "last_stamp_ns": int(now[0] * 1e9)}
         if now[0] >= 31:
-            report.write_text(json.dumps({"rows": [{"shot_id": 1, "samples": 10,
-                                                    "terminal_event": {"stamp_ns": 31_000_000_000}}]}))
+            row["terminal_event"] = {"stamp_ns": 31_000_000_000}
+        report.write_text(json.dumps({"rows": [row]}))
     monkeypatch.setattr(drain.time, "sleep", advance)
     assert drain.main() == 0
     assert now[0] >= 31

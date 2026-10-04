@@ -42,7 +42,7 @@ class Gate3BallLauncher(Node):
     def __init__(self, args: argparse.Namespace) -> None:
         super().__init__("gate3_ball_launcher")
         self._args = args
-        self._stop_file = Path("/tmp/pp_gate3_stop_launches")
+        self._stop_file = Path(os.environ.get("PP_STOP_LAUNCHES_FILE", "/tmp/pp_gate3_stop_launches"))
         self._serves = parse_serves_list(args.serves)
         if args.max_serves <= 0:
             raise ValueError("--max-serves must be positive")

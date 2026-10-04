@@ -19,6 +19,8 @@ import time
 
 import yaml
 
+from pp_gate3_drain_flights import finalize_report
+
 GEAR = Path(__file__).resolve().parents[1]
 ROOT = GEAR.parents[1]
 CONFIG = GEAR / "config/gate3"
@@ -146,6 +148,90 @@ def parser():
     return p
 
 
+def stop_owned_processes(process, out):
+    """Bound failed cleanup using only this run's recorded process groups."""
+    groups = {process.pid}
+    for name in ("child_pids.txt", "roudi.pid"):
+        try:
+            groups.update(int(line) for line in (out / name).read_text().split()
+                          if line.isdecimal())
+        except OSError:
+            pass
+    groups = {pid for pid in groups if pid > 1 and pid != os.getpgrp()}
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for pid in groups:
+            try:
+                os.killpg(pid, sig)
+            except ProcessLookupError:
+                pass
+        if sig == signal.SIGTERM:
+            time.sleep(1.0)
+    process.wait(timeout=5)
+
+
+def wait_for_engine(process, out, started, *, cleanup_grace_s=10.0):
+    failure_seen = None
+    next_notice = time.monotonic() + 30.0
+    while True:
+        try:
+            return process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            drain = json.loads((out / "pp_gate3_drain_report.json").read_text())
+        except (OSError, ValueError):
+            drain = {}
+        if isinstance(drain, dict) and drain.get("status") == "failed":
+            now = time.monotonic()
+            failure_seen = now if failure_seen is None else failure_seen
+            if now - failure_seen >= cleanup_grace_s:
+                print("Gate3 failed flight drain; stopping this run's remaining processes", flush=True)
+                stop_owned_processes(process, out)
+                return 2
+        if time.monotonic() >= next_notice:
+            print(f"Gate3 running/cleaning up ({int(time.time() - started)}s); "
+                  f"{out / 'console.log'}", flush=True)
+            next_notice = time.monotonic() + 30.0
+
+
+def archive_results(out, started, source_dir=Path("/tmp")):
+    errors = []
+    for path in source_dir.glob("pp_*"):
+        try:
+            if path.is_file() and path.suffix in (".csv", ".json", ".log") and path.stat().st_mtime >= started:
+                # The drain receipt is already run-local and authoritative.
+                if path.name == "pp_gate3_drain_report.json":
+                    continue
+                shutil.copy2(path, out / path.name)
+        except OSError as exc:
+            errors.append(f"{path}: {exc}")
+    return errors
+
+
+def finish_run(out, receipt, rc, started, archive_errors):
+    if archive_errors and rc == 0:
+        rc = 2
+    drain_path = out / "pp_gate3_drain_report.json"
+    report_path = out / "pp_rally_report.json"
+    if finalize_report(report_path, drain_path) and rc == 0:
+        rc = 2
+    if drain_path.exists():
+        try:
+            receipt["flight_drain"] = json.loads(drain_path.read_text())
+        except (OSError, ValueError):
+            receipt["flight_drain"] = {"evidence_complete": False}
+    try:
+        report = json.loads(report_path.read_text())
+    except (OSError, ValueError):
+        report = {}
+    receipt.update(status="failed" if rc else "finished", exit_code=rc,
+                   elapsed_s=time.time() - started, archive_errors=archive_errors,
+                   certification_pass=rc == 0 and isinstance(report, dict)
+                   and report.get("certification_pass") is True)
+    write_json(out / "run.json", receipt)
+    return rc
+
+
 def execute(args):
     cfg = runtime_config(args.runtime)
     for key in cfg:
@@ -212,6 +298,7 @@ def execute(args):
         "PP_SCENE_EXPORTS": str(exports), "PP_SERVES": scene_env["PP_SERVES"],
         "PP_MANAGED_RUN": "1", "PP_CHILD_PIDS_FILE": str(out / "child_pids.txt"),
         "A3_IOX_ROUDI_PID_FILE": str(out / "roudi.pid"),
+        "PP_DRAIN_REPORT_JSON": str(out / "pp_gate3_drain_report.json"),
     })
     receipt = {"status": "prepared", "evidence_scope": "simulator_truth", "output": str(out),
                "runtime": cfg, "policy": inspection, "scene": scene,
@@ -239,36 +326,36 @@ def execute(args):
         write_json(out / "run.json", receipt)
         command = ["bash", str(GEAR / "scripts/pp_gate3_hitter_pingpong.sh")]
         process = None
+        rc = 2
         try:
             with (out / "console.log").open("w") as log:
                 process = subprocess.Popen(command, cwd=GEAR, env=env, stdout=log, stderr=subprocess.STDOUT,
                                            start_new_session=True)
-                while True:
-                    try:
-                        rc = process.wait(timeout=30)
-                        break
-                    except subprocess.TimeoutExpired:
-                        print(f"Gate3 running ({int(time.time() - started)}s); {out / 'console.log'}", flush=True)
+                rc = wait_for_engine(process, out, started)
         except KeyboardInterrupt:
             rc = 130
             if process:
-                os.killpg(process.pid, signal.SIGTERM)
-                while True:
-                    try:
-                        process.wait(timeout=30)
-                        break
-                    except subprocess.TimeoutExpired:
-                        print("Waiting for launched balls to finish before simulator cleanup", flush=True)
+                handlers = {sig: signal.signal(sig, signal.SIG_IGN)
+                            for sig in (signal.SIGINT, signal.SIGTERM)}
+                try:
+                    if process.poll() is None:
+                        try:
+                            os.killpg(process.pid, signal.SIGTERM)
+                        except ProcessLookupError:
+                            pass
+                    wait_for_engine(process, out, started)
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    receipt["cleanup_error"] = str(exc)
+                finally:
+                    for sig, handler in handlers.items():
+                        signal.signal(sig, handler)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            receipt["runtime_error"] = str(exc)
+            rc = 2
         finally:
             # Include diagnostics on failed setup/early falls as well as success.
-            for path in Path("/tmp").glob("pp_*"):
-                if path.is_file() and path.suffix in (".csv", ".json", ".log") and path.stat().st_mtime >= started:
-                    shutil.copy2(path, out / path.name)
-        receipt.update(status="finished", exit_code=rc, elapsed_s=time.time() - started)
-        report_path = out / "pp_rally_report.json"
-        if report_path.exists():
-            receipt["certification_pass"] = json.loads(report_path.read_text()).get("certification_pass", False)
-        write_json(out / "run.json", receipt)
+            archive_errors = archive_results(out, started)
+        rc = finish_run(out, receipt, rc, started, archive_errors)
         print(f"Gate3 exited {rc}; logs and reports: {out}")
         return rc
 
