@@ -1,0 +1,175 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 任务结构
+ */
+message TETask {
+
+  /**
+   * @brief 任务状态
+   */
+  enum State {
+    State_UNDEFINED = 0;
+
+    // 空闲
+    State_IDLE = 1;
+
+    // 启动
+    State_RUNNING = 2;
+
+    // 暂停
+    State_PAUSED = 3;
+
+    // 正在暂停
+    State_PAUSING = 4;
+
+    // 正在继续
+    State_RESUMING = 5;
+
+    // 正在取消
+    State_CANCELING = 6;
+
+    // 取消
+    State_CANCELED = 7;
+
+    // 等待节拍结束后暂停
+    State_LAZY_PAUSING = 8;
+
+  }
+  string name = 1;
+
+  // 任务 id
+  uint32 id = 2;
+
+  // 执行这个任务的 worker id
+  uint32 worker_id = 3;
+
+  // 任务状态
+  State state = 4;
+
+  // 任务开始时间
+  int64 duration = 5;
+
+  // 任务配置，报心跳时缺省
+  string config = 6;
+
+  // 处于懒暂停中；懒暂停中的任务也可能会暂停
+  bool in_lazy_pause = 7;
+
+  // 任务自定义的随路数据
+  bytes task_data = 8;
+
+  // 循环任务倒计时
+  uint64 count_down = 9;
+
+  // 循环次数
+  uint64 cycle_count = 10;
+}
+
+/**
+ * @brief 任务状态切换请求
+ */
+message CtrlTaskWorkerRequest {
+  RequestHeader header = 1;
+
+  /**
+   * @brief 任务状态切换类型
+   */
+  enum Type {
+    Type_UNDEFINED = 0;
+
+    // 启动
+    Type_Start = 1;
+
+    // 暂停
+    Type_PAUSE = 2;
+
+    // 继续
+    Type_RESUME = 3;
+
+    // 终止， worker 不会退出，可以重新启动任务
+    Type_CANCEL = 4;
+
+    // 退出， worker 会退出
+    Type_EXIT = 5;
+
+    // 等待节拍结束的暂停
+    Type_LazyPause = 6;
+
+    // 继续并跳过当前Action
+    Type_RESUME_AND_SKIP_CUR_ACTION = 7;
+
+    // 配置修改
+    Type_CONFIG = 8;
+  }
+
+  // 控制类型
+  Type type = 3;
+
+  // 控制信息
+  bytes task_data = 4;
+}
+
+/**
+ * @brief 任务状态切换响应
+ */
+message CtrlTaskWorkerResponse {
+  ResponseHeader header = 1;
+
+  // 控制结果
+  bool is_success = 2;
+}
+
+message GetTaskWorkerStateRequest {
+  RequestHeader header = 1;
+
+  // worker id
+  string task_name = 2;
+}
+
+message CheckoutTaskRequest {
+  RequestHeader header = 1;
+
+  // worker id
+  string task_name = 2;
+
+  // 任务配置
+  string task_config = 3;
+
+  // 传入的任务配置是否为文件
+  bool is_file = 4;
+}
+
+message CheckoutTaskResponse {
+  ResponseHeader header = 1;
+
+  // 是否成功
+  bool is_success = 2;
+}
+
+message GetTaskWorkerStateResponse {
+  ResponseHeader header = 1;
+
+  // Worker 任务状态
+  TETask task = 2;
+}
+
+message TaskWorkerHeartBeat {
+  Header header = 1;
+  uint32 worker_id = 2;
+  string worker_app_path = 3;
+  TETask task = 4;
+}
+
+service TaskWorkerService {
+
+rpc CtrlTaskWorker(CtrlTaskWorkerRequest) returns (CtrlTaskWorkerResponse);
+
+rpc CheckoutTask(CheckoutTaskRequest) returns (CheckoutTaskResponse);
+
+rpc GetTaskWorkerState(GetTaskWorkerStateRequest) returns (GetTaskWorkerStateResponse);
+
+}

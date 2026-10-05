@@ -23,6 +23,13 @@
 
 namespace a3_rt {
 
+inline std::int64_t NextWakeNs(std::int64_t previous_deadline,
+                               std::int64_t completed,
+                               std::int64_t period) noexcept {
+  const auto next = previous_deadline + period;
+  return next <= completed ? completed + period : next;
+}
+
 class A3BasedTask {
  public:
   struct Options {
@@ -56,6 +63,13 @@ class A3BasedTask {
 
   Stats GetStats() const noexcept;
 
+  // Deadline of the current periodic callback, in CLOCK_MONOTONIC time.
+  // Native-rate decimators must use this clock instead of re-quantizing wake
+  // jitter against another wall-time deadline. Zero before the first callback.
+  std::int64_t CurrentWakeDeadlineNs() const noexcept {
+    return current_wake_deadline_ns_.load(std::memory_order_relaxed);
+  }
+
  protected:
   // Override this. Called once per period inside the RT thread. Must not throw.
   virtual void RunOnce() noexcept = 0;
@@ -72,6 +86,7 @@ class A3BasedTask {
   Options opt_;
   std::atomic<bool> running_{false};
   std::atomic<bool> should_stop_{false};
+  std::atomic<std::int64_t> current_wake_deadline_ns_{0};
   std::thread thread_;
 
   // Stats: written only by the RT thread; read atomically from outside.

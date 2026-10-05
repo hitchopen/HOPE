@@ -1,0 +1,22 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief 由 HAL 上报的机器人的MCU供电状态。
+ *        topic: /aima/mcu_power_state
+ */
+message State{
+    int32 wheel = 1;
+    int32 steer = 2;
+    int32 waist = 3;
+    int32 lift = 4;
+    int32 jaka = 5;
+    int32 upper = 6;
+}
+message McuPowerState {
+  Header header = 1;
+  State state = 2;
+}

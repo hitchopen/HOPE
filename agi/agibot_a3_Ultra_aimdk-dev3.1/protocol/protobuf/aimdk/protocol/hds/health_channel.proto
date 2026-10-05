@@ -1,0 +1,32 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/hds/health.proto";
+import "aimdk/protocol/hds/alert.proto";
+
+/**
+ * @brief 系统健康zhan topic:
+ * @deprecated TE，SM 在 v0.7 版本弃用后，删除该接口
+ **/
+message HealthStatusChannel {
+  // Header 包含时间辍
+  Header header = 1;
+
+  /**
+   @brief 告警等级
+   */
+  AlertLevel alert_level = 2;
+
+  /**
+   @brief 告警影响范围
+   */
+  repeated AlertImpactName alert_impact_range = 3;
+
+
+  /**
+   @brief 降级方案id
+   */
+  uint32 demotion_id  = 4;
+
+}

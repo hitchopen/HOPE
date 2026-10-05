@@ -37,7 +37,14 @@ from base_pose_contract import (
     receipt_id_u52,
     resolve_wire_source_stamp_ns,
 )
-from p1_calibration import load_p1_calibration
+from p1_calibration import (
+    load_p1_calibration,
+    validate_calibration_source_identity,
+)
+from table_side_transform import (
+    normalize_table_side,
+    runtime_world_frame_sha256,
+)
 
 
 class BasePoseFlatRelay(Node):
@@ -45,14 +52,18 @@ class BasePoseFlatRelay(Node):
 
     def __init__(self) -> None:
         super().__init__("hope_base_pose_flat_relay")
-        self.declare_parameter("input_topic", "/P1/pose")
+        self.declare_parameter("input_topic", "/UCB_P1/pose")
         self.declare_parameter("output_topic", "/a3/base_pose_flat")
         self.declare_parameter("expected_input_frame", "world")
-        self.declare_parameter("expected_marker_frame", "P1")
+        self.declare_parameter("expected_marker_frame", "UCB_P1")
         self.declare_parameter("pelvis_frame", "pelvis_link")
         self.declare_parameter("pelvis_pose_topic", "/a3/mocap/pelvis_pose")
         self.declare_parameter("calibration_file", "")
         self.declare_parameter("calibration_reload_period_s", 1.0)
+        self.declare_parameter("require_marker_identity", False)
+        self.declare_parameter(
+            "marker_identity_topic", "/optitrack/rigid_body_markers"
+        )
         self.declare_parameter("marker_to_base_xyz", [0.0, 0.0, 0.0])
         self.declare_parameter(
             "marker_to_base_quaternion_wxyz", [1.0, 0.0, 0.0, 0.0]
@@ -62,9 +73,12 @@ class BasePoseFlatRelay(Node):
         self.declare_parameter("world_frame_calibrated", False)
         self.declare_parameter("calibration_sha256", "")
         self.declare_parameter("world_frame_sha256", "")
+        self.declare_parameter("table_side", "P1")
+        self.declare_parameter("table_length_m", 2.74)
+        self.declare_parameter("table_width_m", 1.525)
         # The current OptiTrack ROS abstraction already drops tracking-invalid
         # rigid bodies but does not expose mean marker error. Until that API is
-        # extended, a present P1 sample is binary quality=1.
+        # extended, a present selected UCB sample is binary quality=1.
         self.declare_parameter("tracking_quality", 1.0)
         self.declare_parameter("source_stamp_mode", SOURCE_STAMP_INPUT_HEADER)
         self.declare_parameter("max_source_age_s", 0.10)
@@ -88,8 +102,14 @@ class BasePoseFlatRelay(Node):
         self._pelvis_frame = str(self.get_parameter("pelvis_frame").value)
         calibration_file = str(self.get_parameter("calibration_file").value).strip()
         self._calibration_path = Path(calibration_file) if calibration_file else None
+        self._require_marker_identity = bool(
+            self.get_parameter("require_marker_identity").value
+        )
         self._loaded_calibration_sha = ""
         self._calibration_error = ""
+        self._candidate_calibration = None
+        self._live_rigid_body_name: str | None = None
+        self._live_rigid_body_id: int | None = None
         self._extrinsic_calibrated = (
             False
             if self._calibration_path is not None
@@ -118,11 +138,32 @@ class BasePoseFlatRelay(Node):
         )
         calibration_sha = str(self.get_parameter("calibration_sha256").value)
         world_sha = str(self.get_parameter("world_frame_sha256").value)
+        self._table_side = normalize_table_side(
+            self.get_parameter("table_side").value
+        )
+        self._table_length_m = float(
+            self.get_parameter("table_length_m").value
+        )
+        self._table_width_m = float(
+            self.get_parameter("table_width_m").value
+        )
         self._calibration_id = (
             receipt_id_u52(calibration_sha) if self._extrinsic_calibrated else 0
         )
+        self._runtime_world_sha = (
+            runtime_world_frame_sha256(
+                world_sha,
+                self._table_side,
+                self._table_length_m,
+                self._table_width_m,
+            )
+            if self._world_calibrated
+            else ""
+        )
         self._world_frame_id = (
-            receipt_id_u52(world_sha) if self._world_calibrated else 0
+            receipt_id_u52(self._runtime_world_sha)
+            if self._world_calibrated
+            else 0
         )
         self._flags = 0
         self._rebuild_flags()
@@ -166,6 +207,20 @@ class BasePoseFlatRelay(Node):
             self._pose_cb,
             input_qos,
         )
+        if self._require_marker_identity:
+            # Keep motion_capture_tracking_interfaces optional for the generic
+            # avatar/VRPN workspace. The OptiTrack launch enables this check
+            # only when its marker aggregate is enabled.
+            from motion_capture_tracking_interfaces.msg import (
+                RigidBodyMarkerArray,
+            )
+
+            self._marker_identity_subscription = self.create_subscription(
+                RigidBodyMarkerArray,
+                str(self.get_parameter("marker_identity_topic").value),
+                self._marker_identity_cb,
+                input_qos,
+            )
         reload_period_s = float(
             self.get_parameter("calibration_reload_period_s").value
         )
@@ -199,19 +254,51 @@ class BasePoseFlatRelay(Node):
                     f"{self._pelvis_frame!r}"
                 )
         except (OSError, UnicodeError, ValueError) as exc:
-            detail = str(exc)
-            changed = detail != self._calibration_error or self._extrinsic_calibrated
-            self._calibration_error = detail
-            self._extrinsic_calibrated = False
-            self._calibration_id = 0
-            self._loaded_calibration_sha = ""
-            self._rebuild_flags()
-            if changed:
-                self.get_logger().warning(
-                    f"P1 calibration unavailable -> base output invalid: {detail}"
-                )
+            self._candidate_calibration = None
+            self._invalidate_calibration(str(exc))
             return
-        if calibration.receipt_sha256 == self._loaded_calibration_sha:
+        self._candidate_calibration = calibration
+        self._reconcile_calibration_identity()
+
+    def _invalidate_calibration(self, detail: str) -> None:
+        changed = detail != self._calibration_error or self._extrinsic_calibrated
+        self._calibration_error = detail
+        self._extrinsic_calibrated = False
+        self._calibration_id = 0
+        self._loaded_calibration_sha = ""
+        self._rebuild_flags()
+        if changed:
+            self.get_logger().warning(
+                "marker calibration unavailable -> base output invalid: "
+                f"{detail}"
+            )
+
+    def _reconcile_calibration_identity(self) -> None:
+        calibration = self._candidate_calibration
+        if calibration is None:
+            return
+        if self._require_marker_identity:
+            if (
+                self._live_rigid_body_name is None
+                or self._live_rigid_body_id is None
+            ):
+                self._invalidate_calibration(
+                    "waiting for live rigid-body identity before accepting receipt"
+                )
+                return
+            try:
+                validate_calibration_source_identity(
+                    calibration,
+                    live_rigid_body_name=self._live_rigid_body_name,
+                    live_rigid_body_id=self._live_rigid_body_id,
+                )
+            except ValueError as exc:
+                self._invalidate_calibration(str(exc))
+                return
+        if (
+            calibration.receipt_sha256 == self._loaded_calibration_sha
+            and self._extrinsic_calibrated
+        ):
             return
         self._offset = calibration.translation_m
         qx, qy, qz, qw = calibration.quaternion_xyzw
@@ -222,9 +309,17 @@ class BasePoseFlatRelay(Node):
         self._extrinsic_calibrated = True
         self._rebuild_flags()
         self.get_logger().info(
-            "loaded approved P1 -> pelvis_link calibration "
-            f"{calibration.receipt_sha256} from {path}"
+            f"loaded approved {calibration.parent_frame} -> pelvis_link calibration "
+            f"{calibration.receipt_sha256} from {self._calibration_path}"
         )
+
+    def _marker_identity_cb(self, msg) -> None:
+        name = str(msg.rigid_body_name)
+        if name != self._expected_marker_frame:
+            return
+        self._live_rigid_body_name = name
+        self._live_rigid_body_id = int(msg.rigid_body_id)
+        self._reconcile_calibration_identity()
 
     def _pose_cb(self, msg: PoseStamped) -> None:
         self._received += 1
@@ -365,13 +460,16 @@ class BasePoseFlatRelay(Node):
 
     def _log_health(self) -> None:
         self.get_logger().info(
-            "BASE RELAY schema=2 stamp=%s calibrated=%d world=%d receipt=%s "
+            "BASE RELAY schema=2 stamp=%s side=%s calibrated=%d world=%d "
+            "receipt=%s world_receipt=%s "
             "received=%d published=%d rejected=%d"
             % (
                 self._source_stamp_mode,
+                self._table_side,
                 self._extrinsic_calibrated,
                 self._world_calibrated,
                 self._loaded_calibration_sha[:13] or "parameter",
+                self._runtime_world_sha[:13] or "missing",
                 self._received,
                 self._published,
                 self._rejected,

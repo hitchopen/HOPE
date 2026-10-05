@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/ota/mcu/ota_mcu_api.proto";
+
+/**
+ * OTA 与 MCU 交互的服务
+ */
+service OTAMcuService {
+  /**
+   * 获取 MCU 信息
+   */
+  rpc GetMcuInfo(GetMcuInfoRequest) returns (GetMcuInfoResponse);
+
+  /**
+   * 请求升级 MCU
+   */
+  rpc RequestMcuUpgrade(RequestMcuUpgradeRequest) returns (RequestMcuUpgradeResponse);
+
+  /**
+   * 获取升级状态
+   */
+  rpc GetMcuUpgradeState(GetMcuUpgradeStateRequest) returns (GetMcuUpgradeStateResponse);
+
+  /**
+   * 请求切换 MCU 分区
+   */
+  rpc RequestChangeMcuPartition(RequestChangeMcuPartitionRequest) returns (RequestChangeMcuPartitionResponse);
+
+  /**
+   * 请求重启 MCU
+   */
+  rpc RequestMcuReboot(RequestMcuRebootRequest) returns (RequestMcuRebootResponse);
+}

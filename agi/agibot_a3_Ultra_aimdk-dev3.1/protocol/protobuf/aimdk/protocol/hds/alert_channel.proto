@@ -1,0 +1,14 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/hds/alert.proto";
+
+/**
+ * @brief 告警话题数据(/aima/hds/alert) 由告警系统产生并发布
+ * @note 当告警产生/消失时,会发送该Topic
+ */
+message AlertChannel {
+  Alert alert = 1;
+  // 当前系统中告警的个数
+  uint32 alert_count = 2;
+}

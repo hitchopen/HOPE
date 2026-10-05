@@ -30,6 +30,7 @@ RUN apt-get update \
         python3-yaml \
         libacl1-dev \
         libmsgpack-dev \
+        nlohmann-json3-dev \
         libprotobuf-dev \
         libzmq3-dev \
         cppzmq-dev \

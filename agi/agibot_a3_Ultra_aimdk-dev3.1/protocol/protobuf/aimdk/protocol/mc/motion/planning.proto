@@ -1,0 +1,176 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/scalar_trajectory.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/common/joint.proto";
+import public "aimdk/protocol/mc/common/planning.proto";
+import public "aimdk/protocol/mc/motion/motion_param.proto";
+import public "aimdk/protocol/hal/hand/hand.proto";
+
+message PlanningMoveObjectInfo {
+  enum GeometryType {
+    UNKNOWN = 0;
+    BOX = 1;
+    CYLINDER = 2;
+    SPHERE = 3;
+  }
+
+  string name = 1;
+  SE3Pose pose = 2;
+  GeometryType type = 3;
+  string parent_frame = 4;
+}
+
+message PlanningTarget {
+  enum Type {
+    UNKNOWN = 0;
+    SE3 = 1;
+    JOINT = 2;
+    EE = 3;
+  }
+
+  Type type = 1;
+  SE3Pose left = 2;
+  SE3Pose right = 3;
+  repeated double joints = 4;
+}
+
+message PlanningReference {
+  // 参考的关节角度，数量需要与group的关节数量一致
+  repeated double joint_position = 1;
+  ScalarTrajectory trajectory = 9;
+}
+
+enum InteractiveMotionType {
+  None = 0;
+  HandShake = 1;
+  FistBump = 2;
+  FreeMove = 3;
+}
+
+message PlanningMoveRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  McPlanningWorldModel world_model = 2;
+
+  // 规划组
+  McPlanningGroup group = 3;
+
+  // 模式
+  McPlanningMode mode = 4;
+
+  // 目标位置
+  PlanningTarget target = 5;
+
+  // 多目标位置
+  repeated PlanningTarget targets = 6;
+
+  // 参考位置
+  PlanningReference reference = 7;
+
+  PlanningMoveObjectInfo obj_info = 8;
+
+  // 运动参数
+  MotionParam param = 9;
+}
+
+message InteractiveMoveRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 交互动作类型
+  InteractiveMotionType type = 2;
+
+  // 规划组
+  McPlanningGroup group = 3;
+
+  // 目标位置
+  PlanningTarget target = 4;
+
+  // 多目标位置
+  repeated PlanningTarget targets = 5;
+
+  // 参考位置
+  PlanningReference reference = 6;
+
+  // 手部控制
+  HandCommand hand = 7;
+}
+
+message ComputeKinematicsRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 规划组
+  McPlanningGroup group = 2;
+
+  // 目标位置
+  PlanningTarget target = 3;
+
+  // 参考位置
+  PlanningReference reference = 4;
+}
+
+message ComputeKinematicsResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  bool success_flag = 2;
+
+  // 规划的轨迹
+  ScalarTrajectory ik_results = 3;
+}
+
+// 主动动作暂停/继续rpc
+message ActiveMotionControlRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // control_flag: 0继续； 1暂停；
+  bool control_flag = 2;
+
+}
+
+
+message TempPlanningMoveResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  uint64 task_id = 2;
+  CommonState state = 3;
+
+  // 规划的轨迹
+  ScalarTrajectory trajectory = 4;
+}
+
+enum PlanningState {
+  PLANNING_STATE_UNKNOWN = 0; // 非规划状态
+  PLANNING_STATE_IDLE = 1; // 空闲
+  PLANNING_STATE_INITIALIZING = 2; // 规划器初始化
+  PLANNING_STATE_IK_SOLVING = 3;  // 逆解求解中
+  PLANNING_STATE_PLANNING = 4; // 规划中
+  PLANNING_STATE_EXECUTING = 5; // 执行中
+  PLANNING_STATE_SUCCESS = 6; // 规划成功
+
+  PLANNING_STATE_REFUSED = 100;   // 拒绝不安全任务
+  PLANNING_STATE_IK_FAILED = 101; // 逆解求解失败
+  PLANNING_STATE_PLAN_FAILED = 102;// 规划失败
+  PLANNING_STATE_EXECUTE_FAILED = 103;// 执行失败
+  PLANNING_STATE_TASK_INVALID = 104; // 任务无效
+  PLANNING_STATE_START_INVALID = 105;   // 起始状态无效
+
+  PLANNING_STATE_PAUSED = 200; // 暂停规划，不接收任何任务，也不下发控制指令
+}
+
+message PncArmPlanningStateChannel {
+  Header header = 1;
+  PlanningState state = 2;
+  uint64 task_id = 3;
+  string task_info = 4;
+  // McPlanningGroup task_group = 5;
+  // McPlanningMode task_mode = 6;
+  // PlanningTarget task_target = 7;
+}

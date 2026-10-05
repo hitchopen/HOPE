@@ -1,0 +1,23 @@
+character_list:
+  - name: humanoid
+    valid_root: true
+  - name: left_hand
+    valid_root: false
+  - name: right_hand
+    valid_root: false
+num_frames: 5983
+total_time: 72.039297556
+robot_type: a2_ultra
+hand_type: agihand_s6
+description: 右手动作
+name: 右手点赞_长
+display_name:
+  zh_CN: 右手点赞_长
+  en_US: Like_right hand_Long
+id: 75
+tags: ["社交"]
+scenes: ["task-independent_motion","task-associated_motion","normal-motion_list"]
+usagerights: ["AimMaster", "Agent"]
+md5: "61591b4d4eecaf5c11da9d7e66fb02ff"
+frequency: 83.05189255002236
+performance_mode: 0

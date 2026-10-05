@@ -1,0 +1,35 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/motion_control/motion/locomotion.proto";
+import public "aimdk/protocol/motion_control/motion/dance.proto";
+
+/**
+ * @brief 运控运动服务
+ */
+service MotionControlMotionService {
+  // 设置机器人步态
+  rpc SetLocomotionGait(MotionControlLocomotionGaitRequest) returns (CommonResponse);
+
+  // 获取机器人步态
+  rpc GetLocomotionGait(CommonRequest) returns (MotionControlLocomotionGaitResponse);
+
+  // 选择舞蹈
+  rpc SelectDanceType(MotionControlDanceTypeRequest) returns (CommonResponse);
+
+  // 获取可选舞蹈列表
+  rpc GetDanceTypeList(CommonRequest) returns (MotionControlDanceResponce);
+
+  // 运行时舞蹈增加
+  rpc AddDance(MotionControlAddDanceRequest) returns (MotionControlAddDanceResponce);
+
+  // 查询速度限制值
+  rpc GetVelocityLimitValue(CommonRequest) returns (MotionControlVelocityLimitValueResponse);
+
+  // 设置舞蹈中断
+  rpc SetMotionInterrupt(CommonRequest) returns (CommonResponse);
+
+}
+

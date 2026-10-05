@@ -1,0 +1,60 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+enum PolicyResultType {
+  PolicyResultType_UNKNOWN = 0;
+  PolicyResultType_Success = 1;
+  PolicyResultType_Failure = 2;
+}
+
+enum PolicyStateType {
+  PolicyStateType_UNKNOWN = 0;
+  PolicyStateType_Idle    = 1;
+  PolicyStateType_Running = 2;
+}
+
+message PolicyRunRequest {
+  RequestHeader header    = 1;
+  string task_name        = 2;
+  repeated string params  = 3;
+  bool interrupted        = 4;
+}
+
+message PolicyRunResponse {
+  ResponseHeader header   = 1;
+  PolicyResultType result = 2;
+  string msg              = 3;
+}
+
+message PolicyStopRequest {
+  RequestHeader header    = 1;
+}
+
+message PolicyStopResponse {
+  ResponseHeader header   = 1;
+  PolicyResultType result = 2;
+  string msg              = 3;
+}
+
+message PolicyStateRequest {
+  RequestHeader header    = 1;
+}
+
+message PolicyStateResponse {
+  ResponseHeader header   = 1;
+  PolicyStateType state   = 2;
+  string task_name        = 3;
+}
+
+/**
+ * @brief humanoid policy run state
+   topic : /humanoid_policy/run/state
+   backend : mqtt
+ */
+message PolicyRunState {
+  Header header           = 1;
+  PolicyStateType state   = 2;
+  string task_name        = 3;
+}

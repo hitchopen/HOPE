@@ -1,0 +1,24 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/state/operation_mode.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的运动模式状态查询和控制服务
+ */
+service HalOperationModeService {
+  /**
+   * @brief 获取当前运动模式状态信息。
+   * @param CommonRequest: 获取运动模式状态请求
+   * @return OperationModeStateRsp: 获取运动模式状态响应
+   */
+  rpc GetOperationModeState(CommonRequest) returns (OperationModeStateRsp);
+
+  /**
+   * @brief 下发运动模式控制信号。
+   * @param OperationModeCommandReq: 运动模式控制请求
+   * @return CommonResponse: 运动模式控制响应
+   */
+  rpc SetOperationModeCommand(OperationModeCommandReq) returns (CommonResponse);
+}

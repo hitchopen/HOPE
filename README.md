@@ -397,3 +397,13 @@ Some starter materials are derived from or interoperate with third-party softwar
 **Allen Yang**, Co-founder and CTO, Hitch Interactive (Intelligent Racing Inc.); Chair, AI Racing ROAR Platform, UC Berkeley; Founding Executive Director, VIVE AR Center, UC Berkeley
 
 **Development team:** Franco Huang (lead), Jeremy Wei, Yikang Yu, and Jiayi Zhu.
+
+## Runner and Xbox update
+
+The public model remains **model_21800**. The runtime now supports Xbox LT
+locomotion, A/B/X/Y mode requests, LB+RB software stop, Kernel Mode, continuous
+serve/receive transitions, and saved field calibration/serve files. See the
+[operator guide](docs/operations/runtime_xbox.md) and
+[validation limits](docs/operations/runtime_public_validation.md). This checkout
+includes the ready-to-install Foxglove `.foxe`, HumanLike locomotion bundle and
+serve CSVs.

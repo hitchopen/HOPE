@@ -1,0 +1,52 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/box.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/perception/bbox6d.proto";
+import public "aimdk/protocol/perception/voxel_norm.proto";
+
+/**
+ * @brief 运动姿态请求
+ */
+message MultiScaleObject {
+  // 物体id
+  int32 id = 1;   
+
+  // 物体类别
+  int32 cls = 2;
+
+  string frame_id = 3;
+
+  // 物体置信度
+  float score = 4;
+
+  // 物体位姿
+  SE3Pose pose = 5;
+
+  // 物体包围盒
+  repeated Bbox6d parts = 6;
+
+  // bbox
+  Bbox6d objbbox = 7;
+
+  // 物体voxel
+  repeated VoxelNorm voxels = 8;
+
+  // 2D目标位置
+  Box dino_pose = 9;
+
+  string cls_label = 10;
+}
+
+message MultiScaleObjects {
+  repeated MultiScaleObject objects = 2;
+  // 提示词, utf-8编码
+  repeated string prompts = 3; 
+}
+
+message MultiScaleObjectsRequest {
+  RequestHeader header = 1;  // 请求头
+  MultiScaleObjects objects = 2;
+}

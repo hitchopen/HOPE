@@ -1,0 +1,12 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/mc/test/test.proto";
+
+/**
+ * @brief 运控测试服务
+ */
+service McTestService {
+  // 随机规划运动
+  rpc GetPlanningMoveTarget(CommonRequest) returns (GetPlanningMoveTargetResponse);
+}

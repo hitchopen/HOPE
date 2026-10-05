@@ -1,0 +1,161 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/action/mc_action.proto";
+import public "aimdk/protocol/hal/audio/audio.proto";
+import public "aimdk/protocol/pnc/pnc_swarm_control.proto";
+import public "aimdk/protocol/slam/slam_api.proto";
+
+enum GroupControlMultiTaskType {
+  GroupControlTaskType_Interaction = 0;
+  GroupControlTaskType_Control = 1;
+  GroupControlTaskType_Action = 2;
+  GroupControlTaskType_Volume = 3;
+  GroupControlTaskType_MicroPhone = 4;
+  GroupControlTaskType_DirectNavi = 5; // 北武版本将废弃, 使用DirectNaviPose
+  GroupControlTaskType_DirectNaviPose = 6;
+  GroupControlTaskType_OfflineMedia = 7;
+  GroupControlTaskType_OfflineEmoticon = 8;
+  GroupControlTaskType_OfflineMotion = 9;
+  GroupControlTaskType_FullBodyDance = 10;
+  GroupControlTaskType_OfflineSkill = 11;
+  GroupControlTaskType_PncSwarmControl = 12;
+  GroupControlTaskType_Initialize = 13;
+}
+
+enum MultiTaskResponseStatus {
+  GroupControlMultiTaskResponseStatus_Success = 0; // 成功
+  GroupControlMultiTaskResponseStatus_Failed  = 1; // 失败
+  GroupControlMultiTaskResponseStatus_ParticallyFinished = 2; // 部分完成
+  GroupControlMultiTaskResponseStatus_InRunning          = 3; // 正在运行
+}
+
+message InteractionData {
+  string path = 1;
+  string audio_name = 2;
+  string motion_name = 3;
+  string emotion_name = 4;
+}
+
+message ControlData {
+  // 上下方向摇杆
+  double up_down = 1; // 0-1: 上，-1-0: 下
+
+  // 左右方向摇杆
+  double left_right = 2; // -1-0: 左，0-1: 右
+
+  // 上下方向摇杆
+  bool up = 3;
+  bool down = 4;
+
+  // 左右方向摇杆
+  bool left = 5;
+  bool right = 6;
+}
+
+message ActionData { McActionCommand command = 1; }
+
+message InitializeData {
+  ManualInitialPose initial_pose = 1;
+}
+
+message VolumeData {
+  uint32 volume = 1;
+  bool is_mute = 2;
+}
+
+message MicroPhoneData {
+  bool enable_voice = 1;
+}
+
+message DirectNaviToRelativeGoalData {
+  uint64 pnc_task_id = 1;
+  uint64 map_id = 2;
+  int64 target_id = 3;
+}
+
+/**
+ * 通过调用对应模块的接口来实现
+*/
+enum OperationType {
+  OperationType_Start = 0; // 开始
+  OperationType_Pause = 1; // 暂停
+  OperationType_Resume = 2; // 继续
+  OperationType_Stop = 3; // 停止
+}
+
+message OfflineMediaData {
+  OperationType operation_type = 1;
+  string audio_name = 2;
+  PlayPriority priority = 3; // 音频文件播放优先级
+  string file_path = 4; // 如果不填充, 默认从 /agibot/data/var/audio/file 中查找文件
+}
+
+message OfflineEmoticonData {
+  OperationType operation_type = 1;
+  string emoticon_name = 2;
+  uint32 emoticon_id = 3;
+  string file_path = 4;
+}
+
+message OfflineMotionData {
+  OperationType operation_type = 1;
+  string motion_name = 2;
+  uint32 motion_id = 3;
+  string file_path = 4;
+}
+
+message FullBodyDanceData {
+  OperationType operation_type = 1;
+  string dance_name = 2;
+}
+
+message OfflineSkillData {
+  OperationType operation_type = 1;
+  string file_path = 2;
+  string session_id = 3;
+}
+
+message PncSwarmControlData {
+  OperationType operation_type = 1;
+  repeated PncSwarmControlPose pose  = 2;
+  float arrive_time = 3;
+}
+
+message GroupControlData {
+  uint32 task_id      = 1;
+  int64 start_time    = 2; // 未来开始的时间，单位ms, 赋值为-1, 表示无需等待, 立即开始
+  int64 duration_time = 3; // 行走持续时间，单位ms, 用于连续类任务
+  GroupControlMultiTaskType task_type = 4; // 请求类型
+  oneof data {
+    InteractionData interaction_data = 5;
+    ControlData control_data = 6;
+    ActionData action_data = 7;
+    VolumeData volume_data = 8;
+    MicroPhoneData micro_phone_data = 9;
+    DirectNaviToRelativeGoalData direct_navi_data = 10;
+    // 预留 北武的字段序号
+    // DirectNaviToPoseData direct_navi_pose_data = 11;
+    OfflineMediaData offline_media_data = 12;
+    OfflineEmoticonData offline_emoticon_data = 13;
+    OfflineMotionData offline_motion_data = 14;
+    FullBodyDanceData full_body_dance_data = 15;
+    OfflineSkillData offline_skill_data = 16;
+    PncSwarmControlData pnc_swarm_control_data = 17;
+    InitializeData initialize_data = 18;
+  };
+}
+
+message GroupControlMultiTaskRequest {
+  RequestHeader header           = 1; // 请求头
+  repeated GroupControlData data = 2;
+  string message_id = 3; 
+}
+
+message GroupControlMultiTaskResponse {
+  ResponseHeader header          = 1; // 响应头
+  MultiTaskResponseStatus status = 2; // 任务状态
+  uint32 failed_task_id          = 3; // 失败后, 返回当前任务id
+  uint32 unfinished_task_id      = 4; // 停止后, 返回未执行的任务id
+}

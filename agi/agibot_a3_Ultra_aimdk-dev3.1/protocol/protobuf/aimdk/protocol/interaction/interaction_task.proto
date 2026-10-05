@@ -1,0 +1,119 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+message InteractionInfo {
+  bytes text             = 1; // 交互文本
+  string motion_name     = 2; // 动作名称
+  string face_expression = 3; // 表情
+  string voice_type      = 4;
+  string emotion         = 5;
+}
+
+enum InteractionTaskType {
+  InteractionTaskType_Pass = 0;
+  InteractionTaskType_Stop = 1;
+}
+
+message InteractionTask {
+  string task_name                          = 1; // 任务名称
+  repeated InteractionInfo interaction_list = 2; // 交互列表
+  InteractionTaskType task_type             = 3; // 任务类型
+}
+
+message InteractionTaskRequest {
+  RequestHeader header = 1; // 请求头
+  InteractionTask task = 2; // 任务
+}
+
+enum InteractionTaskResponseStatus {
+  InteractionTaskResponseStatus_Success = 0; // 成功
+  InteractionTaskResponseStatus_Failed  = 1; // 失败
+}
+
+message InteractionTaskResponse {
+  ResponseHeader header                = 1; // 响应头
+  InteractionTaskResponseStatus status = 2; // 任务状态
+  uint32 task_id                       = 3; // 任务id
+}
+
+enum InteractionTaskStatus {
+  InteractionTaskStatus_Unknown       = 0; // 未知
+  InteractionTaskStatus_Running       = 1; // 运行中
+  InteractionTaskStatus_Finished      = 2; // 完成
+  InteractionTaskStatus_Failed        = 3; // 失败
+  InteractionTaskStatus_Canceled      = 4; // 取消
+  InteractionTaskStatus_Interrupted   = 5; // 中断
+  InteractionTaskStatus_InvalidTaskId = 6; // 无效的任务id
+  InteractionTaskStatus_NeedSingal    = 7; // 需要信号
+}
+
+message InteractionTaskStatusRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 task_id       = 2; // 任务id
+  bool   is_ignore_id  = 3; // 是否忽略id
+}
+
+message InteractionTaskStatusResponse {
+  ResponseHeader header        = 1; // 响应头
+  uint32 task_id               = 2; // 任务id
+  InteractionTaskStatus status = 3; // 任务状态
+}
+
+message InteractionTaskStopRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 task_id       = 2; // 任务id
+}
+
+message InteractionTaskResumeRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 task_id       = 2; // 任务id
+}
+
+message InteractionTaskCancelRequest {
+  RequestHeader header = 1; // 请求头
+  uint32 task_id       = 2; // 任务id
+}
+
+message InteractionEmotionAction {
+  string emotion  = 1;
+  string action   = 2;
+}
+
+message InteractionEmotionActionRequest {
+  RequestHeader header                    = 1; // 请求头
+  InteractionEmotionAction emotion_action = 2;
+  bool is_skill                           = 3;
+}
+
+enum InteractionStatus {
+  InteractionStatus_Ready = 0;  // 复位
+  InteractionStatus_Talk  = 1;  // 对话
+  InteractionStatus_Task  = 2;  // 任务
+}
+
+message InteractionStatusRequest {
+  RequestHeader header     = 1;  // 请求头
+  InteractionStatus status = 2;  // 状态
+}
+
+message InteractionStatusResponse {
+  ResponseHeader header        = 1;  // 响应头
+  InteractionStatus status     = 2;  // 状态
+}
+
+message InteractionSpecialTaskRequest {
+  RequestHeader header   = 1; // 请求头
+  string audio_name      = 2; // 音频名称
+  string motion_name     = 3; // 动作名称
+  string emotion_name = 4; // 表情
+}
+
+message InteractionTextRequest {
+  RequestHeader header   = 1; // 请求头
+  string sid             = 2; // 会话id
+  string text            = 3; // 文本
+  string voice_type      = 4; // 语音类型
+  string emotion         = 5; // 情感
+}

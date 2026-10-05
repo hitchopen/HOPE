@@ -1,0 +1,43 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/scalar_trajectory.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/mc/common/planning.proto";
+import public "aimdk/protocol/mc/motion/motion_param.proto";
+
+message AdjustCommand {
+  enum PressType {
+    UNKNOWN = 0;
+    Short = 1;  //模式：1、点击;2、长按
+    Long = 2;
+  }
+  string name = 1;      //关节或末端名称
+  uint32 arm_type = 2;  // 1 左臂，2 右臂，3 双臂
+  PressType mode = 3;   // 按压模式
+  double step = 4;      // 步长
+  double velocity = 5;  // 速度
+}
+
+
+message AdjustCommandRequest {
+  RequestHeader header = 1;
+  AdjustCommand command = 2;
+}
+
+message AdjustEndPosition {
+  string name = 1;  // 末端名称
+  double x = 2;
+  double y = 3;
+  double z = 4;
+  double r_x = 5;
+  double r_y = 6;
+  double r_z = 7;
+  bool around_singularity_flag = 8;  // 靠近奇异位置
+}
+
+message AdjustEndPositionsResponse {
+  RequestHeader header = 1;
+  repeated AdjustEndPosition end_positions = 2;
+}

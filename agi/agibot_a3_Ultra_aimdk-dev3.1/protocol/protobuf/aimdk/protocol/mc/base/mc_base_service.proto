@@ -1,0 +1,38 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/mc/base/mc_state.proto";
+import public "aimdk/protocol/mc/base/work_mode.proto";
+import public "aimdk/protocol/mc/base/jaka_ctrl.proto";
+
+/**
+ * @brief 运控基础服务
+ */
+service McBaseService {
+  // 设置运控工作模式
+  rpc SetWorkMode(McWorkModeRequest) returns (CommonResponse);
+
+  // 获取运控工作模式
+  rpc GetWorkMode(CommonRequest) returns (McWorkModeResponse);
+
+  // 使能机器人
+  rpc EnableRobot(CommonRequest) returns (CommonResponse);
+
+  // 禁用机器人
+  rpc DisableRobot(CommonRequest) returns (CommonResponse);
+
+  // 获取运控工作状态
+  rpc GetWorkState(CommonRequest) returns (McWorkStateResponse);
+
+  // 获取运控状态
+  rpc GetState(CommonRequest) returns (McStateResponse);
+
+  // 使能jaka
+  rpc EnableJaka(CommonRequest) returns (CommonResponse);
+
+  // 禁用jaka
+  rpc DisableJaka(CommonRequest) returns (CommonResponse);
+
+  // 获取jaka状态
+  rpc GetJakaState(CommonRequest) returns (McJakaStateResponse);
+}

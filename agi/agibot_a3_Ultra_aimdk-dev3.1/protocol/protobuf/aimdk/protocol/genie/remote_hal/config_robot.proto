@@ -1,0 +1,167 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+// 复位模式枚举
+enum ResetPartMode {
+    ResetPartMode_ALL = 0;                              // 全身
+    ResetPartMode_ARM = 1;                              // 双臂
+    ResetPartMode_LEFT_ARM = 2;                         // 左臂
+    ResetPartMode_RIGHT_ARM = 3;                        // 右臂
+    ResetPartMode_BODY = 4;                             // 身体
+    ResetPartMode_HEAD = 5;                             // 头部
+    ResetPartMode_ARMBODY = 6;                          // 手臂+身体
+}
+
+// 头部控制模式枚举
+enum HeadControlMode {
+    HeadControlMode_BUTTON = 0;                           // 按钮控头（默认）
+    HeadControlMode_HEAD = 1;                             // 头控头
+}
+
+// 底盘控制模式枚举
+enum ChassisControlMode {
+    ChassisControlMode_NORMAL = 0;                           // 常规模式 (G01正常/G02蟹行模式)
+}
+
+// 腰部控制模式枚举
+enum WaistControlMode {
+    WaistControlMode_BUTTON = 0;                           // 按钮控腰（默认）
+    WaistControlMode_HEAD = 1;                             // 头显控腰
+}
+
+// 腰部锁定模式
+enum WaistLockMode {
+    WaistLockMode_NONE = 0;                                // 不锁定
+    WaistLockMode_ROTATION = 1;                            // 锁定腰部旋转
+    WaistLockMode_LIFT = 2;                                // 锁定腰部升降
+}
+
+message ConfigValue_double {
+    optional double min_value = 1;                  // 最小值
+    optional double max_value = 2;                  // 最大值
+    optional double current_value = 3;              // 当前值
+    optional double set_value = 4;                  // 设定值
+    optional string unit = 5;                       // 单位
+    optional string name = 6;                       // 参数名称
+}
+
+message ConfigValue_bool {
+    optional bool current_value = 1;                // 当前值
+    optional bool set_value = 2;                    // 设定值
+    optional string unit = 3;                       // 单位
+    optional string name = 4;                       // 参数名称
+}
+
+message ConfigValue_int32 {
+    optional int32 min_value = 1;                   // 最小值
+    optional int32 max_value = 2;                   // 最大值
+    optional int32 current_value = 3;               // 当前值
+    optional int32 set_value = 4;                   // 设定值
+    optional string unit = 5;                       // 单位
+    optional string name = 6;                       // 参数名称
+}
+
+message ConfigValue_enum {
+    repeated int32 enum_values = 1;                 // 枚举值列表
+    optional int32 current_value = 2;               // 当前值
+    optional int32 set_value = 3;                   // 设定值
+    optional string unit = 4;                       // 单位
+    optional string name = 5;                       // 参数名称
+}
+
+// 总体模式切换
+message TopModeConfig {
+    optional ConfigValue_bool absolute_mode = 1;                  // 绝对模式/相对模式切换
+}
+
+// 复位配置
+message ResetConfig {
+    optional ConfigValue_bool enable = 1;            // 是否启用复位功能
+    optional ConfigValue_double reset_speed = 2;     // 复位速度 (0.2~0.5)
+    optional ConfigValue_enum reset_part = 3;       // 复位部位 （默认是0）
+}
+
+// 头部控制配置
+message HeadConfig {
+    optional ConfigValue_bool enable = 1;                        // 是否开启头部控制
+    optional ConfigValue_enum control_mode = 2;                  // 控制模式
+    optional ConfigValue_double head_angle_scale = 3;            // 按钮控头角速度比例 (0.1~0.5)
+    optional ConfigValue_double max_head_step = 4;               // 头控头两帧最大角度 (rad, 0.07~0.26)
+}
+
+// 底盘控制配置
+message ChassisConfig {
+    optional ConfigValue_bool enable = 1;                        // 是否开启底盘控制
+    optional ConfigValue_enum control_mode = 2;                  // 控制模式
+    optional ConfigValue_double max_angular_vel = 3;             // 最大角速度 (rad/s)
+    optional ConfigValue_double max_linear_vel = 4;              // 最大线速度 (m/s)
+}
+
+// 安全保护配置
+message ArmSafetyProtection {
+    optional ConfigValue_bool enable = 1;                      // 是否开启安全保护
+    optional ConfigValue_double position_change_threshold = 2; // 位置变化阈值 (m, 推荐0.1~10)
+    optional ConfigValue_double rotation_change_threshold = 3; // 旋转变化阈值 (rad, 推荐0.5~10)
+}
+
+// 手臂控制配置
+message ArmConfig {
+    optional ConfigValue_bool enable = 1;                        // 是否开启手臂控制
+    optional ConfigValue_double control_scale = 2;               // 手臂控制比例 (1.0~1.5)
+    optional ArmSafetyProtection safety_protection = 3;          // 安全保护配置
+}
+
+// 腰部控制配置
+message WaistConfig {
+    optional ConfigValue_bool enable = 1;                        // 是否开启腰部控制
+    optional ConfigValue_enum control_mode = 2;                  // 控制模式
+    optional ConfigValue_double waist_angle_scale = 3;           // 腰部控制比例系数 (1.0~1.5)
+    optional ConfigValue_enum waist_lock_mode = 4;               // 腰部锁定模式
+}
+
+// 配置机器人请求消息
+message SetConfigRobotRequest {
+    optional uint64 timestamp = 1;            // 时间戳（毫秒）
+    optional string operator_device = 2;
+    optional string robot_aid = 3;
+    optional string vr_id = 4;
+    optional HeadConfig head_config = 5;
+    optional ChassisConfig chassis_config = 6;
+    optional ArmConfig arm_config = 7;
+    optional WaistConfig waist_config = 8;
+    optional ResetConfig reset_config = 9;
+    optional TopModeConfig top_mode_config = 10;
+}
+
+// 配置机器人回复消息
+message SetConfigRobotReply {
+    optional uint64 timestamp = 1;            // 时间戳（毫秒）
+    optional string robot_aid = 2;
+    optional string vr_id = 3;
+    optional bool result = 4;
+    optional string result_description = 5;
+}
+
+// 获取配置参数列表请求消息
+message GetConfigListRobotRequest {
+    optional uint64 timestamp = 1;            // 时间戳（毫秒）
+    optional string operator_device = 2;
+    optional string robot_aid = 3;
+    optional string vr_id = 4;
+}
+
+// 获取配置参数列表回复消息
+message GetConfigListRobotReply {
+    optional uint64 timestamp = 1;            // 时间戳（毫秒）
+    optional string robot_aid = 2;
+    optional string vr_id = 3;
+    optional bool result = 4;
+    optional string result_description = 5;
+    optional HeadConfig head_config = 6;
+    optional ChassisConfig chassis_config = 7;
+    optional ArmConfig arm_config = 8;
+    optional WaistConfig waist_config = 9;
+    optional ResetConfig reset_config = 10;
+    optional TopModeConfig top_mode_config = 11;
+}

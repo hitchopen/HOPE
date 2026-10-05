@@ -1,7 +1,7 @@
 """ROS-free codec for the local Runner's fixed operator contract.
 
 The browser never publishes this wire directly.  ``hope_command_proxy``
-maps seven exact Trigger services to the fixed request array and waits for the
+maps ten exact Trigger services to the fixed request array and waits for the
 authoritative Runner state response.
 """
 
@@ -14,9 +14,9 @@ from typing import Sequence
 from hope_observer_core import DecodeError
 
 
-RUNNER_SCHEMA_VERSION = 1
+RUNNER_SCHEMA_VERSION = 2
 RUNNER_REQUEST_SIZE = 4
-RUNNER_STATE_SIZE = 19
+RUNNER_STATE_SIZE = 21
 MAX_EXACT_FLOAT_INTEGER = 1 << 52
 
 ACTION_CODES = {
@@ -25,8 +25,12 @@ ACTION_CODES = {
     "ENTER_PD_STAND": 3,
     "ENTER_MOTION": 4,
     "EMERGENCY_PASSIVE": 5,
-    "READY_TO_SERVE": 7,
-    "SERVE": 8,
+    "PREPARE_SERVE": 7,
+    "CONFIRM_BALL_LOADED": 8,
+    "READY_TO_SERVE": 9,
+    "OPEN_GRIPPER": 10,
+    "CONFIRM_GRIP_SECURE": 12,
+    "ENTER_TELEOP": 13,
 }
 ACTION_NAMES = {value: key for key, value in ACTION_CODES.items()}
 ACTION_NAMES[0] = "NONE"
@@ -39,6 +43,7 @@ MODE_NAMES = {
     3: "MOTION",
     4: "REFERENCE_PLAYBACK",
     5: "SERVE",
+    6: "TELEOP",
 }
 ROLE_NAMES = {0: "UNASSIGNED", 1: "SERVER", 2: "RECEIVER"}
 RESULT_NAMES = {
@@ -54,6 +59,10 @@ RESULT_NAMES = {
     9: "REJECTED_SERVE_UNAVAILABLE",
     10: "REJECTED_SERVE_NOT_READY",
     11: "REJECTED_GAIN_SCALE",
+    12: "REJECTED_WRONG_ROLE",
+    13: "REJECTED_CLEANUP_REQUIRED",
+    14: "REJECTED_GRIPPER_STATE",
+    15: "REJECTED_TELEOP",
 }
 REASON_NAMES = {
     0: "NONE",
@@ -67,24 +76,60 @@ REASON_NAMES = {
     8: "SERVE_OWNS_COMMAND",
     9: "MALFORMED_REQUEST",
     10: "ACTION_QUEUE_FULL",
-    11: "SERVE_START_REQUESTED",
-    12: "BALL_ON_PALM_CONFIRM_REQUESTED",
+    11: "SERVE_PREPARE_REQUESTED",
+    12: "BALL_LOADED_CONFIRM_REQUESTED",
     13: "SERVE_CONTROLLER_UNAVAILABLE",
-    14: "SERVE_AWAIT_BALL_REQUIRED",
+    14: "SERVE_PHASE_MISMATCH",
     15: "SERVE_GAIN_SCALES_MUST_BE_ONE",
     16: "SERVE_FAULT_LATCHED",
+    17: "SERVER_ROLE_REQUIRED",
+    18: "RECEIVER_ROLE_REQUIRED",
+    19: "GRIPPER_CLEANUP_REQUIRED",
+    20: "READY_TO_SERVE_PLAY_REQUESTED",
+    21: "GRIPPER_OPEN_REQUESTED",
+    22: "LOADING_ZONE_CLEAR_REQUESTED",
+    23: "PD_STAND_REQUIRED",
+    24: "GRIPPER_MUST_BE_GRABBED",
+    25: "GRIP_SECURE_CONFIRM_REQUESTED",
+    26: "BALL_LOAD_MERGED_INTO_PREPARE",
+    27: "LOADING_ZONE_CLEAR_REMOVED",
+    28: "PURE_SERVE_ONLY",
+    29: "TELEOP_UNAVAILABLE",
+    30: "TELEOP_INPUT_NOT_READY",
+    31: "TELEOP_STOP_REQUESTED",
 }
 SERVE_STATE_NAMES = {
     -1: "UNAVAILABLE",
     0: "IDLE",
-    1: "PREFLIGHT_READY",
-    2: "PLAYING",
-    3: "AWAIT_BALL_ON_PALM",
-    4: "ABORT_RETURN",
-    5: "HANDOFF_READY",
-    6: "COMPLETE",
-    7: "ABORTED",
-    8: "FAULT",
+    1: "PREPARING_STAND",
+    2: "TRANSITION_TO_LOAD",
+    3: "WAIT_BALL_LOAD",
+    4: "GRIP_CLOSING",
+    5: "WAIT_READY_TO_SERVE",
+    6: "PLAYING_PRE_RELEASE",
+    7: "RELEASE_PENDING",
+    8: "STRIKE",
+    9: "FOLLOW_THROUGH",
+    10: "RECOVERY",
+    11: "HANDOFF_READY",
+    12: "COMPLETE",
+    13: "ABORT_WAIT_HUMAN_CLEAR",
+    14: "ABORT_RETURN",
+    15: "ABORTED",
+    16: "FAULT",
+    17: "CLEANUP_OPENING",
+    18: "WAIT_GRIP_SECURE",
+}
+GRIPPER_STATE_NAMES = {
+    -1: "UNAVAILABLE",
+    0: "UNKNOWN",
+    1: "OPENING",
+    2: "OPEN",
+    3: "CLOSING",
+    4: "GRABBED",
+    5: "RELEASING",
+    6: "RELEASED",
+    7: "FAULT",
 }
 SUCCESS_RESULTS = frozenset({"APPLIED", "ALREADY_SET", "ACCEPTED_PENDING"})
 
@@ -104,6 +149,8 @@ class RunnerState:
     role_last_reason: str
     serve_capability: str
     serve_state: str
+    gripper_state: str
+    serve_cleanup_required: bool
     last_action_id: int
     last_action: str
     last_action_result: str
@@ -177,6 +224,10 @@ def decode_runner_state(values: Sequence[float]) -> RunnerState:
 
     serve_capability = _flag(decoded[12], "serve capability")
     serve_state = _enum_name(decoded[13], SERVE_STATE_NAMES, "serve state")
+    gripper_state = _enum_name(
+        decoded[14], GRIPPER_STATE_NAMES, "gripper state"
+    )
+    cleanup_required = _flag(decoded[15], "serve cleanup required")
     if not serve_capability and serve_state != "UNAVAILABLE":
         raise DecodeError(
             "serve state must be UNAVAILABLE when serve capability is unavailable"
@@ -184,6 +235,14 @@ def decode_runner_state(values: Sequence[float]) -> RunnerState:
     if serve_capability and serve_state == "UNAVAILABLE":
         raise DecodeError(
             "serve state cannot be UNAVAILABLE when serve capability is available"
+        )
+    if not serve_capability and gripper_state != "UNAVAILABLE":
+        raise DecodeError(
+            "gripper state must be UNAVAILABLE when serve capability is unavailable"
+        )
+    if not serve_capability and cleanup_required:
+        raise DecodeError(
+            "serve cleanup cannot be required when serve capability is unavailable"
         )
 
     return RunnerState(
@@ -206,16 +265,18 @@ def decode_runner_state(values: Sequence[float]) -> RunnerState:
         ),
         serve_capability="AVAILABLE" if serve_capability else "UNAVAILABLE",
         serve_state=serve_state,
-        last_action_id=_exact_integer(decoded[14], "last action id"),
-        last_action=_enum_name(decoded[15], ACTION_NAMES, "last action"),
+        gripper_state=gripper_state,
+        serve_cleanup_required=cleanup_required,
+        last_action_id=_exact_integer(decoded[16], "last action id"),
+        last_action=_enum_name(decoded[17], ACTION_NAMES, "last action"),
         last_action_result=_enum_name(
-            decoded[16], RESULT_NAMES, "last action result"
+            decoded[18], RESULT_NAMES, "last action result"
         ),
         last_action_reason=_enum_name(
-            decoded[17], REASON_NAMES, "last action reason"
+            decoded[19], REASON_NAMES, "last action reason"
         ),
         session_fingerprint=_exact_integer(
-            decoded[18], "session fingerprint", minimum=1
+            decoded[20], "session fingerprint", minimum=1
         ),
     )
 

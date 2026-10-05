@@ -83,6 +83,7 @@ bool WaitUntil(Predicate pred, std::chrono::milliseconds timeout) {
 
 class CapturingBackend final : public robot_io::RobotIOBackend {
  public:
+  bool accept_commands = true;
   bool Init(const std::string&) override { return true; }
   bool Start() override { return true; }
   void Stop() override {}
@@ -98,7 +99,7 @@ class CapturingBackend final : public robot_io::RobotIOBackend {
   bool SendCommand(const RobotCommand& cmd) override {
     std::lock_guard<std::mutex> lk(mu_);
     commands_.push_back(cmd);
-    return true;
+    return accept_commands;
   }
 
   std::string Name() const override { return "capturing"; }
@@ -107,6 +108,8 @@ class CapturingBackend final : public robot_io::RobotIOBackend {
   void Emit(const RobotState& state) {
     if (cb_) cb_(state);
   }
+
+  bool HasCallback() const { return static_cast<bool>(cb_); }
 
   std::size_t CommandCount() const {
     std::lock_guard<std::mutex> lk(mu_);
@@ -125,6 +128,17 @@ class CapturingBackend final : public robot_io::RobotIOBackend {
 };
 
 }  // namespace
+
+TEST(A3PolicyDriver, PeriodicStopDetachesStateCallbackBeforeDestruction) {
+  CapturingBackend backend;
+  a3_deploy::CommandFn command = [](std::uint64_t, const RobotState&, RobotCommand&) { return false; };
+  A3PolicyDriver driver(backend, command, {});
+  ASSERT_TRUE(driver.StartDriver());
+  ASSERT_TRUE(backend.HasCallback());
+  driver.StopDriver();
+  EXPECT_FALSE(backend.HasCallback());
+  backend.Emit(MakeState(true, true));
+}
 
 // =============================================================================
 // Part A — pure functions
@@ -266,12 +280,12 @@ TEST(A3Watchdog, ChronicUnalignedAfterThreshold) {
 
   // Ticks 1..4 -> Ok, streak 1..4.
   for (int i = 1; i <= 4; ++i) {
-    EXPECT_EQ(wd.Check(now, ts, /*aligned=*/false), WatchdogVerdict::Ok)
-        << "tick " << i;
+    EXPECT_EQ(wd.Check(now + i, ts + i, /*aligned=*/false), WatchdogVerdict::Ok)
+        << "frame " << i;
     EXPECT_EQ(wd.CurrentUnalignedStreak(), i);
   }
   // Tick 5 -> ChronicUnaligned.
-  EXPECT_EQ(wd.Check(now, ts, false), WatchdogVerdict::ChronicUnaligned);
+  EXPECT_EQ(wd.Check(now + 5, ts + 5, false), WatchdogVerdict::ChronicUnaligned);
   EXPECT_EQ(wd.UnalignedCount(), 1u);
   EXPECT_EQ(wd.CurrentUnalignedStreak(), 5);
 }
@@ -280,7 +294,7 @@ TEST(A3Watchdog, AlignedFrameResetsStreak) {
   A3Watchdog wd{WatchdogConfig{}};
   const std::int64_t now = 1'000'000'000;
   const std::int64_t ts  = now;
-  for (int i = 0; i < 3; ++i) wd.Check(now, ts, false);
+  for (int i = 0; i < 3; ++i) wd.Check(now + i, ts + i, false);
   EXPECT_EQ(wd.CurrentUnalignedStreak(), 3);
   EXPECT_EQ(wd.Check(now, ts, /*aligned=*/true), WatchdogVerdict::Ok);
   EXPECT_EQ(wd.CurrentUnalignedStreak(), 0);
@@ -290,7 +304,7 @@ TEST(A3Watchdog, ResetClearsStreak) {
   A3Watchdog wd{WatchdogConfig{}};
   const std::int64_t now = 1'000'000'000;
   const std::int64_t ts  = now;
-  for (int i = 0; i < 4; ++i) wd.Check(now, ts, false);
+  for (int i = 0; i < 4; ++i) wd.Check(now + i, ts + i, false);
   EXPECT_EQ(wd.CurrentUnalignedStreak(), 4);
   wd.Reset();
   EXPECT_EQ(wd.CurrentUnalignedStreak(), 0);
@@ -307,7 +321,7 @@ TEST(A3Watchdog, StaleDoesNotResetStreakSoBothCanCooccur) {
 
   // Build up streak w/ fresh+unaligned.
   wd.Check(now, fresh_ts, false);
-  wd.Check(now, fresh_ts, false);
+  wd.Check(now + 1, fresh_ts + 1, false);
   EXPECT_EQ(wd.CurrentUnalignedStreak(), 2);
   // Stale+unaligned next tick: StaleFrame wins the verdict, streak still
   // increments to 3 (does NOT reset).
@@ -366,6 +380,37 @@ TEST(A3PolicyDriver, RunsPolicyThroughTransientUnalignedFrames) {
   }
   EXPECT_TRUE(saw_nonzero_kp)
       << "transient unaligned frames should still publish policy PD commands";
+}
+
+TEST(A3PolicyDriver, DeliveryObserverSeesTransportRejectionWithoutClaimingPublication) {
+  CapturingBackend backend;
+  backend.accept_commands = false;
+  std::atomic<int> observations{0};
+  std::atomic<int> accepted{0};
+  A3PolicyDriverOptions opt;
+  opt.policy_hz = 100.;
+  opt.watchdog.max_frame_age_ns = 500'000'000;
+  opt.command_delivery_observer = [&](const RobotCommand& command, bool sent) {
+    if (command.q_des.size() == 31 && command.q_des[0] == .125) ++observations;
+    if (sent) ++accepted;
+  };
+  a3_deploy::CommandFn command = [](std::uint64_t, const RobotState&, RobotCommand& out) {
+    out.q_des = Eigen::VectorXd::Constant(31, .125);
+    out.dq_des = out.tau_ff = out.kd = Eigen::VectorXd::Zero(31);
+    out.kp = Eigen::VectorXd::Constant(31, 1.);
+    return true;
+  };
+  A3PolicyDriver driver(backend, command, opt);
+  ASSERT_TRUE(driver.StartDriver());
+  RobotState state;
+  state.timestamp_ns = NowNs();
+  state.q = state.dq = state.tau_est = Eigen::VectorXd::Zero(31);
+  backend.Emit(state);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  driver.StopDriver();
+  EXPECT_GT(observations.load(), 0);
+  EXPECT_EQ(accepted.load(), 0);
+  EXPECT_FALSE(driver.HasSentCommand());
 }
 
 TEST(A3PolicyDriver, SafeHaltsWhenFrameIsIncomplete) {
@@ -723,6 +768,13 @@ void FeedSamples(A3AimrtBackend& b, std::atomic<bool>& stop) {
     a3_sync::NeckSample  n{}; n.stamp = {t};
     a3_sync::ImuSample   p{}; p.stamp = {t};
     a3_sync::ImuSample   to{}; to.stamp = {t};
+    // MinSkewPair requires explicit producer validity and local receipt time.
+    auto mark_fresh = [t](auto& sample) {
+      sample.recv_stamp = {t};
+      sample.source_stamp_valid = true;
+    };
+    mark_fresh(w); mark_fresh(l); mark_fresh(a); mark_fresh(n);
+    mark_fresh(p); mark_fresh(to);
     b.InjectWaistSample_ForTest(w);
     b.InjectLegSample_ForTest(l);
     b.InjectArmSample_ForTest(a);
@@ -912,3 +964,49 @@ TEST(A3PolicyDriver, TickIdxMonotonicAndStableAcrossSafeHalt) {
 }
 
 #endif  // !ENABLE_A3_AIMRT_BACKEND
+
+TEST(A3Watchdog, FiveHundredHzPollingDoesNotMultiplyHundredHzSourceFaults) {
+  A3Watchdog wd{WatchdogConfig{}};
+  constexpr std::int64_t start = 1'000'000'000;
+  for (int frame = 0; frame < 5; ++frame) {
+    const auto stamp = start + frame * 10'000'000;
+    for (int poll = 0; poll < 5; ++poll) {
+      EXPECT_EQ(wd.Check(stamp + poll * 2'000'000, stamp, false),
+                frame < 4 ? WatchdogVerdict::Ok : WatchdogVerdict::ChronicUnaligned);
+      EXPECT_EQ(wd.CurrentUnalignedStreak(), frame + 1);
+    }
+  }
+}
+
+TEST(A3Watchdog, RepeatedFrameStillExpiresAndFreshAlignedRecovers) {
+  A3Watchdog wd{WatchdogConfig{}};
+  constexpr std::int64_t stamp = 1'000'000'000;
+  for (int ms = 0; ms <= 50; ms += 2)
+    EXPECT_EQ(wd.Check(stamp + ms * 1'000'000, stamp, false), WatchdogVerdict::Ok);
+  EXPECT_EQ(wd.CurrentUnalignedStreak(), 1);
+  EXPECT_EQ(wd.Check(stamp + 52'000'000, stamp, false), WatchdogVerdict::StaleFrame);
+  EXPECT_EQ(wd.Check(stamp + 60'000'000, stamp + 60'000'000, true), WatchdogVerdict::Ok);
+  EXPECT_EQ(wd.CurrentUnalignedStreak(), 0);
+}
+
+TEST(A3PolicyDriver, RepeatedTransientFrameDoesNotPulseStandGainsToZero) {
+  CapturingBackend backend;
+  ASSERT_TRUE(backend.Init(""));
+  A3PolicyDriverOptions opt;
+  opt.policy_hz = 500.;
+  opt.watchdog.max_frame_age_ns = 500'000'000;  // expiry covered separately
+  PolicyFn stand = [](std::uint64_t, const RobotState&, std::array<double, 29>& out) {
+    out.fill(.1);
+  };
+  A3PolicyDriver driver(backend, stand, opt);
+  ASSERT_TRUE(driver.StartDriver());
+  backend.Emit(MakeState(true, false));
+  const bool polled = WaitUntil([&] { return backend.CommandCount() >= 8; },
+                               std::chrono::milliseconds(100));
+  driver.StopDriver();
+  ASSERT_TRUE(polled);
+  EXPECT_GE(driver.PolicyTickCount(), 8u);
+  EXPECT_EQ(driver.SafeHaltCount(), 0u);
+  EXPECT_EQ(driver.Watchdog().CurrentUnalignedStreak(), 1);
+  EXPECT_GT(backend.LastCommand().kp.maxCoeff(), 0.);
+}

@@ -1,0 +1,21 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/mc/force/mc_force_primitive.proto";
+
+/**
+ * @brief 力控服务
+ */
+service McForceService {
+  // 设置力控指令
+  rpc SetForceControlPrimitive(ForcePrimitiveRequest) returns (CommonTaskResponse);
+  // 螺旋线搜索
+  rpc SetSlideSpiral(ForcePrimitiveRequest) returns (CommonTaskResponse);
+  // 之字型搜索
+  rpc SetSlideZigzag(ForcePrimitiveRequest) returns (CommonTaskResponse);
+  // 柔顺控制
+  rpc SetSleeve(ForcePrimitiveRequest) returns (CommonTaskResponse);
+  // 接触控制
+  rpc SetContact(ForcePrimitiveRequest) returns (CommonTaskResponse);
+}

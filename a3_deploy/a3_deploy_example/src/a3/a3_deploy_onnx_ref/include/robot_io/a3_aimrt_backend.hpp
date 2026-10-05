@@ -77,6 +77,10 @@ class A3AimrtBackend : public RobotIOBackend {
   const JointLayout& GetLayout() const override;
   void RegisterStateCallback(StateCallback cb) override;
   bool SendCommand(const RobotCommand& cmd) override;
+  // Enable before Start. First release and its redundant copies are published
+  // synchronously by the same command thread as SDK31, over native iceoryx.
+  void EnableNativeServeRelease() { native_serve_release_enabled_ = true; }
+  bool PublishServeRelease(std::uint64_t& publish_monotonic_ns);
   std::string Name() const override { return "a3"; }
   double StateRateHz() const override;
   std::int64_t SyncPhaseNs() const noexcept { return actual_phase_ns_; }
@@ -107,6 +111,8 @@ class A3AimrtBackend : public RobotIOBackend {
   void SetRunnerControlTopic(std::string topic);
   void SetRunnerStateTopic(std::string topic);
   bool PublishRunnerState(const std::vector<double>& values);
+  void SetLocomotionInputCallback(FlatArrayCallback cb);
+  bool PublishLocomotionState(const std::vector<double>& values);
 
   // ---------- Test hooks (no AimRT required) ----------
   void InjectWaistSample_ForTest(const a3_sync::WaistSample& s);
@@ -155,6 +161,9 @@ class A3AimrtBackend : public RobotIOBackend {
 #endif
   std::unique_ptr<a3_sync::A3SyncLoop> sync_loop_;
 
+  // Replacement/detachment waits for an in-flight callback. Recursive to
+  // permit a callback to unregister itself; dispatch keeps its own copy alive.
+  std::recursive_mutex user_cb_mutex_;
   StateCallback user_cb_{};
   TestCaptureFn test_capture_fn_{};
   TeleopFrameCallback teleop_frame_cb_{};
@@ -166,6 +175,8 @@ class A3AimrtBackend : public RobotIOBackend {
   FlatArrayCallback ball_state_cb_{};
   std::string ball_state_topic_{"/serve/ball_state_flat"};
   FlatArrayCallback runner_control_cb_{};
+  FlatArrayCallback locomotion_input_cb_{};
+  std::function<void(const std::vector<double>&)> locomotion_state_publish_fn_{};
   std::string runner_control_topic_{"/hope/runner/control_request_flat"};
   std::string runner_state_topic_{"/hope/runner/state_flat"};
   std::mutex runner_state_publish_mutex_;
@@ -179,6 +190,8 @@ class A3AimrtBackend : public RobotIOBackend {
 #endif
 
   std::atomic<std::uint32_t> seq_counter_{0};
+  bool native_serve_release_enabled_{false};
+  std::function<void()> serve_release_publish_fn_;
   std::atomic<bool>          inited_{false};
   std::atomic<bool>          started_{false};
 };

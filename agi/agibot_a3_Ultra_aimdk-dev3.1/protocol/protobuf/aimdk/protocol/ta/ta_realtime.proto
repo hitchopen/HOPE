@@ -1,0 +1,377 @@
+syntax = "proto3";
+
+// 暂时保留使用ta的package
+package aimrt.teleop_avatar;
+
+// One rigid-body sample from a realtime skeleton stream.
+message RealtimeJointPose {
+  // Preferred lookup key. If empty, sensor_id will be used.
+  string joint_name = 1;
+
+  // Optional device sensor id. MotionEditor's VRPN sender typically uses 300/450 bases.
+  uint32 sensor_id = 2;
+
+  bool valid = 3;
+
+  // World-space translation in meters, xyz order.
+  repeated double position_xyz_m = 4;
+
+  // World-space rotation in xyzw order.
+  repeated double rotation_xyzw = 5;
+}
+
+// A realtime skeleton sample that can be fed into the TA pipeline.
+message RealtimeSkeletonFrame {
+  uint64 seq = 1;
+  uint64 source_ts_ns = 2;
+  uint64 recv_ts_ns = 3;
+  repeated RealtimeJointPose joints = 4;
+}
+
+enum TeleopAvatarRealtimeState {
+  TELEOP_AVATAR_REALTIME_STATE_UNKNOWN = 0;
+  TELEOP_AVATAR_REALTIME_STATE_STARTING = 1;
+  TELEOP_AVATAR_REALTIME_STATE_WAITING_INPUT = 2;
+  TELEOP_AVATAR_REALTIME_STATE_PARTIAL_INPUT = 3;
+  TELEOP_AVATAR_REALTIME_STATE_ACTIVE = 4;
+  TELEOP_AVATAR_REALTIME_STATE_STALE_INPUT = 5;
+  TELEOP_AVATAR_REALTIME_STATE_STOPPED = 6;
+}
+
+message ActionParam {
+  string key = 1;
+  string value = 2;
+}
+
+// Source-agnostic discrete control event. All external inputs (Pico bindings,
+// keyboard/gamepad tools, topics, and RPCs) are normalized to this shape before
+// the teleop orchestrator executes them.
+message ActionEvent {
+  uint64 seq = 1;
+  uint64 source_ts_ns = 2;
+  string source = 3;
+  string action = 4;
+  repeated ActionParam params = 5;
+}
+
+message ActionResult {
+  bool accepted = 1;
+  string action = 2;
+  string message = 3;
+  string lifecycle_state = 4;
+  string active_preset = 5;
+  string active_source = 6;
+  string transition_policy = 7;
+}
+
+message SwitchPresetRequest {
+  string preset = 1;
+}
+
+message SetMotionStyleRequest {
+  string style = 1;
+}
+
+message ControlSignal {
+  string name = 1;
+  oneof value {
+    double scalar = 2;
+    bool pressed = 3;
+    string text = 4;
+  }
+}
+
+// Generic continuous control frame. Producers can be keyboard/gamepad tools,
+// scripts, or other modules. Names are intentionally string-based so new
+// controls can be added without changing the wire schema.
+message ControlFrame {
+  uint64 seq = 1;
+  uint64 source_ts_ns = 2;
+  string source = 3;
+  repeated ControlSignal signals = 4;
+}
+
+// Externally computed calibration parameters for the retargeting pipeline.
+// Publish to the calibration injection topic to bypass frame-based calibration.
+// The pipeline transitions directly to CALIBRATED (or RETARGETING if auto_calibrate).
+message CalibrationParamsInjection {
+  double normalization_scale = 1;
+
+  // Left foot local rotation ZYX (degrees), same convention as SolveToeLocalRotateZYXDeg.
+  double left_foot_rotation_z_deg = 2;
+  double left_foot_rotation_y_deg = 3;
+  double left_foot_rotation_x_deg = 4;
+
+  // Right foot local rotation ZYX (degrees).
+  double right_foot_rotation_z_deg = 5;
+  double right_foot_rotation_y_deg = 6;
+  double right_foot_rotation_x_deg = 7;
+
+  // Foot and torso Z translation offsets (meters, raw — not pre-scaled).
+  double left_foot_translation_z = 8;
+  double right_foot_translation_z = 9;
+  double torso_limb_translation_z = 10;
+}
+
+message TeleopAvatarRealtimeStatus {
+  // Monotonic sequence number of this status message, incremented on each publish.
+  uint64 seq = 1;
+
+  // Publish time of this status snapshot on the local machine, in ns since epoch.
+  // In Foxglove this is usually rendered as wallTime.sec + wallTime.nsec.
+  uint64 wall_time_ns = 2;
+
+  string input_mode = 3;
+  string source_name = 4;
+
+  // Overall health state of the realtime teleop link.
+  // ACTIVE means the pipeline is receiving usable input and can keep publishing output.
+  TeleopAvatarRealtimeState state = 5;
+
+  // Human-readable summary for operators, for example:
+  // "waiting for first input frame", "input stream active", or "input stream became stale".
+  string status_message = 6;
+
+  // Number of input frames accepted from the upstream source.
+  uint64 received_frames = 7;
+
+  // Number of input frames that completed the retargeting/solve path successfully.
+  uint64 processed_frames = 8;
+
+  // Number of input frames discarded before producing a new solve result,
+  // usually because the frame was incomplete, stale, or otherwise not ready for solving.
+  uint64 dropped_frames = 9;
+
+  // Age of the latest received input relative to "now" on this machine, in milliseconds.
+  // Small values mean the upstream stream is fresh; large values indicate lag or stream interruption.
+  uint64 last_input_age_ms = 10;
+
+  uint64 vrpn_received_samples = 11;
+  uint64 vrpn_emitted_frames = 12;
+  // Number of joints that have been initialized at least once.
+  uint32 initialized_joint_count = 13;
+
+  // Total number of joints expected in the realtime skeleton.
+  uint32 total_joint_count = 14;
+
+  // Names of joints that have never been initialized yet.
+  repeated string missing_joint_names = 15;
+
+  // Number of joints whose latest sample is still within the hold timeout.
+  uint32 fresh_joint_count = 16;
+
+  // Number of joints whose latest sample is too old and considered stale.
+  uint32 stale_joint_count = 17;
+
+  // Number of joints reused from an earlier frame because they were not updated in this frame.
+  uint32 reused_joint_count = 18;
+
+  // Number of times the internal realtime session was reset after invalid/inconsistent input.
+  uint64 session_reset_count = 19;
+
+  // Names of joints currently considered stale.
+  repeated string stale_joint_names = 20;
+
+  // Human-readable calibration status (e.g. "waiting for trigger", "collecting 15/30", "applied scale=0.94").
+  string calibration_status = 21;
+
+  // Pipeline state machine state: "IDLE", "CALIBRATING", "CALIBRATED", "RETARGETING".
+  string pipeline_state = 22;
+
+  // Control mode within RETARGETING: "FULL_BODY" or "INCREMENTAL_UPPER_BODY".
+  string control_mode = 60;
+
+  // --- Remapping framework status ---
+
+  // Active high-level preset, for example "teleop" or "boxing".
+  string active_preset = 61;
+
+  // Small lifecycle FSM state: "PAUSED", "ACTIVE", "SWITCHING_PRESET", "EMERGENCY_STOPPED".
+  string lifecycle_state = 62;
+
+  // Active WBC source, for example "mocap_retarget", "motion_matching".
+  string active_source = 63;
+
+  // Active motion matching style inside the active preset.
+  string active_motion_style = 64;
+
+  // Actions currently accepted by the orchestrator under the active preset/lifecycle/source.
+  repeated string available_actions = 65;
+
+  // Last action execution result summary.
+  string last_action_result = 66;
+
+  // Human-readable source readiness/capability summaries.
+  repeated string source_states = 67;
+
+  // --- Posture transition (lie_down / get_up) status ---
+
+  // True while a postural transition (LIE_DOWN→PASSIVE or GET_UP→MOTION) is
+  // being driven by the module.
+  bool posture_transition_in_progress = 68;
+
+  // Latest MC current_action observed via /mc/state/action_info (enum NAME
+  // without the MotionControlAction_ prefix), e.g. "PASSIVE", "MOTION",
+  // "LIE_DOWN". Empty if MC state has not been received yet.
+  string mc_current_action = 69;
+
+  // Latest MC stage description string from /mc/state/action_info, e.g.
+  // "ActionStage::GET_UP_FINISHED" or "ActionStage::default".
+  string mc_stage_description = 70;
+
+  // --- IK solver diagnostics (populated from CoreDiagnostics) ---
+
+  // Total step time including IK solve, marker scan, and command build (ms).
+  double step_time_ms = 23;
+
+  // Time spent in the IK solver only (ms).
+  double ik_solve_ms = 24;
+
+  // Per-solver timing breakdown in ms.
+  // Each element corresponds to one internal solver stage (for example full-body / hand solver).
+  repeated double per_solver_ms = 25;
+
+  // Number of markers that were valid and usable in this solve cycle.
+  uint32 valid_markers = 26;
+
+  // Total number of markers expected by the retargeting pipeline.
+  uint32 total_markers = 27;
+
+  // Number of missing markers among the required subset.
+  // Non-zero usually means the solve had to degrade or skip some constraints.
+  uint32 required_missing_markers = 28;
+
+  // Solver result summary string.
+  // Typical values are:
+  // - "kOk": solve succeeded normally
+  // - "kDegraded": solve succeeded with degraded input / missing constraints
+  // - "kInvalidInput": input was not usable for a proper solve
+  string solve_status = 29;
+
+  // Cumulative count of solve ticks where adaptive frame-skip reused a cached IK result
+  // instead of running a fresh IK solve.
+  uint64 ik_skipped_count = 42;
+
+  // --- Output health counters ---
+
+  // Number of times the output thread re-published the previous result
+  // because a new solve was not ready in time.
+  uint64 republished_output_count = 30;
+
+  // Number of times the IK solve exceeded the real-time budget.
+  uint64 solver_overrun_count = 31;
+
+  // Number of times the output thread fell back to a late publish.
+  uint64 late_publish_fallback_count = 32;
+
+  // Number of solver ticks where input version had not advanced and the
+  // solver re-solved using the held (previous) input frame.
+  uint64 held_solve_count = 43;
+
+  // Source timestamp carried by the latest received input frame (ns since epoch).
+  uint64 last_received_source_ts_ns = 44;
+
+  // Local receive timestamp of the latest received input frame (ns since epoch).
+  uint64 last_received_recv_ts_ns = 45;
+
+  // Transport latency of the latest received input frame: recv_ts - source_ts (ms).
+  uint64 last_received_transport_latency_ms = 46;
+
+  // --- Calibration parameters ---
+
+  // Combined translation scale = base_scale * normalization_scale.
+  double active_translation_scale = 33;
+
+  // Normalization scale derived from T-pose calibration (1.0 = uncalibrated).
+  double normalization_scale = 34;
+
+  // Number of T-pose frames collected during calibration.
+  uint32 calibration_frames_collected = 35;
+
+  // Target skeleton height used for normalization (meters).
+  double target_height_m = 36;
+
+  // Left foot compensation: local rotation ZYX (degrees).
+  repeated double left_foot_rotate_zyx_deg = 37;
+
+  // Right foot compensation: local rotation ZYX (degrees).
+  repeated double right_foot_rotate_zyx_deg = 38;
+
+  // Left foot Z translation compensation (meters).
+  double left_foot_translation_z = 39;
+
+  // Right foot Z translation compensation (meters).
+  double right_foot_translation_z = 40;
+
+  // Torso limb Z compensation = avg(left, right) foot Z (meters).
+  double torso_limb_translation_z = 41;
+
+  // --- Input data quality metrics (rolling window) ---
+
+  // Measured input frame rate (Hz).
+  double input_hz = 50;
+
+  // Frame interval jitter — standard deviation of inter-arrival times (ms).
+  double input_jitter_ms = 51;
+
+  // Largest gap between consecutive input frames in the window (ms).
+  double input_max_gap_ms = 52;
+
+  // Average transport latency: recv_ts - source_ts (ms). 0 if source_ts unavailable.
+  double input_latency_ms = 53;
+
+  // Average ratio of valid joints per frame (0.0–1.0).
+  double input_joint_completeness = 54;
+
+  // --- Per-solver IK convergence diagnostics ---
+
+  // Per-solver convergence results for the most recent solve cycle.
+  repeated IkSolverConvergence ik_convergence = 55;
+
+  // True when all active solvers converged (status == kSolved).
+  bool ik_all_converged = 56;
+
+  // Total QP iterations summed across all active solvers.
+  uint32 ik_total_iterations = 57;
+
+  // Worst-case final error across all active solvers.
+  double ik_max_final_error = 58;
+
+  // Cumulative count of solve frames where at least one solver did not converge.
+  uint64 ik_unconverged_count = 59;
+}
+
+// Per-solver IK convergence result from the most recent solve cycle.
+message IkSolverConvergence {
+  // Solver index (0 = full_body, 1 = left_hand, 2 = right_hand).
+  uint32 solver_index = 1;
+
+  // WBC SolveStatus: 0=NotUsed, 1=Solved, 2=Unstable, 3=BoundaryLimit, 4=LocalMinimal.
+  uint32 status = 2;
+
+  // Human-readable status name for dashboard display.
+  string status_name = 3;
+
+  // Number of QP iterations the solver executed.
+  uint32 iterations = 4;
+
+  // Task-space error norm before solving (iteration 0).
+  double initial_error = 5;
+
+  // Minimum task-space error norm achieved during solving.
+  double final_error = 6;
+
+  // Joint-space step norm on the last iteration.
+  double delta_q_norm = 7;
+}
+
+// --- RPC service for querying pipeline status via HTTP ---
+
+message GetStatusRequest {}
+
+service TeleopAvatarService {
+  rpc GetStatus(GetStatusRequest) returns (TeleopAvatarRealtimeStatus);
+  rpc ExecuteAction(ActionEvent) returns (ActionResult);
+  rpc SwitchPreset(SwitchPresetRequest) returns (ActionResult);
+  rpc SetMotionStyle(SetMotionStyleRequest) returns (ActionResult);
+}

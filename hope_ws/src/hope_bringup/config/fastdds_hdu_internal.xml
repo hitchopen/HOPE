@@ -6,7 +6,7 @@
         <transport_id>hdu_internal_udp</transport_id>
         <type>UDPv4</type>
         <!-- DDS is confined to the HDU-MDU Ethernet. VRPN remains direct TCP
-             over the mocap LAN interface. -->
+             over the 192.168.10.x group-control/mocap interface. -->
         <interfaceWhiteList>
           <address>10.42.10.10</address>
         </interfaceWhiteList>

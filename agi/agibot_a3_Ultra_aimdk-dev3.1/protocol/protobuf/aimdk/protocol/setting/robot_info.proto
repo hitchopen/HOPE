@@ -1,0 +1,26 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+
+/**
+ * @brief 设置机器人信息 RPC请求
+ */
+message RobotInfoSettingReq {
+  RequestHeader header = 1;
+  string robot_name = 2;
+}
+
+/**
+ * @brief 设置机器人信息 RPC响应数据
+ */
+message RobotInfoSettingRspData {
+}
+
+/**
+ * @brief 设置机器人信息 RPC响应体
+ */
+message RobotInfoSettingRsp {
+  ResponseHeader header = 1;
+  RobotInfoSettingRspData data = 2;
+}

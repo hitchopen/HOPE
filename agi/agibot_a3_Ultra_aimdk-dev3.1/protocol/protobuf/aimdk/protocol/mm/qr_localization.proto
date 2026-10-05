@@ -1,0 +1,100 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/qr_pose.proto";
+import "aimdk/protocol/common/header.proto";
+
+//// channel-publish 推送给客户端的数据结构
+/**
+ * @brief 推送给客户端的QR位姿的结果
+ * @note QR定位算法结束后会将定位的结果推送给客户端，包含QR定位是否成功，
+ *       QR定位msg，QR位姿数据以及发送时刻的时间戳。
+ */
+message QRDetectionResult {
+  ResponseHeader header = 1;
+
+  // QR 位姿数据
+  QRPose pose_data = 2;
+}
+
+//// rpc 与客户端交互的接口结构
+/**
+ * @brief QR定位接口命令
+ */
+enum QRLocalizationCommand {
+  // 启动QR定位
+  QRLocalizationCommand_START = 0;
+  // 关闭QR定位
+  QRLocalizationCommand_STOP = 1;
+}
+
+message QRLocalizationStartReq {
+  RequestHeader header = 1;
+  QRLocalizationCommand command = 2;
+
+  // 是否是建图模式
+  bool is_mapping = 3;
+}
+
+message QRLocalizationStartData {
+  // void
+}
+
+// 启动QR建图响应
+message QRLocalizationStartRsp {
+  ResponseHeader header = 1;
+  QRLocalizationStartData data = 2;
+}
+
+message QRLocalizationStopReq {
+  RequestHeader header = 1;
+  QRLocalizationCommand command = 2;
+}
+
+message QRLocalizationStopData {
+  // void
+}
+
+// 停止QR建图响应
+message QRLocalizationStopRsp {
+  ResponseHeader header = 1;
+  QRLocalizationStopData data = 2;
+}
+
+message SetQRRecordResultReq {
+  RequestHeader header = 1;
+
+  // QR定位结果
+  QRDetectionResult result = 2;
+}
+
+message SetQRRecordResultRsp {
+  ResponseHeader header = 1;
+}
+
+// rpc接口
+service QRLocalizationService {
+  /**
+   * @brief 启动QR建图请求
+   * @note
+   * 1.客户端发送该请求后，服务端会启动QR定位算法。
+   * 2.QR定位算法启动后，会进行二维码自动检测，并将视频流实时推送给客户端:PubImageData
+   * 3.QR定位算法会自动结束
+   */
+  rpc StartQRLocalization(QRLocalizationStartReq) returns (QRLocalizationStartRsp);
+
+  /**
+   * @brief 停止QR建图请求
+   * @note
+   * 1.客户端发送该请求后，服务端主动结束QR定位算法。
+   */
+  rpc StopQRLocalization(QRLocalizationStopReq) returns (QRLocalizationStopRsp);
+
+  /* 给SLAM模块的接口 */
+  /**
+   * @brief 设置QR定位的结果
+   * @note
+   * SLAM模块向map manager告知QR定位结果
+   */
+  rpc SetQRRecordResult(SetQRRecordResultReq) returns (SetQRRecordResultRsp);
+}

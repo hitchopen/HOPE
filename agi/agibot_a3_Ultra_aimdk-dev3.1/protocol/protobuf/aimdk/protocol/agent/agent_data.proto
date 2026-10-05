@@ -1,0 +1,276 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+
+enum WakeUpType {
+  WAKEUP_UNKNOWN          = 0;
+  WAKEUP_NORMAL           = 1;
+  WAKEUP_FACE_TRIGGERED   = 2;
+  WAKEUP_CUSTOM_TRIGGERED = 3;
+}
+
+message WakeUpResult {
+  string language        = 1;
+  string keyword         = 2;
+  uint64 timestamp       = 3;
+  float confidence       = 4;
+  string wakeup_id       = 5;
+  bool is_success        = 6;
+  bool is_oneshot        = 7;
+  WakeUpType wakeup_type = 8;
+  string error_msg       = 9;
+}
+
+message AgentWakeUpWordRequest {
+  RequestHeader header = 1;
+  repeated string keywords = 2;
+}
+
+message AgentControlRequest {
+  string message   = 1;
+  string stmid     = 2;
+  uint32 status    = 3;
+  uint32 type      = 4;
+  string emotion   = 5;
+}
+
+message AgentControlResponse {
+  string message = 1;
+}
+
+message AgentASRRequest {
+  string sid  = 1;
+  string text = 2;
+}
+
+message AgentFunctionCallRequest {
+  string sid           = 1;
+  string function_name = 2;
+  string func_args     = 3;
+}
+
+message AgentWakeUpRequest {
+  string text = 1;
+  string motion = 2;
+  string emotion = 3;
+  string domain = 4;
+  string reason = 5;
+}
+
+enum MicSource {
+  MIC_UNKNOWN = 0;   // 未定义
+  MIC_INTERNAL = 1;  // 内置麦
+  MIC_EXTERNAL = 2;  // 外置麦
+}
+
+message SwitchMicSourceRequest {
+  CommonRequest common = 1;
+  MicSource target_source = 2;
+}
+
+message SwitchMicSourceResponse {
+  CommonResponse common = 1;
+  MicSource current_source = 2;
+  repeated MicSource available_sources = 3;
+  bool external_connected = 4;
+  float volume_level = 5;
+  bool muted = 6;
+}
+
+message GetMicStatusRequest {
+  CommonRequest common = 1;
+}
+
+message GetMicStatusResponse {
+  CommonResponse common = 1;
+  MicSource current_source = 2;
+  repeated MicSource available_sources = 3;
+  bool external_connected = 4;
+  float volume_level = 5;
+  bool muted = 6;
+}
+
+message MicSourceStateRequest  {
+  RequestHeader header = 1; // 请求头
+  uint32 mic_source = 2; // 0 代表本体 mic，1代表外置 mic
+}
+
+message MicSourceStateResponse  {
+  ResponseHeader header  = 1; // 响应头
+  uint32 mic_source = 2; // 0 代表本体 mic，1代表外置 mic
+  bool muted = 3; //true mute状态， false 正常录音状态
+}
+
+message VoiceEnableRequest  {
+  RequestHeader header = 1; // 请求头
+  bool enable_voice = 2; // true 启用语音收音，false 禁用语音收音
+}
+
+message VoiceEnableResponse  {
+  ResponseHeader header = 1; // 请求头
+  bool enable_voice = 2; // true 启用语音收音，false 禁用语音收音
+}
+
+enum AgentPropertyId {
+  AGENT_PROPERTY_UNDEFINED = 0;
+  AGENT_PROPERTY_LANGUAGE = 1; // value: "zh/en"；设置语言类型
+  AGENT_PROPERTY_RUN_MODE = 2; // 运行模式 value: "normal/only_voice/no_voice/voice_face" normal: 正常模式，启用语音助手和语音识别  only_voice: 只启用提供降噪后音频  no_voice: 完全禁用agent，音频都不进行获取提供 voice_face: only_voice基础上提供人脸识别
+  AGENT_PROPERTY_GREET = 3;        // value: true/false；控制对注册人脸进行打招呼功能的开启/关闭
+  AGENT_PROPERTY_HEAD_FOLLOW = 4;  // value: true/false；控制跟随注册人脸功能的开启/关闭
+  AGENT_PROPERTY_DUPLEX_TIMEOUT = 5; // value: "60" 超时时间，单位秒
+  AGENT_PROPERTY_GREET_STRANGER = 6; // value: true/false；与AGENT_PROPERTY_GREET属性独立，true: 和陌生人打招呼，false: 关闭陌生人打招呼
+}
+
+/*
+  * 语音助手属性设置请求
+  * @param properties 属性列表
+  * @param properties.key: AgentPropertyId
+  * @param properties.value: 属性值 参考 AgentPropertyId 注释
+*/
+message AgentProperties {
+  map<int32, string> properties = 1; // AgentPropertyId -> property value
+}
+
+
+message AgentPropertiesSetRequest {
+  RequestHeader header = 1;
+  AgentProperties contents = 2;
+}
+
+message AgentPropertiesGetRequest {
+  RequestHeader header = 1;
+  repeated int32 property_ids = 2; // AgentPropertyId
+}
+
+message AgentPropertiesGetResponse {
+  ResponseHeader header = 1;
+  AgentProperties contents = 2; // key: AgentPropertyId, value: property value
+}
+
+message AudioInputRequest {
+  RequestHeader header = 1; // 请求头
+  bytes audio_data = 2; // 原始音频数据 目前仅支持 pcm 16000Hz 单通道 16LE 且视为一次完整 发言音频 
+  // string audio_format = 3; // 音频格式，如 "wav", "pcm"
+  // uint32 sample_rate = 4; // 采样率，目前仅支持 16000Hz
+  // uint32 channels = 5; // 声道数，如 1（单声道）, 2（立体声）
+  // uint32 bits_per_sample = 6; // 每样本位数，如 16, 24, 32
+  // string session_id = 7; // 会话ID，用于关联多个音频片段 如果空置会在返回时构造一个session_id
+}
+
+message AudioInputResponse {
+  ResponseHeader header = 1; // 响应头
+  string session_id = 2; // 会话ID
+}
+
+enum AudioVADState {
+  AUDIO_VAD_STATE_NONE = 0;
+  AUDIO_VAD_STATE_BEGIN = 1;
+  AUDIO_VAD_STATE_PROCESSING = 2;
+  AUDIO_VAD_STATE_END = 3;
+}
+
+// 暴露降噪以及VAD 处理后的音频数据 
+message ProcessedAudioOutput {
+  Header header = 1; // 一般消息的 header
+  uint32 stream_id = 2; // 音频流ID 1 内置麦 2 外置麦
+  AudioVADState vad_state = 3; // 音频VAD状态
+  bytes audio_data = 4; // 降噪处理后的音频数据
+}
+
+/*
+  * agent property 心跳消息
+  * topic: /agent/property
+  * 1s 发布一次，有变化立即发布
+  * @param msg: AgentProperties, key: AgentPropertyId
+*/
+message AgentPropertiesMsg {
+  Header header = 1; // 一般消息的 header
+  AgentProperties msg = 2;
+}
+
+/*
+  * 数据回流trigger消息
+  * topic: /agent/backflow_trigger 
+  * topic后端: mqtt
+  * 交互开始与结束时立即发布
+*/
+message AgentBackflowTriggerMsg {
+  Header header = 1; // 一般消息的 header
+  bool vad = 2; //true表示交互开始，false表示交互结束
+}
+
+message FaceRect {
+   float x = 1;
+   float y = 2;
+   float width = 3;
+   float height = 4;
+}
+
+message FaceInfo { 
+    // 图⽚时间戳 
+    uint64 timestamp = 1; 
+    
+    // 当前识别到的⼈脸 ID（对应注册库 ID） 
+    string face_id = 2; 
+    
+    // ⼈脸匹配置信度 (0~1) 
+    float confidence = 3; 
+
+    // ⼈脸框坐标
+    FaceRect face_rect = 4;
+     
+    // 当前识别到的⼈脸特征数据（base64 编码） 
+    string captured_feature_base64 = 5; 
+
+    // 匹配到的参考⼈脸特征（base64 编码） 
+    string reference_feature_base64 = 6; 
+}
+
+/**
+* topic: /agent/vision/face_id
+* 后端：ros2 
+* @brief ⼈脸识别结果 
+*/ 
+message FaceIdResult {
+    Header header = 1;
+    repeated FaceInfo faces = 2;
+}
+
+/**
+ * Agent 交互状态标志位定义
+ *
+ * 使用 uint32 位掩码表示，多个状态可同时存在:
+ *   bit 0 (0x01) - 已唤醒:   0=待唤醒, 1=已唤醒
+ *   bit 1 (0x02) - VAD收音:  0=未收音, 1=收音中
+ *   bit 2 (0x04) - TTS播报:  0=未播报, 1=播报中
+ *
+ * 常见组合:
+ *   0x00 (0b000) - 待唤醒
+ *   0x01 (0b001) - 已唤醒(空闲)
+ *   0x03 (0b011) - 已唤醒 + 收音中
+ *   0x05 (0b101) - 已唤醒 + 播报中
+ *   0x07 (0b111) - 已唤醒 + 收音中 + 播报中
+ */
+
+enum AgentInteractionFlag {
+  AGENT_INTERACTION_UNKNOWN = 0;  // 占位，protobuf 要求首值为 0
+  AGENT_INTERACTION_AWAKE   = 1;  // bit 0: 已唤醒
+  AGENT_INTERACTION_VAD     = 2;  // bit 1: VAD 收音中
+  AGENT_INTERACTION_TTS     = 4;  // bit 2: TTS 播报中
+}
+
+/**
+ * Agent 交互状态 channel 消息
+ * topic: /agent/interaction_state
+ * 后端: ros2
+ * 状态变化时立即发布
+ */
+message AgentInteractionStateChannel {
+  Header header = 1;
+
+  // 交互状态位掩码，参见 AgentInteractionFlag
+  uint32 state = 2;
+}
+

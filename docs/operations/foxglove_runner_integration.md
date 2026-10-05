@@ -1,5 +1,10 @@
 # Foxglove + native Runner integration
 
+> Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for
+> current Kernel Mode, Xbox, Serve-to-Ready, calibration-layout and package
+> instructions. The public checkpoint remains model_21800. The foundational
+> host/SSH setup below still applies; older UI labels are superseded by that guide.
+
 This integration combines three sources without conflating their authority:
 
 - `Catrunaround/HOPE:nightly_built` commit `942f1e79` supplies the fleet

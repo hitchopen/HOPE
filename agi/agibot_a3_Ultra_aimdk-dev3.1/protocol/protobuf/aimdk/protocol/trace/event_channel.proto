@@ -1,0 +1,57 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/timestamp.proto";
+
+/**
+ * @brief 事件信息
+ */
+message Event {
+  enum Status {
+    Status_UNDEFINED = 0;
+    Status_STARTING  = 1;
+    Status_SUCCESS   = 2;
+    Status_FAILED    = 3;
+    Status_CANCELED  = 4;
+  }
+
+  // 事件发生的时间戳
+  Timestamp timestamp = 1;
+
+  // 模块 ID
+  uint32 module_id = 2;
+
+  // 事件码
+  uint32 code = 3;
+
+  // 事件名称
+  string name = 4;
+
+  // 事件的状态
+  Status status = 5;
+
+  // 该事件在本机上的唯一标识，使用 [高32位：pid | 低32位：进程内部递增计数] 来表达，
+  // 向云端上报时，再转换成真正的 uuid.
+  uint64 local_id = 6;
+
+  // 事件属性
+  map<string, string> attributes = 7;
+
+  // 事件内容
+  string event_content = 8;
+}
+
+
+/**
+ * @brief 由框架能力支撑的、各个模块向外发布的埋点事件
+ *        topic: /aimrte/trace/events
+ */
+message EventChannel 
+{
+  // 消息头
+  Header header = 1;
+
+  // 事件列表
+  repeated Event events = 2;
+}

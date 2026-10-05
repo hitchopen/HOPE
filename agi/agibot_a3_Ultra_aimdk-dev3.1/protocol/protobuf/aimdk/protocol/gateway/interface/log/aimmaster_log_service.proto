@@ -1,0 +1,18 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+message AimMasterLogRequest {
+  RequestHeader header        = 1; // 请求头
+  string        compress_type = 2; // 压缩类型
+  bytes         content       = 3;  // 日志内容
+}
+
+message AimMasterLogResponse {
+  ResponseHeader header = 1; // 响应头
+}
+
+service AimMasterLogService {
+  rpc AimMasterReportLog(AimMasterLogRequest) returns (AimMasterLogResponse);
+}

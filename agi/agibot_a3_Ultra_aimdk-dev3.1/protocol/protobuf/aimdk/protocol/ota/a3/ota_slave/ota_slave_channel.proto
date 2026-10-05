@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+import "aimdk/protocol/ota/a3/ota_base.proto";
+
+/**
+ * @brief ota_slave 心跳, topic:  /ota/slave/heartbat
+ */
+message OTASlaveHeartbeatChannel {
+    // 发送时刻的时间戳
+    Header header = 1;
+  
+    // soc 的索引
+    int32 soc_index = 2;
+
+    // 阶段信息
+    OTAStage stage = 3;
+}

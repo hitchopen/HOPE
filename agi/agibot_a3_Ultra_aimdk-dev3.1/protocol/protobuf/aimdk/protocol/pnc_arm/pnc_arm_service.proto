@@ -1,0 +1,153 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/pnc_arm/pnc_arm_motion.proto";
+import public "aimdk/protocol/pnc_arm/pnc_arm_state.proto";
+
+import public "aimdk/protocol/hal/hand/hand.proto";
+
+
+/**
+ * @brief  机器人控制模式命令请求
+ */
+message PncArmControlModeRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  PncArmControlModeCommand command = 2;
+}
+
+/**
+ * @brief  机器人控制模式命令响应
+ */
+message PncArmControlModeResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  PncArmControlModeInfo info = 2;
+}
+
+message MultiControlModesResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  repeated PncArmControlModeCommand commands = 2;
+}
+
+/**
+ * @brief 碰撞功能请求消息
+ */
+message PncArmCollisionRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  bool enable = 2;
+}
+
+/**
+ * @brief 碰撞功能状态响应消息
+ */
+message PncArmCollisionResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  bool collision_datection_state = 2;
+}
+
+/**
+ * @brief PlanningMove请求
+ */
+message PncArmPlanningMoveRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 规划组
+  PlanningGroup group = 2;
+
+  // 模式
+  PlanningMode mode = 3;
+
+  // 目标位置
+  PncArmPlanningTarget target = 4;
+
+  // 参考位置
+  PncArmPlanningReference reference = 5;
+
+  // 运动约束
+  MotionConstraint constraint = 6;
+
+  // 相对运动位移，闭链规划用
+  SE3Pose relative_pose = 7;
+}
+
+/**
+ * @brief InteractiveMove请求, 类似PlanningMove柔顺力控版
+ */
+message PncArmInteractiveMoveRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 交互动作类型
+  PncArmInteractiveMotionType type = 2;
+
+  // 规划组
+  PlanningGroup group = 3;
+
+  // 目标位置
+  PncArmPlanningTarget target = 4;
+
+  // 参考位置
+  PncArmPlanningReference reference = 5;
+
+  // 手部控制
+  HandCommand hand = 6;
+}
+
+
+/**
+ * @brief pnc_arm接收的服务
+ */
+service PncArmService {
+
+  // 设置机器人控制模式命令
+  rpc SetControlMode(PncArmControlModeRequest) returns (CommonResponse);
+
+  // 查询机器人控制模式命令
+  rpc GetControlMode(CommonRequest) returns (PncArmControlModeResponse);
+
+  // 查询机器人可切换到的控制模式
+  rpc GetNextControlMode(CommonRequest) returns (MultiControlModesResponse);
+
+  // 查询机器人可用的控制模式
+  rpc GetAvailableControlMode(CommonRequest) returns (MultiControlModesResponse);
+
+  // 消除上肢断联
+  rpc DisableArmContact(CommonRequest) returns (CommonResponse);
+
+  // 使能或失能碰撞检测
+  rpc SetCollisionDetectionState(PncArmCollisionRequest) returns (CommonResponse);
+
+  // 查询碰撞检测功能是否开启
+  rpc GetCollisionDetectionState(CommonRequest) returns (PncArmCollisionResponse);
+
+  // 使能或失能预测碰撞检测
+  rpc SetFutureCollisionDetectionState(PncArmCollisionRequest) returns (CommonResponse);
+
+  // 使能或失能某条轨迹的预测碰撞检测
+  rpc SetTrajectoryCollisionDetectionState(PncArmCollisionRequest) returns (CommonResponse);
+
+  // 查询预测碰撞检测功能是否开启
+  rpc GetFutureCollisionDetectionState(CommonRequest) returns (PncArmCollisionResponse);
+
+  // 规划运动
+  rpc PlanningMove(PncArmPlanningMoveRequest) returns (CommonTaskResponse);
+
+  // 交互运动
+  rpc InteractiveMove(PncArmInteractiveMoveRequest) returns (CommonTaskResponse);
+
+  // 获取任务状态
+  rpc GetTaskState(CommonTaskRequest) returns (CommonTaskResponse);
+
+}

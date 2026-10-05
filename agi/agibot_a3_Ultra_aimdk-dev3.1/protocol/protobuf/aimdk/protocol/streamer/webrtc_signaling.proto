@@ -1,0 +1,213 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * WebRTC offer 中一路视频 track 的元信息。
+ */
+message WebRtcTrackInfo {
+  string channel = 1; // 数据流通道名，例如 "waist_front"。
+  string mid     = 2; // SDP media id，用于把浏览器 transceiver 映射回通道名。
+}
+
+/**
+ * 服务端发给客户端的信令事件。
+ * 客户端通过 StartWebRtcSession 和 PollWebRtcEvents 获取这些事件。
+ */
+message WebRtcSignalingEvent {
+  enum Type {
+    TYPE_UNKNOWN = 0;
+    TYPE_OFFER = 1; // data_streamer 生成的 SDP offer。
+    TYPE_CANDIDATE = 2; // data_streamer 生成的 ICE candidate。
+  }
+
+  Type type = 1;
+  string sdp = 2; // type 为 TYPE_OFFER 时填写 SDP 内容。
+  string candidate = 3;  // type 为 TYPE_CANDIDATE 时填写 ICE candidate 行。
+  string sdp_mid = 4; // candidate 对应的 SDP media id。
+  repeated WebRtcTrackInfo tracks = 5; // TYPE_OFFER 携带的 track 元信息。
+}
+
+/**
+ * 创建一个 WebRTC peer 会话。
+ * 客户端传入想预览的通道，以及浏览器可访问的公网/HDU Host，
+ * 服务端用该地址改写 host candidate。
+ */
+message StartWebRtcSessionRequest {
+  RequestHeader header = 1;
+
+  /**
+   * 初始激活通道。服务端仍可在 offer 中提供全部可用 track，
+   * 后续切换通道时无需重新协商 SDP。
+   */
+  repeated string channels = 2;
+
+  /**
+   * 浏览器可访问的公网/HDU Host。
+   * 当 public_ip 配置为 "auto" 时，用于改写服务端 host candidate。
+   */
+  string public_ip = 3;
+}
+
+/**
+ * 创建 WebRTC peer 会话的响应。
+ */
+message StartWebRtcSessionResponse {
+  ResponseHeader header = 1;
+  string session_id = 2; // 会话 ID，后续信令 RPC 都通过该 ID 关联同一个 PeerConnection。
+
+  /**
+   * 生成 offer 时的 track 列表。
+   * 这里与 offer event 中的 tracks 保持冗余，方便客户端直接读取。
+   */
+  repeated WebRtcTrackInfo tracks = 3;
+
+  /**
+   * 初始服务端事件，通常包含 SDP offer 和早期 ICE candidate。
+   */
+  repeated WebRtcSignalingEvent events = 4;
+}
+
+/**
+ * 把浏览器生成的 SDP answer 发送给服务端。
+ */
+message SetWebRtcAnswerRequest {
+  RequestHeader header = 1;
+
+  /**
+   * StartWebRtcSession 返回的会话 ID。
+   */
+  string session_id = 2;
+
+  /**
+   * 浏览器生成的 SDP answer。
+   */
+  string sdp = 3;
+}
+
+message SetWebRtcAnswerResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * 把浏览器生成的一条 ICE candidate 发送给服务端。
+ */
+message AddWebRtcCandidateRequest {
+  RequestHeader header = 1;
+
+  /**
+   * StartWebRtcSession 返回的会话 ID。
+   */
+  string session_id = 2;
+
+  /**
+   * 浏览器生成的 ICE candidate 行。
+   */
+  string candidate = 3;
+
+  /**
+   * candidate 对应的 SDP media id。
+   */
+  string sdp_mid = 4;
+}
+
+message AddWebRtcCandidateResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * 修改当前会话实际推送的激活通道。
+ */
+message SelectWebRtcChannelsRequest {
+  RequestHeader header = 1;
+
+  /**
+   * StartWebRtcSession 返回的会话 ID。
+   */
+  string session_id = 2;
+
+  /**
+   * 需要实际发送的通道列表。该操作不重新协商 SDP。
+   */
+  repeated string channels = 3;
+}
+
+message SelectWebRtcChannelsResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * 轮询当前会话中待发送给客户端的服务端信令事件。
+ */
+message PollWebRtcEventsRequest {
+  RequestHeader header = 1;
+
+  /**
+   * StartWebRtcSession 返回的会话 ID。
+   */
+  string session_id = 2;
+}
+
+message PollWebRtcEventsResponse {
+  ResponseHeader header = 1;
+
+  /**
+   * 上一次轮询之后新增的 SDP/ICE 事件。
+   */
+  repeated WebRtcSignalingEvent events = 2;
+}
+
+/**
+ * 关闭一个 WebRTC peer 会话，并释放对应 track。
+ */
+message CloseWebRtcSessionRequest {
+  RequestHeader header = 1;
+
+  /**
+   * StartWebRtcSession 返回的会话 ID。
+   */
+  string session_id = 2;
+}
+
+message CloseWebRtcSessionResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * data_streamer 的 WebRTC 信令服务。
+ * 媒体数据仍然走 WebRTC RTP/RTCP，本服务只替代 WebSocket 信令交换。
+ */
+service WebRtcSignalingService {
+  /**
+   * 在服务端创建 PeerConnection，并返回初始 offer 事件。
+   */
+  rpc StartWebRtcSession(StartWebRtcSessionRequest) returns (StartWebRtcSessionResponse);
+
+  /**
+   * 把浏览器生成的 SDP answer 发送给服务端。
+   */
+  rpc SetWebRtcAnswer(SetWebRtcAnswerRequest) returns (SetWebRtcAnswerResponse);
+
+  /**
+   * 把浏览器生成的一条 ICE candidate 发送给服务端。
+   */
+  rpc AddWebRtcCandidate(AddWebRtcCandidateRequest) returns (AddWebRtcCandidateResponse);
+
+  /**
+   * 修改当前会话实际推送的激活通道。
+   * 该操作不触发 SDP 重新协商。
+   */
+  rpc SelectWebRtcChannels(SelectWebRtcChannelsRequest) returns (SelectWebRtcChannelsResponse);
+
+  /**
+   * 轮询当前会话中待发送给客户端的服务端信令事件。
+   */
+  rpc PollWebRtcEvents(PollWebRtcEventsRequest) returns (PollWebRtcEventsResponse);
+
+  /**
+   * 主动关闭会话。
+   */
+  rpc CloseWebRtcSession(CloseWebRtcSessionRequest) returns (CloseWebRtcSessionResponse);
+}

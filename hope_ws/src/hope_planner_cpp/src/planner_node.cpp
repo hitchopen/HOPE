@@ -78,7 +78,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   input_qos_depth_ = std::clamp(
       static_cast<int>(declare_parameter<int>("input_qos_depth", 64)), 1, 1024);
   solve_period_s_ = std::max(0.001, declare_parameter<double>("solve_period_s", 0.033));
-  expected_mocap_hz_ = std::max(1.0, declare_parameter<double>("expected_mocap_hz", 360.0));
+  expected_mocap_hz_ = std::max(1.0, declare_parameter<double>("expected_mocap_hz", 150.0));
 
   x_hit_fh_.store(declare_parameter<double>("x_hit", 0.15));
   x_hit_follow_robot_ = declare_parameter<bool>("x_hit_follow_robot", false);
@@ -97,6 +97,8 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       declare_parameter<int>("x_hit_calibration_min_samples", 10));
   x_hit_calibration_max_span_m_ =
       declare_parameter<double>("x_hit_calibration_max_span_m", 0.01);
+  x_hit_freeze_session_home_ =
+      declare_parameter<bool>("x_hit_freeze_session_home", false);
   x_hit_request_file_ =
       declare_parameter<std::string>("x_hit_calibration_request_file", "");
   x_hit_status_file_ =
@@ -105,6 +107,19 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   swing_side_split_y_ = declare_parameter<double>("swing_side_split_y", -0.25);
   swing_side_hysteresis_y_ =
       std::max(0.0, declare_parameter<double>("swing_side_hysteresis_y", 0.04));
+  swing_side_reference_mode_ = declare_parameter<std::string>(
+      "swing_side_reference_mode", "live_base_v1");
+  if (swing_side_reference_mode_ != "live_base_v1" &&
+      swing_side_reference_mode_ != "session_home_v1") {
+    throw std::invalid_argument(
+        "swing_side_reference_mode must be live_base_v1 or session_home_v1");
+  }
+  if (x_hit_freeze_session_home_ &&
+      swing_side_reference_mode_ != "session_home_v1") {
+    throw std::invalid_argument(
+        "x_hit_freeze_session_home requires "
+        "swing_side_reference_mode=session_home_v1");
+  }
   target_land_y_fh_ = declare_parameter<double>(
       "target_land_y_fh", std::numeric_limits<double>::quiet_NaN());
   target_land_y_bh_ = declare_parameter<double>(
@@ -114,10 +129,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   delta_t_flight_bh_ = declare_parameter<double>(
       "delta_t_flight_bh", std::numeric_limits<double>::quiet_NaN());
 
-  physics_.drag_k = declare_parameter<double>("drag_k", 0.1261);
-  physics_.magnus_k = declare_parameter<double>("magnus_k", 0.00444);
+  physics_.drag_k = declare_parameter<double>("drag_k", 0.1317);
+  physics_.magnus_k = declare_parameter<double>("magnus_k", 0.00327844);
   physics_.restitution_h = declare_parameter<double>("restitution_h", 0.64);
-  physics_.restitution_v = declare_parameter<double>("restitution_v", 0.9215);
+  physics_.restitution_v = declare_parameter<double>("restitution_v", 0.9607);
   physics_.nakashima_friction_mu =
       declare_parameter<double>("nakashima_friction_mu", 0.25);
   physics_.table_tangential_gain =
@@ -264,10 +279,117 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   publish_flat_command_ = declare_parameter<bool>("publish_flat_cmd", true);
   publish_base_flat_ = declare_parameter<bool>("publish_base_flat", false);
   publish_serve_ball_flat_ = declare_parameter<bool>("publish_serve_ball_flat", true);
-  const int flat_schema = static_cast<int>(
+  racket_flat_schema_ = static_cast<int>(
       declare_parameter<int>("racket_flat_schema", 2));
-  if (flat_schema != 2) {
-    throw std::invalid_argument("hope_planner_cpp supports only the model_21800 schema-2 wire");
+  if (racket_flat_schema_ != 2 && racket_flat_schema_ != 3) {
+    throw std::invalid_argument("racket_flat_schema must be 2 or 3");
+  }
+  reach_permission_config_.enabled =
+      declare_parameter<bool>("reach_permission_enabled", false);
+  reach_permission_config_.contract = declare_parameter<std::string>(
+      "reach_permission_contract", kDisabledReachPermissionContract);
+  const std::string screened_target_tuple_contract =
+      declare_parameter<std::string>(
+          "screened_target_tuple_contract", kScreenedTargetTupleContract);
+  const std::string target_tuple_frame_contract =
+      declare_parameter<std::string>(
+          "target_tuple_frame_contract", kTargetTupleFrameContract);
+  const double target_tuple_relative_x_sensor_tolerance_m =
+      declare_parameter<double>(
+          "target_tuple_relative_x_sensor_tolerance_m",
+          kSessionHomeRelativeXSensorToleranceM);
+  reach_permission_config_.minimum_tts_s = declare_parameter<double>(
+      "reach_permission_min_tts_s", 0.60);
+  reach_permission_config_.fh_level1_abs_y_m = declare_parameter<double>(
+      "reach_permission_fh_level1_abs_y_m", 0.275);
+  reach_permission_config_.fh_level2_abs_y_m = declare_parameter<double>(
+      "reach_permission_fh_level2_abs_y_m", 0.300);
+  reach_permission_config_.bh_level1_abs_y_m = declare_parameter<double>(
+      "reach_permission_bh_level1_abs_y_m", 0.090);
+  reach_permission_config_.bh_level2_abs_y_m = declare_parameter<double>(
+      "reach_permission_bh_level2_abs_y_m", 0.120);
+  reach_permission_config_.fh_min_relative_y_m = declare_parameter<double>(
+      "reach_permission_fh_min_relative_y_m", -0.350);
+  reach_permission_config_.fh_max_relative_y_m = declare_parameter<double>(
+      "reach_permission_fh_max_relative_y_m", -0.250);
+  reach_permission_config_.bh_min_relative_y_m = declare_parameter<double>(
+      "reach_permission_bh_min_relative_y_m", -0.140);
+  reach_permission_config_.bh_max_relative_y_m = declare_parameter<double>(
+      "reach_permission_bh_max_relative_y_m", 0.180);
+  validate_reach_permission_config(reach_permission_config_);
+  if (reach_permission_config_.enabled &&
+      (screened_target_tuple_contract != kScreenedTargetTupleContract ||
+       target_tuple_frame_contract != kTargetTupleFrameContract ||
+       target_tuple_relative_x_sensor_tolerance_m !=
+           kSessionHomeRelativeXSensorToleranceM)) {
+    throw std::invalid_argument(
+        "enabled reach permission requires the exact screened target tuple "
+        "and immutable HOME-XY frame contracts");
+  }
+  if (reach_permission_config_.enabled && racket_flat_schema_ != 3) {
+    throw std::invalid_argument(
+        "enabled reach permission requires racket_flat_schema=3");
+  }
+  if (reach_permission_config_.enabled &&
+      swing_side_reference_mode_ != "session_home_v1") {
+    throw std::invalid_argument(
+        "enabled reach permission requires swing_side_reference_mode=session_home_v1");
+  }
+  if (reach_permission_config_.enabled &&
+      (swing_side_split_y_ != -0.25 || swing_side_hysteresis_y_ != 0.0)) {
+    throw std::invalid_argument(
+        "enabled reach permission requires exact immutable-HOME "
+        "side split=-0.25 and hysteresis=0.0");
+  }
+  const std::string question_fixture_csv = declare_parameter<std::string>(
+      "question_fixture_csv", "");
+  const bool question_fixture_simulator_only = declare_parameter<bool>(
+      "question_fixture_simulator_only", false);
+  const std::string question_fixture_contract = declare_parameter<std::string>(
+      "question_fixture_contract", "");
+  const std::string question_fixture_bank_sha256 = declare_parameter<std::string>(
+      "question_fixture_bank_sha256", "");
+  const std::string question_fixture_receipt_sha256 =
+      declare_parameter<std::string>("question_fixture_receipt_sha256", "");
+  const int question_fixture_expected_flights = static_cast<int>(
+      declare_parameter<int>("question_fixture_expected_flights", 0));
+  question_fixture_max_position_error_m_ = declare_parameter<double>(
+      "question_fixture_max_position_error_m", 0.03);
+  question_fixture_max_velocity_error_mps_ = declare_parameter<double>(
+      "question_fixture_max_velocity_error_mps", 0.10);
+  question_fixture_max_tts_error_s_ = declare_parameter<double>(
+      "question_fixture_max_tts_error_s", 0.03);
+  question_fixture_enabled_ = !question_fixture_csv.empty();
+  if (question_fixture_enabled_) {
+    if (!question_fixture_simulator_only || !flight_packet_input_enabled_ ||
+        !post_net_one_shot_enabled_ || racket_flat_schema_ != 3 ||
+        reach_permission_config_.enabled || !x_hit_freeze_session_home_ ||
+        swing_side_reference_mode_ != "session_home_v1" ||
+        swing_side_split_y_ != -0.25 || swing_side_hysteresis_y_ != 0.0 ||
+        x_hit_fh_.load() != 0.08 || x_hit_bh_delta_ != 0.0 ||
+        question_fixture_contract != kSchema31V5FixtureContract ||
+        question_fixture_bank_sha256 != kSchema31V5BankSha256 ||
+        question_fixture_receipt_sha256 != kSchema31V5ReceiptSha256 ||
+        question_fixture_expected_flights != 26) {
+      throw std::invalid_argument(
+          "Schema31 v5 question fixture requires the exact simulator-only, "
+          "26-flight, L0, immutable-HOME Schema3 contract");
+    }
+    if (!(question_fixture_max_position_error_m_ > 0.0 &&
+          question_fixture_max_position_error_m_ <= 0.03 &&
+          question_fixture_max_velocity_error_mps_ > 0.0 &&
+          question_fixture_max_velocity_error_mps_ <= 0.10 &&
+          question_fixture_max_tts_error_s_ > 0.0 &&
+          question_fixture_max_tts_error_s_ <= 0.03)) {
+      throw std::invalid_argument(
+          "Schema31 v5 physical residual tolerances may not exceed "
+          "0.03 m / 0.10 mps / 0.03 s");
+    }
+    question_fixture_ = std::make_unique<QuestionBankFixture>(
+        QuestionBankFixture::load_csv(
+            question_fixture_csv, question_fixture_contract,
+            question_fixture_bank_sha256, question_fixture_receipt_sha256,
+            static_cast<std::size_t>(question_fixture_expected_flights)));
   }
   const std::string flat_topic =
       declare_parameter<std::string>("racket_flat_topic", "/racket/command_flat");
@@ -294,8 +416,11 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "ball_x,ball_y,ball_z,estimator_samples,estimator_span_s,est_x,est_y,est_z,"
       "est_vx,est_vy,est_vz,fit_rms_m,fit_max_m,strike_x,strike_y,strike_z,"
       "strike_vx,strike_vy,strike_vz,racket_vx,racket_vy,racket_vz,swing_sign,tts_s,"
+      "target_actor_x,target_actor_y,target_actor_z,target_nx,target_ny,target_nz,"
+      "session_home_x,session_home_y,reach_level,swing_foot_sign,"
       "estimator_ms,stage2_ms,stage3_ms,total_ms,input_ring_depth,input_ring_drops,"
       "logger_queue_depth,logger_drops,base_valid,base_x,base_y,base_z,base_age_ms,"
+      "swing_side_reference_mode,swing_side_reference_y,"
       "estimator_kind,spin_shadow_enabled,spin_shadow_mode,spin_valid,spin_reason,"
       "spin_wx_rad_s,spin_wy_rad_s,spin_wz_rad_s,spin_magnitude_rev_s,spin_span_s,"
       "spin_retained_time_fraction,spin_coherence,spin_retained_increments,"
@@ -318,7 +443,16 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "packet_payload_hash,packet_transmit_index,packet_transmit_count,"
       "packet_transport_age_ms,packet_freeze_to_receive_ms,"
       "packet_received_total,packet_accepted_total,packet_duplicate_total,"
-      "packet_conflict_total,packet_invalid_total,packet_queue_depth");
+      "packet_conflict_total,packet_invalid_total,packet_queue_depth,"
+      "question_fixture_active,question_fixture_contract,"
+      "question_fixture_bank_sha256,question_fixture_receipt_sha256,"
+      "question_fixture_bank_row_id,question_fixture_physical_strike_x,"
+      "question_fixture_physical_strike_y,question_fixture_physical_strike_z,"
+      "question_fixture_physical_strike_vx,question_fixture_physical_strike_vy,"
+      "question_fixture_physical_strike_vz,question_fixture_physical_tts_s,"
+      "question_fixture_position_error_max_m,"
+      "question_fixture_velocity_error_max_mps,question_fixture_tts_error_s,"
+      "question_fixture_tts_s,question_fixture_physical_match");
   std::string flight_packet_audit_path = declare_parameter<std::string>(
       "flight_packet_audit_csv_path", "");
   if (flight_packet_audit_path.empty() && !debug_path.empty()) {
@@ -433,7 +567,8 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   RCLCPP_INFO(
       get_logger(),
       "HOPE C++ planner started: estimator=batch_physics_cpp_no_ekf_persistent_bounce "
-      "input_depth=%d solve_period=%.3f x_hit=%.3f schema=2 "
+      "input_depth=%d solve_period=%.3f x_hit=%.3f freeze_home=%d "
+      "schema=%d reach=%s "
       "window=%.3f min_span=%.3f huber=%.4f recency_half_life=%.3f "
       "bounce_reversal=%.5f bounce_excursion=%.4f bounce_confirm=%zu "
       "bounce_sparse=(%.3f,%.3f) bounce_refractory=%.3f "
@@ -441,8 +576,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "post_net_one_shot=%d flight_packet_input=%d packet_topic=%s "
       "net_x=%.3f commit_delay=%.3f "
       "future_bounce_gain=%.3f incoming=(margin=%.3f vin=%.3f vout=%.3f "
-      "fit=%zu confirm=%zu preroll=%zu gap=%.3f)",
+      "fit=%zu confirm=%zu preroll=%zu gap=%.3f) question_fixture=%d",
       input_qos_depth_, solve_period_s_, x_hit_fh_.load(),
+      x_hit_freeze_session_home_ ? 1 : 0,
+      racket_flat_schema_, reach_permission_config_.contract.c_str(),
       estimator_config_.window_s, estimator_config_.min_span_s,
       estimator_config_.huber_delta_m, estimator_config_.recency_half_life_s,
       estimator_config_.bounce_min_reversal_m,
@@ -468,7 +605,8 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       incoming_trajectory_config_.direction_fit_samples,
       incoming_trajectory_config_.direction_confirmations,
       incoming_trajectory_config_.pre_roll_samples,
-      incoming_trajectory_config_.source_gap_reset_s);
+      incoming_trajectory_config_.source_gap_reset_s,
+      question_fixture_enabled_ ? 1 : 0);
   if (require_x_hit_calibration_audit_) {
     RCLCPP_WARN(
         get_logger(),
@@ -786,6 +924,10 @@ std::size_t PlannerNode::flight_packet_queue_depth() const noexcept {
 
 void PlannerNode::set_base_snapshot(const BaseSnapshot& snapshot) noexcept {
   std::lock_guard<std::mutex> lock(base_mutex_);
+  // A valid base packet at process startup is not a HOME receipt.  Gate3 publishes an origin
+  // sample before reset/placement; latching here classified both physical lanes as FH.  HOME is
+  // frozen atomically at the first valid solve in select_swing_sign(), when the robot has entered
+  // the playing session.  Side and support intent then share that one immutable scalar.
   base_ = snapshot;
 }
 
@@ -906,22 +1048,22 @@ double PlannerNode::active_x_hit() const noexcept {
   return x_hit_fh_.load(std::memory_order_acquire);
 }
 
-double PlannerNode::select_swing_sign(double intercept_y, double base_y) noexcept {
-  const double relative_y = intercept_y - base_y;
-  const double low = swing_side_split_y_ - swing_side_hysteresis_y_;
-  const double high = swing_side_split_y_ + swing_side_hysteresis_y_;
-  if (last_swing_sign_ > 0.5) {
-    if (relative_y > high) {
-      last_swing_sign_ = -1.0;
-    }
-  } else if (last_swing_sign_ < -0.5) {
-    if (relative_y < low) {
-      last_swing_sign_ = 1.0;
-    }
-  } else {
-    last_swing_sign_ = relative_y < swing_side_split_y_ ? 1.0 : -1.0;
+double PlannerNode::select_swing_sign(
+    double intercept_y, double base_x, double base_y) noexcept {
+  double reference_y = base_y;
+  if (swing_side_reference_mode_ == "session_home_v1") {
+    std::lock_guard<std::mutex> lock(base_mutex_);
+    reference_y =
+        session_home_reference_.resolve_xy_on_solve(base_x, base_y).second;
   }
-  return last_swing_sign_;
+  last_swing_side_reference_y_.store(reference_y, std::memory_order_relaxed);
+  const double selected = select_swing_sign_with_hysteresis(
+      intercept_y, reference_y, swing_side_split_y_,
+      swing_side_hysteresis_y_, last_swing_sign_);
+  if (selected == -1.0 || selected == 1.0) {
+    last_swing_sign_ = selected;
+  }
+  return selected;
 }
 
 void PlannerNode::solver_loop() noexcept {
@@ -1062,7 +1204,13 @@ void PlannerNode::solver_loop() noexcept {
         if (strike.valid) {
           const BaseSnapshot base = base_snapshot();
           swing_sign = select_swing_sign(
-              strike.ball_position.y(), base.valid ? base.position.y() : 0.0);
+              strike.ball_position.y(),
+              base.valid ? base.position.x()
+                         : std::numeric_limits<double>::quiet_NaN(),
+              base.valid ? base.position.y()
+                         : (swing_side_reference_mode_ == "session_home_v1"
+                                ? std::numeric_limits<double>::quiet_NaN()
+                                : 0.0));
           if (swing_sign < 0.0 && x_hit_bh_delta_ != 0.0) {
             strike = control_predictor->predict_with_spin(
                 state, active_x_hit() + x_hit_bh_delta_, Vec3::Zero(),
@@ -1101,8 +1249,81 @@ void PlannerNode::solver_loop() noexcept {
       }
 
       const auto stage3_start = steady_now_ns();
-      const RacketCommand command =
+      RacketCommand command =
           target_planner_->plan(strike, target_land, flight_time);
+      if (question_fixture_enabled_) {
+        auto& fixture_audit = audit.question_fixture;
+        fixture_audit.active = true;
+        fixture_audit.contract = question_fixture_->contract();
+        fixture_audit.bank_sha256 = question_fixture_->bank_sha256();
+        fixture_audit.receipt_sha256 = question_fixture_->receipt_sha256();
+        fixture_audit.physical_strike = strike;
+        const QuestionBankFixtureRow* const fixture_row =
+            question_fixture_->row_for_flight(audit.trajectory_epoch);
+        if (fixture_row == nullptr) {
+          command = RacketCommand{};
+          command.reason = "question_fixture_flight_missing";
+        } else {
+          fixture_audit.bank_row_id = fixture_row->bank_row_id;
+          fixture_audit.fixture_tts_s = fixture_row->time_to_strike_s;
+          double immutable_home_x = std::numeric_limits<double>::quiet_NaN();
+          double immutable_home_y = std::numeric_limits<double>::quiet_NaN();
+          {
+            std::lock_guard<std::mutex> lock(base_mutex_);
+            if (session_home_reference_.set) {
+              immutable_home_x = session_home_reference_.x;
+              immutable_home_y = session_home_reference_.y;
+            }
+          }
+          const Vec3 expected_physical_position(
+              immutable_home_x + fixture_row->contact_position_offset.x(),
+              immutable_home_y + fixture_row->contact_position_offset.y(),
+              fixture_row->contact_position_offset.z() - policy_z_offset_);
+          fixture_audit.physical_tts_s = strike.strike_source_time_s -
+              static_cast<double>(wall_now_ns()) * 1.0e-9;
+          fixture_audit.position_error_max_m =
+              (strike.ball_position - expected_physical_position)
+                  .cwiseAbs().maxCoeff();
+          fixture_audit.velocity_error_max_mps =
+              (strike.ball_velocity - fixture_row->incoming_velocity)
+                  .cwiseAbs().maxCoeff();
+          fixture_audit.tts_error_s = std::abs(
+              fixture_audit.physical_tts_s - fixture_row->time_to_strike_s);
+          const double expected_swing_sign = fixture_row->clip == 0 ? 1.0 : -1.0;
+          fixture_audit.physical_match =
+              strike.valid && expected_physical_position.allFinite() &&
+              audit.trajectory_epoch == fixture_row->flight_id &&
+              swing_sign == expected_swing_sign &&
+              fixture_audit.position_error_max_m <=
+                  question_fixture_max_position_error_m_ &&
+              fixture_audit.velocity_error_max_mps <=
+                  question_fixture_max_velocity_error_mps_ &&
+              fixture_audit.tts_error_s <= question_fixture_max_tts_error_s_;
+          if (fixture_audit.physical_match) {
+            strike.ball_position = expected_physical_position;
+            strike.ball_velocity = fixture_row->incoming_velocity;
+            strike.predicted_bounces =
+                fixture_audit.physical_strike.predicted_bounces;
+            strike.valid = true;
+            strike.reason = "question_fixture_exact_v5_row";
+            command.position = expected_physical_position;
+            command.velocity = fixture_row->target_velocity;
+            command.normal = fixture_row->target_normal;
+            command.outgoing_ball_velocity =
+                fixture_row->predicted_outgoing_velocity;
+            command.target_land = fixture_row->intended_landing;
+            command.strike_source_time_s = strike.strike_source_time_s;
+            command.predicted_bounces = strike.predicted_bounces;
+            command.clears_net = true;
+            command.bypasses_net_posts = false;
+            command.valid = true;
+            command.reason = "question_fixture_exact_v5_row";
+          } else {
+            command = RacketCommand{};
+            command.reason = "question_fixture_physical_mismatch";
+          }
+        }
+      }
       audit.stage3_ms = (steady_now_ns() - stage3_start) * 1.0e-6;
       const auto solve_finish_ns = steady_now_ns();
       audit.total_ms = (solve_finish_ns - solve_start_ns) * 1.0e-6;
@@ -1153,32 +1374,106 @@ void PlannerNode::publish_solve(
     const auto producer_wall_ns = wall_now_ns();
     const double producer_wall_s =
         static_cast<double>(producer_wall_ns) * 1.0e-9;
+    const bool exact_fixture_timing =
+        audit.question_fixture.active && audit.question_fixture.physical_match &&
+        std::isfinite(audit.question_fixture.fixture_tts_s);
     const double strike_deadline_wall_s = command.valid
-        ? command.strike_source_time_s
+        ? (exact_fixture_timing
+               ? producer_wall_s + audit.question_fixture.fixture_tts_s
+               : command.strike_source_time_s)
         : 0.0;
     const double time_to_strike_s = command.valid
         ? strike_deadline_wall_s - producer_wall_s
         : 0.0;
-    const bool wire_valid = command.valid && std::isfinite(time_to_strike_s) &&
-                            time_to_strike_s > 0.0;
+    const bool legal_swing_sign = swing_sign == -1.0 || swing_sign == 1.0;
+    bool wire_valid = command.valid && legal_swing_sign &&
+                      std::isfinite(time_to_strike_s) &&
+                      time_to_strike_s > 0.0;
+    ReachPermission candidate_permission;
+    ReachPermission candidate_geometry_permission;
+    double immutable_home_x = std::numeric_limits<double>::quiet_NaN();
+    double immutable_home_y = std::numeric_limits<double>::quiet_NaN();
+    Vec3 target_position_actor_world = Vec3::Constant(
+        std::numeric_limits<double>::quiet_NaN());
+    if (wire_valid && racket_flat_schema_ == 3) {
+      {
+        std::lock_guard<std::mutex> lock(base_mutex_);
+        if (session_home_reference_.set) {
+          immutable_home_x = session_home_reference_.x;
+          immutable_home_y = session_home_reference_.y;
+        }
+      }
+      // Re-check every revision against the receipt-bound target envelope.
+      // Only the support permission is latched per flight; target admission
+      // itself must never be bypassed by a later OOD revision.
+      candidate_permission = classify_reach_permission(
+          reach_permission_config_, command.position.y(), immutable_home_y,
+          swing_sign, time_to_strike_s);
+      candidate_geometry_permission = classify_reach_permission(
+          reach_permission_config_, command.position.y(), immutable_home_y,
+          swing_sign,
+          std::max(time_to_strike_s, reach_permission_config_.minimum_tts_s));
+      target_position_actor_world =
+          command.position + Vec3(0.0, 0.0, policy_z_offset_);
+      if (!candidate_permission.target_admitted ||
+          !target_tuple_inside_axis_prefilter(
+              reach_permission_config_, target_position_actor_world,
+              command.velocity, command.normal, immutable_home_x,
+              immutable_home_y,
+              swing_sign)) {
+        wire_valid = false;
+      }
+    }
     const auto identity = schema2_packer_.next_identity(
         wire_valid, solve_finished_steady_ns);
-    const Schema2Packet packet = Schema2Packer::pack(
-        wire_valid ? &command : nullptr,
-        swing_sign,
-        strike_deadline_wall_s,
-        policy_z_offset_,
-        producer_wall_ns,
-        identity,
-        state.sample_count,
-        state.sample_span_s);
-    if (packet.valid) {
+    if (wire_valid && racket_flat_schema_ == 3) {
+      if (identity.flight_id != reach_permission_flight_id_) {
+        reach_permission_latched_ = candidate_permission;
+        reach_permission_geometry_latched_ = candidate_geometry_permission;
+        reach_permission_flight_id_ = identity.flight_id;
+      } else if (!revision_preserves_reach_geometry_cell(
+                     reach_permission_geometry_latched_,
+                     candidate_geometry_permission)) {
+        wire_valid = false;
+      }
+    }
+    bool packet_valid = false;
+    std::vector<double> packet_values;
+    ReachPermission permission;
+    if (racket_flat_schema_ == 3) {
+      permission = wire_valid ? reach_permission_latched_ : ReachPermission{};
+      const Schema3Packet packet = Schema3Packer::pack(
+          wire_valid ? &command : nullptr,
+          swing_sign,
+          strike_deadline_wall_s,
+          policy_z_offset_,
+          producer_wall_ns,
+          identity,
+          state.sample_count,
+          state.sample_span_s,
+          permission);
+      packet_valid = packet.valid;
+      packet_values.assign(packet.values.begin(), packet.values.end());
+    } else {
+      const Schema2Packet packet = Schema2Packer::pack(
+          wire_valid ? &command : nullptr,
+          swing_sign,
+          strike_deadline_wall_s,
+          policy_z_offset_,
+          producer_wall_ns,
+          identity,
+          state.sample_count,
+          state.sample_span_s);
+      packet_valid = packet.valid;
+      packet_values.assign(packet.values.begin(), packet.values.end());
+    }
+    if (packet_valid) {
       ++valid_count_;
     }
 
     if (flat_publisher_) {
       std_msgs::msg::Float64MultiArray output;
-      output.data.assign(packet.values.begin(), packet.values.end());
+      output.data = packet_values;
       flat_publisher_->publish(output);
     }
 
@@ -1196,13 +1491,13 @@ void PlannerNode::publish_solve(
         output.normal.x = command.normal.x();
         output.normal.y = command.normal.y();
         output.normal.z = command.normal.z();
-        output.strike_time = command.strike_source_time_s;
-        output.time_to_strike = packet.valid ? time_to_strike_s : 0.0;
+        output.strike_time = strike_deadline_wall_s;
+        output.time_to_strike = packet_valid ? time_to_strike_s : 0.0;
         output.ball_velocity_outgoing.x = command.outgoing_ball_velocity.x();
         output.ball_velocity_outgoing.y = command.outgoing_ball_velocity.y();
         output.ball_velocity_outgoing.z = command.outgoing_ball_velocity.z();
       }
-      output.valid = packet.valid;
+      output.valid = packet_valid;
       output.clears_net = command.clears_net;
       output.bypasses_net_posts = command.bypasses_net_posts;
       output.predicted_bounces = command.predicted_bounces;
@@ -1251,12 +1546,12 @@ void PlannerNode::publish_solve(
       row << std::setprecision(17)
           << session_id_ << ',' << latest_sample.sequence << ','
           << solve_count_.load() << ',' << identity.command_sequence << ','
-          << (packet.valid ? identity.flight_id : 0) << ','
-          << (packet.valid ? identity.revision_id : 0) << ','
+          << (packet_valid ? identity.flight_id : 0) << ','
+          << (packet_valid ? identity.revision_id : 0) << ','
           << latest_sample.source_time_s << ',' << source_age_at_publish_ms << ','
           << strike_deadline_wall_s << ',' << producer_wall_s << ','
           << latest_sample.receipt_steady_ns << ','
-          << solve_finished_steady_ns << ',' << (packet.valid ? 1 : 0) << ','
+          << solve_finished_steady_ns << ',' << (packet_valid ? 1 : 0) << ','
           << audit.reason << ','
           << latest_sample.position.x() << ',' << latest_sample.position.y() << ','
           << latest_sample.position.z() << ',' << state.sample_count << ','
@@ -1269,14 +1564,23 @@ void PlannerNode::publish_solve(
           << strike.ball_velocity.y() << ',' << strike.ball_velocity.z() << ','
           << command.velocity.x() << ',' << command.velocity.y() << ','
           << command.velocity.z() << ',' << swing_sign << ','
-          << (packet.valid ? time_to_strike_s : 0.0) << ','
+          << (packet_valid ? time_to_strike_s : 0.0) << ','
+          << target_position_actor_world.x() << ','
+          << target_position_actor_world.y() << ','
+          << target_position_actor_world.z() << ','
+          << command.normal.x() << ',' << command.normal.y() << ','
+          << command.normal.z() << ',' << immutable_home_x << ','
+          << immutable_home_y << ',' << permission.reach_level << ','
+          << permission.swing_foot_sign << ','
           << audit.estimator_ms << ',' << audit.stage2_ms << ',' << audit.stage3_ms << ','
           << audit.total_ms << ','
           << (post_net_one_shot_enabled_ ? 0 : input_ring_.size_approx()) << ','
           << ring_drops_.load() << ',' << audit_logger_->queue_depth() << ','
           << audit_logger_->dropped_rows() << ',' << (base.valid ? 1 : 0) << ','
           << base.position.x() << ',' << base.position.y() << ',' << base.position.z() << ','
-          << base_age_ms << ",batch_physics_cpp_no_ekf_persistent_bounce,"
+          << base_age_ms << ',' << swing_side_reference_mode_ << ','
+          << last_swing_side_reference_y_.load(std::memory_order_relaxed)
+          << ",batch_physics_cpp_no_ekf_persistent_bounce,"
           << (spin_shadow.enabled ? 1 : 0) << ',' << spin_shadow.mode << ','
           << (spin_shadow.spin.valid ? 1 : 0) << ',' << spin_shadow.spin.reason << ','
           << spin_shadow.spin.omega_rad_s.x() << ','
@@ -1345,7 +1649,24 @@ void PlannerNode::publish_solve(
           << flight_packets_duplicate_.load() << ','
           << flight_packets_conflict_.load() << ','
           << flight_packets_invalid_.load() << ','
-          << flight_packet_queue_depth();
+          << flight_packet_queue_depth() << ','
+          << (audit.question_fixture.active ? 1 : 0) << ','
+          << audit.question_fixture.contract << ','
+          << audit.question_fixture.bank_sha256 << ','
+          << audit.question_fixture.receipt_sha256 << ','
+          << audit.question_fixture.bank_row_id << ','
+          << audit.question_fixture.physical_strike.ball_position.x() << ','
+          << audit.question_fixture.physical_strike.ball_position.y() << ','
+          << audit.question_fixture.physical_strike.ball_position.z() << ','
+          << audit.question_fixture.physical_strike.ball_velocity.x() << ','
+          << audit.question_fixture.physical_strike.ball_velocity.y() << ','
+          << audit.question_fixture.physical_strike.ball_velocity.z() << ','
+          << audit.question_fixture.physical_tts_s << ','
+          << audit.question_fixture.position_error_max_m << ','
+          << audit.question_fixture.velocity_error_max_mps << ','
+          << audit.question_fixture.tts_error_s << ','
+          << audit.question_fixture.fixture_tts_s << ','
+          << (audit.question_fixture.physical_match ? 1 : 0);
       audit_logger_->enqueue(row.str());
     }
   } catch (...) {
@@ -1402,6 +1723,12 @@ void PlannerNode::publish_diagnostics() noexcept {
         "input_qos_depth", std::to_string(input_qos_depth_)));
     status.values.push_back(diagnostic_value(
         "input_mode", flight_packet_input_enabled_ ? "flight_packet" : "poses"));
+    status.values.push_back(diagnostic_value(
+        "swing_side_reference_mode", swing_side_reference_mode_));
+    status.values.push_back(diagnostic_value(
+        "swing_side_reference_y",
+        number_string(
+            last_swing_side_reference_y_.load(std::memory_order_relaxed), 4)));
     status.values.push_back(diagnostic_value(
         "flight_packet_topic", flight_packet_topic_));
     status.values.push_back(diagnostic_value(
@@ -1530,12 +1857,48 @@ std::pair<bool, std::string> PlannerNode::calibrate_x_hit() noexcept {
     }
     const auto middle = values.begin() + static_cast<std::ptrdiff_t>(values.size() / 2);
     std::nth_element(values.begin(), middle, values.end());
-    const double base_x = *middle;
+    double base_x = *middle;
+    double base_y = std::numeric_limits<double>::quiet_NaN();
+    double snapshot_age = std::numeric_limits<double>::quiet_NaN();
+    if (x_hit_freeze_session_home_) {
+      // This is the explicit playing-session boundary.  It is legal to retry
+      // before the first flight, but HOME may never be rewritten after any
+      // flight packet has entered the Planner.
+      if (flight_packets_received_.load(std::memory_order_acquire) != 0U ||
+          valid_count_.load(std::memory_order_acquire) != 0U) {
+        return {
+            false,
+            "NOT CALIBRATED: session HOME freeze is forbidden after first flight"};
+      }
+      const BaseSnapshot snapshot = base_snapshot();
+      snapshot_age = (now - snapshot.receipt_steady_ns) * 1.0e-9;
+      if (!snapshot.valid || !snapshot.position.allFinite() ||
+          snapshot.receipt_steady_ns <= 0 || snapshot_age < 0.0 ||
+          snapshot_age > x_hit_calibration_max_age_s_) {
+        return {
+            false,
+            "NOT CALIBRATED: session HOME base snapshot is invalid or stale"};
+      }
+      // Derive both values from this exact snapshot.  Using the historical
+      // median for x_hit while freezing latest-pose HOME can violate the
+      // Schema28 1.5 mm target-tuple receipt even when both are individually
+      // reasonable measurements.
+      base_x = snapshot.position.x();
+      base_y = snapshot.position.y();
+    }
     const double x_hit = base_x + x_hit_calibration_offset_;
     if (!std::isfinite(x_hit)) {
       return {false, "NOT CALIBRATED: derived x_hit is non-finite"};
     }
-    x_hit_fh_.store(x_hit, std::memory_order_release);
+    if (x_hit_freeze_session_home_) {
+      std::lock_guard<std::mutex> lock(base_mutex_);
+      if (!session_home_reference_.freeze_xy_at_session_boundary(base_x, base_y)) {
+        return {false, "NOT CALIBRATED: session HOME is non-finite"};
+      }
+      x_hit_fh_.store(x_hit, std::memory_order_release);
+    } else {
+      x_hit_fh_.store(x_hit, std::memory_order_release);
+    }
     x_hit_calibrated_.store(true, std::memory_order_release);
     estimator_reset_requested_.store(true, std::memory_order_release);
     trajectory_reset_requested_.store(true, std::memory_order_release);
@@ -1547,6 +1910,11 @@ std::pair<bool, std::string> PlannerNode::calibrate_x_hit() noexcept {
             << "; samples=" << values.size()
             << " span=" << span
             << " newest_age=" << newest_age
+            << (x_hit_freeze_session_home_
+                    ? "; session_home=(" + number_string(base_x, 4) + "," +
+                          number_string(base_y, 4) + ") snapshot_age=" +
+                          number_string(snapshot_age, 4)
+                    : "")
             << "; refresh status does not block planner output";
     return {true, message.str()};
   } catch (const std::exception& exception) {

@@ -1,0 +1,23 @@
+
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/image.proto";
+
+message ObjectMask {
+    Header header = 1;
+    PubImageData image = 2;
+}
+
+message UpdateObjectMaskRequest {
+    ObjectMask object_mask = 1;
+}
+
+message UpdateObjectMaskResponse {
+    bool success = 1;
+}
+
+service ObjectMaskService {
+    rpc UpdateObjectMask (UpdateObjectMaskRequest) returns (UpdateObjectMaskResponse);
+}

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 #include "mujoco_sim_module/global.h"
 #include "mujoco_sim_module/subscriber/subscriber_base.h"
 
@@ -121,8 +123,12 @@ class BodyDriveJointActuatorSubscriber : public JointActuatorSubscriberBase {
   std::vector<JointCommandTarget> latest_targets_;
   std::vector<double> ctrl_buffer_;
   std::vector<double> base_passive_damping_;
+  std::vector<double> torque_limits_;
   bool implicit_pd_ = false;
   bool has_targets_ = false;
+  bool humanlike_vendor_profile_ = false;
+  std::uint64_t explicit_pd_tick_ = 0;
+  std::uint32_t explicit_pd_decimation_ = 1;
 };
 #endif
 }  // namespace aimrt_mujoco_sim::mujoco_sim_module::subscriber

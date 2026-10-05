@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief A list representing a single row of integers
+ */
+message IntegerList {
+  repeated int32 list = 1;
+}
+
+message CameraIntrinsic {
+  float fx = 1;
+  float fy = 2;
+  float ppx = 3;
+  float ppy = 4;
+  string extra = 10;
+}

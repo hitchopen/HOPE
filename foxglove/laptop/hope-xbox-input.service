@@ -1,0 +1,16 @@
+[Unit]
+Description=HOPE Xbox LT movement, mode buttons and E-stop for Runner
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source %h/.config/hope-foxglove/lifecycle.env; exec distrobox enter hope -- /bin/bash "$HOPE_ROOT/foxglove/laptop/run_xbox_input.sh"'
+# podman exec can leave the in-container child alive when its client exits.
+# Stop only this dedicated input process, never a Runner or training process.
+ExecStop=-/usr/bin/pkill --signal TERM --full "^%h/.local/share/hope-xbox/venv/bin/python .*foxglove/laptop/hope_xbox_preview.py --ros --control$"
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

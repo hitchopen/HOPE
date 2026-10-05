@@ -1,0 +1,30 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief 2d 像素坐标
+ */
+message Pixel {
+  // 像素横坐标
+  int32 u = 1;
+
+  // 像素纵坐标
+  int32 v = 2;
+}
+
+/**
+ * @brief 2d 像素位姿
+ * @note 坐标系示意
+ *      +--------> u
+ *      | - (angle)
+ *      |   -
+ *      |     *
+ *    v V
+ */
+message PixelPose {
+  // 2d 像素坐标
+  Pixel position = 1;
+
+  // 角度从u轴转向v轴的角度，单位：弧度
+  double angle = 2;
+}

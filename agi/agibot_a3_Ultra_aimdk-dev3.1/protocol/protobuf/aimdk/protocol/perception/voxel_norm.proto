@@ -1,0 +1,11 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/vec3.proto";
+
+message VoxelNorm {
+  Vec3 location = 1;
+  float grid_size = 2;
+  Vec3 offset = 3;
+  Vec3 norm_v = 4;
+}

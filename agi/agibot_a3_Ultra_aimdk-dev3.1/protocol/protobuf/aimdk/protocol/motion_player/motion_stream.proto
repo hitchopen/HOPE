@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/mocapjointstate.proto";
+
+enum MotionStreamType {
+  // 停止
+  MotionStreamType_STOP = 0;
+
+  // 复位
+  MotionStreamType_RESET = 1;
+
+  // 串流
+  MotionStreamType_STREAM = 2;
+}
+
+enum MotionStreamStatus {
+  // 空闲
+  MotionStreamStatus_STOP = 0;
+
+  // 运行中
+  MotionStreamStatus_MOVING = 1;
+}
+
+message MotionStreamRequest {
+  RequestHeader header = 1;  // 请求头
+  MotionStreamType type = 2;
+  repeated double upper_body_joint_angle = 3;
+  repeated uint32 finger_actuator_position = 4;
+  SE3Pose body_pose = 5;
+}
+
+message MotionStreamResponse {
+  ResponseHeader header = 1;  // 响应头
+  MotionStreamStatus status = 2;
+  repeated double arm_joint_angle = 3;
+  repeated double upper_body_joint_angle = 4;
+  repeated uint32 finger_actuator_position = 5;
+}
+
+message NoitomStreamResponse {
+  Header header = 1;               // 响应头
+  uint32 status = 2;               // 遥设备状态   0: normal, 1: not calibrated
+  uint32 err_code = 3;             // 遥设备错误码
+  MocapJointState mocapjointstate = 4;             // 动作数据
+}
+
+message StopRecordResponse {
+  CommonResponse common_rsp = 1; // 指示是否成功
+  string motion_id = 2;          // 包含绝对路径的动作名称
+}
+
+service MotionStreamService {
+  rpc StartRecord(CommonRequest) returns (CommonResponse);  // 开始录制动作
+  rpc StopRecord(CommonRequest) returns (CommonResponse);  // 结束录制
+  rpc StopRecordCheck(CommonRequest) returns (StopRecordResponse);  // 结束录制并返回动作id
+  rpc StartTeleoperation(CommonRequest) returns (CommonResponse);  // 开始遥操作
+  rpc StopTeleoperation(CommonRequest) returns (CommonResponse);  // 结束遥操作
+  rpc Reset(CommonRequest) returns (CommonResponse);  // 双手移动到复位姿态（先结束遥操作）
+  rpc CheckRecordState(CommonRequest) returns (CommonResponse);  // 查询是否当前处于录制状态，返回aimdk::protocol::CommonState::CommonState_SUCCESS或aimdk::protocol::CommonState::CommonState_FAILURE
+}
+
+service NoitomStreamService {
+  rpc Calibrate(CommonRequest) returns (CommonResponse);
+}

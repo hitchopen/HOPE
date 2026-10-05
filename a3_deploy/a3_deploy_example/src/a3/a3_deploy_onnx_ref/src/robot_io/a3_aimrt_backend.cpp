@@ -30,6 +30,7 @@
 #include "std_msgs/msg/float64_multi_array.hpp"
 
 #ifdef HAS_A3_TA_PROTO
+#include "a3_io/serve_release_message.hpp"
 #include "aimdk/protocol/ta/ta_channel.pb.h"
 #include "aimrt_module_protobuf_interface/channel/protobuf_channel.h"
 #endif
@@ -140,6 +141,10 @@ bool A3AimrtBackend::ParseConfig_(const std::string& config) {
         }
       } else if (key == "sync_hz") {
         sync_cfg_.sync_hz = std::stod(val);
+      } else if (key == "sync_cpu") {
+        sync_cfg_.sync_cpu = std::stoi(val);
+        if (sync_cfg_.sync_cpu < -1 || sync_cfg_.sync_cpu >= 1024)
+          throw std::runtime_error("sync_cpu must be -1 or a valid CPU index");
       } else if (key == "align_delay_ms") {
         sync_cfg_.align_delay_ns =
             static_cast<std::int64_t>(std::stod(val) * 1'000'000.0);
@@ -405,6 +410,24 @@ bool A3AimrtBackend::RegisterPubSub_() {
           };
       pub_mgr_ =
           std::make_unique<a3_io::A3PublisherManager>(std::move(pub_opts));
+      if (native_serve_release_enabled_) {
+#ifdef HAS_A3_TA_PROTO
+        auto hand_pub = ch.GetPublisher("/body_drive/hand_joint_command");
+        if (!aimrt::channel::RegisterPublishType<aimdk::protocol::HandCommandChannel>(hand_pub))
+          throw std::runtime_error("register native serve release failed");
+        auto proxy = std::make_shared<aimrt::channel::PublisherProxy<
+            aimdk::protocol::HandCommandChannel>>(hand_pub);
+        auto message = std::make_shared<aimdk::protocol::HandCommandChannel>();
+        a3_io::FillServeReleaseMessage(*message, 0, 0);  // Allocate before motion.
+        serve_release_publish_fn_ = [proxy, message, sequence = std::uint32_t{0}]() mutable {
+          a3_io::FillServeReleaseMessage(*message, sequence++, NowSystemNs());
+          proxy->Publish(*message);
+        };
+        std::cerr << "[a3_backend] native serve release: same command thread, /body_drive/hand_joint_command, protobuf\n";
+#else
+        throw std::runtime_error("native serve release requires protobuf support");
+#endif
+      }
     } else {
       std::cerr << "[a3_backend] command publishers disabled "
                    "(publish_enabled=false)\n";
@@ -430,6 +453,21 @@ bool A3AimrtBackend::RegisterPubSub_() {
           };
       std::cerr << "[a3_backend] runner state publisher enabled: "
                 << runner_state_topic_ << "\n";
+    }
+
+    if (locomotion_input_cb_) {
+      auto pub = ch.GetPublisher("/hope/runner/teleop_state_flat");
+      if (!aimrt::channel::RegisterPublishType<std_msgs::msg::Float64MultiArray>(pub))
+        throw std::runtime_error("register teleop state publish failed");
+      auto proxy = std::make_shared<aimrt::channel::PublisherProxy<std_msgs::msg::Float64MultiArray>>(pub);
+      locomotion_state_publish_fn_ = [proxy](const std::vector<double>& values) {
+        std_msgs::msg::Float64MultiArray message; message.data = values; proxy->Publish(message);
+      };
+      auto sub = ch.GetSubscriber("/hope/runner/teleop_input_flat");
+      if (!aimrt::channel::Subscribe<std_msgs::msg::Float64MultiArray>(sub,
+          [this](const std::shared_ptr<const std_msgs::msg::Float64MultiArray>& msg) {
+            if (msg && locomotion_input_cb_) locomotion_input_cb_(msg->data);
+          })) throw std::runtime_error("subscribe teleop input failed");
     }
 
     // ---- Subscribers ----
@@ -708,6 +746,7 @@ A3AimrtBackend::ConsumeLatencyStatistics() {
 }
 
 void A3AimrtBackend::RegisterStateCallback(StateCallback cb) {
+  std::lock_guard<std::recursive_mutex> lock(user_cb_mutex_);
   user_cb_ = std::move(cb);
 }
 
@@ -757,8 +796,19 @@ bool A3AimrtBackend::PublishRunnerState(const std::vector<double>& values) {
   return true;
 }
 
+void A3AimrtBackend::SetLocomotionInputCallback(FlatArrayCallback cb) {
+  locomotion_input_cb_ = std::move(cb);
+}
+bool A3AimrtBackend::PublishLocomotionState(const std::vector<double>& values) {
+  std::lock_guard<std::mutex> lock(runner_state_publish_mutex_);
+  if (!started_.load(std::memory_order_acquire) || !locomotion_state_publish_fn_) return false;
+  locomotion_state_publish_fn_(values); return true;
+}
+
 void A3AimrtBackend::OnSyncState_(const RobotState& state) {
-  if (user_cb_) user_cb_(state);
+  std::lock_guard<std::recursive_mutex> lock(user_cb_mutex_);
+  const auto callback = user_cb_;
+  if (callback) callback(state);
 }
 
 // ---------------------------------------------------------------------------
@@ -785,6 +835,19 @@ bool A3AimrtBackend::SendCommand(const RobotCommand& cmd) {
 #endif
 
   return true;
+}
+
+bool A3AimrtBackend::PublishServeRelease(std::uint64_t& publish_monotonic_ns) {
+  publish_monotonic_ns = 0;
+  if (!publish_enabled_ || !started_.load(std::memory_order_acquire) ||
+      !serve_release_publish_fn_) return false;
+  try {
+    serve_release_publish_fn_();
+    publish_monotonic_ns = NowMonotonicNs();
+    return true;
+  } catch (...) {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------

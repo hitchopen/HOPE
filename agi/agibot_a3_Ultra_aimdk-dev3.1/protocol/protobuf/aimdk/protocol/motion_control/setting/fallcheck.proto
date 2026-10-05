@@ -1,0 +1,10 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+
+message MotionControlFallCheckEnableRequest {
+    RequestHeader header = 1;
+    bool enable_fall_check = 2; // 是否启用摔倒检测
+}

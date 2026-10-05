@@ -1,0 +1,16 @@
+syntax = "proto3";
+package aimdk.protocol;
+import "aimdk/protocol/common/timestamp.proto";
+import "aimdk/protocol/hds/process/process_health.proto";
+/**
+ * @brief 进程健康上报 topic:"/aima/hds/process_health_status"
+ */
+message ProcessHealthChannel {
+  Timestamp timestamp = 1;
+
+  //进程存活状态
+  ProcessSurvivalInfo process_survival_info = 2;
+
+
+}
+

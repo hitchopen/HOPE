@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iomanip>
+#include <string_view>
 #include <thread>
 
 namespace YAML {
@@ -146,6 +147,8 @@ bool MujocoSimModule::Initialize(aimrt::CoreRef core) {
   m_ = mj_loadXML(options_.simulation_model_path.c_str(), nullptr, nullptr, 0);
   AIMRT_CHECK_ERROR_THROW(m_ != nullptr, "Load model failed, model path: '{}'.", options_.simulation_model_path);
 
+  ApplyHumanLikeVendorDynamicsProfile();
+
   if (const char* pd_mode = std::getenv("A3_MUJOCO_PD_MODE")) debug_pd_mode_ = pd_mode;
   AIMRT_CHECK_ERROR_THROW(debug_pd_mode_ == "explicit" || debug_pd_mode_ == "implicit",
                           "Invalid A3_MUJOCO_PD_MODE='{}' (expected explicit or implicit).",
@@ -159,6 +162,13 @@ bool MujocoSimModule::Initialize(aimrt::CoreRef core) {
 
   d_ = mj_makeData(m_);
   AIMRT_CHECK_ERROR_THROW(d_ != nullptr, "Make data failed.");
+  if (const char* profile =
+          std::getenv("A3_MUJOCO_HUMANLIKE_VENDOR_PROFILE");
+      profile != nullptr && std::string_view(profile) != "0") {
+    // Recompute subtree masses and every other model constant derived from the
+    // original pelvis inertial values after the profile replaced them.
+    mj_setConst(m_, d_);
+  }
 
   InitializeGate3Ball();
   InitializeDebugCsv();
@@ -210,6 +220,120 @@ bool MujocoSimModule::Initialize(aimrt::CoreRef core) {
   AIMRT_INFO("Init succeeded.");
 
   return true;
+}
+
+void MujocoSimModule::ApplyHumanLikeVendorDynamicsProfile() {
+  const char* profile = std::getenv("A3_MUJOCO_HUMANLIKE_VENDOR_PROFILE");
+  const bool vendor_profile =
+      profile != nullptr && std::string_view(profile) != "0";
+
+  // MuJoCo omits geoms whose collision masks are both zero from the body's
+  // compile-time BVH.  The sole points therefore have active masks in the
+  // source MJCF so they can be selected here after mj_loadXML().  For the
+  // normal HOPE plant, disable those already-compiled leaves and retain the
+  // original ankle-roll hull.  Disabling a compiled leaf is supported;
+  // enabling a leaf that was omitted at compile time is not.
+  if (!vendor_profile) {
+    for (const char* side : {"left", "right"}) {
+      for (int point = 1; point <= 13; ++point) {
+        const std::string sphere_name =
+            std::string(side) + "_foot" + std::to_string(point) +
+            "_collision";
+        const int sphere_id =
+            mj_name2id(m_, mjOBJ_GEOM, sphere_name.c_str());
+        if (sphere_id < 0) continue;
+        m_->geom_contype[sphere_id] = 0;
+        m_->geom_conaffinity[sphere_id] = 0;
+      }
+    }
+    return;
+  }
+
+  // AgiBot's shipped a3_t2d5 standalone MJCF has zero rotor armature. In this
+  // hybrid A/B only HumanLike-owned waist/leg joints use that plant detail;
+  // model_3440's upper body retains the plant it was trained and qualified on.
+  int cleared_armatures = 0;
+  for (int joint_id = 0; joint_id < m_->njnt; ++joint_id) {
+    if (m_->jnt_type[joint_id] != mjJNT_HINGE) continue;
+    const char* joint_name = mj_id2name(m_, mjOBJ_JOINT, joint_id);
+    if (joint_name == nullptr) continue;
+    const std::string_view name(joint_name);
+    const bool humanlike_owned =
+        name.find("waist_") != std::string_view::npos ||
+        name.find("hip_") != std::string_view::npos ||
+        name.find("knee_") != std::string_view::npos ||
+        name.find("ankle_") != std::string_view::npos;
+    if (!humanlike_owned) continue;
+    const int dof = m_->jnt_dofadr[joint_id];
+    m_->dof_armature[dof] = 0.0;
+    ++cleared_armatures;
+  }
+
+  // The original t2d5 model represents each sole with thirteen 5 mm contact
+  // spheres.  Keep HOPE's racket/table additions, but exchange only the sole
+  // contact geometry; every sphere is embedded in the XML and disabled in the
+  // normal profile.
+  int enabled_foot_spheres = 0;
+  for (const char* side : {"left", "right"}) {
+    const std::string hull_name =
+        std::string(side) + "_ankle_roll_collision";
+    const int hull_id = mj_name2id(m_, mjOBJ_GEOM, hull_name.c_str());
+    AIMRT_CHECK_ERROR_THROW(hull_id >= 0,
+                            "HumanLike vendor profile missing geom '{}'.",
+                            hull_name);
+    m_->geom_contype[hull_id] = 0;
+    m_->geom_conaffinity[hull_id] = 0;
+    for (int point = 1; point <= 13; ++point) {
+      const std::string sphere_name =
+          std::string(side) + "_foot" + std::to_string(point) +
+          "_collision";
+      const int sphere_id =
+          mj_name2id(m_, mjOBJ_GEOM, sphere_name.c_str());
+      AIMRT_CHECK_ERROR_THROW(
+          sphere_id >= 0,
+          "HumanLike vendor profile missing geom '{}'.", sphere_name);
+      m_->geom_contype[sphere_id] = 1;
+      m_->geom_conaffinity[sphere_id] = 7;
+      ++enabled_foot_spheres;
+    }
+  }
+
+  // The standalone vendor MJCF gives both sides of each sole/floor contact
+  // solref=0.005. In the ping-pong MJCF only the foot collision class has that
+  // value; the otherwise unclassed floor inherits MuJoCo's 0.02 default and
+  // the pair is mixed to 0.0125. Match the vendor floor in this profile only.
+  const int floor = mj_name2id(m_, mjOBJ_GEOM, "floor");
+  AIMRT_CHECK_ERROR_THROW(floor >= 0,
+                          "HumanLike vendor profile missing floor geom.");
+  m_->geom_solref[mjNREF * floor] = 0.005;
+  m_->geom_solref[mjNREF * floor + 1] = 1.0;
+
+  // This is the only inertial change in the vendor t2d5 robot root that is
+  // material to the lower-body profile.  Lower-limb masses/inertias,
+  // damping, frictionloss and the 1 ms physics timestep already match.
+  const int pelvis = mj_name2id(m_, mjOBJ_BODY, "pelvis_link");
+  AIMRT_CHECK_ERROR_THROW(pelvis >= 0,
+                          "HumanLike vendor profile missing pelvis_link.");
+  m_->body_mass[pelvis] = 4.88725;
+  const std::array<mjtNum, 3> pelvis_ipos{
+      -0.000916094, 0.00093115, -0.126755};
+  const std::array<mjtNum, 4> pelvis_iquat{
+      0.996851, -0.0792601, -0.00250031, 0.00069912};
+  const std::array<mjtNum, 3> pelvis_inertia{
+      0.0232719, 0.0180057, 0.0144003};
+  std::copy(pelvis_ipos.begin(), pelvis_ipos.end(),
+            m_->body_ipos + 3 * pelvis);
+  std::copy(pelvis_iquat.begin(), pelvis_iquat.end(),
+            m_->body_iquat + 4 * pelvis);
+  std::copy(pelvis_inertia.begin(), pelvis_inertia.end(),
+            m_->body_inertia + 3 * pelvis);
+
+  AIMRT_INFO(
+      "HumanLike vendor dynamics profile: cleared {} joint armatures, "
+      "enabled {} sole spheres, set floor solref=0.005, copied original "
+      "t2d5 pelvis inertia; "
+      "timestep={} s.",
+      cleared_armatures, enabled_foot_spheres, m_->opt.timestep);
 }
 
 bool MujocoSimModule::Start() {
@@ -387,11 +511,16 @@ void MujocoSimModule::InitializeGate3Ball() {
           gate3_table_geom_id_ >= 0 && gate3_net_geom_id_ >= 0,
       "Gate3 physical ball/table/net/racket geometry is incomplete.");
   AIMRT_CHECK_ERROR_THROW(
-      m_->nuserdata >= static_cast<int>(gate3::kRequiredUserData),
+      m_->nuserdata >= static_cast<int>(gate3::kRequiredUserData * gate3::kFlightSlots),
       "Gate3 physical telemetry needs {} userdata values, model has {}.",
       gate3::kRequiredUserData, m_->nuserdata);
   gate3_ball_qpos_addr_ = m_->jnt_qposadr[gate3_ball_joint_id_];
   gate3_ball_dof_addr_ = m_->jnt_dofadr[gate3_ball_joint_id_];
+  for (int slot = 1; slot < gate3::kFlightSlots; ++slot) {
+    const int joint = gate3::SlotJoint(m_, slot);
+    AIMRT_CHECK_ERROR_THROW(joint >= 0 && m_->jnt_type[joint] == mjJNT_FREE,
+                            "Gate3 return slot {} is missing its free joint.", slot);
+  }
   const auto read_nonnegative_env = [](const char* name, double fallback,
                                        double upper) {
     const char* raw = std::getenv(name);
@@ -427,11 +556,33 @@ void MujocoSimModule::InitializeGate3Ball() {
       gate3::kNetGeomName);
 }
 
-void MujocoSimModule::ApplyGate3BallDrag() {
+void MujocoSimModule::ApplyGate3BallDrag(int slot) {
+
+  const int joint = gate3::SlotJoint(m_, slot);
+  const int gate3_ball_body_id_ = m_->jnt_bodyid[joint];
+  const int gate3_ball_qpos_addr_ = m_->jnt_qposadr[joint];
+  const int gate3_ball_dof_addr_ = m_->jnt_dofadr[joint];
+  const int gate3_ball_geom_id_ = mj_name2id(m_, mjOBJ_GEOM, gate3::SlotName(gate3::kGeomName, slot).c_str());
+  auto* telemetry = d_->userdata + slot * gate3::kRequiredUserData;
+  auto& gate3_ball_pre_step_velocity_ = flight_velocities_[slot];
+  auto& gate3_last_shot_id_ = flight_shot_ids_[slot];
+  auto& gate3_racket_contact_prev_ = flight_racket_prev_[slot];
+  auto& gate3_table_contact_prev_ = flight_table_prev_[slot];
+  auto& gate3_net_contact_prev_ = flight_net_prev_[slot];
+  // Natural endpoints: floor crossing or two seconds of bounded table rest.
+  // A launch schedule never retires a moving flight.
+  if (telemetry[gate3::kActive] > 0.5 &&
+      ((d_->qpos[gate3_ball_qpos_addr_ + 2] < gate3::kBallRadius &&
+        d_->qvel[gate3_ball_dof_addr_ + 2] < 0.0) ||
+       flight_rest_[slot].Update(telemetry[gate3::kShotId], d_->time,
+          d_->qpos + gate3_ball_qpos_addr_, d_->qvel + gate3_ball_dof_addr_,
+          telemetry[gate3::kTableContactCount]))) {
+    telemetry[gate3::kActive] = 0.0;
+  }
   if (gate3_ball_body_id_ < 0 || gate3_ball_dof_addr_ < 0) return;
   mjtNum* wrench = d_->xfrc_applied + 6 * gate3_ball_body_id_;
   wrench[0] = wrench[1] = wrench[2] = 0.0;
-  if (d_->userdata[gate3::kActive] <= 0.5) return;
+  if (telemetry[gate3::kActive] <= 0.5) return;
 
   const mjtNum* velocity = d_->qvel + gate3_ball_dof_addr_;
   gate3_ball_pre_step_velocity_ = {
@@ -457,16 +608,29 @@ void MujocoSimModule::ApplyGate3BallDrag() {
   wrench[2] = mass * acceleration[2];
 }
 
-void MujocoSimModule::UpdateGate3BallContacts() {
+void MujocoSimModule::UpdateGate3BallContacts(int slot) {
+
+  const int joint = gate3::SlotJoint(m_, slot);
+  const int gate3_ball_body_id_ = m_->jnt_bodyid[joint];
+  const int gate3_ball_qpos_addr_ = m_->jnt_qposadr[joint];
+  const int gate3_ball_dof_addr_ = m_->jnt_dofadr[joint];
+  const int gate3_ball_geom_id_ = mj_name2id(m_, mjOBJ_GEOM, gate3::SlotName(gate3::kGeomName, slot).c_str());
+  auto* telemetry = d_->userdata + slot * gate3::kRequiredUserData;
+  auto& gate3_ball_pre_step_velocity_ = flight_velocities_[slot];
+  auto& gate3_last_shot_id_ = flight_shot_ids_[slot];
+  auto& gate3_racket_contact_prev_ = flight_racket_prev_[slot];
+  auto& gate3_table_contact_prev_ = flight_table_prev_[slot];
+  auto& gate3_net_contact_prev_ = flight_net_prev_[slot];
+  if (telemetry[gate3::kActive] <= 0.5) return;
   if (gate3_ball_geom_id_ < 0) return;
 
   const auto shot_id = static_cast<std::uint64_t>(
-      std::max<mjtNum>(0.0, d_->userdata[gate3::kShotId]));
+      std::max<mjtNum>(0.0, telemetry[gate3::kShotId]));
   if (shot_id != gate3_last_shot_id_) {
     gate3_last_shot_id_ = shot_id;
-    gate3_racket_contact_prev_ = false;
-    gate3_table_contact_prev_ = false;
-    gate3_net_contact_prev_ = false;
+    gate3_racket_contact_prev_ = slot > 0 && (static_cast<int>(telemetry[gate3::kContactBits]) & gate3::kContactRacket);
+    gate3_table_contact_prev_ = slot > 0 && (static_cast<int>(telemetry[gate3::kContactBits]) & gate3::kContactTable);
+    gate3_net_contact_prev_ = slot > 0 && (static_cast<int>(telemetry[gate3::kContactBits]) & gate3::kContactNet);
   }
 
   bool racket = false;
@@ -505,18 +669,18 @@ void MujocoSimModule::UpdateGate3BallContacts() {
   if (racket) bits |= gate3::kContactRacket;
   if (table) bits |= gate3::kContactTable;
   if (net) bits |= gate3::kContactNet;
-  d_->userdata[gate3::kContactBits] = static_cast<mjtNum>(bits);
+  telemetry[gate3::kContactBits] = static_cast<mjtNum>(bits);
   // State is published at 250 Hz, while contacts are sampled at 1 kHz.
   // Latch the per-shot peak so diagnostic force evidence cannot disappear
   // between publisher ticks. ResetTelemetry clears it at the next launch.
-  d_->userdata[gate3::kRacketNormalForce] = std::max<mjtNum>(
-      d_->userdata[gate3::kRacketNormalForce], racket_normal_force);
+  telemetry[gate3::kRacketNormalForce] = std::max<mjtNum>(
+      telemetry[gate3::kRacketNormalForce], racket_normal_force);
   if (racket && !gate3_racket_contact_prev_)
-    d_->userdata[gate3::kRacketContactCount] += 1.0;
+    telemetry[gate3::kRacketContactCount] += 1.0;
   if (table && !gate3_table_contact_prev_)
-    d_->userdata[gate3::kTableContactCount] += 1.0;
+    telemetry[gate3::kTableContactCount] += 1.0;
   if (net && !gate3_net_contact_prev_)
-    d_->userdata[gate3::kNetContactCount] += 1.0;
+    telemetry[gate3::kNetContactCount] += 1.0;
 
   // The venue fit and training virtual ball use an impulse map; MuJoCo's
   // underdamped soft-contact parameter is not that map and previously injected
@@ -625,7 +789,11 @@ void MujocoSimModule::InitializeDebugCsv() {
   debug_torso_body_id_ = mj_name2id(m_, mjOBJ_BODY, "torso_Link");
   debug_left_foot_body_id_ = mj_name2id(m_, mjOBJ_BODY, "left_ankle_roll_Link");
   debug_right_foot_body_id_ = mj_name2id(m_, mjOBJ_BODY, "right_ankle_roll_Link");
+  debug_floor_geom_id_ = mj_name2id(m_, mjOBJ_GEOM, "floor");
   debug_racket_site_id_ = mj_name2id(m_, mjOBJ_SITE, "right_racket");
+  if (debug_floor_geom_id_ < 0) {
+    AIMRT_WARN("MuJoCo debug CSV cannot resolve floor geom; foot-floor forces will fail closed.");
+  }
 
   debug_actuators_.reserve(m_->nu);
   for (int actuator_id = 0; actuator_id < m_->nu; ++actuator_id) {
@@ -648,9 +816,15 @@ void MujocoSimModule::InitializeDebugCsv() {
     << ",torso_wx,torso_wy,torso_wz,torso_vx,torso_vy,torso_vz"
     << ",racket_x,racket_y,racket_z,racket_wx,racket_wy,racket_wz"
     << ",racket_vx,racket_vy,racket_vz"
-    << ",left_foot_x,left_foot_y,left_foot_z,left_foot_vx,left_foot_vy,left_foot_vz"
-    << ",right_foot_x,right_foot_y,right_foot_z,right_foot_vx,right_foot_vy,right_foot_vz"
-    << ",left_foot_normal_force,right_foot_normal_force";
+    << ",left_foot_x,left_foot_y,left_foot_z"
+    << ",left_foot_qw,left_foot_qx,left_foot_qy,left_foot_qz"
+    << ",left_foot_vx,left_foot_vy,left_foot_vz"
+    << ",right_foot_x,right_foot_y,right_foot_z"
+    << ",right_foot_qw,right_foot_qx,right_foot_qy,right_foot_qz"
+    << ",right_foot_vx,right_foot_vy,right_foot_vz"
+    << ",left_foot_normal_force,right_foot_normal_force,foot_floor_force_contract_v1"
+    << ",robot_table_contact_count,robot_net_contact_count,robot_self_contact_count"
+    << ",robot_collision_ledger_v1";
   for (const auto& a : debug_actuators_) o << ",q_" << a.name;
   for (const auto& a : debug_actuators_) o << ",qd_" << a.name;
   for (const auto& a : debug_actuators_) o << ",ctrl_" << a.name;
@@ -692,16 +866,36 @@ void MujocoSimModule::WriteDebugCsv(std::uint64_t wall_time_ns) {
 
   double left_foot_force = 0.0;
   double right_foot_force = 0.0;
+  int robot_table_contact_count = 0;
+  int robot_net_contact_count = 0;
+  int robot_self_contact_count = 0;
   for (int contact_id = 0; contact_id < d_->ncon; ++contact_id) {
     const auto& contact = d_->contact[contact_id];
     const int body1 = m_->geom_bodyid[contact.geom1];
     const int body2 = m_->geom_bodyid[contact.geom2];
+    const bool ball_contact =
+        gate3::IsFlightGeom(m_, contact.geom1) || gate3::IsFlightGeom(m_, contact.geom2);
+    if (!ball_contact) {
+      if (contact.geom1 == gate3_table_geom_id_ || contact.geom2 == gate3_table_geom_id_)
+        ++robot_table_contact_count;
+      if (contact.geom1 == gate3_net_geom_id_ || contact.geom2 == gate3_net_geom_id_)
+        ++robot_net_contact_count;
+      // Connected-body pairs are excluded by MuJoCo's default contact filter.  The
+      // remaining non-world, non-ball body pairs are robot self contacts.
+      if (body1 > 0 && body2 > 0 && body1 != body2)
+        ++robot_self_contact_count;
+    }
+    const bool geom1_is_floor = contact.geom1 == debug_floor_geom_id_;
+    const bool geom2_is_floor = contact.geom2 == debug_floor_geom_id_;
+    if (!geom1_is_floor && !geom2_is_floor) continue;
     std::array<mjtNum, 6> wrench{};
     mj_contactForce(m_, d_, contact_id, wrench.data());
     const double normal = std::abs(static_cast<double>(wrench[0]));
-    if (body1 == debug_left_foot_body_id_ || body2 == debug_left_foot_body_id_)
+    if ((geom1_is_floor && body2 == debug_left_foot_body_id_) ||
+        (geom2_is_floor && body1 == debug_left_foot_body_id_))
       left_foot_force += normal;
-    if (body1 == debug_right_foot_body_id_ || body2 == debug_right_foot_body_id_)
+    if ((geom1_is_floor && body2 == debug_right_foot_body_id_) ||
+        (geom2_is_floor && body1 == debug_right_foot_body_id_))
       right_foot_force += normal;
   }
 
@@ -733,10 +927,15 @@ void MujocoSimModule::WriteDebugCsv(std::uint64_t wall_time_ns) {
     o << ',' << (debug_racket_site_id_ >= 0 ? d_->site_xpos[3 * debug_racket_site_id_ + i] : 0.0);
   for (double v : racket_vel) o << ',' << v;
   for (int i = 0; i < 3; ++i) o << ',' << body_pos(debug_left_foot_body_id_, i);
+  for (int i = 0; i < 4; ++i) o << ',' << body_quat(debug_left_foot_body_id_, i);
   for (int i = 3; i < 6; ++i) o << ',' << left_foot_vel[i];
   for (int i = 0; i < 3; ++i) o << ',' << body_pos(debug_right_foot_body_id_, i);
+  for (int i = 0; i < 4; ++i) o << ',' << body_quat(debug_right_foot_body_id_, i);
   for (int i = 3; i < 6; ++i) o << ',' << right_foot_vel[i];
-  o << ',' << left_foot_force << ',' << right_foot_force;
+  o << ',' << left_foot_force << ',' << right_foot_force << ",1"
+    << ',' << robot_table_contact_count
+    << ',' << robot_net_contact_count
+    << ',' << robot_self_contact_count << ",1";
   for (const auto& a : debug_actuators_) o << ',' << (a.qpos_addr >= 0 ? d_->qpos[a.qpos_addr] : 0.0);
   for (const auto& a : debug_actuators_) o << ',' << (a.dof_addr >= 0 ? d_->qvel[a.dof_addr] : 0.0);
   for (int i = 0; i < m_->nu; ++i) o << ',' << d_->ctrl[i];
@@ -857,9 +1056,9 @@ aimrt::co::Task<void> MujocoSimModule::SimLoop() {
 
       // step
       if (sim->run) {
-        ApplyGate3BallDrag();
+        for (int slot = 0; slot < gate3::kFlightSlots; ++slot) ApplyGate3BallDrag(slot);
         mj_step(m_, d_);
-        UpdateGate3BallContacts();
+        for (int slot = 0; slot < gate3::kFlightSlots; ++slot) UpdateGate3BallContacts(slot);
         sim->AddToHistory();
         const auto debug_wall_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();

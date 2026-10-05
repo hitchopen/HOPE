@@ -1,0 +1,429 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 软件信息
+ */
+message OTASoftwareInfo {
+  string asset_key = 1;
+  string name = 2;
+  string project_id = 3;
+  string release = 4;
+}
+
+/**
+ * @brief soc芯片的软件版本信息
+ */
+message OTASocInfo {
+  string version = 1;
+  string platform = 2;
+  repeated OTASoftwareInfo software_info = 3;
+}
+
+/**
+ * @brief MCU信息
+ */
+message OTAMcuInfo {
+  string name = 1;
+  string version = 2;
+}
+
+/**
+ * @brief apk的版本信息
+ */
+message ApkInfo {
+  string apk_version = 1;
+  string pub_time = 2;
+  repeated OTASocInfo soc_info = 3;
+  repeated OTAMcuInfo mcu_info = 4;
+  string contents = 5;
+  string fota_version = 6;
+  bool image_store_exist = 7;   // 上报差分升级的备份镜像文件是否存在，且是否当前版本一致
+}
+
+/**
+ * @brief 机器人与ota升级相关的信息
+ */
+message OtaRobotInfo {
+  string model = 1;
+};
+
+/**
+ * @brief 获取ota升级的请求参数
+ */
+message GetRobotOtaInfoRequest {
+  RequestHeader header = 1;
+};
+
+/**
+ * @brief 获取ota信息的返回值状态
+ */
+enum GetRobotOtaInfoReturnCode {
+  GetRobotOtaInfoReturnCode_GET_ROBOT_OTA_INFO_SUCCESS = 0;
+  GetRobotOtaInfoReturnCode_GET_ROBOT_OTA_INFO_FAILURE = 1;
+};
+
+/**
+ * @brief 获取ota升级的返回值
+ */
+message GetRobotOtaInfoResponse {
+  ResponseHeader header = 1;
+  OtaRobotInfo robot_info = 2;
+  ApkInfo current_apk_info = 3;
+  repeated ApkInfo support_rollback_apk_infos = 4;
+  uint32 ota_space_ratio = 5;  // ota 升级空间占用: 百分比
+};
+
+/**
+ * @brief ota 配置信息
+ */
+message OtaConfig {
+  uint32 max_error_count = 1;
+
+  // 各个阶段的最大错误次数
+  uint32 max_error_count_per_stage = 2;
+}
+
+/**
+ * @brief ota 升级请求的请求参数
+ */
+message OtaUpdateRequest {
+  enum UpgradeType {
+      UNSPECIFIED     = 0;
+      FULL_PACKAGE    = 1; // 软件全量包
+      MODULES         = 2; // 模块包
+      THIRD_PARTY_LIB = 3; // 第三方软件包
+      SW_DIFF_PACKAGE = 4; // 软件差分包
+      FW_FULL_PACKAGE = 5; // 固件全量包
+      FW_DIFF_PACKAGE = 6; // 固件差分包
+  }
+  RequestHeader header = 1;
+  OtaConfig config = 2;
+  int32 is_rollback = 3;
+  string apk_version = 4;
+  repeated OtaRobotInfo support_robot_infos = 5;
+  UpgradeType type  = 6;  // 升级类型
+};
+
+/**
+ * @brief 请求 ota 升级的返回值状态
+ */
+enum OtaUpdateReturnCode {
+  OtaUpdateReturnCode_AGREE_TO_UPGRADE = 0;
+  OtaUpdateReturnCode_ROBOT_MODEL_MISMATCH = 1;
+  OtaUpdateReturnCode_APK_VERSION_TOO_LOW = 2;
+  OtaUpdateReturnCode_OTA_CONFIG_ISSUE = 3;
+  OtaUpdateReturnCode_OTA_IN_PROGRESS = 4;
+  OtaUpdateReturnCode_OTA_SM_BUSY = 5;
+};
+
+/**
+ * @brief ota 升级请求的响应参数
+ */
+message OtaUpdateResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief ota 继续进行的请求参数
+ */
+enum OtaContinueType {
+  // 安装新版本,使用该参数以后，客户端直接进入到等待 ota 进入到下载阶段的逻辑，然后上传新版本文件即可，无需再重新请求 ota 升级
+  // 暂时不支持该参数
+  // 目前暂时只考虑执行回滚操作
+  OtaContinueType_OTA_CONTINUE_INSTALL_NEW = 0;
+
+  // 继续尝试
+  OtaContinueType_OTA_CONTINUE_RETRY = 1;
+
+  // 执行回滚操作
+  OtaContinueType_OTA_CONTINUE_ROLLBACK = 2;
+};
+
+/**
+ * @brief ota 继续进行的请求参数
+ */
+message OtaContinueRequest {
+  RequestHeader header = 1;
+  OtaContinueType type = 2;
+  string apk_version = 3;
+};
+
+/**
+ * @brief ota 继续进行的返回值状态
+ */
+enum OtaContinueReturnCode {
+  OtaContinueReturnCode_OTA_CONTINUE_SUCCESS = 0;
+  OtaContinueReturnCode_OTA_CONTINUE_FAILURE = 1;
+};
+
+/**
+ * @brief ota 继续进行的响应参数
+ */
+message OtaContinueResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief ota 停止进行的请求参数
+ */
+message OtaStopRequest {
+  RequestHeader header = 1;
+};
+
+/**
+ * @brief ota 停止进行的返回值状态
+ */
+enum OtaStopReturnCode {
+  OtaStopReturnCode_OTA_STOP_SUCCESS = 0;
+
+  // OTA_STOP_FAILURE = 1;
+  OtaStopReturnCode_OTA_STOP_OTA_IS_IDLE = 1;
+
+  OtaStopReturnCode_OTA_STOP_OTA_IN_NOTIFY_SM_IDLE = 2;
+  OtaStopReturnCode_OTA_STOP_OTA_IN_DELETE_CACHE = 3;
+  OtaStopReturnCode_OTA_STOP_OTA_IN_ROLLBACK = 4;
+  OtaStopReturnCode_OTA_STOP_OTA_IN_FAILURE = 5;
+  OtaStopReturnCode_OTA_STOP_OTA_IN_TEMPORARY_STATE = 6;
+};
+
+/**
+ * @brief ota 停止进行的响应参数
+ */
+message OtaStopResponse {
+  ResponseHeader header = 1;
+};
+
+/**
+ * @brief 获取当前 ota 状态的请求参数
+ */
+message GetCurrentOtaProgressRequest {
+  RequestHeader header = 1;
+};
+
+/**
+ * @brief ota 状态上报信息
+ */
+enum OTAStates {
+  OTAStates_OTA_IDLE = 0;
+  OTAStates_OTA_NOTIFY_SM_IDLE = 1;
+  OTAStates_OTA_PREPARE = 2;
+  OTAStates_OTA_DOWNLOAD = 3;
+  OTAStates_OTA_UNPACK = 4;
+  OTAStates_OTA_INSTALL_SOC = 5;
+  OTAStates_OTA_UPGRADE_MCU = 6;
+  OTAStates_OTA_UPGRADE_SOC = 7;
+  OTAStates_OTA_DELETE_CACHE = 8;
+  OTAStates_OTA_DONE = 9;
+
+  // 回滚时不做细分
+  OTAStates_OTA_ROLLBACK = 14;
+  OTAStates_OTA_FAILURE = 15;
+
+  // ota 初始化阶段
+  OTAStates_OTA_INIT_STATE = 100;
+
+  // ota 检测到有历史 ota 任务，等待SM确认的状态，在该状态，等待SM发送确认信息
+  OTAStates_OTA_INIT_WAIT_SM_ACKNOWLEDGE = 101;
+
+  // OTA某些临时状态，正常，不需要额外处理
+  OTAStates_OTA_TEMPORARY_STATE = 200;
+};
+
+/**
+ * @brief ota 进度信息
+ */
+message OtaProgress {
+  OTAStates current_states = 1;
+  uint32 percentage = 2;
+  uint32 error_count = 3;
+  uint32 current_stage_error_count = 4;
+  string current_apk_version = 5;
+};
+
+/**
+ * @brief 获取当前 ota 状态的返回值状态
+ */
+enum GetCurrentOtaProgressReturnCode {
+  GetCurrentOtaProgressReturnCode_GET_CURRENT_OTA_PROGRESS_SUCCESS = 0;
+  GetCurrentOtaProgressReturnCode_GET_CURRENT_OTA_PROGRESS_FAILURE = 1;
+}
+
+/**
+ * @brief 获取当前 ota 状态的响应参数
+ */
+message GetCurrentOtaProgressResponse {
+  ResponseHeader header = 1;
+  OtaProgress progress = 2;
+};
+
+/**
+ * @brief 继续历史 ota 升级的请求参数
+ */
+enum OtaHistoryType {
+  // 继续执行历史升级任务
+  OtaHistoryType_OTA_HISTORY_CONTINUE_UPGRADE = 0;
+
+  // 回滚历史版本
+  OtaHistoryType_OTA_HISTORY_CONTINUE_ROLLBACK = 1;
+};
+
+/**
+ * @brief 继续历史 ota 升级的请求参数
+ */
+message ContinueHistoryOtaRequest {
+  RequestHeader header = 1;
+  OtaHistoryType type = 2;
+};
+
+/**
+ * @brief 继续历史 ota 升级的返回值状态
+ */
+message ContinueHistoryOtaResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief ota 请求开始上传文件
+ */
+message StartOTAUploadReq {
+  // 标准头文件
+  RequestHeader header = 1;
+
+  // 文件名称，计划采用读取文件的时间戳作为文件名称
+  // 机上可采用该名称作为文件存在临时文件
+  string filename = 2;
+
+  // 总文件数量
+  int32 total = 3;
+
+  // 文件hash
+  string hash = 4;
+
+  // 一些版本信息
+  string version = 5;
+};
+
+/**
+ * @brief ota 请求开始上传文件响应
+ */
+message StartOTAUploadRsp {
+  // 标准头文件
+  ResponseHeader header = 1;
+};
+
+/**
+ * @brief ota 上传文件请求
+ */
+message OTAUploadFileReq {
+  // 标准头文件
+  RequestHeader header = 1;
+
+  // 文件名称，计划采用读取文件的时间戳作为文件名称
+  // 机上可采用该名称作为文件存在临时文件
+  string filename = 2;
+
+  // 当前文件索引
+  int32 current = 3;
+
+  // 总文件数量
+  int32 total = 4;
+
+  // 文件数据
+  bytes datas = 5;
+
+  // 切片 hash
+  string hash = 6;
+};
+
+/**
+ * @brief ota 上传文件响应
+ */
+message OTAUploadFileRsp {
+  // 标准头文件
+  ResponseHeader header = 1;
+};
+
+/**
+ * @brief ota 上传文件结束请求
+ */
+message FinishOTAUploadReq {
+  // 标准头文件
+  RequestHeader header = 1;
+
+  // 文件名称，计划采用读取文件的时间戳作为文件名称
+  // 机上可采用该名称作为文件存在临时文件
+  string filename = 2;
+
+  // 总文件数量
+  int32 total = 3;
+
+  // 文件hash
+  string hash = 4;
+};
+
+/**
+ * @brief ota 上传文件结束响应
+ */
+message FinishOTAUploadRsp {
+  // 标准头文件
+  ResponseHeader header = 1;
+};
+
+/**
+ * @brief 开始执行OTA步骤请求
+ */
+message StartOTAReq {
+  // 标准头文件
+  RequestHeader header = 1;
+
+  // OTA 文件名称
+  string filename = 2;
+
+  // 是否回滚
+  bool is_rollback = 3;
+}
+
+/**
+ * @brief 开始执行OTA步骤响应
+ */
+message StartOTARsp {
+  // 标准头文件
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求 OTA 执行某个功能
+ */
+message OTAExecuteFunctionRequest {
+  RequestHeader header = 1;
+
+  // 功能类型
+  int64 type = 2;
+}
+
+/**
+ * @brief 执行某个功能响应
+ */
+message OTAExecuteFunctionResponse {
+  ResponseHeader header = 1;
+}
+
+/**
+ * @brief 查询各个SOC磁盘空间的请求
+ */
+message GetSocDiskSpaceRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 查询各个SOC磁盘空间的响应
+ */
+message GetSocDiskSpaceResponse {
+  ResponseHeader header = 1;
+  // 各个SOC的磁盘可用空间（单位：字节），key为SOC索引（如0, 1）
+  map<int32, uint64> soc_disk_space = 2;
+}

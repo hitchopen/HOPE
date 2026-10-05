@@ -1,0 +1,26 @@
+{
+  "type_description_msg": {
+    "type_description": {
+      "type_name": "audio_msgs/msg/AudioData",
+      "fields": [
+        {
+          "name": "data",
+          "type": {
+            "type_id": 147,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": ""
+          },
+          "default_value": ""
+        }
+      ]
+    },
+    "referenced_type_descriptions": []
+  },
+  "type_hashes": [
+    {
+      "type_name": "audio_msgs/msg/AudioData",
+      "hash_string": "RIHS01_5b653595ec94c2297a676f7389665ff0edda0b2f3a818581c1874c55e98733c9"
+    }
+  ]
+}

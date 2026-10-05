@@ -963,7 +963,7 @@ class RacketTargetCommand(CommandTerm):
         # only, defaults off, and is never set by a training recipe.
         self._eval_force_final_recovery_stage = False
 
-        # Per-clip (forehand=clip 0 / backhand=clip 1) breakdown of the exact-strike metrics, so wandb
+        # Per-clip (forehand=clip 0 / backhand=clip 1) breakdown of the exact-strike metrics, so local metrics
         # shows each swing separately (the aggregate composite can hide one swing lagging). Same
         # sample-weighted EMA as the global accumulators above, but each clip's exact-strike samples are
         # accumulated separately (selected by the motion command's clip_id). Populated in multiseg only.
@@ -1166,7 +1166,7 @@ class RacketTargetCommand(CommandTerm):
             self.num_envs, 2, dtype=torch.bool, device=self.device
         )
 
-        # --- UNCONDITIONAL swing accounting (Phase A wandb fix) ------------------------------------
+        # --- UNCONDITIONAL swing accounting (Phase A local metrics fix) ------------------------------------
         # strike_composite_success_exact is CONDITIONAL: its denominator is exact-strike SAMPLES, so
         # an env that falls BEFORE the strike frame contributes nothing — composite ~1.0 coexists
         # with any pre-strike fall rate (exactly what happened in deploy). These accumulators count
@@ -1446,7 +1446,7 @@ class RacketTargetCommand(CommandTerm):
             self.delayed_racket_target_pos_w = self.racket_target_pos_w
             self.delayed_racket_target_vel_w = self.racket_target_vel_w
             self.delayed_swing_sign = self.swing_sign
-        # A1 metrics: per-step per-env redraw indicator (wandb reset-mean = per-step mid-swing
+        # A1 metrics: per-step per-env redraw indicator (local metrics reset-mean = per-step mid-swing
         # refinement fraction) + the constant delay-in-effect broadcast (refreshed every step in
         # _update_metrics because CommandTerm.reset() zeros metric entries of resetting envs).
         self.metrics["midswing_resample_count"] = torch.zeros(self.num_envs, device=self.device)
@@ -2551,7 +2551,7 @@ class RacketTargetCommand(CommandTerm):
         # subject). 0 outside pre_strike -> the reset-mean dilutes like the other *_prestrike metrics.
         self.metrics["base_speed_xy_prestrike"] = torch.zeros(self.num_envs, device=self.device)
         # Curriculum perturbation scale (reference_perturbed mode): 0 at start ramping to 1; lets you
-        # watch the reachable target ball widen in wandb. Stays 0 in "uniform" mode.
+        # watch the reachable target ball widen in local metrics. Stays 0 in "uniform" mode.
         self.metrics["ref_perturb_scale"] = torch.zeros(self.num_envs, device=self.device)
         self._has_jpos_limits = hasattr(self.robot.data, "soft_joint_pos_limits") or hasattr(
             self.robot.data, "joint_pos_limits"
@@ -5910,7 +5910,7 @@ class RacketTargetCommand(CommandTerm):
                 ).detach()
                 self.racket_progress[ids] = 0.0
                 self._progress_reset_mask[ids] = True
-            # Per-env 0/1 indicator; the wandb reset-mean = per-step refinement fraction (~ prob *
+            # Per-env 0/1 indicator; the local metrics reset-mean = per-step refinement fraction (~ prob *
             # eligible fraction). Written every step while the feature is on so zero-redraw steps count.
             self.metrics["midswing_resample_count"] = redraw.float()
 
@@ -6335,7 +6335,7 @@ class RacketTargetCommand(CommandTerm):
             self.delayed_swing_sign.copy_(self.swing_sign)
 
     def _count_swing_starts(self, env_ids, count_prestrike_falls: bool) -> None:
-        """UNCONDITIONAL swing accounting (Phase A wandb fix). Increment-only here; the decay is
+        """UNCONDITIONAL swing accounting (Phase A local metrics fix). Increment-only here; the decay is
         applied once per step in _update_metrics next to the exact accumulators, so
         swing_completion_rate = exact_n_acc / swing_starts_acc shares one EMA timescale.
         NOTE: an episode TIMEOUT mid-swing counts as an uncompleted start (slight deflation,
@@ -9166,7 +9166,7 @@ class RacketTargetCommand(CommandTerm):
         else:
             self.metrics["ref_perturb_scale"].zero_()
         # Per-axis ERROR components only (which direction is the miss?). The per-axis actual/target
-        # state and the speed/normal-cos scalars were dropped as redundant wandb clutter.
+        # state and the speed/normal-cos scalars were dropped as redundant local metrics clutter.
         for axis_idx, axis in enumerate(("x", "y")):
             self.metrics[f"base_pos_{axis}"] = base_pos_rel[:, axis_idx]
             self.metrics[f"base_pos_error_{axis}"] = base_err_xy[:, axis_idx]
@@ -9901,7 +9901,7 @@ class RacketTargetCommand(CommandTerm):
         self.metrics["exact_strike_sample_count_decayed"][:] = self._exact_n_acc
         # --- per-clip (forehand/backhand) breakdown of the exact-strike pass rates + errors -----------
         # Same sample-weighted EMA as the global block above, selected by the motion command's clip_id so
-        # wandb shows each swing separately. pass_pos/vel/normal already include `& exact_strike`. Multiseg
+        # local metrics shows each swing separately. pass_pos/vel/normal already include `& exact_strike`. Multiseg
         # (unified forehand+backhand) only; single-clip leaves these at 0.
         _motion = self._motion()
         if getattr(_motion, "_multiseg", False):
@@ -10849,7 +10849,7 @@ class RacketTargetCommandCfg(CommandTermCfg):
     # --- debug logging (sign verification + raw/gated reward kernels) ---
     # When True, RacketTargetCommand logs dbg_err_{minus,plus}_{win,exact} (swing-through sign check) and
     # the reward terms log dbg_{racket_pos,racket_vel,racket_normal,base}_{raw,gated}. Pure logging; no
-    # behaviour change. Turn off for production runs (extra wandb scalars).
+    # behaviour change. Turn off for production runs (extra local metrics scalars).
     debug_reward_logging: bool = False
 
     # --- conditional exact-strike success metric (logging + curriculum gating) ---

@@ -1,0 +1,113 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/hds/exception.proto";
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 告警状态
+ * @note 告警状态分为三种：未知、告警中、已清除
+ */
+enum AlertState {
+  // 未知(默认状态)
+  AlertState_UNDEFINED = 0;
+
+  // 告警中
+  AlertState_ACTIVE = 1;
+
+  // 已清除
+  AlertState_CLEARED = 2;
+
+  // 告警中异常变更
+  // 由于最新版本中异常跟告警是一一对应关系，因此不再有异常更新的状态
+  AlertState_ExceptionChanged = 3 [deprecated = true];
+
+  // 恢复中
+  // 最新版本中删除了手动恢复告警功能，因此恢复状态已弃用
+  AlertState_Recovering = 4 [deprecated = true];
+
+}
+
+/**
+ * @brief 告警等级(健康状态)
+ **/
+enum AlertLevel {
+  AlertLevel_UNDEFINED = 0;
+  AlertLevel_H1_FATAL = 1;
+  AlertLevel_H2_CRITICAL = 2;
+  AlertLevel_H2_PERMANENT = 3;
+  AlertLevel_H3_ERROR = 4;
+  AlertLevel_H3_PERMANENT = 5;
+  AlertLevel_H4_WARNING = 6;
+  AlertLevel_H4_EVENT = 7;
+  AlertLevel_H5_EVENT = 8;
+  AlertLevel_H5_TRIVIAL = 9;
+  AlertLevel_H5_STATUS = 10;
+  AlertLevel_H6_RESERVE = 11;
+  AlertLevel_H7_EVENT = 12;
+  AlertLevel_H7_DELETE = 13;
+}
+
+/**
+ * @brief 告警解决方案
+ */
+message AlertSolution{
+  string type = 1;
+  string content = 2;
+}
+
+/**
+ * @brief 告警展示类型
+ */
+enum AlertShowType{
+    AlertShowType_Normal = 0;
+    AlertShowType_Toast = 1;
+}
+
+
+/**
+ * @brief 告警信息
+ */
+message Alert {
+  // 告警ID
+  string id = 1;
+
+  // 告警产生的时间辍
+  uint64 appeared_timestamp = 2;
+
+  // 告警消失的时间辍
+  uint64 disappeared_timestamp = 3;
+
+  // 告警码
+  string alert_code = 4;
+
+  // 告警状态
+  AlertState state = 5;
+
+  // 当前告警包含的异常列表
+  // 目前告警与异常为一一对应关系，因此异常列表字段已失去作用
+  repeated ModuleException exception_list = 6 [deprecated = true];
+
+  // 告警描述
+  string description = 7;
+
+  // 告警等级
+  AlertLevel level = 8;
+
+  //是否支持手动清除，已弃用
+  bool manual_clear = 9 [deprecated = true];
+
+  //告警展示类型
+  //目前由客户端自行根据告警等级决定展示类型，因此弃用
+  AlertShowType show_type = 10 [deprecated = true];
+
+  //告警解决方案列表，当前已不再使用
+  repeated AlertSolution solution_list = 11 [deprecated = true];
+
+  // 客户端告警文案
+  map<string, string> alert_text = 12;
+
+  // 故障发生模块
+  map<string, string> alert_module = 13;
+
+}

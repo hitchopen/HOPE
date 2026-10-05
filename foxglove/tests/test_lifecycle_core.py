@@ -18,7 +18,10 @@ from hope_lifecycle_core import (  # noqa: E402
     load_config,
     parse_helper_event,
     save_config_atomic,
+    release_hardware_operation_lock,
+    try_acquire_hardware_operation_lock,
     validate_ipv4,
+    validate_table_side,
     validate_session_id,
 )
 
@@ -31,24 +34,45 @@ class LifecycleConfigTests(unittest.TestCase):
             hdu_wifi_ip="192.168.10.3",
             mdu_internal_ip="10.0.0.12",
             motive_ip="192.168.20.2",
+            table_side="P1",
             revision=revision,
         )
 
     def test_defaults_require_operator_confirmation(self):
         config = LifecycleConfig()
         self.assertEqual(config.revision, 0)
-        self.assertEqual(config.values(), {name: "" for name in CONFIG_FIELDS})
+        self.assertEqual(
+            config.values(),
+            {
+                "laptop_wifi_ip": "",
+                "hdu_wifi_ip": "",
+                "mdu_internal_ip": "",
+                "motive_ip": "",
+                "table_side": "P1",
+            },
+        )
 
-    def test_all_four_fields_are_required_and_revision_advances(self):
+    def test_all_fields_are_submitted_and_revision_advances(self):
         current = self.valid_config(revision=4)
         updates = [(name, current.values()[name]) for name in CONFIG_FIELDS]
         updated = apply_config_updates(current, updates)
         self.assertEqual(updated.revision, 5)
         self.assertEqual(updated.values(), current.values())
 
+    def test_motive_address_is_optional_for_runner_only_config(self):
+        current = self.valid_config(revision=4)
+        updates = [(name, current.values()[name]) for name in CONFIG_FIELDS]
+        updates[CONFIG_FIELDS.index("motive_ip")] = ("motive_ip", "")
+        updated = apply_config_updates(current, updates)
+        self.assertEqual(updated.motive_ip, "")
+        self.assertEqual(
+            config_from_document(config_to_document(updated)),
+            updated,
+        )
+
     def test_partial_duplicate_unknown_and_non_string_updates_fail(self):
         current = self.valid_config()
-        with self.assertRaisesRegex(ValueError, "all four"):
+        with self.assertRaisesRegex(ValueError, "three required IPv4"):
             apply_config_updates(current, [("hdu_wifi_ip", "172.23.20.135")])
         duplicate = [(name, current.values()[name]) for name in CONFIG_FIELDS]
         duplicate[-1] = duplicate[0]
@@ -59,7 +83,8 @@ class LifecycleConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_config_updates(current, unknown)
         wrong_type = [(name, current.values()[name]) for name in CONFIG_FIELDS]
-        wrong_type[-1] = ("motive_ip", 1234)
+        motive_index = CONFIG_FIELDS.index("motive_ip")
+        wrong_type[motive_index] = ("motive_ip", 1234)
         with self.assertRaisesRegex(ValueError, "must be a string"):
             apply_config_updates(current, wrong_type)
 
@@ -79,6 +104,13 @@ class LifecycleConfigTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 validate_ipv4("hdu_wifi_ip", invalid)
 
+    def test_table_side_is_explicit_and_canonical(self):
+        self.assertEqual(validate_table_side("P1"), "P1")
+        self.assertEqual(validate_table_side("P2"), "P2")
+        for invalid in ("", "P1 ", "p2", "near", "P3", 2):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                validate_table_side(invalid)
+
     def test_document_round_trip_and_atomic_save(self):
         config = self.valid_config(revision=2)
         self.assertEqual(config_from_document(config_to_document(config)), config)
@@ -87,7 +119,7 @@ class LifecycleConfigTests(unittest.TestCase):
             save_config_atomic(path, config)
             self.assertEqual(load_config(path), config)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(path.read_text())["schema_version"], 1)
+            self.assertEqual(json.loads(path.read_text())["schema_version"], 2)
 
     def test_unconfirmed_or_malformed_documents_fail(self):
         document = config_to_document(self.valid_config(revision=1))
@@ -98,6 +130,13 @@ class LifecycleConfigTests(unittest.TestCase):
         document["motive_ip"] = "motive.local"
         with self.assertRaises(ValueError):
             config_from_document(document)
+
+    def test_schema_one_migrates_to_historical_p1_direct_mode(self):
+        document = config_to_document(self.valid_config(revision=1))
+        document["schema_version"] = 1
+        del document["table_side"]
+        loaded = config_from_document(document)
+        self.assertEqual(loaded.table_side, "P1")
 
     def test_session_and_helper_event_contracts(self):
         self.assertEqual(
@@ -112,6 +151,18 @@ class LifecycleConfigTests(unittest.TestCase):
         self.assertIsNotNone(event)
         self.assertEqual(event.step, "RUNNER")
         self.assertIsNone(parse_helper_event("arbitrary helper output"))
+
+    def test_hardware_operation_interlock_is_exclusive_and_reusable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "hardware-operation.lock"
+            path.touch(mode=0o600)
+            first = try_acquire_hardware_operation_lock(path)
+            self.assertIsNotNone(first)
+            self.assertIsNone(try_acquire_hardware_operation_lock(path))
+            release_hardware_operation_lock(first)
+            second = try_acquire_hardware_operation_lock(path)
+            self.assertIsNotNone(second)
+            release_hardware_operation_lock(second)
 
 
 if __name__ == "__main__":

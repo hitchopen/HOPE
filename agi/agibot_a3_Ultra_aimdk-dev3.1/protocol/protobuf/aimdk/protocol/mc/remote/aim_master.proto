@@ -1,0 +1,126 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/timestamp.proto";
+import public "aimdk/protocol/common/header.proto";
+
+
+/**
+ * @brief AimMaster控制源
+ */
+enum AimMasterControlSource {
+  // 自主控制
+  AimMasterControlSource_AUTO = 0;
+
+  // 手动控制
+  AimMasterControlSource_MANUAL = 1;
+}
+
+/**
+ * @brief AimMaster控制操纵杆轴
+ */
+message AimMasterControlAxis {
+  // 上下方向摇杆
+  double up_down = 1;
+
+  // 左右方向摇杆
+  double left_right = 2;
+}
+
+/**
+ * @brief AimMaster控制操纵杆按钮
+ */
+message AimMasterControlButton {
+  // 摇杆按钮: 上下
+  oneof up_down {
+    bool up = 1;
+    bool down = 2;
+  }
+
+  // 摇杆按钮: 左右
+  oneof left_right {
+    bool left = 3;
+    bool right = 4;
+  }
+}
+
+/**
+ * @brief AimMaster控制
+ */
+message AimMasterControlInfo {
+  enum Type {
+    Type_UNKNOWN = 0;
+    // 摇杆类型：轴型，数据类型为 DOUBLE
+    Type_AXIS = 1;
+    // 摇杆类型：按钮型，数据类型为 BOOL
+    Type_BUTTON = 2;
+  }
+
+  // 摇杆类型
+  Type type = 1;
+
+  // 摇杆数据
+  oneof data {
+    AimMasterControlAxis axis = 2;
+    AimMasterControlButton button = 3;
+  }
+}
+
+/**
+ * @brief AimMaster控制消息
+ */
+message AimMasterControl {
+  enum Mode {
+    Mode_UNKNOWN = 0;
+    // 控制模式：上半身控制
+    Mode_UPPER_BODY = 1;
+    // 控制模式：全身控制
+    Mode_WHOLE_BODY = 2;
+    // 控制模式：头部控制
+    Mode_HEAD = 3;
+  }
+
+  // 控制模式
+  Mode mode = 1;
+
+  // 摇杆: 左摇杆
+  AimMasterControlInfo left = 2;
+
+  // 摇杆: 右摇杆
+  AimMasterControlInfo right = 3;
+}
+
+/**
+ * @brief 与客户端交互的接口结构请求
+ */
+message AimMasterControlSourceRequest {
+  RequestHeader header = 1;
+  AimMasterControlSource target = 2;
+}
+
+/**
+ * @brief 与客户端交互的接口结构响应
+ */
+message AimMasterControlSourceResponse {
+  ResponseHeader header = 1;
+  AimMasterControlSource current = 2;
+}
+
+/**
+ * @brief AimMaster控制操作命令请求
+ */
+message AimMasterControlCommandRequest {
+  // AimMaster控制命令
+  enum Command {
+    // 未知命令
+    Command_UNKNOWN = 0;
+
+    // 姿态初始化命令
+    Command_ROBOT_INIT = 1;
+  }
+
+  // 请求头
+  RequestHeader header = 1;
+  // AimMaster控制命令
+  Command command = 2;
+}

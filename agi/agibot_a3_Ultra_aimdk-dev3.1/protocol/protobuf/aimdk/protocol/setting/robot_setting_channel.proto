@@ -1,0 +1,79 @@
+syntax = "proto3";
+package aimdk.protocol;
+import "aimdk/protocol/setting/wifi.proto";
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 机器人重置进度
+ *  topic:/aima/reset_robot_process
+ */
+message ResetRobotChannel {
+  /**
+   * @brief 重置机器人进度0-100
+   */
+  int32 process = 1;
+
+  /**
+   * @brief 是否重置完成
+   */
+  bool is_finish = 2;
+
+  /**
+   * @brief 进度详细信息
+   */
+  string process_info = 3;
+
+  /**
+   * @brief 是否重置失败
+   */
+  bool is_failed = 4;
+
+  /**
+   * @brief 错误信息（如果错误 is_failed 会置为 true，is_finish 也为 true,
+   * 同时会返回错误信息）
+   */
+  string error_msg = 5;
+}
+
+/**
+ * @brief 机器人设置信息 已弃用，后续版本删掉
+ *  topic:/aima/robot_setting
+ */
+message RobotSettingChannel {
+
+  /**
+   * @brief 当前连接的wifi信息
+   */
+  NetWorkState network_state = 1;
+}
+
+/**
+  * @brief 恢复出厂设置状态
+  */
+enum FactoryResetStatus {
+  FactoryResetStatus_UNKNOWN = 0;
+  FactoryResetStatus_RUNNING = 1;
+  FactoryResetStatus_SUCCESS = 2;
+  FactoryResetStatus_FAILED = 3;
+}
+
+/**
+ * @brief 恢复出厂设置
+ *  topic:/aima/factory_reset
+ */
+message FactoryResetChannel {
+  /**
+   * @brief 恢复出厂设置进度0-100
+   */
+  int32 process = 1;
+
+  /**
+   * @brief 恢复出厂设置状态
+   */
+  FactoryResetStatus factory_reset_state = 2;
+
+  /**
+   * @brief 错误信息（如果错误 state 会置为 Failed，同时会返回错误信息）
+   */
+  string error_msg = 3;
+}

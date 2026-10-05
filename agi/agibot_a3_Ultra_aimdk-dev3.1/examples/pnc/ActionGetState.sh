@@ -1,0 +1,16 @@
+#!/bin/bash
+#curl使用示例(以 ORIN ip: 192.168.100.110 为例)：
+curl -i -H 'content-type:application/json' \
+        -H 'timeout: 60000' \
+        -X POST 'http://10.42.10.11:53176/rpc/aimdk.protocol.PncService/ActionGetState' \
+        -d '{
+              "header": {
+                "timestamp": {
+                  "seconds": 0,
+                  "nanos": 0,
+                  "ms_since_epoch": 0
+                },
+                "control_source": 0
+              },
+              "task_id": 0
+            }'

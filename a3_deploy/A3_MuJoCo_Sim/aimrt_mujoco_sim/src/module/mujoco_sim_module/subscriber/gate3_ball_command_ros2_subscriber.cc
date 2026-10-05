@@ -56,6 +56,7 @@ void Gate3BallCommandRos2Subscriber::ResetTelemetry(
 }
 
 void Gate3BallCommandRos2Subscriber::ParkBall(std::uint64_t shot_id) {
+  gate3::PreserveFlight(m_, d_, qpos_addr_, dof_addr_);
   d_->qpos[qpos_addr_ + 0] = 100.0;
   d_->qpos[qpos_addr_ + 1] = 0.0;
   d_->qpos[qpos_addr_ + 2] = -10.0;
@@ -102,7 +103,14 @@ void Gate3BallCommandRos2Subscriber::ApplyCtrlData() {
           msg->shot_id, current_shot_id, current_active);
       return;
     }
-    ParkBall(msg->shot_id);
+    try {
+      ParkBall(msg->shot_id);
+    } catch (const std::runtime_error& error) {
+      // Backpressure the launcher. Keep every active body simulating until a
+      // return slot is free; its repeated release request can then succeed.
+      AIMRT_WARN("Gate3 release deferred: {}", error.what());
+      return;
+    }
     mj_forward(m_, d_);
     return;
   }

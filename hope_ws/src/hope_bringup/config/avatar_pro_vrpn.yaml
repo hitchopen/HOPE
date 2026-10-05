@@ -1,0 +1,50 @@
+avatar_pro_vrpn_relay:
+  ros__parameters:
+    # NOTE: the VRPN server IP/port and poll rate are launch args of
+    # avatar_pro_hope_bridge.launch.py (server / port / update_freq), NOT here.
+    #
+    # STANDARDIZED rigid-body names: every AvatarPro/CMTracker setup must create
+    # the rigid bodies with EXACTLY Ball / UCB_P1 / UCB_P2 (+ PPT
+    # for the table if used). A mismatch = no data relayed; check with
+    # `ros2 topic list | grep vrpn_mocap` after the client is up.
+    vrpn_namespace: "/vrpn_mocap"
+    ppt_object: "PPT"      # table rigid body (optional)
+    p1_object: "UCB_P1"    # P1-side robot base rigid body
+    p2_object: "UCB_P2"    # P2-side robot base rigid body
+    # Ball tracking method. NOTE: both of these are also launch args of
+    # avatar_pro_hope_bridge.launch.py (ball_tracking_mode / ball_object) and the
+    # launch args OVERRIDE the values here, so you normally pick the method on the
+    # command line, e.g. `ball_tracking_mode:=rigid_body ball_object:=Ball`.
+    #   * "rigid_body" -> the ball is a named rigid body in CMTracker; set
+    #     ball_object to that name (e.g. "Ball"). The relay reads
+    #     /vrpn_mocap/<ball_object>/pose and publishes it to /ball/point. Preferred.
+    #   * "auto"       -> motion-based fallback: the ball has no usable name, so the
+    #     relay locks onto the moving non-rigid marker. ball_object is ignored.
+    ball_tracking_mode: "rigid_body"   # standardized: the ball IS a named rigid body
+    ball_object: "Ball"        # standardized ball rigid-body name; ignored in "auto" mode
+
+    # Unit conversion for every relayed position (poses, ball point, TF). THE CHAIN WORKS
+    # IN METRES; this venue's CMTracker streams MILLIMETRES over VRPN (field 2026-07-07:
+    # /UCB_P1/pose read x=-315.9 "m" = -0.316 m real) -> 0.001. Set back to 1.0 if the mocap
+    # export is switched to metres.
+    position_scale: 0.001
+
+    world_frame: "world"
+
+    # Ball auto-detection tuning (used only when ball_tracking_mode is "auto").
+    discovery_period_s: 0.5     # how often to scan for new /vrpn_mocap topics
+    ball_lock_speed_mps: 0.2    # smoothed speed above which a marker counts as "moving"
+    ball_switch_ratio: 2.0      # a rival marker must be this much faster to steal the lock
+    ball_stale_s: 2.0           # release the lock after this long with no messages
+
+    # Published HOPE-standard topics.
+    table_pose_topic: "/table/pose"
+    p1_pose_topic: "/UCB_P1/pose"
+    p2_pose_topic: "/UCB_P2/pose"
+    ball_point_topic: "/ball/point"
+    poses_topic: "/poses"
+
+    # Keep ball first so hope_planner's default ball_pose_index=0 works.
+    pose_array_order: ["ball", "PPT", "UCB_P1", "UCB_P2"]
+    publish_tf: true
+    publish_pose_array: true

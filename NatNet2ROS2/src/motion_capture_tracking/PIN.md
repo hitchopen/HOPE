@@ -224,6 +224,21 @@ License: MIT (upstream `LICENSE` kept in this directory).
     association remains only as a fallback. The MODELDEF fixture locks member
     IDs 1 and 2, matching the FRAMEOFDATA fixture's first member ID of 1.
 
+17. **Motive-route multicast NIC selection (2026-10-04)**: port the NIC
+    selection from build_6 commit `324e60d120856556875d65eb26931c6f89d7f5de`
+    into the standalone public driver. This supersedes item 14's requirement
+    for an explicit interface: empty and `0.0.0.0` now resolve the local source
+    address with a UDP route lookup to Motive's command endpoint. Explicit
+    addresses still take precedence. Preserve the public 4.2/4.5 bounded
+    parsers, clock synchronization, packet filters, and unicast registration.
+    Also port build_6's empty-queue termination of the latest-frame drain:
+    Boost's synchronous receive can otherwise retry `MSG_DONTWAIT` EAGAIN
+    with an unbounded poll, preventing the received frame from returning.
+    A loopback-only fake Motive test exercises actual group membership and
+    frame decoding for both automatic defaults, explicit NIC selection and
+    override, plus unicast. Both launch paths validate supplied IPv4 addresses
+    before starting their respawn supervisors.
+
 ## Re-pin procedure
 
 ```bash

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 机器人初始化姿态枚举
+ *
+ * 描述机器人的初始姿态包括 躺/趴/坐/悬挂/站稳
+ */
+enum McRobotPostureState {
+  McRobotPostureState_UNKNOWN = 0;  // 未指定或未知姿态 
+  McRobotPostureState_LYING = 1;  // 躺
+  McRobotPostureState_CRAWLING = 2;  // 爬
+  McRobotPostureState_HANGING = 3; // 吊绳悬挂
+  McRobotPostureState_STAND_READY = 4; // 站稳 （站立且足底与地面稳定接触）
+  McRobotPostureState_FALL = 5; // 摔倒
+  McRobotPostureState_FLOOR_SITTING = 6;// 坐地
+
+}
+
+/**
+ * @brief 机器人姿态信息通道消息
+ *
+ * 用于实时发布机器人当前的位姿状态
+ */
+message MotionControlRobotPostureStateInfo {
+  Header header = 1; // 消息头
+  McRobotPostureState state = 2; // 位姿状态
+}
+

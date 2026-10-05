@@ -1,0 +1,53 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/remote/aim_master.proto";
+import public "aimdk/protocol/mc/remote/remote_command.proto";
+import public "aimdk/protocol/mc/remote/universal_gamepad.proto";
+import public "aimdk/protocol/mc/remote/quest_pro_controller.proto";
+
+
+/**
+ * @brief VR控制通道
+ */
+message QuestProVrControllerChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  QuestProVrController data = 2;
+}
+
+/**
+ * @brief 通用游戏手柄通道
+ */
+message UniversalGamepadChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据     
+  UniversalGamepad data = 2;
+}
+
+/**
+ * @brief AimMaster控制通道
+ */
+ message AimMasterControlChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据     
+  AimMasterControl data = 2;
+}
+
+/**
+ * @brief 遥控器控制通道
+ */
+ message McRemoteControlChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据     
+  McRemoteControlInfo data = 2;
+}

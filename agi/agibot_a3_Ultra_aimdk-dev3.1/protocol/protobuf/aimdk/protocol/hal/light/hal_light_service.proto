@@ -1,0 +1,66 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/light/light.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的Rgb灯状态查询和控制服务
+ */
+service HalRgbLightService {
+  /**
+   * @brief 获取当前RGB灯光状态信息。
+   * @param CommonRequest: 获取RGB灯光状态请求
+   * @return RgbLightStateRsp: 获取RGB灯光状态响应
+   */
+  rpc GetRgbLightState(CommonRequest) returns (RgbLightStateRsp);
+
+  /**
+   * @brief RGB灯光控制。
+   * @param RgbLightCommandReq: RGB灯光控制请求
+   * @return CommonResponse: RGB灯光控制响应
+   */
+  rpc SetRgbLightCommand(RgbLightCommandReq) returns (CommonResponse);
+}
+
+/**
+ * @brief 由 aimrt_hal 中提供的补光灯状态查询和控制服务
+ */
+service HalFillLightService {
+  /**
+   * @brief 获取当前相机补光灯状态信息。
+   * @param RgbLightCommandReq: 获取补光灯状态请求
+   * @return CommonResponse: 获取补光灯状态响应
+   */
+  rpc GetFillLightState(CommonRequest) returns (FillLightStateRsp);
+  /**
+   * @brief 相机补光灯控制。
+   * @param RgbLightCommandReq: 补光灯控制请求
+   * @return CommonResponse: 补光灯控制响应
+   */
+  rpc SetFillLightCommand(FillLightCommandReq) returns (CommonResponse);
+}
+
+/**
+ * @brief 由 aimrt_hal 中提供的灯带状态查询和控制服务
+ */
+service HalLightStripService {
+  /**
+   * @brief 获取当前带状态信息。
+   * @param RgbLightCommandReq: 获取灯带状态请求
+   * @return CommonResponse: 获取灯带状态响应
+   */
+  rpc GetLightStripState(CommonRequest) returns (LightStripStateRsp);
+  /**
+   * @brief 底盘灯带控制。
+   * @param RgbLightCommandReq: 灯带控制请求
+   * @return CommonResponse: 灯带控制响应
+   */
+  rpc SetLightStripCommand(LightStripCommandReq) returns (CommonResponse);
+}
+
+
+service HalHeadLedService {
+  rpc GetHeadLedState(CommonRequest) returns (HeadLedStateRsp);
+  rpc HeadLedCommand(HeadLedCommandReq) returns (CommonResponse);
+}

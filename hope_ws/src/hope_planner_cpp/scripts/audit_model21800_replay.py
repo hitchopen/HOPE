@@ -435,7 +435,7 @@ def commit_revision(
 ) -> dict | None:
     ordered = sorted(revisions, key=lambda item: item["sample_time_s"])
     for index, revision in enumerate(ordered):
-        # Replay has no synchronized base/P1 stream, so its side estimate is
+        # Replay has no synchronized base/UCB_P1 stream, so its side estimate is
         # not authoritative. The historical runner lock is matched to the
         # exact Planner target and supplies the side actually used by the
         # model_21800 clip clock for this measured shot.
@@ -531,9 +531,9 @@ def main(argv=None) -> int:
         "--incoming-source-gap-reset-s", type=float, default=0.25
     )
     parser.add_argument("--adaptive-horizon", action="store_true")
-    parser.add_argument("--drag-k", type=float, default=0.1261)
+    parser.add_argument("--drag-k", type=float, default=0.1317)
     parser.add_argument("--restitution-h", type=float, default=0.64)
-    parser.add_argument("--restitution-v", type=float, default=0.9215)
+    parser.add_argument("--restitution-v", type=float, default=0.9607)
     parser.add_argument("--bounce-min-reversal-m", type=float, default=0.00005)
     parser.add_argument("--bounce-min-excursion-m", type=float, default=0.001)
     parser.add_argument("--bounce-confirmation-samples", type=int, default=5)
@@ -576,7 +576,7 @@ def main(argv=None) -> int:
     parser.add_argument("--spin-max-gap-s", type=float, default=0.05)
     parser.add_argument("--spin-max-rev-s", type=float, default=20.0)
     parser.add_argument("--spin-huber-delta-rev-s", type=float, default=2.0)
-    parser.add_argument("--magnus-k", type=float, default=0.00444)
+    parser.add_argument("--magnus-k", type=float, default=0.00327844)
     parser.add_argument(
         "--table-friction-mu",
         "--nakashima-friction-mu",

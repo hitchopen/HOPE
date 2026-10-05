@@ -1,0 +1,172 @@
+common:
+  policy_name: "HumanLike"
+  model_name: ["policy"]
+  model_path: ["policy.onnx"]
+  lin_vel_encoder_path: "lin_vel_encoder.onnx"
+  dataset_file: ["walk_data_all.csv"]
+  use_imu_list: [1] # 0 means torso imu ; 1 means waist imu; [0, 1] means both imu enable
+  decimation: 10
+  transition_time: 3.0
+  walking_counter_: 50
+  smooth_count: 50
+
+command:
+  stop_frame: 0
+  cycle_time: 1.0
+  phase_offset: 0.50
+  stance_vel_treshold: -0.1
+  alpha_cmd_vel: [0.002, 0.002, 0.003]
+  alpha_cmd_vel_nav: [0.1, 0.1, 0.1]
+  cmd_vel_limit: [[-0.5, -0.3, -1.0],
+                  [0.8, 0.3, 1.0]]
+  cmd_vel_offset: [0.0, 0.0, 0.0]
+  cmd_transition_guard_enable: 1
+  cmd_transition_guard_x_reverse_threshold: 0.35
+  cmd_transition_guard_x_zero_band: 0.06
+  cmd_transition_guard_fast_x_threshold: 0.45
+  cmd_transition_guard_trigger_delta: [0.04, 0.03, 0.05]
+  cmd_transition_guard_fast_trigger_delta: [0.04, 0.03, 0.05]
+  cmd_transition_guard_max_delta: [0.006, 0.004, 0.010]
+  cmd_transition_guard_fast_max_delta: [0.006, 0.004, 0.010]
+
+  gait_dt: 0.02
+  gait_frequency: 1.0
+  # Command-coupled gait frequency (matches training mdp.gait_observation xf-26/xf-30):
+  #   f_base = gait_freq_base + gait_freq_cmd_coeff * |vx|
+  # Low-speed boost: below fade_hi, lift f up to low_speed_floor (fade out at fade_lo)
+  # Pure-lateral: when |vy|>lateral_vy_thresh && |vx|<lateral_vx_thresh, f=lateral_floor
+  gait_freq_base: 0.80
+  gait_freq_cmd_coeff: 0.10
+  gait_freq_vy_coeff: 0.0
+  gait_freq_min: 0.4
+  gait_freq_max: 1.8
+  gait_freq_low_speed_floor: 0.90
+  gait_freq_low_speed_vy_coeff: 0.0
+  gait_freq_low_speed_fade_lo: 0.3
+  gait_freq_low_speed_fade_hi: 0.4
+  gait_freq_lateral_floor: 0.90
+  gait_freq_lateral_vy_thresh: 0.10
+  gait_freq_lateral_vx_thresh: 0.08
+  gait_freq_backward_floor: 0.90
+  gait_freq_backward_vx_thresh: -0.05
+  gait_freq_turning_floor: 0.90
+  gait_freq_turning_yaw_thresh: 0.25
+  gait_freq_turning_vx_thresh: 0.08
+  gait_freq_turning_vy_thresh: 0.08
+  # Zero-command recovery cadence. Training uses the base zero-command cadence.
+  gait_freq_recovery_floor: 0.80
+  gait_offset: 0.5
+  gait_height: 0.15
+  gait_stand_threshold: 0.05
+
+  roll_limits: 0.08
+  pitch_limits: 0.08
+  pitch_offset: 0.0
+  foot_delta_x_thres: 0.05
+
+  roll_limits_swing: 0.1
+  pitch_limits_swing: 0.14
+  pitch_offset_swing: 0.06
+  foot_delta_x_thres_swing: 0.05
+
+  foot_delta_y_min: 0.20
+  foot_delta_y_max: 0.30
+  stand_zero_cmd_count: 15
+
+  # Cross-axis yaw compensation. Linear feedforward: target_yaw += gain * target_x_or_y.
+  # 0 disables. Flip sign if drift gets worse instead of better.
+  # yaw_from_y_gain: 0.05
+  # yaw_from_x_gain: 0.015
+
+  yaw_from_y_gain: 0.0
+  yaw_from_x_gain: -0.0
+  y_from_x_gain: 0.0
+  # |y| -> x compensation for symmetric backward drift during lateral motion. 0 disables.
+  x_from_abs_y_gain: 0.0
+
+  kp_limb: [[200, 200, 200, 200, 80, 80],
+            [200, 200, 200, 200, 80, 80],
+            [200, 80, 80],
+            [90, 90, 40, 40, 40, 15, 15],
+            [90, 90, 40, 40, 40, 15, 15],
+            [16, 40]]
+
+  kd_limb: [[7, 7, 7, 7, 3, 3],
+            [7, 7, 7, 7, 3, 3],
+            [7, 3, 3],
+            [4, 4, 3, 3, 3, 1, 1],
+            [4, 4, 3, 3, 3, 1, 1],
+            [2, 2]]
+
+  torques_limit: [[220, 220, 220, 320, 118.2, 54.75],
+                  [220, 220, 220, 320, 118.2, 54.75],
+                  [220, 46, 118],
+                  [60, 60, 24, 24, 24, 6, 6],
+                  [60, 60, 24, 24, 24, 6, 6],
+                  [6, 6]]
+
+  arm_pos_offset: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # 14
+
+obs:
+  num_obs: 89
+  num_obs_history: 16
+  cmd_heading_scale: 0
+  cmd_vel_scale: [1.0, 1.0, 1.0]
+  dof_pos_scale: [[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                  [1.0, 1.0, 1.0],
+                  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                  [1.0]]
+  dof_vel_scale: [[0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+                  [0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+                  [0.05, 0.05, 0.05],
+                  [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+                  [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+                  [0.05]]
+  ang_vel_scale: [0.25, 0.25, 0.25]
+  quat_scale: [1.0, 1.0, 1.0]
+  obs_limit: 100
+
+actions:
+  num_actions: 25
+  action_limit: 1.0
+
+  action_scale: [[0.50, 0.30, 0.25, 0.50, 0.35, 0.35],
+                 [0.50, 0.30, 0.25, 0.50, 0.35, 0.35],
+                 [0.10, 0.10, 0.10],
+                 [0.20, 0.10, 0.05, 0.20, 0.10, 0.10, 0.10],
+                 [0.20, 0.10, 0.05, 0.20, 0.10, 0.10, 0.10],
+                 [0.10]]
+
+  default_joint_angles: [[-0.1311, 0.0056, -0.0348, 0.2468, -0.1204, -0.0078],
+                         [-0.1311, -0.0056, 0.0348, 0.2468, -0.1204, 0.0078],
+                         [0.0, 0.0, 0.0],
+                         [0.3, 0.12, 0.0, 1.2, 0.0, 0.0, 0.0],
+                         [0.3, -0.12, 0.0, 1.2, 0.0, 0.0, 0.0],
+                         [0.0]]
+
+  compensate_joint_angles: [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            [0.0, 0.0, 0.0],
+                            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            [0.0]]
+
+  # Per-joint processed-action clip bounds. Must match training-side
+  # self.actions.joint_pos.clip. Leave empty (or delete) to fall back to [-1, 1].
+  # Arm DoF order: [shoulder_pitch, shoulder_roll, shoulder_yaw, elbow, wrist_yaw, wrist_roll, wrist_pitch]
+  # Only elbow (index 3) has upper bound 1.5; all others are 1.0.
+  action_clip_lower: [[-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                     [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                     [-1.0, -1.0, -1.0],
+                     [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                     [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                     [-1.0]]
+
+  action_clip_upper: [[1.0, 1.0, 1.0, 1.5, 1.0, 1.0],
+                     [1.0, 1.0, 1.0, 1.5, 1.0, 1.0],
+                     [1.0, 1.0, 1.0],
+                     [1.0, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0],
+                     [1.0, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0],
+                     [1.0]]

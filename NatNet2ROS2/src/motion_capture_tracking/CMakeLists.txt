@@ -63,6 +63,13 @@ target_compile_features(motion_capture_tracking_node PUBLIC c_std_99 cxx_std_17)
 
 if(BUILD_TESTING)
   enable_testing()
+  foreach(test_name rigid_body_marker_association rigid_body_name_aliases)
+    add_executable(test_${test_name} test/test_${test_name}.cpp)
+    target_include_directories(test_${test_name} PRIVATE include)
+    target_compile_features(test_${test_name} PRIVATE cxx_std_17)
+    add_test(NAME ${test_name} COMMAND test_${test_name})
+  endforeach()
+
   add_executable(test_output_rate_limiter test/test_output_rate_limiter.cpp)
   target_include_directories(test_output_rate_limiter PRIVATE include)
   target_compile_features(test_output_rate_limiter PRIVATE cxx_std_17)

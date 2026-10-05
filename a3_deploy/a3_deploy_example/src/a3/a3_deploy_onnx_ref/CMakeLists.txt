@@ -83,6 +83,19 @@ else()
 endif()
 
 file(GLOB_RECURSE PROJECT_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+list(REMOVE_ITEM PROJECT_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/a3_io/serve_hal_observer.cpp")
+# Loaded only by the ABI-pinned HAL package, never linked into Runner.
+add_library(a3_serve_hal_observer SHARED src/a3_io/serve_hal_observer.cpp)
+target_include_directories(a3_serve_hal_observer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(a3_serve_hal_observer PRIVATE ${CMAKE_DL_LIBS})
+set_target_properties(a3_serve_hal_observer PROPERTIES
+  OUTPUT_NAME serve_hal_observer CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+# No hardware I/O: exercise the exact deep-bound HAL PLT slots using a
+# disabled output node and compare its serialized command bytes.
+add_executable(a3_serve_hal_loader_probe EXCLUDE_FROM_ALL tests/serve_hal_loader_probe.cpp)
+target_include_directories(a3_serve_hal_loader_probe PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(a3_serve_hal_loader_probe PRIVATE ${CMAKE_DL_LIBS})
+set_target_properties(a3_serve_hal_loader_probe PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 list(APPEND PROJECT_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/a3_deploy/a3_manual_control.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/a3_deploy/a3_motion_library.cpp
@@ -179,7 +192,7 @@ if(ENABLE_A3_ROS_MSGS)
     # whether cmake is invoked from the top-level a3_deploy_example/
     # project or directly from this directory.
     add_subdirectory(
-      ${A3_THIRDPARTY_ROOT}/joint_msgs
+      ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/joint_msgs
       ${CMAKE_CURRENT_BINARY_DIR}/joint_msgs_build)
 
     foreach(_jm_suffix
@@ -330,19 +343,22 @@ if(A3_AIMRT_BACKEND_AVAILABLE)
       "${A3_TA_PROTO_ROOT}/aimdk/protocol/common/control_source.proto"
       "${A3_TA_PROTO_ROOT}/aimdk/protocol/common/header.proto"
       "${A3_TA_PROTO_ROOT}/aimdk/protocol/ta/ta_whole_body_command.proto"
-      "${A3_TA_PROTO_ROOT}/aimdk/protocol/ta/ta_channel.proto")
+      "${A3_TA_PROTO_ROOT}/aimdk/protocol/ta/ta_channel.proto"
+      "${A3_TA_PROTO_ROOT}/aimdk/protocol/hal/hand/serve_hand_channel.proto")
     set(A3_TA_PROTO_SRCS
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/timestamp.pb.cc"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/control_source.pb.cc"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/header.pb.cc"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_whole_body_command.pb.cc"
-      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.cc")
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.cc"
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/hal/hand/serve_hand_channel.pb.cc")
     set(A3_TA_PROTO_HDRS
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/timestamp.pb.h"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/control_source.pb.h"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/common/header.pb.h"
       "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_whole_body_command.pb.h"
-      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.h")
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/ta/ta_channel.pb.h"
+      "${A3_TA_PROTO_GEN_DIR}/aimdk/protocol/hal/hand/serve_hand_channel.pb.h")
 
     add_custom_command(
       OUTPUT ${A3_TA_PROTO_SRCS} ${A3_TA_PROTO_HDRS}
@@ -598,9 +614,9 @@ target_sources(${A3_EXECUTABLE_NAME} PRIVATE ${ROBOT_IO_SOURCES})
 target_include_directories(${A3_EXECUTABLE_NAME}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${A3_EXECUTABLE_NAME} BEFORE PRIVATE
-  ${A3_UNITREE_SDK2_ROOT}/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
 target_link_directories(${A3_EXECUTABLE_NAME} PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(${A3_EXECUTABLE_NAME} PRIVATE ${PROJECT_NAME}
   ${EXE_LIBS})
@@ -651,9 +667,9 @@ target_sources(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${ROBOT_IO_SOURCES})
 target_include_directories(${A3_PINGPONG_EXECUTABLE_NAME}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${A3_PINGPONG_EXECUTABLE_NAME} BEFORE PRIVATE
-  ${A3_UNITREE_SDK2_ROOT}/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-  ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+  ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
 target_link_directories(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(${A3_PINGPONG_EXECUTABLE_NAME} PRIVATE ${PROJECT_NAME}
   ${EXE_LIBS})
@@ -697,9 +713,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
     BEFORE PRIVATE
-    ${A3_UNITREE_SDK2_ROOT}/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
   target_link_directories(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
     PRIVATE ${CUDA_LINK_DIRS})
   target_link_libraries(${A3_STATIONARY_REPLAY_EXECUTABLE_NAME}
@@ -746,9 +762,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     BEFORE PRIVATE
-    ${A3_UNITREE_SDK2_ROOT}/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include
-    ${A3_UNITREE_SDK2_ROOT}/thirdparty/include/ddscxx)
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
   target_link_directories(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     PRIVATE ${CUDA_LINK_DIRS})
   target_link_libraries(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
@@ -775,6 +791,55 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
   set_target_properties(${A3_V17_R10_GATE3_EXECUTABLE_NAME}
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${GS_RUNTIME_OUTPUT_DIR}"
                OUTPUT_NAME ${A3_V17_R10_GATE3_EXECUTABLE_NAME}
+               CXX_STANDARD 20
+               CXX_STANDARD_REQUIRED ON
+               CXX_EXTENSIONS OFF
+               BUILD_WITH_INSTALL_RPATH TRUE
+               BUILD_RPATH "$ORIGIN;/opt/ros/jazzy/lib;/opt/ros/humble/lib"
+               INSTALL_RPATH "$ORIGIN;/opt/ros/jazzy/lib;/opt/ros/humble/lib")
+
+  # Host-only executable for Schema24 TRAINING_SCREENED actors.  The distinct
+  # compile-time identity prevents production/aarch64 binaries from selecting
+  # this non-deployable loader profile through argv alone.
+  set(A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME
+    a3_deploy_onnx_ref_pingpong_schema24_gate3_screen)
+  add_executable(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/a3_deploy/a3_pingpong_main.cpp)
+  target_sources(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE ${ROBOT_IO_SOURCES})
+  target_include_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
+  target_include_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    BEFORE PRIVATE
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include
+    ${PROJECT_SOURCE_DIR}/thirdparty/unitree_sdk2/thirdparty/include/ddscxx)
+  target_link_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE ${CUDA_LINK_DIRS})
+  target_link_libraries(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE ${PROJECT_NAME} ${EXE_LIBS})
+  target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PRIVATE PP_SCHEMA24_TRAINING_SCREEN_GATE3_BINARY=1)
+  if(A3_AIMRT_BACKEND_AVAILABLE)
+    target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ENABLE_A3_AIMRT_BACKEND=1)
+    target_link_libraries(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ${A3_AIMRT_BACKEND_LIBS})
+  endif()
+  if(rclcpp_FOUND AND std_msgs_FOUND)
+    target_include_directories(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ${MSGPACK_INCLUDE_DIRS})
+    target_link_libraries(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE ${ROS2_LIBS} pthread)
+    target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE HAS_ROS2=1)
+  else()
+    target_compile_definitions(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+      PRIVATE HAS_ROS2=0)
+  endif()
+  set_target_properties(${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${GS_RUNTIME_OUTPUT_DIR}"
+               OUTPUT_NAME ${A3_SCHEMA24_GATE3_SCREEN_EXECUTABLE_NAME}
                CXX_STANDARD 20
                CXX_STANDARD_REQUIRED ON
                CXX_EXTENSIONS OFF
@@ -1096,6 +1161,10 @@ target_sources(run_tests PRIVATE ${ROBOT_IO_SOURCES})
 target_link_directories(run_tests PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(run_tests PRIVATE GTest::GTest GTest::Main ${EXE_LIBS})
 target_include_directories(run_tests PUBLIC ${EXE_INCLUDES})
+if(A3_ROS_MSGS_AVAILABLE)
+  find_package(rclcpp REQUIRED)
+  target_link_libraries(run_tests PRIVATE rclcpp::rclcpp ${A3_ROS_MSGS_LIBS})
+endif()
 
 # A3 AimRT backend wiring (PR 7): only active when configure succeeded.
 if(A3_AIMRT_BACKEND_AVAILABLE)

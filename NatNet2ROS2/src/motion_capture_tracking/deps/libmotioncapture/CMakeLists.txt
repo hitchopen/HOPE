@@ -262,6 +262,17 @@ target_link_libraries(libmotioncapture
 )
 set_property(TARGET libmotioncapture PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+if (BUILD_TESTING AND LIBMOTIONCAPTURE_ENABLE_OPTITRACK)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_executable(test_natnet_transport_client tests/test_natnet_transport_client.cpp)
+  target_link_libraries(test_natnet_transport_client PRIVATE libmotioncapture)
+  add_test(NAME test_natnet_transport
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_natnet_transport.py
+      $<TARGET_FILE:test_natnet_transport_client>)
+  set_tests_properties(test_natnet_transport PROPERTIES TIMEOUT 30)
+endif()
+
 if (LIBMOTIONCAPTURE_BUILD_PYTHON_BINDINGS)
   # Python bindings
   find_package (Python3 COMPONENTS Interpreter Development)

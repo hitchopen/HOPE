@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+message XRFrameData {
+  message Vector3 {
+    optional float x = 1;
+    optional float y = 2;
+    optional float z = 3;
+  }
+
+  message Quaternion {
+    optional float x = 1;
+    optional float y = 2;
+    optional float z = 3;
+    optional float w = 4;
+  }
+
+  message Joint {
+    optional int32 joint_code_name = 1;
+    optional Vector3 position = 2;
+    optional Quaternion orientation = 3;
+  }
+
+  message ControllerData {
+    optional int32 controller_code_name = 1;
+    optional bool axis_click = 2;
+    optional float axis_x = 3;
+    optional float axis_y = 4;
+    optional float index_trig = 5;
+    optional float hand_trig = 6;
+    optional bool key_one = 7;
+    optional bool key_two = 8;
+  }
+
+  optional uint64 timestamp = 1;
+  repeated Joint left_hand = 2;
+  repeated Joint right_hand = 3;
+  repeated Joint body_data = 4;
+  repeated ControllerData controller_raw_datas = 5;
+}

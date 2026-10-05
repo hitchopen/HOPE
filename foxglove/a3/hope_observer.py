@@ -30,6 +30,7 @@ from hope_observer_core import (
     BasePacket,
     DecodeError,
     RacketPacket,
+    StatusPublisher,
     XHitStatus,
     decode_base_packet,
     decode_racket_packet,
@@ -66,6 +67,7 @@ class HopeObserver(Node):
         self.declare_parameter("base_stale_after_s", 0.5)
         self.declare_parameter("ball_stale_after_s", 0.1)
         self.declare_parameter("publish_period_s", 0.2)
+        self.declare_parameter("ball_marker_rate_hz", 30.0)
         self.declare_parameter("runner_stale_after_s", 1.0)
         self.declare_parameter("planner_process_fragment", "hope_planner_cpp_node")
 
@@ -80,6 +82,9 @@ class HopeObserver(Node):
             self.get_parameter("ball_stale_after_s").value
         )
         publish_period_s = float(self.get_parameter("publish_period_s").value)
+        ball_marker_rate_hz = float(
+            self.get_parameter("ball_marker_rate_hz").value
+        )
         self._runner_stale_after_s = float(
             self.get_parameter("runner_stale_after_s").value
         )
@@ -92,6 +97,8 @@ class HopeObserver(Node):
             raise ValueError("ball_stale_after_s must be positive")
         if publish_period_s <= 0.0:
             raise ValueError("publish_period_s must be positive")
+        if ball_marker_rate_hz <= 0.0:
+            raise ValueError("ball_marker_rate_hz must be positive")
         if self._runner_stale_after_s <= 0.0:
             raise ValueError("runner_stale_after_s must be positive")
 
@@ -102,6 +109,8 @@ class HopeObserver(Node):
         self._command_error = "NO RACKET PACKET"
         self._command_receipt_ns = 0
         self._ball_receipts_ns: deque[int] = deque(maxlen=512)
+        self._ball_marker_period_ns = int(round(1.0e9 / ball_marker_rate_hz))
+        self._last_ball_marker_publish_ns = 0
         self._ball_marker_publisher = self.create_publisher(
             Marker, "/hope/ball/marker", 10
         )
@@ -243,6 +252,12 @@ class HopeObserver(Node):
             "runner_serve_state": self.create_publisher(
                 String, "/hope/runner/serve_state", 10
             ),
+            "runner_gripper_state": self.create_publisher(
+                String, "/hope/runner/gripper_state", 10
+            ),
+            "runner_serve_cleanup_required": self.create_publisher(
+                Bool, "/hope/runner/serve_cleanup_required", 10
+            ),
             "runner_standing": self.create_publisher(
                 Bool, "/hope/runner/standing", 10
             ),
@@ -284,6 +299,22 @@ class HopeObserver(Node):
             ),
         }
 
+        # Keep liveness and lifecycle inputs at their original 5 Hz cadence.
+        # Other Bool/String display statuses publish on change, with a 0.4 s
+        # heartbeat evaluated on the same snapshot ticks. Numeric traces,
+        # source validation, wire subscriptions and markers are unchanged.
+        continuous = {
+            "observer_alive", "mdu_active", "session_active", "planner_alive",
+            "base_fresh", "ball_live", "command_valid", "runner_alive",
+            "runner_mode", "runner_session_matches", "runner_command_fault",
+        }
+        self._topic_publishers = {
+            key: StatusPublisher(publisher.publish)
+            if publisher.msg_type in (Bool, String) and key not in continuous
+            else publisher
+            for key, publisher in self._topic_publishers.items()
+        }
+
         self.create_subscription(
             Float64MultiArray,
             "/a3/base_pose_flat",
@@ -299,7 +330,7 @@ class HopeObserver(Node):
         self.create_subscription(PoseArray, "/poses", self._ball_callback, _sensor_qos())
         self.create_subscription(
             Float64MultiArray,
-            "/hope/runner/state_flat",
+            "/hope/runner/state_hdu_flat",
             self._runner_state_callback,
             _sensor_qos(),
         )
@@ -361,7 +392,15 @@ class HopeObserver(Node):
         ):
             return
 
-        self._ball_receipts_ns.append(time.monotonic_ns())
+        receipt_ns = time.monotonic_ns()
+        self._ball_receipts_ns.append(receipt_ns)
+        if (
+            self._last_ball_marker_publish_ns > 0
+            and receipt_ns - self._last_ball_marker_publish_ns
+            < self._ball_marker_period_ns
+        ):
+            return
+        self._last_ball_marker_publish_ns = receipt_ns
 
         marker = Marker()
         marker.header = message.header
@@ -634,6 +673,8 @@ class HopeObserver(Node):
                 f"local_role={runner.local_role} source=RUNNER_CONFIRMED "
                 f"role_epoch={runner.role_epoch} "
                 f"serve={runner.serve_capability}/{runner.serve_state} "
+                f"gripper={runner.gripper_state} "
+                f"cleanup_required={int(runner.serve_cleanup_required)} "
                 f"last_action={runner.last_action} "
                 f"result={runner.last_action_result} "
                 f"reason={runner.last_action_reason}"
@@ -706,6 +747,16 @@ class HopeObserver(Node):
                 runner.serve_state if runner is not None else "UNAVAILABLE"
             )
         )
+        self._topic_publishers["runner_gripper_state"].publish(
+            self._string_message(
+                runner.gripper_state if runner is not None else "UNAVAILABLE"
+            )
+        )
+        self._topic_publishers["runner_serve_cleanup_required"].publish(
+            self._bool_message(
+                runner.serve_cleanup_required if runner is not None else False
+            )
+        )
         self._topic_publishers["runner_standing"].publish(
             self._bool_message(runner_alive and run_mode == "PD_STAND")
         )
@@ -717,7 +768,7 @@ class HopeObserver(Node):
                 runner_alive
                 and run_mode == "SERVE"
                 and runner is not None
-                and runner.serve_state == "AWAIT_BALL_ON_PALM"
+                and runner.serve_state == "WAIT_READY_TO_SERVE"
             )
         )
         self._topic_publishers["runner_serving"].publish(
@@ -725,7 +776,14 @@ class HopeObserver(Node):
                 runner_alive
                 and run_mode == "SERVE"
                 and runner is not None
-                and runner.serve_state == "PLAYING"
+                and runner.serve_state
+                in {
+                    "PLAYING_PRE_RELEASE",
+                    "RELEASE_PENDING",
+                    "STRIKE",
+                    "FOLLOW_THROUGH",
+                    "RECOVERY",
+                }
             )
         )
         self._topic_publishers["runner_last_action_id"].publish(

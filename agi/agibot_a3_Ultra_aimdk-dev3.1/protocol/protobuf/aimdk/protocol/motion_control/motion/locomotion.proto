@@ -1,0 +1,107 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+enum MotionControlLocomotionGaitType {
+  // 步态: 未知，非行走action下应当设置
+  MotionControl_LocomotionGaitType_UNKNOWN = 0;
+  // 步态: 站住
+  MotionControl_LocomotionGaitType_STANCE = 1;
+  // 步态: 正常行走，无速度指令时踏步
+  MotionControl_LocomotionGaitType_WALK = 2;
+  // 步态: 正常行走，无速度指令时站住
+  MotionControl_LocomotionGaitType_SMART_WALK = 3;
+  // 步态：地形
+  MotionControl_LocomotionGaitType_TERRAIN = 4;
+  // 步态: 跑步
+  MotionControl_LocomotionGaitType_RUN = 5;
+  // 步态: 双脚跳
+  MotionControl_LocomotionGaitType_JUMP = 6;
+  // 步态: 单脚跳
+  MotionControl_LocomotionGaitType_HOP = 7;
+}
+
+enum MotionControlLocomotionMode {
+  // 步态模式: 未知
+  MotionControl_LocomotionMode_UNKNOWN = 0;
+  // 默认模式
+  MotionControl_LocomotionMode_DEFAULT = 10;
+  // 导航模式
+  MotionControl_LocomotionMode_NAVIGATION = 20;
+}
+
+
+
+message MotionControlLocomotionVelocity {
+  /**
+   * @brief 速度控制模式
+   */
+  MotionControlLocomotionMode mode = 1;
+
+  /**
+   * @brief 前进速度
+   * 方向: +为前进,-为后退
+   * 速度范围: -1.0~1.0 发送比例系数，由mc计算速度
+   */
+  double forward_velocity = 2;
+
+  /**
+   * @brief 侧移动速度
+   * 方向: +为左侧移动,-为右侧移动
+   * 速度范围: -1.0~1.0 发送比例系数，由mc计算速度
+   */
+  double lateral_velocity = 3;
+  /**
+   * @brief 旋转速度（角速度）
+   * 方向: +为左旋转,-为右旋转
+   * 速度范围: -1.0~1.0 发送比例系数，由mc计算速度
+   */
+  double angular_velocity = 4;
+}
+
+/**
+ * @brief  机器人步态请求
+ */
+message MotionControlLocomotionGaitRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 机器人步态
+  MotionControlLocomotionGaitType gait = 2;
+}
+
+
+/**
+ * @brief  机器人步态查询返回
+ */
+ message MotionControlLocomotionGaitResponse {
+  // 请求头
+  ResponseHeader header = 1;
+
+  // 机器人步态
+  MotionControlLocomotionGaitType gait = 2;
+}
+
+
+message VelocityLimitValue {
+  double forward_velocity_limit_max = 1;
+  double lateral_velocity_limit_max = 2;
+  double angular_velocity_limit_max = 3;
+
+  double forward_velocity_limit_min = 4;
+  double lateral_velocity_limit_min = 5;
+  double angular_velocity_limit_min = 6;
+}
+
+
+/**
+ * @brief  速度限制查询
+ */
+message MotionControlVelocityLimitValueResponse {
+  // 请求头
+  ResponseHeader header = 1;
+
+  // 机器人步态
+  VelocityLimitValue vel_limit_value = 2;
+}

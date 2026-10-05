@@ -1,0 +1,68 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/motion_control/action/mc_action_cmd.proto";
+
+enum MotionControlActionStatus {
+  // 未知状态
+  MotionControlActionStatus_UNKNOWN = 0;
+
+  // 准备中
+  MotionControlActionStatus_PREPARE = 100;
+
+  // 运行中
+  MotionControlActionStatus_RUNNING = 200;
+
+  // 完成
+  MotionControlActionStatus_DONE = 300;
+}
+
+message MotionControlActionStep {
+  uint32 seq = 1;             
+  string description = 2;    
+}
+
+message MotionControlActionInfo {
+  // 当前运行的Action
+  MotionControlAction current_action = 1;
+  // 扩展Action
+  string ext_action = 2;
+  // Action状态
+  MotionControlActionStatus status = 3;
+  MotionControlActionStep stage = 4;
+}
+
+message MotionControlActionCommand {
+  // Action
+  MotionControlAction action = 1;
+  // 扩展Action
+  string ext_action = 2;
+}
+
+/**
+ * @brief  机器人Action命令请求
+ */
+message MotionControlActionRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  MotionControlActionCommand command = 2;
+}
+
+/**
+ * @brief  机器人Action命令响应
+ */
+message MotionControlActionResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  MotionControlActionInfo info = 2;
+}
+
+message MultiActionsResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  repeated MotionControlActionCommand commands = 2;
+}

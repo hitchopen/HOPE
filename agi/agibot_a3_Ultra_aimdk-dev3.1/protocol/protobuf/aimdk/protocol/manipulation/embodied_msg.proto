@@ -1,0 +1,40 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/manipulation/manipulation_msg.proto";
+import "aimdk/protocol/manipulation/embodied_state.proto";
+
+enum EmbodiedControlType {
+  EmbodiedControlType_Unkonw = 0;
+  EmbodiedControlType_Pause  = 1;
+  EmbodiedControlType_Resume = 2;
+  EmbodiedControlType_Cancel = 3;
+}
+
+enum GetEmbodiedMsgType {
+  GetEmbodiedMsgType_Unkonw = 0;
+  GetEmbodiedMsgType_Corner = 1;
+}
+
+message ChessBoardCorner {
+  message Position {
+    int32 x = 1;
+    int32 y = 2;
+  }
+  repeated Position position = 1;
+}
+
+// topic: /embodied_agent/pick_state
+message EmbodiedPickStateMsg {
+  EmbodiedResType state       = 1;
+  AutoPickTaskFinishedMsg msg    = 2;
+}
+
+message DetectedGraspObj {
+  int32 obj_num = 1;
+}
+
+message SkuPoint{
+  string sku_name       = 1;
+}

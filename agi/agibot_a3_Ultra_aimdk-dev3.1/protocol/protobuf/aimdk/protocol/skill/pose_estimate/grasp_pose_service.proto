@@ -1,0 +1,44 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief ...
+ */
+message PredictGraspPoseRequest {
+  RequestHeader header = 1;
+
+  int32 height = 2;
+  int32 width = 3;
+
+  bytes image = 4;
+  bytes depth = 5;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message PredictGraspPoseResponse {
+  ResponseHeader header = 1;
+
+  repeated int32 results = 5;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+service GraspPoseService {
+  /**
+   * @brief ...
+   * @param  PredictGraspPoseRequest  ...
+   * @return PredictGraspPoseResponse ...
+   */
+  rpc PredictGraspPose(PredictGraspPoseRequest) returns (PredictGraspPoseResponse);
+}

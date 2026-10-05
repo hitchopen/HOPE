@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.8.10
+
+- Allow Teleop requests after Xbox reconnects using fresh Runner Stand and neutral controller input; delayed Teleop display telemetry does not lock the button. Runner retains all admission checks.
+- Y requires a new press in Stand and never queues locomotion through serve recovery.
+
+## 1.8.9
+
+- Restore Xbox face-button mode changes after reconnects.
+- Align Kernel Serve completion with the slow arm return to Stand.
+- Include updated Runner lifecycle and startup validation behavior.
+
+## 1.8.8
+
+- Publish the installer built from the public Xbox/Kernel Mode console source.
+- Include 24-sticker calibration, legacy V2/V3 controls, fixed Xbox status layout
+  and software E-stop reset.
+- Include the extension license and bundled font notices.
+
 ## 1.2.4
 
 - Keep Ready as the native keyboard `m` action, but disable its UI button until

@@ -1,0 +1,151 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/common.proto";
+
+/**
+ * @brief skill 模块的任务数据
+ */
+message SkillTaskData {
+  uint64 task_id = 1;
+  string task_name = 2;
+  string version = 3;
+
+  // 可扩充的参数、数据或上下文信息，需要根据具体任务的约定进行定义。
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief 请求 skill 模块执行任务
+ */
+message SetSkillTaskRequest {
+  RequestHeader header = 1;
+
+  // request log id
+  string req_id = 2;
+
+  // application scenarios id
+  uint64 app_id = 3;
+
+  // application scenarios name
+  string app_name = 4;
+
+  // 任务数据，其中包含 id，将被用于状态查询
+  SkillTaskData task = 10;
+
+  // 额外信息
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief skill 模块对执行任务的请求的响应
+ */
+message SetSkillTaskResponse {
+  enum Code {
+    Code_UNDEFINED = 0;
+    Code_ACCEPTED = 1;
+    Code_REJECTED = 2;
+    Code_EXISTED = 3;
+
+    // 若有需要，再进一步扩展
+  }
+
+  // header.msg 可以填充额外用于打印输出的消息；
+  // header.code 弃用。
+  ResponseHeader header = 1;
+
+  // 状态码
+  Code code = 2;
+
+  map<string, string> extra = 255;  // extra info
+}
+
+/**
+ * @brief 请求 skill 模块反馈指定任务状态
+ */
+message GetSkillTaskStateRequest {
+  RequestHeader header = 1;
+
+  // 需要查询的任务 id
+  uint64 task_id = 2;
+}
+
+/**
+ * @brief skill 模块反馈的指定任务状态
+ */
+message GetSkillTaskStateResponse {
+  enum Code {
+    Code_UNDEFINED = 0;
+    Code_RUNNING = 1;   // 运行中
+    Code_PAUSING = 2;   // 受控暂停
+    Code_ABNORMAL = 3;  // 因异常而暂停中
+    Code_FINISHED = 4;  // 正常结束
+    Code_CANCELED = 5;  // 受控结束
+    Code_ABORTED = 6;   // 异常结束
+
+    // 若 skill 模块支持同时执行多个任务时，任务的结束状态记录需要设定清理规则，
+    // 对于被清理的任务，返回该字段，表示任务早就结束，但记录被删除，不知道具体是如何结束的。
+    //
+    // 可以通过设计 task_id 的生成规则，来实现判断哪些 task 是过期的，
+    // 如，若 task_id 是自增的，那么查询的 id 小于当前记录的最小 id 时，可认为是过期任务。
+    Code_OUT_OF_DATE = 7;
+  }
+
+  // header.msg 可以填充额外用于打印输出的消息；
+  // header.code 弃用。
+  ResponseHeader header = 1;
+
+  // 指定任务的状态
+  Code code = 2;
+
+  // 可扩充的参数、数据或上下文信息，需要根据具体任务的约定进行定义。
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief 请求获取卸垛目标点位姿列表，在该请求发起时，会触发拍照
+ */
+message GetDepalletingTargetPoseRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 获取卸垛目标点位姿列表的响应
+ */
+message GetDepalletingTargetPoseResponse {
+  ResponseHeader header = 1;
+  
+  // 是否拍照成功
+  bool is_success = 2;
+
+  // 卸垛目标点位姿列表
+  repeated SE2Pose depalleting_target_poses = 3;
+
+}
+
+/**
+ * @brief skill 模块对外提供的服务
+ */
+service SkillService {
+  /**
+   * @brief skill 模块的任务设置接口，由调用者（一般为 TaskEngine）来通知 skill 模块执行指定的任务。
+   * @param  SetTaskRequest  指定的任务与其相关数据
+   * @return SetTaskResponse 任务是否被接受、以及新任务的 id
+   */
+  rpc SetTask(SetSkillTaskRequest) returns (SetSkillTaskResponse);
+
+  /**
+   * @brief skill 模块的任务状态获取接口，由调用者（一般为 TaskEngine）来查询指定任务的执行状态。
+   * @param  GetTaskStateRequest  指定的任务 id
+   * @return GetTaskStateResponse 该任务的状态
+   */
+  rpc GetTaskState(GetSkillTaskStateRequest) returns (GetSkillTaskStateResponse);
+
+  /**
+   * @brief 请求获取卸垛目标点位姿列表
+   * @param  GetDepalletingTargetPoseRequest  请求
+   * @return GetDepalletingTargetPoseResponse 卸垛目标点位姿列表
+   */
+  rpc GetDepalletingTargetPose(GetDepalletingTargetPoseRequest) returns (GetDepalletingTargetPoseResponse);
+}

@@ -1,0 +1,276 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief BMS版本号
+ */
+message Version {
+  // 硬件主版本号
+  uint32 hardware_major = 1;
+
+  // 硬件次版本号
+  uint32 hardware_minor = 2;
+
+  // 硬件修订版本号
+  uint32 hardware_revision = 3;
+
+  // 软件主版本号
+  uint32 software_major = 4;
+
+  // 软件次版本号
+  uint32 software_minor = 5;
+
+  // 软件修订版本号
+  uint32 software_revision = 6;
+}
+
+/**
+ * @brief 电池健康状态
+ */
+enum PowerSupplyHealth {
+  PowerSupplyHealth_UNDEFINED = 0;
+  PowerSupplyHealth_GOOD = 1;
+  PowerSupplyHealth_OVERHEAT = 2;
+  PowerSupplyHealth_DEAD = 3;
+  PowerSupplyHealth_OVERVOLTAGE = 4;
+  PowerSupplyHealth_UNSPEC_FAILURE = 5;
+  PowerSupplyHealth_COLD = 6;
+  PowerSupplyHealth_WATCHDOG_TIMER_EXPIRE = 7;
+  PowerSupplyHealth_SAFETY_TIMER_EXPIRE = 8;
+}
+
+/**
+ * @brief 电池充电状态
+ */
+enum PowerSupplyStatus {
+  PowerSupplyStatus_IDEL = 0;
+  PowerSupplyStatus_CHARGING = 1;
+  PowerSupplyStatus_FULL = 2;
+}
+
+/**
+ * @brief 电池异常状态
+ */
+enum PowerAbnormalStatus {
+  PowerAbnormalStatus_NORMAL = 0;
+  PowerAbnormalStatus_SHORT_CIRCUIT = 1;
+  PowerAbnormalStatus_DISCHARGE_OVERCURRENT = 2;
+  PowerAbnormalStatus_CHARGING_OVERCURRENT = 3;
+  PowerAbnormalStatus_UNDERVOLTAGE = 4;
+  PowerAbnormalStatus_OVERVOLTAGE = 5;
+  PowerAbnormalStatus_EXCEED_DISCHARGE_TEMP_LIMIT = 6;
+  PowerAbnormalStatus_EXCEED_CHARGING_TEMP_LIMIT = 7;
+}
+
+/**
+ * @brief 电池包MOSFE控制指令
+ */
+enum PowerMosfeCmd {
+  PowerMosfeCmd_UNDEFINED = 0;
+  PowerMosfeCmd_DISABLE_CHARGE = 1;
+  PowerMosfeCmd_ENABLE_CHARGE = 2;
+  PowerMosfeCmd_DISABLE_DISCHARGE = 3;
+  PowerMosfeCmd_ENABLE_DISCHARGE = 4;
+  PowerMosfeCmd_ENABLE_BMS = 5;
+  PowerMosfeCmd_DISABLE_BMS = 6;
+}
+
+/**
+ * @brief 充电器是否插入
+ */
+enum ChargerStatus {
+  ChargerNotPulgin = 0;
+  ChargerConnected = 1;
+}
+
+/**
+ * @brief 电池是否插入
+ */
+enum BatteryStatus {
+  BatteryStatus_NotPulgin = 0;
+  BatteryStatus_Connected = 1;
+}
+
+/**
+ * @brief 电池包固件版本类型
+ */
+enum BatteryFirmwareType {
+  BatteryFirmwareType_OLD = 0;
+  BatteryFirmwareType_NEW = 1;
+}
+
+
+/**
+ * @brief 电池包key状态
+ */
+enum BatteryKeyStatus {
+  BatteryKeyStatus_SHORT_CURCUIT = 0;
+  BatteryKeyStatus_CONNECTED = 1;
+}
+
+/**
+ * @brief 电池包异常
+ */
+enum BatteryPackStatus {
+  BatteryPackStatus_NORMAL = 0;
+  BatteryPackStatus_ABNORMAL = 1;
+}
+
+/**
+ * @brief 电池包通信
+ */
+enum BatteryCommunication {
+  BatteryCommunication_NORMAL = 0;
+  BatteryCommunication_ABNORMAL = 1;
+}
+/**
+ * @brief 电池包缓启动输出状态
+ */
+enum BatterySlowStartOutputState {
+  BatterySlowStartOutputState_UNKNOWN = 0;
+  BatterySlowStartOutputState_FAILED = 1;
+  BatterySlowStartOutputState_STARTING = 2;
+  BatterySlowStartOutputState_SUCCESS = 3;
+  BatterySlowStartOutputState_EMERGENCY = 4;
+}
+
+/**
+ * @brief 电池包缓启动回灌状态
+ */
+enum BatterySlowStartRechargeState {
+  BatterySlowStartRechargeState_UNKNOWN = 0;
+  BatterySlowStartRechargeState_FAILED = 1;
+  BatterySlowStartRechargeState_STARTING = 2;
+  BatterySlowStartRechargeState_SUCCESS = 3;
+  BatterySlowStartRechargeState_EMERGENCY = 4;
+}
+
+/**
+ * @brief 电池包是否充满电
+ */
+enum BatteryFullState {
+  BatteryFullState_UNKNOWN = 0;
+  BatteryFullState_NOT_FULL = 1;
+  BatteryFullState_FULL = 2;
+}
+
+
+/**
+ * @brief BMS状态
+ */
+message BmsState {
+  // 版本号，硬件和软件主版本号，次版本号以及修订版本号
+  Version ver = 1;
+
+  // 当前电压，单位：mv
+  float voltage = 2;
+
+  // 当前电流, 单位：mA，充电位正，放电位负
+  float current = 3;
+
+  // 当前功率, 单位：mW
+  float power = 4;
+
+  // 当前温度，单位：0.1℃
+  float temperature = 5;
+
+  // 当前容量，单位：mAh
+  float capacity = 6;
+
+  // 当前电量，单位：百分比
+  float charge = 7;
+
+  // 电池健康状态（暂时不开放）
+  PowerSupplyHealth power_supply_health = 8;
+
+  // 充电状态
+  PowerSupplyStatus power_supply_status = 9;
+
+  // 循环次数
+  uint32 cycles_num = 10;
+
+  // 循环容量(当前电池包总共充放电的容量总计), 单位： Ah
+  float cycles_capacity = 11;
+
+  // 异常状态
+  PowerAbnormalStatus abnormal_state = 12;
+
+  // 充电器是否插入
+  ChargerStatus charger_state = 13;
+
+  // 电池是否插入
+  BatteryStatus bms_state = 14;
+
+  // 当前最大的电流
+  uint32 max_current = 15;
+
+  // 电池 固件版本类型， 0x00 是老固件电池， 0x01 是新固件电池
+  BatteryFirmwareType battery_firmware_type = 16;
+
+  // 电池key状态, 0x00是key短接， 0x01 是key没短接
+  BatteryKeyStatus battery_key_state = 17;
+
+  // 电池包异常状态，0x00正常，0x01异常
+  BatteryPackStatus battery_pack_state = 18;
+
+  // bms通信异常状态 0x00正常，0x01异常
+  BatteryCommunication battery_comm_state = 19;
+
+  //电池包缓启动输出状态
+  BatterySlowStartOutputState battery_slow_start_output_state = 20;
+
+  //电池包缓启动回灌状态
+  BatterySlowStartRechargeState battery_slow_start_recharge_state = 21;
+  
+  //电池包是否充满电
+  BatteryFullState battery_full_state = 22;
+}
+
+message PowerState {
+  uint32 switch_state = 1;   // 开关状态，1开关下电，0开关上电
+  uint32 major_minor = 2;    // 1副电池,0主电池
+  uint32 mode = 3;           // 1低功耗模式,0常规模式
+  uint32 major_charge = 4;   // 1主电池电量低，0:主电池正常
+  uint32 battery_door = 5;   // 1电池舱门打开，0电池舱门关闭
+  uint32 minor_charge = 6;   // 1副电池电量低 0副电池电量正常
+  uint32 charger_insert = 7; // 1充电头插入，0充电头未插入
+  uint32 major_charging = 8; // 1主电池充电中，0主电池常规模式
+  uint32 major_connect = 9;  // 1主电池已连接，0主电池未连接
+}
+
+/**
+ * @brief 获取BMS状态响应
+ */
+message BmsStateRsp {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // 单个BMS状态数据
+  BmsState data = 2;
+  //多个bms状态数据
+  repeated BmsState bms_datas = 3;
+}
+
+/**
+ * @brief 电池包MOSFE控制请求
+ */
+message BmsMosfeCommandReq {
+  // 消息头
+  RequestHeader header = 1;
+
+  // 电池包MOSFE控制指令
+  PowerMosfeCmd cmd = 2;
+}
+
+/**
+ * @brief 获取电源状态
+ */
+message PowerStateRsp {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // Power状态数据
+  PowerState data = 2;
+}

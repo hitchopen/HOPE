@@ -1,0 +1,20 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief pnc 导航场景定义
+ */
+
+enum PncNaviScene {
+   // 未定义默认场景
+   NaviScene_UNKNOWN = 0;
+
+   // 展厅讲解场景
+   NaviScene_EXHIBIT = 1;
+
+   // 硅基送场景
+   NaviScene_SILISOON = 2;
+
+   // 休息点坐下场景
+   NaviScene_SITDOWN = 3;
+}

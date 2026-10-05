@@ -1,0 +1,37 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/gateway/group_control/group_control_task.proto";
+import public "aimdk/protocol/gateway/group_control/group_control_multi_task.proto";
+
+/**
+ * 群控的交互服务
+ * gateway -> agent -> interaction
+ */
+service GroupControlTaskService {
+  rpc StartGroupControlTask(GroupControlTaskRequest) returns (GroupControlTaskResponse);
+}
+
+
+/**
+ * 群控的行走服务
+ * gateway -> rc -> mc
+ */
+
+ service GroupWalkingService {
+  rpc StartGroupWalking(GroupWalkingRequest) returns (CommonResponse);
+ }
+
+
+/**
+ * 群控多任务下发服务
+ *
+ */
+service GroupControlMultiTaskService {
+  // 通知gateway开始群控多任务的转发
+  rpc StartGroupControlMultiTask(GroupControlMultiTaskRequest) returns (GroupControlMultiTaskResponse);
+  // 通知gateway停止群控多任务的转发
+  rpc StopGroupControlMultiTask(CommonRequest) returns (GroupControlMultiTaskResponse);
+}

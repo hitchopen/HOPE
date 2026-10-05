@@ -1,0 +1,21 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/joint.proto";
+
+message JointStatesChannel {
+  // 消息头
+  Header header = 1;
+
+  // 关节状态，包括角度和速度、扭矩
+  repeated JointState states = 2;
+}
+
+message JointCommandsChannel {
+  // 消息头
+  Header header = 1;
+
+  // 关节指令
+  repeated JointCommand commands = 2;
+}

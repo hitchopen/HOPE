@@ -1,0 +1,13 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/mc/simulation/simulation.proto";
+
+
+/**
+ * @brief 运控仿真服务
+ */
+service McSimulationService {
+  // 获取仿真对象
+  rpc GetSimulationObj(GetSimulationObjRequest) returns (GetSimulationObjResponse);
+}

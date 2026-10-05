@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/timestamp.proto";
+
+/**
+ * @brief 表示相机拍摄的不同类型图像的枚举。
+ */
+enum CameraSnapshotImageType {
+    // 标准彩色图像。
+    COLOR = 0;
+
+    // 深度图像。
+    DEPTH = 1;
+
+    // 红外图像。
+    IR = 2;
+
+    // 未定义。
+    UNDEFINED = 3;
+}
+
+
+/**
+ * @brief 表示一组相机快照信息请求。如果type是未定义，则返回所有相机快照。
+ *
+ * 此消息聚合多个 CameraSnapshotsRequest 消息。
+ */
+message GetCameraSnapshotsRequests {
+    // 包含单个相机快照请求的重复字段。就是相机所在的位置。
+    repeated string names = 1;
+}
+
+
+/**
+ * @brief 表示图像处理结果的枚举。
+ *
+ * 这表示图像是否成功处理。
+ */
+enum CameraSnapshotResult {
+    // 处理成功，图像数据有效。
+    SUCCESS = 0;
+
+    // 处理失败，图像数据可能无效。
+    FAILED = 1;
+}
+
+/**
+ * @brief 表示相机捕获的一张图像。
+ */
+message CameraSnapshotsImage {
+    // 图像的二进制数据。
+    bytes data = 1;
+
+    // 图像的格式（例如 JPEG、PNG）。
+    string format = 2;
+
+    // 图像的宽度（以像素为单位）。
+    int32 width = 3;
+
+    // 图像的高度（以像素为单位）。
+    int32 height = 4;
+
+    // 图像的类型（COLOR、DEPTH 或 IR）。
+    CameraSnapshotImageType type = 5;
+
+    // 指示图像捕获时间的时间戳。
+    Timestamp timestamp = 6;
+
+    // 错误信息
+    string error_msg = 7;
+
+    // 图像处理结果（SUCCESS 或 FAILED）。
+    CameraSnapshotResult result = 8;
+}
+
+/**
+ * @brief 表示相机快照请求的响应。
+ */
+message CameraSnapshotsResponse {
+    // 提供响应的相机位置标识符。
+    string location = 1;
+
+    // 捕获图像的相机类型。
+    string camera_type = 2;
+
+    // 相机的唯一标识符。
+    string camera_id = 3;
+
+    // 与相机相关的话题列表。
+    repeated string camera_topics = 4;
+
+    // 捕获的图像列表。
+    repeated CameraSnapshotsImage images = 5;
+
+    string name = 6;
+}
+
+/**
+ * @brief 表示请求的响应集合。
+ */
+message CameraSnapshotsResponses {
+    CameraSnapshotResult result = 1;
+    string error_msg = 2;
+    // 包含多个相机快照响应的重复字段。
+    repeated CameraSnapshotsResponse responses = 3;
+}
+
+/**
+ * @brief 定义相机快照服务的 RPC。
+ */
+service CameraSnapshotsService {
+    // 获取相机信息的 RPC 方法。
+    rpc GetCameraSnapshots(GetCameraSnapshotsRequests) returns (CameraSnapshotsResponses);
+}

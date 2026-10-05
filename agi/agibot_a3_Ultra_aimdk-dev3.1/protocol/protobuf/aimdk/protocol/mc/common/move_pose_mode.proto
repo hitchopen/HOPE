@@ -1,0 +1,12 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+
+/**
+ * @brief 运动位置模式： 绝对位置或者相对位置
+ */
+enum MovePoseMode {
+  MovePoseMode_UNKNOWN  = 0;    // 未定义
+  MovePoseMode_ABSOLUTE = 1;    // 绝对位置
+  MovePoseMode_RELATIVE = 2;    // 相对位置
+}

@@ -1,0 +1,24 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/state/emergency_state.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的急停状态查询和控制服务
+ */
+service HalEmergencyService {
+  /**
+   * @brief 获取当前急停状态信息。
+   * @param CommonRequest: 获取急停状态请求
+   * @return EmergencyStateRsp: 获取急停状态响应
+   */
+  rpc GetEmergencyState(CommonRequest) returns (EmergencyStateRsp);
+
+  /**
+   * @brief 下发急停控制信号。
+   * @param EmergencyCommandReq: 急停控制请求
+   * @return CommonResponse: 急停控制响应
+   */
+  rpc SetEmergencyCommand(EmergencyCommandReq) returns (CommonResponse);
+}

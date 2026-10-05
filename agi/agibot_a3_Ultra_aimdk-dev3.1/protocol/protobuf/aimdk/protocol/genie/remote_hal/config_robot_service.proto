@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/genie/remote_hal/config_robot.proto";
+
+service ConfigRobotService {
+    // 配置机器人服务
+    rpc SetConfigRobotService (SetConfigRobotRequest) returns (SetConfigRobotReply);
+    // 获取配置参数列表
+    rpc GetConfigListRobotService (GetConfigListRobotRequest) returns (GetConfigListRobotReply);
+}
+

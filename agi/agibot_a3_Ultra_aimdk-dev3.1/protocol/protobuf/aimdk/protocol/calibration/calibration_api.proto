@@ -1,0 +1,101 @@
+syntax = "proto3";
+package aimdk.protocol; 
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+import "aimdk/protocol/hal/sensors/rs2_camera.proto";
+
+// general calibration parameters
+enum CalibrationType {
+  CalibrationType_PRODUCTION = 0;     // 产线标定
+  CalibrationType_AFTER_SALE = 1;     // 售后标定
+  CalibrationType_OTHER = 2;         // reserved
+}
+
+enum CalibrationSensorType {
+  CalibrationSensorType_LIDAR_TOP = 0; 
+  CalibrationSensorType_RGBD_HEAD = 1; 
+  CalibrationSensorType_RGBD_BASE_FRONT = 2; 
+  CalibrationSensorType_RGBD_LEFT_HAND = 3; 
+  CalibrationSensorType_RGBD_RIGHT_HAND = 4; 
+  CalibrationSensorType_FISHEYE_BACK_LEFT = 5; 
+  CalibrationSensorType_FISHEYE_BACK_RIGHT = 6; 
+  CalibrationSensorType_LIDAR_BASE = 7; 
+  CalibrationSensorType_JOINT_FISHEYE_BACK = 8; 
+  CalibrationSensorType_JOINT_LIDAR_RGBD_BASE_FISHEYE = 9; 
+  CalibrationSensorType_OTHERS = 10; // reserved
+} 
+
+
+enum CalibrationStatus {
+  CalibrationStatus_UNCOMPLISHED = 0; // calibration results acquired while partially failed
+  CalibrationStatus_SUCCEEDED    = 1;    // calibration sucessfully completed
+  CalibrationStatus_FAILED       = 2;       // no calibration results acquired
+  CalibrationStatus_NOT_STARTED  = 3;  // reserved
+  CalibrationStatus_SCRAM        = 4;
+}
+
+enum DataCollectionStatus {
+  DataCollectionStatus_UNCOMPLISHED = 0; 
+  DataCollectionStatus_SUCCEEDED = 1; 
+  DataCollectionStatus_FAILED = 2; 
+}
+
+// ------------------------- CalibrationExecutionService ------------------------- 
+message CalibrationStartRequest { 
+  RequestHeader header = 1;
+  CalibrationType calibration_type = 2; 
+  CalibrationSensorType calibration_sensor_type = 3;
+}
+
+message CalibrationStartResponse {
+  ResponseHeader header = 1;
+}
+
+message CalibrationStopRequest {
+  RequestHeader header = 1;
+}
+
+message CalibrationStopResponse {
+  ResponseHeader header = 1;
+}
+
+
+// ------------------------- DataCollectionStatusService ------------------------- 
+message DataCollectionStatusRequest {
+  RequestHeader header = 1; 
+  DataCollectionStatus data_collection_status = 2; 
+}
+
+message DataCollectionStatusResponse {
+  ResponseHeader header = 1;
+}
+
+// ------------------------- CalibrationStatusService ------------------------- 
+message CalibrationStatusRequest {
+  RequestHeader header = 1; 
+  // 传感器类型
+  CalibrationSensorType sensor_type = 2; 
+  // 传感器类型的中文名称
+  string sensor_type_chs = 3; 
+  // 标定是否成功
+  CalibrationStatus calib_status = 4;
+  // 传感器外参
+  SE3Pose extrinsic = 5;
+  // icp 误差
+  double icp_error = 6;
+  // 点云重合率
+  double cloud_overlap = 7;
+  // 最小重投影误差
+  double min_repoject_error = 8;
+  // 最大重投影误差
+  double max_repoject_error = 9;
+  // 平均重投影误差
+  double mean_repoject_error = 10;
+  // 中值重投影误差
+  double median_repoject_error = 11;
+}
+
+message CalibrationStatusResponse {
+  ResponseHeader header = 1;
+}

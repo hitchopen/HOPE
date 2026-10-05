@@ -1,0 +1,144 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/box.proto";
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/skill/common/common.proto";
+
+/**
+ * @brief ...
+ */
+message ObjectDetectRequest {
+  RequestHeader header = 1;
+
+  int32 height = 3;
+  int32 width = 4;
+  bytes image = 5;
+
+  // return visualized image
+  bool return_image = 50;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message ObjectDetectResponse {
+  ResponseHeader header = 1;
+
+  repeated Box boxes = 6;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message ObjectSegmentRequest {
+  RequestHeader header = 1;
+
+  int32 height = 3;
+  int32 width = 4;
+
+  bytes image = 5;
+
+  // return visualized image
+  bool return_image = 50;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message ObjectSegmentResponse {
+  ResponseHeader header = 1;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message ObjectRecognizeRequest {
+  RequestHeader header = 1;
+
+  int32 height = 3;
+  int32 width = 4;
+
+  bytes image = 5;
+
+  // return visualized image
+  bool return_image = 50;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message ObjectRecognizeResponse {
+  ResponseHeader header = 1;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message ObjectTrackingRequest {
+  RequestHeader header = 1;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+message ObjectTrackingResponse {
+  ResponseHeader header = 1;
+
+  // extra info
+  map<string, string> extra = 255;
+}
+
+/**
+ * @brief ...
+ */
+service ObjectPerceptService {
+  /**
+   * @brief ...
+   * @param  ObjectDetectRequest  ...
+   * @return ObjectDetectResponse ...
+   */
+  rpc ObjectDetect(ObjectDetectRequest) returns (ObjectDetectResponse);
+
+  /**
+   * @brief ...
+   * @param  ObjectSegmentRequest  ...
+   * @return ObjectSegmentResponse ...
+   */
+  rpc ObjectSegment(ObjectSegmentRequest) returns (ObjectSegmentResponse);
+
+  /**
+   * @brief ...
+   * @param  ObjectRecognizeRequest  ...
+   * @return ObjectRecognizeResponse ...
+   */
+  rpc ObjectRecognize(ObjectRecognizeRequest) returns (ObjectRecognizeResponse);
+
+  /**
+   * @brief ...
+   * @param  ObjectTrackingRequest  ...
+   * @return ObjectTrackingResponse ...
+   */
+  rpc ObjectTracking(ObjectTrackingRequest) returns (ObjectTrackingResponse);
+}

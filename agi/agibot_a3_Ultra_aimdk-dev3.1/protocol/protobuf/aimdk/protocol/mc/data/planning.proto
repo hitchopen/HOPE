@@ -1,0 +1,14 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/mc/common/planning.proto";
+
+
+/**
+ * @brief 任务规划组可用状态响应
+ */
+message McPlanningGroupAvailableResponse {
+  ResponseHeader header = 1;            // 响应头
+  repeated McPlanningGroup groups = 2;  // 可用组
+}

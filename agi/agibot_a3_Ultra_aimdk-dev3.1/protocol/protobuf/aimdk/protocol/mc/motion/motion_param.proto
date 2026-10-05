@@ -1,0 +1,15 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/se3_velocity.proto";
+import public "aimdk/protocol/common/se3_acceleration.proto";
+
+/**
+ * @brief 运动参数
+ */
+message MotionParam {
+  double velocity_scale = 1;
+  double acceleration_scale = 2;
+  SE3Velocity max_se3_velocity = 3;
+  SE3Acceleration max_se3_acceleration = 4;
+}

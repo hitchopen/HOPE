@@ -1,0 +1,15 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/gateway/interface/login/access_control_msg.proto";
+import "aimdk/protocol/common/rpc.proto";
+
+/**
+ * AimMaster多端登陆请求
+ */
+service MasterAccessControlService {
+  rpc AccessControl(AccessControlRequest) returns (AccessControlResponse);
+  // @deprecated: 使用 GetRobotInfo 替代
+  rpc GetPackageInfo(CommonRequest) returns (GetPackageInfoResponse);
+  rpc GetRobotInfo(CommonRequest) returns (GetRobotInfoResponse);
+}

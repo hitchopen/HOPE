@@ -1,0 +1,490 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/rc/remote_player.proto";
+
+/***************************************** 旧版接口
+ * *****************************************/
+
+/**
+ * @brief 动作信息
+ */
+message RmMotionInfo {
+  int32 motion_id = 1;        // 动作ID
+  string motion_name = 2;     // 动作名称
+  string motion_path = 3;     // 动作路径
+  string description = 4;     // 动作描述
+  string display_name_zh = 5; // 显示的中文名
+  string display_name_en = 6; // 显示的英文名
+  string url = 7; // 动作下载路径, 仅用户录制的动作提供
+  string thumbnail_url = 8;              // 缩略图下载路径
+  bool is_change = 9;                    // 是否支持修改
+  int64 create_time_stamp = 10;          // 创建时间戳
+  int64 update_time_stamp = 11;          // 更新时间戳
+  double duration = 12;                  // 动作时长
+  MotionType motion_type = 13;           // 动作类型
+  map<string, string> descriptions = 14; // 描述
+}
+
+/**
+ * @brief 获取动作请求
+ */
+message GetMotionReq {
+  RequestHeader header = 1;
+  int32 motion_id = 2; // 动作ID(为空时获取所有动作)
+}
+
+/**
+ * @brief 获取动作响应
+ */
+message GetMotionResp {
+  ResponseHeader header = 1;
+  repeated RmMotionInfo motions = 2;
+}
+
+/**
+ * @brief 表情信息
+ */
+message RmEmoticonInfo {
+  int32 emoticon_id = 1;                 // 表情ID
+  string emoticon_name = 2;              // 表情名称
+  string emoticon_path = 3;              // 表情路径
+  string cover_expand_name = 4;          // 封面扩展名
+  string emoticon_url = 5;               // 表情文件下载路径
+  string thumbnail_url = 6;              // 预览文件下载路径
+  string cover_url = 7;                  // 封面文件下载路径
+  double duration = 8;                   // 表情时长
+  bool is_change = 9;                    // 是否支持修改
+  string display_name_zh = 10;           // 显示的中文名
+  string display_name_en = 11;           // 显示的英文名
+  string description = 12;               // 表情描述
+  int64 create_time_stamp = 13;          // 创建时间戳
+  int64 update_time_stamp = 14;          // 更新时间戳
+  map<string, string> descriptions = 15; // 描述
+}
+
+/**
+ * @brief 获取表情请求
+ */
+message GetEmoticonReq {
+  RequestHeader header = 1;
+  int32 emoticon_id = 2; // 表情ID(为空时获取所有表情)
+}
+
+/**
+ * @brief 获取表情响应
+ */
+message GetEmoticonResp {
+  ResponseHeader header = 1;
+  repeated RmEmoticonInfo emoticons = 2;
+}
+
+/*******************************************************************************************/
+
+/**
+ * @brief 资源类型
+ */
+enum ResourceType {
+  RESOURCE_TYPE_UNKNOWN = 0;           // 未知
+  RESOURCE_TYPE_MOTION = 1;            // 动作
+  RESOURCE_TYPE_EMOTICON = 2;          // 表情
+  RESOURCE_TYPE_AUDIO = 3;             // 音频
+  RESOURCE_TYPE_TASK = 4;              // 任务
+  RESOURCE_TYPE_TASK_TEMPLATE = 5;     // 任务模板
+  RESOURCE_TYPE_SKILL = 6;             // 技能
+  RESOURCE_TYPE_MAP = 7;               // 地图
+  RESOURCE_TYPE_OFFRING_WORK = 8;      // 创作作品
+  RESOURCE_TYPE_INTERACTION_SKILL = 9; // 交互技能
+}
+
+/**
+ * @brief 资源迁移类型
+ */
+enum MigrationType {
+  MIGRATION_TYPE_UNKNOWN = 0;   // 未知
+  MIGRATION_TYPE_OVERWRITE = 1; // 覆盖式迁入
+  MIGRATION_TYPE_MERGE = 2;     // 合并式迁入
+}
+
+/**
+ * @brief 收费类型
+ */
+enum ChargeType {
+  CHARGE_TYPE_UNKNOWN = 0; // 未知
+  CHARGE_TYPE_FREE = 1;    // 免费
+  CHARGE_TYPE_PAID = 2;    // 付费
+}
+
+/**
+ * @brief 表情额外信息
+ */
+message EmoticonExtraInfo {
+  map<string, string> display_name = 1; // 显示的中文名和英文名 (创建/获取/更新)
+  string emoticon_file_url = 2;  // 表情文件URL (创建/获取/更新)
+  string thumbnail_file_url = 3; // 缩略图文件URL (创建/获取/更新)
+  string cover_file_url = 4;     // 封面文件URL (创建/获取/更新)
+}
+
+/**
+ * @brief 动作额外信息
+ */
+message MotionExtraInfo {
+  string record_file_path = 1; // 录制文件路径 (仅创建时使用)
+  map<string, string> display_name = 2; // 显示的中文名和英文名 (创建/获取/更新)
+  string cover_file_url = 3;    // 预览图URL (获取)
+  string preview_video_url = 4; // 预览视频URL (获取)
+}
+
+/**
+ * @brief 音频额外信息
+ */
+message AudioExtraInfo {
+  string audio_file_url = 1; // 音频文件URL (获取)
+  map<string, string> display_name = 2; // 显示的中文名和英文名 (创建/获取/更新)
+  string cover_file_url = 3; // 预览图URL (获取)
+}
+
+/**
+ * @brief 任务额外信息
+ */
+message TaskExtraInfo {
+  string task_detail = 1;    // 任务详情 (创建/获取/更新)
+  string cover_file_url = 2; // 预览图URL (获取)
+}
+
+/**
+ * @brief 任务模板额外信息
+ */
+message TaskTemplateExtraInfo {
+  string task_template_detail = 1; // 任务模板详情 (创建/获取/更新)
+  string cover_file_url = 2;       // 预览图URL (获取)
+}
+
+/**
+ * @brief 地图额外信息
+ */
+message MapExtraInfo {
+  string map_info = 1;      // 地图信息 (创建/获取/更新)
+  string topology_info = 2; // 拓扑信息 (获取)
+}
+
+/**
+ * @brief 技能详情来源类型
+ */
+enum SkillDetailSourceType {
+  SKILL_DETAIL_SOURCE_TYPE_UNKNOWN = 0;                // 未知
+  SKILL_DETAIL_SOURCE_TYPE_LOCAL_RESOURCE = 1;         // 本地资源
+  SKILL_DETAIL_SOURCE_TYPE_SKILL_PACKAGE_RESOURCE = 2; // 技能包自带资源
+}
+
+/**
+ * @brief 技能资源信息
+ */
+message SkillResourceInfo {
+  map<string, string> display_name = 1;  // 显示的中文名和英文名
+  string path = 2;                       // 资源路径
+  SkillDetailSourceType source_type = 3; // 来源类型
+}
+
+/**
+ * @brief 技能动作详情信息
+ */
+message SkillMotionDetailInfo {
+  int64 begin_time = 1;                     // 开始时间
+  double duration = 2;                      // 持续时间
+  string type = 3;                          // 动作类型
+  repeated SkillResourceInfo resources = 4; // 动作列表 (path)
+}
+
+/**
+ * @brief 技能表情详情信息
+ */
+message SkillEmoticonDetailInfo {
+  int64 begin_time = 1;                     // 开始时间
+  double duration = 2;                      // 持续时间
+  repeated SkillResourceInfo resources = 3; // 表情列表 (path)
+}
+
+/**
+ * @brief 技能音频详情信息
+ */
+message SkillAudioDetailInfo {
+  int64 begin_time = 1;                     // 开始时间
+  double duration = 2;                      // 持续时间
+  repeated SkillResourceInfo resources = 3; // 音频列表 (path)
+  string type = 4; // 对于音频，类型 tts | audio | nlg
+}
+
+/**
+ * @brief 技能步行详情信息
+ */
+message SkillWalkerDetailInfo {
+  int64 begin_time = 1;           // 开始时间
+  string type = 2;                // 运动类型
+  map<string, string> params = 3; // 参数
+}
+
+/**
+ * @brief 技能动作详情信息
+ */
+message SkillActionDetailInfo {
+  int64 begin_time = 1;   // 开始时间
+  string action_name = 2; // action名称
+}
+
+/**
+ * @brief 技能额外信息
+ */
+message SkillExtraInfo {
+  map<string, string> display_name = 1; // 显示的中文名和英文名 (创建/获取/更新)
+  string cover_file_url = 2;    // 预览图URL (获取)
+  string preview_video_url = 3; // 预览视频URL (获取)
+  int64 max_play_count = 4; // 限制次数
+}
+
+/**
+ * @brief 创作作品额外信息
+ */
+message OffringWorkExtraInfo {
+  map<string, string> display_name = 1; // 显示的中文名和英文名 (创建/获取/更新)
+  string cover_file_url = 2;                      // 预览图URL (获取)
+  string preview_video_url = 3;                   // 预览视频URL (获取)
+  repeated SkillMotionDetailInfo motions = 4;     // 动作列表 (创建)
+  repeated SkillEmoticonDetailInfo emoticons = 5; // 表情列表 (创建)
+  repeated SkillAudioDetailInfo audios = 6;       // 音频列表 (创建)
+  repeated SkillWalkerDetailInfo walkers = 7;     // 运动序列 (创建)
+  repeated SkillActionDetailInfo actions = 8;     // action序列 (创建)
+}
+
+/**
+ * @brief 资源信息
+ */
+message RmResource {
+  int32 id = 1;                   // 主键ID
+  int32 resource_id = 2;          // 资源ID
+  string resource_key = 3;        // 资源key
+  string resource_version = 4;    // 资源版本
+  string resource_name = 5;       // 资源名称
+  double duration = 6;            // 资源时长
+  ResourceType resource_type = 7; // 资源类型
+  string resource_path = 8;       // 资源路径
+  string source = 9; // 来源 目前只有两种类型：custom / default
+  ChargeType charge_type = 10;     // 收费类型
+  bool is_change = 11;             // 是否支持修改
+  int64 create_time_stamp = 12;    // 创建时间戳
+  int64 update_time_stamp = 13;    // 更新时间戳
+  int64 expire_time_stamp = 14;    // 过期时间戳
+  int64 last_used_time_stamp = 15; // 最后使用时间戳
+  string md5 = 16;                 // 主资源文件的md5
+  string description = 17;         // 描述
+  repeated string tags = 18;       // 标签
+  /**
+   * 目前场景有以下几种:
+   * calligraphy-list: 书法列表
+   * calligraphy-font-list: 书法字库列表
+   * task-independent_motion: 独立任务场景
+   * task-associated_motion: 关联任务场景
+   * normal-motion_list: 普通动作列表
+   */
+  repeated string scenes = 19; // 场景
+  oneof extra_info {
+    EmoticonExtraInfo emoticon_extra_info = 20;
+    MotionExtraInfo motion_extra_info = 21;
+    AudioExtraInfo audio_extra_info = 22;
+    TaskExtraInfo task_extra_info = 23;
+    TaskTemplateExtraInfo task_template_extra_info = 24;
+    MapExtraInfo map_extra_info = 25;
+    SkillExtraInfo skill_extra_info = 26;
+    OffringWorkExtraInfo offring_work_extra_info = 27;
+  }
+  repeated string usagerights = 28;      // 使用权限
+  map<string, string> descriptions = 29; // 描述
+}
+
+/**
+ * @brief 获取资源请求
+ * @description 获取资源请求, resource_id 和 resource_name 必须提供一个,
+ * 资源类型必须提供, 来源必须提供 如果来源为空，则 resource_id 必须提供
+ */
+message GetResourceReq {
+  RequestHeader header = 1;       // 请求头
+  int32 resource_id = 2;          // 资源ID
+  string resource_name = 3;       // 资源名称
+  ResourceType resource_type = 4; // 资源类型
+  string source = 5;              // 来源 custom/default
+}
+
+/**
+ * @brief 获取资源响应
+ */
+message GetResourceResp {
+  ResponseHeader header = 1; // 响应头
+  RmResource resource = 2;   // 资源信息
+}
+
+/**
+ * @brief 获取资源列表请求
+ */
+message GetResourceListReq {
+  RequestHeader header = 1;         // 请求头
+  ResourceType resource_type = 2;   // 资源类型
+  string resource_key = 3;          // 资源key
+  string source = 4;                // 来源 custom/default
+  repeated string tags = 5;         // 标签
+  repeated string scenes = 6;       // 场景
+  repeated string usagerights = 7;  // 使用权限
+  repeated string black_scenes = 8; // 黑名单场景
+}
+
+/**
+ * @brief 获取资源列表响应
+ */
+message GetResourceListResp {
+  ResponseHeader header = 1;         // 响应头
+  repeated RmResource resources = 2; // 资源列表
+  repeated string tags = 3;          // 标签列表
+  repeated string scenes = 4;        // 场景列表
+  repeated string usagerights = 5;   // 使用权限
+}
+
+/**
+ * @brief 创建资源请求
+ */
+message CreateResourceReq {
+  RequestHeader header = 1; // 请求头
+  RmResource resource = 2;  // 资源信息
+}
+
+/**
+ * @brief 创建资源响应
+ */
+message CreateResourceResp {
+  ResponseHeader header = 1;
+  RmResource resource = 2; // 资源信息
+}
+
+/**
+ * @brief 更新资源请求
+ */
+message UpdateResourceReq {
+  RequestHeader header = 1; // 请求头
+  RmResource resource = 2;  // 资源信息
+}
+
+/**
+ * @brief 更新资源响应
+ */
+message UpdateResourceResp { ResponseHeader header = 1; }
+
+/**
+ * @brief 删除资源请求
+ * @description 删除资源请求, resource_id 和 resource_name 必须提供一个,
+ * 资源类型必须提供
+ */
+message DeleteResourceReq {
+  RequestHeader header = 1;       // 请求头
+  int32 resource_id = 2;          // 资源ID
+  string resource_name = 3;       // 资源名称
+  ResourceType resource_type = 4; // 资源类型
+}
+
+/**
+ * @brief 删除资源响应
+ */
+message DeleteResourceResp { ResponseHeader header = 1; }
+
+/**
+ * @brief 导入资源请求
+ */
+message ImportResourceReq {
+  RequestHeader header = 1;          // 请求头
+  ResourceType resource_type = 2;    // 资源类型
+  repeated UploadFile resources = 3; // 资源文件列表
+  repeated string scenes = 4;        // 场景
+}
+
+/**
+ * @brief 导入资源响应
+ */
+message ImportResourceResp { ResponseHeader header = 1; }
+
+/**
+ * @brief 导出资源请求
+ */
+message ExportResourceReq {
+  RequestHeader header = 1;
+  ResourceType resource_type = 2;
+  int32 resource_id = 3;
+}
+
+/**
+ * @brief 导出资源响应
+ */
+message ExportResourceResp {
+  ResponseHeader header = 1;
+  UploadFile resource = 2;
+}
+
+/**
+ * @brief 资源迁出请求
+ */
+message ResourceMigrationOutReq {
+  RequestHeader header = 1;
+  repeated string resource_list = 2; // 资源列表
+  ResourceType resource_type = 3;    // 资源类型
+}
+
+/**
+ * @brief 资源迁出响应
+ */
+message ResourceMigrationOutResp {
+  ResponseHeader header = 1;
+  MigrationType migration_type = 2;
+  UploadFile migration_file = 3 [ deprecated = true ]; // 迁移文件（已废弃）
+  string task_id = 4;                                  // 任务ID
+}
+
+/**
+ * @brief 资源迁移任务状态
+ */
+enum MigrationTaskStatus {
+  MIGRATION_TASK_STATUS_UNKNOWN = 0;    // 未知
+  MIGRATION_TASK_STATUS_PENDING = 1;    // 等待中
+  MIGRATION_TASK_STATUS_PROCESSING = 2; // 处理中
+  MIGRATION_TASK_STATUS_COMPLETED = 3;  // 已完成
+  MIGRATION_TASK_STATUS_FAILED = 4;     // 失败
+}
+
+/**
+ * @brief 获取资源迁移任务状态请求
+ */
+message GetResourceMigrationTaskStatusReq {
+  RequestHeader header = 1;
+  string task_id = 2; // 任务ID
+}
+
+/**
+ * @brief 获取资源迁移任务状态响应
+ */
+message GetResourceMigrationTaskStatusResp {
+  ResponseHeader header = 1;
+  MigrationTaskStatus status = 2; // 任务状态
+  UploadFile migration_file = 3;  // 迁移文件
+}
+
+/**
+ * @brief 资源迁入请求
+ */
+message ResourceMigrationInReq {
+  RequestHeader header = 1;
+  UploadFile migration_file = 2;
+}
+
+/**
+ * @brief 资源迁入响应
+ */
+message ResourceMigrationInResp {
+  ResponseHeader header = 1;
+  string task_id = 2; // 迁移任务ID
+}

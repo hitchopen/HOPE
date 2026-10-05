@@ -1,0 +1,320 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/se2_pose.proto";
+import "aimdk/protocol/pnc/pnc_navi_scene.proto";
+import "aimdk/protocol/pnc/pnc_swarm_control.proto";
+
+/**
+ * @brief pnc 模块提供的服务
+ */
+service PncService {
+
+
+/************************************************************************************************/
+
+  rpc SetNaviParams(PncSetNaviParamsRequest) returns (CommonTaskResponse);
+
+  rpc PlanningNaviToGoal(PncPlanningNaviToGoalRequest) returns (CommonTaskResponse);
+
+  rpc PlanningNaviToPose2D(PncPlanningNaviToPose2DRequest) returns (CommonTaskResponse);
+
+  rpc MobileNaviToGoal(PncMobileNaviToGoalRequest) returns (CommonTaskResponse);
+
+  rpc MobileNaviToPose2D(PncMobileNaviToPose2DRequest) returns (CommonTaskResponse);
+
+  rpc LinearNaviToRelative(PncLinearNaviToRelativeRequest) returns (CommonTaskResponse);
+
+  rpc LinearNaviToGoal(PncLinearNaviToGoalRequest) returns (CommonTaskResponse);
+
+  rpc LinearNaviToPose2D(PncLinearNaviToPose2DRequest) returns (CommonTaskResponse);
+
+  rpc DirectNaviToRelativeGoal(PncDirectNaviToRelativeGoalRequest) returns (CommonTaskResponse);
+
+  rpc DirectNaviToRelative(PncDirectNaviToRelativeRequest) returns (CommonTaskResponse);
+
+  rpc SpinTurnAndMoveForward(PncSpinTurnAndMoveForwardRequest) returns (CommonTaskResponse);
+
+  rpc SpinTurn(PncSpinTurnRequest) returns (CommonTaskResponse);
+
+  rpc MoveForward(PncMoveForwardRequest) returns (CommonTaskResponse);
+
+  rpc PreciseNaviToGoal(PncPreciseNaviToGoalRequest) returns (CommonTaskResponse);
+
+  rpc SitDownPreciseNaviToGoal(PncSitDownPreciseNaviToGoalRequest) returns (CommonTaskResponse);
+
+  rpc ActionCancel(CommonTaskRequest) returns (CommonTaskResponse);
+
+  rpc ActionPause(CommonTaskRequest) returns (CommonTaskResponse);
+
+  rpc ActionResume(CommonTaskRequest) returns (CommonTaskResponse);
+
+  rpc ActionGetState(CommonTaskRequest) returns (PncServiceStateResponse);
+
+  rpc ActionSitDownGetState(CommonTaskRequest) returns (PncSitDownPreciseNaviToGoalResponse);
+
+  rpc NoMapFollow(CommonTaskRequest) returns (CommonTaskResponse);
+
+  rpc AutoExplore(CommonTaskRequest) returns (CommonTaskResponse);
+
+  rpc SetRelocationStatus(PncRelocationStatusRequest) returns (CommonTaskResponse);
+
+  rpc VoiceControl(PncVoiceControlRequest) returns (CommonTaskResponse);
+
+  rpc CalculateNaviTime(PncCalculateNaviTimeRequest) returns (PncCalculateNaviTimeResponse);
+
+  rpc RecordCurrentPose(CommonRequest) returns (CommonResponse);
+
+  rpc DirectNaviToPose(PncDirectNaviToPoseRequest) returns (CommonTaskResponse);
+
+  rpc AutoExploreMapping(PncAutoExploreMappingRequest) returns (CommonTaskResponse);
+
+  rpc SwarmControl(PncSwarmControlRequest) returns (CommonTaskResponse);
+
+  rpc LineFollowingTest(PncLineFollowingTestRequest) returns (CommonTaskResponse);
+}
+
+
+
+/************************************************************************************************/
+
+/**************************************************************************************************
+ * PncPlanningNaviToGoal
+ **************************************************************************************************/
+/**
+ * @name  PncSetNaviParamsRequest
+ * @brief message to start PncPlanningNaviToGoal action
+ */
+message PncSetNaviParamsRequest {
+  RequestHeader header = 1;
+  double max_speed = 2;
+}
+
+/**
+ * @name  PncPlanningNaviToGoalRequest
+ * @brief message to start PncPlanningNaviToGoal action
+ */
+message PncPlanningNaviToGoalRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  int64 target_id = 4;
+  int64 guide_line_id = 5;
+  bool ackerman_mode = 6;
+  optional PncNaviScene scene = 7;
+}
+
+message PncPlanningNaviToPose2DRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  SE2Pose pose = 4;
+  bool ackerman_mode = 5;
+  optional PncNaviScene scene = 6;
+}
+
+message PncMobileNaviToGoalRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  int64 target_id = 4;
+  int64 guide_line_id = 5;
+  bool ackerman_mode = 6;
+  repeated SE2Pose waypoints = 7;
+}
+
+message PncMobileNaviToPose2DRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  SE2Pose pose = 4;
+  bool ackerman_mode = 5;
+  repeated SE2Pose waypoints = 6;
+}
+
+message PncLinearNaviToRelativeRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  SE2Pose pose = 4;
+  optional bool use_avoidance = 5;
+}
+
+message PncLinearNaviToGoalRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  int64 target_id = 4;
+  optional bool use_avoidance = 5;
+}
+
+message PncLinearNaviToPose2DRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  SE2Pose pose = 4;
+  optional bool use_avoidance = 5;
+}
+
+message PncDirectNaviToRelativeGoalRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  int64 target_id = 4;
+  optional bool use_avoidance = 5;
+}
+
+message PncDirectNaviToRelativeRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  SE2Pose pose = 4;
+  optional bool use_avoidance = 5;
+}
+
+message PncSpinTurnAndMoveForwardRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  double angle = 4;
+  double distance = 5;
+  optional bool use_avoidance = 6;
+}
+
+message PncSpinTurnRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  double angle = 4;
+  optional bool use_avoidance = 5;
+}
+
+message PncMoveForwardRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  double angle = 4;
+  double distance = 5;
+  optional bool use_avoidance = 6;
+}
+
+message PncPreciseNaviToGoalRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  int64 target_id = 4;
+  SE2Pose pose_offset = 5;
+  optional bool use_target_servo = 6;
+}
+
+message PncSitDownPreciseNaviToGoalRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  int64 target_id = 4;
+  SE2Pose pose_offset = 5;
+}
+
+enum PncSitDownState {
+   SitDownState_UNDEFINED = 0;
+   SitDownState_IDEL = 1;
+   SitDownState_RUNNING = 2;
+   SitDownState_SPINNING_SUCCESS = 3;
+   SitDownState_ADJUSTING_SUCCESS = 4;
+   SitDownState_FAILED = 5;
+}
+
+message PncSitDownPreciseNaviToGoalResponse {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  PncSitDownState state = 3;
+}
+
+enum PncServiceState {
+  PncServiceState_UNDEFINED = 0;
+  PncServiceState_IDLE    = 1;
+  PncServiceState_RUNNING = 2;
+  PncServiceState_PAUSED  = 3;
+  PncServiceState_SUCCESS = 4;
+  PncServiceState_FAILED  = 5;
+}
+
+message PncServiceStateResponse {
+  ResponseHeader header = 1;
+  uint64 task_id = 2;
+  PncServiceState state = 3;
+  string info = 4;  // 状态切换信息
+}
+
+message PncRelocationStatusRequest {
+  RequestHeader header = 1;
+  uint64 status_id = 2;
+  CommonState relocation_state = 3;
+}
+
+message PncVoiceControlRequest {
+  enum Direction {
+    Foward = 0;
+    Left = 1;
+    Right = 2;
+    Backward = 3;
+    TurnLeft = 4;
+    TurnRight = 5;
+    TurnAround = 6;
+  };
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  double moving_time = 3;
+  Direction moving_direction = 4;
+  double turning_angle = 5;
+}
+
+message PncCalculateNaviTimeRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  uint64 map_id = 3;
+  int64 start_id = 4;
+  int64 target_id = 5;
+}
+
+message PncCalculateNaviTimeResponse {
+  ResponseHeader header = 1;
+  uint64 task_id = 2;
+  CommonState cal_state = 3;
+  double navi_time = 4;
+}
+
+message PncDirectNaviToPoseRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  bool use_map_pose = 3;  // 是否使用地图上的目标点还是使用相对位置
+  uint64 map_id = 4;  // 使用地图目标点时的地图id
+  int64 target_id = 5;  // 使用地图目标点时的目标点id
+  double relative_pose_x = 6;  // 使用相对位置时的纵向行走距离
+  double relative_pose_y = 7;  // 使用相对位置时的横向行走距离
+  double relative_pose_angle = 8;  // 使用相对位置时的旋转角度，角度单位制
+  uint32 move_time_ms = 9;  //  行走时间限制，单位为毫秒
+                            //  使用相对位置时会根据‘行走距离/时间‘来计算速度，因此需要大于零
+                            //  使用地图目标点时，若未到达目标点，在斜行模式会超时停下，旋转-直行-旋转的模式不会，0则为不限时间
+  bool use_spin_and_move = 10;  //  是否使用旋转-直行-旋转的运动模式，若否，则为斜行运动模式，仅对地图目标点生效
+  bool walking_at_goal = 11;  //  是否需要在目标点处维持原地踏步并保持位置，若是，则会在到达目标点后持续踏步直至超过时间限制，若否，则到达目标点后立即结束PNC任务，仅对地图目标点生效
+}
+
+message PncAutoExploreMappingRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  SE2Pose pose = 3;
+}
+
+message PncSwarmControlRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+  PncSwarmControlTrajectory trajectory = 3;
+}
+
+message PncLineFollowingTestRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+}

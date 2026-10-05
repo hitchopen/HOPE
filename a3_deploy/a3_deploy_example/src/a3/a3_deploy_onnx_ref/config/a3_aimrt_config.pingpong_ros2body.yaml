@@ -60,7 +60,16 @@ aimrt:
                 depth: 10
                 reliability: reliable
                 durability: volatile
+            - topic_name: "/hope/runner/teleop_state_flat"
+              qos: *runner_control_qos
           sub_topics_options:
+            - topic_name: "/hope/runner/teleop_input_flat"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 1
+                reliability: reliable
+                durability: volatile
             - topic_name: "/racket/command_flat"
               use_serialized: false
               qos:
@@ -88,11 +97,15 @@ aimrt:
 
     # Body-drive state+command stay iceoryx. Runner state is telemetry over ROS2.
     pub_topics_options:
+      - topic_name: "/hope/runner/teleop_state_flat"
+        enable_backends: [ros2]
       - topic_name: "/hope/runner/state_flat"
         enable_backends: [ros2]
       - topic_name: "(.*)"
         enable_backends: [iceoryx]
     sub_topics_options:
+      - topic_name: "/hope/runner/teleop_input_flat"
+        enable_backends: [ros2]
       - topic_name: "/racket/command_flat"
         enable_backends: [ros2]
       - topic_name: "/a3/base_pose_flat"

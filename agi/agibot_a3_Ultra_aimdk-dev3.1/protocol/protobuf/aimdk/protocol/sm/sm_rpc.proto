@@ -1,0 +1,58 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/sm/sm_api.proto";
+import "aimdk/protocol/common/common.proto";
+
+/**
+* @brief sm 对外提供的业务接口
+*/
+service SystemService {
+  /*
+   * @brief 系统状态迁移rpc
+   * @note 其他模块通过调用该接口，将系统状态迁移到指定的状态
+   *       1. 系统状态迁移到指定的状态，流转规则配置在配置文件中
+   *       2. 迁移请求最好不应该由业务模块发起，最好由其他系统模块发起
+   *       3. 如果业务模块需要迁移系统状态，请调用该接口，此接口返回不代表迁移成功，需要业务模块调用GetSystemState接口获取系统状态
+   */
+  rpc MigrateSystemState(MigrateSystemStateRequest) returns (MigrateSystemStateResponse);
+
+  rpc MigrateSystemStateSync(MigrateSystemStateRequest) returns (MigrateSystemStateResponse);
+
+  /*
+   * @brief 触发急停rpc接口
+   * @note Monitor模块调用该接口，触发急停
+   *       急停触发会SM会第一优先级立即处理，并且会立即将系统状态迁移到EStop状态
+   */
+  rpc TriggerEStop(CommonRequest) returns (CommonResponse);
+
+  /*
+    * @brief 解除急停rpc接口
+    * @note Monitor模块调用该接口，解除急停
+    *       急停解除SM会将急停状态解除并且迁移到指定的状态
+    */
+  rpc ReleaseEStop(CommonRequest) returns (CommonResponse);
+
+  /*
+   * @brief 获取系统状态rpc接口
+   */
+  rpc GetSystemState(GetSystemStateRequest) returns (GetSystemStateResponse);
+
+  /*
+  * @brief 设置子状态rpc接口
+  * @note 设置子状态，子状态由具体业务模块自己定义，业务模块需要将子状态的定义以及actionList传给SM，SM自动将子状态挂载
+   */
+  rpc SetChildState(SetChildStateRequest) returns (SetChildStateResponse);
+
+  /*
+   * @brief 设置子状态rpc接口
+   * @note 设置子状态，子状态由具体业务模块自己定义，业务模块需要将子状态的定义以及actionList传给SM，SM自动将子状态挂载
+   */
+  rpc GetSystemRunningStatus(CommonRequest) returns (GetSystemRunningStatusResponse);
+
+   /*
+   * @brief 设置子状态rpc接口
+   * @note 设置子状态，子状态由具体业务模块自己定义，业务模块需要将子状态的定义以及actionList传给SM，SM自动将子状态挂载
+   */
+  rpc GetSmModuleStatus(CommonRequest) returns (GetSmModuleStatusResponse);
+}

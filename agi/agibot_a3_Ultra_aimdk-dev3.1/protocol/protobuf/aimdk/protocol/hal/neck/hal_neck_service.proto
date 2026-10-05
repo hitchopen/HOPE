@@ -1,0 +1,23 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/neck/neck.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的脖子控制服务
+ */
+service HalNeckService {
+  /**
+   * @brief 获取脖子关节状态。
+   * @param CommonRequest: 获取脖子关节状态请求
+   * @return GetBmsStateRsp: 获取脖子关节状态响应
+   */
+  rpc GetNeckState(CommonRequest) returns (NeckStateResponse);
+  /**
+   * @brief 控制脖子关节运动。
+   * @param GetBmsStateReq: 控制脖子关节运动请求
+   * @return GetBmsStateRsp: 控制脖子关节运动响应
+   */
+  rpc SetNeckCommand(NeckCommandRequest) returns (CommonResponse);
+}

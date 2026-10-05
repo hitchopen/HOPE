@@ -1,0 +1,35 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from audio_msgs/srv/AbandonAudioFocus.srv
+// generated code does not contain a copyright notice
+
+#include "audio_msgs/msg/FocusRequester.idl"
+#include "audio_msgs/msg/FocusResponse.idl"
+#include "std_msgs/msg/Header.idl"
+
+module audio_msgs {
+  module srv {
+    @verbatim (language="comment", text=
+      "----------------------------------------------------" "\n"
+      "request")
+    struct AbandonAudioFocus_Request {
+      @verbatim (language="comment", text=
+        "请求数据头")
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "请求焦点信息")
+      audio_msgs::msg::FocusRequester focus_requester;
+    };
+    struct AbandonAudioFocus_Response {
+      @verbatim (language="comment", text=
+        "----------------------------------------------------" "\n"
+        "response" "\n"
+        "响应数据头")
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "请求结果")
+      audio_msgs::msg::FocusResponse focus_response;
+    };
+  };
+};

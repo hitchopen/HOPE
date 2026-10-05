@@ -31,6 +31,8 @@ aimrt:
         type: asio_thread
         options:
           thread_num: 4
+      - name: ball_state_thread
+        type: simple_thread
 
   channel:
     backends:
@@ -64,6 +66,13 @@ aimrt:
               qos:
                 history: keep_last
                 depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/sim/gate3/physical_ball_state"
+              use_serialized: false
+              qos:
+                history: keep_last
+                depth: 100
                 reliability: reliable
                 durability: volatile
             - topic_name: "/tf"
@@ -259,9 +268,17 @@ MujocoSimModule:
       # 250 Hz preserves brief-contact evidence through the latched edge
       # counters in Gate3BallState and avoids the unsupported 1000/300 period.
       frequency: 250
-      executor: work_thread_pool
+      executor: ball_state_thread
       type: gate3_ball_state_ros2
       options: {}
+    - topic: /sim/gate3/physical_ball_state
+      # AimRT's millisecond scheduler requires an integer-compatible period.
+      # 250 Hz preserves brief-contact evidence through the latched edge
+      # counters in Gate3BallState and avoids the unsupported 1000/300 period.
+      frequency: 250
+      executor: ball_state_thread
+      type: gate3_ball_state_ros2
+      options: {all_flights: true}
     - topic: /tf
       frequency: 100
       executor: work_thread_pool

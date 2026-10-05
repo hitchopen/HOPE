@@ -31,6 +31,7 @@ bool SetRtSchedFifo(int priority) {
 
 bool PinCurrentThreadToCpu(int cpu) {
   if (cpu < 0) return true;  // no-op
+  if (cpu >= CPU_SETSIZE) return false;
   cpu_set_t set;
   CPU_ZERO(&set);
   CPU_SET(cpu, &set);

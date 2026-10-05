@@ -1,0 +1,23 @@
+[Unit]
+Description=On-demand HOPE ping-pong ROS 2 telemetry recorder
+After=network-online.target hope-observer.service hope-time-calibration.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agi
+Group=agi
+ExecStart=/usr/local/bin/hope-pingpong-telemetry-record
+Restart=no
+KillSignal=SIGTERM
+KillMode=control-group
+TimeoutStopSec=30
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0022
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

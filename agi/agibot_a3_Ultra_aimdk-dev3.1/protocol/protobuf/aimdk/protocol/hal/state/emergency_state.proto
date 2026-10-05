@@ -1,0 +1,175 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+
+/**
+ * @brief 当前机器人的急停状态描述
+ */
+message EmergencyState {
+  enum Reason {
+    // 未定义原因，一般是程序遗漏设置，才会是该值
+    Reason_UNDEFINED = 0;
+
+    // 有线急停按钮被按下
+    Reason_ESTOP = 1;
+
+    // 无线急停按钮被按下
+    Reason_WIRELESS_ESTOP = 2;
+
+    // 底盘左前触边传感器触碰
+    Reason_LEFT_FRONT_SENSOR_ALARM = 3;
+
+    // 底盘右前触边传感器触碰
+    Reason_RIGHT_FRONT_SENSOR_ALARM = 4;
+
+    // 底盘左触边传感器触碰
+    Reason_LEFT_SENSOR_ALARM = 5;
+
+    // 底盘右触边传感器触碰
+    Reason_RIGHT_SENSOR_ALARM = 6;
+
+    // 底盘左后触边传感器触碰
+    Reason_LEFT_BACK_SENSOR_ALARM = 7;
+
+    // 底盘右后触边传感器触碰
+    Reason_RIGHT_BACK_SENSOR_ALARM = 8;
+
+    // 升降电机上限位触碰
+    Reason_LIFT_UPPER_LIMIT_ALARM = 9;
+
+    // 升降电机下限位触碰
+    Reason_LIFT_LOWER_LIMIT_ALARM = 10;
+
+    // 托盘限位触碰
+    Reason_TRAY_LIMIT_ALARM = 11;
+
+    // 1号TOF报警（前左）
+    Reason_FRONT_LEFT_TOF_ALARM = 12;
+
+    // 2号TOF报警（前右）
+    Reason_FRONT_RIGHT_TOF_ALARM = 13;
+
+    // 3号TOF报警（右前）
+    Reason_RIGHT_FRONT_TOF_ALARM = 14;
+
+    // 4号TOF报警（右后）
+    Reason_RIGHT_BACK_TOF_ALARM = 15;
+
+    // 5号TOF报警（后方）
+    Reason_BACK_TOF_ALARM = 16;
+
+    // 6号TOF报警（左后）
+    Reason_LEFT_BACK_TOF_ALARM = 17;
+
+    // 7号TOF报警（左前）
+    Reason_LEFT_FRONT_TOF_ALARM = 18;
+
+    // 软件急停
+    Reason_SOFTWARE_ESTOP = 19;
+
+    // 未知原因
+    Reason_UNKNOWN = 255;
+
+    //下电急停
+    Reason_POWEROFF_ESTOP = 20;
+    
+    //低电量急停
+    Reason_LOWER_BATTERY_ESTOP = 21;
+  }
+
+  // 急停是否处于激活状态
+  bool active = 1;
+
+  // 导致急停的原因
+  Reason reason = 2;
+
+  // 底盘左前触边传感器触碰
+  bool left_front_sensor_alarm = 3;
+
+  // 底盘右前触边传感器触碰
+  bool right_front_sensor_alarm = 4;
+
+  // 底盘左触边传感器触碰
+  bool left_sensor_alarm = 5;
+
+  // 底盘右触边传感器触碰
+  bool right_sensor_alarm = 6;
+
+  // 底盘左后触边传感器触碰
+  bool left_back_sensor_alarm = 7;
+
+  // 底盘右后触边传感器触碰
+  bool right_back_sensor_alarm = 8;
+
+  // 升降电机上限位触碰
+  bool lift_upper_limit_alarm = 9;
+
+  // 升降电机下限位触碰
+  bool lift_lower_limit_alarm = 10;
+
+  // 托盘限位触碰
+  bool tray_limit_alarm = 11;
+
+  // 1号TOF报警（前左）
+  bool front_left_tof_alarm = 12;
+
+  // 2号TOF报警（前右）
+  bool front_right_tof_alarm = 13;
+
+  // 3号TOF报警（右前）
+  bool right_front_tof_alarm = 14;
+
+  // 4号TOF报警（右后）
+  bool right_back_tof_alarm = 15;
+
+  // 5号TOF报警（后方）
+  bool back_tof_alarm = 16;
+
+  // 6号TOF报警（左后）
+  bool left_back_tof_alarm = 17;
+
+  // 7号TOF报警（左前）
+  bool left_front_tof_alarm = 18;
+
+  // 有线急停
+  bool wired_emergency_stop = 19;
+
+  // 无线急停
+  bool wireless_emergency_stop = 20;
+
+  // 软件急停
+  bool software_emergency_stop = 21;
+}
+
+/**
+ * @brief 当前机器人的急停状态描述
+ */
+message EmergencyCommand {
+  // 无线急停按钮被按下
+  bool wireless_emergency_stop = 1;
+  // 软件急停按钮被按下
+  bool software_emergency_stop = 2;
+}
+
+/**
+ * @brief 下发急停命令
+ */
+message EmergencyCommandReq {
+  // 消息头
+  RequestHeader header = 1;
+
+  // 急停命令
+  EmergencyCommand cmd = 2;
+}
+
+/**
+ * @brief 获取急停状态响应
+ */
+message EmergencyStateRsp {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // 急停状态数据
+  EmergencyState data = 2;
+}

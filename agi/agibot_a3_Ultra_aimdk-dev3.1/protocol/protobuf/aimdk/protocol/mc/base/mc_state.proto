@@ -1,0 +1,115 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/control_source.proto";
+import public "aimdk/protocol/mc/action/mc_action.proto";
+
+message McControlInfo {
+  ControlSource mode = 1;
+}
+
+// 机器人工作状态
+enum McWorkState {
+  McWorkState_DISABLED = 0;
+  McWorkState_ENABLED = 1;
+}
+
+// 机器人状态
+message McState {
+  uint64 timestamp = 1;
+  McWorkState work_state = 2;
+  McActionInfo action_info = 3;
+  McControlInfo control_info = 4;
+  bool is_collisioned = 5;
+  McSitStandState sit_stand_state = 6;
+  bool is_walking = 7;
+  bool enable_collision = 8;
+  bool will_be_collided = 9;
+  bool enable_future_collision = 10;
+  McWalkingSpeedEstimate walking_speed_estimate = 11;
+  McArmMotionState arm_motion_state = 12;
+  McDanceState dance_state = 13;
+  McCurledUpState curled_up_state = 14;
+  McRobotInitState robot_init_state = 15;
+}
+
+message McWorkStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+  McWorkState state = 2;
+}
+
+message McStateResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  McState state = 2;
+}
+
+// 机器人坐下站起状态发布
+enum McSitStandState {
+  McSitStandState_DEFAULT = 0;
+
+
+  McSitStandState_SIT_SOON = 1;
+  McSitStandState_STAND_BACKWARD = 2;
+  McSitStandState_STAND_FORWARD = 3;
+  McSitStandState_STAND_SOON = 4;
+  McSitStandState_SIT_DONE = 5;
+  McSitStandState_STAND_DONE = 6;
+  McSitStandState_SITING = 7;
+  McSitStandState_STANDING = 8;
+  McSitStandState_SIT_BCK = 9;             // 备用接口
+  McSitStandState_STAND_BCK = 10;
+
+  McSitStandState_MOBILE_PLATFORM_SIT_SOON = 100;
+  McSitStandState_MOBILE_PLATFORM_STAND_BACKWARD = 101;
+  McSitStandState_MOBILE_PLATFORM_STAND_FORWARD = 102;
+  McSitStandState_MOBILE_PLATFORM_STAND_SOON = 103;
+  McSitStandState_MOBILE_PLATFORM_SIT_DONE = 104;
+  McSitStandState_MOBILE_PLATFORM_STAND_DONE = 105;
+}
+
+// 机器人一进入Default 机器人是躺着还是坐着还是吊着的状态
+enum McRobotInitState {
+  McRobotInitState_DEFAULT = 0;       // 当前已经不是刚开机那会了
+
+  McRobotInitState_LYING = 1;         // 躺着的
+  McRobotInitState_CRAWLING = 2;      // 爬着的
+  McRobotInitState_HANGING = 3;       // 吊着的
+  McRobotInitState_SITTING = 4;       // 坐着的
+  McRobotInitState_STAND_READY = 5;   // 站好了
+}
+
+// 蜷缩状态
+enum McCurledUpState {
+  McCurledUpState_DEFAULT = 0;            // 当前不在蜷缩状态
+
+  McCurledUpState_CURLING = 1;            // 当前正在蜷缩中
+  McCurledUpState_CURLED_UP = 2;          // 蜷缩完成
+  McCurledUpState_READY_TO_STAND = 3;     // 已经可以安全站立
+}
+
+// 机器人交互运动状态发布
+enum McArmMotionState { 
+  McArmMotionState_STOP = 0;
+  McArmMotionState_MANIPULATION = 1;
+  McArmMotionState_INTERACTION = 2;
+  McArmMotionState_TELEOPERATION = 3;
+}
+
+// mc行走速度估计
+message McWalkingSpeedEstimate {
+  double vel_x = 1;     // 前后速度 m/s
+  double vel_y = 2;     // 左右速度 m/s
+  double vel_z = 3;     // z轴线速度 m/s
+}
+
+
+// 机器舞蹈状态信息
+message McDanceState {
+  bool is_dancing = 1;      // 是否正在跳舞，true表示正在跳舞，false表示未跳舞
+  string dance_name = 2;    // 正在运行的舞蹈名称，is_dancing为true时，该字段才有效
+  double progress = 3;      // 舞蹈进度, 范围0.00~1.00，保留两位小数
+}

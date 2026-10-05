@@ -1,0 +1,187 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+/**
+ * @brief 查询 OTA Gateway 所处状态机
+ */
+message OTAGatewayStateMachineQueryRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief OTA Gateway 所处状态机
+ */
+enum OTAGatewayStateMachine {
+    /// 初始化状态
+    OTAGatewayStateMachine_INIT = 0;
+
+    /// 空闲状态
+    OTAGatewayStateMachine_IDLE = 1;
+
+    /// 下载中
+    OTAGatewayStateMachine_DOWNLOADING = 2;
+
+    /// 下载暂停
+    OTAGatewayStateMachine_DOWNLOAD_PAUSE = 3;
+
+    /// 下载完成
+    OTAGatewayStateMachine_DOWNLOAD_FINISH = 4;
+
+    /// 升级中
+    OTAGatewayStateMachine_UPGRADE_IN_PROGRESS = 5;
+
+    /// 升级完成
+    OTAGatewayStateMachine_UPGRADE_FINISH = 6;
+
+    /// 未知状态
+    OTAGatewayStateMachine_UNKNOWN = 7;
+}
+
+/**
+ * @brief 查询 OTA Gateway 所处状态机的响应
+ */
+message OTAGatewayStateMachineQueryResponse {
+    ResponseHeader header = 1;
+    OTAGatewayStateMachine state = 2;
+}
+
+/**
+ * @brief 查询 OTA Gateway 当前是否有新的升级任务
+ */
+message OTAGatewayNewTaskQueryRequest {
+    RequestHeader header = 1;
+
+    /// 语言
+    string language = 2;
+}
+
+/**
+ * @brief 发布说明元素类型
+ */
+enum OTAGatewayReleaseNoteElementType {
+    /// 文本
+    OTAGatewayReleaseNoteElementType_Text = 0;
+
+    /// 图片
+    OTAGatewayReleaseNoteElementType_Image = 1;
+}
+
+/**
+ * @brief 发布说明元素
+ */
+message OTAGatewayReleaseNoteElement {
+    /// 类型
+    OTAGatewayReleaseNoteElementType type = 1;
+
+    /// 内容
+    bytes image = 2;
+
+    /// 文本
+    string text = 3;
+}
+
+/**
+ * @brief 发布说明
+ */
+message OTAGatewayReleaseNote {
+    /// title
+    string title = 1;
+
+    /// content
+    repeated OTAGatewayReleaseNoteElement elements = 2;
+}
+
+/**
+ * @brief 查询 OTA Gateway 当前是否有新的升级任务的响应
+ */
+message OTAGatewayNewTaskQueryResponse {
+    enum UpgradeType {
+        UNSPECIFIED     = 0;
+        FULL_PACKAGE    = 1; // 软件全量包
+        MODULES         = 2; // 模块包
+        THIRD_PARTY_LIB = 3; // 第三方软件包
+        SW_DIFF_PACKAGE = 4; // 软件差分包
+        FW_FULL_PACKAGE = 5; // 固件全量包
+        FW_DIFF_PACKAGE = 6; // 固件差分包
+    }
+    ResponseHeader header = 1;
+    bool has_new_task = 2;
+    int64 release_id = 3;
+    string version = 4;
+    repeated OTAGatewayReleaseNote release_notes = 5;
+    UpgradeType type  = 6;  // 升级类型
+}
+
+/**
+ * @brief 开始下载 OTA 文件
+ */
+message OTAGatewayStartDownloadRequest {
+    RequestHeader header = 1;
+    int64 release_id = 2;
+}
+
+/**
+ * @brief 开始下载 OTA 文件的响应
+ */
+message OTAGatewayStartDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求暂停下载 OTA 文件
+ */
+message OTAGatewayPauseDownloadRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求暂停下载 OTA 文件的响应
+ */
+message OTAGatewayPauseDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求继续下载 OTA 文件
+ */
+message OTAGatewayContinueDownloadRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求继续下载 OTA 文件的响应
+ */
+message OTAGatewayContinueDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求中止下载 OTA 文件
+ */
+message OTAGatewayAbortDownloadRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求中止下载 OTA 文件的响应
+ */
+message OTAGatewayAbortDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求开始升级
+ */
+message OTAGatewayStartUpgradeRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求开始升级的响应
+ */
+message OTAGatewayStartUpgradeResponse {
+    ResponseHeader header = 1;
+}

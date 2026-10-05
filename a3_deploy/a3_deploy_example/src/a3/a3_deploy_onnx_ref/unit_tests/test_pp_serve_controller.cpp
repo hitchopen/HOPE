@@ -1,886 +1,953 @@
+#include "a3_pingpong/pp_serve_controller.hpp"
+#include "robot_io/a3_layout_extra.hpp"
+#include "a3_pingpong/pp_mode_cadence.hpp"
+
 #include <gtest/gtest.h>
 
-#include <filesystem>
-#include <fstream>
 #include <chrono>
-#include <iterator>
+#include <cmath>
+#include <filesystem>
+#include <limits>
+#include <mutex>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
-#include "a3_pingpong/pp_serve_controller.hpp"
-#include "a3_pingpong/pp_sha256.hpp"
-
-namespace a3_pingpong {
 namespace {
 
-std::filesystem::path A3ExampleRoot() {
-  return std::filesystem::path(__FILE__).parent_path()  // unit_tests
-      .parent_path()                                    // a3_deploy_onnx_ref
-      .parent_path()                                    // a3
-      .parent_path()                                    // src
-      .parent_path();                                   // a3_deploy_example
+using a3_pingpong::PpGripperCommand;
+using a3_pingpong::PpGripperReceipt;
+using a3_pingpong::PpGripperWorker;
+using a3_pingpong::PpGripperWorkerTransport;
+using a3_pingpong::PpServe025FullbodyTimeline;
+using a3_pingpong::PpServeController;
+using a3_pingpong::ServeControllerState;
+using a3_pingpong::ServeGripperState;
+
+std::filesystem::path A3Root() {
+  return std::filesystem::path(__FILE__)
+      .parent_path()
+      .parent_path()
+      .parent_path()
+      .parent_path()
+      .parent_path();
 }
 
-Eigen::VectorXd DefaultSource() {
-  Eigen::VectorXd q(31);
-  q << -0.131, -0.131, 0.0, 0.006, -0.006, 0.0,
-      -0.035, 0.035, 0.0, 0.247, 0.247, 0.0,
-      0.3, 0.3, -0.120, -0.120, 0.0, 0.12, -0.12,
-      -0.008, 0.008, 0.0, 0.0, 0.8, 0.8, 0.0, 0.0,
-      0.0, 0.0, 0.0, 0.0;
-  return q;
+std::filesystem::path TimelinePath() {
+  return A3Root() / "assets/a3_runtime/serve/motions" /
+         "a3p_op3_serve025_photo_right30_advance20_v12.csv";
 }
 
-PpServeClip LoadFixedClip() {
-  const auto root = A3ExampleRoot();
-  return PpServeClip::Load(
-      (root / "assets/a3_runtime/motions/pp_serve_v1_fixed.csv").string(),
-      (root / "assets/a3_runtime/motions/"
-              "pp_serve_v1_fixed.manifest.json")
-          .string(),
-      DefaultSource());
+PpServe025FullbodyTimeline LoadTimeline() {
+  PpServe025FullbodyTimeline timeline;
+  std::string error;
+  EXPECT_TRUE(timeline.LoadCsv(TimelinePath().string(), error)) << error;
+  return timeline;
 }
 
-struct ServeTestInputs {
-  std::shared_ptr<PpBasePoseInput> base =
-      std::make_shared<PpBasePoseInput>();
-  std::shared_ptr<PpBallStateInput> ball =
-      std::make_shared<PpBallStateInput>();
+Eigen::VectorXd PositiveGains(double value) {
+  return Eigen::VectorXd::Constant(robot_io::kA3Dof, value);
+}
 
-  void PublishBase() {
-    base->SetFromFlat(
-        {1.0, 1.0, -0.50, -0.7625, 1.07,
-         1.0, 0.0, 0.0, 0.0});
-  }
-
-  void PublishBall(double vx = 0.10, double vy = 0.02,
-                   double vz = 1.20) {
-    ball->SetFromFlat(
-        {1.0, 1.0, -0.06, -0.6025, 1.10, vx, vy, vz,
-         1.0, 0.0, 31.0});
-  }
-
-  void Publish(double vx = 0.10, double vy = 0.02,
-               double vz = 1.20) {
-    PublishBase();
-    PublishBall(vx, vy, vz);
-  }
-};
-
-robot_io::RobotState ReadyState(const Eigen::VectorXd& default_sdk) {
+robot_io::RobotState StateAt(const Eigen::VectorXd& q) {
   robot_io::RobotState state;
-  state.timestamp_ns = 1;
+  state.q = q;
+  state.dq = Eigen::VectorXd::Zero(robot_io::kA3Dof);
+  state.tau_est = Eigen::VectorXd::Zero(robot_io::kA3Dof);
+  state.imu_quat_wxyz = Eigen::Vector4d(1.0, 0.0, 0.0, 0.0);
+  state.imu_gyro = Eigen::Vector3d::Zero();
   state.sync_complete = true;
   state.sync_aligned = true;
-  state.q = default_sdk;
-  state.dq = Eigen::VectorXd::Zero(31);
-  state.tau_est = Eigen::VectorXd::Zero(31);
-  state.imu_quat_wxyz = Eigen::Vector4d(1, 0, 0, 0);
-  state.imu_gyro.setZero();
   return state;
 }
 
-std::pair<Eigen::VectorXd, Eigen::VectorXd> StaticHandoffGains() {
-  Eigen::VectorXd kp = Eigen::VectorXd::Zero(31);
-  Eigen::VectorXd kd = Eigen::VectorXd::Zero(31);
-  for (int policy = 0; policy < robot_io::kA3PolicyDof; ++policy) {
-    const int sdk = robot_io::kA3PolicyToSdkIdx[policy];
-    kp[sdk] = a3_pd_stand_kps[policy];
-    kd[sdk] = a3_pd_stand_kds[policy];
-  }
-  kp[3] = kp[4] = kServeHeadKp;
-  kd[3] = kd[4] = kServeHeadKd;
-  return {kp, kd};
+void ExpectPdCommand(const robot_io::RobotCommand& actual,
+                     const Eigen::VectorXd& q_des,
+                     const Eigen::VectorXd& dq_des,
+                     const Eigen::VectorXd& kp,
+                     const Eigen::VectorXd& kd,
+                     double tolerance = 0.0) {
+  EXPECT_TRUE(actual.q_des.isApprox(q_des, tolerance));
+  EXPECT_TRUE(actual.dq_des.isApprox(dq_des, tolerance));
+  EXPECT_TRUE(actual.tau_ff.isZero(0.0));
+  EXPECT_TRUE(actual.kp.isApprox(kp, 0.0));
+  EXPECT_TRUE(actual.kd.isApprox(kd, 0.0));
 }
 
-TEST(PpSha256, MatchesKnownVector) {
-  EXPECT_EQ(
-      PpSha256::String("abc"),
-      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-}
-
-TEST(PpServeClip, LoadsQualifiedPalmOnlyArtifact) {
-  const PpServeClip fixed = LoadFixedClip();
-  EXPECT_EQ(fixed.size(), 333u);
-  EXPECT_EQ(fixed.events().ready_pose, 59);
-  EXPECT_EQ(fixed.events().release, 167);
-  EXPECT_EQ(fixed.events().contact, 189);
-  EXPECT_EQ(fixed.events().handoff_complete, 332);
-  EXPECT_LE(fixed.measured_max_step(), 0.0800005);
-  EXPECT_LE(fixed.measured_max_second(), 0.1000005);
-  EXPECT_LE(fixed.measured_max_dq(), 4.0000005);
-  EXPECT_EQ(fixed.strike_selection().name, "fixed");
-  EXPECT_EQ(
-      fixed.strike_selection().selector,
-      "fresh_ball_envelope_fixed_clip");
-  EXPECT_DOUBLE_EQ(
-      fixed.strike_selection().right_retract_duration_ticks, 2.0);
-  EXPECT_EQ(fixed.strike_selection().right_retract_lead_ticks, 1);
-  EXPECT_EQ(
-      fixed.strike_selection().right_retract_anchor_frame,
-      kServeBranchSharedPrefixEndFrame);
-  EXPECT_EQ(fixed.right_safe_hold_frame(), 145);
-  EXPECT_EQ(
-      fixed.strike_selection().shared_prefix_end_frame,
-      kServeBranchSharedPrefixEndFrame);
-  for (int frame = kServeLeftWristDqCapStartFrame;
-       frame < fixed.events().handoff_begin; ++frame) {
-    for (const int source_joint : {27, 29}) {
-      EXPECT_LE(
-          std::abs(fixed.frame(frame).dq_source[source_joint]),
-          kServeWristDqReferenceCapRadS + 1.0e-12);
-    }
-  }
-  for (int frame = kServeRightWristDqCapStartFrame;
-       frame < fixed.events().handoff_begin; ++frame) {
-    for (const int source_joint : {28, 30}) {
-      EXPECT_LE(
-          std::abs(fixed.frame(frame).dq_source[source_joint]),
-          kServeWristDqReferenceCapRadS + 1.0e-12);
-    }
-  }
-}
-
-TEST(PpServeClip, RejectsManifestThatRelabelsDorsalSurfaceAsPalm) {
-  const auto root = A3ExampleRoot();
-  const auto csv =
-      root / "assets/a3_runtime/motions/pp_serve_v1_fixed.csv";
-  const auto manifest =
-      root / "assets/a3_runtime/motions/pp_serve_v1_fixed.manifest.json";
-  const auto temp = std::filesystem::temp_directory_path() /
-                    "pp_serve_v1_wrong_palm_surface_test.json";
-  std::ifstream input(manifest);
-  ASSERT_TRUE(input.good());
-  std::string contents(
-      (std::istreambuf_iterator<char>(input)),
-      std::istreambuf_iterator<char>());
-  const std::string confirmed = "B_confirmed_minus_obb_z";
-  const std::size_t position = contents.find(confirmed);
-  ASSERT_NE(position, std::string::npos);
-  contents.replace(position, confirmed.size(), "A_dorsal_surface");
-  {
-    std::ofstream output(temp);
-    output << contents;
-  }
-  EXPECT_THROW(
-      PpServeClip::Load(csv.string(), temp.string(), DefaultSource()),
-      std::runtime_error);
-  std::error_code error;
-  std::filesystem::remove(temp, error);
-}
-
-TEST(PpServeClip, RejectsCsvWhoseShaDoesNotMatchManifest) {
-  const auto root = A3ExampleRoot();
-  const auto original =
-      root / "assets/a3_runtime/motions/pp_serve_v1_fixed.csv";
-  const auto manifest =
-      root / "assets/a3_runtime/motions/pp_serve_v1_fixed.manifest.json";
-  const auto temp = std::filesystem::temp_directory_path() /
-                    "pp_serve_v1_tampered_test.csv";
-  std::filesystem::copy_file(
-      original, temp, std::filesystem::copy_options::overwrite_existing);
-  {
-    std::ofstream stream(temp, std::ios::app);
-    stream << "\n";
-  }
-  EXPECT_THROW(
-      PpServeClip::Load(temp.string(), manifest.string(), DefaultSource()),
-      std::runtime_error);
-  std::error_code error;
-  std::filesystem::remove(temp, error);
-}
-
-TEST(PpServeClip, RejectsExpectedDropSpeedThatDiffersFromControllerContract) {
-  const auto root = A3ExampleRoot();
-  const auto csv =
-      root / "assets/a3_runtime/motions/pp_serve_v1_fixed.csv";
-  const auto manifest =
-      root / "assets/a3_runtime/motions/pp_serve_v1_fixed.manifest.json";
-  const auto temp = std::filesystem::temp_directory_path() /
-                    "pp_serve_v1_wrong_drop_speed_test.json";
-  std::ifstream input(manifest);
-  ASSERT_TRUE(input.good());
-  std::string contents(
-      (std::istreambuf_iterator<char>(input)),
-      std::istreambuf_iterator<char>());
-  const std::string qualified =
-      "\"palm_drop_min_vertical_velocity_mps\": -2.0";
-  const std::size_t position = contents.rfind(qualified);
-  ASSERT_NE(position, std::string::npos);
-  contents.replace(
-      position, qualified.size(),
-      "\"palm_drop_min_vertical_velocity_mps\": -2.1");
-  {
-    std::ofstream output(temp);
-    output << contents;
-  }
-  EXPECT_THROW(
-      PpServeClip::Load(csv.string(), temp.string(), DefaultSource()),
-      std::runtime_error);
-  std::error_code error;
-  std::filesystem::remove(temp, error);
-}
-
-TEST(PpBallStateInput, StaleAndMalformedPacketsFailClosed) {
-  PpBallStateInput input;
-  const std::vector<double> valid{
-      1.0, 1.0, 0.44, 0.16, 1.10, 0.10, 0.02, 1.20,
-      1.0, 0.0, 31.0};
-  input.SetFromFlat(valid);
-  PpBallSample sample;
-  ASSERT_TRUE(input.Latest(sample, 0.050));
-  EXPECT_EQ(sample.estimator_samples, 31);
-  std::this_thread::sleep_for(std::chrono::milliseconds(60));
-  EXPECT_FALSE(input.Latest(sample, 0.050));
-
-  input.SetFromFlat(valid);
-  ASSERT_TRUE(input.Latest(sample, 0.050));
-  input.SetFromFlat({1.0, 1.0, 0.44});
-  EXPECT_FALSE(input.Latest(sample, 0.050));
-}
-
-TEST(PpServeController, FullClipEndsAtExactDefaultAndRequestsHandoff) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 2;
-  config.handoff_dwell_ticks = 2;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
+void AdvanceToReady(PpServeController& controller,
+                    const robot_io::RobotState& state,
+                    robot_io::RobotCommand& command) {
   controller.Start();
-
-  bool handed_off = false;
-  bool ball_confirmed = false;
-  bool saw_nonzero_velocity_reference = false;
-  double max_kp_step = 0.0;
-  double max_kd_step = 0.0;
-  Eigen::VectorXd previous_kp;
-  Eigen::VectorXd previous_kd;
-  std::size_t await_frame = 0;
-  for (std::uint64_t tick = 0; tick < 500; ++tick) {
-    inputs.Publish();
+  for (std::size_t tick = 0;
+       tick < a3_pingpong::kServe025FullbodyTransitionTicks; ++tick) {
     ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    ASSERT_EQ(command.q_des.size(), 31);
-    ASSERT_EQ(command.dq_des.size(), 31);
-    saw_nonzero_velocity_reference |=
-        command.dq_des.cwiseAbs().maxCoeff() > 1.0e-6;
-    if (previous_kp.size() == 31) {
-      max_kp_step = std::max(
-          max_kp_step,
-          (command.kp - previous_kp).cwiseAbs().maxCoeff());
-      max_kd_step = std::max(
-          max_kd_step,
-          (command.kd - previous_kd).cwiseAbs().maxCoeff());
-    }
-    previous_kp = command.kp;
-    previous_kd = command.kd;
-    state.q = command.q_des;  // perfect-tracking unit plant
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall) {
-      EXPECT_FALSE(ball_confirmed);
-      await_frame = controller.TakeDiag().frame;
-      controller.ConfirmBallOnPalm();
-      ball_confirmed = true;
-    }
-    if (controller.ConsumeHandoffRequest()) {
-      handed_off = true;
-      break;
-    }
   }
-  EXPECT_TRUE(ball_confirmed);
-  EXPECT_TRUE(saw_nonzero_velocity_reference);
-  EXPECT_EQ(await_frame,
-            static_cast<std::size_t>(controller.clip().events().toss_commit));
-  EXPECT_TRUE(handed_off);
+  ASSERT_EQ(controller.state(), ServeControllerState::kWaitReadyToServe);
+}
+
+void TriggerAndSettle(PpServeController& controller,
+                      const robot_io::RobotState& state,
+                      robot_io::RobotCommand& command) {
+  controller.TriggerReadyToServe();
+  for (std::size_t tick = 0; tick < a3_pingpong::kServeReplaySettleTicks; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    EXPECT_EQ(controller.TakeDiag().playback.frames, 0U);
+    EXPECT_EQ(controller.TakeDiag().phase, "PRE_PLAY_SETTLE");
+    EXPECT_EQ(controller.TakeDiag().release_dispatch_monotonic_ns, 0U);
+  }
+}
+
+PpGripperReceipt SuccessfulReceipt(PpGripperCommand command) {
+  PpGripperReceipt receipt;
+  receipt.ok = true;
+  receipt.command = command;
+  receipt.state = command == PpGripperCommand::kOpen
+                      ? "OPEN"
+                      : command == PpGripperCommand::kGrab ? "GRABBED"
+                                                           : "RELEASED";
+  receipt.first_publish_monotonic_ns = 100;
+  receipt.published_before_ack = 5;
+  receipt.planned_publish_count = 5;
+  receipt.matched_subscribers = 1;
+  return receipt;
+}
+
+TEST(PpServeController, Full31TimelineHasFrozenExecutionShape) {
+  const auto timeline = LoadTimeline();
+  EXPECT_EQ(timeline.size(), a3_pingpong::kServe025FullbodyFrames);
+  EXPECT_EQ(timeline.ready().frame_index, a3_pingpong::kServe025SpaceFrame);
+  EXPECT_EQ(timeline.complete().frame_index,
+            a3_pingpong::kServe025CompleteFrame);
+  EXPECT_EQ(a3_pingpong::kServePolicyHz, 100.0);
+  EXPECT_EQ(a3_pingpong::kServe025FullbodyCommandTicks, 468U);
+  EXPECT_EQ(a3_pingpong::kServe025FullbodyTransitionTicks, 501U);
+  EXPECT_DOUBLE_EQ(timeline.ready().time_s, 0.0);
+  EXPECT_DOUBLE_EQ(timeline.complete().time_s, 4.67);
+}
+
+TEST(PpServeController, PlaybackAuditKeepsShortFrameTimingAndResetsEachAction) {
+  a3_pingpong::ServePlaybackAudit clock;
+  clock.ObserveClock(0, 1'000'000'000);
+  clock.ObserveClock(1, 1'012'000'000);
+  clock.ObserveClock(2, 1'020'000'000);
+  EXPECT_EQ(clock.frames, 3U);
+  EXPECT_EQ(clock.min_interval_ns, 8'000'000U);
+  EXPECT_EQ(clock.max_interval_ns, 12'000'000U);
+  EXPECT_EQ(clock.max_phase_error_ns, 2'000'000U);
+
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto expected = timeline;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  for (unsigned cycle = 1; cycle <= 3; ++cycle) {
+    AdvanceToReady(controller, state, command);
+    TriggerAndSettle(controller, state, command);
+    for (unsigned frame = 0; frame < 468; ++frame) {
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      EXPECT_TRUE(command.q_des.isApprox(expected.At(frame).q_sdk, 0.));
+      EXPECT_TRUE(command.dq_des.isApprox(expected.At(frame).qd_sdk, 0.));
+    }
+    const auto audit = controller.TakeDiag().playback;
+    EXPECT_EQ(audit.sequence, cycle);
+    EXPECT_EQ(audit.frames, 468U);
+    EXPECT_TRUE(audit.finished);
+    EXPECT_GT(audit.release_frame_ns, audit.first_ns);
+    EXPECT_GT(audit.contact_reference_frame_ns, audit.release_frame_ns);
+    EXPECT_DOUBLE_EQ(audit.max_csv_q_delta_rad, 0.);
+    EXPECT_DOUBLE_EQ(audit.max_csv_dq_delta_rad_s, 0.);
+    EXPECT_DOUBLE_EQ(audit.max_arm_csv_q_delta_rad, 0.);
+    EXPECT_GT(audit.max_tracking_error_rad, 0.);
+  }
+}
+
+TEST(PpServeController, RaiseHandTransitionsFromStandToCsvFrameZero) {
+  auto timeline = LoadTimeline();
+  const Eigen::VectorXd ready_q = timeline.ready().q_sdk;
+  const Eigen::VectorXd ready_dq = timeline.ready().qd_sdk;
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
+  const Eigen::VectorXd kp = PositiveGains(80.0);
+  const Eigen::VectorXd kd = PositiveGains(2.0);
+  PpServeController controller(
+      std::move(timeline), stand, kp, kd, nullptr);
+  const auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+
+  controller.Start();
+  ASSERT_TRUE(controller.ComputeCommand(0, state, command));
+  ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(robot_io::kA3Dof),
+                  kp, kd);
+  for (std::size_t tick = 1;
+       tick < a3_pingpong::kServe025FullbodyTransitionTicks; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+  }
+  EXPECT_EQ(controller.state(), ServeControllerState::kWaitReadyToServe);
+  ExpectPdCommand(command, ready_q,
+                  Eigen::VectorXd::Zero(robot_io::kA3Dof), kp, kd, 1.0e-14);
+
+  ASSERT_TRUE(controller.ComputeCommand(999, state, command));
+  ExpectPdCommand(command, ready_q, ready_dq, kp, kd);
+}
+
+TEST(PpServeController, ReadyConsumesSelectedForwardHitFramesExactly) {
+  auto timeline = LoadTimeline();
+  const auto expected = timeline;
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
+  const Eigen::VectorXd kp = PositiveGains(90.0);
+  const Eigen::VectorXd kd = PositiveGains(3.0);
+  PpServeController controller(
+      std::move(timeline), stand, kp, kd, nullptr);
+  const auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+
+  TriggerAndSettle(controller, state, command);
+  for (std::size_t tick = 0;
+       tick < a3_pingpong::kServe025FullbodyCommandTicks; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
+    const auto& value = expected.At(tick);
+    ExpectPdCommand(command, value.q_sdk, value.qd_sdk, kp, kd);
+  }
   EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
-  EXPECT_TRUE(command.q_des.isApprox(default_sdk, 0.0));
-  const auto [static_kp, static_kd] = StaticHandoffGains();
-  EXPECT_TRUE(command.kp.isApprox(static_kp, 1.0e-12));
-  EXPECT_TRUE(command.kd.isApprox(static_kd, 1.0e-12));
-  EXPECT_LT(max_kp_step, 15.0);
-  EXPECT_LT(max_kd_step, 0.20);
+  EXPECT_FALSE(controller.active());
 }
 
-TEST(PpServeController, UsesExactlyQualifiedArmGains) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, {}, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
+TEST(PpServeController, LoadingTrajectoryVelocityMatchesPositionAndHasQuietEndpoints) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto ready = timeline.ready().q_sdk;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  const auto state = StateAt(stand);
+  robot_io::RobotCommand command, previous;
   controller.Start();
-  inputs.Publish();
+  for (std::size_t tick = 0; tick < a3_pingpong::kServe025FullbodyTransitionTicks; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    ASSERT_TRUE(command.q_des.allFinite());
+    EXPECT_LT(command.dq_des.cwiseAbs().maxCoeff(), 1.5);
+    if (tick > 0) {
+      const Eigen::VectorXd secant = (command.q_des - previous.q_des) / .01;
+      EXPECT_LT((secant - .5*(command.dq_des + previous.dq_des)).cwiseAbs().maxCoeff(), 1e-4);
+      EXPECT_LT((command.q_des - previous.q_des).cwiseAbs().maxCoeff(), .015);
+    } else {
+      EXPECT_TRUE(command.q_des.isApprox(stand, 1e-14));
+      EXPECT_TRUE(command.dq_des.isZero(1e-14));
+    }
+    previous = command;
+  }
+  EXPECT_TRUE(command.q_des.isApprox(ready, 1e-14));
+  EXPECT_TRUE(command.dq_des.isZero(1e-14));
+}
+
+TEST(PpServeController, SelectedCsvCanOnlyChangeSymmetricLateralStand) {
+  const auto stand = LoadTimeline().complete().q_sdk;
+  auto wide = stand;
+  wide[20] += .03; wide[24] -= .03;
+  wide[26] -= .03; wide[30] += .03;
+  EXPECT_NEAR(a3_pingpong::ServeStandLateralOffset(stand, wide), .03, 1e-12);
+  EXPECT_DOUBLE_EQ(a3_pingpong::ServeStandLateralOffset(stand, stand), 0.);
+  auto bad = wide; bad[12] += .001;
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+  bad = wide; bad[26] += .001;
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+  bad = stand; bad[20] += .07;
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+  bad = stand; bad[20] = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_THROW(a3_pingpong::ServeStandLateralOffset(stand, bad), std::invalid_argument);
+}
+
+TEST(PpServeController, StandStartsLoadingWithoutAnAdditionalSettlementGate) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand source, command;
+  source.q_des = stand;
+  source.dq_des = Eigen::VectorXd::Zero(31);
+  source.tau_ff = Eigen::VectorXd::Zero(31);
+  source.kp = kp;
+  source.kd = kd;
+  controller.SetEntryCommand(source);
+  state.imu_gyro[1] = .25;
+  controller.Start();
+  state.q[22] += .15;
   ASSERT_TRUE(controller.ComputeCommand(0, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kTransitionToLoad);
+  ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd);
+}
 
-  for (int policy = 3; policy <= 9; ++policy) {
-    const int sdk = robot_io::kA3PolicyToSdkIdx[policy];
-    const double proximal_boost = policy <= 6
-                                      ? kServeLeftProximalArmKpBoost
-                                      : 1.0;
-    const double proximal_damping_boost =
-        policy <= 6 ? kServeLeftProximalArmKdBoost : 1.0;
-    EXPECT_NEAR(
-        command.kp[sdk],
-        a3_kps[policy] * kServeArmKpScale * proximal_boost,
-        1.0e-12);
-    EXPECT_NEAR(
-        command.kd[sdk],
-        a3_kds[policy] * kServeArmKdScale *
-            proximal_damping_boost,
-        1.0e-12);
-  }
-  for (int policy = 10; policy <= 16; ++policy) {
-    const int sdk = robot_io::kA3PolicyToSdkIdx[policy];
-    EXPECT_NEAR(
-        command.kp[sdk],
-        a3_kps[policy] * kServeArmKpScale *
-            kServeRightArmKpBoost,
-        1.0e-12);
-    EXPECT_NEAR(
-        command.kd[sdk],
-        a3_kds[policy] * kServeArmKdScale *
-            kServeRightArmKdBoost,
-        1.0e-12);
+TEST(PpServeController, EntryPreservesMovingCommandAndReplacesSeedOnReentry) {
+  auto timeline = LoadTimeline();
+  const auto ready = timeline.ready().q_sdk;
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand source, command;
+  source.q_des = stand.array() + .02;
+  source.dq_des = PositiveGains(.1);
+  source.kp = PositiveGains(50);
+  source.kd = PositiveGains(2);
+  source.tau_ff = PositiveGains(.3);
+  for (int entry = 0; entry < 2; ++entry) {
+    source.q_des.array() += .01;
+    controller.SetEntryCommand(source);
+    controller.Start();
+    ASSERT_TRUE(controller.ComputeCommand(0, state, command));
+    EXPECT_TRUE(command.q_des.isApprox(source.q_des, 0));
+    EXPECT_TRUE(command.dq_des.isApprox(source.dq_des, 0));
+    EXPECT_TRUE(command.kp.isApprox(source.kp, 0));
+    EXPECT_TRUE(command.kd.isApprox(source.kd, 0));
+    EXPECT_TRUE(command.tau_ff.isApprox(source.tau_ff, 0));
+    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
+    EXPECT_TRUE(controller.active());
+    state.imu_gyro[1] = .2;
+    for (std::size_t t = 1; t < 100; ++t)
+      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+    EXPECT_EQ(controller.state(), ServeControllerState::kPreparingStand);
+    ASSERT_TRUE(controller.ComputeCommand(100, state, command));
+    ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd, 1e-12);
+    EXPECT_EQ(controller.state(), ServeControllerState::kTransitionToLoad);
+    state.imu_gyro.setZero();
+    for (std::size_t t = 0; t < a3_pingpong::kServe025FullbodyTransitionTicks; ++t)
+      ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+    ExpectPdCommand(command, ready, Eigen::VectorXd::Zero(31), kp, kd, 1e-12);
+    controller.RequestAbort();
+    ASSERT_TRUE(controller.ComputeCommand(502, state, command));
+    ASSERT_EQ(controller.state(), ServeControllerState::kAborted);
   }
 }
 
-TEST(PpServeController, LowInEnvelopeVxSelectsFixedClipExactlyOnce) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  ServeTestInputs inputs;
+TEST(PpServeController, PreservesForwardHitRightArmVelocityExactly) {
+  auto timeline = LoadTimeline();
+  const auto expected = timeline;
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
+  const Eigen::VectorXd kp = PositiveGains(90.0);
+  const Eigen::VectorXd kd = PositiveGains(3.0);
   PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
+      std::move(timeline), stand, kp, kd, nullptr);
+  const auto state = StateAt(stand);
   robot_io::RobotCommand command;
-  controller.Start();
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
 
-  bool confirmed = false;
-  ServeControllerDiag selected;
-  for (std::uint64_t tick = 0; tick < 300; ++tick) {
-    inputs.Publish(0.100);
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall &&
-        !confirmed) {
-      controller.ConfirmBallOnPalm();
-      confirmed = true;
-    }
-    const auto diag = controller.TakeDiag();
-    if (diag.branch_selected) {
-      selected = diag;
-      break;
-    }
+  for (std::size_t tick = 0; tick <= 82; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
   }
-  ASSERT_TRUE(confirmed);
-  ASSERT_TRUE(selected.branch_selected);
-  EXPECT_EQ(selected.selected_branch, "fixed");
-  EXPECT_EQ(
-      selected.branch_reason, "fresh_ball_envelope_fixed_clip");
-  EXPECT_EQ(selected.ball_estimator_samples, 31);
-  EXPECT_NEAR(selected.ball_vx_mps, 0.100, 1.0e-12);
+  ASSERT_EQ(controller.TakeDiag().frame, 82U);
+  const auto& strike = expected.At(82);
+  EXPECT_TRUE(command.q_des.isApprox(strike.q_sdk, 0.0));
+  EXPECT_TRUE(command.dq_des.isApprox(strike.qd_sdk, 0.0));
+  // Keep this a moving strike sample so a dropped velocity command cannot pass.
+  EXPECT_GT(std::abs(strike.qd_sdk[15]), 1.0);
 }
 
-TEST(PpServeController, HighInEnvelopeVxSelectsSameFixedClip) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  ServeTestInputs inputs;
+TEST(PpServeController, MissingGripperNeverBlocksBodyTimeline) {
+  auto timeline = LoadTimeline();
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
   PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
+      std::move(timeline), stand, PositiveGains(80.0),
+      PositiveGains(2.0), nullptr);
+  const auto state = StateAt(stand);
   robot_io::RobotCommand command;
-  controller.Start();
+  AdvanceToReady(controller, state, command);
+  EXPECT_EQ(controller.gripper_state(), ServeGripperState::kUnavailable);
 
-  bool confirmed = false;
-  ServeControllerDiag selected;
-  for (std::uint64_t tick = 0; tick < 300; ++tick) {
-    inputs.Publish(0.200);
+  TriggerAndSettle(controller, state, command);
+  for (std::size_t tick = 0;
+       tick < a3_pingpong::kServe025FullbodyCommandTicks; ++tick) {
     ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall &&
-        !confirmed) {
-      controller.ConfirmBallOnPalm();
-      confirmed = true;
-    }
-    const auto diag = controller.TakeDiag();
-    if (diag.branch_selected) {
-      selected = diag;
-      break;
-    }
   }
-  ASSERT_TRUE(confirmed);
-  ASSERT_TRUE(selected.branch_selected);
-  EXPECT_EQ(selected.selected_branch, "fixed");
-  EXPECT_EQ(
-      selected.branch_reason, "fresh_ball_envelope_fixed_clip");
-  EXPECT_NEAR(selected.ball_vx_mps, 0.200, 1.0e-12);
+  EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
 }
 
-TEST(PpServeController, GrossVelocityFinishesTossOnlyWithoutHandoff) {
-  PpServeClip clip = LoadFixedClip();
-  const int recovery_start = clip.events().recovery_start;
-  const Eigen::VectorXd right_hold =
-      clip.frame(static_cast<std::size_t>(clip.right_safe_hold_frame())).q_sdk;
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  config.handoff_dwell_ticks = 2;
-  config.abort_return_ticks = 20;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  bool confirmed = false;
-  bool saw_toss_only = false;
-  bool saw_abort_return = false;
-  std::string reason;
-  for (std::uint64_t tick = 0; tick < 500; ++tick) {
-    inputs.Publish(1.0);
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall &&
-        !confirmed) {
-      controller.ConfirmBallOnPalm();
-      confirmed = true;
-    }
-    const auto diag = controller.TakeDiag();
-    if (!diag.branch_reason.empty()) reason = diag.branch_reason;
-    saw_abort_return |=
-        controller.state() == ServeControllerState::kAbortReturn;
-    if (diag.toss_only_abort) {
-      saw_toss_only = true;
-      if (static_cast<int>(diag.frame) <= recovery_start) {
-        for (int sdk = 12; sdk <= 18; ++sdk) {
-          EXPECT_NEAR(command.q_des[sdk], right_hold[sdk], 1.0e-12);
-        }
+TEST(PpServeController, ReleaseAcceptsAnyReceiptInsideFivePublishBurst) {
+  for (std::size_t lead : {0U, 1U, 2U, 3U}) {
+    struct Shared {
+      std::mutex mutex;
+      std::vector<PpGripperCommand> commands;
+    } shared;
+    PpGripperWorkerTransport transport;
+    transport.exchange = [&shared](PpGripperCommand command,
+                                   std::chrono::milliseconds,
+                                   PpGripperReceipt& receipt,
+                                   std::string& error) {
+      {
+        std::lock_guard<std::mutex> lock(shared.mutex);
+        shared.commands.push_back(command);
       }
+      receipt = SuccessfulReceipt(command);
+      error.clear();
+      return true;
+    };
+    auto worker = std::make_unique<PpGripperWorker>(std::move(transport));
+    std::string error;
+    ASSERT_TRUE(worker->Start(error)) << error;
+
+    auto timeline = LoadTimeline();
+    const auto expected = timeline;
+    const Eigen::VectorXd stand = timeline.complete().q_sdk;
+    PpServeController controller(
+        std::move(timeline), stand, PositiveGains(80.0),
+        PositiveGains(2.0), std::move(worker));
+    const auto state = StateAt(stand);
+    robot_io::RobotCommand command;
+    controller.SetReleaseLeadFrames(lead);
+    AdvanceToReady(controller, state, command);
+    for (int attempt = 0; attempt < 100 &&
+         controller.gripper_state() != ServeGripperState::kGrabbed; ++attempt) {
+      controller.PollAsync();
+      ASSERT_TRUE(controller.ComputeCommand(500 + attempt, state, command));
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    if (controller.state() == ServeControllerState::kAborted) break;
+    EXPECT_EQ(controller.gripper_state(), ServeGripperState::kGrabbed);
+
+    TriggerAndSettle(controller, state, command);
+    for (std::size_t tick = 0; tick <= 60; ++tick) {
+      ASSERT_TRUE(controller.ComputeCommand(1000 + tick, state, command));
+      EXPECT_TRUE(command.q_des.isApprox(expected.At(tick).q_sdk, 0.));
+      EXPECT_TRUE(command.dq_des.isApprox(expected.At(tick).qd_sdk, 0.));
+      if (tick < 48 - lead) EXPECT_EQ(controller.TakeDiag().release_dispatch_monotonic_ns, 0U);
+      else EXPECT_GT(controller.TakeDiag().release_dispatch_monotonic_ns, 0U);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    controller.PollAsync();
+    EXPECT_EQ(controller.gripper_state(), ServeGripperState::kReleased);
+    std::lock_guard<std::mutex> lock(shared.mutex);
+    ASSERT_EQ(shared.commands.size(), 3U);
+    EXPECT_EQ(shared.commands[0], PpGripperCommand::kOpen);
+    EXPECT_EQ(shared.commands[1], PpGripperCommand::kGrab);
+    EXPECT_EQ(shared.commands[2], PpGripperCommand::kRelease);
   }
-  ASSERT_TRUE(confirmed);
-  EXPECT_TRUE(saw_toss_only);
-  EXPECT_FALSE(saw_abort_return);
-  EXPECT_EQ(controller.state(), ServeControllerState::kAborted);
-  EXPECT_EQ(reason, "ball_estimate_out_of_prevalidated_envelope");
-  EXPECT_FALSE(controller.ConsumeHandoffRequest());
-  EXPECT_TRUE(command.q_des.isApprox(default_sdk, 1.0e-12));
 }
 
-TEST(PpServeController, LateralVelocityOutsideEnvelopeUsesTossOnlyReturn) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  config.handoff_dwell_ticks = 2;
-  config.abort_return_ticks = 20;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  bool confirmed = false;
-  bool saw_abort_return = false;
-  bool saw_toss_only = false;
-  std::string branch_reason;
-  for (std::uint64_t tick = 0; tick < 500; ++tick) {
-    inputs.Publish(0.180, 0.30);
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall &&
-        !confirmed) {
-      controller.ConfirmBallOnPalm();
-      confirmed = true;
+TEST(PpServeController, NewPrepareRetriesOpenAfterPriorTransportFault) {
+  struct Shared {
+    std::mutex mutex;
+    std::vector<PpGripperCommand> commands;
+    bool fail_first_open{true};
+  } shared;
+  PpGripperWorkerTransport transport;
+  transport.exchange = [&shared](PpGripperCommand command,
+                                 std::chrono::milliseconds,
+                                 PpGripperReceipt& receipt,
+                                 std::string& error) {
+    std::lock_guard<std::mutex> lock(shared.mutex);
+    shared.commands.push_back(command);
+    if (command == PpGripperCommand::kOpen && shared.fail_first_open) {
+      shared.fail_first_open = false;
+      error = "injected first OPEN failure";
+      return false;
     }
-    const auto diag = controller.TakeDiag();
-    saw_abort_return |=
-        controller.state() == ServeControllerState::kAbortReturn;
-    saw_toss_only |= diag.toss_only_abort;
-    if (!diag.branch_reason.empty()) branch_reason = diag.branch_reason;
-    if (controller.state() == ServeControllerState::kAborted) break;
-  }
-  ASSERT_TRUE(confirmed);
-  EXPECT_TRUE(saw_toss_only);
-  EXPECT_FALSE(saw_abort_return);
-  EXPECT_EQ(
-      branch_reason, "ball_estimate_out_of_prevalidated_envelope");
-  EXPECT_EQ(controller.state(), ServeControllerState::kAborted);
-  EXPECT_FALSE(controller.ConsumeHandoffRequest());
-  EXPECT_TRUE(command.q_des.isApprox(default_sdk, 1.0e-12));
-}
+    receipt = SuccessfulReceipt(command);
+    error.clear();
+    return true;
+  };
+  auto worker = std::make_unique<PpGripperWorker>(std::move(transport));
+  std::string error;
+  ASSERT_TRUE(worker->Start(error)) << error;
 
-TEST(PpServeController, FrozenPreConfirmBallStateUsesTossOnlyReturn) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  config.abort_return_ticks = 20;
-  ServeTestInputs inputs;
+  auto timeline = LoadTimeline();
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
   PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
+      std::move(timeline), stand, PositiveGains(80.0),
+      PositiveGains(2.0), std::move(worker));
+  const auto state = StateAt(stand);
   robot_io::RobotCommand command;
+
   controller.Start();
-
-  bool confirmed = false;
-  bool saw_toss_only = false;
-  bool saw_abort_return = false;
-  std::string branch_reason;
-  for (std::uint64_t tick = 0; tick < 500; ++tick) {
-    inputs.PublishBase();
-    if (!confirmed) inputs.PublishBall(0.10);
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall &&
-        !confirmed) {
-      controller.ConfirmBallOnPalm();
-      confirmed = true;
-    }
-    const auto diag = controller.TakeDiag();
-    if (!diag.branch_reason.empty()) {
-      branch_reason = diag.branch_reason;
-    }
-    saw_toss_only |= diag.toss_only_abort;
-    saw_abort_return |=
-        controller.state() == ServeControllerState::kAbortReturn;
-    if (controller.state() == ServeControllerState::kAborted) break;
-  }
-  ASSERT_TRUE(confirmed);
-  EXPECT_TRUE(saw_toss_only);
-  EXPECT_FALSE(saw_abort_return);
-  EXPECT_EQ(controller.state(), ServeControllerState::kAborted);
-  EXPECT_EQ(branch_reason, "no_post_confirm_ball_update");
-  EXPECT_FALSE(controller.ConsumeHandoffRequest());
-}
-
-TEST(PpServeController, ApproachesDefaultFromMeasuredPoseWithoutEntrySnap) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.approach_ticks = 8;
-  config.preflight_dwell_ticks = 1;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  state.q[5] += 0.10;
-  const Eigen::VectorXd entry_q = state.q;
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  inputs.Publish();
   ASSERT_TRUE(controller.ComputeCommand(0, state, command));
-  EXPECT_TRUE(command.q_des.isApprox(entry_q, 0.0));
-  Eigen::VectorXd previous = command.q_des;
-  for (std::uint64_t tick = 1; tick < 10; ++tick) {
-    inputs.Publish();
-    state.q = command.q_des;
-    state.dq.setZero();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    EXPECT_LT(
-        (command.q_des - previous).cwiseAbs().maxCoeff(), 0.05);
-    previous = command.q_des;
+  for (int attempt = 0; attempt < 100 &&
+       controller.gripper_state() != ServeGripperState::kFault; ++attempt) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    controller.PollAsync();
   }
-  EXPECT_TRUE(command.q_des.isApprox(default_sdk, 1.0e-12));
-}
-
-TEST(PpServeController, HeadingDriftBlocksPreflightDwell) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.approach_ticks = 2;
-  config.preflight_dwell_ticks = 2;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  inputs.Publish();
-  ASSERT_TRUE(controller.ComputeCommand(0, state, command));
-  const double half_yaw = 0.10;  // total yaw=0.20 rad > 0.15 threshold
-  state.imu_quat_wxyz =
-      Eigen::Vector4d(std::cos(half_yaw), 0.0, 0.0, std::sin(half_yaw));
-  for (std::uint64_t tick = 1; tick < 10; ++tick) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-  }
-  EXPECT_EQ(
-      controller.state(), ServeControllerState::kPreflightReady);
-  EXPECT_FALSE(controller.TakeDiag().local_ready);
-}
-
-TEST(PpServeController, RequiredMocapNeedsFreshVelocityBeforeReady) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.approach_ticks = 2;
-  config.preflight_dwell_ticks = 1;
-  config.require_external_base = true;
-  auto base_input = std::make_shared<PpBasePoseInput>();
-  auto ball_input = std::make_shared<PpBallStateInput>();
-  PpServeController controller(
-      std::move(clip), default_sdk, config, base_input, ball_input);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  ASSERT_TRUE(controller.ComputeCommand(0, state, command));
-  EXPECT_FALSE(controller.TakeDiag().base_valid);
-  const std::vector<double> base_packet{
-      1.0, 1.0, -0.50, -0.7625, 1.07,
-      1.0, 0.0, 0.0, 0.0};
-  base_input->SetFromFlat(base_packet);
+  EXPECT_EQ(controller.gripper_state(), ServeGripperState::kFault);
+  controller.RequestAbort();
   ASSERT_TRUE(controller.ComputeCommand(1, state, command));
-  EXPECT_FALSE(controller.TakeDiag().base_valid);
-  std::this_thread::sleep_for(std::chrono::milliseconds(2));
-  base_input->SetFromFlat(base_packet);
+  EXPECT_EQ(controller.state(), ServeControllerState::kAborted);
+
+  controller.Start();
   ASSERT_TRUE(controller.ComputeCommand(2, state, command));
-  EXPECT_TRUE(controller.TakeDiag().base_valid);
-  ASSERT_TRUE(controller.ComputeCommand(3, state, command));
-  EXPECT_EQ(controller.state(), ServeControllerState::kPlaying);
+  for (int attempt = 0; attempt < 100 &&
+       controller.gripper_state() != ServeGripperState::kGrabbed; ++attempt) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    controller.PollAsync();
+    ASSERT_TRUE(controller.ComputeCommand(3 + attempt, state, command));
+  }
+  EXPECT_EQ(controller.gripper_state(), ServeGripperState::kGrabbed);
+  std::lock_guard<std::mutex> lock(shared.mutex);
+  ASSERT_GE(shared.commands.size(), 3U);
+  EXPECT_EQ(shared.commands[0], PpGripperCommand::kOpen);
+  EXPECT_EQ(shared.commands[1], PpGripperCommand::kOpen);
+  EXPECT_EQ(shared.commands[2], PpGripperCommand::kGrab);
 }
 
-TEST(PpServeController, XmlDefaultOriginCannotArmGate3Serve) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.approach_ticks = 2;
-  config.preflight_dwell_ticks = 1;
-  config.require_external_base = true;
-  auto base_input = std::make_shared<PpBasePoseInput>();
-  auto ball_input = std::make_shared<PpBallStateInput>();
+TEST(PpServeController, InvalidActualStateStillFailsClosed) {
+  auto timeline = LoadTimeline();
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
   PpServeController controller(
-      std::move(clip), default_sdk, config, base_input, ball_input);
-  robot_io::RobotState state = ReadyState(default_sdk);
+      std::move(timeline), stand, PositiveGains(80.0),
+      PositiveGains(2.0), nullptr);
+  auto state = StateAt(stand);
+  state.q[0] = std::numeric_limits<double>::quiet_NaN();
   robot_io::RobotCommand command;
-  controller.Start();
 
-  const std::vector<double> wrong_default_origin{
-      1.0, 1.0, 0.0, 0.0, 1.07, 1.0, 0.0, 0.0, 0.0};
-  base_input->SetFromFlat(wrong_default_origin);
+  controller.Start();
+  EXPECT_FALSE(controller.ComputeCommand(0, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kFault);
+  EXPECT_FALSE(controller.fault_reason().empty());
+}
+
+TEST(PpServeController, AbortHoldsLastRunnerOwnedCommand) {
+  auto timeline = LoadTimeline();
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
+  PpServeController controller(
+      std::move(timeline), stand, PositiveGains(80.0),
+      PositiveGains(2.0), nullptr);
+  const auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+
+  controller.Start();
   ASSERT_TRUE(controller.ComputeCommand(0, state, command));
-  std::this_thread::sleep_for(std::chrono::milliseconds(2));
-  base_input->SetFromFlat(wrong_default_origin);
+  const robot_io::RobotCommand before_abort = command;
+  controller.RequestAbort();
   ASSERT_TRUE(controller.ComputeCommand(1, state, command));
-  const ServeControllerDiag diag = controller.TakeDiag();
-  EXPECT_TRUE(diag.base_valid);
-  EXPECT_GT(diag.base_position_error_m, 0.90);
-  EXPECT_FALSE(diag.local_ready);
-  EXPECT_EQ(
-      controller.state(), ServeControllerState::kPreflightReady);
-}
-
-TEST(PpServeController, HoldsPreTossPoseUntilRigidPalmBallConfirmation) {
-  PpServeClip clip = LoadFixedClip();
-  const int toss_commit = clip.events().toss_commit;
-  const Eigen::VectorXd expected_hold =
-      clip.frame(static_cast<std::size_t>(toss_commit - 1)).q_sdk;
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  for (std::uint64_t tick = 0; tick < 250; ++tick) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall) break;
-  }
-  ASSERT_EQ(controller.state(), ServeControllerState::kAwaitBall);
-  EXPECT_EQ(controller.TakeDiag().frame,
-            static_cast<std::size_t>(toss_commit));
-  for (std::uint64_t tick = 250; tick < 270; ++tick) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    EXPECT_TRUE(command.q_des.isApprox(expected_hold, 0.0));
-    EXPECT_TRUE(command.dq_des.isZero(0.0));
-    state.q = command.q_des;
-  }
-  EXPECT_EQ(controller.state(), ServeControllerState::kAwaitBall);
-}
-
-TEST(PpServeController, PreCommitAbortReturnsSmoothlyWithoutPolicyHandoff) {
-  PpServeClip clip = LoadFixedClip();
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  config.handoff_dwell_ticks = 2;
-  config.abort_return_ticks = 20;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  for (std::uint64_t tick = 0; tick < 15; ++tick) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-  }
-  controller.RequestAbort();
-  for (std::uint64_t tick = 15; tick < 100; ++tick) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAborted) break;
-  }
   EXPECT_EQ(controller.state(), ServeControllerState::kAborted);
-  EXPECT_FALSE(controller.ConsumeHandoffRequest());
-  EXPECT_TRUE(command.q_des.isApprox(default_sdk, 1.0e-12));
-}
-
-TEST(PpServeController,
-     AbortAfterTossBeforeBranchUsesSeparatedTossOnlyReturn) {
-  PpServeClip clip = LoadFixedClip();
-  const int toss_commit = clip.events().toss_commit;
-  const Eigen::VectorXd safe_hold =
-      clip.frame(
-              static_cast<std::size_t>(clip.right_safe_hold_frame()))
-          .q_sdk;
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  config.handoff_dwell_ticks = 2;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  std::uint64_t tick = 0;
-  bool ball_confirmed = false;
-  while (tick < 300) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick++, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall &&
-        !ball_confirmed) {
-      controller.ConfirmBallOnPalm();
-      ball_confirmed = true;
-    }
-    const ServeControllerDiag diag = controller.TakeDiag();
-    if (ball_confirmed &&
-        diag.state == ServeControllerState::kPlaying &&
-        static_cast<int>(diag.frame) >= toss_commit + 5) {
-      ASSERT_LT(
-          static_cast<int>(diag.frame), kServeBranchSelectionFrame);
-      break;
-    }
-  }
-  ASSERT_TRUE(ball_confirmed);
-
-  controller.RequestAbort();
-  inputs.Publish();
-  ASSERT_TRUE(controller.ComputeCommand(tick++, state, command));
-  const ServeControllerDiag abort_diag = controller.TakeDiag();
-  ASSERT_TRUE(abort_diag.toss_only_abort);
-  EXPECT_FALSE(abort_diag.branch_selected);
-  EXPECT_EQ(
-      abort_diag.branch_reason, "operator_abort_after_toss_commit");
-  for (int sdk = 12; sdk <= 18; ++sdk) {
-    EXPECT_DOUBLE_EQ(command.q_des[sdk], safe_hold[sdk]);
-  }
-  state.q = command.q_des;
-  state.dq.setZero();
-
-  for (; tick < 600; ++tick) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAborted) break;
-  }
-  EXPECT_EQ(controller.state(), ServeControllerState::kAborted);
-  EXPECT_FALSE(controller.ConsumeHandoffRequest());
-  EXPECT_TRUE(command.q_des.isApprox(default_sdk, 1.0e-12));
-}
-
-TEST(PpServeController, PostCommitAbortFinishesFollowThroughButNeverHandsOff) {
-  PpServeClip clip = LoadFixedClip();
-  const int swing_commit = clip.events().swing_commit;
-  const Eigen::VectorXd default_sdk =
-      to_sdk_order(DefaultSource(), clip.src_to_sdk());
-  ServeControllerConfig config;
-  config.preflight_dwell_ticks = 1;
-  config.handoff_dwell_ticks = 2;
-  ServeTestInputs inputs;
-  PpServeController controller(
-      std::move(clip), default_sdk, config, inputs.base, inputs.ball);
-  robot_io::RobotState state = ReadyState(default_sdk);
-  robot_io::RobotCommand command;
-  controller.Start();
-
-  std::uint64_t tick = 0;
-  bool ball_confirmed = false;
-  while (static_cast<int>(controller.TakeDiag().frame) <= swing_commit + 2 &&
-         tick < 250) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick++, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAwaitBall &&
-        !ball_confirmed) {
-      controller.ConfirmBallOnPalm();
-      ball_confirmed = true;
-    }
-  }
-  ASSERT_TRUE(ball_confirmed);
-  controller.RequestAbort();
-  for (; tick < 500; ++tick) {
-    inputs.Publish();
-    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
-    state.q = command.q_des;
-    state.dq.setZero();
-    if (controller.state() == ServeControllerState::kAborted) break;
-  }
-  EXPECT_EQ(controller.state(), ServeControllerState::kAborted);
-  EXPECT_FALSE(controller.ConsumeHandoffRequest());
-  EXPECT_TRUE(command.q_des.isApprox(default_sdk, 1.0e-12));
+  ExpectPdCommand(command, before_abort.q_des, before_abort.dq_des,
+                  before_abort.kp, before_abort.kd);
 }
 
 }  // namespace
-}  // namespace a3_pingpong
+
+TEST(PpServeController, EarlyPolicyHandoffPreservesReleaseContactAndPlayedFrames) {
+  auto timeline = LoadTimeline();
+  const auto expected = timeline;
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  EXPECT_THROW(controller.SetPolicyHandoffFrame(78), std::invalid_argument);
+  controller.SetPolicyHandoffFrame(110);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  EXPECT_THROW(controller.SetPolicyHandoffFrame(120), std::invalid_argument);
+  TriggerAndSettle(controller, state, command);
+  for (std::size_t tick=0; tick<=110; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(1000+tick,state,command));
+    ExpectPdCommand(command,expected.At(tick).q_sdk,expected.At(tick).qd_sdk,kp,kd);
+    if (tick<110) EXPECT_NE(controller.state(),ServeControllerState::kComplete);
+  }
+  EXPECT_EQ(controller.state(),ServeControllerState::kHandoffReady);
+  EXPECT_TRUE(controller.active());
+  const auto source = command;
+  state = StateAt(expected.At(110).q_sdk);
+  ASSERT_TRUE(controller.ComputeCommand(1111,state,command));
+  ExpectPdCommand(command,source.q_des,source.dq_des,kp,kd);
+  // Expired return clock must not hand a stalled arm pose to the actor.
+  for (int i=0;i<150;++i) ASSERT_TRUE(controller.ComputeCommand(1112+i,state,command));
+  EXPECT_EQ(controller.state(),ServeControllerState::kHandoffReady);
+  ExpectPdCommand(command,stand,Eigen::VectorXd::Zero(31),kp,kd);
+  state = StateAt(stand);
+  state.dq[0] = .7;
+  for (int i=0;i<20;++i) ASSERT_TRUE(controller.ComputeCommand(1300+i,state,command));
+  EXPECT_EQ(controller.state(),ServeControllerState::kHandoffReady);
+  state.dq.setZero();
+  for (int i=0;i<9;++i) ASSERT_TRUE(controller.ComputeCommand(1400+i,state,command));
+  EXPECT_EQ(controller.state(),ServeControllerState::kHandoffReady);
+  state.imu_gyro[0] = .4;
+  ASSERT_TRUE(controller.ComputeCommand(1409,state,command));
+  state.imu_gyro.setZero();
+  for (int i=0;i<20;++i) ASSERT_TRUE(controller.ComputeCommand(1410+i,state,command));
+  EXPECT_EQ(controller.state(),ServeControllerState::kComplete);
+  EXPECT_FALSE(controller.active());
+}
+
+TEST(PpServeController, AbortRemainsAvailableDuringPostContactStandReturn) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand, PositiveGains(90), PositiveGains(3), nullptr);
+  controller.SetPolicyHandoffFrame(110);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller,state,command);
+  TriggerAndSettle(controller, state, command);
+  for (int i=0;i<=110;++i) ASSERT_TRUE(controller.ComputeCommand(i,state,command));
+  ASSERT_EQ(controller.state(),ServeControllerState::kHandoffReady);
+  controller.RequestAbort();
+  ASSERT_TRUE(controller.ComputeCommand(111,state,command));
+  EXPECT_EQ(controller.state(),ServeControllerState::kAborted);
+}
+
+TEST(PpServeController, ReleaseLeadIsBoundedAndCannotChangeDuringAction) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand, PositiveGains(80), PositiveGains(2), nullptr);
+  EXPECT_EQ(controller.release_frame(), 48U);
+  EXPECT_THROW(controller.SetReleaseLeadFrames(4), std::invalid_argument);
+  controller.SetReleaseLeadFrames(2);
+  EXPECT_EQ(controller.release_frame(), 46U);
+  robot_io::RobotCommand command;
+  controller.Start();
+  ASSERT_TRUE(controller.ComputeCommand(0, StateAt(stand), command));
+  EXPECT_THROW(controller.SetReleaseLeadFrames(0), std::invalid_argument);
+}
+
+TEST(PpServeController, PitchSupportContinuesThroughReadyAndPreservesCsvArms) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto ready = timeline.ready().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController level(timeline, stand, kp, kd, nullptr);
+  PpServeController tilted(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand), lean = state;
+  const Eigen::Quaterniond orientation = Eigen::AngleAxisd(1.57, Eigen::Vector3d::UnitZ()) *
+      Eigen::AngleAxisd(-.1, Eigen::Vector3d::UnitY());
+  lean.imu_quat_wxyz << orientation.w(), orientation.x(), orientation.y(), orientation.z();
+  lean.imu_gyro[1] = -.2;
+  robot_io::RobotCommand a, b;
+  level.Start(); tilted.Start();
+  double maximum = 0.;
+  for (std::size_t t = 0; t < a3_pingpong::kServe025FullbodyTransitionTicks; ++t) {
+    ASSERT_TRUE(level.ComputeCommand(t, state, a));
+    ASSERT_TRUE(tilted.ComputeCommand(t, lean, b));
+    for (int j = 0; j < 31; ++j) {
+      if (j == 23 || j == 29) {
+        const double delta = b.q_des[j] - a.q_des[j];
+        EXPECT_GE(delta, -.080001);
+        EXPECT_LE(delta, 1e-12);
+        EXPECT_LE(std::abs(b.dq_des[j] - a.dq_des[j]), .3);
+        maximum = std::max(maximum, std::abs(delta));
+      } else EXPECT_DOUBLE_EQ(a.q_des[j], b.q_des[j]);
+    }
+    if (t == 0) ExpectPdCommand(b, a.q_des, a.dq_des, kp, kd, 1e-12);
+  }
+  EXPECT_GT(maximum, .05);
+  EXPECT_LT(b.q_des[23] - ready[23], -.05);
+  const auto last = b;
+  ASSERT_TRUE(tilted.ComputeCommand(600, lean, b));
+  EXPECT_LT((b.q_des - last.q_des).cwiseAbs().maxCoeff(), .0013);
+  TriggerAndSettle(tilted, lean, b);
+  auto expected = LoadTimeline();
+  for (std::size_t frame = 0; frame < 100; ++frame) {
+    ASSERT_TRUE(tilted.ComputeCommand(601 + frame, lean, b));
+    for (int j = 0; j < 31; ++j) {
+      if (j == 23 || j == 29) {
+        EXPECT_NEAR(b.q_des[j] - expected.At(frame).q_sdk[j], -.08, 1e-9);
+      } else {
+        EXPECT_DOUBLE_EQ(b.q_des[j], expected.At(frame).q_sdk[j]);
+        EXPECT_DOUBLE_EQ(b.dq_des[j], expected.At(frame).qd_sdk[j]);
+      }
+    }
+  }
+  EXPECT_EQ(tilted.state(), ServeControllerState::kFollowThrough);
+  const auto audit = tilted.TakeDiag().playback;
+  EXPECT_NEAR(audit.start_support_rad, -.08, 1e-9);
+  EXPECT_NEAR(audit.max_csv_q_delta_rad, .08, 1e-9);
+  EXPECT_DOUBLE_EQ(audit.max_arm_csv_q_delta_rad, 0.);
+  EXPECT_DOUBLE_EQ(audit.max_arm_csv_dq_delta_rad_s, 0.);
+}
+
+TEST(PpServeController, MovingPitchSupportIsContinuousOnServeButton) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  controller.Start();
+  for (std::size_t t = 0; t < a3_pingpong::kServe025FullbodyTransitionTicks; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+  const Eigen::Quaterniond q(Eigen::AngleAxisd(-.04, Eigen::Vector3d::UnitY()));
+  state.imu_quat_wxyz << q.w(), q.x(), q.y(), q.z();
+  state.imu_gyro[1] = -.08;
+  ASSERT_TRUE(controller.ComputeCommand(600, state, command));
+  const auto before = command;
+  ASSERT_LT(before.dq_des[23], -.05);
+  controller.TriggerReadyToServe();
+  ASSERT_TRUE(controller.ComputeCommand(601, state, command));
+  EXPECT_LT((command.q_des-before.q_des).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.dq_des-before.dq_des).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.kp-before.kp).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.kd-before.kd).cwiseAbs().maxCoeff(), 1e-12);
+  EXPECT_LT((command.tau_ff-before.tau_ff).cwiseAbs().maxCoeff(), 1e-12);
+}
+
+TEST(PpServeController, SlowStandReturnKeepsEntryContinuousAndLowersArmsOverTwoAndHalfSeconds) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  controller.SetPolicyHandoffFrame(110);
+  controller.SetPolicyReturnSeconds(2.5);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  for (unsigned t = 0; t <= 110; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(t, state, command));
+  const auto source = command;
+  ASSERT_TRUE(controller.ComputeCommand(111, state, command));
+  ExpectPdCommand(command, source.q_des, source.dq_des, kp, kd);
+  for (unsigned t = 1; t <= 100; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(111+t, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kHandoffReady);
+  EXPECT_GT((command.q_des.segment(5,14)-stand.segment(5,14)).cwiseAbs().maxCoeff(), .1);
+  for (unsigned t = 101; t <= 250; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(111+t, state, command));
+  ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd);
+  for (unsigned t = 0; t < 20; ++t)
+    ASSERT_TRUE(controller.ComputeCommand(400+t, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
+}
+
+TEST(PpServeController, RepeatedShortReplayIgnoresButtonPhaseAndSupportNoise) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto csv = timeline;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  controller.SetPolicyHandoffFrame(110);
+  controller.SetPolicyReturnSeconds(2.5);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  std::vector<robot_io::RobotCommand> reference;
+  double pinned = 0.;
+  for (unsigned cycle = 0; cycle < 3; ++cycle) {
+    state = StateAt(stand);
+    AdvanceToReady(controller, state, command);
+    const Eigen::Quaterniond q(Eigen::AngleAxisd(-.015, Eigen::Vector3d::UnitY()));
+    state.imu_quat_wxyz << q.w(), q.x(), q.y(), q.z();
+    // Different READY dwell and opposite last-sample gyro phases used to
+    // redefine the swing's position and velocity on every button press.
+    for (unsigned i = 0; i < 100 + cycle * 37; ++i) {
+      state.imu_gyro[1] = (i % 2) ? .08 : -.08;
+      ASSERT_TRUE(controller.ComputeCommand(i, state, command));
+    }
+    TriggerAndSettle(controller, state, command);
+    EXPECT_NEAR(command.dq_des[23], 0., 1e-12);
+    const auto settled = command;
+    for (unsigned frame = 0; frame <= 110; ++frame) {
+      state.imu_gyro[1] = (frame + cycle) % 2 ? .1 : -.1;
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      if (frame == 0) {
+        EXPECT_TRUE(command.q_des.isApprox(settled.q_des, 0.));
+        EXPECT_TRUE(command.dq_des.isApprox(settled.dq_des, 0.));
+      }
+      if (cycle == 0) reference.push_back(command);
+      else ExpectPdCommand(command, reference[frame].q_des,
+                           reference[frame].dq_des, reference[frame].kp,
+                           reference[frame].kd);
+      EXPECT_TRUE(command.q_des.segment(5,14).isApprox(csv.At(frame).q_sdk.segment(5,14), 0.));
+      EXPECT_TRUE(command.dq_des.segment(5,14).isApprox(csv.At(frame).qd_sdk.segment(5,14), 0.));
+    }
+    const auto audit = controller.TakeDiag().playback;
+    if (cycle == 0) pinned = audit.start_support_rad;
+    EXPECT_DOUBLE_EQ(audit.start_support_rad, pinned);
+    EXPECT_DOUBLE_EQ(audit.start_support_velocity, 0.);
+    EXPECT_EQ(audit.frames, 111U);
+    EXPECT_TRUE(audit.finished);
+    state = StateAt(stand);
+    for (unsigned tick = 0; tick < 400; ++tick)
+      ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    ASSERT_EQ(controller.state(), ServeControllerState::kComplete);
+  }
+}
+
+TEST(PpServeController, FirstPlayWaitingTimeCannotSelectSessionSupport) {
+  const auto csv = LoadTimeline();
+  const auto stand = csv.complete().q_sdk;
+  std::vector<robot_io::RobotCommand> reference;
+  for (int wait : {0, 1, 10, 100, 3000}) {
+    PpServeController controller(csv, stand, PositiveGains(90), PositiveGains(3), nullptr);
+    controller.SetPolicyHandoffFrame(110);
+    auto state = StateAt(stand);
+    const Eigen::Quaterniond q(Eigen::AngleAxisd(-.015, Eigen::Vector3d::UnitY()));
+    state.imu_quat_wxyz << q.w(), q.x(), q.y(), q.z();
+    robot_io::RobotCommand command;
+    AdvanceToReady(controller, state, command);
+    const double prepared_support = command.q_des[23] - csv.ready().q_sdk[23];
+    for (int tick = 0; tick < wait; ++tick) {
+      state.imu_gyro[1] = tick % 2 ? .08 : -.08;
+      ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    }
+    TriggerAndSettle(controller, state, command);
+    for (unsigned frame = 0; frame <= 110; ++frame) {
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      if (wait == 0) reference.push_back(command);
+      else ExpectPdCommand(command, reference[frame].q_des, reference[frame].dq_des,
+                           reference[frame].kp, reference[frame].kd);
+    }
+    EXPECT_DOUBLE_EQ(controller.TakeDiag().playback.start_support_rad, prepared_support);
+  }
+}
+
+TEST(PpServeController, NativeReleaseSharesCommandThreadAndNeverUsesWorkerForRelease) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto expected = timeline;
+  std::atomic<int> worker_releases{0};
+  PpGripperWorkerTransport transport;
+  transport.exchange = [&](PpGripperCommand edge, std::chrono::milliseconds,
+                           PpGripperReceipt& receipt, std::string&) {
+    if (edge == PpGripperCommand::kRelease) ++worker_releases;
+    receipt = SuccessfulReceipt(edge);
+    return true;
+  };
+  auto worker = std::make_unique<PpGripperWorker>(std::move(transport));
+  std::string error;
+  ASSERT_TRUE(worker->Start(error));
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), std::move(worker));
+  controller.SetReleaseLeadFrames(1);
+  const auto command_thread = std::this_thread::get_id();
+  std::vector<std::size_t> emitted_frames;
+  std::size_t frame = 0;
+  controller.SetNativeReleasePublisher([&](std::uint64_t& stamp) {
+    EXPECT_EQ(std::this_thread::get_id(), command_thread);
+    emitted_frames.push_back(frame);
+    stamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    return true;
+  });
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  for (frame = 0; frame <= 110; ++frame) {
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+    EXPECT_TRUE(command.q_des.isApprox(expected.At(frame).q_sdk, 0.));
+    EXPECT_TRUE(command.dq_des.isApprox(expected.At(frame).qd_sdk, 0.));
+    if (frame == 47) {
+      EXPECT_GT(controller.ConsumeReleaseClockRebase(), 0U);
+      EXPECT_EQ(controller.ConsumeReleaseClockRebase(), 0U);
+      EXPECT_TRUE(controller.TakeDiag().release_acknowledged);
+    }
+  }
+  EXPECT_EQ(emitted_frames, (std::vector<std::size_t>{47,57,67,77,87}));
+  EXPECT_EQ(worker_releases.load(), 0);
+}
+
+TEST(PpServeController, NativeReleaseFailureReturnsSmoothlyWithoutStrike) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  controller.SetPolicyReturnSeconds(2.5);
+  controller.SetReleaseLeadFrames(1);
+  controller.SetNativeReleasePublisher([](std::uint64_t&) { return false; });
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  for (unsigned frame = 0; frame < 47; ++frame)
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+  const auto before = command;
+  ASSERT_TRUE(controller.ComputeCommand(47, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kHandoffReady);
+  EXPECT_EQ(controller.TakeDiag().playback.frames, 47U);
+  EXPECT_TRUE(controller.TakeDiag().playback.finished);
+  ExpectPdCommand(command,before.q_des,before.dq_des,before.kp,before.kd);
+  ASSERT_TRUE(controller.ComputeCommand(48, state, command));
+  ExpectPdCommand(command,before.q_des,before.dq_des,before.kp,before.kd);
+  for (unsigned tick = 0; tick < 400; ++tick)
+    ASSERT_TRUE(controller.ComputeCommand(49+tick, state, command));
+  EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
+}
+
+TEST(PpServeController, MissingOrLateHalTelemetryDoesNotInterruptCsvReplay) {
+  for (std::int64_t delay : {0LL, 39'000'000LL, 49'000'000LL}) {
+    auto timeline = LoadTimeline();
+    const auto expected = timeline;
+    const auto stand = timeline.complete().q_sdk;
+    PpServeController controller(std::move(timeline), stand,
+        PositiveGains(90), PositiveGains(3), nullptr);
+    controller.SetReleaseLeadFrames(1);
+    controller.SetPolicyHandoffFrame(110);
+    std::uint64_t now_ns = 1'000'000'000, publication_ns = 0;
+    controller.SetNativeReleasePublisher([&](std::uint64_t& stamp) {
+      stamp = now_ns + 20'000;
+      if (!publication_ns) publication_ns = stamp;
+      return true;
+    });
+    auto state = StateAt(stand);
+    robot_io::RobotCommand command;
+    AdvanceToReady(controller, state, command);
+    TriggerAndSettle(controller, state, command);
+    a3_pingpong::PpServeCadence cadence;
+    unsigned frame = 0;
+    for (; frame <= 110; now_ns += 2'000'000) {
+      if (cadence.tracking_hal()) {
+        const auto edge = publication_ns + delay;
+        cadence.ObserveHalSelection(now_ns, delay && now_ns >= edge ? edge : 0);
+      }
+      if (!cadence.Poll(now_ns)) continue;
+      ASSERT_EQ(now_ns, 1'000'000'000 + frame * 10'000'000ULL);
+      ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+      EXPECT_TRUE(command.q_des.isApprox(expected.At(frame).q_sdk, 0.));
+      EXPECT_TRUE(command.dq_des.isApprox(expected.At(frame).qd_sdk, 0.));
+      if (const auto published = controller.ConsumeReleaseClockRebase())
+        cadence.TrackHalSelection(published);
+      ++frame;
+    }
+    EXPECT_EQ(controller.TakeDiag().playback.frames, 111U);
+    EXPECT_GT(controller.TakeDiag().playback.contact_reference_frame_ns, 0U);
+    EXPECT_TRUE(cadence.ConsumeMissedSelection());
+  }
+}
+
+TEST(PpServeController, KernelDefaultPlaysCompleteFollowThroughAndRecovery) {
+  auto timeline = LoadTimeline();
+  const auto expected = timeline;
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(90), kd = PositiveGains(3);
+  EXPECT_EQ(a3_pingpong::DefaultServeHandoffFrame(false, false), 110U);
+  EXPECT_EQ(a3_pingpong::DefaultServeHandoffFrame(false, true), 467U);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  controller.SetPolicyHandoffFrame(a3_pingpong::DefaultServeHandoffFrame(true, false));
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  // The former cut occurs while the right arm is still moving quickly.
+  ASSERT_GT(expected.At(110).qd_sdk.segment(12, 7).cwiseAbs().maxCoeff(), 6.);
+  for (std::size_t frame = 0; frame <= 467; ++frame) {
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+    ASSERT_EQ(controller.TakeDiag().frame, frame);
+    ExpectPdCommand(command, expected.At(frame).q_sdk, expected.At(frame).qd_sdk, kp, kd);
+    if (frame < 467) ASSERT_NE(controller.state(), ServeControllerState::kComplete);
+    ASSERT_NE(controller.state(), ServeControllerState::kHandoffReady);
+  }
+  EXPECT_EQ(controller.state(), ServeControllerState::kComplete);
+  EXPECT_EQ(controller.TakeDiag().playback.frames, 468U);
+  ExpectPdCommand(command, stand, Eigen::VectorXd::Zero(31), kp, kd);
+}
+
+TEST(PpServeController, FullReplayKeepsSupportFrozenUntilCsvRecovery) {
+  auto timeline = LoadTimeline();
+  const auto expected = timeline;
+  const auto stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand, PositiveGains(90), PositiveGains(3), nullptr);
+  auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  AdvanceToReady(controller, state, command);
+  TriggerAndSettle(controller, state, command);
+  // Changing swing IMU must not change the pre-existing strike/follow-through.
+  state.imu_gyro[1] = .3;
+  double recovery_support = 0.;
+  for (std::size_t frame = 0; frame <= 467; ++frame) {
+    ASSERT_TRUE(controller.ComputeCommand(frame, state, command));
+    EXPECT_TRUE(command.q_des.segment(5, 14).isApprox(expected.At(frame).q_sdk.segment(5, 14), 0.));
+    if (frame < a3_pingpong::kServe025RecoveryFrame) {
+      ASSERT_DOUBLE_EQ(command.q_des[23], expected.At(frame).q_sdk[23]);
+      ASSERT_DOUBLE_EQ(command.dq_des[23], expected.At(frame).qd_sdk[23]);
+    } else recovery_support = std::max(recovery_support, std::abs(command.q_des[23] - expected.At(frame).q_sdk[23]));
+  }
+  EXPECT_GT(recovery_support, .01);
+  EXPECT_TRUE(command.q_des.isApprox(stand, 0.));
+  EXPECT_TRUE(command.dq_des.isZero(0.));
+}

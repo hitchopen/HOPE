@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ROS-free rules for the live P1 marker-count operator interface."""
+"""ROS-free rules for the selected UCB robot marker operator interface."""
 
 from __future__ import annotations
 
@@ -7,11 +7,13 @@ import math
 from typing import Iterable
 
 
-EXPECTED_P1_MARKERS = 10
+EXPECTED_MARKERS = 10
+# Compatibility for downstream imports written before P2 support.
+EXPECTED_P1_MARKERS = EXPECTED_MARKERS
 
 
 def marker_has_physical_sample(marker) -> bool:
-    """Match the physical-sample rule used by the P1 CAD calibrator.
+    """Match the physical-sample rule used by the marker CAD calibrator.
 
     NatNet params bit 0 means occluded and bit 1 means point-cloud solved.
     Model-filled positions are not counted as markers received by the laptop.
@@ -32,7 +34,7 @@ def marker_has_physical_sample(marker) -> bool:
 
 
 def count_physical_markers(
-    markers: Iterable[object], *, expected_count: int = EXPECTED_P1_MARKERS
+    markers: Iterable[object], *, expected_count: int = EXPECTED_MARKERS
 ) -> tuple[int, int]:
     """Return ``(bounded_count, raw_unique_count)`` using unique member IDs."""
 
@@ -51,12 +53,16 @@ def marker_count_text(
     count: int,
     *,
     fresh: bool,
-    expected_count: int = EXPECTED_P1_MARKERS,
+    expected_count: int = EXPECTED_MARKERS,
     raw_count: int | None = None,
+    asset_name: str = "UCB_P1",
 ) -> str:
+    asset = str(asset_name).strip()
+    if asset not in {"UCB_P1", "UCB_P2"}:
+        raise ValueError("asset_name must be UCB_P1 or UCB_P2")
     if not fresh:
-        return f"P1 live markers = 0/{expected_count} | NO FRESH LAPTOP DATA"
+        return f"{asset} live markers = 0/{expected_count} | NO FRESH LAPTOP DATA"
     suffix = ""
     if raw_count is not None and raw_count > expected_count:
         suffix = f" | raw_unique={raw_count} bounded_for_UI={expected_count}"
-    return f"P1 live markers = {int(count)}/{expected_count}{suffix}"
+    return f"{asset} live markers = {int(count)}/{expected_count}{suffix}"

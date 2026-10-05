@@ -1,0 +1,13 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/image.proto";
+
+message ColorDepthImageDataChannel {
+  Header header = 1;
+  PubImageData color_r_data = 2;
+  PubImageData color_g_data = 3;
+  PubImageData color_b_data = 4;
+  PubImageData depth_data = 5;
+}

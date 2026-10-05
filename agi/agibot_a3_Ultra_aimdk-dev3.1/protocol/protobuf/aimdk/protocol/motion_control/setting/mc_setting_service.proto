@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/motion_control/setting/fallcheck.proto";
+
+
+/**
+ * @brief 运控设置服务
+ */
+service MotionControlSettingService {
+  // 设置摔倒检测功能开启
+  rpc SetFallCheck(MotionControlFallCheckEnableRequest) returns (CommonResponse);
+
+}
+

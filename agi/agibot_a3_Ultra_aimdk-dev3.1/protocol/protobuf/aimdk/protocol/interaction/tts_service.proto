@@ -1,0 +1,247 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/common/header.proto";
+
+enum TTSStatusType {
+  TTSConfigStatusType_Unknown = 0;
+  TTSStatusType_Begin = 1;              // 播报开始
+  TTSStatusType_Playing = 2;            // 播报中
+  TTSStatusType_End = 3;                // 播报结束
+  TTSStatusType_Stop = 4;               // 暂停播报/取消播报/中断播报
+  TTSStatusType_Error = 5;              // 播报失败
+  TTSStatusType_InQue = 6;              // 在播报队列中，尚未开始播报
+  TTSStatusType_NOTInQue = 7;           // 播报队列无此文本，也不在播报
+}
+
+message TTSStatus {
+  string text = 1;                    // 播报文本
+  uint32 priority = 2;                // 最终优先级系数
+  string trace_id = 3;                // 与语音对话的event_id相匹配（例如event_id为001时，trace_id为001_count_4，标识当前对话中的第四句TTS播报），播报方如果传了这个trace_id，则返回对应的trace_id
+  TTSStatusType tts_status = 4;       // 播报状态
+  string domain  = 5;                 // 标识调用方来源
+  string error_message = 6;           // 仅当TTSStatusType为TTSStatusType_Error时有效，当前错误与业务方无关，暂不定义具体错误码
+  Header header = 7;
+}
+
+enum PriorityLevel {
+  UNKNOWN = 0;
+  BACKGROUND_L1 = 1;              // 后台服务层
+  SERVICE_L2 = 2;               // 主动服务层
+  MISSION_L4 = 4;               // 任务执行层
+  INTERACTION_L6 = 6;           // 交互相应层
+  WARNING_L8 = 8;               // 危险预警层
+  SAFETY_L10 = 10;              // 生命安全层
+}
+
+enum TTSSpeed {
+    TTSSpeed_000x = 0;          //占位，不启用，无意义
+    TTSSpeed_050x = 1;          //超慢语速
+    TTSSpeed_075x = 2;          //慢语速
+    TTSSpeed_100X = 3;          //正常语速
+    TTSSpeed_150X = 4;          //快语速
+    TTSSpeed_200x = 5;          //超快语速
+}
+
+message SetTTSParametersRequest {
+  RequestHeader header = 1;
+  TTSSpeed tts_speed = 2;          // 可选：语速（兼容原功能）
+  string speaker_id = 3;             // 可选：发音人ID
+  string emotion = 4;              // 可选：情感风格选择
+
+  // 以上参数必须选一个传
+  // 可选扩展：其他参数（如音量、音调等，按需添加）
+  // float volume = 5;
+  // float pitch = 6;
+}
+
+//PriorityLevel X 100 + priority_weight 为最终的优先级系数，内部逻辑实际上就是单纯的数字比大小，0最低，1000 最高，大部分情况下不需要做加权
+// 优先级计算规则：
+  // 最终优先级系数 = PriorityLevel对应数值 + priority_weight（0-99，最小单位1）
+  // 示例：WARNING_L8（8）X 100 + 权重8 → 808 
+  // 同优先级系数（不传avoid_interruption；或传 false）：后请求打断先请求（如800的A播报时插入800的B，B打断A）
+  // 同优先级系数（avoid_interruption传 true）：后请求不打断先请求，进入队列播报（ 此时 800 的 A 正在播报，进去一个 800 的 B，A 结束后就会开始播报 B）
+  // 高优先级系数：打断低优先级系数（如800的A播报时插入900的B，B打断A）
+  // 低优先级系数：不打断高优先级系数，是否播报由业务方决定（如80的A播报时插入50的B，B不播报且 is_success 为false）
+  // 强调：语音交互相关默认使用 INTERACTION_L6 ，警报音默认用 WARNING_L8，现有版本绝大部分都是这两层级，其它层级非产品要求勿用！！！加权勿用！！！！
+
+message PlayTTSRequest {
+  RequestHeader header = 1;
+  string text = 2;                             // 必要项
+  PriorityLevel priority_level = 3;            // 必要项，默认使用 INTERACTION_L6
+  uint32 priority_weight = 4;                  // 可选，非产品要求勿用，优先级加权参数(0-99)，最小单位为 1
+  string domain = 5;                           // 必要项，标识调用方来源
+  string trace_id = 6;                         // 可选，用于标识播报的请求id
+  bool is_interrupted = 7;                     // 必要项，是否打断同等优先级播报（ true：打断；false：不打断，进入队列播报）
+
+  // uint32 voice_id = 8;    // 发音人ID（可选，与SetTTSParametersRequest中的voice_id一致）
+  // string emotion = 9;     // 情感风格（可选，如"happy"、"sad"等）
+}
+
+message NlgCustomParam {
+  message Param {
+    enum ParamType {
+      ParamType_TextList = 0;
+      ParamType_SceneIds = 1;
+    }
+    ParamType type = 1;
+    repeated string values = 2;
+  }
+
+  Param custom_params = 1;
+}
+
+enum LanguageType {
+  LanguageType_UNDEFINED = 0;  // 默认值，如果不填就是默认值，播放nlg时会使用配置的主语言
+  LanguageType_ZH = 1; // 中文
+  LanguageType_EN = 2; // 英文
+  LanguageType_AR = 3; // 阿拉伯语
+  LanguageType_DE = 4; // 德语
+  LanguageType_ES = 5; // 西班牙语
+  LanguageType_FR = 6; // 法语
+  LanguageType_JA = 7; // 日语
+  LanguageType_KO = 8; // 韩语
+  LanguageType_RU = 9; // 俄语
+  LanguageType_TH = 10; // 泰语
+}
+
+// 触发NLG并播放的请求消息，使用需要在交互的 nlg 文件里面去配置，sceneid 用啥开发自定义就行，尽量名称就能让人知道这是干啥的，比如 aimmaster_switch_mode_success
+message GetAndPlayNLGTextRequest {
+  RequestHeader header = 1;
+  string domain = 2;                         // 暂不启用，当前均使用 common  
+  string scene_id = 3;                       // 必要项，NLG触发场景类型（如"aimmaster_switch_mode_success"、"robot_low_power_warning"等）
+  PriorityLevel priority_level = 4;          // 必要项，默认使用 INTERACTION_L60
+  uint32 priority_weight = 5;                // 可选，非产品要求勿用，优先级加权参数(0-10)，最小单位为 1
+  bool is_interrupted = 6;                   // 必要项，是否打断同等优先级播报（ true：打断；false：不打断，进入队列播报）
+  string trace_id = 7;                         // 可选，用于标识播报的请求id
+  
+  /* 
+   * 可选，NLG参数
+   *  @key: placeholder, placeholder名称与scene id在文档获取 https://agirobot.feishu.cn/wiki/OoLDwtVogiLmAokvd3Oc55mln4o?sheet=pZv5uB
+   *  @value: NlgCustomParam
+   *  例如播报nlg: 抱歉，发现${N}项异常，分别是${SLOTS}，请您先帮我解除异常吧！那么nlg_params可以填 {"N": {ParamType_TextList, ["2"]}, "SLOTS": {ParamType_SceneIds, [scene_id1, scene_id2]}}; 
+   *  例如播报nlg: 我当前的电量是百分之${number}. 那么nlg_params可以填 {"number": {ParamType_TextList, ["80"]}}
+  */
+  map<string, NlgCustomParam> nlg_params = 8;
+  LanguageType language_type = 9 [deprecated = true];// 失效，请使用 language_tag 代替
+  string language_tag = 10;// 可选项，语言标签，如 "zh" / "en" 
+}
+
+message PlayTTSResponse {
+  ResponseHeader header = 1;
+  string text = 2;                                //PlayMediaFileRequest 同样复用此 rsp，file_name 放在 text 中
+  PriorityLevel priority_level = 3; 
+  uint32 priority_weight = 4;                     // 加权参数(0-10)，最小单位为 1
+  string domain = 5;                              // 标识调用方来源
+  string trace_id = 6;
+  bool is_sucess = 7;                             // 是否成功播放
+  string error_message = 8;                       // 错误信息
+  uint32 estimated_duration = 9;               // 当前文本预计耗时（单位：毫秒）
+}
+
+message PlayMediaFileRequest {
+  RequestHeader header = 1;
+  string file_name = 2;                        // 文件名称，指定放在固定路径下/agibot/data/var/interaction/audio/,目前只支持 pcm
+  uint32 sample_rate = 3;                       // 可选，当前不支持此能力。默认音频为 16k1ch
+  PriorityLevel priority_level = 4;            // 必要项，默认使用 INTERACTION_L6
+  uint32 priority_weight = 5;                  // 可选，非产品要求勿用，优先级加权参数(0-99)，最小单位为 1
+  string domain = 6;                           // 必要项，标识调用方来源
+  string trace_id = 7;                         // 可选，用于标识播报的请求id
+  bool is_interrupted = 8;                     // 必要项，请默认传 true。是否打断同等优先级播报（ true：打断；false：不打断，进入队列播报）
+}
+
+message GetTTSStatusRequest {
+  RequestHeader header = 1;
+  string text = 2;
+  string trace_id = 3;
+}
+
+message GetTTSStatusResponse {
+  ResponseHeader header = 1;
+  TTSStatus tts_status = 2;
+}
+
+message StopTTSTraceIdRequest {
+  RequestHeader header = 1;
+  string trace_id = 2;
+}
+message GetTTSDurationResponse {
+  ResponseHeader header = 1;
+  string text = 2;                                
+  string domain = 3;                              // 标识调用方来源
+  string trace_id = 4;
+  uint32 estimated_duration = 5;               // 当前文本预计耗时（单位：毫秒）
+}
+
+message SpeakerConfig {
+  string speaker_id = 1;      // 发音人唯一标识
+  string tts_engine = 2;      // TTS引擎类型 (如: baidu_tts, volcano_tts)
+  string display_name = 3;    // 发音人显示名称
+  string language = 5;        // 支持语言 (如: zh, en)
+  string description = 6;     // 发音人描述信息
+}
+
+// GetTTSParametersResponse 返回示例
+// JSON格式响应示例：
+// {
+//   "tts_speed": 3,
+//   "emotion": "default",
+//   "default_speaker_id": "001",
+//   "speaker_list": [
+//     {
+//       "speaker_id": "001",
+//       "tts_engine": "baidu_tts",
+//       "display_name": "清新男声"
+//     },
+//     {
+//       "speaker_id": "002", 
+//       "tts_engine": "baidu_tts",
+//       "display_name": "阳光男声"
+//     }
+//   ]
+// }
+
+message GetTTSParametersResponse {
+  ResponseHeader header = 1;
+  TTSSpeed tts_speed = 2;          // 当前语速设置
+  string emotion = 3;              // 当前情感风格
+  string default_speaker_id = 4;             // 当前发音人ID
+  repeated SpeakerConfig speaker_list = 5;  // 可用的发音人配置列表
+}
+
+// 音频合成请求（仅合成音频文件，不播放）
+message AudioSynthesisRequest {
+  RequestHeader header = 1;
+  string text = 2;                       // 必要项，要合成的文本内容
+  string event_id = 3;                   // 可选，事件ID，仅做日志trace使用
+  string domain = 4;                     // 可选，标识调用方来源
+}
+
+// 音频合成响应
+message AudioSynthesisResponse {
+  ResponseHeader header = 1;
+  string text = 2;                       // 原始请求文本
+  string item_id = 3;                    // 该次合成的唯一标识
+  string event_id = 4;                   // 事件ID
+  string audio_path = 5;                 // 合成后的音频文件路径（opus 或 wav 格式）
+  bool is_success = 6;                   // 是否合成成功
+  string error_message = 7;              // 错误信息（is_success 为 false 时有效）
+  uint32 sample_rate = 8;                // 采样率（如 24000、48000）
+  uint32 channels = 9;                   // 声道数（如 1=单声道）
+  string audio_file_format = 10;         // audio_path 文件的编码格式（"opus" 或 "wav"）
+  bytes audio_buffer = 11;               // 合成后的完整音频 PCM 裸数据（16-bit signed LE，格式由 sample_rate 和 channels 决定）
+}
+
+service TTSService {
+  rpc PlayTTS(PlayTTSRequest) returns (PlayTTSResponse);
+  rpc StopTTS(CommonRequest) returns (CommonResponse);
+  rpc StopTTSTraceId(StopTTSTraceIdRequest) returns (CommonResponse);
+  rpc SetTTSParameters(SetTTSParametersRequest) returns (CommonResponse);
+  rpc GetAndPlayNLGText(GetAndPlayNLGTextRequest) returns (PlayTTSResponse);
+  rpc PlayMediaFile(PlayMediaFileRequest) returns (PlayTTSResponse);
+  rpc GetAudioStatus(GetTTSStatusRequest) returns (GetTTSStatusResponse);
+  rpc GetTTSDuration(PlayTTSRequest) returns (GetTTSDurationResponse);
+  rpc GetTTSParameters(CommonRequest) returns (GetTTSParametersResponse);
+  rpc SynthesizeAudio(AudioSynthesisRequest) returns (AudioSynthesisResponse);
+}

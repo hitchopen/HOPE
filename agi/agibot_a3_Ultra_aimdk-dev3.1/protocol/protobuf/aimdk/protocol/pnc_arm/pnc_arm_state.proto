@@ -1,0 +1,122 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+/**
+ * @brief PncArm的控制模式
+ */
+enum PncArmControlMode {
+
+  // 未知，不处理
+  PncArmControlMode_UNKNOWN = 0;
+
+  // 啥都不干模式
+  // 不会执行任何指令，也不会下发关节角，pnc_arm默认模式
+  PncArmControlMode_PASSIVE = 1;
+
+  // 离线规划模式
+  // 接收目标点，按顺序依次离线规划出无碰撞轨迹并执行
+  PncArmControlMode_OFFLINE_PLANNING = 2;
+
+  // 实时规划模式
+  // 接收目标点，实时规划出无碰撞轨迹并执行，新目标会打断原目标
+  PncArmControlMode_ONLINE_PLANNING = 3;
+
+  // 在线插值模式
+  // 接收低频目标，在线插值为高频平滑轨迹，无碰撞检查，新目标会打断原目标
+  PncArmControlMode_ONLINE_TRAJECTORY = 4;
+
+  // 躲避自碰撞模式
+  // 如果初始状态是自碰撞的，可以进入这个模式进行躲避
+  PncArmControlMode_COLLISION_ESCAPE = 5;
+
+  // IK伺服模式(不推荐使用)
+  // 解完IK直接下发关节角
+  PncArmControlMode_IK_SERVO = 6;
+
+  // 自定义模式
+  // 用于开发新的模式，但还未正式进入协议仓库
+  PncArmControlMode_EXTENSION = 5000;
+}
+
+/**
+ * @brief PncArm控制模式切换状态
+ */
+enum PncArmControlModeStatus {
+  // 未知状态
+  PncArmControlModeStatus_UNKNOWN = 0;
+
+  // 准备中
+  PncArmControlModeStatus_PREPARE = 1;
+
+  // 运行中
+  PncArmControlModeStatus_RUNNING = 2;
+
+  // 完成
+  PncArmControlModeStatus_DONE = 3;
+}
+
+/**
+ * @brief PncArm当前任务的规划状态
+ */
+enum PncArmPlanningState {
+  PncArmPlanningState_UNKNOWN = 0;           // 非规划状态
+  PncArmPlanningState_IDLE = 1;              // 空闲
+  PncArmPlanningState_INITIALIZING = 2;      // 规划器初始化
+  PncArmPlanningState_IK_SOLVING = 3;        // 逆解求解中
+  PncArmPlanningState_PLANNING = 4;          // 规划中
+  PncArmPlanningState_EXECUTING = 5;         // 执行中
+  PncArmPlanningState_SUCCESS = 6;           // 规划成功
+
+  PncArmPlanningState_REFUSED = 100;         // 拒绝不安全任务
+  PncArmPlanningState_IK_FAILED = 101;       // 逆解失败
+  PncArmPlanningState_PLAN_FAILED = 102;     // 规划失败
+  PncArmPlanningState_EXECUTE_FAILED = 103;  // 执行失败
+  PncArmPlanningState_TASK_INVALID = 104;    // 任务无效
+  PncArmPlanningState_START_INVALID = 105;   // 起始状态无效
+
+  PncArmPlanningState_PAUSED = 200;          // 规划模式下，因为收到安全信息等情况而暂停规划
+}
+
+/**
+ * @brief PncArm控制模式切换状态
+ */
+message PncArmControlModeInfo {
+  // 当前控制模式
+  PncArmControlMode current_mode = 1;
+
+  // 自定义模式名称
+  string extension_mode = 2;
+
+  // 模式状态
+  PncArmControlModeStatus status = 3;
+}
+
+/**
+ * @brief PncArm控制模式切换状态
+ */
+message PncArmControlModeCommand {
+  // 当前控制模式
+  PncArmControlMode control_mode = 1;
+
+  // 自定义模式名称
+  string extension_mode = 2;
+}
+
+/**
+ * @brief PncArm当前任务信息
+ */
+message PncArmPlanningInfo {
+  PncArmPlanningState state = 2;
+  uint64 task_id = 3;
+  string task_info = 4;
+}
+
+/**
+ * @brief PncArm模块的状态
+ */
+message PncArmState {
+  PncArmControlModeInfo control_mode_info = 1;
+  PncArmPlanningInfo planning_info = 2;
+  bool will_be_collided = 3;
+  bool enable_future_collision = 4;
+}

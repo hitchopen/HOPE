@@ -1,0 +1,32 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/motion_control/motion/locomotion.proto";
+
+/**
+ * @brief 遥控器控制通道
+ * topic : /motion/control/locomotion_velocity
+ */
+message MotionControlLocomotionVelocityChannel {
+  // 消息头
+  Header header = 1;
+
+  // 数据
+  MotionControlLocomotionVelocity data = 2;
+}
+
+/**
+ * @brief 控腰姿态通道
+ * topic : /motion/control/move_waist
+ */
+message MotionControlMoveWaistChannel {
+  // 消息头
+  Header header = 1;
+
+  // 控制腰姿态命令数据
+  double waist_pitch = 2;       // range: [-0.5, 0.5]  单位：弧度
+  double waist_roll = 3;       // range: [-0.3, 0.3]   单位：弧度
+  double waist_yaw = 4;        // range: [-1.57, 1.57] 单位：弧度
+  double waist_height = 5;     // range: [-0.4, 0.0]   单位：米
+}

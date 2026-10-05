@@ -1,0 +1,72 @@
+syntax = "proto3";
+package aimdk.protocol;
+import public "aimdk/protocol/common/header.proto";
+
+//优先级定义https://agirobot.feishu.cn/wiki/FlRdwkAuQiwPRukboDZcFGmjnff
+//最终优先级：PlayPriority * 100 + priority_weight（0-99，最小单位1） 为最终的优先级系数
+enum PlayPriority {
+  DEFAULT =  0;
+  L1      =  1;
+  L2      =  2;
+  L3      =  3;        
+  L4      =  4;
+  L5      =  5;     
+  L6      =  6;
+  L7      =  7; 
+  L8      =  8; 
+  L9      =  9;   
+  L10     = 10;           
+}
+
+message AudioCommonResponse {
+    ResponseHeader header            = 1;
+    string pkg_name                  = 2;             
+    bool is_success                  = 3;
+}
+
+message FileRequest {
+  RequestHeader header               = 1;
+  string pkg_name                    = 2;
+  string file_name                   = 3;
+  string file_path                   = 4;
+  PlayPriority priority              = 5;
+  uint32 priority_weight             = 6; // 可选，非产品要求勿用，优先级加权参数(0-99)
+  uint32 channles                    = 7; // pcm文件需要
+  uint32 samplerate                  = 8; // pcm文件需要
+}
+
+enum VolumeType {
+  //本体扬声器
+  SPEAKRE_BUILT_IN                   = 0;
+
+  //蓝牙音箱
+  SPEAKER_BLUETOOTH                  = 1;
+
+  //麦克风
+  MIC                                = 10;
+}
+
+message VolumeRequest {
+    RequestHeader header             = 1; // 请求头
+    uint32 audio_volume              = 2; // 系统音量
+    bool is_mute                     = 3; // 是否静音
+    VolumeType type                  = 4; // 音量类型
+}
+
+message VolumeResponse {
+    ResponseHeader header            = 1;
+    uint32 audio_volume              = 2;
+    bool is_mute                     = 3;
+    VolumeType type                  = 4;
+}
+
+message MicSourceRequest  {
+  RequestHeader header               = 1; // 请求头
+  uint32 mic_source                  = 2; // 0 代表本体 mic，1代表外置 mic
+}
+
+message MicSourceResponse  {
+  ResponseHeader header              = 1; // 响应头
+  uint32 mic_source                  = 2; // 0 代表本体 mic，1代表外置 mic
+  bool muted                         = 3; // true mute 状态， false 正常录音状态
+}

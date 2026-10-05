@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1000</width>
+    <height>690</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <widget class="QPushButton" name="create_map_button">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>640</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>创建地图</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="canncel_map_button">
+   <property name="geometry">
+    <rect>
+     <x>240</x>
+     <y>640</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>取消建图</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="save_map_button">
+   <property name="geometry">
+    <rect>
+     <x>130</x>
+     <y>640</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>保存建图</string>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="ip_input">
+   <property name="geometry">
+    <rect>
+     <x>70</x>
+     <y>590</y>
+     <width>113</width>
+     <height>25</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>590</y>
+     <width>81</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>IP输入：</string>
+   </property>
+  </widget>
+  <widget class="QGraphicsView" name="graphicsView">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>10</y>
+     <width>721</width>
+     <height>561</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="connect_button">
+   <property name="geometry">
+    <rect>
+     <x>200</x>
+     <y>580</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>测试连接</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="show_some">
+   <property name="geometry">
+    <rect>
+     <x>320</x>
+     <y>590</y>
+     <width>221</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>信息框</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="draw_button">
+   <property name="geometry">
+    <rect>
+     <x>550</x>
+     <y>580</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>绘制模式</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="unknow_button">
+   <property name="geometry">
+    <rect>
+     <x>550</x>
+     <y>640</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>未知区域</string>
+   </property>
+  </widget>
+  <widget class="QListWidget" name="map_list">
+   <property name="geometry">
+    <rect>
+     <x>760</x>
+     <y>30</y>
+     <width>211</width>
+     <height>541</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_2">
+   <property name="geometry">
+    <rect>
+     <x>830</x>
+     <y>10</y>
+     <width>61</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>地图列表</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="select_map_button">
+   <property name="geometry">
+    <rect>
+     <x>760</x>
+     <y>580</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>切换地图</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="delete_map_button">
+   <property name="geometry">
+    <rect>
+     <x>760</x>
+     <y>640</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>删除地图</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="relocation_button">
+   <property name="geometry">
+    <rect>
+     <x>870</x>
+     <y>580</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>重定位</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="get_map_list_button">
+   <property name="geometry">
+    <rect>
+     <x>870</x>
+     <y>640</y>
+     <width>89</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>刷新列表</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="clear_button">
+   <property name="geometry">
+    <rect>
+     <x>650</x>
+     <y>580</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>清空绘画</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="rename_map_button">
+   <property name="geometry">
+    <rect>
+     <x>650</x>
+     <y>640</y>
+     <width>91</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>重命名地图</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="show_current_working_map">
+   <property name="geometry">
+    <rect>
+     <x>290</x>
+     <y>20</y>
+     <width>251</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

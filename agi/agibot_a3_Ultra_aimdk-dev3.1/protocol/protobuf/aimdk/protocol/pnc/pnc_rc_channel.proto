@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/twist.proto";
+
+
+/**
+ * @brief pnc 模块的速度指令输入通道
+ *        topic:
+ *          - 用于自动控制：/aima/pnc/twist/auto
+ *          - 用于遥控控制：/aima/pnc/twist/manual
+ */
+message PncRcTwistChannel {
+  Header header = 1;
+  Twist  twist  = 2;
+}

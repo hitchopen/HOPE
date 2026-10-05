@@ -1,0 +1,20 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+message ProcessSurvivalInfo{
+  /**
+  * @brief 当前存活的进程列表（心跳正常上报）
+  */
+  repeated string survival_process_list = 2;
+
+  /**
+   * @brief 当前心跳异常的进程列表
+   */
+  repeated string dead_process_list = 3;
+
+  /**
+   * @brief 从未上线的进程列表
+   */
+  repeated string never_online_process_list = 4;
+
+}

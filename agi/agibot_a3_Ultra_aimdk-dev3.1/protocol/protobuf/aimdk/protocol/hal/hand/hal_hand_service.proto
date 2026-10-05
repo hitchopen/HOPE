@@ -1,0 +1,24 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/hand/hand.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的灵巧手控制服务
+ */
+service HalHandService {
+  /**
+   * @brief 获取灵巧手关节状态。
+   * @param CommonRequest: 获取灵巧手关节状态请求
+   * @return GetBmsStateRsp: 获取灵巧手关节状态响应
+   */
+  rpc GetHandState(CommonRequest) returns (HandStateResponse);
+
+  /**
+   * @brief 控制灵巧手关节运动。
+   * @param HandCommandRequest: 控制灵巧手运动请求
+   * @return CommonResponse: 控制灵巧手运动响应
+   */
+  rpc SetHandCommand(HandCommandRequest) returns (CommonResponse);
+}

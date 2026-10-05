@@ -1,0 +1,41 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+
+import public "aimdk/protocol/common/common.proto";
+
+
+/**
+ * @brief nvfan配置类型
+ */
+enum NvFanProfile {
+  // cool profile
+  NvFanProfile_COOL = 0;
+  // quiet profile
+  NvFanProfile_QUIET = 1;
+  // manual profile
+  NvFanProfile_MANUAL = 2;
+}
+
+/**
+ * @brief 获取nvfan配置类型响应
+ */
+message NvFanProfileRsp {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // Nvfan状态数据
+  NvFanProfile profile = 2;
+}
+
+
+
+message NvFanCommandReq {
+  // 消息头
+  RequestHeader header = 1;
+
+  NvFanProfile profile = 2;
+
+  // NvFan风扇控制指令:0-100
+  int32 fan_pwm = 3;
+}

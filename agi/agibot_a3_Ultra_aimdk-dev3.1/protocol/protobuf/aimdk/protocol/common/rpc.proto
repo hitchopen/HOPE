@@ -1,0 +1,54 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/timestamp.proto";
+import public "aimdk/protocol/common/header.proto";
+
+/**
+ * 状态定义
+ */
+enum CommonState {
+  CommonState_UNKNOWN = 0;      // 未知
+  CommonState_SUCCESS = 1;      // 成功
+  CommonState_FAILURE = 2;      // 失败
+  CommonState_ABORTED = 3;      // 中止
+  CommonState_TIMEOUT = 4;      // 超时
+  CommonState_INVALID = 5;      // 无效
+  CommonState_IN_MANUAL = 6;    // 手动
+  CommonState_NOT_READY = 100;  // 未就绪
+  CommonState_PENDING = 200;    // 等待中
+  CommonState_CREATED = 300;    // 已创建
+  CommonState_RUNNING = 400;    // 运行中
+}
+
+/**
+ * 通用请求类型
+ */
+message CommonRequest {
+  RequestHeader header = 1;
+}
+
+/**
+ * 通用返回类型
+ */
+message CommonResponse {
+  ResponseHeader header = 1;
+  CommonState state = 2;
+}
+
+/**
+ * 通用Task请求类型
+ */
+message CommonTaskRequest {
+  RequestHeader header = 1;
+  uint64 task_id = 2;
+}
+
+/**
+ * 通用Task返回类型
+ */
+message CommonTaskResponse {
+  ResponseHeader header = 1;
+  uint64 task_id = 2;
+  CommonState state = 3;
+}

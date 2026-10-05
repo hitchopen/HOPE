@@ -38,7 +38,7 @@ def test_service_selects_all_v3_stickers_and_retains_live_gates(monkeypatch, tmp
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
-    server = module.P1MarkerCadCalibrationServer()
+    server = module.UcbRobotCadCalibrationServer()
     command = server._command(tmp_path / "receipt.json")
     assert command[command.index("--marker-names") + 1] == ",".join(MARKER_NAMES)
     assert command[command.index("--minimum-frames") + 1] == "200"

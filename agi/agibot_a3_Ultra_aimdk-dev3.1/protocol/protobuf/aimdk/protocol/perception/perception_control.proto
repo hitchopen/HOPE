@@ -1,0 +1,156 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/rpc.proto";
+
+message SetSensitivityRequest {
+    RequestHeader header = 1;
+    float sensitivity = 2;
+}
+
+message SetSensitivityResponse {
+    enum Code {
+        Code_UNDEFINED = 0;
+        Code_SUCCEED = 1;
+        Code_FAILED = 2;
+    }
+    // 响应头
+    ResponseHeader header = 1;
+    // 状态码
+    Code code = 2;
+}
+
+message GetSensitivityRequest {
+    RequestHeader header = 1;
+}
+
+message GetSensitivityResponse {
+    // 响应头
+    ResponseHeader header = 1;
+    // 状态码
+    float sensitivity = 2;
+}
+
+message SetPerceptionStateRequest {
+    enum ControlCommand {
+        ControlCommand_UNDEFINED = 0;
+        ControlCommand_ENABLE = 1;
+        ControlCommand_DISABLE = 2;
+    }
+    RequestHeader header = 1;
+    ControlCommand command = 2;
+}
+
+message SetPerceptionStateResponse {
+    enum Code {
+        Code_UNDEFINED = 0;
+        Code_SUCCEED = 1;
+        Code_FAILED = 2;
+    }
+    // 响应头
+    ResponseHeader header = 1;
+    // 状态码
+    Code code = 2;
+}
+
+message GetPerceptionStateRequest {
+    enum ControlCommand {
+        ControlCommand_UNDEFINED = 0;
+        ControlCommand_ENABLE = 1;
+        ControlCommand_DISABLE = 2;
+    }
+    RequestHeader header = 1;
+}
+
+message GetPerceptionStateResponse {
+    enum RunningState {
+        RunningState_UNDEFINED = 0;
+        RunningState_RUNNING = 1;
+        RunningState_STOPED = 2;
+    }
+    // 响应头
+    ResponseHeader header = 1;
+    // 状态码
+    RunningState code = 2;
+}
+
+
+service SensitivityControlService {
+    /**
+    * @brief 设置感知灵敏度
+    * @param SetSensitivityRequest 灵敏度
+    * @return SensitSetSensitivityResponseivityResponse 响应状态码
+    */
+    rpc SetSensitivity(SetSensitivityRequest) returns (SetSensitivityResponse);
+
+    /**
+    * @brief 获取感知灵敏度
+    * @param GetSensitivityRequest 请求
+    * @return SetSensitivityResponse 响应状态码
+    */
+    rpc GetSensitivity(GetSensitivityRequest) returns (GetSensitivityResponse);
+}
+
+message SetPerceptionWorkModeRequest {
+  enum ModeType {
+    ModeType_Unknown    = 0;
+    //正常感知避障
+    ModeType_Normal     = 1;
+    //操作感知
+    ModeType_Manipulate = 2;
+  }
+
+  enum SubMode {
+    SubMode_Manipulate_RealTime = 0; //默认模式，实时跟踪
+    SubMode_Manipulate_MultiTracking = 1; //多任务模式
+    SubMode_Manipulate_TargetGuidance = 2; // 视觉目标引导模式
+  }
+
+  RequestHeader header  = 1;  // 请求头
+  ModeType work_mode    = 2;  // 设置感知节点工作模式
+  bool flag             = 3;  // true-开启，false-关闭
+  SubMode sub_mode_type = 4;  // 设置子模式的pipeline
+}
+
+message SetManipulatePromptStringsReqeust {
+  RequestHeader header  = 1;  // 请求头
+  repeated string prompts = 2; // 操作提示词
+}
+
+message StartManipulateAvoidCollisionReqeust {
+  RequestHeader header  = 1;  // 请求头
+}
+
+message StopManipulateAvoidCollisionReqeust {
+  RequestHeader header  = 1;  // 请求头
+}
+
+service PerceptionControlService {
+    /**
+    * @brief  开启或关闭感知软件
+    * @param SetPerceptionStateRequest 请求命令
+    * @return SetPerceptionStateResponse 响应状态码
+    */
+    rpc SetPerceptionState(SetPerceptionStateRequest) returns (SetPerceptionStateResponse);
+
+    /**
+    * @brief 查询感知软件状态
+    * @param  请求头
+    * @return  响应状态码
+    */
+    rpc GetPerceptionState(GetPerceptionStateRequest) returns (GetPerceptionStateResponse);
+
+    // 设置感知模式
+    rpc SetPerceptionWorkMode(SetPerceptionWorkModeRequest) returns (CommonResponse);
+
+    // 设置操作当前的提示词
+    rpc SetManipulatePromptStrings(SetManipulatePromptStringsReqeust) returns (CommonResponse);
+
+    // 开启操作模式上肢避障
+    rpc StartManipulateAvoidCollision(StartManipulateAvoidCollisionReqeust) returns (CommonResponse);
+
+    // 关闭操作模式上肢避障
+    rpc StopManipulateAvoidCollision(StopManipulateAvoidCollisionReqeust) returns (CommonResponse);
+
+}

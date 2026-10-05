@@ -1,0 +1,31 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/bms/bms.proto";
+
+/**
+ * @brief 由 aimrt_hal 中提供的BMS状态查询和控制服务
+ */
+service HalBmsService {
+  /**
+   * @brief 获取当前BMS状态信息。
+   * @param CommonRequest: 获取BMS状态请求
+   * @return BmsStateRsp: 获取BMS状态响应
+   */
+  rpc GetBmsState(CommonRequest) returns (BmsStateRsp);
+
+  /**
+   * @brief 电池包MOSFE控制。
+   * @param BmsMosfeCommandReq: 电池包MOSFE控制请求
+   * @return CommonResponse: 电池包MOSFE控制响应
+   */
+  rpc SetBmsMosfeCommand(BmsMosfeCommandReq) returns (CommonResponse);
+
+  /**
+   * @brief 获取当前Power状态信息。
+   * @param CommonRequest: 获取Power状态请求
+   * @return PowerStateRsp: 获取Power状态响应
+   */
+  rpc GetPowerState(CommonRequest) returns (PowerStateRsp);
+}

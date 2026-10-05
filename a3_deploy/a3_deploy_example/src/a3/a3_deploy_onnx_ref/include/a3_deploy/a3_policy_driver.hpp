@@ -56,6 +56,9 @@ struct A3PolicyDriverOptions {
   std::int64_t     trigger_offset_ns = 0;
   std::int64_t     trigger_min_period_ns = 0;
   bool             send_safe_halt_before_first_command = true;
+  // Observer only: receives the final command at the transport boundary and
+  // the SendCommand result. Success means published, not actuator-applied ACK.
+  std::function<void(const robot_io::RobotCommand&, bool)> command_delivery_observer;
 };
 
 class A3PolicyDriver : public a3_rt::A3BasedTask {
@@ -81,6 +84,9 @@ class A3PolicyDriver : public a3_rt::A3BasedTask {
 
   std::uint64_t PolicyTickCount() const noexcept { return policy_tick_count_.load(std::memory_order_relaxed); }
   std::uint64_t SafeHaltCount()   const noexcept { return safe_halt_count_.load(std::memory_order_relaxed); }
+  std::uint64_t IncompleteFrameCount() const noexcept { return incomplete_frame_count_.load(std::memory_order_relaxed); }
+  std::int64_t LastFrameAgeNs() const noexcept { return last_frame_age_ns_.load(std::memory_order_relaxed); }
+  std::int64_t LastFrameSkewNs() const noexcept { return last_frame_skew_ns_.load(std::memory_order_relaxed); }
   bool CommandFaultLatched() const noexcept {
     return command_fault_latched_.load(std::memory_order_acquire);
   }
@@ -106,6 +112,7 @@ class A3PolicyDriver : public a3_rt::A3BasedTask {
   // suppresses publication. Backend SendCommand failure handling is R05 and is
   // intentionally unchanged here.
   bool EmitSafeHalt_(const robot_io::RobotState& state) noexcept;
+  bool SendAndObserve_() noexcept;
 
   robot_io::RobotIOBackend& backend_;
   PolicyFn                  policy_;
@@ -129,6 +136,8 @@ class A3PolicyDriver : public a3_rt::A3BasedTask {
 
   std::atomic<std::uint64_t> policy_tick_count_{0};
   std::atomic<std::uint64_t> safe_halt_count_{0};
+  std::atomic<std::uint64_t> incomplete_frame_count_{0};
+  std::atomic<std::int64_t> last_frame_age_ns_{0}, last_frame_skew_ns_{0};
   // A thrown policy/inference exception or non-finite command is not treated as
   // a one-tick dropout. It latches safe halt until this driver is destroyed and
   // the runner is deliberately restarted. CommandFn false remains the existing

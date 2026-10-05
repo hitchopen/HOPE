@@ -1,0 +1,86 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+message O10FingerPos {
+  // 拇指第一关节：旋转，取值范围：0-4096
+  int32 thumb_roration_pos_0 = 1;
+  // 拇指第二关节：侧摆，取值范围：0-4096
+  int32 thumb_wiggles_pos_1 = 2;
+  // 拇指第三关节：弯曲，取值范围：0-4096
+  int32 thumb_bent_pos_2 = 3;
+  // 食指第一关节：侧摆，取值范围：0-4096
+  int32 index_wiggles_pos_0 = 4;
+  // 食指第二关节：弯曲，取值范围：0-4096
+  int32 index_bent_pos_1 = 5;
+  // 中指第二关节：弯曲，取值范围：0-4096
+  int32 middle_bent_pos = 6;
+  // 无名指第一关节：侧摆，取值范围：0-4096
+  int32 ring_wiggles_pos_0 = 7;
+  // 无名指第二关节：弯曲，取值范围：0-4096
+  int32 ring_bent_pos_1 = 8;
+  // 小指第一关节：侧摆，取值范围：0-4096
+  int32 pinky_wiggles_pos_0 = 9;
+  // 小指第二关节：弯曲，取值范围：0-4096
+  int32 pinky_bent_pos_1 = 10;
+}
+
+message FingerPressure {
+  // 拇指压力，长度16, 取值范围：0-255（单位是g）
+  repeated int32 thumb_pressures = 1;
+  // 食指压力，长度16,取值范围：0-255（单位是g）
+  repeated int32 index_pressures = 2;
+  // 中指压力，长度16,取值范围：0-255（单位是g）
+  repeated int32 middle_pressures = 3;
+  // 无名指压力，长度16,取值范围：0-255（单位是g）
+  repeated int32 ring_pressures = 4;
+  // 小指压力，长度16,取值范围：0-255（单位是g）
+  repeated int32 pinky_pressures = 5;
+  // 手掌心压力，长度25,取值范围：0-255（单位是g）
+  repeated int32 palm_pressures = 6;
+  // 手掌侧压力，长度25,取值范围：0-255（单位是g）
+  repeated int32 back_of_hand_pressures = 7;
+}
+
+message FingerTorque {
+  //大拇指旋转当前力矩,0-255
+  uint32 thumb_rotate_torque = 1;
+  //大拇指侧摆当前力矩,0-255
+  uint32 thumb_swing_torque = 2;
+  //大拇指弯曲当前力矩,0-255;
+  uint32 thumb_bend_torque = 3;
+  //食指侧摆当前力矩,0-255
+  uint32 index_swing_torque = 4;
+  //食指弯曲当前力矩,0-255
+  uint32 index_bend_torque = 5;
+  //中指弯曲当前力矩,0-255
+  uint32 middle_bend_torque = 6;
+  //无名指侧摆当前力矩,0-255
+  uint32 ring_swing_torque = 7;
+  //无名指弯曲当前力矩,0-255
+  uint32 ring_bend_torque = 8;
+  //小指侧摆当前力矩,0-255
+  uint32 pinky_swing_torque = 9;
+  //小指弯曲当前力矩,0-255
+  uint32 pinky_bend_torque = 10;
+}
+
+// 手指
+message O10FingerCommand {
+  O10FingerPos pos = 1;
+  FingerTorque toq = 2;
+}
+
+message O10FingerState {
+  O10FingerPos pos = 1;
+  FingerPressure pressure = 2;
+  FingerTorque toq = 3;
+}
+
+// Agibot O10手部
+message AgibotO10HandCommand {
+  O10FingerCommand finger = 1; // 手指
+}
+
+message AgibotO10HandState {
+  O10FingerState finger = 1; // 手指
+}

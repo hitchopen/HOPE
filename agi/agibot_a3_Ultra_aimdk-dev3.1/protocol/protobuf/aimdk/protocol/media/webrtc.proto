@@ -1,0 +1,58 @@
+/**
+ * @todo 待商清开发完
+ */
+syntax = "proto3";
+package aimdk.protocol;
+
+message Offer {
+  // 客户端、UI、新的视频窗口对应一个全局唯一 id，
+  // 若指定为空，由本模块生成一个新的返回
+  string app_id = 1;
+
+  // webrtc 框架所需的 app 端 sdp 信息
+  string sdp_desc = 2;
+
+  // 需要拉取的相机名称集合
+  repeated string camera_names = 3;
+
+  // sturn 服务器参数，ip 为空时无效（使用默认参数）
+  string sturn_server_ip = 4;
+  int32 sturn_server_port = 5;  // Protocol Buffers 没有 int16 类型
+
+  // turn 服务器参数，ip 为空时无效（使用默认参数）
+  string turn_server_ip = 6;
+  int32 turn_server_port = 7;  // 同上
+}
+
+message Ice {
+  string app_id = 1;
+  string candidate = 2;
+  string sdp_mid = 3;
+  int32 sdp_mline_index = 4;
+}
+
+message Answer {
+  // 请求的 app id，或新分配的 app id
+  string app_id = 1;
+
+  // webrtc 框架所需的本端 sdp 信息，提供给 app 使用。
+  // 若创建过程出错，该字段设置为空即可。
+  string sdp_desc = 2;
+
+  // 按相机名划分的错误消息（可能不存在）
+  map<string, string> camera_err_msgs = 3;
+}
+
+service MediaService {
+  /**
+   * @brief 根据offer 获取answer
+   * @param Offer 生成offer
+   * @return Answer 返回answer
+   */
+  rpc GetAnswer(Offer) returns (Answer);
+}
+
+// service Service {
+//    rpc TransferOffer(Offer) returns (Answer);
+//    rpc TransferIce(Ice) returns (Answer);
+// }

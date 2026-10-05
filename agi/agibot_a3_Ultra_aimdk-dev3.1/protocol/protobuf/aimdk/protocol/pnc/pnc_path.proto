@@ -1,0 +1,19 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+
+
+/**
+ * @brief pnc 模块的路线
+ *        topic:
+ *          - 用于路线输出：/pnc/path_publish
+ */
+message PncPathChannel {
+  // path的时间戳及所在的frame（一般为"map"）
+  Header header = 1;
+
+  // path路径点的位姿
+  repeated SE3Pose pose  = 2;
+}

@@ -1,0 +1,54 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/common/scalar_trajectory.proto";
+import public "aimdk/protocol/mc/common/arm.proto";
+import public "aimdk/protocol/mc/common/move_pose_mode.proto";
+import public "aimdk/protocol/mc/common/planning.proto";
+import public "aimdk/protocol/mc/motion/motion_param.proto";
+/**
+ * @brief 直线运动姿态请求
+ */
+ message LinearMoveTarget {
+  SE3Pose left = 1;
+  SE3Pose right = 2;
+}
+message LinearMoveRequest {
+  // 请求头
+  RequestHeader header = 1;
+  // 规划组
+  McPlanningGroup group = 2;
+  // 运动参数，包括速度、加速度、减速度等
+  MotionParam param = 3;
+  // 目标位姿
+  LinearMoveTarget target = 4;
+}
+/**
+ * @brief 运动姿态请求
+ */
+ message MovePoseRequest {
+  RequestHeader header = 1;  // 请求头
+  ArmType type = 2;          // 机械臂类型
+  MovePoseMode mode = 3;     // 运动模式，绝对位置或者相对位置
+  MotionParam param = 4;     // 运动参数，包括速度、加速度、减速度等
+  bool is_block = 5;         // 是否阻塞
+  SE3Pose pose = 6;          // 目标位姿
+}
+message MoveTrajectoryTarget {
+  // 左臂轨迹
+  ScalarTrajectory left = 1;
+  // 右臂轨迹
+  ScalarTrajectory right = 2;
+}
+
+/**
+ * @brief 运动轨迹请求
+ */
+message MoveTrajectoryRequest {
+  RequestHeader header = 1;  // 请求头
+  MoveTrajectoryTarget target = 2;
+}
+
+

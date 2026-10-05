@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/se3_pose.proto";
+import "aimdk/protocol/common/vec2.proto";
+import "aimdk/protocol/common/vec3.proto";
+
+enum TargetPointType {
+  TPT_UNKNOWN = 0;
+  TPT_COARSE_POINT = 1; // 粗到点
+  TPT_FINE_POINT = 2; // 精到点
+}
+
+enum TargetPointSource {
+  TPS_UNKNOWN = 0;
+  TPS_TABLE_SURFACE = 1; // 来自桌面引导
+  TPS_OBJ_POSE = 2; // 来自物体引导
+  TPS_ALL = 3; // 来自桌面+物体引导
+  TPS_DEPLOY = 4; // 来自部署阶段设置
+}
+
+enum TargetPointFailureReason {
+  TPFR_UNKNOWN = 0;                    // 未知状态（默认值）
+  TPFR_SUCCESS = 1;                    // 成功生成目标点
+  TPFR_INVALID_INPUT = 2;              // 输入数据无效（boxes、scores、labels、masks、depth_image为空）
+  TPFR_TRANSFORM_INVALID = 3;          // base_link_to_map变换矩阵无效（单位矩阵或TF查找失败）
+  TPFR_NO_TABLE_MASK = 4;              // 未找到桌面mask（CombineTableMasks失败）
+  TPFR_POINTCLOUD_EXTRACTION_FAILED = 5; // 桌面点云提取失败（ExtractTablePointCloud失败）
+  TPFR_TABLE_HEIGHT_FAILED = 6;        // 桌面高度计算失败（CalculateTableHeight失败）
+  TPFR_PLANE_FITTING_FAILED = 7;       // 桌面平面拟合失败（FitTablePlane失败）
+  TPFR_NO_VALID_EDGE = 8;              // 没有合适的桌面边缘（CalculateTableNearestEdge失败）
+  TPFR_NO_SUITABLE_OBJECT = 9;         // 精到点阶段未找到合适的引导物体（GenerateTargetPointFromTableEdgeAndObjPose失败）
+  TPFR_UNKNOWN_TARGET_TYPE = 10;        // 未知的目标点类型
+  TPFR_INTERNAL_ERROR = 11;            // 算法执行过程中发生异常
+  TPFR_TRACKING_LOST = 12;             // 目标点跟踪丢失（跟踪器无有效跟踪状态）
+}
+
+message TPSObjPose {
+  int32 id = 1; // track_id
+  SE3Pose pose = 2; // 物体位姿, base_link
+  Vec3 dims = 3; // 物体尺寸
+  float dist = 4; // 物体距机器人距离, 单位m
+  float dist_to_edge = 5; // 物体距桌面近边缘距离, 单位m
+}
+
+message TableSurfaceEdge {
+  Vec3 start_point = 1; // 桌面边缘起点
+  Vec3 end_point = 2; // 桌面边缘终点
+  Vec3 mid_point = 3; // 桌面边缘中点
+  float length = 4; // 桌面边缘长度, 单位m
+  float angle = 5; // 桌面边缘与机器人X轴的夹角, 单位弧度
+  float dist = 6; // 桌面边缘与机器人垂直距离
+  float dist_to_mid = 7; // 桌面边缘中点到机器人距离
+}
+
+message TPSTableSurface {
+  int32 id = 1; // 桌子id
+  float height = 2; // 桌面高度, 单位m
+  repeated Vec3 vertices = 3; // 桌面顶点 (z值为桌面高度)
+  TableSurfaceEdge near_edge = 4; // 机器人正对的边缘 (正对:距离近且与X轴垂直)
+  int32 points_cnt = 5; // 桌面点云数量
+}
+
+message TargetPointDesc {
+  SE3Pose pose = 1; // 目标点位姿, base_link
+  float dist = 2; // 目标点到机器人距离, 单位m
+  float dist_to_edge = 3; // 目标点到桌面近边缘距离, 单位m
+  TargetPointSource source = 4; // 目标点引导来源
+  TPSObjPose source_obj_pose = 5; // 物体引导信息
+  TPSTableSurface source_table_surface = 6; // 桌面引导信息
+
+  // 跟踪信息
+  float track_duration = 7; // 跟踪持续时间, 单位秒
+  int32 total_updates = 8; // 总更新次数
+  float track_confidence = 9; // 跟踪置信度 [0.0, 1.0]
+  bool is_new_track = 10; // 是否为新建跟踪
+  int32 lost_count = 11; // 连续丢失帧数
+}
+
+message PerceptionTargetPoint {
+  Header header = 1;
+  int32 id = 2; // 目标点id
+  TargetPointType type = 3; // 目标点类型
+  SE3Pose pose_map = 4;  // 目标点位姿, map坐标系
+  TargetPointDesc desc = 5; // 目标点详细信息
+  TargetPointFailureReason failure_reason = 6; // 失败原因
+}

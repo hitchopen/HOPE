@@ -1,0 +1,48 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/hal/hand/hand.proto";
+import public "aimdk/protocol/hal/neck/neck.proto";
+import public "aimdk/protocol/mc/data/joint.proto";
+import public "aimdk/protocol/mc/data/tcp.proto";
+import public "aimdk/protocol/mc/data/mgpt.proto";
+import public "aimdk/protocol/mc/data/planning.proto";
+
+/**
+ * @brief 运控数据服务
+ */
+service McDataService {
+  // 获取任务状态
+  rpc GetTaskState(CommonTaskRequest) returns (CommonTaskResponse);
+
+  // 获取关节状态
+  rpc GetJointState(CommonRequest) returns (McJointStatesResponse);
+
+  // 获取关节参数
+  rpc GetJointParam(CommonRequest) returns (McJointParamsResponse);
+
+  // 获取关节指令
+  rpc GetJointCommand(CommonRequest) returns (McJointCommandsResponse);
+
+  // 获取关节角度
+  rpc GetJointAngle(CommonRequest) returns (McJointAnglesResponse);
+
+  // 获取机器人手部状态
+  rpc GetHandState(CommonRequest) returns (HandStateResponse);
+
+  // 获取机器人头部状态
+  rpc GetNeckState(CommonRequest) returns (NeckStateResponse);
+
+  // 获取TCP位置，相对于基坐标系的位姿
+  rpc GetTcpPosition(CommonRequest) returns (GetTcpPositionResponse);
+
+  // 获取Motion GPT的状态
+  rpc GetMotionGPTStatus(CommonRequest) returns (MotionGPTStateResponse);
+
+  // 设置Motion GPT的状态
+  rpc SetMotionGPTState(MotionGPTStateRequest) returns (CommonResponse);
+
+  // 获取任务规划可用组
+  rpc GetPlanningGroupAvailable(CommonRequest) returns (McPlanningGroupAvailableResponse);
+}

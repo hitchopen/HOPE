@@ -1,0 +1,120 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/manipulation/embodied_msg.proto";
+import "aimdk/protocol/manipulation/embodied_state.proto";
+import "aimdk/protocol/manipulation/manipulation_msg.proto";
+
+/**
+ * embodied agent 开始任务请求协议
+ * task_description 是任务描述，可以是一个内置task的名字，也可以是一句描述任务的话
+ * task_params是任务的参数，如果task_description是内置的，task_params就会生效，不同的任务对应的task_params的数量不同
+ * loop_num是循环次数，该任务会循环执行多少次，loop_num如果是0或者1，都会执行1次，其他执行loop_num次
+*/
+message EmbodiedStartTaskRequest {
+  RequestHeader header        = 1;
+  string task_description     = 2;
+  repeated string task_params = 3;
+  int32 loop_num              = 4;
+}
+
+message EmbodiedTaskResponse {
+  ResponseHeader header     = 1;
+  int32 task_id             = 2; // 返回本次任务的id
+  EmbodiedResType type      = 3;
+  string msg                = 4;
+}
+
+message EmbodiedGetStateResponse {
+  ResponseHeader header       = 1;
+  EmbodiedRunningState state  = 2;
+  string task_name            = 3;
+  string msg                  = 4;
+}
+
+message EmbodiedTaskListResponse {
+  ResponseHeader header     = 1;
+  repeated string task_name = 2;
+}
+
+message EmbodiedControlRequest {
+  RequestHeader header      = 1;
+  int32 task_id             = 2; // 要取消的任务id， -1时默认取消所有任务
+  EmbodiedControlType type  = 3;
+}
+
+message GetEmbodiedMsgRequest {
+  RequestHeader header    = 1;
+  GetEmbodiedMsgType type = 2;
+}
+
+message GetEmbodiedMsgResponse {
+  ResponseHeader header   = 1;
+  ChessBoardCorner corner = 2;
+}
+
+message SwitchEmbodiedModeRequest{
+  RequestHeader header      = 1;
+  EmbodiedTaskMode mode     = 2;
+}
+
+message SwitchEmbodiedModeResponse {
+  ResponseHeader header     = 1;
+  EmbodiedResType res       = 2;
+}
+
+message ReportDetectedGraspObjRequest {
+  RequestHeader header      = 1;
+  DetectedGraspObj obj      = 2;
+}
+
+message DeploySkuPointRequest {
+  RequestHeader header      = 1;
+  SkuPoint point      = 2;
+}
+
+// topic: /embodied_agent/running_mode_msg
+message EmbodiedModeMsg {
+  EmbodiedTaskMode mode                                       = 1;
+  EmbodiedRunningState running_state                          = 2;
+  string sub_task                                             = 3;
+  oneof mode_state{
+    AutoPickTaskRunningState auot_pick_state                  = 4;
+    CheckTaskRunningState check_state                         = 5;
+    ShopAssistantTaskRunningState shop_ass_state              = 6;
+    BarPickModeRunningState bar_pick_state                    = 7;
+  }
+  oneof finished_msg {
+    AutoPickTaskFinishedMsg auot_pick_finished_msg            = 8;
+    ChessTaskFinishedMsg chess_finished_msg                   = 9;
+    ShopAssistantTaskFinishedMsg shop_assistant_finished_msg  = 10;
+    BarPickModeFinishedMsg bar_pick_finished_msg              = 11;
+  }
+}
+
+message GetEmbodiedRunningModeResponse {
+  ResponseHeader header         = 1;
+  EmbodiedModeMsg task_state    = 2;
+}
+
+/**
+ * @brief embodied agent service
+   backend : http
+   port: 39120
+ */
+service EmbodiedService {
+  rpc StartTask (EmbodiedStartTaskRequest) returns (EmbodiedTaskResponse);
+  rpc Manipulate (ManipulationRequest) returns (ManipulationResponse); // 转发请求到manipulation
+  rpc GetState (CommonRequest) returns (EmbodiedGetStateResponse);
+  rpc GetTaskList (CommonRequest) returns (EmbodiedTaskListResponse);
+  rpc Control (EmbodiedControlRequest) returns (EmbodiedTaskResponse);
+  rpc GetEmbodiedMsg(GetEmbodiedMsgRequest) returns (GetEmbodiedMsgResponse);
+  rpc SwitchEmbodiedMode(SwitchEmbodiedModeRequest) returns (EmbodiedTaskResponse);
+  rpc GetEmbodiedRunningMode(CommonRequest) returns (GetEmbodiedRunningModeResponse);
+
+  rpc ReportDetectedGraspObj(ReportDetectedGraspObjRequest) returns(CommonResponse); // for manipulator report
+  // 硅基送模式下用于部署仓库点位
+  rpc DeploySkuPoint(DeploySkuPointRequest) returns(CommonResponse);
+}

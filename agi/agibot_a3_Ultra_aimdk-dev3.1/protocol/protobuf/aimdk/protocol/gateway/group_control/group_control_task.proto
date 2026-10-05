@@ -1,0 +1,100 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+
+enum GroupControlTaskType {
+  GroupControlTaskType_Pass = 0;
+  GroupControlTaskType_Stop = 1;
+}
+
+enum GroupControlTaskResponseStatus {
+  GroupControlTaskResponseStatus_Success = 0; // 成功
+  GroupControlTaskResponseStatus_Failed  = 1; // 失败
+}
+
+message GroupControlInfo {
+  bytes text             = 1; // 交互文本
+  string motion_name     = 2; // 动作名称
+  string face_expression = 3; // 表情
+  string voice_type      = 4;
+  string emotion         = 5;
+}
+
+
+
+message GroupControlTask {
+  int64 exec_time                           = 1; // 未来执行时间，单位ms
+  string task_name                          = 2; // 任务名称
+  repeated GroupControlInfo GroupControl_list = 3; // 交互列表
+  GroupControlTaskType task_type             = 4; // 任务类型
+}
+
+
+// waklking: 群控行走任务
+
+enum GroupWalkingMode {
+  // 未知模式
+  GroupWalkingMode_UNKNOWN = 0;
+
+  // 断开连接模式（如急停等）
+  GroupWalkingMode_DISCONNECTED = 1;
+
+  // 自主控制模式
+  GroupWalkingMode_AUTO = 100;
+
+  // 全身控制模式
+  GroupWalkingMode_FULL_BODY = 200;
+
+  // 上身控制模式
+  GroupWalkingMode_UPPER_BODY = 300;
+}
+
+
+message GroupWalkingAxis {
+  // 上下方向摇杆
+  double up_down = 1;  // 0-1: 上，-1-0: 下
+
+  // 左右方向摇杆
+  double left_right = 2;  // -1-0: 左，0-1: 右
+}
+
+
+message GroupWalkingButton {
+  // 上下方向摇杆
+  bool up = 1;
+  bool down = 2;
+
+  // 左右方向摇杆
+  bool left = 3;
+  bool right = 4;
+}
+
+
+message GroupWalkingTask {
+  int64 start_time                           = 1; // 未来开始行走时间，单位ms
+  int64 duration_time                        = 2; // 行走持续时间，单位ms
+  string task_name                           = 3; // 行走名称
+  GroupWalkingMode mode                      = 4; // 遥控控制模式
+  GroupWalkingAxis left_axis                 = 5; // 左摇杆
+  GroupWalkingButton right_button            = 6; // 右按键 
+}
+
+message GroupControlTaskRequest {
+  RequestHeader header = 1; // 请求头
+  GroupControlTask task = 2; // 声光表情上肢动作任务
+}
+
+
+message GroupControlTaskResponse {
+  ResponseHeader header                = 1; // 响应头
+  GroupControlTaskResponseStatus status = 2; // 任务状态
+  uint32 task_id                       = 3; // 任务id
+}
+
+
+message GroupWalkingRequest {
+  RequestHeader header = 1; // 请求头
+  GroupWalkingTask task = 2; // 行走任务
+}

@@ -1,0 +1,327 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "google/protobuf/any.proto";
+
+/**
+ * @brief 2. 装配任务相关动作指令接口
+ */
+
+enum PrimitiveType {
+  PrimitiveType_UNKNOWN = 0;
+  // 螺旋线搜索
+  PrimitiveType_SLIDE_SPIRAL = 1;
+  // 双臂螺旋线搜索
+  PrimitiveType_SLIDE_SPIRAL_DUAL = 2;
+  // 之字形搜索
+  PrimitiveType_SLIDE_ZIGZAG = 3;
+  // 双臂之字形搜索
+  PrimitiveType_SLIDE_ZIGZAG_DUAL = 4;
+  // 力控插拔
+  PrimitiveType_SLEEVE = 5;
+  // 双臂力控插拔
+  PrimitiveType_SLEEVE_DUAL = 6;
+  // 力控接触
+  PrimitiveType_CONTACT = 7;
+  // 双臂力控接触
+  PrimitiveType_CONTACT_DUAL = 8;
+}
+
+enum PtTriggerConditionType {
+  PtTriggerConditionType_UNKNOWN = 0;
+  // AND
+  PtTriggerConditionType_AND = 1;
+  // OR
+  PtTriggerConditionType_OR = 2;
+  // EQUAL
+  PtTriggerConditionType_EQUAL = 3;
+  // LESS
+  PtTriggerConditionType_LESS = 4;
+  // GREATER
+  PtTriggerConditionType_GREATER = 5;
+  // GREATER_EQUAL
+  PtTriggerConditionType_GREATER_EQUAL = 6;
+  // LESS_EQUAL
+  PtTriggerConditionType_LESS_EQUAL = 7;
+}
+
+/**
+ * @brief 动作指令触发停止条件参数定义
+ */
+message PtTriggerConditionParam {
+  // 停止条件名称
+  string name = 1;
+  // 停止条件判定标准值
+  double data = 2;
+  // 停止条件状态值
+  double state = 3;
+}
+
+/**
+ * @brief 动作指令触发停止条件
+ */
+message PtTriggerCondition {
+  // 停止条件类型（多类型："AND", "OR"，单类型："EQUAL", "LESS", "GREATER", "GREATER_EQUAL", "LESS_EQUAL"）
+  PtTriggerConditionType type = 1;
+  // 停止条件参数
+  PtTriggerConditionParam param = 2;
+}
+/**
+ * @brief 动作指令触发停止条件配置
+ */
+message PtTriggerConfig {
+  // 停止条件类型（通常用于组合多个 PtTriggerCondition）
+  PtTriggerConditionType type = 1;
+  // 停止条件列表
+  repeated PtTriggerCondition conditions = 2;
+}
+
+/**
+ * @brief 搜索时姿态震荡参数
+ */
+message PtWiggleParam {
+  // 震动幅度
+  double range = 1;
+  // 震动周期
+  double period = 2;
+}
+
+/**
+ * @brief e 外力导纳参数
+ */
+message ExternalForceCtrlParam {
+  // 力控轴
+  repeated int32 external_force_axis = 1;
+  // 目标力
+  repeated double external_goal_wrench = 2;
+  // 力增益
+  repeated double external_kp = 3;
+  // 阻尼
+  repeated double external_kv = 4;
+  // 力积分
+  repeated double external_ki = 5;
+  // 积分限制
+  repeated double external_max_integral = 6;
+}
+
+/**
+ * @brief e 内力导纳参数
+ */
+message InternalForceCtrlParam {
+  // 力控轴
+  repeated int32 internal_force_axis = 1;
+  // 目标力
+  repeated double internal_goal_wrench = 2;
+  // 力增益
+  repeated double internal_kp = 3;
+  // 阻尼
+  repeated double internal_kv = 4;
+  // 力积分
+  repeated double internal_ki = 5;
+  // 积分限制
+  repeated double internal_max_integral = 6;
+}
+
+/**
+ * @brief e 装配控制任务
+ */
+message AssemblyCtrlParam {
+  // 外力导纳
+  ExternalForceCtrlParam external_admittance = 1;
+  // 内力导纳列表
+  repeated InternalForceCtrlParam internal_admittance = 2;
+}
+
+/**
+ * @brief 力控搜索通用参数
+ */
+message PtSlideCommonParam {
+  // 接触轴
+  repeated double contact_axis = 1;
+  // 搜索轴
+  repeated double search_axis = 2;
+  // 接触力
+  double contact_force = 3;
+  // 起始搜索轨迹密度
+  double start_density = 4;
+  // 控制搜索轨迹快慢，越小轨迹运动速度越快
+  int32 time_factor = 5;
+  // 噪声叠加幅度控制系数
+  double random_factor = 6;
+  // 是否进入立即开始搜索
+  bool start_search_immediately = 7;
+}
+
+/**
+ * @brief 螺旋线搜索参数
+ */
+message PtSlideSpiralParam {
+  // 搜索最大半径
+  double search_radius = 1;
+  // 搜索时姿态震荡参数
+  PtWiggleParam wiggle = 2;
+  // 力控搜索通用参数
+  PtSlideCommonParam common = 3;
+  // 动作指令触发停止条件
+  PtTriggerConfig pt_slide_trigger = 4;
+  // 控制参数
+  ExternalForceCtrlParam pt_control_param = 5;
+}
+
+/**
+ * @brief 双臂螺旋线搜索参数
+ */
+message PtDualSlideSpiralParam {
+  // 搜索最大半径
+  double search_radius = 1;
+  // 搜索时姿态震荡参数
+  PtWiggleParam wiggle = 2;
+  // 力控搜索通用参数
+  PtSlideCommonParam common = 3;
+
+  // 触发条件
+  PtTriggerConfig pt_dual_slide_trigger = 4;
+
+  // 控制参数
+  AssemblyCtrlParam pt_control_param = 5;
+}
+
+/**
+ * @brief 之字形搜索参数
+ */
+message PtSlideZigzagParam {
+  // 搜索区域长度
+  double length = 1;
+  // 搜索区域宽度
+  double height = 2;
+  // 搜索时姿态震荡参数
+  PtWiggleParam wiggle = 3;
+  // 力控搜索通用参数
+  PtSlideCommonParam common = 4;
+  // 动作指令触发停止条件
+  PtTriggerConfig pt_slide_trigger = 5;
+  // 控制参数
+  ExternalForceCtrlParam pt_control_param = 6;
+}
+
+/**
+ * @brief 双臂之字形搜索参数
+ */
+message PtDualSlideZigzagParam {
+  // 搜索区域长度
+  double length = 1;
+  // 搜索区域宽度
+  double height = 2;
+  // 搜索时姿态震荡参数
+  PtWiggleParam wiggle = 3;
+  // 力控搜索通用参数
+  PtSlideCommonParam common = 4;
+  // 动作指令触发停止条件
+  PtTriggerConfig pt_dual_slide_trigger = 5;
+  // 控制参数
+  AssemblyCtrlParam pt_control_param = 6;
+}
+
+/**
+ * @brief 力控插拔及触发停止条件
+ */
+message PtSleeveParam {
+  // 插入方向 (tcp)
+  repeated double insert_dir = 1;
+
+  // 哪些方向需要开柔顺
+  repeated int32 alignment_dir = 2;
+
+  // 最大力限制保护
+  double max_contact_force = 3;
+
+  // 插入速度
+  double insert_vel = 4;
+
+  // 力控柔顺时调整死区系数
+  double deadband_scale = 5;
+
+  // 触发条件
+  PtTriggerConfig pt_sleeve_trigger = 6;
+
+  // 控制参数
+  ExternalForceCtrlParam pt_control_param = 7;
+}
+
+/**
+ * @brief 双臂力控插拔及触发停止条件
+ */
+message PtDualSleeveParam {
+  // 插入方向 (tcp)
+  repeated double insert_dir = 1;
+  // 哪些方向需要开柔顺
+  repeated int32 alignment_dir = 2;
+  // 最大力限制保护
+  double max_contact_force = 3;
+  // 插入速度
+  double insert_vel = 4;
+  // 力控柔顺时调整死区系数
+  double deadband_scale = 5;
+  // 触发条件
+  PtTriggerConfig pt_dual_sleeve_trigger = 6;
+  // 控制参数
+  AssemblyCtrlParam pt_control_param = 7;
+}
+
+/**
+ * @brief 力控接触及触发停止条件
+ */
+message PtContactParam {
+  // 接触参考坐标系 (tcp/world)
+  string refer_coordinate = 1;
+
+  // 自由空间内速度
+  double freespace_vel = 2;
+
+  // 接触方向
+  repeated double contact_dir = 3;
+
+  // 最大接触力保护
+  double max_contact_force = 4;
+
+  // 力控接触通用参数
+  PtTriggerConfig pt_contact_trigger = 5;
+}
+
+/**
+ * @brief 力控动作指令
+ */
+message PrimitiveAction {
+  // 力控动作名称：未使用（不建议使用）
+  string name = 1;
+  // 力控动作类型
+  PrimitiveType type = 2;
+  /** @brief 力控动作参数
+   *   以下参数均为动作参数，具体取值请参考上面的定义
+   *   - PtSlideSpiralParam:  螺旋线搜索参数
+   *   - PtSlideZigzagParam:  之字形搜索参数
+   *   - PtSleeveParam:      柔顺参数
+   *   - PtContactParam:     接触参数
+   *   - PtDualSlideSpiralParam:  双臂螺旋线搜索参数
+   *   - PtDualSlideZigzagParam:  双臂之字形搜索参数
+   *   - PtDualSleeveParam:      双臂柔顺参数
+   */
+  google.protobuf.Any param = 3;
+}
+
+/**
+ * @brief 力控动作组
+ */
+message ForcePrimitive {
+  repeated PrimitiveAction actions = 1;
+}
+
+message ForcePrimitiveRequest {
+  RequestHeader header = 1;
+  oneof task {
+    ForcePrimitive left = 2;
+    ForcePrimitive right = 3;
+    ForcePrimitive dual = 4;
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Register an OptiTrack P1 marker definition to the A3 pelvis CAD markers.
+"""Register an OptiTrack UCB robot marker definition to A3 pelvis CAD markers.
 
 NatNet reports each rigid-body marker centre in the rigid body's local frame.
 For a verified correspondence between those centres and the CAD centres in
@@ -8,9 +8,9 @@ For a verified correspondence between those centres and the CAD centres in
     p_P1 = R_P1_pelvis * p_pelvis + t_P1_pelvis
 
 This setup-session tool solves that rigid registration, validates same-frame
-labeled-marker samples over multiple P1 headings, and writes an auditable JSON
+labeled-marker samples over multiple selected-UCB headings, and writes an auditable JSON
 receipt.  The receipt also records the stationary ``world -> pelvis_link``
-snapshot obtained by composing the captured ``world -> P1`` pose with the
+snapshot obtained by composing the captured ``world -> UCB_P1`` pose with the
 fixed registration. It does not edit Motive or ``hope_world_frame.yaml``.
 
 The calculation is deliberately dependency-free outside ROS 2. Math-level
@@ -30,20 +30,117 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
-from p1_marker_layout import (
-    LAYOUT_ID, MARKER_NAMES, SOURCE_RELATIVE, layout_metadata, load_marker_transforms,
+from table_side_transform import (
+    normalize_table_side,
+    transform_pose_xyzw,
 )
+
+
+from p1_marker_layout import (MARKER_NAMES as STICKER_NAMES, SOURCE_RELATIVE, load_marker_transforms, layout_metadata)
 
 Vector3 = tuple[float, float, float]
 Quaternion = tuple[float, float, float, float]  # ROS xyzw
 
-CAD_MARKER_TRANSFORMS = load_marker_transforms()
-CAD_MARKERS_PELVIS_M: dict[str, Vector3] = {
-    name: record["translation_m"] for name, record in CAD_MARKER_TRANSFORMS.items()
+MARKER_NAMES = ("f1", "f2", "f3", "f4", "f5", "b1", "b2", "b3", "b4", "b5")
+
+
+@dataclass(frozen=True)
+class MarkerLayout:
+    layout_id: str
+    coordinate_source: str
+    source_files: tuple[tuple[str, str], ...]
+    markers_pelvis_m: Mapping[str, Vector3]
+    nominal_only_markers: frozenset[str]
+    realized_marker_names: tuple[str, ...]
+
+
+V2_CAD_MARKERS_PELVIS_M: dict[str, Vector3] = {
+    "f1": (0.090, 0.000, -0.130),
+    "f2": (0.080, 0.050, -0.140),
+    "f3": (0.080, -0.050, -0.140),
+    "f4": (0.078, -0.030, -0.180),
+    "f5": (0.078, 0.030, -0.180),
+    "b1": (-0.090, 0.000, -0.100),
+    "b2": (-0.085, 0.055, -0.130),
+    "b3": (-0.085, -0.055, -0.130),
+    "b4": (-0.085, -0.030, -0.180),
+    "b5": (-0.085, 0.030, -0.180),
 }
-CURRENT_SHELL_MARKERS = MARKER_NAMES
+V3_CAD_MARKERS_PELVIS_M: dict[str, Vector3] = {
+    "f1": (0.090, 0.000, -0.130),
+    "f2": (0.080, 0.050, -0.140),
+    "f3": (0.080, -0.050, -0.140),
+    "f4": (0.078, -0.030, -0.180),
+    "f5": (0.078, 0.030, -0.180),
+    "b1": (-0.090, 0.000, -0.130),
+    "b2": (-0.090, 0.000, -0.090),
+    "b3": (-0.090, -0.055, -0.130),
+    "b4": (-0.090, -0.030, -0.170),
+    "b5": (-0.090, 0.030, -0.150),
+}
+
+V2_MARKER_LAYOUT = MarkerLayout(
+    layout_id="v2",
+    coordinate_source="agibot/pku/README.md marker table v2",
+    source_files=(),
+    markers_pelvis_m=V2_CAD_MARKERS_PELVIS_M,
+    nominal_only_markers=frozenset(("f1", "b1")),
+    realized_marker_names=tuple(
+        name for name in MARKER_NAMES if name not in {"f1", "b1"}
+    ),
+)
+V3_MARKER_LAYOUT = MarkerLayout(
+    layout_id="v3",
+    coordinate_source=(
+        "V03 hip target-ball carrier coordinate table in "
+        "img_v3_0214n_a312ac8e-7ae5-4d09-95f5-27506ef4f01g.jpg"
+    ),
+    source_files=(
+        (
+            "0000019398_胯部靶球座-V3-多实体.STEP",
+            "341c0d089147e50db3ac35a8fa580dcc9609fcb4fdf18d5b3eac9d954d7aaf49",
+        ),
+        (
+            "img_v3_0214n_5dcd9947-eae9-446f-b2f0-0a57dc4da20g.jpg",
+            "7a3b49f29dac81d695e091dbf5650f0cb91171bdc2233c49d3cf3fa90ea9b059",
+        ),
+        (
+            "img_v3_0214n_a312ac8e-7ae5-4d09-95f5-27506ef4f01g.jpg",
+            "e6a0efae2a9f65d1739488d2126b6f02a9abcb73a36dfe4e4a566041246dd6c6",
+        ),
+    ),
+    markers_pelvis_m=V3_CAD_MARKERS_PELVIS_M,
+    nominal_only_markers=frozenset(),
+    realized_marker_names=MARKER_NAMES,
+)
+STICKER_MARKER_LAYOUT = MarkerLayout(
+    layout_id="stickers_v3", coordinate_source=SOURCE_RELATIVE, source_files=(),
+    markers_pelvis_m={name: row["translation_m"] for name,row in load_marker_transforms().items()},
+    nominal_only_markers=frozenset(), realized_marker_names=STICKER_NAMES,
+)
+ALL_MARKER_NAMES = MARKER_NAMES + STICKER_NAMES
+
+MARKER_LAYOUTS = {
+    STICKER_MARKER_LAYOUT.layout_id: STICKER_MARKER_LAYOUT,
+    V2_MARKER_LAYOUT.layout_id: V2_MARKER_LAYOUT,
+    V3_MARKER_LAYOUT.layout_id: V3_MARKER_LAYOUT,
+}
+
+# Compatibility aliases for existing offline callers and receipts.  New code
+# selects an explicit MarkerLayout and never silently substitutes V3 geometry.
+CAD_MARKERS_PELVIS_M = V2_CAD_MARKERS_PELVIS_M
+NOMINAL_ONLY_MARKERS = V2_MARKER_LAYOUT.nominal_only_markers
+CURRENT_SHELL_MARKERS = V2_MARKER_LAYOUT.realized_marker_names
+
+
+def marker_layout(value: object) -> MarkerLayout:
+    layout_id = str(value).strip().lower()
+    try:
+        return MARKER_LAYOUTS[layout_id]
+    except KeyError as exc:
+        raise ValueError("marker layout must be stickers_v3, v2 or v3") from exc
 
 
 @dataclass(frozen=True)
@@ -386,21 +483,25 @@ def rigid_registration(
 
 
 def canonical_marker_name(value: str) -> str | None:
-    tokens = re.findall(
-        r"(?<![a-z0-9])(s(?:0[1-9]|1[0-9]|2[0-4]))(?![a-z0-9])", value.lower()
-    )
+    sticker = re.findall(r"(?<![a-z0-9])(s(?:0[1-9]|1[0-9]|2[0-4]))(?![a-z0-9])", value.lower())
+    if len(set(sticker)) == 1:
+        return sticker[0].upper()
+    tokens = re.findall(r"(?<![a-z0-9])([fb][1-5])(?![a-z0-9])", value.lower())
     if len(set(tokens)) == 1:
-        return tokens[0].upper()
+        return tokens[0]
+    compact = value.lower().replace("ball_", "").replace("_joint", "")
+    if compact in MARKER_NAMES:
+        return compact
     return None
 
 
 def parse_marker_names(value: str) -> tuple[str, ...]:
-    names = tuple(item.strip().upper() for item in value.split(",") if item.strip())
+    names = tuple(canonical_marker_name(item.strip()) or item.strip() for item in value.split(",") if item.strip())
     if len(names) < 3:
         raise ValueError("at least three CAD marker names are required")
     if len(set(names)) != len(names):
         raise ValueError("CAD marker names must be unique")
-    unknown = sorted(set(names) - set(MARKER_NAMES))
+    unknown = sorted(set(names) - set(ALL_MARKER_NAMES))
     if unknown:
         raise ValueError(f"unknown CAD marker names: {', '.join(unknown)}")
     return names
@@ -416,10 +517,10 @@ def parse_explicit_mapping(value: str) -> dict[int, str]:
             member_id = int(member_text.strip())
         except (ValueError, TypeError) as exc:
             raise ValueError(
-                "mapping entries must use member_id=CAD_name, e.g. 1=S01"
+                "mapping entries must use member_id=CAD_name, e.g. 0=f2"
             ) from exc
-        name = name_text.strip().upper()
-        if member_id <= 0 or name not in CAD_MARKERS_PELVIS_M:
+        name = canonical_marker_name(name_text.strip())
+        if member_id < 0 or name not in ALL_MARKER_NAMES:
             raise ValueError(f"invalid mapping entry: {item}")
         if member_id in result:
             raise ValueError(f"duplicate member ID in mapping: {member_id}")
@@ -432,17 +533,23 @@ def parse_explicit_mapping(value: str) -> dict[int, str]:
 def cad_names_for_markers(
     markers: Sequence[ModelMarker],
     requested: Sequence[str] | None = None,
+    layout: MarkerLayout = V2_MARKER_LAYOUT,
 ) -> tuple[str, ...]:
-    if len(markers) != len(MARKER_NAMES):
-        raise ValueError(
-            f"P1 ModelDef contains {len(markers)} markers; v3 sticker calibration "
-            "requires all 24 defined stations S01-S24, not the old 8/10-marker body"
-        )
     if requested is not None:
-        if len(requested) != 24 or set(requested) != set(MARKER_NAMES):
-            raise ValueError("v3 sticker calibration requires the complete S01-S24 CAD set")
+        if len(requested) != len(markers):
+            raise ValueError(
+                f"selected {len(requested)} CAD markers but Motive defines "
+                f"{len(markers)} UCB robot markers"
+            )
         return tuple(requested)
-    return MARKER_NAMES
+    if len(markers) == len(layout.realized_marker_names):
+        return layout.realized_marker_names
+    if len(markers) == len(layout.markers_pelvis_m):
+        return tuple(layout.markers_pelvis_m)
+    raise ValueError(
+        f"UCB robot ModelDef contains {len(markers)} markers; automatic selection "
+        "must match the explicitly selected marker layout"
+    )
 
 
 def _distance_matrix(points: Sequence[Vector3]) -> list[list[float]]:
@@ -468,24 +575,18 @@ def resolve_correspondence(
     cad_names: Sequence[str],
     explicit_mapping: dict[int, str] | None = None,
     beam_width: int = 20000,
+    cad_markers_pelvis_m: Mapping[str, Vector3] = CAD_MARKERS_PELVIS_M,
 ) -> Correspondence:
     """Resolve marker-to-CAD labels, using names first and geometry otherwise."""
     if len(markers) != len(cad_names):
         raise ValueError("Motive and CAD marker sets have different sizes")
     if len({marker.member_id for marker in markers}) != len(markers):
         raise ValueError("Motive ModelDef member IDs are not unique")
-    if any(marker.member_id <= 0 for marker in markers):
-        raise ValueError("NatNet marker member IDs must be positive (one-based)")
-    if any(
-        len(marker.position) != 3 or not all(math.isfinite(v) for v in marker.position)
-        for marker in markers
-    ):
-        raise ValueError("Motive ModelDef contains invalid/non-finite marker positions")
     if len(set(cad_names)) != len(cad_names):
         raise ValueError("CAD marker set is not unique")
 
     cad_names = tuple(cad_names)
-    cad_points = [CAD_MARKERS_PELVIS_M[name] for name in cad_names]
+    cad_points = [cad_markers_pelvis_m[name] for name in cad_names]
     model_points = [marker.position for marker in markers]
     explicit_mapping = explicit_mapping or {}
     if explicit_mapping:
@@ -500,7 +601,7 @@ def resolve_correspondence(
         if set(explicit_mapping.values()) != set(cad_names):
             raise ValueError("explicit mapping does not exactly cover the selected CAD set")
         source = [
-            CAD_MARKERS_PELVIS_M[explicit_mapping[marker.member_id]]
+            cad_markers_pelvis_m[explicit_mapping[marker.member_id]]
             for marker in markers
         ]
         registration = rigid_registration(source, model_points)
@@ -523,7 +624,7 @@ def resolve_correspondence(
             for index, marker in enumerate(markers)
         }
         registration = rigid_registration(
-            [CAD_MARKERS_PELVIS_M[mapping[marker.member_id]] for marker in markers],
+            [cad_markers_pelvis_m[mapping[marker.member_id]] for marker in markers],
             model_points,
         )
         return Correspondence(
@@ -676,10 +777,18 @@ def analyze_capture(
     max_live_max_m: float,
     minimum_rotation_span_deg: float,
     operator_attested_installed_layout: bool,
+    allow_nominal_only_markers: bool,
+    layout: MarkerLayout = V2_MARKER_LAYOUT,
+    table_side: str = "P1",
+    table_length_m: float = 2.74,
+    table_width_m: float = 1.525,
 ) -> tuple[dict, list[str]]:
-    cad_names = cad_names_for_markers(capture.markers, cad_names)
+    table_side = normalize_table_side(table_side)
     correspondence = resolve_correspondence(
-        capture.markers, cad_names, explicit_mapping
+        capture.markers,
+        cad_names,
+        explicit_mapping,
+        cad_markers_pelvis_m=layout.markers_pelvis_m,
     )
     registration = correspondence.registration
     blockers: list[str] = []
@@ -714,17 +823,18 @@ def analyze_capture(
             f"marker correspondence is ambiguous: best-to-second margin {measured}"
         )
 
+    selected_nominal_only = sorted(
+        set(cad_names) & layout.nominal_only_markers
+    )
+    if selected_nominal_only and not allow_nominal_only_markers:
+        blockers.append(
+            "selected f1/b1, but the reference 0702 shell documents them as "
+            "nominal-only; confirm installed/measured mounts and rerun with "
+            "--allow-nominal-only-markers"
+        )
     if not operator_attested_installed_layout:
         blockers.append(
             "missing --attest-installed-layout operator confirmation"
-        )
-    if (
-        not math.isfinite(capture.definition_drift_max_m)
-        or capture.definition_drift_max_m > 1e-6
-    ):
-        blockers.append(
-            "Motive marker definition changed during capture; "
-            "restart the adapter and recalibrate"
         )
 
     per_marker_live = {}
@@ -769,20 +879,31 @@ def analyze_capture(
     trajectory = _trajectory_span(capture.poses)
     if trajectory["rotation_span_deg"] < minimum_rotation_span_deg:
         blockers.append(
-            f"P1 heading span {trajectory['rotation_span_deg']:.2f} deg is below "
+            f"selected UCB heading span {trajectory['rotation_span_deg']:.2f} deg is below "
             f"{minimum_rotation_span_deg:.2f} deg"
         )
 
     qx, qy, qz, qw = registration.transform.quaternion
     tx, ty, tz = registration.transform.translation
     reference_to_p1 = representative_transform(capture.poses)
+    if reference_to_p1 is not None:
+        transformed_position, transformed_quaternion = transform_pose_xyzw(
+            reference_to_p1.translation,
+            reference_to_p1.quaternion,
+            table_side,
+            table_length_m,
+            table_width_m,
+        )
+        reference_to_p1 = Transform(
+            transformed_position, transformed_quaternion
+        )
     reference_to_pelvis = (
         compose(reference_to_p1, registration.transform)
         if reference_to_p1 is not None
         else None
     )
     if reference_to_pelvis is None:
-        blockers.append("no P1 rigid-body pose samples for world-to-pelvis snapshot")
+        blockers.append("no UCB robot pose samples for world-to-pelvis snapshot")
     marker_records = []
     for marker in capture.markers:
         cad_name = correspondence.mapping[marker.member_id]
@@ -794,10 +915,7 @@ def analyze_capture(
                 "cad_name": cad_name,
                 "model_position_in_P1_m": list(marker.position),
                 "cad_position_in_pelvis_link_m": list(
-                    CAD_MARKERS_PELVIS_M[cad_name]
-                ),
-                "cad_mounting_quaternion_xyzw": list(
-                    CAD_MARKER_TRANSFORMS[cad_name]["quaternion_xyzw"]
+                    layout.markers_pelvis_m[cad_name]
                 ),
                 "fit_residual_m": registration.residuals_m[
                     capture.markers.index(marker)
@@ -806,16 +924,15 @@ def analyze_capture(
         )
 
     document = {
-        "schema": "hope.p1_marker_cad_registration_receipt.v2",
-        "marker_layout": layout_metadata(),
+        "schema": "hope.p1_marker_cad_registration_receipt.v1",
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "approved": not blockers,
         "blockers": blockers,
         "method": {
             "name": "NatNet_ModelDef_to_A3_CAD_rigid_registration",
             "equation": (
-                "p_P1 = R_P1_pelvis_link * p_pelvis_link + "
-                "t_P1_pelvis_link"
+                "p_UCB = R_UCB_pelvis_link * p_pelvis_link + "
+                "t_UCB_pelvis_link"
             ),
             "correspondence_mode": correspondence.mode,
             "evaluated_assignments": correspondence.evaluated_assignments,
@@ -825,7 +942,7 @@ def analyze_capture(
                 else "multi_heading_live_validation"
             ),
             "limitation": (
-                "This observes P1 relative to the CAD marker centres. It does "
+                "This observes the selected UCB rigid body relative to the CAD marker centres. It does "
                 "not independently measure pelvis_link; validity depends on "
                 "the installed shell and marker centres matching the cited CAD."
             ),
@@ -841,13 +958,27 @@ def analyze_capture(
             "frames_with_physical_samples": capture.frames_with_physical_samples,
             "definition_drift_max_m": capture.definition_drift_max_m,
         },
-        "cad": {
-            "coordinate_source": SOURCE_RELATIVE,
-            "selected_marker_names": list(cad_names),
-            "orientation_semantics": (
-                "CAD mounting convention only; the rigid fit uses optical-centre "
-                "positions, not measured sticker orientation"
+        "runtime_world": {
+            "table_side": table_side,
+            "tracked_marker_frame": capture.rigid_body_name,
+            "table_length_m": float(table_length_m),
+            "table_width_m": float(table_width_m),
+            "operation": (
+                "identity"
+                if table_side == "P1"
+                else "rotate_z_pi_about_table_center"
             ),
+        },
+        **({"marker_layout": layout_metadata()} if layout.layout_id == "stickers_v3" else {}),
+        "cad": {
+            "marker_layout": layout.layout_id,
+            "coordinate_source": layout.coordinate_source,
+            "source_files": [
+                {"name": name, "sha256": sha256}
+                for name, sha256 in layout.source_files
+            ],
+            "selected_marker_names": list(cad_names),
+            "nominal_only_marker_names": selected_nominal_only,
             "operator_attested_installed_layout": (
                 operator_attested_installed_layout
             ),
@@ -857,6 +988,18 @@ def analyze_capture(
             "markers": marker_records,
         },
         "quality": {
+            "gates": {
+                "max_registration_rms_m": max_registration_rms_m,
+                "max_registration_max_m": max_registration_max_m,
+                "max_pairwise_rms_m": max_pairwise_rms_m,
+                "minimum_mapping_margin_m": minimum_mapping_margin_m,
+                "minimum_live_samples_per_marker": (
+                    minimum_live_samples_per_marker
+                ),
+                "max_live_rms_m": max_live_rms_m,
+                "max_live_max_m": max_live_max_m,
+                "minimum_rotation_span_deg": minimum_rotation_span_deg,
+            },
             "registration_rms_m": registration.rms_m,
             "registration_max_m": registration.max_m,
             "pairwise_distance_rms_m": registration.pairwise_rms_m,
@@ -873,7 +1016,7 @@ def analyze_capture(
             "per_marker_live": per_marker_live,
         },
         "p1_to_pelvis_link": {
-            "parent_frame": "P1",
+            "parent_frame": capture.rigid_body_name,
             "child_frame": "pelvis_link",
             "xyz_m": [tx, ty, tz],
             "quaternion_wxyz": [qw, qx, qy, qz],
@@ -883,7 +1026,7 @@ def analyze_capture(
         # policy localization relay.  Keep p1_to_pelvis_link above for receipt
         # compatibility with the existing audited marker/CAD records.
         "p1_to_pelvis": {
-            "parent_frame": "P1",
+            "parent_frame": capture.rigid_body_name,
             "child_frame": "pelvis_link",
             "translation_m": [tx, ty, tz],
             "quaternion_xyzw": [qx, qy, qz, qw],
@@ -891,7 +1034,8 @@ def analyze_capture(
         # An audited snapshot of the derived pose at the stationary calibration
         # instant. This satisfies operator provenance without turning the
         # moving robot's world pose into a static runtime transform. Runtime
-        # localization still composes live world->P1 with P1->pelvis_link.
+        # localization still composes live world->selected-UCB with
+        # selected-UCB->pelvis_link.
         "world_to_pelvis_snapshot": (
             None
             if reference_to_pelvis is None
@@ -903,13 +1047,16 @@ def analyze_capture(
                 "sample_count": len(capture.poses),
                 "semantics": (
                     "stationary calibration snapshot for audit; not a static "
-                    "runtime world-to-pelvis transform"
+                    "runtime world-to-pelvis transform; expressed in the "
+                    f"{table_side} robot's canonical table frame"
                 ),
             }
         ),
         "hope_world_frame_yaml_candidate": {
-            "path": "hope_world.mocap_to_base_link.p1",
-            "marker_layout_id": LAYOUT_ID,
+            "path": (
+                "hope_world.mocap_to_base_link."
+                f"{capture.rigid_body_name.lower()}"
+            ),
             "calibrated": not blockers,
             "calibration_sha256": (
                 "fill with SHA-256 of the finalized receipt file"
@@ -937,7 +1084,7 @@ def capture_from_json(path: Path) -> Capture:
         for marker in data["markers"]
     ]
     return Capture(
-        rigid_body_name=str(data.get("rigid_body_name", "P1")),
+        rigid_body_name=str(data.get("rigid_body_name", "UCB_P1")),
         rigid_body_id=int(data.get("rigid_body_id", -1)),
         frame_id=str(data.get("frame_id", "world")),
         markers=markers,
@@ -961,7 +1108,7 @@ def collect_ros_capture(args: argparse.Namespace) -> Capture:
 
     class Collector(Node):
         def __init__(self) -> None:
-            super().__init__("p1_marker_cad_calibrator")
+            super().__init__("ucb_robot_cad_calibrator")
             self.capture: Capture | None = None
             self.first_frame_monotonic: float | None = None
             qos = QoSProfile(
@@ -1117,14 +1264,28 @@ def collect_ros_capture(args: argparse.Namespace) -> Capture:
 def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Calculate P1 -> pelvis_link from NatNet P1 marker centres and "
+            "Calculate UCB robot -> pelvis_link from NatNet marker centres and "
             "the A3 CAD marker table"
         )
     )
     parser.add_argument(
         "--topic", default="/optitrack/rigid_body_markers"
     )
-    parser.add_argument("--asset-name", default="P1")
+    parser.add_argument("--asset-name", default="UCB_P1")
+    parser.add_argument(
+        "--marker-layout",
+        choices=tuple(MARKER_LAYOUTS),
+        default="stickers_v3",
+        help="installed carrier: stickers_v3 (S01-S24), v2 or v3 (legacy balls)",
+    )
+    parser.add_argument(
+        "--table-side",
+        choices=("P1", "P2"),
+        default="P1",
+        help="robot-local table frame used for the world-to-pelvis audit snapshot",
+    )
+    parser.add_argument("--table-length-m", type=float, default=2.74)
+    parser.add_argument("--table-width-m", type=float, default=1.525)
     parser.add_argument(
         "--input-json",
         type=Path,
@@ -1137,8 +1298,8 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-names",
         default="auto",
         help=(
-            "'auto' selects all 24 v3 sticker stations S01-S24; an explicit "
-            "list must contain the same complete set. Visibility may vary per frame."
+            "'auto', or comma-separated CAD names. Auto selects f2-f5,b2-b5 "
+            "for 8 points and f1-f5,b1-b5 for 10 points."
         ),
     )
     parser.add_argument(
@@ -1146,8 +1307,7 @@ def _parse_arguments() -> argparse.Namespace:
         default="",
         help=(
             "optional verified member_id=CAD_name list, e.g. "
-            "'1=S01,2=S02,...'; otherwise NatNet station names or geometry are used. "
-            "Member-ID order alone is not proof of physical correspondence."
+            "'0=f2,1=f3,...'; otherwise NatNet names or geometry are used"
         ),
     )
     parser.add_argument("--minimum-frames", type=int, default=300)
@@ -1181,6 +1341,14 @@ def _parse_arguments() -> argparse.Namespace:
             "installation match the cited A3 CAD"
         ),
     )
+    parser.add_argument(
+        "--allow-nominal-only-markers",
+        action="store_true",
+        help=(
+            "allow f1/b1 only after their physical mounts have been installed "
+            "and independently confirmed"
+        ),
+    )
     args = parser.parse_args()
     if args.minimum_frames < 3:
         parser.error("--minimum-frames must be at least 3")
@@ -1202,9 +1370,12 @@ def _parse_arguments() -> argparse.Namespace:
         parser.error("registration/live quality thresholds must be positive")
     if args.minimum_rotation_span_deg < 0.0:
         parser.error("--minimum-rotation-span-deg must be non-negative")
+    if min(args.table_length_m, args.table_width_m) <= 0.0:
+        parser.error("table dimensions must be positive")
     if args.stationary_prepare:
         args.minimum_rotation_span_deg = 0.0
     try:
+        args.marker_layout = marker_layout(args.marker_layout)
         args.explicit_mapping = parse_explicit_mapping(args.mapping)
         args.selected_marker_names = (
             None
@@ -1258,7 +1429,9 @@ def main() -> int:
             else collect_ros_capture(args)
         )
         cad_names = cad_names_for_markers(
-            capture.markers, args.selected_marker_names
+            capture.markers,
+            args.selected_marker_names,
+            args.marker_layout,
         )
         document, blockers = analyze_capture(
             capture,
@@ -1273,6 +1446,11 @@ def main() -> int:
             max_live_max_m=args.max_live_max_mm * 1.0e-3,
             minimum_rotation_span_deg=args.minimum_rotation_span_deg,
             operator_attested_installed_layout=args.attest_installed_layout,
+            allow_nominal_only_markers=args.allow_nominal_only_markers,
+            layout=args.marker_layout,
+            table_side=args.table_side,
+            table_length_m=args.table_length_m,
+            table_width_m=args.table_width_m,
         )
     except (OSError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         print(f"calibration failed: {exc}", file=sys.stderr)
@@ -1285,9 +1463,10 @@ def main() -> int:
     transform = document["p1_to_pelvis_link"]
     print(f"receipt_sha256: {receipt_sha256}")
     print(f"approved: {document['approved']}")
-    print(f"P1 -> pelvis_link xyz_m: {transform['xyz_m']}")
+    parent_frame = transform.get("parent_frame", "selected UCB")
+    print(f"{parent_frame} -> pelvis_link xyz_m: {transform['xyz_m']}")
     print(
-        "P1 -> pelvis_link quaternion_wxyz: "
+        f"{parent_frame} -> pelvis_link quaternion_wxyz: "
         f"{transform['quaternion_wxyz']}"
     )
     if blockers:

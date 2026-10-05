@@ -1,0 +1,88 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+
+enum LocomotionGaitType {
+  // 步态: 未知，非行走action下应当设置
+  LocomotionGaitType_UNKNOWN = 0;
+  // 步态: 站住
+  LocomotionGaitType_STANCE = 1;
+  // 步态: 正常行走，无速度指令时踏步
+  LocomotionGaitType_WALK = 2;
+  // 步态: 正常行走，无速度指令时站住
+  LocomotionGaitType_SMART_WALK = 3;
+  // 步态：地形
+  LocomotionGaitType_TERRAIN = 4;
+  // 步态: 跑步
+  LocomotionGaitType_RUN = 5;
+  // 步态: 双脚跳
+  LocomotionGaitType_JUMP = 6;
+  // 步态: 单脚跳
+  LocomotionGaitType_HOP = 7;
+}
+
+enum LocomotionMode {
+  // 默认模式
+  // 适用于遥控场景
+  LocomotionMode_DEFAULT = 0;
+
+  // 导航模式
+  // 速度响应更快，0.05m/s激活踏步,踏步后500ms内无速度指令会停止踏步，适用于自动行走的导航场景
+  LocomotionMode_NAVIGATION = 1;
+}
+
+
+
+message LocomotionVelocity {
+  /**
+   * @brief 速度控制模式
+   */
+  LocomotionMode mode = 1;
+
+  /**
+   * @brief 前进速度
+   * 单位: m/s
+   * 方向: +为前进,-为后退
+   * 速度范围: 根据机器人实际速度限制
+   */
+  double forward_velocity = 2;
+
+  /**
+   * @brief 侧移动速度
+   * 单位: m/s
+   * 方向: +为左侧移动,-为右侧移动
+   * 速度范围: 根据机器人实际速度限制
+   */
+  double lateral_velocity = 3;
+  /**
+   * @brief 旋转速度（角速度）
+   * 单位: m/s
+   * 方向: +为左旋转,-为右旋转
+   * 速度范围: 根据机器人实际速度限制
+   */
+  double angular_velocity = 4;
+}
+
+/**
+ * @brief  机器人步态请求
+ */
+message LocomotionGaitRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 机器人步态
+  LocomotionGaitType gait = 2;
+}
+
+
+/**
+ * @brief  机器人步态查询返回
+ */
+ message LocomotionGaitResponse {
+  // 请求头
+  ResponseHeader header = 1;
+
+  // 机器人步态
+  LocomotionGaitType gait = 2;
+}

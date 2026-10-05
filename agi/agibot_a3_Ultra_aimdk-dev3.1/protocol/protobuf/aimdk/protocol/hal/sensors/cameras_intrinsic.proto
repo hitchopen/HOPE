@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+import "aimdk/protocol/common/header.proto";
+
+package aimdk.protocol;
+
+/**
+ * @brief 畸变类型
+ */
+enum DistortionType {
+  // 未定义
+  DistortionType_UNDEFINED = 0;
+
+  // 修改的布朗-康拉迪
+  DistortionType_MODIFIED_BROWN_CONRADY = 1;
+
+  // 逆布朗-康拉迪
+  DistortionType_INVERSE_BROWN_CONRADY = 2;
+
+  // F-θ
+  DistortionType_FTHETA = 3;
+
+  // 布朗-康拉迪
+  DistortionType_BROWN_CONRADY = 4;
+
+  // 卡纳拉-布兰特4
+  DistortionType_KANNALA_BRANDT4 = 5;
+
+  //计数
+  DistortionType_COUNT = 6;
+}
+
+/**
+ * @brief 流类型
+ */
+enum StreamType {
+  // 未定义
+  StreamType_UNDEFINED = 0;
+
+  // 深度
+  StreamType_DEPTH = 1;
+
+  // 彩色
+  StreamType_COLOR = 2;
+
+  // 红外
+  StreamType_IR = 3;
+}
+
+/**
+ * @brief 相机内参信息
+ */
+message CameraIntrinsicInfo {
+  // 相机ID
+  string id = 1;
+
+  // 相机名称
+  string name = 2;
+
+  // 流类型
+  StreamType stream_type = 3;
+
+  // 图像宽度
+  int32 width = 4;
+
+  // 图像高度
+  int32 height = 5;
+
+  // 主点X坐标
+  float ppx = 6;
+
+  // 主点Y坐标
+  float ppy = 7;
+
+  // 焦距X
+  float fx = 8;
+
+  // 焦距Y
+  float fy = 9;
+
+  // 畸变模型
+  DistortionType model = 10;
+
+  // 畸变系数
+  repeated float coeffs = 11;
+}
+
+/**
+ * @brief 获取相机内参请求
+ */
+message GetCamerasIntrinsicRequest {
+  // 请求头
+  RequestHeader header = 1;
+}
+
+/**
+ * @brief 获取相机内参的响应结果
+ */
+message GetCamerasIntrinsicResponse {
+  // 相机内参信息列表
+  repeated CameraIntrinsicInfo info = 1;
+}
+
+/**
+ * @brief 获取相机内参的服务
+ */
+service CamerasIntrinsicService {
+  /*
+   * @brief 获取所有相机的内参
+   * @param GetCamerasIntrinsicRequest 请求参数
+   * @return GetCamerasIntrinsicResponse 响应结果
+   */
+  rpc GetCamerasIntrinsic(GetCamerasIntrinsicRequest) returns (GetCamerasIntrinsicResponse);
+}

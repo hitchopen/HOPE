@@ -1,0 +1,217 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+
+import "aimdk/protocol/ota/ota_gateway/ota_gateway_api.proto";
+
+/**
+ * @brief 查询 OTA 所处状态机
+ */
+message OTAStateMachineQueryRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 查询 OTA 所处状态机的响应
+ */
+message OTAStateMachineQueryResponse {
+    ResponseHeader header = 1;
+    OTAGatewayStateMachine state = 2;
+    int32 state_val = 3;
+}
+
+/**
+ * @brief 查询 OTA 当前是否有新的升级任务
+ */
+message OTANewTaskQueryRequest {
+    RequestHeader header = 1;
+
+    /// 语言
+    string language = 2;
+}
+
+/**
+ * @brief 发布说明元素类型
+ */
+enum OTAReleaseNoteElementType {
+    Type_UNKNOWN = 0;
+
+    /// 文本
+    Text = 1;
+
+    /// 图片
+    Image = 2;
+}
+
+/**
+ * @brief 发布说明元素
+ */
+message OTAReleaseNoteElement {
+    /// 类型
+    OTAReleaseNoteElementType type = 1;
+
+    /// 内容
+    bytes image = 2;
+
+    /// 文本
+    string text = 3;
+}
+
+/**
+ * @brief 发布说明
+ */
+message OTAReleaseNote {
+    /// title
+    string title = 1;
+
+    /// content
+    repeated OTAReleaseNoteElement elements = 2;
+}
+
+/**
+ * @brief 查询 OTA  当前是否有新的升级任务的响应
+ */
+message OTANewTaskQueryResponse {
+    enum UpgradeType {
+        TYPE_UNKNOWN    = 0;
+        UNSPECIFIED     = 1;
+        FULL_PACKAGE    = 2; // 软件全量包
+        MODULES         = 3; // 模块包
+        THIRD_PARTY_LIB = 4; // 第三方软件包
+        SW_DIFF_PACKAGE = 5; // 软件差分包
+        FW_FULL_PACKAGE = 6; // 固件全量包
+        FW_DIFF_PACKAGE = 7; // 固件差分包
+    }
+    ResponseHeader header = 1;
+    bool has_new_task = 2;
+    int64 release_id = 3;
+    string version = 4;
+    repeated OTAReleaseNote release_notes = 5;
+    UpgradeType type  = 6;  // 升级类型
+}
+
+/**
+ * @brief 开始下载 OTA 文件
+ */
+message OTAStartDownloadRequest {
+    RequestHeader header = 1;
+    int64 release_id = 2;
+}
+
+/**
+ * @brief 开始下载 OTA 文件的响应
+ */
+message OTAStartDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求暂停下载 OTA 文件
+ */
+message OTAPauseDownloadRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求暂停下载 OTA 文件的响应
+ */
+message OTAPauseDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求继续下载 OTA 文件
+ */
+message OTAContinueDownloadRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求继续下载 OTA 文件的响应
+ */
+message OTAContinueDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求中止下载 OTA 文件
+ */
+message OTAAbortDownloadRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求中止下载 OTA 文件的响应
+ */
+message OTAAbortDownloadResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求开始升级
+ */
+message OTAStartUpgradeRequest {
+    RequestHeader header = 1;
+}
+
+/**
+ * @brief 请求开始升级的响应
+ */
+message OTAStartUpgradeResponse {
+    ResponseHeader header = 1;
+}
+
+/**
+ * @brief 请求获取升级结果
+ */
+message GetOTAResultRequest {
+    RequestHeader header = 1;
+    bool feedback_error = 2;  // true: 客户端反馈收到错误弹窗
+}
+
+/**
+ * @brief 请求获取升级结果的响应
+ */
+message GetOTAResultResponse {
+    ResponseHeader header = 1;
+}
+
+
+message IntegerConfiguration {
+  string name = 1;
+  optional int32 val = 2;
+}
+
+message BooleanConfiguration {
+  string name = 1;
+  optional bool val = 2;
+}
+
+/**
+ * @brief 更新OTA配置请求
+ */
+message UpdateOTAConfigRequest {
+  RequestHeader header = 1;
+
+  repeated IntegerConfiguration integer_cfg_list = 2;
+  repeated BooleanConfiguration boolean_cfg_list = 3;
+}
+
+/**
+ * @brief 更新OTA配置应答
+ */
+message UpdateOTAConfigResponse {
+  enum UpdateOTAConfigReturnCode {
+    UpdateOTAConfigReturnCode_UNKNOWN = 0;
+    UpdateOTAConfigReturnCode_Success = 1;   // 全部配置名称有效, 赋值有效，类型匹配，才开始更新, 并返回成功
+    UpdateOTAConfigReturnCode_Fail = 2;      // 更新失败
+  }
+
+  ResponseHeader header = 1;
+
+  // 返回最新的配置信息
+  repeated IntegerConfiguration integer_cfg_list = 2;
+  repeated BooleanConfiguration boolean_cfg_list = 3;
+}

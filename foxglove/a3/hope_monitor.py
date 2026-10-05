@@ -8,13 +8,16 @@ software latch and can independently request native Runner PASSIVE. Four
 imported `/hope/control/*` services remain as legacy compatibility internals,
 but the integrated bridges do not expose them. Motive/NatNet network
 acquisition remains outside this process.
+On the deployed HDU, native_clock_topics delegates the three /hope/clock
+display topics to hope-imu-telemetry; this process retains safety and slow health
+checks. Direct IMU and bounded native-sample modes remain available for rollback.
 Publishes:
 
   /hope/ntp/offset_ms           std_msgs/Float64  chrony System time offset
   /hope/ntp/skew_ppm            std_msgs/Float64
   /hope/ntp/root_dispersion_ms  std_msgs/Float64
   /hope/ntp/utc_qualified       std_msgs/Bool     Leap Normal + selected source
-  /hope/ntp/gate_pass           std_msgs/Bool     qualified + offset/skew gates
+  /hope/ntp/gate_pass           std_msgs/Bool     qualified + wall-offset gate
   /hope/ntp/text                std_msgs/String   human-readable offset in ms
   /hope/clock/message_latency_ms std_msgs/Float64 A3 ROS time - message stamp
   /hope/clock/message_fresh      std_msgs/Bool
@@ -53,7 +56,7 @@ from rclpy.callback_groups import (
     MutuallyExclusiveCallbackGroup,
     ReentrantCallbackGroup,
 )
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data, qos_profile_system_default
 from rclpy.time import Time
@@ -72,12 +75,14 @@ except ImportError:  # Endpoint stays available; only the vendor RPC is degraded
     RosRpcWrapper = None
 
 from hope_monitor_core import (
+    read_ipv4_interface_signature,
     NtpProbeResult,
     ServiceProbeResult,
     build_software_estop_request,
     combine_estop_results,
     cpu_load_percent,
     decode_software_estop_response,
+    decode_native_latency_sample,
     estop_backend_status,
     message_latency_ms,
     parse_calibration_service_sha,
@@ -118,16 +123,24 @@ class HopeMonitor(Node):
         self.declare_parameter("pelvis_frame", "pelvis_link")
         self.declare_parameter("reference_frame", "world")
         self.declare_parameter("ntp_max_offset_ms", 10.0)
-        self.declare_parameter("ntp_max_skew_ppm", 5.0)
+        # Zero keeps chrony frequency-estimate uncertainty as audit telemetry.
+        # The live wall-offset gate remains strict at ntp_max_offset_ms.
+        self.declare_parameter("ntp_max_skew_ppm", 0.0)
         self.declare_parameter(
             "message_latency_topic", "/ros2/body_drive/pelvis_imu/data"
         )
         self.declare_parameter("message_latency_publish_hz", 20.0)
+        # Empty retains direct IMU ingestion for installations without native
+        # telemetry. The HDU service uses the bounded-rate native sample.
+        self.declare_parameter("message_latency_sample_topic", "")
+        self.declare_parameter("native_clock_topics", False)
+        self._native_clock_topics = bool(self.get_parameter("native_clock_topics").value)
         self.declare_parameter("message_latency_stale_after_s", 0.5)
         self.declare_parameter("agibot_pm_unit", "agibot_pm.service")
         self.declare_parameter("hdu_runtime_unit", "hope-observer.service")
         self.declare_parameter("cpu_publish_period_s", 1.0)
         self.declare_parameter("tf_stale_after_s", 0.5)
+        self.declare_parameter("enable_tf_fallback", True)
         self.declare_parameter(
             "mode_command_topic", "/hope/runner/mode_command"
         )
@@ -142,7 +155,7 @@ class HopeMonitor(Node):
             "pelvis_pose_topic", "/a3/mocap/pelvis_pose"
         )
         self.declare_parameter(
-            "calibration_service", "/a3/calibration/recompute_p1"
+            "calibration_service", "/a3/calibration/recompute_ucb_robot_v2"
         )
         self.declare_parameter("calibration_timeout_s", 25.0)
         self.declare_parameter(
@@ -157,15 +170,16 @@ class HopeMonitor(Node):
         self.pub_qualified = self.create_publisher(Bool, "/hope/ntp/utc_qualified", 10)
         self.pub_ntp_gate = self.create_publisher(Bool, "/hope/ntp/gate_pass", 10)
         self.pub_ntp_text = self.create_publisher(String, "/hope/ntp/text", 10)
-        self.pub_message_latency = self.create_publisher(
-            Float64, "/hope/clock/message_latency_ms", 10
-        )
-        self.pub_message_fresh = self.create_publisher(
-            Bool, "/hope/clock/message_fresh", 10
-        )
-        self.pub_message_text = self.create_publisher(
-            String, "/hope/clock/message_text", 10
-        )
+        if not self._native_clock_topics:
+            self.pub_message_latency = self.create_publisher(
+                Float64, "/hope/clock/message_latency_ms", 10
+            )
+            self.pub_message_fresh = self.create_publisher(
+                Bool, "/hope/clock/message_fresh", 10
+            )
+            self.pub_message_text = self.create_publisher(
+                String, "/hope/clock/message_text", 10
+            )
         self.pub_cpu_load = self.create_publisher(
             Float64, "/hope/system/cpu_load_percent", 10
         )
@@ -225,8 +239,14 @@ class HopeMonitor(Node):
             10,
         )
 
-        self._tf_buffer = Buffer()
-        self._tf_listener = TransformListener(self._tf_buffer, self)
+        self._tf_fallback_enabled = bool(
+            self.get_parameter("enable_tf_fallback").value
+        )
+        self._tf_buffer = None
+        self._tf_listener = None
+        if self._tf_fallback_enabled:
+            self._tf_buffer = Buffer()
+            self._tf_listener = TransformListener(self._tf_buffer, self)
         self._tf_broadcaster = TransformBroadcaster(self)
         self._pelvis_lock = threading.Lock()
         self._mocap_pelvis_pose = None
@@ -237,12 +257,17 @@ class HopeMonitor(Node):
         self._message_received_monotonic = None
         self._previous_cpu_times = None
         self._previous_process_cpu_times = {}
-        self.create_subscription(
-            Imu,
-            latency_topic,
-            self._on_latency_message,
-            qos_profile_sensor_data,
-        )
+        sample_topic = str(self.get_parameter("message_latency_sample_topic").value)
+        if self._native_clock_topics:
+            pass  # The native node owns all three public clock display topics.
+        elif sample_topic:
+            self.create_subscription(
+                Float64MultiArray, sample_topic, self._on_native_latency_message, 1
+            )
+        else:
+            self.create_subscription(
+                Imu, latency_topic, self._on_latency_message, qos_profile_sensor_data
+            )
         self._vendor_callback_group = ReentrantCallbackGroup()
         # State transitions are serialized so an older PREPARE cannot publish
         # PD_STAND after a newer PASSIVE/exit request. E-stop remains on the
@@ -341,6 +366,13 @@ class HopeMonitor(Node):
             callback_group=self._vendor_callback_group,
         )
 
+        self._estop_reset_service = self.create_service(
+            Trigger,
+            "/hope/safety/reset_software_estop",
+            self._reset_software_estop,
+            callback_group=self._vendor_callback_group,
+        )
+
         period = float(self.get_parameter("period_s").value)
         latency_publish_hz = float(
             self.get_parameter("message_latency_publish_hz").value
@@ -371,7 +403,21 @@ class HopeMonitor(Node):
         self.create_timer(0.5, self._poll_estop_backend)
         self.create_timer(0.2, self._poll_control_state)
         self.create_timer(0.2, self._poll_pelvis)
-        self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
+        if not self._native_clock_topics:
+            self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
+        self._dds_interfaces = read_ipv4_interface_signature()
+        self.create_timer(1.0, self._poll_dds_interfaces)
+
+    def _poll_dds_interfaces(self):
+        current = read_ipv4_interface_signature()
+        if current is None:
+            return
+        if self._dds_interfaces is None:
+            self._dds_interfaces = current
+        elif current != self._dds_interfaces:
+            # systemd recreates DDS on the new addresses. The persistent E-stop
+            # latch remains authoritative across this monitor-only restart.
+            raise RuntimeError("Network interfaces changed; reconnecting monitor DDS")
 
     # ---- CPU load ----------------------------------------------------------
     @staticmethod
@@ -436,6 +482,18 @@ class HopeMonitor(Node):
         self.pub_cpu_top_process.publish(String(data=top_text))
 
     # ---- timestamp latency -------------------------------------------------
+    def _on_native_latency_message(self, message):
+        try:
+            latency, received = decode_native_latency_sample(
+                message.data, time.monotonic()
+            )
+        except ValueError as exc:
+            self._latest_message_latency_ms = None
+            self.pub_message_text.publish(String(data=str(exc)))
+            return
+        self._latest_message_latency_ms = latency
+        self._message_received_monotonic = received
+
     def _on_latency_message(self, msg: Imu):
         try:
             latency_ms = message_latency_ms(
@@ -608,6 +666,11 @@ class HopeMonitor(Node):
 
         if pose is None:
             source = "existing TF"
+            if self._tf_buffer is None:
+                self._set_tf_unready(
+                    f"PELVIS UNAVAILABLE | {pose_error}; TF fallback disabled"
+                )
+                return
             try:
                 tf = self._tf_buffer.lookup_transform(ref, pelvis, Time())
                 age_s = timestamp_age_s(
@@ -849,7 +912,7 @@ class HopeMonitor(Node):
                 self._prepare_request_sequence = 0
                 self._session_calibration_sha = ""
                 self._control_detail = f"CALIBRATION START FAILED | {exc}"
-                self.get_logger().error(f"cannot start P1 calibration: {exc}")
+                self.get_logger().error(f"cannot start marker calibration: {exc}")
                 return
             self._prepare_waiting_for_stand = False
             self._prepare_requires_calibration = False
@@ -857,7 +920,7 @@ class HopeMonitor(Node):
             self._control_detail = "PD_STAND READY | laptop calibration running"
             self._calibration_future = (future, generation, time.monotonic())
         self.get_logger().info(
-            "PD_STAND acknowledged; requested laptop 10-marker P1 calibration"
+            "PD_STAND acknowledged; requested laptop 10-marker calibration"
         )
 
     def _finish_calibration_if_ready(self):
@@ -903,7 +966,7 @@ class HopeMonitor(Node):
                     self._session_calibration_sha = ""
                     self._control_detail = f"CALIBRATION FAILED | {exc}"
             if current:
-                self.get_logger().error(f"laptop P1 calibration failed: {exc}")
+                self.get_logger().error(f"laptop marker calibration failed: {exc}")
             return
         with self._control_lock:
             if self._calibration_future != record:
@@ -917,7 +980,7 @@ class HopeMonitor(Node):
                 "/a3/base_pose_flat"
             )
         self.get_logger().info(
-            f"laptop installed approved P1 calibration {receipt_sha}"
+            f"laptop installed approved marker calibration {receipt_sha}"
         )
 
     def _cancel_prepare(self, detail, *, clear_calibration=True):
@@ -933,7 +996,7 @@ class HopeMonitor(Node):
     def _enter_prepare(self, _request, response):
         if self._control_estop_latched:
             response.success = False
-            response.message = "E-stop is latched; use the approved local recovery procedure"
+            response.message = "E-stop is latched; click Reset Software E-stop"
             return response
         state, fresh = self._runner_snapshot()
         if not fresh:
@@ -1218,9 +1281,9 @@ class HopeMonitor(Node):
                 self._prepare_request_sequence = 0
                 self._session_calibration_sha = ""
             self._control_detail = (
-                "E-STOP REASSERTING | local recovery required"
+                "E-STOP REASSERTING | click Reset Software E-stop"
                 if was_latched
-                else "E-STOP LATCHED | local recovery required"
+                else "E-STOP LATCHED | click Reset Software E-stop"
             )
         self.pub_estop_latched.publish(Bool(data=True))
         persistence_error = ""
@@ -1246,6 +1309,35 @@ class HopeMonitor(Node):
         finally:
             with self._estop_service_lock:
                 self._estop_call_in_progress = False
+
+    def _reset_software_estop(self, _request, response):
+        """Clear only the operator software inhibit; never release vendor stop or move."""
+        # Serialize against assertion and persistence. An outstanding stop RPC
+        # must complete before reset; it must never complete after our clear.
+        with self._estop_service_lock:
+            if self._estop_call_in_progress:
+                response.success = False
+                response.message = "E-stop is still being asserted; retry after completion"
+                return response
+            with self._control_lock:
+                try:
+                    self._estop_latch_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    response.success = False
+                    response.message = f"Software reset failed; latch retained: {exc}"
+                    return response
+                self._control_estop_latched = False
+                self._prepare_waiting_for_stand = False
+                self._prepare_requires_calibration = False
+                self._prepare_request_sequence = 0
+                self._control_detail = "SOFTWARE E-STOP RESET | no motion requested"
+            self.pub_estop_latched.publish(Bool(data=False))
+        response.success = True
+        response.message = (
+            "Software E-stop reset. No motion started; vendor/hardware stop unchanged. "
+            "Release controller buttons, then explicitly start/select the next mode."
+        )
+        return response
 
     def _execute_trigger_estop(self, response):
         deadline = time.monotonic() + 2.7
@@ -1367,13 +1459,13 @@ def main():
     executor.add_node(node)
     try:
         executor.spin()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         executor.shutdown()
         node.stop_workers()
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

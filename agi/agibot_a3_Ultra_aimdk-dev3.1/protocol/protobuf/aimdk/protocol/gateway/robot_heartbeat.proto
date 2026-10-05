@@ -1,0 +1,167 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/common.proto";
+import "aimdk/protocol/setting/wifi.proto";
+import "aimdk/protocol/setting/robot_function_setting.proto";
+import "aimdk/protocol/motion_player/motion_command.proto";
+import "aimdk/protocol/motion_control/action/mc_action.proto";
+import "aimdk/protocol/motion_control/info/mc_robot_posture_state.proto";
+import "aimdk/protocol/motion_control/motion/dance.proto";
+import public "aimdk/protocol/common/joint.proto";
+
+
+message RobotConnectableState{
+  /**
+   * @brief 机器人是否能连接
+   */
+  bool is_connectable = 1;
+
+  /**
+   * @brief 机器人错误信息
+   */
+  string error_msg = 2;
+}
+
+/**
+ * @brief 机器人系统状态
+ */
+message RobotSystemState{
+
+  /**
+   * @brief 机器人连接状态
+   */
+  RobotConnectableState connectable_state = 1;
+}
+
+/**
+ * @brief 机器人信息
+ */
+message RobotInfo {
+  string sn = 1;                         // 机器人ID
+  string name = 2;                       // 机器人别名
+  string model = 3;                      // 型号
+  Timestamp timestamp = 4;        // 当前机器人时间
+};
+
+/**
+ * @brief 机器人硬件状态
+ */
+message HardWareState {
+  bool emergency_stop_status = 1;   // 急停状态
+  bool lower_lock_status = 2;       // 下身锁定状态
+  bool hardware_emergency_stop = 3; // 硬件急停状态
+  bool software_emergency_stop = 4; // 软件急停状态
+};
+
+/**
+ * @brief 手动控制状态
+ */
+enum ManualCtrlState {
+  ManualCtrlState_Undefined = 0;
+  ManualCtrlState_IDLE = 1;  // 未处于手动控制状态
+  ManualCtrlState_ManualCtrl = 2;  // 手动控制中
+};
+
+/*
+ * @brief 电池状态
+ */
+message BatteryInfo {
+  int32 voltage = 1;  // 电池电压
+  int32 current = 2;  // 电池电流
+  int32 capacity = 3;  // 电池容量
+  int32 temperature = 4;  // 电池温度
+  int32 percentage = 5;  // 电池百分比
+  bool is_charging = 6;  // 是否正在充电
+  int32 power = 7;       // 当前功率
+  bool is_charg_plugin = 8;  // 充电器是否插入
+  bool is_battery_plugin = 9;  // 电池是否插入
+  bool is_battery_full = 10;  // 电池是否充满
+}
+
+/**
+ * @brief 灯光状态
+ */
+message LightState {
+  int32 brightness =1;  //亮度
+}
+
+/**
+ * @brief 机器人动作状态
+ */
+enum ActionState {
+  ActionState_Undefined = 0;
+  ActionState_Ready = 1; // 就绪
+  ActionState_Stand = 2; // 站立
+  ActionState_Sit = 3; // 坐下
+}
+
+/**
+ * @brief 机器人运动状态
+ */
+message MotionState {
+  ActionState action = 1; //机器人动作状态
+}
+
+enum TeleoperationDeviceState {
+  TeleoperationDeviceState_Undefined = 0;
+  TeleoperationDeviceState_Connected = 1;
+  TeleoperationDeviceState_Disconnected = 2;
+}
+
+/**
+ * @brief 遥操作状态
+ */
+message TeleoperationState {
+  TeleoperationDeviceState device_state = 1; // 遥操作设备状态
+}
+
+/**
+ * @brief 整机wifi状态
+ */
+message WholeNetState {
+  NetWorkState orin_net_state = 1;
+  NetWorkState x86_net_state = 2;
+}
+
+/**
+ * @brief 机器人配置信息
+ */
+message RobotConfigInfo {
+  repeated RobotConfig robot_configs = 1;
+}
+
+
+/**
+ * @brief MP状态信息
+ */
+message MpState {
+  MotionStatusChannel motion_status = 1;
+}
+
+
+/**
+ * @brief 机器人关节状态信息
+ */
+message RobotJointState {
+  JointState neck_shake_state = 2;  // 机器人脖子摇头关节状态
+  JointState neck_nod_state = 3;  // 机器人脖子点头关节状态
+}
+
+/**
+ * @brief 机器人主动控制相关
+ */
+message RobotActiveControl {
+  bool arm_future_collision = 1;  // 机器人上肢主动避障
+}
+
+
+/**
+ * @brief 运动控制动作信息
+ */
+message McInfo {
+  MotionControlActionInfo action_info = 1; // 运动控制动作信息
+  McRobotPostureState posture_state = 2; // 机器人姿态状态
+  MotionControlDanceState dance_state = 3; // 舞蹈状态信息
+  bool is_recovery = 4;
+}

@@ -45,6 +45,58 @@ RobotCommand ZeroCmd31() {
 
 }  // namespace
 
+TEST(A3AimrtBackend, DetachWaitsForInFlightStateCallback) {
+#ifdef ENABLE_A3_AIMRT_BACKEND
+  GTEST_SKIP();
+#else
+  A3AimrtBackend b;
+  ASSERT_TRUE(b.Init("sync_mode=latest_frame,max_sample_age_ms=1000"));
+  ASSERT_TRUE(b.Start());
+  std::atomic<bool> entered{false}, release{false}, detaching{false}, detached{false};
+  b.RegisterStateCallback([&](const RobotState&) {
+    entered.store(true);
+    while (!release.load()) std::this_thread::yield();
+  });
+  const auto stamp = NowNs();
+  auto init = [stamp](auto& s) {
+    s.stamp = {stamp}; s.recv_stamp = {stamp}; s.source_stamp_valid = true;
+  };
+  a3_sync::WaistSample w; init(w);
+  a3_sync::LegSample l; init(l);
+  a3_sync::ArmSample a; init(a);
+  a3_sync::NeckSample n; init(n);
+  a3_sync::ImuSample imu; init(imu); imu.quat_wxyz[0] = 1.;
+  b.InjectWaistSample_ForTest(w); b.InjectLegSample_ForTest(l);
+  b.InjectArmSample_ForTest(a); b.InjectNeckSample_ForTest(n);
+  b.InjectPelvisImu_ForTest(imu);
+  std::thread producer([&] { b.InjectTorsoImu_ForTest(imu); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!entered.load() && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::yield();
+  const bool callback_entered = entered.load();
+  std::thread detach([&] {
+    detaching.store(true);
+    b.RegisterStateCallback({});
+    detached.store(true);
+  });
+  while (!detaching.load()) std::this_thread::yield();
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  const bool detached_early = detached.load();
+  release.store(true);
+  producer.join(); detach.join();
+  EXPECT_TRUE(callback_entered);
+  EXPECT_FALSE(detached_early);
+  EXPECT_TRUE(detached.load());
+  // Self-detachment must not deadlock or destroy the active callable.
+  int self_calls = 0;
+  b.RegisterStateCallback([&](const RobotState&) { ++self_calls; b.RegisterStateCallback({}); });
+  b.InjectTorsoImu_ForTest(imu);
+  b.InjectTorsoImu_ForTest(imu);
+  EXPECT_EQ(self_calls, 1);
+  b.Stop();
+#endif
+}
+
 TEST(A3AimrtBackend, LayoutIs31AndNameIsA3) {
   A3AimrtBackend b;
   EXPECT_EQ(b.GetLayout().dof(), robot_io::kA3Dof);
@@ -178,8 +230,10 @@ TEST(A3AimrtBackend, EndToEndSampleInjectionTriggersStateCallback) {
   GTEST_SKIP();
 #else
   A3AimrtBackend b;
-  // align_delay = 1ms, max_skew = 10ms so sync_loop accepts loose stamps.
-  ASSERT_TRUE(b.Init("sync_hz=200,align_delay_ms=1,max_skew_ms=10"));
+  // This fixture exercises bracket interpolation, with loose stamps and no
+  // source_stamp_valid flags. Select it explicitly: the production default is
+  // min_skew_pair, which correctly rejects these unstamped fixture samples.
+  ASSERT_TRUE(b.Init("sync_mode=header_interp,sync_hz=200,align_delay_ms=1,max_skew_ms=10"));
 
   std::atomic<int> cb_count{0};
   std::atomic<std::int64_t> last_tick{0};

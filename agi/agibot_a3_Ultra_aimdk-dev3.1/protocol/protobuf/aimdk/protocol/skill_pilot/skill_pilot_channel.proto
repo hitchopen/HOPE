@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/sm/sm_api.proto";
+
+// 话题: /skillpilot/status
+message SkillPilotStatus {
+  // sm当前功能组
+  string sm_state = 1;
+  // sm功能组切换状态
+  SystemStatus sm_internal_state = 2;
+  // 不支持的原子能力列表
+  repeated string unsupport_capability = 3;
+  // 降级业务列表
+  repeated string unsupport_business = 4;
+  // 高功耗模式
+  bool is_high_power = 5;
+  // 上肢是否锁定
+  bool motion_lock = 6;
+}
+
+enum CoreState {
+  CoreState_UNKNOWN = 0;
+  CoreState_Initial = 1;
+  CoreState_Idle = 2;
+  CoreState_Working = 3;
+  CoreState_Lock = 4;
+  CoreState_Ota = 5;
+}
+
+enum BatteryState {
+  BatteryState_UNKNOWN = 0;
+  BatteryState_Initial = 1;
+  BatteryState_Normal = 2;
+  BatteryState_LowPower = 3;
+  BatteryState_ChargingWithBattery = 4;
+  BatteryState_ChargingWithoutBattery = 5;
+}
+
+enum RemoteControlState {
+  RemoteControlState_UNKNOWN = 0;
+  RemoteControlState_Disabled = 1;
+  RemoteControlState_Standby = 2;
+  RemoteControlState_Controling = 3;
+}
+
+enum HealthDiagState {
+  HealthDiagState_UNKNOWN = 0;
+  HealthDiagState_HealthNormal = 1;
+  HealthDiagState_HealthFault = 2;
+}
+
+enum InteractionState {
+  InteractionState_UNKNOWN = 0;
+  InteractionState_Unawake = 1;
+  InteractionState_Awake = 2;
+  InteractionState_Speaking = 3;
+}
+
+enum AgingTestState {
+  AgingTestState_UNKNOWN = 0;
+  AgingTestState_Initial = 1;
+  AgingTestState_Testing = 2;
+  AgingTestState_Paused  = 3;
+}
+
+// 话题 /skillpilot/aging_test/status
+// 老化测试状态及剩余时长，仅产测使用
+message AgingTestStatusChannel {
+  AgingTestState state         = 1;  // 当前状态机状态
+  uint64 remaining_duration_ms = 2;  // 剩余工作时长，0 表示未开始或不限时
+}
+
+// 话题 /skill/pilot/state
+// 发布各个状态机的状态
+message SkillPilotState {
+  CoreState core = 1;
+  BatteryState battery = 2;
+  RemoteControlState remote_control = 3;
+  HealthDiagState health_diag = 4;
+  InteractionState interaction = 5;
+}

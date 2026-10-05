@@ -164,11 +164,7 @@ source install/setup.bash
 Before deploying to hardware, verify the ONNX policy in a MuJoCo simulation:
 
 ```bash
-# Load from WandB
-ros2 launch motion_tracking_controller mujoco.launch.py \
-    wandb_path:=your-org/hope_wbc/run_id
-
-# OR load from local ONNX file (absolute path)
+# Load from a local ONNX file (absolute path)
 ros2 launch motion_tracking_controller mujoco.launch.py \
     policy_path:=/home/user/hope_forehand_policy.onnx
 ```
@@ -208,12 +204,7 @@ The MuJoCo simulation should show the G1 model performing the trained swing moti
 **Launch the controller:**
 
 ```bash
-# Load from WandB
-ros2 launch motion_tracking_controller real.launch.py \
-    network_interface:=<network_interface> \
-    wandb_path:=your-org/hope_wbc/run_id
-
-# OR load from local ONNX file
+# Load from a local ONNX file
 ros2 launch motion_tracking_controller real.launch.py \
     network_interface:=<network_interface> \
     policy_path:=hope_forehand_policy.onnx

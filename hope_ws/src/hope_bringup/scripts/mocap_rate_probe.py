@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
-"""One-shot mocap topic rate probe (bring-up preflight).
+"""One-shot mocap topic rate probe (bring-up preflight, HDU-safe).
 
 Counts messages on one topic for a fixed window and PASSes iff the measured
 rate reaches --min-hz. Message type is resolved from the live graph, so it
-works for /P1/pose (PoseStamped), /ball/point (PointStamped), /poses
+works for /UCB_P1/pose (PoseStamped), /ball/point (PointStamped), /poses
 (PoseArray) and /optitrack/poses (NamedPoseArray) alike. When messages carry a
 header, it also reports the max header-stamp gap (timestamp-jitter check).
 
-A single short-lived node that exits — suitable for scripted preflight gates
-on resource-constrained onboard computers, where long-running `ros2 topic
-echo/hz` sessions are unwelcome. Particularly useful for the OptiTrack
-backend: NatNet is UDP, so unlike the VRPN TCP port there is nothing to
-connect() to before launch — mocap liveness can only be proven by data.
-
-For the raw NatNet ``/optitrack/poses`` topic, this probe measures adapter and
-transport liveness only: the competition adapter intentionally publishes empty
-array heartbeats when no ``Ball``/``P1``/``P2`` body is valid. Use the managed
-bringup's downstream ``/P1/pose`` probe, or inspect array contents, to qualify
-competition-body tracking.
+This is the sanctioned probe style: a single short-lived node that exits, per
+the "no long-running `ros2 topic echo/hz` on the HDU" rule
+(run_rally_v10_hdu.sh) — steady-state monitoring belongs to the planner's 1 Hz
+"HDU HEALTH poses=…Hz" line. Used by run_rally_v10_hdu.sh as the post-launch
+NatNet preflight (NatNet is UDP: unlike the VRPN TCP port there is nothing to
+connect() to before launch, so mocap liveness can only be proven by data).
 
 Exit codes: 0 = rate OK, 1 = below threshold / topic never appeared.
 """

@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+// 这里是 demo/foo 子目录，划分子目录的主要目的是文件分类，如果 proto 接口过多，可以按功能划分子目录。
+// 但是，不建议再多加一层命名空间了。
+// 每一个功能子目录，允许存在一个 api.proto，代表本功能子模块对外提供的通信接口。
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/demo/foo/xxx.proto";
+
+/**
+ * @brief 简介一下这个信道的情况，谁发？谁收？作用是什么？
+ * @note topic name: /xxx/xxx/xxx
+ */
+message XxxChannel {
+  // Channel 的第一个字段总是为 Header
+  Header header = 1;
+
+  // 其他数据随后定义
+  Xxx data = 2;
+}
+
+/**
+ * @brief GetXxx 方法的请求数据
+ */
+message GetXxxRequest {
+  // Request 的第一个字段总是为 RequestHeader
+  RequestHeader header = 1;
+
+  // 其他数据随后定义。
+  int32 id = 2;
+}
+
+/**
+ * @brief GetXxx 方法的相应数据
+ */
+message GetXxxResponse {
+  // Response 的第一个字段总是为 ResponseHeader
+  ResponseHeader header = 1;
+
+  // 其他数据随后定义
+  Xxx data = 2;
+}
+
+/**
+ * @brief 简介一下这组服务大概提供了什么方面的方法。
+ */
+service XxxService {
+  /**
+   * @brief 简介这个方法的功能和作用。
+   * @param GetXxxRequest   简介一下请求数据的内容
+   * @return GetXxxResponse 简介一下相应数据的内容
+   */
+  rpc GetXxx(GetXxxRequest) returns (GetXxxResponse);
+}

@@ -1,0 +1,41 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import public "aimdk/protocol/common/se3_pose.proto";
+import public "aimdk/protocol/mc/common/arm.proto";
+
+
+/**
+ * @brief 前向运动请求
+ */
+message KineForwardRequest {
+  // 请求头
+  RequestHeader header = 1;
+
+  // 手臂类型
+  ArmType type = 2;
+
+  // 关节角度，单位：弧度 or m
+  repeated double angles = 3;
+}
+
+/**
+ * @brief 前向运动响应
+ */
+message KineForwardResponse {
+  // 响应头
+  ResponseHeader header = 1;
+
+  // 手臂类型
+  ArmType type = 2;
+
+  // 目标位姿
+  SE3Pose cartesian_pose = 3;
+
+  // 错误码
+  int32 error_code = 4;
+
+  // 错误信息
+  string error_msg = 5;
+}

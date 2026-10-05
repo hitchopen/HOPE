@@ -1,0 +1,29 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/manipulation/manipulation_msg.proto";
+
+/**
+ * @brief manipulator service
+   backend : http
+   port: 39110
+ */
+service ManipulationService {
+  rpc Manipulate (ManipulationRequest) returns (ManipulationResponse);
+
+  rpc Control (ManipulationControlRequest) returns (ManipulationResponse);
+
+  rpc Select (ManipulationSelectRequest) returns (ManipulationResponse);
+
+  rpc GetState (CommonRequest) returns (ManipulationStateResponse);
+
+  rpc UpdateConfig(ManipulationConfigRequest) returns (ManipulationConfigResponse);
+
+  rpc GetHandState(CommonRequest) returns (ManipulationHandStateResponse);
+
+  rpc GetHandPickState(CommonRequest) returns (ManipulationHandStateResponse);
+
+  rpc GetServoPickEEPose(CommonRequest) returns (ServoPickEEPoseResponse);
+}

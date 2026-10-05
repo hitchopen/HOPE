@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/rpc.proto";
+import public "aimdk/protocol/gateway/group_control/time_offset.proto";
+
+/**
+ * @brief Am通过gateway获取orin这边的时间差
+ */
+service TimeoffsetService {
+  /**
+   * @brief 获取当前timeoffset状态信息。
+   * @param CommonRequest: 获取timeoffset请求
+   * @return TimestampOffset: 获取timeoffset状态响应
+   */
+  rpc GetTimeoffset(CommonRequest) returns (TimeOffsetRsp);
+}

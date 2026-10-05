@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
+#include <limits>
 #include <string_view>
 #include "mujoco_sim_module/common/xmodel_reader.h"
 
@@ -225,6 +226,51 @@ void BodyDriveJointActuatorSubscriber::Initialize(YAML::Node options_node) {
     base_passive_damping_[joint_idx] = m_->dof_damping[dof];
   }
 
+  const char* vendor_profile =
+      std::getenv("A3_MUJOCO_HUMANLIKE_VENDOR_PROFILE");
+  const std::string_view topic = subscriber_.GetTopic();
+  const bool humanlike_owned_topic =
+      topic.find("/leg_joint_command") != std::string_view::npos ||
+      topic.find("/waist_joint_command") != std::string_view::npos;
+  humanlike_vendor_profile_ = vendor_profile != nullptr &&
+                              std::string_view(vendor_profile) != "0" &&
+                              humanlike_owned_topic;
+  explicit_pd_decimation_ = humanlike_vendor_profile_ ? 2u : 1u;
+  torque_limits_.assign(joint_num_, std::numeric_limits<double>::infinity());
+  if (humanlike_vendor_profile_) {
+    // Physical A3 HumanLike runs MOTION at 2 ms.  It recomputes the
+    // torque-feasible q_des interval from fresh q/dq on every base tick, while
+    // the 100 Hz actor output is held for five ticks.  Computing and clipping
+    // the equivalent explicit torque every other 1 ms MuJoCo step reproduces
+    // that actuator contract without requiring duplicate command publishers.
+    const auto vendor_limit = [](std::string_view name) {
+      if (name == "waist_yaw_joint") return 220.0;
+      if (name == "waist_roll_joint") return 45.0;
+      if (name == "waist_pitch_joint") return 110.0;
+      if (name.find("hip_") != std::string_view::npos) return 220.0;
+      if (name.find("knee") != std::string_view::npos) return 320.0;
+      if (name.find("ankle_pitch") != std::string_view::npos) return 110.0;
+      if (name.find("ankle_roll") != std::string_view::npos) return 45.0;
+      if (name.find("shoulder_pitch") != std::string_view::npos ||
+          name.find("shoulder_roll") != std::string_view::npos)
+        return 60.0;
+      if (name.find("shoulder_yaw") != std::string_view::npos ||
+          name.find("elbow") != std::string_view::npos ||
+          name.find("wrist_roll") != std::string_view::npos)
+        return 24.0;
+      if (name.find("wrist_pitch") != std::string_view::npos ||
+          name.find("wrist_yaw") != std::string_view::npos)
+        return 6.0;
+      return std::numeric_limits<double>::infinity();
+    };
+    for (size_t joint_idx = 0; joint_idx < joint_num_; ++joint_idx)
+      torque_limits_[joint_idx] = vendor_limit(joint_names_vec_[joint_idx]);
+    AIMRT_INFO(
+        "HumanLike vendor actuator profile on '{}': explicit PD=500 Hz, "
+        "default.yaml torque limits enabled.",
+        subscriber_.GetTopic());
+  }
+
   AIMRT_CHECK_ERROR_THROW(aimrt::channel::Subscribe<joint_msgs::msg::JointCommand>(
                               subscriber_,
                               std::bind(&BodyDriveJointActuatorSubscriber::EventHandle, this, std::placeholders::_1)),
@@ -272,6 +318,13 @@ void BodyDriveJointActuatorSubscriber::ApplyCtrlData() {
   std::lock_guard<std::mutex> lock(target_mutex_);
   if (!has_targets_ || latest_targets_.size() != joint_num_) return;
 
+  if (!implicit_pd_ && explicit_pd_decimation_ > 1) {
+    const bool recompute =
+        (explicit_pd_tick_ % explicit_pd_decimation_) == 0;
+    ++explicit_pd_tick_;
+    if (!recompute) return;  // hold the previous d_->ctrl for the second 1 ms step
+  }
+
   if (ctrl_buffer_.size() != joint_num_) ctrl_buffer_.resize(joint_num_, 0.0);
   std::fill(ctrl_buffer_.begin(), ctrl_buffer_.end(), 0.0);
 
@@ -300,6 +353,9 @@ void BodyDriveJointActuatorSubscriber::ApplyCtrlData() {
         ctrl_buffer_[joint_idx] = command.effort +
                                   command.stiffness * (command.position - state_position) +
                                   command.damping * (command.velocity - state_velocity);
+        const double limit = torque_limits_[joint_idx];
+        ctrl_buffer_[joint_idx] =
+            std::clamp(ctrl_buffer_[joint_idx], -limit, limit);
       }
     } else {
       AIMRT_WARN("Invalid joint actuator type '{}'.", joint_actuator_type_vec_[joint_idx]);

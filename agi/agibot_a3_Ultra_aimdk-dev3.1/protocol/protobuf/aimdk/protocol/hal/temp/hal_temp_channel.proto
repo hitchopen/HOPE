@@ -1,0 +1,19 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/hal/temp/temp.proto";
+
+
+
+/**
+ * @brief 获取hal上报Temp状态Channel
+ * @details 当前仅支持腿部温度的上报
+ */
+message TempStateChannel {
+  // 消息头
+  ResponseHeader header = 1;
+
+  // 温度状态数据
+  repeated TempState data = 2;
+}

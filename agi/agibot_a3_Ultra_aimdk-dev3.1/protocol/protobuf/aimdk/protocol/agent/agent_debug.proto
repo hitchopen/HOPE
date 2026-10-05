@@ -1,0 +1,50 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+
+enum AgentDebugPropertyId {
+  AGENT_DEBUG_PROPERTY_UNDEFINED = 0;
+  AGENT_DEBUG_PROPERTY_CLOUD_ENV = 1;  // value: dev/test/uat/prd
+}
+
+/*
+  * 语音助手属性设置请求
+  * @param properties 属性列表
+  * @param properties.key: AgentDebugPropertyId
+  * @param properties.value: 属性值 参考 AgentDebugPropertyId 注释
+*/
+message AgentDebugProperties {
+  map<int32, string> properties = 1; // AgentDebugPropertyId -> property value
+}
+
+
+message AgentDebugPropertiesSetRequest {
+  RequestHeader header = 1;
+  AgentDebugProperties contents = 2;
+}
+
+message AgentDebugPropertiesGetRequest {
+  RequestHeader header = 1;
+  repeated int32 property_ids = 2; // AgentDebugPropertyId
+}
+
+message AgentDebugPropertiesGetResponse {
+  ResponseHeader header = 1;
+  AgentDebugProperties contents = 2; // key: AgentDebugPropertyId, value: property value
+}
+
+message MockShoulderTapRequest {
+  RequestHeader header = 1;
+  int32 tap_type = 2;      // 1=单拍 2=双拍 3=多拍 4=长按
+  uint32 tap_count = 3;    // 拍击次数（多拍时有意义）
+  uint32 duration_ms = 4;  // 持续时长ms（长按时有意义）
+  int32 direction = 5;     // 0=未知 1=左 2=右
+}
+
+service AgentDebugControl {
+  rpc SetAgentDebugPropertiesRequest (AgentDebugPropertiesSetRequest) returns (CommonResponse);
+  rpc GetAgentDebugPropertiesRequest (AgentDebugPropertiesGetRequest) returns (AgentDebugPropertiesGetResponse);
+  rpc MockShoulderTap (MockShoulderTapRequest) returns (CommonResponse);
+}

@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package aimdk.protocol;
+
+enum joint_code_types {
+  PELVIS = 0; // 骨盆，ID 0，来源：全身追踪
+  LEFT_HIP = 1; // 左髋关节，ID 1，来源：全身追踪
+  RIGHT_HIP = 2; // 右髋关节，ID 2，来源：全身追踪
+  SPINE1 = 3; // 脊椎1，ID 3，来源：全身追踪
+  LEFT_KNEE = 4; // 左膝关节，ID 4，来源：全身追踪
+  RIGHT_KNEE = 5; // 右膝关节，ID 5，来源：全身追踪
+  SPINE2 = 6; // 脊椎2，ID 6，来源：全身追踪
+  LEFT_ANKLE = 7; // 左踝关节，ID 7，来源：全身追踪
+  RIGHT_ANKLE = 8; // 右踝关节，ID 8，来源：全身追踪
+  SPINE3 = 9; // 脊椎3，ID 9，来源：全身追踪
+  LEFT_FOOT = 10; // 左脚，ID 10，来源：全身追踪
+  RIGHT_FOOT = 11; // 右脚，ID 11，来源：全身追踪
+  NECK = 12; // 颈部，ID 12，来源：全身追踪
+  LEFT_COLLAR = 13; // 左锁骨，ID 13，来源：全身追踪
+  RIGHT_COLLAR = 14; // 右锁骨，ID 14，来源：全身追踪
+  HEAD = 15; // 头部，ID 15，来源：全身追踪 / 头显
+  LEFT_SHOULDER = 16; // 左肩关节，ID 16，来源：全身追踪
+  RIGHT_SHOULDER = 17; // 右肩关节，ID 17，来源：全身追踪
+  LEFT_ELBOW = 18; // 左肘关节，ID 18，来源：全身追踪
+  RIGHT_ELBOW = 19; // 右肘关节，ID 19，来源：全身追踪
+  BODY_LEFT_WRIST = 20; // 左手腕（身体追踪），ID 20，来源：全身追踪
+  BODY_RIGHT_WRIST = 21; // 右手腕（身体追踪），ID 21，来源：全身追踪
+  BODY_LEFT_HAND = 22; // 左手（身体追踪），ID 22，来源：全身追踪 / 左手柄
+  BODY_RIGHT_HAND = 23; // 右手（身体追踪），ID 23，来源：全身追踪 / 右手柄
+  // 左手高精度关节（全身追踪）
+  LEFT_HAND_WRIST = 100; // 左手腕（全身追踪），ID 100
+  LEFT_HAND_PALM = 101; // 左手掌（全身追踪），ID 101
+  LEFT_HAND_THUMB_METACARPAL = 102; // 左手大拇指掌骨（全身追踪），ID 102
+  LEFT_HAND_THUMB_PROXIMAL = 103; // 左手大拇指近端指骨（全身追踪），ID 103
+  LEFT_HAND_THUMB_DISTAL = 104; // 左手大拇指远端指骨（全身追踪），ID 104
+  LEFT_HAND_THUMB_TIP = 105; // 左手大拇指指尖（全身追踪），ID 105
+  LEFT_HAND_INDEX_METACARPAL = 106; // 左手食指掌骨（全身追踪），ID 106
+  LEFT_HAND_INDEX_PROXIMAL = 107; // 左手食指近端指骨（全身追踪），ID 107
+  LEFT_HAND_INDEX_INTERMEDIATE = 108; // 左手食指中间指骨（全身追踪），ID 108
+  LEFT_HAND_INDEX_DISTAL = 109; // 左手食指远端指骨（全身追踪），ID 109
+  LEFT_HAND_INDEX_TIP = 110; // 左手食指指尖（全身追踪），ID 110
+  LEFT_HAND_MIDDLE_METACARPAL = 111; // 左手中指掌骨（全身追踪），ID 111
+  LEFT_HAND_MIDDLE_PROXIMAL = 112; // 左手中指近端指骨（全身追踪），ID 112
+  LEFT_HAND_MIDDLE_INTERMEDIATE = 113; // 左手中指中间指骨（全身追踪），ID 113
+  LEFT_HAND_MIDDLE_DISTAL = 114; // 左手中指远端指骨（全身追踪），ID 114
+  LEFT_HAND_MIDDLE_TIP = 115; // 左手中指指尖（全身追踪），ID 115
+  LEFT_HAND_RING_METACARPAL = 116; // 左手无名指掌骨（全身追踪），ID 116
+  LEFT_HAND_RING_PROXIMAL = 117; // 左手无名指近端指骨（全身追踪），ID 117
+  LEFT_HAND_RING_INTERMEDIATE = 118; // 左手无名指中间指骨（全身追踪），ID 118
+  LEFT_HAND_RING_DISTAL = 119; // 左手无名指远端指骨（全身追踪），ID 119
+  LEFT_HAND_RING_TIP = 120; // 左手无名指指尖（全身追踪），ID 120
+  LEFT_HAND_LITTLE_METACARPAL = 121; // 左手小拇指掌骨（全身追踪），ID 121
+  LEFT_HAND_LITTLE_PROXIMAL = 122; // 左手小拇指近端指骨（全身追踪），ID 122
+  LEFT_HAND_LITTLE_INTERMEDIATE = 123; // 左手小拇指中间指骨（全身追踪），ID 123
+  LEFT_HAND_LITTLE_DISTAL = 124; // 左手小拇指远端指骨（全身追踪），ID 124
+  LEFT_HAND_LITTLE_TIP = 125; // 左手小拇指指尖（全身追踪），ID 125
+  // 右手高精度关节（全身追踪）
+  RIGHT_HAND_WRIST = 200; // 右手腕（全身追踪），ID 200
+  RIGHT_HAND_PALM = 201; // 右手掌（全身追踪），ID 201
+  RIGHT_HAND_THUMB_METACARPAL = 202; // 右手大拇指掌骨（全身追踪），ID 202
+  RIGHT_HAND_THUMB_PROXIMAL = 203; // 右手大拇指近端指骨（全身追踪），ID 203
+  RIGHT_HAND_THUMB_DISTAL = 204; // 右手大拇指远端指骨（全身追踪），ID 204
+  RIGHT_HAND_THUMB_TIP = 205; // 右手大拇指指尖（全身追踪），ID 205
+  RIGHT_HAND_INDEX_METACARPAL = 206; // 右手食指掌骨（全身追踪），ID 206
+  RIGHT_HAND_INDEX_PROXIMAL = 207; // 右手食指近端指骨（全身追踪），ID 207
+  RIGHT_HAND_INDEX_INTERMEDIATE = 208; // 右手食指中间指骨（全身追踪），ID 208
+  RIGHT_HAND_INDEX_DISTAL = 209; // 右手食指远端指骨（全身追踪），ID 209
+  RIGHT_HAND_INDEX_TIP = 210; // 右手食指指尖（全身追踪），ID 210
+  RIGHT_HAND_MIDDLE_METACARPAL = 211; // 右手中指掌骨（全身追踪），ID 211
+  RIGHT_HAND_MIDDLE_PROXIMAL = 212; // 右手中指近端指骨（全身追踪），ID 212
+  RIGHT_HAND_MIDDLE_INTERMEDIATE = 213; // 右手中指中间指骨（全身追踪），ID 213
+  RIGHT_HAND_MIDDLE_DISTAL = 214; // 右手中指远端指骨（全身追踪），ID 214
+  RIGHT_HAND_MIDDLE_TIP = 215; // 右手中指指尖（全身追踪），ID 215
+  RIGHT_HAND_RING_METACARPAL = 216; // 右手无名指掌骨（全身追踪），ID 216
+  RIGHT_HAND_RING_PROXIMAL = 217; // 右手无名指近端指骨（全身追踪），ID 217
+  RIGHT_HAND_RING_INTERMEDIATE = 218; // 右手无名指中间指骨（全身追踪），ID 218
+  RIGHT_HAND_RING_DISTAL = 219; // 右手无名指远端指骨（全身追踪），ID 219
+  RIGHT_HAND_RING_TIP = 220; // 右手无名指指尖（全身追踪），ID 220
+  RIGHT_HAND_LITTLE_METACARPAL = 221; // 右手小拇指掌骨（全身追踪），ID 221
+  RIGHT_HAND_LITTLE_PROXIMAL = 222; // 右手小拇指近端指骨（全身追踪），ID 222
+  RIGHT_HAND_LITTLE_INTERMEDIATE = 223; // 右手小拇指中间指骨（全身追踪），ID 223
+  RIGHT_HAND_LITTLE_DISTAL = 224; // 右手小拇指远端指骨（全身追踪），ID 224
+  RIGHT_HAND_LITTLE_TIP = 225; // 右手小拇指指尖（全身追踪），ID 225
+}
+
+message PointPose {
+  // 四元数旋转（不压缩）
+  message Quaternion {
+    optional float x = 1;
+    optional float y = 2;
+    optional float z = 3;
+    optional float w = 4;
+  }
+  // 3D坐标向量
+  message Vector3 {
+    optional float x = 1;
+    optional float y = 2;
+    optional float z = 3;
+  }
+  optional Vector3 position = 1;              // 三维空间位置
+  optional Quaternion quaternion = 2; // 四元数旋转（不压缩版本）
+  optional uint32 quaternion_compressed = 3;  // 四元数旋转（压缩版本）
+}
+
+// 单个关节数据
+message Joint {
+  optional joint_code_types joint_code = 1;   // 关节代号（内部映射表ID）
+  optional PointPose point_pose = 2;
+}
+
+// 输入设备数据
+message DeviceInputData {
+ enum DeviceType {
+    DEVICE_LEFT = 0;  // 左侧设备，对应值 0
+    DEVICE_RIGHT = 1; // 右侧设备，对应值 1
+    DEVICE_HEAD = 2; // 头戴设备，对应值 2
+ }
+  optional DeviceType device_type = 1;                 // 设备ID
+  optional bool axis_click = 2;                         // 摇杆按压状态
+  optional float axis_x = 3;                            // 摇杆X轴值 [-1.0, 1.0]
+  optional float axis_y = 4;                            // 摇杆Y轴值 [-1.0, 1.0]
+  optional float index_trig = 5;                        // 食指扳机 [0.0, 1.0]
+  optional float hand_trig = 6;                         // 手掌扳机 [0.0, 1.0]
+  optional bool key_one = 7;                            // 功能键1
+  optional bool key_two = 8;                            // 功能键2
+  optional PointPose point_pose = 9;
+}
+
+// 完整的帧数据包
+message RobotFrameData {
+  message Vector3 {
+    optional float x = 1;
+    optional float y = 2;
+    optional float z = 3;
+  }
+  optional uint64 timestamp = 1;                      // 时间戳（毫秒）
+  optional uint64 frame_index = 2;                     // 帧索引
+  repeated Joint left_hand = 100;                       // 左手关节数据
+  repeated Joint right_hand = 101;                      // 右手关节数据
+  repeated Joint body_data = 102;                       // 身体骨骼数据
+  repeated DeviceInputData device_inputs = 103;   // 原始输入设备数据
+  optional Vector3 chassis_movement = 104;  // 底盘移动控制向量 [-1.0, 1.0] (x: +前进/-后退, y: +左移/-右移, z: +右转/-左转)
+}

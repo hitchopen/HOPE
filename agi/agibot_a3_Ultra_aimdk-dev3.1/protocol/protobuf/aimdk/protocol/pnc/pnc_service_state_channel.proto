@@ -1,0 +1,26 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import "aimdk/protocol/pnc/pnc_service.proto";
+
+/**
+ * @brief pnc 模块任务状态广播
+ *        topic:
+ *          - 用于状态输出：/pnc/service_state
+ */
+message PncServiceStateChannel {
+  // sequence ID: consecutively increasing ID
+  uint32 seq = 1;
+
+  // timestamp
+  Timestamp timestamp = 2;
+
+  // 任务id
+  uint64 task_id = 3;
+
+  // 导航运行状态
+  PncServiceState state = 4;
+
+  // 状态切换信息
+  string info = 5;
+}

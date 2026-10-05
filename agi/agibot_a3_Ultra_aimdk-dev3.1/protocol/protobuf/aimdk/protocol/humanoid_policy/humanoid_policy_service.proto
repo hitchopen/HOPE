@@ -1,0 +1,17 @@
+syntax = "proto3";
+package aimdk.protocol;
+
+import public "aimdk/protocol/common/header.proto";
+import "aimdk/protocol/common/rpc.proto";
+import "aimdk/protocol/humanoid_policy/humanoid_policy_msg.proto";
+
+/**
+ * @brief humanoid policy service
+   backend : http
+   port: 52138
+ */
+service HumanoidPolicyService {
+  rpc RunPolicy(PolicyRunRequest) returns (PolicyRunResponse);
+  rpc StopPolicy(PolicyStopRequest) returns (PolicyStopResponse);
+  rpc GetPolicyState(PolicyStateRequest) returns (PolicyStateResponse);
+}

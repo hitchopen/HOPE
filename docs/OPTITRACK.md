@@ -375,11 +375,13 @@ source hope_ws/install/setup.bash
 ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack
 ```
 
-`hostname` is required and `interface_ip` is required for live multicast; venue
-values are never baked in. `hostname` is the Motive server address;
-`interface_ip` is the local wired NIC address used for `IP_ADD_MEMBERSHIP`.
-The empty interface default exists only so the mock backend can launch without
-a physical NIC; a multicast server fails closed. Driver/timestamp config:
+`hostname` is required; venue values are never baked in. `hostname` is the Motive
+server address. For multicast, an empty `interface_ip` or `0.0.0.0` selects the
+local source IPv4 address of the route to that server, then joins the advertised
+group on that NIC. An explicit `interface_ip` overrides route selection and must
+be an address assigned to the local Motive-network NIC. Both launch paths reject
+malformed, multicast, and limited-broadcast interface addresses before starting
+nodes. The driver logs the actual selected address. Driver/timestamp config:
 [`hope_optitrack.yaml`](../NatNet2ROS2/src/motion_capture_tracking/config/hope_optitrack.yaml).
 Relay config (name → topic mapping, scale):
 [`config/optitrack_relay.yaml`](../hope_ws/src/hope_bringup/config/optitrack_relay.yaml).
@@ -390,12 +392,14 @@ recovers after Motive resumes streaming or multicast membership returns. A
 bare `ros2 run motion_capture_tracking motion_capture_tracking_node` has no
 respawn supervisor and is for attended diagnostics only.
 
-Managed rally startup requires either
-`--mocap-interface-ip <ADAPTER_WIRED_IP>` or the equivalent
-`HOPE_MOTIVE_INTERFACE_IP` environment variable. Foxglove lifecycle startup
+Managed rally startup accepts `--mocap-interface-ip <ADAPTER_WIRED_IP>` or the
+equivalent `HOPE_MOTIVE_INTERFACE_IP` environment variable; the command-line
+option takes precedence. Leaving both unset uses Motive-route selection.
+Rally validates the address format before startup; it checks host reachability
+before launching and stream liveness after the bridge starts. Foxglove lifecycle startup
 reads `HOPE_MOTIVE_INTERFACE_IP` from
-`~/.config/hope-foxglove/lifecycle.env`. Both paths validate that the route to
-Motive uses that source address before starting NatNet.
+`~/.config/hope-foxglove/lifecycle.env` and forwards it to the same bridge launch.
+On multihomed hosts, verify the logged NIC and the route to Motive.
 
 ### Verify
 
