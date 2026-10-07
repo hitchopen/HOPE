@@ -52,7 +52,7 @@ All calls use `std_srvs/Trigger`; request payload editing is disabled.
 
 | Button | Service | Exact effect |
 |---|---|---|
-| Calibration | `/hope/calibrate` | recompute v3 24-sticker `P1 -> pelvis_link`, persist a stationary world-pelvis snapshot, and wait for the matching live base receipt |
+| Calibration | `/hope/calibrate` | recompute v3 12-sticker `P1 -> pelvis_link`, persist a stationary world-pelvis snapshot, and wait for the matching live base receipt |
 | Refresh x_hit | `/hope/refresh_x_hit` | refresh only the current Planner x_hit request/status contract |
 | Stand | `/hope/runner/enter_pd_stand` | same Runner transition as keyboard `s` |
 | Ready | `/hope/runner/enter_motion` | same Runner transition as keyboard `m`; the UI enables it only after PD_STAND and a fresh HDU-observed Pelvis base, while Runner semantics remain unchanged |
@@ -68,7 +68,7 @@ never changes displayed mode optimistically.
 
 Calibration is accepted only for a fresh session-matching Runner in
 `PD_STAND`. The existing Laptop algorithm fits the fixed `P1 -> pelvis_link`
-extrinsic from ten physical markers and CAD, while the base relay composes it
+extrinsic from the 12 retained v3 stickers and CAD, while the base relay composes it
 with live `world -> P1`. The service waits until the new receipt ID is visible
 in a valid schema-2 base packet before reporting success. Calibration does not
 create an x_hit request. The operator uses the separate `Refresh x_hit` button

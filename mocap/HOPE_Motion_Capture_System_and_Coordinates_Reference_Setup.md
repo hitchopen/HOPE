@@ -10,6 +10,13 @@
 > `VRPN2ROS2` client for Chingmu. Index:
 > [`REFERENCE_DOCS.md`](../REFERENCE_DOCS.md).
 
+> **A3 marker migration (2026-10-04):** the ten-marker layout, centroid offsets
+> and calibration workflow retained below are historical. Current `nightly_built`
+> uses the 12 retained v3 stickers and pelvis-aligned native `P1` asset. Follow the
+> [current A3 procedure](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
+> and [receipt rules](../calibration/README.md); do not apply the old centroid
+> offset or reuse a historical receipt.
+
 ---
 
 ## 1  Compatible Motion Capture Systems

@@ -16,7 +16,7 @@ import pytest
 _SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "p1_pelvis_calibration_impl.py"
 sys.path.insert(0, str(_SCRIPT.parent))
 
-V3_CENTROID = (-0.0030432118333333334, 0.0004662525, -0.09051243625)
+V3_CENTROID = (0.01435789875, 0.012864007916666665, -0.09993342049999998)
 
 
 def _load_module():
@@ -180,10 +180,10 @@ def test_trajectory_statistics_exposes_stationary_capture():
     assert statistics["unique_timestamps"] == 3
 
 
-def test_cad_cross_check_uses_all_24_v3_stickers():
+def test_cad_cross_check_uses_all_12_retained_v3_stickers():
     module = _load_module()
 
-    assert len(module.MARKER_NAMES) == 24
+    assert len(module.MARKER_NAMES) == 12
     assert module.marker_centroid(module.MARKER_NAMES) == pytest.approx(V3_CENTROID)
     assert module.marker_centroid(module.CURRENT_SHELL_MARKER_NAMES) == pytest.approx(
         V3_CENTROID

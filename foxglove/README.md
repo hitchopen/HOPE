@@ -30,10 +30,15 @@ assert E-stop. In the integrated Runner deployment the E-stop requests the vendo
 software latch and independently requests native Runner PASSIVE, but cannot
 release either latch. All other Runner actions use the separate attended
 control endpoint documented in `foxglove/README.md`. Motive/NatNet conversion,
-v3 24-sticker calibration, the calibration JSON, and
+v3 12-sticker calibration, the calibration JSON, and
 HOPE base-pose reconstruction all stay on the external computer. The A3 never
 connects to or probes the Motive host and never stores, reads, or receives the
 JSON; it consumes the computer's `/a3/base_pose_flat` output.
+
+Use the current pelvis-aligned **P1** asset and retained station set in the
+[v3 setup procedure](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
+Its intended identity correction still requires fresh live verification;
+old receipts must not be reused. See [calibration receipts](../calibration/README.md).
 
 On the attended `8766` console, `/hope/calibrate` and
 `/hope/refresh_x_hit` are deliberately separate. Calibration atomically
@@ -83,7 +88,7 @@ distinct Wi-Fi addresses whenever the robot, Laptop, or venue changes:
   external computer receives NatNet from Motive and publishes
   `/optitrack/rigid_body_markers`. If an approved setup procedure runs the
   optional P1 marker-CAD calibration, only that computer writes
-  `calibration/p1_to_pelvis.json`. The receipt includes the fixed extrinsic and
+  `calibration/ucb_robot_to_pelvis.json`. The receipt includes the fixed extrinsic and
   a stationary world-pelvis audit snapshot; the latter is not a static runtime
   TF. Its base-pose relay reads the fixed extrinsic and
   publishes `/a3/base_pose_flat`; the A3 does not consume the marker stream or
@@ -115,7 +120,7 @@ A3 unit                                          External computer
   Runner observer + command proxy ◄──► native Runner request/state
   attended control bridge ─────────────── ws://<robot-ip>:8766 ──► A3 Console
 
-Motive ── NatNet ──► adapter ── v3 24-sticker calibration ──► calibration/p1_to_pelvis.json
+Motive ── NatNet ──► adapter ── v3 12-sticker calibration ──► calibration/ucb_robot_to_pelvis.json
 ```
 
 ## Folder contents

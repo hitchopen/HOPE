@@ -8,6 +8,12 @@
 > 独立 `VRPN2ROS2` workspace。索引见
 > [`REFERENCE_DOCS.md`](../REFERENCE_DOCS.md)。
 
+> **A3 marker 迁移（2026-10-04）：** 下文保留的十点布局、质心偏移与标定流程
+> 均为历史记录。当前 `nightly_built` 使用保留 12 个站位的 v3 贴纸壳与 pelvis
+> 对齐的原生 `P1` 资产。请遵循
+> [当前 A3 流程](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
+> 和 [receipt 规则](../calibration/README.md)，不得叠加旧质心偏移或复用历史 receipt。
+
 ---
 
 ## 1  兼容的动作捕捉系统

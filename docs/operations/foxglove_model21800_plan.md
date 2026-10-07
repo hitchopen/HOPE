@@ -2,6 +2,11 @@
 
 最后核对：2026-08-11
 
+> 本文保留实施计划及当时的十 marker 描述，不是当前 marker 布局操作规程。
+> `nightly_built` 已改为 12 个保留站位的 v3 贴纸壳与 pelvis 对齐的 `P1` 资产；
+> 使用 [当前 v3 标定流程](../../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
+> 和 [receipt 规则](../../calibration/README.md)，不要复用历史标定量。
+
 目标是把 [`RUN_ON_AGIBOT.md`](../RUN_ON_AGIBOT.md) 描述的公开 Runner 流程，以及现场私有
 runbook 中对应的操作顺序，逐步变成可观察、可审计、最终可由 Foxglove 操作的接口。
 Foxglove 只承担 UI 和受限的 ROS 服务调用；它不成为通用远程 shell，也不改变

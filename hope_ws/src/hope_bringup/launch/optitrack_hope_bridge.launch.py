@@ -7,7 +7,8 @@ Chain:  Motive (NatNet UDP, cmd port 1510)  -->  motion_capture_tracking_node
 
 Sibling of avatar_pro_hope_bridge.launch.py (ChingMu/VRPN backend); both emit
 the identical HOPE topic contract, so everything downstream is unchanged.
-It also starts the per-run V2/V3 marker-carrier calibration services and the
+It also starts the per-run 12-station v3 sticker or legacy V2/V3 ball
+marker-carrier calibration services and the
 calibrated schema-2 base-pose relay. In P2 table-side mode the relay rotates all
 world poses 180 degrees about the table centre before Planner/base consumers.
 The HDU transport relay republishes that Laptop-owned pose on the authoritative
@@ -32,6 +33,9 @@ TODO before running on hardware (see docs/operations/run_mocap.md):
     'Ball' or 'ball', canonical downstream name 'Ball').
     The selected ``tracked_marker_frame`` overrides the marker aggregate's
     default UCB_P1 asset so P2 calibration receives UCB_P2 marker messages.
+  * after importing the pelvis-aligned 12-station sticker asset, name it for
+    the selected UCB frame, restart NatNet to refresh MODELDEF, and generate a
+    fresh calibration/ucb_robot_to_pelvis.json receipt before policy entry.
 """
 
 import ipaddress

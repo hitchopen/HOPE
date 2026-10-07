@@ -92,7 +92,7 @@ operational instructions remain in the respective component guides.
 ## Hip Marker Shell (mocap calibration)
 
 See [pelvis marker hardware](agibot/README.md#pelvis-marker-hardware) for the
-original ten-marker shell, the 24-station v3 shell and their distinct
+original ten-marker shell, the retained 12-station v3 shell and their distinct
 calibration data. The shared frame contract is in
 [docs/interfaces/frames.md](docs/interfaces/frames.md).
 

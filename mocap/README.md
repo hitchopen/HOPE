@@ -114,7 +114,8 @@ hardware-trigger measurement.
 
 ### OptiTrack / Motive: NatNet
 
-Use the `optitrack` backend for Motive. Enable NatNet, set **Up Axis = Z**, prefer unicast,
+Use the `optitrack` backend for Motive. Enable NatNet, set **Up Axis = Z**, use the
+competition **multicast** profile and select the adapter's explicit wired `interface_ip`,
 and stream rigid bodies named exactly `Ball`, `P1`, and `P2`. NatNet uses the Motive command
 port (normally UDP 1510); the driver obtains the data-port and unicast/multicast details from
 the server response. Motive's legacy VRPN stream on port 3883 is **not used** by this backend.
@@ -138,8 +139,11 @@ namespaced because its message type differs from the HOPE `/poses` `PoseArray` c
 The A3-specific marker-CAD procedure, installed-layout requirements and
 receipt lifecycle are maintained in
 [agibot/README.md](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
-The current profile is the 24-station v3 sticker shell, using the optical-centre
-TF table in ROS `pelvis_link`; old ten-marker receipts cannot be reused.
+The current profile is the **12-station v3 sticker shell**, using its optical-centre
+TF table in ROS `pelvis_link` and the supplied pelvis-aligned native **P1** asset.
+The intended fixed local correction is identity, subject to a fresh installed
+live verification; pre-alignment 12-point, old 24-station and ten-marker receipts
+cannot be reused. See [receipt lifecycle](../calibration/README.md).
 Whether capture is automated depends on the selected operator integration;
 do not assume every PREPARE/Ready action runs it. The independent pose-pair
 method below is an audit route, not a runtime receipt generator.

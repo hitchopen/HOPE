@@ -41,6 +41,23 @@ def test_public_sticker_capture_and_receipt_roundtrip():
 
 def test_layouts_do_not_substitute_for_each_other():
     assert set(cad.MARKER_LAYOUTS) == {'stickers_v3', 'v2', 'v3'}
-    assert len(cad.STICKER_MARKER_LAYOUT.markers_pelvis_m) == 24
+    assert len(cad.STICKER_MARKER_LAYOUT.markers_pelvis_m) == 12
     assert len(cad.V2_MARKER_LAYOUT.markers_pelvis_m) == 10
     assert len(cad.V3_MARKER_LAYOUT.markers_pelvis_m) == 10
+
+
+@pytest.mark.parametrize("count", [8, 10, 11, 16, 24])
+def test_sticker_layout_rejects_superseded_or_incomplete_modeldef(count):
+    with pytest.raises(ValueError, match="requires all 12"):
+        cad.cad_names_for_markers([None] * count, layout=cad.STICKER_MARKER_LAYOUT)
+
+
+def test_sticker_selection_requires_retained_stations():
+    markers = [None] * len(MARKER_NAMES)
+    assert cad.cad_names_for_markers(markers, layout=cad.STICKER_MARKER_LAYOUT) == MARKER_NAMES
+    with pytest.raises(ValueError, match="complete retained 12-station"):
+        cad.cad_names_for_markers(markers, ["S07"] + list(MARKER_NAMES[1:]), cad.STICKER_MARKER_LAYOUT)
+    for name in MARKER_NAMES:
+        assert cad.canonical_marker_name("P1_" + name + "_sticker") == name
+    for label in ("S07", "S08", "S24", "S00", "S25", "S010", "S04_S05", "XS04"):
+        assert cad.canonical_marker_name(label) is None

@@ -484,7 +484,7 @@ def rigid_registration(
 
 def canonical_marker_name(value: str) -> str | None:
     sticker = re.findall(r"(?<![a-z0-9])(s(?:0[1-9]|1[0-9]|2[0-4]))(?![a-z0-9])", value.lower())
-    if len(set(sticker)) == 1:
+    if len(set(sticker)) == 1 and sticker[0].upper() in STICKER_NAMES:
         return sticker[0].upper()
     tokens = re.findall(r"(?<![a-z0-9])([fb][1-5])(?![a-z0-9])", value.lower())
     if len(set(tokens)) == 1:
@@ -535,6 +535,16 @@ def cad_names_for_markers(
     requested: Sequence[str] | None = None,
     layout: MarkerLayout = V2_MARKER_LAYOUT,
 ) -> tuple[str, ...]:
+    if layout.layout_id == "stickers_v3":
+        if len(markers) != len(STICKER_NAMES):
+            raise ValueError(
+                f"UCB robot ModelDef contains {len(markers)} markers; v3 sticker "
+                f"calibration requires all {len(STICKER_NAMES)} retained v3 stations"
+            )
+        if requested is not None and (
+            len(requested) != len(STICKER_NAMES) or set(requested) != set(STICKER_NAMES)
+        ):
+            raise ValueError("v3 sticker calibration requires the complete retained 12-station CAD set")
     if requested is not None:
         if len(requested) != len(markers):
             raise ValueError(
@@ -1276,7 +1286,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-layout",
         choices=tuple(MARKER_LAYOUTS),
         default="stickers_v3",
-        help="installed carrier: stickers_v3 (S01-S24), v2 or v3 (legacy balls)",
+        help="installed carrier: stickers_v3 (12 retained stations), v2 or v3 (legacy balls)",
     )
     parser.add_argument(
         "--table-side",
@@ -1298,8 +1308,9 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-names",
         default="auto",
         help=(
-            "'auto', or comma-separated CAD names. Auto selects f2-f5,b2-b5 "
-            "for 8 points and f1-f5,b1-b5 for 10 points."
+            "'auto', or comma-separated CAD names. Stickers require all 12 retained "
+            "v3 stations; legacy balls use f2-f5,b2-b5 for 8 points or "
+            "f1-f5,b1-b5 for 10 points."
         ),
     )
     parser.add_argument(
