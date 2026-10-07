@@ -237,12 +237,12 @@ and update download links and the exact `.foxe` filename allowed by the extensio
 
 ## Calibration and clocks
 
-The default public marker carrier remains the **24-sticker S01–S24 shell**.
-**Cali 24 stickers** validates the canonical optical-center table and its receipt
+The default public marker carrier remains the **12-sticker shell with retained original station IDs**.
+**Cali 24 stickers** (the existing console label) now validates the 12 retained stations in the canonical optical-center table and its receipt
 metadata. **Cali V2** and **Cali V3** are separate legacy ten-ball layouts; select
-the actual carrier, never reuse a ten-ball receipt as a 24-sticker receipt.
+the actual carrier, never reuse a ten-ball receipt as a 12-sticker receipt.
 The marker counter uses the selected body's ModelDef size and counts only live,
-finite, non-occluded, point-cloud-solved samples. It supports 24 and 10 markers.
+finite, non-occluded, point-cloud-solved samples. It supports the 12-sticker and legacy 10-ball layouts.
 
 The standalone NatNet adapter keeps its public Ball/P1/P2 output defaults and
 200 Hz output limit. HOPE bringup explicitly aliases `P1`/`P2` to

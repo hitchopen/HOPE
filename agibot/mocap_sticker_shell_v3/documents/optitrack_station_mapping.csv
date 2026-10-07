@@ -1,0 +1,13 @@
+station_id,original_A3_point,filtered_member_id,original_marker_name,fit_residual_mm
+S04,10,8,Marker 0010,0.858511
+S05,14,11,Marker 014,1.107767
+S11,4,3,Marker 004,1.330930
+S12,5,4,Marker 005,1.224260
+S13,16,12,Marker 016,1.646311
+S14,12,10,Marker 012,0.765856
+S16,8,7,Marker 008,1.191584
+S18,11,9,Marker 011,1.556395
+S19,1,1,Marker 001,1.595486
+S20,2,2,Marker 002,1.802336
+S21,7,6,Marker 007,1.853359
+S22,6,5,Marker 006,1.324662

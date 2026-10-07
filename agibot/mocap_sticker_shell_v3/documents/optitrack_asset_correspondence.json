@@ -1,0 +1,446 @@
+{
+  "status": "PELVIS_LINK_ALIGNED_OFFLINE_MOTIVE_IMPORT_AND_LIVE_VERIFICATION_PENDING",
+  "date": "2026-10-04",
+  "retained_station_ids": [
+    "S04",
+    "S05",
+    "S11",
+    "S12",
+    "S13",
+    "S14",
+    "S16",
+    "S18",
+    "S19",
+    "S20",
+    "S21",
+    "S22"
+  ],
+  "removed_source_points": [
+    3,
+    9,
+    13,
+    15
+  ],
+  "removed_point_15_reason": "No corresponding v3 shell station; excluded as unmatched.",
+  "source_assets": [
+    {
+      "path": "source/A3.motive",
+      "sha256": "7e5423ae1943761380eb834653011dfbf1a52cd6961bdac45504c0741ba7840a",
+      "point_count": 16
+    },
+    {
+      "path": "source/A3.csv",
+      "sha256": "5c0f478c12f93e212fdda6478e3ee1413e7f6de5323d464a97e2816cbcc6c7ab",
+      "point_count": 16
+    }
+  ],
+  "filtered_assets": [
+    {
+      "path": "A3_v3_12_stickers.motive",
+      "sha256": "a6f600c5b653bdc019ef5a97a5009d5c7c1676b42430227d50f883718bbf843d",
+      "point_count": 12
+    },
+    {
+      "path": "A3_v3_12_stickers.csv",
+      "sha256": "8a21d4fdfc6a9586f1368300579e435b8fa175c8250056eaa63be831daf9cf61",
+      "point_count": 12
+    }
+  ],
+  "asset_name": "P1",
+  "streaming_id": 9,
+  "asset_pivot_and_basis": "CAD_PELVIS_LINK_ORIGIN_WITH_ROS_FLU_AXES_AFTER_REQUIRED_Z_UP_STREAM_CONVERSION",
+  "retained_offsets_diameters_and_constraint_ids": "OFFSETS_RIGIDLY_REBASED_DIAMETERS_AND_CONSTRAINT_IDS_PRESERVED",
+  "member_ids": "RENUMBERED_1_TO_12_IN_ORIGINAL_ORDER",
+  "constraint_graph_and_sticks": "FILTERED_AND_REINDEXED_66_PAIRS",
+  "fit_rms_mm": 1.395144770534123,
+  "fit_max_mm": 1.8533591577801716,
+  "pair_distance_rms_mm": 1.2190875343750842,
+  "fit_purpose": "REFRAME_MEASURED_ASSET_TO_NOMINAL_CAD_PELVIS_LINK_NOT_PHYSICAL_RUNTIME_APPROVAL",
+  "visibility_scope": "Retained points are present in the supplied static asset; continuous/all-pose visibility is not established.",
+  "motive_import_reexport": "NOT_PERFORMED",
+  "live_calibration": "NOT_PERFORMED",
+  "mapping": [
+    {
+      "station": "S19",
+      "original_asset_point": 1,
+      "original_marker_name": "Marker 001",
+      "filtered_member_id": 1,
+      "residual_mm": 1.5954862853777099,
+      "measured_asset_local_m": [
+        -0.102864,
+        0.00169052,
+        0.00276933
+      ],
+      "aligned_asset_native_y_up_m": [
+        0.036169496495,
+        -0.09277687355,
+        0.08016536571
+      ],
+      "aligned_measured_pelvis_link_m": [
+        0.036169496495,
+        -0.08016536571,
+        -0.09277687355
+      ]
+    },
+    {
+      "station": "S20",
+      "original_asset_point": 2,
+      "original_marker_name": "Marker 002",
+      "filtered_member_id": 2,
+      "residual_mm": 1.8023355244987462,
+      "measured_asset_local_m": [
+        -0.062196,
+        -0.0018695,
+        0.0452208
+      ],
+      "aligned_asset_native_y_up_m": [
+        0.068248912378,
+        -0.092685830227,
+        0.030773159247
+      ],
+      "aligned_measured_pelvis_link_m": [
+        0.068248912378,
+        -0.030773159247,
+        -0.092685830227
+      ]
+    },
+    {
+      "station": "S11",
+      "original_asset_point": 4,
+      "original_marker_name": "Marker 004",
+      "filtered_member_id": 3,
+      "residual_mm": 1.3309297277336167,
+      "measured_asset_local_m": [
+        -0.0195719,
+        -0.0022729,
+        0.0547924
+      ],
+      "aligned_asset_native_y_up_m": [
+        0.067737573941,
+        -0.09295675799,
+        -0.012910445115
+      ],
+      "aligned_measured_pelvis_link_m": [
+        0.067737573941,
+        0.012910445115,
+        -0.09295675799
+      ]
+    },
+    {
+      "station": "S12",
+      "original_asset_point": 5,
+      "original_marker_name": "Marker 005",
+      "filtered_member_id": 4,
+      "residual_mm": 1.2242601091537122,
+      "measured_asset_local_m": [
+        0.0372897,
+        -0.0109354,
+        0.0540716
+      ],
+      "aligned_asset_native_y_up_m": [
+        0.054878460858,
+        -0.102815277773,
+        -0.068103314327
+      ],
+      "aligned_measured_pelvis_link_m": [
+        0.054878460858,
+        0.068103314327,
+        -0.102815277773
+      ]
+    },
+    {
+      "station": "S22",
+      "original_asset_point": 6,
+      "original_marker_name": "Marker 006",
+      "filtered_member_id": 5,
+      "residual_mm": 1.3246619801242703,
+      "measured_asset_local_m": [
+        -0.0677722,
+        -0.0662836,
+        0.0493368
+      ],
+      "aligned_asset_native_y_up_m": [
+        0.080415138971,
+        -0.156180643333,
+        0.034968797495
+      ],
+      "aligned_measured_pelvis_link_m": [
+        0.080415138971,
+        -0.034968797495,
+        -0.156180643333
+      ]
+    },
+    {
+      "station": "S21",
+      "original_asset_point": 7,
+      "original_marker_name": "Marker 007",
+      "filtered_member_id": 6,
+      "residual_mm": 1.8533591577801716,
+      "measured_asset_local_m": [
+        0.000404931,
+        -0.066657,
+        0.0623605
+      ],
+      "aligned_asset_native_y_up_m": [
+        0.077357006407,
+        -0.15658429566,
+        -0.034373558036
+      ],
+      "aligned_measured_pelvis_link_m": [
+        0.077357006407,
+        0.034373558036,
+        -0.15658429566
+      ]
+    },
+    {
+      "station": "S16",
+      "original_asset_point": 8,
+      "original_marker_name": "Marker 008",
+      "filtered_member_id": 7,
+      "residual_mm": 1.1915838093706828,
+      "measured_asset_local_m": [
+        -0.0135319,
+        -0.00626799,
+        -0.104514
+      ],
+      "aligned_asset_native_y_up_m": [
+        -0.087310002627,
+        -0.113817836285,
+        0.018009384087
+      ],
+      "aligned_measured_pelvis_link_m": [
+        -0.087310002627,
+        -0.018009384087,
+        -0.113817836285
+      ]
+    },
+    {
+      "station": "S04",
+      "original_asset_point": 10,
+      "original_marker_name": "Marker 0010",
+      "filtered_member_id": 8,
+      "residual_mm": 0.8585105140019407,
+      "measured_asset_local_m": [
+        0.0591556,
+        0.0387484,
+        -0.0167485
+      ],
+      "aligned_asset_native_y_up_m": [
+        -0.023977454292,
+        -0.061320704853,
+        -0.072796841074
+      ],
+      "aligned_measured_pelvis_link_m": [
+        -0.023977454292,
+        0.072796841074,
+        -0.061320704853
+      ]
+    },
+    {
+      "station": "S18",
+      "original_asset_point": 11,
+      "original_marker_name": "Marker 011",
+      "filtered_member_id": 9,
+      "residual_mm": 1.5563945160740755,
+      "measured_asset_local_m": [
+        -0.0915362,
+        0.00995211,
+        -0.0541807
+      ],
+      "aligned_asset_native_y_up_m": [
+        -0.022406926585,
+        -0.090789202541,
+        0.082340374283
+      ],
+      "aligned_measured_pelvis_link_m": [
+        -0.022406926585,
+        -0.082340374283,
+        -0.090789202541
+      ]
+    },
+    {
+      "station": "S14",
+      "original_asset_point": 12,
+      "original_marker_name": "Marker 012",
+      "filtered_member_id": 10,
+      "residual_mm": 0.7658558818640692,
+      "measured_asset_local_m": [
+        0.0725332,
+        0.00734264,
+        -0.0290975
+      ],
+      "aligned_asset_native_y_up_m": [
+        -0.035636494828,
+        -0.094120234319,
+        -0.083094286607
+      ],
+      "aligned_measured_pelvis_link_m": [
+        -0.035636494828,
+        0.083094286607,
+        -0.094120234319
+      ]
+    },
+    {
+      "station": "S05",
+      "original_asset_point": 14,
+      "original_marker_name": "Marker 014",
+      "filtered_member_id": 11,
+      "residual_mm": 1.1077674468912855,
+      "measured_asset_local_m": [
+        0.0448757,
+        0.0497136,
+        -0.0630548
+      ],
+      "aligned_asset_native_y_up_m": [
+        -0.066653540449,
+        -0.054997949907,
+        -0.048155432531
+      ],
+      "aligned_measured_pelvis_link_m": [
+        -0.066653540449,
+        0.048155432531,
+        -0.054997949907
+      ]
+    },
+    {
+      "station": "S13",
+      "original_asset_point": 16,
+      "original_marker_name": "Marker 016",
+      "filtered_member_id": 12,
+      "residual_mm": 1.6463113131154634,
+      "measured_asset_local_m": [
+        0.0569927,
+        0.00495975,
+        0.0280518
+      ],
+      "aligned_asset_native_y_up_m": [
+        0.023472614731,
+        -0.090155439561,
+        -0.081191298132
+      ],
+      "aligned_measured_pelvis_link_m": [
+        0.023472614731,
+        0.081191298132,
+        -0.090155439561
+      ]
+    }
+  ],
+  "asset_frame_revision": "pelvis_link_aligned_native_y_up_20261004",
+  "alignment": {
+    "method": "Proper unscaled unweighted least-squares rigid fit over all 12 measured-to-CAD station correspondences; measured geometry retained.",
+    "source_equation_column_vectors": "p_original_asset = R_original_asset_from_pelvis @ p_pelvis + t_original_asset_from_pelvis_m",
+    "R_original_asset_from_pelvis": [
+      [
+        -0.23020900254986837,
+        0.972923610514981,
+        -0.02057822265134249
+      ],
+      [
+        -0.10714170467380822,
+        -0.004322445049470647,
+        0.9942343645179355
+      ],
+      [
+        0.967225139388232,
+        0.23108648721049843,
+        0.10523575991138605
+      ]
+    ],
+    "t_original_asset_from_pelvis_m": [
+      -0.018451862405386356,
+      0.09746122703986582,
+      -0.0039261387405065025
+    ],
+    "output_equation_column_vectors": "p_new_native = R_new_native_from_original_asset @ p_original_asset + t_new_native_from_original_asset_m",
+    "R_new_native_from_original_asset": [
+      [
+        -0.23020900254986837,
+        -0.10714170467380822,
+        0.967225139388232
+      ],
+      [
+        -0.02057822265134249,
+        0.9942343645179355,
+        0.10523575991138605
+      ],
+      [
+        -0.972923610514981,
+        0.004322445049470647,
+        -0.23108648721049843
+      ]
+    ],
+    "t_new_native_from_original_asset_m": [
+      0.009991837255664807,
+      -0.09686583747015445,
+      -0.019280801000352635
+    ],
+    "R_ros_from_native_y_up": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ]
+    ],
+    "native_storage_formula": "[pelvis_x, pelvis_z, -pelvis_y]",
+    "native_storage_axes": {
+      "x": "forward",
+      "y": "up",
+      "z": "right"
+    },
+    "streamed_ros_axes": {
+      "x": "forward",
+      "y": "left",
+      "z": "up"
+    },
+    "required_motive_streaming_up_axis": "Z",
+    "required_modeldef_y_up_to_z_up": true,
+    "natnet_pose_extra_rotation": "NONE",
+    "native_basis_status": "REPO_FIELD_VERIFIED_CONVENTION_REQUIRES_MOTIVE_3_5_IMPORT_AND_STREAM_CHECK",
+    "physical_origin_status": "ALIGNED_TO_NOMINAL_CAD_PELVIS_DATUM_NOT_INDEPENDENTLY_MEASURED",
+    "centroid_subtracted": false,
+    "scale_factor": 1.0,
+    "reflections_allowed": false,
+    "pair_distance_max_change_m": 7.597811269022259e-13,
+    "registration_rms_mm": 1.3951447704963011,
+    "registration_max_mm": 1.853359158132583,
+    "expected_P1_to_pelvis_link": {
+      "translation_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "production_solver_post_alignment": {
+      "translation_m": [
+        -9.6336133514896e-14,
+        1.8690431147216913e-13,
+        9.355016761247725e-14
+      ],
+      "quaternion_xyzw": [
+        -1.0535620357984844e-12,
+        -5.880618935213435e-13,
+        8.241168380399019e-13,
+        1.0
+      ],
+      "rms_m": 0.0013951447704963005
+    },
+    "world_frame_note": "Local body-axis alignment does not change the world/table origin or align the room axes.",
+    "no_runtime_approval": true
+  }
+}

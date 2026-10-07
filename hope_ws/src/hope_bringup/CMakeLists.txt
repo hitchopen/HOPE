@@ -80,6 +80,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(p1_calibration_test test/test_p1_calibration.py)
   ament_add_pytest_test(public_sticker_integration_test test/test_public_sticker_integration.py)
   ament_add_pytest_test(p1_marker_layout_test test/test_p1_marker_layout.py)
+  ament_add_pytest_test(v3_optitrack_asset_test test/test_v3_optitrack_asset.py)
   ament_add_pytest_test(p1_marker_cad_calibration_server_test test/test_p1_marker_cad_calibration_server.py)
 endif()
 
