@@ -139,10 +139,11 @@ namespaced because its message type differs from the HOPE `/poses` `PoseArray` c
 The A3-specific marker-CAD procedure, installed-layout requirements and
 receipt lifecycle are maintained in
 [agibot/README.md](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
-The current profile is the **12-station v3 sticker shell**, using its optical-centre
+The current profile is the **17-station v3 sticker shell** (front seven unchanged,
+two rear rows of five), using its optical-centre
 TF table in ROS `pelvis_link` and the supplied pelvis-aligned native **P1** asset.
 The intended fixed local correction is identity, subject to a fresh installed
-live verification; pre-alignment 12-point, old 24-station and ten-marker receipts
+live verification; all earlier 12-point, old 24-station and ten-marker receipts
 cannot be reused. See [receipt lifecycle](../calibration/README.md).
 Whether capture is automated depends on the selected operator integration;
 do not assume every PREPARE/Ready action runs it. The independent pose-pair

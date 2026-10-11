@@ -195,9 +195,9 @@ works on the A3 adapter's aarch64 platform.
 
 ### Optional marker-CAD calibration: P1 to an A3 `pelvis_link`
 
-The current sticker profile is the **12-station v3 sticker shell**:
-**S04, S05, S11, S12, S13, S14, S16, S18, S19, S20, S21, S22**.
-It is not the previous 24-station or ten-ball shell. Use the
+The current sticker profile is the **17-station v3 sticker shell**:
+**S04-S08 and S11-S22**. Front seven are unchanged; rear upper and middle
+rows each have five stations. It is not the previous 12-station, 24-station or ten-ball shell. Use the
 [v3 setup and calibration procedure](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
 for asset preparation, rebuilding, live capture and acceptance limits.
 
@@ -214,9 +214,9 @@ Use Motive **Streaming Up Axis = Z Up** and keep the bridge's existing
 MODELDEF Y-up-to-Z-up conversion enabled. No additional pose rotation or old
 pivot offset should be applied. See the
 [aligned asset instructions](../agibot/mocap_sticker_shell_v3/README.md#pelvis-origin-and-ros-axes-no-extra-default-correction).
-All 12 retained stations must be defined; each must provide sufficient physical live
+All 17 stations must be defined; each must provide sufficient physical live
 samples during capture, but not necessarily in the same frame. Restart
-NatNet after redefining P1. Pre-alignment 12-point, old 24-station, ten-marker
+NatNet after redefining P1. All earlier 12-point, old 24-station, ten-marker
 and ball-mode receipts are rejected; generate a fresh live receipt.
 
 The integrated Foxglove console's `Calibration` button calls
@@ -327,7 +327,7 @@ calibrator. The measured correction should then be approximately identity. In
 that configuration, do not run `p1_pelvis_tf_publisher`; doing so would apply
 the correction twice.
 
-The legacy tool's CAD cross-check now uses all 12 retained v3 sticker centres. Their
+The legacy tool's CAD cross-check now uses all 17 v3 sticker centres. Their
 nominal centroid is `[0.0143578988, 0.0128640079, -0.0999334205] m` in
 `pelvis_link`. It is not a default pivot correction: Motive's asset pivot is
 configurable. Marker stream order does not affect this audit's solved-pose

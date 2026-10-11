@@ -1,6 +1,6 @@
 # A3 dual-mode marker shell v3
 
-**12-station v3 revision, 2026-10-04. Printable mesh geometry checked;
+**17-station v3 revision, 2026-10-11: seven front + ten rear. Printable mesh geometry checked;
 physical fit, hardware retention and crash testing remain required.**
 The v3 model name and printable filenames are unchanged.
 
@@ -8,27 +8,32 @@ The v3 model name and printable filenames are unchanged.
 
 - All ten obsolete external marker bosses **and their screw bores** are removed,
   including f1 and b1-b5. Their locations are restored to smooth local shell skin.
-- Removed stations **S01, S02, S03, S06, S07, S08, S09, S10, S15, S17, S23,
-  S24**, including their mounting holes; these locations now use the smooth
+- Stations **S01, S02, S03, S09, S10, S23, S24** remain removed,
+  including their mounting holes; these locations retain the smooth
   base-shell skin. No holes were cut through the pelvis-fitting interior.
-- Retained **S04, S05, S11, S12, S13, S14, S16, S18, S19, S20, S21, S22**.
+- The **front seven are unchanged: S11, S12, S13, S19, S20, S21, S22**.
+  Half A is byte-for-byte identical to the preceding release.
+- Restored **S06, S07, S08, S15, S17**, completing rear upper row
+  **S04-S08** and rear middle row **S14-S18** (five each). These are the
+  original asymmetric station locations, not newly regularized rings.
   Original station IDs are preserved, not renumbered.
-- The 12 retained asymmetric stations have **flat 12 mm tops**, with no raised rims or
+- All 17 asymmetric stations have **flat 12 mm tops**, with no raised rims or
   recessed sticker pockets. Each retains its **3.4 mm central blind screw bore**
   and side-access captive-nut pocket; these are not through-holes.
 - Structural shell fastener holes, seams and surrounding ribs are retained.
   Upper internal reliefs remain; only the old cavities near the restored skin
   are filled. Small, measured mesh cleanup was also needed.
-- Retained marker positions and axes are unchanged. The `pelvis_link` tables
-  contain only these 12 stations, with their original numeric values.
+- The previous 12 marker positions and axes are unchanged. The `pelvis_link`
+  tables add the five restored stations from the archived CAD definitions;
+  neither the pelvis datum nor the seven front marker coordinates moved.
 
 ## Printable files
 
 | File | Use |
 |---|---|
 | [Half A](printable/a3_marker_shell_v3_half_a.stl) | Front half, one fused solid; 74,536 triangles |
-| [Half B](printable/a3_marker_shell_v3_half_b.stl) | Rear half, one fused solid; 90,316 triangles |
-| [Flush pin](printable/a3_marker_shell_v3_flush_pin.stl) | Unchanged central-hole pin; print up to 12 for sticker mode |
+| [Half B](printable/a3_marker_shell_v3_half_b.stl) | Rear half, one fused solid; 99,132 triangles |
+| [Flush pin](printable/a3_marker_shell_v3_flush_pin.stl) | Unchanged central-hole pin; print up to 17 for sticker mode |
 | [OpenSCAD model](a3_marker_shell_v3.scad) | Assembly preview and individual-part print placement |
 | [Instructions](output/pdf/A3_marker_shell_v3_instructions.pdf) | Installation, printing checks, station drawings and translation table |
 | [Geometry verification](documents/geometry_repair_status.md) | Methods, measured limits and remaining physical checks |
@@ -73,19 +78,19 @@ improves local visibility but does not guarantee tracking at grazing angles.
 
 ## Verification and limits
 
-Both exported halves pass independent triangle-level and FreeCAD checks:
-closed, manifold, consistently oriented, one connected part, no duplicate or
-degenerate triangles, and **zero detected self-intersections**. Their assembled
-mesh intersection volume is zero. All 12 retained stations pass planar-top,
-12 mm outside-diameter and 3.4 mm bore checks. At the 12 removed stations,
-588 ray probes agree with the archived smooth base surfaces within 0.001 mm.
+Both serialized halves pass current Trimesh/MeshLab checks: closed, manifold,
+consistently oriented, one connected part, no duplicate or degenerate triangles,
+and **zero detected self-intersections**. Their assembled mesh intersection
+volume is zero. All ten rear stations pass 49 probes each for flat 12 mm tops,
+3.4 mm bores and 4.6 mm blind depth, within 0.001 mm. The previously checked
+front geometry is unchanged. FreeCAD was not rerun on the new rear mesh.
 
-A 57,370-point comparison outside the altered old-mount regions and new-pad
-footprints found maximum increases in distance versus the previous v3 meshes
-of **0.00000103 mm front / 0.00000171 mm rear** (serialization-level changes).
-Earlier base repairs and original CAD tessellation errors remain documented;
-this is not a new claim of exact CAD accuracy. These are sampled
-geometric comparisons, not a physical fit certificate.
+A comparison of **84,425 rear surface points outside the five restored
+footprints** found maximum distance to the new mesh of **0.00000296 mm**;
+none exceeded 0.001 mm. This includes the unchanged interior and structural
+features within the sampled surface, not a certified global distance bound.
+Earlier base repairs and original CAD tessellation errors remain documented.
+These are geometric checks, not a physical fit certificate.
 
 Most restored sites sample near 2.5 mm wall thickness. The f1 restoration has
 an approximately **1.50 mm local edge gap** in a vertical-ray audit; configure
@@ -116,9 +121,9 @@ Motive calibration. The recovered 6 mm stand-off of the obsolete registration
 markers must not be reused for the new ball hardware.
 
 The `stickers_v3` calibration uses the **sticker optical-centre CSV directly**
-for the 12 retained stations and installs the same table with `hope_bringup`.
+for all 17 stations and installs the same table with `hope_bringup`.
 After changing the shell/Motive asset, restart NatNet and generate a fresh live
-P1-to-pelvis receipt; pre-alignment 12-point, old 24-station and ten-marker receipts
+P1-to-pelvis receipt; all earlier 12-point, old 24-station and ten-marker receipts
 are rejected. Follow the
 [v3 calibration procedure](../README.md#v3-sticker-p1-to-pelvis-calibration).
 The [calibration README](../../calibration/README.md) explains the laptop-local
@@ -131,26 +136,39 @@ physically verified calibration.
 - [Original A3.motive](motive_asset/source/A3.motive) and
   [A3.csv](motive_asset/source/A3.csv) are byte-for-byte copies of the user's
   16-point export, retained for traceability. **Do not use the unfiltered
-  16-point asset for the revised 12-station shell.**
-- [A3_v3_12_stickers.motive](motive_asset/A3_v3_12_stickers.motive) and its
-  [CSV](motive_asset/A3_v3_12_stickers.csv) now define the **pelvis-aligned `P1`**.
-  Import the native `.motive` file; the CSV is its coordinate companion.
+  16-point asset for the revised 17-station shell.**
+- [A3_v3_17_stickers.motive](motive_asset/A3_v3_17_stickers.motive) and its
+  [CSV](motive_asset/A3_v3_17_stickers.csv) define the **pelvis-aligned `P1`**
+  offline candidate. The CSV is its coordinate companion.
   Original Points **3, 9, 13** (removed S23, S03, S02) and unmatched **Point 15**
   are excluded. The measured constellation is rigidly reframed to the nominal
   CAD `pelvis_link` origin and axes; **measured pair distances are preserved**,
   rather than replacing the observations with ideal CAD points. Diameters,
-  constraint UUIDs and streaming ID `9` are unchanged. The body is renamed
-  `P1`; member IDs remain 1–12 in the original retained order. All 66 graph/stick
-  pairs retain their source values and filtered references.
+  constraint UUIDs and streaming ID `9` are unchanged for those 12 points.
+  Member IDs **1-12** retain their existing order. Restored **S06, S07, S08,
+  S15, S17** are appended as members **13-17** using nominal CAD sticker
+  coordinates and nominal 12 mm diameters. **They have no observations in
+  the supplied A3 export; visibility is not yet confirmed.**
+- The old learned `constraint_graph` is omitted: its undocumented statistics
+  cannot be extended honestly from unmeasured points. The 136 visualization
+  stick pairs are complete, but **native import without that cache is unverified**.
+  Test-import in an isolated Motive project and save a fresh export. If rejected,
+  create the asset with Motive's API from the supplied pivot-relative
+  [authoring data](motive_asset/P1_stickers_definition.json) /
+  [header](motive_asset/P1_stickers_marker_data.h), then export it natively.
+  That alternative uses ideal CAD for all 17 points, not the mixed measured
+  candidate; record the resulting mapping and verify it live. Do not fabricate
+  graph weights or operate from this candidate without validation.
 - [Station mapping](documents/optitrack_station_mapping.csv) records the
   original Point number, filtered member ID and physical Sxx identity.
-  All 12 retained stations have geometric matches in both supplied files:
+  The 12 previously retained stations have geometric matches in both source files:
   rigid-fit RMS **1.395 mm**, maximum **1.853 mm**. This confirms presence in
-  the asset, **not continuous visibility or an approved runtime calibration**.
+  the source asset, **not continuous visibility or an approved runtime calibration**.
+  These accuracy statistics exclude the five nominal additions.
 - The filtered native file passes XML/reference/coordinate checks but has
   **not been imported and re-exported in Motive**. Import into an isolated
   project first; the candidate preserves the source body UUID and can replace
-  that body if imported into the same project. Confirm body name `P1`, 12
+  that body if imported into the same project. Confirm body name `P1`, 17
   markers and a unique streaming ID, save a fresh native export, restart
   NatNet and perform the live verification described below.
 
@@ -187,7 +205,8 @@ Motive 3.5 asset still needs an import and stream check.
 The production CAD solver recovers identity from the serialized, converted
 asset to numerical precision (translation below 1e-10 m; quaternion-vector
 components below 1e-9). That is an offline consistency test, not physical
-accuracy: marker-to-CAD mismatch remains 1.395 mm RMS / 1.853 mm maximum.
+accuracy: the original measured subset remains 1.395 mm RMS / 1.853 mm maximum.
+The five nominal additions are not new calibration evidence.
 The robot/world pose still rotates as the robot moves; only the **fixed local
 P1-to-pelvis correction** is intended to be identity. World/table calibration
 is unaffected.
@@ -198,8 +217,8 @@ undoing this registration. See [Motive pivot controls](https://docs.optitrack.co
 Run the existing live calibration as verification; expect an approximately
 identity result. A significant correction is a setup discrepancy to investigate,
 not a reason to force the saved values to identity. Receipts from the earlier
-12-point arbitrary pivot are rejected by the new asset-frame revision, even
-though the CAD table hash is unchanged. Never manually mark the default approved.
+12-point layout (including the pelvis-aligned revision) are rejected by the new
+table hash, station list and asset-frame revision. Never manually mark the default approved.
 
 The untouched `source/A3.motive` retains its old arbitrary frame. The separate
 `P1_stickers_definition.json` and header remain **ideal CAD** authoring references

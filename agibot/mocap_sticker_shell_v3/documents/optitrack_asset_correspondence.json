@@ -1,14 +1,19 @@
 {
-  "status": "PELVIS_LINK_ALIGNED_OFFLINE_MOTIVE_IMPORT_AND_LIVE_VERIFICATION_PENDING",
-  "date": "2026-10-04",
+  "status": "MIXED_MEASURED_AND_NOMINAL_PELVIS_ALIGNED_CANDIDATE_IMPORT_AND_LIVE_VALIDATION_PENDING",
+  "date": "2026-10-11",
   "retained_station_ids": [
     "S04",
     "S05",
+    "S06",
+    "S07",
+    "S08",
     "S11",
     "S12",
     "S13",
     "S14",
+    "S15",
     "S16",
+    "S17",
     "S18",
     "S19",
     "S20",
@@ -36,27 +41,27 @@
   ],
   "filtered_assets": [
     {
-      "path": "A3_v3_12_stickers.motive",
-      "sha256": "a6f600c5b653bdc019ef5a97a5009d5c7c1676b42430227d50f883718bbf843d",
-      "point_count": 12
+      "path": "A3_v3_17_stickers.motive",
+      "sha256": "fecabc7c812f83dd5a015e0de145026ba8a21173f58140b92b8510486eaf560d",
+      "point_count": 17
     },
     {
-      "path": "A3_v3_12_stickers.csv",
-      "sha256": "8a21d4fdfc6a9586f1368300579e435b8fa175c8250056eaa63be831daf9cf61",
-      "point_count": 12
+      "path": "A3_v3_17_stickers.csv",
+      "sha256": "2052dbd429650bbcfea591c402d8bf25fcb89b9b592d9ef92e81c0f44fe3361d",
+      "point_count": 17
     }
   ],
   "asset_name": "P1",
   "streaming_id": 9,
   "asset_pivot_and_basis": "CAD_PELVIS_LINK_ORIGIN_WITH_ROS_FLU_AXES_AFTER_REQUIRED_Z_UP_STREAM_CONVERSION",
   "retained_offsets_diameters_and_constraint_ids": "OFFSETS_RIGIDLY_REBASED_DIAMETERS_AND_CONSTRAINT_IDS_PRESERVED",
-  "member_ids": "RENUMBERED_1_TO_12_IN_ORIGINAL_ORDER",
-  "constraint_graph_and_sticks": "FILTERED_AND_REINDEXED_66_PAIRS",
+  "member_ids": "EXISTING_1_TO_12_UNCHANGED_RESTORED_REAR_13_TO_17",
+  "constraint_graph_and_sticks": "LEARNED_GRAPH_OMITTED_NO_FABRICATED_STATISTICS_136_VISUAL_STICK_PAIRS",
   "fit_rms_mm": 1.395144770534123,
   "fit_max_mm": 1.8533591577801716,
   "pair_distance_rms_mm": 1.2190875343750842,
   "fit_purpose": "REFRAME_MEASURED_ASSET_TO_NOMINAL_CAD_PELVIS_LINK_NOT_PHYSICAL_RUNTIME_APPROVAL",
-  "visibility_scope": "Retained points are present in the supplied static asset; continuous/all-pose visibility is not established.",
+  "visibility_scope": "12 measured stations occur in the supplied static asset; five restored rear stations have NO observations. Neither group has all-pose visibility qualification.",
   "motive_import_reexport": "NOT_PERFORMED",
   "live_calibration": "NOT_PERFORMED",
   "mapping": [
@@ -80,7 +85,8 @@
         0.036169496495,
         -0.08016536571,
         -0.09277687355
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S20",
@@ -102,7 +108,8 @@
         0.068248912378,
         -0.030773159247,
         -0.092685830227
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S11",
@@ -124,7 +131,8 @@
         0.067737573941,
         0.012910445115,
         -0.09295675799
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S12",
@@ -146,7 +154,8 @@
         0.054878460858,
         0.068103314327,
         -0.102815277773
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S22",
@@ -168,7 +177,8 @@
         0.080415138971,
         -0.034968797495,
         -0.156180643333
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S21",
@@ -190,7 +200,8 @@
         0.077357006407,
         0.034373558036,
         -0.15658429566
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S16",
@@ -212,7 +223,8 @@
         -0.087310002627,
         -0.018009384087,
         -0.113817836285
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S04",
@@ -234,7 +246,8 @@
         -0.023977454292,
         0.072796841074,
         -0.061320704853
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S18",
@@ -256,7 +269,8 @@
         -0.022406926585,
         -0.082340374283,
         -0.090789202541
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S14",
@@ -278,7 +292,8 @@
         -0.035636494828,
         0.083094286607,
         -0.094120234319
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S05",
@@ -300,7 +315,8 @@
         -0.066653540449,
         0.048155432531,
         -0.054997949907
-      ]
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
     },
     {
       "station": "S13",
@@ -322,10 +338,101 @@
         0.023472614731,
         0.081191298132,
         -0.090155439561
+      ],
+      "provenance": "MEASURED_SOURCE_RIGIDLY_ALIGNED"
+    },
+    {
+      "station": "S06",
+      "original_asset_point": null,
+      "original_marker_name": null,
+      "filtered_member_id": 13,
+      "provenance": "CAD_NOMINAL_NOT_OBSERVED",
+      "residual_mm": null,
+      "aligned_asset_native_y_up_m": [
+        -0.079001398,
+        -0.05760387,
+        0.001320496
+      ],
+      "nominal_pelvis_link_m": [
+        -0.079001398,
+        -0.001320496,
+        -0.05760387
+      ]
+    },
+    {
+      "station": "S07",
+      "original_asset_point": null,
+      "original_marker_name": null,
+      "filtered_member_id": 14,
+      "provenance": "CAD_NOMINAL_NOT_OBSERVED",
+      "residual_mm": null,
+      "aligned_asset_native_y_up_m": [
+        -0.063805908,
+        -0.060498038,
+        0.052205169
+      ],
+      "nominal_pelvis_link_m": [
+        -0.063805908,
+        -0.052205169,
+        -0.060498038
+      ]
+    },
+    {
+      "station": "S08",
+      "original_asset_point": null,
+      "original_marker_name": null,
+      "filtered_member_id": 15,
+      "provenance": "CAD_NOMINAL_NOT_OBSERVED",
+      "residual_mm": null,
+      "aligned_asset_native_y_up_m": [
+        -0.019874543,
+        -0.054669064,
+        0.072035522
+      ],
+      "nominal_pelvis_link_m": [
+        -0.019874543,
+        -0.072035522,
+        -0.054669064
+      ]
+    },
+    {
+      "station": "S15",
+      "original_asset_point": null,
+      "original_marker_name": null,
+      "filtered_member_id": 16,
+      "provenance": "CAD_NOMINAL_NOT_OBSERVED",
+      "residual_mm": null,
+      "aligned_asset_native_y_up_m": [
+        -0.077885198,
+        -0.097023108,
+        -0.04404497
+      ],
+      "nominal_pelvis_link_m": [
+        -0.077885198,
+        0.04404497,
+        -0.097023108
+      ]
+    },
+    {
+      "station": "S17",
+      "original_asset_point": null,
+      "original_marker_name": null,
+      "filtered_member_id": 17,
+      "provenance": "CAD_NOMINAL_NOT_OBSERVED",
+      "residual_mm": null,
+      "aligned_asset_native_y_up_m": [
+        -0.065029671,
+        -0.099352277,
+        0.065130802
+      ],
+      "nominal_pelvis_link_m": [
+        -0.065029671,
+        -0.065130802,
+        -0.099352277
       ]
     }
   ],
-  "asset_frame_revision": "pelvis_link_aligned_native_y_up_20261004",
+  "asset_frame_revision": "pelvis_link_aligned_native_y_up_rear17_20261011",
   "alignment": {
     "method": "Proper unscaled unweighted least-squares rigid fit over all 12 measured-to-CAD station correspondences; measured geometry retained.",
     "source_equation_column_vectors": "p_original_asset = R_original_asset_from_pelvis @ p_pelvis + t_original_asset_from_pelvis_m",
@@ -441,6 +548,30 @@
       "rms_m": 0.0013951447704963005
     },
     "world_frame_note": "Local body-axis alignment does not change the world/table origin or align the room axes.",
-    "no_runtime_approval": true
-  }
+    "no_runtime_approval": true,
+    "production_solver_17_point_check": {
+      "translation_m": [
+        -1.251481557273948e-13,
+        1.4781822684287182e-13,
+        7.019385073192552e-14
+      ],
+      "quaternion_xyzw": [
+        -7.507767352945459e-13,
+        -6.811706393219769e-13,
+        5.925660834855008e-13,
+        1.0
+      ],
+      "rms_m": 0.0011721560618770798,
+      "scope": "MIXED_OFFLINE_CONSISTENCY_NOT_A_NEW_MEASURED_ACCURACY"
+    }
+  },
+  "restored_station_ids": [
+    "S06",
+    "S07",
+    "S08",
+    "S15",
+    "S17"
+  ],
+  "graph_import_requirement": "Native import without the learned cache is NOT verified. Import in isolation and save a fresh Motive export. If rejected, author via Motive API using the supplied pivot-relative data; do not invent graph weights.",
+  "fit_statistics_scope": "The reported 1.395 mm RMS / 1.853 mm max describe ONLY the 12 measured source correspondences. Five nominal points are excluded from measurement statistics."
 }

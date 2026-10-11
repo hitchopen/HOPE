@@ -1,28 +1,35 @@
 # A3 v3 marker registration to pelvis_link
 
 Status: **nominal CAD calculation verified; physical calibration not performed**.
-Updated: 2026-10-04. This note accompanies the retained 12-station sticker and mount-seat
+Updated: 2026-10-11. This note accompanies the 17-station sticker and mount-seat
 tables. The fused STL geometry is now checked; this note does not certify
 physical fit or installed calibration.
 
-## Retained v3 stations, 2026-10-04
+## Rear-restored v3 stations, 2026-10-11
 
-The current tables contain **S04, S05, S11, S12, S13, S14, S16, S18, S19,
-S20, S21, S22**. Only rows were removed: every retained translation, normal
-and quaternion is unchanged, as is the mapping below. The workbook retains
-formula-driven calculation and the accepted 0.20 mm sticker thickness.
+The current tables contain **S04-S08 and S11-S22**. The seven front stations
+S11/S12/S13/S19/S20/S21/S22 and the front STL are unchanged. Restoring
+S06/S07/S08/S15/S17 completes the rear upper and middle rows of five each.
+Every previous translation, normal and quaternion is unchanged; five rows are
+restored from their original CAD definitions without moving the pelvis datum.
+The workbook retains formula-driven calculation and accepted 0.20 mm film thickness.
 
-The replacement STL meshes contain exactly these stations; each retained top
-and bore was checked on the final mesh. Twelve removed-station footprints
-match the archived smooth shell bases. See `printability_validation.json`.
+The replacement STL meshes contain exactly these stations. All ten rear tops
+and bores were checked on the final serialized mesh; the previously checked
+front file is byte-identical. Seven removed stations remain absent.
+See `printability_validation.json` for current checks and their scope.
 The STEP/layout hashes and 24-station checks in the historical sections below
 identify the archived construction inputs, not a current 24-station release.
 
-All twelve stations match points in the supplied measured `A3` export (rigid-fit
+The twelve previously retained stations match points in the supplied measured `A3` export (rigid-fit
 RMS 1.395 mm, maximum 1.853 mm). The fit now also rebases the measured asset to
 the nominal `pelvis_link` origin and ROS axes; it is not an approved runtime
 TF, a physical pelvis datum measurement, or proof of continuous visibility.
 Only `motive_asset/source/A3.motive` keeps the original arbitrary frame.
+The five restored rear points have no observations in that source and are
+appended from CAD. Their nominal positions are not measured calibration or
+visibility evidence. The candidate omits the undocumented learned graph cache;
+Motive import/re-export is unverified (see the shell README for the API fallback).
 
 ### Measured asset alignment
 
@@ -43,7 +50,10 @@ Full matrices, source/output hashes and per-point coordinates are recorded in
 rigidly transformed, not replaced by ideal CAD values: all 66 pair distances
 change by less than `8e-13 m` after 12-decimal serialization. No scale,
 reflection or centroid-origin reset is used. All mechanical/CAD tables remain
-unchanged, including their mounting quaternions.
+unchanged for those original 12 rows, including mounting quaternions. Adding
+five exact CAD points preserves the same nominal origin and axes. The full
+17-point production-solver check is separately recorded in the JSON; its lower
+mixed-data RMS is not a new measurement-accuracy claim.
 
 The native offsets use Motive's Y-up basis so the existing bridge conversion
 `(x,y,z) → (x,-z,y)` yields ROS X forward, Y left, Z up with **Motive Streaming
@@ -54,7 +64,7 @@ intended default correction, not an assertion that live `world → P1` is identi
 
 Import/re-export in Motive, restart the adapter and obtain a fresh installed
 live receipt. Do not apply an additional 90-degree rotation, the old pivot
-correction, or a hand-approved identity receipt. Pre-alignment receipts are
+correction, or a hand-approved identity receipt. All earlier 12-station receipts are
 invalidated by the asset-frame revision. The nominal CAD origin and stored
 coordinate convention still require physical and live-stream validation.
 

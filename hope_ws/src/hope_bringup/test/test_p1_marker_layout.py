@@ -16,8 +16,8 @@ import p1_marker_layout as layout
 def test_optical_centres_are_used_without_a_second_conversion():
     transforms = layout.load_marker_transforms()
     assert tuple(transforms) == (
-        "S04", "S05", "S11", "S12", "S13", "S14",
-        "S16", "S18", "S19", "S20", "S21", "S22",
+        "S04", "S05", "S06", "S07", "S08", "S11", "S12", "S13", "S14",
+        "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22",
     )
     assert transforms["S04"]["translation_m"] == pytest.approx(
         (-0.023680990, 0.072053090, -0.061630517), abs=1e-12
@@ -38,7 +38,7 @@ def test_old_24_station_receipt_is_rejected_even_with_same_v3_name():
     old = layout.layout_metadata()
     old["marker_names"] = [f"S{i:02d}" for i in range(1, 25)]
     old["source_sha256"] = "3b304f521b85ebac8c8595d1666322ef3c64f9dcd40ffa0d339da25b431bdb90"
-    with pytest.raises(ValueError, match="12-station v3"):
+    with pytest.raises(ValueError, match="17-station v3"):
         layout.validate_receipt_layout({"approved": True, "marker_layout": old})
 
 
@@ -46,6 +46,15 @@ def test_pre_alignment_12_station_receipt_is_rejected():
     old = layout.layout_metadata()
     del old["asset_frame_revision"]
     with pytest.raises(ValueError, match="pre-alignment"):
+        layout.validate_receipt_layout({"approved": True, "marker_layout": old})
+
+
+def test_aligned_12_station_receipt_is_also_rejected():
+    old = layout.layout_metadata()
+    old["marker_names"] = [s for s in old["marker_names"] if s not in {"S06", "S07", "S08", "S15", "S17"}]
+    old["source_sha256"] = "8b1bf1eba661e2a07ae5591aa5d57b9057b496c3b57489b6d206f4855b7ada9e"
+    old["asset_frame_revision"] = "pelvis_link_aligned_native_y_up_20261004"
+    with pytest.raises(ValueError, match="old 12-station"):
         layout.validate_receipt_layout({"approved": True, "marker_layout": old})
 
 

@@ -78,10 +78,10 @@ hope_world:
       xyz_m: [0.0, 0.0, 0.0]
       quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
       note: >-
-        The pelvis-aligned 12-station asset targets zero translation and
+        The pelvis-aligned 17-station asset targets zero translation and
         identity rotation with Motive Streaming Up Axis Z. Keep the existing
         MODELDEF Y-up-to-Z-up conversion; add no extra pose rotation. Do not reuse
-        pre-alignment 12-point, historical ten-ball or 24-station sticker receipts.
+        old 12-point, historical ten-ball or 24-station sticker receipts.
         Name the imported asset UCB_P1 or UCB_P2 for the selected table side.
         Restart NatNet after asset import, then generate a fresh live receipt at
         calibration/ucb_robot_to_pelvis.json. Runtime loads that file; these values
@@ -97,7 +97,7 @@ hope_world:
   provenance:
     cad:
       path: agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv
-      sha256: 8b1bf1eba661e2a07ae5591aa5d57b9057b496c3b57489b6d206f4855b7ada9e
+      sha256: 5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0
       format: CSV_ROS_pelvis_link_metres_sticker_optical_centres
     urdf:
       path: agibot/URDF/A3T2.5-URDF-std-pingpang/urdf/URDF-JOINT-LINK.urdf

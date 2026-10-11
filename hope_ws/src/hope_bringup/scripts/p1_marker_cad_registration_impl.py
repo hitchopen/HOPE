@@ -544,7 +544,7 @@ def cad_names_for_markers(
         if requested is not None and (
             len(requested) != len(STICKER_NAMES) or set(requested) != set(STICKER_NAMES)
         ):
-            raise ValueError("v3 sticker calibration requires the complete retained 12-station CAD set")
+            raise ValueError("v3 sticker calibration requires the complete retained 17-station CAD set")
     if requested is not None:
         if len(requested) != len(markers):
             raise ValueError(
@@ -1286,7 +1286,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-layout",
         choices=tuple(MARKER_LAYOUTS),
         default="stickers_v3",
-        help="installed carrier: stickers_v3 (12 retained stations), v2 or v3 (legacy balls)",
+        help="installed carrier: stickers_v3 (17 retained stations), v2 or v3 (legacy balls)",
     )
     parser.add_argument(
         "--table-side",
@@ -1308,7 +1308,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--marker-names",
         default="auto",
         help=(
-            "'auto', or comma-separated CAD names. Stickers require all 12 retained "
+            "'auto', or comma-separated CAD names. Stickers require all 17 retained "
             "v3 stations; legacy balls use f2-f5,b2-b5 for 8 points or "
             "f1-f5,b1-b5 for 10 points."
         ),

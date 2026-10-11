@@ -20,6 +20,9 @@ EXPECTED = {
     1: "S19", 2: "S20", 4: "S11", 5: "S12", 6: "S22", 7: "S21",
     8: "S16", 10: "S04", 11: "S18", 12: "S14", 14: "S05", 16: "S13",
 }
+RESTORED = ("S06", "S07", "S08", "S15", "S17")
+MEMBERS = {i: station for i, station in enumerate([*EXPECTED.values(), *RESTORED], 1)}
+ASSET = ASSETS / "A3_v3_17_stickers.motive"
 
 
 def body(path):
@@ -46,13 +49,15 @@ def test_source_files_are_preserved_byte_for_byte():
         assert hashlib.sha256((ASSETS / "source" / name).read_bytes()).hexdigest() == digest
 
 
-def test_aligned_native_asset_preserves_measured_shape_and_graph_pairs():
+def test_aligned_native_asset_preserves_measured_shape_without_inventing_graph_statistics():
     source = body(ASSETS / "source/A3.motive")
-    subset = body(ASSETS / "A3_v3_12_stickers.motive")
+    subset = body(ASSET)
     old = list(source.find("constraints"))
     new = list(subset.find("constraints"))
     indices = [i - 1 for i in EXPECTED]
-    assert len(new) == len(layout.MARKER_NAMES) == 12
+    assert len(new) == len(layout.MARKER_NAMES) == 17
+    assert len({c.get("id") for c in new}) == 17
+    assert [int(c.get("member_id")) for c in new] == list(range(1, 18))
     assert subset.attrib == source.attrib  # UUID retained: test-import separately.
     expected_properties = [dict(p.attrib) for p in source.find("properties")]
     for prop in expected_properties:
@@ -77,28 +82,23 @@ def test_aligned_native_asset_preserves_measured_shape_and_graph_pairs():
             assert math.dist(old_xyz[i], old_xyz[j]) == pytest.approx(
                 math.dist(new_xyz[i], new_xyz[j]), abs=2e-12
             )
-    remap = {old_i: new_i for new_i, old_i in enumerate(indices)}
-    old_pairs = {
-        (remap[int(row.get("index"))], remap[int(item.get("index"))]): item.text
-        for row in source.find("constraint_graph") if int(row.get("index")) in remap
-        for item in row if int(item.get("index")) in remap
-    }
-    new_pairs = {
-        (int(row.get("index")), int(item.get("index"))): item.text
-        for row in subset.find("constraint_graph") for item in row
-    }
-    assert new_pairs == old_pairs and len(new_pairs) == 66
+    # The source's learned pair statistics do not exist for the five new points.
+    # This offline candidate omits the cache; native import remains unverified.
+    assert subset.find("constraint_graph") is None
     names = {c.get("name") for c in new}
     sticks = list(subset.find("marker_sticks"))
-    assert len(sticks) == 66
+    assert len(sticks) == 136
     assert all(s.get("origin") in names and s.get("end") in names for s in sticks)
-    assert {(int(r.get("index")), r.get("id")) for r in subset.find("constraint_graph")} == {
-        (i, c.get("id")) for i, c in enumerate(new)
-    }
+    assert len({frozenset((s.get("origin"), s.get("end"))) for s in sticks}) == 136
+    table = layout.load_marker_transforms()
+    for constraint, station in zip(new[12:], RESTORED):
+        assert constraint.get("name") == station
+        assert ros_from_native(offsets([constraint])[0]) == pytest.approx(table[station]["translation_m"], abs=1e-12)
+        assert float(constraint.findtext("diameter")) == .012
 
 
-def test_measured_subset_recovers_retained_stations_without_assuming_member_order():
-    constraints = list(body(ASSETS / "A3_v3_12_stickers.motive").find("constraints"))
+def test_mixed_asset_recovers_all_stations_without_assuming_member_order():
+    constraints = list(body(ASSET).find("constraints"))
     markers = [registration.ModelMarker(
         int(c.get("member_id")), c.get("name"),
         ros_from_native(tuple(float(v) for v in c.findtext("offset").split(","))),
@@ -107,19 +107,24 @@ def test_measured_subset_recovers_retained_stations_without_assuming_member_orde
         markers, layout.MARKER_NAMES,
         cad_markers_pelvis_m=registration.STICKER_MARKER_LAYOUT.markers_pelvis_m,
     )
-    assert result.mapping == {i: station for i, station in enumerate(EXPECTED.values(), 1)}
-    assert result.registration.rms_m == pytest.approx(0.001395144770534123, abs=1e-10)
+    assert result.mapping == MEMBERS
+    assert result.registration.rms_m == pytest.approx(0.001395144770534123 * math.sqrt(12 / 17), abs=1e-10)
     assert result.registration.transform.translation == pytest.approx((0., 0., 0.), abs=1e-10)
     assert result.registration.transform.quaternion == pytest.approx((0., 0., 0., 1.), abs=1e-9)
     report = json.loads((PROJECT / "documents/optitrack_asset_correspondence.json").read_text())
     assert report["motive_import_reexport"] == report["live_calibration"] == "NOT_PERFORMED"
     assert report["retained_station_ids"] == list(layout.MARKER_NAMES)
     assert report["asset_frame_revision"] == layout.ASSET_FRAME_REVISION
-    assert result.registration.rms_m * 1000 == pytest.approx(report["fit_rms_mm"])
+    # Do not dilute measurement accuracy by counting five exact nominal points.
+    assert report["fit_rms_mm"] == pytest.approx(1.395144770534123)
+    assert report["restored_station_ids"] == list(RESTORED)
+    assert all(row["provenance"] == "MEASURED_SOURCE_RIGIDLY_ALIGNED" for row in report["mapping"][:12])
+    assert all(row["provenance"] == "CAD_NOMINAL_NOT_OBSERVED" and row["residual_mm"] is None and row["original_asset_point"] is None for row in report["mapping"][12:])
     for artifact in report["filtered_assets"]:
         assert hashlib.sha256((ASSETS / artifact["path"]).read_bytes()).hexdigest() == artifact["sha256"]
-    csv_points = [r for r in csv.reader((ASSETS / "A3_v3_12_stickers.csv").open()) if r[0] == "Point"]
-    assert [int(r[1].split()[-1]) for r in csv_points] == list(EXPECTED)
+    csv_points = [r for r in csv.reader((ASSETS / "A3_v3_17_stickers.csv").open()) if r[0] == "Point"]
+    assert [int(r[1].split()[-1]) for r in csv_points[:12]] == list(EXPECTED)
+    assert [r[1] for r in csv_points[12:]] == list(RESTORED)
     for row, marker in zip(csv_points, markers):
         assert ros_from_native(tuple(map(float, row[2:5]))) == pytest.approx(marker.position, abs=1e-12)
 
@@ -135,7 +140,7 @@ def test_frame_rebase_is_proper_and_not_a_centroid_reset():
             assert sum(r[i][k] * r[j][k] for k in range(3)) == pytest.approx(float(i == j), abs=1e-12)
     determinant = sum(r[0][i] * (r[1][(i+1)%3]*r[2][(i+2)%3] - r[1][(i+2)%3]*r[2][(i+1)%3]) for i in range(3))
     assert determinant == pytest.approx(1., abs=1e-12)
-    new = offsets(body(ASSETS / "A3_v3_12_stickers.motive").find("constraints"))
+    new = offsets(body(ASSET).find("constraints"))[:12]
     source = offsets(body(ASSETS / "source/A3.motive").find("constraints"))
     for point, original_id, row in zip(new, EXPECTED, report["mapping"]):
         original = source[original_id - 1]
@@ -147,7 +152,7 @@ def test_frame_rebase_is_proper_and_not_a_centroid_reset():
 
 
 def test_missing_or_double_axis_conversion_is_not_identity():
-    constraints = list(body(ASSETS / "A3_v3_12_stickers.motive").find("constraints"))
+    constraints = list(body(ASSET).find("constraints"))
     native = offsets(constraints)
     for points in (native, [ros_from_native(ros_from_native(p)) for p in native]):
         markers = [registration.ModelMarker(i+1, c.get("name"), p) for i, (c, p) in enumerate(zip(constraints, points))]
@@ -185,15 +190,27 @@ def test_reframed_constellation_preserves_nonidentity_world_poses(rotation):
         ), c_quat
     )
     world_native = registration.Transform(native_from_ros(world_ros.translation), q_native)
-    for point in offsets(body(ASSETS / "A3_v3_12_stickers.motive").find("constraints")):
+    for point in offsets(body(ASSET).find("constraints")):
         via_native = ros_from_native(registration.transform_point(world_native, point))
         via_ros = registration.transform_point(world_ros, ros_from_native(point))
         assert via_native == pytest.approx(via_ros, abs=1e-12)
 
 
 def test_unfiltered_16_point_source_is_rejected_for_new_shell():
-    with pytest.raises(ValueError, match="requires all 12"):
+    with pytest.raises(ValueError, match="requires all 17"):
         registration.cad_names_for_markers(
             list(body(ASSETS / "source/A3.motive").find("constraints")),
             layout=registration.STICKER_MARKER_LAYOUT,
         )
+
+
+def test_only_rear_stations_were_restored_and_front_mesh_is_unchanged():
+    report = json.loads((PROJECT / "documents/printability_validation.json").read_text())
+    assert report["front_station_ids"] == ["S11", "S12", "S13", "S19", "S20", "S21", "S22"]
+    assert report["rear_upper_row"] == ["S04", "S05", "S06", "S07", "S08"]
+    assert report["rear_middle_row"] == ["S14", "S15", "S16", "S17", "S18"]
+    assert report["restored_station_ids"] == list(RESTORED)
+    for suffix, key in (("a", "front"), ("b", "rear")):
+        path = PROJECT / f"printable/a3_marker_shell_v3_half_{suffix}.stl"
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == report[f"{key}_stl_sha256_after"]
+    assert report["front_stl_sha256_after"] == report["front_stl_sha256_before"] == "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935"

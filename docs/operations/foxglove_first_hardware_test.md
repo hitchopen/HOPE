@@ -1564,22 +1564,27 @@ START_COMPLETE_RUNNER_PASSIVE
 
 ### 11.3 Runner 按钮顺序
 
-当前使用 **12 个保留站位的 v3 贴纸壳**和
-[`A3_v3_12_stickers.motive`](../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_12_stickers.motive)
+当前使用 **17 个站位的 v3 贴纸壳（前方 7 点不变，后方上/中两排各 5 点）**和
+[`A3_v3_17_stickers.motive`](../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
 （内部刚体名为 `P1`）。先按
 [v3 安装与标定流程](../../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
 完成隔离项目导入检查，设置 Motive Streaming **Up Axis = Z Up**，保留现有
 MODELDEF 坐标转换，并重启 NatNet。该资产的局部原点/轴向按 CAD `pelvis_link`
 对齐，预期固定修正为零平移、单位旋转，但仍须现场验证；不得直接手写获批 JSON，
-也不得复用旧 10 点、24 点或轴向对齐前的 12 点 receipt。12 个点都必须定义并在
+也不得复用旧 10 点、24 点或任何旧 12 点 receipt（包括已对齐 pelvis 的版本）。17 个点都必须定义并在
 采样期间分别取得足够的真实观测，不要求同一帧全部可见。文件生命周期见
 [`calibration/README.md`](../../calibration/README.md)。
+恢复的 S06/S07/S08/S15/S17 仅使用 CAD 名义坐标，原始资产没有其真实观测；
+不可宣称已确认可见。候选文件省略了无法由名义点推导的 learned graph 缓存，
+须先验证 Motive 导入并重新导出；若导入失败，按壳体 README 的 Motive API 路径建模。
+当前 main 运行链按球台侧将内部 P1 改名为 `UCB_P1` 或 `UCB_P2`，选择 `stickers_v3`，
+实时标定生成 `calibration/ucb_robot_to_pelvis.json`。
 
 Runner 到达 `PASSIVE` 后再操作：
 
 1. 按 `Stand`，等待 Runner 确认 `PD_STAND` 且机器人站稳。
 2. 选择本机角色：`Server` 或 `Receiver`。这里只改变我方 Runner，不控制对方。
-3. 按 `Calibration`，保持机器人不动，等待保留的 12 个 v3 P1 贴纸 marker 完成重新拟合。Laptop
+3. 按 `Calibration`，保持机器人不动，等待 17 个 v3 P1 贴纸 marker 完成重新拟合。Laptop
    JSON 会保存稳定的 `P1 -> pelvis_link` 标定量和本次静止采样派生出的
    `world -> pelvis_link` audit snapshot；面板还会等待带新 calibration receipt 的
    新鲜 base packet。这个按钮不再刷新 `x_hit`。
@@ -1588,7 +1593,7 @@ Runner 到达 `PASSIVE` 后再操作：
 5. 需要进入策略时按 `Ready`；它等价于原键盘 `m`，Runner 最终决定是否进入
    `MOTION`。
 
-现有算法支持这条链：Motive 给出实时 `world -> P1`，12 个保留的 v3 贴纸/CAD 刚体配准重新
+现有算法支持这条链：Motive 给出实时 `world -> P1`，17 个 v3 贴纸/CAD 刚体配准重新
 计算固定的 `P1 -> pelvis_link`；Laptop base relay 每秒热加载获批 JSON，并组合出
 实时 `world -> pelvis_link`。JSON 里的 `world_to_pelvis_snapshot` 只记录 Calibration
 那一刻的静止位姿，不能作为机器人运动后的静态 TF；这里也不会重新定义球台的

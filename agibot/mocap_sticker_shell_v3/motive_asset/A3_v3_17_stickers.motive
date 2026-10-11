@@ -1,0 +1,281 @@
+<?xml version='1.0' encoding='utf-8'?>
+<profile version="1">
+  <node_assets>
+    <rigid_body version="1001" id="6e194a4bcf04b68b:3da1bdeabf6511f1">
+      <properties>
+        <property name="NodeName" value="P1" default_value="P1" />
+        <property name="AssetName" value="P1" />
+        <property name="JointName" value="P1" />
+        <property name="ParentInfo" value="None" />
+        <property name="ChildInfo" value="Marker 001" />
+        <property name="DegreesOfFreedom" value="T:XYZ + R:XYZ" />
+        <property name="SyntheticLabelGraphScale" value="1.000000" default_value="1.000000" />
+        <property name="Color" value="4294934766" />
+        <property name="ShowBones" value="true" default_value="true" />
+        <property name="BoneColor" value="65793" />
+        <property name="ShowAxis" value="true" default_value="true" />
+        <property name="ShowMarkerLines" value="true" default_value="true" />
+        <property name="UserData" value="9" default_value="9" />
+      </properties>
+      <constraints>
+        <constraint name="Marker 001" id="6e194a4bcf04b68b:3da1bdebbf6511f1" member_id="1" joint_name="P1">
+          <offset>0.036169496495,-0.092776873550,0.080165365710</offset>
+          <active_id>0</active_id>
+          <diameter>0.0122028</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 002" id="6e194a4bcf04b68b:3da1bdecbf6511f1" member_id="2" joint_name="P1">
+          <offset>0.068248912378,-0.092685830227,0.030773159247</offset>
+          <active_id>0</active_id>
+          <diameter>0.0153154</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 004" id="6e194a4bcf04b68b:3da1bdeebf6511f1" member_id="3" joint_name="P1">
+          <offset>0.067737573941,-0.092956757990,-0.012910445115</offset>
+          <active_id>0</active_id>
+          <diameter>0.0145392</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 005" id="6e194a4bcf04b68b:3da1bdefbf6511f1" member_id="4" joint_name="P1">
+          <offset>0.054878460858,-0.102815277773,-0.068103314327</offset>
+          <active_id>0</active_id>
+          <diameter>0.0175894</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 006" id="6e194a4bcf04b68b:3da1bdf0bf6511f1" member_id="5" joint_name="P1">
+          <offset>0.080415138971,-0.156180643333,0.034968797495</offset>
+          <active_id>0</active_id>
+          <diameter>0.0134228</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 007" id="6e194a4bcf04b68b:3da1bdf1bf6511f1" member_id="6" joint_name="P1">
+          <offset>0.077357006407,-0.156584295660,-0.034373558036</offset>
+          <active_id>0</active_id>
+          <diameter>0.0178489</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 008" id="6e194a4bcf04b68b:3da1bdf2bf6511f1" member_id="7" joint_name="P1">
+          <offset>-0.087310002627,-0.113817836285,0.018009384087</offset>
+          <active_id>0</active_id>
+          <diameter>0.016636</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 0010" id="6e194a4bcf04b68b:3da1bdf4bf6511f1" member_id="8" joint_name="P1">
+          <offset>-0.023977454292,-0.061320704853,-0.072796841074</offset>
+          <active_id>0</active_id>
+          <diameter>0.0147482</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 011" id="6e194a4bcf04b68b:3da1bdf5bf6511f1" member_id="9" joint_name="P1">
+          <offset>-0.022406926585,-0.090789202541,0.082340374283</offset>
+          <active_id>0</active_id>
+          <diameter>0.011261</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 012" id="6e194a4bcf04b68b:3da1bdf6bf6511f1" member_id="10" joint_name="P1">
+          <offset>-0.035636494828,-0.094120234319,-0.083094286607</offset>
+          <active_id>0</active_id>
+          <diameter>0.0142075</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 014" id="6e194a4bcf04b68b:3da1bdf8bf6511f1" member_id="11" joint_name="P1">
+          <offset>-0.066653540449,-0.054997949907,-0.048155432531</offset>
+          <active_id>0</active_id>
+          <diameter>0.0157865</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="Marker 016" id="6e194a4bcf04b68b:3da1bdfabf6511f1" member_id="12" joint_name="P1">
+          <offset>0.023472614731,-0.090155439561,-0.081191298132</offset>
+          <active_id>0</active_id>
+          <diameter>0.0156583</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S06" id="7cdbe217499e5a54:86d28e4b0ecac961" member_id="13" joint_name="P1">
+          <offset>-0.079001398000,-0.057603870000,0.001320496000</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S07" id="3dd2bb31f8835f08:ac432a2c84172cec" member_id="14" joint_name="P1">
+          <offset>-0.063805908000,-0.060498038000,0.052205169000</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S08" id="7dbd0f0384695542:9fde6acaa796bf65" member_id="15" joint_name="P1">
+          <offset>-0.019874543000,-0.054669064000,0.072035522000</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S15" id="a2911de0091a5bd2:bf1834dfd5775bfb" member_id="16" joint_name="P1">
+          <offset>-0.077885198000,-0.097023108000,-0.044044970000</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S17" id="401d8e3317035a2a:9ce8ecac949dfac8" member_id="17" joint_name="P1">
+          <offset>-0.065029671000,-0.099352277000,0.065130802000</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+      </constraints>
+      <marker_sticks>
+        <marker_stick origin="Marker 001" end="Marker 002" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 004" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 005" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 006" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 007" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 008" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 0010" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 004" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 005" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 006" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 007" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 008" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 0010" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 005" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 006" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 007" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 008" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 0010" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 006" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 007" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 008" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 0010" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="Marker 007" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="Marker 008" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="Marker 0010" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="Marker 008" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="Marker 0010" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="Marker 0010" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="Marker 011" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="Marker 012" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 012" end="Marker 014" color="1 1 1" />
+        <marker_stick origin="Marker 012" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 014" end="Marker 016" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 012" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 014" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 016" end="S06" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 012" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 014" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 016" end="S07" color="1 1 1" />
+        <marker_stick origin="S06" end="S07" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 012" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 014" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 016" end="S08" color="1 1 1" />
+        <marker_stick origin="S06" end="S08" color="1 1 1" />
+        <marker_stick origin="S07" end="S08" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 012" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 014" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 016" end="S15" color="1 1 1" />
+        <marker_stick origin="S06" end="S15" color="1 1 1" />
+        <marker_stick origin="S07" end="S15" color="1 1 1" />
+        <marker_stick origin="S08" end="S15" color="1 1 1" />
+        <marker_stick origin="Marker 001" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 002" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 004" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 005" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 006" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 007" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 008" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 0010" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 011" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 012" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 014" end="S17" color="1 1 1" />
+        <marker_stick origin="Marker 016" end="S17" color="1 1 1" />
+        <marker_stick origin="S06" end="S17" color="1 1 1" />
+        <marker_stick origin="S07" end="S17" color="1 1 1" />
+        <marker_stick origin="S08" end="S17" color="1 1 1" />
+        <marker_stick origin="S15" end="S17" color="1 1 1" />
+      </marker_sticks>
+    </rigid_body>
+  </node_assets>
+</profile>

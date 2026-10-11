@@ -1,10 +1,10 @@
 {
   "status": "LOCAL_NUMERIC_AUTHORING_CHECKS_PASS_NATIVE_EXPORT_AND_LIVE_VALIDATION_PENDING",
-  "date": "2026-10-04",
-  "source_sha256": "8b1bf1eba661e2a07ae5591aa5d57b9057b496c3b57489b6d206f4855b7ada9e",
-  "definition_sha256": "baa5f4fbb3d31fa66398f9daf8969164d8c256a32dded9dca443994369852ee1",
-  "marker_data_header_sha256": "283b2d74c660aefc36b9d7ff4fdb77898f8765a7e60aeb5525a037c63ab36a3a",
-  "marker_count": 12,
+  "date": "2026-10-11",
+  "source_sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0",
+  "definition_sha256": "dc0c8b804a8a32f956fb1a69936b93cebf3e32c53d0d2af127194e608528db16",
+  "marker_data_header_sha256": "8e05bdd43eef577016fae19f1723225fa8ef62d52704636ed449738e80ac0e34",
+  "marker_count": 17,
   "station_names_unique_in_retained_cad_order": true,
   "expected_member_ids": [
     1,
@@ -18,7 +18,12 @@
     9,
     10,
     11,
-    12
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
   ],
   "coordinate_rank": 3,
   "R_ros_from_native_determinant": 1,
@@ -26,25 +31,25 @@
   "pairwise_distance_max_change_m": 2.7755575615628914e-17,
   "minimum_marker_centre_separation_m": 0.03648064738402231,
   "centroid_pelvis_link_m_not_subtracted": [
-    0.01435789875,
-    0.012864007916666665,
-    -0.09993342049999998
+    -0.007841290176470587,
+    0.0004541809411764718,
+    -0.0922557295882353
   ],
   "float32_max_point_error_m": 7.359086879762002e-09,
   "synthetic_nonidentity_pose_max_component_error_m": 5.551115123125783e-17,
   "native_motive_sdk_compile": "NOT_RUN_WINDOWS_SDK_UNAVAILABLE",
   "native_motive_export_and_reimport": "NOT_RUN",
-  "motive_3_5_live_axes_marker_order_and_12_marker_capacity": "NOT_VERIFIED",
   "ball_centre_definition": "NOT_SUPPLIED_INSTALLED_OFFSET_UNKNOWN",
   "physical_fit_and_optical_calibration": "NOT_PERFORMED",
   "printer_models_and_marker_tables_modified": true,
   "authoring_order_note": "Nominal CAD station order, not the member order of the measured A3 asset; use optitrack_station_mapping.csv for that candidate.",
   "measured_asset_correspondence_report": "optitrack_asset_correspondence.json",
   "measured_asset_frame_alignment": {
-    "asset_file": "../motive_asset/A3_v3_12_stickers.motive",
-    "sha256": "a6f600c5b653bdc019ef5a97a5009d5c7c1676b42430227d50f883718bbf843d",
+    "asset_file": "../motive_asset/A3_v3_17_stickers.motive",
+    "sha256": "fecabc7c812f83dd5a015e0de145026ba8a21173f58140b92b8510486eaf560d",
     "offline_identity_check": "PASS",
     "motive_import_and_stream_check": "NOT_PERFORMED",
     "report": "optitrack_asset_correspondence.json"
-  }
+  },
+  "motive_3_5_live_axes_marker_order_and_17_marker_capacity": "NOT_VERIFIED"
 }

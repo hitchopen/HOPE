@@ -168,17 +168,19 @@ even while ROS 2 topics appear healthy.
 
 ## Optional marker-CAD alignment: P1 to A3 `pelvis_link`
 
-The current sticker profile uses the **12-station v3 sticker shell (retained original IDs)**
-and the supplied [A3_v3_12_stickers.motive](agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_12_stickers.motive)
+The current sticker profile uses the **17-station v3 sticker shell: seven unchanged
+front markers and two rear rows of five (original IDs)**, with the supplied
+[A3_v3_17_stickers.motive](agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
 asset, internally named **`P1`**. Its origin targets the nominal CAD `pelvis_link`
 origin and ROS axes **X forward, Y left, Z up**. With Motive Streaming **Up Axis
 = Z Up** and the existing MODELDEF axis conversion, the intended fixed
 `P1 → pelvis_link` correction is zero translation and identity rotation.
-This is an offline-checked default, not a verified live calibration: import and
-check the asset in Motive, then generate a fresh installed-layout receipt.
+This is an offline-checked candidate, not a verified live calibration: the five
+restored rear points are CAD-nominal, not observed in the source export. Validate
+Motive import/re-export, then generate a fresh installed-layout receipt.
 For the current runtime, rename the imported body to `UCB_P1` or `UCB_P2`
 for the selected table side, use the `stickers_v3` profile, and save the fresh
-receipt to `calibration/ucb_robot_to_pelvis.json`. Pre-alignment 12-point,
+receipt to `calibration/ucb_robot_to_pelvis.json`. All earlier 12-point,
 old 24-station and ten-marker receipts cannot be reused for this sticker profile.
 
 Hardware, frame-table links and the setup procedure are maintained in

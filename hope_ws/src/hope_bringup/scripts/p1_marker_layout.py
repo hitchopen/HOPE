@@ -16,18 +16,18 @@ from pathlib import Path
 LAYOUT_ID = "A3_marker_shell_v3_stickers_12mm"
 # Retained v3 station identities; never renumber after removing occluded pads.
 MARKER_NAMES = (
-    "S04", "S05", "S11", "S12", "S13", "S14",
-    "S16", "S18", "S19", "S20", "S21", "S22",
+    "S04", "S05", "S06", "S07", "S08", "S11", "S12", "S13", "S14",
+    "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22",
 )
 SOURCE_RELATIVE = (
     "agibot/mocap_sticker_shell_v3/documents/"
     "marker_transforms_pelvis_link_stickers.csv"
 )
-SOURCE_SHA256 = "8b1bf1eba661e2a07ae5591aa5d57b9057b496c3b57489b6d206f4855b7ada9e"
+SOURCE_SHA256 = "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0"
 POINT_DEFINITION = "nominal_sticker_surface_0.20mm"
-# The measured asset was rebased without changing the physical marker table.
-# Receipts from its old arbitrary pivot must not survive this frame change.
-ASSET_FRAME_REVISION = "pelvis_link_aligned_native_y_up_20261004"
+# Rear stations were restored without moving the pelvis datum or front markers.
+# All earlier 12-station receipts must be replaced for this 17-station layout.
+ASSET_FRAME_REVISION = "pelvis_link_aligned_native_y_up_rear17_20261011"
 
 
 def table_path() -> Path:
@@ -81,7 +81,7 @@ def load_marker_transforms(path: Path | None = None) -> dict[str, dict]:
             "outward_normal": normal,
         }
     if tuple(result) != MARKER_NAMES:
-        raise ValueError("v3 sticker table must contain the 12 retained station IDs in canonical order")
+        raise ValueError("v3 sticker table must contain the 17 retained station IDs in canonical order")
     return result
 
 
@@ -107,6 +107,6 @@ def validate_receipt_layout(document: dict) -> None:
     if document.get("marker_layout") != layout_metadata():
         raise ValueError(
             "P1 receipt does not match the current v3 sticker layout/TF table; "
-            "perform a new 12-station v3 live calibration (pre-alignment, old 24-station, ten-marker, mount-seat "
+            "perform a new 17-station v3 live calibration (old 12-station, pre-alignment, old 24-station, ten-marker, mount-seat "
             "and ball-mode receipts cannot be reused)"
         )

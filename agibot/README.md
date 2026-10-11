@@ -81,7 +81,8 @@ Recheck dimensions and geometry when replacing the asset.
 There are two distinct layouts; their marker names and calibration data are
 not interchangeable:
 
-- **Dual-mode shell v3:** 12 retained asymmetric stations with flat 12 mm sticker
+- **Dual-mode shell v3:** 17 asymmetric stations (seven unchanged front, rear
+  upper S04-S08 and middle S14-S18 rows of five) with flat 12 mm sticker
   seats and central **blind** marker-ball mounting bores with side-access
   captive-nut pockets. The proposed through-hole/internal-nut redesign is
   not included. Use the
@@ -103,8 +104,8 @@ survival for either shell.
 
 ### V3 sticker P1-to-pelvis calibration
 
-The current sticker profile uses **12 round 12 mm stickers**, retaining station IDs
-**S04, S05, S11, S12, S13, S14, S16, S18, S19, S20, S21, S22**, and the canonical
+The current sticker profile uses **17 round 12 mm stickers**, with station IDs
+**S04-S08, S11-S22** (original IDs, not renumbered), and the canonical
 [sticker optical-centre table](mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv).
 Both calibration tools read this single table; `colcon` installs it with
 `hope_bringup`. It is already in `pelvis_link` metres, X forward / Y left /
@@ -121,17 +122,21 @@ CAD geometry, not proof of the installed shell's fit or a physical calibration.
 
 Migration prerequisites:
 
-1. Fit and inspect the v3 shell and all 12 retained stickers. Use sticker mode
+1. Fit and inspect the v3 shell and all 17 stickers. Use sticker mode
    only; 12 mm balls require a separately measured ball-centre table/profile.
-2. Import [A3_v3_12_stickers.motive](mocap_sticker_shell_v3/motive_asset/A3_v3_12_stickers.motive)
+2. Test-import [A3_v3_17_stickers.motive](mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
    into an isolated Motive project first. This native candidate already contains
-   all 12 retained stations, is named `P1` internally, and targets the CAD
+   all 17 stations, is named `P1` internally, and targets the CAD
    `pelvis_link` origin. Confirm the marker count and unique streaming ID `9`;
    the retained source UUID can replace an existing body on import.
    Rename the imported body to `UCB_P1` or `UCB_P2` for the selected table side;
    keep its aligned geometry and choose the `stickers_v3` calibration profile.
    Set Motive Streaming Up Axis to **Z Up**, keep the bridge's MODELDEF
    Y-up-to-Z-up conversion enabled, and do not add a second pose rotation.
+   The original 12 measured points are unchanged; restored S06/S07/S08/S15/S17
+   are CAD-nominal and have no source observations. The learned graph cache is
+   omitted rather than fabricated; native acceptance must be checked. If rejected,
+   use the documented Motive API authoring path in the shell README.
    Import/re-export and live validation are still required. Enable rigid bodies
    and labeled markers; do not reset the aligned pivot or orientation.
    The companion CSV is not the import file. The separate
@@ -146,8 +151,8 @@ Migration prerequisites:
    geometry with ambiguity/residual gates. Stream order and numeric member
    IDs alone do not identify a station. An explicit `--mapping` is only for
    physically verified member-ID-to-station correspondence.
-4. Rebuild/source `hope_ws` and generate a **new live receipt**. Pre-alignment
-   12-point, old 24-station and ten-marker
+4. Rebuild/source `hope_ws` and generate a **new live receipt**. All earlier
+   12-point (including pelvis-aligned), old 24-station and ten-marker
    receipts are rejected even when marked approved. The checked-in P1 YAML
    default remains uncalibrated; zero/identity is the intended aligned result,
    not permission to operate without verification or hand-approve a receipt.
@@ -180,7 +185,7 @@ ros2 run hope_bringup p1_marker_cad_calibrator \
   --output calibration/ucb_robot_to_pelvis.json
 ```
 
-The 12 retained stations are the default; no marker-list override is needed. All 12 must be
+All 17 stations are the default; no marker-list override is needed. All 17 must be
 **defined** in MODELDEF, but they need not be visible in the same frame. The
 collector accumulates at least 30 non-occluded, point-cloud-solved samples for
 each sticker across the capture. If a station stays hidden, correct the camera
@@ -199,7 +204,7 @@ diagnostic `/a3/mocap/pelvis_pose`. No recalculation occurs during play. The
 robot receives `/a3/base_pose_flat`, not the JSON.
 
 The receipt records the layout ID `A3_marker_shell_v3_stickers_12mm`, table
-SHA-256, asset-frame revision `pelvis_link_aligned_native_y_up_20261004`,
+SHA-256, asset-frame revision `pelvis_link_aligned_native_y_up_rear17_20261011`,
 per-member S-name correspondence, CAD transforms and live residuals.
 Both the relay and optional static-TF publisher check the current layout/table/
 asset-frame identity and explicit approval. A failed capture leaves the previous file

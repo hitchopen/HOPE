@@ -25,10 +25,10 @@
   "sticker_diameter_m": 0.012,
   "sticker_total_thickness_m": 0.0002,
   "point_definition": "Nominal centre of outer sticker surface; not mounting seat or ball centre.",
-  "marker_count": 12,
+  "marker_count": 17,
   "source": {
     "path": "../documents/marker_transforms_pelvis_link_stickers.csv",
-    "sha256": "8b1bf1eba661e2a07ae5591aa5d57b9057b496c3b57489b6d206f4855b7ada9e"
+    "sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0"
   },
   "coordinate_contract": {
     "source_already_in_pelvis_link": true,
@@ -66,7 +66,7 @@
     "legacy_p1_calibration_compatible": false,
     "robot_outputs_permitted_by_this_file": false,
     "adapter_restart_after_asset_change_required": true,
-    "warning": "Old ten-marker / 24-station calibration and approved receipts must not be reused. This is not a calibration receipt."
+    "warning": "All earlier 12-station, 24-station and ten-marker sticker receipts are obsolete. This is not a calibration receipt."
   },
   "markers": [
     {
@@ -100,9 +100,54 @@
       ]
     },
     {
-      "station": "S11",
+      "station": "S06",
       "api_index_zero_based": 2,
       "expected_natnet_member_id": 3,
+      "position_pelvis_link_m": [
+        -0.079001398,
+        -0.001320496,
+        -0.05760387
+      ],
+      "position_motive_native_y_up_m": [
+        -0.079001398,
+        -0.05760387,
+        0.001320496
+      ]
+    },
+    {
+      "station": "S07",
+      "api_index_zero_based": 3,
+      "expected_natnet_member_id": 4,
+      "position_pelvis_link_m": [
+        -0.063805908,
+        -0.052205169,
+        -0.060498038
+      ],
+      "position_motive_native_y_up_m": [
+        -0.063805908,
+        -0.060498038,
+        0.052205169
+      ]
+    },
+    {
+      "station": "S08",
+      "api_index_zero_based": 4,
+      "expected_natnet_member_id": 5,
+      "position_pelvis_link_m": [
+        -0.019874543,
+        -0.072035522,
+        -0.054669064
+      ],
+      "position_motive_native_y_up_m": [
+        -0.019874543,
+        -0.054669064,
+        0.072035522
+      ]
+    },
+    {
+      "station": "S11",
+      "api_index_zero_based": 5,
+      "expected_natnet_member_id": 6,
       "position_pelvis_link_m": [
         0.068681054,
         0.013752572,
@@ -116,8 +161,8 @@
     },
     {
       "station": "S12",
-      "api_index_zero_based": 3,
-      "expected_natnet_member_id": 4,
+      "api_index_zero_based": 6,
+      "expected_natnet_member_id": 7,
       "position_pelvis_link_m": [
         0.055717983,
         0.068987617,
@@ -131,8 +176,8 @@
     },
     {
       "station": "S13",
-      "api_index_zero_based": 4,
-      "expected_natnet_member_id": 5,
+      "api_index_zero_based": 7,
+      "expected_natnet_member_id": 8,
       "position_pelvis_link_m": [
         0.024198043,
         0.082665663,
@@ -146,8 +191,8 @@
     },
     {
       "station": "S14",
-      "api_index_zero_based": 5,
-      "expected_natnet_member_id": 6,
+      "api_index_zero_based": 8,
+      "expected_natnet_member_id": 9,
       "position_pelvis_link_m": [
         -0.0355257,
         0.082456235,
@@ -160,9 +205,24 @@
       ]
     },
     {
+      "station": "S15",
+      "api_index_zero_based": 9,
+      "expected_natnet_member_id": 10,
+      "position_pelvis_link_m": [
+        -0.077885198,
+        0.04404497,
+        -0.097023108
+      ],
+      "position_motive_native_y_up_m": [
+        -0.077885198,
+        -0.097023108,
+        -0.04404497
+      ]
+    },
+    {
       "station": "S16",
-      "api_index_zero_based": 6,
-      "expected_natnet_member_id": 7,
+      "api_index_zero_based": 10,
+      "expected_natnet_member_id": 11,
       "position_pelvis_link_m": [
         -0.086615966,
         -0.018974166,
@@ -175,9 +235,24 @@
       ]
     },
     {
+      "station": "S17",
+      "api_index_zero_based": 11,
+      "expected_natnet_member_id": 12,
+      "position_pelvis_link_m": [
+        -0.065029671,
+        -0.065130802,
+        -0.099352277
+      ],
+      "position_motive_native_y_up_m": [
+        -0.065029671,
+        -0.099352277,
+        0.065130802
+      ]
+    },
+    {
       "station": "S18",
-      "api_index_zero_based": 7,
-      "expected_natnet_member_id": 8,
+      "api_index_zero_based": 12,
+      "expected_natnet_member_id": 13,
       "position_pelvis_link_m": [
         -0.022709647,
         -0.083579602,
@@ -191,8 +266,8 @@
     },
     {
       "station": "S19",
-      "api_index_zero_based": 8,
-      "expected_natnet_member_id": 9,
+      "api_index_zero_based": 13,
+      "expected_natnet_member_id": 14,
       "position_pelvis_link_m": [
         0.034664172,
         -0.079647159,
@@ -206,8 +281,8 @@
     },
     {
       "station": "S20",
-      "api_index_zero_based": 9,
-      "expected_natnet_member_id": 10,
+      "api_index_zero_based": 14,
+      "expected_natnet_member_id": 15,
       "position_pelvis_link_m": [
         0.066487736,
         -0.030621789,
@@ -221,8 +296,8 @@
     },
     {
       "station": "S21",
-      "api_index_zero_based": 10,
-      "expected_natnet_member_id": 11,
+      "api_index_zero_based": 15,
+      "expected_natnet_member_id": 16,
       "position_pelvis_link_m": [
         0.079131593,
         0.034880717,
@@ -236,8 +311,8 @@
     },
     {
       "station": "S22",
-      "api_index_zero_based": 11,
-      "expected_natnet_member_id": 12,
+      "api_index_zero_based": 16,
+      "expected_natnet_member_id": 17,
       "position_pelvis_link_m": [
         0.079112904,
         -0.03487123,
