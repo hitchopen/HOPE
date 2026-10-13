@@ -92,14 +92,17 @@ def validate_ipv4(name: str, value: object) -> str:
         address = ipaddress.IPv4Address(value)
     except ipaddress.AddressValueError as exc:
         raise ValueError(f"{name} is not a valid IPv4 address") from exc
+    # Motive is reached from the Laptop's dedicated capture NIC, not through
+    # the HDU/MDU transport network. Direct-cable IPv4 link-local is valid here.
+    motive_link_local = name == "motive_ip" and address.is_link_local
     if (
         address.is_unspecified
         or address.is_multicast
         or address.is_loopback
-        or address.is_link_local
+        or (address.is_link_local and not motive_link_local)
     ):
         raise ValueError(f"{name} is not a usable unicast IPv4 address")
-    if not any(address in network for network in PRIVATE_NETWORKS):
+    if not motive_link_local and not any(address in network for network in PRIVATE_NETWORKS):
         raise ValueError(f"{name} must be an RFC1918 private IPv4 address")
     return str(address)
 

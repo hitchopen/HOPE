@@ -1,5 +1,11 @@
 # HOPE: Hitch Open Ping-Pong Embodied AI Challenge
 
+Runtime updates from October 11–13: [deployment and Gate 3](docs/operations/deploy_and_gate3.md),
+[shared ball physics](docs/operations/ball_physics_calibration.md),
+[Foxglove recording and live Motive localization](foxglove/extensions/hope-a3-console/README.md),
+and the [17-marker shell](agibot/mocap_sticker_shell_v3/README.md).
+The published model and training tree are unchanged.
+
 HOPE is an open platform for humanoid robot table tennis, developed by [Hitch Interactive](https://hitchinteractive.com) (Intelligent Racing Inc.) in collaboration with the [ROAR Platform](https://roar.berkeley.edu) at UC Berkeley. The challenge invites teams to deploy whole-body humanoid controllers that can rally a ping-pong ball against human opponents or other robots, using off-the-shelf humanoid hardware and an open-source perception and planning stack.
 
 This repository contains the full HOPE stack for the Agibot A3: Isaac Lab training for a **unified forehand/backhand whole-body policy** (the deploy-grade 110-D `hitter_pure` rally line, proven on real A3 hardware), a **no-spin planner** in both Python and low-latency C++ (ROS 2), a **MuJoCo/AimRT simulation with a real ball plant** for closed-loop evaluation, and the **native C++ A3 deploy runner** (`a3_pingpong`) — plus the preserved HOPE **reference design documents**, the **challenge rulebooks**, and the A3 source assets, reference software and mounting hardware indexed in [agibot/README.md](agibot/README.md).

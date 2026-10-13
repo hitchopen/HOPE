@@ -2428,6 +2428,9 @@ class PpPolicy {
     // v12_affine_safe_slew_qdes_v1: stateful per-tick slew of the V11 nominal (leg budget
     // scaled by this tick's actor-visible tilt/speed). The bounded projector NEVER runs
     // for v12; every other contract keeps its existing path.
+    // Read-only snapshots for same-callback capture; never feed them into control.
+    std::copy_n(action.data(), kNumJoints, last_raw_action_capture_.begin());
+    std::copy_n(tq_nominal_isaac.data(), kNumJoints, last_nominal_q_capture_.begin());
     const Eigen::VectorXd tq_isaac = onnx_.has_v12_affine_safe_slew_qdes_contract()
         ? ApplyV12SlewQdes_(action, tq_nominal_isaac)
         : ProjectBoundedQdes_(tq_nominal_isaac, st.q, st.qd);
@@ -2935,6 +2938,9 @@ class PpPolicy {
   }
   Vec3 last_base_pos() const { return last_base_pos_; }
   const Eigen::VectorXd& last_action() const { return last_action_; }
+  // Only read from the policy/control callback (like last_action()).
+  const auto& raw_action_capture() const { return last_raw_action_capture_; }
+  const auto& nominal_q_capture() const { return last_nominal_q_capture_; }
   const Eigen::VectorXd& core_action_shadow_owned() const {
     return core_action_shadow_owned_;
   }
@@ -5912,6 +5918,8 @@ class PpPolicy {
   Eigen::VectorXd compact_observation_cache_;
   std::uint64_t compact_observation_tick_ = 0;
   Eigen::VectorXd last_action_;
+  std::array<double, kNumJoints> last_raw_action_capture_{};
+  std::array<double, kNumJoints> last_nominal_q_capture_{};
   // Schema28-only recurrent Markov state. It is policy-owned evidence from the
   // frozen core, never an actuator override. Cold/mode rearm resets it exactly
   // to the training reset value and the ONNX auxiliary output advances it.

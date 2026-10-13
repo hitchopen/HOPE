@@ -42,16 +42,16 @@
   "filtered_assets": [
     {
       "path": "A3_v3_17_stickers.motive",
-      "sha256": "fecabc7c812f83dd5a015e0de145026ba8a21173f58140b92b8510486eaf560d",
+      "sha256": "3f9f7feb6f4613108a2e38eb151556a8c07ed54d5e36520c3883d9ab05dca0b4",
       "point_count": 17
     },
     {
       "path": "A3_v3_17_stickers.csv",
-      "sha256": "2052dbd429650bbcfea591c402d8bf25fcb89b9b592d9ef92e81c0f44fe3361d",
+      "sha256": "e1eb819997cde0e09eb6de2f96f172047eaf41933bf85337ccef2aca21c66bb2",
       "point_count": 17
     }
   ],
-  "asset_name": "P1",
+  "asset_name": "UCB_P1",
   "streaming_id": 9,
   "asset_pivot_and_basis": "CAD_PELVIS_LINK_ORIGIN_WITH_ROS_FLU_AXES_AFTER_REQUIRED_Z_UP_STREAM_CONVERSION",
   "retained_offsets_diameters_and_constraint_ids": "OFFSETS_RIGIDLY_REBASED_DIAMETERS_AND_CONSTRAINT_IDS_PRESERVED",

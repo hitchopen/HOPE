@@ -26,6 +26,15 @@ HOPE_ROOT="${PP_HOPE_ROOT:-$(cd -- "$GEAR/../.." && pwd)}"
 DIST="${PP_DIST:-$GEAR/dist/a3_deploy_x86_64}"
 WS="${PP_HOPE_WS:-$HOPE_ROOT/hope_ws}"
 SIM_INSTALL="${PP_SIM_INSTALL:-$HOPE_ROOT/a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/cmake-build-model21800-gate3/install}"
+# The implicit-PD comparison retains its direct logical damping contract.
+# Normal explicit-PD Gate3 uses the measured A3 parallel drive mapping.
+if [ -z "${PP_MUJOCO_PARALLEL_DAMPING:-}" ]; then
+  if [ "${PP_MUJOCO_PD_MODE:-explicit}" = "implicit" ]; then
+    PP_MUJOCO_PARALLEL_DAMPING=direct
+  else
+    PP_MUJOCO_PARALLEL_DAMPING=official_a3
+  fi
+fi
 PLANNER_DEBUG_CSV="${PP_PLANNER_DEBUG_CSV:-/tmp/pp_planner_debug.csv}"
 export PP_PLANNER_DEBUG_CSV="$PLANNER_DEBUG_CSV"
 PACKETIZER_DEBUG_CSV="${PP_PACKETIZER_DEBUG_CSV:-/tmp/pp_flight_packets.csv}"
@@ -96,6 +105,9 @@ PLANNER_CPP_EXE="$PLANNER_CPP_PREFIX/lib/hope_planner_cpp/hope_planner_cpp_node"
 PACKETIZER_EXE="$PLANNER_CPP_PREFIX/lib/hope_planner_cpp/hope_ball_flight_packetizer"
 PLANNER_CPP_CONFIG="${PP_PLANNER_CPP_CONFIG:-$WS/src/hope_planner_cpp/config/model21800_hardware.yaml}"
 PACKETIZER_CONFIG="${PP_PACKETIZER_CONFIG:-$WS/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml}"
+source "$SCRIPT_DIR/pp_ball_physics.sh"
+pp_load_ball_physics "$PLANNER_CPP_CONFIG" "${PP_PLANNER_PROFILE:-}" \
+  "${PP_BALL_PHYSICS_RECEIPT:-${PLANNER_DEBUG_CSV}.ball_physics.json}" || exit 2
 for required in \
   "$PLANNER_CPP_EXE" \
   "$PACKETIZER_EXE" \
@@ -385,9 +397,13 @@ if [ "${PP_REUSE_SIM:-0}" != "1" ]; then
     A3_MUJOCO_DEBUG_CSV=/tmp/pp_mujoco_plant.csv \
     A3_MUJOCO_DEBUG_STRIDE=${PP_MUJOCO_DEBUG_STRIDE:-5} \
     A3_MUJOCO_PD_MODE=${PP_MUJOCO_PD_MODE:-explicit} \
-    A3_GATE3_BALL_DRAG_K=0.1220 \
-    A3_GATE3_BALL_RESTITUTION_H=0.64 \
-    A3_GATE3_BALL_RESTITUTION_V=0.9215 \
+    A3_MUJOCO_PARALLEL_DAMPING=${PP_MUJOCO_PARALLEL_DAMPING:-official_a3} \
+    A3_GATE3_BALL_DRAG_K=$PP_BALL_DRAG_K \
+    A3_GATE3_BALL_MAGNUS_K=$PP_BALL_MAGNUS_K \
+    A3_GATE3_BALL_TABLE_TANGENTIAL_GAIN=$PP_BALL_OBSERVED_BOUNCE_GAIN \
+    A3_GATE3_BALL_TABLE_FRICTION_CAP_MU=$PP_BALL_TABLE_FRICTION_CAP_MU \
+    A3_GATE3_BALL_RESTITUTION_H=$PP_BALL_RESTITUTION_H \
+    A3_GATE3_BALL_RESTITUTION_V=$PP_BALL_RESTITUTION_V \
     A3_SIM_FLAVOR=auto A3_SIM_CFG=a3_pingpong_iceoryx_cfg.yaml ./scripts/run_sim.sh" >/tmp/pp_sim.log 2>&1 &
   export PP_SIM_PID=$!
     if [ -n "${PP_CHILD_PIDS_FILE:-}" ]; then printf '%s\n' "$!" >> "$PP_CHILD_PIDS_FILE"; fi
@@ -455,6 +471,17 @@ echo "[g3r] production C++ flight packetizer (/poses -> /ball/flight_packet)"
 setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install/local_setup.bash 2>/dev/null; \
   '$PACKETIZER_EXE' --ros-args \
   --params-file '$PACKETIZER_CONFIG' \
+  -p drag_k:=$PP_BALL_DRAG_K -p restitution_h:=$PP_BALL_RESTITUTION_H -p restitution_v:=$PP_BALL_RESTITUTION_V \
+  -p table_tangential_gain:=$PP_BALL_OBSERVED_BOUNCE_GAIN \
+  -p magnus_k:=$PP_BALL_MAGNUS_K -p table_friction_cap_mu:=$PP_BALL_TABLE_FRICTION_CAP_MU \
+  -p spin_window_s:=$PP_SPIN_WINDOW_S \
+  -p future_contact_magnus_enabled:=$PP_FUTURE_CONTACT_MAGNUS_ENABLED \
+  -p post_net_future_bounce_tangential_gain:=$PP_BALL_FUTURE_BOUNCE_GAIN \
+  -p post_net_future_bounce_restitution_v:=$PP_BALL_FUTURE_BOUNCE_RESTITUTION_V \
+  -p future_contact_spin_enabled:=$PP_FUTURE_CONTACT_SPIN_ENABLED \
+  -p future_contact_spin_tangential_gain:=$PP_FUTURE_CONTACT_SPIN_TANGENTIAL_GAIN \
+  -p future_contact_spin_omega_scale:=$PP_FUTURE_CONTACT_SPIN_OMEGA_SCALE \
+  -p future_contact_spin_min_coherence:=$PP_FUTURE_CONTACT_SPIN_MIN_COHERENCE \
   -p session_id:=${PP_GATE3_SCENARIO}_gate3 \
   -p debug_csv_path:='$PACKETIZER_DEBUG_CSV'" \
   >/tmp/pp_packetizer.log 2>&1 &
@@ -516,7 +543,17 @@ setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install
   -p flight_packet_input_enabled:=true -p flight_packet_topic:=/ball/flight_packet \
   -p base_pose_flat_input_topic:=/a3/base_pose_flat -p publish_base_flat:=false \
   -p policy_z_offset:=$PP_POLICY_Z_OFFSET -p fit_window:=26 \
-  -p drag_k:=0.1220 -p restitution_h:=0.64 -p restitution_v:=0.9215 \
+  -p drag_k:=$PP_BALL_DRAG_K -p restitution_h:=$PP_BALL_RESTITUTION_H -p restitution_v:=$PP_BALL_RESTITUTION_V \
+  -p table_tangential_gain:=$PP_BALL_OBSERVED_BOUNCE_GAIN \
+  -p magnus_k:=$PP_BALL_MAGNUS_K -p table_friction_cap_mu:=$PP_BALL_TABLE_FRICTION_CAP_MU \
+  -p spin_window_s:=$PP_SPIN_WINDOW_S \
+  -p future_contact_magnus_enabled:=$PP_FUTURE_CONTACT_MAGNUS_ENABLED \
+  -p post_net_future_bounce_tangential_gain:=$PP_BALL_FUTURE_BOUNCE_GAIN \
+  -p post_net_future_bounce_restitution_v:=$PP_BALL_FUTURE_BOUNCE_RESTITUTION_V \
+  -p future_contact_spin_enabled:=$PP_FUTURE_CONTACT_SPIN_ENABLED \
+  -p future_contact_spin_tangential_gain:=$PP_FUTURE_CONTACT_SPIN_TANGENTIAL_GAIN \
+  -p future_contact_spin_omega_scale:=$PP_FUTURE_CONTACT_SPIN_OMEGA_SCALE \
+  -p future_contact_spin_min_coherence:=$PP_FUTURE_CONTACT_SPIN_MIN_COHERENCE \
   -p x_hit_follow_robot:=false -p x_hit:=$PP_XHIT \
   -p x_hit_freeze_session_home:=${PP_XHIT_FREEZE_SESSION_HOME:-false} \
   -p x_hit_bh_delta:=$PP_XHIT_BH_DELTA \

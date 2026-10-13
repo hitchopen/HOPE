@@ -137,7 +137,7 @@ class Gate3SimMocap(Node):
                 (msg.position.x, msg.position.y, msg.position.z),
                 self._table_height_m,
             )
-            ball.orientation.w = 1.0
+            ball.orientation = msg.orientation
             entries.insert(0, self._named("Ball", ball))
         frame.poses = entries
         self._pub.publish(frame)

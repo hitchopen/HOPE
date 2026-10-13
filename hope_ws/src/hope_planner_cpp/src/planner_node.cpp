@@ -1,4 +1,5 @@
 #include "hope_planner_cpp/planner_node.hpp"
+#include "hope_planner_cpp/future_contact_parameters.hpp"
 
 #include <Eigen/Geometry>
 
@@ -129,16 +130,16 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   delta_t_flight_bh_ = declare_parameter<double>(
       "delta_t_flight_bh", std::numeric_limits<double>::quiet_NaN());
 
-  physics_.drag_k = declare_parameter<double>("drag_k", 0.1317);
-  physics_.magnus_k = declare_parameter<double>("magnus_k", 0.00327844);
-  physics_.restitution_h = declare_parameter<double>("restitution_h", 0.64);
-  physics_.restitution_v = declare_parameter<double>("restitution_v", 0.9607);
+  physics_.drag_k = declare_parameter<double>("drag_k", BallPhysics{}.drag_k);
+  physics_.magnus_k = declare_parameter<double>("magnus_k", BallPhysics{}.magnus_k);
+  physics_.restitution_h = declare_parameter<double>("restitution_h", BallPhysics{}.restitution_h);
+  physics_.restitution_v = declare_parameter<double>("restitution_v", BallPhysics{}.restitution_v);
   physics_.nakashima_friction_mu =
       declare_parameter<double>("nakashima_friction_mu", 0.25);
   physics_.table_tangential_gain =
-      declare_parameter<double>("table_tangential_gain", 0.369);
+      declare_parameter<double>("table_tangential_gain", BallPhysics{}.table_tangential_gain);
   physics_.table_friction_cap_mu =
-      declare_parameter<double>("table_friction_cap_mu", 2.0);
+      declare_parameter<double>("table_friction_cap_mu", BallPhysics{}.table_friction_cap_mu);
   planner_config_.restitution_racket =
       declare_parameter<double>("restitution_racket", 0.654);
   planner_config_.restitution_exp_g1 =
@@ -176,7 +177,14 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       0.0, declare_parameter<double>("post_net_commit_delay_s", 0.05));
   post_net_future_bounce_tangential_gain_ = std::max(
       0.0, declare_parameter<double>(
-          "post_net_future_bounce_tangential_gain", 0.075));
+          "post_net_future_bounce_tangential_gain", physics_.table_tangential_gain));
+  post_net_future_bounce_restitution_v_ = declare_parameter<double>(
+      "post_net_future_bounce_restitution_v", physics_.restitution_v);
+  if (!std::isfinite(post_net_future_bounce_restitution_v_) ||
+      post_net_future_bounce_restitution_v_ < 0.0 ||
+      post_net_future_bounce_restitution_v_ > 1.0) {
+    throw std::invalid_argument("post_net_future_bounce_restitution_v must be in [0, 1]");
+  }
 
   incoming_trajectory_config_.net_x = table_.net_x;
   incoming_trajectory_config_.commit_delay_s = post_net_commit_delay_s_;
@@ -206,6 +214,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   incoming_trajectory_config_.estimator_window_s = estimator_config_.window_s;
   estimator_config_.min_span_s =
       declare_parameter<double>("batch_estimator_min_span_s", 0.08);
+  estimator_config_.post_bounce_min_span_s =
+      declare_parameter<double>("batch_post_bounce_min_span_s", 0.0);
+  estimator_config_.post_bounce_exclusion_s =
+      declare_parameter<double>("batch_post_bounce_exclusion_s", 0.008);
   estimator_config_.min_samples = static_cast<std::size_t>(std::max(
       6, static_cast<int>(declare_parameter<int>("batch_estimator_min_samples", 12))));
   estimator_config_.huber_delta_m =
@@ -251,21 +263,11 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   spin_shadow_mode_ = spin_mode.first;
   spin_shadow_mode_name_ = spin_mode.second;
   declare_parameter<std::string>("ball_orientation_topic", "/ball/pose");
-  spin_estimator_config_.window_s =
-      declare_parameter<double>("spin_window_s", 0.10);
-  spin_estimator_config_.min_span_s =
-      declare_parameter<double>("spin_min_span_s", 0.05);
+  spin_estimator_config_ = declare_spin_estimator_config(*this);
+  future_contact_config_ = declare_future_contact_config(*this);
+  estimator_config_.spin_enabled = future_contact_config_.magnus_enabled;
+  estimator_config_.spin_min_coherence = future_contact_config_.min_coherence;
   declare_parameter<double>("spin_gate_rev_s", 3.0);
-  spin_estimator_config_.max_gap_s =
-      declare_parameter<double>("spin_max_gap_s", 0.05);
-  spin_estimator_config_.max_rev_s =
-      declare_parameter<double>("spin_max_rev_s", 20.0);
-  spin_estimator_config_.huber_delta_rev_s =
-      declare_parameter<double>("spin_huber_delta_rev_s", 2.0);
-  spin_estimator_config_.min_increments = static_cast<std::size_t>(std::max(
-      1, static_cast<int>(declare_parameter<int>("spin_min_increments", 3))));
-  spin_estimator_config_.robust_iterations = std::max(
-      1, static_cast<int>(declare_parameter<int>("spin_robust_iterations", 5)));
   declare_parameter<bool>("publish_strike_spec", false);
   declare_parameter<double>("racket_speed_budget", 10.0);
   if (requested_kalman) {
@@ -276,6 +278,15 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   }
 
   policy_z_offset_ = declare_parameter<double>("policy_z_offset", 0.76);
+  max_target_turn_deg_ = declare_parameter<double>("max_target_turn_deg", 40.0);
+  if (!std::isfinite(max_target_turn_deg_) || max_target_turn_deg_ <= 0.0 ||
+      max_target_turn_deg_ > 180.0) {
+    throw std::invalid_argument("max_target_turn_deg must be finite and in (0, 180]");
+  }
+  target_turn_max_pose_age_s_ = declare_parameter<double>("target_turn_max_pose_age_s", 0.2);
+  if (!std::isfinite(target_turn_max_pose_age_s_) || target_turn_max_pose_age_s_ <= 0.0) {
+    throw std::invalid_argument("target_turn_max_pose_age_s must be finite and positive");
+  }
   publish_flat_command_ = declare_parameter<bool>("publish_flat_cmd", true);
   publish_base_flat_ = declare_parameter<bool>("publish_base_flat", false);
   publish_serve_ball_flat_ = declare_parameter<bool>("publish_serve_ball_flat", true);
@@ -452,7 +463,12 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "question_fixture_physical_strike_vz,question_fixture_physical_tts_s,"
       "question_fixture_position_error_max_m,"
       "question_fixture_velocity_error_max_mps,question_fixture_tts_error_s,"
-      "question_fixture_tts_s,question_fixture_physical_match");
+      "question_fixture_tts_s,question_fixture_physical_match,"
+      "target_turn_limit_deg,target_turn_allowed,target_turn_reason,"
+      "base_yaw_deg,target_bearing_deg,target_turn_deg,post_net_future_bounce_restitution_v,base_source_age_ms,"
+      "future_contact_spin_enabled,future_contact_spin_used,future_contact_spin_tangential_gain,"
+      "future_contact_spin_omega_scale,future_contact_spin_min_coherence,"
+      "future_contact_magnus_enabled,physics_drag_k,physics_magnus_k,physics_table_gain,physics_table_mu,physics_spin_reason");
   std::string flight_packet_audit_path = declare_parameter<std::string>(
       "flight_packet_audit_csv_path", "");
   if (flight_packet_audit_path.empty() && !debug_path.empty()) {
@@ -465,7 +481,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "transmit_index,transmit_count,sample_count,last_exposure_unix_ns,"
       "source_age_ms,dedupe_result,accepted_for_solve,packet_queue_depth");
 
-  estimator_ = std::make_unique<BatchPhysicsEstimator>(physics_, estimator_config_);
+  estimator_ = std::make_unique<BatchPhysicsEstimator>(physics_, estimator_config_, spin_estimator_config_);
   spin_estimator_ = std::make_unique<SpinEstimator>(spin_estimator_config_);
   predictor_ = std::make_unique<TrajectoryPredictor>(physics_, planner_config_, table_);
   BallPhysics post_net_physics = physics_;
@@ -474,8 +490,11 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   // when an actual bounce has already been observed.
   post_net_physics.table_tangential_gain =
       post_net_future_bounce_tangential_gain_;
+  post_net_physics.restitution_v = post_net_future_bounce_restitution_v_;
   post_net_predictor_ = std::make_unique<TrajectoryPredictor>(
       post_net_physics, planner_config_, table_);
+  future_contact_predictor_ = std::make_unique<FutureContactPredictor>(
+      post_net_physics, planner_config_, table_, future_contact_config_);
   target_planner_ =
       std::make_unique<RacketTargetPlanner>(physics_, planner_config_, table_);
   incoming_trajectory_ = std::make_unique<IncomingTrajectory>(
@@ -556,13 +575,25 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
         response->success = result.first;
         response->message = result.second;
       });
+  hit_plane_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/hope/planner/hit_plane", rclcpp::QoS(1).reliable().transient_local());
   diagnostics_timer_ = create_wall_timer(1s, [this] { publish_diagnostics(); });
   if (!x_hit_request_file_.empty()) {
     calibration_timer_ = create_wall_timer(100ms, [this] { poll_calibration_request(); });
   }
 
+  RCLCPP_INFO(get_logger(), "Future contact model: tangential_gain=%.6f restitution_v=%.6f",
+              post_net_future_bounce_tangential_gain_, post_net_future_bounce_restitution_v_);
   health_previous_steady_ns_ = steady_now_ns();
   solver_thread_ = std::thread(&PlannerNode::solver_loop, this);
+
+  RCLCPP_INFO(
+      get_logger(),
+      "Ball physics: drag_k=%.6f restitution_h=%.6f restitution_v=%.6f "
+      "future_zero_spin_gain=%.6f observed_bounce_grip=%.6f magnus_shadow=%.8f",
+      physics_.drag_k, physics_.restitution_h, physics_.restitution_v,
+      post_net_future_bounce_tangential_gain_, physics_.table_tangential_gain,
+      physics_.magnus_k);
 
   RCLCPP_INFO(
       get_logger(),
@@ -976,6 +1007,10 @@ void PlannerNode::base_flat_callback(
     BaseSnapshot snapshot;
     snapshot.valid = valid;
     snapshot.position = position;
+    snapshot.orientation_valid = valid;
+    if (valid) {
+      snapshot.orientation = Eigen::Quaterniond(value[8], value[9], value[10], value[11]).normalized();
+    }
     snapshot.receipt_steady_ns = receipt;
     if (valid) {
       snapshot.source_stamp_ns =
@@ -985,8 +1020,8 @@ void PlannerNode::base_flat_callback(
     } else if ((++invalid_count % 100U) == 1U) {
       RCLCPP_WARN(
           get_logger(),
-          "authoritative schema-2 base packet is invalid; recorded as audit only, "
-          "planner release is not blocked");
+          "authoritative schema-2 base packet is invalid; "
+          "target turn cannot be checked until a valid pose arrives");
     }
     set_base_snapshot(snapshot);
   } catch (...) {
@@ -1002,6 +1037,8 @@ void PlannerNode::robot_pose_callback(
     const auto& p = message->pose.position;
     const auto& q_msg = message->pose.orientation;
     Eigen::Quaterniond quaternion(q_msg.w, q_msg.x, q_msg.y, q_msg.z);
+    const bool orientation_valid = quaternion.coeffs().allFinite() &&
+        quaternion.norm() >= 0.5 && quaternion.norm() <= 1.5;
     if (!std::isfinite(quaternion.norm()) || quaternion.norm() < 0.5 ||
         quaternion.norm() > 1.5) {
       quaternion = Eigen::Quaterniond::Identity();
@@ -1015,6 +1052,8 @@ void PlannerNode::robot_pose_callback(
     BaseSnapshot snapshot;
     snapshot.position = position;
     snapshot.valid = position.allFinite();
+    snapshot.orientation = quaternion;
+    snapshot.orientation_valid = orientation_valid;
     snapshot.receipt_steady_ns = steady_now_ns();
     snapshot.source_stamp_ns =
         static_cast<std::int64_t>(message->header.stamp.sec) * 1'000'000'000LL +
@@ -1179,7 +1218,7 @@ void PlannerNode::solver_loop() noexcept {
       SpinShadowAudit spin_shadow;
       spin_shadow.enabled = spin_shadow_enabled_;
       spin_shadow.mode = spin_shadow_enabled_ ? spin_shadow_mode_name_ : "disabled";
-      spin_shadow.spin = spin_estimator_->estimate();
+      spin_shadow.spin = state.spin_model_enabled ? state.physics_spin : spin_estimator_->estimate();
       if (spin_shadow.spin.valid) {
         ++spin_valid_count_;
       }
@@ -1194,13 +1233,10 @@ void PlannerNode::solver_loop() noexcept {
           ? post_net_predictor_.get()
           : predictor_.get();
       if (state.valid) {
-        // One-shot control uses the causally identified effective coefficient
-        // for a future contact; the estimator keeps the venue coefficient for
-        // an already observed bounce. Omega=0 remains the control contract.
-        // Orientation, spin coherence and Magnus are shadow-only.
-        strike = control_predictor->predict_with_spin(
-            state, active_x_hit(), Vec3::Zero(),
-            SpinPhysicsMode::kVenueGripBounce);
+        strike = post_net_one_shot_enabled_
+            ? future_contact_predictor_->predict(state, active_x_hit(), spin_shadow.spin)
+            : control_predictor->predict_with_spin(state, active_x_hit(), Vec3::Zero(),
+                                                  SpinPhysicsMode::kVenueGripBounce);
         if (strike.valid) {
           const BaseSnapshot base = base_snapshot();
           swing_sign = select_swing_sign(
@@ -1212,9 +1248,12 @@ void PlannerNode::solver_loop() noexcept {
                                 ? std::numeric_limits<double>::quiet_NaN()
                                 : 0.0));
           if (swing_sign < 0.0 && x_hit_bh_delta_ != 0.0) {
-            strike = control_predictor->predict_with_spin(
-                state, active_x_hit() + x_hit_bh_delta_, Vec3::Zero(),
-                SpinPhysicsMode::kVenueGripBounce);
+            strike = post_net_one_shot_enabled_
+                ? future_contact_predictor_->predict(
+                    state, active_x_hit() + x_hit_bh_delta_, spin_shadow.spin)
+                : control_predictor->predict_with_spin(
+                    state, active_x_hit() + x_hit_bh_delta_, Vec3::Zero(),
+                    SpinPhysicsMode::kVenueGripBounce);
           }
         }
       }
@@ -1389,6 +1428,39 @@ void PlannerNode::publish_solve(
     bool wire_valid = command.valid && legal_swing_sign &&
                       std::isfinite(time_to_strike_s) &&
                       time_to_strike_s > 0.0;
+    const char* timing_reject_reason = !legal_swing_sign ? "invalid_swing_sign" :
+        (!std::isfinite(time_to_strike_s) ? "strike_deadline_invalid" : "strike_deadline_expired");
+    const bool timing_valid = wire_valid;
+    // Use one consistent pose for admission and audit. Reject the entire new
+    // command; never clamp/rotate the target or alter an in-progress swing.
+    const BaseSnapshot base = base_snapshot();
+    TargetTurnDecision target_turn;
+    const bool target_turn_evaluated = wire_valid;
+    if (target_turn_evaluated) {
+      target_turn = check_target_turn(
+          command.position, base.position, base.orientation,
+          base.valid && base.orientation_valid, max_target_turn_deg_);
+      const double pose_age_s = (steady_now_ns() - base.receipt_steady_ns) * 1.0e-9;
+      if (target_turn.allowed && (base.receipt_steady_ns <= 0 ||
+          pose_age_s < 0.0 || pose_age_s > target_turn_max_pose_age_s_)) {
+        target_turn.allowed = false;
+        target_turn.reason = "target_turn_base_stale";
+      }
+      // A packet can be newly received after spending hundreds of ms in
+      // Wi-Fi queues. Receipt age alone cannot establish current heading.
+      const double source_pose_age_s = base.source_stamp_ns > 0
+          ? (producer_wall_ns - base.source_stamp_ns) * 1.0e-9 : 0.0;
+      if (target_turn.allowed && source_pose_age_s > target_turn_max_pose_age_s_) {
+        target_turn.allowed = false;
+        target_turn.reason = "target_turn_base_source_stale";
+      }
+      if (!target_turn.allowed) {
+        wire_valid = false;
+        RCLCPP_WARN(get_logger(),
+            "Planner command rejected: %s turn=%.3f deg limit=%.3f deg",
+            target_turn.reason, target_turn.turn_deg, max_target_turn_deg_);
+      }
+    }
     ReachPermission candidate_permission;
     ReachPermission candidate_geometry_permission;
     double immutable_home_x = std::numeric_limits<double>::quiet_NaN();
@@ -1481,7 +1553,7 @@ void PlannerNode::publish_solve(
       hope_msgs::msg::RacketCommand output;
       output.header.stamp = get_clock()->now();
       output.header.frame_id = "world";
-      if (command.valid) {
+      if (packet_valid) {
         output.position.x = command.position.x();
         output.position.y = command.position.y();
         output.position.z = command.position.z() + policy_z_offset_;
@@ -1522,7 +1594,6 @@ void PlannerNode::publish_solve(
     }
 
     if (audit_logger_ && audit_logger_->enabled()) {
-      const BaseSnapshot base = base_snapshot();
       const double base_age_ms = base.receipt_steady_ns > 0
           ? (solve_finished_steady_ns - base.receipt_steady_ns) * 1.0e-6
           : std::numeric_limits<double>::quiet_NaN();
@@ -1552,7 +1623,9 @@ void PlannerNode::publish_solve(
           << strike_deadline_wall_s << ',' << producer_wall_s << ','
           << latest_sample.receipt_steady_ns << ','
           << solve_finished_steady_ns << ',' << (packet_valid ? 1 : 0) << ','
-          << audit.reason << ','
+          << (command.valid && !timing_valid ? timing_reject_reason :
+              (target_turn_evaluated && !target_turn.allowed
+                  ? target_turn.reason : audit.reason)) << ','
           << latest_sample.position.x() << ',' << latest_sample.position.y() << ','
           << latest_sample.position.z() << ',' << state.sample_count << ','
           << state.sample_span_s << ','
@@ -1610,7 +1683,10 @@ void PlannerNode::publish_solve(
           << state.bounce_source_time_s << ',' << state.pre_bounce_samples << ','
           << state.post_bounce_samples << ','
           << (post_net_one_shot_enabled_
-                  ? "post_net_one_shot_effective_bounce_zero_spin"
+                  ? (future_contact_config_.magnus_enabled ? "post_net_one_shot_physical_spin_magnus" :
+                     future_contact_predictor_->uses_spin(spin_shadow.spin)
+                      ? "post_net_one_shot_spin_conditioned_bounce"
+                      : "post_net_one_shot_effective_bounce_zero_spin")
                   : "venue_grip_zero_spin")
           << ','
           << source_age_at_callback_ms << ',' << callback_to_solve_ms << ','
@@ -1666,7 +1742,20 @@ void PlannerNode::publish_solve(
           << audit.question_fixture.velocity_error_max_mps << ','
           << audit.question_fixture.tts_error_s << ','
           << audit.question_fixture.fixture_tts_s << ','
-          << (audit.question_fixture.physical_match ? 1 : 0);
+          << (audit.question_fixture.physical_match ? 1 : 0) << ','
+          << max_target_turn_deg_ << ',' << (target_turn.allowed ? 1 : 0) << ','
+          << target_turn.reason << ',' << target_turn.base_yaw_deg << ','
+          << target_turn.target_bearing_deg << ',' << target_turn.turn_deg << ','
+          << post_net_future_bounce_restitution_v_ << ','
+          << (base.source_stamp_ns > 0 ? (producer_wall_ns-base.source_stamp_ns)*1.0e-6 :
+              std::numeric_limits<double>::quiet_NaN()) << ','
+          << (future_contact_config_.spin_enabled ? 1 : 0) << ','
+          << (post_net_one_shot_enabled_ && future_contact_predictor_->uses_spin(spin_shadow.spin) ? 1 : 0) << ','
+          << future_contact_config_.tangential_gain << ','
+          << future_contact_config_.omega_scale << ',' << future_contact_config_.min_coherence << ','
+          << future_contact_config_.magnus_enabled << ',' << physics_.drag_k << ','
+          << physics_.magnus_k << ',' << physics_.table_tangential_gain << ','
+          << physics_.table_friction_cap_mu << ',' << state.physics_spin.reason;
       audit_logger_->enqueue(row.str());
     }
   } catch (...) {
@@ -1676,6 +1765,13 @@ void PlannerNode::publish_solve(
 
 void PlannerNode::publish_diagnostics() noexcept {
   try {
+    // Scheduling reference only; final contact selection and the 40 degree
+    // guard remain in the solver. Send both-side front bound after calibration.
+    std_msgs::msg::Float64MultiArray hit_plane;
+    hit_plane.data = {1.0, static_cast<double>(wall_now_ns()) * 1e-9,
+                     x_hit_follow_robot_ ? x_hit_max_
+                         : x_hit_fh_.load() + std::max(0.0, x_hit_bh_delta_)};
+    hit_plane_publisher_->publish(hit_plane);
     const auto now = steady_now_ns();
     const double elapsed = std::max(
         1.0e-6, (now - health_previous_steady_ns_) * 1.0e-9);
@@ -1751,6 +1847,9 @@ void PlannerNode::publish_diagnostics() noexcept {
         "post_net_future_bounce_tangential_gain",
         number_string(post_net_future_bounce_tangential_gain_, 3)));
     status.values.push_back(diagnostic_value(
+        "post_net_future_bounce_restitution_v",
+        number_string(post_net_future_bounce_restitution_v_, 6)));
+    status.values.push_back(diagnostic_value(
         "one_shot_flight_sequence",
         std::to_string(trajectory_epoch_.load())));
     status.values.push_back(diagnostic_value(
@@ -1786,9 +1885,15 @@ void PlannerNode::publish_diagnostics() noexcept {
     status.values.push_back(diagnostic_value(
         "x_hit_calibrated_audit", x_hit_calibrated_.load() ? "1" : "0"));
     status.values.push_back(diagnostic_value(
-        "estimator_kind", "batch_physics_cpp_no_ekf_persistent_bounce"));
+        "estimator_kind", estimator_config_.spin_enabled
+            ? "batch_physics_cpp_spin_magnus_persistent_bounce"
+            : "batch_physics_cpp_no_ekf_persistent_bounce"));
     status.values.push_back(diagnostic_value(
-        "control_stage2_mode", "post_net_one_shot_effective_bounce_zero_spin"));
+        "control_stage2_mode", future_contact_config_.magnus_enabled
+            ? "post_net_one_shot_physical_spin_magnus"
+            : future_contact_config_.spin_enabled
+            ? "post_net_one_shot_spin_conditioned_with_zero_spin_fallback"
+            : "post_net_one_shot_effective_bounce_zero_spin"));
     array.status.push_back(std::move(status));
     diagnostics_publisher_->publish(array);
 

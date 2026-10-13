@@ -1,5 +1,9 @@
 # Foxglove Runner 首次部署与现场测试手册
 
+> Current build, policy staging and Gate 3 commands: [deployment guide](deploy_and_gate3.md).
+> For the shared real-ball coefficients, see [ball physics](ball_physics_calibration.md).
+> Staging a package does not activate the robot.
+
 > Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for
 > current Kernel Mode, Xbox, Serve-to-Ready, calibration-layout and package
 > instructions. The public checkpoint remains model_21800. The foundational

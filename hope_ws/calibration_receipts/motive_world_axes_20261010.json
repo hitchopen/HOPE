@@ -1,0 +1,55 @@
+{
+  "schema": "hope.motive_world_transform_receipt.v1",
+  "created_utc": "2026-10-10T19:06:24.477739+00:00",
+  "approved": true,
+  "method": "operator_attested_origin_and_axes_with_fixed_software_rotation",
+  "operator_attestation": {
+    "source_x_axis": "left when facing from robot P1 toward P2",
+    "source_z_axis": "up",
+    "origin": "near-left table surface corner seen from P1",
+    "table_surface_z_m": 0.0,
+    "software_transform_requested": true
+  },
+  "transform": {
+    "source": "Motive Z-up stream",
+    "target": "table_p1_to_p2_v1",
+    "yaw_degrees": 90.0,
+    "translation_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "position_equation": [
+      "x=-y_motive",
+      "y=x_motive",
+      "z=z_motive"
+    ],
+    "quaternion_equation": "q_world_body=q_z_plus_90deg * q_motive_body",
+    "apply_at": "motion_capture_tracking_node publication boundary before table-side relay",
+    "scope": [
+      "all ball and rigid-body positions",
+      "rigid-body orientations",
+      "world marker positions",
+      "published point cloud and TF"
+    ],
+    "excluded": "body-local ModelDef coordinates; raw tracker input"
+  },
+  "diagnosis": {
+    "session": "model21800_20261010T185505Z",
+    "ready_first_forward_xy": [
+      0.1812,
+      -0.9834
+    ],
+    "yaw_deg": -79.56,
+    "planner_command": "none",
+    "reported_physical_heading": "facing table before READY"
+  },
+  "validation_limitations": [
+    "physical READY after conversion not yet tested",
+    "origin and axis directions depend on current operator attestation; not an independently measured table survey"
+  ],
+  "invalidated_if": [
+    "Motive world origin, axes or streaming up axis change",
+    "table moves relative to world origin"
+  ]
+}

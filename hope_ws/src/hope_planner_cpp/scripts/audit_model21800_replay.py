@@ -325,6 +325,8 @@ def run_replay(
                     str(args.post_net_delay_s),
                     "--post-net-future-bounce-tangential-gain",
                     str(args.post_net_future_bounce_tangential_gain),
+                    "--post-net-future-bounce-restitution-v",
+                    str(args.post_net_future_bounce_restitution_v),
                     "--net-x",
                     str(args.net_x),
                     "--incoming-opponent-side-margin",
@@ -512,8 +514,9 @@ def main(argv=None) -> int:
     parser.add_argument("--post-net-one-shot", action="store_true")
     parser.add_argument("--post-net-delay-s", type=float, default=0.05)
     parser.add_argument(
-        "--post-net-future-bounce-tangential-gain", type=float, default=0.075
+        "--post-net-future-bounce-tangential-gain", type=float, default=0.20
     )
+    parser.add_argument("--post-net-future-bounce-restitution-v", type=float, default=0.96)
     parser.add_argument("--net-x", type=float, default=1.37)
     parser.add_argument(
         "--incoming-opponent-side-margin-m", type=float, default=0.05
@@ -531,9 +534,9 @@ def main(argv=None) -> int:
         "--incoming-source-gap-reset-s", type=float, default=0.25
     )
     parser.add_argument("--adaptive-horizon", action="store_true")
-    parser.add_argument("--drag-k", type=float, default=0.1317)
-    parser.add_argument("--restitution-h", type=float, default=0.64)
-    parser.add_argument("--restitution-v", type=float, default=0.9607)
+    parser.add_argument("--drag-k", type=float, default=0.119006)
+    parser.add_argument("--restitution-h", type=float, default=0.651740)
+    parser.add_argument("--restitution-v", type=float, default=0.916598)
     parser.add_argument("--bounce-min-reversal-m", type=float, default=0.00005)
     parser.add_argument("--bounce-min-excursion-m", type=float, default=0.001)
     parser.add_argument("--bounce-confirmation-samples", type=int, default=5)
@@ -845,6 +848,7 @@ def main(argv=None) -> int:
         "post_net_future_bounce_tangential_gain": (
             args.post_net_future_bounce_tangential_gain
         ),
+        "post_net_future_bounce_restitution_v": args.post_net_future_bounce_restitution_v,
         "net_x": args.net_x,
         "incoming_trajectory": {
             "opponent_side_margin_m": args.incoming_opponent_side_margin_m,

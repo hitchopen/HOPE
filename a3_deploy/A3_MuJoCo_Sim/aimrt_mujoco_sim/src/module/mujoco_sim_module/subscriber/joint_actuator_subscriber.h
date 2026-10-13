@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 
 #include "mujoco_sim_module/global.h"
 #include "mujoco_sim_module/subscriber/subscriber_base.h"
@@ -127,6 +128,9 @@ class BodyDriveJointActuatorSubscriber : public JointActuatorSubscriberBase {
   bool implicit_pd_ = false;
   bool has_targets_ = false;
   bool humanlike_vendor_profile_ = false;
+  bool parallel_damping_ = false;
+  // group (left ankle, right ankle, waist), pitch index, roll index
+  std::vector<std::array<int, 3>> parallel_pairs_;
   std::uint64_t explicit_pd_tick_ = 0;
   std::uint32_t explicit_pd_decimation_ = 1;
 };

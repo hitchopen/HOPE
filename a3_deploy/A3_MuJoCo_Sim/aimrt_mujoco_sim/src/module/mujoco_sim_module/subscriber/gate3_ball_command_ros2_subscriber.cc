@@ -127,7 +127,8 @@ void Gate3BallCommandRos2Subscriber::ApplyCtrlData() {
   const double values[] = {
       msg->position.x, msg->position.y, msg->position.z,
       msg->linear_velocity.x, msg->linear_velocity.y,
-      msg->linear_velocity.z};
+      msg->linear_velocity.z, msg->angular_velocity.x,
+      msg->angular_velocity.y, msg->angular_velocity.z};
   if (!std::all_of(std::begin(values), std::end(values),
                    [](double value) { return std::isfinite(value); })) {
     AIMRT_WARN("Reject non-finite Gate3 ball launch shot_id={}.", msg->shot_id);
@@ -146,9 +147,10 @@ void Gate3BallCommandRos2Subscriber::ApplyCtrlData() {
   d_->qvel[dof_addr_ + 0] = msg->linear_velocity.x;
   d_->qvel[dof_addr_ + 1] = msg->linear_velocity.y;
   d_->qvel[dof_addr_ + 2] = msg->linear_velocity.z;
-  d_->qvel[dof_addr_ + 3] = 0.0;
-  d_->qvel[dof_addr_ + 4] = 0.0;
-  d_->qvel[dof_addr_ + 5] = 0.0;
+  // Launch orientation is identity; world and body angular velocity agree.
+  d_->qvel[dof_addr_ + 3] = msg->angular_velocity.x;
+  d_->qvel[dof_addr_ + 4] = msg->angular_velocity.y;
+  d_->qvel[dof_addr_ + 5] = msg->angular_velocity.z;
   ResetTelemetry(msg->shot_id, true);
   mj_forward(m_, d_);
   AIMRT_INFO(

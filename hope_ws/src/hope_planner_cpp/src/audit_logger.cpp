@@ -1,4 +1,6 @@
 #include "hope_planner_cpp/audit_logger.hpp"
+#include "a3_deploy/recording_file.hpp"
+#include <cstdlib>
 
 #include <cerrno>
 #include <cstdio>
@@ -14,6 +16,13 @@ namespace hope_planner_cpp {
 
 AuditLogger::AuditLogger(const std::string& path, const std::string& header) {
   if (path.empty()) {
+    return;
+  }
+  const char* control = std::getenv("HOPE_RECORD_CONTROL_FILE");
+  if (control && *control) {
+    recording_ = std::make_unique<hope_recording::RecordingFile>(path, control, header + "\n");
+    enabled_ = true;
+    thread_ = std::thread(&AuditLogger::run, this);
     return;
   }
   const std::filesystem::path output(path);
@@ -63,7 +72,7 @@ void AuditLogger::enqueue(std::string row) noexcept {
         ++dropped_rows_;
         return;
       }
-      queue_.push_back(std::move(row));
+      queue_.emplace_back(std::move(row), recording_generation_.load(std::memory_order_acquire));
     }
     condition_.notify_one();
   } catch (...) {
@@ -96,10 +105,14 @@ void AuditLogger::stop() noexcept {
 void AuditLogger::run() noexcept {
   try {
     for (;;) {
-      std::deque<std::string> batch;
+      if (recording_) {
+        recording_->Dropped(dropped_rows_.load());
+        recording_generation_.store(recording_->Poll(), std::memory_order_release);
+      }
+      std::deque<std::pair<std::string, std::uint64_t>> batch;
       {
         std::unique_lock<std::mutex> lock(mutex_);
-        condition_.wait(lock, [this] {
+        condition_.wait_for(lock, std::chrono::milliseconds(20), [this] {
           return stop_requested_.load(std::memory_order_acquire) || !queue_.empty();
         });
         batch.swap(queue_);
@@ -107,13 +120,15 @@ void AuditLogger::run() noexcept {
           break;
         }
       }
-      for (const auto& row : batch) {
+      for (const auto& entry : batch) {
+        const auto& row = entry.first;
+        if (recording_) { recording_->Write(row + "\n", entry.second); continue; }
         if (std::fwrite(row.data(), 1, row.size(), stream_) != row.size() ||
             std::fputc('\n', stream_) == EOF) {
           throw std::runtime_error("Planner audit CSV write failed");
         }
       }
-      if (std::fflush(stream_) != 0) {
+      if (stream_ && std::fflush(stream_) != 0) {
         throw std::runtime_error("Planner audit CSV flush failed");
       }
       if (stop_requested_.load(std::memory_order_acquire)) {
@@ -123,6 +138,7 @@ void AuditLogger::run() noexcept {
         }
       }
     }
+    if (recording_) recording_->Close();
   } catch (...) {
     std::size_t remaining = 0;
     {

@@ -150,6 +150,7 @@ bool MujocoSimModule::Initialize(aimrt::CoreRef core) {
   ApplyHumanLikeVendorDynamicsProfile();
 
   if (const char* pd_mode = std::getenv("A3_MUJOCO_PD_MODE")) debug_pd_mode_ = pd_mode;
+  if (const char* mode = std::getenv("A3_MUJOCO_PARALLEL_DAMPING")) debug_parallel_damping_mode_ = mode;
   AIMRT_CHECK_ERROR_THROW(debug_pd_mode_ == "explicit" || debug_pd_mode_ == "implicit",
                           "Invalid A3_MUJOCO_PD_MODE='{}' (expected explicit or implicit).",
                           debug_pd_mode_);
@@ -539,6 +540,14 @@ void MujocoSimModule::InitializeGate3Ball() {
       "A3_GATE3_BALL_RESTITUTION_H", gate3_ball_restitution_h_, 1.0);
   gate3_ball_restitution_v_ = read_nonnegative_env(
       "A3_GATE3_BALL_RESTITUTION_V", gate3_ball_restitution_v_, 1.0);
+  gate3_ball_magnus_k_ = read_nonnegative_env(
+      "A3_GATE3_BALL_MAGNUS_K", gate3_ball_magnus_k_, 1.0);
+  gate3_ball_tangential_gain_ = read_nonnegative_env(
+      "A3_GATE3_BALL_TABLE_TANGENTIAL_GAIN", gate3_ball_tangential_gain_, 1.0);
+  gate3_ball_friction_cap_mu_ = read_nonnegative_env(
+      "A3_GATE3_BALL_TABLE_FRICTION_CAP_MU", gate3_ball_friction_cap_mu_, 10.0);
+  AIMRT_INFO("Gate3 spin physics: magnus_k={:.9f}, table_gain={:.9f}, table_mu={:.9f}",
+      gate3_ball_magnus_k_, gate3_ball_tangential_gain_, gate3_ball_friction_cap_mu_);
   d_->userdata[gate3::kShotId] = 0.0;
   d_->userdata[gate3::kActive] = 0.0;
   d_->userdata[gate3::kContactBits] = 0.0;
@@ -547,8 +556,8 @@ void MujocoSimModule::InitializeGate3Ball() {
   d_->userdata[gate3::kNetContactCount] = 0.0;
   d_->userdata[gate3::kRacketNormalForce] = 0.0;
   AIMRT_INFO(
-      "Gate3 physical ball initialized: drag_k={:.4f}, restitution_h/v="
-      "{:.4f}/{:.4f}, ball='{}', "
+      "Gate3 physical ball initialized: drag_k={:.6f}, restitution_h/v="
+      "{:.6f}/{:.6f}, ball='{}', "
       "racket='{}', table='{}', net='{}'.",
       gate3_ball_drag_k_, gate3_ball_restitution_h_,
       gate3_ball_restitution_v_, gate3::kGeomName,
@@ -585,13 +594,12 @@ void MujocoSimModule::ApplyGate3BallDrag(int slot) {
   if (telemetry[gate3::kActive] <= 0.5) return;
 
   const mjtNum* velocity = d_->qvel + gate3_ball_dof_addr_;
+  const auto world_spin = gate3::WorldSpin(d_, gate3_ball_qpos_addr_, gate3_ball_dof_addr_);
   gate3_ball_pre_step_velocity_ = {
       static_cast<double>(velocity[0]),
       static_cast<double>(velocity[1]),
       static_cast<double>(velocity[2]),
-      static_cast<double>(velocity[3]),
-      static_cast<double>(velocity[4]),
-      static_cast<double>(velocity[5])};
+      world_spin[0], world_spin[1], world_spin[2]};
   const gate3::Vec3 linear_velocity{
       gate3_ball_pre_step_velocity_[0],
       gate3_ball_pre_step_velocity_[1],
@@ -601,7 +609,7 @@ void MujocoSimModule::ApplyGate3BallDrag(int slot) {
       gate3_ball_pre_step_velocity_[4],
       gate3_ball_pre_step_velocity_[5]};
   const auto acceleration = gate3::FlightAcceleration(
-      linear_velocity, angular_velocity, gate3_ball_drag_k_);
+      linear_velocity, angular_velocity, gate3_ball_drag_k_, gate3_ball_magnus_k_);
   const double mass = m_->body_mass[gate3_ball_body_id_];
   wrench[0] = mass * acceleration[0];
   wrench[1] = mass * acceleration[1];
@@ -736,30 +744,28 @@ void MujocoSimModule::UpdateGate3BallContacts(int slot) {
     for (int axis = 0; axis < 3; ++axis) {
       d_->qvel[gate3_ball_dof_addr_ + axis] =
           outgoing.linear_velocity[axis];
-      d_->qvel[gate3_ball_dof_addr_ + 3 + axis] =
-          outgoing.angular_velocity[axis];
       d_->qpos[gate3_ball_qpos_addr_ + axis] =
           racket_contact_position[axis] +
           (gate3::kBallRadius + 1.0e-4) *
               outgoing.oriented_normal[axis];
     }
+    gate3::SetWorldSpin(d_, gate3_ball_qpos_addr_, gate3_ball_dof_addr_, outgoing.angular_velocity);
   }
 
   // MuJoCo's soft-contact damping ratio is not a coefficient of restitution.
-  // Gate3 must exercise the exact venue/planner ball model, so on the first
-  // physical table-contact step apply the same discrete bounce law used by
-  // hope_planner:
-  //   v_xy+ = e_h v_xy-,  v_z+ = -e_v v_z-.
+  // Apply the fitted slip/friction-cap and angular momentum impulse once
+  // per physical table-contact rising edge, matching Planner.
   // Moving the ball center just clear of the table prevents the stable
   // critically-damped contact from applying a second impulse next step.
   if (table && !gate3_table_contact_prev_ &&
       gate3_ball_pre_step_velocity_[2] < 0.0) {
-    d_->qvel[gate3_ball_dof_addr_ + 0] =
-        gate3_ball_restitution_h_ * gate3_ball_pre_step_velocity_[0];
-    d_->qvel[gate3_ball_dof_addr_ + 1] =
-        gate3_ball_restitution_h_ * gate3_ball_pre_step_velocity_[1];
-    d_->qvel[gate3_ball_dof_addr_ + 2] =
-        -gate3_ball_restitution_v_ * gate3_ball_pre_step_velocity_[2];
+    const auto outgoing = gate3::PredictTableContact(
+        {gate3_ball_pre_step_velocity_[0], gate3_ball_pre_step_velocity_[1], gate3_ball_pre_step_velocity_[2]},
+        {gate3_ball_pre_step_velocity_[3], gate3_ball_pre_step_velocity_[4], gate3_ball_pre_step_velocity_[5]},
+        gate3::kBallRadius, gate3_ball_restitution_v_, gate3_ball_tangential_gain_, gate3_ball_friction_cap_mu_);
+    for (int axis = 0; axis < 3; ++axis)
+      d_->qvel[gate3_ball_dof_addr_ + axis] = outgoing.linear_velocity[axis];
+    gate3::SetWorldSpin(d_, gate3_ball_qpos_addr_, gate3_ball_dof_addr_, outgoing.angular_velocity);
     d_->qpos[gate3_ball_qpos_addr_ + 2] = std::max<mjtNum>(
         d_->qpos[gate3_ball_qpos_addr_ + 2],
         gate3::kTableSurfaceZ + gate3::kBallRadius + 1.0e-4);
@@ -830,7 +836,7 @@ void MujocoSimModule::InitializeDebugCsv() {
   for (const auto& a : debug_actuators_) o << ",ctrl_" << a.name;
   for (const auto& a : debug_actuators_) o << ",force_" << a.name;
   for (const auto& a : debug_actuators_) o << ",ctrl_ratio_" << a.name;
-  o << '\n';
+  o << ",parallel_damping_mode\n";
   o << std::setprecision(10);
   AIMRT_INFO("MuJoCo plant debug CSV -> '{}' (stride={}, physics_hz={:.1f}, output_hz={:.1f}).",
              path, debug_stride_, 1.0 / m_->opt.timestep,
@@ -941,7 +947,7 @@ void MujocoSimModule::WriteDebugCsv(std::uint64_t wall_time_ns) {
   for (int i = 0; i < m_->nu; ++i) o << ',' << d_->ctrl[i];
   for (int i = 0; i < m_->nu; ++i) o << ',' << d_->actuator_force[i];
   for (double ratio : ctrl_ratios) o << ',' << ratio;
-  o << '\n';
+  o << ',' << debug_parallel_damping_mode_ << '\n';
   if (++debug_rows_ % 200 == 0) o.flush();
 }
 

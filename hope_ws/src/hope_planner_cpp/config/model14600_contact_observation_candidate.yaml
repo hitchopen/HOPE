@@ -1,0 +1,23 @@
+# EXPERIMENTAL, NOT ACTIVATED: replay has not established a general accuracy gain.
+# Apply AFTER each node's usual YAML, to ALL THREE nodes together. This is an
+# overlay, not a standalone hardware configuration. Preserve model14600 and
+# the current max_target_turn_deg=180 setting from the base configuration.
+optitrack_mct_relay:
+  ros__parameters:
+    planner_poses_topic: "/poses/planner_full"
+
+hope_ball_flight_packetizer:
+  ros__parameters:
+    input_pose_topic: "/poses/planner_full"
+    incoming_direction_fit_samples: 8
+    incoming_direction_confirmations: 3
+    incoming_pre_roll_samples: 60
+    adaptive_post_bounce_span_s: 0.04
+    adaptive_contact_exclusion_s: 0.008
+    batch_post_bounce_min_span_s: 0.04
+    batch_post_bounce_exclusion_s: 0.008
+
+hope_planner:
+  ros__parameters:
+    batch_post_bounce_min_span_s: 0.04
+    batch_post_bounce_exclusion_s: 0.008

@@ -2,9 +2,9 @@
   "schema": "HOPE_NOMINAL_ASSET_FRAME_DEFAULT",
   "approved": false,
   "status": "OFFLINE_EXPECTATION_ONLY_IMPORT_AND_LIVE_VALIDATION_REQUIRED",
-  "asset_name": "P1",
+  "asset_name": "UCB_P1",
   "asset_file": "A3_v3_17_stickers.motive",
-  "asset_sha256": "fecabc7c812f83dd5a015e0de145026ba8a21173f58140b92b8510486eaf560d",
+  "asset_sha256": "3f9f7feb6f4613108a2e38eb151556a8c07ed54d5e36520c3883d9ab05dca0b4",
   "marker_layout": {
     "id": "A3_marker_shell_v3_stickers_12mm",
     "coordinate_source": "agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv",
@@ -42,7 +42,7 @@
     "physical_status": "CAD_NOMINAL_REQUIRES_INSTALLED_LIVE_VALIDATION"
   },
   "p1_to_pelvis_link": {
-    "parent_frame": "P1",
+    "parent_frame": "UCB_P1",
     "child_frame": "pelvis_link",
     "xyz_m": [
       0.0,

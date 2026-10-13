@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import p1_marker_layout as layout
 import p1_marker_cad_registration_impl as registration
 from p1_calibration import load_p1_calibration
+from motive_asset_contract import load_asset_points
 
 PROJECT = layout.table_path().parents[1]
 ASSETS = PROJECT / "motive_asset"
@@ -62,13 +63,13 @@ def test_aligned_native_asset_preserves_measured_shape_without_inventing_graph_s
     expected_properties = [dict(p.attrib) for p in source.find("properties")]
     for prop in expected_properties:
         if prop["name"] in ("NodeName", "AssetName", "JointName"):
-            prop["value"] = "P1"
+            prop["value"] = "UCB_P1"
             if "default_value" in prop:
-                prop["default_value"] = "P1"
+                prop["default_value"] = "UCB_P1"
     assert [p.attrib for p in subset.find("properties")] == expected_properties
     for member, (constraint, index) in enumerate(zip(new, indices), 1):
         assert int(constraint.get("member_id")) == member
-        assert constraint.get("joint_name") == "P1"
+        assert constraint.get("joint_name") == "UCB_P1"
         assert {k: v for k, v in constraint.attrib.items() if k not in ("member_id", "joint_name")} == {
             k: v for k, v in old[index].attrib.items() if k not in ("member_id", "joint_name")
         }
@@ -105,7 +106,7 @@ def test_mixed_asset_recovers_all_stations_without_assuming_member_order():
     ) for c in constraints]
     result = registration.resolve_correspondence(
         markers, layout.MARKER_NAMES,
-        cad_markers_pelvis_m=registration.STICKER_MARKER_LAYOUT.markers_pelvis_m,
+        cad_markers_pelvis_m={name: row["translation_m"] for name, row in layout.load_marker_transforms().items()},
     )
     assert result.mapping == MEMBERS
     assert result.registration.rms_m == pytest.approx(0.001395144770534123 * math.sqrt(12 / 17), abs=1e-10)
@@ -158,7 +159,7 @@ def test_missing_or_double_axis_conversion_is_not_identity():
         markers = [registration.ModelMarker(i+1, c.get("name"), p) for i, (c, p) in enumerate(zip(constraints, points))]
         fit = registration.resolve_correspondence(
             markers, layout.MARKER_NAMES,
-            cad_markers_pelvis_m=registration.STICKER_MARKER_LAYOUT.markers_pelvis_m,
+            cad_markers_pelvis_m={name: row["translation_m"] for name, row in layout.load_marker_transforms().items()},
         )
         assert math.sqrt(sum(v*v for v in fit.registration.transform.quaternion[:3])) > .5
 
@@ -197,11 +198,8 @@ def test_reframed_constellation_preserves_nonidentity_world_poses(rotation):
 
 
 def test_unfiltered_16_point_source_is_rejected_for_new_shell():
-    with pytest.raises(ValueError, match="requires all 17"):
-        registration.cad_names_for_markers(
-            list(body(ASSETS / "source/A3.motive").find("constraints")),
-            layout=registration.STICKER_MARKER_LAYOUT,
-        )
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        load_asset_points(ASSETS / "source/A3.motive")
 
 
 def test_only_rear_stations_were_restored_and_front_mesh_is_unchanged():

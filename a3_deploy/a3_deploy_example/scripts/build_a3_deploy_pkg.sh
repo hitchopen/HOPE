@@ -1513,10 +1513,10 @@ if [[ "${GRIPPER_AVAILABLE}" == "1" ]]; then
     --allow-publish \
     --confirm-real-gripper &
   GRIPPER_BRIDGE_PID=$!
-  # Allow the bridge's complete 5 s topic-discovery budget plus process-start
-  # margin; failure is still best-effort and never gates body Serve once this
-  # bounded startup window expires.
-  for _attempt in $(seq 1 70); do
+  # Rockchip ROS initialization can exceed 7 s under startup load. Allow it
+  # plus the complete 5 s subscriber-discovery budget; exit early on readiness.
+  # Keep this 20 s bound below the lifecycle helper's 40 s startup budget.
+  for _attempt in $(seq 1 200); do
     if [[ -S "${SERVE_SOCKET}" && -f "${SERVE_READY}" ]]; then
       SERVE_BRIDGE_READY=1
       break

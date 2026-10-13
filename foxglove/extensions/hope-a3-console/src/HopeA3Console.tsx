@@ -40,9 +40,11 @@ const TOPICS = {
   hduActive: "/hope/system/hdu_active",
   mduActive: "/hope/system/mdu_active",
   markerAsset: "/hope/mocap/marker_asset",
-  markerExpected: "/hope/mocap/marker_expected_count",
   markers: "/hope/mocap/marker_count",
+  markerExpectedCount: "/hope/mocap/marker_expected_count",
   markersFresh: "/hope/mocap/marker_fresh",
+  assetMatched: "/hope/mocap/asset_match",
+  assetText: "/hope/mocap/asset_text",
   baseFresh: "/hope/base/fresh",
   commandValid: "/hope/command/valid",
   commandCountdown: "/hope/command/hdu_wall_countdown_s",
@@ -68,9 +70,6 @@ const TOPICS = {
   lastReason: "/hope/runner/last_action_reason",
   xHitSuccess: "/hope/x_hit/success",
   xHitStatus: "/hope/x_hit/status",
-  calibrationSuccess: "/hope/calibration/success",
-  calibrationStatus: "/hope/calibration/status",
-  calibrationProfile: "/hope/calibration/profile",
   lifecycleState: "/hope/lifecycle/state",
   lifecycleStep: "/hope/lifecycle/step",
   lifecycleSession: "/hope/lifecycle/session_id",
@@ -95,9 +94,6 @@ const SERVICES = {
   setServer: "/hope/runner/set_server",
   setReceiver: "/hope/runner/set_receiver",
   stand: "/hope/runner/enter_pd_stand",
-  calibrationStickers: "/hope/calibrate_stickers_v3",
-  calibrationV2: "/hope/calibrate_v2",
-  calibrationV3: "/hope/calibrate_v3",
   refreshXHit: "/hope/refresh_x_hit",
   ready: "/hope/runner/enter_motion",
   teleop: "/hope/runner/enter_teleop",
@@ -212,7 +208,9 @@ type Snapshot = {
   mduActive?: boolean;
   markerAsset?: string;
   markerCount?: number;
-  markerExpected?: number;
+  markerExpectedCount?: number;
+  assetMatched?: boolean;
+  assetText?: string;
   markersFresh?: boolean;
   baseFresh?: boolean;
   commandValid?: boolean;
@@ -238,9 +236,6 @@ type Snapshot = {
   xHitSuccess?: boolean;
   xHitStatus?: string;
   field?: FieldStatus;
-  calibrationSuccess?: boolean;
-  calibrationStatus?: string;
-  calibrationProfile?: string;
   lifecycleState?: string;
   lifecycleStep?: string;
   lifecycleSession?: string;
@@ -365,14 +360,20 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
     case TOPICS.markerAsset:
       next.markerAsset = stringValue(event.message);
       break;
-    case TOPICS.markerExpected:
-      next.markerExpected = numberValue(event.message);
-      break;
     case TOPICS.markers:
       next.markerCount = numberValue(event.message);
       break;
+    case TOPICS.markerExpectedCount:
+      next.markerExpectedCount = numberValue(event.message);
+      break;
     case TOPICS.markersFresh:
       next.markersFresh = boolValue(event.message);
+      break;
+    case TOPICS.assetMatched:
+      next.assetMatched = boolValue(event.message);
+      break;
+    case TOPICS.assetText:
+      next.assetText = stringValue(event.message);
       break;
     case TOPICS.baseFresh:
       next.baseFresh = boolValue(event.message);
@@ -449,15 +450,6 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.xHitStatus:
       next.xHitStatus = stringValue(event.message);
-      break;
-    case TOPICS.calibrationSuccess:
-      next.calibrationSuccess = boolValue(event.message);
-      break;
-    case TOPICS.calibrationStatus:
-      next.calibrationStatus = stringValue(event.message);
-      break;
-    case TOPICS.calibrationProfile:
-      next.calibrationProfile = stringValue(event.message);
       break;
     case TOPICS.lifecycleState:
       next.lifecycleState = stringValue(event.message);
@@ -587,25 +579,6 @@ function selectedMarkerAsset(snapshot: Snapshot): string {
     : "SIDE UNSET";
 }
 
-function calibrationDetail(snapshot: Snapshot, profile: "V2" | "V3" | "STICKERS_V3"): string {
-  const tableSide = selectedMarkerAsset(snapshot);
-  if (snapshot.calibrationSuccess === true && snapshot.calibrationProfile === profile) {
-    return `${tableSide} · DONE · ${profile} pants · world→pelvis JSON`;
-  }
-  if (snapshot.calibrationProfile === profile && snapshot.calibrationStatus != undefined) {
-    return `${tableSide} · ${snapshot.calibrationStatus}`;
-  }
-  if (snapshot.calibrationSuccess === true && snapshot.calibrationProfile != undefined) {
-    return `${tableSide} · ${snapshot.calibrationProfile} is active · click only after installing ${profile} pants`;
-  }
-  if (snapshot.runnerMode === "PD_STAND") {
-    return profile === "V2"
-      ? `${tableSide} · legacy V2 ten-point layout · replaces active receipt`
-      : `${tableSide} · new V3 ten-point layout · replaces active receipt`;
-  }
-  return `${tableSide} · LOCKED · stand first`;
-}
-
 type ActionButtonProps = {
   label: string;
   detail: string;
@@ -655,8 +628,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [configTouched, setConfigTouched] = useState(false);
   const [fieldBusy, setFieldBusy] = useState(false);
   const [recordBusy, setRecordBusy] = useState(false);
-  const [recalibrating, setRecalibrating] = useState(false);
-  const calibrationInput = useRef<HTMLInputElement>(null);
   const csvInput = useRef<HTMLInputElement>(null);
 
   useLayoutEffect(() => {
@@ -725,9 +696,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         const timeoutMs =
           key === "estop"
             ? 5_000
-            : key === "calibrationV2" || key === "calibrationV3" || key === "calibrationStickers"
-              ? 40_000
-              : key === "refreshXHit"
+            : key === "refreshXHit"
                 ? 7_000
                 : key === "timeCalibration"
                   ? 10_000
@@ -762,15 +731,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       })) as SetParametersResponse;
       const result = raw.results?.[0];
       if (result?.successful !== true) {throw new Error(typeof result?.reason === "string" ? result.reason : "invalid response");}
-      if (payload.op === "export_calibration") {
-        const exported = JSON.parse(String(result.reason)) as { name: string; content: string };
-        const url = URL.createObjectURL(new Blob([exported.content], { type: "application/json" }));
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = exported.name;
-        anchor.click();
-        window.setTimeout(() => { URL.revokeObjectURL(url); }, 1_000);
-      }
       setNotice(`ACCEPTED · ${String(payload.op)} · follow the status shown below`);
     } catch (error) {
       setNotice(`REJECTED · ${error instanceof Error ? error.message : String(error)}`);
@@ -779,15 +739,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     }
   }, [context]);
 
-  const uploadAsset = useCallback(async (file: File | undefined, kind: "calibration" | "csv") => {
+  const uploadAsset = useCallback(async (file: File | undefined) => {
     if (file == undefined) {return;}
-    const maximum = (kind === "csv" ? 8 : 1) * 1024 * 1024;
+    const maximum = 8 * 1024 * 1024;
     if (file.size > maximum) {
-      setNotice(`REJECTED · ${kind} exceeds ${maximum / 1024 / 1024} MiB`);
+      setNotice(`REJECTED · CSV exceeds ${maximum / 1024 / 1024} MiB`);
       return;
     }
     try {
-      await fieldCommand({ op: kind === "csv" ? "upload_csv" : "load_calibration",
+      await fieldCommand({ op: "upload_csv",
         name: file.name, content: await file.text() });
     } catch (error) {
       setNotice(`File read failed · ${String(error)}`);
@@ -864,7 +824,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const killAllAndCollect = useCallback(async () => {
     const accepted = window.confirm(
       snapshot.field?.mode === "KERNEL"
-        ? "Stop the Kernel Mode Runner and HAL and restore agibot_pm? The robot may lose active support immediately; physically support it and keep the physical E-stop reachable. Diagnostic logs remain on the robot. Recording remains under its own switch."
+        ? "Stop the Kernel Mode Runner and HAL and restore agibot_pm? The robot may lose active support immediately; physically support it and keep the physical E-stop reachable. Recorded data remains on the robot. Active recording will close."
         : "Immediately terminate all lifecycle-managed Runner, HAL, Planner and base-relay sessions, restore agibot_pm, then collect logs? The robot may lose active support immediately; physically support it and keep the physical E-stop reachable. Any separately managed OptiTrack session is left untouched.",
     );
     if (accepted) {
@@ -893,6 +853,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     isFresh(snapshot, TOPICS.runnerAlive, now, 1_500) && snapshot.runnerAlive === true;
   const markerFresh =
     isFresh(snapshot, TOPICS.markers, now, 1_000) &&
+    isFresh(snapshot, TOPICS.markerExpectedCount, now, 1_000) &&
     snapshot.markersFresh === true;
   const markerAsset = selectedMarkerAsset(snapshot);
   const baseFresh = isFresh(snapshot, TOPICS.baseFresh, now, 1_000) && snapshot.baseFresh === true;
@@ -937,9 +898,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const assetEditable = fieldFresh && lifecycleState === "STOPPED" && !lifecycleBusy &&
     !fieldBusy && field?.busy !== true && !configTouched && (snapshot.lifecycleConfigRevision ?? 0) > 0;
   const recordingState = fieldFresh ? (field?.recording.state ?? "UNKNOWN") : "UNKNOWN";
-  const recordingActive = ["ON", "STARTING", "STOPPING"].includes(recordingState);
-  const savedCalibration = field?.calibration;
-  const calibrationMatchesSide = savedCalibration?.table_side === snapshot.lifecycleConfig.table_side;
+  const recordingActive = ["ON", "STARTING", "STOPPING", "ERROR"].includes(recordingState);
+  const assetFresh = isFresh(snapshot, TOPICS.assetMatched, now, 1_000);
   const configComplete =
     RUNNER_NETWORK_CONFIG_FIELDS.every((name) => configDraft[name].trim().length > 0) &&
     ["P1", "P2"].includes(configDraft.table_side);
@@ -1093,8 +1053,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           detail={snapshot.estopText}
         />
         <GateChip
-          label={`${markerAsset} MARKERS · AUDIT ${markerFresh ? Math.round(snapshot.markerCount ?? 0) : "—"}/${snapshot.markerExpected ?? 24}`}
-          value={markerFresh ? snapshot.markerCount === (snapshot.markerExpected ?? 24) : undefined}
+          label={`${markerAsset} MARKERS · AUDIT ${markerFresh ? Math.round(snapshot.markerCount ?? 0) : "—"}/${markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? Math.round(snapshot.markerExpectedCount ?? 0) : "—"}`}
+          value={markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? snapshot.markerCount === snapshot.markerExpectedCount : undefined}
           detail={`selected marker asset: ${markerAsset}`}
         />
         <GateChip
@@ -1133,7 +1093,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             onClick={() => void fieldCommand({ op: recordingActive ? "record_off" : "record_on" })}>
             {recordBusy ? "Updating…" : recordingActive ? "Record OFF · Stop" : "Record ON · Start"}
           </button>
-          <span className="helper">Default OFF · manual MCAP recording</span>
+          <span className="helper">{field?.mode === "KERNEL" ? "Default OFF · robot data (Kernel has no Planner/mocap)" : "Default OFF · robot, policy, Planner and mocap data"}</span>
           <span className="asset-path">{field?.recording.output}</span>
           <span className="helper">{field?.recording.error}</span>
         </div>
@@ -1141,62 +1101,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
       <div className="field-assets">
         <section className="field-card">
-          <span className="eyebrow">VENUE CALIBRATION</span>
-          <strong>{savedCalibration ? calibrationMatchesSide ? "SAVED" : "TABLE SIDE MISMATCH" : "NO CALIBRATION LOADED"}</strong>
-          <span className="asset-path">{savedCalibration?.name ?? "Load a venue JSON, or explicitly recalibrate"}</span>
-          <span className="helper">{savedCalibration ? `${savedCalibration.profile.toUpperCase()} · ${savedCalibration.table_side} · SHA ${savedCalibration.sha256.slice(0, 12)}` : ""}</span>
-          <span className="helper">File: {field?.calibration_sync ?? "checking"} · live pose: {calibrationMatchesSide && baseFresh && snapshot.calibrationSuccess === true ? "VALID" : "unavailable / awaiting matching receipt"}</span>
-          <div className="field-buttons">
-            <button type="button" disabled={!assetEditable} onClick={() => calibrationInput.current?.click()}>Load JSON</button>
-            <button type="button" disabled={!fieldFresh || fieldBusy || savedCalibration == undefined}
-              onClick={() => void fieldCommand({ op: "export_calibration" })}>Export JSON</button>
-            <button type="button" aria-expanded={recalibrating} onClick={() => { setRecalibrating((value) => !value); }}>Recalibrate</button>
-          </div>
-          <input ref={calibrationInput} type="file" accept=".json,application/json" hidden
-            onChange={(event) => { void uploadAsset(event.target.files?.[0], "calibration"); event.target.value = ""; }} />
-          <p className="helper">Saved files are reused after restart. Load while stopped. Recalibrate only when the venue, marker mounting or rigid-body setup changes.</p>
-          {recalibrating && <div className="recalibration-actions">
-            <p className="helper">OptiTrack mode · start the mocap stream · Stand · select the matching marker layout. Opening this section starts nothing.</p>
-          <ActionButton
-            label={`Cali 24 stickers · ${markerAsset}`}
-            detail={calibrationDetail(snapshot, "STICKERS_V3")}
-            disabled={
-              kernelMode || !runnerUsable || !runnerStanding || busy.calibrationV3 === true
-            }
-            busy={busy.calibrationStickers === true}
-            completed={
-              snapshot.calibrationSuccess === true && snapshot.calibrationProfile === "STICKERS_V3"
-            }
-            next={false}
-            onClick={() => void invokeConfirmed("calibrationStickers", "Replace the active venue calibration with a new 24-sticker capture? The previous approved JSON remains in the venue archive. Keep the robot in PD_STAND during capture.")}
-          />
-          <ActionButton
-            label={`Cali V2 · ${markerAsset}`}
-            detail={calibrationDetail(snapshot, "V2")}
-            disabled={
-              kernelMode || !runnerUsable || !runnerStanding || busy.calibrationV3 === true
-            }
-            busy={busy.calibrationV2 === true}
-            completed={
-              snapshot.calibrationSuccess === true && snapshot.calibrationProfile === "V2"
-            }
-            next={false}
-            onClick={() => void invokeConfirmed("calibrationV2", "Replace the active venue calibration with a new V2 capture? The previous approved JSON remains in the venue archive. Keep the robot in PD_STAND during capture.")}
-          />
-          <ActionButton
-            label={`Cali V3 · ${markerAsset}`}
-            detail={calibrationDetail(snapshot, "V3")}
-            disabled={
-              kernelMode || !runnerUsable || !runnerStanding || busy.calibrationV2 === true
-            }
-            busy={busy.calibrationV3 === true}
-            completed={
-              snapshot.calibrationSuccess === true && snapshot.calibrationProfile === "V3"
-            }
-            next={false}
-            onClick={() => void invokeConfirmed("calibrationV3", "Replace the active venue calibration with a new V3 capture? The previous approved JSON remains in the venue archive. Keep the robot in PD_STAND during capture.")}
-          />
-          </div>}
+          <span className="eyebrow">MOTIVE · LIVE ASSET</span>
+          <strong>{assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>
+          <span className="asset-path">{markerAsset}</span>
+          <span className="helper">{assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
+          <span className="helper">Live pelvis: {baseFresh ? "AVAILABLE" : "WAITING"} · selected robot: {markerAsset}</span>
+          <p className="helper">Set Motive Up Axis to Z. Keep the imported pelvis origin and axes unchanged, and align the Motive world with the table. No venue JSON or Cali V2/V3 capture is needed.</p>
+          <p className="helper">Default mode accepts the current named asset without a fixed file or marker layout. Pelvis alignment is assumed from the imported asset; physical mounting is not measured.</p>
         </section>
         <section className="field-card">
           <span className="eyebrow">SERVE CSV</span>
@@ -1208,7 +1119,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               onClick={() => void fieldCommand({ op: "use_default_csv" })}>Use built-in CSV</button>
           </div>
           <input ref={csvInput} type="file" accept=".csv,text/csv" hidden
-            onChange={(event) => { void uploadAsset(event.target.files?.[0], "csv"); event.target.value = ""; }} />
+            onChange={(event) => { void uploadAsset(event.target.files?.[0]); event.target.value = ""; }} />
           <p className="helper">Select Kernel Mode, upload while stopped, then Run → SERVER → Stand → Start to Serve → load ball and clear hands → Serve → slowly lower arms → Stand → Start to Serve again.</p>
           <span className="helper">Uploads use the Runner CSV validator and never start motion. Normal play retains its built-in serve CSV.</span>
         </section>
@@ -1255,8 +1166,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <div>
             <div className="eyebrow">OUR TABLE SIDE · LOCKED INTO NEXT START</div>
             <div className="topic-path">
-              START SYSTEM does not contact Motive · when optional OptiTrack is running, P1
-              uses Motive world directly and P2 rotates UCB_P2 poses 180° about the table centre
+              START SYSTEM does not contact Motive · when optional OptiTrack is running, UCB_P1
+              uses Motive world directly and UCB_P2 poses rotate 180° about the table centre
             </div>
           </div>
           {(["P1", "P2"] as const).map((side) => (
@@ -1270,7 +1181,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
                 setConfigDraft((current) => ({ ...current, table_side: side }));
               }}
             >
-              {side === "P1" ? "P1 · DIRECT" : "P2 · ROTATE 180°"}
+              {side === "P1" ? "UCB_P1 · DIRECT" : "UCB_P2 · ROTATE 180°"}
             </button>
           ))}
         </div>

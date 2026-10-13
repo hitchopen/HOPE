@@ -6,9 +6,11 @@
 #include <cstdio>
 #include <deque>
 #include <mutex>
+#include <memory>
 #include <string>
 #include <thread>
 
+namespace hope_recording { class RecordingFile; }
 namespace hope_planner_cpp {
 
 class AuditLogger {
@@ -34,7 +36,9 @@ class AuditLogger {
   std::FILE* stream_ = nullptr;
   mutable std::mutex mutex_;
   std::condition_variable condition_;
-  std::deque<std::string> queue_;
+  std::deque<std::pair<std::string, std::uint64_t>> queue_;
+  std::unique_ptr<hope_recording::RecordingFile> recording_;
+  std::atomic<std::uint64_t> recording_generation_{0};
   std::thread thread_;
   std::atomic<bool> stop_requested_{false};
   std::atomic<std::uint64_t> dropped_rows_{0};

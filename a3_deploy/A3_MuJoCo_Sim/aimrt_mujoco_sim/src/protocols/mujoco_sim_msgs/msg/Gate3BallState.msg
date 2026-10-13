@@ -7,6 +7,9 @@ uint64 shot_id
 bool active
 geometry_msgs/Point position
 geometry_msgs/Vector3 linear_velocity
+# Full simulated rigid-body orientation and world-frame angular velocity.
+geometry_msgs/Quaternion orientation
+geometry_msgs/Vector3 angular_velocity
 
 # Contact bits describe the current MuJoCo step.  Counts are rising-edge counts
 # accumulated by the 1 kHz plant and therefore cannot miss a short contact just

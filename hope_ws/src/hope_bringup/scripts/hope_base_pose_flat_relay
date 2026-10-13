@@ -6,13 +6,16 @@ can exceed the runner's localization freshness horizon, so base forwarding must
 not share that callback path.
 
 Schema 2 preserves an authoritative ROS timestamp and the complete calibrated
-world->base pose. In production this relay runs beside NatNet on the external
-computer and reloads the computer-local per-run JSON. V17 rejects schema 1,
+world->base pose. The OptiTrack launch uses the current Motive body's nominal
+pelvis frame without pinning a file or marker layout. Pinned asset verification
+and legacy computer-local JSON calibration remain explicit modes.
+The Runner rejects schema 1,
 missing receipts, invalid quaternions, reordered source time, and implausible
 pose jumps.
 """
 
 import math
+import time
 from pathlib import Path
 
 import rclpy
@@ -20,7 +23,7 @@ from geometry_msgs.msg import PoseStamped
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Bool, Float64MultiArray, String
 
 from base_pose_contract import (
     FLAG_EXTRINSIC_CALIBRATED,
@@ -59,6 +62,7 @@ class BasePoseFlatRelay(Node):
         self.declare_parameter("pelvis_frame", "pelvis_link")
         self.declare_parameter("pelvis_pose_topic", "/a3/mocap/pelvis_pose")
         self.declare_parameter("calibration_file", "")
+        self.declare_parameter("localization_source", "calibration")
         self.declare_parameter("calibration_reload_period_s", 1.0)
         self.declare_parameter("require_marker_identity", False)
         self.declare_parameter(
@@ -100,9 +104,21 @@ class BasePoseFlatRelay(Node):
             self.get_parameter("expected_marker_frame").value
         )
         self._pelvis_frame = str(self.get_parameter("pelvis_frame").value)
+        source = str(self.get_parameter("localization_source").value)
+        if source not in {"calibration", "motive_live", "motive_asset"}:
+            raise ValueError("localization_source must be calibration, motive_live or motive_asset")
+        self._asset_mode = source in {"motive_live", "motive_asset"}
+        self._pinned_asset = source == "motive_asset"
+        self._asset_seen_at = None
+        self._asset_stamp_ns = None
+        self._asset_points = None
+        self._asset_marker_count = 0
+        if self._pinned_asset:
+            from motive_asset_contract import load_asset_points
+            self._asset_points = load_asset_points()
         calibration_file = str(self.get_parameter("calibration_file").value).strip()
-        self._calibration_path = Path(calibration_file) if calibration_file else None
-        self._require_marker_identity = bool(
+        self._calibration_path = Path(calibration_file) if calibration_file and not self._asset_mode else None
+        self._require_marker_identity = self._asset_mode or bool(
             self.get_parameter("require_marker_identity").value
         )
         self._loaded_calibration_sha = ""
@@ -112,7 +128,7 @@ class BasePoseFlatRelay(Node):
         self._live_rigid_body_id: int | None = None
         self._extrinsic_calibrated = (
             False
-            if self._calibration_path is not None
+            if self._calibration_path is not None or self._asset_mode
             else bool(self.get_parameter("extrinsic_calibrated").value)
         )
         self._world_calibrated = bool(
@@ -201,6 +217,10 @@ class BasePoseFlatRelay(Node):
             str(self.get_parameter("pelvis_pose_topic").value),
             output_qos,
         )
+        if self._asset_mode:
+            self._asset_match_pub = self.create_publisher(Bool, "/hope/mocap/asset_match", 10)
+            self._asset_text_pub = self.create_publisher(String, "/hope/mocap/asset_text", 10)
+            self.create_timer(0.25, self._publish_asset_status)
         self.create_subscription(
             PoseStamped,
             str(self.get_parameter("input_topic").value),
@@ -319,7 +339,45 @@ class BasePoseFlatRelay(Node):
             return
         self._live_rigid_body_name = name
         self._live_rigid_body_id = int(msg.rigid_body_id)
+        if self._asset_mode:
+            from motive_asset_contract import accept_live_modeldef, verify_modeldef
+            try:
+                if str(msg.header.frame_id) != self._expected_input_frame:
+                    raise ValueError("unexpected asset observation frame")
+                if self._pinned_asset:
+                    digest, identity = verify_modeldef(msg, self._expected_marker_frame, self._asset_points)
+                else:
+                    digest, identity = accept_live_modeldef(msg, self._expected_marker_frame)
+            except ValueError as exc:
+                self._asset_seen_at = None
+                self._invalidate_calibration(str(exc))
+                return
+            self._offset = (0.0, 0.0, 0.0)
+            self._offset_quat = (1.0, 0.0, 0.0, 0.0)
+            self._loaded_calibration_sha = digest
+            self._calibration_id = identity
+            self._calibration_error = ""
+            self._extrinsic_calibrated = True
+            self._asset_marker_count = len(msg.markers)
+            self._asset_seen_at = time.monotonic()
+            self._asset_stamp_ns = int(msg.header.stamp.sec) * 1_000_000_000 + int(msg.header.stamp.nanosec)
+            self._rebuild_flags()
+            return
         self._reconcile_calibration_identity()
+
+    def _asset_is_fresh(self) -> bool:
+        return self._asset_seen_at is not None and time.monotonic() - self._asset_seen_at <= 0.25
+
+    def _publish_asset_status(self) -> None:
+        matched = self._extrinsic_calibrated and self._asset_is_fresh()
+        if not matched and self._extrinsic_calibrated:
+            self._invalidate_calibration("waiting for fresh asset observations")
+        self._asset_match_pub.publish(Bool(data=matched))
+        mode = "pinned layout matched" if self._pinned_asset else "live definition accepted · no file/layout pin"
+        self._asset_text_pub.publish(String(data=(
+            f"{self._expected_marker_frame} · {self._asset_marker_count} markers · {mode} · nominal identity"
+            if matched else self._calibration_error or "waiting for live Motive definition"
+        )))
 
     def _pose_cb(self, msg: PoseStamped) -> None:
         self._received += 1
@@ -333,6 +391,10 @@ class BasePoseFlatRelay(Node):
         receipt_ns = int(self.get_clock().now().nanoseconds)
         out = Float64MultiArray()
         try:
+            if self._asset_mode:
+                pose_stamp = input_sec * 1_000_000_000 + input_nsec
+                if not self._asset_is_fresh() or self._asset_stamp_ns is None or abs(pose_stamp - self._asset_stamp_ns) > 100_000_000:
+                    raise ValueError("fresh accepted Motive definition is missing")
             if not self._extrinsic_calibrated or not self._world_calibrated:
                 raise ValueError("marker/base or venue world calibration receipt is missing")
             if str(msg.header.frame_id) != self._expected_input_frame:

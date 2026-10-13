@@ -88,6 +88,7 @@ def generate_launch_description():
     table_length_m = LaunchConfiguration("table_length_m")
     table_width_m = LaunchConfiguration("table_width_m")
     require_marker_identity = LaunchConfiguration("require_marker_identity")
+    localization_source = LaunchConfiguration("localization_source")
 
     nodes = [
         _static_tf(frames["world"], frames["table_center"], landmarks["table_center"], [0.0, 0.0, 0.0]),
@@ -116,6 +117,7 @@ def generate_launch_description():
                 "pelvis_frame": "pelvis_link",
                 "pelvis_pose_topic": "/a3/mocap/pelvis_pose",
                 "calibration_file": ucb_calibration_file,
+                "localization_source": localization_source,
                 "require_marker_identity": ParameterValue(
                     require_marker_identity, value_type=bool
                 ),
@@ -150,6 +152,7 @@ def generate_launch_description():
                 default_value="/a3/base_pose_flat",
                 description="schema-2 base-pose output topic",
             ),
+            DeclareLaunchArgument("localization_source", default_value="calibration"),
             DeclareLaunchArgument("table_side", default_value="P1"),
             DeclareLaunchArgument("tracked_marker_frame", default_value="UCB_P1"),
             DeclareLaunchArgument("tracked_pose_topic", default_value="/UCB_P1/pose"),

@@ -4,6 +4,18 @@
 physical fit, hardware retention and crash testing remain required.**
 The v3 model name and printable filenames are unchanged.
 
+Imported from [HOPE commit 10b1bd710c074cf9851a3ca2f63494dc23a39e06](https://github.com/hitchopen/HOPE/commit/10b1bd710c074cf9851a3ca2f63494dc23a39e06).
+Meshes, coordinate tables, workbook and PDF retain that commit's bytes. This
+checkout keeps the tested rigid-body name **`UCB_P1`** in the Motive asset and
+its companion authoring files; marker geometry, IDs and pivot are unchanged.
+On 2026-10-13 the operator reported this asset usable after testing. The
+upstream reports below retain their original offline evidence scope.
+
+The default localization mode remains **`motive_live`**: it uses the selected
+body's current NatNet ModelDef without binding to a file SHA-256, marker count
+or reference layout. A fresh calibration JSON is not required by that mode.
+The marker monitor derives its expected count from the current definition.
+
 ## What changed
 
 - All ten obsolete external marker bosses **and their screw bores** are removed,
@@ -120,16 +132,13 @@ ball/stud/spacer offset before producing a ball-centre table and matching
 Motive calibration. The recovered 6 mm stand-off of the obsolete registration
 markers must not be reused for the new ball hardware.
 
-The `stickers_v3` calibration uses the **sticker optical-centre CSV directly**
-for all 17 stations and installs the same table with `hope_bringup`.
-After changing the shell/Motive asset, restart NatNet and generate a fresh live
-P1-to-pelvis receipt; all earlier 12-point, old 24-station and ten-marker receipts
-are rejected. Follow the
-[v3 calibration procedure](../README.md#v3-sticker-p1-to-pelvis-calibration).
-The [calibration README](../../calibration/README.md) explains the laptop-local
-runtime receipt; do not use the supplied identity-default JSON as that receipt.
-This software integration does not make the CAD table or authoring asset a
-physically verified calibration.
+The **sticker optical-centre CSV** contains all 17 stations and is installed
+with `hope_bringup`. Its layout metadata supports offline comparisons and
+optional measured calibration. Old 12-point, 24-station and ten-marker
+receipts do not match this table. The supplied identity-default JSON remains
+a reference, not an approved measured receipt. Default `motive_live` operation
+does not require this table or receipt; see the
+[localization console notes](../../foxglove/extensions/hope-a3-console/README.md).
 
 ## Supplied OptiTrack asset and station evidence
 
@@ -138,7 +147,7 @@ physically verified calibration.
   16-point export, retained for traceability. **Do not use the unfiltered
   16-point asset for the revised 17-station shell.**
 - [A3_v3_17_stickers.motive](motive_asset/A3_v3_17_stickers.motive) and its
-  [CSV](motive_asset/A3_v3_17_stickers.csv) define the **pelvis-aligned `P1`**
+  [CSV](motive_asset/A3_v3_17_stickers.csv) define the **pelvis-aligned `UCB_P1`**
   offline candidate. The CSV is its coordinate companion.
   Original Points **3, 9, 13** (removed S23, S03, S02) and unmatched **Point 15**
   are excluded. The measured constellation is rigidly reframed to the nominal
@@ -168,19 +177,20 @@ physically verified calibration.
 - The filtered native file passes XML/reference/coordinate checks but has
   **not been imported and re-exported in Motive**. Import into an isolated
   project first; the candidate preserves the source body UUID and can replace
-  that body if imported into the same project. Confirm body name `P1`, 17
+  that body if imported into the same project. Confirm body name `UCB_P1`, 17
   markers and a unique streaming ID, save a fresh native export, restart
   NatNet and perform the live verification described below.
 
-For `main`'s current runtime, rename the imported `P1` body to `UCB_P1` or
-`UCB_P2` for the selected table side and select `stickers_v3`. Preserve the
-aligned geometry. Generate `calibration/ucb_robot_to_pelvis.json` through live
-calibration; legacy `v2`/`v3` ball layouts remain separate supported profiles.
+This checkout already supplies `UCB_P1` for table side P1. For table side P2,
+use `UCB_P2`. Preserve the aligned geometry and pivot. Default `motive_live`
+accepts the selected body's current definition; `motive_asset` is an optional
+pinned check against this 17-marker file. Only explicit `calibration` mode
+requires a measured `calibration/ucb_robot_to_pelvis.json` receipt.
 
 ### Pelvis origin and ROS axes: no extra default correction
 
 The aligned asset targets **`pelvis_link` at its origin, X forward / Y left /
-Z up in the ROS stream**. The default `P1 → pelvis_link` is therefore:
+Z up in the ROS stream**. The default `UCB_P1 → pelvis_link` is therefore:
 
 ```text
 translation (m):    [0, 0, 0]
@@ -208,13 +218,13 @@ components below 1e-9). That is an offline consistency test, not physical
 accuracy: the original measured subset remains 1.395 mm RMS / 1.853 mm maximum.
 The five nominal additions are not new calibration evidence.
 The robot/world pose still rotates as the robot moves; only the **fixed local
-P1-to-pelvis correction** is intended to be identity. World/table calibration
+UCB_P1-to-pelvis correction** is intended to be identity. World/table calibration
 is unaffected.
 
 After importing, do not use Motive **Reset Location / Reset Orientation**:
 those reset the pivot to the marker centroid or re-align it to the world axes,
 undoing this registration. See [Motive pivot controls](https://docs.optitrack.com/motive/rigid-body-tracking#adjusting-a-rigid-body-pivot-point).
-Run the existing live calibration as verification; expect an approximately
+Optional measured calibration can verify the installation; expect an approximately
 identity result. A significant correction is a setup discrepancy to investigate,
 not a reason to force the saved values to identity. Receipts from the earlier
 12-point layout (including the pelvis-aligned revision) are rejected by the new

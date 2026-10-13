@@ -26,6 +26,7 @@
 #include <libmotioncapture/motioncapture.h>
 #include <motion_capture_tracking/competition_rigid_body_filter.h>
 #include <motion_capture_tracking/output_rate_limiter.h>
+#include "motion_capture_tracking/world_frame_transform.hpp"
 
 std::set<std::string> extract_names(
   const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides,
@@ -65,6 +66,9 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
   node->declare_parameter<std::string>("hostname", "localhost");
   node->declare_parameter<std::string>("interface_ip", "");
   node->declare_parameter<std::string>("topics.frame_id", "world");
+  node->declare_parameter<double>("world_transform.yaw_degrees", 0.0);
+  node->declare_parameter<std::vector<double>>(
+      "world_transform.translation_m", std::vector<double>{0.0, 0.0, 0.0});
   node->declare_parameter<std::string>("topics.header_time", "ros");
   node->declare_parameter<double>("topics.output_rate_hz", 200.0);
   node->declare_parameter<double>("topics.network_latency_ms", 0.0);
@@ -99,6 +103,19 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
   std::string motionCaptureInterfaceIp =
     node->get_parameter("interface_ip").as_string();
   std::string frame_id = node->get_parameter("topics.frame_id").as_string();
+  const double world_yaw = node->get_parameter("world_transform.yaw_degrees").as_double();
+  const auto world_translation =
+      node->get_parameter("world_transform.translation_m").as_double_array();
+  if (world_translation.size() != 3) {
+    throw std::invalid_argument("world_transform.translation_m requires 3 values");
+  }
+  const motion_capture_tracking::detail::WorldFrameTransform world_transform(
+      world_yaw, {world_translation[0], world_translation[1], world_translation[2]});
+  RCLCPP_INFO(node->get_logger(),
+      "Motive -> %s: yaw=%+.3f deg translation=[%+.4f,%+.4f,%+.4f] m; "
+      "applied once to published world poses/points, ModelDef stays local",
+      frame_id.c_str(), world_yaw, world_translation[0], world_translation[1],
+      world_translation[2]);
   std::string header_time = node->get_parameter("topics.header_time").as_string();
   double output_rate_hz = node->get_parameter("topics.output_rate_hz").as_double();
   double network_latency_ms = node->get_parameter("topics.network_latency_ms").as_double();
@@ -483,6 +500,7 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
               message_marker.residual_m = sample->residual;
             }
           }
+          world_transform.ApplyMarkerArray(output);
           pubRigidBodyMarkers->publish(output);
         }
       }
@@ -514,6 +532,7 @@ int runMotionCaptureTrackingNode(int argc, char **argv)
           named_pose.pose.orientation.y = rigid_body.rotation().y();
           named_pose.pose.orientation.z = rigid_body.rotation().z();
           named_pose.pose.orientation.w = rigid_body.rotation().w();
+          world_transform.ApplyPose(named_pose.pose);
           output_poses.push_back(std::move(named_pose));
           break;
         }

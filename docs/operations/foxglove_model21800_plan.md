@@ -3,7 +3,7 @@
 最后核对：2026-08-11
 
 > 本文保留实施计划及当时的十 marker 描述，不是当前 marker 布局操作规程。
-> `nightly_built` 已改为 12 个保留站位的 v3 贴纸壳与 pelvis 对齐的 `P1` 资产；
+> 当前发布版 已改为 17 个保留站位的 v3 贴纸壳与 pelvis 对齐的 `UCB_P1` 资产；
 > 使用 [当前 v3 标定流程](../../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
 > 和 [receipt 规则](../../calibration/README.md)，不要复用历史标定量。
 

@@ -26,7 +26,8 @@ class Gate3BallEvidence(Node):
         self._trajectory_file = self._trajectory_path.open("w", newline="")
         self._trajectory = csv.writer(self._trajectory_file)
         self._trajectory.writerow(["wall_time_ns", "shot_id", "active", "x", "y", "z", "vx", "vy", "vz",
-                                   "racket_contact_count", "table_contact_count", "net_contact_count"])
+                                   "racket_contact_count", "table_contact_count", "net_contact_count",
+                                   "qw", "qx", "qy", "qz", "wx", "wy", "wz"])
         self._accumulator = PhysicalEvidenceAccumulator(
             range(1, args.expected_shots + 1),
             min_samples=args.min_samples,
@@ -53,7 +54,9 @@ class Gate3BallEvidence(Node):
         self._trajectory.writerow([self._stamp_ns(msg), msg.shot_id, int(msg.active),
                                    msg.position.x, msg.position.y, msg.position.z,
                                    msg.linear_velocity.x, msg.linear_velocity.y, msg.linear_velocity.z,
-                                   msg.racket_contact_count, msg.table_contact_count, msg.net_contact_count])
+                                   msg.racket_contact_count, msg.table_contact_count, msg.net_contact_count,
+                                   msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z,
+                                   msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
         self._accumulator.ingest(
             stamp_ns=self._stamp_ns(msg),
             shot_id=msg.shot_id,

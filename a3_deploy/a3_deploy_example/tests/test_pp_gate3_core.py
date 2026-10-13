@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import tempfile
 import pathlib
 import subprocess
 import sys
@@ -26,7 +28,109 @@ from pp_gate3_core import (  # noqa: E402
     serves_to_flat_list,
     table_to_world_position,
     world_to_table_position,
+    audit_actual_q_full_tail_ledger,
+    audit_cpp_planner_debug_csv,
+    audit_runner_engagement_trace,
+    audit_runner_localization_trace,
+    join_planner_evidence_by_flight_id,
 )
+
+
+def cpp_planner_audit_row(sequence: int) -> dict[str, object]:
+    net_cross = 1000.0 + sequence
+    return {
+        "session_id": "gate3_test",
+        "command_seq": sequence,
+        "flight_id": sequence,
+        "wire_valid": 1,
+        "reason": "command_valid",
+        "strike_x": 0.08,
+        "strike_y": -1.0,
+        "strike_z": 0.50,
+        "racket_vx": 2.0,
+        "racket_vy": 0.2,
+        "racket_vz": 0.6,
+        "swing_sign": 1 if sequence % 2 else -1,
+        "tts_s": 0.53,
+        "source_age_at_publish_ms": 1.0,
+        "total_ms": 0.2,
+        "input_ring_drops": 0,
+        "logger_drops": 0,
+        "base_valid": 1,
+        "base_age_ms": 0.3,
+        "estimator_kind": "batch_physics_cpp_no_ekf_persistent_bounce",
+        "control_stage2_mode": "post_net_one_shot_effective_bounce_zero_spin",
+        "out_of_order_samples_total": 0,
+        "one_shot_enabled": 1,
+        "one_shot_flight_seq": sequence,
+        "net_cross_source_time_s": net_cross,
+        "commit_source_time_s": net_cross + 0.05,
+        "post_net_commit_delay_s": 0.05,
+        "post_net_future_bounce_tangential_gain": 0.348260,
+        "trajectory_epoch": sequence,
+        "snapshot_sequence": sequence,
+        "snapshot_published_total": sequence,
+        "snapshot_consumed_total": sequence,
+        "snapshot_superseded_total": 0,
+    }
+
+
+def cpp_planner_packet_audit_row(sequence: int) -> dict[str, object]:
+    row = cpp_planner_audit_row(sequence)
+    row.update(
+        {
+            "snapshot_published_total": 0,
+            "snapshot_consumed_total": 0,
+            "flight_packet_input": 1,
+            "packet_session_id": "gate3_test",
+            "packet_producer_instance_id": "packetizer-test",
+            "packet_payload_hash": f"{sequence:016x}",
+            "packet_transmit_index": 0,
+            "packet_transmit_count": 3,
+            "packet_received_total": 3 * sequence - 2,
+            "packet_accepted_total": sequence,
+            "packet_duplicate_total": 2 * (sequence - 1),
+            "packet_conflict_total": 0,
+            "packet_invalid_total": 0,
+            "packet_queue_depth": 0,
+        }
+    )
+    return row
+
+
+def write_cpp_planner_audit(path: pathlib.Path, rows: list[dict[str, object]]) -> None:
+    with path.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def write_cpp_flight_packet_audit(path: pathlib.Path, flights: int) -> None:
+    rows = []
+    for sequence in range(1, flights + 1):
+        for transmit_index in range(3):
+            rows.append(
+                {
+                    "session_id": "gate3_test",
+                    "producer_instance_id": "packetizer-test",
+                    "trajectory_epoch": sequence,
+                    "flight_sequence": sequence,
+                    "payload_hash": f"{sequence:016x}",
+                    "transmit_index": transmit_index,
+                    "transmit_count": 3,
+                    "sample_count": 45,
+                    "source_age_ms": 1.0 + 5.0 * transmit_index,
+                    "dedupe_result": (
+                        "accepted" if transmit_index == 0 else "duplicate"
+                    ),
+                    "accepted_for_solve": 1 if transmit_index == 0 else 0,
+                    "packet_queue_depth": 1 if transmit_index == 0 else 0,
+                }
+            )
+    with path.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def complete_shot(accumulator: PhysicalEvidenceAccumulator, shot_id: int) -> None:
@@ -153,6 +257,806 @@ class Gate3ScenarioContractTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "at least 8"):
             generate_v17_r10_random_serves(7, 0)
+
+
+class Gate3CppPlannerEvidenceTest(unittest.TestCase):
+    def test_runner_localization_requires_every_motion_tick_fresh_without_serves(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(
+                    stream,
+                    fieldnames=(
+                        "tick", "wall_time_ns", "mode", "localization_fresh",
+                    ),
+                )
+                writer.writeheader()
+                writer.writerows(
+                    [
+                        {"tick": 10, "wall_time_ns": 1_000_000_000,
+                         "mode": 3, "localization_fresh": 1},
+                        {"tick": 11, "wall_time_ns": 1_020_000_000,
+                         "mode": 3, "localization_fresh": 0},
+                        {"tick": 12, "wall_time_ns": 1_040_000_000,
+                         "mode": 3, "localization_fresh": 1},
+                    ]
+                )
+            report = audit_runner_localization_trace(trace)
+        self.assertFalse(report["pass"])
+        self.assertFalse(report["continuous_fresh"])
+        self.assertEqual(report["motion_ticks"], 3)
+        self.assertEqual(report["stale_ticks"], 1)
+        self.assertEqual(
+            report["stale_tick_ranges"],
+            [{"first_tick": 11, "last_tick": 11, "ticks": 1}],
+        )
+
+    def test_runner_localization_accepts_contiguous_fresh_motion_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(
+                    stream,
+                    fieldnames=(
+                        "tick", "wall_time_ns", "mode", "localization_fresh",
+                    ),
+                )
+                writer.writeheader()
+                writer.writerows(
+                    [
+                        {"tick": 9, "wall_time_ns": 980_000_000,
+                         "mode": 1, "localization_fresh": 0},
+                        {"tick": 10, "wall_time_ns": 1_000_000_000,
+                         "mode": 3, "localization_fresh": 1},
+                        {"tick": 11, "wall_time_ns": 1_020_000_000,
+                         "mode": 3, "localization_fresh": 1},
+                    ]
+                )
+            report = audit_runner_localization_trace(trace)
+        self.assertTrue(report["pass"], report["errors"])
+        self.assertTrue(report["continuous_fresh"])
+        self.assertEqual(report["fresh_fraction"], 1.0)
+
+    def test_runner_localization_fails_closed_on_sparse_motion_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(
+                    stream,
+                    fieldnames=(
+                        "tick", "wall_time_ns", "mode", "localization_fresh",
+                    ),
+                )
+                writer.writeheader()
+                writer.writerows(
+                    [
+                        {"tick": 10, "wall_time_ns": 1_000_000_000,
+                         "mode": 3, "localization_fresh": 1},
+                        {"tick": 12, "wall_time_ns": 1_040_000_000,
+                         "mode": 3, "localization_fresh": 1},
+                    ]
+                )
+            report = audit_runner_localization_trace(trace)
+        self.assertFalse(report["pass"])
+        self.assertFalse(report["motion_tick_span_contiguous"])
+        self.assertTrue(any("sparse" in error for error in report["errors"]))
+
+    def test_live_cpp_one_shot_receipt_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "planner.csv"
+            write_cpp_planner_audit(
+                path, [cpp_planner_audit_row(1), cpp_planner_audit_row(2)]
+            )
+            report = audit_cpp_planner_debug_csv(path, 2)
+        self.assertTrue(report["planner_contract_pass"], report["errors"])
+        self.assertEqual(report["planner_runtime"], "hope_planner_cpp_node")
+        self.assertEqual(report["valid_commands"], 2)
+        self.assertEqual(report["tts_s_range"], [0.53, 0.53])
+        self.assertEqual(
+            [row["planner_side"] for row in report["rows"]],
+            ["forehand", "backhand"],
+        )
+
+    def test_physical_spin_mode_requires_matching_physics_evidence(self) -> None:
+        physical = {
+            "control_stage2_mode": "post_net_one_shot_physical_spin_magnus",
+            "future_contact_magnus_enabled": 1,
+            "physics_drag_k": 0.12861635416914574,
+            "physics_magnus_k": 0.00379260504480258,
+            "physics_table_gain": 0.38744443855065164,
+            "physics_table_mu": 0.16706204822993975,
+        }
+        variants = [({}, True), ({"future_contact_magnus_enabled": 0}, False),
+                    ({"physics_magnus_k": "nan"}, False),
+                    ({"physics_table_mu": 0.0}, False),
+                    ({"physics_drag_k": 0.119006}, False),
+                    ({"physics_table_gain": 0.369}, False),
+                    ({"control_stage2_mode": "unknown"}, False)]
+        for change, expected_pass in variants:
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                path = pathlib.Path(directory) / "planner.csv"
+                row = cpp_planner_audit_row(1)
+                row.update(physical)
+                row.update(change)
+                write_cpp_planner_audit(path, [row])
+                report = audit_cpp_planner_debug_csv(path, 1)
+                self.assertEqual(report["planner_contract_pass"], expected_pass, report["errors"])
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "planner.csv"
+            row = cpp_planner_audit_row(1)
+            row.update(physical)
+            del row["physics_magnus_k"]
+            write_cpp_planner_audit(path, [row])
+            self.assertFalse(audit_cpp_planner_debug_csv(path, 1)["planner_contract_pass"])
+
+    def test_planner_side_backfills_missed_flights_by_immutable_flight_id(self) -> None:
+        serves = [
+            {"serve": 1, "shot_id": 1, "flight_id": 1, "command_side": "forehand"},
+            {"serve": 2, "shot_id": 2, "flight_id": 2, "command_side": None},
+        ]
+        planner = {
+            "rows": [
+                {"flight_id": 1, "planner_side": "forehand", "row_pass": True},
+                {"flight_id": 2, "planner_side": "backhand", "row_pass": True},
+            ]
+        }
+        joined = join_planner_evidence_by_flight_id(serves, planner, 2)
+        self.assertTrue(joined["pass"], joined["errors"])
+        self.assertEqual(joined["joined_flight_ids"], [1, 2])
+        self.assertEqual(joined["side_backfilled_flight_ids"], [2])
+        self.assertEqual(serves[1]["command_side"], "backhand")
+
+    def test_runner_engage_gap_uses_trace_wall_time_and_frozen_flight_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(
+                    stream,
+                    fieldnames=(
+                        "tick", "wall_time_ns", "level", "planner_status",
+                        "frozen_flight_id",
+                    ),
+                )
+                writer.writeheader()
+                writer.writerows(
+                    [
+                        {"tick": 10, "wall_time_ns": 1_000_000_000, "level": 1,
+                         "planner_status": "engage", "frozen_flight_id": 15},
+                        {"tick": 11, "wall_time_ns": 1_020_000_000, "level": 1,
+                         "planner_status": "swinging", "frozen_flight_id": 15},
+                        {"tick": 20, "wall_time_ns": 3_310_000_000, "level": 1,
+                         "planner_status": "engage", "frozen_flight_id": 17},
+                    ]
+                )
+            report = audit_runner_engagement_trace(trace, range(15, 19))
+        self.assertTrue(report["trace_contract_pass"], report["errors"])
+        self.assertEqual(report["engaged_flight_ids"], [15, 17])
+        self.assertEqual(report["missed_flight_ids"], [16, 18])
+        self.assertEqual(report["engage_gaps_s"], [2.31])
+        self.assertEqual(report["gap_time_source"], "runner_trace.wall_time_ns")
+
+    def test_runner_trace_counts_initial_and_rapid_preempt_engagement_edges(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(
+                    stream,
+                    fieldnames=(
+                        "tick", "wall_time_ns", "level", "planner_status",
+                        "frozen_flight_id",
+                    ),
+                )
+                writer.writeheader()
+                writer.writerows(
+                    [
+                        {"tick": 10, "wall_time_ns": 1_000_000_000, "level": 1,
+                         "planner_status": "engage", "frozen_flight_id": 15},
+                        {"tick": 60, "wall_time_ns": 2_160_000_000, "level": 1,
+                         "planner_status": "preempt_engage", "frozen_flight_id": 16},
+                        {"tick": 110, "wall_time_ns": 3_320_000_000, "level": 1,
+                         "planner_status": "preempt_engage", "frozen_flight_id": 17},
+                    ]
+                )
+            report = audit_runner_engagement_trace(trace, range(15, 18))
+        self.assertTrue(report["trace_contract_pass"], report["errors"])
+        self.assertEqual(report["engaged_flight_ids"], [15, 16, 17])
+        self.assertEqual(report["missed_flight_ids"], [])
+        self.assertEqual(report["engage_gaps_s"], [1.16, 1.16])
+        self.assertEqual(
+            [event["edge_kind"] for event in report["engage_events"]],
+            ["engage", "preempt_engage", "preempt_engage"],
+        )
+
+    def test_runner_trace_closes_old_flight_on_preempt_and_final_on_native_end(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            fieldnames = (
+                "tick", "wall_time_ns", "level", "planner_status",
+                "frozen_flight_id", "frozen_producer_epoch",
+                "planner_completion_seq",
+                "planner_completed_producer_epoch",
+                "planner_completed_flight_id", "planner_completion_kind",
+                "base_x", "base_y",
+            )
+            rows = []
+            wall_ns = 1_000_000_000
+            for index, flight_id in enumerate(range(15, 35)):
+                if index == 0:
+                    status = "engage"
+                    completion_seq = 0
+                    completed_id = 0
+                    completion_kind = ""
+                else:
+                    status = "preempt_engage"
+                    completion_seq = index
+                    completed_id = flight_id - 1
+                    completion_kind = "preempt"
+                rows.append(
+                    {
+                        "tick": 10 + 58 * index,
+                        "wall_time_ns": wall_ns,
+                        "level": 1,
+                        "planner_status": status,
+                        "frozen_flight_id": flight_id,
+                        "frozen_producer_epoch": 1,
+                        "planner_completion_seq": completion_seq,
+                        "planner_completed_producer_epoch": (
+                            0 if completion_seq == 0 else 1
+                        ),
+                        "planner_completed_flight_id": completed_id,
+                        "planner_completion_kind": completion_kind,
+                        "base_x": 0.0,
+                        "base_y": 0.01,
+                    }
+                )
+                wall_ns += 1_160_000_000
+            # The final flight is not preempted. Its native clip end owns the
+            # twentieth, immutable completion edge.
+            rows.append(
+                {
+                    "tick": 10 + 58 * 20,
+                    "wall_time_ns": wall_ns,
+                    "level": 0,
+                    "planner_status": "rest",
+                    "frozen_flight_id": 34,
+                    "frozen_producer_epoch": 1,
+                    "planner_completion_seq": 20,
+                    "planner_completed_producer_epoch": 1,
+                    "planner_completed_flight_id": 34,
+                    "planner_completion_kind": "native",
+                    "base_x": 0.0,
+                    "base_y": 0.0,
+                }
+            )
+            # The next tick persists the snapshot and must not double count.
+            rows.append(dict(rows[-1], tick=rows[-1]["tick"] + 1,
+                             wall_time_ns=wall_ns + 20_000_000))
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+
+            report = audit_runner_engagement_trace(
+                trace, range(15, 35), require_completion_contract=True
+            )
+
+        self.assertTrue(report["trace_contract_pass"], report["errors"])
+        self.assertTrue(report["completion_contract_available"])
+        self.assertTrue(report["completion_contract_pass"], report["errors"])
+        self.assertEqual(report["completed_flight_ids"], list(range(15, 35)))
+        self.assertEqual(
+            [event["completion_kind"] for event in report["completion_events"]],
+            ["preempt"] * 19 + ["native"],
+        )
+        self.assertEqual(report["completion_events"][0]["flight_id"], 15)
+        self.assertEqual(report["engage_events"][1]["flight_id"], 16)
+
+    def test_runner_trace_rejects_completion_credited_to_new_preempt_flight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(
+                    stream,
+                    fieldnames=(
+                        "tick", "wall_time_ns", "level", "planner_status",
+                        "frozen_flight_id", "frozen_producer_epoch",
+                        "planner_completion_seq",
+                        "planner_completed_producer_epoch",
+                        "planner_completed_flight_id",
+                        "planner_completion_kind",
+                    ),
+                )
+                writer.writeheader()
+                writer.writerows(
+                    [
+                        {
+                            "tick": 1, "wall_time_ns": 1_000_000_000,
+                            "level": 1, "planner_status": "engage",
+                            "frozen_flight_id": 15,
+                            "frozen_producer_epoch": 1,
+                            "planner_completion_seq": 0,
+                            "planner_completed_producer_epoch": 0,
+                            "planner_completed_flight_id": 0,
+                            "planner_completion_kind": "",
+                        },
+                        {
+                            "tick": 2, "wall_time_ns": 2_160_000_000,
+                            "level": 1, "planner_status": "preempt_engage",
+                            "frozen_flight_id": 16,
+                            "frozen_producer_epoch": 1,
+                            "planner_completion_seq": 1,
+                            "planner_completed_producer_epoch": 1,
+                            # Wrong: the edge must close old flight 15.
+                            "planner_completed_flight_id": 16,
+                            "planner_completion_kind": "preempt",
+                        },
+                    ]
+                )
+            report = audit_runner_engagement_trace(
+                trace, (15, 16), require_completion_contract=True
+            )
+
+        self.assertFalse(report["trace_contract_pass"])
+        self.assertFalse(report["completion_contract_pass"])
+        self.assertEqual(report["completed_flight_ids"], [16])
+        self.assertEqual(report["incomplete_flight_ids"], [15])
+        self.assertTrue(
+            any("active flight is (1, 15)" in error for error in report["errors"]),
+            report["errors"],
+        )
+
+    def test_runner_trace_rejects_latched_completion_sequence_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            fieldnames = (
+                "tick", "wall_time_ns", "level", "planner_status",
+                "frozen_producer_epoch", "frozen_flight_id",
+                "planner_completion_seq", "planner_completed_producer_epoch",
+                "planner_completed_flight_id", "planner_completion_kind",
+            )
+            rows = [
+                dict(tick=1, wall_time_ns=1_000_000_000, level=1,
+                     planner_status="engage", frozen_producer_epoch=1,
+                     frozen_flight_id=1, planner_completion_seq=0,
+                     planner_completed_producer_epoch=0,
+                     planner_completed_flight_id=0, planner_completion_kind=""),
+                dict(tick=2, wall_time_ns=2_000_000_000, level=1,
+                     planner_status="preempt_engage", frozen_producer_epoch=1,
+                     frozen_flight_id=2, planner_completion_seq=1,
+                     planner_completed_producer_epoch=1,
+                     planner_completed_flight_id=1,
+                     planner_completion_kind="preempt"),
+                dict(tick=3, wall_time_ns=3_000_000_000, level=1,
+                     planner_status="preempt_engage", frozen_producer_epoch=1,
+                     frozen_flight_id=3, planner_completion_seq=2,
+                     planner_completed_producer_epoch=1,
+                     planner_completed_flight_id=2,
+                     planner_completion_kind="preempt"),
+                # A stale snapshot cannot roll the authoritative edge sequence back.
+                dict(tick=4, wall_time_ns=4_000_000_000, level=1,
+                     planner_status="swinging", frozen_producer_epoch=1,
+                     frozen_flight_id=3, planner_completion_seq=1,
+                     planner_completed_producer_epoch=1,
+                     planner_completed_flight_id=1,
+                     planner_completion_kind="preempt"),
+            ]
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+            report = audit_runner_engagement_trace(
+                trace, (1, 2, 3), require_completion_contract=True
+            )
+
+        self.assertFalse(report["trace_contract_pass"])
+        self.assertTrue(
+            any("sequence regressed: 2 -> 1" in error for error in report["errors"]),
+            report["errors"],
+        )
+
+    def test_schema21_ignores_inactive_completion_columns_between_native_swings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            fieldnames = (
+                "tick", "wall_time_ns", "level", "planner_status",
+                "frozen_producer_epoch", "frozen_flight_id",
+                "planner_completion_seq", "planner_completed_producer_epoch",
+                "planner_completed_flight_id", "planner_completion_kind",
+            )
+            rows = [
+                dict(tick=1, wall_time_ns=1_000_000_000, level=1,
+                     planner_status="engage", frozen_producer_epoch=0,
+                     frozen_flight_id=1, planner_completion_seq=0,
+                     planner_completed_producer_epoch=0,
+                     planner_completed_flight_id=0,
+                     planner_completion_kind="none"),
+                dict(tick=100, wall_time_ns=3_000_000_000, level=0,
+                     planner_status="rest", frozen_producer_epoch=0,
+                     frozen_flight_id=1, planner_completion_seq=0,
+                     planner_completed_producer_epoch=0,
+                     planner_completed_flight_id=0,
+                     planner_completion_kind="none"),
+                dict(tick=120, wall_time_ns=4_000_000_000, level=1,
+                     planner_status="engage", frozen_producer_epoch=0,
+                     frozen_flight_id=2, planner_completion_seq=0,
+                     planner_completed_producer_epoch=0,
+                     planner_completed_flight_id=0,
+                     planner_completion_kind="none"),
+            ]
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+            report = audit_runner_engagement_trace(trace, (1, 2))
+
+        self.assertTrue(report["trace_contract_pass"], report["errors"])
+        self.assertFalse(report["completion_contract_required"])
+        self.assertTrue(report["completion_contract_available"])
+        self.assertTrue(report["completion_contract_pass"])
+        self.assertEqual(report["engaged_flight_ids"], [1, 2])
+
+    def test_physical_contact_stamp_joins_nearest_runner_base_pose_not_completion_pose(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            trace = pathlib.Path(directory) / "runner_trace.csv"
+            with trace.open("w", newline="") as stream:
+                writer = csv.DictWriter(
+                    stream,
+                    fieldnames=(
+                        "tick", "wall_time_ns", "level", "planner_status",
+                        "frozen_flight_id", "base_x", "base_y",
+                    ),
+                )
+                writer.writeheader()
+                writer.writerows(
+                    [
+                        dict(tick=1, wall_time_ns=1_000_000_000, level=1,
+                             planner_status="engage", frozen_flight_id=7,
+                             base_x=0.0, base_y=0.04),
+                        # Nearest 50 Hz sample to the measured racket-contact edge.
+                        dict(tick=2, wall_time_ns=1_020_000_000, level=1,
+                             planner_status="swinging", frozen_flight_id=7,
+                             base_x=0.0, base_y=0.055),
+                        # Lifecycle completion is much later and back at HOME;
+                        # it must never be used as an at-contact movement sample.
+                        dict(tick=60, wall_time_ns=2_200_000_000, level=0,
+                             planner_status="rest", frozen_flight_id=7,
+                             base_x=0.0, base_y=0.0),
+                    ]
+                )
+            report = audit_runner_engagement_trace(
+                trace,
+                (7,),
+                physical_contact_wall_time_ns_by_flight={7: 1_019_000_000},
+            )
+
+        self.assertTrue(report["trace_contract_pass"], report["errors"])
+        self.assertTrue(report["physical_contact_pose_contract_pass"])
+        self.assertEqual(report["physical_contact_pose_missing_flight_ids"], [])
+        self.assertEqual(len(report["physical_contact_pose_events"]), 1)
+        pose = report["physical_contact_pose_events"][0]
+        self.assertEqual(pose["flight_id"], 7)
+        self.assertEqual(pose["base_y"], 0.055)
+        self.assertEqual(pose["join_gap_s"], 0.001)
+
+    def test_immutable_flight_packet_receipt_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "planner.csv"
+            write_cpp_planner_audit(
+                path,
+                [
+                    cpp_planner_packet_audit_row(1),
+                    cpp_planner_packet_audit_row(2),
+                ],
+            )
+            write_cpp_flight_packet_audit(
+                pathlib.Path(str(path) + ".flight_packets.csv"), 2
+            )
+            report = audit_cpp_planner_debug_csv(path, 2)
+        self.assertTrue(report["planner_contract_pass"], report["errors"])
+        self.assertEqual(report["input_contract"], "immutable_flight_packet_v1")
+        self.assertEqual(report["flight_packet_receive_rows"], 6)
+
+    def test_immutable_flight_packet_identity_conflict_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "planner.csv"
+            rows = [
+                cpp_planner_packet_audit_row(1),
+                cpp_planner_packet_audit_row(2),
+            ]
+            rows[1]["packet_conflict_total"] = 1
+            write_cpp_planner_audit(path, rows)
+            write_cpp_flight_packet_audit(
+                pathlib.Path(str(path) + ".flight_packets.csv"), 2
+            )
+            report = audit_cpp_planner_debug_csv(path, 2)
+        self.assertFalse(report["planner_contract_pass"])
+        self.assertTrue(
+            any("identity conflicts" in item for item in report["errors"])
+        )
+
+    def test_duplicate_identity_or_non_cpp_contract_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "planner.csv"
+            first = cpp_planner_audit_row(1)
+            second = cpp_planner_audit_row(2)
+            second["command_seq"] = 1
+            second["post_net_commit_delay_s"] = 0.06
+            second["logger_drops"] = 1
+            write_cpp_planner_audit(path, [first, second])
+            report = audit_cpp_planner_debug_csv(path, 2)
+        self.assertFalse(report["planner_contract_pass"])
+        self.assertTrue(any("command_seq sequence" in item for item in report["errors"]))
+        self.assertTrue(any("50 ms" in item for item in report["errors"]))
+        self.assertTrue(any("logger drops" in item for item in report["errors"]))
+
+
+class Gate3ActualQFullTailLedgerTest(unittest.TestCase):
+    JOINTS = [f"joint_{index}" for index in range(31)]
+
+    @classmethod
+    def _trace_fields(cls) -> list[str]:
+        fields = [
+            "wall_time_ns",
+            "mode",
+            "level",
+            "planner_status",
+            "frozen_flight_id",
+            "planner_completion_seq",
+            "planner_completed_flight_id",
+            "actual_q_hard_tolerance_rad",
+            "actual_q_hard_audit_only",
+            "actual_q_hard_violation_count",
+            "actual_q_hard_max_excess_rad",
+        ]
+        for prefix in (
+            "actual_q_hard_lo_",
+            "actual_q_hard_hi_",
+            "actual_q_hard_excess_",
+            "q_",
+        ):
+            fields.extend(f"{prefix}{joint}" for joint in cls.JOINTS)
+        return fields
+
+    @classmethod
+    def _trace_row(
+        cls,
+        wall_time_ns: int,
+        *,
+        status: str = "swinging",
+        completion_seq: int = 0,
+        completed_flight: int = 0,
+        violation: bool = False,
+    ) -> dict[str, object]:
+        row: dict[str, object] = {
+            "wall_time_ns": wall_time_ns,
+            "mode": 3,
+            "level": 1 if completion_seq == 0 else 0,
+            "planner_status": status,
+            "frozen_flight_id": 1,
+            "planner_completion_seq": completion_seq,
+            "planner_completed_flight_id": completed_flight,
+            "actual_q_hard_tolerance_rad": 0.002,
+            "actual_q_hard_audit_only": 1,
+            "actual_q_hard_violation_count": int(violation),
+            "actual_q_hard_max_excess_rad": 0.01 if violation else 0.0,
+        }
+        for joint in cls.JOINTS:
+            q = 1.01 if violation and joint == cls.JOINTS[0] else 0.0
+            row[f"actual_q_hard_lo_{joint}"] = -1.0
+            row[f"actual_q_hard_hi_{joint}"] = 1.0
+            row[f"actual_q_hard_excess_{joint}"] = max(abs(q) - 1.0, 0.0)
+            row[f"q_{joint}"] = q
+        return row
+
+    @classmethod
+    def _write_fixture(
+        cls,
+        root: pathlib.Path,
+        *,
+        violation: bool,
+        tail_end_ns: int = 5_100_000_000,
+        engage_wall_ns: int = 1_000_000_000,
+        violation_wall_ns: int = 1_020_000_000,
+        completion_wall_ns: int | None = 2_000_000_000,
+    ) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
+        trace = root / "trace.csv"
+        plant = root / "plant.csv"
+        runner_log = root / "runner.log"
+        trace_rows = []
+        for wall in range(1_000_000_000, tail_end_ns + 1, 20_000_000):
+            complete = (
+                completion_wall_ns is not None and wall >= completion_wall_ns
+            )
+            trace_rows.append(
+                cls._trace_row(
+                    wall,
+                    status=(
+                        "engage"
+                        if wall == engage_wall_ns
+                        else (
+                            "complete"
+                            if completion_wall_ns is not None
+                            and wall == completion_wall_ns
+                            else "swinging"
+                        )
+                    ),
+                    completion_seq=int(complete),
+                    completed_flight=int(complete),
+                    violation=violation and wall == violation_wall_ns,
+                )
+            )
+        with trace.open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=cls._trace_fields())
+            writer.writeheader()
+            writer.writerows(trace_rows)
+
+        plant_fields = ["wall_time_ns", *(f"q_{joint}" for joint in cls.JOINTS)]
+        plant_rows = []
+        for wall in range(990_000_000, tail_end_ns + 10_000_001, 10_000_000):
+            active = violation and wall == violation_wall_ns
+            row: dict[str, object] = {"wall_time_ns": wall}
+            for joint in cls.JOINTS:
+                row[f"q_{joint}"] = (
+                    1.01 if active and joint == cls.JOINTS[0] else 0.0
+                )
+            plant_rows.append(row)
+        with plant.open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=plant_fields)
+            writer.writeheader()
+            writer.writerows(plant_rows)
+
+        if violation:
+            runner_log.write_text(
+                "[pp actual-q audit] joint 'joint_0' measured q=+1.010000 "
+                "exceeds exported interval=[-1.000000,+1.000000] "
+                "tolerance=0.002000; audit-only, runner remains active\n"
+                "[pp actual-q audit] joint 'joint_0' recovered inside the exported "
+                "hard-limit tolerance; runner remained active\n"
+            )
+        else:
+            runner_log.write_text("runner clean exit\n")
+        return trace, plant, runner_log
+
+    def test_zero_excursion_full_tail_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, plant, runner_log = self._write_fixture(
+                pathlib.Path(tmp), violation=False
+            )
+            report = audit_actual_q_full_tail_ledger(
+                trace,
+                plant,
+                runner_log,
+                [1],
+                required_post_completion_tail_s=3.0,
+                runner_process_exited=True,
+            )
+        self.assertTrue(report["ledger_complete"], report["errors"])
+        self.assertTrue(report["pass"])
+        self.assertEqual(report["actual_q_violation_episode_count"], 0)
+        self.assertEqual(
+            report["source_event_counts"],
+            {"runner_log": 0, "runner_trace": 0, "plant": 0},
+        )
+
+    def test_one_excursion_is_attributed_and_fails_stability(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, plant, runner_log = self._write_fixture(
+                pathlib.Path(tmp), violation=True
+            )
+            report = audit_actual_q_full_tail_ledger(
+                trace,
+                plant,
+                runner_log,
+                [1],
+                physical_contact_wall_time_ns_by_flight={1: 1_010_000_000},
+                required_post_completion_tail_s=3.0,
+                runner_process_exited=True,
+            )
+        self.assertTrue(report["ledger_complete"], report["errors"])
+        self.assertFalse(report["pass"])
+        self.assertEqual(report["actual_q_violation_episode_count"], 1)
+        self.assertEqual(
+            report["source_event_counts"],
+            {"runner_log": 1, "runner_trace": 1, "plant": 1},
+        )
+        self.assertEqual(report["canonical_events"][0]["flight_id"], 1)
+        self.assertEqual(
+            report["canonical_events"][0]["phase"], "contact_to_completion"
+        )
+
+    def test_missing_contact_timestamp_does_not_invalidate_safety_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, plant, runner_log = self._write_fixture(
+                pathlib.Path(tmp), violation=True
+            )
+            report = audit_actual_q_full_tail_ledger(
+                trace,
+                plant,
+                runner_log,
+                [1],
+                physical_contact_wall_time_ns_by_flight={},
+                required_post_completion_tail_s=3.0,
+                runner_process_exited=True,
+            )
+        self.assertTrue(report["ledger_complete"], report["errors"])
+        self.assertFalse(report["pass"])
+        self.assertEqual(report["actual_q_violation_episode_count"], 1)
+        self.assertEqual(
+            report["canonical_events"][0]["phase"],
+            "engage_to_completion_no_physical_contact",
+        )
+        coverage = report["physical_contact_timestamp_coverage"]
+        self.assertFalse(coverage["coverage_pass"])
+        self.assertFalse(coverage["required_for_ledger_complete"])
+        self.assertEqual(coverage["missing_expected_flight_ids"], [1])
+
+    def test_short_post_completion_tail_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, plant, runner_log = self._write_fixture(
+                pathlib.Path(tmp), violation=False, tail_end_ns=4_000_000_000
+            )
+            report = audit_actual_q_full_tail_ledger(
+                trace,
+                plant,
+                runner_log,
+                [1],
+                required_post_completion_tail_s=3.0,
+                runner_process_exited=True,
+            )
+        self.assertFalse(report["full_tail_coverage_pass"])
+        self.assertFalse(report["ledger_complete"])
+        self.assertTrue(any("post-completion" in value for value in report["errors"]))
+
+    def test_missing_expected_completion_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, plant, runner_log = self._write_fixture(
+                pathlib.Path(tmp), violation=False, completion_wall_ns=None
+            )
+            report = audit_actual_q_full_tail_ledger(
+                trace,
+                plant,
+                runner_log,
+                [1],
+                required_post_completion_tail_s=3.0,
+                runner_process_exited=True,
+            )
+        self.assertFalse(report["ledger_complete"])
+        self.assertFalse(report["full_tail_coverage_pass"])
+        self.assertTrue(
+            any("missing completion edges" in value for value in report["errors"])
+        )
+
+    def test_unscoped_runner_excursion_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, plant, runner_log = self._write_fixture(
+                pathlib.Path(tmp),
+                violation=True,
+                engage_wall_ns=1_100_000_000,
+                violation_wall_ns=1_020_000_000,
+            )
+            report = audit_actual_q_full_tail_ledger(
+                trace,
+                plant,
+                runner_log,
+                [1],
+                required_post_completion_tail_s=3.0,
+                runner_process_exited=True,
+            )
+        # The timestamped contract starts at engage.  Since Runner log events
+        # have no timestamp, an event that cannot be reconciled to that window
+        # must remain visible and make the ledger incomplete.
+        self.assertFalse(report["ledger_complete"])
+        self.assertFalse(report["pass"])
+        self.assertEqual(report["actual_q_violation_episode_count"], 1)
+        self.assertEqual(report["source_event_counts"]["runner_log"], 1)
+        self.assertEqual(report["source_event_counts"]["runner_trace"], 0)
+        self.assertEqual(report["source_event_counts"]["plant"], 0)
+        self.assertEqual(report["unattributed_events"], [1])
+        self.assertEqual(
+            report["by_flight"]["1"]["actual_q_violation_episode_count"], 0
+        )
 
 
 class Gate3PhysicalEvidenceTest(unittest.TestCase):

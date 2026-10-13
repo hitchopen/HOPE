@@ -1,5 +1,9 @@
 # a3_deploy / a3_deploy_example
 
+> Current build, policy staging and Gate 3 commands: [deployment guide](../../docs/operations/deploy_and_gate3.md).
+> For the shared real-ball coefficients, see [ball physics](../../docs/operations/ball_physics_calibration.md).
+> Staging a package does not activate the robot.
+
 **`a3_deploy/` is a revised fork of the official AgiBot A3 deploy code.** This
 directory documents the public HOPE deploy contract and ships **two runners with
 two roles**:

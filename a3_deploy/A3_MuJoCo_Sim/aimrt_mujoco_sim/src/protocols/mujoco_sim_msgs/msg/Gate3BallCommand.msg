@@ -9,3 +9,5 @@ uint64 shot_id
 bool active
 geometry_msgs/Point position
 geometry_msgs/Vector3 linear_velocity
+# World-frame initial spin, rad/s. Zero preserves existing serve scenarios.
+geometry_msgs/Vector3 angular_velocity

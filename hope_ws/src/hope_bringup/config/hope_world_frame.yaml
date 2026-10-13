@@ -9,14 +9,19 @@ hope_world:
     quaternion_order: wxyz
     quaternion_algebra: hamilton
     base_link: pelvis_link
-    # Geometry defines the canonical frame. This venue uses Motive's manually
-    # aligned near-left table-surface origin; PPT is not a runtime dependency.
+    # Operator confirmed the near-left table origin, with Motive +X left.
+    # The driver converts the complete world stream to this canonical frame.
     venue_calibrated: true
-    calibration_sha256: 23c3d8651c696c4f49d192d6cd246bbd393054ffc540163d6b7fdd92eff369f2
+    calibration_sha256: 57f596207b527764e7b6e1ddae26b44d14b3cfb3262f602361ff8ec8172ebf70
     calibration_note: >-
-      Operator-attested manual Motive origin (+X P1-to-P2, +Y left, +Z up)
-      with a grounded Ball/robot vertical probe; no PPT required. Receipt:
-      hope_ws/calibration_receipts/manual_motive_world_origin_20260731.json
+      Operator confirmed Motive +X left, +Z up, near-left table-surface origin.
+      Apply the fixed +90-degree Z rotation below to the entire Motive stream.
+      Receipt: hope_ws/calibration_receipts/motive_world_axes_20261010.json
+
+  # Applied once by the NatNet ROS driver, before P1/P2 table-side conversion.
+  motive_to_world:
+    yaw_degrees: 90.0
+    translation_m: [0.0, 0.0, 0.0]
 
   frames:
     world: world
@@ -42,7 +47,7 @@ hope_world:
     P1:
       tracked_marker_frame: UCB_P1
       operation: identity
-      note: Motive world is already the policy P1-to-P2 convention.
+      note: Driver output is canonical after motive_to_world; no further P1 rotation.
     P2:
       tracked_marker_frame: UCB_P2
       operation: rotate_z_pi_about_table_center
@@ -64,13 +69,10 @@ hope_world:
     policy_z_offset: 0.76
 
   mocap_to_base_link:
-    # T_marker_base for each Motive rigid-body asset. CAD constrains the
-    # shell-to-pelvis transform, but Motive's pivot and axes are configurable.
-    # The operational transform must therefore come from a Motive asset export
-    # plus a fresh v3 sticker live-calibration receipt.
-    #
-    # P1 targets identity with the aligned asset; these values do not approve it.
-    # Runtime still requires a fresh live receipt. P2 remains unmeasured.
+    # The default OptiTrack launch accepts the current named Motive body and
+    # assumes its nominal identity extrinsic, without a file or layout pin.
+    # Static YAML values do not approve a physical installation.
+    # Legacy calibration mode still requires its separate measured receipt.
     p1:
       marker_layout_id: A3_marker_shell_v3_stickers_12mm
       calibrated: false
@@ -78,14 +80,10 @@ hope_world:
       xyz_m: [0.0, 0.0, 0.0]
       quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
       note: >-
-        The pelvis-aligned 17-station asset targets zero translation and
-        identity rotation with Motive Streaming Up Axis Z. Keep the existing
-        MODELDEF Y-up-to-Z-up conversion; add no extra pose rotation. Do not reuse
-        old 12-point, historical ten-ball or 24-station sticker receipts.
-        Name the imported asset UCB_P1 or UCB_P2 for the selected table side.
-        Restart NatNet after asset import, then generate a fresh live receipt at
-        calibration/ucb_robot_to_pelvis.json. Runtime loads that file; these values
-        describe the intended default, not a physically verified calibration.
+        Import a pelvis-aligned UCB_P1 asset with Streaming Up Axis Z.
+        Default motive_live mode accepts its current definition without a
+        fixed SHA-256, marker count or layout. Preserve the imported pivot
+        and axes; no former pivot offset or extra pose-axis rotation is applied.
     p2:
       marker_layout_id: unknown
       calibrated: false

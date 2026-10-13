@@ -1,0 +1,10 @@
+# DIAGNOSTIC ONLY. Do not deploy this zero-spin simulation overlay to hardware.
+# Keep the measured simulated material unchanged; remove the hardware-specific
+# future-contact compensation to separate prediction from policy execution.
+# These are 1 - restitution_h and restitution_v from the measured base YAML.
+# Gate3's shared resolver forwards this Planner profile to both Planner and
+# packetizer. The receipt records whether the resolved material laws match.
+hope_planner:
+  ros__parameters:
+    post_net_future_bounce_tangential_gain: 0.348260
+    post_net_future_bounce_restitution_v: 0.916598

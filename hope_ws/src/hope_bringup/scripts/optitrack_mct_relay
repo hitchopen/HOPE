@@ -92,6 +92,9 @@ class OptitrackMctRelay(Node):
         self.declare_parameter("ball_point_topic", "/ball/point")
         self.declare_parameter("ball_pose_topic", "/ball/pose")
         self.declare_parameter("poses_topic", "/poses")
+        # Optional local packetizer input, before the legacy network-facing
+        # ball rate gate. Empty preserves the historical output set.
+        self.declare_parameter("planner_poses_topic", "")
         self.declare_parameter(
             "pose_array_order", ["ball", "PPT", "UCB_P1", "UCB_P2"]
         )
@@ -197,6 +200,13 @@ class OptitrackMctRelay(Node):
         self._pose_array_pub = self.create_publisher(
             PoseArray, str(self.get_parameter("poses_topic").value), sensor_qos
         )
+        planner_topic = str(self.get_parameter("planner_poses_topic").value)
+        if planner_topic and planner_topic == str(self.get_parameter("poses_topic").value):
+            raise ValueError("planner_poses_topic must differ from the rate-limited poses_topic")
+        self._planner_pose_array_pub = (
+            self.create_publisher(PoseArray, planner_topic, sensor_qos)
+            if planner_topic else None
+        )
         self._ball_pub = self.create_publisher(
             PointStamped, str(self.get_parameter("ball_point_topic").value), sensor_qos
         )
@@ -300,6 +310,11 @@ class OptitrackMctRelay(Node):
                 self.get_logger().info(f"ball '{self._ball_object}' acquired")
             self._ball_seen = True
             self._last_ball_rx = self._now()
+            if self._planner_pose_array_pub is not None:
+                self._publish_poses(
+                    self._latest["ball"].header.stamp,
+                    publisher=self._planner_pose_array_pub,
+                )
             if self._ball_output_gate.accept(ros_stamp_ns):
                 if ball_pose_orientation_valid:
                     self._ball_pose_pub.publish(self._latest["ball"])
@@ -415,6 +430,9 @@ class OptitrackMctRelay(Node):
         out.position.x = pose.position.x * s
         out.position.y = pose.position.y * s
         out.position.z = pose.position.z * s
+        if not all(math.isfinite(v) for v in
+                   (out.position.x, out.position.y, out.position.z)):
+            return None, "dropped_invalid_position"
         if _valid_quat(pose.orientation):
             norm = math.sqrt(
                 pose.orientation.x * pose.orientation.x
@@ -478,7 +496,7 @@ class OptitrackMctRelay(Node):
         tf_msg.transform.rotation = msg.pose.orientation
         self._tf_broadcaster.sendTransform(tf_msg)
 
-    def _publish_poses(self, stamp) -> None:
+    def _publish_poses(self, stamp, publisher=None) -> None:
         if "ball" not in self._latest:
             return
 
@@ -490,7 +508,7 @@ class OptitrackMctRelay(Node):
             for key in self._pose_array_order
             if key in self._latest
         ]
-        self._pose_array_pub.publish(msg)
+        (publisher if publisher is not None else self._pose_array_pub).publish(msg)
 
     def destroy_node(self):
         if self._debug_file is not None:

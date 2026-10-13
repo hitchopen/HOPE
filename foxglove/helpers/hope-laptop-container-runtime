@@ -30,12 +30,15 @@ mkdir -p "$laptop_dir"
     src/hope_bringup/scripts/base_pose_contract.py \
     src/hope_bringup/scripts/p1_calibration.py \
     src/hope_bringup/config/optitrack_relay.yaml \
+    src/hope_bringup/config/hope_world_frame.yaml \
     ../NatNet2ROS2/src/motion_capture_tracking/src/motion_capture_tracking_node.cpp \
+    ../NatNet2ROS2/src/motion_capture_tracking/include/motion_capture_tracking/world_frame_transform.hpp \
     ../NatNet2ROS2/src/motion_capture_tracking/include/motion_capture_tracking/rigid_body_marker_association.hpp \
     ../NatNet2ROS2/src/motion_capture_tracking/include/motion_capture_tracking/rigid_body_name_aliases.hpp \
     ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/src/optitrack.cpp \
     ../NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/include/libmotioncapture/natnet_clock_sync.h
 } > "$laptop_dir/artifact_sha256.txt"
+cp src/hope_bringup/config/hope_world_frame.yaml "$laptop_dir/world_frame_config.yaml"
 
 ros2 daemon stop || true
 readonly dds_wrap="$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
@@ -72,17 +75,16 @@ exec "$dds_wrap" --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" -- \
     kill -0 "$marker_pid" 2>/dev/null
     ros2 launch hope_bringup optitrack_hope_bridge.launch.py \
       hostname:="$motive_ip" interface_ip:="$interface_ip" start_mocap_node:=true \
-      publish_ucb_markers:=true start_world:=true start_calibration:=true \
+      publish_ucb_markers:=true start_world:=true start_calibration:=false \
+      localization_source:=motive_live \
       table_side:="$table_side" \
       tracked_marker_frame:="$tracked_asset" \
       tracked_pose_topic:="/$tracked_asset/pose" \
       ucb_calibration_file:="$hope_root/calibration/ucb_robot_to_pelvis.json" \
       base_pose_output_topic:=/a3/base_pose_laptop_flat \
-      debug_csv_path:="" \
       debug_session_id:="$session_id" \
       start_flight_packetizer:=true \
       flight_packet_topic:=/ball/flight_packet \
-      flight_packet_debug_csv_path:="" \
       > >(tee -a "$laptop_dir/laptop_bridge.log") 2>&1
   ' hope-laptop-runtime \
     "$HOPE_LIFECYCLE_MARKER_ROOT" "$laptop_dir" \

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -87,6 +88,48 @@ class LifecycleConfigTests(unittest.TestCase):
         wrong_type[motive_index] = ("motive_ip", 1234)
         with self.assertRaisesRegex(ValueError, "must be a string"):
             apply_config_updates(current, wrong_type)
+
+    def test_motive_link_local_survives_confirmation_and_persistence(self):
+        current = self.valid_config(revision=4)
+        values = {**current.values(), "motive_ip": "169.254.10.221"}
+        updated = apply_config_updates(current, list(values.items()))
+        self.assertEqual(updated.revision, 5)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            save_config_atomic(path, updated)
+            self.assertEqual(load_config(path), updated)
+        for field in CONFIG_FIELDS[:3]:
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                apply_config_updates(current, list({**values, field: "169.254.10.38"}.items()))
+
+    def test_shell_helper_matches_address_scope_and_parses_motive_link_local(self):
+        helper = (FOXGLOVE_DIR / "helpers/hope-lifecycle").read_text()
+        # Load only the address/parser functions; never run lifecycle actions.
+        functions = helper[helper.index("valid_ipv4() {"):helper.index("require_user() {")]
+        for field in CONFIG_FIELDS[:4]:
+            for address in ("10.44.84.152", "192.168.50.1", "172.16.0.1",
+                            "169.254.10.221", "169.253.10.221", "8.8.8.8",
+                            "127.0.0.1", "0.0.0.0", "224.0.0.1",
+                            "255.255.255.255", "169.254.10.999", "169.254.010.1"):
+                try:
+                    validate_ipv4(field, address)
+                    accepted = True
+                except ValueError:
+                    accepted = False
+                result = subprocess.run(
+                    ["bash", "-c", functions + '\nvalid_ipv4 "$1" "$2"',
+                     "address-test", address, "motive" if field == "motive_ip" else "transport"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                with self.subTest(field=field, address=address):
+                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
+        result = subprocess.run(
+            ["bash", "-c", functions + '\nparse_common "$@"', "parse-test",
+             "model21800_20261006T120000Z", "10.44.167.48", "10.44.84.152",
+             "10.42.10.12", "169.254.10.221", "P1"],
+            capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_ipv4_validation_is_canonical_and_rejects_special_addresses(self):
         self.assertEqual(validate_ipv4("hdu_wifi_ip", "172.23.20.135"), "172.23.20.135")

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <array>
 #include <cmath>
 #include <string>
 #include <algorithm>
@@ -11,6 +12,20 @@
 #include "mujoco/mujoco.h"
 
 namespace aimrt_mujoco_sim::mujoco_sim_module::common::gate3_ball {
+
+// Free-joint rotational qvel is body-local; ball laws and ROS use world.
+inline std::array<double, 3> WorldSpin(const mjData* d, int qpos, int dof) {
+  mjtNum world[3];
+  mju_rotVecQuat(world, d->qvel + dof + 3, d->qpos + qpos + 3);
+  return {world[0], world[1], world[2]};
+}
+inline void SetWorldSpin(mjData* d, int qpos, int dof,
+                         const std::array<double, 3>& omega) {
+  const auto* q = d->qpos + qpos + 3;
+  const mjtNum inverse[4] = {q[0], -q[1], -q[2], -q[3]};
+  const mjtNum world[3] = {omega[0], omega[1], omega[2]};
+  mju_rotVecQuat(d->qvel + dof + 3, world, inverse);
+}
 
 inline constexpr char kBodyName[] = "gate3_ball";
 inline constexpr char kJointName[] = "gate3_ball_free_joint";

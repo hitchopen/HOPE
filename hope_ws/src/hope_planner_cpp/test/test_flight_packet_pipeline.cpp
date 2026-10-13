@@ -9,6 +9,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <cmath>
+#include <tuple>
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
@@ -22,29 +24,36 @@ namespace {
 
 using namespace std::chrono_literals;
 
-TEST(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
+class FlightPacketPipeline : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   ::setenv("ROS_DOMAIN_ID", "229", 1);
   ::setenv("ROS_LOCALHOST_ONLY", "1", 1);
   int argc = 0;
   rclcpp::init(argc, nullptr);
 
   rclcpp::NodeOptions packetizer_options;
+  packetizer_options.append_parameter_override("adaptive_commit_enabled", std::get<0>(GetParam()));
   packetizer_options.append_parameter_override("session_id", "pipeline_test");
   packetizer_options.append_parameter_override(
       "producer_instance_id", "laptop_test_instance");
   packetizer_options.append_parameter_override(
       "retransmit_delays_ms", std::vector<std::int64_t>{0, 5, 15});
+  packetizer_options.append_parameter_override("future_contact_spin_enabled", std::get<1>(GetParam()));
   auto packetizer = std::make_shared<FlightPacketizerNode>(packetizer_options);
 
   rclcpp::NodeOptions planner_options;
   planner_options.append_parameter_override("flight_packet_input_enabled", true);
   planner_options.append_parameter_override("post_net_one_shot_enabled", true);
   planner_options.append_parameter_override("spin_shadow_enabled", false);
+  planner_options.append_parameter_override("robot_pose_topic", "/test/pipeline_base");
+  planner_options.append_parameter_override("future_contact_spin_enabled", std::get<1>(GetParam()));
   auto planner = std::make_shared<PlannerNode>(planner_options);
 
   auto io_node = std::make_shared<rclcpp::Node>("flight_packet_pipeline_io");
   std::atomic<int> packet_messages{0};
   std::atomic<int> command_messages{0};
+  std::atomic<bool> command_valid{false};
   std::atomic<bool> exact_source_stamps{true};
   std::mutex packet_mutex;
   std::set<std::string> payload_hashes;
@@ -78,10 +87,13 @@ TEST(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   auto command_subscription =
       io_node->create_subscription<std_msgs::msg::Float64MultiArray>(
           "/racket/command_flat", rclcpp::QoS(10).reliable(),
-          [&command_messages](
-              const std_msgs::msg::Float64MultiArray::SharedPtr) {
+          [&command_messages, &command_valid](
+              const std_msgs::msg::Float64MultiArray::SharedPtr message) {
+            command_valid.store(message->data.size() == 19 && message->data[1] == 1.0);
             ++command_messages;
           });
+  auto base_publisher = io_node->create_publisher<geometry_msgs::msg::PoseStamped>(
+      "/test/pipeline_base", rclcpp::QoS(10).best_effort());
   auto pose_publisher =
       io_node->create_publisher<geometry_msgs::msg::PoseArray>(
           "/poses", rclcpp::QoS(rclcpp::KeepLast(128))
@@ -113,8 +125,15 @@ TEST(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
     pose.position.x = 1.70 - 0.006 * index;
     pose.position.y = -0.55 + 0.0002 * index;
     pose.position.z = 0.45;
-    pose.orientation.w = 1.0;
+    pose.orientation.w = std::cos(index * kStepNs * 1e-9 * 20.);
+    pose.orientation.y = std::sin(index * kStepNs * 1e-9 * 20.);
     message.poses.push_back(pose);
+    geometry_msgs::msg::PoseStamped base;
+    base.header = message.header;
+    base.pose.position.x = -0.58;
+    base.pose.position.y = -0.7625;
+    base.pose.orientation.w = 1.0;
+    base_publisher->publish(base);
     pose_publisher->publish(message);
     executor.spin_some(5ms);
     std::this_thread::sleep_for(1ms);
@@ -128,6 +147,7 @@ TEST(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
 
   EXPECT_EQ(packet_messages.load(), 3);
   EXPECT_EQ(command_messages.load(), 1);
+  EXPECT_TRUE(command_valid.load());
   EXPECT_TRUE(exact_source_stamps.load());
   {
     std::lock_guard<std::mutex> lock(packet_mutex);
@@ -138,6 +158,7 @@ TEST(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   executor.remove_node(io_node);
   executor.remove_node(planner);
   executor.remove_node(packetizer);
+  base_publisher.reset();
   pose_publisher.reset();
   command_subscription.reset();
   packet_subscription.reset();
@@ -146,6 +167,8 @@ TEST(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   packetizer.reset();
   rclcpp::shutdown();
 }
+
+INSTANTIATE_TEST_SUITE_P(FixedAndAdaptive, FlightPacketPipeline, ::testing::Combine(::testing::Bool(), ::testing::Bool()));
 
 }  // namespace
 }  // namespace hope_planner_cpp

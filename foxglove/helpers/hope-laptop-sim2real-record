@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eo pipefail
+root="$1" session="$2" hdu_ip="$3" output="$4"
+source /opt/ros/jazzy/setup.bash
+source "$root/hope_ws/install/local_setup.bash"
+set -u
+exec "$root/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh" \
+  --domain-id 232 --peer "$hdu_ip" -- \
+  python3 "$root/foxglove/helpers/hope_sim2real_capture.py" \
+    --controlled --role laptop --root "$root" --session-id "$session" --output "$output"

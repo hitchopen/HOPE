@@ -159,6 +159,8 @@ class Gate3BallLauncher(Node):
                 command.linear_velocity.y,
                 command.linear_velocity.z,
             ) = spec.velocity
+            (command.angular_velocity.x, command.angular_velocity.y,
+             command.angular_velocity.z) = self._args.spin_rad_s
             # Keep this exact prefix parseable by pp_rally_conductor.py.
             self.get_logger().info(
                 "serve %d: shot_id=%d p_table=[%.4f,%.4f,%.4f] "
@@ -191,6 +193,7 @@ class Gate3BallLauncher(Node):
                 {
                     "flight_id": shot_id,
                     "shot_id": shot_id,
+                    "initial_spin_rad_s": list(self._args.spin_rad_s),
                     "scheduled_flight_s": flight_s,
                     "scheduled_pause_s": pause_s,
                     "launch_command_wall_time_ns": launch_command_wall_time_ns,
@@ -315,7 +318,15 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=float(os.environ.get("PP_LAUNCH_CADENCE_TOLERANCE_S", "0.10")),
     )
+    parser.add_argument("--spin-rad-s", default=os.environ.get("PP_BALL_INITIAL_SPIN", "0,0,0"),
+                        help="Initial world angular velocity wx,wy,wz in rad/s")
     args = parser.parse_args()
+    try:
+        args.spin_rad_s = tuple(float(x) for x in args.spin_rad_s.split(','))
+        if len(args.spin_rad_s) != 3 or not all(math.isfinite(x) for x in args.spin_rad_s):
+            raise ValueError()
+    except ValueError:
+        parser.error("spin-rad-s must contain three finite comma-separated numbers")
     if args.flight_s <= 0.0 or args.pause_s < 0.0 or args.motion_idle_s < 0.0:
         parser.error("flight/pause/motion-idle durations must be non-negative")
     if not args.scenario_id.strip():

@@ -283,5 +283,50 @@ TEST(BatchPhysicsEstimator, NewFlightClearsBounceEpochButKeepsHistory) {
   EXPECT_EQ(estimator.sample_count(), count);
 }
 
+TEST(BatchPhysicsEstimator, MeasuredPostContactFitDoesNotImposeNominalImpulse) {
+  BallPhysics physics;
+  physics.drag_k = 0.0;
+  EstimatorConfig config;
+  config.post_bounce_min_span_s = 0.04;
+  BatchPhysicsEstimator measured(physics, config);
+  config.post_bounce_min_span_s = 0.0;
+  BatchPhysicsEstimator nominal(physics, config);
+  for (int i = -36; i <= 18; ++i) {
+    const double t = i / 360.0;
+    BallSample s;
+    s.source_time_s = 100.0 + t;
+    s.position = Vec3(1.0 + (t < 0.0 ? -4.0 : -1.8) * t, -0.5,
+                      0.02 + (t < 0.0 ? -3.0 : 2.4) * t - 4.905*t*t);
+    measured.push(s);
+    nominal.push(s);
+    if (i == 9) {
+      // Contact evidence alone must not bypass the clean-span/sample budget.
+      EXPECT_NE(measured.estimate().reason, "post_bounce_free_flight");
+    }
+  }
+  const auto state = measured.estimate();
+  ASSERT_TRUE(state.valid);
+  EXPECT_EQ(state.reason, "post_bounce_free_flight");
+  EXPECT_TRUE(state.bounce_epoch_active);
+  EXPECT_FALSE(state.bounce_transition_used);
+  EXPECT_NEAR(state.source_time_s, 100.05, 1e-10);
+  EXPECT_NEAR(state.velocity.x(), -1.8, 1e-5);
+  EXPECT_NEAR(state.velocity.z(), 2.4-9.81*.05, 1e-5);
+  EXPECT_NEAR(state.position.x(), .91, 1e-6);
+  EXPECT_LT(state.residual_rms_m, 1e-6);
+  EXPECT_GT(std::abs(nominal.estimate().velocity.x()+1.8), .1);
+}
+
+TEST(BatchPhysicsEstimator, InvalidPostContactWindowIsRejected) {
+  EstimatorConfig config;
+  config.post_bounce_min_span_s = .001;
+  EXPECT_THROW(BatchPhysicsEstimator(BallPhysics{}, config), std::invalid_argument);
+  config.post_bounce_min_span_s = .20;
+  EXPECT_THROW(BatchPhysicsEstimator(BallPhysics{}, config), std::invalid_argument);
+  config.post_bounce_min_span_s = .04;
+  config.post_bounce_exclusion_s = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_THROW(BatchPhysicsEstimator(BallPhysics{}, config), std::invalid_argument);
+}
+
 }  // namespace
 }  // namespace hope_planner_cpp

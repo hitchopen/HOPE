@@ -23,6 +23,7 @@ from std_msgs.msg import Bool, String, UInt32
 from std_srvs.srv import Trigger
 
 from hope_field_operations import FieldOperations
+from hope_distributed_recording import DistributedRecorder
 
 from hope_lifecycle_core import (
     CONFIG_FIELDS,
@@ -39,6 +40,10 @@ from hope_lifecycle_core import (
 
 
 LIFECYCLE_HELPER = "/usr/local/libexec/hope-lifecycle"
+# Trusted service configuration only; never accepted from a browser request.
+LAPTOP_LIFECYCLE_HELPER = os.environ.get("HOPE_LAPTOP_LIFECYCLE_HELPER", LIFECYCLE_HELPER)
+if re.fullmatch(r"/[A-Za-z0-9_./-]+", LAPTOP_LIFECYCLE_HELPER) is None:
+    raise RuntimeError("HOPE_LAPTOP_LIFECYCLE_HELPER must be an absolute executable path")
 CONFIG_PATH = Path("/var/lib/hope-lifecycle/config.json")
 LAPTOP_USER = os.environ.get("HOPE_LAPTOP_USER", "operator").strip()
 ROBOT_USER = os.environ.get("HOPE_ROBOT_USER", "agi").strip()
@@ -122,10 +127,10 @@ class LifecycleBackend:
             csv_sha,
         ]
         commands = (
-            ("PREFLIGHT", self._ssh(laptop, LIFECYCLE_HELPER, "preflight-laptop", *common), 15.0),
+            ("PREFLIGHT", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "preflight-laptop", *common), 15.0),
             ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 10.0),
             ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common), 15.0),
-            ("SESSION", self._ssh(laptop, LIFECYCLE_HELPER, "prepare-laptop", *common), 45.0),
+            ("SESSION", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "prepare-laptop", *common), 45.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
             ("SESSION", self._ssh(mdu, LIFECYCLE_HELPER, "prepare-mdu", *common), 15.0),
             # OptiTrack is deliberately outside Runner lifecycle admission.
@@ -138,7 +143,7 @@ class LifecycleBackend:
             # shutdown commonly takes 40-60 s, so do not orphan a successful
             # remote HAL transition behind an undersized SSH timeout.
             ("HAL", self._ssh(mdu, LIFECYCLE_HELPER, "start-hal", *common), 120.0),
-            ("RUNNER", self._ssh(mdu, LIFECYCLE_HELPER, "start-runner", *common), 25.0),
+            ("RUNNER", self._ssh(mdu, LIFECYCLE_HELPER, "start-runner", *common), 60.0),
             # The MDU AimRT participant must exist before this explicit-peer
             # HDU participant.  Reversing these two steps reproduces the field
             # failure where Runner DATA reaches the HDU UDP socket but the old
@@ -176,9 +181,10 @@ class LifecycleBackend:
             config.table_side,
         ]
         commands = (
-            ("RUNNER_HAL", self._ssh(mdu, LIFECYCLE_HELPER, "stop-mdu", *common), 30.0),
-            ("PLANNER_BASE", [LIFECYCLE_HELPER, "stop-hdu", *common], 30.0),
-            ("COLLECT", self._ssh(laptop, LIFECYCLE_HELPER, "collect", *common), 120.0),
+            ("RUNNER_HAL", self._ssh(mdu, LIFECYCLE_HELPER, "stop-mdu", *common), 45.0),
+            ("PLANNER_BASE", [LIFECYCLE_HELPER, "stop-hdu", *common], 40.0),
+            ("COLLECT", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "stop-capture-laptop", *common), 30.0),
+            ("COLLECT", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "collect", *common), 1800.0),
         )
         if mode == "KERNEL":
             commands = tuple(item for item in commands if item[0] != "COLLECT")
@@ -212,12 +218,29 @@ class LifecycleBackend:
         return collection_reason
 
 
+    def exchange_recording(self, host: str, config: LifecycleConfig, request: dict) -> dict:
+        if config.revision < 1:
+            raise ValueError("confirm network configuration first")
+        if host == "hdu":
+            command = [LIFECYCLE_HELPER, "record-control"]
+        else:
+            target = (f"{LAPTOP_USER}@{config.laptop_wifi_ip}" if host == "laptop"
+                      else f"{ROBOT_USER}@{config.mdu_internal_ip}")
+            helper = LAPTOP_LIFECYCLE_HELPER if host == "laptop" else LIFECYCLE_HELPER
+            command = self._ssh(target, helper, "record-control")
+        result = self._run(command, input=json.dumps(request), capture_output=True,
+                           text=True, timeout=8, check=False)
+        if result.returncode:
+            raise ValueError((result.stderr or result.stdout)[-1000:])
+        return json.loads(result.stdout)
+
     def exchange_assets(self, host: str, config: LifecycleConfig, request: dict) -> dict:
         if config.revision < 1:
             raise ValueError("confirm network configuration first")
         target = (f"{LAPTOP_USER}@{config.laptop_wifi_ip}" if host == "laptop"
                   else f"{ROBOT_USER}@{config.mdu_internal_ip}")
-        result = self._run(self._ssh(target, LIFECYCLE_HELPER, f"field-assets-{host}"),
+        helper = LAPTOP_LIFECYCLE_HELPER if host == "laptop" else LIFECYCLE_HELPER
+        result = self._run(self._ssh(target, helper, f"field-assets-{host}"),
                            input=json.dumps(request, ensure_ascii=False), capture_output=True,
                            text=True, timeout=30, check=False)
         if result.returncode:
@@ -235,7 +258,9 @@ class HopeLifecycleSupervisor(Node):
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hope-lifecycle")
         self._backend = LifecycleBackend()
-        self._field = FieldOperations(CONFIG_PATH.parent / "field", self._backend.exchange_assets)
+        self._field = FieldOperations(CONFIG_PATH.parent / "field", self._backend.exchange_assets,
+                                      recorder=DistributedRecorder(self._backend.exchange_recording, lambda: self._config,
+                                          lambda: {"mdu"} if self._session_mode == "KERNEL" else {"laptop", "hdu", "mdu"}))
         self._field_busy = False
         self._field_refresh_running = False
         self._session_mode = "OPTITRACK"
@@ -307,8 +332,12 @@ class HopeLifecycleSupervisor(Node):
         self._field_publisher = self.create_publisher(String, "/hope/field/status", 10)
         self.create_service(SetParameters, "/hope/field/command", self._field_command,
                             callback_group=self._callback_group)
-        self.create_timer(5.0, self._refresh_field)
+        # The pelvis-aligned Motive asset replaces the venue JSON workflow.
+        # Legacy JSON import/export remains an explicit maintenance API; do not
+        # poll or adopt an old file into the default asset-based session.
         self.create_timer(0.5, self._publish)
+        if self._config.revision > 0:
+            self._field.recorder.stop(wait=False)  # default OFF after supervisor restart
 
     @staticmethod
     def _string(value: str) -> String:
@@ -636,6 +665,7 @@ class HopeLifecycleSupervisor(Node):
         return response
 
     def _run_kill(self, config: LifecycleConfig, session_id: str) -> None:
+        self._field.recorder.stop(wait=False)
         try:
             collection_reason = self._backend.kill_all_and_collect(
                 config, session_id, self._on_event, self._session_mode

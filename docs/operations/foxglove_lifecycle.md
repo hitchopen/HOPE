@@ -5,11 +5,18 @@
 > instructions. The public checkpoint remains model_21800. The foundational
 > host/SSH setup below still applies; older UI labels are superseded by that guide.
 
+> Deployment commands reviewed 2026-10-11: the current package build,
+> native Gate 3 and immutable-slot staging entry is
+> [deploy_and_gate3.md](deploy_and_gate3.md). The package is selected separately
+> from the machine's lifecycle configuration; build/staging alone does not
+> switch the MDU slot or start Runner.
+
 This layer replaces the repeated terminal work in hardware-runbook STEP
 0/1/2A/2B/4/5 with a fixed HDU-resident supervisor. It does not expose a
 remote shell. Foxglove can only:
 
-1. confirm four validated RFC1918 IPv4 addresses while the stack is stopped;
+1. confirm three RFC1918 transport addresses, an optional Motive IPv4 address, and the robot's P1/P2 table
+   side while the stack is stopped;
 2. start the fixed Laptop -> HDU -> MDU sequence;
 3. kill every lifecycle-managed session in reverse order, restore `agibot_pm`,
    and collect the current session logs.
@@ -17,6 +24,47 @@ remote shell. Foxglove can only:
 The native MDU Runner remains the authority for PASSIVE, PD_STAND, MOTION,
 role, serve state, action admission and action acknowledgements. The lifecycle
 supervisor owns process state only.
+
+## Automatic data collection for MuJoCo tuning
+
+Normal START arms session-owned capture on all three machines; recording defaults
+to **OFF**. The existing Foxglove **Record ON / OFF** switch controls all of it.
+The MDU
+records the four body joint state/command groups and both IMUs through iceoryx;
+Runner CSVs retain observations, raw ONNX actions, decoded nominal targets and
+final control targets. HDU records ROS traffic and Planner audit rows. Laptop
+records mocap and markers into the current Runner session even when the mocap
+bridge was started in an earlier session. Configuration snapshots, hashes and
+realtime/monotonic clock samples accompany each recording.
+
+After START, press **Record ON** and wait for **ON**, then use READY and policy
+controls. ON is acknowledged only after all three capture workers report ready.
+Kernel mode retains its existing MDU-only lifecycle: the same switch controls
+its body/Runner recordings without requiring absent Laptop/Planner processes.
+Planner and mocap data are unavailable in that mode; use the normal OptiTrack
+policy workflow for a complete MuJoCo comparison dataset.
+OFF closes raw MCAP and CSV files without stopping or restarting the policy.
+Every subsequent ON creates a fresh `record_<UTC>_<id>` directory with the same
+identifier across machines. STARTING/STOPPING are transitions; ERROR means the
+capture cannot be assumed complete. The switch changes capture only, never
+Runner mode, gains, targets or HAL state. Routine operational logs remain active.
+After the trial, press **Record OFF**, then **KILL + COLLECT** and wait for
+collection to finish before powering off. KILL also requests recording OFF.
+The operator does not need to start another recorder. Robot data persists under
+`/agibot/data/bag/hope_pingpong_telemetry/sim2real_sessions/<session>/<role>`;
+the collected copy is under `real_logs/<session>/` on the Laptop. Existing
+attempts are retained. Raw recording stops at 1 GiB free space on HDU and 2 GiB
+on MDU/Laptop, and reports an
+error; it does not delete previous recordings or pause the controller.
+
+Audit/export with `foxglove/helpers/hope_sim2real_export.py SESSION --output NEW_DIR`
+in a Python environment containing NumPy, mcap and rosbags. Its NPZ files retain
+individual source messages and both source/recorder timestamps. Check the quality
+report and CSV health files before fitting latency or dynamics. Source headers
+can use different clocks: do not subtract command and state timestamps directly.
+Joint effort is vendor telemetry; motor current, temperature, calibrated torque
+and contact force are not available in this schema. Data presence does not
+establish physical model equivalence.
 
 ## Operator surface
 
@@ -30,8 +78,12 @@ The custom console calls these exact services through port `8766`:
 
 `start_parameter_services=False`, the bridge parameter allowlist is empty, and
 browser topic publishing remains disabled. `apply_config` rejects missing,
-duplicate, non-string, non-IPv4, loopback, multicast, link-local and non-RFC1918
-values. The only accepted names are:
+duplicate and non-string fields; address fields also reject non-IPv4,
+loopback, multicast and non-RFC1918 values, except that `motive_ip` also accepts
+IPv4 link-local (`169.254.0.0/16`) for a direct Laptop-to-Motive cable. The Laptop
+must have an address and route on that capture interface; its `laptop_wifi_ip`
+remains the separate RFC1918 address used to reach the HDU. `table_side` accepts
+only the exact enums `P1` and `P2`. The only accepted names are:
 
 - `laptop_wifi_ip`
 - `hdu_wifi_ip`
@@ -90,8 +142,8 @@ existing non-interactive access to the HDU and MDU for STEP 0 evidence and STEP
 
 ```bash
 # From HDU; substitute the values printed on the Laptop.
-ssh -o BatchMode=yes <laptop-user>@<laptop-wifi-ip> true
-ssh -o BatchMode=yes <robot-user>@<mdu-internal-ip> true
+ssh -o BatchMode=yes "LAPTOP_USER"@"LAPTOP_WIFI_IP" true
+ssh -o BatchMode=yes "ROBOT_USER"@"MDU_INTERNAL_IP" true
 
 # From Laptop
 ssh -o BatchMode=yes "${ROBOT_USER}@${HDU_IP}" true
@@ -124,6 +176,12 @@ cd "$HOPE_ROOT"
 sudo install -D -o root -g root -m 0755 \
   foxglove/helpers/hope-lifecycle \
   /usr/local/libexec/hope-lifecycle
+sudo install -D -o root -g root -m 0755 \
+  foxglove/helpers/hope_sim2real_capture.py \
+  /usr/local/libexec/hope_sim2real_capture.py
+sudo install -D -o root -g root -m 0755 \
+  foxglove/helpers/hope_sim2real_control.py \
+  /usr/local/libexec/hope_sim2real_control.py
 ```
 
 Stage the same file to the HDU and MDU, then install it root-owned at the same
@@ -131,17 +189,37 @@ absolute path:
 
 ```bash
 cd "$HOPE_ROOT"
-scp foxglove/helpers/hope-lifecycle \
-  "${ROBOT_USER}@${HDU_IP}:/tmp/hope-lifecycle"
+scp foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py foxglove/helpers/hope_sim2real_control.py \
+  "${ROBOT_USER}@${HDU_IP}:/tmp/"
 ssh "${ROBOT_USER}@${HDU_IP}" \
-  'sudo install -D -o root -g root -m 0755 /tmp/hope-lifecycle /usr/local/libexec/hope-lifecycle'
+  'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
 
 scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
-  foxglove/helpers/hope-lifecycle \
-  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-lifecycle"
+  foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py foxglove/helpers/hope_sim2real_control.py \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/"
 ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
-  'sudo install -D -o root -g root -m 0755 /tmp/hope-lifecycle /usr/local/libexec/hope-lifecycle'
+  'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
 ```
+
+The MDU active package also needs the logging-enabled Runner,
+`a3_body_drive_debug_record`, its ROS type-support and record/playback libraries,
+and `config/a3_body_drive_debug_record.iceoryx.yaml`. Updating helpers alone does
+not add native observation/action capture. Keep the matching package hashes.
+
+If Laptop system installation is unavailable, install both helpers together in
+`~/.local/libexec/` and set the HDU supervisor's trusted systemd environment
+`HOPE_LAPTOP_LIFECYCLE_HELPER` to that user's absolute `hope-lifecycle` path.
+This is deployment configuration, not an operator-supplied remote command.
+
+The supervisor also installs `foxglove/a3/hope_distributed_recording.py` alongside
+the other Python modules. The HDU service needs a pre-created writable
+`/home/<robot-user>/.local/state/hope-sim2real` directory and a matching
+`ReadWritePaths` entry because its normal `ProtectHome=read-only` applies to local
+record-control calls. Runner and Planner must both include the gated CSV writer;
+`HOPE_RECORD_CONTROL_FILE` is supplied by the capture wrapper. This trusted
+environment flag only affects worker-thread logging. The shared header is
+`a3_deploy/recording_file.hpp`; isolated Planner builds can set
+`HOPE_RECORDING_INCLUDE_DIR` to the staged include directory.
 
 ## Install the HDU supervisor
 

@@ -104,6 +104,14 @@ survival for either shell.
 
 ### V3 sticker P1-to-pelvis calibration
 
+This is the optional measured-calibration workflow. Default `motive_live`
+localization uses the current named ModelDef without a file/hash/layout pin
+or saved calibration JSON. The supplied asset is already `UCB_P1`; use
+`UCB_P2` for table side P2. Enable `localization_source:=calibration` and
+`start_calibration:=true` only when following the measured procedure below.
+See the [current shell/runtime notes](mocap_sticker_shell_v3/README.md).
+
+
 The current sticker profile uses **17 round 12 mm stickers**, with station IDs
 **S04-S08, S11-S22** (original IDs, not renumbered), and the canonical
 [sticker optical-centre table](mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv).
@@ -126,7 +134,7 @@ Migration prerequisites:
    only; 12 mm balls require a separately measured ball-centre table/profile.
 2. Test-import [A3_v3_17_stickers.motive](mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
    into an isolated Motive project first. This native candidate already contains
-   all 17 stations, is named `P1` internally, and targets the CAD
+   all 17 stations, is named `UCB_P1` internally, and targets the CAD
    `pelvis_link` origin. Confirm the marker count and unique streaming ID `9`;
    the retained source UUID can replace an existing body on import.
    Rename the imported body to `UCB_P1` or `UCB_P2` for the selected table side;

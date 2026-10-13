@@ -239,6 +239,66 @@ TEST(IncomingTrajectory, SeparatesEpochsEvenWhenPreviousTailIsUnderWindow) {
   }
 }
 
+TEST(IncomingTrajectory, PostNetReversalCancelsAndNextOpponentReturnCommits) {
+  IncomingTrajectory trajectory(test_config());
+  constexpr double dt = 1.0 / 360.0;
+  double time = 70.0;
+  // Cross the net, then reverse 20 ms into the 50 ms commit window.
+  const double turn_time = 70.10;
+  const double turn_x = 1.33;
+  for (; time < turn_time; time += dt) {
+    EXPECT_FALSE(trajectory.observe(
+        sample(time, turn_x + 2.0 * (turn_time - time))).snapshot_ready);
+  }
+  ASSERT_EQ(trajectory.phase(), IncomingPhase::kWaitCommit);
+  bool cancelled = false;
+  for (; time < turn_time + 0.04; time += dt) {
+    auto u = trajectory.observe(sample(time, turn_x + (time - turn_time)));
+    cancelled = cancelled || u.incoming_cancelled;
+    EXPECT_FALSE(u.snapshot_ready);
+  }
+  EXPECT_TRUE(cancelled);
+  EXPECT_EQ(trajectory.phase(), IncomingPhase::kWaitOutgoing);
+  EXPECT_EQ(trajectory.retained_samples(), 0U);
+  EXPECT_EQ(trajectory.snapshot_count(), 0U);
+  // Cancellation below net+margin must still permit the next real return.
+  for (; time < turn_time + 0.20; time += dt) {
+    EXPECT_FALSE(trajectory.observe(
+        sample(time, turn_x + (time - turn_time))).snapshot_ready);
+  }
+  ASSERT_EQ(trajectory.phase(), IncomingPhase::kWaitOpponentReturn);
+  const double return_time = time;
+  const double return_x = turn_x + (time - turn_time);
+  IncomingTrajectoryUpdate committed;
+  for (int i = 0; i < 70; ++i, time += dt) {
+    auto u = trajectory.observe(
+        sample(time, return_x - 3.0 * (time - return_time)));
+    if (u.snapshot_ready) committed = u;
+  }
+  ASSERT_TRUE(committed.snapshot_ready);
+  EXPECT_EQ(committed.snapshot.trajectory_epoch, 2U);
+  EXPECT_EQ(trajectory.snapshot_count(), 1U);
+  EXPECT_GE(committed.snapshot.samples[0].source_time_s, return_time - 2.0 * dt);
+}
+
+TEST(IncomingTrajectory, PostNetTableBounceAndSmallNoiseKeepOriginalCommit) {
+  IncomingTrajectory trajectory(test_config());
+  constexpr double dt = 1.0 / 360.0;
+  IncomingTrajectoryUpdate committed;
+  for (int i = 0; i < 90; ++i) {
+    const double elapsed = i * dt;
+    auto s = sample(80.0 + elapsed,
+                    1.57 - 2.0 * elapsed + (i % 2 ? 0.0002 : -0.0002));
+    s.position.z() = 0.02 + 2.0 * std::abs(elapsed - 0.12);
+    const auto u = trajectory.observe(s);
+    EXPECT_FALSE(u.incoming_cancelled);
+    if (u.snapshot_ready) committed = u;
+  }
+  ASSERT_TRUE(committed.snapshot_ready);
+  EXPECT_NEAR(committed.snapshot.one_shot.commit_source_time_s, 80.15, dt);
+  EXPECT_EQ(trajectory.snapshot_count(), 1U);
+}
+
 TEST(LatestSnapshotMailbox, NewestPendingSnapshotSupersedesOldest) {
   LatestSnapshotMailbox mailbox;
   TrajectorySnapshot first;
