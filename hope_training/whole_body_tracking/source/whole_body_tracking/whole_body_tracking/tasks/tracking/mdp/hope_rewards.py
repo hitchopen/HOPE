@@ -26,6 +26,7 @@ from whole_body_tracking.tasks.tracking.mdp.hope_commands import RacketTargetCom
 from whole_body_tracking.tasks.tracking.mdp.recovery_safe_set import (
     actual_q_stopping_violation,
     aggregate_recovery_violations,
+    capture_point_support_excess,
     normalized_upper_violation,
 )
 
@@ -2117,6 +2118,68 @@ def _post_swing_recovery_gate_and_scale(
     return gate, scale
 
 
+def _dynamic_support_com_pos_w(asset) -> torch.Tensor:
+    """Transform the live randomized local COM without a PhysX host read each tick.
+
+    Local COMs are constant after startup. Our COM randomizer and exact-resume
+    property restore invalidate this asset cache whenever they write new COMs.
+    World link transforms remain live on every call.
+    """
+    local_com = getattr(asset, "_hope_support_com_pos_b", None)
+    if local_com is None:
+        local_com = asset.root_physx_view.get_coms()[..., :3].to(asset.data.body_link_pos_w).clone()
+        asset._hope_support_com_pos_b = local_com
+    return asset.data.body_link_pos_w + quat_apply(asset.data.body_link_quat_w, local_com)
+
+
+def dynamic_support_debt(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg,
+    sensor_cfg,
+    std: float = 0.10,
+    margin: float = 0.02,
+    foot_radius: float = 0.06,
+    force_threshold: float = 10.0,
+) -> torch.Tensor:
+    """All-phase dynamic support, using actual COM and only currently loaded soles.
+
+    Unlike stillness and fixed leg-pose objectives this cost permits either foot to step. It
+    charges the momentum-induced capture-point excursion before a visibly upright robot tips.
+    Startup-randomized masses are read once from PhysX, rather than from nominal asset masses.
+    """
+    if std <= 0.0:
+        raise ValueError("dynamic support std must be positive")
+    if len(asset_cfg.body_ids) != 2 or len(sensor_cfg.body_ids) != 2:
+        raise RuntimeError("dynamic support requires exactly two resolved foot bodies")
+    cmd = _cmd(env, command_name)
+    asset = env.scene[asset_cfg.name]
+    sensor = env.scene.sensors[sensor_cfg.name]
+    com_pos = _dynamic_support_com_pos_w(asset)
+    com_vel = asset.data.body_com_lin_vel_w
+    mass_weights = getattr(cmd, "_dynamic_support_mass_weights", None)
+    if mass_weights is None:
+        masses = asset.root_physx_view.get_masses().to(device=com_pos.device, dtype=com_pos.dtype)
+        if masses.shape != com_pos.shape[:-1] or not bool(torch.isfinite(masses).all()) or bool((masses <= 0).any()):
+            raise RuntimeError("dynamic support requires finite positive live body masses")
+        mass_weights = (masses / masses.sum(dim=-1, keepdim=True)).unsqueeze(-1)
+        cmd._dynamic_support_mass_weights = mass_weights
+    com_position = (com_pos * mass_weights).sum(dim=-2)
+    com_velocity = (com_vel * mass_weights).sum(dim=-2)
+    # Vertical load, not the full force norm: scraping a foot sideways is not support.
+    loaded = sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > float(force_threshold)
+    excess, flight = capture_point_support_excess(
+        com_position, com_velocity, asset.data.body_pos_w[:, asset_cfg.body_ids], loaded,
+        foot_radius=foot_radius, margin=margin,
+    )
+    scaled = excess / float(std)
+    debt = torch.where(scaled <= 1.0, 0.5 * scaled.square(), scaled - 0.5) + flight.float()
+    _record_metric_snapshot(cmd.metrics, "dynamic_support_excess_m", excess)
+    _record_metric_snapshot(cmd.metrics, "dynamic_support_flight", flight.float())
+    _record_metric_snapshot(cmd.metrics, "dynamic_support_debt", debt)
+    return debt
+
+
 def post_swing_tilt_debt(
     env: ManagerBasedRLEnv,
     command_name: str,
@@ -2160,6 +2223,68 @@ def post_swing_tilt_debt(
     previous = cmd.metrics.get("post_swing_base_tilt_deg", torch.zeros_like(tilt_deg))
     cmd.metrics["post_swing_base_tilt_deg"] = torch.where(gate, tilt_deg, previous)
     return debt * gate.float() * curriculum_scale
+
+
+def ready_torso_posture_debt(
+    env, sensor_cfg, command_name: str = "racket_target",
+    motion_command_name: str = "motion", torso_body_name: str = "torso_Link",
+    margin: float = 0.05, std: float = 0.12,
+    waist_margin: float = 0.06, waist_std: float = 0.15,
+    ready_free_s: float = 0.45, ready_full_s: float = 0.85,
+    followthrough_free_s: float = 0.50, recovery_full_s: float = 0.80,
+    start_steps: int = 448000, ramp_steps: int = 128000,
+) -> torch.Tensor:
+    """Recover lateral torso posture in HOLD/early preparation, with a free swing.
+
+    Pelvis tilt alone cannot see a bent waist. Penalize actual torso roll and
+    actual waist roll independently, so a compensating pelvis lean cannot hide
+    the latter. Pitch remains free for a natural forward-ready stance. No joint
+    speed cost: a corrective move toward upright is allowed.
+
+    The continuous-rally clock resets after 0.50 s follow-through. Therefore
+    recovery also covers the next positive-TTS ready window and explicit HOLD;
+    a negative-TTS-only reward would miss those states. This adds no waiting.
+    """
+    values = (margin, std, waist_margin, waist_std, ready_free_s, ready_full_s,
+              followthrough_free_s, recovery_full_s)
+    if (not all(math.isfinite(x) for x in values) or min(margin, waist_margin) < 0
+            or min(std, waist_std) <= 0 or not 0 <= ready_free_s < ready_full_s
+            or not 0 <= followthrough_free_s < recovery_full_s
+            or start_steps < 0 or ramp_steps <= 0):
+        raise ValueError("invalid ready torso posture parameters")
+    cmd = env.command_manager.get_term(command_name)
+    motion = env.command_manager.get_term(motion_command_name)
+    torso_id = cmd._resolve_body_index(torso_body_name)
+    if torso_id < 0:
+        raise RuntimeError("ready torso posture requires torso_Link")
+    robot = cmd.robot
+    waist_ids, _ = robot.find_joints("waist_roll_joint", preserve_order=True)
+    if len(waist_ids) != 1 or len(sensor_cfg.body_ids) != 2:
+        raise RuntimeError("ready torso posture requires waist roll and two resolved feet")
+    q = robot.data.body_quat_w[:, torso_id]
+    w, x, y, z = q.unbind(-1)
+    torso_roll = torch.atan2(2 * (w*x + y*z), 1 - 2 * (x*x + y*y))
+    waist_roll = robot.data.joint_pos[:, waist_ids[0]]
+    tts = cmd.time_to_strike
+    ready = ((tts - ready_free_s) / (ready_full_s - ready_free_s)).clamp(0, 1)
+    recovery = ((-tts - followthrough_free_s)
+                / (recovery_full_s - followthrough_free_s)).clamp(0, 1)
+    phase = torch.where(motion.in_hold, torch.ones_like(tts), torch.maximum(ready, recovery))
+    force = env.scene.sensors[sensor_cfg.name].data.net_forces_w[:, sensor_cfg.body_ids, 2]
+    loaded = (force > 20.0).all(-1)
+    scale = min(1.0, max(0.0, (env.common_step_counter - start_steps) / ramp_steps))
+    gate = phase * loaded.float()
+    torso_debt = _bounded_refinement_debt(torso_roll.abs(), margin, std)
+    waist_debt = _bounded_refinement_debt(waist_roll.abs(), waist_margin, waist_std)
+    debt = (0.7 * torso_debt + 0.3 * waist_debt) * gate * scale
+    # Per-state diagnostics use a separate eligibility metric; zero means inactive.
+    active = gate > 0
+    cmd.metrics["ready_posture_active"] = active.float()
+    cmd.metrics["ready_posture_scale"] = torch.full_like(tts, scale)
+    cmd.metrics["ready_posture_torso_roll_abs_deg"] = torch.rad2deg(torso_roll.abs()) * active
+    cmd.metrics["ready_posture_waist_roll_abs_deg"] = torch.rad2deg(waist_roll.abs()) * active
+    cmd.metrics["ready_posture_debt"] = debt
+    return debt
 
 
 def recovery_safe_set_cost(
@@ -3330,7 +3455,8 @@ def foot_orientation_discipline(env, command_name: str, asset_cfg, hold_gate: bo
     return penalty
 
 
-def hold_upper_pose_imitation(env, command_name: str, std: float, asset_cfg=None):
+def hold_upper_pose_imitation(env, command_name: str, std: float, asset_cfg=None,
+                              fixed_task_reference: bool = False):
     """HOLD-gated UPPER-BODY joint-space imitation of the CURRENT clip's frame-0 ready pose.
 
     Fills the hold posture vacuum (2026-07-13 viewer finding): with the Cartesian imitation
@@ -3345,14 +3471,52 @@ def hold_upper_pose_imitation(env, command_name: str, std: float, asset_cfg=None
     a deep crouch in the legs (receipt leg_ready_default_rms 0.53 rad) and a leg target would
     fight the implicit stand attractors (reset pose + hold_ready stillness) — the original
     splayed-feet crouch-stand bug that swing-gating fixed. Zero outside holds.
+
+    With fixed_task_reference=True, the selected actual HOLD reference replaces
+    the clip's frame zero for both swing sides. This remains an actual-q reward,
+    not a loss on policy q_des. No runtime future-ball-dependent pose selection.
     """
     cmd = env.command_manager.get_term(command_name)
     ids = list(asset_cfg.joint_ids)
-    ready = cmd.motion.joint_pos[cmd.motion.seg_start[cmd.clip_id]][:, ids]
+    if fixed_task_reference:
+        from whole_body_tracking.utils.task_pose_reference import reference_joints
+        ready = getattr(cmd, "_fixed_hold_upper_reference", None)
+        if ready is None:
+            ready = reference_joints([cmd.robot.joint_names[i] for i in ids], cmd.robot.data.joint_pos)
+            cmd._fixed_hold_upper_reference = ready
+    else:
+        ready = cmd.motion.joint_pos[cmd.motion.seg_start[cmd.clip_id]][:, ids]
     q = cmd.robot.data.joint_pos[:, ids]
     err = torch.mean(torch.square(q - ready), dim=-1)
     r = torch.exp(-err / std**2)
     return torch.where(cmd.in_hold, r, torch.zeros_like(r))
+
+
+def actual_task_pose_debt(env, start_steps=448000, ramp_steps=128000,
+                          margin=0.0523598776, std=0.15,
+                          ready_free_s=0.45, ready_full_s=0.85,
+                          followthrough_free_s=0.50, recovery_full_s=0.80,
+                          torso_margin=None, torso_std=None):
+    """PPO state reward against the selected actual waist/torso task reference."""
+    from whole_body_tracking.utils.task_pose_reference import evaluate_task_pose
+    return evaluate_task_pose(env, start_steps=start_steps, ramp_steps=ramp_steps,
+                              margin=margin, std=std, ready_free_s=ready_free_s,
+                              ready_full_s=ready_full_s, followthrough_free_s=followthrough_free_s,
+                              recovery_full_s=recovery_full_s,
+                              torso_margin=torso_margin, torso_std=torso_std)
+
+
+from whole_body_tracking.utils.ready_recovery import (
+    actual_ready_legs, station_recovery, loaded_ankle_quiet,
+)
+from whole_body_tracking.utils.full_body_hold import full_body_hold, full_body_quiet
+
+
+def actual_joint_limit_debt(env, margin_rad=0.0872664626, waist_margin_rad=0.1396263402,
+                            hold_recover_multiplier=3.0):
+    """Penalize actual-q proximity to physical hard stops, especially at rest."""
+    from whole_body_tracking.utils.actual_joint_limit import evaluate_actual_joint_limit
+    return evaluate_actual_joint_limit(env, margin_rad, waist_margin_rad, hold_recover_multiplier)
 
 
 def hold_upper_joint_deviation(
@@ -3582,6 +3746,101 @@ def right_elbow_extension_debt(
     return debt * gate.float()
 
 
+def _quiet_command_phase(env):
+    """Exogenous HOLD or outside the live strike; never gated by achieved speed."""
+    cmd = env.command_manager.get_term("racket_target")
+    held = env.command_manager.get_term("motion").in_hold
+    return cmd, held | (cmd.time_to_strike > 0.20) | (cmd.time_to_strike < -0.30)
+
+
+def waist_command_quiet_debt(env, std=0.005, margin=0.001):
+    """Rad-based first-difference cost: a tiny affine-normalized yaw delta matters."""
+    if not math.isfinite(std) or not math.isfinite(margin) or std <= 0 or margin < 0:
+        raise ValueError("invalid waist command quiet band")
+    action = env.action_manager.get_term("joint_pos")
+    ids = [action._joint_names.index(f"waist_{axis}_joint") for axis in ("yaw", "roll", "pitch")]
+    delta = action.executed_qdes_delta[:, ids].abs()
+    cmd, gate = _quiet_command_phase(env)
+    cost = _deadband_huber(delta, margin, std).mean(-1)
+    _record_metric_snapshot(cmd.metrics, "waist_command_step_max_rad", delta.amax(-1))
+    _record_metric_snapshot(cmd.metrics, "waist_command_quiet_active", gate.float())
+    return cost * gate
+
+
+def _settled_refinement_gate(env, sensor_cfg, start_steps, ramp_steps):
+    """Late, exogenous schedule; only actual HOLD with both feet supporting.
+
+    A positive pre-strike clock is windup, not idle. Continuous rallies have no
+    inter-ball hold, so this deliberately uses the existing stand-start samples.
+    Count policy steps, not aggregate samples or elapsed wall time.
+    """
+    if not math.isfinite(start_steps) or not math.isfinite(ramp_steps) or start_steps < 0 or ramp_steps <= 0:
+        raise ValueError("invalid settled refinement schedule")
+    scale = min(1.0, max(0.0, (env.common_step_counter - start_steps) / ramp_steps))
+    cmd = env.command_manager.get_term("racket_target")
+    held = env.command_manager.get_term("motion").in_hold
+    loaded = (env.scene.sensors[sensor_cfg.name].data.net_forces_w[:, sensor_cfg.body_ids, 2] > 20.).all(-1)
+    gate = held & loaded
+    _record_metric_snapshot(cmd.metrics, "settled_refinement_active", gate.float())
+    _record_metric_snapshot(cmd.metrics, "settled_refinement_scale", torch.full_like(gate, scale, dtype=torch.float32))
+    return cmd, gate.float() * scale
+
+
+def _bounded_refinement_debt(value, margin, std):
+    """Monotone cost in [0, 1): exploration tails cannot create unbounded debt."""
+    if not math.isfinite(std) or not math.isfinite(margin) or std <= 0 or margin < 0:
+        raise ValueError("invalid settled refinement band")
+    debt = _deadband_huber(value, margin, std)
+    return 1.0 - torch.reciprocal(1.0 + debt)
+
+
+def settled_leg_command_debt(env, sensor_cfg, std=0.01, margin=0.002,
+                             start_steps=448000, ramp_steps=128000):
+    """Small bounded mean over the legs; no arm, waist, head or worst-joint cost."""
+    action = env.action_manager.get_term("joint_pos")
+    names = [f"{side}_{joint}_joint" for side in ("left", "right")
+             for joint in ("hip_pitch", "hip_roll", "hip_yaw", "knee", "ankle_pitch", "ankle_roll")]
+    ids = [action._joint_names.index(name) for name in names]
+    delta = action.executed_qdes_delta[:, ids].abs()
+    cmd, gate = _settled_refinement_gate(env, sensor_cfg, start_steps, ramp_steps)
+    _record_metric_snapshot(cmd.metrics, "settled_leg_step_mean_rad", delta.mean(-1))
+    return _bounded_refinement_debt(delta, margin, std).mean(-1) * gate
+
+
+def settled_waist_pitch_tracking_debt(env, sensor_cfg, std=0.10, margin=0.15,
+                                      start_steps=448000, ramp_steps=128000):
+    """Bounded standing waist-pitch tracking cost with useful PD error allowed."""
+    action = env.action_manager.get_term("joint_pos")
+    idx = action._joint_names.index("waist_pitch_joint")
+    actual = action._select_action_joints(action._asset.data.joint_pos)[:, idx]
+    error = (action._qdes_executed[:, idx] - actual).abs()
+    cmd, gate = _settled_refinement_gate(env, sensor_cfg, start_steps, ramp_steps)
+    _record_metric_snapshot(cmd.metrics, "settled_waist_pitch_tracking_abs_rad", error)
+    return _bounded_refinement_debt(error, margin, std) * gate
+
+
+def loaded_hip_tracking_debt(env, sensor_cfg, std=0.10, margin=0.12):
+    """Soft cost for bilateral hip-roll preload beyond a useful PD error band.
+
+    Compare post-physics q with the final applied (clamped/delayed) command.
+    Do not force zero error, increase gains, or constrain a single-support step.
+    """
+    if not math.isfinite(std) or not math.isfinite(margin) or std <= 0 or margin < 0:
+        raise ValueError("invalid loaded hip tracking band")
+    action = env.action_manager.get_term("joint_pos")
+    ids = [action._joint_names.index(f"{side}_hip_roll_joint") for side in ("left", "right")]
+    actual = action._select_action_joints(action._asset.data.joint_pos)[:, ids]
+    error = (action._qdes_executed[:, ids] - actual).abs()
+    cmd, gate = _quiet_command_phase(env)
+    loaded = (env.scene.sensors[sensor_cfg.name].data.net_forces_w[:, sensor_cfg.body_ids, 2] > 20.).all(-1)
+    gate = gate & loaded
+    debt = _deadband_huber(error, margin, std)
+    for i, side in enumerate(("left", "right")):
+        _record_metric_snapshot(cmd.metrics, f"{side}_hip_roll_tracking_abs_rad", error[:, i])
+    _record_metric_snapshot(cmd.metrics, "hip_tracking_cost_active", gate.float())
+    return (0.5 * debt.mean(-1) + 0.5 * debt.amax(-1)) * gate
+
+
 def stance_width_band(env, lo: float, hi: float, std: float, asset_cfg=None):
     """Smooth-L1 debt on the horizontal ankle-to-ankle distance outside [lo, hi].
 
@@ -3599,6 +3858,45 @@ def stance_width_band(env, lo: float, hi: float, std: float, asset_cfg=None):
     excess = torch.relu(lo - d) + torch.relu(d - hi)
     x = excess / std
     return torch.where(x < 1.0, 0.5 * x * x, x - 0.5)
+
+
+def rally_foot_placement_debt(
+    env, command_name: str, asset_cfg, sensor_cfg,
+    width_min: float = 0.24, width_max: float = 0.34, std: float = 0.05,
+    yaw_margin: float = 0.15, yaw_std: float = 0.25,
+    yaw_weight: float = 0.5, force_threshold: float = 20.0,
+):
+    """Actual loaded-foot geometry; no READY, speed or outcome gate.
+
+    A single supported foot may turn/step without a two-foot width demand.
+    Contact-window heading weight is reduced, not removed, to allow the strike
+    pivot. Foot placement never rewrites a target or delays the next ball.
+    """
+    from whole_body_tracking.tasks.tracking.foot_placement import foot_placement_debt
+
+    cmd = _cmd(env, command_name)
+    robot, sensor = env.scene[asset_cfg.name], env.scene.sensors[sensor_cfg.name]
+    loaded = sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > force_threshold
+    width_cost, yaw_cost, width, yaw = foot_placement_debt(
+        robot.data.body_pos_w[:, asset_cfg.body_ids],
+        robot.data.body_quat_w[:, asset_cfg.body_ids], loaded,
+        width_min=width_min, width_max=width_max, width_std=std,
+        yaw_margin=yaw_margin, yaw_std=yaw_std,
+    )
+    # Exogenous strike clock: leaving a bad stance does not disable its cost.
+    heading_scale = torch.where(cmd.time_to_strike.abs() <= cmd.cfg.strike_window_s, 0.25, 1.0)
+    debt = width_cost + yaw_weight * heading_scale * yaw_cost
+    for name, value in {
+        "foot_signed_width_m": width,
+        "foot_width_debt": width_cost,
+        "foot_heading_debt": yaw_cost,
+        "foot_heading_abs_max_rad": yaw.abs().amax(-1),
+        "foot_double_support": loaded.all(-1).float(),
+        "foot_narrow_loaded": ((width < width_min) & loaded.all(-1)).float(),
+        "foot_crossed_loaded": ((width <= 0) & loaded.all(-1)).float(),
+    }.items():
+        _record_metric_snapshot(cmd.metrics, name, value)
+    return debt
 
 
 def _rally_ready_stance_gate(

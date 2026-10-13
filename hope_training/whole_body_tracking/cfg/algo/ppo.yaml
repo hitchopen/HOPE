@@ -1,57 +1,47 @@
-# =============================================================================
-# PPO hyperparameters for the Agibot A3 WBC tasks (BeyondMimic / rsl_rl).
-#
-# Selected on the command line with `algo=ppo`:
-#   python scripts/train.py task=HOPEPingPong algo=ppo headless=true
-#
-# Edit the values here to tune. This same file is the single source of truth for
-# both the Hydra `scripts/train.py` and the legacy `scripts/rsl_rl/train.py`.
-#
-# Confirmed-from-HITTER [H]: PPO, actor/critic MLP [512,256,128], 50 Hz.
-# Everything else follows the BeyondMimic G1 defaults; tune freely.
-# =============================================================================
-
+# Selected model_14600 recipe from origin/main_improve@2b14b76d184643320c158ad938ab3cf6ba8a1624.
+# Inheritance is flattened; values are unchanged. This YAML is the recipe source of truth.
 name: HitterPingPongPPO
-
 runner:
-  # ---- training schedule (EDIT) -------------------------------------------
-  num_steps_per_env: 24        # rollout length per env before each PPO update
-  max_iterations: 300000000000        # total PPO iterations
-  # -------------------------------------------------------------------------
-  save_interval: 100           # checkpoint every N iterations
-  # ⚠ DEAD FLAG (verified 2026-07-04): this deprecated runner-level key is BLOCKED by
-  # rsl_rl 3.1.2's shim because the IsaacLab policy cfg emits
-  # `actor_obs_normalization: {}` (empty dict != None -> shim skips; {} is falsy ->
-  # ActorCritic uses Identity). NO run in this lineage ever normalized observations:
-  # checkpoints carry no normalizer state and every exported ONNX is obs->Gemm direct
-  # (verified across all 6 deployed models). Deploy correctly feeds RAW obs — matching
-  # training. To ACTUALLY enable normalization in a future retrain set
-  # policy.actor_obs_normalization: true (bool) — the exporter will then bake Sub/Div
-  # into the ONNX (deploy still feeds raw obs; no runner change needed).
+  logger: wandb
+  wandb_project: hope_wbc
+  num_steps_per_env: 64
+  max_iterations: 300000000000
+  save_interval: 100
   empirical_normalization: true
-
 policy:
-  # ---- actor / critic networks (EDIT) -------------------------------------
-  actor_hidden_dims: [512, 256, 128]   # HITTER [H]
-  critic_hidden_dims: [512, 256, 128]  # HITTER [H]
-  activation: elu              # elu, relu, tanh, leaky_relu, gelu, selu
-  init_noise_std: 1.0          # initial action exploration std
-  # -------------------------------------------------------------------------
-
+  actor_hidden_dims:
+  - 512
+  - 256
+  - 128
+  critic_hidden_dims:
+  - 512
+  - 256
+  - 128
+  activation: elu
+  init_noise_std: 0.35
+  min_noise_std: 0.05
+  max_noise_std: 0.6
 algorithm:
-  # ---- optimization (EDIT) ------------------------------------------------
-  learning_rate: 0.001         # initial LR
-  schedule: adaptive           # "adaptive" (KL-based) or "fixed"
-  desired_kl: 0.01             # target KL for the adaptive schedule
-  entropy_coef: 0.01          # exploration bonus
-  num_learning_epochs: 5       # gradient epochs per update
-  # Formal Build uses 6144 envs. Six minibatches preserve V14's 24,576-sample
-  # minibatch exactly: 6144 * 24 / 6 == 4096 * 24 / 4.
-  num_mini_batches: 6          # minibatches per epoch
-  # -------------------------------------------------------------------------
-  gamma: 0.99                  # discount
-  lam: 0.95                    # GAE lambda
-  clip_param: 0.2              # PPO clip range
+  learning_rate: 0.001
+  schedule: adaptive
+  desired_kl: 0.01
+  entropy_coef: 0.003
+  projection_aux_enabled: true
+  projection_aux_lambda: 0.1
+  projection_aux_lambda_max: 0.1
+  projection_aux_gradient_ratio_max: 0.25
+  projection_aux_gaussian_tails: true
+  num_learning_epochs: 5
+  num_mini_batches: 16
+  gamma: 0.99
+  lam: 0.99
+  clip_param: 0.2
   value_loss_coef: 1.0
   use_clipped_value_loss: true
   max_grad_norm: 1.0
+  settled_aux_enabled: true
+  settled_aux_start_steps: 448000
+  settled_aux_ramp_steps: 128000
+  settled_aux_smooth_coef: 0.01
+  settled_aux_tracking_coef: 0.0
+  settled_aux_gradient_ratio_max: 0.05

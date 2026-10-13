@@ -22,9 +22,12 @@ from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlPpoAlgorithmCfg
 from rsl_rl.algorithms import PPO
 
+from .gaussian_action_projection import gaussian_projection_debt
+from .settled_policy_refinement import SettledPolicyRefinement
+
 
 class ProjectionPPO(PPO):
-    """Upstream Adam PPO plus a gradient-capped actor-mean projection auxiliary."""
+    """Adam PPO plus a gradient-capped mean or Gaussian-tail projection cost."""
 
     def __init__(
         self,
@@ -33,10 +36,51 @@ class ProjectionPPO(PPO):
         projection_aux_lambda: float = 0.0,
         projection_aux_lambda_max: float = 0.0,
         projection_aux_gradient_ratio_max: float = 0.0,
+        projection_aux_gaussian_tails: bool = False,
+        settled_aux_enabled: bool = False,
+        settled_aux_start_steps: int = 448000,
+        settled_aux_ramp_steps: int = 128000,
+        settled_aux_smooth_coef: float = 0.01,
+        settled_aux_tracking_coef: float = 0.0,
+        settled_aux_gradient_ratio_max: float = 0.05,
+        settled_aux_include_upper: bool = False,
+        settled_aux_step_margin: float = 0.002,
+        settled_aux_step_scale: float = 0.01,
+        settled_aux_worst_joint_blend: float = 0.0,
+        settled_aux_ready_only: bool = False,
+        settled_aux_bounded_smooth: bool = True,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.projection_aux_enabled = bool(projection_aux_enabled)
+        self.settled_aux_enabled = bool(settled_aux_enabled)
+        self.settled_aux_start_steps = int(settled_aux_start_steps)
+        self.settled_aux_ramp_steps = int(settled_aux_ramp_steps)
+        self.settled_aux_smooth_coef = float(settled_aux_smooth_coef)
+        self.settled_aux_tracking_coef = float(settled_aux_tracking_coef)
+        if self.settled_aux_tracking_coef != 0.0:
+            raise ValueError("q_des-q auxiliary tracking was removed: use actual task-pose PPO rewards; settled_aux_tracking_coef must be 0")
+        self.settled_aux_gradient_ratio_max = float(settled_aux_gradient_ratio_max)
+        self.settled_aux_include_upper = bool(settled_aux_include_upper)
+        self.settled_aux_step_margin = float(settled_aux_step_margin)
+        self.settled_aux_step_scale = float(settled_aux_step_scale)
+        self.settled_aux_worst_joint_blend = float(settled_aux_worst_joint_blend)
+        self.settled_aux_ready_only = bool(settled_aux_ready_only)
+        self.settled_aux_bounded_smooth = bool(settled_aux_bounded_smooth)
+        if not 0 <= self.settled_aux_worst_joint_blend <= 1:
+            raise ValueError("settled_aux_worst_joint_blend must be in [0, 1]")
+        self._settled_refinement = None
+        if self.settled_aux_enabled and not self.projection_aux_enabled:
+            raise ValueError("settled refinement requires the V11 ProjectionPPO path")
+        if self.settled_aux_start_steps < 0 or self.settled_aux_ramp_steps <= 0:
+            raise ValueError("invalid settled auxiliary curriculum")
+        for value in (self.settled_aux_smooth_coef, self.settled_aux_tracking_coef,
+                      self.settled_aux_gradient_ratio_max):
+            if not math.isfinite(value) or value < 0:
+                raise ValueError("settled auxiliary coefficients must be finite and non-negative")
+        if self.settled_aux_gradient_ratio_max > 1:
+            raise ValueError("settled auxiliary gradient ratio must be <= 1")
+        self.projection_aux_gaussian_tails = bool(projection_aux_gaussian_tails)
         self.projection_aux_lambda = float(projection_aux_lambda)
         self.projection_aux_lambda_max = float(projection_aux_lambda_max)
         self.projection_aux_gradient_ratio_max = float(
@@ -64,6 +108,14 @@ class ProjectionPPO(PPO):
         self._projection_lower: torch.Tensor | None = None
         self._projection_upper: torch.Tensor | None = None
         self._projection_active: torch.Tensor | None = None
+        # AdamWPPO used to be the only optimizer installing this constraint.
+        # ProjectionPPO owns an upstream Adam optimizer, so bound it as well,
+        # including the disabled-auxiliary path that delegates to upstream PPO.
+        project_std = getattr(self.policy, "project_noise_std_", None)
+        if callable(project_std):
+            self.optimizer.register_step_post_hook(
+                lambda _optimizer, _args, _kwargs: project_std()
+            )
         if self.projection_aux_enabled:
             if self.policy.is_recurrent:
                 raise RuntimeError(
@@ -77,6 +129,28 @@ class ProjectionPPO(PPO):
                 raise RuntimeError(
                     "ProjectionPPO is intentionally restricted to the V17 PPO contract without RND"
                 )
+
+    def bind_settled_refinement(self, env) -> None:
+        if self.settled_aux_enabled:
+            self._settled_refinement = SettledPolicyRefinement(
+                env, self.storage, start_steps=self.settled_aux_start_steps,
+                ramp_steps=self.settled_aux_ramp_steps,
+                include_upper=self.settled_aux_include_upper,
+                step_margin=self.settled_aux_step_margin, step_scale=self.settled_aux_step_scale,
+                worst_joint_blend=self.settled_aux_worst_joint_blend,
+                ready_only=self.settled_aux_ready_only,
+                bounded_smooth=self.settled_aux_bounded_smooth,
+            )
+            print("[ProjectionPPO] deterministic HOLD refinement bound: "
+                  f"start={self.settled_aux_start_steps}, ramp={self.settled_aux_ramp_steps}, "
+                  f"gradient_ratio_max={self.settled_aux_gradient_ratio_max}", flush=True)
+
+    def act(self, obs):
+        if self.settled_aux_enabled:
+            if self._settled_refinement is None:
+                raise RuntimeError("settled refinement context was not bound")
+            self._settled_refinement.capture(self.storage.step)
+        return super().act(obs)
 
     @torch.no_grad()
     def bind_executable_action_projection(
@@ -132,6 +206,7 @@ class ProjectionPPO(PPO):
         actor_mean: torch.Tensor,
         lower: torch.Tensor,
         upper: torch.Tensor,
+        actor_std: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         active = self._projection_active
         if active is None:
@@ -141,7 +216,12 @@ class ProjectionPPO(PPO):
             torch.maximum(mean, lower[:, active]), upper[:, active]
         )
         delta = mean - projected
-        loss = torch.square(delta).mean()
+        if actor_std is None:
+            loss = torch.square(delta).mean()
+        else:
+            loss = gaussian_projection_debt(
+                mean, actor_std[:, active], lower[:, active], upper[:, active]
+            ).mean()
         distance = torch.sqrt(torch.square(delta).mean(dim=-1))
         outside = (delta != 0.0).float().mean()
         return loss, distance.mean(), outside
@@ -193,6 +273,17 @@ class ProjectionPPO(PPO):
         max_actor_mean_abs = 0.0
         max_sample_abs = 0.0
         max_policy_std = 0.0
+        # Disabled refinement still reports its zero added gradient, without
+        # fabricating a zero q_des-step measurement for an unmeasured signal.
+        settled_totals = {"gradient_ratio": 0.0}
+        run_settled = (self.settled_aux_enabled and
+                       self._settled_refinement.rollout_has_curriculum)
+        if self.settled_aux_enabled and not run_settled:
+            # Exactly zero before the curriculum. Avoid an extra actor forward
+            # and autograd pass for every minibatch; keep zero diagnostic keys.
+            settled_totals = dict.fromkeys(("smooth", "qdes_step_rad", "active_fraction",
+                                           "pair_fraction", "curriculum_scale", "gradient_ratio",
+                                           "gradient_multiplier"), 0.0)
 
         storage = self.storage
         batch_size = storage.num_envs * storage.num_transitions_per_env
@@ -221,7 +312,13 @@ class ProjectionPPO(PPO):
             .expand(storage.num_transitions_per_env, -1, -1)
             .flatten(0, 1)
         )
-        actor_parameters = list(self.policy.actor.parameters())
+        mean_parameters = list(self.policy.actor.parameters())
+        actor_parameters = list(mean_parameters)
+        if self.projection_aux_gaussian_tails:
+            std_parameter = getattr(self.policy, "std", None)
+            if not isinstance(std_parameter, torch.nn.Parameter):
+                raise RuntimeError("Gaussian projection requires a trainable physical policy.std")
+            actor_parameters.append(std_parameter)
         if not actor_parameters:
             raise RuntimeError("ProjectionPPO could not resolve actor parameters")
 
@@ -342,11 +439,25 @@ class ProjectionPPO(PPO):
                     - self.entropy_coef * entropy_batch.mean()
                 )
                 projection_loss, projection_distance, projection_outside = (
-                    self._projection_loss(mu_batch, lower_batch, upper_batch)
+                    self._projection_loss(
+                        mu_batch, lower_batch, upper_batch,
+                        sigma_batch if self.projection_aux_gaussian_tails else None,
+                    )
                 )
-                # The auxiliary deliberately acts on the differentiable actor mean. The plant,
-                # however, executes sampled rollout actions. Report both populations so a small
-                # mean penalty cannot hide large exploration tails.
+                settled_loss = None
+                settled_stats = {}
+                if run_settled:
+                    smooth, tracking, diagnostics = self._settled_refinement.losses(
+                        self.policy, observations, mu_batch, batch_idx, storage.dones,
+                    )
+                    settled_loss = self.settled_aux_smooth_coef * smooth
+                    settled_stats = {"smooth": smooth.item(),
+                                     **{k: v.item() for k, v in diagnostics.items()
+                                        if not k.startswith("waist_qdes_offset_")}}
+                    # Physical PD offsets are logged by the state/command/torque
+                    # chain, not under rsl_rl's misleading Loss/* namespace.
+                # Preserve separate mean and rollout-sample diagnostics even when
+                # the auxiliary integrates the full current Gaussian distribution.
                 with torch.no_grad():
                     (
                         _sample_projection_loss,
@@ -374,11 +485,12 @@ class ProjectionPPO(PPO):
                 ppo_loss.backward(retain_graph=actor_updates_enabled)
                 if actor_updates_enabled:
                     base_actor_grad_norm = self._grad_norm(actor_parameters)
+                    base_mean_grad_norm = self._grad_norm(mean_parameters)
                     projection_gradients = list(
                         torch.autograd.grad(
                             projection_loss,
                             actor_parameters,
-                            retain_graph=False,
+                            retain_graph=settled_loss is not None,
                             allow_unused=True,
                         )
                     )
@@ -417,6 +529,28 @@ class ProjectionPPO(PPO):
                             parameter.grad = addition
                         else:
                             parameter.grad.add_(addition)
+                    if settled_loss is not None:
+                        # The cap references the original PPO actor gradient, excluding std.
+                        # Both new objectives differentiate deterministic means only.
+                        gradients = list(torch.autograd.grad(
+                            settled_loss, mean_parameters, allow_unused=True,
+                        ))
+                        raw_norm = float(self._grad_norm(mean_parameters, gradients).detach())
+                        base_norm = float(base_mean_grad_norm.detach())
+                        # Ramp the ceiling too: clipping must not undo the late curriculum.
+                        ratio_cap = (self.settled_aux_gradient_ratio_max
+                                     * settled_stats["curriculum_scale"])
+                        multiplier = min(1.0, ratio_cap
+                                         * base_norm / max(raw_norm, 1e-20))
+                        for parameter, gradient in zip(mean_parameters, gradients):
+                            if gradient is not None:
+                                addition = gradient * multiplier
+                                if parameter.grad is None:
+                                    parameter.grad = addition
+                                else:
+                                    parameter.grad.add_(addition)
+                        settled_stats["gradient_ratio"] = multiplier * raw_norm / max(base_norm, 1e-20)
+                        settled_stats["gradient_multiplier"] = multiplier
                 else:
                     # A migrated actor must not be rewritten by advantages from a freshly
                     # initialized critic.  ``grad=None`` also prevents AdamW weight decay and
@@ -437,6 +571,8 @@ class ProjectionPPO(PPO):
                     self.policy.parameters(), self.max_grad_norm
                 )
                 self.optimizer.step()
+                for key, value in settled_stats.items():
+                    settled_totals[key] = settled_totals.get(key, 0.0) + value
 
                 mean_value_loss += value_loss.item()
                 mean_surrogate_loss += surrogate_loss.item()
@@ -470,6 +606,8 @@ class ProjectionPPO(PPO):
         num_updates = self.num_learning_epochs * self.num_mini_batches
         storage.clear()
         return {
+            **{f"settled_mean_{k}": v / num_updates for k, v in settled_totals.items()},
+            "settled_aux_enabled": float(self.settled_aux_enabled),
             "value_function": mean_value_loss / num_updates,
             "surrogate": mean_surrogate_loss / num_updates,
             "entropy": mean_entropy / num_updates,
@@ -509,6 +647,19 @@ class RslRlProjectionPpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     projection_aux_lambda: float = 0.0
     projection_aux_lambda_max: float = 0.0
     projection_aux_gradient_ratio_max: float = 0.0
+    projection_aux_gaussian_tails: bool = False
+    settled_aux_enabled: bool = False
+    settled_aux_start_steps: int = 448000
+    settled_aux_ramp_steps: int = 128000
+    settled_aux_smooth_coef: float = 0.01
+    settled_aux_tracking_coef: float = 0.0
+    settled_aux_gradient_ratio_max: float = 0.05
+    settled_aux_include_upper: bool = False
+    settled_aux_step_margin: float = 0.002
+    settled_aux_step_scale: float = 0.01
+    settled_aux_worst_joint_blend: float = 0.0
+    settled_aux_ready_only: bool = False
+    settled_aux_bounded_smooth: bool = True
 
 
 def register_with_rsl_rl_runner() -> None:

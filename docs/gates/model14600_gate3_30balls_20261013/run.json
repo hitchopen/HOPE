@@ -1,0 +1,350 @@
+{
+  "status": "failed",
+  "evidence_scope": "simulator_truth",
+  "output": "/home/dongc1/workspace/Hope_v11/agi/a3_deploy_example/gate3/runs/model14600_30balls_20261013",
+  "runtime": {
+    "runner_dist": "/home/dongc1/workspace/Hope_v11/agi/a3_deploy_example/dist/a3_deploy_x86_64",
+    "sim_install": "/home/dongc1/workspace/Hope_v11/agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/build_v11/install",
+    "hope_ws": "/home/dongc1/workspace/Hope_v11/hope_ws"
+  },
+  "policy": {
+    "inspection_version": 1,
+    "policy_abi": "ball_clock_110_v1",
+    "observation_dim": 110,
+    "action_dim": 31,
+    "step_dt": 0.02,
+    "runtime_contract": "rally_final_v2",
+    "training_recipe": "continuous_rally_sim2real_v3",
+    "training_recipe_version": 3
+  },
+  "scene": {
+    "schema_version": 1,
+    "family": "fixed_home",
+    "description": "Fixed HOME: six clean shots followed by a repeating rapid sequence; no inter-ball reset. Simulator truth, not training-bank replay.",
+    "balls": 26,
+    "clean_serves": [
+      [
+        2.4,
+        -1.0225,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.7125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0925,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ]
+    ],
+    "rapid_cycle": [
+      [
+        2.4,
+        -1.0225,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.7125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0925,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0225,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.7125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0925,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0225,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.7125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6575,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0925,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.6125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -1.0225,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ],
+      [
+        2.4,
+        -0.7125,
+        0.49,
+        -3.0,
+        0.0,
+        2.2
+      ]
+    ],
+    "timing": {
+      "clean_flight_s": 2.5,
+      "rapid_flight_s": 1.15,
+      "final_flight_s": 2.5,
+      "clean_pause_s": 1.0,
+      "rapid_pause_s": 0.0
+    },
+    "metrics": {
+      "PP_RECOVERY_RADIUS_M": 0.05,
+      "PP_RECOVERY_SPEED_MAX_MPS": 0.12,
+      "PP_RECOVERY_DWELL_S": 0.3,
+      "PP_RECOVERY_YAW_MAX_DEG": 5.0,
+      "PP_MOTION_IDLE_S": 20.0,
+      "PP_MIN_MOTION_IDLE_S": 15.0,
+      "PP_REQUIRED_POST_COMPLETION_TAIL_S": 3.0,
+      "PP_RAPID_MAX_ENGAGE_GAP_S": 1.4,
+      "PP_RAPID_CONTACT_TO_NEXT_COMMIT_MIN_S": 0.4,
+      "PP_RAPID_CONTACT_TO_NEXT_COMMIT_MAX_S": 0.55,
+      "PP_HOME_MAX_SUPPORT_MIDPOINT_END_M": 0.03,
+      "PP_HOME_MAX_FOOT_ANCHOR_END_M": 0.03,
+      "PP_HOME_MIN_SIGNED_WIDTH_M": 0.26,
+      "PP_HOME_MAX_SIGNED_WIDTH_M": 0.31,
+      "PP_MAX_END_YAW_DRIFT_DEG": 5.0,
+      "PP_MAX_PEAK_YAW_DRIFT_DEG": 12.0
+    }
+  },
+  "resolved_scene_environment": {
+    "PP_SERVES": "30",
+    "PP_SERVES_LIST": "[2.4, -1.0225, 0.49, -3.0, 0.0, 2.2, 2.4, -0.7125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0575, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6575, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0925, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0225, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0575, 0.49, -3.0, 0.0, 2.2, 2.4, -0.7125, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6575, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0925, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0225, 0.49, -3.0, 0.0, 2.2, 2.4, -0.7125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0575, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6575, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0925, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0225, 0.49, -3.0, 0.0, 2.2, 2.4, -0.7125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0575, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6575, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0925, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0225, 0.49, -3.0, 0.0, 2.2, 2.4, -0.7125, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0225, 0.49, -3.0, 0.0, 2.2, 2.4, -1.0575, 0.49, -3.0, 0.0, 2.2, 2.4, -0.7125, 0.49, -3.0, 0.0, 2.2, 2.4, -0.6575, 0.49, -3.0, 0.0, 2.2]",
+    "PP_FLIGHT_S_LIST": "[2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 2.5]",
+    "PP_PAUSE_S_LIST": "[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
+    "PP_CLEAN_FIXED_HOME_SERVES": "6",
+    "PP_MIN_ENGAGED_SERVES": "30",
+    "PP_MIN_COMPLETED_SERVES": "30",
+    "PP_MIN_RAPID_ENGAGED": "24",
+    "PP_MIN_RAPID_COMPLETED": "24",
+    "PP_RECOVERY_RADIUS_M": "0.05",
+    "PP_RECOVERY_SPEED_MAX_MPS": "0.12",
+    "PP_RECOVERY_DWELL_S": "0.3",
+    "PP_RECOVERY_YAW_MAX_DEG": "5.0",
+    "PP_MOTION_IDLE_S": "20.0",
+    "PP_MIN_MOTION_IDLE_S": "15.0",
+    "PP_REQUIRED_POST_COMPLETION_TAIL_S": "3.0",
+    "PP_RAPID_MAX_ENGAGE_GAP_S": "1.4",
+    "PP_RAPID_CONTACT_TO_NEXT_COMMIT_MIN_S": "0.4",
+    "PP_RAPID_CONTACT_TO_NEXT_COMMIT_MAX_S": "0.55",
+    "PP_HOME_MAX_SUPPORT_MIDPOINT_END_M": "0.03",
+    "PP_HOME_MAX_FOOT_ANCHOR_END_M": "0.03",
+    "PP_HOME_MIN_SIGNED_WIDTH_M": "0.26",
+    "PP_HOME_MAX_SIGNED_WIDTH_M": "0.31",
+    "PP_MAX_END_YAW_DRIFT_DEG": "5.0",
+    "PP_MAX_PEAK_YAW_DRIFT_DEG": "12.0"
+  },
+  "policy_sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+  "deploy_sha256": "c6f60914d30c688ec1f262bdb048eba234aa032ed2c094998ce8d4dcf46a3632",
+  "runner_sha256": "a231deae8e2e70a8f1ec913129d4e8b675b0b9b1cfd60ef6705b08ebf8c5b7e9",
+  "scene_sha256": "0172d0ccc74d6c6c5e32a21dbb01dfecba0c03bbd324036b4b179a9c44a6bf87",
+  "flight_drain": {
+    "dead_grace_s": 2.0,
+    "dead_producers": [],
+    "evidence_complete": true,
+    "failure_reason": null,
+    "launched_shot_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+    ],
+    "pending_shot_ids": [],
+    "producer_alive": {
+      "recorder": true,
+      "simulator": true
+    },
+    "producer_pids": {
+      "recorder": "300881",
+      "simulator": "300737"
+    },
+    "report_error": null,
+    "stale_shot_ids": [],
+    "stale_timeout_s": 10.0,
+    "status": "complete",
+    "updated_monotonic_s": 10674.329033557
+  },
+  "exit_code": 1,
+  "elapsed_s": 133.13430213928223,
+  "archive_errors": [],
+  "certification_pass": false
+}

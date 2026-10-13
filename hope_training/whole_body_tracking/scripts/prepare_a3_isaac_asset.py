@@ -34,7 +34,7 @@ import xml.etree.ElementTree as ET
 def _repo_root() -> pathlib.Path:
     here = pathlib.Path(__file__).resolve()
     for parent in here.parents:
-        if (parent / "hope_training").is_dir() and (parent / "a3_deploy").is_dir():
+        if (parent / "hope_training").is_dir() and ((parent / "a3_deploy").is_dir() or (parent / "agi").is_dir()):
             return parent
     return here.parents[3]
 
@@ -44,6 +44,7 @@ REPO_ROOT = _repo_root()
 # agibot/URDF/ when present, else a user-supplied copy under a3_deploy/URDF/ (see its README).
 _SOURCE_CANDIDATES = (
     REPO_ROOT / "agibot" / "URDF" / "A3T2.5-URDF-std-pingpang",
+    REPO_ROOT / "agi" / "URDF" / "A3T2.5-URDF-std-pingpang",
     REPO_ROOT / "a3_deploy" / "URDF" / "agibot_a3_pingpong",
 )
 DEFAULT_SOURCE_ROOT = next((p for p in _SOURCE_CANDIDATES if p.is_dir()), _SOURCE_CANDIDATES[0])

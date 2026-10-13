@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -13,7 +14,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[3]
 EXAMPLE = REPO / "a3_deploy/a3_deploy_example"
 SCRIPTS = EXAMPLE / "scripts"
-CHECKPOINT = REPO / "hope_training/whole_body_tracking/checkpoints/model_21800.pt"
+TRAINING_BASELINE = REPO / "hope_training/whole_body_tracking/checkpoints"
 POLICY = EXAMPLE / "models/model_21800/policy/exported/policy.onnx"
 DEPLOY = EXAMPLE / "models/model_21800/policy/params/deploy.yaml"
 RUNNER = EXAMPLE / "src/a3/a3_deploy_onnx_ref"
@@ -64,15 +65,15 @@ def test_model21800_deploy_actor_matches_exported_provenance():
     )
 
 
-def test_checkpoint_is_present_as_materialized_payload_or_valid_lfs_pointer():
-    payload = CHECKPOINT.read_bytes()
-    if payload.startswith(b"version https://git-lfs.github.com/spec/v1\n"):
-        text = payload.decode("ascii")
-        assert re.search(r"^oid sha256:[0-9a-f]{64}$", text, re.MULTILINE)
-        size = re.search(r"^size ([0-9]+)$", text, re.MULTILINE)
-        assert size is not None and int(size.group(1)) > 1_000_000
-    else:
-        assert len(payload) > 1_000_000
+def test_model14600_training_baseline_matches_its_recorded_export():
+    receipt = json.loads((TRAINING_BASELINE.parent / "docs/model_14600_training_provenance.json").read_text())
+    assert receipt["baseline_model"] == "model_14600"
+    for name, expected_sha in receipt["baseline_files_sha256"].items():
+        assert _sha256(TRAINING_BASELINE / name) == expected_sha
+    metadata = yaml.safe_load((TRAINING_BASELINE / "deploy.yaml").read_text())
+    assert _sha256(TRAINING_BASELINE / "policy.onnx") == metadata["provenance"]["policy_sha256"]
+    assert metadata["contracts"]["actor_observation"]["total_dim"] == 110
+    assert len(metadata["joint_sdk_names"]) == 31
 
 
 def test_formal_gate3_script_dependency_closure_is_complete_and_executable():

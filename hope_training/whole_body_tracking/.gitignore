@@ -49,13 +49,14 @@ source/whole_body_tracking/whole_body_tracking/assets/*
 !source/whole_body_tracking/whole_body_tracking/assets/.gitignore
 !source/whole_body_tracking/whole_body_tracking/assets/__init__.py
 
-# V17 r12's physical tuple bank is a recipe input, not a generated run artifact.
-# Keep the broad asset/NPZ ignores above, but allow this bank and its receipt so
-# a checkout cannot silently lose 25% of the training question bank.
-!assets/
-assets/*
-!assets/venue_tuple/
-assets/venue_tuple/*
-!assets/venue_tuple/v17_r12_physical_tuple_bank.npz
-!assets/venue_tuple/v17_r12_physical_tuple_bank.receipt.json
 artifacts/
+
+# Local history may be a directory or a symlink to the pre-replacement backup.
+/logs
+/outputs
+/wandb
+/setup_train_env.local.sh
+
+# Keep the selected model_14600 baseline export at the requested stable path.
+!checkpoints/
+!checkpoints/policy.onnx

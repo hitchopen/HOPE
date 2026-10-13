@@ -38,6 +38,11 @@ run_name: null
 #   checkpoint_path=logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
 checkpoint_path: null
 
+# Same-ABI actor + exploration only; fresh critic/optimizer/MDP, mutually exclusive with resume.
+warm_start_actor_checkpoint: null
+warm_start_critic_iterations: 100
+warm_start_finetune_lr: 0.00001
+
 # Video capture (off by default).
 video: false
 video_length: 200

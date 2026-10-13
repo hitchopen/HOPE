@@ -7,6 +7,7 @@ import random
 import signal
 import time
 from collections import deque
+from dataclasses import asdict
 
 import numpy as np
 import torch
@@ -14,15 +15,33 @@ from rsl_rl.env import VecEnv
 from rsl_rl.runners.on_policy_runner import OnPolicyRunner
 from tensordict import TensorDict
 
+from isaaclab_rl.rsl_rl import export_policy_as_onnx
 
+from whole_body_tracking.utils.exporter import attach_onnx_metadata, export_motion_policy_as_onnx
+from whole_body_tracking.utils.wandb_logging import WandbScalarUploadLimiter
 
 
 class MyOnPolicyRunner(OnPolicyRunner):
-    """Standard local-checkpoint runner."""
+    def save(self, path: str, infos=None):
+        """Save the model and training information."""
+        super().save(path, infos)
+        if self.logger_type in ["wandb"]:
+            import wandb
+
+            policy_path = path.split("model")[0]
+            filename = policy_path.split("/")[-2] + ".onnx"
+            export_policy_as_onnx(
+                self.alg.policy,
+                normalizer=getattr(self.alg.policy, "actor_obs_normalizer", None),
+                path=policy_path,
+                filename=filename,
+            )
+            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
+            wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
 
 
 class MotionOnPolicyRunner(OnPolicyRunner):
-    def __init__(self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu"):
+    def __init__(self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu", registry_name=None):
         # The resolved action term is authoritative for which fixed actor outputs execute.  Bind
         # its passive columns before rsl_rl constructs the policy, so entropy optimizes the 29
         # active A3 channels while preserving the 31-D network/export shape.
@@ -85,13 +104,88 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             if passive_cols.numel() > 0:
                 active[passive_cols] = False
             bind_projection(lower, upper, active)
+        bind_settled = getattr(self.alg, "bind_settled_refinement", None)
+        if callable(bind_settled):
+            bind_settled(env.unwrapped)
+        self.registry_name = registry_name
+        full_body = "full_body_hold" in env.unwrapped.reward_manager.active_terms
+        if log_dir is not None and (full_body or "actual_task_pose" in env.unwrapped.reward_manager.active_terms):
+            from whole_body_tracking.utils.task_pose_reference import PoseChainTrace, load_reference
+            load_reference()  # fail before a rollout if the selected asset changed
+            scope = ("29 active joints and body geometry in HOLD/RECOVER; STRIKE is free"
+                     if full_body else "waist/torso HOLD and ready_recover; inapplicable during STRIKE")
+            env.unwrapped._task_pose_chain_trace = PoseChainTrace(log_dir, reference_scope=scope)
 
     def _prepare_logging_writer(self) -> None:
-        """Keep scalar logs local; cloud logger backends are unsupported."""
+        """Create a bounded W&B writer and preserve exact-resume configuration."""
         logger_type = str(self.cfg.get("logger", "tensorboard")).lower()
-        if logger_type != "tensorboard":
-            raise ValueError("HOPE supports only the local tensorboard logger")
-        super()._prepare_logging_writer()
+        exact_wandb_resume = (
+            bool(getattr(self, "checkpoint_exact_resume", False))
+            and logger_type == "wandb"
+        )
+        if logger_type != "wandb":
+            super()._prepare_logging_writer()
+            return
+        if self.log_dir is None or self.writer is not None or self.disable_logs:
+            return
+
+        # W&B otherwise captures the full Isaac/PPO terminal stream into output.log and uploads it
+        # on finish.  Training diagnostics remain visible in the terminal and local launch log;
+        # remote runs receive scalar curves and small provenance files only.
+        if not bool(getattr(self, "wandb_capture_console", False)):
+            os.environ["WANDB_CONSOLE"] = "off"
+
+        from rsl_rl.utils.wandb_utils import WandbSummaryWriter
+
+        self.logger_type = "wandb"
+        raw_writer = WandbSummaryWriter(log_dir=self.log_dir, flush_secs=10, cfg=self.cfg)
+        self.writer = WandbScalarUploadLimiter(
+            raw_writer,
+            profile=str(getattr(self, "wandb_metric_profile", "core_v1")),
+            max_distinct_keys=int(getattr(self, "wandb_max_metric_keys", 2000)),
+        )
+
+        if not exact_wandb_resume:
+            self.writer.log_config(
+                self.env.cfg,
+                self.cfg,
+                self.alg_cfg,
+                self.policy_cfg,
+            )
+            print(
+                "[MotionOnPolicyRunner] bounded W&B logging active: "
+                f"profile={self.writer.profile}, "
+                f"max_distinct_keys={self.writer.max_distinct_keys}, "
+                "console_capture=off",
+                flush=True,
+            )
+            return
+
+        # rsl_rl writes the resolved config again whenever its W&B writer is constructed. On a
+        # resumed run W&B treats that config as immutable. Its first serialization can omit empty
+        # nested dictionaries (for example actor_obs_normalization={}), so writing the same saved
+        # runner config again may look like a value change and abort before the first PPO update.
+        # Exact resume deliberately reconnects to the same run and frozen params, therefore allow
+        # those serialization-only differences here. Fresh and ordinary warm-start runs retain the
+        # upstream fail-closed behavior.
+        import wandb
+
+        try:
+            env_cfg = self.env.cfg.to_dict()
+        except Exception:
+            env_cfg = asdict(self.env.cfg)
+        for key, value in (
+            ("runner_cfg", self.cfg),
+            ("policy_cfg", self.policy_cfg),
+            ("alg_cfg", self.alg_cfg),
+            ("env_cfg", env_cfg),
+        ):
+            wandb.config.update({key: value}, allow_val_change=True)
+        print(
+            "[MotionOnPolicyRunner] exact W&B resume attached; saved configs restored with "
+            "allow_val_change=True; bounded scalar/file upload remains active",
+            flush=True,
+        )
 
     @staticmethod
     def _is_scalar_tree(value) -> bool:
@@ -623,6 +717,7 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             view.set_masses(articulation["masses"].cpu(), env_ids_cpu)
             view.set_inertias(articulation["inertias"].cpu(), env_ids_cpu)
             view.set_coms(articulation["coms"].cpu(), env_ids_cpu)
+            asset._hope_support_com_pos_b = None
             for name, value in articulation.get("data", {}).items():
                 current = getattr(asset.data, name, None)
                 if not torch.is_tensor(current):
@@ -1153,10 +1248,15 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                 and not self.disable_logs
                 and not bool(getattr(self, "checkpoint_exact_resume", False))
             ):
-                store_code_state(
+                git_file_paths = store_code_state(
                     self.log_dir, self.git_status_repos
                 )
-
+                if (
+                    self.logger_type in ["wandb", "neptune"]
+                    and git_file_paths
+                ):
+                    for path in git_file_paths:
+                        self.writer.save_file(path)
 
         if self.log_dir is not None and not self.disable_logs:
             self.save(
@@ -1197,6 +1297,9 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                 init_at_random_ep_len=init_at_random_ep_len,
             )
         finally:
+            trace = getattr(self.env.unwrapped, "_task_pose_chain_trace", None)
+            if trace is not None:
+                trace.flush()
             self._boundary_stop_requested = None
             for signum, handler in previous_handlers.items():
                 signal.signal(signum, handler)
@@ -1204,6 +1307,13 @@ class MotionOnPolicyRunner(OnPolicyRunner):
     def save(self, path: str, infos=None):
         """Atomically save a checkpoint that can continue at the next PPO iteration."""
         provenance = getattr(self, "checkpoint_provenance", None)
+        logger_type = str(
+            getattr(
+                self,
+                "logger_type",
+                self.cfg.get("logger", "tensorboard"),
+            )
+        ).lower()
         sidecar = pathlib.Path(f"{path}.final_v3.json") if provenance is not None else None
         # Never leave a stale sidecar beside a failed/partial overwrite.  A successful save writes
         # the replacement atomically below; export independently re-hashes the checkpoint.
@@ -1211,6 +1321,17 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             sidecar.unlink(missing_ok=True)
         checkpoint = pathlib.Path(path)
         checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        wandb_run_id = None
+        wandb_run_name = None
+        if logger_type == "wandb" and not self.disable_logs:
+            try:
+                import wandb
+
+                if wandb.run is not None:
+                    wandb_run_id = wandb.run.id
+                    wandb_run_name = wandb.run.name
+            except Exception:
+                pass
         rng_state = self._capture_rng_state()
         resume_state = {
             "schema_version": 3,
@@ -1224,6 +1345,8 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             "algorithm_learning_rate": float(self.alg.learning_rate),
             **rng_state,
             "log_dir": str(self.log_dir) if self.log_dir is not None else None,
+            "wandb_run_id": wandb_run_id,
+            "wandb_run_name": wandb_run_name,
             "environment_resume_state": self._capture_environment_resume_state(),
             "rollout_bookkeeping_state": getattr(
                 self, "_rollout_bookkeeping_state", None
@@ -1254,6 +1377,25 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             os.replace(temporary_checkpoint, checkpoint)
         finally:
             temporary_checkpoint.unlink(missing_ok=True)
+        if logger_type == "neptune" and not self.disable_logs:
+            self.writer.save_model(str(checkpoint), self.current_learning_iteration)
+        elif (
+            logger_type == "wandb"
+            and not self.disable_logs
+            and bool(getattr(self, "wandb_upload_checkpoints", False))
+        ):
+            self.writer.save_model(str(checkpoint), self.current_learning_iteration)
+        elif (
+            logger_type == "wandb"
+            and not self.disable_logs
+            and not getattr(self, "_wandb_checkpoint_skip_reported", False)
+        ):
+            print(
+                "[MotionOnPolicyRunner] W&B checkpoint upload disabled; "
+                "model_*.pt remains in the local run directory",
+                flush=True,
+            )
+            self._wandb_checkpoint_skip_reported = True
         if provenance is not None:
             digest = hashlib.sha256()
             with checkpoint.open("rb") as stream:
@@ -1268,6 +1410,73 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             temporary = pathlib.Path(f"{sidecar}.tmp")
             temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
             temporary.replace(sidecar)
+        if logger_type == "wandb":
+            import wandb
+
+            if getattr(self, "checkpoint_export_onnx", True):
+                policy_path = path.split("model")[0]
+                filename = policy_path.split("/")[-2] + ".onnx"
+                # rsl_rl moved obs normalization onto the policy (actor_obs_normalizer); the runner no
+                # longer has self.obs_normalizer. Fall back to None (-> Identity in the exporter) if absent.
+                export_motion_policy_as_onnx(
+                    self.env.unwrapped,
+                    self.alg.policy,
+                    normalizer=getattr(self.alg.policy, "actor_obs_normalizer", None),
+                    path=policy_path,
+                    filename=filename,
+                )
+                attach_onnx_metadata(
+                    self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename
+                )
+                if bool(getattr(self, "wandb_upload_onnx", False)):
+                    wandb.save(
+                        policy_path + filename,
+                        base_path=os.path.dirname(policy_path),
+                    )
+                elif not getattr(self, "_wandb_onnx_skip_reported", False):
+                    print(
+                        "[MotionOnPolicyRunner] W&B ONNX upload disabled; "
+                        "periodic ONNX remains local",
+                        flush=True,
+                    )
+                    self._wandb_onnx_skip_reported = True
+            elif not getattr(self, "_checkpoint_export_skip_reported", False):
+                print(
+                    "[MotionOnPolicyRunner] periodic ONNX export disabled by task YAML; "
+                    "resumable PT checkpoints remain enabled",
+                    flush=True,
+                )
+                self._checkpoint_export_skip_reported = True
+            if sidecar is not None:
+                # Keep remote checkpoint downloads exportable: the FinalV3 exporter requires this
+                # hash binding and must not silently degrade to a local-run-only workflow.
+                wandb.save(str(sidecar), base_path=os.path.dirname(str(sidecar)))
+            provenance_files = getattr(self, "checkpoint_provenance_files", ())
+            if provenance_files and not getattr(self, "_checkpoint_provenance_files_uploaded", False):
+                for provenance_file in provenance_files:
+                    provenance_file = pathlib.Path(provenance_file)
+                    # Preserve params/<name> under the W&B run rather than flattening three files
+                    # with checkpoint artifacts at the run root.
+                    wandb.save(
+                        str(provenance_file),
+                        base_path=str(provenance_file.parents[1]),
+                    )
+                self._checkpoint_provenance_files_uploaded = True
+
+            # Link the input motion artifact(s) to this run (lineage bookkeeping only — a W&B API
+            # failure here must not kill the training run). W&B expects registry refs to include an
+            # alias (for example, collection:latest).
+            if self.registry_name is not None:
+                registry_names = (
+                    self.registry_name if isinstance(self.registry_name, (list, tuple)) else [self.registry_name]
+                )
+                for registry_name in registry_names:
+                    try:
+                        wandb.run.use_artifact(registry_name)
+                    except Exception as e:
+                        print(f"[MotionOnPolicyRunner] WARNING: use_artifact({registry_name!r}) failed: {e}")
+                self.registry_name = None
+
     def _restore_yaml_optimizer_hyperparameters(self, optimizer_state: dict) -> None:
         """Keep a loaded optimizer's moments while restoring YAML-owned hyperparameters."""
         checkpoint_param_groups = optimizer_state.get("param_groups", [])
@@ -1427,6 +1636,9 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         return infos, state
 
     def log(self, locs: dict, width: int = 80, pad: int = 35) -> None:
+        trace = getattr(self.env.unwrapped, "_task_pose_chain_trace", None)
+        if trace is not None:
+            trace.flush()
         # ``save`` runs immediately after ``log`` (and the interrupt path saves from inside it),
         # so snapshot rsl_rl's otherwise-local episode accumulators before either path writes PT.
         self._capture_rollout_bookkeeping(locs)
@@ -1450,15 +1662,67 @@ class MotionOnPolicyRunner(OnPolicyRunner):
     def _log_live_metrics(self, step: int, *, executed_entropy=None) -> None:
         """Log current manager state means every PPO iteration for richer dashboards."""
         env = self.env.unwrapped
+        pending_scalars: list[tuple[str, object]] = []
+
+        def mean_without_host(value):
+            if torch.is_tensor(value):
+                return value.float().mean() if value.numel() else None
+            return self._mean_tensor(value)
+
+        def stage_scalar(tag, value, _step):
+            pending_scalars.append((tag, value))
 
         if hasattr(env, "command_manager"):
             for term_name in env.command_manager.active_terms:
                 term = env.command_manager.get_term(term_name)
                 for metric_name, metric_value in term.metrics.items():
-                    self._log_scalar(f"Live/{term_name}/{metric_name}", self._mean_tensor(metric_value), step)
+                    stage_scalar(f"Live/{term_name}/{metric_name}", mean_without_host(metric_value), step)
+                if "full_body_phase" in term.metrics:
+                    from whole_body_tracking.utils.full_body_hold import phase_summaries
+                    for name, value in phase_summaries(term.metrics).items():
+                        stage_scalar(f"Live/{term_name}/{name}", value, step)
+                if "task_pose_valid" in term.metrics:
+                    from whole_body_tracking.utils.task_pose_reference import PHASE_NAMES
+                    metrics = term.metrics
+                    valid = metrics["task_pose_valid"] > 0
+                    for phase_id, phase_name in enumerate(PHASE_NAMES):
+                        mask = valid & (metrics["task_pose_phase"] == phase_id)
+                        count = mask.sum()
+                        prefix = f"Live/{term_name}/task_pose_{phase_name}_"
+                        stage_scalar(prefix+"fraction", mask.float().mean(), step)
+                        for field in ("waist_pitch_reference_rad", "waist_pitch_actual_rad", "waist_pitch_qdes_rad",
+                                      "waist_pitch_pd_torque_estimate_Nm", "waist_pitch_pd_offset_rad",
+                                      "waist_pitch_joint_axis_torque_Nm",
+                                      "torso_pitch_reference_rad", "torso_pitch_actual_rad"):
+                            value = metrics["task_pose_"+field]
+                            # Missing phases are NaN, not fictitious zero error.
+                            conditional = torch.where(count > 0, (value*mask).sum()/count.clamp_min(1),
+                                                      value.new_tensor(float("nan")))
+                            stage_scalar(prefix+field, conditional, step)
+                        for field in ("waist_pitch_task_error_rad", "torso_roll_task_error_rad", "torso_pitch_task_error_rad"):
+                            value = metrics["task_pose_"+field]
+                            # A HOLD reference is not a STRIKE tracking target.
+                            eligible = mask & (metrics["task_pose_reference_applicable"] > 0)
+                            eligible_count = eligible.sum()
+                            rms = torch.where(eligible_count > 0, ((value.square()*eligible).sum()/eligible_count.clamp_min(1)).sqrt(),
+                                              value.new_tensor(float("nan")))
+                            stage_scalar(prefix+field+"_rms", rms, step)
+                if "actual_limit_valid" in term.metrics:
+                    metrics = term.metrics
+                    for phase_id, phase_name in enumerate(("hold", "strike", "ready_recover")):
+                        mask = (metrics["actual_limit_valid"] > 0) & (metrics["actual_limit_phase"] == phase_id)
+                        count = mask.sum()
+                        for name, value in (
+                            ("near_fraction", (metrics["actual_limit_near_joint_count"] > 0).float()),
+                            ("waist_near_fraction", metrics["actual_limit_waist_near"]),
+                            ("debt", metrics["actual_limit_debt"]),
+                        ):
+                            mean = torch.where(count > 0, (value*mask).sum()/count.clamp_min(1),
+                                               value.new_tensor(float("nan")))
+                            stage_scalar(f"Live/{term_name}/actual_limit_{phase_name}_{name}", mean, step)
                 if hasattr(term, "command_counter"):
-                    self._log_scalar(
-                        f"Live/{term_name}/command_counter", self._mean_tensor(term.command_counter), step
+                    stage_scalar(
+                        f"Live/{term_name}/command_counter", mean_without_host(term.command_counter), step
                     )
                 # The full FH/BH x source x speed x z matrix and per-joint q_des diagnostics are
                 # cumulative.  Emit them every ten PPO iterations and transfer the packed tensor
@@ -1496,33 +1760,33 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                 )
 
         if hasattr(env, "reward_manager"):
-            self._log_scalar("Live/Reward/total", self._mean_tensor(getattr(env, "reward_buf", None)), step)
+            stage_scalar("Live/Reward/total", mean_without_host(getattr(env, "reward_buf", None)), step)
             for idx, term_name in enumerate(env.reward_manager.active_terms):
-                self._log_scalar(
-                    f"Live/Reward/{term_name}", self._mean_tensor(env.reward_manager._step_reward[:, idx]), step
+                stage_scalar(
+                    f"Live/Reward/{term_name}", mean_without_host(env.reward_manager._step_reward[:, idx]), step
                 )
 
         if hasattr(env, "termination_manager"):
             tm = env.termination_manager
-            self._log_scalar("Live/Termination/done_rate", self._mean_tensor(tm.dones), step)
-            self._log_scalar("Live/Termination/terminated_rate", self._mean_tensor(tm.terminated), step)
-            self._log_scalar("Live/Termination/timeout_rate", self._mean_tensor(tm.time_outs), step)
+            stage_scalar("Live/Termination/done_rate", mean_without_host(tm.dones), step)
+            stage_scalar("Live/Termination/terminated_rate", mean_without_host(tm.terminated), step)
+            stage_scalar("Live/Termination/timeout_rate", mean_without_host(tm.time_outs), step)
             for term_name in tm.active_terms:
-                self._log_scalar(f"Live/Termination/{term_name}", self._mean_tensor(tm.get_term(term_name)), step)
+                stage_scalar(f"Live/Termination/{term_name}", mean_without_host(tm.get_term(term_name)), step)
 
         if hasattr(env, "action_manager"):
             action = getattr(env.action_manager, "action", None)
             prev_action = getattr(env.action_manager, "prev_action", None)
             if action is not None:
                 action_abs = torch.abs(action)
-                self._log_scalar("Live/Action/mean_abs", self._mean_tensor(action_abs), step)
-                self._log_scalar("Live/Action/max_abs", self._mean_tensor(torch.max(action_abs, dim=-1).values), step)
+                stage_scalar("Live/Action/mean_abs", mean_without_host(action_abs), step)
+                stage_scalar("Live/Action/max_abs", mean_without_host(torch.max(action_abs, dim=-1).values), step)
             if action is not None and prev_action is not None:
                 action_delta_abs = torch.abs(action - prev_action)
-                self._log_scalar("Live/Action/delta_mean_abs", self._mean_tensor(action_delta_abs), step)
-                self._log_scalar(
+                stage_scalar("Live/Action/delta_mean_abs", mean_without_host(action_delta_abs), step)
+                stage_scalar(
                     "Live/Action/delta_max_abs",
-                    self._mean_tensor(torch.max(action_delta_abs, dim=-1).values),
+                    mean_without_host(torch.max(action_delta_abs, dim=-1).values),
                     step,
                 )
 
@@ -1551,30 +1815,30 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             if std_parameter is not None:
                 std_parameter = std_parameter.detach()
                 executable_parameter = std_parameter[active_mask] if active_mask is not None else std_parameter
-                self._log_scalar(
+                stage_scalar(
                     "Live/Policy/physical_noise_std_parameter_mean",
                     executable_parameter.mean(),
                     step,
                 )
-                self._log_scalar(
+                stage_scalar(
                     "Live/Policy/physical_noise_std_parameter_max",
                     executable_parameter.max(),
                     step,
                 )
-            self._log_scalar("Live/Policy/effective_noise_std_mean", executable_std.mean(), step)
-            self._log_scalar("Live/Policy/effective_noise_std_max", executable_std.max(), step)
+            stage_scalar("Live/Policy/effective_noise_std_mean", executable_std.mean(), step)
+            stage_scalar("Live/Policy/effective_noise_std_max", executable_std.max(), step)
         if effective_std is not None and has_noise_bounds:
             std_span = float(max_noise_std) - float(min_noise_std)
             bound_fraction = (executable_std - float(min_noise_std)) / std_span
-            self._log_scalar("Live/Policy/noise_std_bound_fraction_mean", bound_fraction.mean(), step)
-            self._log_scalar("Live/Policy/noise_std_bound_fraction_max", bound_fraction.max(), step)
+            stage_scalar("Live/Policy/noise_std_bound_fraction_mean", bound_fraction.mean(), step)
+            stage_scalar("Live/Policy/noise_std_bound_fraction_max", bound_fraction.max(), step)
             tolerance = max(std_span * 1.0e-6, 1.0e-8)
-            self._log_scalar(
+            stage_scalar(
                 "Live/Policy/noise_std_at_lower_bound_fraction",
                 (executable_std <= float(min_noise_std) + tolerance).float().mean(),
                 step,
             )
-            self._log_scalar(
+            stage_scalar(
                 "Live/Policy/noise_std_at_upper_bound_fraction",
                 (executable_std >= float(max_noise_std) - tolerance).float().mean(),
                 step,
@@ -1589,25 +1853,25 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                 policy, "all_action_gaussian_entropy", None
             )
             if executed_entropy is not None:
-                self._log_scalar(
+                stage_scalar(
                     "Live/Policy/executed_entropy_mean",
-                    self._mean_tensor(executed_entropy),
+                    mean_without_host(executed_entropy),
                     step,
                 )
             if executable_gaussian_entropy is not None:
-                self._log_scalar(
+                stage_scalar(
                     "Live/Policy/executable_gaussian_entropy_mean",
                     executable_gaussian_entropy.mean(),
                     step,
                 )
             if all_action_gaussian_entropy is not None:
-                self._log_scalar(
+                stage_scalar(
                     "Live/Policy/all_action_gaussian_entropy_mean",
                     all_action_gaussian_entropy.mean(),
                     step,
                 )
                 if executable_gaussian_entropy is not None:
-                    self._log_scalar(
+                    stage_scalar(
                         "Live/Policy/passive_gaussian_entropy_mean",
                         (
                             all_action_gaussian_entropy
@@ -1616,8 +1880,22 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                         step,
                     )
 
-        self._log_scalar("Live/Env/episode_length", self._mean_tensor(env.episode_length_buf), step)
-        self._log_scalar("Live/Env/common_step_counter", float(getattr(env, "common_step_counter", 0)), step)
+        stage_scalar("Live/Env/episode_length", mean_without_host(env.episode_length_buf), step)
+        stage_scalar("Live/Env/common_step_counter", float(getattr(env, "common_step_counter", 0)), step)
+
+        # Preserve every tag and its reporting frequency while moving device scalars in batches.
+        # Group by dtype/device so host-only values and float64 diagnostics retain their precision.
+        groups: dict[tuple, list[tuple[int, torch.Tensor]]] = {}
+        host_values = [value for _, value in pending_scalars]
+        for index, (_tag, value) in enumerate(pending_scalars):
+            if torch.is_tensor(value):
+                groups.setdefault((value.dtype, value.device), []).append((index, value.reshape(())))
+        for items in groups.values():
+            packed = torch.stack([value for _, value in items]).detach().cpu().tolist()
+            for (index, _value), host_value in zip(items, packed):
+                host_values[index] = host_value
+        for (tag, _value), host_value in zip(pending_scalars, host_values):
+            self._log_scalar(tag, host_value, step)
 
     @staticmethod
     def _mean_tensor(value):

@@ -57,7 +57,8 @@ def actual_q_stopping_violation(
 
     ``qd_toward**2 / (2*a_brake) + margin_fraction*(hard_hi-hard_lo)``.
 
-    A stationary or rail-escaping joint still retains the static margin.  The normalized
+    Both rails retain their static margin even when the joint is stationary or escaping a rail.
+    The more violated rail owns the returned diagnostic distances. The normalized
     violation is zero when the available distance is at least the required stopping distance and
     rises linearly over one static margin before saturating at one.
     """
@@ -94,16 +95,64 @@ def actual_q_stopping_violation(
     toward_lower_speed = (-qd).clamp_min(0.0)
     upper_distance = hard_hi - q
     lower_distance = q - hard_lo
-    moving_upper = qd >= 0.0
-    distance = torch.where(moving_upper, upper_distance, lower_distance)
-    speed = torch.where(moving_upper, toward_upper_speed, toward_lower_speed)
-
     static_margin = float(margin_fraction) * span
-    stopping_distance = speed.square() / (2.0 * brake_accel) + static_margin
+    upper_stopping = toward_upper_speed.square() / (2.0 * brake_accel) + static_margin
+    lower_stopping = toward_lower_speed.square() / (2.0 * brake_accel) + static_margin
+    upper_risk = upper_stopping - upper_distance
+    lower_risk = lower_stopping - lower_distance
+    use_upper = upper_risk >= lower_risk
+    distance = torch.where(use_upper, upper_distance, lower_distance)
+    stopping_distance = torch.where(use_upper, upper_stopping, lower_stopping)
     violation = ((stopping_distance - distance).clamp_min(0.0) / static_margin).clamp(
         0.0, 1.0
     )
     return violation, stopping_distance, distance
+
+
+def capture_point_support_excess(
+    com_position: torch.Tensor,
+    com_velocity: torch.Tensor,
+    foot_position: torch.Tensor,
+    foot_contact: torch.Tensor,
+    *,
+    foot_radius: float = 0.06,
+    margin: float = 0.02,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Capture-point distance outside the current two-foot support capsule.
+
+    The capsule is the convex hull of equal sole disks. A lifted foot contributes no support;
+    single support uses the contacting sole only. This is a conservative flat-ground proxy,
+    not a zero-velocity or double-contact objective, and permits corrective stepping.
+    Returns excess distance and the no-contact mask. In flight the farther sole is used
+    only as a distance diagnostic; the reward adds a separate flight cost. This prevents
+    dropping a large distance debt merely by lifting the last loaded foot.
+    """
+    if foot_radius <= 0.0 or margin < 0.0:
+        raise ValueError("support foot_radius must be positive and margin nonnegative")
+    if foot_position.shape[-2:] != (2, 3) or foot_contact.shape != foot_position.shape[:-1]:
+        raise ValueError("support requires two 3-D feet and a matching contact mask")
+    contact = foot_contact.bool()
+    flight = ~contact.any(dim=-1)
+    both = contact.all(dim=-1)
+    # Foot link heights differ from the sole by a small constant; clamp height for stability.
+    ground_height = torch.where(contact, foot_position[..., 2], torch.inf).amin(dim=-1)
+    ground_height = torch.where(flight, foot_position[..., 2].amin(dim=-1), ground_height)
+    height = (com_position[..., 2] - ground_height).clamp_min(0.2)
+    capture = com_position[..., :2] + com_velocity[..., :2] * torch.sqrt(height / 9.81).unsqueeze(-1)
+    left, right = foot_position[..., 0, :2], foot_position[..., 1, :2]
+    first = torch.where((contact[..., 0] | flight)[..., None], left, right)
+    second = torch.where((both | flight)[..., None], right, first)
+    segment = second - first
+    projection = ((capture - first) * segment).sum(dim=-1) / segment.square().sum(dim=-1).clamp_min(1.0e-8)
+    closest = first + projection.clamp(0.0, 1.0).unsqueeze(-1) * segment
+    distance = torch.linalg.vector_norm(capture - closest, dim=-1)
+    flight_distance = torch.maximum(
+        torch.linalg.vector_norm(capture - left, dim=-1),
+        torch.linalg.vector_norm(capture - right, dim=-1),
+    )
+    distance = torch.where(flight, flight_distance, distance)
+    excess = (distance - float(foot_radius) - float(margin)).clamp_min(0.0)
+    return excess, flight
 
 
 def aggregate_recovery_violations(

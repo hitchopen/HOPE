@@ -49,6 +49,13 @@ _ADAPTER_CONFIG_PY = os.path.join(
 
 sys.path.insert(0, _REFERENCE_DIR)
 
+import pytest
+
+pytest.importorskip(
+    "a3_deploy_onnx_ref_pingpong",
+    reason="Optional legacy Python deployment reference is absent from this checkout",
+)
+
 from a3_deploy_onnx_ref_pingpong.config import RuntimeConfig  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.joint_order import HEAD_INDICES, JOINT_NAMES, NUM_JOINTS  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.observation import RobotState  # noqa: E402

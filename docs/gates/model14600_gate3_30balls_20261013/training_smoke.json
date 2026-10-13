@@ -1,0 +1,24 @@
+{
+  "result": "PASS",
+  "task": "HOPEPingPong",
+  "algorithm": "ppo",
+  "num_envs": 64,
+  "ppo_iterations_completed": 3,
+  "total_timesteps": 12288,
+  "process_exit_code": 0,
+  "actor_observation_dim": 110,
+  "action_dim": 31,
+  "finite_model_tensors": 17,
+  "finite_optimizer_tensors": 51,
+  "actor_weight_layers_changed_after_first_update": [
+    "actor.0.weight",
+    "actor.2.weight",
+    "actor.4.weight",
+    "actor.6.weight"
+  ],
+  "first_saved_iteration": 0,
+  "last_saved_iteration": 2,
+  "last_checkpoint": "/home/dongc1/workspace/Hope_v11/hope_training/whole_body_tracking/logs/rsl_rl/agibot_a3_hitter_pingpong/2026-10-13_14-49-36_hopepingpong_rename_smoke_20261013/model_2.pt",
+  "log": "/home/dongc1/workspace/Hope_v11/hope_training/whole_body_tracking/outputs/hopepingpong_rename_smoke_20261013/train.log",
+  "validation_scope": "Short training smoke test from fresh initialization; does not establish convergence or hardware performance."
+}

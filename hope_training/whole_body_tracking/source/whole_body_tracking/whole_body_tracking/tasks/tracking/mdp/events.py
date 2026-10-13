@@ -521,3 +521,4 @@ def randomize_rigid_body_com(
 
     # Set the new coms
     asset.root_physx_view.set_coms(coms, env_ids)
+    asset._hope_support_com_pos_b = None

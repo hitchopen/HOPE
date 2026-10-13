@@ -24,6 +24,7 @@ from isaaclab.utils.math import (
 )
 
 from whole_body_tracking.utils.motion_schema import select_motion_bodies
+from ..command_reset import batched_command_term_reset
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -344,6 +345,26 @@ class MotionCommand(CommandTerm):
         # clock is frozen at the swing's first frame ("waiting for the ball"). _update_command
         # decrements it. in_hold is exposed for rewards/metrics.
         self.hold_counter = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self.rally_shortened = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.rally_wrap_step = torch.zeros_like(self.time_steps)
+        self._validate_rally_timing()
+        self.inter_ball_recovery = None
+        if self.cfg.interruptible_recovery_enabled:
+            from whole_body_tracking.utils.interruptible_recovery import InterruptibleRecovery
+            if (not self.cfg.rally_timing_enabled or self.cfg.wrap_teleport
+                    or self.cfg.post_wrap_min_hold != 0 or self.cfg.post_wrap_hold_jitter_steps != 0
+                    or tuple(self.cfg.hold_steps_range) != (0, 0) or self.cfg.hold_long_on_wrap):
+                raise ValueError("interruptible recovery requires no blocking wrap HOLD or teleport")
+            racket_cfg = self._env.cfg.commands.racket_target
+            if (racket_cfg.hold_until_settled or getattr(racket_cfg, "ready_release_enabled", False)
+                    or getattr(racket_cfg, "one_step_contract", "disabled") != "disabled"):
+                raise ValueError("incoming balls cannot be gated by recovery/readiness completion")
+            for limits in (self.cfg.recovery_window_steps_range, self.cfg.next_ball_delay_steps_range):
+                if len(limits) != 2 or limits[0] < 0 or limits[1] < limits[0]:
+                    raise ValueError("invalid recovery/arrival range")
+            if not 0 <= self.cfg.next_ball_immediate_prob <= 1:
+                raise ValueError("invalid immediate-arrival probability")
+            self.inter_ball_recovery = InterruptibleRecovery(self.num_envs, self.device)
         # True only while _resample_command is being invoked from an intra-episode clip WRAP
         # (as opposed to a true episode reset) — wraps skip the RSI teleport (cfg.wrap_teleport).
         self._resampling_from_wrap = False
@@ -400,6 +421,8 @@ class MotionCommand(CommandTerm):
         self._v17_replay_bucket_ptr: torch.Tensor | None = None
         self._v17_replay_bucket_capacity = 0
         self._v17_replay_total_count = 0
+        self._v17_replay_bucket_count_host: list[int] | None = None
+        self._v17_replay_ready_latched = False
         # Historical tasks may opt into the generic gate below. HitterPingPong deliberately
         # leaves it off: V14 recovery capture starts immediately and is independent of the
         # racket command's mocap-corruption curriculum.
@@ -662,6 +685,9 @@ class MotionCommand(CommandTerm):
     def robot_anchor_ang_vel_w(self) -> torch.Tensor:
         return self.robot.data.body_ang_vel_w[:, self.robot_anchor_body_index]
 
+    def reset(self, env_ids=None):
+        return batched_command_term_reset(self, env_ids)
+
     def _update_metrics(self):
         anchor_pos_err = self.anchor_pos_w - self.robot_anchor_pos_w
         anchor_rot_err = quat_error_magnitude(self.anchor_quat_w, self.robot_anchor_quat_w)
@@ -868,12 +894,8 @@ class MotionCommand(CommandTerm):
             side = ("fh", "bh")[clip]
         else:
             side = f"clip{clip}"
-        phase_names = ("p008", "p030", "p080", "wrap")
-        phase_name = (
-            phase_names[phase]
-            if phase < len(phase_names)
-            else f"phase{phase}"
-        )
+        # Capture delays are task-configurable; do not hard-code 0.08/0.30/0.80 s.
+        phase_name = "wrap" if phase == phase_bins - 1 else f"hot{phase}"
         severity_names = ("safe", "warning", "near")
         severity_name = (
             severity_names[severity]
@@ -1015,6 +1037,10 @@ class MotionCommand(CommandTerm):
         self._v17_replay_motion_hold_counter = torch.zeros_like(
             self._v17_replay_motion_time_steps
         )
+        self._v17_replay_rally_wrap_step = torch.zeros_like(self._v17_replay_motion_time_steps)
+        self._v17_replay_rally_shortened = torch.zeros_like(self._v17_replay_motion_time_steps, dtype=torch.bool)
+        self._v17_replay_rally_scheduled_pre_s = torch.zeros(shape, device=self.device)
+        self._v17_replay_rally_scheduled_post_s = torch.zeros(shape, device=self.device)
         self._v17_replay_bucket_count = torch.zeros(
             bucket_count, dtype=torch.long, device=self.device
         )
@@ -1052,13 +1078,18 @@ class MotionCommand(CommandTerm):
 
     def _store_v17_target_state(
         self,
-        bucket: int,
-        slots: torch.Tensor,
+        flat_slots: torch.Tensor,
         state: dict[str, torch.Tensor],
     ) -> None:
-        """Store a shape-checked target/READY/recovery state dictionary."""
+        """Store one shape-checked target state batch across replay buckets.
 
-        count = int(slots.numel())
+        ``flat_slots`` indexes the first two replay dimensions after flattening
+        ``[bucket, slot]``.  A capture call can therefore serialize every populated bucket with
+        one gather/store per Markov field instead of repeating the ~100-field snapshot for each
+        bucket.
+        """
+
+        count = int(flat_slots.numel())
         prefix = (
             int(self._v17_replay_bucket_count.numel()),
             int(self._v17_replay_bucket_capacity),
@@ -1087,7 +1118,7 @@ class MotionCommand(CommandTerm):
                     f"{tuple(destination.shape)}/{destination.dtype} vs "
                     f"{expected_shape}/{value.dtype}"
                 )
-            destination[bucket, slots] = value
+            destination.flatten(0, 1)[flat_slots] = value
 
     def _v17_local_replay_available(
         self, env_ids: torch.Tensor
@@ -1151,6 +1182,8 @@ class MotionCommand(CommandTerm):
         self._post_swing_count = 0
         self._post_swing_ptr = 0
         self._v17_replay_total_count = 0
+        self._v17_replay_bucket_count_host = None
+        self._v17_replay_ready_latched = False
         self._post_swing_replay_ready_step = -1
         if self._v17_replay_bucket_count is not None:
             self._v17_replay_bucket_count.zero_()
@@ -1205,19 +1238,95 @@ class MotionCommand(CommandTerm):
         minimum = int(self.cfg.post_swing_min_fill_per_bucket)
         return torch.where(self._v17_replay_bucket_count >= minimum)[0]
 
-    def _v17_replay_ready(self) -> bool:
+    def _v17_replay_host_counts(self) -> list[int]:
+        """Return the host replay-count shadow, repairing legacy resumes once.
+
+        Schema-v3 checkpoints written by this revision capture the private list directly.  Older
+        checkpoints restore only ``_v17_replay_bucket_count`` and ``_v17_replay_total_count``;
+        their first metrics pass performs one compatibility copy, after which capture updates the
+        shadow without a control-step CUDA synchronization.
+        """
+
+        bucket_count = self._v17_replay_bucket_count
+        expected = self._v17_replay_bucket_total()
+        counts = getattr(self, "_v17_replay_bucket_count_host", None)
+        metadata_valid = (
+            isinstance(counts, list)
+            and len(counts) == expected
+            and sum(int(value) for value in counts)
+            == int(self._v17_replay_total_count)
+        )
+        if metadata_valid:
+            return counts
+        if bucket_count is None:
+            counts = [0] * expected
+        else:
+            counts = [
+                int(value)
+                for value in bucket_count.detach().cpu().tolist()
+            ]
+        self._v17_replay_bucket_count_host = counts
+        self._v17_replay_total_count = int(sum(counts))
+        return counts
+
+    def _record_v17_replay_host_capture(
+        self, buckets: list[int], captured_counts: list[int]
+    ) -> None:
+        """Mirror completed ring writes without reading device bucket metadata."""
+
+        if len(buckets) != len(captured_counts):
+            raise RuntimeError(
+                "V17 replay host metadata requires one count per populated bucket"
+            )
+        counts = self._v17_replay_host_counts()
+        capacity = int(self._v17_replay_bucket_capacity)
+        total = int(self._v17_replay_total_count)
+        for bucket, captured in zip(buckets, captured_counts):
+            old_count = int(counts[bucket])
+            new_count = min(old_count + int(captured), capacity)
+            counts[bucket] = new_count
+            total += new_count - old_count
+        self._v17_replay_total_count = total
+
+        if total < int(self.cfg.post_swing_min_fill):
+            return
         if (
-            self._v17_replay_bucket_count is None
-            or self._v17_replay_total_count < int(self.cfg.post_swing_min_fill)
+            self._post_swing_replay_contract
+            == "markov_side_phase_severity_v3"
+            or all(
+                count >= int(self.cfg.post_swing_min_fill_per_bucket)
+                for count in counts
+            )
         ):
+            self._v17_replay_ready_latched = True
+            # The former post-capture metrics refresh also started the ability-gated ramp.
+            # Preserve its exact admission tick even though telemetry now refreshes once/tick.
+            if (
+                getattr(self, "_post_swing_ability_gate_enabled", False)
+                and self._post_swing_ability_unlocked
+                and self._post_swing_replay_ready_step < 0
+            ):
+                self._ability_gated_post_probability()
+
+    def _v17_replay_ready(self) -> bool:
+        if getattr(self, "_v17_replay_ready_latched", False):
+            return True
+        if self._v17_replay_bucket_count is None:
+            return False
+        counts = self._v17_replay_host_counts()
+        if self._v17_replay_total_count < int(self.cfg.post_swing_min_fill):
             return False
         minimum = int(self.cfg.post_swing_min_fill_per_bucket)
         if self._post_swing_replay_contract == "markov_side_phase_severity_v3":
             # Match V14's warm-up rule: total genuine captures reaching min_fill is the only
             # admission condition. Same-environment availability is checked per reset below,
             # so sparse phase/severity buckets cannot form another curriculum deadlock.
+            self._v17_replay_ready_latched = True
             return True
-        return bool((self._v17_replay_bucket_count >= minimum).all())
+        self._v17_replay_ready_latched = all(
+            count >= minimum for count in counts
+        )
+        return self._v17_replay_ready_latched
 
     def _v17_failure_probabilities(self) -> torch.Tensor:
         """Return Unitree-style smoothed failure mass with a uniform floor."""
@@ -1324,13 +1433,15 @@ class MotionCommand(CommandTerm):
                 self.post_swing_capture_enabled()
             )
             return
-        eligible = self._v17_eligible_replay_buckets()
+        counts = self._v17_replay_host_counts()
+        minimum = int(self.cfg.post_swing_min_fill_per_bucket)
+        eligible_count = sum(count >= minimum for count in counts)
         self.metrics["post_swing_replay_buffer_fill"][:] = (
             float(self._v17_replay_total_count)
             / float(max(int(self.cfg.post_swing_buffer_size), 1))
         )
         self.metrics["post_swing_replay_eligible_buckets"][:] = float(
-            len(eligible)
+            eligible_count
         )
         replay_ready = self._v17_replay_ready()
         self.metrics["post_swing_replay_ready"][:] = float(replay_ready)
@@ -1359,11 +1470,6 @@ class MotionCommand(CommandTerm):
             == "markov_side_phase_severity_v3"
         ):
             capacity = float(max(self._v17_replay_bucket_capacity, 1))
-            counts = (
-                self._v17_replay_bucket_count.tolist()
-                if self._v17_replay_bucket_count is not None
-                else [0] * self._v17_replay_bucket_total()
-            )
             for bucket, count in enumerate(counts):
                 label = self._v17_replay_bucket_label(bucket)
                 self.metrics[f"post_swing_replay_count_{label}"][:] = (
@@ -1516,172 +1622,204 @@ class MotionCommand(CommandTerm):
                 * severity_bins
                 + severity
             )
+            phase_ids = torch.full_like(source_clip_ids, int(phase_bin))
+            state_clip_ids = source_clip_ids
             capacity = int(self._v17_replay_bucket_capacity)
-            for bucket_tensor in torch.unique(bucket_ids):
-                bucket = int(bucket_tensor.item())
+            capture_limit = capacity
+            # Initialize/repair legacy host metadata BEFORE changing device counts.
+            self._v17_replay_host_counts()
+            # Transfer the tiny populated-bucket list once instead of synchronizing separately
+            # for every scalar bucket id. Ring metadata stays on the device below.
+            populated_buckets = (
+                torch.unique(bucket_ids).detach().cpu().tolist()
+            )
+            selected_chunks: list[torch.Tensor] = []
+            selected_phase_chunks: list[torch.Tensor] = []
+            selected_state_clip_chunks: list[torch.Tensor] = []
+            selected_bucket_chunks: list[torch.Tensor] = []
+            selected_slot_chunks: list[torch.Tensor] = []
+            captured_bucket_values: list[int] = []
+            captured_count_values: list[int] = []
+            next_pointer_chunks: list[torch.Tensor] = []
+            next_count_chunks: list[torch.Tensor] = []
+            for bucket_value in populated_buckets:
+                bucket = int(bucket_value)
                 bucket_mask = bucket_ids == bucket
-                selected = env_ids[bucket_mask]
-                selected_source_clip_ids = source_clip_ids[bucket_mask]
-                # A single 4096-env capture can exceed one balanced bucket. Use an evenly-spaced
-                # deterministic slice: capture must not consume the environment RNG while the
-                # recovery scale is zero, otherwise "Stage 0 = exact V11" would be false even
-                # though replay itself is disabled.
-                if len(selected) > capacity:
+                selected_rows = torch.where(bucket_mask)[0]
+                # Preserve the previous evenly-spaced over-capacity selection exactly.
+                if len(selected_rows) > capture_limit:
                     order = torch.floor(
-                        torch.arange(capacity, device=self.device).float()
-                        * (float(len(selected)) / float(capacity))
+                        torch.arange(capture_limit, device=self.device).float()
+                        * (float(len(selected_rows)) / float(capture_limit))
                     ).long()
-                    selected = selected[order]
-                    selected_source_clip_ids = selected_source_clip_ids[order]
+                    selected_rows = selected_rows[order]
+                selected = env_ids[selected_rows]
+                selected_phase_ids = phase_ids[selected_rows]
+                selected_state_clip_ids = state_clip_ids[selected_rows]
                 count = len(selected)
                 if count == 0:
                     continue
-
-                # Motion segments are half-open [seg_start, seg_end). `_update_command` detects
-                # a natural wrap only after incrementing the clock to exactly seg_end, while the
-                # physical robot state still corresponds to the final valid reference frame.
-                # Persist seg_end - 1 for that wrap snapshot.  In particular, the BH seg_end is
-                # the concatenated motion length, so storing it verbatim would cause a CUDA
-                # out-of-bounds read when replay later evaluates `body_pos_w[time_steps]`.
-                segment_start = self.motion.seg_start[
-                    selected_source_clip_ids
-                ]
-                segment_end = (
-                    segment_start
-                    + self.motion.seg_len[selected_source_clip_ids]
-                )
-                raw_motion_time_steps = self.time_steps[selected]
-                invalid_clock = (
-                    (raw_motion_time_steps < segment_start)
-                    | (raw_motion_time_steps > segment_end)
-                    | (
-                        (raw_motion_time_steps == segment_end)
-                        & (
-                            int(phase_bin)
-                            != int(self.cfg.post_swing_capture_phase_bins) - 1
-                        )
-                    )
-                )
-                if bool(invalid_clock.any()):
-                    raise RuntimeError(
-                        "V17 replay capture received a motion clock outside "
-                        "its source clip"
-                    )
-                stored_motion_time_steps = torch.minimum(
-                    raw_motion_time_steps, segment_end - 1
-                )
-
-                root = self.robot.data.root_state_w[selected].clone()
-                root[:, :3] -= self._env.scene.env_origins[selected]
-                action_state = action_term.capture_markov_replay_state(selected)
-                target_state = target_term.capture_markov_replay_state(
-                    selected
-                )
-                pointer = int(self._v17_replay_bucket_ptr[bucket].item())
+                pointer = self._v17_replay_bucket_ptr[bucket].clone()
                 slots = (
                     pointer + torch.arange(count, device=self.device)
                 ) % capacity
-                previous_sources = self._v17_replay_source_env[
-                    bucket, slots
-                ]
-                previous_valid = previous_sources >= 0
-                if bool(previous_valid.any()):
-                    previous_envs = previous_sources[previous_valid]
-                    previous_slots = slots[previous_valid]
-                    was_latest = (
-                        self._v17_replay_local_latest_slot[
-                            bucket, previous_envs
-                        ]
-                        == previous_slots
+
+                selected_chunks.append(selected)
+                selected_phase_chunks.append(selected_phase_ids)
+                selected_state_clip_chunks.append(selected_state_clip_ids)
+                selected_bucket_chunks.append(
+                    torch.full(
+                        (count,), bucket, dtype=torch.long, device=self.device
                     )
-                    if bool(was_latest.any()):
-                        self._v17_replay_local_latest_slot[
-                            bucket, previous_envs[was_latest]
-                        ] = -1
-                self._v17_replay_root[bucket, slots] = root
-                self._v17_replay_joint_pos[bucket, slots] = (
-                    self.robot.data.joint_pos[selected]
                 )
-                self._v17_replay_joint_vel[bucket, slots] = (
-                    self.robot.data.joint_vel[selected]
+                selected_slot_chunks.append(slots)
+                captured_bucket_values.append(bucket)
+                captured_count_values.append(count)
+                next_pointer_chunks.append((pointer + count) % capacity)
+                next_count_chunks.append(
+                    torch.clamp(
+                        self._v17_replay_bucket_count[bucket] + count,
+                        max=capacity,
+                    )
                 )
-                self._v17_replay_joint_stiffness[bucket, slots] = (
-                    self.robot.data.joint_stiffness[selected]
-                )
-                self._v17_replay_joint_damping[bucket, slots] = (
-                    self.robot.data.joint_damping[selected]
-                )
-                self._v17_replay_motion_time_steps[bucket, slots] = (
-                    stored_motion_time_steps
-                )
-                self._v17_replay_motion_clip_id[bucket, slots] = (
-                    selected_source_clip_ids
-                )
-                self._v17_replay_motion_hold_counter[bucket, slots] = (
-                    self.hold_counter[selected]
-                )
-                self._v17_replay_manager_action[bucket, slots] = (
-                    action_manager.action[selected]
-                )
-                self._v17_replay_manager_prev_action[bucket, slots] = (
-                    action_manager.prev_action[selected]
-                )
-                self._v17_replay_action_raw[bucket, slots] = action_state["raw"]
-                self._v17_replay_action_applied_raw[bucket, slots] = action_state[
-                    "applied_raw"
-                ]
-                self._v17_replay_action_unclamped_qdes[bucket, slots] = (
-                    action_state["unclamped_qdes"]
-                )
-                self._v17_replay_action_processed_qdes[bucket, slots] = (
-                    action_state["processed_qdes"]
-                )
-                self._v17_replay_action_commanded_qdes[bucket, slots] = (
-                    action_state["commanded_qdes"]
-                )
-                self._v17_replay_action_executed_qdes[bucket, slots] = (
-                    action_state["executed_qdes"]
-                )
-                self._v17_replay_action_previous_executed_qdes[
-                    bucket, slots
-                ] = action_state["previous_executed_qdes"]
-                self._v17_replay_action_qdes_delta[bucket, slots] = (
-                    action_state["qdes_delta"]
-                )
-                self._v17_replay_action_previous_qdes_delta[
-                    bucket, slots
-                ] = action_state["previous_qdes_delta"]
-                self._v17_replay_action_qdes_second_difference[
-                    bucket, slots
-                ] = action_state["qdes_second_difference"]
-                self._v17_replay_action_decoder_offset[bucket, slots] = (
-                    action_state["decoder_offset"]
-                )
-                self._v17_replay_action_decoder_scale[bucket, slots] = (
-                    action_state["decoder_scale"]
-                )
-                self._v17_replay_action_delay_queue[bucket, slots] = (
-                    action_state["delay_queue"]
-                )
-                self._v17_replay_action_delay_steps[bucket, slots] = (
-                    action_state["delay_steps"]
-                )
-                self._store_v17_target_state(
-                    bucket, slots, target_state
-                )
-                self._v17_replay_source_env[bucket, slots] = selected
-                self._v17_replay_local_latest_slot[
-                    bucket, selected
-                ] = slots
-                self._v17_replay_bucket_ptr[bucket] = (pointer + count) % capacity
-                self._v17_replay_bucket_count[bucket] = min(
-                    int(self._v17_replay_bucket_count[bucket].item()) + count,
-                    capacity,
-                )
-            self._v17_replay_total_count = int(
-                self._v17_replay_bucket_count.sum().item()
+
+            if not selected_chunks:
+                return
+            selected = torch.cat(selected_chunks)
+            selected_phase_ids = torch.cat(selected_phase_chunks)
+            selected_state_clip_ids = torch.cat(selected_state_clip_chunks)
+            selected_buckets = torch.cat(selected_bucket_chunks)
+            selected_slots = torch.cat(selected_slot_chunks)
+
+            # Motion segments are half-open [seg_start, seg_end). `_update_command` detects a
+            # natural wrap only after incrementing to seg_end, while physical state still
+            # corresponds to the final valid reference frame. Persist seg_end - 1 for that row.
+            segment_start = self.motion.seg_start[selected_state_clip_ids]
+            segment_end = (
+                segment_start + self.motion.seg_len[selected_state_clip_ids]
             )
-            self._update_v17_replay_metrics()
+            raw_motion_time_steps = self.time_steps[selected]
+            invalid_clock = (
+                (raw_motion_time_steps < segment_start)
+                | (raw_motion_time_steps > segment_end)
+                | (
+                    (raw_motion_time_steps == segment_end)
+                    & (selected_phase_ids != phase_bins - 1)
+                )
+            )
+            if bool(invalid_clock.any()):
+                raise RuntimeError(
+                    "V17 replay capture received a motion clock outside its source clip"
+                )
+            stored_motion_time_steps = torch.minimum(
+                raw_motion_time_steps, segment_end - 1
+            )
+
+            if self.cfg.rally_timing_enabled:
+                stored_motion_time_steps = torch.minimum(
+                    stored_motion_time_steps, self.rally_wrap_step[selected] - 1
+                )
+
+            # Clear overwritten per-environment latest pointers in one cross-bucket operation.
+            previous_sources = self._v17_replay_source_env[
+                selected_buckets, selected_slots
+            ]
+            previous_valid = previous_sources >= 0
+            previous_buckets = selected_buckets[previous_valid]
+            previous_envs = previous_sources[previous_valid]
+            previous_slots = selected_slots[previous_valid]
+            was_latest = (
+                self._v17_replay_local_latest_slot[
+                    previous_buckets, previous_envs
+                ]
+                == previous_slots
+            )
+            self._v17_replay_local_latest_slot[
+                previous_buckets[was_latest], previous_envs[was_latest]
+            ] = -1
+
+            root = self.robot.data.root_state_w[selected].clone()
+            root[:, :3] -= self._env.scene.env_origins[selected]
+            action_state = action_term.capture_markov_replay_state(selected)
+            target_state = target_term.capture_markov_replay_state(selected)
+            flat_slots = selected_buckets * capacity + selected_slots
+
+            self._v17_replay_root.flatten(0, 1)[flat_slots] = root
+            self._v17_replay_joint_pos.flatten(0, 1)[flat_slots] = (
+                self.robot.data.joint_pos[selected]
+            )
+            self._v17_replay_joint_vel.flatten(0, 1)[flat_slots] = (
+                self.robot.data.joint_vel[selected]
+            )
+            self._v17_replay_joint_stiffness.flatten(0, 1)[flat_slots] = (
+                self.robot.data.joint_stiffness[selected]
+            )
+            self._v17_replay_joint_damping.flatten(0, 1)[flat_slots] = (
+                self.robot.data.joint_damping[selected]
+            )
+            self._v17_replay_motion_time_steps.flatten(0, 1)[flat_slots] = (
+                stored_motion_time_steps
+            )
+            self._v17_replay_motion_clip_id.flatten(0, 1)[flat_slots] = (
+                selected_state_clip_ids
+            )
+            self._v17_replay_motion_hold_counter.flatten(0, 1)[flat_slots] = (
+                self.hold_counter[selected]
+            )
+            self._v17_replay_rally_wrap_step.flatten(0, 1)[flat_slots] = self.rally_wrap_step[selected]
+            self._v17_replay_rally_shortened.flatten(0, 1)[flat_slots] = self.rally_shortened[selected]
+            if self.cfg.rally_timing_enabled:
+                for name in ("rally_scheduled_pre_s", "rally_scheduled_post_s"):
+                    getattr(self, "_v17_replay_" + name).flatten(0, 1)[flat_slots] = self.metrics[name][selected]
+            self._v17_replay_manager_action.flatten(0, 1)[flat_slots] = (
+                action_manager.action[selected]
+            )
+            self._v17_replay_manager_prev_action.flatten(0, 1)[flat_slots] = (
+                action_manager.prev_action[selected]
+            )
+            for destination, name in (
+                (self._v17_replay_action_raw, "raw"),
+                (self._v17_replay_action_applied_raw, "applied_raw"),
+                (self._v17_replay_action_unclamped_qdes, "unclamped_qdes"),
+                (self._v17_replay_action_processed_qdes, "processed_qdes"),
+                (self._v17_replay_action_commanded_qdes, "commanded_qdes"),
+                (self._v17_replay_action_executed_qdes, "executed_qdes"),
+                (
+                    self._v17_replay_action_previous_executed_qdes,
+                    "previous_executed_qdes",
+                ),
+                (self._v17_replay_action_qdes_delta, "qdes_delta"),
+                (
+                    self._v17_replay_action_previous_qdes_delta,
+                    "previous_qdes_delta",
+                ),
+                (
+                    self._v17_replay_action_qdes_second_difference,
+                    "qdes_second_difference",
+                ),
+                (self._v17_replay_action_decoder_offset, "decoder_offset"),
+                (self._v17_replay_action_decoder_scale, "decoder_scale"),
+                (self._v17_replay_action_delay_queue, "delay_queue"),
+                (self._v17_replay_action_delay_steps, "delay_steps"),
+            ):
+                destination.flatten(0, 1)[flat_slots] = action_state[name]
+            self._store_v17_target_state(flat_slots, target_state)
+            self._v17_replay_source_env.flatten(0, 1)[flat_slots] = selected
+            self._v17_replay_local_latest_slot[
+                selected_buckets, selected
+            ] = selected_slots
+            captured_bucket_tensor = torch.as_tensor(
+                captured_bucket_values, dtype=torch.long, device=self.device
+            )
+            self._v17_replay_bucket_ptr[captured_bucket_tensor] = torch.stack(
+                next_pointer_chunks
+            )
+            self._v17_replay_bucket_count[captured_bucket_tensor] = torch.stack(
+                next_count_chunks
+            )
+            self._record_v17_replay_host_capture(
+                captured_bucket_values, captured_count_values
+            )
             return
 
         root = self.robot.data.root_state_w[env_ids].clone()
@@ -1975,6 +2113,15 @@ class MotionCommand(CommandTerm):
                 )
             self.clip_id[env_ids] = restored_clip_id
             self.time_steps[env_ids] = restored_time_steps
+            if self.cfg.rally_timing_enabled:
+                restored_deadline = self._v17_replay_rally_wrap_step[chosen_bucket, chosen_slot]
+                if bool(((restored_deadline <= restored_time_steps) | (restored_deadline > restored_segment_end)).any()):
+                    raise RuntimeError("V17 replay rally deadline is outside the restored clip or already expired")
+                self.rally_wrap_step[env_ids] = restored_deadline
+                self.rally_shortened[env_ids] = self._v17_replay_rally_shortened[chosen_bucket, chosen_slot]
+                self.metrics["rally_shortened"][env_ids] = self.rally_shortened[env_ids].float()
+                self.metrics["rally_scheduled_pre_s"][env_ids] = self._v17_replay_rally_scheduled_pre_s[chosen_bucket, chosen_slot]
+                self.metrics["rally_scheduled_post_s"][env_ids] = self._v17_replay_rally_scheduled_post_s[chosen_bucket, chosen_slot]
             self.hold_counter[env_ids] = (
                 self._v17_replay_motion_hold_counter[
                     chosen_bucket, chosen_slot
@@ -2033,14 +2180,79 @@ class MotionCommand(CommandTerm):
             env_ids=env_ids,
         )
 
+    def _validate_rally_timing(self):
+        if not self.cfg.rally_timing_enabled:
+            return
+        if not 0.0 <= float(self.cfg.rally_timing_probability) <= 1.0:
+            raise ValueError("rally_timing_probability must be in [0, 1]")
+        for name in ("rally_pre_strike_s_range", "rally_post_strike_s_range"):
+            lo, hi = (float(value) for value in getattr(self.cfg, name))
+            if not (math.isfinite(lo) and math.isfinite(hi) and 0.0 < lo <= hi):
+                raise ValueError(f"{name} must satisfy finite 0 < lo <= hi")
+        if int(self.cfg.rally_timing_ramp_steps) < 0:
+            raise ValueError("rally_timing_ramp_steps must be nonnegative")
+        if not math.isfinite(float(self.cfg.rally_station_speed_mps)) or self.cfg.rally_station_speed_mps <= 0:
+            raise ValueError("rally_station_speed_mps must be finite and positive")
+        if not math.isfinite(float(self.cfg.rally_station_brake_s)) or self.cfg.rally_station_brake_s < 0:
+            raise ValueError("rally_station_brake_s must be finite and nonnegative")
+        if self.cfg.wrap_teleport:
+            raise ValueError("rally timing requires wrap_teleport=False for physical swing transitions")
+
+    def _sample_rally_timing(self, env_ids):
+        """Sample exogenous deadlines without speeding up the reference or moving the robot.
+
+        Normal draws retain the complete clip. Short draws start later in its windup and
+        end after a bounded follow-through. Read the racket configuration so both clocks
+        use exactly the same strike frame; incoming ball speed is a separate distribution.
+        """
+        if not self.cfg.rally_timing_enabled:
+            return
+        target_cfg = self._env.cfg.commands.racket_target
+        phases = tuple(target_cfg.strike_phase_per_clip)
+        if phases and len(phases) != self.motion.num_segments:
+            raise ValueError("rally timing strike_phase_per_clip must match the motion segments")
+        if not phases:
+            phases = (float(target_cfg.strike_phase),) * self.motion.num_segments
+        if any(not math.isfinite(float(p)) or not 0.0 < float(p) < 1.0 for p in phases):
+            raise ValueError("rally timing strike phases must be finite and inside (0, 1)")
+        phase = torch.as_tensor(phases, device=self.device)[self.clip_id[env_ids]]
+        start = self.motion.seg_start[self.clip_id[env_ids]]
+        length = self.motion.seg_len[self.clip_id[env_ids]]
+        end = start + length
+        strike = start + (phase * (length - 1).float()).round().long()
+        ramp_steps = int(self.cfg.rally_timing_ramp_steps)
+        scale = min(1.0, max(0.0, float(self._env.common_step_counter) / ramp_steps)) if ramp_steps else 1.0
+        shortened = torch.rand(len(env_ids), device=self.device) < float(self.cfg.rally_timing_probability)
+        self.rally_shortened[env_ids] = shortened & (scale > 0.0)
+        dt = float(self._env.step_dt)
+        pre = sample_uniform(*self.cfg.rally_pre_strike_s_range, (len(env_ids),), self.device)
+        post = sample_uniform(*self.cfg.rally_post_strike_s_range, (len(env_ids),), self.device)
+        desired_start = torch.maximum(start, strike - torch.ceil(pre / dt).long())
+        # Never wrap before the strike reward's complete contact window has elapsed.
+        post = post.clamp_min(float(target_cfg.strike_window_s) + dt)
+        desired_end = torch.minimum(end, strike + torch.ceil(post / dt).long())
+        sampled_start = start + ((desired_start - start).float() * scale).round().long()
+        sampled_end = end - ((end - desired_end).float() * scale).round().long()
+        self.time_steps[env_ids] = torch.where(shortened, sampled_start, start)
+        self.rally_wrap_step[env_ids] = torch.where(shortened, sampled_end, end)
+        for name in ("rally_scheduled_pre_s", "rally_scheduled_post_s", "rally_shortened"):
+            if name not in self.metrics:
+                self.metrics[name] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["rally_scheduled_pre_s"][env_ids] = (strike - self.time_steps[env_ids]).float() * dt
+        self.metrics["rally_scheduled_post_s"][env_ids] = (self.rally_wrap_step[env_ids] - strike).float() * dt
+        self.metrics["rally_shortened"][env_ids] = self.rally_shortened[env_ids].float()
+
     def _resample_command(self, env_ids: Sequence[int]):
         if len(env_ids) == 0:
             return
         env_ids_t = env_ids if torch.is_tensor(env_ids) else torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
         env_ids_t = env_ids_t.to(device=self.device, dtype=torch.long)
+        if self.inter_ball_recovery is not None:
+            self.inter_ball_recovery.reset(env_ids_t)
         # Read terminal provenance before clip/time and last-sampled-bucket state are replaced.
         self._record_v17_replay_failures(env_ids_t)
         self._adaptive_sampling(env_ids_t)
+        self._sample_rally_timing(env_ids_t)
 
         recovery_scale = (
             float(self._recovery_curriculum_scale)
@@ -2092,7 +2304,7 @@ class MotionCommand(CommandTerm):
         # 2026-07-11 residual). The draw is exogenous (never policy-extendable), so hold-gated
         # income stays un-farmable. 0.0 = off (all existing tasks unchanged).
         long_p = float(getattr(self.cfg, "hold_long_prob", 0.0))
-        if long_p > 0.0:
+        if long_p > 0.0 and (not self._resampling_from_wrap or self.cfg.hold_long_on_wrap):
             llo, lhi = self.cfg.hold_long_steps_range
             if int(lhi) >= int(llo) > 0:
                 long_mask = torch.rand(len(env_ids_t), device=self.device) < long_p
@@ -2107,6 +2319,17 @@ class MotionCommand(CommandTerm):
         # targets are anchor-relative, so the new reference re-anchors to the robot where it is.
         # Teleporting at a wrap (legacy RSI behavior) requires wrap_teleport=True.
         if self._resampling_from_wrap and not self.cfg.wrap_teleport:
+            if self.inter_ball_recovery is not None:
+                from whole_body_tracking.utils.interruptible_recovery import sample_arrivals
+                budget, arrival = sample_arrivals(
+                    len(env_ids_t), self.device, self.cfg.recovery_window_steps_range,
+                    self.cfg.next_ball_delay_steps_range, self.cfg.next_ball_immediate_prob)
+                self.inter_ball_recovery.begin(env_ids_t, budget, arrival)
+                # Expose arrival time to legacy deadline diagnostics/rewards.
+                # +1 preserves in_hold through the final waiting action; an
+                # earlier notification overrides this countdown before release.
+                self.hold_counter[env_ids_t] = torch.where(arrival > 0, arrival + 1, 0)
+                return
             min_hold = int(
                 round(float(self.cfg.post_wrap_min_hold) * recovery_scale)
             )
@@ -2373,7 +2596,22 @@ class MotionCommand(CommandTerm):
         )
         self.last_reset_root_pos_w[env_ids] = root_pos[env_ids]
 
+    def notify_next_ball(self, env_ids):
+        """Release an inter-ball recovery on an earlier incoming-command event."""
+        if self.inter_ball_recovery is None:
+            raise RuntimeError("incoming-command notification requires interruptible recovery")
+        self.inter_ball_recovery.notify(env_ids)
+
     def _update_command(self):
+        if self.inter_ball_recovery is not None:
+            owned, arrived, interrupted = self.inter_ball_recovery.advance()
+            self.hold_counter[owned] = torch.where(
+                self.inter_ball_recovery.waiting[owned],
+                self.inter_ball_recovery.arrival_ticks[owned] + 1, 0)
+            self.metrics["recovery_waiting_for_ball"] = self.inter_ball_recovery.waiting.float()
+            self.metrics["recovery_ball_arrived"] = arrived.float()
+            self.metrics["recovery_interrupted_by_ball"] = interrupted.float()
+            self.metrics["recovery_budget_remaining_s"] = self.inter_ball_recovery.budget_ticks.float() * self._env.step_dt
         # Pre-swing HOLD: held envs keep the reference frozen at the swing's first frame
         # ("waiting for the ball"); everyone else advances the clip clock.
         held = self.hold_counter > 0
@@ -2390,6 +2628,8 @@ class MotionCommand(CommandTerm):
         if self._multiseg:
             # Wrap at the END of the env's current clip/segment, not the global concatenated end.
             seg_end = self.motion.seg_start[self.clip_id] + self.motion.seg_len[self.clip_id]
+            if self.cfg.rally_timing_enabled:
+                seg_end = self.rally_wrap_step
             wrap_ids = torch.where(self.time_steps >= seg_end)[0]
             # DEPLOY-PARITY CLIP SWITCH (venue falls 2026-07-04): the runner's reference clock flips
             # clip_id whenever the planner re-sides the target — at an ARBITRARY mid-swing moment —
@@ -2408,7 +2648,8 @@ class MotionCommand(CommandTerm):
             else:
                 env_ids = wrap_ids
         else:
-            env_ids = torch.where(self.time_steps >= self.motion.time_step_total)[0]
+            end = self.rally_wrap_step if self.cfg.rally_timing_enabled else self.motion.time_step_total
+            env_ids = torch.where(self.time_steps >= end)[0]
             wrap_ids = env_ids
         self.just_resampled = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         if len(env_ids) > 0:
@@ -2542,6 +2783,18 @@ class MotionCommandCfg(CommandTermCfg):
     # hold_long_prob 0.0 = off (default; existing tasks unchanged).
     hold_long_prob: float = 0.0
     hold_long_steps_range: tuple[int, int] = (0, 0)
+    # Long idle is useful at episode entry but need not delay every rally ball.
+    hold_long_on_wrap: bool = True
+    # Opt-in deadline curriculum. Default preserves legacy full-clip timing and RNG.
+    rally_timing_enabled: bool = False
+    rally_timing_probability: float = 0.75
+    rally_pre_strike_s_range: tuple[float, float] = (0.35, 0.85)
+    rally_post_strike_s_range: tuple[float, float] = (0.35, 0.65)
+    rally_timing_ramp_steps: int = 96000
+    # Short deadlines receive only station changes with translation + braking budget.
+    # This is a command-distribution bound, not a policy-controlled release gate.
+    rally_station_speed_mps: float = 0.6
+    rally_station_brake_s: float = 0.2
     # Stand-started envs get at least this much hold (they must travel stand -> windup first).
     stand_start_min_hold: int = 25
     # Yaw range (rad, uniform) applied to STAND starts (2026-07-08 rally-gate finding): deploy
@@ -2621,6 +2874,12 @@ class MotionCommandCfg(CommandTermCfg):
     # Wrap draws below post_wrap_min_hold are re-drawn uniform in [min, min + jitter] instead of
     # clamped onto exactly min (which made ~85% of wrap holds identical). 0 = legacy exact clamp.
     post_wrap_hold_jitter_steps: int = 0
+    # Optional independent next-command arrival clock for ordinary wraps. The
+    # recovery window is diagnostic only; neither it nor pose can delay a ball.
+    interruptible_recovery_enabled: bool = False
+    recovery_window_steps_range: tuple[int, int] = (40, 60)
+    next_ball_delay_steps_range: tuple[int, int] = (0, 80)
+    next_ball_immediate_prob: float = 0.25
     # Static-controller -> learned-policy entry coverage. This probability is a subset of
     # stand_start_prob, not a fourth reset branch.
     runtime_handoff_start_prob: float = 0.0

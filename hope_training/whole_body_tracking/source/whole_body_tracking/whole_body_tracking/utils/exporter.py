@@ -249,6 +249,11 @@ def attach_onnx_metadata(
         and str(_task_identity.get("gym_task", ""))
         == "HOPE-HitterPingPong-AgibotA3-v0"
     )
+    from whole_body_tracking.utils.sim2real_export import RECIPES, sim2real_metadata
+
+    _sim2real_build = _hitter_pingpong_build and (
+        (_task_identity.get("build_contract") or {}).get("training_recipe_revision") in RECIPES
+    )
     try:
         rt_cfg = env.command_manager.get_term("racket_target").cfg
         if bool(getattr(rt_cfg, "base_mocap_enabled", False)):
@@ -311,7 +316,7 @@ def attach_onnx_metadata(
                 metadata["base_mocap_max_propagation_s"] = (
                     f"{float(rt_cfg.base_mocap_max_propagation_s):.9g}"
                 )
-            if _hitter_pingpong_build:
+            if _hitter_pingpong_build and not _sim2real_build:
                 build_contract = _task_identity.get("build_contract") or {}
                 friction_contract = _task_identity.get("friction_contract") or {}
                 expected_forbidden = [
@@ -488,7 +493,9 @@ def attach_onnx_metadata(
         # reference_reach) — the C++ runner refuses a 177 model without this key rather than
         # silently feeding a zero station.
         rt_cmd = env.command_manager.get_term("racket_target")
-        if hasattr(rt_cmd, "_ensure_reference_strike_state"):
+        # The continuous 110-D recipe derives stations from its fixed hit plane
+        # and side bands, not the 177-D reference-reach heuristic.
+        if not _sim2real_build and hasattr(rt_cmd, "_ensure_reference_strike_state"):
             rt_cmd._ensure_reference_strike_state()
             reach = getattr(rt_cmd, "_ref_reach_offset_xy_per_clip", None)
             if reach is not None:
@@ -572,7 +579,9 @@ def attach_onnx_metadata(
                 and str(_v17_contract.get("planner_contract", ""))
                 == "schema2_three_stable_revisions_freeze_at_engage_v1"
             )
-            if _step_y is not None or v17_r10_declared or v17_r12_declared:
+            if _sim2real_build:
+                metadata.update(sim2real_metadata(env, _task_identity))
+            elif _step_y is not None or v17_r10_declared or v17_r12_declared:
                 if _step_y is not None:
                     metadata["hitter_pure_station_y_step_range"] = ",".join(
                         f"{float(v):.4f}" for v in _step_y
@@ -1731,8 +1740,15 @@ def attach_onnx_metadata(
                     metadata["hitter_pure_training_recipe"] = "legacy_station_step"
                     metadata["hitter_pure_training_recipe_version"] = "0"
     except (KeyError, ValueError):
+        if _sim2real_build:
+            raise
         pass  # task without a racket_target command (plain tracking) — clock keys not needed
     actor_contract = infer_actor_observation_contract(env)
+    if _sim2real_build and (
+        actor_contract is None or actor_contract.name != "hitter_pure"
+        or actor_contract.total_dim != 110
+    ):
+        raise RuntimeError("Continuous rally export requires the actual 110-D hitter_pure observation layout")
     if actor_contract is not None:
         metadata.update(
             {

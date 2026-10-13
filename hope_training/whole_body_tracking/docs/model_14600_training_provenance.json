@@ -1,0 +1,34 @@
+{
+  "source_ref": "origin/main_improve",
+  "source_commit": "2b14b76d184643320c158ad938ab3cf6ba8a1624",
+  "source_task": "HOPEPingPongTaskReference",
+  "source_algorithm": "ppo_quiet",
+  "source_task_inheritance": [
+    "HOPEPingPong",
+    "HOPEPingPongQuiet",
+    "HOPEPingPongTaskReference"
+  ],
+  "source_algorithm_inheritance": [
+    "ppo",
+    "ppo_quiet"
+  ],
+  "policy_sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+  "checkpoint_sha256": "20053e683cdbefb24575299b8b2b5c3d0890e145d96fa2cc543136983455f0e1",
+  "resolved_task_sha256": "eb5aa36c6e1997bc127c82052f0dc67d395644b71c5eebf98210a9f3ae9ead8d",
+  "frozen_env_sha256": "de1dc241adb55ce7301361c5c9a1cabe57c31cf6160945c6cac694be69e54c45",
+  "run_path": "2026-09-28_20-34-49_rally_sim2real_v6_1_actual_pose_hard_limit_scratch",
+  "gym_task": "HOPE-HitterPingPong-AgibotA3-v0",
+  "actor_observation_dim": 110,
+  "action_dim": 31,
+  "task_config_matches_policy": true,
+  "note": "Task identity matches ONNX embedded resolved JSON exactly; source/optimizer/asset identity is not established by task equality alone.",
+  "local_algorithm": "ppo",
+  "baseline_model": "model_14600",
+  "baseline_directory": "checkpoints",
+  "baseline_files_sha256": {
+    "actor_parity.txt": "1ee153ee89078322e93ec809c2af5eb2b100fa801fb77e6317d8d4cab57b082f",
+    "deploy.yaml": "c6f60914d30c688ec1f262bdb048eba234aa032ed2c094998ce8d4dcf46a3632",
+    "policy.onnx": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28"
+  },
+  "local_task": "HOPEPingPong"
+}

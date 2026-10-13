@@ -60,15 +60,19 @@ def _run(cfg, simulation_app):
     from whole_body_tracking.utils.my_on_policy_runner import HOPEOnPolicyRunner
     from whole_body_tracking.utils.ppo_cfg import runner_kwargs
     from whole_body_tracking.utils.task_reward_overrides import apply_reward_overrides
+    from whole_body_tracking.utils.task_command_overrides import apply_command_overrides
+    from whole_body_tracking.utils.task_sim2real_overrides import apply_sim2real_overrides
 
     task_id = str(cfg.task.gym_task)
     num_envs = int(cfg.num_envs)
 
     env_cfg = parse_env_cfg(task_id, device=str(cfg.device), num_envs=num_envs)
     reward_overrides: list[str] = []
+    apply_command_overrides(env_cfg, OmegaConf.to_container(cfg.task, resolve=True), reward_overrides)
+    apply_sim2real_overrides(env_cfg, OmegaConf.to_container(cfg.task, resolve=True), reward_overrides)
     apply_reward_overrides(env_cfg.rewards, cfg.task.get("rewards"), reward_overrides)
     print(
-        f"[play.py] applied {len(reward_overrides)} task reward override(s)",
+        f"[play.py] applied {len(reward_overrides)} task override(s)",
         flush=True,
     )
     motion_files = _resolve_motion_sources(cfg)

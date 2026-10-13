@@ -22,10 +22,11 @@ checkpoints/
 *.ckpt
 *.log
 
-# Only explicitly reviewed checkpoints are published.
-# Published model_21800 warm-start checkpoint (machine-bound exact-resume state removed).
+# Published model_14600 export baseline; generated training checkpoints stay local.
 !hope_training/whole_body_tracking/checkpoints/
-!hope_training/whole_body_tracking/checkpoints/model_21800.pt
+!hope_training/whole_body_tracking/checkpoints/policy.onnx
+!hope_training/whole_body_tracking/checkpoints/deploy.yaml
+!hope_training/whole_body_tracking/checkpoints/actor_parity.txt
 
 # Exported / converted policies (regenerate with scripts/export_onnx.py)
 *.onnx

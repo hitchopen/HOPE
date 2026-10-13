@@ -67,7 +67,7 @@ def _fake_rewards():
 
 
 def test_every_yaml_reward_key_has_an_explicit_mapping() -> None:
-    assert set(_recipe()) == set(reward_overrides.SUPPORTED_REWARD_KEYS)
+    assert set(_recipe()) <= set(reward_overrides.SUPPORTED_REWARD_KEYS)
 
 
 def test_complete_recipe_applies_to_registered_reward_terms() -> None:
@@ -77,7 +77,14 @@ def test_complete_recipe_applies_to_registered_reward_terms() -> None:
 
     assert rewards.racket_position.weight == 14.0
     assert rewards.racket_position.params["std"] == 0.15
-    assert rewards.action_rate_l2.weight == -0.1
+    assert rewards.action_rate_l2.weight == 0.0
+    assert rewards.executed_qdes_rate.weight == -0.1
+    assert rewards.executed_qdes_rate.params["hold_multiplier"] == 4.0
+    assert rewards.settled_leg_command.weight == 0.0
+    assert rewards.settled_waist_pitch_tracking.weight == 0.0
+    for term in (rewards.settled_leg_command, rewards.settled_waist_pitch_tracking):
+        assert term.params["start_steps"] == 448000
+        assert term.params["ramp_steps"] == 128000
     assert rewards.joint_acc.weight == -2.5e-7
     assert rewards.rally_joint_qdes_saturation.weight == -0.65
     assert rewards.rally_joint_qdes_saturation.params["topk"] == 4
@@ -88,6 +95,21 @@ def test_complete_recipe_applies_to_registered_reward_terms() -> None:
     assert rewards.ready_foot_alignment.params["heading_gate"] == 0.15
     assert rewards.ready_leg_settle.params["station_reach"] == 0.1
     assert len(applied) >= sum(value is not None for value in _recipe().values())
+
+
+def test_task_reference_recipe_replaces_bias_penalties_and_clip_specific_hold():
+    recipe = _recipe()
+    rewards = _fake_rewards()
+    reward_overrides.apply_reward_overrides(rewards, recipe, [])
+    assert rewards.hip_tracking.weight == rewards.settled_waist_pitch_tracking.weight == 0
+    assert rewards.ready_torso_posture.weight == 0
+    assert rewards.actual_task_pose.weight == -.4
+    assert rewards.actual_joint_limit.weight == -1.
+    assert rewards.actual_joint_limit.params['hold_recover_multiplier'] == 3.
+    assert rewards.actual_joint_limit.params['waist_margin_rad'] > rewards.actual_joint_limit.params['margin_rad']
+    assert rewards.hold_upper_pose_imitation.params['fixed_task_reference'] is True
+    assert rewards.actual_task_pose.params['start_steps'] == 7000*64
+    assert rewards.actual_task_pose.params['ramp_steps'] == (9000-7000)*64
 
 
 def test_unknown_reward_key_fails_loudly() -> None:

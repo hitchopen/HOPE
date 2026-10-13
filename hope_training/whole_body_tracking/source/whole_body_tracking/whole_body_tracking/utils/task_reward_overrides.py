@@ -54,6 +54,14 @@ _WEIGHT_AND_STD_PREFIXES: tuple[tuple[str, str], ...] = (
     ("settle_foot_slip", "settle_foot_slip"),
     ("rally_ready_root_height_debt", "rally_ready_root_height_debt"),
     ("post_swing_tilt_debt", "post_swing_tilt_debt"),
+    ("dynamic_support", "dynamic_support"),
+    ("foot_placement", "foot_placement"),
+    ("waist_command_quiet", "waist_command_quiet"),
+    ("settled_leg_command", "settled_leg_command"),
+    ("settled_waist_pitch_tracking", "settled_waist_pitch_tracking"),
+    ("ready_torso_posture", "ready_torso_posture"),
+    ("actual_task_pose", "actual_task_pose"),
+    ("hip_tracking", "hip_tracking"),
 )
 
 WEIGHT_SPECS: dict[str, str] = {
@@ -61,11 +69,18 @@ WEIGHT_SPECS: dict[str, str] = {
 }
 WEIGHT_SPECS.update(
     {
+        "actual_joint_limit_weight": "actual_joint_limit",
+        "full_body_hold_weight": "full_body_hold",
+        "full_body_quiet_weight": "full_body_quiet",
+        "actual_ready_legs_weight": "actual_ready_legs",
+        "station_recovery_weight": "station_recovery",
+        "loaded_ankle_quiet_weight": "loaded_ankle_quiet",
         "foot_orientation_weight": "foot_orientation",
         "rally_ankle_qdes_saturation_weight": "rally_ankle_qdes_saturation",
         "post_strike_leg_quiet_weight": "post_strike_leg_quiet",
         "joint_torques_weight": "joint_torques",
         "action_rate_weight": "action_rate_l2",
+        "executed_qdes_rate_weight": "executed_qdes_rate",
         "joint_acc_weight": "joint_acc",
         "joint_limit_weight": "joint_limit",
         "undesired_contacts_weight": "undesired_contacts",
@@ -106,6 +121,7 @@ _add_float_params(
     {"reach": "reach", "heading_gate_rad": "heading_gate"},
 )
 _add_bool_params("hold_ready", "hold_ready", {"include_ang_vel": "include_ang_vel"})
+_add_bool_params("hold_upper_pose_imitation", "hold_upper_pose_imitation", {"fixed_task_reference": "fixed_task_reference"})
 _add_bool_params("foot_orientation", "foot_orientation", {"hold_gate": "hold_gate"})
 _add_float_params(
     "rally_ankle_qdes_saturation",
@@ -113,6 +129,42 @@ _add_float_params(
     {"safe_abs": "safe_abs", "t_pre": "t_pre", "t_post": "t_post"},
 )
 _add_float_params("stance_width", "stance_width", {"lo": "lo", "hi": "hi"})
+_add_float_params("executed_qdes_rate", "executed_qdes_rate", {"hold_multiplier": "hold_multiplier"})
+_add_float_params("waist_command_quiet", "waist_command_quiet", {"margin": "margin"})
+for _refinement_term in ("settled_leg_command", "settled_waist_pitch_tracking", "ready_torso_posture", "actual_task_pose"):
+    _add_float_params(_refinement_term, _refinement_term, {"margin": "margin"})
+    for _schedule_param in ("start_steps", "ramp_steps"):
+        INT_PARAM_SPECS[f"{_refinement_term}_{_schedule_param}"] = (_refinement_term, _schedule_param)
+_add_float_params("ready_torso_posture", "ready_torso_posture", {
+    key: key for key in ("waist_margin", "waist_std", "ready_free_s", "ready_full_s",
+                         "followthrough_free_s", "recovery_full_s")
+})
+_add_float_params("hip_tracking", "hip_tracking", {"margin": "margin"})
+_add_float_params("actual_joint_limit", "actual_joint_limit", {
+    key: key for key in ("margin_rad", "waist_margin_rad", "hold_recover_multiplier")
+})
+_add_float_params("actual_task_pose", "actual_task_pose", {
+    key: key for key in ("ready_free_s", "ready_full_s", "followthrough_free_s", "recovery_full_s", "torso_margin", "torso_std")
+})
+for _term, _params in {
+    "full_body_hold": ("cost_scale",),
+    "full_body_quiet": (),
+    "actual_ready_legs": ("knee_margin", "knee_std", "height_margin", "height_std"),
+    "station_recovery": ("position_margin", "position_std", "velocity_margin", "velocity_std"),
+    "loaded_ankle_quiet": ("margin", "std"),
+}.items():
+    _add_float_params(_term, _term, {key: key for key in _params})
+    for _schedule in ("start_steps", "ramp_steps"):
+        INT_PARAM_SPECS[f"{_term}_{_schedule}"] = (_term, _schedule)
+_add_bool_params("full_body_hold", "full_body_hold", {"positive_kernel": "positive_kernel"})
+_add_bool_params("full_body_quiet", "full_body_quiet", {
+    "state_independent": "state_independent", "pose_independent": "pose_independent",
+})
+_add_float_params("foot_placement", "foot_placement", {
+    "width_min": "width_min", "width_max": "width_max", "yaw_margin": "yaw_margin",
+    "yaw_std": "yaw_std", "yaw_weight": "yaw_weight",
+})
+_add_float_params("dynamic_support", "dynamic_support", {"margin": "margin", "foot_radius": "foot_radius"})
 _add_float_params(
     "racket_normal_alignment_debt",
     "racket_normal_alignment_debt",

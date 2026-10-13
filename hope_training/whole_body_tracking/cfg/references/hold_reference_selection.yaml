@@ -1,0 +1,73 @@
+status: waist_torso_and_hold_upper_wired_in_task_reference_v6
+selected_candidate: B_32_5_K20
+reference_semantics: desired_actual_pose_not_pd_q_des
+frames:
+  torso: gravity_aligned_session_heading
+  feet_xy: stance_midpoint_in_session_heading_frame
+  hand_height: ground_relative
+  forward_direction: session_heading_not_next_ball
+hold:
+  reference: one_fixed_candidate_for_both_forehand_and_backhand
+  waist_pitch_tolerance_deg: 3.0
+  torso_roll_tolerance_deg: 2.0
+  torso_pitch_tolerance_deg: 3.0
+  foot_center_width_tolerance_cm: 2.0
+  foot_yaw_tolerance_deg: 5.0
+  wrist_position_tolerance_cm: 3.0
+  allow_balance_corrections: true
+  score_full_31_joint_l2: false
+  proposed_knee_flexion_tolerance_deg: 5
+  pelvis_height: derived_from_selected_pose; broad lower envelope to discourage prolonged
+    crouch
+  pelvis_height_tolerance_status: to_calibrate_in_closed_loop; do_not_add_a_conflicting_rigid_height_target
+  selected_knee_flexion_deg: 20
+  selected_foot_center_width_cm: 32
+  selected_left_wrist_height_cm: 103.5
+  selected_right_wrist_height_cm: 107.0
+  selected_waist_pitch_deg: -2
+  selected_torso_pitch_deg: 2
+  selected_pelvis_height_cm: 106.55785597791001
+strike:
+  hold_posture_gate: 0.0
+  reference: existing_forehand_or_backhand_motion_during_active_strike
+  allow_waist_yaw_pitch_and_arm_swing: true
+  retain_joint_limits_and_balance_checks: true
+  permit_transient_knee_flexion: true
+recover:
+  reference: same_fixed_hold_candidate
+  proposal_reuse_existing_followthrough_free_s: 0.5
+  proposal_reuse_existing_recovery_full_s: 0.8
+  ramp_actual_pose_cost: true
+  do_not_block_a_new_strike: true
+  include_actual_knee_and_pelvis_return: true
+anti_leakage:
+  runtime_hold_pose_selection_by_next_ball: false
+  runtime_hold_pose_selection_by_swing_side: false
+  use_future_contact_or_landing: false
+  motion_source_frame_is_offline_constant: true
+validation_status:
+  kinematic_geometry: 108 presets, see validation.json
+  robot_self_penetration_over_1mm: none_in_model
+  trained_policy_dynamic_hold: not_yet_tested
+  nominal_COM_support: see validation.json; not dynamic validation
+  selected_candidate_geometry:
+    key: B_32_5_K20
+    nominal_support_margin_m: 0.05536245627944976
+    minimum_foot_sphere_clearance_m: -7.702035858572331e-05
+    min_joint_limit_margin_rad: 0.2583360048567208
+    max_knee_error_deg: 0.0028118834512298463
+    hand_error_m: 3.368993751005031e-05
+    foot_error_m: 7.102356984197061e-05
+    self_penetrations_over_1mm: 0
+candidate_library: outputs/hold_pose_upright_20260928/variants
+reference_file: hold_pose_B_32_5_K20.json
+reference_sha256: c17d7ef1371fc2bbf3e922946b5254d17c7ed0bd5ead053d472edfc1c2580e5f
+training_integration_status:
+  reward_source_replacement: fixed upper-body HOLD reference in HOPEPingPong
+  actual_task_reference_rewards: waist pitch and torso roll/pitch active with 7000-9000
+    update curriculum
+  selected_leg_and_hand_task_space_constraints: not added in this waist/torso fix
+  dynamic_hold_and_strike_transition: short random-policy integration tested; long
+    learned-policy stability pending
+  tolerances_and_phase_timings: waist/torso 3 degree deadband and existing phase windows
+    implemented; remaining tolerances proposed

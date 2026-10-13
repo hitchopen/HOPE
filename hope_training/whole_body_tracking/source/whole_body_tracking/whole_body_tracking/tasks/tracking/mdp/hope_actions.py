@@ -2847,6 +2847,7 @@ def executed_qdes_difference_l2(
     upper_joint_names: tuple[str, ...] = (),
     strike_free_pre_s: float = 0.12,
     follow_through_free_s: float = 0.30,
+    hold_multiplier: float = 1.0,
 ) -> torch.Tensor:
     """Smooth the published q_des while preserving the racket strike and follow-through.
 
@@ -2861,6 +2862,8 @@ def executed_qdes_difference_l2(
         raise ValueError(f"executed q_des difference order must be 1 or 2, got {order}")
     if strike_free_pre_s < 0.0 or follow_through_free_s < 0.0:
         raise ValueError("executed q_des strike/follow-through windows must be non-negative")
+    if not math.isfinite(hold_multiplier) or hold_multiplier < 1.0:
+        raise ValueError("executed q_des hold multiplier must be finite and >= 1")
     action_term = env.action_manager.get_term(action_name)
     attr = (
         "executed_qdes_delta_normalized"
@@ -2888,6 +2891,13 @@ def executed_qdes_difference_l2(
         live[rows[:, None], intervention_cols[None, :]] = False
 
     command = env.command_manager.get_term(command_name)
+    try:
+        motion = env.command_manager.get_term("motion")
+    except (KeyError, ValueError):
+        motion = None
+    held = getattr(motion, "in_hold", None)
+    if hold_multiplier != 1.0 and held is None:
+        raise RuntimeError("hold-weighted q_des dynamics requires MotionCommand.in_hold")
     upper_cols = resolve_action_columns_by_joint_name(action_term, upper_joint_names)
     if upper_cols:
         upper = torch.tensor(upper_cols, dtype=torch.long, device=value.device)
@@ -2895,6 +2905,8 @@ def executed_qdes_difference_l2(
             (command.time_to_strike <= float(strike_free_pre_s))
             & (command.time_to_strike >= -float(follow_through_free_s))
         )
+        if held is not None:
+            protected &= ~held  # A frozen HOLD clock is not a live racket strike.
         rows = torch.where(protected)[0]
         if rows.numel() > 0:
             live[rows[:, None], upper[None, :]] = False
@@ -2933,7 +2945,10 @@ def executed_qdes_difference_l2(
                 previous = torch.zeros_like(rms)
             command.metrics[key] = torch.where(_motion.in_hold, rms, previous)
 
-    return torch.sum(torch.square(value) * live.float(), dim=-1)
+    cost = torch.sum(torch.square(value) * live.float(), dim=-1)
+    if held is not None:
+        cost = cost * torch.where(held, hold_multiplier, 1.0)
+    return cost
 
 
 def phase_gated_joint_acc_l2(

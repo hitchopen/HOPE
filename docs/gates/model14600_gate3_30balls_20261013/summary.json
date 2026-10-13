@@ -1,0 +1,53 @@
+{
+  "source_commit": "34378f581b64468eb5fb44d6d6b46e3bfad29463",
+  "source_branch": "build_6_detour",
+  "evidence_scope": "simulator_truth",
+  "policy": "model_14600",
+  "policy_sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+  "deploy_sha256": "c6f60914d30c688ec1f262bdb048eba234aa032ed2c094998ce8d4dcf46a3632",
+  "runner_sha256": "a231deae8e2e70a8f1ec913129d4e8b675b0b9b1cfd60ef6705b08ebf8c5b7e9",
+  "command": "./run_gate3.sh --deploy hope_training/whole_body_tracking/checkpoints/deploy.yaml --onnx hope_training/whole_body_tracking/checkpoints/policy.onnx --balls 30 --headless --output <new-result-directory>",
+  "local_run_directory": "/home/dongc1/workspace/Hope_v11/agi/a3_deploy_example/gate3/runs/model14600_30balls_20261013",
+  "certification_pass": false,
+  "exit_code": 1,
+  "serves": 30,
+  "engaged": 30,
+  "completed": 30,
+  "physical_contacts": 30,
+  "legal_landings": 30,
+  "complete_trajectories": 30,
+  "motion_falls": 0,
+  "actual_q_faults": 0,
+  "drain_complete": true,
+  "video_path": "docs/assets/model_21800_gate3_mujoco.mp4",
+  "video_sha256": "e72e6d0b0b5f9db601dc42e5979909a3ceddccccaf44125f82a67d0c9f222e43",
+  "video_frames": 1712,
+  "video_duration_s": 71.33333333333333,
+  "all_shots_and_endpoints_rendered": true,
+  "raw_trace_sha256": {
+    "pp_mujoco_plant.csv": "35b75e30e72729893bbafec0bef730fe6c7d869685ab3be9318b20a21d35e8bf",
+    "pp_ball_trajectories.csv": "22ca42ff0262938e0eb5a49a71ef99c81be8e9a61db4eb3412980fd6695678a3",
+    "pp_runner_trace.csv": "15b46f542964e95e6e82e19cfd0c602bdb12c9846e7a7aead0cbf43db97d5e6e",
+    "pp_planner_debug.csv": "e59f4372ab57d6e31263aff9a3094b922f0f828feb5d46d6d52a39d63d5f01ae"
+  },
+  "report_sha256": {
+    "run.json": "72234773b3e0659a422183072ae12bf83aefcb349f560d92cbb1a91f88171d28",
+    "policy_inspection.json": "704d0208e49863e082141ef7ed7a916a5646960ebb6baedbf5248edacd2b1881",
+    "scene.yaml": "0172d0ccc74d6c6c5e32a21dbb01dfecba0c03bbd324036b4b179a9c44a6bf87",
+    "scene.env.sh": "c84898edbbe3a58ed1a2db18f0e804ace07dd6310b9aa8e9bc45a7014531e3e7",
+    "pp_rally_report.json": "0d7edf82d6348efd7aef7a2914a6df2a70dcde9cc32059ebf67edd5b7c90c01a",
+    "pp_physical_ball_report.json": "b9a84dd9de313ed386793545257ce8f1a11859ab656ac1a83685b9d1a87f058d",
+    "pp_mujoco_plant_report.json": "74bdb386c34776b84065aa7771944797ba856e7af92ae9b064d8a98c669505de",
+    "pp_planner_cpp_report.json": "dd4815709e5f7b996a86016bb7ed7607046c5b61f63319bbab1b6b3ce609d49e",
+    "pp_gate3_drain_report.json": "3654b6aa434a44ec47f65eab860e18241622c6c60bd3ecfd2e525d99099d1caa",
+    "pp_gate3_real_tail_report.json": "f77ec08887a01f15a2427779817f713958a79e74abfb67b4a406b94aed5c0842",
+    "video_receipt.json": "8b650311d70d4a2e3142465d581dbff6e58a88aeeb295adb3ae03a9bc9d6b4de",
+    "render_video.py": "9bdb9c7255b973baefa31fea9c2bbd56432590585943f1753dc8e3d1b1c21333"
+  },
+  "validation": {
+    "training_unit_tests": "269 passed, 1 skipped (second CUDA device unavailable)",
+    "bundle_unit_tests": "5 passed",
+    "training_smoke": "64 environments, 3 PPO iterations, 12288 transitions, exit 0"
+  },
+  "qualification_limits": "Run used the installed build_6_detour native binaries identified above. Public-layout PR was unit-tested; its native binaries were not rebuilt or rerun. No hardware test or training convergence claim."
+}

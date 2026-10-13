@@ -53,6 +53,10 @@ from isaaclab.utils.math import (
 )
 
 from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
+from whole_body_tracking.tasks.tracking.mdp.strike_statistics import collect_exact_strike_statistics
+from whole_body_tracking.tasks.tracking.mdp.mocap_transport import (
+    advance_packet_outage, validate_outage_config,
+)
 from whole_body_tracking.tasks.tracking.mdp.one_step_contract import (
     advance_one_step_bout,
 )
@@ -963,7 +967,7 @@ class RacketTargetCommand(CommandTerm):
         # only, defaults off, and is never set by a training recipe.
         self._eval_force_final_recovery_stage = False
 
-        # Per-clip (forehand=clip 0 / backhand=clip 1) breakdown of the exact-strike metrics, so local metrics
+        # Per-clip (forehand=clip 0 / backhand=clip 1) breakdown of the exact-strike metrics, so wandb
         # shows each swing separately (the aggregate composite can hide one swing lagging). Same
         # sample-weighted EMA as the global accumulators above, but each clip's exact-strike samples are
         # accumulated separately (selected by the motion command's clip_id). Populated in multiseg only.
@@ -1166,7 +1170,7 @@ class RacketTargetCommand(CommandTerm):
             self.num_envs, 2, dtype=torch.bool, device=self.device
         )
 
-        # --- UNCONDITIONAL swing accounting (Phase A local metrics fix) ------------------------------------
+        # --- UNCONDITIONAL swing accounting (Phase A wandb fix) ------------------------------------
         # strike_composite_success_exact is CONDITIONAL: its denominator is exact-strike SAMPLES, so
         # an env that falls BEFORE the strike frame contributes nothing — composite ~1.0 coexists
         # with any pre-strike fall rate (exactly what happened in deploy). These accumulators count
@@ -1446,7 +1450,7 @@ class RacketTargetCommand(CommandTerm):
             self.delayed_racket_target_pos_w = self.racket_target_pos_w
             self.delayed_racket_target_vel_w = self.racket_target_vel_w
             self.delayed_swing_sign = self.swing_sign
-        # A1 metrics: per-step per-env redraw indicator (local metrics reset-mean = per-step mid-swing
+        # A1 metrics: per-step per-env redraw indicator (wandb reset-mean = per-step mid-swing
         # refinement fraction) + the constant delay-in-effect broadcast (refreshed every step in
         # _update_metrics because CommandTerm.reset() zeros metric entries of resetting envs).
         self.metrics["midswing_resample_count"] = torch.zeros(self.num_envs, device=self.device)
@@ -1483,6 +1487,16 @@ class RacketTargetCommand(CommandTerm):
             cfg.base_mocap_orientation_enabled
         )
         self._base_mocap_delay_steps = max(int(cfg.base_mocap_delay_steps), 0)
+        self._base_mocap_delay_min_steps = (
+            self._base_mocap_delay_steps if cfg.base_mocap_delay_min_steps is None
+            else int(cfg.base_mocap_delay_min_steps)
+        )
+        if not 0 <= self._base_mocap_delay_min_steps <= self._base_mocap_delay_steps:
+            raise ValueError("base mocap delay requires 0 <= min_steps <= delay_steps")
+        self._base_mocap_sampled_delay = torch.full(
+            (self.num_envs,), self._base_mocap_delay_steps, dtype=torch.long, device=self.device
+        )
+        self._base_mocap_delay_pending = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         self._base_mocap_delay_by_env = torch.full(
             (self.num_envs,),
             int(
@@ -1514,6 +1528,17 @@ class RacketTargetCommand(CommandTerm):
             noise_std, dtype=torch.float32, device=self.device
         ).unsqueeze(0)
         self._base_mocap_dropout_prob = dropout_probability
+        validate_outage_config(
+            float(cfg.base_mocap_burst_start_prob), tuple(cfg.base_mocap_burst_duration_s),
+            float(cfg.base_mocap_burst_long_prob), tuple(cfg.base_mocap_burst_long_duration_s),
+        )
+        self._base_mocap_burst_remaining = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        bias_std = tuple(float(v) for v in cfg.base_mocap_position_bias_std)
+        if len(bias_std) != 3 or any(not math.isfinite(v) or v < 0 for v in bias_std):
+            raise ValueError("base_mocap_position_bias_std must contain three finite nonnegative values")
+        self._base_mocap_position_bias_std = torch.tensor(bias_std, device=self.device)
+        self._base_mocap_position_bias = torch.zeros(self.num_envs, 3, device=self.device)
+        self._base_mocap_position_bias_pending = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         if not 0.0 <= self._base_mocap_dropout_prob < 1.0:
             raise ValueError("base_mocap_dropout_prob must be in [0, 1)")
         self._base_mocap_velocity_alpha = float(cfg.base_mocap_velocity_ema_alpha)
@@ -1601,6 +1626,8 @@ class RacketTargetCommand(CommandTerm):
             self.num_envs, device=self.device
         )
         self.metrics["base_mocap_stale"] = torch.zeros(self.num_envs, device=self.device)
+        for name in ("base_mocap_burst_active", "base_mocap_burst_started", "base_mocap_packet_received"):
+            self.metrics[name] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["base_mocap_orientation_error_rad"] = torch.zeros(
             self.num_envs, device=self.device
         )
@@ -2551,7 +2578,7 @@ class RacketTargetCommand(CommandTerm):
         # subject). 0 outside pre_strike -> the reset-mean dilutes like the other *_prestrike metrics.
         self.metrics["base_speed_xy_prestrike"] = torch.zeros(self.num_envs, device=self.device)
         # Curriculum perturbation scale (reference_perturbed mode): 0 at start ramping to 1; lets you
-        # watch the reachable target ball widen in local metrics. Stays 0 in "uniform" mode.
+        # watch the reachable target ball widen in wandb. Stays 0 in "uniform" mode.
         self.metrics["ref_perturb_scale"] = torch.zeros(self.num_envs, device=self.device)
         self._has_jpos_limits = hasattr(self.robot.data, "soft_joint_pos_limits") or hasattr(
             self.robot.data, "joint_pos_limits"
@@ -2687,8 +2714,10 @@ class RacketTargetCommand(CommandTerm):
 
     def reset(self, env_ids=None):
         # Base CommandTerm.reset zeros every metric in-place before resampling.
+        from ..command_reset import batched_command_term_reset
+
         self._assert_v17_metric_storage_isolation()
-        return super().reset(env_ids)
+        return batched_command_term_reset(self, env_ids)
 
     @property
     def command(self) -> torch.Tensor:
@@ -3461,6 +3490,24 @@ class RacketTargetCommand(CommandTerm):
                     self.metrics["station_y_step_class"][env_ids_t] = 2.0
             else:
                 base_xy[:, 1] += sample_uniform(*self.cfg.base_target_y_range, (n,), self.device)
+            if self._resample_is_wrap:
+                # A late target cannot simultaneously demand an arbitrary large step.
+                # Bound only the shortened-clock cohort using the PREVIOUS COMMAND,
+                # never the measured robot position (which could reward falling behind).
+                # Normal-clock draws retain the original full movement distribution.
+                motion = self._motion()
+                if bool(getattr(motion.cfg, "rally_timing_enabled", False)):
+                    requested = base_xy[:, 1] - previous_y
+                    limited = self._limit_rally_station_step(env_ids_t, requested)
+                    changed = (limited - requested).abs() > 1.0e-6
+                    base_xy[:, 1] = previous_y + limited
+                    actual_class = torch.where(
+                        limited.abs() < 1.0e-5, torch.zeros_like(limited),
+                        torch.where(limited.abs() < 0.12, torch.ones_like(limited), torch.full_like(limited, 2.0)),
+                    )
+                    self.metrics["station_y_step_class"][env_ids_t] = torch.where(
+                        changed, actual_class, self.metrics["station_y_step_class"][env_ids_t]
+                    )
             self.base_target_pos_w[env_ids] = base_xy
             if self._resample_is_wrap:
                 signed_step = base_xy[:, 1] - previous_y
@@ -3807,6 +3854,28 @@ class RacketTargetCommand(CommandTerm):
             )
             accepted_env = env_ids[local]
             accepted_origins = origins[local]
+            motion = self._motion()
+            if self._resample_is_wrap and bool(getattr(motion.cfg, "rally_timing_enabled", False)):
+                short = motion.rally_shortened[accepted_env]
+                if bool(short.any()):
+                    # Select intact physical tuples inside the station travel budget;
+                    # clipping their station would invalidate their landing geometry.
+                    if not hasattr(self, "_rally_bank_station_order"):
+                        self._rally_bank_station_order = {}
+                    if side not in self._rally_bank_station_order:
+                        self._rally_bank_station_order[side] = torch.argsort(bank["station_xy"][:, 1])
+                    order = self._rally_bank_station_order[side]
+                    sorted_y = bank["station_xy"][order, 1].contiguous()
+                    budget = self._limit_rally_station_step(
+                        accepted_env[short], torch.full((int(short.sum()),), float("inf"), device=self.device)
+                    )
+                    previous_local_y = previous_station_y[local][short] - accepted_origins[short, 1]
+                    lower = torch.searchsorted(sorted_y, previous_local_y - budget)
+                    upper = torch.searchsorted(sorted_y, previous_local_y + budget, right=True)
+                    if bool((upper <= lower).any()):
+                        raise RuntimeError("physical tuple bank has no station inside the short-ball travel budget")
+                    pick = lower + (torch.rand(len(lower), device=self.device) * (upper - lower)).long()
+                    row[short] = order[pick]
             station_local = bank["station_xy"][row]
             position_offset = bank["target_position_offset"][row]
             station = accepted_origins[:, :2] + station_local
@@ -3955,6 +4024,11 @@ class RacketTargetCommand(CommandTerm):
                     <= float(self.cfg.venue_tuple_speed_limit_mps)
                 )
             )
+            motion = self._motion()
+            if self._resample_is_wrap and bool(getattr(motion.cfg, "rally_timing_enabled", False)):
+                requested_step = station[:, 1] - previous_station_y[pending_local]
+                limited_step = self._limit_rally_station_step(env_ids[pending_local], requested_step)
+                valid &= (requested_step - limited_step).abs() <= 1.0e-6
             if bool(valid.any()):
                 accepted_local = pending_local[valid]
                 accepted_env = env_ids[accepted_local]
@@ -4663,6 +4737,8 @@ class RacketTargetCommand(CommandTerm):
             ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
             self._base_mocap_reset_pending[ids] = True
             self._base_mocap_residual_needs_sample[ids] = True
+            self._base_mocap_position_bias_pending[ids] = True
+            self._base_mocap_delay_pending[ids] = True
 
         # The truth instrument is armed only after every field of the new question has been
         # sampled.  This hook is telemetry-only and cannot mutate the command buffers.
@@ -5763,6 +5839,20 @@ class RacketTargetCommand(CommandTerm):
             forearm_dist = torch.linalg.norm(self.racket_pos_w - closest, dim=-1)
         return hand_dist, forearm_dist
 
+    def _limit_rally_station_step(self, env_ids, requested):
+        motion = self._motion()
+        remaining = self.time_to_strike[env_ids].clamp_min(0.0)
+        # An interruptible idle interval is not guaranteed travel time: an
+        # earlier command can release it. Keep station steps feasible from the
+        # pre-strike interval alone, including an immediate incoming command.
+        if getattr(motion, "inter_ball_recovery", None) is None:
+            remaining = remaining + motion.hold_counter[env_ids].float() * float(self._env.step_dt)
+        budget = float(motion.cfg.rally_station_speed_mps) * (
+            remaining - float(motion.cfg.rally_station_brake_s)
+        ).clamp_min(0.0)
+        bounded = requested.sign() * torch.minimum(requested.abs(), budget)
+        return torch.where(motion.rally_shortened[env_ids], bounded, requested)
+
     def _compute_strike_timing(self):
         """Refresh time_to_strike / pre_strike / strike_window from the CURRENT motion phase.
 
@@ -5910,7 +6000,7 @@ class RacketTargetCommand(CommandTerm):
                 ).detach()
                 self.racket_progress[ids] = 0.0
                 self._progress_reset_mask[ids] = True
-            # Per-env 0/1 indicator; the local metrics reset-mean = per-step refinement fraction (~ prob *
+            # Per-env 0/1 indicator; the wandb reset-mean = per-step refinement fraction (~ prob *
             # eligible fraction). Written every step while the feature is on so zero-redraw steps count.
             self.metrics["midswing_resample_count"] = redraw.float()
 
@@ -5960,14 +6050,26 @@ class RacketTargetCommand(CommandTerm):
         current = self.base_pos_w
         current_quat = self.base_quat_w
         robustness_scale = float(self._base_mocap_robustness_scale)
-        effective_delay = int(
-            round(self._base_mocap_delay_steps * robustness_scale)
+        if robustness_scale > 0 and bool(self._base_mocap_delay_pending.any()):
+            pending_delay = self._base_mocap_delay_pending
+            if self._base_mocap_delay_min_steps < self._base_mocap_delay_steps:
+                self._base_mocap_sampled_delay[pending_delay] = torch.randint(
+                    self._base_mocap_delay_min_steps, self._base_mocap_delay_steps + 1,
+                    (int(pending_delay.sum()),), device=self.device,
+                )
+            self._base_mocap_delay_pending[pending_delay] = False
+        self._base_mocap_delay_by_env.copy_(
+            (self._base_mocap_sampled_delay.float() * robustness_scale).round().long()
         )
-        self._base_mocap_delay_by_env.fill_(effective_delay)
-        self.metrics["base_mocap_delay_steps_in_effect"][:] = float(
-            effective_delay
-        )
+        self.metrics["base_mocap_delay_steps_in_effect"].copy_(self._base_mocap_delay_by_env.float())
         self.metrics["base_mocap_robustness_scale"][:] = robustness_scale
+        if robustness_scale > 0 and bool(self._base_mocap_position_bias_pending.any()):
+            pending_bias = self._base_mocap_position_bias_pending
+            if bool((self._base_mocap_position_bias_std > 0).any()):
+                self._base_mocap_position_bias[pending_bias] = (
+                    torch.randn(int(pending_bias.sum()), 3, device=self.device) * self._base_mocap_position_bias_std
+                )
+            self._base_mocap_position_bias_pending[pending_bias] = False
 
         # Scale zero is an exact clean full-pose path: no delay, no corruption, no dropout,
         # and importantly no hidden RNG consumption before strike competence is admitted.
@@ -5981,6 +6083,7 @@ class RacketTargetCommand(CommandTerm):
             )
         else:
             captured = current
+        captured = captured + self._base_mocap_position_bias * robustness_scale
         if self._base_mocap_orientation_enabled:
             needs_residual = self._base_mocap_residual_needs_sample
             if robustness_scale > 0.0 and bool(needs_residual.any()):
@@ -6051,11 +6154,12 @@ class RacketTargetCommand(CommandTerm):
             reset_quat = reset_quat / torch.linalg.norm(
                 reset_quat, dim=-1, keepdim=True
             ).clamp_min(1.0e-9)
-            self._base_mocap_delay_buf[:, reset_rows] = current[reset_rows].unsqueeze(0)
+            reset_position = current[reset_rows] + self._base_mocap_position_bias[reset_rows] * robustness_scale
+            self._base_mocap_delay_buf[:, reset_rows] = reset_position.unsqueeze(0)
             self._base_mocap_quat_delay_buf[:, reset_rows] = reset_quat.unsqueeze(0)
-            self._actor_base_pos_w[reset_rows] = current[reset_rows]
+            self._actor_base_pos_w[reset_rows] = reset_position
             self._actor_base_quat_w[reset_rows] = reset_quat
-            self._base_mocap_last_received_pos[reset_rows] = current[reset_rows]
+            self._base_mocap_last_received_pos[reset_rows] = reset_position
             self._actor_base_velocity_xy[reset_rows] = 0.0
             self._actor_base_age_s[reset_rows] = 0.0
             self._base_mocap_steps_since_receive[reset_rows] = 0
@@ -6069,7 +6173,9 @@ class RacketTargetCommand(CommandTerm):
         candidate_quat = self._base_mocap_quat_delay_buf[read_rows, env_rows]
 
         self._base_mocap_steps_since_receive.add_(1)
-        due = (self._base_mocap_step_counter % self._base_mocap_update_interval_steps) == 0
+        due = robustness_scale <= 0 or (
+            self._base_mocap_step_counter % self._base_mocap_update_interval_steps
+        ) == 0
         receive = torch.full(
             (self.num_envs,), bool(due), dtype=torch.bool, device=self.device
         )
@@ -6079,10 +6185,21 @@ class RacketTargetCommand(CommandTerm):
                 torch.rand(self.num_envs, device=self.device)
                 >= effective_dropout
             )
+        self._base_mocap_burst_remaining, blocked, started = advance_packet_outage(
+            self._base_mocap_burst_remaining, reset_rows, dt=dt, scale=robustness_scale,
+            start_probability=float(self.cfg.base_mocap_burst_start_prob),
+            short_range_s=tuple(self.cfg.base_mocap_burst_duration_s),
+            long_probability=float(self.cfg.base_mocap_burst_long_prob),
+            long_range_s=tuple(self.cfg.base_mocap_burst_long_duration_s),
+        )
+        receive &= ~blocked
+        self.metrics["base_mocap_burst_active"].copy_(blocked.float())
+        self.metrics["base_mocap_burst_started"].copy_(started.float())
         # Reset initialization is not a transport packet and must not be dropped or deferred.  It
         # establishes the new episode's localization origin and makes the first returned actor
         # observation current with zero differentiated velocity.
         receive[reset_rows] = True
+        self.metrics["base_mocap_packet_received"].copy_(receive.float())
 
         if bool(receive.any()):
             elapsed = self._base_mocap_steps_since_receive[receive].float().clamp_min(1.0) * dt
@@ -6335,7 +6452,7 @@ class RacketTargetCommand(CommandTerm):
             self.delayed_swing_sign.copy_(self.swing_sign)
 
     def _count_swing_starts(self, env_ids, count_prestrike_falls: bool) -> None:
-        """UNCONDITIONAL swing accounting (Phase A local metrics fix). Increment-only here; the decay is
+        """UNCONDITIONAL swing accounting (Phase A wandb fix). Increment-only here; the decay is
         applied once per step in _update_metrics next to the exact accumulators, so
         swing_completion_rate = exact_n_acc / swing_starts_acc shares one EMA timescale.
         NOTE: an episode TIMEOUT mid-swing counts as an uncompleted start (slight deflation,
@@ -7339,7 +7456,11 @@ class RacketTargetCommand(CommandTerm):
         # first vb_warmE14k run: virtual_land_err_m ~62 m). Env grids are pure translations, so
         # velocities, normals, and spins need no correction.
         v_plus, w_plus = _vb.predict_paddle_contact(v_in, v_r, n_face, w_in, prm)
-        land = _vb.coarse_landing(
+        predictor = getattr(self, "_vb_landing_predictor", None)
+        if predictor is None:
+            predictor = _vb.CoarseLandingPredictor()
+            self._vb_landing_predictor = predictor
+        land = predictor(
             self.racket_pos_w - self._env.scene.env_origins,
             v_plus,
             w_plus,
@@ -9014,16 +9135,21 @@ class RacketTargetCommand(CommandTerm):
             "qdes_second_difference_rms_rad": second_rms,
             "qdes_reversal_hz": reversal_hz,
         }
-        for phase_name, mask in phase_masks.items():
-            for channel, values in channels.items():
+        # One transfer for all phase/channel means. The previous nested loop forced a
+        # GPU barrier for every mask.any() and every scalar mean, on every control step.
+        values = torch.stack(tuple(channels.values()))
+        summaries = []
+        for mask in phase_masks.values():
+            count = mask.sum()
+            sums = torch.where(mask.unsqueeze(0), values, 0.0).sum(dim=1)
+            summaries.append(torch.cat((count.reshape(1), sums / count.clamp_min(1))))
+        summaries = torch.stack(summaries).cpu().tolist()
+        for (phase_name, _), (count, *means) in zip(phase_masks.items(), summaries):
+            for channel, mean in zip(channels, means):
                 metric_name = f"{channel}_{phase_name}"
-                if bool(mask.any()):
-                    self._qdes_phase_telemetry_last[metric_name] = float(
-                        values[mask].mean().item()
-                    )
-                self.metrics[metric_name][:] = (
-                    self._qdes_phase_telemetry_last[metric_name]
-                )
+                if count > 0:
+                    self._qdes_phase_telemetry_last[metric_name] = mean
+                self.metrics[metric_name][:] = self._qdes_phase_telemetry_last[metric_name]
 
     def _update_build_ability_curriculum(self) -> None:
         """Latch only mocap corruption after the unchanged V14 strike task is learned.
@@ -9166,7 +9292,7 @@ class RacketTargetCommand(CommandTerm):
         else:
             self.metrics["ref_perturb_scale"].zero_()
         # Per-axis ERROR components only (which direction is the miss?). The per-axis actual/target
-        # state and the speed/normal-cos scalars were dropped as redundant local metrics clutter.
+        # state and the speed/normal-cos scalars were dropped as redundant wandb clutter.
         for axis_idx, axis in enumerate(("x", "y")):
             self.metrics[f"base_pos_{axis}"] = base_pos_rel[:, axis_idx]
             self.metrics[f"base_pos_error_{axis}"] = base_err_xy[:, axis_idx]
@@ -9755,16 +9881,36 @@ class RacketTargetCommand(CommandTerm):
         self.metrics["rally_success_run"] = self._rally_success_run.float()
         self.metrics["rally_success_run_max"] = self._rally_success_run_max.float()
         decay = float(self.cfg.exact_success_decay)
-        self._exact_n_acc = decay * self._exact_n_acc + float(exact_strike.sum())
-        self._exact_pass_comp_acc = decay * self._exact_pass_comp_acc + float(pass_comp.sum())
-        self._exact_pass_pos_acc = decay * self._exact_pass_pos_acc + float(pass_pos.sum())
-        self._exact_pass_vel_acc = decay * self._exact_pass_vel_acc + float(pass_vel.sum())
+        # Pack read-only scalar reductions once; all EMA assignments and VB/physical/gate calls
+        # remain at their original sites below, preserving same-tick curriculum/resume semantics.
+        _statistics_motion = self._motion()
+        _statistics = collect_exact_strike_statistics(
+            exact_strike=exact_strike,
+            pass_position=pass_pos,
+            pass_velocity=pass_vel,
+            pass_normal=pass_normal,
+            pass_composite=pass_comp,
+            position_error=pos_err,
+            velocity_error=vel_err,
+            normal_error_deg=normal_err_deg,
+            in_window=in_win,
+            clip_ids=(
+                _statistics_motion.clip_id
+                if getattr(_statistics_motion, "_multiseg", False)
+                else None
+            ),
+            clip_keys=tuple(self._clip_names),
+            venue_selected=self._venue_tuple_selected,
+            cohort_names=tuple(self._cohort_names),
+        )
+        self._exact_n_acc = decay * self._exact_n_acc + _statistics[("global", "n")]
+        self._exact_pass_comp_acc = decay * self._exact_pass_comp_acc + _statistics[("global", "comp")]
+        self._exact_pass_pos_acc = decay * self._exact_pass_pos_acc + _statistics[("global", "pos")]
+        self._exact_pass_vel_acc = decay * self._exact_pass_vel_acc + _statistics[("global", "vel")]
         # 5/10 cm position buckets on the exact-strike sample (NOT the window-exit frame).
-        _pass_5cm = (pos_err < 0.05) & exact_strike
-        _pass_10cm = (pos_err < 0.10) & exact_strike
-        self._exact_pass_5cm_acc = decay * self._exact_pass_5cm_acc + float(_pass_5cm.sum())
-        self._exact_pass_10cm_acc = decay * self._exact_pass_10cm_acc + float(_pass_10cm.sum())
-        self._exact_pass_normal_acc = decay * self._exact_pass_normal_acc + float(pass_normal.sum())
+        self._exact_pass_5cm_acc = decay * self._exact_pass_5cm_acc + _statistics[("global", "5cm")]
+        self._exact_pass_10cm_acc = decay * self._exact_pass_10cm_acc + _statistics[("global", "10cm")]
+        self._exact_pass_normal_acc = decay * self._exact_pass_normal_acc + _statistics[("global", "normal")]
         # Tier-1 virtual-ball at-strike evaluation (one-shot buffers consumed by the virtual_*
         # reward terms after this compute()); no-op (and vb_fired stays False) when disabled.
         if self.cfg.virtual_ball:
@@ -9782,14 +9928,13 @@ class RacketTargetCommand(CommandTerm):
             self._physical.update(exact_strike)
         # GLOBAL error-magnitude EMAs (P2.3 adaptive sigma driver) — same decay/mask as the pass
         # counters above; per-clip variants exist further down but sigma needs one global signal.
-        self._exact_pos_err_sum = decay * self._exact_pos_err_sum + float((pos_err * exact_strike).sum())
-        self._exact_vel_err_sum = decay * self._exact_vel_err_sum + float((vel_err * exact_strike).sum())
+        self._exact_pos_err_sum = decay * self._exact_pos_err_sum + _statistics[("global", "pos_err")]
+        self._exact_vel_err_sum = decay * self._exact_vel_err_sum + _statistics[("global", "vel_err")]
         # racket_normal's gate is the whole strike window, so its sigma driver must be the
         # window-mean face error (radians), decayed at the same rate as the exact accumulators.
-        _normal_err_rad = normal_err_deg * (math.pi / 180.0)
-        self._win_n_acc = decay * self._win_n_acc + float(in_win.sum())
+        self._win_n_acc = decay * self._win_n_acc + _statistics[("global", "window_n")]
         self._win_normal_err_sum = (
-            decay * self._win_normal_err_sum + float((_normal_err_rad * in_win).sum())
+            decay * self._win_normal_err_sum + _statistics[("global", "window_normal_err")]
         )
         self.metrics["racket_normal_error_rad_window_mean"][:] = (
             self._win_normal_err_sum / max(self._win_n_acc, 1.0e-6)
@@ -9901,7 +10046,7 @@ class RacketTargetCommand(CommandTerm):
         self.metrics["exact_strike_sample_count_decayed"][:] = self._exact_n_acc
         # --- per-clip (forehand/backhand) breakdown of the exact-strike pass rates + errors -----------
         # Same sample-weighted EMA as the global block above, selected by the motion command's clip_id so
-        # local metrics shows each swing separately. pass_pos/vel/normal already include `& exact_strike`. Multiseg
+        # wandb shows each swing separately. pass_pos/vel/normal already include `& exact_strike`. Multiseg
         # (unified forehand+backhand) only; single-clip leaves these at 0.
         _motion = self._motion()
         if getattr(_motion, "_multiseg", False):
@@ -9909,14 +10054,14 @@ class RacketTargetCommand(CommandTerm):
             for _c, _cn in self._clip_names.items():
                 _sel = exact_strike & (_clip == _c)
                 _self_f = _sel.float()
-                self._exact_n_acc_c[_c] = decay * self._exact_n_acc_c[_c] + float(_sel.sum())
-                self._exact_pass_pos_acc_c[_c] = decay * self._exact_pass_pos_acc_c[_c] + float((pass_pos & _sel).sum())
-                self._exact_pass_vel_acc_c[_c] = decay * self._exact_pass_vel_acc_c[_c] + float((pass_vel & _sel).sum())
-                self._exact_pass_normal_acc_c[_c] = decay * self._exact_pass_normal_acc_c[_c] + float((pass_normal & _sel).sum())
-                self._exact_pass_comp_acc_c[_c] = decay * self._exact_pass_comp_acc_c[_c] + float((pass_comp & _sel).sum())
-                self._exact_pos_err_sum_c[_c] = decay * self._exact_pos_err_sum_c[_c] + float((pos_err * _self_f).sum())
-                self._exact_vel_err_sum_c[_c] = decay * self._exact_vel_err_sum_c[_c] + float((vel_err * _self_f).sum())
-                self._exact_nrm_err_sum_c[_c] = decay * self._exact_nrm_err_sum_c[_c] + float((normal_err_deg * _self_f).sum())
+                self._exact_n_acc_c[_c] = decay * self._exact_n_acc_c[_c] + _statistics[("clip", _c, "n")]
+                self._exact_pass_pos_acc_c[_c] = decay * self._exact_pass_pos_acc_c[_c] + _statistics[("clip", _c, "pos")]
+                self._exact_pass_vel_acc_c[_c] = decay * self._exact_pass_vel_acc_c[_c] + _statistics[("clip", _c, "vel")]
+                self._exact_pass_normal_acc_c[_c] = decay * self._exact_pass_normal_acc_c[_c] + _statistics[("clip", _c, "normal")]
+                self._exact_pass_comp_acc_c[_c] = decay * self._exact_pass_comp_acc_c[_c] + _statistics[("clip", _c, "comp")]
+                self._exact_pos_err_sum_c[_c] = decay * self._exact_pos_err_sum_c[_c] + _statistics[("clip", _c, "pos_err")]
+                self._exact_vel_err_sum_c[_c] = decay * self._exact_vel_err_sum_c[_c] + _statistics[("clip", _c, "vel_err")]
+                self._exact_nrm_err_sum_c[_c] = decay * self._exact_nrm_err_sum_c[_c] + _statistics[("clip", _c, "normal_err")]
                 _self_f3 = _self_f.unsqueeze(-1)
                 self._exact_pos_signed_sum_c[_c] = (
                     decay * self._exact_pos_signed_sum_c[_c]
@@ -9952,26 +10097,22 @@ class RacketTargetCommand(CommandTerm):
                     self._exact_normal_dot_sum_c[_c] * _scale
                 )
                 for _cohort in self._cohort_names:
-                    if _cohort == "tuple":
-                        _cohort_sel = _sel & self._venue_tuple_selected
-                    else:
-                        _cohort_sel = _sel & ~self._venue_tuple_selected
                     _cohort_key = (_cohort, _c)
                     self._cohort_exact_acc[_cohort_key] = (
                         decay * self._cohort_exact_acc[_cohort_key]
-                        + float(_cohort_sel.sum())
+                        + _statistics[("cohort", _cohort, _c, "n")]
                     )
                     self._cohort_pos_acc[_cohort_key] = (
                         decay * self._cohort_pos_acc[_cohort_key]
-                        + float((pass_pos & _cohort_sel).sum())
+                        + _statistics[("cohort", _cohort, _c, "pos")]
                     )
                     self._cohort_vel_acc[_cohort_key] = (
                         decay * self._cohort_vel_acc[_cohort_key]
-                        + float((pass_vel & _cohort_sel).sum())
+                        + _statistics[("cohort", _cohort, _c, "vel")]
                     )
                     self._cohort_comp_acc[_cohort_key] = (
                         decay * self._cohort_comp_acc[_cohort_key]
-                        + float((pass_comp & _cohort_sel).sum())
+                        + _statistics[("cohort", _cohort, _c, "comp")]
                     )
                     _cohort_n = self._cohort_exact_acc[_cohort_key]
                     _cohort_scale = (
@@ -10849,7 +10990,7 @@ class RacketTargetCommandCfg(CommandTermCfg):
     # --- debug logging (sign verification + raw/gated reward kernels) ---
     # When True, RacketTargetCommand logs dbg_err_{minus,plus}_{win,exact} (swing-through sign check) and
     # the reward terms log dbg_{racket_pos,racket_vel,racket_normal,base}_{raw,gated}. Pure logging; no
-    # behaviour change. Turn off for production runs (extra local metrics scalars).
+    # behaviour change. Turn off for production runs (extra wandb scalars).
     debug_reward_logging: bool = False
 
     # --- conditional exact-strike success metric (logging + curriculum gating) ---
@@ -11001,8 +11142,11 @@ class RacketTargetCommandCfg(CommandTermCfg):
     # Fixed Build engineering assumptions. They are deliberately not described as measured
     # transport latency; HitterPingPong no longer owns a latency-receipt pipeline.
     base_mocap_delay_steps: int = 0
+    # Optional per-session uniform delay; None retains the legacy fixed delay.
+    base_mocap_delay_min_steps: int | None = None
     base_mocap_update_interval_steps: int = 1
     base_mocap_position_noise_std: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    base_mocap_position_bias_std: tuple[float, float, float] = (0.0, 0.0, 0.0)
     base_mocap_orientation_noise_std_rad: tuple[float, float, float] = (
         0.0,
         0.0,
@@ -11014,6 +11158,12 @@ class RacketTargetCommandCfg(CommandTermCfg):
         0.0,
     )
     base_mocap_dropout_prob: float = 0.0
+    # Burst starts are sampled per control tick, independently of isolated packet loss.
+    # Long outages deliberately exercise the existing stale termination, not blind tracking.
+    base_mocap_burst_start_prob: float = 0.0
+    base_mocap_burst_duration_s: tuple[float, float] = (0.02, 0.04)
+    base_mocap_burst_long_prob: float = 0.0
+    base_mocap_burst_long_duration_s: tuple[float, float] = (0.10, 0.30)
     base_mocap_velocity_ema_alpha: float = 0.25
     base_mocap_max_age_s: float = 0.20
     base_mocap_max_propagation_s: float = 0.0
