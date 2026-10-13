@@ -216,3 +216,46 @@ def coarse_landing(
         p, v = p_new, v_new
 
     return {"land_xy": land_xy, "land_valid": landed, "net_z": net_z, "net_valid": net_crossed}
+
+
+class CoarseLandingPredictor:
+    """Replay the unchanged RK4 tensor operations in one CUDA graph submission.
+
+    One instance belongs to one command term. Shape, device and physics parameter
+    changes rebuild the graph. Outputs own their storage, so retained metrics and
+    checkpoint state cannot be overwritten by the next replay. CPU/autograd uses
+    the original eager function; no graph is serialized into a checkpoint.
+    """
+
+    def __init__(self):
+        self._key = None
+        self._graph = None
+
+    def __call__(self, p0, v0, omega0, prm, surface_z, net_x, h=0.01, n_steps=100):
+        inputs = (p0, v0, omega0)
+        if (p0.device.type != "cuda" or os.environ.get("HOPE_DISABLE_BALL_CUDA_GRAPH") == "1"
+                or (torch.is_grad_enabled() and any(t.requires_grad for t in inputs))):
+            return coarse_landing(*inputs, prm, surface_z, net_x, h, n_steps)
+        key = (tuple((tuple(t.shape), t.dtype, t.device) for t in inputs),
+               prm, surface_z, net_x, h, n_steps)
+        with torch.cuda.device(p0.device):
+            if key != self._key:
+                # A side stream is required for warmup and CUDA graph capture.
+                static_inputs = tuple(t.clone() for t in inputs)
+                current = torch.cuda.current_stream()
+                stream = torch.cuda.Stream()
+                stream.wait_stream(current)
+                with torch.cuda.stream(stream):
+                    for _ in range(2):
+                        coarse_landing(*static_inputs, prm, surface_z, net_x, h, n_steps)
+                current.wait_stream(stream)
+                graph = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(graph, stream=stream):
+                    outputs = coarse_landing(*static_inputs, prm, surface_z, net_x, h, n_steps)
+                current.wait_stream(stream)
+                self._inputs, self._outputs = static_inputs, outputs
+                self._graph, self._key = graph, key
+            for target, source in zip(self._inputs, inputs):
+                target.copy_(source)
+            self._graph.replay()
+            return {name: value.clone() for name, value in self._outputs.items()}

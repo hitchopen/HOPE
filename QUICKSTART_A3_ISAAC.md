@@ -66,20 +66,11 @@ working-tree package before installed packages on `PYTHONPATH`; no editable
 `hope_isaac_py` with bare `python` or call `import whole_body_tracking` before
 Kit starts. Isaac entrypoints import task modules after `AppLauncher` starts.
 
-If you intend to play the published `model_21800.pt`, install Git LFS on the
-host before cloning, or materialize the checkpoint after cloning. Run these
-commands from the repository root:
-
-```bash
-cd "$HOME/workspace/HOPE"
-git lfs install
-git lfs pull --include=hope_training/whole_body_tracking/checkpoints/model_21800.pt
-test "$(stat -c %s hope_training/whole_body_tracking/checkpoints/model_21800.pt)" -gt 1000000
-```
-
-Without this step the checkout contains a small text pointer instead of the
-checkpoint, so `play.py` cannot load it. This is dependency materialization,
-not a policy-admission or SHA gate.
+The training baseline is model_14600 under
+`hope_training/whole_body_tracking/checkpoints/`. Its ONNX, deploy parameters
+and parity samples are ordinary Git files. The bundle has no resumable `.pt`
+checkpoint; start fresh training with the selected task, then use a checkpoint
+from that run for Isaac playback.
 
 ## 2. Prepare the A3 Isaac Asset
 
@@ -195,12 +186,11 @@ Motion clips are selected through the local `motion_file=` / `motion_file_2=` ov
 
 ## 6. Evaluate in Isaac
 
-To open the published checkpoint directly:
+To play a checkpoint produced by your training run:
 
 ```bash
-test "$(stat -c %s checkpoints/model_21800.pt)" -gt 1000000
 hope_isaac_py scripts/play.py task=HOPEPingPong algo=ppo num_envs=4 \
-    checkpoint=checkpoints/model_21800.pt
+    checkpoint=logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt
 ```
 
 Use `headless=true num_steps=2` for a bounded non-interactive smoke; the default
@@ -241,7 +231,8 @@ python3 scripts/mujoco_eval_onnx.py --onnx logs/rsl_rl/<run>/exported/policy.onn
 
 Omit `--onnx` to evaluate the published `model_21800`. The committed
 [`Gate 3 MuJoCo video`](docs/assets/model_21800_gate3_mujoco.mp4) comes from the
-build_1 planner + policy-native runner closed loop, not this standalone evaluator.
+30-ball model_14600 native Planner/Runner test, not this standalone evaluator.
+The legacy video filename is retained; see its [run report](docs/gates/model14600_gate3_30balls_20261013.md).
 
 Isaac metrics (step 6), this MuJoCo sim-to-sim check, and the closed-loop planner rehearsal
 (step 9) together form the staged evaluation story — each layer is a gate before the next

@@ -3,8 +3,8 @@
 Single task, single algo. Build the ``HOPE-HitterPingPong-AgibotA3-v0`` environment (110-D
 ``hitter_pure`` actor observation, privileged critic, 50 Hz control, ``wrap_teleport: false``), a
 rsl_rl PPO runner, and train. Checkpoints are written locally (periodic every ``save_interval`` and
-a final one). There is no Weights & Biases, no external logging service, no gate / lineage
-machinery.
+a final one). The PPO runner config selects TensorBoard or W&B logging; credentials
+and the team destination are configured outside the repository.
 
 Usage:
     python scripts/train.py task=HOPEPingPong algo=ppo headless=true
@@ -89,6 +89,25 @@ def _set_dotted(obj, dotted: str, value, applied: list, where: str) -> None:
         return
     setattr(node, leaf, value)
     applied.append(f"{dotted} = {value}")
+
+
+def _validate_training_checkpoint(loaded, policy, recipe_revision, reward_revision=None):
+    """Do not silently resume a legacy optimizer into a different training MDP."""
+    state = loaded.get("hope_exact_resume_state", {})
+    if state.get("reward_revision") != reward_revision:
+        raise ValueError("checkpoint_path reward revision differs; use explicit actor warm-start")
+    expected = getattr(policy, "exploration_contract", None)
+    if state.get("policy_exploration_contract") != expected:
+        raise ValueError(
+            "checkpoint_path exploration contract differs from this recipe; train from "
+            "scratch with checkpoint_path=null. Actor migration requires a separate explicit "
+            "weights-only workflow, not optimizer resume."
+        )
+    if state.get("training_recipe_revision") != recipe_revision:
+        raise ValueError(
+            "checkpoint_path training recipe differs; use checkpoint_path=null for the "
+            "repaired rally task instead of resuming the old optimizer/critic."
+        )
 
 
 def _apply_domain_rand(env_cfg, dr, applied: list) -> None:
@@ -192,18 +211,16 @@ def _apply_domain_rand(env_cfg, dr, applied: list) -> None:
 def _apply_task_overrides(env_cfg, cfg, applied: list) -> None:
     """Apply the launcher-level knobs + generic dotted-path overrides from the task cfg."""
     from whole_body_tracking.utils.task_reward_overrides import apply_reward_overrides
+    from whole_body_tracking.utils.task_command_overrides import apply_command_overrides
+    from whole_body_tracking.utils.task_sim2real_overrides import apply_sim2real_overrides
 
     task = cfg.task
     # episode length (top-level on ManagerBasedRLEnvCfg).
     env_block = task.get("env")
     if env_block is not None and env_block.get("episode_length_s") is not None:
         _set_dotted(env_cfg, "episode_length_s", float(env_block.get("episode_length_s")), applied, "env")
-    # continuous multi-rally lifecycle: no teleport on clip wrap.
-    motion_block = task.get("motion")
-    if motion_block is not None and motion_block.get("wrap_teleport") is not None:
-        _set_dotted(
-            env_cfg, "commands.motion.wrap_teleport", bool(motion_block.get("wrap_teleport")), applied, "motion"
-        )
+    apply_command_overrides(env_cfg, OmegaConf.to_container(task, resolve=True), applied)
+    apply_sim2real_overrides(env_cfg, OmegaConf.to_container(task, resolve=True), applied)
     # domain randomization.
     _apply_domain_rand(env_cfg, task.get("domain_rand"), applied)
     # Reward terms are registered by the EnvCfg, but Hydra's rewards mapping is
@@ -242,6 +259,12 @@ def _run(cfg):
     env_cfg = parse_env_cfg(task_id, device=str(cfg.device), num_envs=num_envs)
     applied: list = []
     _apply_task_overrides(env_cfg, cfg, applied)
+    if bool(cfg.headless) and not bool(cfg.video):
+        # No USD debug markers are needed for headless training without video.
+        # These are presentation only; contact sensing and commands stay on.
+        env_cfg.commands.motion.debug_vis = False
+        env_cfg.scene.contact_forces.debug_vis = False
+        applied.append("headless/no-video: motion/contact debug markers disabled")
     env_cfg.seed = int(cfg.seed)
     env_cfg.sim.device = str(cfg.device)
     print(f"[train.py] task={task_id} num_envs={num_envs} — applied {len(applied)} task override(s):", flush=True)
@@ -256,6 +279,8 @@ def _run(cfg):
 
     # 3) PPO runner cfg from cfg/algo/ppo.yaml.
     algo = OmegaConf.to_container(cfg.algo, resolve=True)
+    if not bool(algo["algorithm"].get("settled_aux_enabled", False)):
+        raise ValueError("HOPEPingPong requires algo=ppo")
     agent_cfg = RslRlOnPolicyRunnerCfg(**runner_kwargs(algo, str(cfg.task.experiment_name)))
     agent_cfg.seed = int(cfg.seed)
     agent_cfg.device = str(cfg.device)
@@ -305,21 +330,77 @@ def _run(cfg):
     env = RslRlVecEnvWrapper(env)
 
     runner = HOPEOnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    # W&B logging must not implicitly enable the legacy automatic ONNX export path.
+    runner.checkpoint_export_onnx = bool(cfg.task.get("checkpoint_export_onnx", False))
     runner.add_git_repo_to_log(__file__)
 
     # 6) optional resume from a local checkpoint (strict: weights + optimizer + iteration counter).
+    recipe_revision = cfg.task.get("build_contract", {}).get("training_recipe_revision")
+    reward_revision = cfg.task.get("build_contract", {}).get("reward_revision")
+    runner.checkpoint_resume_context = {"training_recipe_revision": recipe_revision, "reward_revision": reward_revision}
     ckpt = getattr(cfg, "checkpoint_path", None)
+    warm_start = getattr(cfg, "warm_start_actor_checkpoint", None)
+    if ckpt is not None and warm_start is not None:
+        raise ValueError("checkpoint_path and warm_start_actor_checkpoint are mutually exclusive")
     if ckpt is not None:
         ckpt = os.path.abspath(str(ckpt))
         if not os.path.isfile(ckpt):
             raise FileNotFoundError(f"[train.py] checkpoint_path does not exist: {ckpt}")
+        loaded = torch.load(ckpt, map_location="cpu", weights_only=False)
+        _validate_training_checkpoint(loaded, runner.alg.policy, recipe_revision, reward_revision)
+        warm_guard = loaded.get("hope_exact_resume_state", {}).get("actor_warm_start")
+        del loaded
         runner.load(ckpt)
+        if warm_guard:
+            runner.v17_actor_freeze_until_iteration = warm_guard["critic_iterations"]
+            runner.v17_actor_finetune_learning_rate = warm_guard["finetune_lr"]
+            runner.checkpoint_resume_context["actor_warm_start"] = warm_guard
         print(f"[train.py] resumed from checkpoint: {ckpt}", flush=True)
+
+    if warm_start is not None:
+        import hashlib
+        import json
+        import math
+        from whole_body_tracking.utils.actor_warm_start import initialize_actor
+        warm_path = pathlib.Path(str(warm_start)).resolve()
+        critic_iterations = int(cfg.warm_start_critic_iterations)
+        finetune_lr = float(cfg.warm_start_finetune_lr)
+        if critic_iterations < 1 or not math.isfinite(finetune_lr) or finetune_lr <= 0:
+            raise ValueError("actor warm-start requires positive critic iterations and finite learning rate")
+        if runner.alg.__class__.__name__ != "ProjectionPPO":
+            raise ValueError("actor warm-start requires ProjectionPPO's critic-only update guard")
+        source_cfg = OmegaConf.load(warm_path.parent / "params/task_resolved.yaml")
+        source_task = OmegaConf.to_container(source_cfg.task, resolve=True)
+        target_task = OmegaConf.to_container(cfg.task, resolve=True)
+        loaded = torch.load(warm_path, map_location="cpu", weights_only=False)
+        initialize_actor(runner.alg.policy, loaded, source_task, target_task)
+        del loaded
+        warm_guard = {"source": str(warm_path), "sha256": hashlib.sha256(warm_path.read_bytes()).hexdigest(),
+                      "critic_iterations": critic_iterations, "finetune_lr": finetune_lr}
+        runner.v17_actor_freeze_until_iteration = critic_iterations
+        runner.v17_actor_finetune_learning_rate = finetune_lr
+        runner.checkpoint_resume_context["actor_warm_start"] = warm_guard
+        pathlib.Path(log_dir).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(log_dir, "actor_warm_start.json").write_text(json.dumps(warm_guard, indent=2) + "\n")
+        print(f"[train.py] actor/std initialized from {warm_path}; fresh critic/optimizer; guard={warm_guard}", flush=True)
 
     # 7) dump the resolved configuration + train.
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
-    runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+    OmegaConf.save(cfg, os.path.join(log_dir, "params", "task_resolved.yaml"))
+    # Dump before Kit shutdown, which may exit without running Python's atexit hooks.
+    profile_path = os.environ.get("HOPE_TRAIN_PROFILE")
+    if profile_path:
+        import cProfile
+        profile = cProfile.Profile()
+        try:
+            with profile:
+                runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+        finally:
+            pathlib.Path(profile_path).parent.mkdir(parents=True, exist_ok=True)
+            profile.dump_stats(profile_path)
+    else:
+        runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
     env.close()
 
 
@@ -346,7 +427,14 @@ def main(cfg):
         traceback.print_exc()
         failed = True
     finally:
-        simulation_app.close()
+        # Kit shutdown can exit before Python's atexit hooks run. Flush W&B
+        # while its background service is still alive, including failed runs.
+        try:
+            wandb = sys.modules.get("wandb")
+            if wandb is not None and wandb.run is not None:
+                wandb.finish(exit_code=1 if failed else 0)
+        finally:
+            simulation_app.close()
     if failed:
         sys.exit(1)
 

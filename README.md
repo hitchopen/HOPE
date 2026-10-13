@@ -4,7 +4,9 @@ Runtime updates from October 11–13: [deployment and Gate 3](docs/operations/de
 [shared ball physics](docs/operations/ball_physics_calibration.md),
 [Foxglove recording and live Motive localization](foxglove/extensions/hope-a3-console/README.md),
 and the [17-marker shell](agibot/mocap_sticker_shell_v3/README.md).
-The published model and training tree are unchanged.
+Training now retains the model_14600 recipe as `task=HOPEPingPong algo=ppo` and
+its ONNX/deploy baseline under `hope_training/whole_body_tracking/checkpoints/`.
+See the [30-ball Gate3 run and video](docs/gates/model14600_gate3_30balls_20261013.md).
 
 HOPE is an open platform for humanoid robot table tennis, developed by [Hitch Interactive](https://hitchinteractive.com) (Intelligent Racing Inc.) in collaboration with the [ROAR Platform](https://roar.berkeley.edu) at UC Berkeley. The challenge invites teams to deploy whole-body humanoid controllers that can rally a ping-pong ball against human opponents or other robots, using off-the-shelf humanoid hardware and an open-source perception and planning stack.
 
@@ -25,9 +27,10 @@ The rest of the repository is organized into four layers:
 | Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/`, `docs/RUN_ON_AGIBOT.md` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app; the native C++ deploy runner with its gate/rehearsal scripts (`a3_deploy/a3_deploy_example/`) and the MuJoCo/AimRT simulation fork with the real ball plant (`a3_deploy/A3_MuJoCo_Sim/`); and Agibot-provided A3 materials. |
 | Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace (Python + C++ planners) for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
-A fresh clone includes a Git LFS pointer for the public `model_21800`
-checkpoint; `git lfs pull` materializes it. The exact deploy ONNX/parameters
-and a MuJoCo video are ordinary tracked files. Other generated Isaac assets, training logs,
+A fresh clone includes the model_14600 ONNX/deploy baseline, the existing
+model_21800 runtime export, reference motions, and a 30-ball model_14600 MuJoCo
+video as ordinary tracked files. The training baseline does not include a
+resumable `.pt` checkpoint. Other generated Isaac assets, training logs,
 checkpoints, exported `.onnx` files, and ROS build artifacts remain git-ignored;
 Agibot-provided materials under `agibot/` are tracked.
 
@@ -56,8 +59,10 @@ a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
 ```
 
 The default runtime selects the deployed 110-D `hitter_pure` actor. See the
-[complete model guide](docs/MODEL_21800.md) and
-[Gate 3 MuJoCo video](docs/assets/model_21800_gate3_mujoco.mp4).
+[complete model guide](docs/MODEL_21800.md). The
+[latest Gate3 video](docs/assets/model_21800_gate3_mujoco.mp4) now shows
+**model_14600, 30 balls**; its legacy filename is retained for existing links.
+See the [run report](docs/gates/model14600_gate3_30balls_20261013.md) for the verdict.
 The guide also contains the reproducible native Runner/Planner build,
 host-only contract tests, isolated racket-contact A/B test, process-free Gate
 3 preflight, the default repeated-good-ball cherry-pick run, and the explicit
@@ -334,7 +339,7 @@ the real A3 ([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)).
 
 **Implementation scope.** The preserved reference documents include robot-specific integration examples; the code currently shipped in this repository implements the Agibot A3 (31 actuated DOF) path end to end: Isaac Lab training of one unified forehand/backhand policy on the 110-D `hitter_pure` contract (the `HitterPingPong` task, gym id `HOPE-HitterPingPong-AgibotA3-v0` — the recipe validated on real hardware), Isaac evaluation, MuJoCo sim-to-sim and closed-loop evaluation with a real ball plant, and the native C++ deploy runner — alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
 
-**Training stack.** The WBC training code builds on open-source [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, plus [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. This repository also publishes the complete validated forehand/backhand reference motions and the `model_21800` training/deploy artifacts; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the per-asset documentation for applicable terms.
+**Training stack.** The WBC training code builds on open-source [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, plus [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. This repository also publishes the complete validated forehand/backhand reference motions, the model_14600 training baseline, and the `model_21800` deploy artifacts; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the per-asset documentation for applicable terms.
 
 ## Supported Robots
 

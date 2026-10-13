@@ -31,8 +31,8 @@ class BoundedStdActorCritic(ActorCritic):
     absolute posture request; its separate safe tanh is part of the q_des scale mapping rather than
     the action-space contract optimized by PPO.
 
-    ``self.std`` remains a physical standard deviation.  AdamW projects it back into the YAML
-    interval after every optimizer step, so a parameter cannot escape beyond the bound while the
+    ``self.std`` remains a physical standard deviation. Repository PPO optimizers project it back
+    into the YAML interval after every optimizer step, so it stays inside the bound while the
     distribution still has a valid inward task gradient at either boundary.  Some A3 outputs are
     structurally passive; those columns remain in the 31-D actor/export contract but are excluded
     from PPO's entropy bonus and held at zero in sampled/deterministic actions.
@@ -50,6 +50,12 @@ class BoundedStdActorCritic(ActorCritic):
     ):
         self.min_noise_std = float(min_noise_std)
         self.max_noise_std = float(max_noise_std)
+        if not (
+            math.isfinite(self.min_noise_std)
+            and math.isfinite(self.max_noise_std)
+            and 0.0 < self.min_noise_std < self.max_noise_std
+        ):
+            raise ValueError("noise std bounds must be finite and satisfy 0 < min < max")
         self.entropy_action_transform = str(entropy_action_transform).lower()
         self.exploration_contract = exploration_contract_for_transform(
             self.entropy_action_transform
@@ -80,6 +86,9 @@ class BoundedStdActorCritic(ActorCritic):
 
     def _update_distribution(self, obs) -> None:
         # ``ppo.yaml`` selects the upstream state-independent scalar-noise policy.
+        # Also enforce the constraint after checkpoint loading and for callers
+        # using the upstream optimizer without our post-step projection hook.
+        self.project_noise_std_()
         actor_mean = self.actor(obs)
         active_mask = self._entropy_active_action_mask
         mean = torch.where(active_mask, actor_mean, torch.zeros_like(actor_mean))

@@ -1,0 +1,717 @@
+[hitter-pingpong] Planner wire bound to legacy Schema2
+[g3r] MuJoCo quick test: skipping P1 calibration receipt SHA comparison
+[ball-physics] source=/home/dongc1/workspace/Hope_v11/hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml drag=0.12861635416914574 horizontal=0.6125555614493483 vertical=0.9313775047019153 future_gain=0.38744443855065164
+[g3r] cleanup
+[g3r] sim up (iceoryx body-drive + ros2 /sim/a3/pelvis_pose)
+[g3r] raw simulated OptiTrack boundary (/sim plant -> /optitrack/poses)
+[g3r] production OptiTrack relay (/optitrack/poses -> /poses + /UCB_P1/pose)
+[g3r] quick simulator-truth base direct; production hope_world relay disabled
+[g3r] production C++ flight packetizer (/poses -> /ball/flight_packet)
+[g3r] production hope_planner_cpp (immutable flight packet -> schema-2 command)
+      hitter_pure profile: world x_hit=0.08, shared reach plane=0.58, station_x=-0.50
+      backhand x_hit delta=0.0 (V10--V15 require 0.0 for y-only footwork)
+      gate profile=hitter_pingpong_shared_plane_v1 (versioned wrapper; bare launch is rejected)
+      landing x=2.055 y(fh/bh)=-0.7625/-0.7625
+      dtf(fh/bh)=0.50/0.50; versioned wrapper values are authoritative.
+[g3r] 1 kHz MuJoCo contact edges + 250 Hz loss-detectable landing telemetry
+[g3r] side-neutral physical scenario=hitter_pingpong_fixed_home_rapid_1150ms_v1 geometry_profile=hitter_pingpong_shared_plane_v1 30-shot sweep
+[g3r] flat topics alive?
+Publisher count: 1
+Subscription count: 1
+	min: 0.009s max: 0.011s std dev: 0.00017s window: 102
+average rate: 249.961
+	min: 0.003s max: 0.005s std dev: 0.00019s window: 251
+[g3r] prewarm ros2 pub discovery (straggler-reset-in-MOTION trap)
+[g3r] RALLY conductor: stand -> m ONCE, then 30 serves, no resets
+[rally] waiting for runner boot (driver started)...
+[rally] runner up after 12s; standing the robot
+[rally] /sim/a3/reset subscribers: 1
+[rally] key 's' @ z=1.05
+[rally] rally attempt 0: z=0.88 after reset+s, retry
+[rally] key 's' @ z=1.07
+[rally] key 'R' @ z=1.07
+[rally] key 'm' @ z=1.07
+[rally] MOTION entered at base=(-0.50,-0.76); yaw=-0.04deg; counting 30 serves, NO resets from here
+[rally] serve 1/30 p=[2.4, -1.0225, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.77)
+[rally]   engage forehand tgt_b=[0.59, -0.24, 0.04] tts=0.67 tts0=0.67 xerr@e=-0.003
+[rally] serve 2/30 p=[2.4, -0.7125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.51,-0.69)
+[rally]   engage backhand tgt_b=[0.59, -0.0, 0.04] tts=0.67 tts0=0.67 xerr@e=-0.009
+[rally] serve 3/30 p=[2.4, -1.0575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.51,-0.70)
+[rally]   engage forehand tgt_b=[0.6, -0.36, 0.04] tts=0.68 tts0=0.68 xerr@e=-0.015
+[rally] serve 4/30 p=[2.4, -0.6575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.51,-0.69)
+[rally]   engage backhand tgt_b=[0.59, 0.05, 0.04] tts=0.67 tts0=0.67 xerr@e=-0.01
+[rally] serve 5/30 p=[2.4, -1.0925, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.51,-0.69)
+[rally]   engage forehand tgt_b=[0.6, -0.39, 0.04] tts=0.67 tts0=0.67 xerr@e=-0.015
+[rally] serve 6/30 p=[2.4, -0.6125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.51,-0.70)
+[rally]   engage backhand tgt_b=[0.59, 0.09, 0.04] tts=0.68 tts0=0.68 xerr@e=-0.012
+[rally] serve 7/30 p=[2.4, -1.0225, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.51,-0.69)
+[rally]   engage backhand tgt_b=[0.59, -0.34, 0.05] tts=0.67 tts0=0.67 xerr@e=-0.007
+[rally] serve 8/30 p=[2.4, -1.0575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.83)
+[rally]   engage forehand tgt_b=[0.59, -0.22, 0.03] tts=0.63 tts0=0.63 xerr@e=0.002
+[rally] serve 9/30 p=[2.4, -0.7125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.73)
+[rally]   engage backhand tgt_b=[0.59, 0.02, 0.03] tts=0.63 tts0=0.63 xerr@e=-0.008
+[rally] serve 10/30 p=[2.4, -0.6575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.76)
+[rally]   engage backhand tgt_b=[0.57, 0.13, 0.02] tts=0.63 tts0=0.63 xerr@e=-0.001
+[rally] serve 11/30 p=[2.4, -1.0925, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.73)
+[rally]   engage forehand tgt_b=[0.61, -0.33, 0.02] tts=0.63 tts0=0.63 xerr@e=0.001
+[rally] serve 12/30 p=[2.4, -0.6125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.74)
+[rally]   engage backhand tgt_b=[0.59, 0.12, 0.03] tts=0.63 tts0=0.63 xerr@e=-0.005
+[rally] serve 13/30 p=[2.4, -1.0225, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.71)
+[rally]   engage backhand tgt_b=[0.6, -0.26, 0.02] tts=0.63 tts0=0.63 xerr@e=0.001
+[rally] serve 14/30 p=[2.4, -0.7125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.83)
+[rally]   engage backhand tgt_b=[0.56, 0.15, 0.03] tts=0.63 tts0=0.63 xerr@e=0.004
+[rally] serve 15/30 p=[2.4, -1.0575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.76)
+[rally]   engage forehand tgt_b=[0.6, -0.28, 0.02] tts=0.63 tts0=0.63 xerr@e=0.003
+[rally] serve 16/30 p=[2.4, -0.6575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.77)
+[rally]   engage backhand tgt_b=[0.59, 0.09, 0.02] tts=0.63 tts0=0.63 xerr@e=-0.003
+[rally] serve 17/30 p=[2.4, -1.0925, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.74)
+[rally]   engage forehand tgt_b=[0.6, -0.32, 0.02] tts=0.63 tts0=0.63 xerr@e=0.001
+[rally] serve 18/30 p=[2.4, -0.6125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.75)
+[rally]   engage backhand tgt_b=[0.59, 0.13, 0.03] tts=0.63 tts0=0.63 xerr@e=-0.003
+[rally] serve 19/30 p=[2.4, -1.0225, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.72)
+[rally]   engage backhand tgt_b=[0.6, -0.26, 0.02] tts=0.63 tts0=0.63 xerr@e=0.002
+[rally] serve 20/30 p=[2.4, -0.7125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.84)
+[rally]   engage backhand tgt_b=[0.56, 0.16, 0.03] tts=0.63 tts0=0.63 xerr@e=0.005
+[rally] serve 21/30 p=[2.4, -1.0575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.77)
+[rally]   engage forehand tgt_b=[0.6, -0.27, 0.02] tts=0.63 tts0=0.63 xerr@e=0.005
+[rally] serve 22/30 p=[2.4, -0.6575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.50,-0.78)
+[rally]   engage backhand tgt_b=[0.59, 0.1, 0.02] tts=0.63 tts0=0.63 xerr@e=-0.005
+[rally] serve 23/30 p=[2.4, -1.0925, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.75)
+[rally]   engage forehand tgt_b=[0.6, -0.31, 0.03] tts=0.63 tts0=0.63 xerr@e=0.003
+[rally] serve 24/30 p=[2.4, -0.6125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.76)
+[rally]   engage backhand tgt_b=[0.59, 0.14, 0.03] tts=0.63 tts0=0.63 xerr@e=0.0
+[rally] serve 25/30 p=[2.4, -1.0225, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.73)
+[rally]   engage backhand tgt_b=[0.59, -0.25, 0.02] tts=0.63 tts0=0.63 xerr@e=0.005
+[rally] serve 26/30 p=[2.4, -0.7125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.85)
+[rally]   engage backhand tgt_b=[0.56, 0.16, 0.03] tts=0.63 tts0=0.63 xerr@e=0.009
+[rally] serve 27/30 p=[2.4, -1.0225, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.78)
+[rally]   engage backhand tgt_b=[0.59, -0.22, 0.02] tts=0.63 tts0=0.63 xerr@e=0.008
+[rally] serve 28/30 p=[2.4, -1.0575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.85)
+[rally]   engage forehand tgt_b=[0.59, -0.17, 0.03] tts=0.63 tts0=0.63 xerr@e=0.009
+[rally] serve 29/30 p=[2.4, -0.7125, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.79)
+[rally]   engage backhand tgt_b=[0.58, 0.07, 0.03] tts=0.63 tts0=0.63 xerr@e=-0.001
+[rally] serve 30/30 p=[2.4, -0.6575, 1.25] v=[-3.0, 0.0, 2.2] base=(-0.49,-0.80)
+[rally]   engage backhand tgt_b=[0.57, 0.15, 0.03] tts=0.63 tts0=0.63 xerr@e=0.005
+[ball-drain] complete: pending=[] reason=None
+[rally] physical trajectories complete
+[rally] key 'q' @ z=1.01
+[rally] serve  1 lane=clean_fixed_home @  20.1s base=(-0.50,-0.77) fo engage=Y complete=1 recovered=0 minz=1.02 xerr@s=-0.00 xerr@e=-0.00 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.066m yaw_recover=1.75deg -> PROXY_FAIL
+[rally] serve  2 lane=clean_fixed_home @  23.7s base=(-0.51,-0.69) ba engage=Y complete=1 recovered=0 minz=1.01 xerr@s=-0.01 xerr@e=-0.01 xmax=0.03 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.070m yaw_recover=0.94deg -> PROXY_FAIL
+[rally] serve  3 lane=clean_fixed_home @  27.0s base=(-0.51,-0.70) fo engage=Y complete=1 recovered=0 minz=1.02 xerr@s=-0.01 xerr@e=-0.01 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.066m yaw_recover=1.54deg -> PROXY_FAIL
+[rally] serve  4 lane=clean_fixed_home @  30.7s base=(-0.51,-0.69) ba engage=Y complete=1 recovered=0 minz=1.01 xerr@s=-0.01 xerr@e=-0.01 xmax=0.03 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.073m yaw_recover=0.64deg -> PROXY_FAIL
+[rally] serve  5 lane=clean_fixed_home @  34.2s base=(-0.51,-0.69) fo engage=Y complete=1 recovered=0 minz=1.02 xerr@s=-0.01 xerr@e=-0.01 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.070m yaw_recover=1.23deg -> PROXY_FAIL
+[rally] serve  6 lane=clean_fixed_home @  37.6s base=(-0.51,-0.70) ba engage=Y complete=1 recovered=0 minz=1.01 xerr@s=-0.01 xerr@e=-0.01 xmax=0.03 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.044m yaw_recover=0.06deg -> PROXY_FAIL
+[rally] serve  7 lane=rapid_fixed_home @  41.2s base=(-0.51,-0.69) ba engage=Y complete=1 recovered=0 minz=1.01 xerr@s=-0.01 xerr@e=-0.01 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.006m yaw_recover=3.03deg -> PROXY_OK
+[rally] serve  8 lane=rapid_fixed_home @  42.5s base=(-0.49,-0.83) fo engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.00 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.036m yaw_recover=0.25deg -> PROXY_OK
+[rally] serve  9 lane=rapid_fixed_home @  43.5s base=(-0.49,-0.73) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=-0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.053m yaw_recover=4.13deg -> PROXY_OK
+[rally] serve 10 lane=rapid_fixed_home @  44.8s base=(-0.49,-0.76) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=-0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.048m yaw_recover=3.95deg -> PROXY_OK
+[rally] serve 11 lane=rapid_fixed_home @  45.8s base=(-0.50,-0.73) fo engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.00 xerr@e=+0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.058m yaw_recover=0.48deg -> PROXY_OK
+[rally] serve 12 lane=rapid_fixed_home @  47.1s base=(-0.50,-0.74) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.00 xerr@e=-0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.025m yaw_recover=3.08deg -> PROXY_OK
+[rally] serve 13 lane=rapid_fixed_home @  48.1s base=(-0.50,-0.71) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.00 xerr@e=+0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.006m yaw_recover=3.09deg -> PROXY_OK
+[rally] serve 14 lane=rapid_fixed_home @  49.4s base=(-0.49,-0.83) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.032m yaw_recover=3.88deg -> PROXY_OK
+[rally] serve 15 lane=rapid_fixed_home @  50.4s base=(-0.49,-0.76) fo engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.00 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.037m yaw_recover=0.38deg -> PROXY_OK
+[rally] serve 16 lane=rapid_fixed_home @  51.7s base=(-0.50,-0.77) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.00 xerr@e=-0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.035m yaw_recover=3.37deg -> PROXY_OK
+[rally] serve 17 lane=rapid_fixed_home @  52.7s base=(-0.49,-0.74) fo engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.046m yaw_recover=0.15deg -> PROXY_OK
+[rally] serve 18 lane=rapid_fixed_home @  54.0s base=(-0.50,-0.75) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.00 xerr@e=-0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.013m yaw_recover=3.01deg -> PROXY_OK
+[rally] serve 19 lane=rapid_fixed_home @  55.1s base=(-0.49,-0.72) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.012m yaw_recover=3.44deg -> PROXY_OK
+[rally] serve 20 lane=rapid_fixed_home @  56.4s base=(-0.49,-0.84) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.021m yaw_recover=3.66deg -> PROXY_OK
+[rally] serve 21 lane=rapid_fixed_home @  57.4s base=(-0.49,-0.77) fo engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.01 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.012m yaw_recover=1.72deg -> PROXY_OK
+[rally] serve 22 lane=rapid_fixed_home @  58.7s base=(-0.50,-0.78) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.00 xerr@e=-0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.027m yaw_recover=3.11deg -> PROXY_OK
+[rally] serve 23 lane=rapid_fixed_home @  59.7s base=(-0.49,-0.75) fo engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.00 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.036m yaw_recover=0.57deg -> PROXY_OK
+[rally] serve 24 lane=rapid_fixed_home @  61.0s base=(-0.49,-0.76) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.003m yaw_recover=2.37deg -> PROXY_OK
+[rally] serve 25 lane=rapid_fixed_home @  62.0s base=(-0.49,-0.73) ba engage=Y complete=1 recovered=0 minz=1.02 xerr@s=+0.01 xerr@e=+0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.060m yaw_recover=5.24deg -> PROXY_OK
+[rally] serve 26 lane=rapid_fixed_home @  63.3s base=(-0.49,-0.85) ba engage=Y complete=1 recovered=0 minz=1.02 xerr@s=+0.01 xerr@e=+0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.028m yaw_recover=3.66deg -> PROXY_OK
+[rally] serve 27 lane=rapid_fixed_home @  64.4s base=(-0.49,-0.78) ba engage=Y complete=1 recovered=0 minz=1.02 xerr@s=+0.01 xerr@e=+0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.063m yaw_recover=5.64deg -> PROXY_OK
+[rally] serve 28 lane=rapid_fixed_home @  65.7s base=(-0.49,-0.85) fo engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=+0.01 xmax=0.02 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.015m yaw_recover=0.66deg -> PROXY_OK
+[rally] serve 29 lane=rapid_fixed_home @  66.7s base=(-0.49,-0.79) ba engage=Y complete=1 recovered=0 minz=1.03 xerr@s=+0.01 xerr@e=-0.00 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.014m yaw_recover=2.85deg -> PROXY_OK
+[rally] serve 30 lane=rapid_fixed_home @  68.0s base=(-0.49,-0.80) ba engage=Y complete=1 recovered=0 minz=1.01 xerr@s=+0.01 xerr@e=+0.01 xmax=0.01 ready=Y miss=-- rejects=0 engages=1 xy_recover=0.010m yaw_recover=0.30deg -> PROXY_OK
+[rally] SUMMARY: serves=30 engaged_serves=30 completed_serves=30 engage_events=30 proxy_ok=24 (80%) falls=0 actual_q_faults=0 engage=100% complete|engage=100% recover|engage=13% station_acquired|engage=23% rescues=0 drift_end/peak=0.01/0.11m multi_engage=0 xlock_viol=0 station_steps(commanded)=10/29 station_steps(achieved)=10/29 lanes=clean_fixed_home:FAIL,rapid_fixed_home:FAIL fixed_home_cmd_max=0.1996m natural_drift=OBSERVED positive_main=5/0 stale_base_warns=0 localization_fresh_ticks=3736/3736 xmax=0.03m xend=+0.01m min_z=1.007 runner_proxy=FAIL safety=FAIL input=PASS localization=PASS xlock=PASS planner_contract=FAIL physical_ball=NOT_PROVEN contacts=30/25 landing_obs=30/25 censored=0 legal=30/25 runner_gate=FAIL certification=FAIL Gate3=FAIL (report: /tmp/pp_rally_report.json, obs csv: /tmp/pp_obs.csv)
+[rally] PHYSICAL forehand: shots=10 contact=10 (100%) landing_obs=10 censored=0 legal_landing=10 (100%) -> FAIL
+[rally] PHYSICAL backhand: shots=20 contact=20 (100%) landing_obs=20 censored=0 legal_landing=20 (100%) -> PASS
+[g3r] stopping
+[ball-drain] complete: pending=[] reason=None
+========================= RESULTS (rally) =========================
+--- per-serve verdicts + SUMMARY are above ([rally] lines); JSON: /tmp/pp_rally_report.json ---
+--- engage/complete/recovery event stream ---
+[pp engage] forehand locked: tgt base-rel (+0.59,-0.24,+0.04) tts=0.67s (clock tts0=0.67s) station=(-0.500,-0.623) dx=0.004 dy=0.145 speed=0.004 flight=1 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,-0.00,+0.04) tts=0.67s (clock tts0=0.67s) station=(-0.500,-0.623) dx=0.014 dy=0.070 speed=0.007 flight=2 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] forehand locked: tgt base-rel (+0.60,-0.36,+0.04) tts=0.68s (clock tts0=0.68s) station=(-0.500,-0.623) dx=0.016 dy=0.070 speed=0.016 flight=3 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,+0.05,+0.04) tts=0.67s (clock tts0=0.67s) station=(-0.500,-0.608) dx=0.014 dy=0.087 speed=0.010 flight=4 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] forehand locked: tgt base-rel (+0.60,-0.39,+0.04) tts=0.67s (clock tts0=0.67s) station=(-0.500,-0.612) dx=0.014 dy=0.078 speed=0.017 flight=5 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,+0.09,+0.04) tts=0.68s (clock tts0=0.68s) station=(-0.500,-0.562) dx=0.013 dy=0.132 speed=0.007 flight=6 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,-0.34,+0.05) tts=0.67s (clock tts0=0.67s) station=(-0.500,-0.893) dx=0.012 dy=0.217 speed=0.031 flight=7 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] forehand locked: tgt base-rel (+0.59,-0.22,+0.03) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.657) dx=0.003 dy=0.149 speed=0.081 flight=8 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,+0.02,+0.03) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.657) dx=0.005 dy=0.082 speed=0.045 flight=9 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.57,+0.13,+0.02) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.607) dx=0.000 dy=0.128 speed=0.078 flight=10 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] forehand locked: tgt base-rel (+0.61,-0.33,+0.02) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.612) dx=0.002 dy=0.109 speed=0.070 flight=11 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,+0.12,+0.03) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.563) dx=0.010 dy=0.182 speed=0.046 flight=12 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.60,-0.26,+0.02) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.893) dx=0.001 dy=0.180 speed=0.054 flight=13 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.56,+0.15,+0.03) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.662) dx=0.006 dy=0.144 speed=0.076 flight=14 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] forehand locked: tgt base-rel (+0.60,-0.28,+0.02) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.657) dx=0.001 dy=0.076 speed=0.059 flight=15 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,+0.09,+0.02) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.607) dx=0.006 dy=0.154 speed=0.057 flight=16 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] forehand locked: tgt base-rel (+0.60,-0.32,+0.02) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.612) dx=0.000 dy=0.122 speed=0.067 flight=17 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.59,+0.13,+0.03) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.563) dx=0.007 dy=0.192 speed=0.036 flight=18 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.60,-0.26,+0.02) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.893) dx=0.001 dy=0.169 speed=0.059 flight=19 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+[pp engage] backhand locked: tgt base-rel (+0.56,+0.16,+0.03) tts=0.63s (clock tts0=0.63s) station=(-0.500,-0.663) dx=0.007 dy=0.151 speed=0.074 flight=20 revision=1 stable=1 late_phase_clamped=0 READY=telemetry-not-met
+[pp] swing complete -> level 0 (held stand) (auto re-arm after rest)
+--- FALL GUARD / mode flips (want: exactly one -> MOTION, no FALL GUARD) ---
+--- gate rejections (first 8; z_w=0.00 late-in-flight is a dead ball = normal) ---
+--- planner status distribution ---
+     19 PLANNER: expired]
+      3 PLANNER: init]
+     17 PLANNER: no_command]
+     36 PLANNER: swinging]
+--- real-command distribution tail coverage (independent of functional Gate3) ---
+[g3-tail] NOT_COVERED covered=0/5 live=30 report=/tmp/pp_gate3_real_tail_report.json
+[g3-tail] missing real-command fixtures: real_045750_flight1_fh_high_z, real_045750_flight2_bh_negative_vz, real_051156_flight1_bh_negative_vz_long_tts, real_052036_flight1_bh_negative_vz, real_052036_flight2_bh_cold_tts
+[g3-tail] live envelope: {"cold_tts_below_0p4_count": 0, "negative_backhand_vz_count": 0, "racket_vz_mps": [1.1651753732816585, 1.182156246208939], "target_x_base_relative_m": [0.5724547266973948, 0.5959342060332874], "target_y_base_relative_m": [-0.40161571392401396, 0.1540453658946056], "target_z_m": [1.059801789756548, 1.0614841749487947], "tts_s": [0.6740732192993164, 0.6817243099212646]}
+[g3r] real-tail distribution NOT_COVERED (functional/physical Gate3 verdict unchanged)
+--- localization health (formal fresh-localization runs require zero stale MOTION ticks) ---
+stale-base warns: 0
+--- measured MuJoCo racket contact and legal landing evidence ---
+shots=30; telemetry_complete=30; contacts=30; landing_observations=30; landing_censored=0; legal_landings=30; physical_contact_measured=True; landing_measured=True
+--- pelvis z (min/max over the run) ---
+min=0.105 max=1.119 last=0.921 n=12154
+--- MuJoCo plant + runner command trace ---
+[plant-report] idle smoothness PASS: no-ball MOTION duration=20.04s
+[plant-report] q_des STAND->MOTION entry_peak=0.000000rad; idle_worst_peak=0.018361rad; steady step_rms=0.003764rad reversals=19.70Hz tracking_rms=0.295504rad qd_rms=0.168271rad/s
+[plant-report] idle actuator-effort step_rms/peak=0.006582/0.030574 of torque limit; reversals=55.27Hz
+[plant-report] idle INFO: tracking_rms=0.295504rad (waist_pitch_joint) exceeds the diagnostic reference 0.150000rad; not a low-gain PD failure criterion
+[plant-report] idle q_des AUDIT-ONLY: steady q_des reversals 17.490Hz (left_shoulder_pitch_joint) > 8.000Hz
+[plant-report] HOME support frame FAIL: evidence_complete=True
+[plant-report] HOME yaw base/support peak=9.96/7.25deg end=0.47/1.68deg; midpoint peak/end=0.085/0.085m
+[plant-report] HOME support FAIL: support_midpoint_end
+[plant-report] HOME support FAIL: foot_anchor_peak
+[plant-report] HOME support FAIL: foot_anchor_end
+[plant-report] HOME support FAIL: foot_heading_peak
+[plant-report] HOME support FAIL: signed_width_min
+[plant-report] HOME support FAIL: signed_width_max_authorized
+[plant-report] torso HOLD PASS: evidence_complete=True
+[plant-report] torso HOLD pitch/roll/yaw abs median=1.72/2.71/1.35deg p95=3.03/5.17/3.09deg peak=4.77/6.38/5.04deg axes=['pitch'] windows=8
+[plant-report] optional reach NOT_EXERCISED: evidence_complete=False sequences=0 levels={}
+[plant-report] optional reach FAIL: runner trace contains no nonzero schema3 optional-reach flight
+[plant-report] robot table/net/self collision ledger PASS: evidence_complete=True rows=0/0/0
+[plant-report] synchronized MuJoCo/runner evidence captured
+[plant-report] rows plant/runner=24703/4850 overlap=96.98s resets=3 pd=['explicit'] integrator=[0]
+[plant-report] MOTION rows=14940 base z=[1.007,1.068]m tilt_peak=6.5deg xy_v_p95/peak=0.169/0.325m/s
+[plant-report] MOTION racket_v_p95/peak=2.031/2.398m/s both_feet=0.998 slip_p95=0.034m/s
+[plant-report] MOTION ctrl_sat_rows=0.0008 ctrl_ratio_p95/peak=0.502/1.195 cmd_dt_p95=20.09ms
+[plant-report] full-run startup/reset envelope: z=[0.105,1.301]m tilt_peak=78.0deg
+[plant-report] JSON: /tmp/pp_mujoco_plant_report.json
+[g3r] MuJoCo plant trace FAILED (rc=1)
+--- Final obs/phase gate ---
+reach-x expectation from the loaded ONNX (runner banner): fh 0.58 / bh 0.58
+== /tmp/pp_obs.csv: 3736 ticks, 30 swings segmented; mode=rally_v14 ==
+   raw last_action peaks (diagnostic, not a safety threshold): right_wrist_yaw_joint=18.10, right_wrist_roll_joint=9.28, right_wrist_pitch_joint=8.05, right_shoulder_yaw_joint=7.00, right_elbow_joint=6.48
+   NOTE: RallyV14 holds both head joints and feeds the applied zero head actions back to the actor; raw head outputs are penalized but not executed.
+   windows: pre=(0.12,1.10] post=(-1.55,-0.10) ready_heading=(0.45,1.00) post_heading=(-1.55,-0.20)
+swing  t_start  tts0 side  target_rel_base(xyz)      tgt_vel(xyz)       |dstation xy| heading  pre_v/p90 post_v/p90 peak|angvel|
+   1     42.7  0.82 fh   (+0.565,-0.284,-0.006)  (+1.77,+0.18,+1.18)  0.015/0.116    2.5 0.376/0.196 0.086/0.109   1.26
+      heading ready mean/max=0.8/1.2 deg post mean/max=2.8/4.0 deg ready/post |wz|=0.062/0.191 rad/s
+      contact right-elbow absolute q p90=0.446 rad
+   2     46.3  0.82 bh   (+0.573,+0.014,-0.002)  (+1.76,-0.03,+1.17)  0.007/0.104    8.4 0.052/0.094 0.109/0.136   1.40
+      heading ready mean/max=1.6/1.6 deg post mean/max=2.7/4.0 deg ready/post |wz|=0.012/0.171 rad/s
+      contact right-elbow absolute q p90=0.533 rad
+   3     49.8  0.96 fh   (+0.565,-0.326,-0.004)  (+1.78,+0.21,+1.18)  0.015/0.109    2.8 0.075/0.158 0.088/0.098   1.10
+      heading ready mean/max=1.0/1.3 deg post mean/max=2.5/4.0 deg ready/post |wz|=0.032/0.182 rad/s
+      contact right-elbow absolute q p90=0.436 rad
+   4     53.3  0.82 bh   (+0.573,+0.070,-0.002)  (+1.76,-0.07,+1.17)  0.007/0.120    7.1 0.077/0.091 0.108/0.136   1.17
+      heading ready mean/max=1.5/1.6 deg post mean/max=2.3/3.7 deg ready/post |wz|=0.017/0.180 rad/s
+      contact right-elbow absolute q p90=0.647 rad
+   5     56.8  0.96 fh   (+0.564,-0.362,-0.003)  (+1.78,+0.23,+1.18)  0.016/0.118    2.1 0.084/0.155 0.094/0.108   1.13
+      heading ready mean/max=0.9/1.2 deg post mean/max=2.1/3.4 deg ready/post |wz|=0.039/0.149 rad/s
+      contact right-elbow absolute q p90=0.432 rad
+   6     60.3  0.82 bh   (+0.572,+0.110,+0.000)  (+1.76,-0.10,+1.17)  0.008/0.160    6.7 0.142/0.099 0.125/0.162   1.20
+      heading ready mean/max=1.3/1.3 deg post mean/max=2.2/3.3 deg ready/post |wz|=0.007/0.151 rad/s
+      contact right-elbow absolute q p90=0.582 rad
+   7     63.8  0.96 bh   (+0.567,-0.206,+0.001)  (+1.77,+0.18,+1.18)  0.013/0.076    8.5 0.822/0.329 0.094/0.134   1.77
+      heading ready mean/max=0.3/0.7 deg post mean/max=1.9/2.9 deg ready/post |wz|=0.100/0.124 rad/s
+      contact right-elbow absolute q p90=0.639 rad
+   8     65.0  0.63 fh   (+0.566,-0.322,-0.005)  (+1.78,+0.21,+1.18)  0.014/0.078    1.5 0.155/0.220 0.067/0.082   1.28
+      heading ready mean/max=3.2/3.7 deg post mean/max=1.9/3.2 deg ready/post |wz|=0.153/0.175 rad/s
+      contact right-elbow absolute q p90=0.419 rad
+   9     66.2  0.63 bh   (+0.573,+0.019,-0.001)  (+1.76,-0.03,+1.17)  0.007/0.074    8.3 0.070/0.097 0.096/0.124   1.18
+      heading ready mean/max=0.4/0.8 deg post mean/max=3.9/4.8 deg ready/post |wz|=0.129/0.139 rad/s
+      contact right-elbow absolute q p90=0.572 rad
+  10     67.4  0.63 bh   (+0.577,+0.055,-0.000)  (+1.76,-0.07,+1.17)  0.003/0.105    8.9 0.087/0.129 0.096/0.135   1.38
+      heading ready mean/max=4.3/4.7 deg post mean/max=3.9/4.4 deg ready/post |wz|=0.088/0.117 rad/s
+      contact right-elbow absolute q p90=0.597 rad
+  11     68.5  0.63 fh   (+0.568,-0.381,-0.004)  (+1.78,+0.23,+1.18)  0.012/0.099    1.1 0.112/0.147 0.101/0.149   1.20
+      heading ready mean/max=4.1/4.3 deg post mean/max=1.6/2.3 deg ready/post |wz|=0.053/0.138 rad/s
+      contact right-elbow absolute q p90=0.496 rad
+  12     69.7  0.63 bh   (+0.572,+0.081,+0.001)  (+1.76,-0.10,+1.17)  0.008/0.131    9.1 0.133/0.172 0.100/0.157   1.28
+      heading ready mean/max=0.6/1.0 deg post mean/max=3.9/4.4 deg ready/post |wz|=0.066/0.122 rad/s
+      contact right-elbow absolute q p90=0.592 rad
+  13     70.8  0.63 bh   (+0.573,-0.200,+0.002)  (+1.77,+0.18,+1.18)  0.007/0.070    9.1 0.203/0.308 0.092/0.146   1.25
+      heading ready mean/max=3.7/4.6 deg post mean/max=4.6/5.2 deg ready/post |wz|=0.191/0.107 rad/s
+      contact right-elbow absolute q p90=0.583 rad
+  14     72.0  0.63 bh   (+0.571,+0.038,-0.000)  (+1.76,-0.03,+1.17)  0.009/0.088    8.9 0.125/0.188 0.070/0.122   1.20
+      heading ready mean/max=4.1/5.0 deg post mean/max=4.2/4.5 deg ready/post |wz|=0.173/0.090 rad/s
+      contact right-elbow absolute q p90=0.584 rad
+  15     73.2  0.63 fh   (+0.565,-0.311,-0.005)  (+1.78,+0.21,+1.18)  0.015/0.089    1.6 0.092/0.169 0.080/0.094   1.15
+      heading ready mean/max=4.0/4.3 deg post mean/max=2.5/3.2 deg ready/post |wz|=0.041/0.137 rad/s
+      contact right-elbow absolute q p90=0.435 rad
+  16     74.3  0.63 bh   (+0.571,+0.062,+0.001)  (+1.76,-0.07,+1.17)  0.009/0.112    8.5 0.117/0.157 0.098/0.149   1.10
+      heading ready mean/max=1.2/1.7 deg post mean/max=3.5/3.9 deg ready/post |wz|=0.110/0.101 rad/s
+      contact right-elbow absolute q p90=0.589 rad
+  17     75.5  0.63 fh   (+0.567,-0.376,-0.004)  (+1.78,+0.23,+1.18)  0.013/0.104    1.2 0.115/0.152 0.103/0.150   1.15
+      heading ready mean/max=3.5/3.7 deg post mean/max=2.2/3.0 deg ready/post |wz|=0.035/0.115 rad/s
+      contact right-elbow absolute q p90=0.485 rad
+  18     76.6  0.63 bh   (+0.571,+0.091,+0.001)  (+1.76,-0.10,+1.17)  0.009/0.141    8.1 0.129/0.166 0.099/0.157   1.45
+      heading ready mean/max=1.0/1.5 deg post mean/max=3.7/4.3 deg ready/post |wz|=0.091/0.118 rad/s
+      contact right-elbow absolute q p90=0.602 rad
+  19     77.8  0.63 bh   (+0.572,-0.194,+0.001)  (+1.77,+0.18,+1.18)  0.008/0.064    9.2 0.199/0.322 0.095/0.152   1.04
+      heading ready mean/max=3.6/4.3 deg post mean/max=5.1/5.7 deg ready/post |wz|=0.159/0.117 rad/s
+      contact right-elbow absolute q p90=0.615 rad
+  20     79.0  0.63 bh   (+0.571,+0.046,+0.001)  (+1.76,-0.03,+1.17)  0.009/0.096    9.0 0.129/0.193 0.076/0.132   1.03
+      heading ready mean/max=4.4/5.4 deg post mean/max=4.4/4.8 deg ready/post |wz|=0.181/0.077 rad/s
+      contact right-elbow absolute q p90=0.551 rad
+  21     80.1  0.63 fh   (+0.565,-0.301,-0.003)  (+1.78,+0.21,+1.18)  0.015/0.099    2.0 0.094/0.156 0.077/0.093   1.16
+      heading ready mean/max=3.8/4.1 deg post mean/max=2.4/3.0 deg ready/post |wz|=0.065/0.103 rad/s
+      contact right-elbow absolute q p90=0.476 rad
+  22     81.3  0.63 bh   (+0.569,+0.071,+0.001)  (+1.76,-0.07,+1.17)  0.011/0.121    7.7 0.120/0.161 0.095/0.147   1.10
+      heading ready mean/max=1.2/1.7 deg post mean/max=3.4/3.9 deg ready/post |wz|=0.098/0.111 rad/s
+      contact right-elbow absolute q p90=0.601 rad
+  23     82.4  0.63 fh   (+0.566,-0.366,-0.003)  (+1.78,+0.23,+1.18)  0.014/0.114    1.3 0.115/0.152 0.101/0.162   1.21
+      heading ready mean/max=3.3/3.7 deg post mean/max=2.1/2.8 deg ready/post |wz|=0.064/0.100 rad/s
+      contact right-elbow absolute q p90=0.524 rad
+  24     83.6  0.63 bh   (+0.569,+0.103,+0.002)  (+1.76,-0.10,+1.17)  0.011/0.153    8.0 0.125/0.163 0.089/0.136   1.23
+      heading ready mean/max=0.9/1.5 deg post mean/max=3.6/3.9 deg ready/post |wz|=0.101/0.072 rad/s
+      contact right-elbow absolute q p90=0.655 rad
+  25     84.8  0.63 bh   (+0.571,-0.184,+0.003)  (+1.77,+0.18,+1.18)  0.009/0.054    9.3 0.200/0.328 0.093/0.156   1.03
+      heading ready mean/max=3.1/3.9 deg post mean/max=5.3/5.7 deg ready/post |wz|=0.186/0.111 rad/s
+      contact right-elbow absolute q p90=0.589 rad
+  26     85.9  0.63 bh   (+0.571,+0.060,+0.002)  (+1.76,-0.03,+1.17)  0.009/0.110    8.5 0.126/0.190 0.081/0.130   0.99
+      heading ready mean/max=4.4/5.4 deg post mean/max=4.2/4.9 deg ready/post |wz|=0.169/0.088 rad/s
+      contact right-elbow absolute q p90=0.536 rad
+  27     87.1  0.63 bh   (+0.569,-0.174,+0.002)  (+1.77,+0.18,+1.18)  0.011/0.044    9.3 0.156/0.252 0.102/0.185   0.99
+      heading ready mean/max=3.8/4.0 deg post mean/max=5.5/6.0 deg ready/post |wz|=0.081/0.127 rad/s
+      contact right-elbow absolute q p90=0.575 rad
+  28     88.2  0.63 fh   (+0.561,-0.272,-0.001)  (+1.78,+0.21,+1.18)  0.019/0.128    2.5 0.152/0.224 0.059/0.074   1.04
+      heading ready mean/max=4.9/5.7 deg post mean/max=1.9/2.8 deg ready/post |wz|=0.150/0.162 rad/s
+      contact right-elbow absolute q p90=0.404 rad
+  29     89.4  0.63 bh   (+0.569,+0.057,+0.003)  (+1.76,-0.03,+1.17)  0.011/0.112    7.5 0.084/0.116 0.098/0.152   0.95
+      heading ready mean/max=0.8/1.3 deg post mean/max=3.2/3.4 deg ready/post |wz|=0.100/0.087 rad/s
+      contact right-elbow absolute q p90=0.607 rad
+  30     90.6  0.63 bh   (+0.572,+0.091,+0.003)  (+1.76,-0.07,+1.17)  0.008/0.141    7.8 0.099/0.155 0.091/0.152   1.03
+      heading ready mean/max=2.7/3.1 deg post mean/max=3.0/3.4 deg ready/post |wz|=0.078/0.089 rad/s
+      contact right-elbow absolute q p90=0.646 rad
+
+== rally phase metrics (station-delta finite difference at the 50 Hz control tick) ==
+  station_y_error@strike mean=0.104 m
+  heading_error@strike mean=6.2 deg
+  ready_heading mean/max=2.5/5.7 deg
+  post_heading mean/max=3.2/6.0 deg
+  ready/post |yaw-rate| mean=0.094/0.125 rad/s
+  pre_strike_base_speed mean=0.152 m/s
+  post_strike_base_speed mean=0.092 m/s
+  pre/post base_speed p90 mean=0.181/0.134 m/s
+  contact right-elbow q p90 mean/max=0.548/0.655 rad
+  NOTE: 110-D obs CSV has no torso pose, foot body velocity, or left-arm/actual-racket FK. Torso HOLD and support-frame qualification come from the synchronized MuJoCo plant report; offline full-state metrics remain separate.
+
+== checks ==
+  PASS  no NaN/Inf in obs  (0 ticks affected)
+  PASS  sync_miss == 0  (final sync_miss=0)
+  PASS  loaded policy bundle exposes joint defaults for V10--V17 elbow gate  (available)
+  PASS  loaded policy bundle uses one shared x=0.58 m plane  (fh=0.580 bh=0.580)
+  PASS  upright (grav_z<-0.7) except transients  (0/3736 ticks tilted)
+  PASS  |station delta| <= 0.45 (Final step + readiness bound)  (max |dstation|=0.217 m)
+  PASS  |joint_vel| < 25 rad/s  (max |joint_vel|=6.9)
+  PASS  at least one complete swing segmented  (swings=30)
+  FAIL  idle left_wrist_roll_joint range <= 0.35 rad  (range=0.445 rad over 1974 ticks)
+  PASS  idle left_wrist_pitch_joint range <= 0.35 rad  (range=0.309 rad over 1974 ticks)
+  PASS  idle left_wrist_yaw_joint range <= 0.35 rad  (range=0.286 rad over 1974 ticks)
+  PASS  initial HOME WAIT actual-q matches synchronized Build1 posture  (rows=250 median=0.188rad p95=0.189rad threshold=0.200rad groups={'shoulder': 0.18849506783054187, 'elbow': 0.2717752992486111, 'wrist': 0.19981849663238554})
+  PASS  runner engage sides map one-to-one to obs swings  (segmented=30 runner_engages=30)
+  PASS  swing 1: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 1: |station_x error| at strike <= 0.03  (0.015)
+  FAIL  swing 1: |station_y error| at strike <= 0.10  (0.116)
+  PASS  swing 1: heading at strike <= 15 deg  (2.5)
+  PASS  swing 1: ready heading mean/max <= 10/15 deg  (0.8/1.2)
+  PASS  swing 1: post heading mean/max <= 10/15 deg  (2.8/4.0)
+  PASS  swing 1: ready/post |yaw-rate| <= 0.20 rad/s  (0.062/0.191)
+  FAIL  swing 1: pre-strike base speed <= 0.20 m/s  (0.376)
+  PASS  swing 1: post-strike base speed <= 0.25 m/s  (0.086)
+  PASS  swing 1: pre-strike base-speed p90 <= 0.30 m/s  (0.196)
+  PASS  swing 1: post-strike base-speed p90 <= 0.35 m/s  (0.109)
+  PASS  swing 1: contact right-elbow q p90 <= 1.35 rad  (0.446)
+  PASS  swing 2: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 2: |station_x error| at strike <= 0.03  (0.007)
+  FAIL  swing 2: |station_y error| at strike <= 0.10  (0.104)
+  PASS  swing 2: heading at strike <= 15 deg  (8.4)
+  PASS  swing 2: ready heading mean/max <= 10/15 deg  (1.6/1.6)
+  PASS  swing 2: post heading mean/max <= 10/15 deg  (2.7/4.0)
+  PASS  swing 2: ready/post |yaw-rate| <= 0.20 rad/s  (0.012/0.171)
+  PASS  swing 2: pre-strike base speed <= 0.20 m/s  (0.052)
+  PASS  swing 2: post-strike base speed <= 0.25 m/s  (0.109)
+  PASS  swing 2: pre-strike base-speed p90 <= 0.30 m/s  (0.094)
+  PASS  swing 2: post-strike base-speed p90 <= 0.35 m/s  (0.136)
+  PASS  swing 2: contact right-elbow q p90 <= 1.35 rad  (0.533)
+  PASS  swing 3: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 3: |station_x error| at strike <= 0.03  (0.015)
+  FAIL  swing 3: |station_y error| at strike <= 0.10  (0.109)
+  PASS  swing 3: heading at strike <= 15 deg  (2.8)
+  PASS  swing 3: ready heading mean/max <= 10/15 deg  (1.0/1.3)
+  PASS  swing 3: post heading mean/max <= 10/15 deg  (2.5/4.0)
+  PASS  swing 3: ready/post |yaw-rate| <= 0.20 rad/s  (0.032/0.182)
+  PASS  swing 3: pre-strike base speed <= 0.20 m/s  (0.075)
+  PASS  swing 3: post-strike base speed <= 0.25 m/s  (0.088)
+  PASS  swing 3: pre-strike base-speed p90 <= 0.30 m/s  (0.158)
+  PASS  swing 3: post-strike base-speed p90 <= 0.35 m/s  (0.098)
+  PASS  swing 3: contact right-elbow q p90 <= 1.35 rad  (0.436)
+  PASS  swing 4: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 4: |station_x error| at strike <= 0.03  (0.007)
+  FAIL  swing 4: |station_y error| at strike <= 0.10  (0.120)
+  PASS  swing 4: heading at strike <= 15 deg  (7.1)
+  PASS  swing 4: ready heading mean/max <= 10/15 deg  (1.5/1.6)
+  PASS  swing 4: post heading mean/max <= 10/15 deg  (2.3/3.7)
+  PASS  swing 4: ready/post |yaw-rate| <= 0.20 rad/s  (0.017/0.180)
+  PASS  swing 4: pre-strike base speed <= 0.20 m/s  (0.077)
+  PASS  swing 4: post-strike base speed <= 0.25 m/s  (0.108)
+  PASS  swing 4: pre-strike base-speed p90 <= 0.30 m/s  (0.091)
+  PASS  swing 4: post-strike base-speed p90 <= 0.35 m/s  (0.136)
+  PASS  swing 4: contact right-elbow q p90 <= 1.35 rad  (0.647)
+  PASS  swing 5: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 5: |station_x error| at strike <= 0.03  (0.016)
+  FAIL  swing 5: |station_y error| at strike <= 0.10  (0.118)
+  PASS  swing 5: heading at strike <= 15 deg  (2.1)
+  PASS  swing 5: ready heading mean/max <= 10/15 deg  (0.9/1.2)
+  PASS  swing 5: post heading mean/max <= 10/15 deg  (2.1/3.4)
+  PASS  swing 5: ready/post |yaw-rate| <= 0.20 rad/s  (0.039/0.149)
+  PASS  swing 5: pre-strike base speed <= 0.20 m/s  (0.084)
+  PASS  swing 5: post-strike base speed <= 0.25 m/s  (0.094)
+  PASS  swing 5: pre-strike base-speed p90 <= 0.30 m/s  (0.155)
+  PASS  swing 5: post-strike base-speed p90 <= 0.35 m/s  (0.108)
+  PASS  swing 5: contact right-elbow q p90 <= 1.35 rad  (0.432)
+  PASS  swing 6: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 6: |station_x error| at strike <= 0.03  (0.008)
+  FAIL  swing 6: |station_y error| at strike <= 0.10  (0.160)
+  PASS  swing 6: heading at strike <= 15 deg  (6.7)
+  PASS  swing 6: ready heading mean/max <= 10/15 deg  (1.3/1.3)
+  PASS  swing 6: post heading mean/max <= 10/15 deg  (2.2/3.3)
+  PASS  swing 6: ready/post |yaw-rate| <= 0.20 rad/s  (0.007/0.151)
+  PASS  swing 6: pre-strike base speed <= 0.20 m/s  (0.142)
+  PASS  swing 6: post-strike base speed <= 0.25 m/s  (0.125)
+  PASS  swing 6: pre-strike base-speed p90 <= 0.30 m/s  (0.099)
+  PASS  swing 6: post-strike base-speed p90 <= 0.35 m/s  (0.162)
+  PASS  swing 6: contact right-elbow q p90 <= 1.35 rad  (0.582)
+  PASS  swing 7: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 7: |station_x error| at strike <= 0.03  (0.013)
+  PASS  swing 7: |station_y error| at strike <= 0.10  (0.076)
+  PASS  swing 7: heading at strike <= 15 deg  (8.5)
+  PASS  swing 7: ready heading mean/max <= 10/15 deg  (0.3/0.7)
+  PASS  swing 7: post heading mean/max <= 10/15 deg  (1.9/2.9)
+  PASS  swing 7: ready/post |yaw-rate| <= 0.20 rad/s  (0.100/0.124)
+  FAIL  swing 7: pre-strike base speed <= 0.20 m/s  (0.822)
+  PASS  swing 7: post-strike base speed <= 0.25 m/s  (0.094)
+  FAIL  swing 7: pre-strike base-speed p90 <= 0.30 m/s  (0.329)
+  PASS  swing 7: post-strike base-speed p90 <= 0.35 m/s  (0.134)
+  PASS  swing 7: contact right-elbow q p90 <= 1.35 rad  (0.639)
+  PASS  swing 8: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 8: |station_x error| at strike <= 0.03  (0.014)
+  PASS  swing 8: |station_y error| at strike <= 0.10  (0.078)
+  PASS  swing 8: heading at strike <= 15 deg  (1.5)
+  PASS  swing 8: ready heading mean/max <= 10/15 deg  (3.2/3.7)
+  PASS  swing 8: post heading mean/max <= 10/15 deg  (1.9/3.2)
+  PASS  swing 8: ready/post |yaw-rate| <= 0.20 rad/s  (0.153/0.175)
+  PASS  swing 8: pre-strike base speed <= 0.20 m/s  (0.155)
+  PASS  swing 8: post-strike base speed <= 0.25 m/s  (0.067)
+  PASS  swing 8: pre-strike base-speed p90 <= 0.30 m/s  (0.220)
+  PASS  swing 8: post-strike base-speed p90 <= 0.35 m/s  (0.082)
+  PASS  swing 8: contact right-elbow q p90 <= 1.35 rad  (0.419)
+  PASS  swing 9: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 9: |station_x error| at strike <= 0.03  (0.007)
+  PASS  swing 9: |station_y error| at strike <= 0.10  (0.074)
+  PASS  swing 9: heading at strike <= 15 deg  (8.3)
+  PASS  swing 9: ready heading mean/max <= 10/15 deg  (0.4/0.8)
+  PASS  swing 9: post heading mean/max <= 10/15 deg  (3.9/4.8)
+  PASS  swing 9: ready/post |yaw-rate| <= 0.20 rad/s  (0.129/0.139)
+  PASS  swing 9: pre-strike base speed <= 0.20 m/s  (0.070)
+  PASS  swing 9: post-strike base speed <= 0.25 m/s  (0.096)
+  PASS  swing 9: pre-strike base-speed p90 <= 0.30 m/s  (0.097)
+  PASS  swing 9: post-strike base-speed p90 <= 0.35 m/s  (0.124)
+  PASS  swing 9: contact right-elbow q p90 <= 1.35 rad  (0.572)
+  PASS  swing 10: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 10: |station_x error| at strike <= 0.03  (0.003)
+  FAIL  swing 10: |station_y error| at strike <= 0.10  (0.105)
+  PASS  swing 10: heading at strike <= 15 deg  (8.9)
+  PASS  swing 10: ready heading mean/max <= 10/15 deg  (4.3/4.7)
+  PASS  swing 10: post heading mean/max <= 10/15 deg  (3.9/4.4)
+  PASS  swing 10: ready/post |yaw-rate| <= 0.20 rad/s  (0.088/0.117)
+  PASS  swing 10: pre-strike base speed <= 0.20 m/s  (0.087)
+  PASS  swing 10: post-strike base speed <= 0.25 m/s  (0.096)
+  PASS  swing 10: pre-strike base-speed p90 <= 0.30 m/s  (0.129)
+  PASS  swing 10: post-strike base-speed p90 <= 0.35 m/s  (0.135)
+  PASS  swing 10: contact right-elbow q p90 <= 1.35 rad  (0.597)
+  PASS  swing 11: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 11: |station_x error| at strike <= 0.03  (0.012)
+  PASS  swing 11: |station_y error| at strike <= 0.10  (0.099)
+  PASS  swing 11: heading at strike <= 15 deg  (1.1)
+  PASS  swing 11: ready heading mean/max <= 10/15 deg  (4.1/4.3)
+  PASS  swing 11: post heading mean/max <= 10/15 deg  (1.6/2.3)
+  PASS  swing 11: ready/post |yaw-rate| <= 0.20 rad/s  (0.053/0.138)
+  PASS  swing 11: pre-strike base speed <= 0.20 m/s  (0.112)
+  PASS  swing 11: post-strike base speed <= 0.25 m/s  (0.101)
+  PASS  swing 11: pre-strike base-speed p90 <= 0.30 m/s  (0.147)
+  PASS  swing 11: post-strike base-speed p90 <= 0.35 m/s  (0.149)
+  PASS  swing 11: contact right-elbow q p90 <= 1.35 rad  (0.496)
+  PASS  swing 12: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 12: |station_x error| at strike <= 0.03  (0.008)
+  FAIL  swing 12: |station_y error| at strike <= 0.10  (0.131)
+  PASS  swing 12: heading at strike <= 15 deg  (9.1)
+  PASS  swing 12: ready heading mean/max <= 10/15 deg  (0.6/1.0)
+  PASS  swing 12: post heading mean/max <= 10/15 deg  (3.9/4.4)
+  PASS  swing 12: ready/post |yaw-rate| <= 0.20 rad/s  (0.066/0.122)
+  PASS  swing 12: pre-strike base speed <= 0.20 m/s  (0.133)
+  PASS  swing 12: post-strike base speed <= 0.25 m/s  (0.100)
+  PASS  swing 12: pre-strike base-speed p90 <= 0.30 m/s  (0.172)
+  PASS  swing 12: post-strike base-speed p90 <= 0.35 m/s  (0.157)
+  PASS  swing 12: contact right-elbow q p90 <= 1.35 rad  (0.592)
+  PASS  swing 13: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 13: |station_x error| at strike <= 0.03  (0.007)
+  PASS  swing 13: |station_y error| at strike <= 0.10  (0.070)
+  PASS  swing 13: heading at strike <= 15 deg  (9.1)
+  PASS  swing 13: ready heading mean/max <= 10/15 deg  (3.7/4.6)
+  PASS  swing 13: post heading mean/max <= 10/15 deg  (4.6/5.2)
+  PASS  swing 13: ready/post |yaw-rate| <= 0.20 rad/s  (0.191/0.107)
+  FAIL  swing 13: pre-strike base speed <= 0.20 m/s  (0.203)
+  PASS  swing 13: post-strike base speed <= 0.25 m/s  (0.092)
+  FAIL  swing 13: pre-strike base-speed p90 <= 0.30 m/s  (0.308)
+  PASS  swing 13: post-strike base-speed p90 <= 0.35 m/s  (0.146)
+  PASS  swing 13: contact right-elbow q p90 <= 1.35 rad  (0.583)
+  PASS  swing 14: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 14: |station_x error| at strike <= 0.03  (0.009)
+  PASS  swing 14: |station_y error| at strike <= 0.10  (0.088)
+  PASS  swing 14: heading at strike <= 15 deg  (8.9)
+  PASS  swing 14: ready heading mean/max <= 10/15 deg  (4.1/5.0)
+  PASS  swing 14: post heading mean/max <= 10/15 deg  (4.2/4.5)
+  PASS  swing 14: ready/post |yaw-rate| <= 0.20 rad/s  (0.173/0.090)
+  PASS  swing 14: pre-strike base speed <= 0.20 m/s  (0.125)
+  PASS  swing 14: post-strike base speed <= 0.25 m/s  (0.070)
+  PASS  swing 14: pre-strike base-speed p90 <= 0.30 m/s  (0.188)
+  PASS  swing 14: post-strike base-speed p90 <= 0.35 m/s  (0.122)
+  PASS  swing 14: contact right-elbow q p90 <= 1.35 rad  (0.584)
+  PASS  swing 15: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 15: |station_x error| at strike <= 0.03  (0.015)
+  PASS  swing 15: |station_y error| at strike <= 0.10  (0.089)
+  PASS  swing 15: heading at strike <= 15 deg  (1.6)
+  PASS  swing 15: ready heading mean/max <= 10/15 deg  (4.0/4.3)
+  PASS  swing 15: post heading mean/max <= 10/15 deg  (2.5/3.2)
+  PASS  swing 15: ready/post |yaw-rate| <= 0.20 rad/s  (0.041/0.137)
+  PASS  swing 15: pre-strike base speed <= 0.20 m/s  (0.092)
+  PASS  swing 15: post-strike base speed <= 0.25 m/s  (0.080)
+  PASS  swing 15: pre-strike base-speed p90 <= 0.30 m/s  (0.169)
+  PASS  swing 15: post-strike base-speed p90 <= 0.35 m/s  (0.094)
+  PASS  swing 15: contact right-elbow q p90 <= 1.35 rad  (0.435)
+  PASS  swing 16: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 16: |station_x error| at strike <= 0.03  (0.009)
+  FAIL  swing 16: |station_y error| at strike <= 0.10  (0.112)
+  PASS  swing 16: heading at strike <= 15 deg  (8.5)
+  PASS  swing 16: ready heading mean/max <= 10/15 deg  (1.2/1.7)
+  PASS  swing 16: post heading mean/max <= 10/15 deg  (3.5/3.9)
+  PASS  swing 16: ready/post |yaw-rate| <= 0.20 rad/s  (0.110/0.101)
+  PASS  swing 16: pre-strike base speed <= 0.20 m/s  (0.117)
+  PASS  swing 16: post-strike base speed <= 0.25 m/s  (0.098)
+  PASS  swing 16: pre-strike base-speed p90 <= 0.30 m/s  (0.157)
+  PASS  swing 16: post-strike base-speed p90 <= 0.35 m/s  (0.149)
+  PASS  swing 16: contact right-elbow q p90 <= 1.35 rad  (0.589)
+  PASS  swing 17: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 17: |station_x error| at strike <= 0.03  (0.013)
+  FAIL  swing 17: |station_y error| at strike <= 0.10  (0.104)
+  PASS  swing 17: heading at strike <= 15 deg  (1.2)
+  PASS  swing 17: ready heading mean/max <= 10/15 deg  (3.5/3.7)
+  PASS  swing 17: post heading mean/max <= 10/15 deg  (2.2/3.0)
+  PASS  swing 17: ready/post |yaw-rate| <= 0.20 rad/s  (0.035/0.115)
+  PASS  swing 17: pre-strike base speed <= 0.20 m/s  (0.115)
+  PASS  swing 17: post-strike base speed <= 0.25 m/s  (0.103)
+  PASS  swing 17: pre-strike base-speed p90 <= 0.30 m/s  (0.152)
+  PASS  swing 17: post-strike base-speed p90 <= 0.35 m/s  (0.150)
+  PASS  swing 17: contact right-elbow q p90 <= 1.35 rad  (0.485)
+  PASS  swing 18: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 18: |station_x error| at strike <= 0.03  (0.009)
+  FAIL  swing 18: |station_y error| at strike <= 0.10  (0.141)
+  PASS  swing 18: heading at strike <= 15 deg  (8.1)
+  PASS  swing 18: ready heading mean/max <= 10/15 deg  (1.0/1.5)
+  PASS  swing 18: post heading mean/max <= 10/15 deg  (3.7/4.3)
+  PASS  swing 18: ready/post |yaw-rate| <= 0.20 rad/s  (0.091/0.118)
+  PASS  swing 18: pre-strike base speed <= 0.20 m/s  (0.129)
+  PASS  swing 18: post-strike base speed <= 0.25 m/s  (0.099)
+  PASS  swing 18: pre-strike base-speed p90 <= 0.30 m/s  (0.166)
+  PASS  swing 18: post-strike base-speed p90 <= 0.35 m/s  (0.157)
+  PASS  swing 18: contact right-elbow q p90 <= 1.35 rad  (0.602)
+  PASS  swing 19: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 19: |station_x error| at strike <= 0.03  (0.008)
+  PASS  swing 19: |station_y error| at strike <= 0.10  (0.064)
+  PASS  swing 19: heading at strike <= 15 deg  (9.2)
+  PASS  swing 19: ready heading mean/max <= 10/15 deg  (3.6/4.3)
+  PASS  swing 19: post heading mean/max <= 10/15 deg  (5.1/5.7)
+  PASS  swing 19: ready/post |yaw-rate| <= 0.20 rad/s  (0.159/0.117)
+  PASS  swing 19: pre-strike base speed <= 0.20 m/s  (0.199)
+  PASS  swing 19: post-strike base speed <= 0.25 m/s  (0.095)
+  FAIL  swing 19: pre-strike base-speed p90 <= 0.30 m/s  (0.322)
+  PASS  swing 19: post-strike base-speed p90 <= 0.35 m/s  (0.152)
+  PASS  swing 19: contact right-elbow q p90 <= 1.35 rad  (0.615)
+  PASS  swing 20: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 20: |station_x error| at strike <= 0.03  (0.009)
+  PASS  swing 20: |station_y error| at strike <= 0.10  (0.096)
+  PASS  swing 20: heading at strike <= 15 deg  (9.0)
+  PASS  swing 20: ready heading mean/max <= 10/15 deg  (4.4/5.4)
+  PASS  swing 20: post heading mean/max <= 10/15 deg  (4.4/4.8)
+  PASS  swing 20: ready/post |yaw-rate| <= 0.20 rad/s  (0.181/0.077)
+  PASS  swing 20: pre-strike base speed <= 0.20 m/s  (0.129)
+  PASS  swing 20: post-strike base speed <= 0.25 m/s  (0.076)
+  PASS  swing 20: pre-strike base-speed p90 <= 0.30 m/s  (0.193)
+  PASS  swing 20: post-strike base-speed p90 <= 0.35 m/s  (0.132)
+  PASS  swing 20: contact right-elbow q p90 <= 1.35 rad  (0.551)
+  PASS  swing 21: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 21: |station_x error| at strike <= 0.03  (0.015)
+  PASS  swing 21: |station_y error| at strike <= 0.10  (0.099)
+  PASS  swing 21: heading at strike <= 15 deg  (2.0)
+  PASS  swing 21: ready heading mean/max <= 10/15 deg  (3.8/4.1)
+  PASS  swing 21: post heading mean/max <= 10/15 deg  (2.4/3.0)
+  PASS  swing 21: ready/post |yaw-rate| <= 0.20 rad/s  (0.065/0.103)
+  PASS  swing 21: pre-strike base speed <= 0.20 m/s  (0.094)
+  PASS  swing 21: post-strike base speed <= 0.25 m/s  (0.077)
+  PASS  swing 21: pre-strike base-speed p90 <= 0.30 m/s  (0.156)
+  PASS  swing 21: post-strike base-speed p90 <= 0.35 m/s  (0.093)
+  PASS  swing 21: contact right-elbow q p90 <= 1.35 rad  (0.476)
+  PASS  swing 22: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 22: |station_x error| at strike <= 0.03  (0.011)
+  FAIL  swing 22: |station_y error| at strike <= 0.10  (0.121)
+  PASS  swing 22: heading at strike <= 15 deg  (7.7)
+  PASS  swing 22: ready heading mean/max <= 10/15 deg  (1.2/1.7)
+  PASS  swing 22: post heading mean/max <= 10/15 deg  (3.4/3.9)
+  PASS  swing 22: ready/post |yaw-rate| <= 0.20 rad/s  (0.098/0.111)
+  PASS  swing 22: pre-strike base speed <= 0.20 m/s  (0.120)
+  PASS  swing 22: post-strike base speed <= 0.25 m/s  (0.095)
+  PASS  swing 22: pre-strike base-speed p90 <= 0.30 m/s  (0.161)
+  PASS  swing 22: post-strike base-speed p90 <= 0.35 m/s  (0.147)
+  PASS  swing 22: contact right-elbow q p90 <= 1.35 rad  (0.601)
+  PASS  swing 23: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 23: |station_x error| at strike <= 0.03  (0.014)
+  FAIL  swing 23: |station_y error| at strike <= 0.10  (0.114)
+  PASS  swing 23: heading at strike <= 15 deg  (1.3)
+  PASS  swing 23: ready heading mean/max <= 10/15 deg  (3.3/3.7)
+  PASS  swing 23: post heading mean/max <= 10/15 deg  (2.1/2.8)
+  PASS  swing 23: ready/post |yaw-rate| <= 0.20 rad/s  (0.064/0.100)
+  PASS  swing 23: pre-strike base speed <= 0.20 m/s  (0.115)
+  PASS  swing 23: post-strike base speed <= 0.25 m/s  (0.101)
+  PASS  swing 23: pre-strike base-speed p90 <= 0.30 m/s  (0.152)
+  PASS  swing 23: post-strike base-speed p90 <= 0.35 m/s  (0.162)
+  PASS  swing 23: contact right-elbow q p90 <= 1.35 rad  (0.524)
+  PASS  swing 24: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 24: |station_x error| at strike <= 0.03  (0.011)
+  FAIL  swing 24: |station_y error| at strike <= 0.10  (0.153)
+  PASS  swing 24: heading at strike <= 15 deg  (8.0)
+  PASS  swing 24: ready heading mean/max <= 10/15 deg  (0.9/1.5)
+  PASS  swing 24: post heading mean/max <= 10/15 deg  (3.6/3.9)
+  PASS  swing 24: ready/post |yaw-rate| <= 0.20 rad/s  (0.101/0.072)
+  PASS  swing 24: pre-strike base speed <= 0.20 m/s  (0.125)
+  PASS  swing 24: post-strike base speed <= 0.25 m/s  (0.089)
+  PASS  swing 24: pre-strike base-speed p90 <= 0.30 m/s  (0.163)
+  PASS  swing 24: post-strike base-speed p90 <= 0.35 m/s  (0.136)
+  PASS  swing 24: contact right-elbow q p90 <= 1.35 rad  (0.655)
+  PASS  swing 25: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 25: |station_x error| at strike <= 0.03  (0.009)
+  PASS  swing 25: |station_y error| at strike <= 0.10  (0.054)
+  PASS  swing 25: heading at strike <= 15 deg  (9.3)
+  PASS  swing 25: ready heading mean/max <= 10/15 deg  (3.1/3.9)
+  PASS  swing 25: post heading mean/max <= 10/15 deg  (5.3/5.7)
+  PASS  swing 25: ready/post |yaw-rate| <= 0.20 rad/s  (0.186/0.111)
+  PASS  swing 25: pre-strike base speed <= 0.20 m/s  (0.200)
+  PASS  swing 25: post-strike base speed <= 0.25 m/s  (0.093)
+  FAIL  swing 25: pre-strike base-speed p90 <= 0.30 m/s  (0.328)
+  PASS  swing 25: post-strike base-speed p90 <= 0.35 m/s  (0.156)
+  PASS  swing 25: contact right-elbow q p90 <= 1.35 rad  (0.589)
+  PASS  swing 26: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 26: |station_x error| at strike <= 0.03  (0.009)
+  FAIL  swing 26: |station_y error| at strike <= 0.10  (0.110)
+  PASS  swing 26: heading at strike <= 15 deg  (8.5)
+  PASS  swing 26: ready heading mean/max <= 10/15 deg  (4.4/5.4)
+  PASS  swing 26: post heading mean/max <= 10/15 deg  (4.2/4.9)
+  PASS  swing 26: ready/post |yaw-rate| <= 0.20 rad/s  (0.169/0.088)
+  PASS  swing 26: pre-strike base speed <= 0.20 m/s  (0.126)
+  PASS  swing 26: post-strike base speed <= 0.25 m/s  (0.081)
+  PASS  swing 26: pre-strike base-speed p90 <= 0.30 m/s  (0.190)
+  PASS  swing 26: post-strike base-speed p90 <= 0.35 m/s  (0.130)
+  PASS  swing 26: contact right-elbow q p90 <= 1.35 rad  (0.536)
+  PASS  swing 27: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 27: |station_x error| at strike <= 0.03  (0.011)
+  PASS  swing 27: |station_y error| at strike <= 0.10  (0.044)
+  PASS  swing 27: heading at strike <= 15 deg  (9.3)
+  PASS  swing 27: ready heading mean/max <= 10/15 deg  (3.8/4.0)
+  PASS  swing 27: post heading mean/max <= 10/15 deg  (5.5/6.0)
+  PASS  swing 27: ready/post |yaw-rate| <= 0.20 rad/s  (0.081/0.127)
+  PASS  swing 27: pre-strike base speed <= 0.20 m/s  (0.156)
+  PASS  swing 27: post-strike base speed <= 0.25 m/s  (0.102)
+  PASS  swing 27: pre-strike base-speed p90 <= 0.30 m/s  (0.252)
+  PASS  swing 27: post-strike base-speed p90 <= 0.35 m/s  (0.185)
+  PASS  swing 27: contact right-elbow q p90 <= 1.35 rad  (0.575)
+  PASS  swing 28: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 28: |station_x error| at strike <= 0.03  (0.019)
+  FAIL  swing 28: |station_y error| at strike <= 0.10  (0.128)
+  PASS  swing 28: heading at strike <= 15 deg  (2.5)
+  PASS  swing 28: ready heading mean/max <= 10/15 deg  (4.9/5.7)
+  PASS  swing 28: post heading mean/max <= 10/15 deg  (1.9/2.8)
+  PASS  swing 28: ready/post |yaw-rate| <= 0.20 rad/s  (0.150/0.162)
+  PASS  swing 28: pre-strike base speed <= 0.20 m/s  (0.152)
+  PASS  swing 28: post-strike base speed <= 0.25 m/s  (0.059)
+  PASS  swing 28: pre-strike base-speed p90 <= 0.30 m/s  (0.224)
+  PASS  swing 28: post-strike base-speed p90 <= 0.35 m/s  (0.074)
+  PASS  swing 28: contact right-elbow q p90 <= 1.35 rad  (0.404)
+  PASS  swing 29: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 29: |station_x error| at strike <= 0.03  (0.011)
+  FAIL  swing 29: |station_y error| at strike <= 0.10  (0.112)
+  PASS  swing 29: heading at strike <= 15 deg  (7.5)
+  PASS  swing 29: ready heading mean/max <= 10/15 deg  (0.8/1.3)
+  PASS  swing 29: post heading mean/max <= 10/15 deg  (3.2/3.4)
+  PASS  swing 29: ready/post |yaw-rate| <= 0.20 rad/s  (0.100/0.087)
+  PASS  swing 29: pre-strike base speed <= 0.20 m/s  (0.084)
+  PASS  swing 29: post-strike base speed <= 0.25 m/s  (0.098)
+  PASS  swing 29: pre-strike base-speed p90 <= 0.30 m/s  (0.116)
+  PASS  swing 29: post-strike base-speed p90 <= 0.35 m/s  (0.152)
+  PASS  swing 29: contact right-elbow q p90 <= 1.35 rad  (0.607)
+  PASS  swing 30: baked target reach-x in [0.57,0.59]  (+0.580)
+  PASS  swing 30: |station_x error| at strike <= 0.03  (0.008)
+  FAIL  swing 30: |station_y error| at strike <= 0.10  (0.141)
+  PASS  swing 30: heading at strike <= 15 deg  (7.8)
+  PASS  swing 30: ready heading mean/max <= 10/15 deg  (2.7/3.1)
+  PASS  swing 30: post heading mean/max <= 10/15 deg  (3.0/3.4)
+  PASS  swing 30: ready/post |yaw-rate| <= 0.20 rad/s  (0.078/0.089)
+  PASS  swing 30: pre-strike base speed <= 0.20 m/s  (0.099)
+  PASS  swing 30: post-strike base speed <= 0.25 m/s  (0.091)
+  PASS  swing 30: pre-strike base-speed p90 <= 0.30 m/s  (0.155)
+  PASS  swing 30: post-strike base-speed p90 <= 0.35 m/s  (0.152)
+  PASS  swing 30: contact right-elbow q p90 <= 1.35 rad  (0.646)
+
+== q_des audit-only diagnostics (never affect PASS/FAIL) ==
+  OK  policy q_des stays inside safe and hard joint limits (audit-only telemetry)  (status_nonzero=0/97 peak=0 safe_nonzero=0/97 safe_peak=0 audit_only=True async_warning_count=0 joints=unavailable)
+
+== conductor report: serves=30 proxy_ok=24 falls=0 drift=0.01m -> FAIL ==
+  PASS  obs trace covers every proxy-completed swing (segmented=30 proxy_ok=24)
+  FAIL  Gate3 clean fixed-HOME hit lane ({'rows': 6, 'engaged_side_counts': {'forehand': 3, 'backhand': 3}, 'natural_wait_actual_q_rms_max_rad': 0.2, 'pass': False})
+  FAIL  Gate3 rapid fixed-HOME engage lane ({'rows': 24, 'engaged': 24, 'completed': 24, 'completion_kinds': ['native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native', 'native'], 'completion_identity_pass': False, 'engaged_flight_ids': [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 'missed_flight_ids': [], 'engage_gaps_s': [1.199888, 1.160003, 1.159993, 1.160001, 1.16, 1.160107, 1.159993, 1.160048, 1.159946, 1.16002, 1.159992, 1.159967, 1.160014, 1.160096, 1.159929, 1.160027, 1.159973, 1.160003, 1.159986, 1.159907, 1.16, 1.160054, 1.16003], 'gap_time_source': 'runner_trace.wall_time_ns', 'maximum_engage_gap_s': 1.4, 'contact_to_next_commit_s': [0.542966, 0.534969, 0.538962, 0.538963, 0.538963, 0.538903, 0.539063, 0.534969, 0.535052, 0.535077, 0.53507, 0.539036, 0.539048, 0.535145, 0.535075, 0.539101, 0.535076, 0.535078, 0.539051, 0.534806, 0.538881, 0.534907, 0.53505], 'contact_to_next_commit_time_source': 'physical_contact.wall_time_ns_to_runner_trace.engage.wall_time_ns', 'minimum_contact_to_next_commit_s': 0.4, 'maximum_contact_to_next_commit_s': 0.55, 'contact_to_next_commit_pass': True, 'engaged_side_sequence': ['bh', 'fh', 'bh', 'bh', 'fh', 'bh', 'bh', 'bh', 'fh', 'bh', 'fh', 'bh', 'bh', 'bh', 'fh', 'bh', 'fh', 'bh', 'bh', 'bh', 'bh', 'fh', 'bh', 'bh'], 'planner_side_sequence': ['bh', 'fh', 'bh', 'bh', 'fh', 'bh', 'bh', 'bh', 'fh', 'bh', 'fh', 'bh', 'bh', 'bh', 'fh', 'bh', 'fh', 'bh', 'bh', 'bh', 'bh', 'fh', 'bh', 'bh'], 'side_transition_counts': {'fh_fh': 0, 'fh_bh': 7, 'bh_fh': 7, 'bh_bh': 9}, 'home_recovery_required_before_next_ball': False, 'terminal_home_recovery_required': True, 'terminal_recovery_pass': True, 'pass': False})
+  FAIL  conductor PASS
+
+FAIL: 348 checks passed, 29 failed
+[g3r] pp_rally_report FAILED (rc=1)
+===================================================================

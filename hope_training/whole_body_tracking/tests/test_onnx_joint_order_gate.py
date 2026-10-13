@@ -32,6 +32,13 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _REPO = os.path.dirname(os.path.dirname(_ROOT))
 sys.path.insert(0, os.path.join(_REPO, "a3_deploy", "a3_deploy_example", "reference"))
 
+import pytest
+
+pytest.importorskip(
+    "a3_deploy_onnx_ref_pingpong",
+    reason="Optional legacy Python deployment reference is absent from this checkout",
+)
+
 from a3_deploy_onnx_ref_pingpong.joint_order import JOINT_NAMES  # noqa: E402
 from a3_deploy_onnx_ref_pingpong import onnx_policy  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.observation import CONTRACT_NAME, OBS_DIM  # noqa: E402

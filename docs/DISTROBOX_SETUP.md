@@ -141,7 +141,7 @@ The last two commands must list the same physical GPU as host `nvidia-smi -L`.
 Do not create `grasping` until this works; otherwise Distrobox can be created
 successfully while Isaac remains unable to use CUDA.
 
-### 1.4 Clone HOPE and materialize Git LFS content
+### 1.4 Clone HOPE
 
 Distrobox shares the host home directory, so clone under `$HOME`. The rest of
 the documentation uses `$HOME/workspace/HOPE` as the example location; another
@@ -154,12 +154,13 @@ cd "$HOME/workspace/HOPE"
 
 git lfs install
 git lfs pull
-test "$(stat -c %s hope_training/whole_body_tracking/checkpoints/model_21800.pt)" -gt 1000000
+test -s hope_training/whole_body_tracking/checkpoints/policy.onnx
 ```
 
-Without Git LFS, `model_21800.pt` is a small text pointer. Training from scratch
-does not require that checkpoint, but a complete clone and published-model
-playback do.
+The current model_14600 baseline uses ordinary Git files for its ONNX/deploy
+export and contains no resumable `.pt` checkpoint. Train from scratch, then use
+a checkpoint from that run for Isaac playback. Git LFS remains available for
+other revisions or optional assets.
 
 ## 2. Create the verified `grasping` training environment
 
@@ -375,8 +376,9 @@ and Gate 3 workflow.
 - `ModuleNotFoundError: omni.timeline` from `python -c 'import
   whole_body_tracking'`: this import occurred before Kit startup. Use the
   `find_spec` probe above or a shipped Isaac entrypoint.
-- `model_21800.pt` is about 130 bytes: install Git LFS on the host and run
-  `git lfs pull` from the repository root.
+- A checkpoint from another revision is about 130 bytes: it is a Git LFS
+  pointer; install Git LFS and run `git lfs pull` for that revision. The current
+  model_14600 ONNX baseline cannot be loaded as an Isaac `.pt` checkpoint.
 - `/opt/ros/jazzy/setup.bash` is missing: the `hope` container is incomplete or
   was created from Ubuntu 22.04. Recreate it from the documented 24.04 image.
 - The Isaac image fills the disk during creation: check `podman system df`; do

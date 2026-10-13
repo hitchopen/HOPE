@@ -1,0 +1,66 @@
+{
+  "coordinate_contract": "target_position_m is Runner policy actor target: [strike_x-base_x, strike_y-base_y, strike_z+0.760]",
+  "covered_rows": 0,
+  "distribution_coverage_pass": false,
+  "fixture_contract": "real_robot_planner_command_tail_20260822_v1",
+  "fixture_rows": 5,
+  "live_commands": 30,
+  "live_envelope": {
+    "cold_tts_below_0p4_count": 0,
+    "negative_backhand_vz_count": 0,
+    "racket_vz_mps": [
+      1.1651753732816585,
+      1.182156246208939
+    ],
+    "target_x_base_relative_m": [
+      0.5724547266973948,
+      0.5959342060332874
+    ],
+    "target_y_base_relative_m": [
+      -0.40161571392401396,
+      0.1540453658946056
+    ],
+    "target_z_m": [
+      1.059801789756548,
+      1.0614841749487947
+    ],
+    "tts_s": [
+      0.6740732192993164,
+      0.6817243099212646
+    ]
+  },
+  "rows": [
+    {
+      "candidate_flight_ids": [],
+      "covered": false,
+      "fixture_id": "real_045750_flight1_fh_high_z",
+      "matched_flight_id": null
+    },
+    {
+      "candidate_flight_ids": [],
+      "covered": false,
+      "fixture_id": "real_045750_flight2_bh_negative_vz",
+      "matched_flight_id": null
+    },
+    {
+      "candidate_flight_ids": [],
+      "covered": false,
+      "fixture_id": "real_051156_flight1_bh_negative_vz_long_tts",
+      "matched_flight_id": null
+    },
+    {
+      "candidate_flight_ids": [],
+      "covered": false,
+      "fixture_id": "real_052036_flight1_bh_negative_vz",
+      "matched_flight_id": null
+    },
+    {
+      "candidate_flight_ids": [],
+      "covered": false,
+      "fixture_id": "real_052036_flight2_bh_cold_tts",
+      "matched_flight_id": null
+    }
+  ],
+  "schema_version": 1,
+  "verdict_kind": "gate3_distribution_coverage_only_v1"
+}

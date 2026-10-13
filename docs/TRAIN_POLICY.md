@@ -8,8 +8,12 @@ covers the design; exact commands and the package layout are in the
 
 ## The task
 
-The shipped task is a Hydra YAML, `cfg/task/HOPEPingPong.yaml`, composed on top of the shared
-`cfg/base/*.yaml` defaults:
+The shipped task is the standalone Hydra YAML `cfg/task/HOPEPingPong.yaml`,
+flattened from `origin/main_improve` and matched to the resolved recipe embedded
+in model_14600. Its only algorithm is `cfg/algo/ppo.yaml`. The baseline export
+in `checkpoints/` contains ONNX, deploy parameters and parity samples; it does
+not contain resumable optimizer or training state. Local validation completed
+three PPO updates with 64 environments (12,288 transitions).
 
 - **`HitterPingPong`** (gym id `HOPE-HitterPingPong-AgibotA3-v0`) — the deploy-grade recipe
   validated on real A3 hardware, and the only task shipped. It trains the 110-D
@@ -44,7 +48,7 @@ deployed policy.
 
 On a new machine, first reproduce the pinned workstation environment in
 [`DISTROBOX_SETUP.md`](DISTROBOX_SETUP.md), then complete steps 0–4 of
-[QUICKSTART_A3_ISAAC.md](../QUICKSTART_A3_ISAAC.md): materialize Git LFS,
+[QUICKSTART_A3_ISAAC.md](../QUICKSTART_A3_ISAAC.md): clone the repository,
 enter `grasping`, deactivate Conda, source `setup_train_env.sh`, prepare the A3
 asset, and run the bounded smoke checks. The pinned launcher uses the
 working-tree source directly; no editable install is required.

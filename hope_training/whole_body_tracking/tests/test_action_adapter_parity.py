@@ -53,6 +53,13 @@ train_side = _load_by_path(
 
 # Deploy-side ActionAdapter (the reference runner package is import-light).
 sys.path.insert(0, _REFERENCE_DIR)
+import pytest
+
+pytest.importorskip(
+    "a3_deploy_onnx_ref_pingpong",
+    reason="Optional legacy Python deployment reference is absent from this checkout",
+)
+
 from a3_deploy_onnx_ref_pingpong.action_adapter import ActionAdapter  # noqa: E402
 from a3_deploy_onnx_ref_pingpong.joint_order import JOINT_NAMES, NUM_JOINTS  # noqa: E402
 

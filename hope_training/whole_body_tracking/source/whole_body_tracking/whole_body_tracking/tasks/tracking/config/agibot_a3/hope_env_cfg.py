@@ -308,149 +308,8 @@ class HOPEEventCfg(EventCfg):
 ##
 
 
-@configclass
-class HOPEObservationsDeployParityCfg(HOPEObservationsCfg):
-    """Actor obs with every world-frame BASE-POSITION dependency removed (180 -> 175):
-
-    * REMOVED  ``motion_anchor_pos_b`` (3)  — reference torso *position* error needs the world base pose.
-    * REMOVED  ``base_target_pos_b``   (2)  — base-repositioning target needs the world base pose.
-    * REFRAMED ``racket_target_pos_b`` (3)  — now ``target - current_racket`` (FK), base pose cancels.
-    * KEPT     ``motion_anchor_ori_b`` (6, orientation-only / IMU), command, base_ang_vel, joint pos/vel,
-               last action, projected_gravity, racket_target_vel_w, time_to_strike, swing_type.
-
-    Every kept/reframed term is computable on hardware from IMU + joint encoders + the planner target.
-    """
-
-    @configclass
-    class HOPEPolicyDeployParityCfg(HOPEObservationsCfg.HOPEPolicyCfg):
-        # --- remove base-position-dependent terms (fabricated on hardware) ---
-        motion_anchor_pos_b = None  # inherited from ObservationsCfg.PolicyCfg; needs world base position
-        base_target_pos_b = None  # base-repositioning target; needs world base position
-        # --- reframe racket target to be relative to the current racket (FK); no world base position ---
-        racket_target_pos_b = ObsTerm(
-            func=mdp.racket_target_pos_rel_b,
-            params={"command_name": "racket_target"},
-            noise=Unoise(n_min=-0.02, n_max=0.02),
-        )
-
-    @configclass
-    class HOPECriticDeployParityCfg(HOPEObservationsCfg.HOPECriticCfg):
-        # Vestigial in the base-free deploy-parity task: the base target is never consumed by any reward
-        # or actor obs and (base_couple_blend=0) is pure spawn+jitter noise — conditioning the value
-        # function on it only adds variance. Removing it changes the CRITIC input dim (2026-07-03), so
-        # every pre-change checkpoint fails a FULL strict load — train.py resume stays a loud error on
-        # purpose; play.py (export) and eval_deterministic.py fall back to an actor-only tolerant load
-        # (utils/ckpt_compat.py). The exported ACTOR / 175-D contract is untouched.
-        base_target_pos_b = None
-
-    policy: HOPEPolicyDeployParityCfg = HOPEPolicyDeployParityCfg()
-    critic: HOPECriticDeployParityCfg = HOPECriticDeployParityCfg()
 
 
-@configclass
-class HOPEDeployParityRewardsCfg(HOPERewardsCfg):
-    """FOOTWORK-TO-STRIKE reward — BASE-FREE. No base-position / base-target / base-arrival reward: the
-    legs move because reducing the racket->target distance (``racket_progress``) takes whole-body motion.
-    The feet are FREE to step/shift — only BAD foot behaviour is penalized (slip / drag / violent / unstable
-    at the strike), never "both feet planted". Lower-body imitation is DROPPED (legs free to reach varied
-    targets); upper-body + racket imitation is kept for swing style. All weights are STARTING POINTS — the
-    footwork weights live here (not the task YAML), so tune them in this class. (Obs is the base-free
-    deploy-parity layout from HOPEObservationsDeployParityCfg.)"""
-
-    # --- BASE-FREE corrections: remove every base-position-dependent reward ---
-    base_position = None  # inherited HITTER base-repositioning reward -> REMOVED (it needs a base target)
-    motion_global_anchor_pos = None  # reference base-POSITION tracking -> REMOVED (it pins the base)
-
-    # --- racket task: keep the additive pos/vel/normal (inherited, wide gradient) + a MULTIPLICATIVE
-    #     success bonus that fires only when pos AND vel AND normal are all good at once (tight acceptance). ---
-    racket_strike_success = RewTerm(
-        func=mdp.racket_strike_success, weight=5.0,
-        params={"command_name": "racket_target", "std_pos": 0.075, "std_vel": 0.5, "std_normal": 0.262},
-    )
-    # --- the BASE-FREE MOVEMENT DRIVER: dense pre-strike reward for closing the racket->target distance.
-    #     Telescopes to weight * (distance reduced over the approach) -> the whole body moves to the target. ---
-    racket_progress = RewTerm(func=mdp.racket_progress, weight=10.0, params={"command_name": "racket_target"})
-
-    # --- upper-body-only imitation (legs DECOUPLED so footwork is free to adapt to the target) ---
-    # swing-only since 2026-07-05: during hold the body refs (frozen crouch frame) fought
-    # the stand joint reference -> splayed-feet crouch-stand; see hope_rewards wrappers.
-    # Foot discipline (2026-07-05): hip yaw/roll + ankle roll held to the reference
-    # footwork (hold-aware). Penalty; tune in [-0.5,-0.1] if it taxes the lunge.
-    foot_orientation = RewTerm(func=mdp.foot_orientation_discipline, weight=-0.3,
-        params={"command_name": "motion",
-                "asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw_joint", ".*_hip_roll_joint", ".*_ankle_roll_joint"])})
-    motion_body_pos = RewTerm(func=mdp.motion_body_pos_swing_only, weight=1.0,
-        params={"command_name": "motion", "std": 0.3, "body_names": A3_UPPER_TRACKED})
-    motion_body_ori = RewTerm(func=mdp.motion_body_ori_swing_only, weight=1.0,
-        params={"command_name": "motion", "std": 0.4, "body_names": A3_UPPER_TRACKED})
-    motion_body_lin_vel = RewTerm(func=mdp.motion_global_body_linear_velocity_error_exp, weight=1.0,
-        params={"command_name": "motion", "std": 1.0, "body_names": A3_UPPER_TRACKED})
-    motion_body_ang_vel = RewTerm(func=mdp.motion_global_body_angular_velocity_error_exp, weight=1.0,
-        params={"command_name": "motion", "std": 3.14, "body_names": A3_UPPER_TRACKED})
-
-    # --- footwork PENALTIES (the feet may step; punish only bad behaviour, NEVER reward "always planted") ---
-    foot_slip_sq = RewTerm(func=mdp.foot_slip_sq, weight=-1.0, params={"command_name": "racket_target"})
-    foot_velocity = RewTerm(func=mdp.foot_velocity, weight=-0.05, params={"command_name": "racket_target"})
-    foot_drag = RewTerm(func=mdp.foot_drag, weight=-0.5, params={"command_name": "racket_target"})
-    arm_overreach = RewTerm(func=mdp.arm_overreach, weight=-0.5, params={"command_name": "racket_target"})
-    # Anti twist-instead-of-step (pre-strike): penalize |waist_yaw|+|waist_roll| deviation from neutral so
-    # the policy cannot face a lateral target by twisting the torso with planted feet — it must STEP.
-    # Weight is CLI-tunable via task.rewards.prestrike_waist_twist_weight. Raise if the torso still twists
-    # (waist_twist_prestrike stays high / legs stay frozen); lower if it flattens the swing.
-    prestrike_waist_twist = RewTerm(
-        func=mdp.prestrike_waist_twist, weight=-1.0, params={"command_name": "racket_target"})
-
-    # --- between-swing recovery: POSITIVE ready-stance reward during the pre-swing HOLD --------------
-    # (2026-07-03 audit alignment) HITTER's recovery signal is positive-and-causal ("prepare for the next
-    # target"), not a pile of penalties. During the hold the imitation reward already pulls the UPPER body
-    # to the windup pose, but the legs/base had zero positive signal. hold_ready = exp(-(|v|^2+|w|^2)/std^2)
-    # * feet_contact_frac, gated to motion.in_hold AND to target-within-reach (racket_target_distance <
-    # reach): near targets -> stand ready pays; far targets -> the term is SILENT so it never out-earns
-    # racket_progress for stepping (without the reach gate, planted stillness beats stepping ~1.5/step and
-    # teaches freeze-then-rush). The swing itself is untouched (zero outside the hold). CLI-tunable via
-    # task.rewards.hold_ready_weight / hold_ready_std / hold_ready_reach.
-    hold_ready = RewTerm(
-        func=mdp.hold_ready, weight=2.0,
-        params={"command_name": "racket_target", "std": 0.5, "reach": 0.65})
-
-    # --- P2.4 PACE-style smooth deceleration (G08, flag-gated, DEFAULT OFF) --------------------------
-    # Pseudo base-velocity command proportional to the remaining PLANAR racket->target error:
-    # v_des = clamp(v_gain*dist_xy, 0, v_max); reward = exp(-(|v_base_xy| - v_des)^2/std^2), gated to
-    # pre_strike. Far target -> pays for moving at v_max (cooperates with racket_progress); at arrival
-    # v_des -> 0 -> pays for a CALM base, killing the reactive rush-then-slam toward far targets.
-    # REWARD-side only — the frozen 175-D actor obs contract is untouched. weight 0.0 = OFF (IsaacLab's
-    # RewardManager skips zero-weight terms); enable per-experiment via task.rewards.base_decel_weight
-    # (suggested trial 1.0). CLI/yaml-tunable: base_decel_weight / _v_gain / _v_max / _std.
-    # Watch metric: base_speed_xy_prestrike (should taper near targets instead of staying hot).
-    base_decel = RewTerm(
-        func=mdp.base_decel_tracking, weight=0.0,
-        params={"command_name": "racket_target", "v_gain": 2.0, "v_max": 1.6, "std": 0.4})
-
-    # --- strike-window stability: be planted + upright + still AT the hit (gated to the strike window) ---
-    strike_upright = RewTerm(func=mdp.strike_proj_grav_xy, weight=-2.0, params={"command_name": "racket_target"})
-    strike_ang_vel = RewTerm(func=mdp.strike_base_ang_vel, weight=-0.5, params={"command_name": "racket_target"})
-    strike_foot_vel = RewTerm(func=mdp.strike_foot_velocity, weight=-0.5, params={"command_name": "racket_target"})
-    strike_vbob = RewTerm(func=mdp.strike_vertical_bob, weight=-1.0, params={"command_name": "racket_target"})
-
-    # --- SIM2REAL FINE-TUNE (2026-07-02): survive AGI's EXPLICIT clipped-PD MuJoCo. ------------------
-    # CHANGE 2 — torque-saturation penalty: penalize the mean over-limit fraction of the COMPUTED (pre-clip)
-    # effort over the arm + waist joints so the policy stops demanding torque the explicit motor cannot
-    # deliver (the elbow was at ~6.7x its 24 Nm limit in the failing trace). Modest weight to protect the
-    # strike. CLI-tunable via task.rewards.arm_torque_saturation_weight. Watch metric: arm_torque_sat_frac.
-    arm_torque_saturation = RewTerm(
-        func=mdp.arm_torque_saturation, weight=-0.5, params={"command_name": "racket_target"})
-    # CHANGE 3 — balance shaping (POSITION-based): penalize forward base/torso TILT (proj_grav_xy) DURING
-    # the approach (pre_strike), so the CoM stays over the support base THROUGH the swing (strike_upright
-    # covers the strike window). NOT an angular-velocity penalty (those are gameable / anti-swing).
-    # CLI-tunable via task.rewards.prestrike_upright_weight.
-    prestrike_upright = RewTerm(
-        func=mdp.prestrike_proj_grav_xy, weight=-1.0, params={"command_name": "racket_target"})
-
-    # --- always-on balance + safety regularizers (kept) ---
-    upright = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)  # base tilt
-    base_ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)  # roll/pitch rate
-    base_lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)  # vertical bob
-    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-1.0e-4)  # joint-velocity smoothness
     # (inherited & kept: racket_position/velocity/normal, pre_strike_foot_slip, action_rate_l2,
     #  joint_torques, joint_limit, undesired_contacts, motion_global_anchor_ori.)
 
@@ -482,24 +341,8 @@ class HOPEPingPongAgibotA3EnvCfg(AgibotA3FlatEnvCfg):
         self.commands.motion.wrap_teleport = False
 
 
-@configclass
-class HOPEPingPongDeployParityAgibotA3EnvCfg(HOPEPingPongAgibotA3EnvCfg):
-    """Deploy-parity variant: deploy-honest actor observation (no fabricated base pose) plus
-    absolute balance rewards/terminations. The ``full`` HOPEPingPongAgibotA3EnvCfg is left intact."""
-
-    obs_mode: str = "deploy_parity"
-    observations: HOPEObservationsDeployParityCfg = HOPEObservationsDeployParityCfg()
-    rewards: HOPEDeployParityRewardsCfg = HOPEDeployParityRewardsCfg()
-    terminations: HOPEDeployParityTerminationsCfg = HOPEDeployParityTerminationsCfg()
 
 
-@configclass
-class HOPEPingPongRealSensorAgibotA3EnvCfg(HOPEPingPongDeployParityAgibotA3EnvCfg):
-    """Backward-compatible alias for the deploy-parity variant.
-
-    Older docs and scripts still refer to this env as ``real_sensor_only`` / ``RealSensor``.
-    The actor contract is the same deploy-parity 175-D layout.
-    """
 
 
 ##
@@ -514,62 +357,8 @@ class HOPEPingPongRealSensorAgibotA3EnvCfg(HOPEPingPongDeployParityAgibotA3EnvCf
 ##
 
 
-@configclass
-class HOPEVirtualBallRewardsCfg(HOPEDeployParityRewardsCfg):
-    """DeployParity reward stack + Tier-1 virtual-ball outcome terms.
-
-    Weights follow rewardDesign.md: landing 30 / pass_net 20 / spin 5 (start of the 5->10 ramp),
-    ordered clear-net-first below landing per the PACE/v0 precedent. racket_velocity/racket_normal
-    drop 2.0 -> 0.5: the contact model now scores the whole (velocity, normal, timing) manifold
-    directly, so vector-matching the commanded velocity becomes shaping, not the task. The approach
-    gradient (racket_position 4.0, racket_progress 10.0, racket_strike_success 5.0) is kept — the
-    virtual terms are zero until the paddle reaches the 9.5 cm capture gate at the strike frame.
-    """
-
-    virtual_pass_net = RewTerm(
-        func=mdp.virtual_pass_net, weight=20.0, params={"command_name": "racket_target"})
-    virtual_landing = RewTerm(
-        func=mdp.virtual_landing, weight=30.0, params={"command_name": "racket_target"})
-    virtual_spin = RewTerm(
-        func=mdp.virtual_spin, weight=5.0, params={"command_name": "racket_target"})
-
-    racket_velocity = RewTerm(
-        func=mdp.racket_velocity_tracking_exp,
-        weight=0.5,
-        params={"command_name": "racket_target", "std": 0.5},
-    )
-    racket_normal = RewTerm(
-        func=mdp.racket_normal_tracking_exp,
-        weight=0.5,
-        params={"command_name": "racket_target", "std": 0.262},
-    )
 
 
-@configclass
-class HOPEPingPongVirtualBallAgibotA3EnvCfg(HOPEPingPongDeployParityAgibotA3EnvCfg):
-    """Deploy-parity env + Tier-1 virtual-ball rewards. Obs/terminations/DR inherited untouched."""
-
-    obs_mode: str = "deploy_parity"
-    rewards: HOPEVirtualBallRewardsCfg = HOPEVirtualBallRewardsCfg()
-
-    def __post_init__(self):
-        super().__post_init__()
-        # Reward-only feature switch: enables the per-swing virtual-ball sampler and the at-strike
-        # contact + coarse-landing evaluation in RacketTargetCommand (vb_* cfg fields hold the
-        # venue-fit sampling boxes / gates; tune there, not here).
-        self.commands.racket_target.virtual_ball = True
-        # CLIMB-PHASE shaping width (2026-07-03): the E-champion warm start crosses the net plane
-        # ~0.3-0.5 m BELOW the target height; at the v0 default sigma 0.10 the height kernel is
-        # exp(-(0.5/0.1)^2) ~ 0 there — no gradient, and vb_warmE14k3 paid zero virtual reward for
-        # 2.5k iters. 0.25 keeps a usable gradient down to the current operating band. Tighten
-        # back toward 0.10 once virtual_net_clear_rate is healthy (>0.3 or so).
-        self.commands.racket_target.vb_net_sigma = 0.25
-        # CLIMB-PHASE landing kernel width (2026-07-04): landings start ~1.9 m short of the target
-        # (exp(-(1.9/0.3)^2) = 0 — the v0 sigma has no reach); 1.0 pays 0.03 at the current band
-        # and grows monotonically toward the target = dense "hit deeper" gradient (the kernel is
-        # also ungated from net clearance during the climb — see hope_rewards.virtual_landing).
-        # Tighten back toward 0.3 together with re-gating once the net terms carry the signal.
-        self.commands.racket_target.vb_landing_sigma = 1.0
 
 
 ##
@@ -598,62 +387,10 @@ class HOPEPingPongVirtualBallAgibotA3EnvCfg(HOPEPingPongDeployParityAgibotA3EnvC
 ##
 
 
-@configclass
-class HOPEObservationsHitterCfg(HOPEObservationsDeployParityCfg):
-    """Deploy-parity actor obs + the HITTER base-position command channel (175 -> 177)."""
-
-    @configclass
-    class HOPEPolicyHitterCfg(HOPEObservationsDeployParityCfg.HOPEPolicyDeployParityCfg):
-        # Restore the base-repositioning target (Δxy, yaw-heading frame). Overriding the parent's
-        # `= None` puts the term back at its ORIGINAL declaration slot (configclass inheritance
-        # preserves attribute order): between projected_gravity and racket_target_pos_b.
-        base_target_pos_b = ObsTerm(
-            func=mdp.base_target_pos_b,
-            params={"command_name": "racket_target"},
-            noise=Unoise(n_min=-0.03, n_max=0.03),  # ~mocap base-position noise at 300 Hz
-        )
-
-    @configclass
-    class HOPECriticHitterCfg(HOPEObservationsDeployParityCfg.HOPECriticDeployParityCfg):
-        # The critic conditions on the station too now that a reward consumes it.
-        base_target_pos_b = ObsTerm(func=mdp.base_target_pos_b, params={"command_name": "racket_target"})
-
-    policy: HOPEPolicyHitterCfg = HOPEPolicyHitterCfg()
-    critic: HOPECriticHitterCfg = HOPECriticHitterCfg()
 
 
-@configclass
-class HOPEHitterRewardsCfg(HOPEDeployParityRewardsCfg):
-    """Deploy-parity rewards + the HITTER base-repositioning goal reward restored.
-
-    mdp.base_position_tracking_exp is PRE-STRIKE gated in the reward function itself (HITTER:
-    "the base position tracking reward is activated only before the strike"). std 0.3 m matches
-    the original HITTER-alignment tuning (HOPERewardsCfg.base_position).
-    """
-
-    base_position = RewTerm(
-        func=mdp.base_position_tracking_exp,
-        weight=1.0,
-        params={"command_name": "racket_target", "std": 0.3},
-    )
 
 
-@configclass
-class HOPEPingPongHitterAgibotA3EnvCfg(HOPEPingPongDeployParityAgibotA3EnvCfg):
-    """Deploy-parity env + HITTER separate base/racket commands (obs 177-D; NOT deploy-compatible
-    with the 175-D C++ runner until the runner/planner grow the base channel)."""
-
-    obs_mode: str = "hitter_footwork"
-    observations: HOPEObservationsHitterCfg = HOPEObservationsHitterCfg()
-    rewards: HOPEHitterRewardsCfg = HOPEHitterRewardsCfg()
-
-    def __post_init__(self):
-        super().__post_init__()
-        # HITTER coupling: base station derived from the racket target at the clip's reference
-        # reach — the striking plane is fixed relative to the COMMANDED base; the box x-span moves
-        # the station, not the reach depth. Jitter ranges (base_target_*_range) train deliberate
-        # station offsets (y-reach diversity); the yaml preset owns their spans.
-        self.commands.racket_target.base_couple_mode = "reference_reach"
 
 
 ##
@@ -940,122 +677,10 @@ class HOPEPingPongHitterPureAgibotA3EnvCfg(HOPEPingPongAgibotA3EnvCfg):
         )
 
 
-@configclass
-class HOPEPingPongHitterPureV2AgibotA3EnvCfg(HOPEPingPongHitterPureAgibotA3EnvCfg):
-    """HITTER-PURE V2 — fix the PRE-STRIKE APPROACH: move to the y-station EARLY and SETTLE there before
-    striking (2026-07-09). Everything structural (110-D hitter_pure actor contract, station/plane/velocity
-    boxes, DR, terminations, NO hold machinery) is byte-identical to plain HitterPure, so a HitterPure
-    checkpoint warm-resumes STRICTLY. Two reward-side departures, both PRE-STRIKE base shaping:
-
-    1. base_station_settle (base→station deceleration) — teaches the robot to move to the y-station EARLY
-       and SETTLE there BEFORE the strike, instead of the last-moment rush that arrives hot and lunges.
-       "Move fast when far, calm when at the station" (see hope_rewards.base_station_settle); the linear
-       v_des gradient is alive across the whole ±0.40 band, unlike base_position's dead far edge. It never
-       pays for freezing far away, so the y-footwork is DIRECTED, not suppressed.
-
-    2. base_position_std 0.20 → 0.35 — a live station pull across the WHOLE ±0.40 band (at std 0.20 the
-       kernel is gradient-dead at a fresh 0.40 m station, ``exp(-4)≈0.018``, so far y-stations exert
-       almost no early pull). Trades some fine-arrival precision for the early-move gradient — acceptable
-       until we chase the paper's 1 cm arrival; pairs with base_station_settle.
-
-    ⚠ NO lower_body_plant_imitation. The demo leg-POSE plant was REMOVED (2026-07-09 A/B, memory
-    hope-legplant-regresses-agi): tracking the demo's leg-joint pose at strike re-imports the demo's
-    forward step-INTO-the-ball; Isaac hides it (G1 passes) but the AGI explicit-PD plant amplifies it into
-    accumulating station drift → topple (model_22200_legplant fell AGI G3 ×2; the no-plant control
-    model_21500_pldamp = 0 falls/12). It is FUNDAMENTALLY at odds with the x-lock intent; not a tuning
-    problem. If the in-swing flail ever needs quieting, penalize leg-joint VELOCITY near strike (no
-    forward-step-in bias), NOT the pose. base_station_settle above is the "RIGHT direction" (reduces drift).
-
-    NOTE (moving-gait toe-in): the SEPARATE "移动时脚姿势不正常" pigeon-toe pathology (hip_yaw p95 0.94 rad)
-    is still NOT addressed (its fix is ``foot_orientation_weight=-0.3``, 177-proven — enable on a resume).
-
-    GATE ON AGI G3 (pp_gate3_rally.sh — FALLS, not just Isaac G1): the plant negative result showed G1
-    hides the deploy drift. base_station_settle should HELP G3, but verify. Code defaults MIRROR
-    cfg/task/HOPEPingPongHitterPureV2.yaml (the YAML wins at train time) — keep the two in sync (Edit BOTH)."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        # (1) base→station deceleration: move to the y-station early + settle before the strike.
-        self.rewards.base_station_settle.weight = 1.0
-        # (2) widen the base-position kernel so the far ±0.40 stations are not gradient-dead.
-        self.rewards.base_position.params["std"] = 0.35
         # NO plant: lower_body_plant_imitation stays 0.0 (inert) — demo leg-POSE tracking regresses AGI
         # G3 (drift → topple); see the class docstring + memory hope-legplant-regresses-agi.
 
 
-@configclass
-class HOPEPingPongHitterPureV2HoldAgibotA3EnvCfg(HOPEPingPongHitterPureV2AgibotA3EnvCfg):
-    """V2 + a TRAINED "arrive → hold/settle → strike" rhythm (2026-07-09). V2's reward shaping only
-    biases the base to arrive EARLY/CALM inside a fixed, clip-driven pre-strike window ("don't rush at
-    the last moment") — it cannot make the swing WAIT for arrival, because the strike clock is the demo
-    clip phase (hope_commands: ``time_to_strike = (strike_step − motion.time_steps)·dt``), not an arrival
-    condition. This variant adds the ONLY machinery that makes the wait a real TRAINED state: a HOLD at
-    every clip wrap (+ reset) that freezes ``tts`` POSITIVE at the windup while the base settles at the
-    NEXT station, then arms the swing. That frozen-positive-tts hold is exactly the deploy runner's
-    idle/wait clamp (the swing clock is generated robot-side at deploy — hope_commands note), so the
-    policy learns to behave during the runner's "wait" instead of only generalizing to it.
-
-    Structure per cycle: swing → wrap (resample station/target/clip) → HOLD 0.5-2.5 s (base moves to the
-    new station via base_station_settle + base_position, and SETTLES via hold_ready) → windup → swing.
-    (Inherits V2's approach shaping = base_station_settle + widened base_position std; NO plant — the demo
-    leg-POSE plant was dropped, see the V2 docstring / memory hope-legplant-regresses-agi.)
-
-    Departures from V2 (all reuse existing machinery — obs/critic/boxes/DR/terminations UNCHANGED, so a
-    V2 or HitterPure checkpoint warm-resumes STRICTLY; the hold is a new STATE distribution the warm
-    start must adapt to, expect a value-refit dip):
-      * motion.hold_steps_range (0,0) → (25,125): the 0.5-2.5 s wait window @50 Hz (inside the deploy
-        envelope; deliberately not longer — holds pay no goal income and dilute the strike batch).
-      * hold_ready weight 0 → 1.0 (std 1.5 / reach 0.30 / station, include_ang_vel=False): settle-at-
-        station income DURING the hold (planted feet × LINEAR stillness, in_hold-gated, pays only within
-        0.30 m of the station). include_ang_vel=False drops the yaw-rate penalty so it does NOT fight the
-        heading turn (see hold_heading below) — the fix for the RallyV3 conflict, letting this task settle
-        AND re-square (RallyV3 had to pick one).
-      * ARRIVAL-GATED RELEASE (racket.hold_until_settled): the hold EXTENDS past its [25,125] countdown
-        while the base is not yet at the station (err>0.12 m) or still moving (>0.20 m/s), capped +100
-        steps — so the swing arms only AFTER arrival ("到位才放行"), not on a fixed timer (the timer alone
-        can release far/slow/disturbed swings before settling).
-      * HEADING RECOVERY: hold_heading 1.0 (std 0.6) + yawed stand starts (±0.6) — re-square during the
-        hold when entering yawed (deploy follow-through leaves 30-55°). Coexists with hold_ready via the
-        include_ang_vel=False split above.
-      * STREAMING PLANNER: midswing_resample_prob 0.05 — the target is refined mid-approach (paper Fig. 3),
-        training "planner keeps commanding until contact" rather than one-target-per-swing.
-      * WALKING POSTURE: foot_orientation -0.3 (177-proven pigeon-toe fix) — quiets the moving-gait toe-in
-        (hip_yaw/roll + ankle_roll toward the reference footwork). ⚠ lower-body reward → gate on AGI G3.
-      * post_strike_brake stays 0.0 — GAE precision-killer (0.994→0.866 on model_18000/rally2).
-
-    ⚠ This is a LOT of simultaneous change vs the reward-only V2 (arrival-gate + heading + streaming +
-    posture). Ablate any one via CLI (task.racket.hold_until_settled=false, task.rewards.hold_heading_weight=0,
-    task.racket.midswing_resample_prob=0, task.rewards.foot_orientation_weight=0) — gate G1 precision FIRST,
-    then AGI G3. Code defaults MIRROR cfg/task/HOPEPingPongHitterPureV2Hold.yaml — edit BOTH."""
-
-    def __post_init__(self):
-        super().__post_init__()  # V2: base_station_settle + widened base_position std (NO plant)
-        self.episode_length_s = 10.0
-        # Base recovery/settle hold at every wrap + reset (the MINIMUM hold; arrival-gate extends it).
-        self.commands.motion.hold_steps_range = (25, 125)
-        # (#2) ARRIVAL-GATED RELEASE: keep the hold open until the base has settled at the station.
-        self.commands.racket_target.hold_until_settled = True
-        # release also requires the base to be SQUARED (|yaw| < 0.30 rad ≈ 17°) — else the arrival-gate
-        # could arm the swing while still yawed (position-settled but not turned back). Bites because
-        # heading recovery is on below; hold_heading squares up during the (now extended) hold.
-        self.commands.racket_target.hold_settle_yaw_thresh = 0.30
-        # (hold rhythm) settle-at-station income; include_ang_vel=False so it does not fight the yaw turn.
-        self.rewards.hold_ready.weight = 1.0
-        self.rewards.hold_ready.params["reach"] = 0.30
-        self.rewards.hold_ready.params["include_ang_vel"] = False
-        # (#6) HEADING RECOVERY: re-square during the hold + yawed stand starts as the data source.
-        self.rewards.hold_heading.weight = 1.0
-        self.commands.motion.stand_start_yaw_range = (-0.6, 0.6)
-        # (#4) STREAMING PLANNER: refine the target mid-approach (paper Fig. 3).
-        self.commands.racket_target.midswing_resample_prob = 0.05
-        # (#5) WALKING POSTURE: quiet the moving-gait toe-in (gate on AGI G3 — lower-body change).
-        # hold_gate=True ZEROES it during the hold so it does NOT tax the hip/ankle rotation hold_heading
-        # needs to re-square (foot_orientation_discipline penalizes deviation from the SQUARE stand ref in
-        # the hold; without the gate it fights heading recovery — the RallyV3 fix). Swing-phase toe-in kept.
-        self.rewards.foot_orientation.weight = -0.3
-        self.rewards.foot_orientation.params["hold_gate"] = True
-        # post_strike_brake stays OFF (0.0) — GAE precision-killer.
-        self.rewards.post_strike_brake.weight = 0.0
 
 
 @configclass
@@ -1153,97 +778,8 @@ class HOPEPingPongHitterPureRallyV4AgibotA3EnvCfg(HOPEPingPongHitterPureRallyAgi
         self.rewards.post_strike_leg_quiet.weight = -0.02
 
 
-@configclass
-class HOPEPingPongHitterPureRallyV5AgibotA3EnvCfg(HOPEPingPongHitterPureRallyV4AgibotA3EnvCfg):
-    """V5 = THE FINAL SYNTHESIS (2026-07-09): the V3/V4 rally recipe (heading recovery + x-drift trio —
-    the only lineage that has passed AGI G3, model_21500_pldamp 0 falls/12) MERGED with V2Hold's
-    "arrive → settle → strike" rhythm. One task covering the whole HITTER demo loop: y-only footwork to
-    the station, x locked to the fixed plane, settle BEFORE the swing arms, strike on pos+vel+normal,
-    recover to a stable hold and repeat.
-
-    Inherits from V4 (= V3 + x_settle 2.0 / vx_quiet 1.0 / leg_quiet −0.02): strike block, x-lock,
-    hold_heading 1.0, yaw ±0.6 stage-2 curriculum, foot_orientation −0.8 hold-gated, brake 0, leg-POSE
-    plant 0 (all UNCHANGED — the 21500 recipe). Adds V2Hold's four settle features, each phase-gated to
-    its own phase (no new cross-phase GAE channel) and CLI-ablatable:
-      * base_station_settle 1.0 — pre-strike directional decel toward the station (V2's approach fix;
-        base_position_std stays 0.20, NOT V2's 0.35 — settle covers the far field, 0.35 is the
-        177-lineage lazy-optimum precedent, and 0.20 is zero warm-start delta).
-      * hold_ready 1.0 (reach 0.30 / station / include_ang_vel=False) — in-hold LINEAR-stillness settle
-        income; the ang-vel split is what lets it coexist with hold_heading (V3 had to drop it).
-      * ARRIVAL-GATED RELEASE (hold_until_settled) — the hold extends until AT station + calm + squared
-        (yaw_thresh 0.30, bites because hold_heading is on); swing arms only AFTER arrival.
-      * midswing_resample 0.05 — streaming-planner target refinement (deploy-honest, paper Fig. 3).
-
-    Warm-resume model_21500_pldamp STRICTLY (identical 110-D contract/boxes/DR/terminations; the hold
-    already existed in its training, so the new state dist is only the arrival extension). Gate ladder:
-    G1 det precision every ~200 iters (tripwire; ablate vx_quiet → x_settle → t_hi → midswing on
-    failure) → G2 rhythm (base_pos_error_pre_strike + base_speed_at_strike + hold_extra_steps) → G2.5
-    recovery proxy → AGI G3 pp_gate3_rally.sh (DECISIVE) → G4 footwork spread (lower hold_ready weight/
-    reach if frozen). Code defaults MIRROR cfg/task/HOPEPingPongHitterPureRallyV5.yaml (the YAML wins
-    at train time; edit BOTH)."""
-
-    def __post_init__(self):
-        super().__post_init__()  # V4 = V3 heading recipe + x-drift trio (21500 lineage values)
-        # (pre-strike) V2's approach shaping: move to the y-station early, settle before the strike.
-        self.rewards.base_station_settle.weight = 1.0
-        # (in-hold) settle-at-station income; include_ang_vel=False so it does not fight hold_heading's
-        # re-squaring turn (the V3 conflict). reach 0.30 = stillness pays only near the station.
-        self.rewards.hold_ready.weight = 1.0
-        self.rewards.hold_ready.params["reach"] = 0.30
-        self.rewards.hold_ready.params["include_ang_vel"] = False
-        # (in-hold) ARRIVAL-GATED RELEASE: hold extends until at-station + calm + squared (到位才放行).
-        self.commands.racket_target.hold_until_settled = True
-        self.commands.racket_target.hold_settle_yaw_thresh = 0.30
-        # Cap 50 (1 s), NOT the cfg default 100: the extension makes hold length policy-CONTROLLABLE
-        # while ~3-5 weight/step of in-hold income stays live — the anti-farming invariant the brake
-        # post-mortem established is "positive-income windows must not be policy-stretchable". Settled
-        # states out-earn unsettled ones (~5 vs ~3 per step), so the farm gradient is weak, but the cap
-        # bounds it structurally; expected [25,125] countdown + 50 covers a full-band station flip.
-        # Tripwire: a RISING hold_extra_steps trend in local metrics = the policy is farming the extension —
-        # ablate with task.racket.hold_until_settled=false.
-        self.commands.racket_target.hold_settle_max_extra_steps = 50
-        # (any swing) streaming planner: refine the target mid-approach (deploy-honest).
-        self.commands.racket_target.midswing_resample_prob = 0.05
-        # BACKHAND self-collision barrier: keep the paddle clear of the left hand on the bh windup
-        # (Isaac has self-collision OFF so it clips for free; AGI MuJoCo hits — user saw it on model_23300).
-        # Hinge on racket↔left-wrist dist, bh-clip-only, 0 when clear. Mirrors HOPEPingPongHitterPureRallyV5.yaml.
-        self.rewards.backhand_left_hand_clearance.weight = -2.0
 
 
-@configclass
-class HOPEPingPongHitterPureRallyV6AgibotA3EnvCfg(HOPEPingPongHitterPureRallyV4AgibotA3EnvCfg):
-    """CLEAN REBUILD from the striker model_18400 (2026-07-09). = V4 (x-drift trio + the V3 heading
-    recipe) + backhand_left_hand_clearance, with the yaw curriculum RESTARTED at ±0.35 — and DELIBERATELY
-    NONE of V5's hold-rhythm stack (hold_ready include_ang_vel=False, base_station_settle, arrival-gated
-    hold, midswing), which regressed AGI G3 (fell serve 12, idle base-wobble 0.69 vs V4 0.11 — the
-    include_ang_vel=False removed angular stillness so the base spun in the hold; memory hope-xdrift-v4-v5).
-
-    WHY 18400 (not the 21500 lineage): 18400 is the uncontaminated x-lock striker (G1 0.998) — no heading
-    curriculum, no hold machinery, no cruft baked into the weights. Warm-resuming it re-trains on the
-    current pldamp-folded plant (better AGI alignment) and re-learns heading cleanly from ±0.35 (18400
-    never saw yaw, so ±0.6-from-scratch would be the v2 OOD collapse — the curriculum MUST restart at
-    ±0.35; widen ±0.35→±0.6→±0.9 one step per resume, only after G1 re-passes).
-
-    So V6 carries exactly the VALIDATED set — x-lock, x-drift containment (V4 = first G3 PASS), heading
-    recovery (the 21500 lineage cleared G3), backhand-clearance (the new self-collision fix) — and nothing
-    that failed. Warm-resume logs/rsl_rl/agibot_a3_hope_hitter_pure/2026-07-08_23-03-18/model_18400.pt.
-    Code defaults MIRROR cfg/task/HOPEPingPongHitterPureRallyV6.yaml (edit BOTH; the YAML wins at train)."""
-
-    def __post_init__(self):
-        super().__post_init__()  # V4: x-drift trio + V3 heading recipe (hold_heading 1.0, yaw ±0.6, foot_orient)
-        # yaw CURRICULUM restarted at STAGE 1 (±0.35): 18400 never saw yaw, so ±0.6 from scratch = OOD (v2's error).
-        self.commands.motion.stand_start_yaw_range = (-0.35, 0.35)
-        # backhand racket↔left-hand self-collision barrier (the one fix from the V5 attempt worth keeping).
-        self.rewards.backhand_left_hand_clearance.weight = -2.0
-        # (2026-07-09, user request) MOVE-TO-y-STATION-then-strike: base_station_settle = the directional
-        # PACE term (v_des = unit(station−base)·clamp(v_gain·dist)) that drives crisp y-footwork to the
-        # commanded station and settles there before the strike — base_position at std 0.20 is
-        # gradient-dead at a fresh ±0.40 y-station, so it cannot give this alone. base_station_settle was
-        # in the V5 stack but was NOT the V5 failure cause (that was hold_ready-noangvel + arrival-hold);
-        # it is pre_strike/linear/directional = benign. Widen base_position std 0.20→0.35 so the far
-        # y-stations are not gradient-dead for the position pull either.
-        self.rewards.base_station_settle.weight = 1.0
-        self.rewards.base_position.params["std"] = 0.35
 
 
 @configclass
@@ -1316,7 +852,7 @@ class HOPEPingPongHitterPureRallyV8RewardsCfg(HOPEHitterPureRewardsCfg):
     hold_upper_pose_imitation = RewTerm(
         func=mdp.hold_upper_pose_imitation, weight=1.0,
         params={
-            "command_name": "motion", "std": 0.5,
+            "command_name": "motion", "std": 0.5, "fixed_task_reference": False,
             "asset_cfg": SceneEntityCfg(
                 "robot",
                 joint_names=["waist_.*", ".*_shoulder_.*", ".*_elbow_joint", ".*_wrist_.*"],
@@ -1476,239 +1012,16 @@ class HOPEPingPongHitterPureRallyV8AgibotA3EnvCfg(HOPEPingPongHitterPureRallyV4A
 ##
 
 
-@configclass
-class HOPEHitterPurePreStrikeStableRewardsCfg(HOPEHitterPureRewardsCfg):
-    """HitterPure reward stack + the three NEW pre-strike / strike stability terms (backhand clearance is
-    inherited from HOPEHitterPureRewardsCfg and enabled in the env __post_init__)."""
-
-    # Quiet the base BEFORE the swing arms (short pre-strike window; NOT a full-episode velocity penalty).
-    pre_strike_base_vel_quiet = RewTerm(
-        func=mdp.pre_strike_base_vel_quiet, weight=-0.05,
-        params={"command_name": "racket_target", "std": 0.20, "t_min": 0.05, "t_max": 0.30})
-    pre_strike_base_angvel_quiet = RewTerm(
-        func=mdp.pre_strike_base_angvel_quiet, weight=-0.05,
-        params={"command_name": "racket_target", "std": 0.30, "t_min": 0.05, "t_max": 0.30})
-    # Face square at the moment of contact (short window around the strike; NOT a full-episode heading lock).
-    strike_heading = RewTerm(
-        func=mdp.strike_heading, weight=0.5,
-        params={"command_name": "racket_target", "std": 0.35, "window_s": 0.15})
 
 
-@configclass
-class HOPEPingPongHitterPurePreStrikeStableAgibotA3EnvCfg(HOPEPingPongHitterPureAgibotA3EnvCfg):
-    """Plain HitterPure + the minimal pre-strike stability stack. Structural config (obs/boxes/DR/
-    terminations/x-lock/base_position_std 0.20/no-hold) is inherited UNCHANGED from HitterPure."""
-
-    rewards: HOPEHitterPurePreStrikeStableRewardsCfg = HOPEHitterPurePreStrikeStableRewardsCfg()
-
-    def __post_init__(self):
-        super().__post_init__()  # HitterPure structural defaults (10 s, no hold, x-lock, boxes, DR)
-        # Enable the backhand racket↔left-hand self-collision barrier (inert at 0.0 in the base stack).
-        self.rewards.backhand_left_hand_clearance.weight = -2.0
-        self.rewards.backhand_left_hand_clearance.params["margin"] = 0.15
 
 
-@configclass
-class HOPEHitterPureRallyFinalRewardsCfg(HOPEHitterPureRewardsCfg):
-    """Clean HitterPure strike stack plus the minimal RallyFinal stability/safety corrections.
-
-    No term depends on a hold state, a ball state, or lower-body demo pose.  All penalties are
-    bounded and phase-gated so the early lateral approach remains learnable.
-    """
-
-    strike_x_drift = RewTerm(
-        func=mdp.strike_x_drift_penalty, weight=-0.75,
-        params={"command_name": "racket_target", "margin": 0.04, "std": 0.08,
-                "t_pre": 0.45, "t_post": 1.00})
-    strike_x_velocity = RewTerm(
-        func=mdp.strike_x_velocity_penalty, weight=-0.20,
-        params={"command_name": "racket_target", "margin": 0.05, "std": 0.20,
-                "t_pre": 0.45, "t_post": 1.00})
-    pre_strike_station_settle = RewTerm(
-        func=mdp.pre_strike_station_settle, weight=0.80,
-        params={"command_name": "racket_target", "v_gain": 2.0, "v_max": 0.8,
-                "std": 0.35, "t_max": 1.0})
-    post_swing_base_quiet = RewTerm(
-        func=mdp.post_swing_base_quiet, weight=-0.25,
-        params={"command_name": "racket_target", "std": 0.25, "t_lo": 0.20, "t_hi": 1.00})
-    post_swing_leg_quiet = RewTerm(
-        func=mdp.post_swing_leg_quiet, weight=-0.08,
-        params={"command_name": "racket_target", "std": 0.8, "t_lo": 0.20, "t_hi": 1.00,
-                "asset_cfg": SceneEntityCfg("robot", joint_names=[
-                    ".*_hip_pitch_joint", ".*_hip_roll_joint", ".*_hip_yaw_joint",
-                    ".*_knee_joint", ".*_ankle_pitch_joint", ".*_ankle_roll_joint"])})
-    settle_foot_slip = RewTerm(
-        func=mdp.settle_foot_slip_penalty, weight=-0.10,
-        params={"command_name": "racket_target",
-                "asset_cfg": SceneEntityCfg(
-                    "robot", body_names=A3_FEET_BODIES, preserve_order=True),
-                "sensor_cfg": SceneEntityCfg(
-                    "contact_forces", body_names=A3_FEET_BODIES, preserve_order=True),
-                "std": 0.12, "station_reach": 0.15, "force_threshold": 10.0,
-                "pre_t_max": 0.45, "strike_t_post": 0.10,
-                "post_t_lo": 0.20, "post_t_hi": 1.00})
-    backhand_left_arm_clearance = RewTerm(
-        func=mdp.backhand_left_arm_clearance, weight=-1.50,
-        params={"command_name": "racket_target", "hand_margin": 0.15,
-                "forearm_margin": 0.12, "t_pre": 0.70, "t_post": 0.20,
-                "hand_body_name": "left_wrist_yaw_Link", "elbow_body_name": "left_elbow_Link",
-                "forearm_end_body_name": "left_wrist_roll_Link"})
-    strike_front_facing = RewTerm(
-        func=mdp.strike_front_facing, weight=0.50,
-        params={"command_name": "racket_target", "base_std": 0.35, "torso_std": 0.30,
-                "torso_rate_std": 1.00, "t_pre": 0.25, "t_post": 0.20,
-                "torso_body_name": "torso_Link"})
-    # Square-pelvis recovery in the two states the runner actually holds: frozen ready (tts=1.30)
-    # and the complete post-swing tail.  This is not a hold reward or heading curriculum.
-    rally_heading_debt = RewTerm(
-        func=mdp.rally_heading_debt, weight=-0.10,
-        params={"command_name": "racket_target",
-                "yaw_margin": 0.12, "yaw_std": 0.25,
-                "rate_margin": 0.15, "rate_std": 0.50, "heading_blend": 0.70,
-                "ready_t_lo": 0.45, "ready_t_hi": 1.40,
-                "post_t_lo": 0.35, "post_t_hi": 1.80})
 
 
-@configclass
-class HOPEPingPongHitterPureRallyFinalAgibotA3EnvCfg(HOPEPingPongHitterPureAgibotA3EnvCfg):
-    """Final rally task rebuilt directly from clean HitterPure/model_18400.
-
-    This class intentionally does NOT inherit Rally V4/V5/V6/V7: no hold rhythm, hold income,
-    arrival-gated clock, midswing resampling, heading curriculum, foot-orientation stack, or
-    lower-body plant imitation enters either the state distribution or reward.
-    """
-
-    rewards: HOPEHitterPureRallyFinalRewardsCfg = HOPEHitterPureRallyFinalRewardsCfg()
-
-    def __post_init__(self):
-        super().__post_init__()
-        # Explicit clean timing/distribution contract (runner owns idle/rest rhythm).
-        self.episode_length_s = 10.0
-        self.commands.motion.hold_steps_range = (0, 0)
-        self.commands.motion.stand_start_min_hold = 25
-        self.commands.motion.stand_start_yaw_range = (0.0, 0.0)
-        self.commands.motion.post_swing_start_prob = 0.0
-        self.commands.motion.clip_switch_prob = 0.0
-
-        C = self.commands.racket_target
-        C.hold_until_settled = False
-        C.midswing_resample_prob = 0.0
-        C.base_target_x_range = (0.0, 0.0)
-        C.base_target_y_range = (-0.35, 0.35)
-        # v12 striking faces (receipt hitter_rally_v12_approved_receipt.json): back to the
-        # hopex-lineage convention fh RED(+Y) / bh BLACK(−Y) — the v11 inversion is RETIRED.
-        # Matches this task's own YAML ([1.0, -1.0]); the stale (-1.0, 1.0) default mis-scored
-        # paddle faces in bypass-path evals/exports that skip train.py's YAML overlay.
-        C.mount_normal_sign_per_clip = (1.0, -1.0)
-        C.station_y_step_range = (0.20, 0.35)
-        # Fixed clip-specific reach makes the runner inverse exact:
-        # station_y = target_y - reach_y[clip].  All y diversity now comes from station footwork.
-        C.racket_pos_range_per_clip = (
-            ((0.51, 0.51), (-0.40, -0.40), (0.67, 0.97)),
-            ((0.51, 0.51), (0.20, 0.20), (0.88, 1.18)),
-        )
-        C.achieved_target_mix_prob = 0.0
-        C.adaptive_sigma = False
-        # Preserve the model_18400 x-lock precision kernel; widening to 0.35 previously regressed G3.
-        self.rewards.base_position.params["std"] = 0.20
-        # Mirror the Final YAML regularizers for scripts that instantiate the Gym EnvCfg directly
-        # without train.py's Hydra override translation.
-        self.rewards.joint_torques.weight = -3.0e-5
-        self.rewards.action_rate_l2.weight = -0.10
-        self.rewards.joint_limit.weight = -10.0
-        self.rewards.undesired_contacts.weight = -0.10
-        # Explicitly pin every excluded/failed shared term off for bypass-path eval clarity.
-        self.rewards.base_station_settle.weight = 0.0
-        self.rewards.post_strike_brake.weight = 0.0
-        self.rewards.hold_ready.weight = 0.0
-        self.rewards.hold_heading.weight = 0.0
-        self.rewards.lower_body_plant_imitation.weight = 0.0
-        self.rewards.foot_orientation.weight = 0.0
-        self.rewards.post_strike_x_settle.weight = 0.0
-        self.rewards.post_strike_vx_quiet.weight = 0.0
-        self.rewards.post_strike_leg_quiet.weight = 0.0
-        self.rewards.backhand_left_hand_clearance.weight = 0.0
 
 
-@configclass
-class HOPEHitterPureRallyFinalV2RewardsCfg(HOPEHitterPureRallyFinalRewardsCfg):
-    """RallyFinal plus deploy-ready foot discipline for the externally timed ready clamp.
-
-    These are phase-gated regularizers: orientation debt is bounded, while ankle q_des uses a robust
-    Huber debt so gross rail requests retain gradient. They do not reinstate the legacy global
-    ``foot_orientation`` term or any lower-body pose imitation.
-    """
-
-    rally_foot_orientation = RewTerm(
-        func=mdp.rally_foot_orientation_discipline, weight=-0.20,
-        params={
-            "command_name": "racket_target", "motion_command_name": "motion",
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                # Hip-roll and ankle-roll clip references reach/exceed their hard limits and must
-                # not be imitation goals. Hip yaw remains legal and supplies the anti-toe-in debt.
-                joint_names=[".*_hip_yaw_joint"],
-                preserve_order=True,
-            ),
-            "margin": 0.12, "std": 0.50, "t_pre": 1.40, "t_post": 1.80,
-        },
-    )
-    rally_ankle_qdes_saturation = RewTerm(
-        func=mdp.rally_ankle_qdes_saturation_penalty, weight=-0.20,
-        params={
-            "command_name": "racket_target", "action_name": "joint_pos",
-            "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=[".*_ankle_roll_joint"], preserve_order=True,
-            ),
-            "safe_abs": 0.20, "std": 0.10, "t_pre": 1.40, "t_post": 1.80,
-        },
-    )
 
 
-@configclass
-class HOPEPingPongHitterPureRallyFinalV2AgibotA3EnvCfg(
-    HOPEPingPongHitterPureRallyFinalAgibotA3EnvCfg
-):
-    """Causal RallyFinal revision matching the runner's fixed ready-clamp state distribution.
-
-    The clock hold is sampled externally for every reset and wrap and expires after a fixed random
-    duration.  It is never extended based on policy state, so there is no arrival-gated hold income
-    or hold-farming path.  The runner remains the owner of the real readiness release decision.
-    """
-
-    rewards: HOPEHitterPureRallyFinalV2RewardsCfg = HOPEHitterPureRallyFinalV2RewardsCfg()
-
-    def __post_init__(self):
-        super().__post_init__()
-        # 0.8--1.2 s at 50 Hz, sampled on EVERY reset and intra-episode wrap by MotionCommand.
-        # The seeded initial 25--50 tick trial released only 72.1% of deterministic transitions and
-        # degraded monotonically with step length; 40 ticks clears the measured 0.72--0.74 s p95
-        # plus far-step/dwell margin without making the release policy-controlled.
-        self.commands.motion.hold_steps_range = (40, 60)
-        # Behaviourally redundant with the U[40,60] lower bound, but keeps bypass-path EnvCfg
-        # inspection honest instead of advertising the inherited 25-tick stand minimum.
-        self.commands.motion.stand_start_min_hold = 40
-        self.commands.racket_target.hold_until_settled = False
-
-        # Runner freezes forehand ready at tts=1.30.  V1 stopped all movement/settle shaping at
-        # tts<=1.00 (or 0.45), making that repeated deploy state out of distribution.
-        self.rewards.strike_x_drift.params["t_pre"] = 1.40
-        self.rewards.strike_x_drift.params["t_post"] = 1.80
-        self.rewards.strike_x_velocity.params["t_pre"] = 1.40
-        self.rewards.strike_x_velocity.params["t_post"] = 1.80
-        self.rewards.pre_strike_station_settle.params["t_max"] = 1.40
-        self.rewards.post_swing_base_quiet.params["t_hi"] = 1.80
-        self.rewards.post_swing_leg_quiet.params["t_hi"] = 1.80
-        self.rewards.settle_foot_slip.params["pre_t_max"] = 1.40
-        self.rewards.settle_foot_slip.params["post_t_hi"] = 1.80
-        self.rewards.rally_heading_debt.weight = -0.25
-        self.rewards.rally_heading_debt.params["post_t_lo"] = 0.20
-
-        # Explicitly keep every policy-stretchable / failed shared hold and plant term disabled.
-        self.rewards.hold_ready.weight = 0.0
-        self.rewards.hold_heading.weight = 0.0
-        self.rewards.lower_body_plant_imitation.weight = 0.0
-        self.rewards.foot_orientation.weight = 0.0
 
 
 # FinalV3 keeps the 110-D wire shape but makes the two neck channels deploy-honest: their
@@ -1738,260 +1051,10 @@ class HOPEObservationsHitterPureRallyFinalV3Cfg(HOPEObservationsHitterPureCfg):
     critic: CriticCfg = CriticCfg()
 
 
-@configclass
-class HOPEHitterPureRallyFinalV3TerminationsCfg(HOPEDeployParityTerminationsCfg):
-    """Only physical fall guards; reference deviation must be recoverable, not reset away."""
-
-    anchor_pos = None
-    anchor_ori = None
-    ee_body_pos = None
 
 
-@configclass
-class HOPEHitterPureRallyFinalV3RewardsCfg(HOPEHitterPureRallyFinalV2RewardsCfg):
-    # V7 compatibility: the hold is the station-movement interval, so imitation must not charge
-    # the 0.4--0.7 m/s lateral step or pull toward V7's tilted frame-0 torso.  After release the
-    # arm-velocity prior is measured relative to the live torso anchor, removing V7's 10--12 cm
-    # common-mode root drop while retaining the demonstrated arm swing.
-    motion_global_anchor_ori = RewTerm(
-        func=mdp.motion_global_anchor_ori_windup_only,
-        weight=0.5,
-        params={
-            "command_name": "motion",
-            "racket_command_name": "racket_target",
-            "std": 0.4,
-            "min_time_to_strike": 0.25,
-        },
-    )
-    motion_body_pos = RewTerm(
-        func=mdp.motion_body_pos_swing_only,
-        weight=1.0,
-        params={
-            "command_name": "motion",
-            "std": 0.3,
-            "body_names": A3_UPPER_STYLE_POSITION_TRACKED,
-        },
-    )
-    motion_body_ori = RewTerm(
-        func=mdp.motion_body_ori_swing_only,
-        weight=1.0,
-        params={"command_name": "motion", "std": 0.4, "body_names": A3_UPPER_STYLE_TRACKED},
-    )
-    motion_body_lin_vel = RewTerm(
-        func=mdp.motion_body_lin_vel_anchor_relative_swing_only,
-        weight=1.0,
-        params={"command_name": "motion", "std": 1.0, "body_names": A3_UPPER_STYLE_TRACKED},
-    )
-    motion_body_ang_vel = RewTerm(
-        func=mdp.motion_body_ang_vel_anchor_relative_swing_only,
-        weight=1.0,
-        params={"command_name": "motion", "std": 3.14, "body_names": A3_UPPER_STYLE_TRACKED},
-    )
-
-    # V7 starts near the 1.0684 m deploy stand but ends 10--12 cm lower.  This zero-income,
-    # root-z-only debt prevents that reference artifact from becoming the repeated rally stance
-    # without importing any demonstrated leg pose or constraining commanded lateral motion.
-    rally_ready_root_height_debt = RewTerm(
-        func=mdp.rally_ready_root_height_debt,
-        weight=-0.20,
-        params={
-            "command_name": "racket_target",
-            "motion_command_name": "motion",
-            "min_height": 1.02,
-            "std": 0.05,
-            "ready_t_lo": -0.10,
-            "ready_t_hi": 1.10,
-            "post_t_lo": 0.20,
-            "post_t_hi": 1.55,
-        },
-    )
-
-    # The head outputs are intentionally unused, but still have network output neurons.  Charge
-    # their raw values so they converge toward zero instead of becoming an unobserved action rail.
-    passive_head_raw_action = RewTerm(
-        func=mdp.passive_head_raw_action_penalty,
-        weight=-0.05,
-        params={
-            "action_name": "joint_pos",
-            "std": 1.0,
-            "loss_type": "huber",
-            "huber_delta": 1.0,
-        },
-    )
-
-    # Failed-run repair: the precise positive Gaussian is gradient-dead at the observed
-    # 66-degree forehand normal error. This strike-only smooth-L1 debt is zero once aligned.
-    racket_normal_alignment_debt = RewTerm(
-        func=mdp.racket_normal_alignment_debt,
-        weight=-2.0,
-        params={"command_name": "racket_target", "margin": 0.10, "std": 0.35},
-    )
-
-    # Fresh V3 started 0.5--1.0 m outside the 0.15-m positive Gaussian, so its nominal weight 14
-    # supplied effectively zero position gradient. This strike-only Huber tail reaches the basin;
-    # the V7 wrist-position prior above provides dense phase/style guidance between strikes.
-    racket_position_alignment_debt = RewTerm(
-        func=mdp.racket_position_alignment_debt,
-        weight=-2.0,
-        params={"command_name": "racket_target", "margin": 0.075, "std": 0.35},
-    )
-
-    # Charge only absolute q_des requests discarded by the deploy-faithful soft clamp. Legal
-    # lateral steps and arm targets cost zero; one exploding joint cannot hide in a 29-DOF mean.
-    rally_joint_qdes_saturation = RewTerm(
-        func=mdp.rally_joint_qdes_saturation_penalty,
-        weight=-0.20,
-        params={
-            "command_name": "racket_target",
-            "action_name": "joint_pos",
-            "std": 0.20,
-            "max_blend": 0.25,
-        },
-    )
-
-    # Preserve the first 0.10 s of follow-through, then prevent the slow-tip shortcut that made
-    # 84% of forehands terminate during recovery despite apparently quiet translational metrics.
-    post_swing_tilt_debt = RewTerm(
-        func=mdp.post_swing_tilt_debt,
-        weight=-0.50,
-        params={
-            "command_name": "racket_target",
-            "margin": 0.10,
-            "std": 0.20,
-            "t_lo": 0.10,
-            "t_hi": 1.55,
-        },
-    )
 
 
-@configclass
-class HOPEPingPongHitterPureRallyFinalV3AgibotA3EnvCfg(
-    HOPEPingPongHitterPureRallyFinalV2AgibotA3EnvCfg
-):
-    """Continuous rally task for a common-ready, ready->strike->recover motion pair.
-
-    This class deliberately keeps the successful FinalV2 strike/x/front-facing stack, but
-    removes its old-video left-arm clearance term and four structural mismatches: every-wrap
-    hard steps, saturating settle tails, active neck outputs, and reference-relative recovery
-    termination.
-    """
-
-    actions: HOPEHitterPureRallyFinalV3ActionsCfg = HOPEHitterPureRallyFinalV3ActionsCfg()
-    observations: HOPEObservationsHitterPureRallyFinalV3Cfg = (
-        HOPEObservationsHitterPureRallyFinalV3Cfg()
-    )
-    rewards: HOPEHitterPureRallyFinalV3RewardsCfg = HOPEHitterPureRallyFinalV3RewardsCfg()
-    terminations: HOPEHitterPureRallyFinalV3TerminationsCfg = (
-        HOPEHitterPureRallyFinalV3TerminationsCfg()
-    )
-
-    def __post_init__(self):
-        super().__post_init__()
-
-        # V3-only removal (user decision, 2026-07-11): the approved V7 backhand keeps at least
-        # 0.57 m blade-to-left-arm clearance, so the surgical guard for the old close-hands clip
-        # must not shape this training task.  Keep FinalV1/V2 behavior frozen for reproducibility.
-        self.rewards.backhand_left_arm_clearance = None
-        self.rewards.backhand_left_hand_clearance = None
-
-        # Seven or more physical transitions per episode with a ~2.1 s cyclic clip.  The
-        # externally sampled ready clamp is not policy-controlled and pays no positive hold
-        # income; it only exposes the same station-tracking state that the runner owns.
-        self.episode_length_s = 20.0
-        self.commands.motion.hold_steps_range = (40, 60)  # 0.8--1.2 s at 50 Hz
-        self.commands.motion.stand_start_min_hold = 40
-        self.commands.motion.stand_start_prob = 0.50
-        self.commands.motion.stand_start_yaw_range = (0.0, 0.0)
-        self.commands.motion.post_swing_start_prob = 0.0
-        self.commands.motion.clip_switch_prob = 0.0
-
-        C = self.commands.racket_target
-        C.hold_until_settled = False
-        C.midswing_resample_prob = 0.0
-        C.base_target_x_range = (0.0, 0.0)
-        C.base_target_y_range = (-0.35, 0.35)
-        # v12 striking faces (receipt hitter_rally_v12_approved_receipt.json): back to the
-        # hopex-lineage convention fh RED(+Y) / bh BLACK(−Y) — the v11 inversion is RETIRED.
-        # Matches this task's own YAML ([1.0, -1.0]); the stale (-1.0, 1.0) default mis-scored
-        # paddle faces in bypass-path evals/exports that skip train.py's YAML overlay.
-        C.mount_normal_sign_per_clip = (1.0, -1.0)
-        C.station_y_step_range = (0.20, 0.35)
-        C.station_y_same_prob = 0.15
-        C.station_y_small_step_prob = 0.25
-        C.station_y_small_step_range = (0.03, 0.12)
-        C.station_side_explicit = True
-        C.ready_monitor_step_range = (0.0, 0.35)
-        C.ready_monitor_x_thresh = 0.10
-        C.ready_monitor_y_thresh = 0.10
-        C.ready_monitor_speed_thresh = 0.20
-        C.ready_monitor_dwell_s = 0.12
-        C.ready_monitor_heading_thresh_rad = 0.261799  # 15 deg, inside runner's 20 deg gate
-        C.metrics_pre_settle_t_max = 1.10
-        C.metrics_post_settle_t_lo = 0.20
-        C.metrics_post_settle_t_hi = 1.55
-        C.metrics_clearance_t_pre = 0.70
-        C.metrics_clearance_t_post = 0.20
-        C.metrics_ready_heading_t_lo = 0.45
-        C.metrics_ready_heading_t_hi = 1.10
-        C.metrics_post_heading_t_lo = 0.20
-        C.metrics_post_heading_t_hi = 1.55
-
-        # User-approved V7 timing and station reach (explicit video contact frames FH=38, BH=37
-        # over 104 frames). Rounded x/y centers match measured A3 blade reach. Height and velocity
-        # cover the venue-fitted real-contact distribution and HITTER center-return inverse, not the
-        # synthetic Gate3 side-line aims. Incoming height is independent of forehand/backhand.
-        C.strike_phase = 0.36893204
-        C.strike_phase_per_clip = (0.36893204, 0.35922330)
-        C.racket_pos_range_per_clip = (
-            ((0.70, 0.70), (-0.04, -0.04), (0.98, 1.26)),
-            ((0.70, 0.70), (0.10, 0.10), (0.98, 1.26)),
-        )
-        C.racket_vel_range_per_clip = (
-            ((0.25, 1.35), (0.00, 0.35), (0.10, 1.00)),
-            ((0.25, 1.35), (-0.15, 0.12), (0.10, 1.00)),
-        )
-
-        # Non-saturating, zero-inside-deadband debts.  Correct early lateral motion and a
-        # quiet arrived state both cost zero; there is no positive settle/hold income to farm.
-        self.rewards.strike_x_drift.params["huber_tail"] = True
-        self.rewards.strike_x_drift.params["t_pre"] = 1.10
-        self.rewards.strike_x_drift.params["t_post"] = 1.55
-        self.rewards.strike_x_velocity.params["huber_tail"] = True
-        self.rewards.strike_x_velocity.params["t_pre"] = 1.10
-        self.rewards.strike_x_velocity.params["t_post"] = 1.55
-
-        self.rewards.pre_strike_station_settle.weight = -0.25
-        self.rewards.pre_strike_station_settle.params.update(
-            {"std": 0.30, "t_max": 1.10, "t_min": 0.12,
-             "velocity_margin": 0.05, "debt_huber": True}
-        )
-        self.rewards.post_swing_base_quiet.params.update(
-            {"margin": 0.08, "huber_tail": True, "t_hi": 1.55}
-        )
-        self.rewards.post_swing_leg_quiet.params.update(
-            {"margin": 0.30, "huber_tail": True, "t_hi": 1.55}
-        )
-        self.rewards.settle_foot_slip.weight = -0.04
-        self.rewards.settle_foot_slip.params.update(
-            {"margin": 0.03, "huber_tail": True,
-             "pre_t_max": 1.10, "post_t_hi": 1.55}
-        )
-        self.rewards.rally_heading_debt.params.update(
-            {"huber_tail": True, "ready_t_lo": 0.45, "ready_t_hi": 1.10,
-             "post_t_lo": 0.20, "post_t_hi": 1.55}
-        )
-        self.rewards.rally_foot_orientation.params.update(
-            {"t_pre": 1.10, "t_post": 1.55, "default_during_hold": True}
-        )
-        self.rewards.rally_ankle_qdes_saturation.weight = -0.30
-        self.rewards.rally_ankle_qdes_saturation.params.update(
-            {"t_pre": 1.10, "t_post": 1.55}
-        )
-        # Keep the failed stacks explicitly absent.
-        self.rewards.hold_ready.weight = 0.0
-        self.rewards.hold_heading.weight = 0.0
-        self.rewards.lower_body_plant_imitation.weight = 0.0
-        self.rewards.foot_orientation.weight = 0.0
 
 
 @configclass
@@ -2832,14 +1895,6 @@ class HOPEPingPongHitterPureRallyV13AgibotA3EnvCfg(
 
 # Generic deploy-honest successor used by RallyV15.  The class contains only structural wiring;
 # all numerical action/localization/reward choices remain in the selected task YAML.
-@configclass
-class HOPEHitterPureBoundedQdesActionsCfg(ActionsCfg):
-    joint_pos = mdp.BoundedJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=[".*"],
-        use_default_offset=True,
-        passive_joint_names=mdp.A3_PASSIVE_HEAD_JOINT_NAMES,
-    )
 
 
 @configclass
@@ -2854,127 +1909,10 @@ class HOPEHitterPureV11SafeActionsCfg(ActionsCfg):
     )
 
 
-@configclass
-class HOPEHitterPureBoundedQdesTerminationsCfg(
-    HOPEDeployParityTerminationsCfg
-):
-    # Post-physics plant-state safety hook. A hard-limit excursion latches and
-    # snapshots the first physical fault, then terminates only the affected
-    # vectorized environments. Numeric/q_des contract faults remain global
-    # fail-fast paths in the action term.
-    actual_q_hard_limit_audit = DoneTerm(
-        func=mdp.actual_q_hard_limit_audit,
-        params={"action_name": "joint_pos"},
-    )
 
 
-@configclass
-class HOPEObservationsHitterPureV15Cfg(HOPEObservationsHitterPureRallyFinalV3Cfg):
-    """118-D deployable HITTER + HUGWBC locomotion command contract."""
-
-    @configclass
-    class PolicyCfg(HOPEObservationsHitterPureRallyFinalV3Cfg.PolicyCfg):
-        actions = ObsTerm(
-            func=mdp.executed_qdes_feedback, params={"action_name": "joint_pos"}
-        )
-        base_target_delta_xy = ObsTerm(
-            func=mdp.base_target_delta_xy_mocap,
-            params={"command_name": "racket_target"},
-        )
-        racket_target_rel_base = ObsTerm(
-            func=mdp.racket_target_rel_base_mocap,
-            params={"command_name": "racket_target"},
-        )
-        base_velocity_xy = ObsTerm(
-            func=mdp.base_velocity_xy_mocap,
-            params={"command_name": "racket_target"},
-        )
-        localization_age = ObsTerm(
-            func=mdp.base_localization_age,
-            params={"command_name": "racket_target"},
-        )
-        desired_lateral_velocity = ObsTerm(
-            func=mdp.desired_lateral_velocity,
-            params={"command_name": "racket_target"},
-        )
-        gait_clock = ObsTerm(
-            func=mdp.gait_clock,
-            params={"command_name": "racket_target"},
-        )
-        locomotion_mode = ObsTerm(
-            func=mdp.locomotion_mode,
-            params={"command_name": "racket_target"},
-        )
-        upper_intervention = ObsTerm(
-            func=mdp.upper_intervention_indicator,
-            params={"action_name": "joint_pos"},
-        )
-
-    @configclass
-    class CriticCfg(HOPEObservationsHitterPureRallyFinalV3Cfg.CriticCfg):
-        actions = ObsTerm(
-            func=mdp.executed_qdes_feedback, params={"action_name": "joint_pos"}
-        )
-        base_velocity_xy = ObsTerm(
-            func=mdp.base_velocity_xy_mocap,
-            params={"command_name": "racket_target"},
-        )
-        localization_age = ObsTerm(
-            func=mdp.base_localization_age,
-            params={"command_name": "racket_target"},
-        )
-        desired_lateral_velocity = ObsTerm(
-            func=mdp.desired_lateral_velocity,
-            params={"command_name": "racket_target"},
-        )
-        gait_clock = ObsTerm(
-            func=mdp.gait_clock,
-            params={"command_name": "racket_target"},
-        )
-        locomotion_mode = ObsTerm(
-            func=mdp.locomotion_mode,
-            params={"command_name": "racket_target"},
-        )
-        upper_intervention = ObsTerm(
-            func=mdp.upper_intervention_indicator,
-            params={"action_name": "joint_pos"},
-        )
-
-    policy: PolicyCfg = PolicyCfg()
-    critic: CriticCfg = CriticCfg()
 
 
-@configclass
-class HOPEObservationsHitterPureV17Cfg(
-    HOPEObservationsHitterPureRallyFinalV3Cfg
-):
-    """110-D V17 actor with deploy-faithful action feedback and mocap base pose."""
-
-    @configclass
-    class PolicyCfg(
-        HOPEObservationsHitterPureRallyFinalV3Cfg.PolicyCfg
-    ):
-        # Preserve the exact 110-D order and dimensions.  The parent keeps the
-        # two passive-head last-action slots at zero, matching the C++ runner;
-        # the terms below change only base-pose provenance to deploy-matched mocap.
-        projected_gravity = ObsTerm(
-            func=mdp.projected_gravity_mocap,
-            params={"command_name": "racket_target"},
-        )
-        base_forward_xy = ObsTerm(
-            func=mdp.base_forward_xy_mocap,
-            params={"command_name": "racket_target"},
-        )
-        base_target_delta_xy = ObsTerm(
-            func=mdp.base_target_delta_xy_mocap,
-            params={"command_name": "racket_target"},
-        )
-        racket_target_rel_base = ObsTerm(
-            func=mdp.racket_target_rel_base_mocap,
-            params={"command_name": "racket_target"},
-        )
-
-    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
@@ -3021,6 +1959,111 @@ class HitterPingPongRewardsCfg(
     """V14 reward surface plus Unitree's standard actual-joint acceleration cost."""
 
     joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
+    full_body_hold = RewTerm(
+        func=mdp.full_body_hold, weight=0.0,
+        params={"start_steps": 448000, "ramp_steps": 128000, "cost_scale": 1.8,
+                "positive_kernel": False},
+    )
+    full_body_quiet = RewTerm(
+        func=mdp.full_body_quiet, weight=0.0,
+        params={"start_steps": 448000, "ramp_steps": 128000, "state_independent": False,
+                "pose_independent": False},
+    )
+    actual_joint_limit = RewTerm(
+        func=mdp.actual_joint_limit_debt, weight=0.0,
+        params={"margin_rad": 0.0872664626, "waist_margin_rad": 0.1396263402,
+                "hold_recover_multiplier": 3.0},
+    )
+    actual_ready_legs = RewTerm(
+        func=mdp.actual_ready_legs, weight=0.0,
+        params={"knee_margin": 0.0872664626, "knee_std": 0.1745329252,
+                "height_margin": 0.02, "height_std": 0.04,
+                "start_steps": 448000, "ramp_steps": 128000},
+    )
+    station_recovery = RewTerm(
+        func=mdp.station_recovery, weight=0.0,
+        params={"position_margin": 0.03, "position_std": 0.10,
+                "velocity_margin": 0.05, "velocity_std": 0.20,
+                "start_steps": 448000, "ramp_steps": 128000},
+    )
+    loaded_ankle_quiet = RewTerm(
+        func=mdp.loaded_ankle_quiet, weight=0.0,
+        params={"margin": 0.08, "std": 0.30,
+                "start_steps": 448000, "ramp_steps": 128000},
+    )
+    actual_task_pose = RewTerm(
+        func=mdp.actual_task_pose_debt, weight=0.0,
+        params={"margin": 0.0523598776, "std": 0.15,
+                "torso_margin": None, "torso_std": None,
+                "ready_free_s": 0.45, "ready_full_s": 0.85,
+                "followthrough_free_s": 0.50, "recovery_full_s": 0.80,
+                "start_steps": 448000, "ramp_steps": 128000},
+    )
+    ready_torso_posture = RewTerm(
+        func=mdp.ready_torso_posture_debt, weight=0.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=A3_FEET_BODIES, preserve_order=True),
+            "margin": 0.05, "std": 0.12, "waist_margin": 0.06, "waist_std": 0.15,
+            "ready_free_s": 0.45, "ready_full_s": 0.85,
+            "followthrough_free_s": 0.50, "recovery_full_s": 0.80,
+            "start_steps": 448000, "ramp_steps": 128000,
+        },
+    )
+    waist_command_quiet = RewTerm(
+        func=mdp.waist_command_quiet_debt, weight=0.0,
+        params={"std": 0.005, "margin": 0.001},
+    )
+    settled_leg_command = RewTerm(
+        func=mdp.settled_leg_command_debt, weight=0.0,
+        params={"std": 0.01, "margin": 0.002, "start_steps": 448000, "ramp_steps": 128000,
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=A3_FEET_BODIES, preserve_order=True)},
+    )
+    settled_waist_pitch_tracking = RewTerm(
+        func=mdp.settled_waist_pitch_tracking_debt, weight=0.0,
+        params={"std": 0.10, "margin": 0.15, "start_steps": 448000, "ramp_steps": 128000,
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=A3_FEET_BODIES, preserve_order=True)},
+    )
+    hip_tracking = RewTerm(
+        func=mdp.loaded_hip_tracking_debt, weight=0.0,
+        params={
+            "std": 0.10, "margin": 0.12,
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=A3_FEET_BODIES, preserve_order=True),
+        },
+    )
+    executed_qdes_rate = RewTerm(
+        func=mdp.executed_qdes_difference_l2, weight=0.0,
+        params={
+            "command_name": "racket_target", "action_name": "joint_pos", "order": 1,
+            "upper_joint_names": (
+                "right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
+                "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint",
+            ),
+            "strike_free_pre_s": 0.12, "follow_through_free_s": 0.30,
+            "hold_multiplier": 1.0,
+        },
+    )
+    foot_placement = RewTerm(
+        func=mdp.rally_foot_placement_debt, weight=0.0,
+        params={
+            "command_name": "racket_target",
+            "asset_cfg": SceneEntityCfg("robot", body_names=A3_FEET_BODIES, preserve_order=True),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=A3_FEET_BODIES, preserve_order=True),
+            "width_min": 0.24, "width_max": 0.34, "std": 0.05,
+            "yaw_margin": 0.15, "yaw_std": 0.25, "yaw_weight": 0.5,
+        },
+    )
+    dynamic_support = RewTerm(
+        func=mdp.dynamic_support_debt,
+        weight=-1.5,
+        params={
+            "command_name": "racket_target",
+            "asset_cfg": SceneEntityCfg("robot", body_names=A3_FEET_BODIES, preserve_order=True),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=A3_FEET_BODIES, preserve_order=True),
+            "std": 0.10,
+            "margin": 0.02,
+            "foot_radius": 0.06,
+        },
+    )
 
 
 @configclass
@@ -3059,6 +2102,22 @@ class HitterPingPongAgibotA3EnvCfg(
 
     def __post_init__(self):
         super().__post_init__()
+
+        # The task recipe opts into a modest disturbance cohort. Direct Gym construction stays
+        # inert; this is an interval EventTerm, so it has no reward weight.
+        self.events.sim2real_push = EventTerm(
+            func=mdp.bounded_planar_push,
+            mode="interval",
+            interval_range_s=(5.0, 8.0),
+            params={
+                "asset_name": "robot",
+                "command_name": "racket_target",
+                "max_delta_v_xy": 0.10,
+                "cohort_fraction": 0.0,
+                "ramp_steps": 96_000,
+                "strike_exclusion_s": 0.15,
+            },
+        )
 
         # Formal Build batch. Explicit parse_env_cfg(..., num_envs=...) still overrides this
         # for bounded smoke/evaluation runs.
@@ -3200,589 +2259,3 @@ class HitterPingPongAgibotA3EnvCfg(
         racket.physical_ball = False
         racket.physical_ball_impulse = False
         racket.physical_ball_substep = 1
-
-
-@configclass
-class HOPEHitterPureBoundedQdesRewardsCfg(HOPEHitterPureRewardsCfg):
-    """Clean HITTER strike objective on a HUGWBC lower-body foundation.
-
-    This intentionally does not inherit the RallyV9--V14 symptom-specific reward stack.  The
-    station is converted to one finite gait command; velocity, gait contact, posture and the
-    paper's upper-body intervention curriculum train locomotion as a coherent subsystem.
-    """
-
-    # Replace HITTER's always-on pre-strike position servo with a finite STEP/terminal score.
-    base_position = None
-    # Lower-body balance is commanded directly; do not also pull the pelvis toward a demo anchor.
-    motion_global_anchor_ori = None
-    upright = None
-    # V15 smooths the final projected q_des below.  The inherited IsaacLab term reads raw actor
-    # outputs and cannot see projector-induced command motion, so keeping both would charge two
-    # different quantities under the same name.
-    action_rate_l2 = None
-
-    # HITTER imitation remains a clean-group upper-body teacher.  In HUGWBC's intervention group
-    # those shoulder/elbow q_des values are externally replaced, so the corresponding imitation
-    # rewards are masked instead of asking the actor to optimize actions it does not execute.
-    # Anchor-relative velocity tracking also avoids importing clip-root drift into the locomotion
-    # controller.  These are structural ownership rules; the task YAML remains the source for all
-    # active numerical weights and intervention parameters.
-    motion_body_pos = RewTerm(
-        func=mdp.motion_body_pos_swing_only,
-        weight=1.0,
-        params={
-            "command_name": "motion",
-            "std": 0.3,
-            "body_names": A3_UPPER_TRACKED,
-            "intervention_action_name": "joint_pos",
-            "racket_command_name": None,
-            "strike_free_pre_s": 0.0,
-            "follow_through_free_s": 0.0,
-        },
-    )
-    motion_body_ori = RewTerm(
-        func=mdp.motion_body_ori_swing_only,
-        weight=1.0,
-        params={
-            "command_name": "motion",
-            "std": 0.4,
-            "body_names": A3_UPPER_TRACKED,
-            "intervention_action_name": "joint_pos",
-            "racket_command_name": None,
-            "strike_free_pre_s": 0.0,
-            "follow_through_free_s": 0.0,
-        },
-    )
-    motion_body_lin_vel = RewTerm(
-        func=mdp.motion_body_lin_vel_anchor_relative_swing_only,
-        weight=1.0,
-        params={
-            "command_name": "motion",
-            "std": 1.0,
-            "body_names": A3_UPPER_TRACKED,
-            "intervention_action_name": "joint_pos",
-            "racket_command_name": None,
-            "strike_free_pre_s": 0.0,
-            "follow_through_free_s": 0.0,
-        },
-    )
-    motion_body_ang_vel = RewTerm(
-        func=mdp.motion_body_ang_vel_anchor_relative_swing_only,
-        weight=1.0,
-        params={
-            "command_name": "motion",
-            "std": 3.14,
-            "body_names": A3_UPPER_TRACKED,
-            "intervention_action_name": "joint_pos",
-            "racket_command_name": None,
-            "strike_free_pre_s": 0.0,
-            "follow_through_free_s": 0.0,
-        },
-    )
-
-    # A Gaussian orientation kernel is the precise near-target objective, but its gradient
-    # vanishes when a fresh policy exposes the opposite paddle face.  Keep the structural term
-    # generic/inert here; the selected task YAML owns its weight, margin and scale.
-    racket_normal_alignment_debt = RewTerm(
-        func=mdp.racket_normal_alignment_debt,
-        weight=0.0,
-        params={"command_name": "racket_target", "margin": 0.10, "std": 0.35},
-    )
-    # V15 does not register the old full-window moving-trajectory debt. Precision outside the
-    # 7.5 cm hard boundary is charged only against the static strike point in a three-tick local
-    # window. The task YAML owns the active weight, margin, Huber scale and window.
-    racket_position_alignment_debt = None
-    racket_exact_position_debt = RewTerm(
-        func=mdp.racket_exact_position_debt,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "margin": 0.075,
-            "huber_scale": 0.025,
-            "window_s": 0.02,
-        },
-    )
-    # Early-to-contact velocity bridge.  The task YAML owns the active negative weight and
-    # Huber scales; structural defaults stay inert for every other task.
-    racket_preimpact_velocity_debt = RewTerm(
-        func=mdp.racket_preimpact_velocity_huber_debt,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "preimpact_s": 0.30,
-            "margin": 0.50,
-            "huber_scale": 0.50,
-        },
-    )
-
-    hugwbc_lateral_velocity = RewTerm(
-        func=mdp.hugwbc_lateral_velocity_tracking_exp,
-        weight=0.0,
-        params={"command_name": "racket_target", "std": 1.0},
-    )
-    hugwbc_yaw_rate = RewTerm(
-        func=mdp.hugwbc_yaw_rate_tracking_exp,
-        weight=0.0,
-        params={"command_name": "racket_target", "std": 1.0},
-    )
-    hugwbc_finite_station = RewTerm(
-        func=mdp.hugwbc_finite_station_tracking_exp,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "std": 1.0,
-            "stand_deadband": 1.0,
-        },
-    )
-    # Soft final-hold READY supervision. This term is deliberately a debt and never controls the
-    # fixed external release clock. V15's selected task YAML owns the active weight, transition
-    # classes, and whether all strict runner-equivalent READY channels are supervised.
-    ready_deadline = RewTerm(
-        func=mdp.rally_ready_deadline_debt,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "motion_command_name": "motion",
-            "x_margin": 0.10,
-            "y_margin": 0.10,
-            "position_std": 0.10,
-            "speed_margin": 0.20,
-            "speed_std": 0.20,
-            "speed_blend": 0.60,
-            "final_window_s": 0.12,
-            "target_step_class": 3,
-            "target_step_classes": (1, 2, 3),
-            "match_strict_ready": False,
-        },
-    )
-    # V13/V14-proven recovery pressure, added structurally here but numerically owned by V15 YAML.
-    # It is zero inside a 3 cm x deadband and only active after impact, so it does not pay
-    # micro-stepping or compete with the finite world-Y station transition.
-    post_swing_xlock = RewTerm(
-        func=mdp.rally_post_swing_xlock_debt,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "margin": 0.030,
-            "std": 0.040,
-            "t_lo": 0.10,
-            "t_hi": 1.55,
-            "forehand_scale": 1.0,
-            "backhand_scale": 1.0,
-        },
-    )
-    # Recovery-only pelvis tilt tail. The selected task YAML owns its active weight/window.
-    post_swing_tilt_debt = RewTerm(
-        func=mdp.post_swing_tilt_debt,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "margin": 0.10,
-            "std": 0.20,
-            "t_lo": 0.10,
-            "t_hi": 1.55,
-        },
-    )
-    # Recovery-only WORLD-HEADING tail (2026-07-25). x and tilt already had a post-swing debt;
-    # yaw did not, and hold_heading is gated to in_hold, so swing-injected yaw was untaxed and
-    # compounded until it closed the ready gate. Same weight=0.0 default: the task YAML owns it.
-    post_swing_heading_debt = RewTerm(
-        func=mdp.post_swing_heading_debt,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "margin": 0.087,
-            "std": 0.25,
-            "t_lo": 0.10,
-            "t_hi": 1.55,
-        },
-    )
-    hugwbc_contact_force = RewTerm(
-        func=mdp.hugwbc_contact_force_tracking,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=A3_FEET_BODIES, preserve_order=True
-            ),
-            "force_sigma": 1.0,
-        },
-    )
-    hugwbc_contact_velocity = RewTerm(
-        func=mdp.hugwbc_contact_velocity_tracking,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "asset_cfg": SceneEntityCfg(
-                "robot", body_names=A3_FEET_BODIES, preserve_order=True
-            ),
-            "velocity_sigma": 1.0,
-        },
-    )
-    hugwbc_standing = RewTerm(
-        func=mdp.hugwbc_standing_double_contact,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=A3_FEET_BODIES, preserve_order=True
-            ),
-            "force_threshold": 1.0,
-        },
-    )
-    hugwbc_standing_air = RewTerm(
-        func=mdp.hugwbc_standing_air,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=A3_FEET_BODIES, preserve_order=True
-            ),
-            "force_threshold": 1.0,
-        },
-    )
-    hugwbc_orientation = RewTerm(
-        func=mdp.hugwbc_orientation_control,
-        weight=0.0,
-        params={"command_name": "racket_target", "swing_scale": 0.0},
-    )
-    hugwbc_waist = RewTerm(
-        func=mdp.hugwbc_waist_yaw_roll_control,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=["waist_yaw_joint", "waist_roll_joint"],
-                preserve_order=True,
-            ),
-            # Default keeps the historical hold-only mask; the task YAML opts into the
-            # swing-supervised mask via rewards.hugwbc_waist_swing_supervised.
-            "swing_supervised": False,
-        },
-    )
-    hugwbc_base_height = RewTerm(
-        func=mdp.hugwbc_base_height_control,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "target_height": 1.0,
-            "stand_scale": 1.0,
-        },
-    )
-    hugwbc_stand_still = RewTerm(
-        func=mdp.hugwbc_stand_still_foot_placement,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "asset_cfg": SceneEntityCfg(
-                "robot", body_names=A3_FEET_BODIES, preserve_order=True
-            ),
-            "stance_width": 1.0,
-        },
-    )
-    # Swing-foot lift shaping for the finite STEP (released HUGWBC feet_clearance; the
-    # 2026-07-23 audit found the port omitted it entirely).  Inert here; YAML owns the numbers.
-    hugwbc_feet_clearance = RewTerm(
-        func=mdp.hugwbc_feet_clearance,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "asset_cfg": SceneEntityCfg(
-                "robot", body_names=A3_FEET_BODIES, preserve_order=True
-            ),
-            "target_height": 0.08,
-        },
-    )
-    # Joint-space racket-arm anchor through the swing (audit: the Cartesian 7-body-mean imitation
-    # cannot stop a contorted elbow/wrist that still reaches the racket target).  Exempt through
-    # the contact window so it cannot pin the arm to the clip's strike point against off-manifold
-    # sampled targets (2026-07-23 aiming-budget fix).
-    swing_arm_imitation = RewTerm(
-        func=mdp.swing_arm_joint_imitation,
-        weight=0.0,
-        params={
-            "command_name": "motion",
-            "action_name": "joint_pos",
-            "std": 1.0,
-            "joint_names": (),
-            "racket_command_name": "racket_target",
-            "strike_free_pre_s": 0.12,
-            "follow_through_free_s": 0.30,
-        },
-    )
-    # Non-saturating early-swing teacher for the active racket arm.  It releases before the
-    # final target-owned acceleration window and therefore does not pin contact to the clip.
-    swing_arm_huber_debt = RewTerm(
-        func=mdp.swing_arm_joint_huber_debt,
-        weight=0.0,
-        params={
-            "command_name": "motion",
-            "action_name": "joint_pos",
-            "joint_names": (),
-            "racket_command_name": "racket_target",
-            "release_pre_s": 0.30,
-            "margin": 0.10,
-            "huber_scale": 0.35,
-        },
-    )
-    # v5 decode-saturation debt: projection debt is blind to rail-pinned postures because the v5
-    # nominal is inside the safe range by construction (audit finding).
-    qdes_saturation_debt = RewTerm(
-        func=mdp.qdes_saturation_debt,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "action_name": "joint_pos",
-            "free_fraction": 0.90,
-            "topk": 1,
-            "topk_blend": 0.0,
-            "upper_joint_names": (),
-            "strike_free_pre_s": 0.12,
-            "follow_through_free_s": 0.30,
-        },
-    )
-
-    passive_head_raw_action = RewTerm(
-        func=mdp.passive_head_raw_action_penalty,
-        weight=0.0,
-        params={
-            "action_name": "joint_pos",
-            "std": 1.0,
-            "loss_type": "huber",
-            "huber_delta": 1.0,
-        },
-    )
-    hold_upper_joint_deviation = RewTerm(
-        func=mdp.hold_upper_joint_deviation,
-        weight=0.0,
-        params={
-            "command_name": "motion",
-            "action_name": "joint_pos",
-            "joint_names": (),
-        },
-    )
-    executed_qdes_rate = RewTerm(
-        func=mdp.executed_qdes_difference_l2,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "action_name": "joint_pos",
-            "order": 1,
-            "upper_joint_names": (),
-            "strike_free_pre_s": 0.12,
-            "follow_through_free_s": 0.30,
-        },
-    )
-    executed_qdes_second_difference = RewTerm(
-        func=mdp.executed_qdes_difference_l2,
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "action_name": "joint_pos",
-            "order": 2,
-            "upper_joint_names": (),
-            "strike_free_pre_s": 0.12,
-            "follow_through_free_s": 0.30,
-        },
-    )
-    joint_acc = RewTerm(
-        func=mdp.joint_acc_l2,
-        weight=0.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
-    )
-    qdes_projection_debt = RewTerm(
-        func=mdp.qdes_projection_debt,
-        # Inert structural defaults; RallyV15 YAML owns the active weight/top-k recipe.
-        weight=0.0,
-        params={
-            "command_name": "racket_target",
-            "action_name": "joint_pos",
-            "topk": 1,
-            "topk_blend": 0.0,
-        },
-    )
-
-
-@configclass
-class HOPEPingPongHitterPureBoundedQdesAgibotA3EnvCfg(
-    HOPEPingPongHitterPureAgibotA3EnvCfg
-):
-    """Paper-backed V15: HITTER strike task plus a HUGWBC lower-body foundation."""
-
-    obs_mode: str = "hitter_pure_v15"
-    actions: HOPEHitterPureBoundedQdesActionsCfg = HOPEHitterPureBoundedQdesActionsCfg()
-    observations: HOPEObservationsHitterPureV15Cfg = HOPEObservationsHitterPureV15Cfg()
-    rewards: HOPEHitterPureBoundedQdesRewardsCfg = HOPEHitterPureBoundedQdesRewardsCfg()
-    terminations: HOPEHitterPureBoundedQdesTerminationsCfg = (
-        HOPEHitterPureBoundedQdesTerminationsCfg()
-    )
-
-    def __post_init__(self):
-        # RallyV8's parent initializer still narrows ee_body_pos to the feet. Let that complete
-        # against the inherited term first, then remove all reference-deviation guards. Assigning
-        # a fall-only TerminationsCfg as a class field would make ee_body_pos None too early.
-        super().__post_init__()
-        self.terminations.anchor_pos = None
-        self.terminations.anchor_ori = None
-        self.terminations.ee_body_pos = None
-
-
-@configclass
-class HOPEPingPongHitterPureRallyV16RewardsCfg(
-    HOPEPingPongHitterPureRallyV11RewardsCfg
-):
-    """The complete V11 reward surface, with no V12--V15 additions."""
-
-
-@configclass
-class HOPEPingPongHitterPureRallyV16TerminationsCfg(
-    HOPEPingPongHitterPureRallyV11TerminationsCfg
-):
-    """V11 physical guards plus a post-physics actual-q hard-limit audit."""
-
-    actual_q_hard_limit_audit = DoneTerm(
-        func=mdp.actual_q_hard_limit_audit,
-        params={"action_name": "joint_pos"},
-    )
-
-
-@configclass
-class HOPEPingPongHitterPureRallyV16AgibotA3EnvCfg(
-    HOPEPingPongHitterPureRallyV11AgibotA3EnvCfg
-):
-    """Direct V11 child with an audited, behavior-identical final q_des clamp."""
-
-    obs_mode: str = "hitter_pure"
-    actions: HOPEHitterPureV11SafeActionsCfg = HOPEHitterPureV11SafeActionsCfg()
-    rewards: HOPEPingPongHitterPureRallyV16RewardsCfg = (
-        HOPEPingPongHitterPureRallyV16RewardsCfg()
-    )
-    terminations: HOPEPingPongHitterPureRallyV16TerminationsCfg = (
-        HOPEPingPongHitterPureRallyV16TerminationsCfg()
-    )
-
-
-@configclass
-class HOPEPingPongHitterPureRallyV17RewardsCfg(
-    HOPEPingPongHitterPureRallyV16RewardsCfg
-):
-    """The exact V11 reward surface plus Unitree's standard joint-acc cost."""
-
-    joint_acc = RewTerm(
-        func=mdp.joint_acc_l2,
-        weight=-2.5e-7,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
-    )
-
-
-@configclass
-class HOPEPingPongHitterPureRallyV17TerminationsCfg(
-    HOPEPingPongHitterPureRallyV16TerminationsCfg
-):
-    """The unchanged V11/V16 physical and actual-q safety guards."""
-
-
-@configclass
-class HOPEPingPongHitterPureRallyV17AgibotA3EnvCfg(
-    HOPEPingPongHitterPureRallyV16AgibotA3EnvCfg
-):
-    """RallyV11 behavior plus the YAML-pinned r12 tuple bank and hardware repairs."""
-
-    obs_mode: str = "hitter_pure"
-    actions: HOPEHitterPureV11SafeActionsCfg = HOPEHitterPureV11SafeActionsCfg()
-    observations: HOPEObservationsHitterPureV17Cfg = (
-        HOPEObservationsHitterPureV17Cfg()
-    )
-    rewards: HOPEPingPongHitterPureRallyV17RewardsCfg = (
-        HOPEPingPongHitterPureRallyV17RewardsCfg()
-    )
-    terminations: HOPEPingPongHitterPureRallyV17TerminationsCfg = (
-        HOPEPingPongHitterPureRallyV17TerminationsCfg()
-    )
-
-@configclass
-class HOPEHitterPureRallyFinalV2PlusRewardsCfg(HOPEHitterPureRallyFinalV2RewardsCfg):
-    """V2 reward surface with no train-time cost for deployment readiness."""
-
-    # A fresh policy must experience the swing before readiness can be learned.  Keep the optional
-    # diagnostic term structurally absent from this task rather than assigning it zero weight.
-    arm_deadline_miss_penalty = None
-
-
-@configclass
-class HOPEHitterPureRallyFinalV2PlusTerminationsCfg(HOPEDeployParityTerminationsCfg):
-    """V2 physical/reference guards; deployment readiness is telemetry, never termination."""
-
-    arm_deadline_miss = None
-
-
-@configclass
-class HOPEPingPongHitterPureRallyFinalV2PlusAgibotA3EnvCfg(
-    HOPEPingPongHitterPureRallyFinalV2AgibotA3EnvCfg
-):
-    """V2 command executor with optional lateral stationing and READY telemetry.
-
-    The planner chooses an explicit station and racket target; the policy executes them.  A target
-    already inside the trained per-side reach envelope can keep the previous station, while larger
-    lateral residuals exercise V2's footwork.  The fixed training clamp always releases into the
-    swing, matching HITTER's requirement that fresh trajectories see the imitation/strike window.
-    READY remains observable in metrics; the deployment runner owns latest-release rejection.
-    There is no policy-controlled hold extension.
-
-    Actions, 110-D observations, V2 imitation/stability rewards and reference-aware termination
-    guards stay intact.  The obsolete old-video clearance terms remain removed.
-    """
-
-    rewards: HOPEHitterPureRallyFinalV2PlusRewardsCfg = HOPEHitterPureRallyFinalV2PlusRewardsCfg()
-    terminations: HOPEHitterPureRallyFinalV2PlusTerminationsCfg = (
-        HOPEHitterPureRallyFinalV2PlusTerminationsCfg()
-    )
-
-    def __post_init__(self):
-        super().__post_init__()
-
-        # Surgical deletion requested after replacing the close-hands backhand video.
-        self.rewards.backhand_left_arm_clearance = None
-        self.rewards.backhand_left_hand_clearance = None
-
-        C = self.commands.racket_target
-        # Capability coverage, not a command to move every ball: 30% same station, 35% small
-        # 3--20 cm correction, 35% V2 main 20--35 cm step.  The touching ranges remove the old
-        # 12--20 cm support hole while retaining V2's proven main-step maximum.
-        C.station_y_same_prob = 0.30
-        C.station_y_small_step_prob = 0.35
-        C.station_y_small_step_range = (0.03, 0.20)
-        C.station_side_explicit = True
-        C.ready_monitor_step_range = (0.0, 0.35)
-
-        # Telemetry at the fixed U[40,60] clamp.  Position comes from mocap-equivalent base
-        # localization; heading/rate/tilt are IMU; joint speed is proprioception.  Never use this
-        # as a fresh-training termination: the 2026-07-11 run produced zero swing samples in 498
-        # iterations when every rare survivor had to pass the joint READY conjunction first.
-        C.arm_deadline_gate = False
-        C.ready_monitor_x_thresh = 0.10
-        C.ready_monitor_y_thresh = 0.10
-        C.ready_monitor_speed_thresh = 0.20
-        C.ready_monitor_dwell_s = 0.12
-        C.ready_monitor_heading_thresh_rad = 0.2617993878  # 15 deg
-        C.ready_monitor_yaw_rate_thresh = 0.35
-        C.ready_monitor_tilt_thresh = 0.14  # projected-gravity xy ~= sin(8 deg)
-        C.ready_monitor_joint_speed_thresh = 0.80  # all-joint RMS rad/s in the static ready pose
-
-        # User-approved V7 contact frames FH=38, BH=37 over 104 frames.  Geometry is the A3/V7
-        # station inverse and venue floor-z contact band; velocity is the deploy-honest planner's
-        # centre-return envelope.  The conservative +/-4 cm reach-y bootstrap around each V7 nominal
-        # lets the planner keep the station for small residuals.  The FH/BH bands stay disjoint with
-        # 6 cm raw gap (2 cm after the actor's +/-2 cm target noise), preserving the 110-D no-side-bit
-        # observation contract.  Base x remains locked; forward walking is never sampled.
-        C.strike_phase = 0.36893204
-        C.strike_phase_per_clip = (0.36893204, 0.35922330)
-        C.racket_pos_range_per_clip = (
-            ((0.70, 0.70), (-0.08, 0.00), (0.98, 1.26)),
-            ((0.70, 0.70), (0.06, 0.14), (0.98, 1.26)),
-        )
-        C.racket_vel_range_per_clip = (
-            ((0.25, 1.35), (0.00, 0.35), (0.10, 1.00)),
-            ((0.25, 1.35), (-0.15, 0.12), (0.10, 1.00)),
-        )

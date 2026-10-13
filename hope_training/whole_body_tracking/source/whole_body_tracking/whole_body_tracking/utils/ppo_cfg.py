@@ -140,6 +140,19 @@ def runner_kwargs(params: dict, experiment_name: str) -> dict:
     else:
         algorithm_cfg = RslRlPpoAlgorithmCfg(**algorithm_kwargs)
 
+    if bool(a.get("projection_aux_enabled", False)):
+        if str(a.get("optimizer", "adam")).lower() != "adam":
+            raise ValueError("ProjectionPPO currently requires optimizer=adam")
+        algorithm_cfg = RslRlProjectionPpoAlgorithmCfg(
+            projection_aux_enabled=True,
+            projection_aux_lambda=float(a["projection_aux_lambda"]),
+            projection_aux_lambda_max=float(a["projection_aux_lambda_max"]),
+            projection_aux_gradient_ratio_max=float(a["projection_aux_gradient_ratio_max"]),
+            projection_aux_gaussian_tails=bool(a.get("projection_aux_gaussian_tails", False)),
+            **{key: value for key, value in a.items() if key.startswith("settled_aux_")},
+            **algorithm_kwargs,
+        )
+
     common_policy_kwargs = dict(
         init_noise_std=float(p["init_noise_std"]),
         actor_hidden_dims=[int(x) for x in p["actor_hidden_dims"]],
@@ -182,6 +195,8 @@ def runner_kwargs(params: dict, experiment_name: str) -> dict:
         policy_cfg = RslRlPpoActorCriticCfg(**common_policy_kwargs)
 
     return dict(
+        logger=str(r.get("logger", "tensorboard")),
+        wandb_project=os.environ.get("WANDB_PROJECT", str(r.get("wandb_project", experiment_name))),
         num_steps_per_env=int(r["num_steps_per_env"]),
         max_iterations=int(r["max_iterations"]),
         save_interval=int(r["save_interval"]),

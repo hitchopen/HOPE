@@ -1,0 +1,10 @@
+{
+  "inspection_version": 1,
+  "policy_abi": "ball_clock_110_v1",
+  "observation_dim": 110,
+  "action_dim": 31,
+  "step_dt": 0.02,
+  "runtime_contract": "rally_final_v2",
+  "training_recipe": "continuous_rally_sim2real_v3",
+  "training_recipe_version": 3
+}

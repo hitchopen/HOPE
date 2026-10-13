@@ -9,8 +9,9 @@
 #
 # It (1) puts the working-tree package source first on PYTHONPATH (so local edits
 # win over any installed copy) and (2) defines a `hope_isaac_py` launcher that
-# runs your Isaac Sim Python with that PYTHONPATH. There is no external logging
-# or experiment-tracking setup — training writes local checkpoints only.
+# runs your Isaac Sim Python with that PYTHONPATH. W&B destination variables can
+# be set in setup_train_env.local.sh; credentials stay in the user's W&B login.
+# Checkpoints remain local unless explicitly configured for upload.
 #
 # Point ISAAC_PYTHON / ISAACLAB_ROOT at your install if the defaults do not match
 # (e.g. export them in setup_train_env.local.sh, which is auto-sourced if present).
