@@ -2,6 +2,7 @@
 // All rights reserved.
 
 #include "mujoco_sim_module/subscriber/joint_actuator_subscriber.h"
+#include "mujoco_sim_module/subscriber/parallel_damping_table.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -220,6 +221,30 @@ void BodyDriveJointActuatorSubscriber::Initialize(YAML::Node options_node) {
   ctrl_buffer_.resize(joint_num_, 0.0);
   implicit_pd_ = std::string_view(std::getenv("A3_MUJOCO_PD_MODE")
                                       ? std::getenv("A3_MUJOCO_PD_MODE") : "explicit") == "implicit";
+  const char* parallel_mode = std::getenv("A3_MUJOCO_PARALLEL_DAMPING");
+  parallel_damping_ = parallel_mode && std::string_view(parallel_mode) == "official_a3";
+  AIMRT_CHECK_ERROR_THROW(!parallel_mode || parallel_damping_ ||
+                         std::string_view(parallel_mode) == "direct",
+                         "A3_MUJOCO_PARALLEL_DAMPING must be direct or official_a3");
+  AIMRT_CHECK_ERROR_THROW(!parallel_damping_ || !implicit_pd_,
+                         "Coupled A3 damping requires explicit PD");
+  const std::array<std::array<const char*, 2>, 3> pair_names{{
+      {{"left_ankle_pitch_joint", "left_ankle_roll_joint"}},
+      {{"right_ankle_pitch_joint", "right_ankle_roll_joint"}},
+      {{"waist_pitch_joint", "waist_roll_joint"}}}};
+  if (parallel_damping_) {
+    for (int group = 0; group < 3; ++group) {
+      auto p = std::ranges::find(joint_names_vec_, pair_names[group][0]);
+      auto r = std::ranges::find(joint_names_vec_, pair_names[group][1]);
+      AIMRT_CHECK_ERROR_THROW((p == joint_names_vec_.end()) == (r == joint_names_vec_.end()),
+                             "Parallel pitch and roll must share a command topic");
+      if (p != joint_names_vec_.end())
+        parallel_pairs_.push_back({group, static_cast<int>(p-joint_names_vec_.begin()),
+                                   static_cast<int>(r-joint_names_vec_.begin())});
+    }
+    AIMRT_INFO("Official A3 logical damping enabled on '{}', {} parallel pairs",
+               subscriber_.GetTopic(), parallel_pairs_.size());
+  }
   base_passive_damping_.resize(joint_num_, 0.0);
   for (size_t joint_idx = 0; joint_idx < joint_num_; ++joint_idx) {
     const int dof = actuator_bind_joint_sensor_addr_vec_[joint_idx].vel_addr;
@@ -235,6 +260,8 @@ void BodyDriveJointActuatorSubscriber::Initialize(YAML::Node options_node) {
   humanlike_vendor_profile_ = vendor_profile != nullptr &&
                               std::string_view(vendor_profile) != "0" &&
                               humanlike_owned_topic;
+  AIMRT_CHECK_ERROR_THROW(!parallel_damping_ || !humanlike_vendor_profile_,
+                         "Select one actuator profile; do not mix A3 parallel and HumanLike profiles");
   explicit_pd_decimation_ = humanlike_vendor_profile_ ? 2u : 1u;
   torque_limits_.assign(joint_num_, std::numeric_limits<double>::infinity());
   if (humanlike_vendor_profile_) {
@@ -362,6 +389,25 @@ void BodyDriveJointActuatorSubscriber::ApplyCtrlData() {
     }
   }
 
+  // The HAL converts caller Kd into motor damping using the parallel
+  // Jacobian. Direct logical PD misses this position-dependent coupling.
+  // Replace only the active damping term; keep caller Kp, feed-forward,
+  // passive plant damping, limits and policy commands unchanged.
+  for (const auto& pair : parallel_pairs_) {
+    const int p = pair[1], r = pair[2];
+    const auto& pc = latest_targets_[p]; const auto& rc = latest_targets_[r];
+    const auto& pa = actuator_bind_joint_sensor_addr_vec_[p];
+    const auto& ra = actuator_bind_joint_sensor_addr_vec_[r];
+    const double pv = pc.velocity - d_->qvel[pa.vel_addr];
+    const double rv = rc.velocity - d_->qvel[ra.vel_addr];
+    const auto damping = hope_a3_parallel::damping_torque(
+        pair[0], d_->qpos[pa.pos_addr], d_->qpos[ra.pos_addr],
+        pc.damping, rc.damping, pv, rv);
+    ctrl_buffer_[p] = pc.effort + pc.stiffness * (pc.position-d_->qpos[pa.pos_addr]) + damping[0];
+    ctrl_buffer_[r] = rc.effort + rc.stiffness * (rc.position-d_->qpos[ra.pos_addr]) + damping[1];
+    ctrl_buffer_[p] = std::clamp(ctrl_buffer_[p], -torque_limits_[p], torque_limits_[p]);
+    ctrl_buffer_[r] = std::clamp(ctrl_buffer_[r], -torque_limits_[r], torque_limits_[r]);
+  }
   ApplyCtrlValues(ctrl_buffer_.data(), ctrl_buffer_.size());
 }
 #endif

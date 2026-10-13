@@ -7,9 +7,13 @@ Chain:  Motive (NatNet UDP, cmd port 1510)  -->  motion_capture_tracking_node
 
 Sibling of avatar_pro_hope_bridge.launch.py (ChingMu/VRPN backend); both emit
 the identical HOPE topic contract, so everything downstream is unchanged.
-It also starts the per-run 17-station v3 sticker or legacy V2/V3 ball
-marker-carrier calibration services and the
-calibrated schema-2 base-pose relay. In P2 table-side mode the relay rotates all
+The driver first applies motive_to_world from hope_world_frame.yaml to every
+published world pose and point (body-local ModelDef coordinates stay local).
+The default accepts the current named Motive body without a file hash or
+marker-layout pin and assumes its identity marker-to-pelvis transform.
+Use localization_source:=motive_asset for the optional pinned 17-marker check. Legacy
+V2/V3 capture services are opt-in with localization_source:=calibration and
+start_calibration:=true. It publishes the same schema-2 base-pose contract. In P2 table-side mode the relay rotates all
 world poses 180 degrees about the table centre before Planner/base consumers.
 The HDU transport relay republishes that Laptop-owned pose on the authoritative
 Runner topic without recomputing calibration.
@@ -25,9 +29,8 @@ TODO before running on hardware (see docs/operations/run_mocap.md):
   * hostname -> the Motive PC IP on the arena LAN.
   * Motive streaming pane per mocap reference §6.3 (Z-up, Rigid Bodies ON,
     NatNet enabled; Multicast and Unicast are both supported and discovered
-    from NAT_SERVERINFO). Labeled Markers stays OFF for normal runtime and
-    must be ON only for the selected UCB_P1/UCB_P2 capture described
-    by publish_ucb_markers.
+    from NAT_SERVERINFO). Labeled Markers is optional for asset identity verification; enable it
+    to display the number of physically observed stickers.
   * rigid-body names + ball tracker are set in config/optitrack_mct.yaml and
     config/optitrack_relay.yaml (UCB_P1/UCB_P2/PPT assets; upstream ball
     'Ball' or 'ball', canonical downstream name 'Ball').
@@ -40,6 +43,8 @@ TODO before running on hardware (see docs/operations/run_mocap.md):
 
 import ipaddress
 from pathlib import Path
+
+import yaml
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
@@ -71,12 +76,16 @@ def generate_launch_description():
     launch_dir = Path(__file__).resolve().parent
     mct_config_path = launch_dir.parent / "config" / "optitrack_mct.yaml"
     relay_config_path = launch_dir.parent / "config" / "optitrack_relay.yaml"
+    with (launch_dir.parent / "config" / "hope_world_frame.yaml").open() as handle:
+        world = yaml.safe_load(handle)["hope_world"]
+    motive_transform = world.get("motive_to_world", {})
 
     hostname = LaunchConfiguration("hostname")
     mocap_type = LaunchConfiguration("mocap_type")
     start_mocap_node = LaunchConfiguration("start_mocap_node")
     start_world = LaunchConfiguration("start_world")
     start_calibration = LaunchConfiguration("start_calibration")
+    localization_source = LaunchConfiguration("localization_source")
     start_flight_packetizer = LaunchConfiguration("start_flight_packetizer")
     position_scale = LaunchConfiguration("position_scale")
     ucb_calibration_file = LaunchConfiguration("ucb_calibration_file")
@@ -129,13 +138,18 @@ def generate_launch_description():
             description="Set false when replaying a recorded /optitrack/poses bag.",
         ),
         DeclareLaunchArgument("start_world", default_value="true"),
-        DeclareLaunchArgument("start_calibration", default_value="true"),
+        DeclareLaunchArgument("start_calibration", default_value="false"),
+        DeclareLaunchArgument(
+            "localization_source", default_value="motive_live",
+            description="motive_live: current named body, nominal pelvis frame, no file/layout pin; "
+                        "motive_asset: pinned 17-marker verification; calibration: measured JSON.",
+        ),
         DeclareLaunchArgument("start_flight_packetizer", default_value="true"),
         DeclareLaunchArgument(
             "table_side",
             default_value="P1",
             description=(
-                "P1 consumes Motive world directly; P2 rotates every relayed "
+                "P1 consumes the canonical driver world; P2 rotates every relayed "
                 "pose 180 degrees about the table centre."
             ),
         ),
@@ -172,13 +186,13 @@ def generate_launch_description():
             description="Optional Laptop flight-packet audit CSV path.",
         ),
         DeclareLaunchArgument(
-            "publish_ucb_markers", default_value="false",
+            "publish_ucb_markers", default_value="true",
             description=(
-                "Calibration only: publish an atomic /optitrack/"
+                "Publish the imported asset ModelDef and optional live samples on /optitrack/"
                 "rigid_body_markers message containing the selected UCB robot "
                 "asset's NatNet ModelDef "
-                "and same-frame labeled-marker samples. Motive Labeled "
-                "Markers must also be ON. Keep false during normal play."
+                "and same-frame labeled-marker samples. ModelDef verification does not "
+                "require every marker to be visible. Labeled Markers enables the visibility audit."
             ),
         ),
         DeclareLaunchArgument(
@@ -234,6 +248,7 @@ def generate_launch_description():
                 "table_length_m": table_length_m,
                 "table_width_m": table_width_m,
                 "require_marker_identity": publish_ucb_markers,
+                "localization_source": localization_source,
             }.items(),
         ),
 
@@ -356,6 +371,11 @@ def generate_launch_description():
                     "hostname": hostname,
                     "interface_ip": LaunchConfiguration("interface_ip"),
                     "type": mocap_type,
+                    "world_transform.yaw_degrees": float(
+                        motive_transform.get("yaw_degrees", 0.0)
+                    ),
+                    "world_transform.translation_m": [float(v) for v in
+                        motive_transform.get("translation_m", [0.0, 0.0, 0.0])],
                     "topics.rigid_body_markers.enabled": ParameterValue(
                         publish_ucb_markers, value_type=bool
                     ),

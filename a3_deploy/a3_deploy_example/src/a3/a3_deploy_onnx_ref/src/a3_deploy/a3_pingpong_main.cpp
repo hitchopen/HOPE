@@ -39,6 +39,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include "a3_deploy/a3_policy_driver.hpp"
+#include "a3_deploy/async_csv_file.hpp"
 #include "a3_pingpong/pp_command_safety.hpp"
 #include "a3_pingpong/pp_hybrid_lower_policy.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
@@ -1325,7 +1326,7 @@ int main(int argc, char** argv) {
       if (!timeline.LoadCsv(serve_timeline_path, timeline_error)) {
         throw std::runtime_error(timeline_error);
       }
-      if (kernel_mode && official_stand && !Has(argc, argv, "--stand-lateral-offset-rad")) {
+      if (official_stand && !Has(argc, argv, "--stand-lateral-offset-rad")) {
         const double offset = a3_pingpong::ServeStandLateralOffset(
             pp->official_stand_q(), timeline.complete().q_sdk);
         pp->SetStandLateralOffset(offset);
@@ -1420,7 +1421,7 @@ int main(int argc, char** argv) {
 
   // --- optional per-tick CSV trace (every joint: des/q/qd/kp/kd) for offline diag ---
   const std::string trace_path = no_data_csv ? "" : Flag(argc, argv, "--trace-csv", "");
-  std::ofstream trace;
+  a3_deploy::AsyncCsvFile trace;
   if (!trace_path.empty()) {
     trace.open(trace_path);
     if (trace) {
@@ -1473,22 +1474,34 @@ int main(int argc, char** argv) {
                ",envelope_level,envelope_mode,envelope_home_dist_m,envelope_speed_mps"
                ",envelope_tilt_rad,envelope_block_reason"
                ",envelope_support_anchor_error_m";
+      trace << ",source_state_timestamp_ns,state_data_ready_ns,state_sync_ready_ns"
+               ",sync_complete,sync_aligned,sync_skew_ns,command_callback_monotonic_ns,publish_intent";
+      for (const auto& n : nm) trace << ",dq_des_" << n;
+      for (const auto& n : nm) trace << ",tau_ff_" << n;
+      for (const auto& n : nm) trace << ",tau_est_" << n;
+      trace << ",pelvis_qw,pelvis_qx,pelvis_qy,pelvis_qz,pelvis_wx,pelvis_wy,pelvis_wz"
+               ",pelvis_ax,pelvis_ay,pelvis_az,has_torso_imu"
+               ",torso_qw,torso_qx,torso_qy,torso_qz,torso_wx,torso_wy,torso_wz"
+               ",torso_ax,torso_ay,torso_az";
       trace << "\n";
       std::cout << "[pingpong] trace CSV -> " << trace_path << "\n";
     } else {
       std::cerr << "[pingpong] WARN: cannot open trace csv " << trace_path << "\n";
     }
   }
-  std::ofstream* trace_ptr = trace.is_open() ? &trace : nullptr;
+  std::ostream* trace_ptr = trace.is_open() ? &trace : nullptr;
 
   // --- optional per-tick OBS CSV (the full 180-D obs) for A/B/C comparison ---
-  std::ofstream obscsv;
+  a3_deploy::AsyncCsvFile obscsv;
   if (!obs_csv_path.empty()) {
     obscsv.open(obs_csv_path);
     if (obscsv) {
+      obscsv << std::setprecision(17);
       obscsv << "tick,ts,wall_time_ns,mode,loc_mode,oracle_fresh,oracle_age_s,sync_miss,legs_passive,session_id";
       for (int i = 0; i < pp->onnx().obs_dim(); ++i) obscsv << ",obs_" << i;
       for (int i = 0; i < a3_pingpong::kNumJoints; ++i) obscsv << ",act_" << i;
+      for (int i = 0; i < a3_pingpong::kNumJoints; ++i) obscsv << ",raw_act_" << i;
+      for (int i = 0; i < a3_pingpong::kNumJoints; ++i) obscsv << ",nominal_q_" << i;
       obscsv << "\n";
       std::cout << "[pingpong] obs CSV -> " << obs_csv_path
                 << " (loc_mode=" << pp->loc_mode_name() << ")\n";
@@ -1496,7 +1509,7 @@ int main(int argc, char** argv) {
       std::cerr << "[pingpong] WARN: cannot open obs csv " << obs_csv_path << "\n";
     }
   }
-  std::ofstream* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
+  std::ostream* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
   const int loc_mode_int = static_cast<int>(loc_mode);
 
   // SHADOW free-running clock. The driver's `tick` is PUBLISH-GATED: in SHADOW
@@ -1982,8 +1995,10 @@ int main(int argc, char** argv) {
           const auto& a = ppp->last_action();
           for (int i = 0; i < a3_pingpong::kNumJoints; ++i)
             o << ',' << (a.size() == a3_pingpong::kNumJoints ? a[i] : 0.0);
+          for (const auto x : ppp->raw_action_capture()) o << ',' << x;
+          for (const auto x : ppp->nominal_q_capture()) o << ',' << x;
           o << '\n';
-          static int oc = 0; if (++oc % 25 == 0) o.flush();  // single RT writer
+          o.flush();  // enqueue the complete row; disk I/O stays on the worker
         }
       }
     }
@@ -2124,12 +2139,26 @@ int main(int argc, char** argv) {
         << planner.envelope_home_dist_m << ',' << planner.envelope_speed_mps << ','
         << planner.envelope_tilt_rad << ',' << planner.envelope_block_reason << ','
         << planner.envelope_support_anchor_error_m;
+      o << ',' << st.timestamp_ns << ',' << st.state_data_ready_ns << ',' << st.state_sync_ready_ns
+        << ',' << st.sync_complete << ',' << st.sync_aligned << ',' << st.sync_skew_ns << ','
+        << std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count() << ',' << publish;
+      for (int i = 0; i < N; ++i) o << ',' << (cmd.dq_des.size() == N ? cmd.dq_des[i] : 0.0);
+      for (int i = 0; i < N; ++i) o << ',' << (cmd.tau_ff.size() == N ? cmd.tau_ff[i] : 0.0);
+      for (int i = 0; i < N; ++i) o << ',' << (st.tau_est.size() == N ? st.tau_est[i] : 0.0);
+      for (int i = 0; i < 4; ++i) o << ',' << st.imu_quat_wxyz[i];
+      for (int i = 0; i < 3; ++i) o << ',' << st.imu_gyro[i];
+      for (int i = 0; i < 3; ++i) o << ',' << st.imu_accel[i];
+      o << ',' << st.has_secondary_imu;
+      for (int i = 0; i < 4; ++i) o << ',' << st.sec_imu_quat_wxyz[i];
+      for (int i = 0; i < 3; ++i) o << ',' << st.sec_imu_gyro[i];
+      for (int i = 0; i < 3; ++i) o << ',' << st.sec_imu_accel[i];
       o << '\n';
       if (has) {
         trace_previous_q_des = cmd.q_des;
         trace_previous_shot_seq = planner.shot_seq;
       }
-      static int fc = 0; if (++fc % 25 == 0) o.flush();  // single RT writer
+      o.flush();  // enqueue the complete row; disk I/O stays on the worker
     }
     return publish;
   };

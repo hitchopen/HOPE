@@ -37,10 +37,11 @@ install(PROGRAMS
 install(FILES
   scripts/base_pose_contract.py
   scripts/p1_calibration.py
+  scripts/p1_marker_layout.py
+  scripts/motive_asset_contract.py
+  scripts/p1_marker_cad_registration_impl.py
   scripts/source_time_rate_gate.py
   scripts/table_side_transform.py
-  scripts/p1_marker_layout.py
-  scripts/p1_marker_cad_registration_impl.py
   scripts/p1_pelvis_calibration_impl.py
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -49,6 +50,10 @@ install(FILES
 install(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv
   DESTINATION share/${PROJECT_NAME}/config/marker_layouts
+)
+install(FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive
+  DESTINATION share/${PROJECT_NAME}/config/motive_assets
 )
 
 if(BUILD_TESTING)
@@ -67,6 +72,10 @@ if(BUILD_TESTING)
   )
   ament_add_pytest_test(p1_pelvis_calibrator_test test/test_p1_pelvis_calibrator.py)
   ament_add_pytest_test(p1_pelvis_tf_publisher_test test/test_p1_pelvis_tf_publisher.py)
+  ament_add_pytest_test(motive_asset_contract_test test/test_motive_asset_contract.py)
+  ament_add_pytest_test(motive_asset_relay_test test/test_motive_asset_relay.py)
+  ament_add_pytest_test(p1_marker_layout_test test/test_p1_marker_layout.py)
+  ament_add_pytest_test(v3_optitrack_asset_test test/test_v3_optitrack_asset.py)
   ament_add_pytest_test(
     natnet_preflight_clock_sync_test
     test/test_natnet_preflight_clock_sync.py
@@ -79,8 +88,6 @@ if(BUILD_TESTING)
   ament_add_pytest_test(base_pose_contract_test test/test_base_pose_contract.py)
   ament_add_pytest_test(p1_calibration_test test/test_p1_calibration.py)
   ament_add_pytest_test(public_sticker_integration_test test/test_public_sticker_integration.py)
-  ament_add_pytest_test(p1_marker_layout_test test/test_p1_marker_layout.py)
-  ament_add_pytest_test(v3_optitrack_asset_test test/test_v3_optitrack_asset.py)
   ament_add_pytest_test(p1_marker_cad_calibration_server_test test/test_p1_marker_cad_calibration_server.py)
 endif()
 

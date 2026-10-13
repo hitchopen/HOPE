@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.8.13
+
+- Accept the current named Motive body without a pinned asset hash or fixed layout.
+- Display physical visibility against the live ModelDef count, including the 17-station shell.
+- Use the tested `UCB_P1` asset and retain separate pelvis, clock and x_hit status.
+- Include distributed session recording and the public-layout integration.
+
+## 1.8.12
+
+- Name the supplied 12-sticker Motive rigid body `UCB_P1` directly and update its
+  pinned asset hash and companion metadata.
+- Show canonical `UCB_P1` / `UCB_P2` names in the asset card and table-side controls.
+
+## 1.8.11
+
+- Replace Venue Calibration, JSON transfer and Cali V2/V3 controls with live status for the imported pelvis-aligned 12-sticker Motive asset.
+- Show physical marker visibility out of 12; retain separate live pelvis, table-side, clock calibration and x_hit controls.
+- Requires the matching Laptop asset-verification relay and launch update; the extension alone does not change localization.
+
 ## 1.8.10
 
 - Allow Teleop requests after Xbox reconnects using fresh Runner Stand and neutral controller input; delayed Teleop display telemetry does not lock the button. Runner retains all admission checks.

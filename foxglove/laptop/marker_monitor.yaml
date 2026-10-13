@@ -2,6 +2,6 @@
   ros__parameters:
     source_topic: "/optitrack/rigid_body_markers"
     asset_name: "UCB_P1"
-    expected_count: 0
+    expected_count: 0  # Follow the current streamed ModelDef (e.g. 17 stickers).
     stale_after_s: 0.25
     publish_period_s: 0.1

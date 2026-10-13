@@ -4,7 +4,7 @@
   "native_motive_importable": false,
   "native_motive_export_status": "PENDING_LICENSED_WINDOWS_MOTIVE_API",
   "physical_calibration_status": "NOT_PERFORMED",
-  "asset_name": "P1",
+  "asset_name": "UCB_P1",
   "streaming_id": null,
   "streaming_id_policy": "Choose a unique stable positive ID in the venue; no default or live asset is overwritten.",
   "body_frame": "pelvis_link",

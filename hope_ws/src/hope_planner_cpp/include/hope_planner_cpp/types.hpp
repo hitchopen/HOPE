@@ -16,17 +16,16 @@ constexpr std::size_t kMaxEstimatorSamples = 192;
 constexpr std::size_t kInputRingCapacity = 1024;
 
 struct BallPhysics {
-  // 2026-08-23/24 engineering candidates; mirrors ball_physics_venue.yaml.
-  double drag_k = 0.1317;
-  double magnus_k = 0.00327844;
-  double restitution_h = 0.64;
-  double restitution_v = 0.9607;
+  // 2026-10-10 multi-batch physical fit; radius/gravity remain fixed priors.
+  double drag_k = 0.12861635416914574;
+  double magnus_k = 0.00379260504480258;
+  double restitution_h = 0.6125555614493483;
+  double restitution_v = 0.9313775047019153;
   // Nakashima/Ace Coulomb prior (not venue-fit).
   double nakashima_friction_mu = 0.25;
-  // Retained OptiTrack grip law from ball_physics_venue.yaml.  This is a
-  // separate candidate from the Nakashima rolling-cap law above.
-  double table_tangential_gain = 0.369;
-  double table_friction_cap_mu = 2.0;
+  // Fitted capped table-slip law, distinct from the Nakashima prior.
+  double table_tangential_gain = 0.38744443855065164;
+  double table_friction_cap_mu = 0.16706204822993975;
   Vec3 gravity{0.0, 0.0, -9.81};
   double radius = 0.02;
 };
@@ -54,6 +53,10 @@ struct PlannerConfig {
 };
 
 struct EstimatorConfig {
+  // When enabled, use observed per-segment orientation in the same physical
+  // model as Stage 2. Missing orientation falls back to zero spin.
+  bool spin_enabled = false;
+  double spin_min_coherence = 0.4;
   double window_s = 0.18;
   double min_span_s = 0.08;
   std::size_t min_samples = 12;
@@ -73,6 +76,11 @@ struct EstimatorConfig {
   double bounce_sparse_confirmation_min_span_s = 0.012;
   double bounce_sparse_confirmation_excursion_m = 0.005;
   double bounce_refractory_s = 0.12;
+  // Opt-in: after a measured contact, fit the new free-flight segment on its
+  // own instead of imposing the nominal table impulse on both segments.
+  // Zero retains the historical piecewise fit. Exposure time is unchanged.
+  double post_bounce_min_span_s = 0.0;
+  double post_bounce_exclusion_s = 0.008;
 };
 
 struct SpinEstimatorConfig {
@@ -93,8 +101,7 @@ struct BallSample {
   double source_time_s = 0.0;
   Vec3 position = Vec3::Zero();
   // Motive/ROS orientation of the tracked ball, normalized in the callback.
-  // Position estimation never consumes this field.  Invalid or absent
-  // orientation therefore cannot suppress the legacy command path.
+  // Invalid or absent orientation keeps the zero-spin position fit available.
   Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
   bool orientation_valid = false;
   std::int64_t receipt_steady_ns = 0;
@@ -125,6 +132,8 @@ struct BallState {
   Vec3 position = Vec3::Zero();
   Vec3 velocity = Vec3::Zero();
   double source_time_s = 0.0;
+  bool spin_model_enabled = false;
+  SpinEstimate physics_spin;
   std::size_t sample_count = 0;
   double sample_span_s = 0.0;
   double residual_rms_m = std::numeric_limits<double>::quiet_NaN();

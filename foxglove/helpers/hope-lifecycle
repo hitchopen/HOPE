@@ -19,6 +19,8 @@ if [[ -r "$LAPTOP_CONFIG" ]]; then
 fi
 
 readonly SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+readonly CAPTURE_HELPER="$(dirname "$SELF")/hope_sim2real_capture.py"
+readonly CAPTURE_SESSION_ROOT=/agibot/data/bag/hope_pingpong_telemetry/sim2real_sessions
 readonly HOPE_ROOT="${HOPE_ROOT:-$HOME/HOPE}"
 readonly LAPTOP_SHARE="${HOPE_LAPTOP_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}/hope-foxglove}"
 readonly LAPTOP_USER="${HOPE_LAPTOP_USER:-$(id -un)}"
@@ -56,7 +58,7 @@ die() {
 }
 
 valid_ipv4() {
-  local value="$1" part
+  local value="$1" scope="${2:-transport}" part
   [[ "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
   local IFS=.
   read -r -a parts <<< "$value"
@@ -66,6 +68,10 @@ valid_ipv4() {
     (( 10#$part <= 255 )) || return 1
   done
   [[ "$value" != 0.0.0.0 && "$value" != 255.255.255.255 ]] || return 1
+  # Only the Laptop-local Motive link may use IPv4 link-local addresses.
+  if [[ "$scope" == motive ]] && (( 10#${parts[0]} == 169 && 10#${parts[1]} == 254 )); then
+    return 0
+  fi
   if (( 10#${parts[0]} == 10 )); then
     return 0
   fi
@@ -118,7 +124,7 @@ parse_common() {
   valid_ipv4 "$LAPTOP_WIFI_IP" || return 1
   valid_ipv4 "$HDU_WIFI_IP" || return 1
   valid_ipv4 "$MDU_INTERNAL_IP" || return 1
-  [[ "$MOTIVE_IP" == NONE ]] || valid_ipv4 "$MOTIVE_IP" || return 1
+  [[ "$MOTIVE_IP" == NONE ]] || valid_ipv4 "$MOTIVE_IP" motive || return 1
   [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
 }
 
@@ -189,7 +195,12 @@ stop_tmux() {
   tmux_exists "$session" || return 0
   /usr/bin/tmux send-keys -t "$session:0.0" C-c
   local attempt
-  for attempt in {1..50}; do
+  local stop_attempts=50
+  # Signal the controller immediately, then allow independent recorders to
+  # drain and close their MCAP indexes before removing the terminal session.
+  [[ "$session" != "$MDU_RUNNER_SESSION" && "$session" != "$HDU_PLANNER_SESSION" &&
+     "$session" != hope-capture-* ]] || stop_attempts=250
+  for ((attempt = 0; attempt < stop_attempts; attempt++)); do
     tmux_exists "$session" || return 0
     sleep 0.1
   done
@@ -452,7 +463,28 @@ sudo -n journalctl -u agibot-mdu-ptp4l.service \
   -u agibot-mdu-phc2sys.service --since "-10 min" --no-pager 2>&1 || true
 MDU_CLOCK
   } > "real_logs/$SESSION_ID/laptop/clock_snapshot.txt"
+  start_laptop_capture || printf '[sim2real] CAPTURE ERROR: Laptop recorder launch failed\n' >&2
   emit SESSION COMPLETE LAPTOP_PREPARED
+}
+
+start_laptop_capture() {
+  local capture_session="hope-capture-$SESSION_ID"
+  local root="$HOPE_ROOT/real_logs/$SESSION_ID/laptop" attempt=1 output
+  tmux_exists "$capture_session" && return 0
+  while true; do
+    output="$root/$(printf 'capture_attempt_%03d' "$attempt")"
+    [[ -e "$output" ]] || break
+    attempt=$((attempt + 1))
+  done
+  start_tmux "$capture_session" /usr/bin/distrobox enter hope -- /bin/bash \
+    "$HOPE_ROOT/foxglove/helpers/hope-laptop-sim2real-record" \
+    "$HOPE_ROOT" "$SESSION_ID" "$HDU_WIFI_IP" "$output"
+}
+
+stop_laptop_capture() {
+  require_user "$LAPTOP_USER" COLLECT
+  stop_tmux "hope-capture-$SESSION_ID"
+  emit COLLECT COMPLETE LAPTOP_CAPTURE_CLOSED
 }
 
 preflight_laptop() {
@@ -467,10 +499,24 @@ preflight_laptop() {
   emit PREFLIGHT COMPLETE LAPTOP_LOG_COLLECTOR_READY
 }
 
+prepare_persistent_role() {
+  local role="$1" legacy="/tmp/hope_real/$SESSION_ID/$1"
+  local persistent="$CAPTURE_SESSION_ROOT/$SESSION_ID/$role"
+  mkdir -p "$(dirname "$legacy")"
+  # Existing attempts are never moved or replaced, including retry/recovery.
+  [[ ! -e "$legacy" && ! -L "$legacy" ]] || return 0
+  if mkdir -p "$persistent"; then
+    ln -s "$persistent" "$legacy"
+  else
+    printf '[sim2real] CAPTURE ERROR: persistent storage unavailable; session remains in /tmp\n' >&2
+    mkdir -p "$legacy"
+  fi
+}
+
 prepare_hdu() {
   require_user "$ROBOT_USER" SESSION
   printf '%s\n' "$SESSION_ID" > /tmp/hope_model21800_session_id
-  mkdir -p "/tmp/hope_real/$SESSION_ID/hdu"
+  prepare_persistent_role hdu
   printf 'table_side=%s\n' "$TABLE_SIDE" > \
     "/tmp/hope_real/$SESSION_ID/hdu/runtime_frame_config.txt"
   emit SESSION COMPLETE HDU_PREPARED
@@ -541,6 +587,7 @@ preflight_hdu() {
 prepare_mdu() {
   require_user "$ROBOT_USER" SESSION
   printf '%s\n' "$SESSION_ID" > /tmp/hope_model21800_session_id
+  prepare_persistent_role mdu
   mkdir -p "/tmp/hope_real/$SESSION_ID/mdu/system"
   printf 'table_side=%s\n' "$TABLE_SIDE" > \
     "/tmp/hope_real/$SESSION_ID/mdu/runtime_frame_config.txt"
@@ -696,7 +743,7 @@ preflight_mdu() {
 
 run_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
-  valid_ipv4 "$MOTIVE_IP" || die OPTITRACK MOTIVE_IP_REQUIRED
+  valid_ipv4 "$MOTIVE_IP" motive || die OPTITRACK MOTIVE_IP_REQUIRED
   local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
   mkdir -p "$(dirname "$runtime_env")"
   {
@@ -714,7 +761,7 @@ run_laptop() {
 
 start_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
-  valid_ipv4 "$MOTIVE_IP" || die OPTITRACK MOTIVE_IP_REQUIRED
+  valid_ipv4 "$MOTIVE_IP" motive || die OPTITRACK MOTIVE_IP_REQUIRED
   if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null; then
     die OPTITRACK UNMANAGED_BRIDGE_PRESENT
   fi
@@ -856,7 +903,7 @@ run_planner() {
     printf 'session_id: %s\n' "$SESSION_ID"
     printf 'x_hit_calibration_request_file: %s\n' "$request_file"
     printf 'x_hit_calibration_status_file: %s\n' "$status_file"
-    printf '%s\n' "debug_csv_path: ''"
+    printf 'debug_csv_path: %s\n' "$attempt_dir/planner_audit.csv"
   } > "$attempt_dir/runtime_overrides.yaml"
   {
     date -u --iso-8601=seconds
@@ -871,16 +918,20 @@ run_planner() {
   } > "$attempt_dir/artifact_sha256.txt"
   dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   set +e
+  # Ctrl-C reaches tee too. Keep its pipe open until the Planner has finished
+  # shutdown logging and flushed the asynchronous audit CSV.
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+    python3 "$CAPTURE_HELPER" --controlled --role hdu --root "$HDU_WS" \
+      --session-id "$SESSION_ID" --output "$attempt_dir/sim2real" -- \
     bash -c 'printf "%s\n" "$$" > "$1"; shift; exec "$@"' \
       hope_planner_launcher "$attempt_dir/pid.txt" \
       "$executable" --ros-args \
         --params-file "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
         -p "x_hit_calibration_request_file:=$request_file" \
         -p "x_hit_calibration_status_file:=$status_file" \
-        -p "debug_csv_path:=''" \
+        -p "debug_csv_path:=$attempt_dir/planner_audit.csv" \
         -p "debug_session_id:=$SESSION_ID" \
-    > >(tee "$attempt_dir/planner.log") 2>&1
+    > >(tee -i "$attempt_dir/planner.log") 2>&1
   planner_rc=$?
   set -e
   date -u --iso-8601=seconds > "$attempt_dir/attempt_end_utc.txt"
@@ -1039,12 +1090,17 @@ run_runner() {
   fi
   printf 'mode=%s\ncsv_sha256=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" > "$session_dir/field_selection.txt"
   set +e
-  taskset -c 4-7 ./run_a3_pingpong.sh \
+  # Keep the log reader alive through Ctrl-C so Runner can drain its CSVs.
+  python3 "$CAPTURE_HELPER" --controlled --role mdu --root "$MDU_DEPLOY" \
+    --session-id "$SESSION_ID" --output "$session_dir/sim2real" -- \
+    taskset -c 4-7 ./run_a3_pingpong.sh \
     --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native --serve \
-    --no-fall-guard --no-data-csv \
+    --no-fall-guard \
+    --trace-csv "$session_dir/sim2real/runner_trace.csv" \
+    --obs-csv "$session_dir/sim2real/policy_obs_actions.csv" \
     --start passive --official-stand \
     --session-id "$SESSION_ID" \
-    > >(tee -a "$session_dir/runner.log") 2>&1
+    > >(tee -i -a "$session_dir/runner.log") 2>&1
   runner_rc=$?
   set -e
   date -u --iso-8601=seconds > "$session_dir/attempt_end_utc.txt"
@@ -1088,7 +1144,8 @@ start_runner() {
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" || \
     die RUNNER ALREADY_RUNNING
-  for ((attempt = 0; attempt < 72; attempt++)); do
+  # Cover the 20 s gripper startup window plus Runner/HAL input startup.
+  for ((attempt = 0; attempt < 160; attempt++)); do
     if [[ -r "$real_root/current_attempt" ]]; then
       attempt_id="$(<"$real_root/current_attempt")"
       if [[ "$attempt_id" =~ ^attempt_[0-9]{3}$ && \
@@ -1161,6 +1218,14 @@ collect_logs() {
     "$ROBOT_USER@$HDU_WIFI_IP" test -d "$hdu_remote"
   check_rc=$?
   set -e
+  if [[ "$check_rc" == 1 ]]; then
+    hdu_remote="$CAPTURE_SESSION_ROOT/$SESSION_ID/hdu"
+    set +e
+    ssh -T -o BatchMode=yes -o ConnectTimeout=3 \
+      "$ROBOT_USER@$HDU_WIFI_IP" test -d "$hdu_remote"
+    check_rc=$?
+    set -e
+  fi
   case "$check_rc" in
     0)
       hdu_present=1
@@ -1176,6 +1241,14 @@ collect_logs() {
     -J "$ROBOT_USER@$HDU_WIFI_IP" "$ROBOT_USER@$MDU_INTERNAL_IP" test -d "$mdu_remote"
   check_rc=$?
   set -e
+  if [[ "$check_rc" == 1 ]]; then
+    mdu_remote="$CAPTURE_SESSION_ROOT/$SESSION_ID/mdu"
+    set +e
+    ssh -T -o BatchMode=yes -o ConnectTimeout=3 \
+      -J "$ROBOT_USER@$HDU_WIFI_IP" "$ROBOT_USER@$MDU_INTERNAL_IP" test -d "$mdu_remote"
+    check_rc=$?
+    set -e
+  fi
   case "$check_rc" in
     0)
       mdu_present=1
@@ -1210,6 +1283,9 @@ main() {
   local action="$1"
   shift
   case "$action" in
+    record-control)
+      exec python3 "$(dirname "$SELF")/hope_sim2real_control.py"
+      ;;
     field-assets-laptop)
       require_user "$LAPTOP_USER" FIELD_ASSETS
       export PYTHONPATH="$HOPE_ROOT/hope_ws/src/hope_bringup/scripts${PYTHONPATH:+:$PYTHONPATH}"
@@ -1264,6 +1340,7 @@ main() {
     stop-mdu) stop_mdu ;;
     stop-hdu) stop_hdu ;;
     stop-laptop) stop_laptop ;;
+    stop-capture-laptop) stop_laptop_capture ;;
     collect) collect_logs ;;
     _run-laptop) run_laptop ;;
     _run-base) run_base ;;

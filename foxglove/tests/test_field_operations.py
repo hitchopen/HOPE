@@ -154,6 +154,7 @@ class LifecycleModeTest(unittest.TestCase):
         namespace = dict(subprocess=subprocess, LifecycleConfig=LifecycleConfig,
             HelperEvent=HelperEvent, validate_session_id=validate_session_id,
             parse_helper_event=parse_helper_event, LIFECYCLE_HELPER="/fixed/helper",
+            LAPTOP_LIFECYCLE_HELPER="/fixed/laptop-helper",
             LAPTOP_USER="operator", ROBOT_USER="agi", SSH_OPTIONS=("-T",), json=json)
         exec(compile(ast.Module(body=classes, type_ignores=[]), str(source), "exec"), namespace)
         def run(argv, **kwargs):

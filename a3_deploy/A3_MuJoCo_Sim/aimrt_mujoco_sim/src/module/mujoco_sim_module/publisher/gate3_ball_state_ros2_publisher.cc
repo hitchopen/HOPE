@@ -81,6 +81,14 @@ void Gate3BallStateRos2Publisher::PublishFlight(int slot) {
   msg->linear_velocity.x = d_->qvel[dof_addr_ + 0];
   msg->linear_velocity.y = d_->qvel[dof_addr_ + 1];
   msg->linear_velocity.z = d_->qvel[dof_addr_ + 2];
+  msg->orientation.w = d_->qpos[qpos_addr_ + 3];
+  msg->orientation.x = d_->qpos[qpos_addr_ + 4];
+  msg->orientation.y = d_->qpos[qpos_addr_ + 5];
+  msg->orientation.z = d_->qpos[qpos_addr_ + 6];
+  const auto spin = gate3::WorldSpin(d_, qpos_addr_, dof_addr_);
+  msg->angular_velocity.x = spin[0];
+  msg->angular_velocity.y = spin[1];
+  msg->angular_velocity.z = spin[2];
   msg->contact_bits = static_cast<std::uint8_t>(
       std::clamp<mjtNum>(telemetry[gate3::kContactBits], 0.0, 255.0));
   msg->racket_contact_count = static_cast<std::uint32_t>(

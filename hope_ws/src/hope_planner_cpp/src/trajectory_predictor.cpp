@@ -1,4 +1,5 @@
 #include "hope_planner_cpp/trajectory_predictor.hpp"
+#include "hope_planner_cpp/ball_dynamics.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -121,14 +122,28 @@ StrikeTarget TrajectoryPredictor::predict(
       }
     }
 
-    if (previous_x > x_hit && px_new <= x_hit && vx_new < 0.0) {
+    // A plane crossing may precede contact within this integration step.
+    // Resolve that arc even if the later impact reverses horizontal motion.
+    const bool crossing_before_bounce = bounce_this_step &&
+        previous_x > x_hit && x_hit > px_bounce;
+    if (crossing_before_bounce ||
+        (previous_x > x_hit && px_new <= x_hit && vx_new < 0.0)) {
       double py_cross = 0.0;
       double pz_cross = 0.0;
       double vx_cross = 0.0;
       double vy_cross = 0.0;
       double vz_cross = 0.0;
       double t_cross = 0.0;
-      if (bounce_this_step) {
+      if (crossing_before_bounce) {
+        const double fraction = (px - x_hit) / (px - px_bounce);
+        const double crossing_dt = fraction * (dt - remaining_dt);
+        py_cross = py + fraction * (py_bounce - py);
+        pz_cross = pz * (1.0 - fraction);
+        vx_cross = vx + ax * crossing_dt;
+        vy_cross = vy + ay * crossing_dt;
+        vz_cross = vz + az * crossing_dt;
+        t_cross = time_s - dt + crossing_dt;
+      } else if (bounce_this_step) {
         const double dx_arc = px_bounce - px_new;
         const double fraction = std::clamp(
             std::abs(dx_arc) > 1.0e-9 ? (px_bounce - x_hit) / dx_arc : 0.5,
@@ -154,7 +169,7 @@ StrikeTarget TrajectoryPredictor::predict(
       output.ball_position = Vec3(x_hit, py_cross, pz_cross);
       output.ball_velocity = Vec3(vx_cross, vy_cross, vz_cross);
       output.strike_source_time_s = t_cross;
-      output.predicted_bounces = bounces;
+      output.predicted_bounces = bounces - (crossing_before_bounce ? 1 : 0);
       const bool dead_ball = pz_cross < 0.05 && vz_cross < 0.0;
       output.valid = !dead_ball;
       output.reason = dead_ball ? "dead_ball" : "prediction_valid";
@@ -245,47 +260,9 @@ void TrajectoryPredictor::apply_venue_grip_bounce(
   if (velocity_out == nullptr || omega_out == nullptr) {
     return;
   }
-  const double radius = physics_.radius;
-  constexpr double inertia_coefficient = 2.0 / 3.0;
-  if (!(radius > 0.0)) {
-    *velocity_out = Vec3(
-        physics_.restitution_h * velocity_in.x(),
-        physics_.restitution_h * velocity_in.y(),
-        -physics_.restitution_v * velocity_in.z());
-    *omega_out = omega_in;
-    return;
-  }
-
-  // Exact static-table specialization of
-  // ball_physics_fit/contact_model.py::predict_contact and
-  // physical_ball.py::predict_table_contact:
-  //   u = v + omega x (-R ez)
-  //   |dv_t| = min(a_t |u_t|, mu (1+e) |u_n|)
-  //   dw = -(1/(cR)) ez x dv_t
-  const Vec3 contact_velocity(
-      velocity_in.x() - radius * omega_in.y(),
-      velocity_in.y() + radius * omega_in.x(),
-      velocity_in.z());
-  const Vec3 tangential(contact_velocity.x(), contact_velocity.y(), 0.0);
-  const double tangential_speed = tangential.norm();
-  const double raw_impulse_speed =
-      std::max(0.0, physics_.table_tangential_gain) * tangential_speed;
-  const double friction_cap =
-      std::max(0.0, physics_.table_friction_cap_mu) *
-      (1.0 + physics_.restitution_v) * std::abs(contact_velocity.z());
-  const double impulse_speed = std::min(raw_impulse_speed, friction_cap);
-  Vec3 delta_v_t = Vec3::Zero();
-  if (tangential_speed > 1.0e-12) {
-    delta_v_t = -(impulse_speed / tangential_speed) * tangential;
-  }
-  const Vec3 delta_v_n(
-      0.0, 0.0,
-      -(1.0 + physics_.restitution_v) * contact_velocity.z());
-  const Vec3 normal(0.0, 0.0, 1.0);
-  const Vec3 delta_omega =
-      -(1.0 / (inertia_coefficient * radius)) * normal.cross(delta_v_t);
-  *velocity_out = velocity_in + delta_v_t + delta_v_n;
-  *omega_out = omega_in + delta_omega;
+  *velocity_out = velocity_in;
+  *omega_out = omega_in;
+  table_contact(physics_, *velocity_out, *omega_out);
 }
 
 StrikeTarget TrajectoryPredictor::predict_with_spin(
@@ -387,12 +364,23 @@ StrikeTarget TrajectoryPredictor::predict_with_spin(
       }
     }
 
-    if (previous_position.x() > x_hit && position_new.x() <= x_hit &&
-        velocity_new.x() < 0.0) {
+    const bool crossing_before_bounce = bounce_this_step &&
+        previous_position.x() > x_hit && x_hit > bounce_position.x();
+    if (crossing_before_bounce ||
+        (previous_position.x() > x_hit && position_new.x() <= x_hit &&
+         velocity_new.x() < 0.0)) {
       Vec3 crossing_position = Vec3::Zero();
       Vec3 crossing_velocity = Vec3::Zero();
       double crossing_time = 0.0;
-      if (bounce_this_step) {
+      if (crossing_before_bounce) {
+        const double fraction = (previous_position.x() - x_hit) /
+            (previous_position.x() - bounce_position.x());
+        const double crossing_dt = fraction * (dt - remaining_dt);
+        crossing_position = previous_position +
+            fraction * (bounce_position - previous_position);
+        crossing_velocity = previous_velocity + acceleration * crossing_dt;
+        crossing_time = time_s - dt + crossing_dt;
+      } else if (bounce_this_step) {
         const double dx = bounce_position.x() - position_new.x();
         const double fraction = std::clamp(
             std::abs(dx) > 1.0e-9
@@ -421,7 +409,7 @@ StrikeTarget TrajectoryPredictor::predict_with_spin(
       output.ball_position = crossing_position;
       output.ball_velocity = crossing_velocity;
       output.strike_source_time_s = crossing_time;
-      output.predicted_bounces = bounces;
+      output.predicted_bounces = bounces - (crossing_before_bounce ? 1 : 0);
       const bool dead_ball =
           crossing_position.z() < 0.05 && crossing_velocity.z() < 0.0;
       output.valid = !dead_ball;

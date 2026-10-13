@@ -14,6 +14,8 @@
 #include "hope_planner_cpp/spin_estimator.hpp"
 #include "hope_planner_cpp/spsc_ring.hpp"
 #include "hope_planner_cpp/trajectory_predictor.hpp"
+#include "hope_planner_cpp/future_contact_predictor.hpp"
+#include "hope_planner_cpp/target_turn_guard.hpp"
 
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
@@ -46,6 +48,8 @@ class PlannerNode final : public rclcpp::Node {
  private:
   struct BaseSnapshot {
     Vec3 position = Vec3::Zero();
+    Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
+    bool orientation_valid = false;
     bool valid = false;
     std::int64_t receipt_steady_ns = 0;
     std::int64_t source_stamp_ns = 0;
@@ -93,6 +97,8 @@ class PlannerNode final : public rclcpp::Node {
   PlannerConfig planner_config_;
   EstimatorConfig estimator_config_;
   SpinEstimatorConfig spin_estimator_config_;
+  FutureContactConfig future_contact_config_;
+  std::unique_ptr<FutureContactPredictor> future_contact_predictor_;
   IncomingTrajectoryConfig incoming_trajectory_config_;
   std::unique_ptr<BatchPhysicsEstimator> estimator_;
   std::unique_ptr<SpinEstimator> spin_estimator_;
@@ -135,6 +141,7 @@ class PlannerNode final : public rclcpp::Node {
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr serve_ball_publisher_;
   rclcpp::Publisher<hope_msgs::msg::RacketCommand>::SharedPtr typed_publisher_;
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr hit_plane_publisher_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr calibration_service_;
   rclcpp::TimerBase::SharedPtr diagnostics_timer_;
   rclcpp::TimerBase::SharedPtr calibration_timer_;
@@ -162,10 +169,13 @@ class PlannerNode final : public rclcpp::Node {
   std::string x_hit_status_file_;
   std::string session_id_;
   bool post_net_one_shot_enabled_ = true;
+  double max_target_turn_deg_ = 40.0;
+  double target_turn_max_pose_age_s_ = 0.2;
   bool flight_packet_input_enabled_ = false;
   std::string flight_packet_topic_ = "/ball/flight_packet";
   double post_net_commit_delay_s_ = 0.05;
-  double post_net_future_bounce_tangential_gain_ = 0.075;
+  double post_net_future_bounce_tangential_gain_ = 0.348260;
+  double post_net_future_bounce_restitution_v_ = 0.916598;
   bool question_fixture_enabled_ = false;
   double question_fixture_max_position_error_m_ = 0.03;
   double question_fixture_max_velocity_error_mps_ = 0.10;

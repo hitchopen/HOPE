@@ -1,0 +1,49 @@
+# Ball physics: real 2026-10-10 fit; see ball_physics_real_20261010.receipt.json.
+# Both nodes use the same Magnus and capped slip/contact model.
+hope_ball_flight_packetizer:
+  ros__parameters:
+    spin_window_s: 0.18
+    future_contact_magnus_enabled: true
+    table_friction_cap_mu: 0.16706204822993975
+    magnus_k: 0.00379260504480258
+    future_contact_spin_enabled: true
+    future_contact_spin_tangential_gain: 0.38744443855065164
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    input_pose_topic: "/poses"
+    flight_packet_topic: "/ball/flight_packet"
+    ball_pose_index: 0
+    input_qos_depth: 64
+
+    flight_window_s: 0.18
+    net_x: 1.37
+    post_net_commit_delay_s: 0.05
+    incoming_opponent_side_margin_m: 0.05
+    incoming_speed_threshold_mps: 0.25
+    outgoing_speed_threshold_mps: 0.25
+    incoming_direction_fit_samples: 4
+    incoming_direction_confirmations: 2
+    incoming_pre_roll_samples: 24
+    incoming_source_gap_reset_s: 0.25
+
+    retransmit_delays_ms: [0, 5, 15]
+    session_id: ""
+    producer_instance_id: ""
+    debug_csv_path: ""
+
+    adaptive_commit_enabled: true
+    adaptive_policy_lead_s: 0.35
+    adaptive_transport_budget_s: 0.10
+    adaptive_max_post_net_wait_s: 0.50
+    adaptive_post_bounce_span_s: 0.08
+    adaptive_contact_exclusion_s: 0.008
+    adaptive_evaluation_period_s: 0.01
+    adaptive_scheduling_x_hit: 0.15
+    adaptive_hit_plane_topic: "/hope/planner/hit_plane"
+
+    drag_k: 0.12861635416914574
+    restitution_h: 0.6125555614493483
+    restitution_v: 0.9313775047019153
+    table_tangential_gain: 0.38744443855065164
+    post_net_future_bounce_tangential_gain: 0.38744443855065164
+    post_net_future_bounce_restitution_v: 0.9313775047019153

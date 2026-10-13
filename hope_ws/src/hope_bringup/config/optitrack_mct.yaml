@@ -24,8 +24,8 @@
 #   grows during occlusion — stray points in the cloud WILL be grabbed).
 # -----------------------------------------------------------------------------
 # Other Motive-side requirements (both ball modes, mocap reference doc §6.3):
-# NatNet enabled, Up Axis = Z, and robot rigid-body assets named exactly
-# UCB_P1/UCB_P2 (+ PPT if used). NatNet transport is discovered from
+# NatNet enabled, Up Axis = Z, and robot assets named UCB_P1/UCB_P2
+# (+ PPT if used). Legacy P1/P2 aliases remain accepted. NatNet transport is discovered from
 # NAT_SERVERINFO: both
 # Multicast and Unicast are supported.  With interface_ip left at 0.0.0.0, the
 # multicast membership is joined on the Laptop interface selected by the route
@@ -46,6 +46,8 @@
     # project exposes both spellings at once, the exact canonical `Ball` asset
     # wins and the lowercase alias is suppressed by the adapter.
     rigid_body_name_aliases: ["ball=Ball", "P1=UCB_P1", "P2=UCB_P2"]
+    # The supplied pelvis-aligned asset is named UCB_P1 directly. P1/P2 aliases
+    # support older projects; all ROS topics and asset matching use UCB names.
     # Motive may temporarily retain old/diagnostic assets. Never expose them
     # as ROS poses or TF children: the allowlist runs after alias resolution,
     # so only these canonical names cross the driver.

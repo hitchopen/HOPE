@@ -239,6 +239,13 @@ License: MIT (upstream `LICENSE` kept in this directory).
     override, plus unicast. Both launch paths validate supplied IPv4 addresses
     before starting their respawn supervisors.
 
+18. **Publication-boundary world transform (2026-10-13)**: port the runtime
+    world transform from build_6. Apply configured yaw and translation once
+    to emitted rigid-body poses and live-marker world coordinates. MODELDEF
+    marker coordinates stay in the local body frame. Preserve the public
+    bounded NatNet decoders, timestamp gates, name allowlist and output limiter.
+    `test/test_world_frame_transform.cpp` covers pose, point and marker output.
+
 ## Re-pin procedure
 
 ```bash
@@ -255,12 +262,15 @@ rm -rf NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/deps/{vrpn,
 ## Interface facts verified at this pin (used by hope_bringup)
 
 - Executable: `motion_capture_tracking_node` (node name the same). Topics:
-  relative `poses` only (→ `/optitrack/poses` inside the supported namespace).
-  No point-cloud, marker-coordinate, or raw-TF publisher exists.
+  relative `poses` (→ `/optitrack/poses` inside the supported namespace) and
+  optional `rigid_body_markers` for selected-body diagnostics/calibration.
+  No unlabeled point-cloud or raw-TF publisher exists.
 - `poses` msg: `motion_capture_tracking_interfaces/msg/NamedPoseArray`
   (`header` + `NamedPose[]{string name, geometry_msgs/Pose pose}`) when
   `topics.poses.version: 1`; a V2 with vendor timestamp/latencies exists. Both
-  versions carry only available `Ball`, `P1`, `P2` entries, in that order.
+  versions follow the configured `rigid_body_name_allowlist` order after
+  applying `rigid_body_name_aliases`; the HOPE launch selects `Ball`, `UCB_P1`
+  and `UCB_P2`. The standalone defaults remain `Ball`, `P1`, `P2`.
 - Params actually read by the node: `type`, `hostname`, `interface_ip`,
   `topics.frame_id`, `topics.header_time`
   (`ros`=arrival time, `camera`=vendor clock, `camera_utc`=NatNet-echo mapped
@@ -274,7 +284,19 @@ rm -rf NatNet2ROS2/src/motion_capture_tracking/deps/libmotioncapture/deps/{vrpn,
   `topics.poses.qos.mode` (`none`=reliable depth-1 | `sensor`=SensorDataQoS
   keep-last-1 + deadline), and `topics.poses.qos.deadline` (Hz). For mock-mode
   bench tests only, `rigid_bodies.<name>.initial_position` overrides are read
-  to populate the mock backend; the same Ball/P1/P2 egress filter still applies.
+  to populate the mock backend; the configured egress filter still applies.
+- Additional parameters: `rigid_body_name_aliases` (`SOURCE=CANONICAL` array),
+  `rigid_body_name_allowlist`, `topics.rigid_body_markers.enabled`,
+  `topics.rigid_body_markers.asset_name`,
+  `topics.rigid_body_markers.geometric_match_max_distance_m`,
+  `topics.rigid_body_markers.modeldef_y_up_to_z_up`,
+  `world_transform.yaw_degrees` (default 0), and
+  `world_transform.translation_m` (default `[0,0,0]`, metres).
+- The HOPE launch loads the world transform from `hope_world_frame.yaml`,
+  before the downstream P2 table-centre rotation. Its +90-degree venue yaw
+  maps `(x,y,z)` to `(-y,x,z)` and left-multiplies orientations by `q_z(+90deg)`.
+  The transform applies once to published poses and live-marker world points;
+  MODELDEF coordinates stay local.
 - The only pose source is the vendor-native rigid-body map. The node never
   requests or publishes the unlabeled-marker point cloud and never reconstructs
   a body from individual marker coordinates.

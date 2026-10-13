@@ -26,6 +26,7 @@ from hope_marker_monitor_core import (
     EXPECTED_MARKERS,
     count_physical_markers,
     marker_count_text,
+    model_marker_count,
 )
 
 
@@ -49,15 +50,13 @@ class HopeMarkerMonitor(Node):
 
         self._asset_name = str(self.get_parameter("asset_name").value)
         self._expected_count = int(self.get_parameter("expected_count").value)
+        self._auto_expected_count = self._expected_count == 0
         self._stale_after_s = float(self.get_parameter("stale_after_s").value)
         publish_period_s = float(self.get_parameter("publish_period_s").value)
         if self._asset_name not in {"UCB_P1", "UCB_P2"}:
             raise ValueError("asset_name must be UCB_P1 or UCB_P2")
-        self._auto_expected = self._expected_count == 0
-        if self._auto_expected:
-            self._expected_count = 24
         if self._expected_count < 0:
-            raise ValueError("expected_count must be nonnegative (0 uses ModelDef size)")
+            raise ValueError("expected_count must be nonnegative (0 = live ModelDef)")
         if self._stale_after_s <= 0.0 or publish_period_s <= 0.0:
             raise ValueError("stale_after_s and publish_period_s must be positive")
 
@@ -66,6 +65,9 @@ class HopeMarkerMonitor(Node):
         self._receipt_monotonic: float | None = None
         self._pub_asset = self.create_publisher(
             String, "/hope/mocap/marker_asset", 10
+        )
+        self._pub_expected_count = self.create_publisher(
+            UInt32, "/hope/mocap/marker_expected_count", 10
         )
         # Side-neutral topics are authoritative for either UCB robot.
         self._pub_expected = self.create_publisher(UInt32, "/hope/mocap/marker_expected_count", 10)
@@ -92,8 +94,8 @@ class HopeMarkerMonitor(Node):
     def _on_markers(self, message: RigidBodyMarkerArray) -> None:
         if str(message.rigid_body_name) != self._asset_name:
             return
-        if self._auto_expected and len(message.markers) >= 3:
-            self._expected_count = len(message.markers)
+        if self._auto_expected_count:
+            self._expected_count = model_marker_count(message.markers)
         self._count, self._raw_count = count_physical_markers(
             message.markers, expected_count=self._expected_count
         )
@@ -109,7 +111,7 @@ class HopeMarkerMonitor(Node):
         count_message = UInt32(data=visible_count)
         fresh_message = Bool(data=fresh)
         complete_message = Bool(
-            data=fresh and self._raw_count == self._expected_count
+            data=fresh and self._expected_count > 0 and self._raw_count == self._expected_count
         )
         text_message = String(
             data=marker_count_text(
@@ -122,6 +124,7 @@ class HopeMarkerMonitor(Node):
         )
         self._pub_expected.publish(UInt32(data=self._expected_count))
         self._pub_asset.publish(String(data=self._asset_name))
+        self._pub_expected_count.publish(UInt32(data=self._expected_count))
         for publisher in self._pub_counts:
             publisher.publish(count_message)
         for publisher in self._pub_freshness:

@@ -43,14 +43,22 @@ frame contract, not a tunable.
 
 ## Mocap frame and calibrated transforms
 
-The arena motion-capture stream carries the named rigid bodies — `Ball`, `P1`,
-and `P2` — in the world frame during competition (a `Table` asset exists for
-calibration only and is not streamed). P1/P2 are marker-cluster frames; the
-calibrated constant transform mapping each one to its robot's URDF root
-(`pelvis_link` on the Agibot A3) is required. P1's production transform is the
-approved runtime JSON at `calibration/ucb_robot_to_pelvis.json`; the static
-`mocap_to_base_link` block of `hope_world_frame.yaml` remains for P2 and legacy
-records. Discipline:
+HOPE bringup canonicalizes robot names to `UCB_P1` and `UCB_P2`. The driver
+applies `motive_to_world` once to published world poses and live points; local
+ModelDef coordinates remain in the rigid-body frame. P2's table-side transform
+is applied downstream.
+
+Default `motive_live` localization assumes the imported body already has the
+pelvis origin and axes, so its nominal local correction is identity. It does
+not bind to a file hash, marker count or reference layout, and needs no saved
+JSON. It retains source timestamps, tracking validity and pose freshness.
+The wire digest identifies the selected live body; it is not a physical
+calibration or file checksum.
+
+Explicit `motive_asset` mode checks the supplied 17-marker asset. Explicit
+`calibration` mode loads the measured JSON at
+`calibration/ucb_robot_to_pelvis.json`. Only measured mode uses the following
+receipt rules:
 
 - The values are **never** hand-typed identities. P1's approved marker/CAD
   receipt is written atomically and the relay derives its wire ID from the
@@ -75,7 +83,8 @@ records. Discipline:
   [`docs/OPTITRACK.md`](../OPTITRACK.md) for the operational walkthrough.
 
 Each ROS 2 pose contains position `(x, y, z)` and quaternion orientation
-`(qx, qy, qz, qw)`; the no-spin planner consumes only the Ball position, while
+`(qx, qy, qz, qw)`; the planner consumes Ball positions and, when enabled,
+valid orientation-derived spin estimates. The
 the base-pose relay forwards the full calibrated P1 pose (position + quaternion,
 with validity flags) to the runner — which signal feeds which observation term
 is pinned per contract in [POLICY_INTERFACE.md](../POLICY_INTERFACE.md). The

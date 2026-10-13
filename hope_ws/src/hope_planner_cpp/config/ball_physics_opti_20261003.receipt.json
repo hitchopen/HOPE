@@ -1,0 +1,40 @@
+{
+  "profile": "opti_20261003_125330_v1",
+  "adopted_on": "2026-10-07",
+  "authorization": "User explicitly requested adoption in real-hardware planner and Gate3",
+  "status": "ADOPTED_ENGINEERING_PARAMETERS_HARDWARE_IMPROVEMENT_NOT_PROVEN",
+  "source_file": "Take 2026-10-03 12.53.30 PM.c3d",
+  "source_sha256": "f569a2bb3be1d3474b973658a0fa23c44f8a969060e018ea8a9e556425ccf198",
+  "rate_hz": 360,
+  "complete_frames": 50475,
+  "free_flight_arcs": 112,
+  "stable_table_contacts": 45,
+  "adopted": {
+    "drag_k": 0.119006,
+    "restitution_h": 0.65174,
+    "restitution_v": 0.916598,
+    "post_net_future_bounce_tangential_gain": 0.34826
+  },
+  "scope": "C++ real-hardware planner defaults/config, Gate3 planner + physical ball and replay helpers",
+  "interpretation": {
+    "restitution_h": "Effective horizontal velocity retention including unknown spin, not material friction",
+    "post_net_future_bounce_tangential_gain": "1 - restitution_h, used only as the existing future zero-spin predictor effective coefficient"
+  },
+  "retained": {
+    "observed_bounce_table_tangential_gain": 0.369,
+    "planner_shadow_magnus_k": 0.00327844,
+    "gate3_physical_magnus_k": 0.00444,
+    "paddle_contact": "unchanged",
+    "mass_radius": "unchanged",
+    "training_venue_yaml": "unchanged"
+  },
+  "validation_before_adoption": {
+    "heldout_arcs": 26,
+    "initial_observation_ms": 120,
+    "prediction_time_from_arc_start_ms": 250,
+    "candidate_position_error_median_mm": 12.4,
+    "previous_hardware_position_error_median_mm": 12.11,
+    "improvement": "NOT_PROVEN"
+  },
+  "fit_artifacts": "artifacts/ball_physics/take_20261003_125330/summary.json"
+}

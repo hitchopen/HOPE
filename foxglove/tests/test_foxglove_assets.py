@@ -418,6 +418,18 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("Popen", proxy)
         self.assertNotIn("shell=True", proxy)
 
+    def test_console_uses_live_motive_asset_status_without_venue_actions(self):
+        extension = (FOXGLOVE_DIR / "extensions/hope-a3-console/src/HopeA3Console.tsx").read_text()
+        for retired in ("VENUE CALIBRATION", "Load JSON", "Export JSON", "Recalibrate",
+                        "/hope/calibrate_v2", "/hope/calibrate_v3"):
+            self.assertNotIn(retired, extension)
+        for required in ("MOTIVE · LIVE ASSET", "/hope/mocap/asset_match",
+                         "/hope/mocap/asset_text", "/hope/mocap/marker_expected_count",
+                         "WAITING FOR MOTIVE", "/hope/lifecycle/time_calibration"):
+            self.assertIn(required, extension)
+        self.assertIn('isFresh(snapshot, TOPICS.assetMatched, now, 1_000)', extension)
+        self.assertIn('snapshot.markerCount === snapshot.markerExpectedCount', extension)
+
     def test_custom_console_maps_directly_to_native_runner_contract(self):
         extension = (
             FOXGLOVE_DIR
@@ -434,8 +446,6 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertEqual(package["displayName"], "HOPE A3 Console")
         for service in (
             "/hope/safety/trigger_estop",
-            "/hope/calibrate_v2",
-            "/hope/calibrate_v3",
             "/hope/refresh_x_hit",
             "/hope/runner/set_server",
             "/hope/runner/set_receiver",
@@ -460,9 +470,9 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("/hope/control/enter_", extension)
         self.assertNotIn("context.publish", extension)
         self.assertIn('key === "refreshXHit"', extension)
-        self.assertIn('label={`Cali V2 · ${markerAsset}`}', extension)
-        self.assertIn('label={`Cali V3 · ${markerAsset}`}', extension)
-        self.assertIn('"P2 · ROTATE 180°"', extension)
+        self.assertNotIn("/hope/calibrate_v2", extension)
+        self.assertNotIn("/hope/calibrate_v3", extension)
+        self.assertIn('"UCB_P2 · ROTATE 180°"', extension)
         self.assertIn('tableSide: "/hope/lifecycle/config/table_side"', extension)
         self.assertIn('markerAsset: "/hope/mocap/marker_asset"', extension)
         self.assertIn('markers: "/hope/mocap/marker_count"', extension)
@@ -673,8 +683,8 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("--no-fall-guard", helper)
         self.assertIn('field_runner_args=(--planner)', helper)
         self.assertIn('"${field_runner_args[@]}" --policy-native --serve', helper)
-        self.assertNotIn("--trace-csv", helper)
-        self.assertNotIn("--obs-csv", helper)
+        self.assertIn('--trace-csv "$session_dir/sim2real/runner_trace.csv"', helper)
+        self.assertIn('--obs-csv "$session_dir/sim2real/policy_obs_actions.csv"', helper)
         runner_block = helper.split("run_runner()", 1)[1].split(
             "start_runner()", 1
         )[0]
@@ -744,7 +754,8 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn('lifecycleState === "KILLING"', extension)
         self.assertIn("</dev/null >/dev/null 2>&1", helper)
         self.assertIn("hope-laptop-container-runtime", helper)
-        self.assertIn("start_world:=true start_calibration:=true", laptop_runtime)
+        self.assertIn("start_world:=true start_calibration:=false", laptop_runtime)
+        self.assertIn("localization_source:=motive_live", laptop_runtime)
         self.assertNotIn(
             "install/motion_capture_tracking/lib/motion_capture_tracking/"
             "motion_capture_tracking_node",

@@ -57,13 +57,14 @@ mixed-data RMS is not a new measurement-accuracy claim.
 
 The native offsets use Motive's Y-up basis so the existing bridge conversion
 `(x,y,z) → (x,-z,y)` yields ROS X forward, Y left, Z up with **Motive Streaming
-Up Axis = Z Up**. The exported asset is named `P1`, with streaming ID 9.
-Offline production-solver registration then recovers `P1 → pelvis_link` as
+Up Axis = Z Up**. This checkout names the exported asset `UCB_P1`, with streaming ID 9.
+Offline production-solver registration then recovers `UCB_P1 → pelvis_link` as
 zero translation and identity quaternion to numerical precision. This is the
-intended default correction, not an assertion that live `world → P1` is identity.
+intended default correction, not an assertion that live `world → UCB_P1` is identity.
 
-Import/re-export in Motive, restart the adapter and obtain a fresh installed
-live receipt. Do not apply an additional 90-degree rotation, the old pivot
+Default `motive_live` localization uses the imported body's current definition
+without a pinned asset or calibration receipt. An optional measured-calibration
+workflow must obtain a fresh installed live receipt. Do not apply an additional 90-degree rotation, the old pivot
 correction, or a hand-approved identity receipt. All earlier 12-station receipts are
 invalidated by the asset-frame revision. The nominal CAD origin and stored
 coordinate convention still require physical and live-stream validation.

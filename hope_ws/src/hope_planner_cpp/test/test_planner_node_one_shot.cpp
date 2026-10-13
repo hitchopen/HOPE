@@ -92,6 +92,7 @@ TEST(PlannerNodeOneShot, PostNetFlightUsesSolveTimeHomeAndProducesOneCommand) {
   // the authoritative placement packet at y=-0.7625.
   geometry_msgs::msg::PoseStamped base_pose;
   base_pose.pose.orientation.w = 1.0;
+  base_pose.pose.position.x = -0.58;
   base_pose.pose.position.y = 0.0;
   base_publisher->publish(base_pose);
   executor.spin_some(20ms);
@@ -116,6 +117,8 @@ TEST(PlannerNodeOneShot, PostNetFlightUsesSolveTimeHomeAndProducesOneCommand) {
     pose.position.z = 0.45;
     pose.orientation.w = 1.0;
     message.poses.push_back(pose);
+    base_pose.header.stamp = message.header.stamp;
+    base_publisher->publish(base_pose);
     publisher->publish(message);
     executor.spin_some(5ms);
     std::this_thread::sleep_for(1ms);

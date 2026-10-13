@@ -134,6 +134,7 @@ class MujocoSimModule : public aimrt::ModuleBase {
   int debug_floor_geom_id_ = -1;
   int debug_racket_site_id_ = -1;
   std::string debug_pd_mode_ = "explicit";
+  std::string debug_parallel_damping_mode_ = "direct";
 
   int gate3_ball_body_id_ = -1;
   int gate3_ball_joint_id_ = -1;
@@ -144,10 +145,13 @@ class MujocoSimModule : public aimrt::ModuleBase {
   int gate3_racket_site_id_ = -1;
   int gate3_table_geom_id_ = -1;
   int gate3_net_geom_id_ = -1;
-  // 2026-08-23 new-ball Motive fit; mirrors configs/ball_physics_venue.yaml.
-  double gate3_ball_drag_k_ = 0.1220;
-  double gate3_ball_restitution_h_ = 0.64;
-  double gate3_ball_restitution_v_ = 0.9215;
+  // 2026-10-10 real-ball fit; launch resolves these from Planner YAML.
+  double gate3_ball_drag_k_ = 0.12861635416914574;
+  double gate3_ball_magnus_k_ = 0.00379260504480258;
+  double gate3_ball_restitution_h_ = 0.6125555614493483;
+  double gate3_ball_restitution_v_ = 0.9313775047019153;
+  double gate3_ball_tangential_gain_ = 0.38744443855065164;
+  double gate3_ball_friction_cap_mu_ = 0.16706204822993975;
   std::array<std::array<double, 6>, 9> flight_velocities_{};
   std::array<common::gate3_ball::TableRestTracker, 9> flight_rest_{};
   std::array<std::uint64_t, 9> flight_shot_ids_{};

@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import csv
 import math
+import os
 import random
 import re
 from dataclasses import asdict, dataclass, field
@@ -220,7 +221,29 @@ def audit_cpp_planner_debug_csv(
             row_errors.append("snapshot identity does not match wire flight_id")
         if row["estimator_kind"] != "batch_physics_cpp_no_ekf_persistent_bounce":
             row_errors.append("unexpected estimator implementation")
-        if row["control_stage2_mode"] != "post_net_one_shot_effective_bounce_zero_spin":
+        stage2_mode = row["control_stage2_mode"]
+        if stage2_mode == "post_net_one_shot_physical_spin_magnus":
+            # New production mode must carry its actual physics, not merely
+            # a new mode string. Keep all timestamp/identity checks below.
+            physical_fields = {
+                "physics_drag_k": ("PP_BALL_DRAG_K", 0.12861635416914574),
+                "physics_magnus_k": ("PP_BALL_MAGNUS_K", 0.00379260504480258),
+                "physics_table_gain": ("PP_BALL_OBSERVED_BOUNCE_GAIN", 0.38744443855065164),
+                "physics_table_mu": ("PP_BALL_TABLE_FRICTION_CAP_MU", 0.16706204822993975),
+            }
+            try:
+                if int(row["future_contact_magnus_enabled"]) != 1:
+                    row_errors.append("physical-spin mode has Magnus disabled")
+                for field, (environment, default) in physical_fields.items():
+                    actual = float(row[field])
+                    expected = float(os.environ.get(environment, default))
+                    if not math.isfinite(actual) or not math.isclose(
+                        actual, expected, rel_tol=0.0, abs_tol=1.0e-9
+                    ):
+                        row_errors.append(f"{field} differs from resolved ball physics")
+            except (KeyError, TypeError, ValueError) as exc:
+                row_errors.append(f"missing or invalid physical-spin evidence: {exc}")
+        elif stage2_mode != "post_net_one_shot_effective_bounce_zero_spin":
             row_errors.append("unexpected C++ Stage-2 mode")
         if integers["input_ring_drops"] != 0:
             row_errors.append("Planner input-ring drops are nonzero")
@@ -254,7 +277,7 @@ def audit_cpp_planner_debug_csv(
             row_errors.append("commit timestamp is inconsistent with net-cross + delay")
         if not math.isclose(
             finite["post_net_future_bounce_tangential_gain"],
-            0.369,
+            float(os.environ.get("PP_BALL_FUTURE_BOUNCE_GAIN", "0.348260")),
             rel_tol=0.0,
             abs_tol=1.0e-9,
         ):

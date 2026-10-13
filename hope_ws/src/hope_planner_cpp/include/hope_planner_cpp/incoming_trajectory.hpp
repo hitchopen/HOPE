@@ -2,6 +2,7 @@
 
 #include "hope_planner_cpp/post_net_one_shot.hpp"
 #include "hope_planner_cpp/types.hpp"
+#include "hope_planner_cpp/adaptive_commit_config.hpp"
 
 #include <array>
 #include <atomic>
@@ -9,8 +10,11 @@
 #include <cstdint>
 #include <limits>
 #include <mutex>
+#include <memory>
 
 namespace hope_planner_cpp {
+
+class AdaptiveFlightCommit;
 
 enum class IncomingPhase : std::uint8_t {
   kSeekIncoming = 0,
@@ -33,11 +37,12 @@ struct IncomingTrajectoryConfig {
   std::size_t direction_fit_samples = 4;
   std::size_t direction_confirmations = 2;
   std::size_t pre_roll_samples = 24;
+  AdaptiveCommitConfig adaptive;
 };
 
 // Immutable, source-time-causal input to the one-shot solver. The callback
-// creates it at the first sample on/after net crossing + commit_delay. The
-// solver never observes samples that arrived after this boundary.
+// freezes it once at the fixed boundary, or at the adaptive pre-swing commit.
+// The solver never observes samples that arrived after that boundary.
 struct TrajectorySnapshot {
   std::array<BallSample, kMaxEstimatorSamples> samples{};
   std::size_t sample_count = 0;
@@ -50,6 +55,7 @@ struct TrajectorySnapshot {
   std::string segment_boundary_reason = "none";
   PostNetOneShotEvent one_shot;
   FlightPacketMetadata packet;
+  std::string commit_reason = "fixed_post_net";
 
   const BallSample* latest_sample() const noexcept {
     return sample_count == 0 ? nullptr : &samples[sample_count - 1];
@@ -60,6 +66,7 @@ struct IncomingTrajectoryUpdate {
   bool source_epoch_reset = false;
   bool incoming_started = false;
   bool net_crossed = false;
+  bool incoming_cancelled = false;
   bool snapshot_ready = false;
   TrajectorySnapshot snapshot;
 };
@@ -68,12 +75,18 @@ struct IncomingTrajectoryUpdate {
 // in a small pre-roll used to identify the opponent-side X turnaround. They
 // never enter the estimator history. An incoming segment stays latched through
 // direction noise; only stable +X motion on the opponent side can abandon an
-// uncommitted candidate before its net crossing.
+// uncommitted candidate before its net crossing. After crossing, confirmed
+// outgoing motion cancels a candidate that has not yet reached its commit
+// boundary, including reversals that are still on our side of the net.
 class IncomingTrajectory {
  public:
-  explicit IncomingTrajectory(IncomingTrajectoryConfig config);
+  explicit IncomingTrajectory(IncomingTrajectoryConfig config,
+                              CommitPredictionConfig prediction = {});
+  ~IncomingTrajectory();
 
   IncomingTrajectoryUpdate observe(const BallSample& sample) noexcept;
+  IncomingTrajectoryUpdate poll(double wall_time_s) noexcept;
+  void set_prediction_x_hit(double x_hit) noexcept;
   void reset_phase(bool keep_epoch = true) noexcept;
 
   IncomingPhase phase() const noexcept { return phase_; }
@@ -96,8 +109,11 @@ class IncomingTrajectory {
       const BallSample& sample,
       IncomingTrajectoryUpdate& update) noexcept;
   void make_snapshot(IncomingTrajectoryUpdate& update) noexcept;
+  TrajectorySnapshot candidate_snapshot() const noexcept;
+  void finish_snapshot(TrajectorySnapshot snapshot, IncomingTrajectoryUpdate& update) noexcept;
 
   IncomingTrajectoryConfig config_;
+  std::unique_ptr<AdaptiveFlightCommit> adaptive_commit_;
   IncomingPhase phase_ = IncomingPhase::kSeekIncoming;
   std::array<BallSample, kMaxEstimatorSamples> pre_roll_{};
   std::size_t pre_roll_count_ = 0;

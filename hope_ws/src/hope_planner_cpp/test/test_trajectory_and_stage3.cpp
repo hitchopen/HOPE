@@ -9,6 +9,9 @@ namespace {
 TEST(TrajectoryAndStage3, MatchesThePythonScalarReference) {
   // Golden values use the 2026-08-23/24 engineering physics candidate.
   BallPhysics physics;
+  physics.drag_k = 0.1317;
+  physics.restitution_h = 0.64;
+  physics.restitution_v = 0.9607;
   PlannerConfig config;
   config.x_hit = 0.15;
   config.target_land = Vec3(2.055, -0.7625, 0.0);
@@ -91,6 +94,10 @@ TEST(TrajectoryAndStage3, LegacySpinModeIsExactlyTheLegacyPath) {
 
 TEST(TrajectoryAndStage3, NakashimaTopspinChangesPostBounceCrossing) {
   BallPhysics physics;
+  // This research-path threshold is defined for the historical venue tuple.
+  physics.drag_k = 0.1317;
+  physics.restitution_h = 0.64;
+  physics.restitution_v = 0.9607;
   PlannerConfig config;
   config.adaptive_predict_horizon = true;
   config.max_predict_time_cap_s = 3.0;
@@ -114,6 +121,13 @@ TEST(TrajectoryAndStage3, NakashimaTopspinChangesPostBounceCrossing) {
 
 TEST(TrajectoryAndStage3, VenueGripSpinPathProducesFiniteCrossing) {
   BallPhysics physics;
+  // Preserve the independently computed historical scalar reference.
+  physics.magnus_k = 0.00327844;
+  physics.table_tangential_gain = 0.369;
+  physics.table_friction_cap_mu = 2.0;
+  physics.drag_k = 0.1317;
+  physics.restitution_h = 0.64;
+  physics.restitution_v = 0.9607;
   PlannerConfig config;
   config.adaptive_predict_horizon = true;
   config.max_predict_time_cap_s = 3.0;
@@ -170,6 +184,31 @@ TEST(TrajectoryAndStage3, ZeroEffectiveFutureBounceGainArrivesEarlier) {
   ASSERT_EQ(one_shot.predicted_bounces, 1);
   EXPECT_LT(one_shot.strike_source_time_s, venue.strike_source_time_s);
   EXPECT_LT(one_shot.ball_velocity.x(), venue.ball_velocity.x());
+}
+
+TEST(TrajectoryAndStage3, HistoricalUncappedZeroSpinRetentionMatchesDiagonalContact) {
+  BallPhysics physics;
+  // Disable flight forces to isolate the actual production contact dispatch.
+  physics.drag_k = 0.0;
+  physics.gravity = Vec3::Zero();
+  physics.table_tangential_gain = 0.348260;
+  physics.table_friction_cap_mu = 2.0;
+  physics.restitution_v = 0.916598;
+  PlannerConfig config;
+  TableParams table;
+  TrajectoryPredictor predictor(physics, config, table);
+  BallState state;
+  state.position = Vec3(1.0, -0.7, 0.12);
+  state.velocity = Vec3(-2.0, 0.2, -1.0);
+  state.source_time_s = 10.0;
+  state.valid = true;
+  const auto strike = predictor.predict_with_spin(
+      state, 0.6, Vec3::Zero(), SpinPhysicsMode::kVenueGripBounce);
+  ASSERT_TRUE(strike.valid) << strike.reason;
+  ASSERT_EQ(strike.predicted_bounces, 1);
+  EXPECT_NEAR(strike.ball_velocity.x(), -2.0 * 0.651740, 1e-9);
+  EXPECT_NEAR(strike.ball_velocity.y(), 0.2 * 0.651740, 1e-9);
+  EXPECT_NEAR(strike.ball_velocity.z(), 0.916598, 1e-9);
 }
 
 }  // namespace

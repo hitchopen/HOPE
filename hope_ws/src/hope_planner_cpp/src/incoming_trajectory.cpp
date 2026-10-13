@@ -1,4 +1,5 @@
 #include "hope_planner_cpp/incoming_trajectory.hpp"
+#include "hope_planner_cpp/adaptive_flight_commit.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -35,7 +36,8 @@ const char* incoming_phase_name(IncomingPhase phase) noexcept {
   return "unknown";
 }
 
-IncomingTrajectory::IncomingTrajectory(IncomingTrajectoryConfig config)
+IncomingTrajectory::IncomingTrajectory(IncomingTrajectoryConfig config,
+                                       CommitPredictionConfig prediction)
     : config_(std::move(config)) {
   config_.estimator_window_s = std::max(0.02, config_.estimator_window_s);
   config_.commit_delay_s = std::max(0.0, config_.commit_delay_s);
@@ -53,9 +55,28 @@ IncomingTrajectory::IncomingTrajectory(IncomingTrajectoryConfig config)
       config_.pre_roll_samples,
       config_.direction_fit_samples + config_.direction_confirmations,
       kMaxEstimatorSamples);
+  if (config_.adaptive.enabled) {
+    prediction.estimator.window_s = config_.estimator_window_s;
+    adaptive_commit_ = std::make_unique<AdaptiveFlightCommit>(config_.adaptive, prediction);
+  }
+}
+
+IncomingTrajectory::~IncomingTrajectory() = default;
+
+void IncomingTrajectory::set_prediction_x_hit(double x_hit) noexcept {
+  if (adaptive_commit_) adaptive_commit_->set_x_hit(x_hit);
+}
+
+IncomingTrajectoryUpdate IncomingTrajectory::poll(double wall_time_s) noexcept {
+  IncomingTrajectoryUpdate update;
+  TrajectorySnapshot selected;
+  if (phase_ == IncomingPhase::kWaitCommit && adaptive_commit_ &&
+      adaptive_commit_->poll(wall_time_s, selected)) finish_snapshot(std::move(selected), update);
+  return update;
 }
 
 void IncomingTrajectory::reset_phase(bool keep_epoch) noexcept {
+  if (adaptive_commit_) adaptive_commit_->reset();
   phase_ = IncomingPhase::kSeekIncoming;
   pre_roll_count_ = 0;
   history_count_ = 0;
@@ -167,6 +188,7 @@ std::size_t IncomingTrajectory::incoming_boundary_index() const noexcept {
 void IncomingTrajectory::start_incoming(
     const char* reason,
     IncomingTrajectoryUpdate& update) noexcept {
+  if (adaptive_commit_) adaptive_commit_->reset();
   const std::size_t boundary = incoming_boundary_index();
   history_count_ = 0;
   net_cross_source_time_s_ = std::numeric_limits<double>::quiet_NaN();
@@ -212,6 +234,15 @@ void IncomingTrajectory::collect_sample(
     update.net_crossed = true;
   }
   append_history(sample);
+  if (phase_ == IncomingPhase::kWaitCommit && adaptive_commit_) {
+    TrajectorySnapshot selected;
+    const double now_s = sample.receipt_wall_ns > 0
+        ? std::max(sample.source_time_s, static_cast<double>(sample.receipt_wall_ns) * 1e-9)
+        : sample.source_time_s;
+    if (adaptive_commit_->consider(candidate_snapshot(), commit_source_time_s_, now_s, selected))
+      finish_snapshot(std::move(selected), update);
+    return;
+  }
   if (phase_ == IncomingPhase::kWaitCommit &&
       std::isfinite(commit_source_time_s_) &&
       sample.source_time_s + 1.0e-12 >= commit_source_time_s_) {
@@ -219,12 +250,12 @@ void IncomingTrajectory::collect_sample(
   }
 }
 
-void IncomingTrajectory::make_snapshot(IncomingTrajectoryUpdate& update) noexcept {
+TrajectorySnapshot IncomingTrajectory::candidate_snapshot() const noexcept {
   TrajectorySnapshot snapshot;
   snapshot.sample_count = history_count_;
   std::copy_n(history_.begin(), history_count_, snapshot.samples.begin());
   snapshot.trajectory_epoch = trajectory_epoch_;
-  snapshot.snapshot_sequence = ++snapshot_sequence_;
+  snapshot.snapshot_sequence = snapshot_sequence_ + 1;
   snapshot.segment_start_source_time_s = current_segment_start_source_time_s_;
   snapshot.previous_segment_last_source_time_s =
       previous_segment_last_source_time_s_;
@@ -233,6 +264,16 @@ void IncomingTrajectory::make_snapshot(IncomingTrajectoryUpdate& update) noexcep
   snapshot.one_shot.flight_sequence = trajectory_epoch_;
   snapshot.one_shot.net_cross_source_time_s = net_cross_source_time_s_;
   snapshot.one_shot.commit_source_time_s = commit_source_time_s_;
+  return snapshot;
+}
+
+void IncomingTrajectory::make_snapshot(IncomingTrajectoryUpdate& update) noexcept {
+  finish_snapshot(candidate_snapshot(), update);
+}
+
+void IncomingTrajectory::finish_snapshot(
+    TrajectorySnapshot snapshot, IncomingTrajectoryUpdate& update) noexcept {
+  snapshot.snapshot_sequence = ++snapshot_sequence_;
   update.snapshot = std::move(snapshot);
   update.snapshot_ready = true;
 
@@ -294,6 +335,24 @@ IncomingTrajectoryUpdate IncomingTrajectory::observe(
   }
 
   if (phase_ == IncomingPhase::kWaitCommit) {
+    // A net/table reversal can occur inside the post-net collection window.
+    // The older, incoming part of that window can still fit a negative VX,
+    // producing a phantom long-TTS swing that occupies the real next return.
+    // Cancel only on the same confirmed +X evidence used for flight re-arming;
+    // do not extrapolate this candidate after it has visibly turned away.
+    if (outgoing_confirmations_ >= config_.direction_confirmations) {
+      if (adaptive_commit_) adaptive_commit_->reset();
+      history_count_ = 0;
+      net_cross_source_time_s_ = std::numeric_limits<double>::quiet_NaN();
+      commit_source_time_s_ = std::numeric_limits<double>::quiet_NaN();
+      phase_ = sample.position.x() >=
+              config_.net_x + config_.opponent_side_margin_m
+          ? IncomingPhase::kWaitOpponentReturn : IncomingPhase::kWaitOutgoing;
+      incoming_confirmations_ = 0;
+      outgoing_confirmations_ = 0;
+      update.incoming_cancelled = true;
+      return update;
+    }
     collect_sample(sample, update);
     return update;
   }

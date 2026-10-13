@@ -1,4 +1,5 @@
 #include "hope_planner_cpp/flight_packetizer_node.hpp"
+#include "hope_planner_cpp/future_contact_parameters.hpp"
 
 #include "hope_planner_cpp/flight_packet.hpp"
 
@@ -38,6 +39,13 @@ IncomingTrajectoryConfig declare_trajectory_config(rclcpp::Node& node) {
       node.declare_parameter<double>("flight_window_s", 0.18);
   config.commit_delay_s =
       node.declare_parameter<double>("post_net_commit_delay_s", 0.05);
+  config.adaptive.enabled = node.declare_parameter<bool>("adaptive_commit_enabled", false);
+  config.adaptive.policy_lead_s = node.declare_parameter<double>("adaptive_policy_lead_s", 0.35);
+  config.adaptive.transport_budget_s = node.declare_parameter<double>("adaptive_transport_budget_s", 0.10);
+  config.adaptive.max_post_net_wait_s = node.declare_parameter<double>("adaptive_max_post_net_wait_s", 0.50);
+  config.adaptive.post_bounce_span_s = node.declare_parameter<double>("adaptive_post_bounce_span_s", 0.08);
+  config.adaptive.contact_exclusion_s = node.declare_parameter<double>("adaptive_contact_exclusion_s", 0.008);
+  config.adaptive.evaluation_period_s = node.declare_parameter<double>("adaptive_evaluation_period_s", 0.01);
   config.opponent_side_margin_m =
       node.declare_parameter<double>("incoming_opponent_side_margin_m", 0.05);
   config.incoming_speed_threshold_mps =
@@ -58,6 +66,30 @@ IncomingTrajectoryConfig declare_trajectory_config(rclcpp::Node& node) {
   return config;
 }
 
+CommitPredictionConfig declare_prediction_config(rclcpp::Node& node) {
+  CommitPredictionConfig config;
+  config.future_contact = declare_future_contact_config(node);
+  config.spin_estimator = declare_spin_estimator_config(node);
+  config.observed_physics.drag_k = node.declare_parameter<double>("drag_k", BallPhysics{}.drag_k);
+  config.observed_physics.magnus_k = node.declare_parameter<double>("magnus_k", BallPhysics{}.magnus_k);
+  config.observed_physics.restitution_h = node.declare_parameter<double>("restitution_h", BallPhysics{}.restitution_h);
+  config.observed_physics.restitution_v = node.declare_parameter<double>("restitution_v", BallPhysics{}.restitution_v);
+  config.observed_physics.table_tangential_gain = node.declare_parameter<double>("table_tangential_gain", BallPhysics{}.table_tangential_gain);
+  config.observed_physics.table_friction_cap_mu = node.declare_parameter<double>("table_friction_cap_mu", BallPhysics{}.table_friction_cap_mu);
+  config.estimator.spin_enabled = config.future_contact.magnus_enabled;
+  config.estimator.spin_min_coherence = config.future_contact.min_coherence;
+  config.future_physics = config.observed_physics;
+  config.future_physics.table_tangential_gain = node.declare_parameter<double>("post_net_future_bounce_tangential_gain", config.observed_physics.table_tangential_gain);
+  config.future_physics.restitution_v = node.declare_parameter<double>("post_net_future_bounce_restitution_v", config.observed_physics.restitution_v);
+  config.planner.x_hit = node.declare_parameter<double>("adaptive_scheduling_x_hit", 0.15);
+  config.planner.adaptive_predict_horizon = true;
+  config.estimator.post_bounce_min_span_s = node.declare_parameter<double>(
+      "batch_post_bounce_min_span_s", 0.0);
+  config.estimator.post_bounce_exclusion_s = node.declare_parameter<double>(
+      "batch_post_bounce_exclusion_s", 0.008);
+  return config;
+}
+
 }  // namespace
 
 std::int64_t FlightPacketizerNode::steady_now_ns() noexcept {
@@ -73,7 +105,9 @@ std::int64_t FlightPacketizerNode::wall_now_ns() noexcept {
 FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
     : rclcpp::Node("hope_ball_flight_packetizer", options),
       trajectory_config_(declare_trajectory_config(*this)),
-      trajectory_(trajectory_config_) {
+      prediction_config_(declare_prediction_config(*this)),
+      trajectory_(trajectory_config_, prediction_config_) {
+  last_hit_plane_x_ = prediction_config_.planner.x_hit;
   const auto startup_wall_ns = wall_now_ns();
   session_id_ = declare_parameter<std::string>("session_id", "");
   if (session_id_.empty()) {
@@ -136,7 +170,34 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
       pose_topic, input_qos,
       std::bind(&FlightPacketizerNode::pose_callback, this,
                 std::placeholders::_1));
-  retransmit_timer_ = create_wall_timer(1ms, [this] { retransmit_due(); });
+  const std::string hit_plane_topic = declare_parameter<std::string>(
+      "adaptive_hit_plane_topic", "/hope/planner/hit_plane");
+  if (trajectory_config_.adaptive.enabled && !hit_plane_topic.empty()) {
+    hit_plane_subscription_ = create_subscription<std_msgs::msg::Float64MultiArray>(
+        hit_plane_topic, rclcpp::QoS(1).reliable().transient_local(),
+        [this](const std_msgs::msg::Float64MultiArray::SharedPtr message) {
+          // Schema 1: [schema, publisher wall seconds, foremost contact x].
+          // Use the calibrated front bound for both stroke sides. A stale or
+          // out-of-order reference cannot relax the scheduling deadline.
+          const double now = static_cast<double>(wall_now_ns()) * 1e-9;
+          if (message->data.size() != 3 || message->data[0] != 1.0 ||
+              !std::isfinite(message->data[1]) || !std::isfinite(message->data[2]) ||
+              std::abs(message->data[2]) > 1.0 || message->data[1] <= hit_plane_stamp_s_ ||
+              now - message->data[1] > 3.0 || message->data[1] - now > 0.5) return;
+          hit_plane_stamp_s_ = message->data[1];
+          last_hit_plane_x_ = message->data[2];
+          trajectory_.set_prediction_x_hit(last_hit_plane_x_);
+        });
+  }
+  retransmit_timer_ = create_wall_timer(1ms, [this] {
+    const double now = static_cast<double>(wall_now_ns()) * 1e-9;
+    if (now - hit_plane_stamp_s_ > 3.0)
+      trajectory_.set_prediction_x_hit(std::max(prediction_config_.planner.x_hit,
+                                               last_hit_plane_x_));
+    const auto update = trajectory_.poll(now);
+    if (update.snapshot_ready) publish_snapshot(update.snapshot, last_frame_id_);
+    retransmit_due();
+  });
 
   RCLCPP_INFO(
       get_logger(),
@@ -174,8 +235,17 @@ void FlightPacketizerNode::pose_callback(
   sample.receipt_wall_ns = wall_now_ns();
   sample.sequence = ++sample_sequence_;
   last_source_stamp_ns_.store(source_ns);
+  last_frame_id_ = message->header.frame_id.empty() ? "world" : message->header.frame_id;
 
   IncomingTrajectoryUpdate update = trajectory_.observe(sample);
+  if (update.incoming_cancelled) {
+    RCLCPP_INFO(
+        get_logger(),
+        "incoming cancelled before commit: confirmed outgoing motion "
+        "epoch=%llu source=%.9f x=%.4f",
+        static_cast<unsigned long long>(trajectory_.trajectory_epoch()),
+        sample.source_time_s, sample.position.x());
+  }
   if (update.snapshot_ready) {
     publish_snapshot(
         update.snapshot,
@@ -186,6 +256,12 @@ void FlightPacketizerNode::pose_callback(
 void FlightPacketizerNode::publish_snapshot(
     const TrajectorySnapshot& snapshot,
     const std::string& frame_id) {
+  if (trajectory_config_.adaptive.enabled) {
+    RCLCPP_INFO(get_logger(), "adaptive commit epoch=%llu reason=%s net_delay=%.6f sample_age=%.6f",
+        static_cast<unsigned long long>(snapshot.trajectory_epoch), snapshot.commit_reason.c_str(),
+        snapshot.one_shot.commit_source_time_s - snapshot.one_shot.net_cross_source_time_s,
+        static_cast<double>(wall_now_ns()) * 1e-9 - snapshot.latest_sample()->source_time_s);
+  }
   FlightPacketMetadata metadata;
   metadata.present = true;
   metadata.session_id = session_id_;
@@ -205,7 +281,10 @@ void FlightPacketizerNode::publish_snapshot(
   packet.frame_id = metadata.frame_id;
   packet.segment_boundary_reason = snapshot.segment_boundary_reason;
   packet.net_x = trajectory_config_.net_x;
-  packet.post_net_delay_s = trajectory_config_.commit_delay_s;
+  packet.post_net_delay_s = trajectory_config_.adaptive.enabled
+      ? std::max(0.0, snapshot.one_shot.commit_source_time_s -
+                         snapshot.one_shot.net_cross_source_time_s)
+      : trajectory_config_.commit_delay_s;
   packet.segment_start_exposure_unix_ns =
       seconds_to_ns(snapshot.segment_start_source_time_s);
   packet.previous_segment_last_exposure_unix_ns =

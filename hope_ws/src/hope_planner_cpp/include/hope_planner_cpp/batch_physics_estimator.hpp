@@ -15,7 +15,8 @@ namespace hope_planner_cpp {
 // source-gap restart participates in the result.
 class BatchPhysicsEstimator {
  public:
-  BatchPhysicsEstimator(BallPhysics physics, EstimatorConfig config);
+  BatchPhysicsEstimator(BallPhysics physics, EstimatorConfig config,
+                        SpinEstimatorConfig spin_config = {});
 
   void reset() noexcept;
   // Start a new incoming net-to-racket flight without discarding the raw
@@ -40,15 +41,19 @@ class BatchPhysicsEstimator {
   bool simulate_positions(
       const State6& initial,
       std::array<Vec3, kMaxEstimatorSamples>& positions,
-      State6* latest_state = nullptr) const noexcept;
-  bool propagate(State6& state, double duration_s) const noexcept;
-  bool apply_table_bounce(State6& state) const noexcept;
+      State6* latest_state = nullptr, Vec3* latest_spin = nullptr) const noexcept;
+  bool propagate(State6& state, double duration_s, const Vec3& omega) const noexcept;
+  bool apply_table_bounce(State6& state, Vec3& omega) const noexcept;
+  void prepare_spin() noexcept;
   void append(const BallSample& sample) noexcept;
   void drop_prefix(std::size_t count) noexcept;
   void trim_to_window() noexcept;
 
   BallPhysics physics_;
   EstimatorConfig config_;
+  SpinEstimatorConfig spin_config_;
+  SpinEstimate pre_spin_;
+  SpinEstimate post_spin_;
   std::array<BallSample, kMaxEstimatorSamples> samples_{};
   std::size_t sample_count_ = 0;
   static constexpr std::size_t kNoBounceIndex =

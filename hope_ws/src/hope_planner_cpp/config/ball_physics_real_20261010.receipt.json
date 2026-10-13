@@ -1,0 +1,240 @@
+{
+  "schema_version": 2,
+  "status": "ACTIVATED_PASSIVE",
+  "date_timezone": "2026-10-10 America/Los_Angeles",
+  "recorded_unix_ns": 1791698935583055404,
+  "fit_source": {
+    "path": "artifacts/ball_refit_real_20261010/ball_physics_real_20261010.receipt.json",
+    "sha256": "22ab9c507b3b4cfd502c5c360cb0a48fd2a1793653eebc34140dbdfd052f7b34",
+    "scope": "Pooled same-model marked balls; original offline fit retained unchanged"
+  },
+  "parameters": {
+    "drag_k": 0.12861635416914574,
+    "magnus_k": 0.00379260504480258,
+    "restitution_v": 0.9313775047019153,
+    "table_tangential_gain": 0.38744443855065164,
+    "table_friction_cap_mu": 0.16706204822993975,
+    "restitution_h": 0.6125555614493483,
+    "post_net_future_bounce_tangential_gain": 0.38744443855065164,
+    "post_net_future_bounce_restitution_v": 0.9313775047019153,
+    "future_contact_spin_enabled": true,
+    "future_contact_magnus_enabled": true,
+    "future_contact_spin_tangential_gain": 0.38744443855065164,
+    "future_contact_spin_omega_scale": 1.0,
+    "future_contact_spin_min_coherence": 0.4,
+    "spin_window_s": 0.18
+  },
+  "fixed_not_fitted": {
+    "gravity_m_s2": 9.81,
+    "radius_m": 0.02,
+    "inertia_coefficient": 0.6666666666666666,
+    "spin_decay_per_s": 0.0
+  },
+  "not_identified": [
+    "spin decay (zero prior, not a fitted zero)",
+    "mass",
+    "paddle contact",
+    "absolute spin calibration",
+    "individual ball identity"
+  ],
+  "restitution_h_scope": "Legacy zero-spin, inactive-cap approximation only. Active contact uses capped slip and angular impulse.",
+  "live_parameters": {
+    "status": "LIVE_PARAMETERS_VERIFIED",
+    "session": "model21800_20261011T060256Z",
+    "parameters": {
+      "/hope_planner": {
+        "drag_k": 0.12861635416914574,
+        "magnus_k": 0.00379260504480258,
+        "restitution_v": 0.9313775047019153,
+        "table_tangential_gain": 0.38744443855065164,
+        "table_friction_cap_mu": 0.16706204822993975,
+        "restitution_h": 0.6125555614493483,
+        "post_net_future_bounce_tangential_gain": 0.38744443855065164,
+        "post_net_future_bounce_restitution_v": 0.9313775047019153,
+        "future_contact_spin_enabled": true,
+        "future_contact_magnus_enabled": true,
+        "future_contact_spin_tangential_gain": 0.38744443855065164,
+        "future_contact_spin_omega_scale": 1.0,
+        "future_contact_spin_min_coherence": 0.4,
+        "spin_window_s": 0.18,
+        "max_target_turn_deg": 180.0
+      },
+      "/hope_ball_flight_packetizer": {
+        "drag_k": 0.12861635416914574,
+        "magnus_k": 0.00379260504480258,
+        "restitution_v": 0.9313775047019153,
+        "table_tangential_gain": 0.38744443855065164,
+        "table_friction_cap_mu": 0.16706204822993975,
+        "restitution_h": 0.6125555614493483,
+        "post_net_future_bounce_tangential_gain": 0.38744443855065164,
+        "post_net_future_bounce_restitution_v": 0.9313775047019153,
+        "future_contact_spin_enabled": true,
+        "future_contact_magnus_enabled": true,
+        "future_contact_spin_tangential_gain": 0.38744443855065164,
+        "future_contact_spin_omega_scale": 1.0,
+        "future_contact_spin_min_coherence": 0.4,
+        "spin_window_s": 0.18,
+        "session_id": "model21800_20261011T060256Z"
+      }
+    },
+    "state": {
+      "session": "model21800_20261011T060256Z",
+      "lifecycle": "RUNNING",
+      "hit_plane": [
+        1.0,
+        1791698714.1388953,
+        0.15
+      ],
+      "mode": "PASSIVE"
+    },
+    "verified_unix_ns": 1791698714606036786,
+    "hardware_motion_started": false
+  },
+  "activated_consumers": [
+    "HDU Planner",
+    "Laptop ball flight packetizer",
+    "Gate3 C++ Planner",
+    "Gate3 MuJoCo plant"
+  ],
+  "runtime_binaries": {
+    "hdu": {
+      "verified_unix_s": 1791698722.2524543,
+      "process": {
+        "pid": 66445,
+        "exe": "/home/agi/hope_ball_physics_20261010/build/hope_planner_cpp_node",
+        "sha256": "8d588e86742c34affb8812d7d25982327719299fc022feda93e3849dd63e8a6f",
+        "argv": [
+          "/home/agi/hope_ws/install_model21800_fix/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_node",
+          "--ros-args",
+          "--params-file",
+          "/home/agi/hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml",
+          "-p",
+          "x_hit_calibration_request_file:=/tmp/hope_real/model21800_20261011T060256Z/hdu/x_hit.request",
+          "-p",
+          "x_hit_calibration_status_file:=/tmp/hope_real/model21800_20261011T060256Z/hdu/x_hit.status",
+          "-p",
+          "debug_csv_path:=/tmp/hope_real/model21800_20261011T060256Z/hdu/planner_attempt_001/planner_audit.csv",
+          "-p",
+          "debug_session_id:=model21800_20261011T060256Z",
+          ""
+        ]
+      }
+    },
+    "laptop": {
+      "verified_unix_s": 1791698721.6951199,
+      "process": {
+        "pid": 915979,
+        "exe": "/home/dongc1/workspace/Hope_v11/artifacts/ball_physics_adoption_20261010/install/lib/hope_planner_cpp/hope_ball_flight_packetizer",
+        "sha256": "8f378631f8e1c4966a6f1b7685f98d9228d982722c79753dfdc3f3bcd67d290d",
+        "argv": [
+          "/home/dongc1/workspace/Hope_v11/hope_ws/install/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_packetizer",
+          "--ros-args",
+          "-r",
+          "__node:=hope_ball_flight_packetizer",
+          "--params-file",
+          "/home/dongc1/workspace/Hope_v11/hope_ws/install/hope_planner_cpp/share/hope_planner_cpp/config/model21800_flight_packetizer.yaml",
+          "--params-file",
+          "/tmp/launch_params_lzwxcqef",
+          ""
+        ]
+      }
+    }
+  },
+  "activation_receipts": {
+    "hdu": "artifacts/ball_physics_adoption_20261010/hdu_activation_receipt.json",
+    "laptop": "artifacts/ball_physics_adoption_20261010/laptop_activation_receipt.json"
+  },
+  "policy": {
+    "model": "model14600",
+    "sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+    "changed": false
+  },
+  "target_turn_limit_deg": 180.0,
+  "hardware_motion_started": false,
+  "physical_hit_rate": "NOT_PROVEN",
+  "validation": {
+    "cpp_unit_tests": {
+      "tests": 98,
+      "failures": 0,
+      "errors": 0
+    },
+    "active_config_tests_passed": 14,
+    "gate3_audit_tests_passed": 5,
+    "hdu_black_box_cases_passed": 9,
+    "arm_x86_replay": {
+      "cases": 75,
+      "validity_and_reason_identical": true,
+      "max_abs_delta": {
+        "time": 0.0,
+        "y": 3.8247183198336643e-13,
+        "z": 5.464240171448864e-13,
+        "px": 1.4654943925052066e-13,
+        "py": 9.636735853746359e-14,
+        "pz": 7.693845560652335e-14,
+        "vx": 1.0516032489249483e-12,
+        "vy": 6.857570067353436e-13,
+        "vz": 7.891187703279456e-13
+      },
+      "tolerance": 2e-06
+    },
+    "planner_mujoco_physics_parity": {
+      "cases": 2000,
+      "max_law_error": 2.84217e-14,
+      "energy_check": true,
+      "mujoco_world_spin_check": true
+    }
+  },
+  "development_replay": {
+    "0": {
+      "n": 75,
+      "valid": 75,
+      "invalid": [],
+      "median_ms_cm_cm": [
+        25.228500366210938,
+        3.401901557159942,
+        4.91317727149814
+      ],
+      "p90_ms_cm_cm": [
+        92.80686378479012,
+        10.582510442159457,
+        10.204023010981789
+      ]
+    },
+    "6": {
+      "n": 75,
+      "valid": 73,
+      "invalid": [
+        "latest:8",
+        "latest:73"
+      ],
+      "median_ms_cm_cm": [
+        18.55325698852539,
+        2.957485199403964,
+        3.5517736122588737
+      ],
+      "p90_ms_cm_cm": [
+        89.3818378448486,
+        10.192735234109323,
+        8.081785740772105
+      ]
+    },
+    "scope": "Development replay of already fitted data; not held out. Metrics exclude invalid rows; coverage reported separately."
+  },
+  "gate3": {
+    "serves": 26,
+    "valid_first_bounce_contacts": 14,
+    "legal_landing_count": 14,
+    "falls": 0,
+    "recovered": 5,
+    "certification_pass": false,
+    "raw_report": "artifacts/ball_physics_adoption_20261010/gate3_refit/pp_rally_report.json",
+    "reaudit": "artifacts/ball_physics_adoption_20261010/gate3_planner_reaudit.json",
+    "note": "New Magnus audit mode recognized and coefficient evidence checked. Existing fixed net+50ms audit does not accept adaptive sample commit timing; not relaxed. Physical contact/recovery failures remain independently."
+  },
+  "limitations": [
+    "Development replay excludes 2 newly rejected dead_ball cases from error metrics; no untouched hold-out claim.",
+    "Post-impact spin has approximately 3.97 rev/s median model discrepancy in prior fit diagnostics.",
+    "No new real-hardware hitting trial performed."
+  ],
+  "rollback": "Stop lifecycle from a freshly verified PASSIVE state and stop Laptop bridge; use saved per-role installer rollback, then restart PASSIVE. Do not switch while standing."
+}

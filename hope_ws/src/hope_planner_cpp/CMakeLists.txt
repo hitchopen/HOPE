@@ -36,9 +36,14 @@ add_library(hope_planner_core
   src/audit_logger.cpp
   src/post_net_one_shot.cpp
   src/incoming_trajectory.cpp
+  src/adaptive_flight_commit.cpp
   src/flight_packet.cpp
   src/question_bank_fixture.cpp
 )
+find_path(HOPE_RECORDING_INCLUDE_DIR a3_deploy/recording_file.hpp
+  HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include"
+  REQUIRED)
+target_include_directories(hope_planner_core PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
 target_include_directories(hope_planner_core
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -80,6 +85,7 @@ target_link_libraries(hope_ball_flight_packetizer PRIVATE
   rclcpp::rclcpp
   ${geometry_msgs_TARGETS}
   ${hope_msgs_TARGETS}
+  ${std_msgs_TARGETS}
 )
 
 install(TARGETS
@@ -103,6 +109,10 @@ install(PROGRAMS
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_spin_physics test/test_spin_physics.cpp)
+  target_link_libraries(test_spin_physics hope_planner_core Eigen3::Eigen)
+  ament_add_gtest(test_future_contact_predictor test/test_future_contact_predictor.cpp)
+  target_link_libraries(test_future_contact_predictor hope_planner_core Eigen3::Eigen)
   ament_add_gtest(test_batch_physics_estimator test/test_batch_physics_estimator.cpp)
   target_link_libraries(test_batch_physics_estimator hope_planner_core Eigen3::Eigen)
   target_include_directories(test_batch_physics_estimator PRIVATE include)
@@ -110,6 +120,14 @@ if(BUILD_TESTING)
   ament_add_gtest(test_trajectory_and_stage3 test/test_trajectory_and_stage3.cpp)
   target_link_libraries(test_trajectory_and_stage3 hope_planner_core Eigen3::Eigen)
   target_include_directories(test_trajectory_and_stage3 PRIVATE include)
+
+  ament_add_gtest(test_target_turn_guard test/test_target_turn_guard.cpp)
+  target_link_libraries(test_target_turn_guard hope_planner_core Eigen3::Eigen)
+  target_include_directories(test_target_turn_guard PRIVATE include)
+
+  ament_add_gtest(test_prediction_event_order test/test_prediction_event_order.cpp)
+  target_link_libraries(test_prediction_event_order hope_planner_core Eigen3::Eigen)
+  target_include_directories(test_prediction_event_order PRIVATE include)
 
   ament_add_gtest(test_schema2 test/test_schema2.cpp)
   target_link_libraries(test_schema2 hope_planner_core Eigen3::Eigen)
@@ -131,6 +149,10 @@ if(BUILD_TESTING)
   target_link_libraries(test_incoming_trajectory hope_planner_core Eigen3::Eigen)
   target_include_directories(test_incoming_trajectory PRIVATE include)
 
+  ament_add_gtest(test_adaptive_flight_commit test/test_adaptive_flight_commit.cpp)
+  target_link_libraries(test_adaptive_flight_commit hope_planner_core Eigen3::Eigen)
+  target_include_directories(test_adaptive_flight_commit PRIVATE include)
+
   ament_add_gtest(test_flight_packet test/test_flight_packet.cpp)
   target_link_libraries(test_flight_packet hope_planner_core Eigen3::Eigen)
   target_include_directories(test_flight_packet PRIVATE include)
@@ -145,6 +167,22 @@ if(BUILD_TESTING)
   )
   target_include_directories(test_planner_node_one_shot PRIVATE include)
   target_link_libraries(test_planner_node_one_shot
+    hope_planner_core
+    Eigen3::Eigen
+    rclcpp::rclcpp
+    ${diagnostic_msgs_TARGETS}
+    ${geometry_msgs_TARGETS}
+    ${hope_msgs_TARGETS}
+    ${std_msgs_TARGETS}
+    ${std_srvs_TARGETS}
+  )
+
+  ament_add_gtest(test_planner_node_turn_guard
+    test/test_planner_node_turn_guard.cpp
+    src/planner_node.cpp
+  )
+  target_include_directories(test_planner_node_turn_guard PRIVATE include)
+  target_link_libraries(test_planner_node_turn_guard
     hope_planner_core
     Eigen3::Eigen
     rclcpp::rclcpp

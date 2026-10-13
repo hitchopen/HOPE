@@ -195,14 +195,21 @@ works on the A3 adapter's aarch64 platform.
 
 ### Optional marker-CAD calibration: P1 to an A3 `pelvis_link`
 
+Default HOPE bringup uses `localization_source:=motive_live` and accepts the
+selected body's current ModelDef without a pinned file/hash/layout or a
+calibration JSON. The imported pivot and axes must describe the pelvis.
+The measured procedure below requires explicit `localization_source:=calibration`
+and `start_calibration:=true`; it is separate from the default console workflow.
+
+
 The current sticker profile is the **17-station v3 sticker shell**:
 **S04-S08 and S11-S22**. Front seven are unchanged; rear upper and middle
 rows each have five stations. It is not the previous 12-station, 24-station or ten-ball shell. Use the
 [v3 setup and calibration procedure](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
 for asset preparation, rebuilding, live capture and acceptance limits.
 
-On the current runtime, rename the supplied `P1` asset to `UCB_P1` or `UCB_P2`
-for the selected table side and choose `stickers_v3`. Legacy `v2`/`v3` ball
+The supplied asset already uses `UCB_P1`; use `UCB_P2` for the other table side.
+For the optional measured workflow, choose `stickers_v3`. Legacy `v2`/`v3` ball
 profiles remain available separately.
 
 The service and CLI share the canonical sticker optical-centre CSV already
@@ -219,12 +226,10 @@ samples during capture, but not necessarily in the same frame. Restart
 NatNet after redefining P1. All earlier 12-point, old 24-station, ten-marker
 and ball-mode receipts are rejected; generate a fresh live receipt.
 
-The integrated Foxglove console's `Calibration` button calls
-`/hope/calibrate` while the authoritative Runner remains in fresh
-`PD_STAND`. The laptop service recomputes `P1 → pelvis_link` and atomically
-stores the approved v3 receipt in `calibration/ucb_robot_to_pelvis.json`. The
-`Refresh x_hit` button calls `/hope/refresh_x_hit`; it does not recalibrate.
-Other operator paths may require the manual command in the linked procedure.
+For measured mode, use the CLI/service in the linked procedure while Runner
+remains in stationary `PD_STAND`. It writes the approved receipt under
+`calibration/ucb_robot_to_pelvis.json`. The current console shows live asset
+status; Refresh x_hit calls `/hope/refresh_x_hit` and does not recalibrate.
 
 The laptop relay composes the saved transform with live `world → P1` and
 publishes `/a3/base_pose_flat` plus diagnostic `/a3/mocap/pelvis_pose`.

@@ -10,7 +10,7 @@
 
 namespace a3_v3 {
 constexpr std::size_t kMarkerCount = 17;
-constexpr const wchar_t* kAssetName = L"P1";
+constexpr const wchar_t* kAssetName = L"UCB_P1";
 constexpr std::array<const char*, kMarkerCount> kStationNames = {{
     "S04", "S05", "S06", "S07", "S08", "S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22"
 }};

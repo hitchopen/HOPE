@@ -76,6 +76,10 @@ class NatNetPreflightTest(unittest.TestCase):
             'rigid_body_name_aliases: ["ball=Ball", "P1=UCB_P1", "P2=UCB_P2"]', runtime_config
         )
 
+    def test_imported_p1_p2_names_match_runtime_canonical_names(self):
+        aliases = MODULE.parse_asset_aliases(list(MODULE.DEFAULT_ASSET_ALIAS_ENTRIES))
+        self.assertEqual(MODULE.canonical_assets(["P1", "P2"], aliases), ["UCB_P1", "UCB_P2"])
+
     def test_modeldef_exact_ball_wins_if_both_spellings_exist(self):
         def modeldef_body(name, rigid_body_id):
             return (
@@ -210,6 +214,16 @@ class NatNetPreflightTest(unittest.TestCase):
         self.assertIn("parseNatNetSizedFrame", driver)
         self.assertIn("parseNatNetModelDef", driver)
         self.assertIn("parseModelDef(modelDef.data(), modelDef.size())", driver)
+
+    def test_live_motive33_sized_modeldef(self):
+        packet = (Path(__file__).parent / "fixtures/natnet_modeldef_motive33_sized.bin").read_bytes()
+        self.assertEqual(MODULE.modeldef_rigid_body_ids(packet, 4, 2, {}),
+                         {"Ball": 5, "UCB_P1": 9})
+        for offset, value in ((12, 152), (12, 154), (57, 100000)):
+            malformed = bytearray(packet)
+            struct.pack_into("<i", malformed, offset, value)
+            with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                MODULE.modeldef_rigid_body_ids(bytes(malformed), 4, 2, {})
 
 
 if __name__ == "__main__":

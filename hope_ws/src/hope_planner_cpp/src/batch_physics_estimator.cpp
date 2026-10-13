@@ -1,10 +1,13 @@
 #include "hope_planner_cpp/batch_physics_estimator.hpp"
+#include "hope_planner_cpp/ball_dynamics.hpp"
+#include "hope_planner_cpp/spin_estimator.hpp"
 
 #include <Eigen/Cholesky>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 
 namespace hope_planner_cpp {
 namespace {
@@ -16,8 +19,12 @@ bool finite_vec(const Vec3& value) noexcept {
 }  // namespace
 
 BatchPhysicsEstimator::BatchPhysicsEstimator(
-    BallPhysics physics, EstimatorConfig config)
-    : physics_(std::move(physics)), config_(std::move(config)) {
+    BallPhysics physics, EstimatorConfig config, SpinEstimatorConfig spin_config)
+    : physics_(std::move(physics)), config_(std::move(config)),
+      spin_config_(std::move(spin_config)) {
+  if (!std::isfinite(config_.spin_min_coherence) ||
+      config_.spin_min_coherence < 0.0 || config_.spin_min_coherence > 1.0)
+    throw std::invalid_argument("invalid estimator spin coherence");
   config_.window_s = std::max(0.02, config_.window_s);
   config_.min_span_s = std::clamp(config_.min_span_s, 0.0, config_.window_s);
   config_.min_samples = std::clamp<std::size_t>(config_.min_samples, 6, kMaxEstimatorSamples);
@@ -37,6 +44,15 @@ BatchPhysicsEstimator::BatchPhysicsEstimator(
       std::max(config_.bounce_min_excursion_m,
                config_.bounce_sparse_confirmation_excursion_m);
   config_.bounce_refractory_s = std::max(0.0, config_.bounce_refractory_s);
+  if (!std::isfinite(config_.post_bounce_min_span_s) ||
+      config_.post_bounce_min_span_s < 0.0 ||
+      (config_.post_bounce_min_span_s > 0.0 &&
+       (config_.post_bounce_min_span_s < 0.02 ||
+        config_.post_bounce_min_span_s > config_.window_s)) ||
+      !std::isfinite(config_.post_bounce_exclusion_s) ||
+      config_.post_bounce_exclusion_s < 0.0) {
+    throw std::invalid_argument("invalid post-contact estimator window");
+  }
 }
 
 void BatchPhysicsEstimator::reset() noexcept {
@@ -287,7 +303,29 @@ bool BatchPhysicsEstimator::initial_state(State6& state) const noexcept {
   return state.allFinite();
 }
 
-bool BatchPhysicsEstimator::propagate(State6& state, double duration_s) const noexcept {
+void BatchPhysicsEstimator::prepare_spin() noexcept {
+  pre_spin_ = {}; post_spin_ = {};
+  if (!config_.spin_enabled) return;
+  SpinEstimator pre(spin_config_), post(spin_config_);
+  const bool split = bounce_transition_active();
+  const double contact = split ? samples_[bounce_index_].source_time_s : 0.0;
+  for (std::size_t i = 0; i < sample_count_; ++i) {
+    if (!split || samples_[i].source_time_s < contact - config_.post_bounce_exclusion_s)
+      pre.push(samples_[i]);
+    if (split && samples_[i].source_time_s > contact + config_.post_bounce_exclusion_s)
+      post.push(samples_[i]);
+  }
+  pre_spin_ = pre.estimate(); post_spin_ = post.estimate();
+  for (auto* spin : {&pre_spin_, &post_spin_}) {
+    if (!spin->valid || spin->coherence < config_.spin_min_coherence) {
+      spin->valid = false;
+      spin->omega_rad_s.setZero();
+    }
+  }
+}
+
+bool BatchPhysicsEstimator::propagate(State6& state, double duration_s,
+                                      const Vec3& omega) const noexcept {
   if (!state.allFinite() || !std::isfinite(duration_s) || duration_s < 0.0) {
     return false;
   }
@@ -296,8 +334,7 @@ bool BatchPhysicsEstimator::propagate(State6& state, double duration_s) const no
   double remaining = duration_s;
   while (remaining > 1.0e-12) {
     const double h = std::min(config_.integration_dt_s, remaining);
-    const double speed = v.norm();
-    const Vec3 acceleration = -physics_.drag_k * speed * v + physics_.gravity;
+    const Vec3 acceleration = ball_acceleration(physics_, v, omega);
     p += v * h + 0.5 * acceleration * h * h;
     v += acceleration * h;
     remaining -= h;
@@ -310,24 +347,12 @@ bool BatchPhysicsEstimator::propagate(State6& state, double duration_s) const no
   return true;
 }
 
-bool BatchPhysicsEstimator::apply_table_bounce(State6& state) const noexcept {
+bool BatchPhysicsEstimator::apply_table_bounce(State6& state, Vec3& omega) const noexcept {
   if (!state.allFinite()) {
     return false;
   }
   Vec3 velocity = state.tail<3>();
-  const Vec3 tangential(velocity.x(), velocity.y(), 0.0);
-  const double tangential_speed = tangential.norm();
-  const double raw_impulse_speed =
-      std::max(0.0, physics_.table_tangential_gain) * tangential_speed;
-  const double friction_cap =
-      std::max(0.0, physics_.table_friction_cap_mu) *
-      (1.0 + physics_.restitution_v) * std::abs(velocity.z());
-  const double impulse_speed = std::min(raw_impulse_speed, friction_cap);
-  if (tangential_speed > 1.0e-12) {
-    velocity.head<2>() -=
-        (impulse_speed / tangential_speed) * tangential.head<2>();
-  }
-  velocity.z() = -physics_.restitution_v * velocity.z();
+  table_contact(physics_, velocity, omega);
   state.tail<3>() = velocity;
   return state.allFinite();
 }
@@ -335,17 +360,19 @@ bool BatchPhysicsEstimator::apply_table_bounce(State6& state) const noexcept {
 bool BatchPhysicsEstimator::simulate_positions(
     const State6& initial,
     std::array<Vec3, kMaxEstimatorSamples>& positions,
-    State6* latest_state) const noexcept {
+    State6* latest_state, Vec3* latest_spin) const noexcept {
   State6 state = initial;
+  Vec3 omega = pre_spin_.omega_rad_s;
   positions[0] = state.head<3>();
   double current_t = samples_[0].source_time_s;
   for (std::size_t i = 1; i < sample_count_; ++i) {
-    if (bounce_transition_active() && i == bounce_index_ + 1 &&
-        !apply_table_bounce(state)) {
-      return false;
+    if (bounce_transition_active() && i == bounce_index_ + 1) {
+      if (!apply_table_bounce(state, omega)) return false;
+      if (post_spin_.valid) omega = post_spin_.omega_rad_s;
+      if (!config_.spin_enabled) omega.setZero();
     }
     const double duration = samples_[i].source_time_s - current_t;
-    if (!propagate(state, duration)) {
+    if (!propagate(state, duration, omega)) {
       return false;
     }
     positions[i] = state.head<3>();
@@ -354,11 +381,39 @@ bool BatchPhysicsEstimator::simulate_positions(
   if (latest_state != nullptr) {
     *latest_state = state;
   }
+  if (latest_spin != nullptr) *latest_spin = omega;
   return true;
 }
 
 BallState BatchPhysicsEstimator::estimate() noexcept {
+  if (config_.post_bounce_min_span_s > 0.0 && flight_bounce_seen_ &&
+      sample_count_ > 0) {
+    const double cutoff = last_bounce_source_time_s_ +
+        config_.post_bounce_exclusion_s;
+    std::size_t first = 0;
+    while (first < sample_count_ && samples_[first].source_time_s <= cutoff)
+      ++first;
+    if (sample_count_ - first >= config_.min_samples &&
+        samples_[sample_count_ - 1].source_time_s - samples_[first].source_time_s +
+                1.0e-12 >= config_.post_bounce_min_span_s) {
+      EstimatorConfig post_config = config_;
+      post_config.min_span_s = config_.post_bounce_min_span_s;
+      post_config.post_bounce_min_span_s = 0.0;  // no recursive contact fit
+      BatchPhysicsEstimator post(physics_, post_config, spin_config_);
+      for (std::size_t i = first; i < sample_count_; ++i) post.push(samples_[i]);
+      BallState measured = post.estimate();
+      if (measured.valid && !measured.bounce_epoch_active) {
+        measured.bounce_epoch_active = true;
+        measured.bounce_source_time_s = last_bounce_source_time_s_;
+        measured.pre_bounce_samples = 0;
+        measured.post_bounce_samples = measured.sample_count;
+        measured.reason = "post_bounce_free_flight";
+        return measured;
+      }
+    }
+  }
   BallState output;
+  output.spin_model_enabled = config_.spin_enabled;
   output.sample_count = sample_count_;
   output.sample_span_s = sample_span_s();
   output.bounce_transition_used = bounce_transition_active();
@@ -377,6 +432,7 @@ BallState BatchPhysicsEstimator::estimate() noexcept {
     return output;
   }
 
+  prepare_spin();
   State6 state;
   if (!initial_state(state)) {
     output.reason = "initial_fit_failed";
@@ -457,12 +513,17 @@ BallState BatchPhysicsEstimator::estimate() noexcept {
   }
 
   State6 latest;
-  if (!simulate_positions(state, predicted_[0], &latest)) {
+  Vec3 latest_spin;
+  if (!simulate_positions(state, predicted_[0], &latest, &latest_spin)) {
     output.reason = "physics_latest_diverged";
     return output;
   }
   output.position = latest.head<3>();
   output.velocity = latest.tail<3>();
+  output.physics_spin = bounce_transition_active() && post_spin_.valid ? post_spin_ : pre_spin_;
+  output.physics_spin.omega_rad_s = latest_spin;
+  if (bounce_transition_active() && !post_spin_.valid && pre_spin_.valid)
+    output.physics_spin.reason = "spin_propagated_through_observed_contact";
   output.source_time_s = samples_[sample_count_ - 1].source_time_s;
   output.residual_rms_m = std::sqrt(squared_sum / static_cast<double>(sample_count_));
   output.residual_max_m = residual_max;

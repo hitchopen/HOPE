@@ -1,3 +1,8 @@
+> Current 12-sticker workflow: import the supplied pelvis-aligned `.motive`
+> asset in Motive and use Console 1.8.12. Venue JSON and Cali V2/V3 actions are
+> removed from this Console. See the [current setup and validation semantics](../../foxglove/extensions/hope-a3-console/README.md).
+> Older calibration instructions below remain historical/legacy-mode material.
+
 # Foxglove Runner operator interface
 
 > Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for

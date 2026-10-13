@@ -50,7 +50,8 @@ struct Arguments {
   double solve_period_s = 0.033;
   bool post_net_one_shot = false;
   double post_net_delay_s = 0.05;
-  double post_net_future_bounce_tangential_gain = 0.075;
+  double post_net_future_bounce_tangential_gain = 0.348260;
+  double post_net_future_bounce_restitution_v = std::numeric_limits<double>::quiet_NaN();
   double net_x = 1.37;
   double incoming_opponent_side_margin_m = 0.05;
   double incoming_speed_threshold_mps = 0.25;
@@ -67,9 +68,9 @@ struct Arguments {
   int estimator_iterations = 3;
   bool adaptive_horizon = false;
   double max_predict_time_cap_s = 3.0;
-  double drag_k = 0.1317;
-  double restitution_h = 0.64;
-  double restitution_v = 0.9607;
+  double drag_k = 0.119006;
+  double restitution_h = 0.651740;
+  double restitution_v = 0.916598;
   double bounce_min_reversal_m = 0.00005;
   double bounce_min_excursion_m = 0.001;
   int bounce_confirmation_samples = 5;
@@ -201,6 +202,8 @@ Arguments parse_arguments(int argc, char** argv) {
       args.post_net_delay_s = std::stod(next());
     } else if (option == "--post-net-future-bounce-tangential-gain") {
       args.post_net_future_bounce_tangential_gain = std::stod(next());
+    } else if (option == "--post-net-future-bounce-restitution-v") {
+      args.post_net_future_bounce_restitution_v = std::stod(next());
     } else if (option == "--net-x") {
       args.net_x = std::stod(next());
     } else if (option == "--incoming-opponent-side-margin") {
@@ -282,7 +285,7 @@ Arguments parse_arguments(int argc, char** argv) {
           << "usage: hope_planner_cpp_replay --input mocap_raw.csv --output replay.csv "
              "[--x-hit 0.15] [--x-hit-bh-delta 0] [--solve-period 0.033] "
              "[--post-net-one-shot] [--post-net-delay 0.05] "
-             "[--post-net-future-bounce-tangential-gain 0.075] [--net-x 1.37] "
+             "[--post-net-future-bounce-tangential-gain 0.348260] [--net-x 1.37] "
              "[--incoming-opponent-side-margin 0.05] "
              "[--incoming-speed-threshold 0.25] "
              "[--outgoing-speed-threshold 0.25] "
@@ -293,8 +296,8 @@ Arguments parse_arguments(int argc, char** argv) {
              "[--window 0.18] [--min-span 0.08] [--min-samples 12] "
              "[--huber-delta 0.003] [--recency-half-life 0] [--iterations 3] "
              "[--adaptive-horizon] [--max-predict-time-cap 3.0] "
-             "[--drag-k 0.1317] [--restitution-h 0.64] "
-             "[--restitution-v 0.9607] "
+             "[--drag-k 0.119006] [--restitution-h 0.651740] "
+             "[--restitution-v 0.916598] "
              "[--bounce-min-reversal 0.00005] [--bounce-min-excursion 0.001] "
              "[--bounce-confirmation-samples 5] "
              "[--bounce-confirmation-max-span 0.05] "
@@ -395,6 +398,11 @@ int main(int argc, char** argv) {
     BallPhysics post_net_physics = physics;
     post_net_physics.table_tangential_gain = std::max(
         0.0, args.post_net_future_bounce_tangential_gain);
+    if (std::isfinite(args.post_net_future_bounce_restitution_v)) {
+      if (args.post_net_future_bounce_restitution_v < 0.0 || args.post_net_future_bounce_restitution_v > 1.0)
+        throw std::invalid_argument("future bounce restitution must be in [0, 1]");
+      post_net_physics.restitution_v = args.post_net_future_bounce_restitution_v;
+    }
     TrajectoryPredictor post_net_predictor(
         post_net_physics, planner_config, table);
     RacketTargetPlanner target_planner(physics, planner_config, table);
@@ -721,6 +729,8 @@ int main(int argc, char** argv) {
               << "  \"post_net_delay_s\": " << args.post_net_delay_s << ",\n"
               << "  \"post_net_future_bounce_tangential_gain\": "
               << args.post_net_future_bounce_tangential_gain << ",\n"
+              << "  \"post_net_future_bounce_restitution_v\": "
+              << post_net_physics.restitution_v << ",\n"
               << "  \"net_x\": " << args.net_x << ",\n"
               << "  \"incoming_opponent_side_margin_m\": "
               << args.incoming_opponent_side_margin_m << ",\n"

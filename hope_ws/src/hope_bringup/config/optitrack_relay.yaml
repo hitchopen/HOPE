@@ -1,5 +1,6 @@
 optitrack_mct_relay:
   ros__parameters:
+    planner_poses_topic: "/poses/planner_full"
     # NOTE: the Motive PC hostname/IP is a launch arg of
     # optitrack_hope_bridge.launch.py (hostname), NOT here. The mct driver
     # config (rigid bodies, single-marker ball tracker) lives in

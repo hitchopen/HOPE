@@ -21,8 +21,9 @@ GATE3_HITTER_BH_L0='2.4,-0.7125,0.49,-3.0,0.0,2.2'
 GATE3_HITTER_BH_L1='2.4,-0.6575,0.49,-3.0,0.0,2.2'
 GATE3_HITTER_BH_L2='2.4,-0.6125,0.49,-3.0,0.0,2.2'
 # The low variants use the same lateral cells but a different physical arc.
-# With the Gate3/Planner physics tuple (drag=0.1220, e_h=0.64,
-# e_v=0.9215), z_table=0.16 and vz=2.94 cross the fixed strike plane at
+# Historical geometry reference used drag=0.1220, e_h=0.64, e_v=0.9215.
+# Launch physics now comes from the selected C++ planner YAML; these serve
+# tuples remain fixed questions. The historical z_table=0.16, vz=2.94 crossed at
 # world z ~=1.010 m after exactly one table bounce.  That is inside v5's H0
 # support (FH <=1.057 m, BH <=1.049 m), about 8 cm below the old lane, and is
 # still far enough above the 0.980 m lower box edge for live-fit noise.

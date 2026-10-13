@@ -36,7 +36,7 @@ MAX_PACKET_SIZE = 65535
 # Keep this aligned with hope_bringup/config/optitrack_mct.yaml. Motive asset
 # spelling is normalized only at the mocap boundary; every ROS consumer keeps
 # the canonical `Ball` contract.
-DEFAULT_ASSET_ALIAS_ENTRIES = ("ball=Ball",)
+DEFAULT_ASSET_ALIAS_ENTRIES = ("ball=Ball", "P1=UCB_P1", "P2=UCB_P2")
 
 
 def packet_message_id(packet: bytes) -> Optional[int]:

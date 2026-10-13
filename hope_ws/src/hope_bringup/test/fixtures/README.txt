@@ -1,0 +1,2 @@
+NatNet MODELDEF captured on 2026-10-10 from the local Motive 3.3.0.1 server, which advertised NatNet 4.2.0.0. The packet contains sized records, a 16-byte rigid-body header extension, Ball ID 5 (4 markers), and UCB_P1 ID 9 (12 markers). No frame poses are included. This fixture reproduces the formerly crashing dataset-type misparse and verifies malformed-size rejection.
+SHA256: c824c1909b8a6b1daec8d4b860d189bc5f844878635ed5785654b1c3dfe45647

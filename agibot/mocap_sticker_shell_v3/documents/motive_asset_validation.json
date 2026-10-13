@@ -2,8 +2,8 @@
   "status": "LOCAL_NUMERIC_AUTHORING_CHECKS_PASS_NATIVE_EXPORT_AND_LIVE_VALIDATION_PENDING",
   "date": "2026-10-11",
   "source_sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0",
-  "definition_sha256": "dc0c8b804a8a32f956fb1a69936b93cebf3e32c53d0d2af127194e608528db16",
-  "marker_data_header_sha256": "8e05bdd43eef577016fae19f1723225fa8ef62d52704636ed449738e80ac0e34",
+  "definition_sha256": "12b42ba1a4473c113e850012549804cd54fc42c686db77b691f43b2ac03d52b3",
+  "marker_data_header_sha256": "46fd13af4f3cbfdc917f0b7a7111695df6b4399e314bd051204dc5fd01536024",
   "marker_count": 17,
   "station_names_unique_in_retained_cad_order": true,
   "expected_member_ids": [
@@ -46,7 +46,7 @@
   "measured_asset_correspondence_report": "optitrack_asset_correspondence.json",
   "measured_asset_frame_alignment": {
     "asset_file": "../motive_asset/A3_v3_17_stickers.motive",
-    "sha256": "fecabc7c812f83dd5a015e0de145026ba8a21173f58140b92b8510486eaf560d",
+    "sha256": "3f9f7feb6f4613108a2e38eb151556a8c07ed54d5e36520c3883d9ab05dca0b4",
     "offline_identity_check": "PASS",
     "motive_import_and_stream_check": "NOT_PERFORMED",
     "report": "optitrack_asset_correspondence.json"

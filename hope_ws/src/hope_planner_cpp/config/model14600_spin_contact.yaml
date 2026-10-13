@@ -1,0 +1,34 @@
+# Same fitted physics for Planner and packetizer. Fixed radius/gravity and
+# unmeasured paddle laws are intentionally not reidentified by this fit.
+hope_planner:
+  ros__parameters:
+    drag_k: 0.12861635416914574
+    magnus_k: 0.00379260504480258
+    restitution_v: 0.9313775047019153
+    table_tangential_gain: 0.38744443855065164
+    table_friction_cap_mu: 0.16706204822993975
+    restitution_h: 0.6125555614493483
+    post_net_future_bounce_tangential_gain: 0.38744443855065164
+    post_net_future_bounce_restitution_v: 0.9313775047019153
+    future_contact_spin_enabled: true
+    future_contact_magnus_enabled: true
+    future_contact_spin_tangential_gain: 0.38744443855065164
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    spin_window_s: 0.18
+hope_ball_flight_packetizer:
+  ros__parameters:
+    drag_k: 0.12861635416914574
+    magnus_k: 0.00379260504480258
+    restitution_v: 0.9313775047019153
+    table_tangential_gain: 0.38744443855065164
+    table_friction_cap_mu: 0.16706204822993975
+    restitution_h: 0.6125555614493483
+    post_net_future_bounce_tangential_gain: 0.38744443855065164
+    post_net_future_bounce_restitution_v: 0.9313775047019153
+    future_contact_spin_enabled: true
+    future_contact_magnus_enabled: true
+    future_contact_spin_tangential_gain: 0.38744443855065164
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    spin_window_s: 0.18

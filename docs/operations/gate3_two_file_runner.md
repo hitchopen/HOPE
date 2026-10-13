@@ -1,5 +1,9 @@
 # Gate3 两文件入口
 
+2026-10-11 已按本分支 CLI 核对。完整的构建、安装、配置、检查、运行、归档和
+交叉打包顺序见 [deploy_and_gate3.md](deploy_and_gate3.md)。首次使用先完成该流程的
+第 1–4 步，再执行下面的运行命令。
+
 在仓库根目录执行：
 
 ```bash
@@ -25,6 +29,11 @@ policy/
 主机没有 ROS Jazzy 时，入口自动进入已安装的 `hope` Distrobox；容器内直接执行。
 
 ## 环境配置一次
+
+新机器先完成 [DISTROBOX_SETUP.md](../DISTROBOX_SETUP.md) 和
+[build_and_test.md](build_and_test.md) 中的 Jazzy/native 构建。Python venv 中安装
+`mujoco` 只准备离线 Python 工具，不能代替这里的原生 Runner 和仪器化 plant。
+`runtime.local.yaml` 是机器本地路径，换机器或 worktree 后要核对实际安装目录。
 
 准备带 `--inspect-policy` 的 x86 Runner 包、仪器化 MuJoCo install 和已经构建的 hope_ws。
 Runner 必须包含 ROS 消息与 AimRT backend。检查模式使用真实 ONNX/deploy 加载器，并在通信、gripper、机器人 backend 初始化之前退出。
@@ -108,7 +117,10 @@ ONNX 与 deploy.yaml 中的来源记录仍须配对，文件 SHA、关节顺序�
 - `policy/`、`scene.yaml`：本次实际测试的两文件和场景快照。
 - `console.log`、`pp_*.log/csv/json`：启动、Runner、Planner、物理球、plant 与报告证据。
 
-`--check` 成功只表示加载与配置检查成功。实际测试退出码仍沿用 Gate3 判定；模型跌倒或恢复指标未过会失败。
+`--check` 成功只表示加载与配置检查成功。它会创建新结果目录并保存两文件、场景、
+inspection 和 `status: prepared` 的 `run.json`，没有仿真或认证结果。
+完整运行必须同时读取退出码、`run.json.certification_pass`、最终 rally/plant/physical-ball/
+Planner/drain 报告和归档错误，不能以接触数或零跌倒替代认证。
 新入口只清理本次创建的进程组。旧后端仍共用 `/tmp/pp_*`、ROS/iceoryx 通道，因此同一环境一次运行一场；
 已有 Runner/Planner/仿真正在使用通道时会保留原进程并报告占用。Ctrl-C 会结束本次测试并归档已有日志。
 

@@ -17,7 +17,7 @@ inline constexpr double kPaddleTangentialB = 0.0;
 inline constexpr double kPaddleFrictionCap = 0.5;
 inline constexpr double kPaddleRestitutionG1 = 0.759;
 inline constexpr double kPaddleRestitutionG2 = -0.0441;
-inline constexpr double kMagnusAccelerationCoeff = 0.00444;
+inline constexpr double kMagnusAccelerationCoeff = 0.00379260504480258;
 
 struct PaddleContactResult {
   Vec3 linear_velocity{};
@@ -122,13 +122,33 @@ inline PaddleContactResult PredictPaddleContact(
 
 inline Vec3 FlightAcceleration(
     const Vec3& linear_velocity, const Vec3& angular_velocity,
-    double quadratic_drag_coeff) {
+    double quadratic_drag_coeff, double magnus_coeff = kMagnusAccelerationCoeff) {
   const Vec3 drag = Scale(
       linear_velocity, -quadratic_drag_coeff * Norm(linear_velocity));
   const Vec3 magnus =
       Scale(Cross(angular_velocity, linear_velocity),
-            kMagnusAccelerationCoeff);
+            magnus_coeff);
   return Add(drag, magnus);
+}
+
+struct TableContactResult {
+  Vec3 linear_velocity{};
+  Vec3 angular_velocity{};
+};
+
+inline TableContactResult PredictTableContact(
+    const Vec3& velocity, const Vec3& spin, double radius,
+    double restitution, double gain, double friction_cap_mu) {
+  const Vec3 slip{velocity[0] - radius * spin[1],
+                  velocity[1] + radius * spin[0], 0.0};
+  const double speed = Norm(slip);
+  const double impulse = std::min(std::max(0.0, gain) * speed,
+      std::max(0.0, friction_cap_mu) * (1.0 + restitution) * std::abs(velocity[2]));
+  const Vec3 dv = speed > 1e-12 ? Scale(slip, -impulse / speed) : Vec3{};
+  Vec3 outgoing = Add(velocity, dv);
+  outgoing[2] = -restitution * velocity[2];
+  return {outgoing, Add(spin, Scale(Vec3{dv[1], -dv[0], 0.0},
+                                        1.0 / (kBallInertiaCoeff * radius)))};
 }
 
 }  // namespace aimrt_mujoco_sim::mujoco_sim_module::common::gate3_ball

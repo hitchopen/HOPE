@@ -7,7 +7,8 @@ import math
 from typing import Iterable
 
 
-EXPECTED_MARKERS = 10
+# Zero selects the current ModelDef count; no fixed asset layout by default.
+EXPECTED_MARKERS = 0
 # Compatibility for downstream imports written before P2 support.
 EXPECTED_P1_MARKERS = EXPECTED_MARKERS
 
@@ -38,15 +39,23 @@ def count_physical_markers(
 ) -> tuple[int, int]:
     """Return ``(bounded_count, raw_unique_count)`` using unique member IDs."""
 
-    if expected_count <= 0:
-        raise ValueError("expected_count must be positive")
+    if expected_count < 0:
+        raise ValueError("expected_count must be nonnegative (0 = live ModelDef)")
+    markers = tuple(markers)
+    if expected_count == 0:
+        expected_count = model_marker_count(markers)
     member_ids = {
         int(marker.member_id)
         for marker in markers
-        if marker_has_physical_sample(marker)
+        if int(marker.member_id) >= 0 and marker_has_physical_sample(marker)
     }
     raw_count = len(member_ids)
     return min(raw_count, expected_count), raw_count
+
+
+def model_marker_count(markers: Iterable[object]) -> int:
+    """Count defined members, including those without a physical live sample."""
+    return len({int(marker.member_id) for marker in markers if int(marker.member_id) >= 0})
 
 
 def marker_count_text(
@@ -60,9 +69,10 @@ def marker_count_text(
     asset = str(asset_name).strip()
     if asset not in {"UCB_P1", "UCB_P2"}:
         raise ValueError("asset_name must be UCB_P1 or UCB_P2")
+    total = str(expected_count) if expected_count > 0 else "?"
     if not fresh:
-        return f"{asset} live markers = 0/{expected_count} | NO FRESH LAPTOP DATA"
+        return f"{asset} live markers = 0/{total} | NO FRESH LAPTOP DATA"
     suffix = ""
     if raw_count is not None and raw_count > expected_count:
         suffix = f" | raw_unique={raw_count} bounded_for_UI={expected_count}"
-    return f"{asset} live markers = {int(count)}/{expected_count}{suffix}"
+    return f"{asset} live markers = {int(count)}/{total}{suffix}"
