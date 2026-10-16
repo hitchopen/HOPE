@@ -164,6 +164,47 @@ foxglove/
     `-- patches/                     pinned A3 ament-index compatibility patches
 ```
 
+## Startup background cleanup
+
+Every managed START (including KERNEL mode) runs an HDU preflight guard before
+launching Planner, HAL or Runner. It stops only vendor `agent`, `hal_audio`,
+`hal_hdu_camera`, their explicitly matched voice/audio watchdogs, and
+`agibot_ui.service`. These camera, voice and UI processes consumed substantial
+CPU during field operation and detached watchdogs could restart them after a
+vendor StopApp call.
+
+The guard first terminates the matched watchdogs, then calls the local vendor
+process manager's StopApp API. It sends SIGTERM to exact command/config matches
+left outside the manager, checking process identity with pidfds. It requires a
+continuous two-second quiet window; RPC errors, failed stops, respawning
+processes or insufficient UI-stop privileges reject START with
+`UNRELATED_BACKGROUND_NOT_STOPPED`. The HDU preflight timeout is 180 seconds to
+cover the bounded vendor calls. Drive HAL, process manager, emergency-stop,
+networking, clock and recording processes are outside the cleanup allowlist.
+
+Deploy `helpers/hope_catch_background.py` beside the HDU's installed
+`/usr/local/libexec/hope-lifecycle`, together with the matching helper and
+`a3/hope_lifecycle_supervisor.py`. Preserve each robot's existing hardware,
+path and network configuration when updating the helper. The guard requires
+Linux/Python pidfd support and access to the existing localhost vendor process
+manager on port 50081. If the UI service is active, the lifecycle account must
+already be allowed to run `sudo -n systemctl stop agibot_ui.service`; otherwise
+START fails rather than continuing with the UI running. This change does not
+install sudo rules, modify vendor launch defaults or permanently disable services.
+
+Each attempt writes `/tmp/hope_background_<session_id>.json`, including failure
+details. Successful session preparation copies it to
+`/tmp/hope_real/<session_id>/hdu/background_cleanup.json` alongside the normal
+session evidence. Failed preflight receipts remain at their original path.
+The cleanup runs again on the next START so vendor defaults can remain intact.
+
+Local validation (all process/RPC operations mocked):
+
+```bash
+python3 -m pytest -q foxglove/tests/test_catch_background.py foxglove/tests/test_lifecycle_core.py
+bash -n foxglove/helpers/hope-lifecycle
+```
+
 ## Per-robot installation (operator action; changes that robot)
 
 Set the target once per session; every command below uses it:

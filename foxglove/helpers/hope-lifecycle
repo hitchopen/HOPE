@@ -517,6 +517,8 @@ prepare_hdu() {
   require_user "$ROBOT_USER" SESSION
   printf '%s\n' "$SESSION_ID" > /tmp/hope_model21800_session_id
   prepare_persistent_role hdu
+  cp "/tmp/hope_background_${SESSION_ID}.json" "/tmp/hope_real/$SESSION_ID/hdu/background_cleanup.json" || \
+    die SESSION BACKGROUND_CLEANUP_RECEIPT_MISSING
   printf 'table_side=%s\n' "$TABLE_SIDE" > \
     "/tmp/hope_real/$SESSION_ID/hdu/runtime_frame_config.txt"
   emit SESSION COMPLETE HDU_PREPARED
@@ -536,6 +538,9 @@ preflight_hdu() {
     die PREFLIGHT UNMANAGED_RUNNER_TRANSPORT_PRESENT
   pgrep -u "$ROBOT_USER" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)' >/dev/null && \
     die PREFLIGHT UNMANAGED_PLANNER_PRESENT
+  python3 "$(dirname "$SELF")/hope_catch_background.py" \
+    --receipt "/tmp/hope_background_${SESSION_ID}.json" || \
+    die PREFLIGHT UNRELATED_BACKGROUND_NOT_STOPPED
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
       die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING

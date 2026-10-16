@@ -128,7 +128,10 @@ class LifecycleBackend:
         ]
         commands = (
             ("PREFLIGHT", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "preflight-laptop", *common), 15.0),
-            ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 10.0),
+            # Three vendor StopApp calls may take 35 s each, UI stop 30 s,
+            # followed by a bounded quiet-state check. Keep START blocked
+            # until cleanup completes, before launching Planner/HAL/Runner.
+            ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 180.0),
             ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common), 15.0),
             ("SESSION", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "prepare-laptop", *common), 45.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
