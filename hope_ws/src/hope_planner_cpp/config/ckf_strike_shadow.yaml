@@ -12,6 +12,10 @@
 hope_strike_target_selector_node:
   ros__parameters:
     publish_shadow_flat: false
+    # Required team-approved inclusive contact bounds in registered table frame.
+    # These are not landing-target Y bounds; no deployment values are assumed.
+    hit_y_min_table_m: .nan
+    hit_y_max_table_m: .nan
     context_evidence_source_id: ''
     tagged_synthetic_test: false
     fallback_plane_confirmed: false

@@ -35,6 +35,16 @@ are absent, observation fallback requires explicitly confirming the same frozen
 plane and its generation/world/calibration in the selector's fallback parameters.
 Side selection needs accepted same-session base Y or an explicit `nominal_base_y_m`.
 
+The selector requires finite `hit_y_min_table_m < hit_y_max_table_m`; missing,
+partial or nonfinite bounds refuse startup. Supply team-approved **table-frame
+incoming-contact** Y limits, not landing-target limits. Both endpoints are inclusive.
+Out-of-range contact produces one invalid typed decision with
+`reason=hit_y_out_of_range` diagnostics, no Stage-3 call and no flat packet or
+sequence increment. It does not halt the session or suppress compact/full forecasts;
+the next independent flight can still qualify. Bounds stay fixed as the base moves.
+Shipped YAML leaves both values NaN. All test ranges are synthetic, not deployment
+recommendations; approved real bounds and randomized base-start envelope are pending.
+
 Optional `/ball/hybrid/context` uses `HybridTrajectoryContext`. Configure the
 selector's `context_evidence_source_id` for authoritative RESET/history evidence.
 Unknown history, stale estimates, missing uncertainty and short positive lead
@@ -79,3 +89,12 @@ qualify policy clip timing or reachability. Current public receivers reject
 non-increasing producer sequences, including rollback after restart: coordinate
 producer/runner session lifecycle before reconnecting. Hardware, policy execution
 and full C++ ONNX integration are untested. No production integration is enabled.
+
+Sweet-spot interface confirmation from Tien-Chun/the policy owner is pending:
+paddle center versus contact/attachment reference; actual table/world registration
+and single Z offset; normal direction and velocity frame/units; any required
+geometric adapter. Current code preserves Stage 3's contact-position target,
+unchanged normal/velocity, and the single outgoing-position Z offset. These tests
+prove existing adapter behavior, not compatibility with a revised reward. No new
+transform or reward is inferred. The deployment owner must freeze after the base
+settles and before BEGIN; production planner Y enforcement is a separate handoff.

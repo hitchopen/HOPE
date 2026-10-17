@@ -31,6 +31,11 @@ class StrikeTargetSelectorNode : public rclcpp::Node {
     c.clock=declare_parameter<std::string>("source_clock_domain","ros_system");
     c.synthetic=declare_parameter<bool>("tagged_synthetic_test",false);
     c.context_authority=declare_parameter<std::string>("context_evidence_source_id","");
+    hit_y_min_table_m_=declare_parameter<double>("hit_y_min_table_m",std::numeric_limits<double>::quiet_NaN());
+    hit_y_max_table_m_=declare_parameter<double>("hit_y_max_table_m",std::numeric_limits<double>::quiet_NaN());
+    if(!std::isfinite(hit_y_min_table_m_) || !std::isfinite(hit_y_max_table_m_) ||
+       hit_y_min_table_m_>=hit_y_max_table_m_)
+      throw std::invalid_argument("finite hit_y_min_table_m < hit_y_max_table_m required in registered table frame");
     auto duration_ns=[this](const char* name,double value,double maximum) {
       const double seconds=declare_parameter<double>(name,value);
       if(!std::isfinite(seconds) || seconds<0 || seconds>maximum)
@@ -183,6 +188,11 @@ class StrikeTargetSelectorNode : public rclcpp::Node {
       s.strike.valid=false;s.reason="base_reference_mismatched";
     }
     if(s.strike.valid && base_source=="unavailable") {s.strike.valid=false;s.reason="base_y_unavailable";}
+    const double contact_y_table=s.strike.ball_position.y();
+    if(s.strike.valid && !strike_target_selector_hit_y_allowed(contact_y_table,hit_y_min_table_m_,hit_y_max_table_m_)) {
+      s.strike.valid=false;
+      s.reason=std::isfinite(contact_y_table)?"hit_y_out_of_range":"nonfinite_contact_y";
+    }
     if(s.strike.valid) {
       sign_=strike_target_selector_swing(s.strike.ball_position.y(),base_y_,sign_,split_,hysteresis_);
       const auto began=steady_ns();attempted=true;
@@ -222,6 +232,8 @@ class StrikeTargetSelectorNode : public rclcpp::Node {
       <<"transition=decision_emitted commit_due=1 fatal_identity_reset="<<selector_->halted()
       <<" reason="<<s.reason<<" command_valid="<<command.valid<<" solver_valid="<<solver_valid
       <<" stage3_attempted="<<attempted<<" valid_crossing="<<valid_crossing<<" typed_published=1 flat_published="<<flat_published
+      <<" contact_y_table_m="<<contact_y_table<<" hit_y_min_table_m="<<hit_y_min_table_m_
+      <<" hit_y_max_table_m="<<hit_y_max_table_m_
       <<" physical_flight_id="<<s.physical_flight_id<<" session_id="<<s.session_id
       <<" rally_id="<<s.forecast.identity.rally_id<<" owner="<<s.forecast.publisher_instance_id
       <<" config="<<s.forecast.identity.return_region_config_id<<" plane="<<s.plane_generation<<" plane_x="<<s.plane_x
@@ -245,6 +257,7 @@ class StrikeTargetSelectorNode : public rclcpp::Node {
   bool pose_audit_=false;
   bool enabled_=false,base_valid_=false,base_ever_valid_=false,base_integrity_fault_=false;
   double nominal_base_y_=std::numeric_limits<double>::quiet_NaN();
+  double hit_y_min_table_m_=0,hit_y_max_table_m_=0;
   std::uint64_t base_session_=0;
   int index_=0;std::int64_t base_stamp_=0,min_lead_=0;
   std::uint64_t sequence_=0,base_world_=0,base_calibration_=0;

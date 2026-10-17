@@ -7,6 +7,10 @@
 #include <limits>
 #include <stdexcept>
 namespace hope_planner_cpp {
+bool strike_target_selector_hit_y_allowed(double y,double min_y,double max_y) {
+  return std::isfinite(y) && std::isfinite(min_y) && std::isfinite(max_y) &&
+    min_y<max_y && y>=min_y && y<=max_y;
+}
 namespace {
 bool fresh(std::int64_t source,std::int64_t now,std::int64_t age) {
   return source>0 && source<=now && static_cast<long double>(now)-source<=age;

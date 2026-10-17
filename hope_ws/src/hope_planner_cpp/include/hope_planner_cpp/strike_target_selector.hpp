@@ -7,6 +7,9 @@
 #include <set>
 
 namespace hope_planner_cpp {
+// Inclusive selected-contact bounds in the registered table frame, never a
+// landing target or an interval recentered on the moving robot base.
+bool strike_target_selector_hit_y_allowed(double contact_y, double min_y, double max_y);
 struct SelectorFrozenPlane {
   double x = 0;
   std::uint64_t generation = 0, world = 0, calibration = 0;
