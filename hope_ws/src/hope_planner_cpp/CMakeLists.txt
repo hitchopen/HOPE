@@ -211,6 +211,28 @@ if(BUILD_TESTING)
   )
 endif()
 
+
+# Independent, opt-in-at-launch shadow pipeline. Public planner links remain unchanged.
+add_library(hope_forecast_core
+  src/probabilistic_physics.cpp src/probabilistic_ball_tracker.cpp
+  src/nominal_event_forecast.cpp src/fixed_lag_types.cpp src/return_region.cpp
+  src/ball_flight_state_machine.cpp src/hybrid_trajectory_coordinator.cpp
+  src/hit_plane_manager.cpp)
+target_include_directories(hope_forecast_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_link_libraries(hope_forecast_core PUBLIC hope_planner_core Eigen3::Eigen)
+add_library(hope_strike_selector_core src/strike_flight_detector.cpp src/strike_target_selector.cpp)
+target_link_libraries(hope_strike_selector_core PUBLIC hope_forecast_core ${hope_msgs_TARGETS})
+add_executable(hope_ball_event_forecaster_node src/hybrid_trajectory_node.cpp src/hybrid_trajectory_main.cpp)
+target_link_libraries(hope_ball_event_forecaster_node PRIVATE hope_forecast_core rclcpp::rclcpp
+  ${geometry_msgs_TARGETS} ${diagnostic_msgs_TARGETS} ${std_msgs_TARGETS} ${std_srvs_TARGETS})
+add_executable(hope_strike_target_selector_node src/strike_target_selector_node.cpp)
+target_link_libraries(hope_strike_target_selector_node PRIVATE hope_strike_selector_core
+  rclcpp::rclcpp ${geometry_msgs_TARGETS} ${std_msgs_TARGETS})
+install(TARGETS hope_forecast_core hope_strike_selector_core hope_ball_event_forecaster_node
+  hope_strike_target_selector_node ARCHIVE DESTINATION lib LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME})
+
 ament_export_include_directories(include)
 ament_export_libraries(hope_planner_core)
 ament_export_dependencies(Eigen3 hope_msgs)
