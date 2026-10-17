@@ -226,3 +226,52 @@ TEST(StrikeTargetSelector, OutgoingOpponentReturnRearmsPhysicalIdentity) {
   auto second=s.poll(t0+600000000,t0+600000000);ASSERT_TRUE(second);EXPECT_EQ(second->physical_flight_id,2u);
   EXPECT_FALSE(s.poll(t0+610000000,t0+610000000));
 }
+
+#include "hope_planner_cpp/hit_plane_manager.hpp"
+namespace {
+std::vector<double> registered_base(std::int64_t ns,unsigned sequence,double x) {
+  // Synthetic schema-2 fixture: wxyz identity, measured/registered flags, IDs.
+  return {2,1,double(sequence),double(ns/1000000000),double(ns%1000000000),
+    x,-.7,.76,1,0,0,0,1,47,11,1};
+}
+void stable_base(HitPlaneManager& manager,std::int64_t start,unsigned first,double x) {
+  for(unsigned i=0;i<12;++i) {
+    const auto ns=start+i*5000000;
+    ASSERT_TRUE(manager.observe(registered_base(ns,first+i,x+(i%2?.0002:-.0002)),ns,ns,true))<<manager.reason();
+  }
+}
+}
+TEST(StrikeTargetSelector, RegisteredSessionPlaneOffsetFreezeAndIdleRefresh) {
+  for(double base_x:{-.58,-.50,-.68}) {
+    HitPlaneManager manager({},"table","fixture",1);
+    stable_base(manager,t0,1,base_x);
+    ASSERT_TRUE(manager.freeze(t0+60000000,t0+60000000,1,true))<<manager.reason();
+    const auto initial=manager.snapshot();
+    EXPECT_NEAR(initial.x_hit_m,base_x+.58,1e-12);
+    EXPECT_EQ(initial.generation,1u);EXPECT_EQ(initial.world_frame_id,1u);EXPECT_EQ(initial.calibration_id,11u);
+    EXPECT_TRUE(initial.calibrated);EXPECT_FALSE(initial.test_plane);
+    stable_base(manager,t0+65000000,13,base_x+.04);
+    EXPECT_EQ(manager.snapshot().x_hit_m,initial.x_hit_m);
+    EXPECT_FALSE(manager.freeze(t0+125000000,t0+125000000,1,false));
+    EXPECT_EQ(manager.reason(),"refresh_forbidden_active_rally");
+    EXPECT_EQ(manager.snapshot().generation,initial.generation);
+    EXPECT_EQ(manager.snapshot().x_hit_m,initial.x_hit_m);
+    // New settled session: old samples have left the bounded 0.5-s window.
+    stable_base(manager,t0+650000000,25,base_x+.04);
+    ASSERT_TRUE(manager.freeze(t0+710000000,t0+710000000,2,true))<<manager.reason();
+    EXPECT_NEAR(manager.snapshot().x_hit_m,base_x+.04+.58,1e-12);
+    EXPECT_EQ(manager.snapshot().generation,initial.generation+1);
+    EXPECT_EQ(manager.snapshot().rally_id,2u);
+  }
+}
+TEST(StrikeTargetSelector, PlaneCalibrationRejectsUnregisteredAndOutsideGeometry) {
+  HitPlaneManager manager({},"table","fixture",1);
+  auto wire=registered_base(t0,1,-.58);
+  EXPECT_FALSE(manager.observe(wire,t0,t0,false));
+  wire[15]=2;EXPECT_FALSE(manager.observe(wire,t0,t0,true));
+  wire[15]=1;wire[13]=0;EXPECT_FALSE(manager.observe(wire,t0,t0,true));
+  EXPECT_FALSE(manager.snapshot().calibrated);
+  stable_base(manager,t0+10000000,2,-.27); // x_hit=+0.31: never clamp to range.
+  EXPECT_FALSE(manager.freeze(t0+70000000,t0+70000000,1,true));
+  EXPECT_EQ(manager.reason(),"plane_out_of_range");EXPECT_FALSE(manager.snapshot().calibrated);
+}
