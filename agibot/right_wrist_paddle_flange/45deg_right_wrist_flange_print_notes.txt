@@ -1,0 +1,129 @@
+45-degree RIGHT wrist flange: hollow, smooth full-body exterior reinforcement
+Prepared 2026-10-13; replaces the abrupt ring-only reinforcement
+
+UPLOAD THIS FILE
+45deg_right_wrist_flange_mm.stl
+
+FORMAT AND SCALE
+Binary STL, 116,258 triangles, 5,812,984 bytes.
+STL does not encode units. Import as MILLIMETRES at 100% scale.
+Expected unrotated dimensions: 45.724 x 63.052 x 46.548 mm (X x Y x Z).
+Do not use automatic scaling to fit the printer.
+Original CAD coordinates are retained; the lowest Z is -1.500 mm.
+Use the slicer's place-on-bed command before slicing; do not clip the model
+at its original Z=0 plane. Positioning on the bed is not a scale change.
+
+HOLLOW CAVITY RETAINED; SMOOTH REINFORCEMENT ADDED OUTWARD
+The release master is 45deg_right_wrist_flange_mm.stl in this folder.
+The archived thin-wall source CAD is not included in the release folder;
+its provenance hash is retained below. No parametric STEP is supplied.
+
+The full original hollow interior is retained for the gripper/hand
+connector. There is NO solid core, new internal floor, or cavity-filling plug.
+
+The hand side is the angled ring with four circumferential screw holes.
+Its nominal circular wall at the opening is doubled outward: approximately
+2.5 mm to 5.0 mm (nominal inner radius 17 mm retained; outer radius at the
+opening increased from 19.5 mm to 22 mm). The original keyed inner profile
+is retained, not replaced by a plain circular bore.
+
+Reinforcement now extends over the outer body and external pocket fillets,
+instead of stopping at a narrow band below the ring. The exterior expands
+up to 2.5 mm radially away from the angled socket axis. Smooth quintic
+transitions taper the addition to zero over 12 mm of height at the base,
+and within 6 mm of the original screw recesses and rear tool-access
+channels. This removes the abrupt ring-to-body step. The original base
+mating face, locating pegs and mounting footprint are not expanded.
+
+This is a nominal ring-wall dimension, not a uniform 5 mm normal thickness
+over the entire body. The loft, taper zones and screw-access recesses have
+varying wall thickness. At the opening, three radial checks measured
+5.190, 5.001 and 4.983 mm, versus 2.690, 2.501 and 2.484 mm originally.
+The keyed flat and screw-access recesses retain their required geometry.
+In particular, the original screw-head seats remain at their original depth.
+They are not shifted outward; no screw-length change is designed into this
+revision.
+
+Retained assembly features:
+- Original 45-degree alignment and mating-plane locations.
+- Full internal cavity, keyed hand socket, shoulder and engagement space.
+- Four base screw passages, stepped counterbores and tool-access channels.
+- Four inclined hand-side screw axes, bore diameters and head-seat depths.
+- Two base locating pegs.
+
+Construction started from the repaired hollow STL, mapped back to the
+original CAD surfaces. Only the exterior loft and external pocket-fillet
+surfaces were selected for remeshing and outward reinforcement. Exterior
+remeshing used a 0.6 mm target edge length with a 0.015 mm surface-distance
+limit to remove inherited sliver triangles before deformation. The outer
+edge of the opening rim widens in its original tilted plane. No cavity
+fill, global mesh smoothing, global scaling or rotation was applied.
+
+VALIDATION OF THE RELOADED BINARY STL
+One connected, closed, outward-oriented body.
+Watertight and consistent winding: PASS.
+Boundary edges: 0.
+Nonmanifold edges and vertices: 0.
+Detected self-intersecting faces: 0 (MeshLab check).
+Degenerate and duplicate triangles: 0.
+Independent manifold check: NoError.
+Euler characteristic -16, genus 9, matching the original hollow model.
+The main cavity and eight intentional screw passages remain open.
+Zero boundary edges means a closed material boundary, NOT filled cavities.
+
+Mesh volume: 21,221.170935 mm^3.
+Original hollow model: 14,808.304485 mm^3; added reinforcement: 6.413 cm^3.
+Previous ring-only model: 17,639.023128 mm^3; additional material: 3.582 cm^3
+(approximately 20.3% more geometric material volume than the ring-only model).
+The body is wider as intended; the original mounting footprint is retained.
+
+Comparison against the original repaired hollow STL:
+- All 44,207 protected original vertices are retained at exactly the same
+  coordinates in the exported STL.
+- 87,035 protected original triangles are retained exactly. 72 small
+  protected triangles were retessellated; sampled surface differences at
+  their vertices, edge midpoints and centroids were at most 0.000669 mm.
+- The widened opening rim remains in its original plane within 0.000002 mm.
+- 256 base screw/tool ray segments: PASS.
+- 128 hand screw shaft ray segments: PASS.
+- 128 hand screw-head driver-access ray segments: PASS.
+- 5,705 radial checks of the inner socket: PASS, with a maximum radial
+  difference of 0.000839 mm from the original hollow reference.
+These are mesh and sampled clearance checks, not a physical fit test or
+an exact global surface-distance bound for all retessellated surfaces.
+
+PRINTING
+Upload the STL rather than the STEP to Dremel Print Cloud. Select the
+correct printer/material profile and import in millimetres at 100% scale.
+Keep the modeled cavity and screw holes open. Do not run a fill-cavities,
+make-solid or close-all-holes operation. Higher infill can be used within
+the walls; 100% wall infill does not mean filling the modeled hollow cavity.
+Place the model on the build plate and inspect the layer preview, especially
+the angled socket, overhang supports, all screw holes and driver channels.
+Remove supports from the socket and holes before assembly.
+
+The additional outside material increases wrist mass and inertia. Check
+clearance around the enlarged BODY as well as the ring against the hand
+housing and neighboring hardware throughout the motion range. Check
+connector, screw-head and driver fit before robot installation.
+The original fastening geometry is retained, but printed fit is not verified.
+Material, layer adhesion, print direction and process quality determine
+impact performance; extra wall thickness alone does not establish a safe load
+rating or guarantee improved impact strength. No FEA or physical impact
+test has been performed. Test progressively in a controlled setup before
+full-speed use.
+
+The STL has been validated locally; upload/slicing in your Dremel account
+and a physical print have not been tested. No printer-specific G-code is
+included because the printer model and material were not specified.
+
+Format reference: Dremel DigiLab FAQ, Software / supported file types:
+https://www.dremel.com/gb/en/service--support/faq/digilab-faq
+Cloud workflow reference: 3DPrinterOS Getting Started:
+https://intercom.help/3DPrinterOS/en/articles/16024500-getting-started-with-3dprinteros
+
+Archived source CAD SHA-256 (provenance only):
+1faf1ff177a211df8dcaf365fa0c68e08138f55e4e08898a6a9091b8bdcbfeda
+
+Smooth reinforced hollow STL SHA-256:
+1449b23c0820cdb5b5eaac32c47b997a193e9557aeb2bfceb7e4464f4bfd5592

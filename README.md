@@ -12,6 +12,12 @@ HOPE is an open platform for humanoid robot table tennis, developed by [Hitch In
 
 This repository contains the full HOPE stack for the Agibot A3: Isaac Lab training for a **unified forehand/backhand whole-body policy** (the deploy-grade 110-D `hitter_pure` rally line, proven on real A3 hardware), a **no-spin planner** in both Python and low-latency C++ (ROS 2), a **MuJoCo/AimRT simulation with a real ball plant** for closed-loop evaluation, and the **native C++ A3 deploy runner** (`a3_pingpong`) — plus the preserved HOPE **reference design documents**, the **challenge rulebooks**, and the A3 source assets, reference software and mounting hardware indexed in [agibot/README.md](agibot/README.md).
 
+The current printable mounting hardware is the
+[v3 pelvis marker shell](agibot/mocap_sticker_shell_v3/README.md) and the
+[right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md).
+Their component guides link the release STLs, printing instructions and marker
+transforms to `pelvis_link`.
+
 ## How To Read This Repository
 
 Start with the verified new-machine setup in
@@ -182,15 +188,15 @@ even while ROS 2 topics appear healthy.
 The current sticker profile uses the **17-station v3 sticker shell: seven unchanged
 front markers and two rear rows of five (original IDs)**, with the supplied
 [A3_v3_17_stickers.motive](agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
-asset, internally named **`P1`**. Its origin targets the nominal CAD `pelvis_link`
+asset, internally named **`UCB_P1`**. Its origin targets the nominal CAD `pelvis_link`
 origin and ROS axes **X forward, Y left, Z up**. With Motive Streaming **Up Axis
 = Z Up** and the existing MODELDEF axis conversion, the intended fixed
-`P1 → pelvis_link` correction is zero translation and identity rotation.
+`UCB_P1 → pelvis_link` correction is zero translation and identity rotation.
 This is an offline-checked candidate, not a verified live calibration: the five
 restored rear points are CAD-nominal, not observed in the source export. Validate
 Motive import/re-export, then generate a fresh installed-layout receipt.
-For the current runtime, rename the imported body to `UCB_P1` or `UCB_P2`
-for the selected table side, use the `stickers_v3` profile, and save the fresh
+For the current runtime, keep `UCB_P1` for table side P1 or rename it to `UCB_P2`
+for table side P2, use the `stickers_v3` profile, and save the fresh
 receipt to `calibration/ucb_robot_to_pelvis.json`. All earlier 12-point,
 old 24-station and ten-marker receipts cannot be reused for this sticker profile.
 
@@ -243,7 +249,7 @@ The competition rulebooks ship at the repository root:
 | `hope_ws/` | ROS 2 workspace: `hope_planner_cpp` (the supported C++ packetizer/Planner runtime), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (wire messages), and `calibration_receipts/` (venue calibration evidence). The retired Python Planner source is excluded from colcon and retained only for offline comparison. Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
 | `a3_deploy/` | The native C++ deploy runner, gate/rehearsal script suite, parity harness, and deploy runbooks (`a3_deploy_example/`); the MuJoCo/AimRT simulation fork with the real ball plant (`A3_MuJoCo_Sim/`); and the optional user-supplied URDF override location (`URDF/`). |
 | [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
-| [agibot/](agibot/README.md) | A3 source robot models, vendor deploy/simulation references, clock synchronization and mounting hardware, including the v3 marker shell and serving gripper STL. See the folder README for the complete map, printing units and hardware-specific guidance. |
+| [agibot/](agibot/README.md) | A3 source robot models, vendor deploy/simulation references, clock synchronization and mounting hardware: the [v3 marker shell](agibot/mocap_sticker_shell_v3/README.md), [right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md) and serving gripper STL. See the folder README for the complete map, printing units and hardware-specific guidance. |
 | `mocap/` | Motion-capture frame/topic contract ([mocap/README.md](mocap/README.md)) and the preserved mocap reference documents (EN/ZH). |
 
 ## System Architecture
