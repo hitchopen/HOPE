@@ -1,0 +1,27 @@
+# Copy for a registered session; defaults deliberately do not claim registration.
+/**:
+  ros__parameters:
+    registered_frame: table
+    frame_registration_id: ''
+    frame_registration_confirmed: false
+    source_clock_registered: false
+    source_clock_domain: ros_system
+    base_world_frame_id: 0
+    input_pose_topic: /poses
+    ball_pose_index: 0
+hope_strike_target_selector_node:
+  ros__parameters:
+    publish_shadow_flat: false
+    context_evidence_source_id: ''
+    tagged_synthetic_test: false
+    fallback_plane_confirmed: false
+    nominal_base_y_m: .nan
+hope_hybrid_trajectory_node:
+  ros__parameters:
+    # Explicit frozen CKF coefficients; public planner defaults remain unchanged.
+    drag_k: 0.1261
+    restitution_h: 0.64
+    restitution_v: 0.9215
+    table_tangential_gain: 0.369
+    table_friction_cap_mu: 2.0
+    use_known_test_plane: false
