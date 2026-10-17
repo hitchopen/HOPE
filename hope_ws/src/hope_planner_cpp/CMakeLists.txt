@@ -233,6 +233,24 @@ install(TARGETS hope_forecast_core hope_strike_selector_core hope_ball_event_for
   hope_strike_target_selector_node ARCHIVE DESTINATION lib LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 
+if(BUILD_TESTING)
+  ament_add_gtest(test_strike_flight_detector test/test_strike_flight_detector.cpp)
+  target_link_libraries(test_strike_flight_detector hope_strike_selector_core)
+  ament_add_gtest(test_strike_target_selector test/test_strike_target_selector.cpp)
+  target_link_libraries(test_strike_target_selector hope_strike_selector_core)
+  add_executable(test_shadow_runner_input test/test_shadow_runner_input.cpp)
+  target_compile_features(test_shadow_runner_input PRIVATE cxx_std_20)
+  target_include_directories(test_shadow_runner_input PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
+  target_link_libraries(test_shadow_runner_input PRIVATE hope_strike_selector_core)
+  add_test(NAME test_shadow_runner_input COMMAND test_shadow_runner_input)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME ckf_strike_shadow_ros COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/ckf_strike_shadow_smoke.py
+    --forecaster $<TARGET_FILE:hope_ball_event_forecaster_node>
+    --selector $<TARGET_FILE:hope_strike_target_selector_node>
+    --parser $<TARGET_FILE:test_shadow_runner_input>)
+  set_tests_properties(ckf_strike_shadow_ros PROPERTIES TIMEOUT 60)
+endif()
 ament_export_include_directories(include)
 ament_export_libraries(hope_planner_core)
 ament_export_dependencies(Eigen3 hope_msgs)
