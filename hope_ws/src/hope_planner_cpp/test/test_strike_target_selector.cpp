@@ -228,6 +228,7 @@ TEST(StrikeTargetSelector, OutgoingOpponentReturnRearmsPhysicalIdentity) {
 }
 
 #include "hope_planner_cpp/hit_plane_manager.hpp"
+#include "hope_planner_cpp/racket_target_planner.hpp"
 namespace {
 std::vector<double> registered_base(std::int64_t ns,unsigned sequence,double x) {
   // Synthetic schema-2 fixture: wxyz identity, measured/registered flags, IDs.
@@ -274,4 +275,22 @@ TEST(StrikeTargetSelector, PlaneCalibrationRejectsUnregisteredAndOutsideGeometry
   stable_base(manager,t0+10000000,2,-.27); // x_hit=+0.31: never clamp to range.
   EXPECT_FALSE(manager.freeze(t0+70000000,t0+70000000,1,true));
   EXPECT_EQ(manager.reason(),"plane_out_of_range");EXPECT_FALSE(manager.snapshot().calibrated);
+}
+TEST(StrikeTargetSelector, InclusiveTableContactBoundsAndNonfiniteRejection) {
+  for(double y:{-.9,-.7,-.5})EXPECT_TRUE(strike_target_selector_hit_y_allowed(y,-.9,-.5));
+  for(double y:{std::nextafter(-.9,-INFINITY),std::nextafter(-.5,INFINITY),std::numeric_limits<double>::quiet_NaN(),std::numeric_limits<double>::infinity(),-std::numeric_limits<double>::infinity()})
+    EXPECT_FALSE(strike_target_selector_hit_y_allowed(y,-.9,-.5));
+  for(auto bounds:{std::pair<double,double>{NAN,-.5},{-.9,NAN},{-INFINITY,-.5},{-.9,INFINITY},{-.5,-.9},{-.7,-.7}})
+    EXPECT_FALSE(strike_target_selector_hit_y_allowed(-.7,bounds.first,bounds.second));
+}
+TEST(StrikeTargetSelector, InRangeContactKeepsOriginalStage3Geometry) {
+  StrikeTarget strike;strike.valid=true;strike.ball_position=Vec3(.08,-.7,.4);
+  strike.ball_velocity=Vec3(-4,.1,.5);strike.strike_source_time_s=1.;
+  ASSERT_TRUE(strike_target_selector_hit_y_allowed(strike.ball_position.y(),-.9,-.5));
+  const auto command=RacketTargetPlanner({}, {}, {}).plan(strike,Vec3(2.055,-.7625,0),.5);
+  ASSERT_TRUE(command.valid);
+  EXPECT_EQ((command.position-strike.ball_position).squaredNorm(),0.);
+  EXPECT_TRUE(command.velocity.allFinite());EXPECT_TRUE(command.outgoing_ball_velocity.allFinite());
+  EXPECT_NEAR(command.normal.norm(),1.,1e-12);
+  EXPECT_GT(command.normal.x(),0.); // Existing Stage-3 orientation, not owner approval.
 }
