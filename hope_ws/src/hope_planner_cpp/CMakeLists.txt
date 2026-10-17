@@ -251,6 +251,8 @@ if(BUILD_TESTING)
     --parser $<TARGET_FILE:test_shadow_runner_input>)
   set_tests_properties(ckf_strike_shadow_ros PROPERTIES TIMEOUT 60)
 endif()
+install(FILES docs/ckf_strike_shadow.md DESTINATION share/${PROJECT_NAME}/docs)
+
 ament_export_include_directories(include)
 ament_export_libraries(hope_planner_core)
 ament_export_dependencies(Eigen3 hope_msgs)
