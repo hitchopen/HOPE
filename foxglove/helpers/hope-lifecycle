@@ -527,6 +527,8 @@ prepare_hdu() {
 preflight_hdu() {
   local planner_prefix messages_prefix static_peers
   require_user "$ROBOT_USER" PREFLIGHT
+  python3 "$(dirname "$SELF")/hope_wifi_policy.py" check || \
+    die PREFLIGHT WIFI_POLICY_NOT_READY
   tmux_exists "$HDU_BASE_SESSION" && die PREFLIGHT MANAGED_BASE_PRESENT
   tmux_exists "$HDU_PLANNER_SESSION" && die PREFLIGHT MANAGED_PLANNER_PRESENT
   tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \

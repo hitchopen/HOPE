@@ -36,6 +36,7 @@ def fake_environment(monkeypatch, respawn=False):
     monkeypatch.setattr(guard, "rpc", rpc)
     monkeypatch.setattr(guard, "unwanted_processes", lambda: {})
     monkeypatch.setattr(guard, "ui_active", lambda: False)
+    monkeypatch.setattr(guard, "wifi_only", lambda: False)
     receipt = dict(stop_results=[], terminated_watchdogs=[], terminated_leftovers=[])
     return receipt, calls, states
 
@@ -69,7 +70,7 @@ def test_launch_rejects_cleanup_failure_before_hardware_start(mode):
 require_user() { :; }
 tmux_exists() { return 1; }
 pgrep() { return 1; }
-python3() { return 1; }
+python3() { [[ "$1" == */hope_wifi_policy.py ]] && return 0; return 1; }
 SESSION_ID=model21800_20261016T105100Z
 FIELD_MODE="$2"
 preflight_hdu
@@ -130,3 +131,47 @@ def test_failure_writes_receipt_and_returns_nonzero(monkeypatch, tmp_path):
     result = json.loads(receipt.read_text())
     assert result["result"] == "FAIL"
     assert "manager unavailable" in result["error"]
+
+
+def test_cellular_is_opt_in_and_invalid_profile_fails(monkeypatch, tmp_path):
+    marker = tmp_path / "profile"
+    monkeypatch.setattr(guard, "WIFI_ONLY", marker)
+    assert not guard.wifi_only()
+    marker.write_text("wifi-only-v1\n")
+    assert guard.wifi_only()
+    marker.write_text("unexpected")
+    with pytest.raises(RuntimeError, match="invalid"):
+        guard.wifi_only()
+
+
+def test_wifi_only_stops_cellular_and_records_readback(monkeypatch):
+    receipt, calls, states = fake_environment(monkeypatch)
+    monkeypatch.setattr(guard, "wifi_only", lambda: True)
+    active = {"value": True}
+    monkeypatch.setattr(guard, "service_active", lambda unit: active["value"])
+    def stop(argv, **kwargs):
+        assert argv == ["systemctl", "--no-ask-password", "stop", guard.CELLULAR]
+        active["value"] = False
+    monkeypatch.setattr(guard.subprocess, "run", stop)
+    guard.clean(receipt)
+    assert receipt["cellular"] == dict(profile="wifi-only-v1", was_active=True, active_after=False)
+    assert states["recordbag1"] == 15
+
+
+def test_cellular_respawn_rejects_start(monkeypatch):
+    receipt, _, _ = fake_environment(monkeypatch)
+    monkeypatch.setattr(guard, "wifi_only", lambda: True)
+    monkeypatch.setattr(guard, "service_active", lambda _: True)
+    monkeypatch.setattr(guard.subprocess, "run", Mock())
+    with pytest.raises(RuntimeError, match="respawning"):
+        guard.clean(receipt)
+
+
+def test_cellular_stop_denied_rejects_start(monkeypatch):
+    import subprocess
+    receipt, _, _ = fake_environment(monkeypatch)
+    monkeypatch.setattr(guard, "wifi_only", lambda: True)
+    monkeypatch.setattr(guard, "service_active", lambda _: True)
+    monkeypatch.setattr(guard.subprocess, "run", Mock(side_effect=subprocess.CalledProcessError(1, "systemctl")))
+    with pytest.raises(subprocess.CalledProcessError):
+        guard.clean(receipt)

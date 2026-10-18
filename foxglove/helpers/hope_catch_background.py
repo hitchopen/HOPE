@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Bounded catch-start cleanup of an explicit HDU background allowlist.
 
-Never stops the process manager, HAL, networking, clocks, or recording.
+Never stops the process manager, HAL, local networking, clocks, or recording.
+An explicitly installed Wi-Fi-only profile also stops the cellular watchdog.
 Failure to establish a quiet state is a preflight failure, not a warning.
 """
 import argparse
@@ -15,6 +16,8 @@ import urllib.request
 
 APPS = ("agent", "hal_audio", "hal_hdu_camera")
 UI = "agibot_ui.service"
+CELLULAR = "zy_cellular.service"
+WIFI_ONLY = Path("/etc/hope-foxglove/wifi-only")
 WATCHDOGS = ("/scripts/agent/process_monitor.sh", "/scripts/hal_audio/hal_audio_monitor.sh")
 
 
@@ -69,18 +72,44 @@ def terminate(pid, argv):
         os.close(fd)
 
 
-def ui_active():
-    result = subprocess.run(["systemctl", "is-active", UI], timeout=5,
+def service_active(unit):
+    result = subprocess.run(["systemctl", "is-active", unit], timeout=5,
                             capture_output=True, text=True)
     state = result.stdout.strip()
     if result.returncode == 0 or state in {"activating", "deactivating", "reloading"}:
         return True
     if result.returncode in {3, 4} and state in {"inactive", "failed", "unknown"} and not result.stderr.strip():
         return False
-    raise RuntimeError(f"Cannot determine {UI} state: {result.stderr.strip() or state}")
+    raise RuntimeError(f"Cannot determine {unit} state: {result.stderr.strip() or state}")
+
+
+def ui_active():
+    return service_active(UI)
+
+
+def wifi_only():
+    try:
+        value = WIFI_ONLY.read_text().strip()
+    except FileNotFoundError:
+        return False
+    if value != "wifi-only-v1":
+        raise RuntimeError("invalid Wi-Fi-only profile")
+    return True
+
+
+def stop_cellular(receipt):
+    # A narrowly scoped polkit rule permits only this stop, even under NNP.
+    active = service_active(CELLULAR)
+    receipt["cellular"] = {"profile": "wifi-only-v1", "was_active": active}
+    if active:
+        subprocess.run(["systemctl", "--no-ask-password", "stop", CELLULAR],
+                       check=True, timeout=30)
 
 
 def clean(receipt):
+    cellular_required = wifi_only()
+    if cellular_required:
+        stop_cellular(receipt)
     receipt["before"] = rpc("GetAllAppInfos", {})
     # Detached vendor watchdogs are not reaped by StopApp; stop them first.
     for pid, argv in unwanted_processes().items():
@@ -105,10 +134,13 @@ def clean(receipt):
         after = rpc("GetAllAppInfos", {})
         running = [x for x in after["infos"] if x["app"] in APPS and x.get("pid", -1) > 0]
         remaining = unwanted_processes()
-        if not running and not remaining and not ui_active():
+        cellular_active = cellular_required and service_active(CELLULAR)
+        if not running and not remaining and not ui_active() and not cellular_active:
             if quiet_since is None:
                 quiet_since = time.monotonic()
             if time.monotonic() - quiet_since >= 2:
+                if cellular_required:
+                    receipt["cellular"]["active_after"] = False
                 receipt["after"] = after
                 return
         else:
