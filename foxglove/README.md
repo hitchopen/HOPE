@@ -180,7 +180,9 @@ continuous two-second quiet window; RPC errors, failed stops, respawning
 processes or insufficient UI-stop privileges reject START with
 `UNRELATED_BACKGROUND_NOT_STOPPED`. The HDU preflight timeout is 180 seconds to
 cover the bounded vendor calls. Drive HAL, process manager, emergency-stop,
-networking, clock and recording processes are outside the cleanup allowlist.
+local networking, clock and recording processes are outside the cleanup allowlist.
+The optional Wi-Fi-only profile additionally stops the cellular watchdog; see
+[robot Wi-Fi/runtime setup](../docs/operations/robot_runtime_policy.md).
 
 Deploy `helpers/hope_catch_background.py` beside the HDU's installed
 `/usr/local/libexec/hope-lifecycle`, together with the matching helper and
@@ -189,8 +191,10 @@ path and network configuration when updating the helper. The guard requires
 Linux/Python pidfd support and access to the existing localhost vendor process
 manager on port 50081. If the UI service is active, the lifecycle account must
 already be allowed to run `sudo -n systemctl stop agibot_ui.service`; otherwise
-START fails rather than continuing with the UI running. This change does not
-install sudo rules, modify vendor launch defaults or permanently disable services.
+START fails rather than continuing with the UI running. The base cleanup does not install sudo rules or change vendor launch defaults.
+The optional Wi-Fi-only installer permanently disables cellular and adds a narrow
+polkit stop rule. HDU preflight also requires the installed Wi-Fi policy helper;
+install its service/configuration together with the updated lifecycle helper.
 
 Each attempt writes `/tmp/hope_background_<session_id>.json`, including failure
 details. Successful session preparation copies it to

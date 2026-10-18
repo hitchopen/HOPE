@@ -1,0 +1,8 @@
+// The optional Wi-Fi-only profile grants agi only a fixed cellular STOP.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "zy_cellular.service" &&
+        action.lookup("verb") == "stop" && subject.user == "agi") {
+        return polkit.Result.YES;
+    }
+});

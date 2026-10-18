@@ -271,6 +271,12 @@ Do not use Start as an installation smoke test on hardware.
 
 ## Start behavior
 
+HDU preflight checks the installed Wi-Fi power/connected-scan policy before
+launch. The optional Wi-Fi-only profile also stops cellular and rejects respawn.
+See [robot runtime policy](robot_runtime_policy.md) for setup, manual rescan,
+rollback, and the periodic I/O audit. Install these dependencies with the helper;
+do not use START as a setup smoke test.
+
 After the operator confirms the four boxes and acknowledges the physical
 support/E-stop dialog, the supervisor creates one session and runs:
 

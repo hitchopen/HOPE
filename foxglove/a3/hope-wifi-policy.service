@@ -1,0 +1,24 @@
+[Unit]
+Description=HOPE HDU Wi-Fi power and connected scan policy
+After=NetworkManager.service
+Wants=NetworkManager.service
+Before=hope-lifecycle-supervisor.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/libexec/hope_wifi_policy.py serve
+ExecStopPost=/usr/bin/python3 /usr/local/libexec/hope_wifi_policy.py release
+Restart=always
+RestartSec=1
+RuntimeDirectory=hope-wifi-policy
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=restart
+TimeoutStopSec=5
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
