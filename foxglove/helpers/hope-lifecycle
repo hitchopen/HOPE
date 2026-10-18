@@ -1036,6 +1036,8 @@ start_hal() {
   wait_for_session_log "$MDU_ELINK_SESSION" "$elink_log" \
     "Enter ElinkKeepAliveLoop" 160 || die HAL ELINK_START_FAILED
   check_t3_elink_ready HAL
+  sudo -n python3 "$(dirname "$SELF")/hope_elink_scheduler.py" apply --config "$elink_config" || \
+    die HAL ELINK_SCHEDULER_NOT_READY
   emit HAL STARTING ELINK_READY_WITH_GRIPPER_TOPIC
   start_tmux "$MDU_HAL_SESSION" "$SELF" _run-hal \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \

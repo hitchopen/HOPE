@@ -1,0 +1,136 @@
+{
+  "sha256": "b7797d8dc770b486e686b8075be8628571d43c85aa75ddb6d914b3fb526874e9",
+  "base": "a3p_op3_serve025_nearer_own_v19.csv",
+  "base_sha256": "9eef9fdb8e291b10ccd420a822089bb66d22c9a3707bb6412cb53f7f4908787d",
+  "change": "Right-arm only. Inverse two-response-model correction toward +40 mm racket center in strike window, with normal retained; command correction smoothly admitted after frame 64 to preserve backswing clearance.",
+  "changed_csv_frames": [
+    63,
+    159
+  ],
+  "changed_joint_position_frames": [
+    65,
+    159
+  ],
+  "release_frame": 45,
+  "hz": 100,
+  "frames": 468,
+  "prepare_unchanged": true,
+  "left_arm_and_body_and_legs_csv_unchanged": true,
+  "recovery_from_frame160_unchanged": true,
+  "physical_detachment_delay_identified": false,
+  "model_limit": "Rigid uncalibrated gripper CAD; assumed ball release position, world pose and contact materials; no physical verification.",
+  "operating_tradeoff": "Improves the tested 60-120 ms release hypotheses. Expanded 0-180 ms sweep has new misses at 10-50 ms; this is not an all-delay repair.",
+  "local_sweep_summary": {
+    "lag_gain": {
+      "legal": 264,
+      "hit": 315,
+      "baseline_legal": 236,
+      "baseline_hit": 295,
+      "new_misses": 0,
+      "lost_legal": 27,
+      "gained_legal": 55,
+      "central": 196
+    },
+    "FIR": {
+      "legal": 255,
+      "hit": 315,
+      "baseline_legal": 236,
+      "baseline_hit": 295,
+      "new_misses": 0,
+      "lost_legal": 33,
+      "gained_legal": 52,
+      "central": 190
+    }
+  },
+  "wide_sweep_summary": {
+    "lag_gain": {
+      "baseline": {
+        "other": 131,
+        "legal": 283,
+        "direct_opponent": 1,
+        "miss": 411,
+        "direct_net": 4,
+        "own_then_net": 25
+      },
+      "candidate": {
+        "other": 131,
+        "legal": 315,
+        "own_then_net": 13,
+        "miss": 396
+      },
+      "new_misses": 64,
+      "lost_legal": 54,
+      "gained_legal": 86
+    },
+    "FIR": {
+      "baseline": {
+        "other": 131,
+        "legal": 283,
+        "direct_opponent": 1,
+        "miss": 411,
+        "direct_net": 4,
+        "own_then_net": 25
+      },
+      "candidate": {
+        "other": 134,
+        "legal": 313,
+        "direct_net": 2,
+        "own_then_net": 6,
+        "miss": 400
+      },
+      "new_misses": 70,
+      "lost_legal": 63,
+      "gained_legal": 93
+    }
+  },
+  "schema_version": 1,
+  "asset": "a3p_op3_serve025_edge_center_v20.csv",
+  "release_event_frame": 48,
+  "release_lead_frames": 3,
+  "handoff_frame": 467,
+  "field_result": {
+    "date": "2026-10-18",
+    "source": "operator report",
+    "statement": "v20 can successfully hit the ball",
+    "quantified_success_rate": null,
+    "legal_two_bounce_serve_confirmed": false
+  },
+  "runtime_prerequisites": {
+    "description": "Existing field build; this asset does not port its runtime/gripper/Prepare changes to main.",
+    "runner_sha256": "11c83d62283589653040722dfdad5aec539ae23641eb8d775cd7ba5db9ed3d4a",
+    "runtime_config_sha256": "98befa83163c9ec584f559582ba11619ea91b1783552265b947f16d06efe342f",
+    "gripper_profile": "new_20261015",
+    "grab": {
+      "pos": 850,
+      "force": 1,
+      "vel": 100
+    },
+    "release": {
+      "pos": 1500,
+      "force": 1,
+      "vel": 100
+    }
+  },
+  "native_mujoco": {
+    "delay_hypotheses_ms": [
+      60,
+      80,
+      100,
+      110,
+      120
+    ],
+    "legal_cases": 5,
+    "falls": 0,
+    "max_tilt_deg": 1.1105
+  },
+  "deployment": {
+    "session": "model21800_20261018T125856Z",
+    "managed_start_result": "START_COMPLETE_RUNNER_PASSIVE",
+    "subsequent_foxglove_mode": "SERVE",
+    "observed_hz": [
+      499.8,
+      501.0
+    ],
+    "halt_increase": 0
+  }
+}

@@ -43,6 +43,88 @@ session capture and log collection, and change it only while lifecycle is
 STOPPED. Selecting a different Laptop does not require rebuilding or replacing
 the robot's Runner or Planner.
 
+## ELink transport scheduling
+
+The audited A3_P1D0 vendor ELink library creates three transport threads (main
+loop, UDP send, UDP receive) outside the named AimRT executors. Changing only
+`hand_control_worker` does not prioritize those threads. On this deployment,
+`hope_elink_scheduler.py` places only the three transport threads on CPU 1 with
+`SCHED_RR` priorities 24 (receive), 23 (main), and 20 (send). Receive/main must
+preempt the sender: equal priorities retained millisecond waits during sender
+CPU bursts. Runner, EtherCAT, the hand command cycle, and the serial bridge
+retain their existing settings. CPU 7 was also trialed but retained waits.
+
+Install `foxglove/a3/install_mdu_elink_scheduler.sh` as root on the MDU, keeping
+its sibling `../helpers/hope_elink_scheduler.py` in the copied package. The
+installer backs up and patches the installed lifecycle helper without restarting
+robot services. Managed START applies and verifies this policy after ELink
+readiness and before EtherCAT/Runner startup; failure stops START admission.
+The helper checks the exact executable and mapped ELink library hashes, managed
+session path, process/thread start times, and the audited three-thread layout.
+An unknown vendor build requires a new audit, not removal of these checks.
+
+For an existing session, the root-only helper accepts `inspect`, `apply`,
+`verify`, and `restore`, each with
+`--config /tmp/hope_real/<session>/mdu/system/hal_elink_a3_gripper.yaml`.
+Apply needs no process restart and publishes no robot commands. The first
+pre-change settings are retained in `/var/lib/hope/elink-scheduler/`; repeated
+apply preserves that rollback receipt. Restore affects the same process/thread
+instance only. To disable persistence as well, restore the lifecycle helper from
+the installer backup under `/var/backups/hope-elink-scheduler-*` after reconciling
+any subsequent changes.
+
+Scheduling readback and passive transport timings do not measure finger motion
+or ball release. Physical serve repeatability must be tested separately.
+
+## Field v20 serve asset
+
+The operator reported successful ball contact with
+`a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_edge_center_v20.csv`
+on 2026-10-18. Its adjacent manifest records the exact asset hash, field runtime
+requirements, simulation results and remaining limits. This report establishes
+successful contact, not a measured success rate or consistently legal serves.
+
+The CSV preserves v19's left arm, body/leg channels, Prepare target, event
+sequence and recovery from frame 160. Only right-arm position/derivative columns
+in frames 63–159 change. Two measured-response models were used to move the
+strike-window racket center toward a 40 mm higher target while retaining its
+normal. Smooth admission at frames 64–71 avoids the backswing proximity of an
+earlier discarded candidate. The 40 mm value is an optimization target, not an
+independently measured robot displacement.
+
+This is a selectable field asset, not a default-motion replacement. Upload it
+through the field CSV interface only while the lifecycle is stopped and idle.
+Keep the previous selected asset/hash for rollback. Use managed START and verify
+the loaded CSV hash and `START_COMPLETE_RUNNER_PASSIVE` before operator motion.
+The recorded deployment used 468 frames at 100 Hz, handoff frame 467, and
+`serve_release_lead_frames: 3`: the CSV RELEASE event remains at frame 48 and the
+command is sent at frame 45. Do not shift the CSV event as well.
+
+The successful field deployment used a separate existing Runner build, the
+`new_20261015` gripper profile (grab/release positions 850/1500, force 1, velocity
+100), and its previously tested Prepare transition. Exact Runner/config hashes
+are in the manifest. Those field runtime/profile changes are not introduced by
+this asset addition; a stock main build does not reproduce the full tested
+setup merely by selecting v20. Preserve the field runtime when using this
+asset; treat a different runtime or gripper as a new validation configuration.
+The asset is selected by upload, so the packaged v14 default remains unchanged.
+
+Offline validation used five measured v19 joint-response cycles (first three
+for selection, last two held out). In 315 position/delay cases per response
+model at assumed 60–120 ms detachment delay, contacts increased from 295 to 315;
+legal bounce sequences increased from 236 to 264 (lag/gain) or 255 (FIR).
+Native-controller floating-base MuJoCo cases at 60/80/100/110/120 ms all produced
+the legal bounce sequence without simulated falls. These are conditional
+simulation results, not field success rates. Wider 0–180 ms sweeps introduced
+misses at 10–50 ms. Actual physical detachment latency is not identified; the
+rigid gripper CAD, ball release position and contact materials remain model
+assumptions. Keep these limitations when comparing future field results.
+
+The deployment receipt recorded session `model21800_20261018T125856Z`, successful
+managed PASSIVE startup, exact loaded asset hash, ELink scheduling readback, and
+499.8–501.0 Hz with no additional halts over 30 seconds. Foxglove commands then
+changed the mode to SERVE, so the observation is not a sustained-PASSIVE test.
+
 ## Automatic data collection for MuJoCo tuning
 
 Normal START arms session-owned capture on all three machines; recording defaults
