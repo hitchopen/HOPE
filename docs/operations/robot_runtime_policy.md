@@ -25,10 +25,16 @@ The optional polkit rule allows user `agi` only the `stop` operation on
 It grants no permission to start units, change routes, or control other services.
 Existing UI-stop permissions remain a separate prerequisite.
 
-## 2. Per-robot setup and recovery
+## 2. One-time per-robot setup and recovery
+
+Run the installer once on each robot during initial setup. The installed systemd
+service and NetworkManager settings persist across reboot; normal boot and each
+Foxglove START do not rerun the installer or rewrite saved connection profiles.
+START only checks the Wi-Fi policy and performs the configured background cleanup.
+Reinstall only when upgrading this policy or restoring a reimaged robot.
 
 Copy the `foxglove/helpers` and `foxglove/a3` directories together, preserving
-layout. On the supported HDU, from the checkout:
+layout. On the supported HDU, from the checkout, choose **one** command:
 
 ```bash
 # Wi-Fi policy only; preserve cellular use:
