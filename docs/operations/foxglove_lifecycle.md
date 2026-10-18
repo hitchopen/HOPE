@@ -25,6 +25,24 @@ The native MDU Runner remains the authority for PASSIVE, PD_STAND, MOTION,
 role, serve state, action admission and action acknowledgements. The lifecycle
 supervisor owns process state only.
 
+## macOS and Linux operators
+
+Both platforms use Foxglove Desktop with the same console/layout and connect to
+`ws://<HDU-IP>:8766`. Runner executes on the MDU and Planner on the HDU, so their
+PD Stand timing and Planner admission behavior are shared by both operators.
+
+Linux keeps the existing `distrobox enter hope` path. On Apple Silicon macOS,
+the operator's ROS and recording helpers run inside Docker and select
+`HOPE_LAPTOP_RUNTIME=direct` because they are already in the ROS container.
+See [macOS setup and commands](macos_deployment.md#mac-与-linux-共用-foxglove).
+The macOS SSH dispatcher forwards the same `collect` action used by the
+supervisor and Linux helper; there is no separate log-collection protocol.
+
+Both computers may view the same robot at once. Select one Laptop address for
+session capture and log collection, and change it only while lifecycle is
+STOPPED. Selecting a different Laptop does not require rebuilding or replacing
+the robot's Runner or Planner.
+
 ## Automatic data collection for MuJoCo tuning
 
 Normal START arms session-owned capture on all three machines; recording defaults

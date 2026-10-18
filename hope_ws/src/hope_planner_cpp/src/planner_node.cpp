@@ -283,10 +283,6 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       max_target_turn_deg_ > 180.0) {
     throw std::invalid_argument("max_target_turn_deg must be finite and in (0, 180]");
   }
-  target_turn_max_pose_age_s_ = declare_parameter<double>("target_turn_max_pose_age_s", 0.2);
-  if (!std::isfinite(target_turn_max_pose_age_s_) || target_turn_max_pose_age_s_ <= 0.0) {
-    throw std::invalid_argument("target_turn_max_pose_age_s must be finite and positive");
-  }
   publish_flat_command_ = declare_parameter<bool>("publish_flat_cmd", true);
   publish_base_flat_ = declare_parameter<bool>("publish_base_flat", false);
   publish_serve_ball_flat_ = declare_parameter<bool>("publish_serve_ball_flat", true);
@@ -1440,20 +1436,8 @@ void PlannerNode::publish_solve(
       target_turn = check_target_turn(
           command.position, base.position, base.orientation,
           base.valid && base.orientation_valid, max_target_turn_deg_);
-      const double pose_age_s = (steady_now_ns() - base.receipt_steady_ns) * 1.0e-9;
-      if (target_turn.allowed && (base.receipt_steady_ns <= 0 ||
-          pose_age_s < 0.0 || pose_age_s > target_turn_max_pose_age_s_)) {
-        target_turn.allowed = false;
-        target_turn.reason = "target_turn_base_stale";
-      }
-      // A packet can be newly received after spending hundreds of ms in
-      // Wi-Fi queues. Receipt age alone cannot establish current heading.
-      const double source_pose_age_s = base.source_stamp_ns > 0
-          ? (producer_wall_ns - base.source_stamp_ns) * 1.0e-9 : 0.0;
-      if (target_turn.allowed && source_pose_age_s > target_turn_max_pose_age_s_) {
-        target_turn.allowed = false;
-        target_turn.reason = "target_turn_base_source_stale";
-      }
+      // Use the latest valid heading even if its receipt/source timestamp is
+      // delayed. Pose age remains in telemetry; it does not veto a shot.
       if (!target_turn.allowed) {
         wire_valid = false;
         RCLCPP_WARN(get_logger(),

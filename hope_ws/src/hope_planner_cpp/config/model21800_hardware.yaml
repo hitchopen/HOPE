@@ -89,7 +89,6 @@ hope_planner:
     serve_ball_flat_topic: "/serve/ball_state_flat"
     policy_z_offset: 0.76
     max_target_turn_deg: 180.0
-    target_turn_max_pose_age_s: 0.2
     table_y_max: 0.0
 
     x_hit_calibration_request_file: ""
