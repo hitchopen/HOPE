@@ -99,7 +99,7 @@ start='# BEGIN HOPE MAC OPERATOR'; end='# END HOPE MAC OPERATOR'
 if start in old:
     begin=old.index(start); finish=old.index(end,begin)+len(end)
     old=old[:begin]+old[finish:].lstrip('\\n')
-block=(f'{start}\\nHost {cfg["mac_ip"]} hope-mac-operator\\n'
+block=(f'{start}\\nHost hope-mac-operator\\n'
        f'  HostName 127.0.0.1\\n  Port {cfg["ssh_port"]}\\n  User dongc1\\n'
        '  IdentityFile ~/.ssh/id_ed25519\\n  IdentitiesOnly yes\\n'
        '  ControlMaster auto\\n  ControlPersist 60\\n'
@@ -117,8 +117,14 @@ PY
 
 def select(config, profile):
     ip = config[profile + "_ip"]
-    remote(config, "source /opt/ros/jazzy/setup.bash\nexport ROS_DOMAIN_ID=232\n" +
-           "python3 - <<'PY'\n" + "laptop=" + repr(ip) + "\n" + '''
+    remote(config, _select_script(ip, profile))
+
+
+def _select_script(ip, profile):
+    if profile not in {"mac", "linux"}:
+        raise ValueError("operator profile must be mac or linux")
+    return ("source /opt/ros/jazzy/setup.bash\nexport ROS_DOMAIN_ID=232\n" +
+           "python3 - <<'PY'\n" + "laptop=" + repr(ip) + "\nprofile=" + repr(profile) + "\n" + '''
 import time
 import rclpy
 from std_msgs.msg import String
@@ -132,10 +138,11 @@ if values.get('state')!='STOPPED':raise RuntimeError('operator change requires f
 # Retain all other venue fields from the supervisor configuration.
 import json
 from pathlib import Path
-cfg=json.loads(Path('/var/lib/hope-lifecycle/config.json').read_text());cfg['laptop_wifi_ip']=laptop
+cfg=json.loads(Path('/var/lib/hope-lifecycle/config.json').read_text())
+cfg.update(laptop_wifi_ip=laptop, operator_profile=profile)
 request=SetParameters.Request()
 request.parameters=[Parameter(name=k,value=ParameterValue(type=4,string_value=cfg[k])) for k in
- ('laptop_wifi_ip','hdu_wifi_ip','mdu_internal_ip','motive_ip','table_side')]
+ ('laptop_wifi_ip','hdu_wifi_ip','mdu_internal_ip','motive_ip','table_side','operator_profile')]
 client=node.create_client(SetParameters,'/hope/lifecycle/apply_config')
 if not client.wait_for_service(timeout_sec=5):raise RuntimeError('configuration service unavailable')
 future=client.call_async(request);rclpy.spin_until_future_complete(node,future,timeout_sec=10)
@@ -162,7 +169,7 @@ def main():
         run(["ssh","-S",CONFIG/'tunnel.sock',"-O","check",f"{config['ssh_user']}@{config['hdu_ip']}"])
         remote(config,"cat /var/lib/hope-lifecycle/config.json\n")
     else:
-        remote(config,"python3 - <<'PY'\nimport json\nfrom pathlib import Path\nc=json.loads(Path('/var/lib/hope-lifecycle/config.json').read_text())\nassert c['laptop_wifi_ip'] != "+repr(config['mac_ip'])+", 'Select the Linux operator before stopping the Mac backend'\nPY\n")
+        remote(config,"python3 - <<'PY'\nimport json\nfrom pathlib import Path\nc=json.loads(Path('/var/lib/hope-lifecycle/config.json').read_text())\nassert c.get('operator_profile') == 'linux', 'Select the Linux operator with the updated supervisor before stopping the Mac backend'\nPY\n")
         (CONFIG/'disabled').touch(mode=0o600)
         run(["ssh","-S",CONFIG/'tunnel.sock',"-O","exit",f"{config['ssh_user']}@{config['hdu_ip']}"])
         run(["docker","stop",config['container']])

@@ -15,8 +15,8 @@ This layer replaces the repeated terminal work in hardware-runbook STEP
 0/1/2A/2B/4/5 with a fixed HDU-resident supervisor. It does not expose a
 remote shell. Foxglove can only:
 
-1. confirm three RFC1918 transport addresses, an optional Motive IPv4 address, and the robot's P1/P2 table
-   side while the stack is stopped;
+1. confirm three RFC1918 transport addresses, an optional Motive IPv4 address, the robot's P1/P2 table
+   side, and the Mac/Linux operator profile while the stack is stopped;
 2. start the fixed Laptop -> HDU -> MDU sequence;
 3. kill every lifecycle-managed session in reverse order, restore `agibot_pm`,
    and collect the current session logs.
@@ -38,10 +38,22 @@ See [macOS setup and commands](macos_deployment.md#mac-与-linux-共用-foxglove
 The macOS SSH dispatcher forwards the same `collect` action used by the
 supervisor and Linux helper; there is no separate log-collection protocol.
 
-Both computers may view the same robot at once. Select one Laptop address for
-session capture and log collection, and change it only while lifecycle is
+Both computers may view the same robot at once. Select one operator profile and
+its current Laptop address for session capture and log collection, and change them only while lifecycle is
 STOPPED. Selecting a different Laptop does not require rebuilding or replacing
 the robot's Runner or Planner.
+
+`operator_profile` is a persistent `mac`/`linux` identity, independent of IP or
+physical NIC MAC address. The Linux profile keeps `HOPE_LAPTOP_USER` and
+`HOPE_LAPTOP_LIFECYCLE_HELPER`. The Mac profile uses `HOPE_MAC_USER` and
+`HOPE_MAC_LIFECYCLE_HELPER`, defaulting to the bundled container's `dongc1`
+account and `/home/dongc1/.local/libexec/hope-lifecycle`. Its SSH destination is
+the stable `hope-mac-operator` alias installed by `operator.py bind`; Linux uses
+the configured Laptop IP. All Laptop operations share this profile selection.
+Changing the Wi-Fi IP preserves the selected profile; DDS/session addresses
+still need to be kept current. The profile is published at
+`/hope/lifecycle/config/operator_profile` and selected in the Console or through
+`operator.py select-mac` / `select-linux`.
 
 ## ELink transport scheduling
 
@@ -172,7 +184,7 @@ The custom console calls these exact services through port `8766`:
 
 | Service | Type | Meaning |
 |---|---|---|
-| `/hope/lifecycle/apply_config` | `rcl_interfaces/srv/SetParameters` | Exact four-string configuration request; not a generic parameter service |
+| `/hope/lifecycle/apply_config` | `rcl_interfaces/srv/SetParameters` | Fixed network, table-side and operator-profile string fields; not a generic parameter service |
 | `/hope/lifecycle/start` | `std_srvs/srv/Trigger` | Start STEP 0/1/2A/2B/4/5 asynchronously |
 | `/hope/lifecycle/kill_all_and_collect` | `std_srvs/srv/Trigger` | Kill all fixed lifecycle-managed sessions, restore `agibot_pm`, collect logs |
 
@@ -183,12 +195,21 @@ loopback, multicast and non-RFC1918 values, except that `motive_ip` also accepts
 IPv4 link-local (`169.254.0.0/16`) for a direct Laptop-to-Motive cable. The Laptop
 must have an address and route on that capture interface; its `laptop_wifi_ip`
 remains the separate RFC1918 address used to reach the HDU. `table_side` accepts
-only the exact enums `P1` and `P2`. The only accepted names are:
+only the exact enums `P1` and `P2`; `operator_profile` accepts `mac` or `linux`.
+The only accepted names are:
 
 - `laptop_wifi_ip`
 - `hdu_wifi_ip`
 - `mdu_internal_ip`
 - `motive_ip`
+- `table_side`
+- `operator_profile`
+
+Schema 3 persists the profile. Schema 1/2 documents migrate to `linux`, retaining
+existing trusted account/helper settings. Requests from older five-field clients
+preserve the current profile rather than changing it when an IP is edited.
+Upgrade the HDU core and supervisor together, restart while STOPPED, and install
+the updated Console before using its profile selector.
 
 The packaged Rockchip runtime still fixes the HDU-side internal endpoint at
 `10.42.10.10`; changing that value is a package/runtime rebuild, not a normal
