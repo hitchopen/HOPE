@@ -222,7 +222,7 @@ Mac 作为 SSH/rsync/Foxglove 操作端则不依赖这些本机 ROS 服务。
 python3 scripts/macos/operator.py up
 python3 scripts/macos/operator.py status
 
-# 选择本次会话的 Laptop；保留 HDU、MDU、Motive、P1/P2 的当前配置
+# 同时选择本次会话的 operator_profile 和 Laptop IP；保留其余现场配置
 python3 scripts/macos/operator.py select-mac
 python3 scripts/macos/operator.py select-linux
 
@@ -238,6 +238,31 @@ Mac 后端镜像为 `hope-operator:jazzy-arm64`，容器为 `hope-macos-operator
 该容器复用已经构建的 ARM64 ROS 工作区，保留 Linux 的 `/proc`、tmux 和 MCAP 运行环境。
 Linux 原有 Distrobox 路径保持默认；容器显式设置 `HOPE_LAPTOP_RUNTIME=direct`。
 登录账户在兼容容器内为 `dongc1`，不要求 macOS 创建同名账户或打开系统远程登录。
+
+操作端身份使用固定的 `operator_profile=mac` 或 `linux`，不绑定 Wi-Fi IP 或物理
+网卡 MAC 地址。Foxglove 的 **Operator computer** 选择和 `select-mac` / `select-linux`
+会将 profile 与当前 Laptop IP 一起确认。换 IP 后 profile 保持不变；IP 仍用于 DDS
+和会话元数据，需要更新为当前地址。Mac 的 SSH 目的地固定为 `hope-mac-operator`，
+由 `bind` 指向 HDU localhost 上的反向隧道，Linux 的 SSH 目的地则使用当前 Laptop IP。
+
+HDU supervisor 按 profile 选择账户和 helper，所有 Laptop 启动、回收、录制及资源调用
+都走同一选择逻辑：
+
+| Profile | 账户配置 | helper 配置及默认值 |
+| --- | --- | --- |
+| `linux` | `HOPE_LAPTOP_USER`，默认 `operator` | `HOPE_LAPTOP_LIFECYCLE_HELPER`，默认 `/usr/local/libexec/hope-lifecycle` |
+| `mac` | `HOPE_MAC_USER`，默认容器账户 `dongc1` | `HOPE_MAC_LIFECYCLE_HELPER`，默认 `/home/dongc1/.local/libexec/hope-lifecycle` |
+
+这些设置在 HDU 的 `/etc/hope-foxglove/network.env` 中独立保存。使用仓库提供的 Mac
+容器时无需修改 Mac 默认值，也无需将 Linux 的全局设置改成 Mac 账户。仅修改 SSH
+config 的 `User` 不能覆盖 supervisor 显式指定的账户。
+
+升级已有部署时，同时安装新的 `hope_lifecycle_core.py`、`hope_lifecycle_supervisor.py`
+并在 STOPPED 状态重启 supervisor，然后构建/安装新版 Console，运行一次 `bind` 和
+`select-mac` 或 `select-linux`。旧 schema 1/2 配置保留现有账户行为，迁移为 `linux`
+profile；旧客户端只提交原有五个字段时，会保留当前 profile。应通过新版入口明确选择
+一次操作端。`bind` 会移除旧的 Mac IP 匹配，只保留稳定别名，避免旧 IP 被 Linux
+复用后仍误接 Mac 隧道。
 
 SSH 只在 Mac localhost 发布，并经 SSH 反向转发到 HDU localhost。HDU 的专用 Mac host
 配置使用已有 HDU 公钥认证，只允许固定的 Laptop helper 子命令，拒绝任意远程 shell、

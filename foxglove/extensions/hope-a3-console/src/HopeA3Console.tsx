@@ -86,6 +86,7 @@ const TOPICS = {
   mduInternalIp: "/hope/lifecycle/config/mdu_internal_ip",
   motiveIp: "/hope/lifecycle/config/motive_ip",
   tableSide: "/hope/lifecycle/config/table_side",
+  operatorProfile: "/hope/lifecycle/config/operator_profile",
 } as const;
 
 const SERVICES = {
@@ -129,6 +130,7 @@ const CONFIG_FIELDS = {
   mdu_internal_ip: { label: "MDU Internal", topic: TOPICS.mduInternalIp },
   motive_ip: { label: "Motive (optional telemetry)", topic: TOPICS.motiveIp },
   table_side: { label: "Our table side", topic: TOPICS.tableSide },
+  operator_profile: { label: "Operator computer", topic: TOPICS.operatorProfile },
 } as const;
 
 type ConfigField = keyof typeof CONFIG_FIELDS;
@@ -151,6 +153,7 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   mdu_internal_ip: "",
   motive_ip: "",
   table_side: "",
+  operator_profile: "",
 };
 
 type XboxPreview = {
@@ -499,6 +502,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
     case TOPICS.tableSide:
       next.lifecycleConfig.table_side = stringValue(event.message);
       break;
+    case TOPICS.operatorProfile:
+      next.lifecycleConfig.operator_profile = stringValue(event.message);
+      break;
   }
 }
 
@@ -800,7 +806,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       } else {
         setConfigTouched(false);
         setNotice(
-          `CONFIG CONFIRMED · next start uses ${configDraft.table_side} and these addresses`,
+          `CONFIG CONFIRMED · ${configDraft.operator_profile.toUpperCase()} operator · ${configDraft.table_side} · these addresses`,
         );
       }
     } catch (error) {
@@ -902,7 +908,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const assetFresh = isFresh(snapshot, TOPICS.assetMatched, now, 1_000);
   const configComplete =
     RUNNER_NETWORK_CONFIG_FIELDS.every((name) => configDraft[name].trim().length > 0) &&
-    ["P1", "P2"].includes(configDraft.table_side);
+    ["P1", "P2"].includes(configDraft.table_side) &&
+    ["linux", "mac"].includes(configDraft.operator_profile);
   const timeCalibrationFresh = isFresh(snapshot, TOPICS.timeCalibrationState, now, 1_500);
   const timeCalibrationState = timeCalibrationFresh
     ? (snapshot.timeCalibrationState ?? "UNKNOWN")
@@ -1143,6 +1150,24 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <div className="lifecycle-result" title={snapshot.lifecycleResult}>
             {snapshot.lifecycleResult ?? "waiting for supervisor"}
           </div>
+        </div>
+        <div className="table-side-selector" role="group" aria-label="Operator computer">
+          <div>
+            <div className="eyebrow">OPERATOR COMPUTER</div>
+            <div className="helper">Choose the computer for this session, then confirm its current Laptop IP below.</div>
+          </div>
+          {(["linux", "mac"] as const).map((profile) => (
+            <button key={profile} type="button"
+              className={configDraft.operator_profile === profile ? "side-selected" : ""}
+              aria-pressed={configDraft.operator_profile === profile}
+              disabled={!lifecycleStopped || lifecycleBusy}
+              onClick={() => {
+                setConfigTouched(true);
+                setConfigDraft((current) => ({ ...current, operator_profile: profile }));
+              }}>
+              {profile === "mac" ? "Mac" : "Linux"}
+            </button>
+          ))}
         </div>
         <div className="config-grid">
           {NETWORK_CONFIG_FIELDS.map((name) => (
