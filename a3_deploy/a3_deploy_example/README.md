@@ -85,6 +85,17 @@ running (`hope_ws`), `python -m a3_deploy_onnx_ref_pingpong --planner` consumes
 the live `/racket/command_flat` stream. See `reference/README.md` for the module
 layout and integration seams.
 
+## PD Stand transition
+
+The C++ runner enters PD_STAND over **5 seconds** by default. It smoothly
+interpolates from the measured joint pose to the stand pose while increasing
+Kp/Kd to the original standing gains. Entry joint velocity decays over 0.25 s
+instead of being extrapolated across the full transition.
+
+Set `--pd-stand-blend-sec S` to change this duration (finite and positive).
+This setting is independent of `--motion-blend-sec` and
+`--policy-entry-blend-sec`; the policy entry duration remains unchanged.
+
 ## Building the C++ runner
 
 Use the Ubuntu 24.04/ROS 2 Jazzy `hope` Distrobox created by

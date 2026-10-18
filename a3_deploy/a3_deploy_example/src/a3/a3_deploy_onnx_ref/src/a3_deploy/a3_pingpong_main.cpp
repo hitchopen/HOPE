@@ -481,6 +481,7 @@ int main(int argc, char** argv) {
                  "       [--oracle-shm PATH] [--oracle-max-age S]"
                  " [--trace-csv PATH] [--obs-csv PATH] [--no-data-csv] [--session-id ID] [--shadow-frozen-clock]\n"
                  "       [--leg-gain-scale F] [--ankle-gain-scale F] [--motion-blend-sec S]"
+                 " [--pd-stand-blend-sec S (default 5)]"
                  " [--policy-entry-blend-sec S]"
                  " [--squat-guard-rad R] [--tilt-guard G] [--leg-clamp-rad R]"
                  " [--leg-stand-gains] [--leg-smooth-alpha A]\n"
@@ -1580,11 +1581,18 @@ int main(int argc, char** argv) {
   const double motion_blend_sec = std::stod(Flag(argc, argv, "--motion-blend-sec", "0.5"));
   if (!std::isfinite(motion_blend_sec) || motion_blend_sec < 0)
     throw std::invalid_argument("--motion-blend-sec must be finite and nonnegative");
+  // Standing has its own slow pose/gain ramp. In particular, PASSIVE must not
+  // acquire the official knee Kp (~2000) over the short policy-entry blend.
+  const double pd_stand_blend_sec = std::stod(Flag(argc, argv, "--pd-stand-blend-sec", "5.0"));
+  if (!std::isfinite(pd_stand_blend_sec) || pd_stand_blend_sec <= 0)
+    throw std::invalid_argument("--pd-stand-blend-sec must be finite and positive");
+  std::printf("[pd_stand] pose_gain_blend_sec=%.3f entry_velocity_decay_sec=0.250\n",
+              pd_stand_blend_sec);
   // V17 field logs showed policy-native silently forcing this to zero, which
   // exposed the full stand->policy q_des discontinuity. Keep at least 0.5 s.
   // The affine policy's low-gain controller needs time to acquire its gravity
   // compensation while the standing impedance fades. Keep this independent of
-  // PASSIVE -> PD_STAND, whose reset/stand timing must not change.
+  // PASSIVE -> PD_STAND, which uses its separate slow standing ramp.
   const double default_policy_entry_sec = policy_native
       ? std::max(pp->onnx().has_v11_affine_safe_qdes_contract() ? 3.0 : 0.5,
                  motion_blend_sec)
@@ -1649,7 +1657,7 @@ int main(int argc, char** argv) {
                      squat_guard_rad, tilt_guard, leg_stand_gains,
                      trace_ptr, obscsv_ptr, loc_mode_int, session_id,
                      &shadow_tick, shadow_free_clock, motion_blend_sec,
-                     policy_motion_blend_sec, serve_policy_blend_sec, &active_policy_blend_sec, policy_dt,
+                     policy_motion_blend_sec, serve_policy_blend_sec, pd_stand_blend_sec, &active_policy_blend_sec, policy_dt,
                      &prev_mode_for_blend, &motion_enter_tick,
                      &prev_level_for_blend, &prev_swing_dir_for_blend,
                      &trace_previous_shot_seq, &trace_previous_q_des,
@@ -2004,7 +2012,7 @@ int main(int argc, char** argv) {
     }
     if (publish && (m == Mode::kPdStand || m == Mode::kMotion)) {
       const bool entry = stand_just_entered || (m == Mode::kMotion && rearm_blend);
-      const double duration = m == Mode::kMotion ? active_policy_blend_sec : motion_blend_sec;
+      const double duration = m == Mode::kMotion ? active_policy_blend_sec : pd_stand_blend_sec;
       if (entry) {
         mode_transition.Reset();
         transition_elapsed_s = 0.0;
@@ -2023,7 +2031,8 @@ int main(int argc, char** argv) {
               ppp->onnx().has_v11_affine_safe_qdes_contract())
             mode_transition.BeginImpedance(source, cmd, duration);
           else
-            mode_transition.Begin(source, cmd, duration);
+            mode_transition.Begin(source, cmd, duration,
+                                  m == Mode::kPdStand ? 0.25 : -1.0);
         }
       }
       mode_transition.Apply(transition_elapsed_s, cmd);
