@@ -98,3 +98,10 @@ hope_planner:
     x_hit_calibration_status_file: ""
     debug_csv_path: ""
     debug_session_id: ""
+
+    # Optional lane admission. Public default is OFF; site operators opt in.
+    # Values are in the Planner's selected-side table frame, not raw VRPN axes.
+    ball_y_filter_enabled: false
+    ball_y_filter_min_m: -1.525
+    ball_y_filter_max_m: 0.0
+    ball_y_filter_state_file: /var/lib/hope-lifecycle/planner_y_filter.state

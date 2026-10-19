@@ -10,6 +10,9 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import { BallYFilterControls } from "./BallYFilterControls";
+import { BALL_Y_FILTER_SERVICE, BallYFilterState, ballYFilterRequest, decodeBallYFilter } from "./ballYFilter";
+import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
@@ -23,6 +26,7 @@ import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
 
 const TOPICS = {
+  plannerDiagnostics: "/planner/diagnostics",
   fieldStatus: "/hope/field/status",
   ntpOffset: "/hope/ntp/offset_ms",
   ntpSkew: "/hope/ntp/skew_ppm",
@@ -212,6 +216,7 @@ function xboxPreviewValue(message: unknown): XboxPreview | undefined {
 }
 
 type Snapshot = {
+  ballYFilter?: BallYFilterState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
   ntpOffsetMs?: number;
@@ -319,6 +324,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
+    case TOPICS.plannerDiagnostics:
+      next.ballYFilter = decodeBallYFilter(event.message);
+      break;
     case TOPICS.fieldStatus:
       try {
         next.field = JSON.parse(stringValue(event.message) ?? "null") as FieldStatus;
@@ -676,6 +684,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [recordBusy, setRecordBusy] = useState(false);
   const csvInput = useRef<HTMLInputElement>(null);
 
+  const previewBallYFilter = useCallback((draft: BallYFilterDraft, options: { kernelMode: boolean; edited: boolean }) => {
+    context.layout.addPanel({ position: "sibling", type: "3D", updateIfExists: true,
+      getState: (existing) => withBallYPreview(existing, draft, options) });
+    context.saveState({ ...(context.initialState as Record<string, unknown> | undefined),
+      ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited });
+  }, [context]);
+
   useLayoutEffect(() => {
     context.onRender = (renderState, done) => {
       const receivedAt = Date.now();
@@ -783,6 +798,30 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     } finally {
       setPending(false);
     }
+  }, [context]);
+
+  const applyBallYFilter = useCallback(async (config: { enabled: boolean; min: number; max: number }) => {
+    const { enabled, min, max } = config;
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(BALL_Y_FILTER_SERVICE, ballYFilterRequest(config)),
+      timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      const state = current.ballYFilter;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) &&
+          state?.enabled === enabled && state.min === min && state.max === max) {
+        setNotice("APPLIED · y filter and table markers updated");
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("已收到确认，但状态回读超时；请查看当前生效范围。");
   }, [context]);
 
   const uploadAsset = useCallback(async (file: File | undefined) => {
@@ -1605,6 +1644,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={false}
             onClick={() => void invoke("refreshXHit")}
           />}
+          <div className="ready-controls">
           <ActionButton
             label="Ready"
             detail={
@@ -1630,6 +1670,14 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "ready"}
             onClick={() => void invoke("ready")}
           />
+          <BallYFilterControls
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.ballYFilter : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.ballYFilter?.configurable === true}
+            kernelMode={kernelMode} onApply={applyBallYFilter}
+            initialState={context.initialState} onPreview={previewBallYFilter}
+          />
+          </div>
           <ActionButton
             label="Start to Serve · Raise hand"
             detail={
