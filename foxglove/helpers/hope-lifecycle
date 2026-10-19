@@ -937,6 +937,12 @@ run_planner() {
       "$HDU_WS/src/hope_planner_cpp/src/post_net_one_shot.cpp" \
       "$HDU_WS/src/hope_planner_cpp/src/trajectory_predictor.cpp"
   } > "$attempt_dir/artifact_sha256.txt"
+  local -a ball_physics_args=()
+  if [[ -f /var/lib/hope-lifecycle/ball_physics.json ]]; then
+    cp /var/lib/hope-lifecycle/ball_physics.json "$attempt_dir/ball_physics.json"
+    ball_physics_args=(--params-file "$attempt_dir/ball_physics.json")
+    sha256sum "$attempt_dir/ball_physics.json" >> "$attempt_dir/artifact_sha256.txt"
+  fi
   dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   set +e
   # Ctrl-C reaches tee too. Keep its pipe open until the Planner has finished
@@ -948,6 +954,7 @@ run_planner() {
       hope_planner_launcher "$attempt_dir/pid.txt" \
       "$executable" --ros-args \
         --params-file "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
+        "${ball_physics_args[@]}" \
         -p "x_hit_calibration_request_file:=$request_file" \
         -p "x_hit_calibration_status_file:=$status_file" \
         -p "debug_csv_path:=$attempt_dir/planner_audit.csv" \
@@ -1305,6 +1312,20 @@ main() {
   local action="$1"
   shift
   case "$action" in
+    ball-model-hdu)
+      require_user "$ROBOT_USER" BALL_MODEL
+      set +u
+      source /opt/ros/jazzy/setup.bash
+      set -u
+      exec python3 /usr/local/bin/hope_ball_models.py --role hdu \
+        --config-dir "$HDU_WS/src/hope_planner_cpp/config"
+      ;;
+    ball-model-laptop)
+      require_user "$LAPTOP_USER" BALL_MODEL
+      local -a runtime=(/usr/bin/distrobox enter hope --)
+      [[ "${HOPE_LAPTOP_RUNTIME:-distrobox}" != direct ]] || runtime=()
+      exec "${runtime[@]}" /bin/bash "$HOPE_ROOT/foxglove/helpers/hope-laptop-ball-model" "$HOPE_ROOT"
+      ;;
     record-control)
       exec python3 "$(dirname "$SELF")/hope_sim2real_control.py"
       ;;

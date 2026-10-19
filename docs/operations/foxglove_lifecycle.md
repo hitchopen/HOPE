@@ -540,3 +540,37 @@ while idle; frame 44 was a trial, not the retained default. These parameters do
 not identify the physical command-to-detachment delay. The v20 CSV asset is
 proposed separately in #53; this PR does not select a new serve CSV. Retain the
 previous asset for rollback when changing an installed selection.
+
+## Site options: ball physics and body timing
+
+The Berkeley and local PPQ field setups share code, not implicit site defaults.
+The Console's **Ball physics model** selector writes an explicit Berkeley
+(`ball_physics_real_20261010.yaml`) or PPQ002 profile on both the HDU and the
+selected Laptop. The same 14 parameters feed Planner and flight packetizer.
+An absent selection preserves the installed base parameters. This change does
+not replace the Berkeley C++/simulator defaults, model14600 policy, calibration,
+Motive network interface, or the chosen Mac/Linux operator identity.
+
+Select only while STOPPED. A two-host update retains prior selections for
+rollback, including uncertain writes. Restart the Laptop capture/packetizer
+after selecting, then perform the normal managed START. The supervisor reads
+actual ROS parameters before HAL/Runner start; a saved selection alone is not
+proof of runtime activation. `NOT_RUNNING` means the optional Laptop packetizer
+was absent, not verified. Kernel-only serving does not require a ball model.
+
+Deploy the matching supervisor, `hope_field_operations.py`, `hope_ball_models.py`
+and lifecycle helper together. HDU installs `hope_ball_models.py` alongside
+`hope_field_assets.py` in `/usr/local/bin`; retain both reviewed YAMLs in the HDU
+workspace's Planner config directory. Laptop uses the checkout's matching
+`hope-laptop-ball-model`, Python modules, configs, and updated bringup launch
+files. Linux uses the existing Distrobox; the Mac operator container uses
+`HOPE_LAPTOP_RUNTIME=direct` and its forced-command dispatcher must also include
+`ball-model-laptop`. The `hope_bringup` and NatNet launch paths apply the saved
+override after the base packetizer parameters. The separate field VRPN/pants
+workflow is a later port; this change does not replace main's VRPN launch file.
+
+Body timing is independent: Berkeley/main keeps
+`target_turn_reject_stale_pose: true`; the local field chooses `false`, keeping
+age diagnostics without an age veto. See the Planner README and
+`field_body_timing_audit.yaml`. Selecting PPQ002 does not silently change this
+option. Preserve the selected site's value when updating installed files.

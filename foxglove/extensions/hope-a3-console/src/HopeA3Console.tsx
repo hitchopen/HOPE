@@ -114,6 +114,8 @@ type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
+  ball_model?: "berkeley" | "ppq002" | null;
+  ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
   calibration?: { name: string; sha256: string; profile: string; table_side: string } | null;
   calibration_sync: string;
@@ -1173,6 +1175,22 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <option value="new_20261015">New · close 850 / open 1500 · force 1 / speed 100</option>
           </select>
         </label>
+        <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">BALL PHYSICS · 球物理模型</div>
+            <div className="topic-path">停止后选择；保存到 Planner 和球包器，下次启动生效</div>
+          </div>
+          <select aria-label="Ball physics model" value={snapshot.field?.ball_model ?? ""}
+            disabled={!assetEditable || fieldBusy || kernelMode}
+            onChange={(event) => void fieldCommand({ op: "set_ball_model", model: event.target.value })}>
+            <option value="" disabled>沿用现有配置 · 尚未选择</option>
+            <option value="berkeley">伯克利球 · 原模型 2026-10-10</option>
+            <option value="ppq002">我们的一星球 · PPQ002</option>
+          </select>
+        </label>
+        <p className="helper">切换后请重启 Laptop 动捕／球包器，再 START SYSTEM；启动会检查实际物理参数，混用旧模型时拒绝启动。已保存的选择不代表当前进程已切换。</p>
+        {lifecycleState === "RUNNING" && fieldFresh && snapshot.field?.ball_model_verification &&
+          <p className="helper">本次启动参数核验：{snapshot.field.ball_model_verification.model === "berkeley" ? "伯克利球" : "PPQ002"} · Planner {snapshot.field.ball_model_verification.planner} · 球包器 {snapshot.field.ball_model_verification.packetizer}</p>}
         <div className="table-side-selector" role="group" aria-label="Operator computer">
           <div>
             <div className="eyebrow">OPERATOR COMPUTER</div>

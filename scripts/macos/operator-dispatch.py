@@ -16,7 +16,7 @@ import tempfile
 CONFIG_PATH = Path("/etc/hope-mac-operator.json")
 ALLOWED_ACTIONS = frozenset({
     "preflight-laptop", "prepare-laptop", "start-laptop", "stop-laptop",
-    "stop-capture-laptop", "collect", "field-assets-laptop", "record-control",
+    "stop-capture-laptop", "collect", "field-assets-laptop", "record-control", "ball-model-laptop",
 })
 
 

@@ -103,7 +103,7 @@ class FieldOperations:
         self.exchange = exchange
         self.recorder = recorder or ManagedRecorder(Path("/agibot/data/bag/hope_pingpong_telemetry"))
         self._lock = threading.RLock()
-        self._data = {"mode": "OPTITRACK", "csv": None, "calibration": None}
+        self._data = {"mode": "OPTITRACK", "csv": None, "calibration": None, "ball_model": None}
         self.calibration_sync = "NOT_CHECKED"
         self.error = ""
         try:
@@ -112,6 +112,8 @@ class FieldOperations:
                 saved["mode"] = "KERNEL"
             if saved.get("mode") not in MODES:
                 raise ValueError("invalid saved operating mode")
+            if saved.get("ball_model") not in {None, "berkeley", "ppq002"}:
+                raise ValueError("invalid saved ball model")
             self._data.update({key: saved.get(key) for key in self._data})
         except FileNotFoundError:
             pass
@@ -150,9 +152,42 @@ class FieldOperations:
 
     def command(self, request: dict, config, *, stopped: bool) -> dict:
         operation = request.get("op")
-        if operation in {"set_mode", "upload_csv", "use_default_csv", "load_calibration"} and not stopped:
+        if operation in {"set_mode", "upload_csv", "use_default_csv", "load_calibration", "set_ball_model"} and not stopped:
             raise ValueError("stop the Runner lifecycle before changing mode, CSV or calibration")
-        if operation == "set_mode":
+        if operation == "set_ball_model":
+            model = request.get("model")
+            if model not in {"berkeley", "ppq002"}:
+                raise ValueError("ball model must be berkeley or ppq002")
+            previous = {host: self.exchange(host, config, {"op": "read_ball_model"})["model"]
+                        for host in ("laptop", "hdu")}
+            attempted = []
+            try:
+                for host in ("laptop", "hdu"):
+                    attempted.append(host)  # Even a timed-out write may have committed.
+                    result = self.exchange(host, config, {"op": "select_ball_model", "model": model})
+                    if result.get("model") != model:
+                        raise ValueError(f"{host} did not confirm ball model")
+                with self._lock:
+                    old_model = self._data["ball_model"]
+                    self._data["ball_model"] = model
+                    try:
+                        self._save()
+                    except Exception:
+                        self._data["ball_model"] = old_model
+                        raise
+            except Exception as exc:
+                failed = []
+                for host in reversed(attempted):
+                    try:
+                        restored = self.exchange(host, config, {"op": "select_ball_model", "model": previous[host]})
+                        if restored.get("model") != previous[host]:
+                            raise ValueError("rollback was not confirmed")
+                    except Exception:
+                        failed.append(host)
+                if failed:
+                    raise ValueError(f"ball model update failed; rollback unconfirmed on {failed}: {exc}") from exc
+                raise
+        elif operation == "set_mode":
             request = {**request, "mode": "KERNEL" if request.get("mode") == "PURE_SERVE" else request.get("mode")}
             if request.get("mode") not in MODES:
                 raise ValueError("mode must be OPTITRACK or KERNEL")
@@ -197,6 +232,11 @@ class FieldOperations:
         with self._lock:
             mode = self._data["mode"]
             csv = self._data["csv"]
+        if mode != "KERNEL":
+            # Also verify an absent selection: an interrupted/uncertain write
+            # must not leave an unnoticed one-sided physics override.
+            for host in ("laptop", "hdu"):
+                self.exchange(host, config, {"op": "verify_ball_model", "model": self._data["ball_model"]})
         digest = "DEFAULT"
         if mode == "KERNEL" and csv:
             # Recheck existence and bytes before changing any hardware state.

@@ -44,6 +44,27 @@ start_laptop_capture
     def test_mac_container_runs_directly_in_its_ros_environment(self):
         self.assertEqual(self.capture_command('direct'), [])
 
+    def test_ball_model_action_uses_the_selected_operator_runtime(self):
+        for runtime, prefix in ((None, ['/usr/bin/distrobox', 'enter', 'hope', '--']),
+                                ('distrobox', ['/usr/bin/distrobox', 'enter', 'hope', '--']),
+                                ('direct', [])):
+            with self.subTest(runtime=runtime), tempfile.TemporaryDirectory(prefix='hope ball ') as temporary:
+                root = Path(temporary)
+                env = dict(os.environ, HOPE_ROOT=str(root), XDG_CONFIG_HOME=str(root/'config'))
+                env.pop('HOPE_LAPTOP_RUNTIME', None)
+                if runtime is not None:
+                    env['HOPE_LAPTOP_RUNTIME'] = runtime
+                result = subprocess.run(['bash', '-c', r'''
+source "$1"
+require_user() { :; }
+exec() { printf '%s\0' "$@"; exit 0; }
+main ball-model-laptop
+''', 'ball-model-test', str(HELPER)], env=env, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr.decode())
+                argv = result.stdout.decode().rstrip('\0').split('\0')
+                self.assertEqual(argv, prefix + ['/bin/bash',
+                    str(root/'foxglove/helpers/hope-laptop-ball-model'), str(root)])
+
 
 if __name__ == '__main__':
     unittest.main()
