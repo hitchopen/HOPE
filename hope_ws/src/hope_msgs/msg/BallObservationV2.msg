@@ -1,0 +1,21 @@
+# Authoritative acquisition observation, before legacy identity substitution.
+uint16 schema_version 2
+int64 source_time_ns
+bool source_time_valid
+string clock_domain
+string clock_mapping_id
+bool clock_mapping_valid
+float64 clock_uncertainty_s
+uint64 sequence
+int64 receipt_wall_ns
+string frame_id
+string calibration_id
+string ball_id
+geometry_msgs/Point position
+bool position_valid
+geometry_msgs/Quaternion orientation
+bool orientation_authoritative
+bool orientation_valid
+geometry_msgs/Vector3 omega_rad_s
+bool omega_valid
+string omega_provenance

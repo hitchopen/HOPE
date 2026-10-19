@@ -84,7 +84,12 @@ def test_gap_resets_window_instead_of_bridging_occlusion():
     for t, q in _spin_stream(omega, 35):
         est.push(t, q)
     assert est.omega() is not None
-    assert est.push(1.0, _quat_from_rotvec_wxyz([0.0, 2.0, 0.0])) is None
+    measurement = est.measurement_timestamp
+    assert np.allclose(est.push(1.0, _quat_from_rotvec_wxyz([0.0, 2.0, 0.0])), omega)
+    assert np.allclose(est.omega(), omega)
+    assert est.mode == "HELD"
+    assert est.measurement_timestamp == measurement
+    est.reset()
     assert est.omega() is None
 
 

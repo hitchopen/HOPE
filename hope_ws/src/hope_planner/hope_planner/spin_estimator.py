@@ -5,9 +5,10 @@ noise floor is ~2 rev/s (configs/ball_physics_venue.yaml
 `capture.spin_noise.floor_rev_s`), while venue-median amateur spin sits right
 AT that floor. Feeding a noise-floor omega into the Magnus term would be worse
 than assuming zero spin, so this estimator is deliberately gated: it returns
-an omega only when the windowed estimate clears gate_rev_s (default 3 rev/s,
-above the floor) and None otherwise — callers then fall back to omega = 0,
-which reproduces the legacy no-Magnus behavior exactly.
+a new measured omega only when the estimate clears gate_rev_s. During missing,
+rejected or below-gate input it holds the complete earlier same-shot vector and
+measurement timestamp. Without a trusted prior it returns None (POSITION_ONLY).
+Call reset() at a qualified new-shot or incompatible-provenance boundary.
 
 Angular velocity is recovered by chaining per-frame incremental rotation
 vectors over a sliding window rather than differencing the window endpoints:
@@ -79,8 +80,17 @@ class SpinFromQuats:
         self._buffer: List[Tuple[float, np.ndarray]] = []
         self._last_q: Optional[np.ndarray] = None
         self._last_t: Optional[float] = None
+        self._trusted: Optional[np.ndarray] = None
+        self.measurement_timestamp: Optional[float] = None
+        self.mode = "POSITION_ONLY"
 
     def reset(self) -> None:
+        self._trusted = None
+        self.measurement_timestamp = None
+        self.mode = "POSITION_ONLY"
+        self._break_differencing()
+
+    def _break_differencing(self) -> None:
         self._buffer.clear()
         self._last_q = None
         self._last_t = None
@@ -88,8 +98,8 @@ class SpinFromQuats:
     def push(self, t: float, quat_wxyz: np.ndarray) -> Optional[np.ndarray]:
         """Ingest one orientation sample; return omega (rad/s) or None.
 
-        None means "no spin estimate above the noise gate" — callers should
-        use omega = 0 (legacy behavior), NOT hold the last value.
+        Missing input breaks differencing while retaining same-shot trusted spin.
+        Call reset() only at a physical-shot or incompatible-provenance boundary.
         """
         q = np.asarray(quat_wxyz, dtype=float)
         q_norm = float(np.linalg.norm(q))
@@ -99,26 +109,26 @@ class SpinFromQuats:
             or not np.all(np.isfinite(q))
             or q_norm < 1.0e-9
         ):
-            self.reset()
-            return None
+            self._break_differencing()
+            return self._held()
         q = q / q_norm
 
         if self._last_q is None:
             self._last_q = q
             self._last_t = t
             self._buffer.append((t, np.zeros(3)))
-            return None
+            return self._held()
 
         if t <= self._last_t:
             return self.omega(t)  # duplicate/out-of-order stamp: ignore sample
         dt = t - self._last_t
-        if dt > self.max_gap_s:
+        if dt > self.max_gap_s or dt * self.max_rad_s >= np.pi:
             # Occlusion/reacquisition: never bridge the unknown rotation gap.
-            self.reset()
+            self._break_differencing()
             self._last_q = q
             self._last_t = t
             self._buffer.append((t, np.zeros(3)))
-            return None
+            return self._held()
 
         # World-frame delta rotation: q_k = q_rel * q_{k-1}.
         q_prev = self._last_q
@@ -129,11 +139,11 @@ class SpinFromQuats:
         if np.linalg.norm(rotation_vector) / dt > self.max_rad_s:
             # A Motive rigid-body relock/marker permutation can look like an
             # impossible one-frame spin impulse. Start a new window.
-            self.reset()
+            self._break_differencing()
             self._last_q = q
             self._last_t = t
             self._buffer.append((t, np.zeros(3)))
-            return None
+            return self._held()
         self._buffer.append((t, rotation_vector))
         self._last_q = q
         self._last_t = t
@@ -153,19 +163,26 @@ class SpinFromQuats:
             and self._last_t is not None
             and now - self._last_t > self.max_gap_s
         ):
-            return None
+            return self._held()
         if len(self._buffer) < 3:
-            return None
+            return self._held()
         span = self._buffer[-1][0] - self._buffer[0][0]
         if span < 0.5 * self.window_s:
-            return None  # baseline too short for a meaningful estimate
+            return self._held()  # baseline too short for a meaningful estimate
         total = np.zeros(3)
         for _, dr in self._buffer[1:]:
             total += dr
         w = total / span
         if np.linalg.norm(w) <= self.gate_rad_s:
-            return None
-        return w
+            return self._held()
+        self._trusted = w.copy()
+        self.measurement_timestamp = self._last_t
+        self.mode = "MEASURED"
+        return w.copy()
+
+    def _held(self) -> Optional[np.ndarray]:
+        self.mode = "HELD" if self._trusted is not None else "POSITION_ONLY"
+        return None if self._trusted is None else self._trusted.copy()
 
     @property
     def last_timestamp(self) -> Optional[float]:

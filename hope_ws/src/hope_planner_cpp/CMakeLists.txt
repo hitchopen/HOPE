@@ -219,9 +219,15 @@ add_library(hope_forecast_core
   src/nominal_event_forecast.cpp src/fixed_lag_types.cpp src/return_region.cpp
   src/ball_flight_state_machine.cpp src/hybrid_trajectory_coordinator.cpp
   src/hit_plane_manager.cpp src/flight_state_v2.cpp)
+add_library(hope_flight_transport_v2 src/flight_transport_v2.cpp)
+target_link_libraries(hope_flight_transport_v2 PUBLIC hope_forecast_core rclcpp::rclcpp ${hope_msgs_TARGETS})
+install(TARGETS hope_flight_transport_v2 ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 target_include_directories(hope_forecast_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_link_libraries(hope_forecast_core PUBLIC hope_planner_core Eigen3::Eigen)
+add_executable(hope_flight_prediction_v2_node src/flight_prediction_v2_node.cpp)
+target_link_libraries(hope_flight_prediction_v2_node PRIVATE hope_flight_transport_v2 rclcpp::rclcpp ${hope_msgs_TARGETS} ${std_msgs_TARGETS})
+install(TARGETS hope_flight_prediction_v2_node RUNTIME DESTINATION lib/${PROJECT_NAME})
 add_library(hope_strike_selector_core src/strike_flight_detector.cpp src/strike_target_selector.cpp)
 target_link_libraries(hope_strike_selector_core PUBLIC hope_forecast_core ${hope_msgs_TARGETS})
 add_executable(hope_ball_event_forecaster_node src/hybrid_trajectory_node.cpp src/hybrid_trajectory_main.cpp)
@@ -257,8 +263,42 @@ install(FILES docs/ckf_strike_shadow.md DESTINATION share/${PROJECT_NAME}/docs)
 ament_export_include_directories(include)
 ament_export_libraries(hope_planner_core)
 ament_export_dependencies(Eigen3 hope_msgs)
+
 if(BUILD_TESTING)
   ament_add_gtest(test_flight_prediction_v2 test/test_flight_prediction_v2.cpp)
   target_link_libraries(test_flight_prediction_v2 hope_forecast_core Eigen3::Eigen)
 endif()
+
+add_executable(hope_flight_prediction_v2_replay src/flight_prediction_v2_replay.cpp)
+target_link_libraries(hope_flight_prediction_v2_replay PRIVATE hope_forecast_core)
+install(TARGETS hope_flight_prediction_v2_replay RUNTIME DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY scripts/flight_prediction_validation DESTINATION lib/${PROJECT_NAME})
+if(BUILD_TESTING)
+  add_test(NAME flight_v2_numerical COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/flight_prediction_validation/numerical_gate.py
+    --executable $<TARGET_FILE:hope_flight_prediction_v2_replay>)
+endif()
+
+if(BUILD_TESTING)
+  ament_add_gtest(test_flight_transport_v2 test/test_flight_transport_v2.cpp)
+  target_link_libraries(test_flight_transport_v2 hope_flight_transport_v2)
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME flight_v2_ros_transport COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/flight_prediction_v2_smoke.py
+    --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
+  set_tests_properties(flight_v2_ros_transport PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+endif()
+if(BUILD_TESTING)
+  add_test(NAME flight_v2_causal_replay COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/flight_prediction_validation/causal_replay_gate.py
+    --executable $<TARGET_FILE:hope_flight_prediction_v2_replay>)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(flight_v2_scoring test/test_flight_scoring.py)
+endif()
+
+install(FILES docs/flight_prediction_implementation.md docs/flight_prediction_acceptance.md
+  docs/flight_prediction_acceptance.json docs/flight_prediction_port_manifest.json
+  docs/flight_prediction_pr_description.md DESTINATION share/${PROJECT_NAME}/docs)
 ament_package()

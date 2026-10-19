@@ -373,6 +373,7 @@ std::optional<StrikeTargetSelection> StrikeTargetSelector::poll(std::int64_t now
   }
   if(out.strike.valid && (out.absolute_hit_ns<=now || !out.strike.ball_position.allFinite() || !out.strike.ball_velocity.allFinite() ||
       out.strike.ball_position.z()<=0 || out.strike.ball_velocity.x()>=0)) {out.strike.valid=false;out.reason="invalid_or_past_crossing";}
+  if(out.eligibility_status=="known_illegal" || contact_illegal_) {out.strike.valid=false;out.reason="known_illegal_route";}
   for(const auto& sample:samples_)if(sample.source_time_ns==out.source_ns)out.observation_receipt_ns=sample.receipt_wall_ns;
   out.strike.reason=out.reason;cache_.clear();best_crossing_.reset();states_.clear();contacts_.clear();complete_=false;
   reason_="decision_emitted:"+out.reason;return out;

@@ -62,13 +62,13 @@ TEST(StrikeTargetSelector, PostCutoffRevisionsCannotEvictDurableCrossing) {
   auto out=s.poll(t0+146000000,t0+146000000);ASSERT_TRUE(out);EXPECT_TRUE(out->strike.valid);
   EXPECT_EQ(out->source_ns,t0+135000000);EXPECT_LE(s.cached(),16u);
 }
-TEST(StrikeTargetSelector, UnknownAndIllegalAreAdvisory) {
+TEST(StrikeTargetSelector, UnknownRemainsProvisionalAndKnownIllegalRevokes) {
   for(bool illegal:{false,true}) {
     StrikeTargetSelector s(cfg());
     hope_msgs::msg::HybridTrajectoryContext c;c.kind=c.BEGIN;c.frame_id="table";c.evidence_source_id="fixture";
     c.rally_id=1;c.source_time_ns=t0;c.history_complete=illegal;s.context(c,t0);
     if(illegal) {c.kind=c.VERIFIED_CONTACT;c.source_time_ns++;c.contact_side="receiver";c.contact_position.x=9;s.context(c,c.source_time_ns);}
-    feed(s);auto out=s.poll(t0+160000000,t0+160000000);ASSERT_TRUE(out);EXPECT_TRUE(out->strike.valid);
+    feed(s);auto out=s.poll(t0+160000000,t0+160000000);ASSERT_TRUE(out);EXPECT_EQ(out->strike.valid,!illegal);
     EXPECT_EQ(out->eligibility_status,illegal?"known_illegal":"unknown");
   }
 }

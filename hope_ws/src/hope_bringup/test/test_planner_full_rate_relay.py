@@ -23,7 +23,8 @@ def relay(request):
                     "planner_poses_topic:=/poses/planner_full", "-p",
                     "table_side:=" + request.param])
     node = module.OptitrackMctRelay(messages.NamedPoseArrayV2)
-    node.full, node.limited = [], []
+    node.full, node.limited, node.observations = [], [], []
+    node._ball_observation_v2_pub.publish = node.observations.append
     node._planner_pose_array_pub.publish = node.full.append
     node._pose_array_pub.publish = node.limited.append
     node._ball_pub.publish = lambda message: None
@@ -70,6 +71,13 @@ def test_position_only_ball_remains_available_to_planner(relay):
     msg.poses[0].pose.orientation.w = 0.0
     relay._on_frame(msg)
     assert len(relay.full) == 1
+    assert len(relay.observations) == 1
+    observation = relay.observations[0]
+    assert observation.source_time_ns == 100_000_000_000
+    assert observation.position_valid
+    assert observation.orientation_authoritative
+    assert not observation.orientation_valid
+    assert not observation.omega_valid
     assert relay.full[0].poses[0].orientation.w == pytest.approx(
         1.0 if relay._table_side == "P1" else 0.0, abs=1e-9)
     bad = frame(1)

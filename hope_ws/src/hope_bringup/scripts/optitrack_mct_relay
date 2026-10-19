@@ -48,6 +48,7 @@ import time
 from pathlib import Path
 
 import rclpy
+from hope_msgs.msg import BallObservationV2
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
@@ -207,6 +208,9 @@ class OptitrackMctRelay(Node):
             self.create_publisher(PoseArray, planner_topic, sensor_qos)
             if planner_topic else None
         )
+        self._ball_observation_v2_pub = self.create_publisher(
+            BallObservationV2, "/hope/ball/observation_v2", sensor_qos
+        )
         self._ball_pub = self.create_publisher(
             PointStamped, str(self.get_parameter("ball_point_topic").value), sensor_qos
         )
@@ -310,6 +314,25 @@ class OptitrackMctRelay(Node):
                 self.get_logger().info(f"ball '{self._ball_object}' acquired")
             self._ball_seen = True
             self._last_ball_rx = self._now()
+            # Preserve acquisition time and validity before publishing compatibility placeholders.
+            ball = self._latest["ball"]
+            observation = BallObservationV2()
+            observation.source_time_ns = ros_stamp_ns
+            observation.source_time_valid = True
+            observation.clock_domain = "ros_system"
+            observation.clock_mapping_id = "natnet_exposure_unix_v1"
+            observation.clock_mapping_valid = natnet_clock_uncertainty_us >= 0
+            observation.clock_uncertainty_s = max(0, natnet_clock_uncertainty_us) * 1e-6
+            observation.sequence = self._debug_frame_seq
+            observation.receipt_wall_ns = receipt_wall_ns
+            observation.frame_id = ball.header.frame_id
+            observation.ball_id = self._ball_object
+            observation.position = ball.pose.position
+            observation.position_valid = True
+            observation.orientation = ball.pose.orientation
+            observation.orientation_authoritative = True
+            observation.orientation_valid = ball_pose_orientation_valid
+            self._ball_observation_v2_pub.publish(observation)
             if self._planner_pose_array_pub is not None:
                 self._publish_poses(
                     self._latest["ball"].header.stamp,

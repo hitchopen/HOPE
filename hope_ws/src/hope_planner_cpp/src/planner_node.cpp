@@ -687,10 +687,8 @@ void PlannerNode::ball_callback(
     Eigen::Quaterniond orientation(
         pose.orientation.w, pose.orientation.x,
         pose.orientation.y, pose.orientation.z);
-    const double orientation_norm = orientation.norm();
-    sample.orientation_valid = std::isfinite(orientation_norm) &&
-        orientation_norm >= 0.5 && orientation_norm <= 1.5 &&
-        orientation.coeffs().allFinite();
+    sample.orientation_valid = false; // Legacy PoseArray has no matched authoritative validity.
+
     if (sample.orientation_valid) {
       sample.orientation = orientation.normalized();
     }
@@ -849,7 +847,7 @@ void PlannerNode::flight_packet_callback(
       Eigen::Quaterniond orientation(
           input.orientation.w, input.orientation.x,
           input.orientation.y, input.orientation.z);
-      sample.orientation_valid = input.orientation_valid;
+      sample.orientation_valid = false; // v1 packets lack authoritative orientation provenance.
       sample.orientation = sample.orientation_valid
           ? orientation
           : Eigen::Quaterniond::Identity();

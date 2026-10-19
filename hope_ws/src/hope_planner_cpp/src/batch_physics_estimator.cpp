@@ -151,6 +151,11 @@ void BatchPhysicsEstimator::push(const BallSample& sample) noexcept {
     return;
   }
 
+  if(sample_count_>0) {
+    const auto& previous=samples_[sample_count_-1];
+    if(sample.frame_id!=previous.frame_id || sample.calibration_id!=previous.calibration_id || sample.ball_id!=previous.ball_id ||
+        sample.clock_domain!=previous.clock_domain || sample.clock_mapping_id!=previous.clock_mapping_id)reset();
+  }
   if (sample_count_ > 0 &&
       sample.source_time_s <= samples_[sample_count_ - 1].source_time_s) {
     // Duplicate/reordered transport is rejected, not a physical shot boundary.
@@ -377,7 +382,7 @@ BallState BatchPhysicsEstimator::estimate() noexcept {
       post_config.min_span_s = config_.post_bounce_min_span_s;
       post_config.post_bounce_min_span_s = 0.0;  // no recursive contact fit
       BatchPhysicsEstimator post(physics_, post_config, spin_config_);
-      post.restore_spin_checkpoint(trusted_spin_.value());
+      post.restore_spin_checkpoint(spin_at_sample_[first]);
       for (std::size_t i = first; i < sample_count_; ++i) post.push(samples_[i]);
       BallState measured = post.estimate();
       if (measured.valid && !measured.bounce_epoch_active) {

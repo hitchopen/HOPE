@@ -1,0 +1,30 @@
+{
+  "implementation_repository": "timothyypark/HOPE",
+  "upstream_repository": "hitchopen/HOPE",
+  "upstream_branch": "nightly_built",
+  "actual_base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "branch": "feature/flight-state-prediction-v2",
+  "input_documents": [
+    {
+      "filename": "HOPE_Flight_State_and_Prediction_Implementation_Plan.md",
+      "sha256": "9a80b19f6d40c2657e0b90d5e6e71194d6704da1bfb6575954fc8de0d167780b"
+    },
+    {
+      "filename": "HOPE_PR49_Flight_State_and_Prediction_Review.pdf",
+      "sha256": "47e31d9cc368a8bc73de2f21847598c8b519570de47e57f65150eed97872dd96"
+    }
+  ],
+  "scaffold_original_commits": [
+    "199fb44ecbef1cb74420f9b894c7d0bf41c5bc81",
+    "dd0c7618503b1a66b08b4b2cdd7fd09ef1108556",
+    "bf1cdf68ee5773a1055bc6d0bd35f5dee52adbf8",
+    "2d1dbbee1249e1f9cb9e9e5d2acbcf47f7389a6f",
+    "4071ba2c9f7a9a729eb31675f685e2fada0a4de0",
+    "84fc446e131a054204ed37fa3f1d1988c154879c"
+  ],
+  "research_source_files_copied": [],
+  "research_methodology": "Causal matched-source evaluation, impulse interpolation exclusion and explicit rejection denominators; new HOPE-local implementation from the supplied handoff, no private imports/binaries/data.",
+  "new_native_reference": "Independent scipy DOP853 force/contact implementation in numerical_gate.py; not used as a runtime predictor.",
+  "licensing": "HOPE Apache-2.0; imported scaffold retains original Git authorship. No new third-party code or recordings vendored.",
+  "changes_since_handoff_base": "Fetched upstream is 8d599e7, not the stale fork nightly. Includes later Mac/operator, lifecycle/deployment and asset work. The PR49 scaffold applied cleanly; current public code remains the baseline."
+}

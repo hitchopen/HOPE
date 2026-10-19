@@ -1,0 +1,10 @@
+int64 prediction_reference_time_ns
+int64 arrival_dt_ns
+int64 predicted_arrival_time_ns
+geometry_msgs/Point position
+geometry_msgs/Vector3 velocity
+geometry_msgs/Vector3 omega_rad_s
+bool spin_available
+string spin_mode
+float64[36] covariance
+string linearization_quality

@@ -1,0 +1,16 @@
+uint16 schema_version 2
+string session_id
+uint64 shot_generation
+uint64 context_revision
+uint64 forecast_revision
+int64 predicted_arrival_time_ns
+int64 planner_now_ns
+float64 lead_time_s
+bool admitted
+bool previously_dispatched
+bool cancellation_supported
+string reason
+RacketCommand command
+float64 policy_z_offset_m
+float64[19] flat_preview
+string frame_contract

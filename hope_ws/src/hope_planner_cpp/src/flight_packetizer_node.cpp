@@ -227,9 +227,8 @@ void FlightPacketizerNode::pose_callback(
   Eigen::Quaterniond orientation(
       pose.orientation.w, pose.orientation.x,
       pose.orientation.y, pose.orientation.z);
-  const double norm = orientation.norm();
-  sample.orientation_valid = orientation.coeffs().allFinite() &&
-      std::isfinite(norm) && norm >= 0.5 && norm <= 1.5;
+  sample.orientation_valid = false; // Legacy PoseArray has no matched authoritative validity.
+
   if (sample.orientation_valid) sample.orientation = orientation.normalized();
   sample.receipt_steady_ns = steady_now_ns();
   sample.receipt_wall_ns = wall_now_ns();
