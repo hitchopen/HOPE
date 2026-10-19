@@ -315,6 +315,8 @@ private:
     message.play_state = name(pipeline_->shot().state());
     message.forecast_status = "REVOKED";
     message.reason = reason;
+    message.input_count = inputs_;
+    message.superseded_count = work_.superseded();
     publisher_->publish(message);
     if (dispatched_generation_) {
       hope_msgs::msg::FlightDecisionV2 d;

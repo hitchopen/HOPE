@@ -55,6 +55,7 @@ def run(executable, rate):
         spin(.015)
         sent = 0
         eligible_sources = set()
+        source_stamps = []
         # Analytic drag-free ballistic input tests source-time transport/classification;
         # dynamics accuracy is independently tested against DOP853.
         # Multiple independent flights prevent a long invalid tail from obscuring coverage.
@@ -99,6 +100,7 @@ def run(executable, rate):
                 message.orientation_valid = False
                 if i >= 4:
                     eligible_sources.add(message.source_time_ns)
+                source_stamps.append(message.source_time_ns)
                 observation.publish(message)
                 sent += 1
                 rclpy.spin_once(node, timeout_sec=0)
@@ -137,7 +139,19 @@ def run(executable, rate):
         assert coverage >= .95, ('physical publication coverage', coverage, len(forecasts), denominator)
         assert percentile(latency, .95) <= 30, ('receipt P95 exceeds 30 ms', latency)
         assert all((p.published_at_ns - p.prediction_reference_time_ns) <= 30_000_000 for p in forecasts)
-        return dict(rate_hz=rate, input_count=sent, physical_outputs=len(forecasts), denominator=denominator,
+        source_span_s = (source_stamps[-1] - source_stamps[0]) * 1e-9
+        observed_inputs = max(p.input_count for p in predictions)
+        publication_latency = [(p.published_at_ns - p.prediction_reference_time_ns) / 1e6
+                               for p in forecasts]
+        return dict(rate_hz=rate, source_span_s=source_span_s,
+                    published_input_rate_hz=(sent - 1) / source_span_s,
+                    observed_input_rate_hz=max(0, observed_inputs - 1) / source_span_s,
+                    observed_input_count=observed_inputs,
+                    unaccounted_input_count=sent - observed_inputs,
+                    admitted_decisions=sum(d.admitted for d in decisions),
+                    publication_latency_ms=dict(p50=statistics.median(publication_latency),
+                        p95=percentile(publication_latency, .95), p99=percentile(publication_latency, .99),
+                        maximum=max(publication_latency)), input_count=sent, physical_outputs=len(forecasts), denominator=denominator,
                     physical_publication_coverage=coverage, target_outputs=sum(p.target_valid for p in forecasts),
                     planner_decisions=len(decisions), superseded=max(p.superseded_count for p in forecasts),
                     latency_ms=dict(p50=statistics.median(latency), p95=percentile(latency, .95),
