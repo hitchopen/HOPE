@@ -70,6 +70,23 @@ bool HitPlaneManager::freeze(std::int64_t now,std::int64_t source,
   frozen_.activated_source_ns=source;frozen_.rally_id=rally;++frozen_.generation;
   frozen_.reason=reason_="calibrated";return true;
 }
+HitPlaneSnapshot HitPlaneManager::for_solve(std::int64_t now,std::int64_t source) {
+  if(settings_.policy==PlanePolicy::ON_REFRESH)return frozen_;
+  auto result=frozen_;result.calibrated=false;result.test_plane=false;
+  if(samples_.size()<settings_.min_samples){result.reason="follow_pose_unavailable";return result;}
+  const auto& latest=samples_.back();
+  const long double age=static_cast<long double>(source)-latest.source;
+  if(now<latest.receipt || now-latest.receipt>settings_.max_age_s*1e9 || age< -1000000 || age>settings_.max_age_s*1e9L) {
+    result.reason="follow_pose_stale";return result;
+  }
+  const double x=latest.x+settings_.offset_m;
+  if(x<settings_.min_x_m || x>settings_.max_x_m){result.reason="follow_pose_out_of_range";return result;}
+  if(!frozen_.calibrated || frozen_.x_hit_m!=x || frozen_.calibration_id!=latest.calibration)++frozen_.generation;
+  result.generation=frozen_.generation;result.x_hit_m=x;result.base_x_m=latest.x;
+  result.source_ns=latest.source;result.receipt_ns=latest.receipt;result.activated_source_ns=source;
+  result.calibration_id=latest.calibration;result.world_frame_id=world_id_;result.calibrated=true;result.reason="follow_pose_snapshot";
+  frozen_=result;return result;
+}
 void HitPlaneManager::use_test_plane(double x,std::int64_t source) {
   if(!std::isfinite(x) || x<settings_.min_x_m || x>settings_.max_x_m)
     throw std::invalid_argument("test plane out of range");

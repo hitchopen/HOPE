@@ -4,7 +4,9 @@
 #include <optional>
 #include <vector>
 namespace hope_planner_cpp {
+enum class PlanePolicy { ON_REFRESH, FOLLOW_POSE };
 struct HitPlaneSettings {
+  PlanePolicy policy=PlanePolicy::ON_REFRESH;
   double offset_m=.58, window_s=.5, max_age_s=.2, max_span_m=.01;
   double min_x_m=-.30, max_x_m=.30;
   std::size_t min_samples=10;
@@ -26,6 +28,7 @@ public:
                std::int64_t now_source_ns, bool registered_clock);
   bool freeze(std::int64_t now_steady_ns, std::int64_t now_source_ns,
               std::uint64_t rally_id, bool safe_boundary);
+  HitPlaneSnapshot for_solve(std::int64_t now_steady_ns,std::int64_t now_source_ns);
   void use_test_plane(double x, std::int64_t now_source_ns);
   void revoke(const std::string& reason);
   const HitPlaneSnapshot& snapshot() const { return frozen_; }

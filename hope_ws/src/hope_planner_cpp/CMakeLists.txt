@@ -218,7 +218,7 @@ add_library(hope_forecast_core
   src/probabilistic_physics.cpp src/probabilistic_ball_tracker.cpp
   src/nominal_event_forecast.cpp src/fixed_lag_types.cpp src/return_region.cpp
   src/ball_flight_state_machine.cpp src/hybrid_trajectory_coordinator.cpp
-  src/hit_plane_manager.cpp)
+  src/hit_plane_manager.cpp src/flight_state_v2.cpp)
 target_include_directories(hope_forecast_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_link_libraries(hope_forecast_core PUBLIC hope_planner_core Eigen3::Eigen)
@@ -257,4 +257,8 @@ install(FILES docs/ckf_strike_shadow.md DESTINATION share/${PROJECT_NAME}/docs)
 ament_export_include_directories(include)
 ament_export_libraries(hope_planner_core)
 ament_export_dependencies(Eigen3 hope_msgs)
+if(BUILD_TESTING)
+  ament_add_gtest(test_flight_prediction_v2 test/test_flight_prediction_v2.cpp)
+  target_link_libraries(test_flight_prediction_v2 hope_forecast_core Eigen3::Eigen)
+endif()
 ament_package()
