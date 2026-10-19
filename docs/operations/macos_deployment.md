@@ -398,6 +398,11 @@ HDU 备份：`/var/backups/hope-foxglove/main-startup-20261018T044112Z`。
 
 ### 2026-10-17 22:05 PDT：5 秒 PD Stand 与 Planner 位姿延迟检查更新
 
+> 2026-10-18 源码回退：已撤销本节中的 Planner 位姿年龄 gate 移除，恢复
+> `target_turn_max_pose_age_s: 0.2` 及接收年龄、源时间戳年龄两项检查。
+> 5 秒 PD Stand 和 Mac/Linux 操作端支持继续保留。下方哈希与运行结果是
+> 2026-10-17 的部署记录；本次源码回退尚未替换机器人上的 Planner。
+
 按现场反馈，`a3_deploy_onnx_ref_pingpong` 的 PD Stand 使用独立的
 `--pd-stand-blend-sec` 参数，默认 **5.0 秒**。从 PASSIVE 进入时，以实测关节位置、
 速度和零增益作为起点，在 5 秒内用五次平滑曲线过渡到原站姿及其 Kp/Kd；
