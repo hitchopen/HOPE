@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -203,13 +204,21 @@ def test_installer_hook_matches_source_and_rejects_different_layout(tmp_path):
     installed.write_text(source)
     subprocess.run(['python3', '-c', patch, str(installed), str(output)], check=True)
     assert output.read_text() == source  # idempotent
-    hook_start = source.index('  sudo -n python3 "$(dirname "$SELF")/hope_elink_scheduler.py"')
+    hook_start = source.index('  sudo -n "$(dirname "$SELF")/hope_elink_scheduler.py" apply')
     hook_end = source.index('\n', source.index('    die HAL ELINK_SCHEDULER_NOT_READY', hook_start)) + 1
     old = source[:hook_start] + source[hook_end:]
     preflight_start = old.index('  python3 "$(dirname "$SELF")/hope_elink_scheduler.py" check-hardware')
-    preflight_end = old.index('\n', old.index('    --lifecycle "$SELF"', preflight_start)) + 1
+    preflight_end = old.index('  render_t3_elink_config >/dev/null', preflight_start)
     old = old[:preflight_start] + old[preflight_end:]
     installed.write_text(old)
+    subprocess.run(['python3', '-c', patch, str(installed), str(output)], check=True)
+    assert output.read_text() == source
+    # Upgrade the previously published hook and hardware-only preflight too.
+    legacy = source.replace('sudo -n "$(dirname "$SELF")/hope_elink_scheduler.py" apply --config',
+                            'sudo -n python3 "$(dirname "$SELF")/hope_elink_scheduler.py" apply --config')
+    permission_start = legacy.index('  sudo -n "$(dirname "$SELF")/hope_elink_scheduler.py" check-privileges')
+    permission_end = legacy.index('  render_t3_elink_config >/dev/null', permission_start)
+    installed.write_text(legacy[:permission_start] + legacy[permission_end:])
     subprocess.run(['python3', '-c', patch, str(installed), str(output)], check=True)
     assert output.read_text() == source
     installed.write_text('different layout')
@@ -249,16 +258,33 @@ def test_hardware_cli_needs_no_root_or_process_state(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)['hardware_profile'] == policy.HARDWARE_PROFILE
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason='installer runs as root inside disposable Linux container')
+@pytest.fixture
+def installer_workspace():
+    if os.geteuid() != 0 or os.environ.get('HOPE_ELINK_INSTALL_TEST') != '1':
+        pytest.skip('real sudo policy tests require an explicitly enabled disposable root container')
+    # /tmp is world-writable; production permission checks require every parent
+    # of the installed helper to be root-owned without group/other write access.
+    with tempfile.TemporaryDirectory(prefix='hope-elink-test-', dir='/opt') as directory:
+        root = Path(directory)
+        root.chmod(0o755)
+        try:
+            yield root
+        finally:
+            (Path('/etc/sudoers.d') / root.name).unlink(missing_ok=True)
+
+
 @pytest.mark.parametrize('fault', [None, 'p1-model', 'binary', 'missing-config', 'config-symlink',
-                                  'lifecycle-model', 'lifecycle-elink', 'lifecycle-ethercat'])
-def test_installer_and_lifecycle_share_hardware_admission(tmp_path, fault):
+                                  'lifecycle-model', 'lifecycle-elink', 'lifecycle-ethercat',
+                                  'probe-failure'])
+def test_installer_and_lifecycle_share_hardware_admission(installer_workspace, fault):
     """Run the actual installer and installed preflight, with filesystem fixtures.
 
     Only absolute deployment paths and binary contents/hashes are relocated.
     Model/profile logic, shell commands and CLI checks run unchanged. No HAL,
     service or scheduling calls are needed for this pre-start admission.
     """
+    tmp_path = installer_workspace
+    sudoers = Path('/etc/sudoers.d') / tmp_path.name
     package = tmp_path / 'package'
     (package / 'a3').mkdir(parents=True)
     (package / 'helpers').mkdir()
@@ -304,7 +330,13 @@ ElinkModule:
         candidate_source = candidate_source.replace(digest, hashlib.sha256(mapped[path].read_bytes()).hexdigest())
     candidate.write_text(candidate_source)
     scheduler.write_text('# previous scheduler\n')
-    if fault == 'p1-model':
+    if fault == 'probe-failure':
+        # Syntax/hardware validation succeeds, but the installed root probe must
+        # reject a non-isolated interpreter and roll back all three files.
+        candidate.write_text(candidate_source.replace('#!/usr/bin/python3 -I', '#!/usr/bin/python3'))
+        sudoers.write_text('# previous dedicated policy\n')
+        sudoers.chmod(0o440)
+    elif fault == 'p1-model':
         mapped[policy.MODEL].write_text('A3_P1D0')
     elif fault == 'binary':
         mapped[policy.LIBRARY].write_text('changed build')
@@ -324,21 +356,90 @@ ElinkModule:
     installer = package / 'a3/install_mdu_elink_scheduler.sh'
     installer.write_text((ROOT / 'a3/install_mdu_elink_scheduler.sh').read_text()
                          .replace('/usr/local/libexec', str(destination))
+                         .replace('/etc/sudoers.d/hope-elink-scheduler', str(sudoers))
                          .replace('/var/backups/hope-elink-scheduler-', str(tmp_path / 'backup-')))
-    result = subprocess.run(['bash', str(installer)], capture_output=True, text=True)
+    install_command = ['bash', str(installer), '--robot-user', 'nobody']
+    result = subprocess.run(install_command, capture_output=True, text=True)
     if fault:
         assert result.returncode != 0, result.stdout
         assert (lifecycle.read_bytes(), scheduler.read_bytes()) == before
-        assert not list(tmp_path.glob('backup-*'))
+        if fault == 'probe-failure':
+            assert 'Installation failed; restored files' in result.stderr
+            assert sudoers.read_text() == '# previous dedicated policy\n'
+        else:
+            assert not list(tmp_path.glob('backup-*'))
         return
     assert result.returncode == 0, result.stderr
     assert lifecycle.read_text() == source
     assert scheduler.read_text() == candidate_source
     for _ in range(2):  # repeated installation preserves local content
-        subprocess.run(['bash', str(installer)], check=True, capture_output=True)
+        subprocess.run(install_command, check=True, capture_output=True)
+    assert sudoers.stat().st_uid == 0
+    assert sudoers.stat().st_mode & 0o777 == 0o440
+    # Use a real account with no other sudo grants or cached credentials.
+    unprivileged = ['runuser', '-u', 'nobody', '--']
+    probe = subprocess.run([*unprivileged, 'sudo', '-n', str(scheduler), 'check-privileges'],
+                           capture_output=True, text=True)
+    assert probe.returncode == 0, probe.stderr
+    assert 'ELINK_SCHEDULER_PRIVILEGES_OK' in probe.stdout
+    managed = Path('/tmp/hope_real/sudo_probe/mdu/system/hal_elink_a3_gripper.yaml')
+    managed.parent.mkdir(parents=True, exist_ok=True)
+    managed.write_text('fixture session config')
+    applied = subprocess.run([*unprivileged, 'sudo', '-n', str(scheduler), 'apply', '--config', str(managed)],
+                             capture_output=True, text=True)
+    # The exact START command reaches the process guard without a password.
+    # There is deliberately no ELink process in this disposable test container.
+    assert applied.returncode != 0 and 'Expected one managed ELink process, found []' in applied.stderr
+    # The grant does not authorize arbitrary Python, commands, paths or actions.
+    for command in (
+        ['python3', '-c', 'print("unrestricted")'], ['/bin/sh', '-c', 'id'],
+        [str(scheduler), 'inspect', '--config', '/tmp/hope_real/probe/mdu/system/hal_elink_a3_gripper.yaml'],
+        [str(scheduler), 'apply', '--config', '/etc/passwd'],
+    ):
+        denied = subprocess.run([*unprivileged, 'sudo', '-n', *command], capture_output=True)
+        assert denied.returncode != 0, command
+    # Even arguments matching the sudoers glob must pass helper validation.
+    invalid = subprocess.run([*unprivileged, 'sudo', '-n', str(scheduler), 'apply', '--config',
+                              '/tmp/hope_real/../mdu/system/hal_elink_a3_gripper.yaml'],
+                             capture_output=True, text=True)
+    assert invalid.returncode != 0 and 'Expected managed session' in invalid.stderr
     # Execute the actual lifecycle admission with the installed scheduler.
-    command = ['bash', '-c', 'source "$1"; check_t3_hardware_config PREFLIGHT', 'bash', str(lifecycle)]
+    command = [*unprivileged, 'bash', '-c',
+               'source "$1"; SESSION_ID=sudo_probe; check_t3_hardware_config PREFLIGHT', 'bash', str(lifecycle)]
     subprocess.run(command, check=True, capture_output=True, text=True)
+    # A missing rule is caught by the real noninteractive sudo probe.
+    rule = sudoers.read_text()
+    sudoers.unlink()
+    missing = subprocess.run(command, capture_output=True, text=True)
+    assert missing.returncode != 0 and 'ELINK_SCHEDULER_SUDO_NOT_READY' in missing.stdout
+    # Exercise START itself: only service/process queries are mocked; sudo and
+    # the installed helper remain real. Never invoke an actual service command.
+    start = subprocess.run([*unprivileged, 'bash', '-c', '''
+source "$1"
+SESSION_ID=sudo_probe
+require_user() { :; }
+pgrep() { return 1; }
+systemctl() { return 0; }
+has_unmanaged_hal() { return 1; }
+sudo() {
+  if [[ "$*" == *'systemctl stop'* ]]; then echo VENDOR_STOP_ATTEMPTED; return 99; fi
+  command sudo "$@"
+}
+start_hal
+''', 'bash', str(lifecycle)], capture_output=True, text=True)
+    assert start.returncode != 0 and 'ELINK_SCHEDULER_SUDO_NOT_READY' in start.stdout
+    assert 'VENDOR_STOP_ATTEMPTED' not in start.stdout
+    # Having only permission for the probe cannot mask a missing apply grant.
+    sudoers.write_text(rule.split(', ', 1)[0] + '\n')
+    sudoers.chmod(0o440)
+    missing_apply = subprocess.run(command, capture_output=True, text=True)
+    assert missing_apply.returncode != 0 and 'ELINK_SCHEDULER_APPLY_NOT_PERMITTED' in missing_apply.stdout
+    sudoers.write_text(rule)
+    # Writable helper content must never pass privileged admission.
+    scheduler.chmod(0o777)
+    writable = subprocess.run(command, capture_output=True, text=True)
+    assert writable.returncode != 0 and 'ELINK_SCHEDULER_SUDO_NOT_READY' in writable.stdout
+    scheduler.chmod(0o755)
     # A post-install vendor update must fail admission before stopping services.
     mapped[policy.EXECUTABLE].write_text('vendor update')
     rejected = subprocess.run(command, capture_output=True, text=True)

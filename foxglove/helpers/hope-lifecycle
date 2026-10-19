@@ -682,6 +682,11 @@ check_t3_hardware_config() {
     die "$step" HAL_GRIPPER_CONFIG_MISSING
   python3 "$(dirname "$SELF")/hope_elink_scheduler.py" check-hardware \
     --lifecycle "$SELF" >/dev/null || die "$step" ELINK_HARDWARE_PROFILE_NOT_AUDITED
+  sudo -n "$(dirname "$SELF")/hope_elink_scheduler.py" check-privileges >/dev/null || \
+    die "$step" ELINK_SCHEDULER_SUDO_NOT_READY
+  sudo -n -l -- "$(dirname "$SELF")/hope_elink_scheduler.py" apply \
+    --config "/tmp/hope_real/$SESSION_ID/mdu/system/hal_elink_a3_gripper.yaml" >/dev/null || \
+    die "$step" ELINK_SCHEDULER_APPLY_NOT_PERMITTED
   render_t3_elink_config >/dev/null || die "$step" T3_ELINK_GRIPPER_CONFIG_INVALID
 }
 
@@ -1038,7 +1043,7 @@ start_hal() {
   wait_for_session_log "$MDU_ELINK_SESSION" "$elink_log" \
     "Enter ElinkKeepAliveLoop" 160 || die HAL ELINK_START_FAILED
   check_t3_elink_ready HAL
-  sudo -n python3 "$(dirname "$SELF")/hope_elink_scheduler.py" apply --config "$elink_config" || \
+  sudo -n "$(dirname "$SELF")/hope_elink_scheduler.py" apply --config "$elink_config" || \
     die HAL ELINK_SCHEDULER_NOT_READY
   emit HAL STARTING ELINK_READY_WITH_GRIPPER_TOPIC
   start_tmux "$MDU_HAL_SESSION" "$SELF" _run-hal \
