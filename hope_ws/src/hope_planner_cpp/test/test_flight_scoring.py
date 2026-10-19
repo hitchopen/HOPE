@@ -25,3 +25,15 @@ def test_interpolation_never_bridges_a_contact():
     positions = np.array([[0., 0., 0.], [1., 0., 0.], [2., 0., 0.]])
     assert interpolate_without_impact_bridge(times, positions, .05, [.04]) is None
     assert np.allclose(interpolate_without_impact_bridge(times, positions, .15, [.04]), [1.5, 0., 0.])
+
+
+def test_velocity_coverage_uses_velocity_marginal_and_keeps_physical_coverage_separate():
+    row = dict(spin_mode='HELD', target_valid=True, physical_available=True,
+               independent_truth=True, prediction_reference_time_ns=10,
+               information_cutoff_ns=10, position=[0, 0, 0], truth_position=[0, 0, 0],
+               velocity=[1, 0, 0], truth_velocity=[0, 0, 0], arrival_ns=100,
+               truth_arrival_ns=100, covariance=np.diag([1., 1., 1., .001, .001, .001]))
+    result = score_matched_events([row])['HELD']
+    assert result['conditional_position_95_coverage'] == 1
+    assert result['conditional_velocity_95_coverage'] == 0
+    assert result['physical_forecast_coverage'] == 1

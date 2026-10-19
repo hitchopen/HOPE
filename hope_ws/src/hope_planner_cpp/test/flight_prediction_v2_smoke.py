@@ -106,6 +106,7 @@ def run(executable, rate):
         spin(.06)
         forecasts = [p for p in predictions if p.physical_available]
         assert forecasts, 'no physical forecasts'
+        assert all(p.target_event_id > 0 and p.target_kind for p in forecasts if p.target_valid)
         assert all(p.target_spin_mode in ('POSITION_ONLY', '') for p in forecasts)
         assert all(p.published_at_ns >= p.prediction_reference_time_ns for p in forecasts)
         for decision in decisions:

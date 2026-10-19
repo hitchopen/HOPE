@@ -155,6 +155,16 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
   }
   if (p.target.event) {
     const auto &e = *p.target.event;
+    w.target_kind = name(e.kind);
+    for (const auto &entry : shot.events())
+      if (entry.kind == e.kind && entry.status != EventStatus::SUPERSEDED &&
+          entry.status != EventStatus::CANCELLED &&
+          ((!p.target.historical && entry.event_time_ns == p.arrival_ns) ||
+           (p.target.historical &&
+            (entry.pre.position - e.pre.position).norm() < 1e-6))) {
+        w.target_event_id = entry.id;
+        break;
+      }
     vector(w.target_position, e.pre.position);
     vector(w.target_velocity, e.pre.velocity);
     w.target_spin_available = e.pre.spin.usable();

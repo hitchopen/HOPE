@@ -13,9 +13,11 @@ def score_matched_events(records):
     groups = {}
     for row in records:
         group = groups.setdefault(row['spin_mode'], dict(attempts=0, valid=0,
-                                                        position_errors=[], time_errors=[],
+                                                        position_errors=[], velocity_errors=[], time_errors=[], physical=0,
+                                                        position_coverage=[], velocity_coverage=[],
                                                         rejection_reasons={}))
         group['attempts'] += 1
+        group['physical'] += int(row.get('physical_available', False))
         if not row['target_valid']:
             reason = row['reason']
             group['rejection_reasons'][reason] = group['rejection_reasons'].get(reason, 0) + 1
@@ -28,9 +30,37 @@ def score_matched_events(records):
         group['position_errors'].append(float(np.linalg.norm(
             np.asarray(row['position']) - np.asarray(row['truth_position']))))
         group['time_errors'].append(abs(row['arrival_ns'] - row['truth_arrival_ns']) * 1e-9)
+        velocity_residual = None
+        if 'velocity' in row and 'truth_velocity' in row:
+            velocity_residual = np.asarray(row['velocity']) - row['truth_velocity']
+            group['velocity_errors'].append(float(np.linalg.norm(velocity_residual)))
+        if row.get('covariance') is not None:
+            covariance = np.asarray(row['covariance'], dtype=float)
+            if covariance.shape not in ((6, 6), (7, 7)):
+                raise ValueError('event covariance must contain p/v or p/v/time')
+            position_residual = np.asarray(row['position']) - row['truth_position']
+            for residual, marginal, field in (
+                    (position_residual, covariance[:3, :3], 'position_coverage'),
+                    (velocity_residual, covariance[3:6, 3:6], 'velocity_coverage')):
+                if residual is None or not np.all(np.isfinite(marginal)):
+                    continue
+                if np.linalg.eigvalsh((marginal + marginal.T) / 2).min() <= 0:
+                    continue
+                # 95% chi-square boundary for three dimensions. Conditional
+                # uncertainty remains labelled conditional in the report.
+                distance = float(residual @ np.linalg.solve(marginal, residual))
+                group[field].append(distance <= 7.814727903251179)
+
     result = {}
     for mode, group in groups.items():
         result[mode] = dict(attempts=group['attempts'], valid=group['valid'],
+                            physical_forecast_coverage=group['physical'] / group['attempts'],
+                            velocity_rmse_mps=math.sqrt(np.mean(np.square(group['velocity_errors'])))
+                            if group['velocity_errors'] else None,
+                            conditional_position_95_coverage=float(np.mean(group['position_coverage']))
+                            if group['position_coverage'] else None,
+                            conditional_velocity_95_coverage=float(np.mean(group['velocity_coverage']))
+                            if group['velocity_coverage'] else None,
                             valid_coverage=group['valid'] / group['attempts'],
                             position_rmse_m=math.sqrt(np.mean(np.square(group['position_errors'])))
                             if group['valid'] else None,

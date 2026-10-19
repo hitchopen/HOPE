@@ -119,7 +119,47 @@ int main(int argc, char **argv) {
                 << ",\"target_valid\":"
                 << (prediction.target.valid ? "true" : "false")
                 << ",\"arrival_ns\":" << prediction.arrival_ns
-                << ",\"reason\":\"" << prediction.reason << "\"}\n";
+                << ",\"reason\":\"" << prediction.reason
+                << "\",\"target_kind\":\""
+                << (prediction.target.event
+                        ? name(prediction.target.event->kind)
+                        : "unavailable")
+                << "\",\"position\":";
+      if (prediction.target.event)
+        vector(prediction.target.event->pre.position);
+      else
+        std::cout << "null";
+      std::cout << ",\"velocity\":";
+      if (prediction.target.event)
+        vector(prediction.target.event->pre.velocity);
+      else
+        std::cout << "null";
+      std::cout << ",\"covariance\":";
+      const ForecastPhysicsEvent *target = nullptr;
+      if (prediction.target.event)
+        for (const auto &event : prediction.nominal.events)
+          if (event.kind == name(prediction.target.event->kind) &&
+              std::abs(event.dt_s - prediction.target.event->dt_s) < 1e-6) {
+            target = &event;
+            break;
+          }
+      if (target && target->covariance.allFinite()) {
+        std::cout << '[';
+        for (int row = 0; row < 7; ++row) {
+          if (row)
+            std::cout << ',';
+          std::cout << '[';
+          for (int col = 0; col < 7; ++col) {
+            if (col)
+              std::cout << ',';
+            std::cout << target->covariance(row, col);
+          }
+          std::cout << ']';
+        }
+        std::cout << ']';
+      } else
+        std::cout << "null";
+      std::cout << "}\n";
     }
     return 0;
   } catch (const std::exception &e) {

@@ -43,3 +43,5 @@ FlightEventV2[] events
 FlightWaypointV2[] waypoints
 uint64 input_count
 uint64 superseded_count
+uint64 target_event_id
+string target_kind

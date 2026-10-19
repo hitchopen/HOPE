@@ -372,6 +372,11 @@ private:
         target.ball_velocity =
             Vec3(m.target_velocity.x, m.target_velocity.y, m.target_velocity.z);
         target.strike_source_time_s = m.predicted_arrival_time_ns * 1e-9;
+        for (const auto &event : m.events)
+          if (event.kind == "table_bounce" && event.status == "PREDICTED" &&
+              event.event_time_ns > m.prediction_reference_time_ns &&
+              event.event_time_ns <= m.predicted_arrival_time_ns)
+            ++target.predicted_bounces;
         const auto command =
             RacketTargetPlanner(config_.physics, {}, config_.table)
                 .plan(target, Vec3(2.055, -.7625, 0), .5);
@@ -387,6 +392,7 @@ private:
         decision.command.time_to_strike = decision.lead_time_s;
         decision.command.clears_net = command.clears_net;
         decision.command.bypasses_net_posts = command.bypasses_net_posts;
+        decision.command.predicted_bounces = command.predicted_bounces;
         decision.command.header.frame_id = frame_;
         decision.command.header.stamp = rclcpp::Time(current);
         decision.policy_z_offset_m = policy_z_offset_;
