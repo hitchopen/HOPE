@@ -332,7 +332,7 @@ A/B/X/Y are read locally, so a Foxglove browser gamepad preview is not required.
 
 Install the ready-made console on the Laptop:
 
-1. Download [hopeopen.hope-a3-console-1.8.13.foxe](../../foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.13.foxe)
+1. Download [hopeopen.hope-a3-console-1.8.14.foxe](../../foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe)
    from this checkout. On GitHub, use the file's download button.
 2. Open the `.foxe` in Foxglove Desktop's Extensions screen to install it.
 3. Import `foxglove/layouts/model21800_console.json` and connect to the HDU control
