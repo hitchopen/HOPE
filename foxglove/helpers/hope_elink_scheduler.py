@@ -18,6 +18,13 @@ import sys
 
 PROC = Path('/proc')
 MODEL = Path('/agibot/data/info/model')
+# The checked-in lifecycle and passive HAL observer use this T3 deployment.
+# These hashes are also recorded in its serve_hal_clock.sha256 manifest.
+# P1/Ultra uses different config paths and is not an audited startup profile.
+HARDWARE_PROFILE = 'A3_T3D0_ELINK_HAND_V2'
+ROBOT_MODEL = 'A3_T3D0'
+ELINK_CONFIG = Path('/opt/agibot/config/hal_elink/hal_elink_a3_cfg.yaml')
+ETHERCAT_CONFIG = Path('/opt/agibot/config/hal_ethercat/hal_ethercat_a3_t3d0_cfg.yaml')
 LIBRARY = Path('/opt/agibot/bin/libhal_elink_pkg.so')
 EXECUTABLE = Path('/opt/agibot/bin/aimrt_main')
 HASHES = {
@@ -31,6 +38,40 @@ DESIRED = {'policy': os.SCHED_RR, 'priority': 20, 'cpus': [1]}
 FACTORY = {'policy': os.SCHED_OTHER, 'priority': 0, 'cpus': [0, 1, 7]}
 ROLES = ('main', 'send', 'receive')
 PRIORITIES = (23, 20, 24)
+
+
+def validate_lifecycle_profile(lifecycle):
+    """Reject mixed source/field installs before installing or stopping HAL."""
+    source = lifecycle.read_text()
+    expected = {
+        'MDU_ROBOT_MODEL_FILE': str(MODEL),
+        'MDU_SUPPORTED_ROBOT_MODEL': ROBOT_MODEL,
+        'MDU_ELINK_CONFIG': str(ELINK_CONFIG),
+        'MDU_HAL_GRIPPER_BASE_CONFIG': str(ETHERCAT_CONFIG),
+    }
+    if re.findall(r'^# HOPE_HARDWARE_PROFILE=(\S+)$', source, re.M) != [HARDWARE_PROFILE]:
+        raise RuntimeError('Lifecycle hardware profile differs from the audited scheduler')
+    for name, value in expected.items():
+        if re.findall(rf'^readonly {name}=(.*)$', source, re.M) != [value]:
+            raise RuntimeError(f'Lifecycle hardware setting differs: {name}')
+
+
+def audit_hardware():
+    """Read-only admission, usable before the managed ELink process exists."""
+    if not MODEL.is_file() or MODEL.is_symlink():
+        raise RuntimeError('Robot model must be a regular file')
+    if MODEL.read_text().strip() != ROBOT_MODEL:
+        raise RuntimeError(f'Unsupported robot model; expected {ROBOT_MODEL}')
+    for path in (ELINK_CONFIG, ETHERCAT_CONFIG):
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError(f'Audited hardware config must be a regular file: {path}')
+    for path, expected in HASHES.items():
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f'Unaudited vendor binary: {path}')
+    return {'hardware_profile': HARDWARE_PROFILE, 'robot_model': ROBOT_MODEL,
+            'elink_factory_config': str(ELINK_CONFIG),
+            'ethercat_config': str(ETHERCAT_CONFIG),
+            'binary_sha256': {str(path): sha for path, sha in HASHES.items()}}
 
 
 def targets():
@@ -74,11 +115,7 @@ def inspect(config):
     mirror = Path('/agibot/data/bag/hope_pingpong_telemetry/sim2real_sessions') / Path(*Path(str(config)).parts[3:])
     if not config.is_file() or config.is_symlink() or config.resolve() not in (config, mirror):
         raise RuntimeError('Managed config must be a regular file in its session or recording mirror')
-    if MODEL.read_text().strip() != 'A3_P1D0':
-        raise RuntimeError('Unsupported robot model')
-    for path, expected in HASHES.items():
-        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-            raise RuntimeError(f'Unaudited vendor binary: {path}')
+    hardware = audit_hardware()
     pid = find_process(config)
     path = PROC / str(pid)
     process_start = start_ticks(path)
@@ -111,7 +148,7 @@ def inspect(config):
         thread['role'] = role
         if thread['settings'] not in (FACTORY, target):
             raise RuntimeError(f'Unexpected existing thread policy: {thread}')
-    return {'config': str(config), 'pid': pid, 'start_ticks': process_start,
+    return {**hardware, 'config': str(config), 'pid': pid, 'start_ticks': process_start,
             'library_sha256': HASHES[LIBRARY],
             'threads': threads}
 
@@ -195,9 +232,18 @@ def original_receipt(snapshot, create):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('inspect', 'apply', 'verify', 'restore'))
-    parser.add_argument('--config', required=True, type=Path)
+    parser.add_argument('action', choices=('check-hardware', 'inspect', 'apply', 'verify', 'restore'))
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--lifecycle', type=Path)
     args = parser.parse_args()
+    if args.action == 'check-hardware':
+        if args.lifecycle is None or args.config is not None:
+            parser.error('check-hardware requires --lifecycle and accepts no --config')
+        validate_lifecycle_profile(args.lifecycle)
+        print(json.dumps(audit_hardware(), sort_keys=True))
+        return  # No root, state directory, /proc lookup or scheduling changes.
+    if args.config is None or args.lifecycle is not None:
+        parser.error('session actions require --config and accept no --lifecycle')
     if os.geteuid() != 0:
         raise RuntimeError('Run as root on the MDU')
     os.umask(0o077)

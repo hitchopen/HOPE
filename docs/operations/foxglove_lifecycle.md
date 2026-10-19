@@ -57,7 +57,7 @@ still need to be kept current. The profile is published at
 
 ## ELink transport scheduling
 
-The audited A3_P1D0 vendor ELink library creates three transport threads (main
+The audited A3_T3D0 vendor ELink library creates three transport threads (main
 loop, UDP send, UDP receive) outside the named AimRT executors. Changing only
 `hand_control_worker` does not prioritize those threads. On this deployment,
 `hope_elink_scheduler.py` places only the three transport threads on CPU 1 with
@@ -71,9 +71,37 @@ its sibling `../helpers/hope_elink_scheduler.py` in the copied package. The
 installer backs up and patches the installed lifecycle helper without restarting
 robot services. Managed START applies and verifies this policy after ELink
 readiness and before EtherCAT/Runner startup; failure stops START admission.
-The helper checks the exact executable and mapped ELink library hashes, managed
+The installer and lifecycle use the scheduler's read-only `check-hardware`
+command to verify the same `A3_T3D0_ELINK_HAND_V2` profile. Installation rejects
+an incompatible installed lifecycle before changing any files. PREFLIGHT and
+START repeat the check before stopping `agibot_pm`, so a vendor update is caught
+before the robot changes process ownership. The supported paths are:
+
+| Component | Audited profile value |
+| --- | --- |
+| Robot model (`/agibot/data/info/model`) | `A3_T3D0` |
+| ELink factory configuration | `/opt/agibot/config/hal_elink/hal_elink_a3_cfg.yaml` |
+| EtherCAT configuration | `/opt/agibot/config/hal_ethercat/hal_ethercat_a3_t3d0_cfg.yaml` |
+| `/opt/agibot/bin/libhal_elink_pkg.so` SHA-256 | `f83690f1c8a3d7e1f50a7c38bd5ed2ccc01543274b680d548af38f7f154225af` |
+| `/opt/agibot/bin/aimrt_main` SHA-256 | `9ab4c3fa441b4c13fac543b8778cd650a5e1751cad26fda1f4a918912e113ad6` |
+
+These hashes match the T3 deployment's existing HAL-clock audit manifest; this
+fix does not authorize another vendor build. The earlier `A3_P1D0` scheduler
+restriction was inconsistent with this lifecycle. P1/Ultra remains unsupported
+by the combined startup path. The separate legacy
+`install_mdu_elink_gripper_backend.sh` targets P1/Ultra and is not a prerequisite
+for this T3 lifecycle, which renders a session-owned ELink configuration.
+
+The scheduler also checks the exact executable and mapped ELink library hashes, managed
 session path, process/thread start times, and the audited three-thread layout.
 An unknown vendor build requires a new audit, not removal of these checks.
+
+To check the installed pair without root or starting any process:
+
+```bash
+python3 /usr/local/libexec/hope_elink_scheduler.py check-hardware \
+  --lifecycle /usr/local/libexec/hope-lifecycle
+```
 
 For an existing session, the root-only helper accepts `inspect`, `apply`,
 `verify`, and `restore`, each with
@@ -317,9 +345,10 @@ ssh "${ROBOT_USER}@${HDU_IP}" \
 
 scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py foxglove/helpers/hope_sim2real_control.py \
+  foxglove/helpers/hope_elink_scheduler.py \
   "${ROBOT_USER}@${MDU_IP}:/tmp/"
 ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
-  'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
+  'python3 /tmp/hope_elink_scheduler.py check-hardware --lifecycle /tmp/hope-lifecycle && sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /tmp/hope_elink_scheduler.py /usr/local/libexec/'
 ```
 
 The MDU active package also needs the logging-enabled Runner,
