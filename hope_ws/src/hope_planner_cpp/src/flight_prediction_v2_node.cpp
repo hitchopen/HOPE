@@ -299,6 +299,18 @@ public:
         wire.published_at_ns = now().nanoseconds();
         wire.input_count = inputs_;
         wire.superseded_count = work_.superseded();
+        const auto publication_fresh = [&] {
+          wire.published_at_ns = now().nanoseconds();
+          const long double age =
+              (static_cast<long double>(wire.published_at_ns) -
+               wire.prediction_reference_time_ns) *
+              1e-9L;
+          return age >= -.001 && age <= settings_.max_source_age_s;
+        };
+        if (!publication_fresh()) {
+          revoke_locked("source_expired_before_publication");
+          continue;
+        }
         // The job owns the exact posterior/reference; newer callback samples
         // remain in the next job.
         if (!last_full_source_ ||
@@ -314,9 +326,13 @@ public:
           packet_->publish(packet);
         }
         wire.waypoints.clear();
+        if (!publication_fresh()) {
+          revoke_locked("source_expired_before_publication");
+          continue;
+        }
         publisher_->publish(wire);
         last_expiry_ = wire.expires_at_ns;
-        planner_locked(wire, current);
+        planner_locked(wire, now().nanoseconds());
       }
     });
   }
@@ -370,7 +386,9 @@ private:
     decision.previously_dispatched =
         dispatched_generation_ && *dispatched_generation_ == m.shot_generation;
     decision.reason = "target_unavailable";
-    if (m.target_valid && m.target_incoming && !m.target_historical) {
+    if (m.expires_at_ns < current)
+      decision.reason = "forecast_expired_at_planner";
+    else if (m.target_valid && m.target_incoming && !m.target_historical) {
       if (decision.previously_dispatched)
         decision.reason = "one_shot_already_selected";
       else if (m.target_position.y < min_y_ || m.target_position.y > max_y_)
