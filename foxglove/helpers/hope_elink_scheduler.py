@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -I
 """Scheduling policy for the three audited vendor ELink transport threads.
 
 Does not send commands, change hand targets, or restart processes. The firmware
@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import select
+import stat
 import sys
 
 PROC = Path('/proc')
@@ -72,6 +73,20 @@ def audit_hardware():
             'elink_factory_config': str(ELINK_CONFIG),
             'ethercat_config': str(ETHERCAT_CONFIG),
             'binary_sha256': {str(path): sha for path, sha in HASHES.items()}}
+
+
+def check_privileges():
+    """Exercise the installed sudo entry without touching processes or state."""
+    if os.geteuid() != 0:
+        raise RuntimeError('Run as root on the MDU')
+    if not sys.flags.isolated:
+        raise RuntimeError('Execute the installed helper directly (isolated Python required)')
+    helper = Path(__file__).absolute()
+    for path in (helper, *helper.parents):
+        info = path.lstat()
+        expected_type = stat.S_ISREG if path == helper else stat.S_ISDIR
+        if not expected_type(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise RuntimeError(f'Helper and parent directories must be root-owned and not writable by others: {path}')
 
 
 def targets():
@@ -232,7 +247,7 @@ def original_receipt(snapshot, create):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('check-hardware', 'inspect', 'apply', 'verify', 'restore'))
+    parser.add_argument('action', choices=('check-hardware', 'check-privileges', 'inspect', 'apply', 'verify', 'restore'))
     parser.add_argument('--config', type=Path)
     parser.add_argument('--lifecycle', type=Path)
     args = parser.parse_args()
@@ -242,10 +257,15 @@ def main():
         validate_lifecycle_profile(args.lifecycle)
         print(json.dumps(audit_hardware(), sort_keys=True))
         return  # No root, state directory, /proc lookup or scheduling changes.
+    if args.action == 'check-privileges':
+        if args.config is not None or args.lifecycle is not None:
+            parser.error('check-privileges accepts no arguments')
+        check_privileges()
+        print('ELINK_SCHEDULER_PRIVILEGES_OK')
+        return
     if args.config is None or args.lifecycle is not None:
         parser.error('session actions require --config and accept no --lifecycle')
-    if os.geteuid() != 0:
-        raise RuntimeError('Run as root on the MDU')
+    check_privileges()
     os.umask(0o077)
     STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (STATE / 'lock').open('a') as lock:

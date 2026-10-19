@@ -66,16 +66,22 @@ preempt the sender: equal priorities retained millisecond waits during sender
 CPU bursts. Runner, EtherCAT, the hand command cycle, and the serial bridge
 retain their existing settings. CPU 7 was also trialed but retained waits.
 
-Install `foxglove/a3/install_mdu_elink_scheduler.sh` as root on the MDU, keeping
-its sibling `../helpers/hope_elink_scheduler.py` in the copied package. The
-installer backs up and patches the installed lifecycle helper without restarting
-robot services. Managed START applies and verifies this policy after ELink
+Run `foxglove/a3/install_mdu_elink_scheduler.sh` as root on the MDU, keeping
+its sibling `../helpers/hope_elink_scheduler.py` in the copied package. Pass
+`--robot-user <account>` for the account used by the HDU's MDU SSH connection
+(default `agi`, matching `HOPE_ROBOT_USER`). The installer backs up and patches
+the installed lifecycle helper and installs the dedicated sudo rule described
+below without restarting robot services. Managed START applies and verifies this policy after ELink
 readiness and before EtherCAT/Runner startup; failure stops START admission.
 The installer and lifecycle use the scheduler's read-only `check-hardware`
 command to verify the same `A3_T3D0_ELINK_HAND_V2` profile. Installation rejects
 an incompatible installed lifecycle before changing any files. PREFLIGHT and
 START repeat the check before stopping `agibot_pm`, so a vendor update is caught
-before the robot changes process ownership. The supported paths are:
+before the robot changes process ownership. They also execute the helper's
+read-only `check-privileges` action through noninteractive sudo and query the
+exact session's `apply` permission. Missing sudo setup fails early with
+`ELINK_SCHEDULER_SUDO_NOT_READY` or `ELINK_SCHEDULER_APPLY_NOT_PERMITTED`.
+The supported paths are:
 
 | Component | Audited profile value |
 | --- | --- |
@@ -106,6 +112,10 @@ python3 /usr/local/libexec/hope_elink_scheduler.py check-hardware \
 For an existing session, the root-only helper accepts `inspect`, `apply`,
 `verify`, and `restore`, each with
 `--config /tmp/hope_real/<session>/mdu/system/hal_elink_a3_gripper.yaml`.
+Execute `/usr/local/libexec/hope_elink_scheduler.py` directly; its fixed
+`/usr/bin/python3 -I` shebang runs isolated from user Python paths and startup
+modules. Privileged actions check that the helper and all parent directories are
+root-owned and have no group/other write permissions.
 Apply needs no process restart and publishes no robot commands. The first
 pre-change settings are retained in `/var/lib/hope/elink-scheduler/`; repeated
 apply preserves that rollback receipt. Restore affects the same process/thread
@@ -303,9 +313,9 @@ ssh -o BatchMode=yes -J "${ROBOT_USER}@${HDU_IP}" \
 Do not put passwords in the repository, UI, ROS messages, unit files, helper
 arguments or process environment. Install SSH public keys once instead.
 
-`tmux` must be installed on all three machines. The MDU robot account also
-needs narrow passwordless sudo only for the commands already present in STEP 4
-and STEP 6. Install with `visudo -f /etc/sudoers.d/hope-lifecycle`:
+`tmux` must be installed on all three machines. The MDU robot account needs
+passwordless sudo for the vendor service actions and the fixed scheduler helper.
+Install the service rules with `visudo -f /etc/sudoers.d/hope-lifecycle`:
 
 ```sudoers
 <robot-user> ALL=(root) NOPASSWD: /usr/bin/systemctl stop agibot_pm.service
@@ -315,6 +325,35 @@ and STEP 6. Install with `visudo -f /etc/sudoers.d/hope-lifecycle`:
 Confirm the resolved command path with `command -v systemctl` on the MDU
 before installing that file. The helper uses `sudo -n` and fails closed rather
 than prompting.
+
+The scheduler installer creates `/etc/sudoers.d/hope-elink-scheduler`, owned by
+root with mode `0440`. For the default account, its rule is:
+
+```sudoers
+agi ALL=(root) NOPASSWD: NOSETENV: /usr/local/libexec/hope_elink_scheduler.py check-privileges, /usr/local/libexec/hope_elink_scheduler.py apply --config /tmp/hope_real/*/mdu/system/hal_elink_a3_gripper.yaml
+```
+
+The helper validates the complete argument list and session path, including the
+single session-name component matched by the sudoers wildcard. The rule grants
+no Python interpreter, arbitrary script, shell, `inspect`, or `restore` command.
+Inspection and restoration remain administrator actions. Do not add a general
+`sudo python3` permission.
+
+The installer requires `sudo`, `visudo`, and `runuser`; validates the existing
+and proposed sudoers configuration; installs the helper as root-owned `0755`;
+then runs the actual privilege probe as the selected robot account and checks
+its `apply` authorization. If installation or either probe fails, it restores
+the previous lifecycle, scheduler, and dedicated sudoers file. A successful
+install prints `MDU_ELINK_SCHEDULER_INSTALLED`. Copying Python files alone is
+not a complete scheduler installation.
+
+From the configured robot account, check permissions without starting HAL:
+
+```bash
+sudo -n /usr/local/libexec/hope_elink_scheduler.py check-privileges
+sudo -n -l -- /usr/local/libexec/hope_elink_scheduler.py apply \
+  --config /tmp/hope_real/permission_probe/mdu/system/hal_elink_a3_gripper.yaml
+```
 
 ## Install the fixed helper
 
@@ -343,12 +382,17 @@ scp foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py fo
 ssh "${ROBOT_USER}@${HDU_IP}" \
   'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
 
+ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
+  'mkdir -p /tmp/hope-elink-install/a3 /tmp/hope-elink-install/helpers'
 scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py foxglove/helpers/hope_sim2real_control.py \
   foxglove/helpers/hope_elink_scheduler.py \
-  "${ROBOT_USER}@${MDU_IP}:/tmp/"
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/helpers/"
+scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
+  foxglove/a3/install_mdu_elink_scheduler.sh \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/a3/"
 ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
-  'python3 /tmp/hope_elink_scheduler.py check-hardware --lifecycle /tmp/hope-lifecycle && sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /tmp/hope_elink_scheduler.py /usr/local/libexec/'
+  'cd /tmp/hope-elink-install && python3 helpers/hope_elink_scheduler.py check-hardware --lifecycle helpers/hope-lifecycle && sudo install -o root -g root -m 0755 helpers/hope-lifecycle helpers/hope_sim2real_capture.py helpers/hope_sim2real_control.py /usr/local/libexec/ && sudo bash a3/install_mdu_elink_scheduler.sh --robot-user "$(id -un)"'
 ```
 
 The MDU active package also needs the logging-enabled Runner,
