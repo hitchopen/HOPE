@@ -1,1 +1,1495 @@
-{"gate_s":"PENDING_FINAL_CLEAN_RUN","gate_p":"NOT_RUN_MISSING_INDEPENDENT_RECORDINGS","gate_d":"NOT_ATTEMPTED_SHADOW_ONLY"}
+{
+  "schema_version": 2,
+  "tested_code_commit": "7f663138f2d044c44e07004bb0e9360b7a98d131",
+  "branch": "feature/flight-state-prediction-v2",
+  "upstream_base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "environment": {
+    "container": "hope",
+    "distribution": "Ubuntu 24.04",
+    "ros": "Jazzy",
+    "compiler": "GCC 13.3.0",
+    "cmake": "3.28.3",
+    "python": "3.12.3",
+    "core_standard": "C++17; existing receiver probe C++20"
+  },
+  "gate_s": "NOT_PASSED_FULL_GATE_INCLUDES_PRE_EXISTING_BRINGUP_LINT_FAILURES",
+  "functional_software_gate": "PASS_EXECUTED_FUNCTIONAL_CHECKS; X08_FULL_GATE_RETAINS_BASELINE_LINT",
+  "gate_p": "NOT_RUN_MISSING_INDEPENDENT_RECORDED_FLIGHTS_AND_EVENT_ANNOTATIONS",
+  "gate_d": "NOT_ATTEMPTED_SHADOW_ONLY; FRAME_PADDLE_RECEIVER_POLICY_ADOPTION_UNQUALIFIED",
+  "ctest": {
+    "hope_msgs": {
+      "total": 2,
+      "passed": 2,
+      "failed": []
+    },
+    "hope_planner_cpp": {
+      "total": 27,
+      "passed": 27,
+      "failed": []
+    },
+    "hope_bringup": {
+      "total": 26,
+      "passed": 24,
+      "failed": [
+        "flake8",
+        "pep257"
+      ]
+    }
+  },
+  "acceptance_cases": [
+    {
+      "id": "A01",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_PublicStatesAndCandidateQualification",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A02",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A03",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A04",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A05",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A06",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A07",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B09_A07_FiniteNetFootprintBelowTableAndOrdering",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_HeldMotionAndApexUsePhysicalEvidenceRatherThanLowVerticalSpeed",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A08",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A09",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover",
+          "status": "PASS"
+        },
+        {
+          "test": "test_strike_target_selector",
+          "assertion": "A09_T06_RetiredBeforeResetDataCannotFenceOrSeedCurrentSession",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A10",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_T04_EventIdentityConfirmationAndPredictedTimeIsNotEvidence",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A11",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A12",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_T03_TargetAndEveryWaypointHaveExactArrivalEquation",
+          "status": "PASS"
+        },
+        {
+          "test": "test_schema2",
+          "status": "PASS"
+        },
+        {
+          "test": "test_shadow_runner_input",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_ros_transport",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A13",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "flight_v2_ros_transport",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_causal_replay",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "A14",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality",
+          "status": "PASS"
+        },
+        {
+          "test": "test_future_contact_predictor",
+          "status": "PASS"
+        },
+        {
+          "test": "test_strike_target_selector",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B01",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B02",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B02_B06_PositionOnlyNeverSynthesizesSpinAndEnergyIsDissipative",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B03",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous",
+          "status": "PASS"
+        },
+        {
+          "test": "test_future_contact_predictor",
+          "assertion": "B03_RejectedStateSpinCannotReachFallbackOrReadinessModel",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B04",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B05",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "status": "PASS"
+        },
+        {
+          "test": "hope_bringup/planner_full_rate_relay_test",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B06",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B02_B06_PositionOnlyNeverSynthesizesSpinAndEnergyIsDissipative",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B07",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "T01_B07_PacketHashCoversValidityCheckpointAndContactLedger",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B07_T06_TruncatedSnapshotReproducesPosteriorWithoutRefittingPastSpin",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B08",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B08_QuaternionSignsAxesAndGapCausality",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B09",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B09_A07_FiniteNetFootprintBelowTableAndOrdering",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B10",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X09_DerivativesCovarianceAndInvalidParameters",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_numerical",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "B11",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "flight_v2_causal_replay",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_scoring",
+          "status": "PASS"
+        }
+      ],
+      "physical_clause": "NOT_RUN_MISSING_INDEPENDENT_POSITION_ONLY_RECORDINGS"
+    },
+    {
+      "id": "B12",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_adaptive_flight_commit",
+          "status": "PASS"
+        },
+        {
+          "test": "test_future_contact_predictor",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C01",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_PublicStatesAndCandidateQualification",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_ReceiverAcquisitionAcceptsVerifiedPrehistoryWithoutReset",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C05",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C06",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C07",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C08_ReversalAloneNeverChangesShotAndSameDirectionContactDoes",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "T01",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "T01_B07_PacketHashCoversValidityCheckpointAndContactLedger",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_causal_replay",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "T02",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "T03",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_T03_TargetAndEveryWaypointHaveExactArrivalEquation",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_ros_transport",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "T04",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_T04_EventIdentityConfirmationAndPredictedTimeIsNotEvidence",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "T05",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "T06",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B07_T06_TruncatedSnapshotReproducesPosteriorWithoutRefittingPastSpin",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires",
+          "status": "PASS"
+        },
+        {
+          "test": "test_strike_target_selector",
+          "assertion": "A09_T06_RetiredBeforeResetDataCannotFenceOrSeedCurrentSession",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X01",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X02",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X03",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X03_ConditionalCovarianceNeverProvesViolationButCompleteConservativeBoundCan",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X04",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_LatestWorkIsBoundedAndNeverWaitsForNextSampleToPublish",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_PacedSlowSolvesPublishMonotoneFreshResultsWithOnePendingSlot",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_SourceTimedMotionSurvivesSchedulerPauseAndCatchup",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_ros_transport",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X05",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "ckf_strike_shadow_ros",
+          "status": "PASS"
+        },
+        {
+          "test": "test_planner_node_turn_guard",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X06",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_packet_pipeline",
+          "status": "PASS"
+        },
+        {
+          "test": "test_shadow_runner_input",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X07",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_schema2",
+          "status": "PASS"
+        },
+        {
+          "test": "test_shadow_runner_input",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_ros_transport",
+          "status": "PASS"
+        }
+      ],
+      "hardware_clause": "UNQUALIFIED; current receiver parser/identity tests are software evidence only"
+    },
+    {
+      "id": "X08",
+      "software_status": "PARTIAL",
+      "evidence": [
+        {
+          "test": "flight_v2_ros_transport",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_causal_replay",
+          "status": "PASS"
+        },
+        {
+          "test": "hope_bringup/flake8",
+          "status": "FAIL_PRE_EXISTING"
+        },
+        {
+          "test": "hope_bringup/pep257",
+          "status": "FAIL_PRE_EXISTING"
+        }
+      ],
+      "full_gate_clause": "FAIL_PRE_EXISTING_BRINGUP_FLAKE8_PEP257; clean build/install and all functional checks pass"
+    },
+    {
+      "id": "X09",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "X09_CheckpointRejectsDifferentNetPhysicsEvenWithACallerSuppliedTag",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X09_DerivativesCovarianceAndInvalidParameters",
+          "status": "PASS"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X09_OutgoingSurfaceToCenterExactlyOnceAndNoIncomingSpinLeak",
+          "status": "PASS"
+        },
+        {
+          "test": "flight_v2_numerical",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "X10",
+      "software_status": "PASS",
+      "evidence": [
+        {
+          "test": "flight_v2_ros_transport",
+          "status": "PASS"
+        },
+        {
+          "test": "ckf_strike_shadow_ros",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "numerical": {
+    "status": "PASS",
+    "reference": "independent scipy DOP853 rtol=2e-12 atol=2e-14",
+    "events": 42,
+    "max_position_error_m": 7.22413413829901e-14,
+    "max_time_error_s": 5.0182080713057076e-14
+  },
+  "paced_ros": {
+    "status": "PASS",
+    "streams": [
+      {
+        "rate_hz": 150,
+        "source_span_s": 2.4479716280000003,
+        "published_input_rate_hz": 143.38401474316433,
+        "observed_input_rate_hz": 143.38401474316433,
+        "observed_input_count": 352,
+        "unaccounted_input_count": 0,
+        "admitted_decisions": 4,
+        "publication_latency_ms": {
+          "p50": 1.0549404999999998,
+          "p95": 2.225052,
+          "p99": 2.339035,
+          "maximum": 2.429273
+        },
+        "input_count": 352,
+        "physical_outputs": 344,
+        "denominator": 336,
+        "physical_publication_coverage": 1.0,
+        "target_outputs": 212,
+        "planner_decisions": 367,
+        "superseded": 0,
+        "latency_ms": {
+          "p50": 1.539964,
+          "p95": 5.073451,
+          "p99": 6.071994,
+          "maximum": 16.510978
+        }
+      },
+      {
+        "rate_hz": 300,
+        "source_span_s": 2.4610037360000003,
+        "published_input_rate_hz": 288.9065098111659,
+        "observed_input_rate_hz": 288.9065098111659,
+        "observed_input_count": 712,
+        "unaccounted_input_count": 0,
+        "admitted_decisions": 4,
+        "publication_latency_ms": {
+          "p50": 1.034162,
+          "p95": 3.23903,
+          "p99": 3.513303,
+          "maximum": 3.729396
+        },
+        "input_count": 712,
+        "physical_outputs": 701,
+        "denominator": 696,
+        "physical_publication_coverage": 0.9956896551724138,
+        "target_outputs": 444,
+        "planner_decisions": 724,
+        "superseded": 3,
+        "latency_ms": {
+          "p50": 1.499595,
+          "p95": 4.765933,
+          "p99": 5.493765,
+          "maximum": 24.515941
+        }
+      }
+    ]
+  },
+  "causal_replay": {
+    "status": "PASS",
+    "causal_prefix_cases": 8,
+    "rates": [
+      150,
+      300
+    ],
+    "clocks": [
+      "zero_epoch",
+      "exact_unix_ns"
+    ]
+  },
+  "baseline": {
+    "scaffold_commit": "5e9cd53",
+    "planner_ctest": "21/21 PASS",
+    "messages_ctest": "2/2 PASS",
+    "bringup_failed_groups": [
+      "motive_asset_relay_test",
+      "flake8",
+      "pep257"
+    ],
+    "current_lint_assertions": {
+      "flake8": 3086,
+      "pep257": 37
+    },
+    "classification": "mocap-interface build resolves the baseline relay dependency failure; existing lint assertions are unchanged"
+  },
+  "repaired_pacing_fixture": {
+    "prior_logs": [
+      "hope-v2-release-rerun.log",
+      "hope-v2-installed-before-fixture-repair.log"
+    ],
+    "prior_coverages": [
+      0.7916666666666666,
+      0.7857142857142857
+    ],
+    "forced_reproduction": "hope-v2-source-time-mismatch-probe.log; qualified_non_ballistic_motion, same contiguous lost-flight pattern",
+    "cause": "nominal-frame position paired with actual acquisition stamp during scheduler delay",
+    "repair": "derive analytic position from actual source stamp; explicit lifecycle revocation reason and deterministic pause regression",
+    "threshold_unchanged": 0.95
+  },
+  "physical_data_required": [
+    "session/ball/physical-shot grouped independently observed contacts/plane/landing truth",
+    "exact acquisition clock mappings and frame/calibration registration",
+    "both directions, serves, varied speed/spin, dropout, held/contact-propagated and position-only groups",
+    "held-out matched-source one-shot/progressive/new forecasts; conditional uncertainty coverage"
+  ],
+  "intentional_contract_changes": [
+    "known illegal routes revoke selection",
+    "unavailable spin remains position-only without angular synthesis",
+    "legacy missing authoritative orientation is position-only",
+    "shared radius-aware RK4 contact law supersedes old Euler/surface-contact numerical goldens",
+    "v2 hard shot boundaries clear belief; same-shot reclassification preserves data"
+  ],
+  "limitations": [
+    "No real-ball accuracy or calibrated full uncertainty claim",
+    "No verified live hardware cancellation path introduced",
+    "Legacy schema-2 equal-counter producer restart and physical paddle/frame registration remain adoption qualifications"
+  ],
+  "reproduction": {
+    "clean": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify.sh /tmp/hope-v2-complete-clean",
+    "final_rerun_log": "/tmp/hope-v2-complete-rerun.log",
+    "clean_build_log": "/tmp/hope-v2-complete-clean.log",
+    "supplementary_python_spin": "PYTHONPATH=hope_ws/src/hope_planner python3 -m pytest -q hope_ws/src/hope_planner/test/test_spin_estimator.py"
+  },
+  "installed_numerical": {
+    "status": "PASS",
+    "reference": "independent scipy DOP853 rtol=2e-12 atol=2e-14",
+    "events": 42,
+    "max_position_error_m": 7.22413413829901e-14,
+    "max_time_error_s": 5.0182080713057076e-14,
+    "cases": [
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 1.7766363044081366e-14,
+        "time_error_s": 5.800915303666443e-15
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 1.3690254791064303e-15,
+        "time_error_s": 2.1649348980190553e-15
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 4.9651373999819285e-15,
+        "time_error_s": 3.3306690738754696e-16
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 5.924893115540873e-15,
+        "time_error_s": 4.996003610813204e-16
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 8.43769784031432e-15,
+        "time_error_s": 3.1363800445660672e-15
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 9.326536811727558e-15,
+        "time_error_s": 1.304512053934559e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 1.166581610674993e-14,
+        "time_error_s": 5.551115123125783e-16
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 9.994175390735497e-16,
+        "time_error_s": 3.0808688933348094e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 1.7236553253073421e-15,
+        "time_error_s": 1.2490009027033011e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 2.145576712517151e-14,
+        "time_error_s": 6.716849298982197e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 7.22413413829901e-14,
+        "time_error_s": 4.085620730620576e-14
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 2.3102895897353904e-15,
+        "time_error_s": 3.0808688933348094e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 1.2494465025891017e-14,
+        "time_error_s": 2.4313884239290928e-14
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 2.914254897795278e-15,
+        "time_error_s": 1.2490009027033011e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 9.950771239850864e-15,
+        "time_error_s": 5.0182080713057076e-14
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 1.139210222078213e-14,
+        "time_error_s": 5.2735593669694936e-15
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 4.930195208140448e-15,
+        "time_error_s": 1.6375789613221059e-15
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 4.0214048173840135e-15,
+        "time_error_s": 1.6653345369377348e-16
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 1.6245579305279718e-14,
+        "time_error_s": 2.6367796834847468e-15
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 3.2645855071135213e-15,
+        "time_error_s": 9.992007221626409e-16
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 2.6381305957120764e-15,
+        "time_error_s": 8.049116928532385e-16
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 2.0597047635191334e-14,
+        "time_error_s": 5.800915303666443e-15
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 4.669613963800136e-15,
+        "time_error_s": 2.1649348980190553e-15
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 4.9365061038031246e-15,
+        "time_error_s": 3.3306690738754696e-16
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 7.88493172075571e-15,
+        "time_error_s": 4.996003610813204e-16
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 8.770764639353934e-15,
+        "time_error_s": 3.1363800445660672e-15
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 4.886247689467686e-15,
+        "time_error_s": 1.304512053934559e-15
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 2.7567589742366884e-14,
+        "time_error_s": 1.1129985821867194e-14
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 4.578092683617719e-16,
+        "time_error_s": 2.220446049250313e-16
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 2.542032316406828e-15,
+        "time_error_s": 2.0539125955565396e-15
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 4.111537697113098e-14,
+        "time_error_s": 1.1352030426792226e-14
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 2.4987726746751933e-15,
+        "time_error_s": 4.440892098500626e-16
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 3.622395049839141e-15,
+        "time_error_s": 1.3600232051658168e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 2.2694494531511526e-14,
+        "time_error_s": 7.93809462606987e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 3.828282787073539e-15,
+        "time_error_s": 2.9698465908722937e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 1.6883627900091697e-15,
+        "time_error_s": 1.1379786002407855e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 2.3041876077135976e-14,
+        "time_error_s": 6.494804694057166e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 5.506217283948543e-14,
+        "time_error_s": 2.90878432451791e-14
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 8.216401231176521e-15,
+        "time_error_s": 2.858824288409778e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 2.1365178848848642e-14,
+        "time_error_s": 2.7200464103316335e-14
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 4.4464411020684575e-15,
+        "time_error_s": 1.0547118733938987e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 7.381368861868612e-15,
+        "time_error_s": 4.574118861455645e-14
+      }
+    ]
+  },
+  "installed_ros": {
+    "status": "PASS",
+    "streams": [
+      {
+        "rate_hz": 150,
+        "source_span_s": 2.4488383760000003,
+        "published_input_rate_hz": 143.3332650451734,
+        "observed_input_rate_hz": 143.3332650451734,
+        "observed_input_count": 352,
+        "unaccounted_input_count": 0,
+        "admitted_decisions": 4,
+        "publication_latency_ms": {
+          "p50": 1.1404285,
+          "p95": 2.320038,
+          "p99": 2.487452,
+          "maximum": 2.686922
+        },
+        "input_count": 352,
+        "physical_outputs": 344,
+        "denominator": 336,
+        "physical_publication_coverage": 1.0,
+        "target_outputs": 212,
+        "planner_decisions": 367,
+        "superseded": 0,
+        "latency_ms": {
+          "p50": 1.596956,
+          "p95": 4.863294,
+          "p99": 6.118299,
+          "maximum": 16.159529
+        }
+      },
+      {
+        "rate_hz": 300,
+        "source_span_s": 2.460946744,
+        "published_input_rate_hz": 288.91320047192374,
+        "observed_input_rate_hz": 288.5068527919351,
+        "observed_input_count": 711,
+        "unaccounted_input_count": 1,
+        "admitted_decisions": 4,
+        "publication_latency_ms": {
+          "p50": 0.987857,
+          "p95": 3.205785,
+          "p99": 3.418316,
+          "maximum": 3.704463
+        },
+        "input_count": 712,
+        "physical_outputs": 693,
+        "denominator": 696,
+        "physical_publication_coverage": 0.9841954022988506,
+        "target_outputs": 381,
+        "planner_decisions": 718,
+        "superseded": 9,
+        "latency_ms": {
+          "p50": 1.449727,
+          "p95": 4.419234,
+          "p99": 5.075825,
+          "maximum": 24.403145
+        }
+      }
+    ]
+  },
+  "installed_ros_repeats": [
+    {
+      "status": "PASS",
+      "streams": [
+        {
+          "rate_hz": 150,
+          "source_span_s": 2.4482340270000003,
+          "published_input_rate_hz": 143.368647003941,
+          "observed_input_rate_hz": 143.368647003941,
+          "observed_input_count": 352,
+          "unaccounted_input_count": 0,
+          "admitted_decisions": 4,
+          "publication_latency_ms": {
+            "p50": 1.1641745000000001,
+            "p95": 2.379404,
+            "p99": 2.542068,
+            "maximum": 3.429002
+          },
+          "input_count": 352,
+          "physical_outputs": 344,
+          "denominator": 336,
+          "physical_publication_coverage": 1.0,
+          "target_outputs": 212,
+          "planner_decisions": 367,
+          "superseded": 0,
+          "latency_ms": {
+            "p50": 1.610016,
+            "p95": 4.794429,
+            "p99": 5.866586,
+            "maximum": 17.164009
+          }
+        },
+        {
+          "rate_hz": 300,
+          "source_span_s": 2.462118636,
+          "published_input_rate_hz": 288.77568676182995,
+          "observed_input_rate_hz": 288.77568676182995,
+          "observed_input_count": 712,
+          "unaccounted_input_count": 0,
+          "admitted_decisions": 4,
+          "publication_latency_ms": {
+            "p50": 0.945113,
+            "p95": 3.180851,
+            "p99": 3.319768,
+            "maximum": 3.811322
+          },
+          "input_count": 712,
+          "physical_outputs": 699,
+          "denominator": 696,
+          "physical_publication_coverage": 0.992816091954023,
+          "target_outputs": 444,
+          "planner_decisions": 722,
+          "superseded": 4,
+          "latency_ms": {
+            "p50": 1.355929,
+            "p95": 4.403798,
+            "p99": 4.902476,
+            "maximum": 21.781526
+          }
+        }
+      ]
+    },
+    {
+      "status": "PASS",
+      "streams": [
+        {
+          "rate_hz": 150,
+          "source_span_s": 2.447723476,
+          "published_input_rate_hz": 143.39855111966904,
+          "observed_input_rate_hz": 143.39855111966904,
+          "observed_input_count": 352,
+          "unaccounted_input_count": 0,
+          "admitted_decisions": 4,
+          "publication_latency_ms": {
+            "p50": 1.1006529999999999,
+            "p95": 2.229801,
+            "p99": 2.334287,
+            "maximum": 2.631118
+          },
+          "input_count": 352,
+          "physical_outputs": 344,
+          "denominator": 336,
+          "physical_publication_coverage": 1.0,
+          "target_outputs": 212,
+          "planner_decisions": 367,
+          "superseded": 0,
+          "latency_ms": {
+            "p50": 1.5548055,
+            "p95": 4.821738,
+            "p99": 5.195746,
+            "maximum": 6.309459
+          }
+        },
+        {
+          "rate_hz": 300,
+          "source_span_s": 2.461751752,
+          "published_input_rate_hz": 288.818724074173,
+          "observed_input_rate_hz": 288.00629447058884,
+          "observed_input_count": 710,
+          "unaccounted_input_count": 2,
+          "admitted_decisions": 4,
+          "publication_latency_ms": {
+            "p50": 0.972422,
+            "p95": 3.22122,
+            "p99": 3.417129,
+            "maximum": 3.757892
+          },
+          "input_count": 712,
+          "physical_outputs": 691,
+          "denominator": 696,
+          "physical_publication_coverage": 0.9813218390804598,
+          "target_outputs": 384,
+          "planner_decisions": 716,
+          "superseded": 10,
+          "latency_ms": {
+            "p50": 1.450914,
+            "p95": 4.517782,
+            "p99": 5.182686,
+            "maximum": 25.301952
+          }
+        }
+      ]
+    }
+  ],
+  "sanitizer_scope": "Native shared core at 73298b1; later source changes only affect ROS diagnostics and the corrected transport fixture, plus a new deterministic test. No ROS-node sanitizer coverage claim.",
+  "sanitizers": "PASS: 4 focused native groups; ASan+UBSan+leak detection",
+  "python_spin": "PASS: 6 tests",
+  "config_sha256": "d57cde7400139509321ce05036d0ec99ff0c86f62ac2e76393984c0586e13dcc"
+}

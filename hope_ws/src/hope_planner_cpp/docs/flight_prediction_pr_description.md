@@ -22,6 +22,14 @@ case mappings in `flight_prediction_acceptance.json`. Architecture and provision
 parameters are in [flight_prediction_implementation.md](flight_prediction_implementation.md);
 source pins and port provenance are in `flight_prediction_port_manifest.json`.
 
+Final verification used a clean HOPE distrobox/Jazzy build and installed executables.
+All 27 planner and 2 message test groups pass; bringup passes 24/26 groups, with
+only the two inherited lint suites failing (3,086 flake8 and 37 pep257 assertions).
+Focused ASan/UBSan/leak checks and six Python spin tests pass. The corrected paced
+source-time fixture and three installed 150/300 Hz repeats retain the 95% availability
+and 30 ms freshness thresholds. X08 is partial and complete Gate S is not claimed
+passed because of existing lint; independent physical validation is NOT RUN.
+
 No physical-accuracy, live frame/paddle registration, policy support or deployment
 adoption claim is made from synthetic or transport tests. Independent recordings and
 supervised adoption remain separate gates. This description is prepared locally;
