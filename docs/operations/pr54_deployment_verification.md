@@ -37,6 +37,7 @@ The following checks passed on the ARM64 Mac / Docker Linux environment:
 | Isolated ROS config-snapshot transport | 1 passed, localhost-only domain 229 |
 | Console tests | 15 Node tests passed; production package and archive integrity passed |
 | Final operator/build-contract tests | 45 passed (overlaps the focused suite; not an additional total) |
+| Combined-tree control-plane regression | 400 passed, 14 skipped; includes all Foxglove tests plus gripper and main's v20 asset checks, isolated from the robot domain |
 | Real VRPN loopback | Native synthetic server -> actual `vrpn_mocap` -> HOPE relay: 20 raw and 20 normalized samples, millimetre conversion and increasing source stamps checked |
 | Schema-5 migration | Read-only check against the field document; simulated Mac selection retained venue settings, with no HDU save/apply |
 | Operator smoke check | `operator:hope`, contract 3, six package prefixes, ROS imports, writable log/calibration folders, 14-field helper preflight and authenticated HDU SSH |
@@ -44,6 +45,8 @@ The following checks passed on the ARM64 Mac / Docker Linux environment:
 
 The loopback uses standard VRPN with synthetic data; it is separate from the
 operator's live-network acceptance above. Neither establishes hardware safety.
+The broader run's skipped tests require their separate ROS/native integration
+environment; the dedicated domain-229 snapshot transport check did execute.
 
 The inherited VRPN ament lint/style suite is **not passing**: the full run
 reported 107 style/check failures and 11 skipped checks. Functional mode excludes

@@ -313,9 +313,9 @@ ssh -o BatchMode=yes -J "${ROBOT_USER}@${HDU_IP}" \
 Do not put passwords in the repository, UI, ROS messages, unit files, helper
 arguments or process environment. Install SSH public keys once instead.
 
-`tmux` must be installed on all three machines. The MDU robot account also
-needs narrow passwordless sudo only for the commands already present in STEP 4
-and STEP 6. Install with `visudo -f /etc/sudoers.d/hope-lifecycle`:
+`tmux` must be installed on all three machines. The MDU robot account needs
+passwordless sudo for the vendor service actions and the fixed scheduler helper.
+Install the service rules with `visudo -f /etc/sudoers.d/hope-lifecycle`:
 
 ```sudoers
 <robot-user> ALL=(root) NOPASSWD: /usr/bin/systemctl stop agibot_pm.service
@@ -325,6 +325,35 @@ and STEP 6. Install with `visudo -f /etc/sudoers.d/hope-lifecycle`:
 Confirm the resolved command path with `command -v systemctl` on the MDU
 before installing that file. The helper uses `sudo -n` and fails closed rather
 than prompting.
+
+The scheduler installer creates `/etc/sudoers.d/hope-elink-scheduler`, owned by
+root with mode `0440`. For the default account, its rule is:
+
+```sudoers
+agi ALL=(root) NOPASSWD: NOSETENV: /usr/local/libexec/hope_elink_scheduler.py check-privileges, /usr/local/libexec/hope_elink_scheduler.py apply --config /tmp/hope_real/*/mdu/system/hal_elink_a3_gripper.yaml
+```
+
+The helper validates the complete argument list and session path, including the
+single session-name component matched by the sudoers wildcard. The rule grants
+no Python interpreter, arbitrary script, shell, `inspect`, or `restore` command.
+Inspection and restoration remain administrator actions. Do not add a general
+`sudo python3` permission.
+
+The installer requires `sudo`, `visudo`, and `runuser`; validates the existing
+and proposed sudoers configuration; installs the helper as root-owned `0755`;
+then runs the actual privilege probe as the selected robot account and checks
+its `apply` authorization. If installation or either probe fails, it restores
+the previous lifecycle, scheduler, and dedicated sudoers file. A successful
+install prints `MDU_ELINK_SCHEDULER_INSTALLED`. Copying Python files alone is
+not a complete scheduler installation.
+
+From the configured robot account, check permissions without starting HAL:
+
+```bash
+sudo -n /usr/local/libexec/hope_elink_scheduler.py check-privileges
+sudo -n -l -- /usr/local/libexec/hope_elink_scheduler.py apply \
+  --config /tmp/hope_real/permission_probe/mdu/system/hal_elink_a3_gripper.yaml
+```
 
 ## Install the fixed helper
 
@@ -353,11 +382,17 @@ scp foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py fo
 ssh "${ROBOT_USER}@${HDU_IP}" \
   'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
 
+ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
+  'mkdir -p /tmp/hope-elink-install/a3 /tmp/hope-elink-install/helpers'
 scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py foxglove/helpers/hope_sim2real_control.py \
-  "${ROBOT_USER}@${MDU_IP}:/tmp/"
+  foxglove/helpers/hope_elink_scheduler.py \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/helpers/"
+scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
+  foxglove/a3/install_mdu_elink_scheduler.sh \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/a3/"
 ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
-  'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
+  'cd /tmp/hope-elink-install && python3 helpers/hope_elink_scheduler.py check-hardware --lifecycle helpers/hope-lifecycle && sudo install -o root -g root -m 0755 helpers/hope-lifecycle helpers/hope_sim2real_capture.py helpers/hope_sim2real_control.py /usr/local/libexec/ && sudo bash a3/install_mdu_elink_scheduler.sh --robot-user "$(id -un)"'
 ```
 
 The MDU active package also needs the logging-enabled Runner,
@@ -498,6 +533,161 @@ If any cleanup step fails, the supervisor continues the remaining cleanup and
 finishes in `FAILED` with the failed step in `last_result`. The vendor E-stop
 remains a separate assert-only path and is never used by lifecycle startup or
 kill/collection.
+
+## Independent PD Stand transition
+
+Runner's `--pd-stand-blend-sec` defaults to **5.0 seconds**, independently of
+the existing motion/policy entry blend. From PASSIVE, the transition starts
+from measured joint position/velocity and zero gains, then blends to the
+standing target and Kp/Kd using the existing quintic transition. Entry velocity
+decays over 0.25 seconds. This changes the command transition, not the standing
+target or policy, and is not proof of a safe physical stand on another robot.
+
+Planner's `target_turn_max_pose_age_s: 0.2` receive-age and source-age checks
+remain enabled. The earlier experiment removing them was reverted; it is not
+part of this runtime change. Historical deployment evidence and its limitations
+are preserved in [the 2026-10-18 runtime field notes](runtime_field_notes_20261018.md).
+
+## ELink transport scheduling
+
+The audited A3_T3D0 vendor ELink library creates three transport threads (main
+loop, UDP send, UDP receive) outside the named AimRT executors. Changing only
+`hand_control_worker` does not prioritize those threads. On this deployment,
+`hope_elink_scheduler.py` places only the three transport threads on CPU 1 with
+`SCHED_RR` priorities 24 (receive), 23 (main), and 20 (send). Receive/main must
+preempt the sender: equal priorities retained millisecond waits during sender
+CPU bursts. Runner, EtherCAT, the hand command cycle, and the serial bridge
+retain their existing settings. CPU 7 was also trialed but retained waits.
+
+Run `foxglove/a3/install_mdu_elink_scheduler.sh` as root on the MDU, keeping
+its sibling `../helpers/hope_elink_scheduler.py` in the copied package. Pass
+`--robot-user <account>` for the account used by the HDU's MDU SSH connection
+(default `agi`, matching `HOPE_ROBOT_USER`). The installer backs up and patches
+the installed lifecycle helper and installs the dedicated sudo rule described
+below without restarting robot services. Managed START applies and verifies this policy after ELink
+readiness and before EtherCAT/Runner startup; failure stops START admission.
+The installer and lifecycle use the scheduler's read-only `check-hardware`
+command to verify the same `A3_T3D0_ELINK_HAND_V2` profile. Installation rejects
+an incompatible installed lifecycle before changing any files. PREFLIGHT and
+START repeat the check before stopping `agibot_pm`, so a vendor update is caught
+before the robot changes process ownership. They also execute the helper's
+read-only `check-privileges` action through noninteractive sudo and query the
+exact session's `apply` permission. Missing sudo setup fails early with
+`ELINK_SCHEDULER_SUDO_NOT_READY` or `ELINK_SCHEDULER_APPLY_NOT_PERMITTED`.
+The supported paths are:
+
+| Component | Audited profile value |
+| --- | --- |
+| Robot model (`/agibot/data/info/model`) | `A3_T3D0` |
+| ELink factory configuration | `/opt/agibot/config/hal_elink/hal_elink_a3_cfg.yaml` |
+| EtherCAT configuration | `/opt/agibot/config/hal_ethercat/hal_ethercat_a3_t3d0_cfg.yaml` |
+| `/opt/agibot/bin/libhal_elink_pkg.so` SHA-256 | `f83690f1c8a3d7e1f50a7c38bd5ed2ccc01543274b680d548af38f7f154225af` |
+| `/opt/agibot/bin/aimrt_main` SHA-256 | `9ab4c3fa441b4c13fac543b8778cd650a5e1751cad26fda1f4a918912e113ad6` |
+
+These hashes match the T3 deployment's existing HAL-clock audit manifest; this
+fix does not authorize another vendor build. The earlier `A3_P1D0` scheduler
+restriction was inconsistent with this lifecycle. P1/Ultra remains unsupported
+by the combined startup path. The separate legacy
+`install_mdu_elink_gripper_backend.sh` targets P1/Ultra and is not a prerequisite
+for this T3 lifecycle, which renders a session-owned ELink configuration.
+
+The scheduler also checks the exact executable and mapped ELink library hashes, managed
+session path, process/thread start times, and the audited three-thread layout.
+An unknown vendor build requires a new audit, not removal of these checks.
+
+To check the installed pair without root or starting any process:
+
+```bash
+python3 /usr/local/libexec/hope_elink_scheduler.py check-hardware \
+  --lifecycle /usr/local/libexec/hope-lifecycle
+```
+
+For an existing session, the root-only helper accepts `inspect`, `apply`,
+`verify`, and `restore`, each with
+`--config /tmp/hope_real/<session>/mdu/system/hal_elink_a3_gripper.yaml`.
+Execute `/usr/local/libexec/hope_elink_scheduler.py` directly; its fixed
+`/usr/bin/python3 -I` shebang runs isolated from user Python paths and startup
+modules. Privileged actions check that the helper and all parent directories are
+root-owned and have no group/other write permissions.
+Apply needs no process restart and publishes no robot commands. The first
+pre-change settings are retained in `/var/lib/hope/elink-scheduler/`; repeated
+apply preserves that rollback receipt. Restore affects the same process/thread
+instance only. To disable persistence as well, restore the lifecycle helper from
+the installer backup under `/var/backups/hope-elink-scheduler-*` after reconciling
+any subsequent changes.
+
+During `apply` or `restore`, catchable termination (`SIGINT`, `SIGTERM`,
+`SIGHUP`) is deferred to cancellation checkpoints. Cancellation before the final
+verified commit rolls touched threads back to their pre-call settings, keeps
+cleanup protected from repeated signals, and exits unsuccessfully. An ordinary
+error or `KeyboardInterrupt` also attempts rollback; a failed rollback is
+reported, never treated as success. A late cancellation after the verified
+commit may report failure with all requested settings already applied.
+
+`SIGKILL`, process crashes and power loss cannot be handled in-process. If the
+same ELink process survives with a partial scheduling change, an administrator
+can use the existing explicit `restore` action. It requires the matching
+root-owned, non-writable-by-others original receipt, exact process/thread start
+times, audited binaries and hardware. In addition to normal factory/target
+settings, **only restore** admits the known intermediate state: `SCHED_OTHER`,
+priority 0, CPU `[1]`. Unknown policies, priorities or CPU sets, missing/corrupt
+receipts and replaced processes remain rejected. Do not delete or recreate a
+receipt to bypass these checks. `apply`, `verify` and normal START remain strict;
+they do not silently repair partial settings. A failed START does not itself
+guarantee ELink teardown; use the attended managed recovery procedure if explicit
+restoration is unavailable. No recovery action sends gripper or joint commands.
+
+Scheduling readback and passive transport timings do not measure finger motion
+or ball release. Physical serve repeatability must be tested separately.
+
+## Field v20 serve asset
+
+The operator reported successful ball contact with
+`a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_edge_center_v20.csv`
+on 2026-10-18. Its adjacent manifest records the exact asset hash, field runtime
+requirements, simulation results and remaining limits. This report establishes
+successful contact, not a measured success rate or consistently legal serves.
+
+The CSV preserves v19's left arm, body/leg channels, Prepare target, event
+sequence and recovery from frame 160. Only right-arm position/derivative columns
+in frames 63–159 change. Two measured-response models were used to move the
+strike-window racket center toward a 40 mm higher target while retaining its
+normal. Smooth admission at frames 64–71 avoids the backswing proximity of an
+earlier discarded candidate. The 40 mm value is an optimization target, not an
+independently measured robot displacement.
+
+This is a selectable field asset, not a default-motion replacement. Upload it
+through the field CSV interface only while the lifecycle is stopped and idle.
+Keep the previous selected asset/hash for rollback. Use managed START and verify
+the loaded CSV hash and `START_COMPLETE_RUNNER_PASSIVE` before operator motion.
+The recorded deployment used 468 frames at 100 Hz, handoff frame 467, and
+`serve_release_lead_frames: 3`: the CSV RELEASE event remains at frame 48 and the
+command is sent at frame 45. Do not shift the CSV event as well.
+
+The successful field deployment used a separate existing Runner build, the
+`new_20261015` gripper profile (grab/release positions 850/1500, force 1, velocity
+100), and its previously tested Prepare transition. Exact Runner/config hashes
+are in the manifest. Those field runtime/profile changes are not introduced by
+this asset addition; a stock main build does not reproduce the full tested
+setup merely by selecting v20. Preserve the field runtime when using this
+asset; treat a different runtime or gripper as a new validation configuration.
+The asset is selected by upload, so the packaged v14 default remains unchanged.
+
+Offline validation used five measured v19 joint-response cycles (first three
+for selection, last two held out). In 315 position/delay cases per response
+model at assumed 60–120 ms detachment delay, contacts increased from 295 to 315;
+legal bounce sequences increased from 236 to 264 (lag/gain) or 255 (FIR).
+Native-controller floating-base MuJoCo cases at 60/80/100/110/120 ms all produced
+the legal bounce sequence without simulated falls. These are conditional
+simulation results, not field success rates. Wider 0–180 ms sweeps introduced
+misses at 10–50 ms. Actual physical detachment latency is not identified; the
+rigid gripper CAD, ball release position and contact materials remain model
+assumptions. Keep these limitations when comparing future field results.
+
+The deployment receipt recorded session `model21800_20261018T125856Z`, successful
+managed PASSIVE startup, exact loaded asset hash, ELink scheduling readback, and
+499.8–501.0 Hz with no additional halts over 30 seconds. Foxglove commands then
+changed the mode to SERVE, so the observation is not a sustained-PASSIVE test.
 
 ## Verification boundary
 
