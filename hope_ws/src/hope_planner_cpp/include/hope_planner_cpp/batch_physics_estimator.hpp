@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hope_planner_cpp/types.hpp"
+#include "hope_planner_cpp/trusted_spin.hpp"
 
 #include <Eigen/Core>
 
@@ -26,6 +27,8 @@ class BatchPhysicsEstimator {
   void push(const BallSample& sample) noexcept;
   BallState estimate() noexcept;
 
+  const EffectiveSpin& spin_checkpoint() const { return trusted_spin_.value(); }
+  void restore_spin_checkpoint(const EffectiveSpin& s) { trusted_spin_.restore(s); }
   std::size_t sample_count() const noexcept { return sample_count_; }
   double sample_span_s() const noexcept;
   bool bounce_detected() const noexcept { return bounce_detected_; }
@@ -52,6 +55,10 @@ class BatchPhysicsEstimator {
   BallPhysics physics_;
   EstimatorConfig config_;
   SpinEstimatorConfig spin_config_;
+  TrustedSpin trusted_spin_;
+  struct SegmentContact { double time_s; std::int64_t time_ns; std::uint64_t id; };
+  std::vector<SegmentContact> contacts_;
+  std::array<EffectiveSpin, kMaxEstimatorSamples> spin_at_sample_{};
   SpinEstimate pre_spin_;
   SpinEstimate post_spin_;
   std::array<BallSample, kMaxEstimatorSamples> samples_{};

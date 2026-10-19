@@ -9,6 +9,7 @@ using Matrix7 = Eigen::Matrix<double,7,7>;
 enum class LinearizationQuality { Valid, Unavailable, BranchSensitive, IllConditioned };
 const char *quality_name(LinearizationQuality);
 struct ForecastWaypoint {
+  EffectiveSpin spin;
   ForecastCovarianceBudget<6> covariance_budget;
   double dt_s=0.;
   bool physical_continuation=true;
@@ -17,6 +18,7 @@ struct ForecastWaypoint {
   LinearizationQuality quality=LinearizationQuality::Unavailable;
 };
 struct ForecastPhysicsEvent {
+  EffectiveSpin pre_spin,post_spin;
   ForecastCovarianceBudget<7> covariance_budget;
   std::string kind;
   double dt_s=0.;
@@ -35,12 +37,12 @@ struct NominalBallForecast {
   std::string termination_reason="uninitialized";
   std::string uncertainty_provenance="local_linearization_v1;frozen_ckf_noise;uncalibrated;clock_and_plane_unavailable";
 };
-Matrix6 free_flight_jacobian(const State6 &, double, const BallPhysics &);
+Matrix6 free_flight_jacobian(const State6 &, double, const BallPhysics &, const EffectiveSpin& spin = {});
 Matrix6 physical_step_jacobian(const State6 &, double, const ProbabilisticConfig &,
                               bool &branch_changed);
 Matrix6 bounce_saltation(const State6 &pre, const ProbabilisticConfig &);
 Matrix7 spatial_event_covariance(const State6 &, const Matrix6 &, int axis,
-                                 const BallPhysics &);
+                                 const BallPhysics &, const EffectiveSpin& spin = {});
 NominalBallForecast forecast_nominal(const StateBelief &, const ProbabilisticConfig &);
 NominalBallForecast forecast_nominal(const StateBelief &, const ProbabilisticConfig &, const ForecastNoiseConfig &);
 } // namespace hope_planner_cpp

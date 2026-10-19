@@ -18,6 +18,7 @@ const char *name(PlannerBallState);
 
 struct ProbabilisticConfig {
   BallPhysics physics;
+  EffectiveSpin effective_spin;
   TableParams table;
   Vec3 measurement_std_m{.003, .003, .003};
   Vec3 measurement_bias_std_m = Vec3::Zero();
@@ -53,6 +54,7 @@ struct ProbabilisticConfig {
 };
 
 struct StateBelief {
+  EffectiveSpin effective_spin;
   std::int64_t source_time_origin_ns = 0;
   std::int64_t source_time_ns = 0, last_measurement_time_ns = 0;
   std::int64_t receipt_steady_ns = 0, receipt_wall_ns = 0;

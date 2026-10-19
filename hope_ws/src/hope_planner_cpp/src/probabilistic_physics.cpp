@@ -1,5 +1,6 @@
 #include "hope_planner_cpp/probabilistic_physics.hpp"
 #include <Eigen/Eigenvalues>
+#include "hope_planner_cpp/common_ball_physics.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -34,6 +35,7 @@ const char *name(PlannerBallState s) {
   return "OUTGOING";
 }
 void ProbabilisticConfig::validate() const {
+  validate_ball_physics(physics);
   const double values[]{
       integration_dt_s,        trajectory_dt_s,   horizon_s,
       max_tracking_gap_s,      gap_warning_s,     clock_reset_backstep_s,
@@ -63,13 +65,14 @@ void ProbabilisticConfig::validate() const {
       !std::isfinite(physics.drag_k) || physics.drag_k < 0 ||
       !physics.gravity.allFinite() || !std::isfinite(physics.radius) ||
       physics.radius <= 0 || !std::isfinite(physics.restitution_v) ||
-      physics.restitution_v < 0 || physics.restitution_v > 1.5 ||
+      physics.restitution_v < 0 || physics.restitution_v > 1.0 ||
       !std::isfinite(physics.table_tangential_gain) ||
-      physics.table_tangential_gain < 0 || physics.table_tangential_gain > 1 ||
+      physics.table_tangential_gain < 0 || physics.table_tangential_gain > .4 ||
       !std::isfinite(physics.table_friction_cap_mu) ||
       physics.table_friction_cap_mu < 0 || !std::isfinite(table.length) ||
       table.length <= 0 || !std::isfinite(table.width) || table.width <= 0 ||
-      !std::isfinite(table.y_max))
+      !std::isfinite(table.y_max) || !std::isfinite(table.net_x) || table.net_x<=0 || table.net_x>=table.length ||
+      !std::isfinite(table.net_height) || table.net_height<=0 || !std::isfinite(table.net_overhang) || table.net_overhang<0)
     throw std::invalid_argument("invalid probabilistic parameters");
 }
 Matrix6 positive_covariance(const Matrix6 &p) {
@@ -79,41 +82,19 @@ Matrix6 positive_covariance(const Matrix6 &p) {
   return eig.eigenvectors() * eig.eigenvalues().cwiseMax(1e-12).asDiagonal() *
          eig.eigenvectors().transpose();
 }
-State6 free_flight(const State6 &s, double dt, const BallPhysics &p) {
-  const Vec3 v = s.tail<3>();
-  const Vec3 a = p.gravity - p.drag_k * v.norm() * v;
-  const Vec3 vm = v + .5 * dt * a;
-  State6 next;
-  next.head<3>() = s.head<3>() + dt * vm;
-  next.tail<3>() = v + dt * (p.gravity - p.drag_k * vm.norm() * vm);
-  return next;
+State6 free_flight(const State6& state,double dt,const BallPhysics& p,const EffectiveSpin& spin) {
+  ModelState s;s.position=state.head<3>();s.velocity=state.tail<3>();s.spin=spin;integrate_ball(s,dt,p);
+  State6 next;next<<s.position,s.velocity;return next;
 }
-ContactStep physical_step(State6 &s, double dt, const ProbabilisticConfig &c) {
-  ContactStep event;
-  State6 next = free_flight(s, dt, c.physics);
-  const double z = c.physics.radius;
-  if (s[5] < 0 && next[2] <= z && s[2] >= 0.) {
-    const double denom = s[2] - next[2];
-    const double f =
-        denom > 1e-12 ? std::clamp((s[2] - z) / denom, 0., 1.) : 0.;
-    State6 hit = free_flight(s, f * dt, c.physics);
-    if (hit[0] >= 0 && hit[0] <= c.table.length && hit[1] <= c.table.y_max &&
-        hit[1] >= c.table.y_max - c.table.width) {
-      hit[2] = z;
-      const double speed = hit.segment<2>(3).norm();
-      const double impulse =
-          std::min(c.physics.table_tangential_gain * speed,
-                   c.physics.table_friction_cap_mu *
-                       (1 + c.physics.restitution_v) * std::abs(hit[5]));
-      if (speed > 1e-12)
-        hit.segment<2>(3) *= (1 - impulse / speed);
-      hit[5] *= -c.physics.restitution_v;
-      event = {true, f, hit};
-      next = free_flight(hit, (1 - f) * dt, c.physics);
-    }
+ContactStep physical_step(State6& state,double dt,const ProbabilisticConfig& c) {
+  ModelState s;s.position=state.head<3>();s.velocity=state.tail<3>();s.spin=c.effective_spin;
+  EventGeometry g;g.table=c.table;g.record_end=false;g.record_apex=false;
+  // Filtering uses the same contact kernel; a collision is not a fabricated rebound.
+  const auto step=advance_ball(s,dt,c.physics,g);ContactStep out;
+  for(const auto& e:step.events)if(e.kind==PhysicalEventKind::TABLE) {
+    out.bounced=true;out.fraction=dt>0?e.dt_s/dt:0;out.contact<<e.post.position,e.post.velocity;break;
   }
-  s = next;
-  return event;
+  out.post_spin=s.spin;state<<s.position,s.velocity;return out;
 }
 Matrix6 process_covariance(double dt, double q) {
   Matrix6 p = Matrix6::Zero();

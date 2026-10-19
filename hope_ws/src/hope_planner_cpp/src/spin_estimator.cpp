@@ -35,6 +35,7 @@ void SpinEstimator::reset() noexcept {
   previous_orientation_ = Eigen::Quaterniond::Identity();
   previous_time_s_ = 0.0;
   have_previous_ = false;
+  last_increment_retained_ = false;
 }
 
 void SpinEstimator::append(const Increment& increment) noexcept {
@@ -64,6 +65,7 @@ void SpinEstimator::trim(double now_s) noexcept {
 
 void SpinEstimator::push(const BallSample& sample) noexcept {
   try {
+    last_increment_retained_=false;
     if (!sample.orientation_valid || !std::isfinite(sample.source_time_s) ||
         !sample.orientation.coeffs().allFinite() ||
         sample.orientation.norm() < 1.0e-9) {
@@ -81,7 +83,7 @@ void SpinEstimator::push(const BallSample& sample) noexcept {
       return;
     }
     const double dt = sample.source_time_s - previous_time_s_;
-    if (dt > config_.max_gap_s) {
+    if (dt > config_.max_gap_s || dt * config_.max_rev_s >= .5) {
       increment_count_ = 0;
       previous_orientation_ = orientation;
       previous_time_s_ = sample.source_time_s;
@@ -105,6 +107,7 @@ void SpinEstimator::push(const BallSample& sample) noexcept {
     const double rate_rev_s = rotation_vector.norm() / (dt * kTwoPi);
     const bool retained = std::isfinite(rate_rev_s) &&
                           rate_rev_s <= config_.max_rev_s;
+    last_increment_retained_=retained;
     append(Increment{sample.source_time_s, dt, rotation_vector, retained});
     trim(sample.source_time_s);
     // Always adopt the new reference.  A fixed marker-permutation offset then

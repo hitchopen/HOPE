@@ -68,9 +68,9 @@ struct Arguments {
   int estimator_iterations = 3;
   bool adaptive_horizon = false;
   double max_predict_time_cap_s = 3.0;
-  double drag_k = 0.119006;
-  double restitution_h = 0.651740;
-  double restitution_v = 0.916598;
+  double drag_k = BallPhysics{}.drag_k;
+  double restitution_h = BallPhysics{}.restitution_h;
+  double restitution_v = BallPhysics{}.restitution_v;
   double bounce_min_reversal_m = 0.00005;
   double bounce_min_excursion_m = 0.001;
   int bounce_confirmation_samples = 5;
@@ -85,10 +85,10 @@ struct Arguments {
   double spin_max_gap_s = 0.05;
   double spin_max_rev_s = 20.0;
   double spin_huber_delta_rev_s = 2.0;
-  double magnus_k = 0.00327844;
+  double magnus_k = BallPhysics{}.magnus_k;
   double nakashima_friction_mu = 0.25;
-  double table_tangential_gain = 0.369;
-  double table_friction_cap_mu = 2.0;
+  double table_tangential_gain = BallPhysics{}.table_tangential_gain;
+  double table_friction_cap_mu = BallPhysics{}.table_friction_cap_mu;
 };
 
 SpinPhysicsMode parse_spin_mode(const std::string& value) {
@@ -533,7 +533,7 @@ int main(int argc, char** argv) {
           column.find("qy") != column.end() &&
           column.find("qz") != column.end() &&
           column.find("qw") != column.end();
-      bool orientation_declared_valid = true;
+      bool orientation_declared_valid = false; // CSV without authoritative status is position-only.
       const auto status_column = column.find("orientation_status");
       if (status_column != column.end()) {
         orientation_declared_valid = row[status_column->second] == "valid";
@@ -543,6 +543,7 @@ int main(int argc, char** argv) {
           row[sanitized_column->second] == "1") {
         orientation_declared_valid = false;
       }
+      sample.orientation_authoritative=orientation_declared_valid;
       if (have_quaternion_columns && orientation_declared_valid) {
         sample.orientation = Eigen::Quaterniond(
             number(row, column.at("qw")), number(row, column.at("qx")),

@@ -21,7 +21,8 @@ bool finite_vec(const Vec3& value) noexcept {
 BatchPhysicsEstimator::BatchPhysicsEstimator(
     BallPhysics physics, EstimatorConfig config, SpinEstimatorConfig spin_config)
     : physics_(std::move(physics)), config_(std::move(config)),
-      spin_config_(std::move(spin_config)) {
+      spin_config_(std::move(spin_config)), trusted_spin_(spin_config_, config_.spin_min_coherence) {
+  validate_ball_physics(physics_);
   if (!std::isfinite(config_.spin_min_coherence) ||
       config_.spin_min_coherence < 0.0 || config_.spin_min_coherence > 1.0)
     throw std::invalid_argument("invalid estimator spin coherence");
@@ -57,10 +58,13 @@ BatchPhysicsEstimator::BatchPhysicsEstimator(
 
 void BatchPhysicsEstimator::reset() noexcept {
   sample_count_ = 0;
+  trusted_spin_.reset();
+  contacts_.clear();
   begin_flight();
 }
 
 void BatchPhysicsEstimator::begin_flight() noexcept {
+  contacts_.clear();
   bounce_index_ = kNoBounceIndex;
   last_bounce_source_time_s_ = -std::numeric_limits<double>::infinity();
   bounce_detected_ = false;
@@ -87,6 +91,7 @@ double BatchPhysicsEstimator::sample_span_s() const noexcept {
 void BatchPhysicsEstimator::append(const BallSample& sample) noexcept {
   if (sample_count_ == kMaxEstimatorSamples) {
     std::move(samples_.begin() + 1, samples_.end(), samples_.begin());
+    std::move(spin_at_sample_.begin()+1,spin_at_sample_.end(),spin_at_sample_.begin());
     --sample_count_;
     if (bounce_index_ == 0) {
       bounce_index_ = kNoBounceIndex;
@@ -94,6 +99,7 @@ void BatchPhysicsEstimator::append(const BallSample& sample) noexcept {
       --bounce_index_;
     }
   }
+  spin_at_sample_[sample_count_] = config_.spin_enabled ? trusted_spin_.observe(sample) : EffectiveSpin{};
   samples_[sample_count_++] = sample;
 }
 
@@ -105,6 +111,7 @@ void BatchPhysicsEstimator::drop_prefix(std::size_t count) noexcept {
   std::move(samples_.begin() + static_cast<std::ptrdiff_t>(count),
             samples_.begin() + static_cast<std::ptrdiff_t>(sample_count_),
             samples_.begin());
+  std::move(spin_at_sample_.begin()+count,spin_at_sample_.begin()+sample_count_,spin_at_sample_.begin());
   sample_count_ -= count;
   if (bounce_index_ < count) {
     if (flight_bounce_seen_) {
@@ -146,9 +153,8 @@ void BatchPhysicsEstimator::push(const BallSample& sample) noexcept {
 
   if (sample_count_ > 0 &&
       sample.source_time_s <= samples_[sample_count_ - 1].source_time_s) {
-    // A non-increasing source clock cannot define derivatives.  This is a
-    // source-epoch boundary, not a gap-duration restart.
-    reset();
+    // Duplicate/reordered transport is rejected, not a physical shot boundary.
+    return;
   }
 
   append(sample);
@@ -158,7 +164,7 @@ void BatchPhysicsEstimator::push(const BallSample& sample) noexcept {
   // A legal incoming flight contains at most one table contact on the robot
   // side. Keep that contact epoch for the whole flight instead of allowing a
   // later noisy local minimum to switch the model a second time.
-  if (!flight_bounce_seen_ && sample_count_ >= confirmation + 2) {
+  if (sample_count_ >= confirmation + 2) {
     const std::size_t maximum_post_samples = std::min(
         confirmation, sample_count_ - 1 - confirmation);
     std::size_t confirmed_post_samples = 0;
@@ -207,17 +213,25 @@ void BatchPhysicsEstimator::push(const BallSample& sample) noexcept {
       }
     }
     if (confirmed_post_samples > 0) {
-      // Keep the complete causal pre-contact window. A second contact cannot
-      // share one six-state fit with the first, so retain only the flight that
-      // starts immediately after the previous contact before marking the new
-      // split. A normal 360 Hz stream uses five post samples; after a source
-      // gap, elapsed time plus a large rise can confirm the same V shape with
-      // fewer retained samples. No post-contact warm-up/reset is introduced.
-      if (bounce_index_ != kNoBounceIndex) {
-        drop_prefix(bounce_index_ + 1);
-      }
-      // drop_prefix above can shift the just-confirmed center index.
       bounce_index_ = sample_count_ - 1 - confirmed_post_samples;
+      const auto& center=samples_[bounce_index_];
+      const auto id=contacts_.empty()?1:contacts_.back().id+1;
+      if(contacts_.size()<64)contacts_.push_back({center.source_time_s,center.source_time_ns,id});
+      else return; // bounded physical-shot ledger
+      if(config_.spin_enabled && bounce_index_>0) {
+        const auto& before=samples_[bounce_index_-1];
+        const double dt=center.source_time_s-before.source_time_s;
+        Vec3 velocity=(center.position-before.position)/dt;
+        trusted_spin_.contact(id,center.source_time_ns,velocity,physics_);
+        // Repair only held lineage after this now-confirmed contact; newer measurements stand.
+        for(std::size_t j=bounce_index_+1;j<sample_count_;++j) {
+          auto& spin=spin_at_sample_[j];
+          if(spin.usable() && spin.measurement_time_ns<=center.source_time_ns && spin.last_contact_id<id) {
+            ModelState model;model.velocity=velocity;model.spin=spin;apply_model_contact(model,physics_);
+            spin=model.spin;spin.last_contact_id=id;
+          }
+        }
+      }
       last_bounce_source_time_s_ = samples_[bounce_index_].source_time_s;
       bounce_detected_ = true;
       flight_bounce_seen_ = true;
@@ -227,9 +241,11 @@ void BatchPhysicsEstimator::push(const BallSample& sample) noexcept {
 }
 
 bool BatchPhysicsEstimator::initial_state(State6& state) const noexcept {
-  const std::size_t fit_count = bounce_transition_active()
-      ? bounce_index_ + 1
-      : sample_count_;
+  std::size_t fit_count=sample_count_;
+  for(const auto& c:contacts_) if(sample_count_ && c.time_s>=samples_[0].source_time_s) {
+    fit_count=0;while(fit_count<sample_count_ && samples_[fit_count].source_time_s<=c.time_s+1e-12)++fit_count;
+    break;
+  }
   if (fit_count < 3) {
     return false;
   }
@@ -304,85 +320,46 @@ bool BatchPhysicsEstimator::initial_state(State6& state) const noexcept {
 }
 
 void BatchPhysicsEstimator::prepare_spin() noexcept {
-  pre_spin_ = {}; post_spin_ = {};
-  if (!config_.spin_enabled) return;
-  SpinEstimator pre(spin_config_), post(spin_config_);
-  const bool split = bounce_transition_active();
-  const double contact = split ? samples_[bounce_index_].source_time_s : 0.0;
-  for (std::size_t i = 0; i < sample_count_; ++i) {
-    if (!split || samples_[i].source_time_s < contact - config_.post_bounce_exclusion_s)
-      pre.push(samples_[i]);
-    if (split && samples_[i].source_time_s > contact + config_.post_bounce_exclusion_s)
-      post.push(samples_[i]);
-  }
-  pre_spin_ = pre.estimate(); post_spin_ = post.estimate();
-  for (auto* spin : {&pre_spin_, &post_spin_}) {
-    if (!spin->valid || spin->coherence < config_.spin_min_coherence) {
-      spin->valid = false;
-      spin->omega_rad_s.setZero();
-    }
+  pre_spin_={};post_spin_={};
+  if(sample_count_ && config_.spin_enabled) {
+    pre_spin_.effective=spin_at_sample_[0];
+    if(pre_spin_.effective.usable()) {pre_spin_.omega_rad_s=*pre_spin_.effective.omega;pre_spin_.valid=true;pre_spin_.coherence=1;}
   }
 }
-
-bool BatchPhysicsEstimator::propagate(State6& state, double duration_s,
-                                      const Vec3& omega) const noexcept {
-  if (!state.allFinite() || !std::isfinite(duration_s) || duration_s < 0.0) {
-    return false;
-  }
-  Vec3 p = state.head<3>();
-  Vec3 v = state.tail<3>();
-  double remaining = duration_s;
-  while (remaining > 1.0e-12) {
-    const double h = std::min(config_.integration_dt_s, remaining);
-    const Vec3 acceleration = ball_acceleration(physics_, v, omega);
-    p += v * h + 0.5 * acceleration * h * h;
-    v += acceleration * h;
-    remaining -= h;
-    if (!finite_vec(p) || !finite_vec(v)) {
-      return false;
-    }
-  }
-  state.head<3>() = p;
-  state.tail<3>() = v;
-  return true;
+bool BatchPhysicsEstimator::propagate(State6& state,double duration,const Vec3& omega) const noexcept {
+  ModelState model;model.position=state.head<3>();model.velocity=state.tail<3>();
+  if(omega.allFinite() && omega.squaredNorm()>0)model.spin.omega=omega;
+  for(double t=0;t<duration-1e-12;) {const double h=std::min(config_.integration_dt_s,duration-t);integrate_ball(model,h,physics_);t+=h;}
+  state.head<3>()=model.position;state.tail<3>()=model.velocity;return state.allFinite();
 }
-
-bool BatchPhysicsEstimator::apply_table_bounce(State6& state, Vec3& omega) const noexcept {
-  if (!state.allFinite()) {
-    return false;
-  }
-  Vec3 velocity = state.tail<3>();
-  table_contact(physics_, velocity, omega);
-  state.tail<3>() = velocity;
-  return state.allFinite();
+bool BatchPhysicsEstimator::apply_table_bounce(State6& state,Vec3& omega) const noexcept {
+  ModelState model;model.velocity=state.tail<3>();if(omega.squaredNorm()>0)model.spin.omega=omega;
+  apply_model_contact(model,physics_);state.tail<3>()=model.velocity;
+  omega=model.spin.usable()?*model.spin.omega:Vec3::Zero();return state.allFinite();
 }
-
-bool BatchPhysicsEstimator::simulate_positions(
-    const State6& initial,
-    std::array<Vec3, kMaxEstimatorSamples>& positions,
-    State6* latest_state, Vec3* latest_spin) const noexcept {
-  State6 state = initial;
-  Vec3 omega = pre_spin_.omega_rad_s;
-  positions[0] = state.head<3>();
-  double current_t = samples_[0].source_time_s;
-  for (std::size_t i = 1; i < sample_count_; ++i) {
-    if (bounce_transition_active() && i == bounce_index_ + 1) {
-      if (!apply_table_bounce(state, omega)) return false;
-      if (post_spin_.valid) omega = post_spin_.omega_rad_s;
-      if (!config_.spin_enabled) omega.setZero();
+bool BatchPhysicsEstimator::simulate_positions(const State6& initial,
+    std::array<Vec3,kMaxEstimatorSamples>& positions,State6* latest,Vec3* latest_spin) const noexcept {
+  if(!sample_count_)return false;
+  ModelState model;model.position=initial.head<3>();model.velocity=initial.tail<3>();model.spin=spin_at_sample_[0];
+  positions[0]=model.position;
+  auto advance=[&](double duration) {
+    for(double t=0;t<duration-1e-12;) {const double h=std::min(config_.integration_dt_s,duration-t);integrate_ball(model,h,physics_);t+=h;}
+  };
+  for(std::size_t i=1;i<sample_count_;++i) {
+    double t=samples_[i-1].source_time_s;
+    for(const auto& c:contacts_) if(c.time_s>=t-1e-12 && c.time_s<samples_[i].source_time_s-1e-12 &&
+        (c.time_s>samples_[i-1].source_time_s+1e-12 || i==1 || c.time_s==samples_[i-1].source_time_s)) {
+      advance(std::max(0.,c.time_s-t));apply_model_contact(model,physics_);model.spin.last_contact_id=c.id;t=c.time_s;
     }
-    const double duration = samples_[i].source_time_s - current_t;
-    if (!propagate(state, duration, omega)) {
-      return false;
-    }
-    positions[i] = state.head<3>();
-    current_t = samples_[i].source_time_s;
+    advance(samples_[i].source_time_s-t);
+    positions[i]=model.position;
+    // A later measurement affects only intervals starting at its source time.
+    const auto& measured=spin_at_sample_[i];
+    if(measured.usable() && measured.mode==EffectiveSpinMode::MEASURED)model.spin=measured;
   }
-  if (latest_state != nullptr) {
-    *latest_state = state;
-  }
-  if (latest_spin != nullptr) *latest_spin = omega;
-  return true;
+  if(latest){latest->head<3>()=model.position;latest->tail<3>()=model.velocity;}
+  if(latest_spin)*latest_spin=model.spin.usable()?*model.spin.omega:Vec3::Zero();
+  return model.position.allFinite() && model.velocity.allFinite();
 }
 
 BallState BatchPhysicsEstimator::estimate() noexcept {
@@ -400,6 +377,7 @@ BallState BatchPhysicsEstimator::estimate() noexcept {
       post_config.min_span_s = config_.post_bounce_min_span_s;
       post_config.post_bounce_min_span_s = 0.0;  // no recursive contact fit
       BatchPhysicsEstimator post(physics_, post_config, spin_config_);
+      post.restore_spin_checkpoint(trusted_spin_.value());
       for (std::size_t i = first; i < sample_count_; ++i) post.push(samples_[i]);
       BallState measured = post.estimate();
       if (measured.valid && !measured.bounce_epoch_active) {
@@ -521,7 +499,11 @@ BallState BatchPhysicsEstimator::estimate() noexcept {
   output.position = latest.head<3>();
   output.velocity = latest.tail<3>();
   output.physics_spin = bounce_transition_active() && post_spin_.valid ? post_spin_ : pre_spin_;
+  output.physics_spin.effective=trusted_spin_.value();
+  output.physics_spin.valid=output.physics_spin.effective.usable();
+  output.physics_spin.coherence=output.physics_spin.valid?1:0;
   output.physics_spin.omega_rad_s = latest_spin;
+  if(output.physics_spin.effective.usable())output.physics_spin.effective.omega=latest_spin;
   if (bounce_transition_active() && !post_spin_.valid && pre_spin_.valid)
     output.physics_spin.reason = "spin_propagated_through_observed_contact";
   output.source_time_s = samples_[sample_count_ - 1].source_time_s;

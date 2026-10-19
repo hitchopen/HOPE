@@ -123,6 +123,7 @@ std::string return_region_config_identity(const ProbabilisticConfig &c,
     << frame.size() << ':' << frame << ';' << std::hexfloat;
   auto v = [&](const char *key, double x) { o << key << "=f64:" << x << ';'; };
   v("drag", c.physics.drag_k);
+  v("magnus", c.physics.magnus_k);
   v("restitution_h", c.physics.restitution_h);
   v("restitution_v", c.physics.restitution_v);
   v("grip", c.physics.table_tangential_gain);
@@ -175,9 +176,9 @@ std::string return_region_config_identity(const ProbabilisticConfig &c,
 std::string physics_fingerprint(const ProbabilisticConfig &c) {
   std::ostringstream o;
   o.imbue(std::locale::classic());
-  o << "physical_step-v1:" << std::hexfloat;
+  o << "thin_shell_rk4_v2:" << std::hexfloat;
   for (double v : {c.physics.gravity[0], c.physics.gravity[1], c.physics.gravity[2],
-       c.physics.drag_k, c.physics.radius, c.physics.restitution_v,
+       c.physics.drag_k, c.physics.magnus_k, c.physics.radius, c.physics.restitution_v,
        c.physics.table_tangential_gain, c.physics.table_friction_cap_mu,
        c.table.length, c.table.width, c.table.y_max, c.integration_dt_s,
        c.trajectory_dt_s, c.horizon_s, c.x_hit, c.acceleration_spectral_density,

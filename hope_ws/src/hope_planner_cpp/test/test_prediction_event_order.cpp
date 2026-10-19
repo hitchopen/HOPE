@@ -22,7 +22,7 @@ BallState incoming(SpinPhysicsMode mode) {
   state.valid = true;
   state.source_time_s = 12.0;
   // Contact occurs 0.75 ms into a 1 ms integration step.
-  const double contact_z = mode == SpinPhysicsMode::kLegacyNoSpin ? 0.0 : 0.02;
+  const double contact_z = 0.02;
   state.position = Vec3(1.0, -0.7, contact_z + 0.00075);
   state.velocity = Vec3(-2.0, 0.0, -1.0);
   return state;

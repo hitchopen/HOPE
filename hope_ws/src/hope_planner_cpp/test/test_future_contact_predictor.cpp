@@ -75,3 +75,17 @@ TEST(FutureContactPredictor, DisabledModeAndInvalidConfiguration) {
 }
 }  // namespace
 }  // namespace hope_planner_cpp
+TEST(FutureContactValidityV2, B03_RejectedStateSpinCannotReachFallbackOrReadinessModel) {
+  using namespace hope_planner_cpp;
+  FutureContactConfig c;c.spin_enabled=true;c.magnus_enabled=true;
+  BallState state;state.valid=true;state.spin_model_enabled=true;state.position=Vec3(1.2,-.7,.3);state.velocity=Vec3(-3,0,-1);
+  state.physics_spin.valid=false;state.physics_spin.coherence=1.;
+  FutureContactPredictor predictor({}, {}, {}, c);
+  StrikeTarget first;
+  for(int i=0;i<2;++i) {
+    state.physics_spin.omega_rad_s=Vec3(1000.*i,500.,-300.);
+    const auto resolved=predictor.model_snapshot(state,{});EXPECT_FALSE(resolved.second.usable());
+    const auto result=predictor.predict(state,.15,{});ASSERT_TRUE(result.valid)<<result.reason;
+    if(i==0)first=result;else {EXPECT_EQ(result.ball_position,first.ball_position);EXPECT_EQ(result.ball_velocity,first.ball_velocity);EXPECT_EQ(result.strike_source_time_s,first.strike_source_time_s);}
+  }
+}

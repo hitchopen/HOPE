@@ -56,6 +56,7 @@ void ProbabilisticBallTracker::reset() {
 void ProbabilisticBallTracker::initialize(const BallSample &s) {
   reset();
   belief_.initialized = true;
+  belief_.effective_spin=config_.effective_spin;
   belief_.mean.head<3>() = s.position;
   belief_.mean.tail<3>() = config_.velocity_prior_mean;
   belief_.covariance.setZero();
@@ -91,6 +92,8 @@ void ProbabilisticBallTracker::propagate(double time) {
         t += h;
       }
     }
+    auto nominal_state=belief_.mean;auto nominal_config=config_;nominal_config.effective_spin=belief_.effective_spin;
+    for(double t=0;t<dt-1e-12;) {const double h=std::min(config_.integration_dt_s,dt-t);auto contact=physical_step(nominal_state,h,nominal_config);nominal_config.effective_spin=contact.post_spin;t+=h;}
     const Matrix6 prior_covariance = positive_covariance(belief_.covariance);
     Matrix6 root = prior_covariance.llt().matrixL();
     const auto prior_cross = state_bias_covariance_;
@@ -102,11 +105,13 @@ void ProbabilisticBallTracker::propagate(double time) {
           belief_.mean + (i < 6 ? 1. : -1.) * std::sqrt(6.) * root.col(i % 6);
       if (audit_sink_) audit->members[i].initial = sigma[i];
       double remaining = dt;
+      auto member_config=config_;member_config.effective_spin=belief_.effective_spin;
       bool bounced = false;
       while (remaining > 1e-12) {
         double h = std::min(remaining, config_.integration_dt_s);
         const State6 step_initial = audit_sink_ ? sigma[i] : State6::Zero();
-        const auto event = physical_step(sigma[i], h, config_);
+        const auto event = physical_step(sigma[i], h, member_config);
+        member_config.effective_spin=event.post_spin;
         bounced = event.bounced || bounced;
         if (audit_sink_ && event.bounced) {
           auto &member = audit->members[i];
@@ -170,6 +175,7 @@ void ProbabilisticBallTracker::propagate(double time) {
     }
     if (!mean.allFinite())
       throw std::runtime_error("nonfinite propagated mean");
+    belief_.effective_spin=nominal_config.effective_spin;
     belief_.mean = mean;
     belief_.covariance = next_covariance;
     belief_.source_time_s += dt;

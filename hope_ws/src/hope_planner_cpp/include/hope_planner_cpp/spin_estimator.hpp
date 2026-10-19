@@ -22,6 +22,7 @@ class SpinEstimator {
   void reset() noexcept;
   void push(const BallSample& sample) noexcept;
   SpinEstimate estimate() const noexcept;
+  bool current_increment_valid() const noexcept {return last_increment_retained_;}
 
  private:
   struct Increment {
@@ -41,6 +42,7 @@ class SpinEstimator {
   Eigen::Quaterniond previous_orientation_ = Eigen::Quaterniond::Identity();
   double previous_time_s_ = 0.0;
   bool have_previous_ = false;
+  bool last_increment_retained_ = false;
 };
 
 }  // namespace hope_planner_cpp

@@ -27,7 +27,8 @@ TEST(SpinPhysics, ObservedMagnusAndFuturePredictionUseOneSpinState) {
     const double t = i/360.;
     BallSample s; s.source_time_s = 20.+t; s.position = x;
     s.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(w.norm()*t, w.normalized()));
-    s.orientation_valid = true; estimator.push(s);
+    s.orientation_valid = true; s.orientation_authoritative = true;
+    s.source_time_ns=static_cast<std::int64_t>(std::llround(t*1e9)); estimator.push(s);
     if (i < 65) for (int j=0;j<10;++j) reference_step(x,v,w,p,1./3600.);
   }
   const auto state = estimator.estimate();

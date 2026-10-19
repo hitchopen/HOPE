@@ -26,6 +26,7 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
 add_library(hope_planner_core
+  src/common_ball_physics.cpp
   src/batch_physics_estimator.cpp
   src/spin_estimator.cpp
   src/trajectory_predictor.cpp
