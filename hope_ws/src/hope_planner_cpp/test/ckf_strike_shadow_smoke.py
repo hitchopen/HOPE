@@ -174,18 +174,24 @@ def main():
                     old_compact, old_full = len(compact), len(full)
                     origin = node.get_clock().now().nanoseconds + 5000000
                     start_x = 1.8 if flight == 1 else 2.2
-                    count = math.ceil((start_x-1.37)/4*hz)
+                    # Keep several distinct post-net exposures: BEST_EFFORT can
+                    # drop the final packet. Stop well before net+50 ms so the
+                    # timer still has to finish without more poses.
+                    count = math.ceil((start_x-1.37)/4*hz) + 3
                     for i in range(count+1):
                         stamp = origin + round(i*1e9/hz)
                         t = (stamp-origin)*1e-9
                         last_x = start_x - 4*t
                         publish_pose(stamp, last_x, y, .5+.5*t-4.905*t*t)
+                    expected_net_ns = origin + round((start_x-1.37)/4*1e9)
+                    assert stamp - expected_net_ns <= 25_000_000
                     # No further poses: timer and retained estimate must finish alone.
                     wait(lambda: len(typed) > old_typed)
                     wait(lambda: any('transition=decision_emitted' in m.data and 'physical_flight_id=' + str(flight) + ' ' in m.data for m in diagnostics))
                     spin_for(.025)
                     trace = next(m.data for m in reversed(diagnostics) if 'transition=decision_emitted' in m.data)
                     metadata = dict(part.split('=', 1) for part in trace.split() if '=' in part)
+                    assert int(metadata['emit_ns']) >= stamp + 10_000_000, trace
                     expected = bounds[0] <= y <= bounds[1]
                     assert len(typed) == old_typed+1 and typed[-1].valid == expected, trace
                     assert len(flat) == old_flat+int(expected), trace
