@@ -64,15 +64,18 @@ def run(executable, rate):
             context.publish(boundary)
             spin(.008)
             schedule = time.monotonic()
+            flight_source_start = time.time_ns()
             for i in range(round(.60 * rate)):
                 if round(.24 * rate) <= i < round(.24 * rate) + 2:
                     continue  # repeatable source dropout; timestamps preserve the gap
                 target = schedule + i / rate + (.00015 if i % 3 == 0 else 0)
                 while time.monotonic() < target:
                     rclpy.spin_once(node, timeout_sec=min(.001, target - time.monotonic()))
-                t = i / rate
                 message = BallObservationV2()
                 message.source_time_ns = time.time_ns()
+                # Position and acquisition time must describe the same physical
+                # instant even when scheduling or deserialization runs late.
+                t = (message.source_time_ns - flight_source_start) * 1e-9
                 message.source_time_valid = True
                 message.clock_domain = 'ros_system'
                 message.clock_mapping_id = 'fixture_exact_wall'

@@ -151,7 +151,7 @@ public:
           pipeline_->observe(sample);
           if (previous_generation != pipeline_->shot().generation() ||
               previous_revision != pipeline_->shot().revision())
-            revoke_locked();
+            revoke_locked(pipeline_->shot().reason());
           // Sequence is reserved before copying; ordinary observations never
           // supersede semantic context.
           pipeline_->shot().snapshot();

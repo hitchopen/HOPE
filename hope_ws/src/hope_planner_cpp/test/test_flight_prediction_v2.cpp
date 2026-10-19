@@ -790,3 +790,28 @@ TEST(FlightV2History,
   acquired.observe(sample(30000000));
   EXPECT_FALSE(acquired.checkpoint().belief.effective_spin.usable());
 }
+
+TEST(FlightV2Timing, X04_SourceTimedMotionSurvivesSchedulerPauseAndCatchup) {
+  for (int rate : {150, 300}) {
+    ShotContext shot({});
+    shot.start(0, -1, BoundaryEvidence::RACKET_CONTACT,
+               HistoryContinuity::kComplete);
+    std::int64_t last = -1;
+    for (int i = 0; i < rate / 4; ++i) {
+      // A 40 ms scheduling pause, then catch-up exposures. Acquisition-time
+      // positions remain ballistic rather than pretending nominal frame time.
+      std::int64_t ns = std::llround(i * 1e9 / rate);
+      if (i >= rate * .15 && i < rate * .19)
+        ns = std::max(ns, last + 1000000);
+      if (i == std::lround(rate * .15))
+        ns += 40000000;
+      ns = std::max(ns, last + 1000000);
+      last = ns;
+      const double t = ns * 1e-9;
+      ASSERT_TRUE(shot.observe(
+          sample(ns, Vec3(2 - 4 * t, -.7, .5 + .4 * t - 4.905 * t * t))))
+          << rate << " Hz, frame " << i << ": " << shot.reason();
+      ASSERT_TRUE(shot.active());
+    }
+  }
+}

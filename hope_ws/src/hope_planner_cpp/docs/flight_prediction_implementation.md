@@ -93,7 +93,9 @@ overlap and uncertain net clearance withhold route targets. Small conditional
 covariance alone never proves a hard forbidden event. The deterministic support API
 requires an explicit conservative bound covering *all* relevant omissions and
 separated event-order intervals; the default runtime has no such calibrated bound.
-Confirmed forbidden events hard-invalidate immediately.
+Confirmed forbidden events hard-invalidate immediately. Revocations report the
+underlying lifecycle reason so a physical rejection can be distinguished from a
+late publication or semantic revision.
 
 The tabletop footprint is not enlarged by the radius. Near-edge contacts outside
 the actual top return ambiguity. An initial below-top state is not clamped into a
@@ -199,3 +201,9 @@ qualification remain adoption gates, not claims established by synthetic tests.
 Changing these values requires rerunning the affected numerical, transport,
 availability and physical gates. Numerical agreement measures software solver
 agreement, not real-ball accuracy.
+
+The paced synthetic fixture derives analytic position from each actual acquisition
+stamp. Nominal frame indices are used only for pacing/dropout scheduling: pairing
+those nominal positions with delayed wall-clock stamps creates physically
+inconsistent motion under scheduler pauses. The deterministic 150/300 Hz pause
+regression checks source-time-consistent motion without relaxing availability.
