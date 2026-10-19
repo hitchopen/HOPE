@@ -158,6 +158,17 @@ public:
           if (m->schema_version != 2 || m->session_id != session_ ||
               m->authority != authority_)
             return;
+          const auto current_source = now().nanoseconds();
+          if (static_cast<long double>(m->source_time_ns) - current_source >
+              1000000.L)
+            return;
+          if (!pipeline_->shot().samples().empty()) {
+            const auto latest =
+                pipeline_->shot().samples().back().source_time_ns;
+            if ((m->operation == "CONTEXT" && m->source_time_ns > latest) ||
+                (m->operation == "CONTACT" && m->confirmed_at_ns > latest))
+              return;
+          }
           if (m->operation == "START") {
             if (last_boundary_source_ &&
                 m->source_time_ns <= *last_boundary_source_) {

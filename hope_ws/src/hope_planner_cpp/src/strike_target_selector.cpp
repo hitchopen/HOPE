@@ -121,6 +121,7 @@ void StrikeTargetSelector::schedule(std::int64_t net,std::int64_t now,std::int64
       (!best_crossing_ || e.source_ns>best_crossing_->source_ns))best_crossing_=e;
 }
 void StrikeTargetSelector::observe(BallSample s,const std::string& frame,std::int64_t now,std::int64_t steady) {
+  if(reset_source_floor_ && s.source_time_ns<reset_source_floor_)return;
   if(frame!=config_.frame || !s.position.allFinite() || s.source_time_ns<=0 || s.source_time_ns>now) {fence("invalid_pose");return;}
   if(last_pose_ && s.source_time_ns<=last_pose_) {
     if(s.source_time_ns<last_pose_-1000000)fence("pose_clock_discontinuity");
@@ -157,6 +158,7 @@ bool StrikeTargetSelector::forecast(const hope_msgs::msg::BallForecast& m,std::i
   // Exact authorized request stamps make acknowledgment delivery idempotent. An
   // acknowledgment never resets state or rearms a physical flight.
   if(authorized_reset_ack(m))return false;
+  if(reset_source_floor_ && m.identity.source_time_ns<reset_source_floor_)return false;
   if(owner_ && m.publisher_instance_id==owner_->publisher_instance_id && m.event_sequence<=event_)return false;
   if(!establish_owner(m))return false;
   if(m.kind==m.INVALIDATION) {
@@ -187,6 +189,7 @@ bool StrikeTargetSelector::forecast(const hope_msgs::msg::BallForecast& m,std::i
 bool StrikeTargetSelector::full_forecast(const hope_msgs::msg::BallForecast& m,std::int64_t receipt) {
   if(halted_ || retired_.count(m.publisher_instance_id))return false;
   if(authorized_reset_ack(m))return false;
+  if(reset_source_floor_ && m.identity.source_time_ns<reset_source_floor_)return false;
   if(m.kind==m.INVALIDATION && m.reason=="explicit_reset") {fence("unrequested_forecaster_reset");return false;}
   // The full and compact topics have independent event counters.
   if(owner_ && m.publisher_instance_id==owner_->publisher_instance_id && m.event_sequence<=full_event_)return false;
@@ -274,6 +277,7 @@ void StrikeTargetSelector::context(const hope_msgs::msg::HybridTrajectoryContext
   if(m.kind==m.RESET) {
     if(flight_ && !decided_) {auto old=decision_metadata(now);old.reason="explicit_reset_before_decision";terminal_=old;}
     if(retirement_exhausted_) {fence("retired_owner_capacity_exhausted");return;}
+    reset_source_floor_=m.source_time_ns;
     ++session_;authorized_reset_sources_.push_back(m.source_time_ns);
     if(authorized_reset_sources_.size()>16)authorized_reset_sources_.pop_front();
     incoming_.reset_phase();cache_.clear();best_crossing_.reset();states_.clear();samples_.clear();

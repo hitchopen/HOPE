@@ -294,3 +294,12 @@ TEST(StrikeTargetSelector, InRangeContactKeepsOriginalStage3Geometry) {
   EXPECT_NEAR(command.normal.norm(),1.,1e-12);
   EXPECT_GT(command.normal.x(),0.); // Existing Stage-3 orientation, not owner approval.
 }
+TEST(StrikeTargetSelector, A09_T06_RetiredBeforeResetDataCannotFenceOrSeedCurrentSession) {
+  StrikeTargetSelector s(cfg());hope_msgs::msg::HybridTrajectoryContext reset;reset.kind=reset.RESET;reset.frame_id="table";reset.evidence_source_id="fixture";reset.source_time_ns=t0+100000000;
+  s.context(reset,reset.source_time_ns);
+  auto old=event(t0,100);old.kind=old.INVALIDATION;old.reason="hit_plane_refresh";
+  EXPECT_FALSE(s.forecast(old,t0+101000000));EXPECT_FALSE(s.full_forecast(old,t0+102000000));EXPECT_FALSE(s.halted());
+  BallSample prior;prior.source_time_ns=t0;prior.position=Vec3(1.8,-.7,.4);s.observe(prior,"table",t0+103000000,t0+103000000);EXPECT_EQ(s.flight_id(),0u);
+  for(int i=0;i<=29;++i){BallSample sample;sample.source_time_ns=t0+200000000+i*5000000LL;sample.position=Vec3(1.8-.025*i,-.7,.4);s.observe(sample,"table",sample.source_time_ns,sample.source_time_ns);s.forecast(event(sample.source_time_ns,i+1),sample.source_time_ns);}
+  auto selected=s.poll(t0+360000000,t0+360000000);ASSERT_TRUE(selected);EXPECT_TRUE(selected->strike.valid)<<selected->reason;EXPECT_FALSE(s.halted());
+}

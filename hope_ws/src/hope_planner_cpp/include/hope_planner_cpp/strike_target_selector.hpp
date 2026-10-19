@@ -95,6 +95,7 @@ class StrikeTargetSelector {
   Vec3 last_position_ = Vec3::Zero();
   bool pending_ = false, decided_ = false, halted_ = false, complete_ = false, contact_illegal_ = false,
       retirement_exhausted_ = false, late_acquisition_ = false;
+  std::int64_t reset_source_floor_ = 0;
   std::string reason_ = "waiting_for_flight";
 };
 double strike_target_selector_swing(double y, double base_y, double previous,

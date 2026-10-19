@@ -258,6 +258,10 @@ bool validate_packet_v2(const hope_msgs::msg::FlightPacketV2 &p,
   if (p.observations.empty() || p.observations.size() > 4096 ||
       p.event_ledger.size() > 4096)
     return fail("packet_capacity");
+  if ((p.match_context == "NORMAL_RALLY" || p.match_context == "SERVE") &&
+      (p.context_source.empty() || p.context_time_ns < p.boundary_time_ns ||
+       p.context_time_ns > p.observations.back().source_time_ns))
+    return fail("packet_context_provenance");
   std::optional<BallSample> previous;
   for (const auto &wire : p.observations) {
     auto s = decode_observation(wire);
