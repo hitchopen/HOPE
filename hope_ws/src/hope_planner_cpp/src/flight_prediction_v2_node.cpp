@@ -101,6 +101,15 @@ public:
       bundle << ';' << value;
     bundle << ';' << settings_.service_armed << ';' << clock_domain_;
     config_id_ = "flight-v2:sha256:" + sha256(bundle.str());
+    for (const auto *topic :
+         {"/hope/shadow/flight_v2/prediction",
+          "/hope/shadow/flight_v2/decision", "/hope/shadow/flight_v2/packet",
+          "/hope/shadow/flight_v2/trajectory"}) {
+      if (get_node_topics_interface()->resolve_topic_name(topic).rfind(
+              "/hope/shadow/flight_v2/", 0) != 0)
+        throw std::invalid_argument(
+            "remapping must retain v2 shadow namespace");
+    }
     auto qos = rclcpp::QoS(1).best_effort();
     publisher_ = create_publisher<hope_msgs::msg::FlightPredictionV2>(
         "/hope/shadow/flight_v2/prediction", qos);

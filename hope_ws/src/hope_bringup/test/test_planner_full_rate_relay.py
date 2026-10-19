@@ -55,6 +55,8 @@ def test_full_rate_preserves_exposures_and_side_transform(relay):
     for i in range(360):
         relay._on_frame(frame(i))
     assert len(relay.full) == 360
+    assert all(o.orientation_authoritative and o.orientation_valid
+               for o in relay.observations)
     assert 149 <= len(relay.limited) <= 151
     for i, msg in enumerate(relay.full):
         assert msg.header.stamp == frame(i).header.stamp
