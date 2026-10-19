@@ -284,6 +284,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
     throw std::invalid_argument("max_target_turn_deg must be finite and in (0, 180]");
   }
   target_turn_max_pose_age_s_ = declare_parameter<double>("target_turn_max_pose_age_s", 0.2);
+  target_turn_reject_stale_pose_ = declare_parameter<bool>("target_turn_reject_stale_pose", true);
   if (!std::isfinite(target_turn_max_pose_age_s_) || target_turn_max_pose_age_s_ <= 0.0) {
     throw std::invalid_argument("target_turn_max_pose_age_s must be finite and positive");
   }
@@ -1441,7 +1442,7 @@ void PlannerNode::publish_solve(
           command.position, base.position, base.orientation,
           base.valid && base.orientation_valid, max_target_turn_deg_);
       const double pose_age_s = (steady_now_ns() - base.receipt_steady_ns) * 1.0e-9;
-      if (target_turn.allowed && (base.receipt_steady_ns <= 0 ||
+      if (target_turn_reject_stale_pose_ && target_turn.allowed && (base.receipt_steady_ns <= 0 ||
           pose_age_s < 0.0 || pose_age_s > target_turn_max_pose_age_s_)) {
         target_turn.allowed = false;
         target_turn.reason = "target_turn_base_stale";
@@ -1450,9 +1451,17 @@ void PlannerNode::publish_solve(
       // Wi-Fi queues. Receipt age alone cannot establish current heading.
       const double source_pose_age_s = base.source_stamp_ns > 0
           ? (producer_wall_ns - base.source_stamp_ns) * 1.0e-9 : 0.0;
-      if (target_turn.allowed && source_pose_age_s > target_turn_max_pose_age_s_) {
+      if (target_turn_reject_stale_pose_ && target_turn.allowed && source_pose_age_s > target_turn_max_pose_age_s_) {
         target_turn.allowed = false;
         target_turn.reason = "target_turn_base_source_stale";
+      }
+      if (!target_turn_reject_stale_pose_ && target_turn.allowed &&
+          (base.receipt_steady_ns <= 0 || pose_age_s < 0.0 ||
+           pose_age_s > target_turn_max_pose_age_s_ || source_pose_age_s > target_turn_max_pose_age_s_)) {
+        RCLCPP_WARN(get_logger(),
+            "Planner body timing audit: reject_stale_pose=0 receipt_age_ms=%.3f "
+            "source_age_ms=%.3f limit_ms=%.3f; pose age does not veto this command",
+            pose_age_s * 1.0e3, source_pose_age_s * 1.0e3, target_turn_max_pose_age_s_ * 1.0e3);
       }
       if (!target_turn.allowed) {
         wire_valid = false;

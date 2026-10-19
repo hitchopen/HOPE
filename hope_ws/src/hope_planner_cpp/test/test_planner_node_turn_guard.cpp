@@ -32,7 +32,7 @@ std::filesystem::path temporary_path(const std::string& suffix) {
        std::to_string(stamp) + suffix);
 }
 
-struct TurnCase { double yaw; bool flat; bool send_pose; bool expected_valid; bool stale = false; bool source_stale = false; };
+struct TurnCase { double yaw; bool flat; bool send_pose; bool expected_valid; bool stale = false; bool source_stale = false; bool reject_stale = true; };
 class PlannerNodeTurnGuard : public ::testing::TestWithParam<TurnCase> {
   void TearDown() override { if (rclcpp::ok()) rclcpp::shutdown(); }
 };
@@ -45,6 +45,7 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
 
   const auto csv_path = temporary_path(".csv");
   rclcpp::NodeOptions options;
+  options.append_parameter_override("target_turn_reject_stale_pose", c.reject_stale);
   options.append_parameter_override("input_qos_depth", 64);
   options.append_parameter_override("post_net_one_shot_enabled", true);
   options.append_parameter_override("post_net_commit_delay_s", 0.05);
@@ -242,6 +243,10 @@ INSTANTIATE_TEST_SUITE_P(PoseAndFlat, PlannerNodeTurnGuard, ::testing::Values(
     TurnCase{0,true,true,true}, TurnCase{90,true,true,false},
     TurnCase{-90,true,true,false}, TurnCase{0,true,false,false},
     TurnCase{0,false,true,false,true}, TurnCase{0,true,true,false,true},
-    TurnCase{0,false,true,false,false,true}, TurnCase{0,true,true,false,false,true}));
+    TurnCase{0,false,true,false,false,true}, TurnCase{0,true,true,false,false,true},
+    TurnCase{0,false,true,true,true,false,false}, TurnCase{0,true,true,true,true,false,false},
+    TurnCase{0,false,true,true,false,true,false}, TurnCase{0,true,true,true,false,true,false},
+    TurnCase{0,false,false,false,false,false,false}, TurnCase{0,true,false,false,false,false,false},
+    TurnCase{90,false,true,false,false,false,false}, TurnCase{90,true,true,false,false,false,false}));
 }  // namespace
 }  // namespace hope_planner_cpp
