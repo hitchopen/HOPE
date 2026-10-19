@@ -116,6 +116,21 @@ class OperatorProfileTests(unittest.TestCase):
                         if argv[host_index] == "agi@10.42.10.12":
                             self.assertEqual(argv[host_index + 1], "/usr/local/libexec/hope-lifecycle")
 
+    def test_selected_gripper_reaches_every_start_stage_for_both_modes(self):
+        namespace = backend_namespace({})
+        calls = []
+        backend = namespace["LifecycleBackend"](
+            run=lambda argv, **kwargs: calls.append(argv) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+        for mode in ("KERNEL", "OPTITRACK"):
+            for profile in ("mac", "linux"):
+                calls.clear()
+                config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
+                    mdu_internal_ip="10.42.10.12", operator_profile=profile, gripper_profile="new_20261015")
+                backend.start(config, "model21800_20261018T050406Z", lambda event: None, mode)
+                self.assertTrue(calls)
+                for argv in calls:
+                    self.assertEqual(argv[-3:], [mode, "DEFAULT", "new_20261015"])
+
     def test_kernel_mode_never_contacts_either_operator(self):
         namespace = backend_namespace({})
         calls = []

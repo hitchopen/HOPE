@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "legacy": {
+      "label": "旧夹爪",
+      "grab": {
+        "cmd": 0,
+        "method": 1,
+        "pos": 800,
+        "force": 20,
+        "vel": 40
+      },
+      "release": {
+        "cmd": 0,
+        "method": 1,
+        "pos": 2000,
+        "force": 20,
+        "vel": 60
+      }
+    },
+    "new_20261015": {
+      "label": "新夹爪（2026-10-18 实物确认位置）",
+      "grab": {
+        "cmd": 0,
+        "method": 1,
+        "pos": 850,
+        "force": 1,
+        "vel": 100
+      },
+      "release": {
+        "cmd": 0,
+        "method": 1,
+        "pos": 1500,
+        "force": 1,
+        "vel": 100
+      }
+    }
+  }
+}

@@ -154,8 +154,8 @@ void PpServeController::SetPolicyReturnSeconds(double seconds) {
 }
 
 void PpServeController::SetReleaseLeadFrames(std::size_t frames) {
-  if (frames > 3 || active())
-    throw std::invalid_argument("serve release lead must be 0..3 frames and configured while idle");
+  if (frames > 4 || active())
+    throw std::invalid_argument("serve release lead must be 0..4 frames and configured while idle");
   release_lead_frames_ = frames;
 }
 
@@ -539,14 +539,18 @@ void PpServeController::SetTransitionCommand_(
     FillPdCommand_(source_q + position_alpha * delta,
                    velocity_alpha * delta, command);
   }
-  // Fold the elbows before the shoulders finish rising. Synchronous joint
-  // interpolation passes through an extended-arm pose with a larger forward
-  // moment. Each segment has zero endpoint velocity/acceleration, and the
-  // original entry-command velocity/gains/feedforward blend stays intact.
-  for (const int sdk : {5, 6, 8, 12, 13, 15}) {
+  // Let the left gripper clear first, then lift the right shoulder/elbow before
+  // turning the shoulder yaw and wrist. Delaying only shoulder pitch/roll and
+  // elbow leaves the racket rotating beside the thigh during the initial hold.
+  // Every right-arm joint participates in this schedule. Segments have zero
+  // endpoint velocity/acceleration; READY and all CSV playback stay unchanged.
+  for (const int sdk : {5, 6, 8, 12, 13, 14, 15, 16, 17, 18}) {
     const bool elbow = sdk == 8 || sdk == 15;
-    const double start = elbow ? 0.0 : .15;
-    const double span = elbow ? .65 : .85;
+    const bool racket_arm = sdk >= 12;
+    const bool racket_rotation = sdk == 14 || sdk >= 16;
+    const double start = racket_arm ? (racket_rotation ? .52 : .40)
+                                    : (elbow ? 0.0 : .15);
+    const double span = racket_arm ? (1.0 - start) : (elbow ? .65 : .85);
     const double u = std::clamp((alpha - start) / span, 0.0, 1.0);
     command.q_des[sdk] += (Smooth5_(u) - position_alpha) * delta[sdk];
     command.dq_des[sdk] +=

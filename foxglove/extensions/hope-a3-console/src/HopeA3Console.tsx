@@ -87,6 +87,7 @@ const TOPICS = {
   motiveIp: "/hope/lifecycle/config/motive_ip",
   tableSide: "/hope/lifecycle/config/table_side",
   operatorProfile: "/hope/lifecycle/config/operator_profile",
+  gripperProfile: "/hope/lifecycle/config/gripper_profile",
 } as const;
 
 const SERVICES = {
@@ -131,6 +132,7 @@ const CONFIG_FIELDS = {
   motive_ip: { label: "Motive (optional telemetry)", topic: TOPICS.motiveIp },
   table_side: { label: "Our table side", topic: TOPICS.tableSide },
   operator_profile: { label: "Operator computer", topic: TOPICS.operatorProfile },
+  gripper_profile: { label: "Gripper", topic: TOPICS.gripperProfile },
 } as const;
 
 type ConfigField = keyof typeof CONFIG_FIELDS;
@@ -154,6 +156,7 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   motive_ip: "",
   table_side: "",
   operator_profile: "",
+  gripper_profile: "",
 };
 
 type XboxPreview = {
@@ -501,6 +504,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.tableSide:
       next.lifecycleConfig.table_side = stringValue(event.message);
+      break;
+    case TOPICS.gripperProfile:
+      next.lifecycleConfig.gripper_profile = stringValue(event.message);
       break;
     case TOPICS.operatorProfile:
       next.lifecycleConfig.operator_profile = stringValue(event.message);
@@ -909,7 +915,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const configComplete =
     RUNNER_NETWORK_CONFIG_FIELDS.every((name) => configDraft[name].trim().length > 0) &&
     ["P1", "P2"].includes(configDraft.table_side) &&
-    ["linux", "mac"].includes(configDraft.operator_profile);
+    ["linux", "mac"].includes(configDraft.operator_profile) &&
+    ["legacy", "new_20261015"].includes(configDraft.gripper_profile);
   const timeCalibrationFresh = isFresh(snapshot, TOPICS.timeCalibrationState, now, 1_500);
   const timeCalibrationState = timeCalibrationFresh
     ? (snapshot.timeCalibrationState ?? "UNKNOWN")
@@ -1151,6 +1158,21 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             {snapshot.lifecycleResult ?? "waiting for supervisor"}
           </div>
         </div>
+        <label className="config-field">
+          <span>Gripper</span>
+          <select
+            value={configDraft.gripper_profile}
+            disabled={!lifecycleStopped || lifecycleBusy}
+            onChange={(event) => {
+              setConfigDraft((current) => ({ ...current, gripper_profile: event.target.value }));
+              setConfigTouched(true);
+            }}
+          >
+            <option value="">Select gripper</option>
+            <option value="legacy">Legacy · close 800 / open 2000</option>
+            <option value="new_20261015">New · close 850 / open 1500 · force 1 / speed 100</option>
+          </select>
+        </label>
         <div className="table-side-selector" role="group" aria-label="Operator computer">
           <div>
             <div className="eyebrow">OPERATOR COMPUTER</div>

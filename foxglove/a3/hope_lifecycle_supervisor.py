@@ -144,6 +144,7 @@ class LifecycleBackend:
             config.table_side,
             mode,
             csv_sha,
+            config.gripper_profile,
         ]
         commands = (
             ("PREFLIGHT", self._ssh(laptop, laptop_helper, "preflight-laptop", *common), 15.0),

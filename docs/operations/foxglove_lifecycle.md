@@ -505,3 +505,38 @@ three-machine dry rehearsal and then an attended hardware trial are still
 required. In particular, verify SSH keys, MDU sudoers, tmux availability,
 exact deployed Runner package, ROS service discovery, process identity, log
 flush, `agibot_pm` restoration and the physical PASSIVE/PD_STAND transitions.
+
+## Field gripper and Prepare configuration
+
+Select the gripper while STOPPED and confirm the configuration before START.
+`legacy` preserves close/open positions 800/2000 and force 20 (speeds 40/60).
+`new_20261015` is the existing field profile identifier, updated on 2026-10-18:
+close 850, open 1500, force 1, speed 100. These are device command units, not
+millimetres or measured finger velocity. The default remains `legacy`.
+
+The Console, HDU supervisor, lifecycle helper, package launcher, Python bridge
+and native C++ release publisher carry the same selection. The launcher compares
+native and Python serialized release bytes before creating a bridge or starting
+Runner; mixed binaries/catalogs fail closed. Build/package the Runner and bridge
+together. The catalog is included at `tools/gripper_profiles.json`; it is not a
+browser-supplied file. Direct package use accepts `--gripper-profile new_20261015`.
+
+Lifecycle schema 4 adds `gripper_profile` while preserving Mac/Linux operator
+selection. Schema 1/2/3 main configurations migrate to the legacy gripper. Older
+five/six-field Console requests preserve an already selected gripper. This is
+the main schema lineage, not a migration of the experimental field branch's
+VRPN/pants schema. Install the HDU core/supervisor/helper and Console together
+while STOPPED. No robot service is restarted by this source change.
+
+Prepare retains its five-second duration and READY target. The left arm clears
+first; the right shoulder pitch/roll and elbow begin at 2.0 s, then shoulder yaw
+and wrists at 2.6 s. CSV playback is unchanged. The operator reported no further
+Prepare leg contact after this field change; the regression test checks the
+command ordering, not physical collision safety.
+
+The two packaged ping-pong runtime configurations use release lead 3 (frame
+48 event -> frame 45 command at 100 Hz). The controller accepts 0–4 frames only
+while idle; frame 44 was a trial, not the retained default. These parameters do
+not identify the physical command-to-detachment delay. The v20 CSV asset is
+proposed separately in #53; this PR does not select a new serve CSV. Retain the
+previous asset for rollback when changing an installed selection.

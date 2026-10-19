@@ -16,7 +16,7 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
   const config = {
     laptop_wifi_ip: '192.0.2.10', hdu_wifi_ip: '192.0.2.20',
     mdu_internal_ip: '192.0.2.30', motive_ip: '', table_side: 'P1',
-    operator_profile: profile,
+    operator_profile: profile, gripper_profile: 'legacy',
   };
   const react = {
     ...require('react'),
@@ -51,8 +51,10 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
       require(name) {
         if (name.endsWith('.css')) return {};
         if (name === 'react') return react;
-        if (name === './teleopStatus') {
-          return load(fs.readFileSync(path.join(__dirname, '../src/teleopStatus.ts'), 'utf8'));
+        if (name.startsWith('./')) {
+          const sourcePath = ['.ts', '.tsx'].map((extension) =>
+            path.join(__dirname, '../src', name + extension)).find(fs.existsSync);
+          if (sourcePath) return load(fs.readFileSync(sourcePath, 'utf8'));
         }
         return require(name);
       },
@@ -110,7 +112,8 @@ test('Linux/Mac selection submits the selected profile with the current addresse
   assert.equal(harness.calls[0].service, '/hope/lifecycle/apply_config');
   const fields = Object.fromEntries(harness.calls[0].payload.parameters.map((parameter) =>
     [parameter.name, parameter.value.string_value]));
-  assert.equal(Object.keys(fields).length, 6);
+  assert.equal(Object.keys(fields).length, Object.keys(harness.api.CONFIG_FIELDS).length);
+  assert.equal(fields.gripper_profile, 'legacy');
   assert.equal(fields.operator_profile, 'mac');
   assert.equal(fields.laptop_wifi_ip, '192.0.2.10');
 });

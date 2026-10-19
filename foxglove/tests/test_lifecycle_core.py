@@ -52,6 +52,7 @@ class LifecycleConfigTests(unittest.TestCase):
                 "motive_ip": "",
                 "table_side": "P1",
                 "operator_profile": "linux",
+                "gripper_profile": "legacy",
             },
         )
 
@@ -156,6 +157,24 @@ class LifecycleConfigTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 validate_table_side(invalid)
 
+    def test_gripper_selection_survives_old_clients_and_restart(self):
+        current = self.valid_config(revision=1)
+        selected = apply_config_updates(current, list({**current.values(),
+            "operator_profile": "mac", "gripper_profile": "new_20261015"}.items()))
+        self.assertEqual(config_from_document(config_to_document(selected)), selected)
+        for excluded in ({"gripper_profile"}, {"operator_profile", "gripper_profile"}):
+            old = [(name, value) for name, value in selected.values().items() if name not in excluded]
+            moved = apply_config_updates(selected, old)
+            self.assertEqual(moved.gripper_profile, "new_20261015")
+            self.assertEqual(moved.operator_profile, "mac")
+        legacy = config_to_document(current)
+        legacy["schema_version"] = 3
+        legacy.pop("gripper_profile")
+        self.assertEqual(config_from_document(legacy).gripper_profile, "legacy")
+        for value in ("unknown", "new_20261015 ", 1, None):
+            with self.assertRaisesRegex(ValueError, "gripper_profile"):
+                apply_config_updates(current, list({**current.values(), "gripper_profile": value}.items()))
+
     def test_document_round_trip_and_atomic_save(self):
         config = self.valid_config(revision=2)
         self.assertEqual(config_from_document(config_to_document(config)), config)
@@ -164,7 +183,7 @@ class LifecycleConfigTests(unittest.TestCase):
             save_config_atomic(path, config)
             self.assertEqual(load_config(path), config)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(path.read_text())["schema_version"], 3)
+            self.assertEqual(json.loads(path.read_text())["schema_version"], 4)
 
     def test_unconfirmed_or_malformed_documents_fail(self):
         document = config_to_document(self.valid_config(revision=1))

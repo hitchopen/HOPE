@@ -174,7 +174,7 @@ class LifecycleModeTest(unittest.TestCase):
             self.assertNotIn("operator@10.0.0.2", argv)
             self.assertNotIn("start-base", argv)
             self.assertNotIn("start-planner", argv)
-            self.assertEqual(argv[-2:], ["KERNEL", "a" * 64])
+            self.assertEqual(argv[-3:], ["KERNEL", "a" * 64, "legacy"])
         calls.clear()
         backend.kill_all_and_collect(config, session, lambda event: None, "KERNEL")
         self.assertEqual(len(calls), 2)
