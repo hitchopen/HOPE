@@ -17,6 +17,7 @@ import time
 import rclpy
 from geometry_msgs.msg import PoseArray
 from rclpy.node import Node
+from hope_display_publishers import display_publisher
 from rclpy.qos import (
     DurabilityPolicy,
     HistoryPolicy,
@@ -111,7 +112,7 @@ class HopeObserver(Node):
         self._ball_receipts_ns: deque[int] = deque(maxlen=512)
         self._ball_marker_period_ns = int(round(1.0e9 / ball_marker_rate_hz))
         self._last_ball_marker_publish_ns = 0
-        self._ball_marker_publisher = self.create_publisher(
+        self._ball_marker_publisher = display_publisher(self,
             Marker, "/hope/ball/marker", 10
         )
         self._runner_state: RunnerState | None = None
@@ -119,182 +120,182 @@ class HopeObserver(Node):
         self._runner_state_receipt_ns = 0
 
         self._topic_publishers = {
-            "observer_alive": self.create_publisher(
+            "observer_alive": display_publisher(self,
                 Bool, "/hope/observer_alive", 10
             ),
-            "mdu_active": self.create_publisher(
+            "mdu_active": display_publisher(self,
                 Bool, "/hope/system/mdu_active", 10
             ),
-            "mdu_text": self.create_publisher(
+            "mdu_text": display_publisher(self,
                 String, "/hope/system/mdu_text", 10
             ),
-            "session_active": self.create_publisher(
+            "session_active": display_publisher(self,
                 Bool, "/hope/session/active", 10
             ),
-            "session_id": self.create_publisher(
+            "session_id": display_publisher(self,
                 String, "/hope/session/id", 10
             ),
-            "session_text": self.create_publisher(
+            "session_text": display_publisher(self,
                 String, "/hope/session/text", 10
             ),
-            "planner_alive": self.create_publisher(
+            "planner_alive": display_publisher(self,
                 Bool, "/hope/planner/process_alive", 10
             ),
-            "planner_attempt": self.create_publisher(
+            "planner_attempt": display_publisher(self,
                 String, "/hope/planner/attempt", 10
             ),
-            "base_seen": self.create_publisher(Bool, "/hope/base/seen", 10),
-            "base_valid": self.create_publisher(Bool, "/hope/base/valid", 10),
-            "base_fresh": self.create_publisher(Bool, "/hope/base/fresh", 10),
-            "base_receipt_age_ms": self.create_publisher(
+            "base_seen": display_publisher(self, Bool, "/hope/base/seen", 10),
+            "base_valid": display_publisher(self, Bool, "/hope/base/valid", 10),
+            "base_fresh": display_publisher(self, Bool, "/hope/base/fresh", 10),
+            "base_receipt_age_ms": display_publisher(self,
                 Float64, "/hope/base/receipt_age_ms", 10
             ),
-            "base_source_age_ms": self.create_publisher(
+            "base_source_age_ms": display_publisher(self,
                 Float64, "/hope/base/source_age_ms", 10
             ),
-            "base_x": self.create_publisher(
+            "base_x": display_publisher(self,
                 Float64, "/hope/base/position_x_m", 10
             ),
-            "base_y": self.create_publisher(
+            "base_y": display_publisher(self,
                 Float64, "/hope/base/position_y_m", 10
             ),
-            "base_z": self.create_publisher(
+            "base_z": display_publisher(self,
                 Float64, "/hope/base/position_z_m", 10
             ),
-            "base_summary": self.create_publisher(
+            "base_summary": display_publisher(self,
                 String, "/hope/base/summary", 10
             ),
-            "ball_live": self.create_publisher(Bool, "/hope/ball/live", 10),
-            "ball_receipt_age_ms": self.create_publisher(
+            "ball_live": display_publisher(self, Bool, "/hope/ball/live", 10),
+            "ball_receipt_age_ms": display_publisher(self,
                 Float64, "/hope/ball/receipt_age_ms", 10
             ),
-            "ball_rate_hz": self.create_publisher(
+            "ball_rate_hz": display_publisher(self,
                 Float64, "/hope/ball/rate_hz", 10
             ),
-            "command_seen": self.create_publisher(
+            "command_seen": display_publisher(self,
                 Bool, "/hope/command/seen", 10
             ),
-            "command_valid": self.create_publisher(
+            "command_valid": display_publisher(self,
                 Bool, "/hope/command/valid", 10
             ),
-            "command_receipt_age_ms": self.create_publisher(
+            "command_receipt_age_ms": display_publisher(self,
                 Float64, "/hope/command/receipt_age_ms", 10
             ),
-            "command_countdown_s": self.create_publisher(
+            "command_countdown_s": display_publisher(self,
                 Float64, "/hope/command/hdu_wall_countdown_s", 10
             ),
-            "command_sequence": self.create_publisher(
+            "command_sequence": display_publisher(self,
                 UInt64, "/hope/command/sequence", 10
             ),
-            "command_flight": self.create_publisher(
+            "command_flight": display_publisher(self,
                 UInt64, "/hope/command/flight_id", 10
             ),
-            "command_revision": self.create_publisher(
+            "command_revision": display_publisher(self,
                 UInt64, "/hope/command/revision_id", 10
             ),
-            "command_summary": self.create_publisher(
+            "command_summary": display_publisher(self,
                 String, "/hope/command/summary", 10
             ),
-            "x_hit_available": self.create_publisher(
+            "x_hit_available": display_publisher(self,
                 Bool, "/hope/x_hit/status_available", 10
             ),
-            "x_hit_success": self.create_publisher(
+            "x_hit_success": display_publisher(self,
                 Bool, "/hope/x_hit/success", 10
             ),
-            "x_hit_value": self.create_publisher(
+            "x_hit_value": display_publisher(self,
                 Float64, "/hope/x_hit/value_m", 10
             ),
-            "x_hit_status": self.create_publisher(
+            "x_hit_status": display_publisher(self,
                 String, "/hope/x_hit/status", 10
             ),
-            "runner_alive": self.create_publisher(
+            "runner_alive": display_publisher(self,
                 Bool, "/hope/runner/alive", 10
             ),
-            "runner_boot_id": self.create_publisher(
+            "runner_boot_id": display_publisher(self,
                 UInt64, "/hope/runner/boot_id", 10
             ),
-            "runner_session_id": self.create_publisher(
+            "runner_session_id": display_publisher(self,
                 String, "/hope/runner/session_id", 10
             ),
-            "runner_session_matches": self.create_publisher(
+            "runner_session_matches": display_publisher(self,
                 Bool, "/hope/runner/session_matches", 10
             ),
-            "runner_state_sequence": self.create_publisher(
+            "runner_state_sequence": display_publisher(self,
                 UInt64, "/hope/runner/state_sequence", 10
             ),
-            "runner_mode": self.create_publisher(
+            "runner_mode": display_publisher(self,
                 String, "/hope/runner/mode", 10
             ),
-            "runner_command_publishing": self.create_publisher(
+            "runner_command_publishing": display_publisher(self,
                 Bool, "/hope/runner/command_publishing", 10
             ),
-            "runner_policy_native": self.create_publisher(
+            "runner_policy_native": display_publisher(self,
                 Bool, "/hope/runner/policy_native", 10
             ),
-            "runner_command_fault": self.create_publisher(
+            "runner_command_fault": display_publisher(self,
                 Bool, "/hope/runner/command_fault_latched", 10
             ),
-            "runner_local_role": self.create_publisher(
+            "runner_local_role": display_publisher(self,
                 String, "/hope/runner/local_role", 10
             ),
-            "runner_role_epoch": self.create_publisher(
+            "runner_role_epoch": display_publisher(self,
                 UInt64, "/hope/runner/role_epoch", 10
             ),
-            "runner_role_change_allowed": self.create_publisher(
+            "runner_role_change_allowed": display_publisher(self,
                 Bool, "/hope/runner/role_change_allowed", 10
             ),
-            "runner_role_last_result": self.create_publisher(
+            "runner_role_last_result": display_publisher(self,
                 String, "/hope/runner/role_last_result", 10
             ),
-            "runner_serve_capability": self.create_publisher(
+            "runner_serve_capability": display_publisher(self,
                 String, "/hope/runner/serve_capability", 10
             ),
-            "runner_serve_state": self.create_publisher(
+            "runner_serve_state": display_publisher(self,
                 String, "/hope/runner/serve_state", 10
             ),
-            "runner_gripper_state": self.create_publisher(
+            "runner_gripper_state": display_publisher(self,
                 String, "/hope/runner/gripper_state", 10
             ),
-            "runner_serve_cleanup_required": self.create_publisher(
+            "runner_serve_cleanup_required": display_publisher(self,
                 Bool, "/hope/runner/serve_cleanup_required", 10
             ),
-            "runner_standing": self.create_publisher(
+            "runner_standing": display_publisher(self,
                 Bool, "/hope/runner/standing", 10
             ),
-            "runner_ready": self.create_publisher(
+            "runner_ready": display_publisher(self,
                 Bool, "/hope/runner/ready", 10
             ),
-            "runner_ready_to_serve": self.create_publisher(
+            "runner_ready_to_serve": display_publisher(self,
                 Bool, "/hope/runner/is_ready_to_serve", 10
             ),
-            "runner_serving": self.create_publisher(
+            "runner_serving": display_publisher(self,
                 Bool, "/hope/runner/serving", 10
             ),
-            "runner_last_action_id": self.create_publisher(
+            "runner_last_action_id": display_publisher(self,
                 UInt64, "/hope/runner/last_action_id", 10
             ),
-            "runner_last_action": self.create_publisher(
+            "runner_last_action": display_publisher(self,
                 String, "/hope/runner/last_action", 10
             ),
-            "runner_last_action_result": self.create_publisher(
+            "runner_last_action_result": display_publisher(self,
                 String, "/hope/runner/last_action_result", 10
             ),
-            "runner_last_action_reason": self.create_publisher(
+            "runner_last_action_reason": display_publisher(self,
                 String, "/hope/runner/last_action_reason", 10
             ),
-            "runner_summary": self.create_publisher(
+            "runner_summary": display_publisher(self,
                 String, "/hope/runner/summary", 10
             ),
-            "opponent_expected_role": self.create_publisher(
+            "opponent_expected_role": display_publisher(self,
                 String, "/hope/opponent/expected_role", 10
             ),
-            "opponent_role_source": self.create_publisher(
+            "opponent_role_source": display_publisher(self,
                 String, "/hope/opponent/role_source", 10
             ),
-            "opponent_role_confirmed": self.create_publisher(
+            "opponent_role_confirmed": display_publisher(self,
                 Bool, "/hope/opponent/role_confirmed", 10
             ),
-            "opponent_summary": self.create_publisher(
+            "opponent_summary": display_publisher(self,
                 String, "/hope/opponent/summary", 10
             ),
         }

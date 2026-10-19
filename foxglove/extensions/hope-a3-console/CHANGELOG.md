@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.0
+
+- Combine Mac/Linux operator selection with schema-6 NatNet/VRPN, units and V2/V4 pants configuration.
+- Select Berkeley/PPQ002 ball physics and preserve each site's existing defaults.
+- Add local Y-range preview and atomic Planner apply/readback; public filter defaults OFF.
+- Show the selected automatic/manual recording policy; manual remains the public default.
+- Include the current serve/gripper options. Requires matching lifecycle, Planner and capture helpers.
+
 ## 1.8.14
 
 - Add an explicit Linux/Mac operator-computer selector alongside the network configuration.

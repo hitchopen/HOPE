@@ -597,6 +597,9 @@ sudo install -D -o root -g root -m 0755 \
   $HOME/foxglove_a3/hope_monitor.py \
   /usr/local/bin/hope_monitor.py
 sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_display_publishers.py \
+  /usr/local/lib/hope-foxglove/hope_display_publishers.py
+sudo install -D -o root -g root -m 0644 \
   $HOME/foxglove_a3/hope_monitor_core.py \
   /usr/local/lib/hope-foxglove/hope_monitor_core.py
 sudo install -D -o root -g root -m 0644 \
