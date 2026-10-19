@@ -37,3 +37,15 @@ def test_velocity_coverage_uses_velocity_marginal_and_keeps_physical_coverage_se
     assert result['conditional_position_95_coverage'] == 1
     assert result['conditional_velocity_95_coverage'] == 0
     assert result['physical_forecast_coverage'] == 1
+
+
+def test_resampling_preserves_physical_flight_groups_and_provenance_is_required():
+    from evaluate_recordings import evaluate
+    rows = [dict(session_id='s', ball_id='b', flight_id=flight, method='new',
+                 spin_mode='POSITION_ONLY', target_valid=False, reason='uncertain')
+            for flight in ('one', 'one', 'two')]
+    result = evaluate(rows, repetitions=20)['new']
+    assert result['physical_flights'] == 2
+    assert result['spin_groups']['POSITION_ONLY']['attempts'] == 3
+    with pytest.raises(ValueError, match='flight_id'):
+        evaluate([dict(session_id='s', ball_id='b')])

@@ -45,6 +45,22 @@ int main(int argc, char **argv) {
           std::cout << "{\"kind\":\"" << name(e.kind)
                     << "\",\"time\":" << t + e.dt_s << ",\"position\":";
           vector(e.pre.position);
+          const auto &spin = prediction.target.event
+                                 ? prediction.target.event->pre.spin
+                                 : prediction.belief.effective_spin;
+          const char *spin_mode =
+              spin.mode == EffectiveSpinMode::MEASURED ? "MEASURED"
+              : spin.mode == EffectiveSpinMode::HELD   ? "HELD"
+              : spin.mode == EffectiveSpinMode::CONTACT_PROPAGATED
+                  ? "CONTACT_PROPAGATED"
+                  : "POSITION_ONLY";
+          std::cout << ",\"spin_mode\":\"" << spin_mode
+                    << "\",\"spin_measurement_time_ns\":"
+                    << spin.measurement_time_ns << ",\"omega_rad_s\":";
+          if (spin.usable())
+            vector(*spin.omega);
+          else
+            std::cout << "null";
           std::cout << ",\"velocity\":";
           vector(e.pre.velocity);
           std::cout << ",\"spin_available\":"
@@ -56,6 +72,22 @@ int main(int argc, char **argv) {
       }
       std::cout << "],\"position\":";
       vector(model.position);
+      const auto &spin = prediction.target.event
+                             ? prediction.target.event->pre.spin
+                             : prediction.belief.effective_spin;
+      const char *spin_mode =
+          spin.mode == EffectiveSpinMode::MEASURED ? "MEASURED"
+          : spin.mode == EffectiveSpinMode::HELD   ? "HELD"
+          : spin.mode == EffectiveSpinMode::CONTACT_PROPAGATED
+              ? "CONTACT_PROPAGATED"
+              : "POSITION_ONLY";
+      std::cout << ",\"spin_mode\":\"" << spin_mode
+                << "\",\"spin_measurement_time_ns\":"
+                << spin.measurement_time_ns << ",\"omega_rad_s\":";
+      if (spin.usable())
+        vector(*spin.omega);
+      else
+        std::cout << "null";
       std::cout << ",\"velocity\":";
       vector(model.velocity);
       std::cout << "}\n";
@@ -127,6 +159,22 @@ int main(int argc, char **argv) {
                 << "\",\"position\":";
       if (prediction.target.event)
         vector(prediction.target.event->pre.position);
+      else
+        std::cout << "null";
+      const auto &spin = prediction.target.event
+                             ? prediction.target.event->pre.spin
+                             : prediction.belief.effective_spin;
+      const char *spin_mode =
+          spin.mode == EffectiveSpinMode::MEASURED ? "MEASURED"
+          : spin.mode == EffectiveSpinMode::HELD   ? "HELD"
+          : spin.mode == EffectiveSpinMode::CONTACT_PROPAGATED
+              ? "CONTACT_PROPAGATED"
+              : "POSITION_ONLY";
+      std::cout << ",\"spin_mode\":\"" << spin_mode
+                << "\",\"spin_measurement_time_ns\":"
+                << spin.measurement_time_ns << ",\"omega_rad_s\":";
+      if (spin.usable())
+        vector(*spin.omega);
       else
         std::cout << "null";
       std::cout << ",\"velocity\":";

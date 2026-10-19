@@ -606,3 +606,38 @@ TEST(FlightV2Load,
       EXPECT_LE(age, .030);
   }
 }
+TEST(FlightV2Numerics,
+     A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget) {
+  BallPhysics physics;
+  physics.drag_k = 0;
+  physics.magnus_k = 0;
+  ModelState model;
+  model.position = Vec3(.5, -.7, .4);
+  model.velocity = Vec3(2, 0, .981);
+  EventGeometry geometry;
+  geometry.record_end = false;
+  const auto apex_step = advance_ball(model, .1, physics, geometry);
+  auto apex = std::find_if(
+      apex_step.events.begin(), apex_step.events.end(),
+      [](const auto &event) { return event.kind == PhysicalEventKind::APEX; });
+  ASSERT_NE(apex, apex_step.events.end());
+  EXPECT_NEAR(apex->dt_s, .1, .0005);
+  EXPECT_NEAR(apex->pre.position.z(), .44905, .001);
+  EXPECT_NEAR(apex->pre.position.x(), .7, .001);
+  physics.gravity.setZero();
+  for (int direction : {-1, 1}) {
+    model.position = Vec3(direction > 0 ? 2.7395 : 1., -.7, .1);
+    model.velocity = Vec3(direction * 2., 0, 0);
+    geometry.record_end = true;
+    geometry.receiving_x = .9995;
+    const auto step = advance_ball(model, .001, physics, geometry);
+    auto target = std::find_if(
+        step.events.begin(), step.events.end(), [&](const auto &event) {
+          return event.kind == (direction > 0 ? PhysicalEventKind::END
+                                              : PhysicalEventKind::PLANE);
+        });
+    ASSERT_NE(target, step.events.end());
+    EXPECT_NEAR(target->dt_s, .00025, 1e-10);
+    EXPECT_NEAR(target->pre.position.x(), direction > 0 ? 2.74 : .9995, 1e-10);
+  }
+}
