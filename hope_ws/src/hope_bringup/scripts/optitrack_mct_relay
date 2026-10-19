@@ -86,6 +86,9 @@ class OptitrackMctRelay(Node):
         # node config (config/optitrack_mct.yaml). STANDARDIZED like the VRPN
         # side 2026-07-03: ball object is named 'Ball' (robots: UCB_P1/UCB_P2).
         self.declare_parameter("ball_object", "Ball")
+        # NamedPose has no per-frame orientation-quality bit. Enable only for
+        # a qualified source that measures ball orientation (not marker identity).
+        self.declare_parameter("ball_orientation_authoritative", False)
         self.declare_parameter("world_frame", "world")
         self.declare_parameter("table_pose_topic", "/table/pose")
         self.declare_parameter("p1_pose_topic", "/UCB_P1/pose")
@@ -123,6 +126,9 @@ class OptitrackMctRelay(Node):
         self._p1_object = str(self.get_parameter("p1_object").value)
         self._p2_object = str(self.get_parameter("p2_object").value)
         self._ball_object = str(self.get_parameter("ball_object").value)
+        self._ball_orientation_authoritative = bool(
+            self.get_parameter("ball_orientation_authoritative").value
+        )
         self._world_frame = str(self.get_parameter("world_frame").value)
         self._publish_tf = bool(self.get_parameter("publish_tf").value)
         self._publish_pose_array = bool(self.get_parameter("publish_pose_array").value)
@@ -171,7 +177,7 @@ class OptitrackMctRelay(Node):
                 "raw_x", "raw_y", "raw_z", "normalized_x", "normalized_y",
                 "normalized_z", "qx", "qy", "qz", "qw",
                 "orientation_sanitized", "pose_accepted", "orientation_status",
-                "position_scale", "table_side",
+                "position_scale", "table_side", "orientation_authoritative",
             ])
             self._debug_file.flush()
             self.get_logger().info(f"OptiTrack raw/normalized CSV -> {path}")
@@ -330,8 +336,10 @@ class OptitrackMctRelay(Node):
             observation.position = ball.pose.position
             observation.position_valid = True
             observation.orientation = ball.pose.orientation
-            observation.orientation_authoritative = True
-            observation.orientation_valid = ball_pose_orientation_valid
+            observation.orientation_authoritative = self._ball_orientation_authoritative
+            observation.orientation_valid = (
+                self._ball_orientation_authoritative and ball_pose_orientation_valid
+            )
             self._ball_observation_v2_pub.publish(observation)
             if self._planner_pose_array_pub is not None:
                 self._publish_poses(
@@ -406,6 +414,7 @@ class OptitrackMctRelay(Node):
             orientation_status,
             self._position_scale,
             self._table_side,
+            int(object_key == "ball" and self._ball_orientation_authoritative),
         ])
         self._debug_rows_since_flush += 1
         if self._debug_rows_since_flush >= self._debug_flush_rows:

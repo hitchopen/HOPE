@@ -476,17 +476,23 @@ int main(int argc, char** argv) {
 
     while (std::getline(input, line)) {
       const auto row = parse_csv_line(line);
+      if(row.size()<column.size())continue;
       const auto& object_key = row[column.at("object_key")];
       if (object_key != "ball" && object_key != "Ball") continue;
       ++raw_rows;
       if (row[column.at("pose_accepted")] != "1") continue;
-      const auto stamp_ns = integer(row, column.at("ros_stamp_ns"));
+      std::int64_t stamp_ns=0;
+      try {
+        std::size_t parsed=0;const auto& raw_stamp=row[column.at("ros_stamp_ns")];
+        stamp_ns=std::stoll(raw_stamp,&parsed);
+        if(parsed!=raw_stamp.size())continue;
+      } catch(...) {continue;}
       const double source_time = static_cast<double>(stamp_ns) * 1.0e-9;
       const Vec3 position(
           number(row, column.at("normalized_x")),
           number(row, column.at("normalized_y")),
           number(row, column.at("normalized_z")));
-      if (stamp_ns <= 0 || !position.allFinite()) continue;
+      if (stamp_ns < 0 || !position.allFinite()) continue;
       ++accepted_rows;
 
       if (have_previous) {
@@ -525,6 +531,8 @@ int main(int argc, char** argv) {
       previous_position = position;
 
       BallSample sample;
+      sample.source_time_ns=stamp_ns;
+      sample.source_time_valid=true;
       sample.source_time_s = source_time;
       sample.position = position;
       sample.sequence = accepted_rows;
@@ -543,7 +551,10 @@ int main(int argc, char** argv) {
           row[sanitized_column->second] == "1") {
         orientation_declared_valid = false;
       }
-      sample.orientation_authoritative=orientation_declared_valid;
+      const auto authority_column=column.find("orientation_authoritative");
+      const bool source_authority=authority_column!=column.end() && row[authority_column->second]=="1";
+      orientation_declared_valid=orientation_declared_valid && source_authority;
+      sample.orientation_authoritative=source_authority;
       if (have_quaternion_columns && orientation_declared_valid) {
         sample.orientation = Eigen::Quaterniond(
             number(row, column.at("qw")), number(row, column.at("qx")),

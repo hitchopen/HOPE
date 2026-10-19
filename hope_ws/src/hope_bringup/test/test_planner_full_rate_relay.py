@@ -21,7 +21,8 @@ loader.exec_module(module)
 def relay(request):
     rclpy.init(args=["--ros-args", "-p", "publish_tf:=false", "-p",
                     "planner_poses_topic:=/poses/planner_full", "-p",
-                    "table_side:=" + request.param])
+                    "table_side:=" + request.param, "-p",
+                    "ball_orientation_authoritative:=true"])
     node = module.OptitrackMctRelay(messages.NamedPoseArrayV2)
     node.full, node.limited, node.observations = [], [], []
     node._ball_observation_v2_pub.publish = node.observations.append
@@ -84,3 +85,14 @@ def test_position_only_ball_remains_available_to_planner(relay):
     bad.poses[0].pose.position.x = float("nan")
     relay._on_frame(bad)
     assert len(relay.full) == 1
+
+
+def test_numeric_identity_without_source_authority_is_position_only(relay):
+    """Keep numeric identity unqualified without a measured-orientation contract."""
+    relay._ball_orientation_authoritative = False
+    relay._on_frame(frame(0))
+    assert len(relay.observations) == 1
+    observation = relay.observations[0]
+    assert observation.position_valid
+    assert not observation.orientation_authoritative
+    assert not observation.orientation_valid
