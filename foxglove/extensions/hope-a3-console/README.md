@@ -1,15 +1,18 @@
 # HOPE A3 Console
 
-Download `hopeopen.hope-a3-console-1.8.14.foxe` from this directory and open it in
+Download `hopeopen.hope-a3-console-1.9.0.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to
 `ws://<HDU-IP>:8766` after installing the matching HDU/Laptop services.
 
-The public console supports Xbox A/B/X/Y mode actions, LT movement, LB+RB software
-E-stop and software reset; Normal Play and Kernel Mode; and the public 24-sticker
-calibration plus separate legacy V2/V3 profiles. It calls the dedicated services
-in `bridge_params_control.yaml`; Runner remains the body-command owner.
+The console preserves Mac/Linux operators, Xbox actions, Normal Play and Kernel
+Mode. Schema 6 adds explicit Motive/NatNet or CMTracker/VRPN setup, V2/V4 pants,
+server units, and independent gripper selection. It also includes selectable
+Berkeley/PPQ002 ball physics and optional Y filtering with local preview and
+Planner readback. Public Y filtering and automatic recording default OFF.
+Motive live asset behavior and the legacy calibration services remain available.
+See [mocap setup](../../../docs/operations/foxglove_mocap_setup.md) for migration.
 
 Install the matching control-plane helpers, configs and service units from this
 same checkout. See [Runtime operation](../../../docs/operations/runtime_xbox.md)
@@ -179,7 +182,7 @@ ROS 2 message-latency card.
 ## Public release
 
 The current public installer is
-[Console 1.8.14](hopeopen.hope-a3-console-1.8.14.foxe), built from this directory's
+[Console 1.9.0](hopeopen.hope-a3-console-1.9.0.foxe), built from this directory's
 source. It includes the live marker-count workflow and explicit Linux/Mac
 operator selection described above. Install the matching profile-aware HDU
 supervisor and confirm the operator profile before starting a session.

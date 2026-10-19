@@ -11,6 +11,39 @@ set -u
 
 readonly laptop_dir="$HOPE_LIFECYCLE_ROOT/real_logs/$HOPE_LIFECYCLE_SESSION_ID/laptop"
 mkdir -p "$laptop_dir"
+readonly mocap_source="${HOPE_LIFECYCLE_MOCAP_SOURCE:-motive}"
+if [[ "$mocap_source" == vrpn ]]; then
+  case "${HOPE_LIFECYCLE_VRPN_UNITS:-mm}" in
+    mm) position_scale=0.001 ;;
+    m) position_scale=1.0 ;;
+    *) echo 'Invalid VRPN output units' >&2; exit 64 ;;
+  esac
+  {
+    date -u --iso-8601=seconds
+    printf 'source=vrpn server=%s port=%s units=%s pants=%s side=%s\n' \
+      "$HOPE_LIFECYCLE_VRPN_IP" "$HOPE_LIFECYCLE_VRPN_PORT" \
+      "$HOPE_LIFECYCLE_VRPN_UNITS" "$HOPE_LIFECYCLE_PANTS_PROFILE" "$HOPE_LIFECYCLE_TABLE_SIDE"
+    sha256sum src/hope_bringup/launch/avatar_pro_hope_bridge.launch.py \
+      src/hope_bringup/scripts/avatar_pro_vrpn_relay \
+      src/hope_bringup/scripts/vrpn_pants_contract.py \
+      src/hope_bringup/config/pants_profiles/*.json
+  } > "$laptop_dir/artifact_sha256.txt"
+  ros2 daemon stop || true
+  exec "$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh" \
+    --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" -- \
+    ros2 launch hope_bringup avatar_pro_hope_bridge.launch.py \
+      server:="$HOPE_LIFECYCLE_VRPN_IP" port:="$HOPE_LIFECYCLE_VRPN_PORT" \
+      position_scale:="$position_scale" pants_profile:="$HOPE_LIFECYCLE_PANTS_PROFILE" \
+      table_side:="$HOPE_LIFECYCLE_TABLE_SIDE" follow_lifecycle_config:=true \
+      ball_tracking_mode:=rigid_body ball_object:=Ball start_vrpn_client:=true \
+      pelvis_asset_confirmed:="${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" \
+      world_frame_confirmed:="${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
+      base_pose_output_topic:=/a3/base_pose_laptop_flat \
+      debug_session_id:="$HOPE_LIFECYCLE_SESSION_ID" \
+      start_flight_packetizer:="${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
+      > >(tee -a "$laptop_dir/laptop_bridge.log") 2>&1
+fi
+[[ "$mocap_source" == motive ]] || { echo 'No mocap source selected' >&2; exit 64; }
 {
   date -u --iso-8601=seconds
   uname -a

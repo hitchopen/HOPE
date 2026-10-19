@@ -521,11 +521,9 @@ Runner; mixed binaries/catalogs fail closed. Build/package the Runner and bridge
 together. The catalog is included at `tools/gripper_profiles.json`; it is not a
 browser-supplied file. Direct package use accepts `--gripper-profile new_20261015`.
 
-Lifecycle schema 4 adds `gripper_profile` while preserving Mac/Linux operator
-selection. Schema 1/2/3 main configurations migrate to the legacy gripper. Older
-five/six-field Console requests preserve an already selected gripper. This is
-the main schema lineage, not a migration of the experimental field branch's
-VRPN/pants schema. Install the HDU core/supervisor/helper and Console together
+Lifecycle schema 6 combines gripper, Mac/Linux operator and VRPN/pants options.
+Both historical main and field schemas migrate without guessing the capture
+protocol from an IP. Old five/six/seven-field requests preserve newer options. Install the HDU core/supervisor/helper and Console together
 while STOPPED. No robot service is restarted by this source change.
 
 Prepare retains its five-second duration and READY target. The left arm clears
@@ -566,11 +564,36 @@ workspace's Planner config directory. Laptop uses the checkout's matching
 files. Linux uses the existing Distrobox; the Mac operator container uses
 `HOPE_LAPTOP_RUNTIME=direct` and its forced-command dispatcher must also include
 `ball-model-laptop`. The `hope_bringup` and NatNet launch paths apply the saved
-override after the base packetizer parameters. The separate field VRPN/pants
-workflow is a later port; this change does not replace main's VRPN launch file.
+override after the base packetizer parameters. VRPN/pants setup also applies
+this override; see [mocap setup](foxglove_mocap_setup.md). Motive network
+interface and calibration paths remain unchanged.
 
 Body timing is independent: Berkeley/main keeps
 `target_turn_reject_stale_pose: true`; the local field chooses `false`, keeping
 age diagnostics without an age veto. See the Planner README and
 `field_body_timing_audit.yaml`. Selecting PPQ002 does not silently change this
 option. Preserve the selected site's value when updating installed files.
+
+## Recording and display CPU options
+
+Public/main defaults keep recording manual. A site may set
+`HOPE_AUTO_RECORD_ON_START=1` in the supervisor environment to start recording
+only after authoritative Runner readiness at the end of START. Unset or `0`
+keeps the existing manual behavior. Restarting the supervisor does not trigger
+recording. Record OFF still stops the current capture segment. Capture errors
+remain visible in field status and do not change control state. The existing
+Mac/Linux three-host distributed acknowledgements and Kernel-only role selection
+remain intact.
+
+Runner trace/observation CSVs now check the recording switch before formatting
+rows; OFF avoids that CPU work. Segment headers/health accounting remain, and
+trace comparisons reset across OFF intervals. Captures include `/ball/point`,
+Planner diagnostics and the selected per-host ball physics file.
+
+Monitor/observer display publishers omit automatic per-publisher QoS warning
+callbacks by default. Topic types, QoS, rates and command/subscription behavior
+are unchanged. `HOPE_DISPLAY_QOS_EVENTS=1` restores those warning callbacks for
+diagnosis. Install `hope_display_publishers.py` with the matching monitor and
+observer under `/usr/local/lib/hope-foxglove/`; partial deployment would fail
+imports. No service is installed/restarted by this source change. CPU reduction
+on Berkeley hardware requires a later measurement; source tests verify behavior.

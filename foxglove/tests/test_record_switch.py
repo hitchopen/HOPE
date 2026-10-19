@@ -226,3 +226,44 @@ int main(int argc,char**argv) {
     health = json.loads((directory / "trace.csv.health.json").read_text())
     assert health["closed"] and health["dropped_bytes"] == 0 and not health["io_error"]
     assert json.loads((tmp_path / "trace.csv.recording.json").read_text())["state"] == "OFF"
+
+
+def test_csv_gate_skips_formatting_and_resumes_two_segments(tmp_path):
+    source = tmp_path / "format_gate.cpp"
+    source.write_text(r'''#include "a3_deploy/async_csv_file.hpp"
+#include <fstream>
+#include <cassert>
+int main(int argc,char**argv) {
+  const std::string root=argv[1], control=root+"/control";
+  {std::ofstream f(control);}
+  a3_deploy::AsyncCsvFile out; out.open(root+"/trace.csv");
+  out<<"tick,value\n";out.flush();
+  int formatted=0;
+  auto row=[&] {if(out.is_recording()){out<<formatted++<<",42\n";out.flush();}};
+  auto change=[&](const char* name,bool on) {
+    {std::ofstream f(control);f<<name;}
+    for(int i=0;i<200 && out.is_recording()!=on;++i)
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    assert(out.is_recording()==on);
+  };
+  for(int i=0;i<100000;++i)row();assert(formatted==0);
+  for(const auto name:{"record_one","record_two"}) {
+    change(name,true);
+    for(int i=0;i<30;++i){row();std::this_thread::sleep_for(std::chrono::milliseconds(2));}
+    change("",false);
+    int before=formatted;for(int i=0;i<100000;++i)row();assert(formatted==before);
+  }
+  out.close();assert(!out.is_recording());
+}''')
+    binary = tmp_path / "format_gate"
+    subprocess.run(["g++", "-O2", "-std=c++17", "-pthread", "-I", str(INCLUDE),
+                    str(source), "-o", str(binary)], check=True)
+    subprocess.run([str(binary), str(tmp_path)], check=True,
+                   env={**os.environ, "HOPE_RECORD_CONTROL_FILE": str(tmp_path / "control")}, timeout=10)
+    for segment in ["record_one", "record_two"]:
+        directory = tmp_path / "recordings" / segment
+        with (directory / "trace.csv").open() as f:
+            rows = list(csv.DictReader(f))
+        assert len(rows) >= 28 and all(row["value"] == "42" for row in rows)
+        health = json.loads((directory / "trace.csv.health.json").read_text())
+        assert health["closed"] and health["dropped_bytes"] == 0

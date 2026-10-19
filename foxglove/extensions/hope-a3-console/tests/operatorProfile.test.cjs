@@ -17,6 +17,7 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
     laptop_wifi_ip: '192.0.2.10', hdu_wifi_ip: '192.0.2.20',
     mdu_internal_ip: '192.0.2.30', motive_ip: '', table_side: 'P1',
     operator_profile: profile, gripper_profile: 'legacy',
+    pants_profile: 'v2', mocap_source: 'none', vrpn_ip: '', vrpn_port: '3883', vrpn_units: 'mm',
   };
   const react = {
     ...require('react'),
