@@ -13,7 +13,7 @@ import tempfile
 from typing import IO, Mapping, Sequence
 
 
-CONFIG_SCHEMA_VERSION = 3
+CONFIG_SCHEMA_VERSION = 2
 NETWORK_CONFIG_FIELDS = (
     "laptop_wifi_ip",
     "hdu_wifi_ip",
@@ -21,8 +21,7 @@ NETWORK_CONFIG_FIELDS = (
     "motive_ip",
 )
 REQUIRED_NETWORK_CONFIG_FIELDS = NETWORK_CONFIG_FIELDS[:-1]
-LEGACY_CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS, "table_side")
-CONFIG_FIELDS = (*LEGACY_CONFIG_FIELDS, "operator_profile")
+CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS, "table_side")
 PRIVATE_NETWORKS = tuple(
     ipaddress.IPv4Network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 )
@@ -47,8 +46,6 @@ class LifecycleConfig:
     motive_ip: str = ""
     table_side: str = "P1"
     revision: int = 0
-    # Identity is independent of the current Wi-Fi address.
-    operator_profile: str = "linux"
 
     def values(self) -> dict[str, str]:
         return {name: str(getattr(self, name)) for name in CONFIG_FIELDS}
@@ -119,10 +116,6 @@ def validate_table_side(value: object) -> str:
 
 
 def validate_config_value(name: str, value: object) -> str:
-    if name == "operator_profile":
-        if not isinstance(value, str) or value not in {"linux", "mac"}:
-            raise ValueError("operator_profile must be exactly linux or mac")
-        return value
     if name == "motive_ip":
         if value == "":
             return ""
@@ -138,17 +131,17 @@ def apply_config_updates(
     current: LifecycleConfig,
     updates: Sequence[tuple[str, object]],
 ) -> LifecycleConfig:
-    if len(updates) not in {len(LEGACY_CONFIG_FIELDS), len(CONFIG_FIELDS)}:
+    if len(updates) != len(CONFIG_FIELDS):
         raise ValueError(
             "configuration request must contain three required IPv4 fields, "
-            "optional motive_ip, table_side, and optional operator_profile"
+            "optional motive_ip, and table_side"
         )
     names = [name for name, _value in updates]
     if len(set(names)) != len(names):
         raise ValueError("configuration request contains duplicate fields")
-    if set(names) not in (set(LEGACY_CONFIG_FIELDS), set(CONFIG_FIELDS)):
+    if set(names) != set(CONFIG_FIELDS):
         unknown = sorted(set(names) - set(CONFIG_FIELDS))
-        missing = sorted(set(LEGACY_CONFIG_FIELDS) - set(names))
+        missing = sorted(set(CONFIG_FIELDS) - set(names))
         detail = []
         if unknown:
             detail.append(f"unknown={','.join(unknown)}")
@@ -158,9 +151,6 @@ def apply_config_updates(
     validated = {
         name: validate_config_value(name, value) for name, value in updates
     }
-    # Older consoles still send the original five fields. Updating an address
-    # must not silently change the selected operator identity.
-    validated.setdefault("operator_profile", current.operator_profile)
     return LifecycleConfig(**validated, revision=current.revision + 1)
 
 
@@ -170,7 +160,7 @@ def config_to_document(config: LifecycleConfig) -> dict[str, object]:
 
 def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     schema_version = document.get("schema_version")
-    if schema_version not in {1, 2, CONFIG_SCHEMA_VERSION}:
+    if schema_version not in {1, CONFIG_SCHEMA_VERSION}:
         raise ValueError("unsupported lifecycle configuration schema")
     revision = document.get("revision")
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
@@ -181,15 +171,11 @@ def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     }
     # A deployed schema-1 configuration predates table-side selection and is
     # therefore exactly the historical P1/direct mode.  The next confirmation
-    # writes the current schema explicitly.
+    # writes schema 2 explicitly.
     values["table_side"] = (
         "P1"
         if schema_version == 1
         else validate_table_side(document.get("table_side"))
-    )
-    values["operator_profile"] = (
-        "linux" if schema_version in {1, 2}
-        else validate_config_value("operator_profile", document.get("operator_profile"))
     )
     return LifecycleConfig(**values, revision=revision)
 

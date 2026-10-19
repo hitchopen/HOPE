@@ -50,7 +50,6 @@ class LifecycleConfigTests(unittest.TestCase):
                 "mdu_internal_ip": "",
                 "motive_ip": "",
                 "table_side": "P1",
-                "operator_profile": "linux",
             },
         )
 
@@ -163,7 +162,7 @@ class LifecycleConfigTests(unittest.TestCase):
             save_config_atomic(path, config)
             self.assertEqual(load_config(path), config)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(path.read_text())["schema_version"], 3)
+            self.assertEqual(json.loads(path.read_text())["schema_version"], 2)
 
     def test_unconfirmed_or_malformed_documents_fail(self):
         document = config_to_document(self.valid_config(revision=1))
@@ -181,39 +180,6 @@ class LifecycleConfigTests(unittest.TestCase):
         del document["table_side"]
         loaded = config_from_document(document)
         self.assertEqual(loaded.table_side, "P1")
-
-    def test_legacy_documents_keep_linux_account_configuration(self):
-        for schema in (1, 2):
-            document = config_to_document(self.valid_config(revision=1))
-            document["schema_version"] = schema
-            document.pop("operator_profile")
-            self.assertEqual(config_from_document(document).operator_profile, "linux")
-
-    def test_profile_survives_address_change_legacy_client_and_restart(self):
-        current = self.valid_config(revision=1)
-        values = {**current.values(), "operator_profile": "mac"}
-        mac = apply_config_updates(current, list(values.items()))
-        legacy = {name: value for name, value in mac.values().items()
-                  if name != "operator_profile"}
-        legacy["laptop_wifi_ip"] = "10.44.20.3"
-        moved = apply_config_updates(mac, list(legacy.items()))
-        self.assertEqual(moved.operator_profile, "mac")
-        self.assertEqual(moved.laptop_wifi_ip, "10.44.20.3")
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "config.json"
-            save_config_atomic(path, moved)
-            self.assertEqual(load_config(path), moved)
-        linux = apply_config_updates(moved, list({**moved.values(), "operator_profile": "linux"}.items()))
-        self.assertEqual(linux.operator_profile, "linux")
-
-    def test_unknown_profile_is_rejected_in_requests_and_documents(self):
-        current = self.valid_config(revision=1)
-        for value in ("", "MAC", "mac ", "other", 1, None):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "operator_profile"):
-                    apply_config_updates(current, list({**current.values(), "operator_profile": value}.items()))
-                with self.assertRaisesRegex(ValueError, "operator_profile"):
-                    config_from_document({**config_to_document(current), "operator_profile": value})
 
     def test_session_and_helper_event_contracts(self):
         self.assertEqual(

@@ -476,9 +476,7 @@ start_laptop_capture() {
     [[ -e "$output" ]] || break
     attempt=$((attempt + 1))
   done
-  local -a runtime=(/usr/bin/distrobox enter hope --)
-  [[ "${HOPE_LAPTOP_RUNTIME:-distrobox}" != direct ]] || runtime=()
-  start_tmux "$capture_session" "${runtime[@]}" /bin/bash \
+  start_tmux "$capture_session" /usr/bin/distrobox enter hope -- /bin/bash \
     "$HOPE_ROOT/foxglove/helpers/hope-laptop-sim2real-record" \
     "$HOPE_ROOT" "$SESSION_ID" "$HDU_WIFI_IP" "$output"
 }
@@ -771,9 +769,6 @@ run_laptop() {
     printf 'HOPE_LIFECYCLE_MARKER_ROOT=%q\n' "$LAPTOP_SHARE"
     printf 'HOPE_LIFECYCLE_TABLE_SIDE=%q\n' "$TABLE_SIDE"
   } > "$runtime_env"
-  if [[ "${HOPE_LAPTOP_RUNTIME:-distrobox}" == direct ]]; then
-    exec "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime"
-  fi
   exec /usr/bin/distrobox enter hope -- \
     "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime"
 }

@@ -42,22 +42,13 @@ from hope_lifecycle_core import (
 LIFECYCLE_HELPER = "/usr/local/libexec/hope-lifecycle"
 # Trusted service configuration only; never accepted from a browser request.
 LAPTOP_LIFECYCLE_HELPER = os.environ.get("HOPE_LAPTOP_LIFECYCLE_HELPER", LIFECYCLE_HELPER)
-MAC_LIFECYCLE_HELPER = os.environ.get(
-    "HOPE_MAC_LIFECYCLE_HELPER", "/home/dongc1/.local/libexec/hope-lifecycle"
-)
-for _name, _value in (
-    ("HOPE_LAPTOP_LIFECYCLE_HELPER", LAPTOP_LIFECYCLE_HELPER),
-    ("HOPE_MAC_LIFECYCLE_HELPER", MAC_LIFECYCLE_HELPER),
-):
-    if re.fullmatch(r"/[A-Za-z0-9_./-]+", _value) is None:
-        raise RuntimeError(f"{_name} must be an absolute executable path")
+if re.fullmatch(r"/[A-Za-z0-9_./-]+", LAPTOP_LIFECYCLE_HELPER) is None:
+    raise RuntimeError("HOPE_LAPTOP_LIFECYCLE_HELPER must be an absolute executable path")
 CONFIG_PATH = Path("/var/lib/hope-lifecycle/config.json")
 LAPTOP_USER = os.environ.get("HOPE_LAPTOP_USER", "operator").strip()
-MAC_USER = os.environ.get("HOPE_MAC_USER", "dongc1").strip()
 ROBOT_USER = os.environ.get("HOPE_ROBOT_USER", "agi").strip()
 for _name, _value in (
     ("HOPE_LAPTOP_USER", LAPTOP_USER),
-    ("HOPE_MAC_USER", MAC_USER),
     ("HOPE_ROBOT_USER", ROBOT_USER),
 ):
     if re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", _value) is None:
@@ -87,16 +78,6 @@ class LifecycleBackend:
     @staticmethod
     def _ssh(host: str, *remote: str) -> list[str]:
         return ["/usr/bin/ssh", *SSH_OPTIONS, host, *remote]
-
-    @staticmethod
-    def _laptop(config: LifecycleConfig) -> tuple[str, str]:
-        if config.operator_profile == "mac":
-            # bind installs this stable alias for the loopback reverse tunnel.
-            # The Wi-Fi IP is still used for DDS and session metadata, not identity.
-            return f"{MAC_USER}@hope-mac-operator", MAC_LIFECYCLE_HELPER
-        if config.operator_profile == "linux":
-            return f"{LAPTOP_USER}@{config.laptop_wifi_ip}", LAPTOP_LIFECYCLE_HELPER
-        raise ValueError("unknown operator_profile")
 
     def _invoke(
         self,
@@ -132,7 +113,7 @@ class LifecycleBackend:
     def start(self, config: LifecycleConfig, session_id: str, event_callback,
               mode: str = "OPTITRACK", csv_sha: str = "DEFAULT") -> None:
         validate_session_id(session_id)
-        laptop, laptop_helper = self._laptop(config)
+        laptop = f"{LAPTOP_USER}@{config.laptop_wifi_ip}"
         mdu = f"{ROBOT_USER}@{config.mdu_internal_ip}"
         motive_arg = config.motive_ip or "NONE"
         common = [
@@ -146,13 +127,13 @@ class LifecycleBackend:
             csv_sha,
         ]
         commands = (
-            ("PREFLIGHT", self._ssh(laptop, laptop_helper, "preflight-laptop", *common), 15.0),
+            ("PREFLIGHT", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "preflight-laptop", *common), 15.0),
             # Three vendor StopApp calls may take 35 s each, UI stop 30 s,
             # followed by a bounded quiet-state check. Keep START blocked
             # until cleanup completes, before launching Planner/HAL/Runner.
             ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 180.0),
             ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common), 15.0),
-            ("SESSION", self._ssh(laptop, laptop_helper, "prepare-laptop", *common), 45.0),
+            ("SESSION", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "prepare-laptop", *common), 45.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
             ("SESSION", self._ssh(mdu, LIFECYCLE_HELPER, "prepare-mdu", *common), 15.0),
             # OptiTrack is deliberately outside Runner lifecycle admission.
@@ -191,7 +172,7 @@ class LifecycleBackend:
         mode: str = "OPTITRACK"
     ) -> str:
         validate_session_id(session_id)
-        laptop, laptop_helper = self._laptop(config)
+        laptop = f"{LAPTOP_USER}@{config.laptop_wifi_ip}"
         mdu = f"{ROBOT_USER}@{config.mdu_internal_ip}"
         motive_arg = config.motive_ip or "NONE"
         common = [
@@ -205,8 +186,8 @@ class LifecycleBackend:
         commands = (
             ("RUNNER_HAL", self._ssh(mdu, LIFECYCLE_HELPER, "stop-mdu", *common), 45.0),
             ("PLANNER_BASE", [LIFECYCLE_HELPER, "stop-hdu", *common], 40.0),
-            ("COLLECT", self._ssh(laptop, laptop_helper, "stop-capture-laptop", *common), 30.0),
-            ("COLLECT", self._ssh(laptop, laptop_helper, "collect", *common), 1800.0),
+            ("COLLECT", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "stop-capture-laptop", *common), 30.0),
+            ("COLLECT", self._ssh(laptop, LAPTOP_LIFECYCLE_HELPER, "collect", *common), 1800.0),
         )
         if mode == "KERNEL":
             commands = tuple(item for item in commands if item[0] != "COLLECT")
@@ -246,8 +227,9 @@ class LifecycleBackend:
         if host == "hdu":
             command = [LIFECYCLE_HELPER, "record-control"]
         else:
-            target, helper = (self._laptop(config) if host == "laptop"
-                              else (f"{ROBOT_USER}@{config.mdu_internal_ip}", LIFECYCLE_HELPER))
+            target = (f"{LAPTOP_USER}@{config.laptop_wifi_ip}" if host == "laptop"
+                      else f"{ROBOT_USER}@{config.mdu_internal_ip}")
+            helper = LAPTOP_LIFECYCLE_HELPER if host == "laptop" else LIFECYCLE_HELPER
             command = self._ssh(target, helper, "record-control")
         result = self._run(command, input=json.dumps(request), capture_output=True,
                            text=True, timeout=8, check=False)
@@ -258,8 +240,9 @@ class LifecycleBackend:
     def exchange_assets(self, host: str, config: LifecycleConfig, request: dict) -> dict:
         if config.revision < 1:
             raise ValueError("confirm network configuration first")
-        target, helper = (self._laptop(config) if host == "laptop"
-                          else (f"{ROBOT_USER}@{config.mdu_internal_ip}", LIFECYCLE_HELPER))
+        target = (f"{LAPTOP_USER}@{config.laptop_wifi_ip}" if host == "laptop"
+                  else f"{ROBOT_USER}@{config.mdu_internal_ip}")
+        helper = LAPTOP_LIFECYCLE_HELPER if host == "laptop" else LIFECYCLE_HELPER
         result = self._run(self._ssh(target, helper, f"field-assets-{host}"),
                            input=json.dumps(request, ensure_ascii=False), capture_output=True,
                            text=True, timeout=30, check=False)
