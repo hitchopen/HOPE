@@ -1,0 +1,13 @@
+{
+  "root": "~/Documents/GitHub/HOPE",
+  "container": "hope-macos-operator",
+  "ssh_user": "agi",
+  "hdu_ip": "192.168.8.182",
+  "mdu_ip": "10.42.10.12",
+  "mac_ip": "192.168.8.155",
+  "linux_ip": "192.168.8.156",
+  "ssh_port": 22222,
+  "laptop_user": "operator",
+  "laptop_helper": "/home/operator/.local/libexec/hope-lifecycle",
+  "layout_id": "REPLACE_WITH_YOUR_IMPORTED_FOXGLOVE_LAYOUT_ID"
+}

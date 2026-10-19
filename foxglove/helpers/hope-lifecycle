@@ -476,7 +476,15 @@ start_laptop_capture() {
     [[ -e "$output" ]] || break
     attempt=$((attempt + 1))
   done
-  start_tmux "$capture_session" /usr/bin/distrobox enter hope -- /bin/bash \
+  # Mac operator helpers already run inside their Linux ROS container. Keep
+  # one nonempty argv array so the host-side tests also work with macOS Bash 3.
+  local -a capture_command=(/bin/bash)
+  case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
+    distrobox) capture_command=(/usr/bin/distrobox enter hope -- /bin/bash) ;;
+    direct) ;;
+    *) die SESSION INVALID_LAPTOP_RUNTIME ;;
+  esac
+  start_tmux "$capture_session" "${capture_command[@]}" \
     "$HOPE_ROOT/foxglove/helpers/hope-laptop-sim2real-record" \
     "$HOPE_ROOT" "$SESSION_ID" "$HDU_WIFI_IP" "$output"
 }
@@ -762,8 +770,12 @@ run_laptop() {
     printf 'HOPE_LIFECYCLE_MARKER_ROOT=%q\n' "$LAPTOP_SHARE"
     printf 'HOPE_LIFECYCLE_TABLE_SIDE=%q\n' "$TABLE_SIDE"
   } > "$runtime_env"
-  exec /usr/bin/distrobox enter hope -- \
-    "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime"
+  case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
+    direct) exec "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime" ;;
+    distrobox) exec /usr/bin/distrobox enter hope -- \
+      "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime" ;;
+    *) die OPTITRACK INVALID_LAPTOP_RUNTIME ;;
+  esac
 }
 
 start_laptop() {

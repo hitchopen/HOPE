@@ -533,6 +533,11 @@ configure_and_build() {
     -DGS_PACKAGE_ARCH_NAME="${ARCH}"
     -DGS_RUNTIME_OUTPUT_DIR="${PKG_DIR}"
   )
+  # Allow emulated build hosts to opt out of oneTBB LTO when their compiler's
+  # jobserver integration fails. Preserve the upstream default elsewhere.
+  if [[ -n "${A3_TBB_ENABLE_IPO:-}" ]]; then
+    cmake_args+=(-DTBB_ENABLE_IPO="${A3_TBB_ENABLE_IPO}")
+  fi
   # CMake FetchContent re-downloads URL-only dependencies when it regenerates the
   # populate stamp, even when the exact extracted source is already present.  Gate3
   # builds are frequently repeated only to stage another policy, so bind the verified
@@ -1189,6 +1194,19 @@ stage_body_drive_debug_files() {
     "${PKG_DIR}/tools/"
 }
 
+is_legacy_rally_v10_package() {
+  [[ "${ARCH}" == "rockchip" ]] || return 1
+  python3 - "${PKG_DIR}/config/a3_runtime_config.yaml" <<'PY_CONFIG'
+import sys
+from pathlib import Path
+import yaml
+
+cfg = yaml.safe_load(Path(sys.argv[1]).read_text()) or {}
+model = (cfg.get("onnx") or {}).get("model_path", "")
+sys.exit(0 if not cfg.get("policy_dir") and Path(model).name == "model_10500_v10.onnx" else 1)
+PY_CONFIG
+}
+
 stage_run_scripts() {
   local default_transport="iceoryx"
   if [[ "${ARCH}" == "thor" ]]; then
@@ -1560,9 +1578,9 @@ RUN_A3_PINGPONG
 
   chmod +x "${PKG_DIR}/run_a3.sh" "${PKG_DIR}/run_a3_probe.sh" "${PKG_DIR}/run_a3_pingpong.sh"
 
-  # Real-A3 RallyV10 operator entrypoints are Rockchip-only. Keep SHADOW and
-  # real motion as separate scripts so no wrapper can auto-promote control mode.
-  if [[ "${ARCH}" == "rockchip" ]]; then
+  # These legacy entrypoints pin model_10500_v10 and cannot launch a policy-dir
+  # package. Keep their mandatory checks only for that exact legacy model.
+  if is_legacy_rally_v10_package; then
     install -m 0644 \
       "${SCRIPT_DIR}/rally_v10_mdu_common.sh" \
       "${PKG_DIR}/rally_v10_mdu_common.sh"
@@ -1765,7 +1783,7 @@ verify_package() {
       exit 1
     fi
   done
-  if [[ "${ARCH}" == "rockchip" ]]; then
+  if is_legacy_rally_v10_package; then
     if [[ ! -f "${PKG_DIR}/rally_v10_mdu_common.sh" ]]; then
       echo "missing RallyV10 MDU helper: ${PKG_DIR}/rally_v10_mdu_common.sh" >&2
       exit 1

@@ -1,7 +1,7 @@
 # Current Runner workflow
 
 For direct installation, use the committed
-[Console 1.8.13 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.13.foxe).
+[Console 1.8.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe).
 Node.js is needed
 only to rebuild the extension, not to install this package.
 
@@ -15,8 +15,8 @@ The V2/V3 capture descriptions below apply only to legacy calibration mode.
 
 Current Runner/serve behavior, v12 assets, PR status and validation limits:
 [Runner, Xbox and serving](../docs/operations/runtime_xbox.md).
-The public [Console 1.8.9 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.13.foxe)
-is included; its public calibration interface differs from this development source.
+The public [Console 1.8.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe)
+includes the Mac/Linux operator-profile selector and matches the checked-in source.
 
 # HOPE A3 Foxglove Operator Interface
 
@@ -29,6 +29,13 @@ is included; its public calibration interface differs from this development sour
 > boundary are in `docs/operations/foxglove_runner_integration.md`.
 > The copy/paste deployment procedure is
 > `docs/operations/foxglove_first_hardware_test.md`.
+
+For a Mac operator alongside an existing Linux laptop, see
+[macOS operator setup and explicit profiles](../docs/operations/foxglove_lifecycle.md#macos-operator)
+and [local build commands](../docs/operations/macos_deployment.md). Any normal Mac
+login can operate it; no personal or administrator account is hardcoded. The Mac
+container and HDU service identities are configured independently. This does not
+change robot scheduling or motion assets.
 
 Rules and procedures for monitoring **any** Agibot A3 unit from a laptop on
 the same subnet: NTP offset, aggregate CPU utilization, ROS-message timestamp

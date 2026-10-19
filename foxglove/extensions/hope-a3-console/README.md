@@ -1,6 +1,6 @@
 # HOPE A3 Console
 
-Download `hopeopen.hope-a3-console-1.8.13.foxe` from this directory and open it in
+Download `hopeopen.hope-a3-console-1.8.14.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to
@@ -33,8 +33,14 @@ directory's `.gitignore` and the download links, and remove the superseded insta
 Install the generated `.foxe` through Foxglove Desktop's Extensions screen,
 then import `foxglove/layouts/model21800_console.json`.
 
-Before start, the operator chooses `UCB_P1 · DIRECT` or `UCB_P2 · ROTATE 180°` and
-confirms configuration. P2 tracks Motive rigid body UCB_P2 and rotates every ball
+Before start, choose **Linux** or **Mac** under **Operator computer**, confirm
+that computer's current Laptop IP, choose `UCB_P1 · DIRECT` or
+`UCB_P2 · ROTATE 180°`, and confirm configuration. The operator profile selects
+the trusted HDU SSH account/helper configuration; the panel does not accept
+usernames, helper paths or shell commands. Switching profiles requires a stopped
+lifecycle and the matching profile-aware HDU supervisor. An older supervisor
+does not supply the required profile topic, so upgrade the services before
+using this release. P2 tracks Motive rigid body UCB_P2 and rotates every ball
 and rigid-body pose about the table centre, so both end robots consume the same
 policy convention. The selection is locked while a lifecycle is active.
 
@@ -134,7 +140,7 @@ destination paths. Persistent selections are in
 `/agibot/data/bag/hope_pingpong_telemetry/`.
 
 For the 17-sticker update, rebuild Laptop `hope_bringup`, update the staged
-Laptop marker monitor and runtime helper, and install Console 1.8.13. Update
+Laptop marker monitor and runtime helper, and install Console 1.8.14. Update
 the HDU supervisor to stop polling legacy venue files. This change does not
 require replacing the Runner or its policy. Broader deployment changes still
 follow the wired runbook. The shared HDU Python
@@ -172,10 +178,10 @@ ROS 2 message-latency card.
 
 ## Public release
 
-The earlier reviewed main installer is
-[hopeopen.hope-a3-console-1.8.13.foxe](hopeopen.hope-a3-console-1.8.13.foxe).
-It includes main's 24-sticker calibration interface. For the new 17-sticker
-asset workflow, use the locally built
-[Console 1.8.13](hopeopen.hope-a3-console-1.8.13.foxe) described above.
+The current public installer is
+[Console 1.8.14](hopeopen.hope-a3-console-1.8.14.foxe), built from this directory's
+source. It includes the live marker-count workflow and explicit Linux/Mac
+operator selection described above. Install the matching profile-aware HDU
+supervisor and confirm the operator profile before starting a session.
 See [current Runner/serve behavior](../../../docs/operations/runtime_xbox.md)
 for Kernel completion, v12 timing and release limitations.

@@ -15,8 +15,8 @@ This layer replaces the repeated terminal work in hardware-runbook STEP
 0/1/2A/2B/4/5 with a fixed HDU-resident supervisor. It does not expose a
 remote shell. Foxglove can only:
 
-1. confirm three RFC1918 transport addresses, an optional Motive IPv4 address, and the robot's P1/P2 table
-   side while the stack is stopped;
+1. confirm three RFC1918 transport addresses, an optional Motive IPv4 address, the robot's P1/P2 table
+   side, and the Mac/Linux operator profile while the stack is stopped;
 2. start the fixed Laptop -> HDU -> MDU sequence;
 3. kill every lifecycle-managed session in reverse order, restore `agibot_pm`,
    and collect the current session logs.
@@ -24,6 +24,156 @@ remote shell. Foxglove can only:
 The native MDU Runner remains the authority for PASSIVE, PD_STAND, MOTION,
 role, serve state, action admission and action acknowledgements. The lifecycle
 supervisor owns process state only.
+
+## macOS operator
+
+Apple Silicon Macs can run Foxglove Desktop while the fixed Laptop lifecycle
+helpers run in a Linux Docker container. This imports only the Mac operator
+support; it does not change Runner, Planner, ELink priorities, motion CSVs or
+the robot's hardware profile. The normal Linux Distrobox path stays unchanged.
+
+### Separate Mac, Linux and robot identities
+
+The persistent `operator_profile` selects `mac` or `linux`, independently of
+Wi-Fi address. All Laptop startup, collection, recording and asset calls use
+this selection. Mac calls go to the stable SSH alias `hope-mac-operator`; Linux
+calls go to its configured Laptop IP. The IP remains DDS/session metadata.
+
+The Mac host login may be **any normal user**, not an administrator and not
+necessarily the container account. Configuration lives in that user's
+`~/.config/hope-macos/`. No named personal account, `/Users/...` path, native SSH
+server or Mac `sudo` is required by the operator commands. Docker Desktop must
+already be installed and usable by that user; organization-managed installation
+may separately require an administrator. Foxglove may be installed globally or
+per-user; the launcher finds it through macOS Launch Services.
+
+The HDU explicitly specifies the remote SSH username and helper, so SSH `User`
+settings alone cannot override them. Match the two **Mac-profile** settings:
+
+| Mac `operator.json` field | Existing HDU service setting | Default if unset |
+|---|---|---|
+| `laptop_user` | `HOPE_MAC_USER` | `operator` |
+| `laptop_helper` | `HOPE_MAC_LIFECYCLE_HELPER` | `/home/operator/.local/libexec/hope-lifecycle` |
+
+The Linux profile independently retains `HOPE_LAPTOP_USER` (default `operator`)
+and `HOPE_LAPTOP_LIFECYCLE_HELPER` (default `/usr/local/libexec/hope-lifecycle`).
+Never change the Linux settings just to accommodate a Mac. The container creates
+the configured non-root Linux account and translates the advertised helper path
+to its fixed local executable. Other paths and robot-side actions are rejected.
+Container initialization runs as root **inside Docker**, not as Mac root.
+
+`bind` and `select-mac` read the running HDU supervisor's `MainPID` environment
+and compare only these two fields before changing anything. They fail if the
+identity differs, the service is stopped, or its environment cannot be read.
+Use the HDU supervisor's service account for `ssh_user` (normally `agi`); do not
+grant broad sudo access to bypass this check. No full environment or credentials
+are returned by the check. `select-linux` remains available independently of
+the Mac container's health.
+
+### Prepare the Mac backend
+
+Docker Desktop must be installed and running. From this checkout:
+
+```bash
+docker build --platform linux/arm64 -t hope-dev:jazzy-arm64 \
+  -f scripts/macos/Dockerfile.ros scripts/macos
+docker build --platform linux/arm64 -t hope-operator:jazzy-arm64 \
+  -f scripts/macos/Dockerfile.operator scripts/macos
+# Build the recording overlay into the volume used by the operator container.
+python3 scripts/macos/hope.py build-ros --arch arm64 --jobs 2
+```
+
+Create `~/.config/hope-macos/operator.json` using
+[`operator.example.json`](../../scripts/macos/operator.example.json). Replace
+the sample addresses, absolute Mac checkout path and identity with your actual
+setup. A `~` checkout path expands to the current Mac user's home; paths with
+spaces are supported. `ssh_user` is the HDU account; `laptop_user` is the
+container account selected by the supervisor's Mac profile. Neither needs to
+match the Mac login. `layout_id` is only
+needed by the optional `open_foxglove.command` launcher.
+
+Keep these files outside the repository in the same private configuration directory:
+
+- `client_key`: the existing authorized SSH private key for Mac/container access
+  to the HDU and, through the HDU, the MDU. Keep permissions `0600`.
+- `known_hosts`: independently verified HDU/MDU host keys; strict checking stays enabled.
+- `hdu.pub`: the public key used by the HDU supervisor for its outbound Laptop SSH calls.
+
+The configuration directory should be `0700`. The Mac does not need a native
+account named `laptop_user` or macOS Remote Login. SSH is published only on
+Mac localhost and forwarded to HDU localhost. Incoming container SSH accepts
+only the fixed Laptop actions, with no shell, PTY or port forwarding.
+
+While the lifecycle is **STOPPED**, run:
+
+```bash
+python3 scripts/macos/operator.py up
+python3 scripts/macos/operator.py bind
+python3 scripts/macos/operator.py select-mac
+python3 scripts/macos/operator.py status
+```
+
+`up` starts only the local helper container and SSH tunnel. `bind` backs up and
+updates the HDU's Mac SSH route/host key and adds the Mac DDS peer without
+restarting services. It preserves existing Linux entries. `select-mac` only
+changes the selected Laptop address and `operator_profile` together through the
+configuration service; it does not press START or send motion commands. Both computers may view the
+same Foxglove endpoint at `ws://<HDU-IP>:8766`, but select only one session Laptop.
+Container initialization is asynchronous; if `bind` runs before its host key is
+ready, wait for initialization and retry. The existing `bind` DDS update needs
+administrator authorization on the HDU; if its noninteractive sudo is denied,
+have the administrator update the peer configuration instead of granting
+unrestricted Python sudo. No sudo policy is installed by this Mac patch.
+
+For logs/recording, the `hope-macos-arm64` Docker volume must already contain a
+compatible built ROS workspace at `/opt/hope/ros/install`, including the HOPE
+messages and recording helpers. Building the images alone does not provide
+that overlay. The checkout is mounted at `/work`, logs remain in `real_logs/`,
+and current-machine calibration uses `artifacts/macos_setup/operator-calibration/`
+instead of reusing the checkout's calibration. The home and SSH host keys are
+retained in the `hope-macos-operator-home` and `hope-macos-operator-state` volumes.
+
+This support does **not** establish Docker-to-LAN NatNet/DDS routing, clock
+synchronization or Xbox USB access. Those require separate venue validation
+before replacing the Linux mocap acquisition machine. An SSH preflight or a
+successful configuration change is not evidence of live mocap/recording data.
+
+### Upgrade the supervisor, Console and container together
+
+Install the matching `hope_lifecycle_core.py` and `hope_lifecycle_supervisor.py`
+on the HDU and restart its supervisor only while STOPPED. Install the bundled
+Console 1.8.14, which includes the **Operator computer** selector. Confirm the
+profile and current Laptop IP together, either there or with `select-mac` /
+`select-linux`. Schema 1/2 documents migrate to Linux; schema 3 persists the
+profile. Older five-field clients preserve the current profile, but cannot
+display/select it. The Mac-specific service environment variables are trusted
+HDU configuration, not editable arbitrary commands from Foxglove.
+
+Add the two Mac-profile identity fields to older `operator.json` files. `bind`
+removes the old IP-based Mac SSH match, preserving only the stable alias so a
+Linux laptop reusing that IP is not misrouted. An existing container
+with the old hardcoded account, wrong checkout, port or helper contract is
+rejected without stopping/replacing it. While STOPPED, first use
+`python3 scripts/macos/operator.py select-linux`, then
+`python3 scripts/macos/operator.py down`. Stop any separately installed legacy
+auto-start job before maintenance. Remove **only the stopped container named
+in your configuration**, not its volumes, rebuild the image with the commands
+above and rerun `up`, `bind`, `select-mac`.
+
+No container is automatically removed by these scripts. Reverse-tunnel socket
+names include a digest of HDU/user/port, so changing venues cannot silently reuse
+an old robot's connection. Legacy `tunnel.sock` connections are not adopted or
+closed automatically. `down` closes only the current configuration's tunnel;
+an already missing tunnel does not prevent stopping the local container.
+
+For routine return to Linux, use `select-linux` while STOPPED, then `down`.
+`ensure` is the optional idempotent check for an existing user-managed launcher;
+it honors `down`'s disabled marker. This checkout does not install LaunchAgents.
+
+For local ROS/build tooling and its limits, see
+[macOS development](macos_deployment.md). This Mac-only port derives from PR #53
+(`d54f8be9`, `3e353d0e`) but excludes its scheduler, PD Stand, Planner-age and
+serve-asset changes.
 
 ## Automatic data collection for MuJoCo tuning
 
@@ -72,7 +222,7 @@ The custom console calls these exact services through port `8766`:
 
 | Service | Type | Meaning |
 |---|---|---|
-| `/hope/lifecycle/apply_config` | `rcl_interfaces/srv/SetParameters` | Exact four-string configuration request; not a generic parameter service |
+| `/hope/lifecycle/apply_config` | `rcl_interfaces/srv/SetParameters` | Fixed network, table-side and operator-profile fields; not a generic parameter service |
 | `/hope/lifecycle/start` | `std_srvs/srv/Trigger` | Start STEP 0/1/2A/2B/4/5 asynchronously |
 | `/hope/lifecycle/kill_all_and_collect` | `std_srvs/srv/Trigger` | Kill all fixed lifecycle-managed sessions, restore `agibot_pm`, collect logs |
 
@@ -83,12 +233,19 @@ loopback, multicast and non-RFC1918 values, except that `motive_ip` also accepts
 IPv4 link-local (`169.254.0.0/16`) for a direct Laptop-to-Motive cable. The Laptop
 must have an address and route on that capture interface; its `laptop_wifi_ip`
 remains the separate RFC1918 address used to reach the HDU. `table_side` accepts
-only the exact enums `P1` and `P2`. The only accepted names are:
+only the exact enums `P1` and `P2`; `operator_profile` accepts `mac` or `linux`.
+The only accepted names are:
 
 - `laptop_wifi_ip`
 - `hdu_wifi_ip`
 - `mdu_internal_ip`
 - `motive_ip`
+- `table_side`
+- `operator_profile`
+
+Schema 3 persists the operator profile. Schema 1/2 files migrate to Linux;
+older five-field clients preserve the currently selected profile. Upgrade the
+core, supervisor and Console together before using Mac/Linux selection.
 
 The packaged Rockchip runtime still fixes the HDU-side internal endpoint at
 `10.42.10.10`; changing that value is a package/runtime rebuild, not a normal
