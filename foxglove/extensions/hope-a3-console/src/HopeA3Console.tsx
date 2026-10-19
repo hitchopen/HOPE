@@ -10,6 +10,9 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import { BallYFilterControls } from "./BallYFilterControls";
+import { BALL_Y_FILTER_SERVICE, BallYFilterState, ballYFilterRequest, decodeBallYFilter } from "./ballYFilter";
+import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
@@ -23,6 +26,7 @@ import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
 
 const TOPICS = {
+  plannerDiagnostics: "/planner/diagnostics",
   fieldStatus: "/hope/field/status",
   ntpOffset: "/hope/ntp/offset_ms",
   ntpSkew: "/hope/ntp/skew_ppm",
@@ -120,6 +124,7 @@ type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
+  auto_record_on_start?: boolean;
   ball_model?: "berkeley" | "ppq002" | null;
   ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
@@ -212,6 +217,7 @@ function xboxPreviewValue(message: unknown): XboxPreview | undefined {
 }
 
 type Snapshot = {
+  ballYFilter?: BallYFilterState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
   ntpOffsetMs?: number;
@@ -319,6 +325,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
+    case TOPICS.plannerDiagnostics:
+      next.ballYFilter = decodeBallYFilter(event.message);
+      break;
     case TOPICS.fieldStatus:
       try {
         next.field = JSON.parse(stringValue(event.message) ?? "null") as FieldStatus;
@@ -676,6 +685,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [recordBusy, setRecordBusy] = useState(false);
   const csvInput = useRef<HTMLInputElement>(null);
 
+  const previewBallYFilter = useCallback((draft: BallYFilterDraft, options: { kernelMode: boolean; edited: boolean }) => {
+    context.layout.addPanel({ position: "sibling", type: "3D", updateIfExists: true,
+      getState: (existing) => withBallYPreview(existing, draft, options) });
+    context.saveState({ ...(context.initialState as Record<string, unknown> | undefined),
+      ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited });
+  }, [context]);
+
   useLayoutEffect(() => {
     context.onRender = (renderState, done) => {
       const receivedAt = Date.now();
@@ -783,6 +799,30 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     } finally {
       setPending(false);
     }
+  }, [context]);
+
+  const applyBallYFilter = useCallback(async (config: { enabled: boolean; min: number; max: number }) => {
+    const { enabled, min, max } = config;
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(BALL_Y_FILTER_SERVICE, ballYFilterRequest(config)),
+      timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      const state = current.ballYFilter;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) &&
+          state?.enabled === enabled && state.min === min && state.max === max) {
+        setNotice("APPLIED · y filter and table markers updated");
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("已收到确认，但状态回读超时；请查看当前生效范围。");
   }, [context]);
 
   const uploadAsset = useCallback(async (file: File | undefined) => {
@@ -1149,7 +1189,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             onClick={() => void fieldCommand({ op: recordingActive ? "record_off" : "record_on" })}>
             {recordBusy ? "Updating…" : recordingActive ? "Record OFF · Stop" : "Record ON · Start"}
           </button>
-          <span className="helper">{field?.mode === "KERNEL" ? "Default OFF · robot data (Kernel has no Planner/mocap)" : "Default OFF · robot, policy, Planner and mocap data"}</span>
+          <span className="helper">{field?.auto_record_on_start === true ? "START 后自动录制 · 可手动 Record OFF" : "Default OFF · 手动开启录制"} · {field?.mode === "KERNEL" ? "robot data (Kernel has no Planner/mocap)" : "robot, policy, Planner and mocap data"}</span>
           <span className="asset-path">{field?.recording.output}</span>
           <span className="helper">{field?.recording.error}</span>
         </div>
@@ -1160,7 +1200,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <span className="eyebrow">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "VRPN · POSE ONLY" : "MOTIVE · LIVE ASSET"}</span>
           <strong>{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "GEOMETRY NOT VERIFIED" : assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>
           <span className="asset-path">{markerAsset}</span>
-          <span className="helper">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${snapshot.lifecycleConfig.pants_profile?.toUpperCase()} · CMTracker · verify setup below` : assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
+          <span className="helper">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${(snapshot.lifecycleConfig.pants_profile ?? "—").toUpperCase()} · CMTracker · verify setup below` : assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
           <span className="helper">Live pelvis: {baseFresh ? "AVAILABLE" : "WAITING"} · selected robot: {markerAsset}</span>
           {snapshot.lifecycleConfig.mocap_source === "vrpn" ? <p className="helper">VRPN provides poses only; marker counts and live geometry are unavailable. Confirm the selected pants asset origin, axes and table frame in CMTracker.</p> : <><p className="helper">Set Motive Up Axis to Z. Keep the imported pelvis origin and axes unchanged, and align the Motive world with the table. No venue JSON or Cali V2/V3 capture is needed.</p>
           <p className="helper">Default mode accepts the current named asset without a fixed file or marker layout. Pelvis alignment is assumed from the imported asset; physical mounting is not measured.</p></>}
@@ -1221,7 +1261,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <div className="topic-path">停止后选择；保存到 Planner 和球包器，下次启动生效</div>
           </div>
           <select aria-label="Ball physics model" value={snapshot.field?.ball_model ?? ""}
-            disabled={!assetEditable || fieldBusy || kernelMode}
+            disabled={!assetEditable || kernelMode}
             onChange={(event) => void fieldCommand({ op: "set_ball_model", model: event.target.value })}>
             <option value="" disabled>沿用现有配置 · 尚未选择</option>
             <option value="berkeley">伯克利球 · 原模型 2026-10-10</option>
@@ -1605,6 +1645,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={false}
             onClick={() => void invoke("refreshXHit")}
           />}
+          <div className="ready-controls">
           <ActionButton
             label="Ready"
             detail={
@@ -1630,6 +1671,14 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "ready"}
             onClick={() => void invoke("ready")}
           />
+          <BallYFilterControls
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.ballYFilter : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.ballYFilter?.configurable === true}
+            kernelMode={kernelMode} onApply={applyBallYFilter}
+            initialState={context.initialState} onPreview={previewBallYFilter}
+          />
+          </div>
           <ActionButton
             label="Start to Serve · Raise hand"
             detail={

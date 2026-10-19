@@ -957,3 +957,18 @@ button:disabled {
   padding: 0.5rem;
   font: 0.75rem "IBM Plex Mono", monospace;
 }
+
+.ready-controls { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ready-controls > .action-button { width: 100%; }
+.ball-y-filter { padding: 12px; border: 1px solid #f1b44d66; border-radius: 10px; background: #efad3910; display: flex; flex-direction: column; gap: 9px; font-size: 12px; min-width: 0; }
+.ball-y-filter-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-weight: 600; }
+.ball-y-filter-toggle input { accent-color: #f1b44d; }
+.ball-y-filter-toggle span { margin-left: auto; }
+.filter-on { color: #f1b44d; } .filter-off { color: #9ca9b7; }
+.ball-y-filter-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ball-y-filter-inputs label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ball-y-filter-inputs input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #71819688; border-radius: 5px; padding: 7px; color: #e7edf3; background: #0d1725; font-family: "IBM Plex Mono", monospace; }
+.ball-y-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ball-y-filter-actions button { border: 1px solid #f1b44d88; border-radius: 5px; padding: 6px 10px; color: #f5d395; background: #efad391a; cursor: pointer; }
+.ball-y-filter button:disabled, .ball-y-filter input:disabled { opacity: 0.45; cursor: not-allowed; }
+.ball-y-filter small { color: #aebbca; line-height: 1.5; overflow-wrap: anywhere; }

@@ -1,22 +1,20 @@
 # Current Runner workflow
 
 For direct installation, use the committed
-[Console 1.8.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe).
-Node.js is needed
-only to rebuild the extension, not to install this package.
+[Console 1.9.0 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.9.0.foxe).
+Node.js is needed only to rebuild the extension. Install matching lifecycle,
+Planner and capture helpers from the same checkout; the panel alone does not
+update services.
+
+Console 1.9.0 retains Mac/Linux operators and Motive/NatNet, adds explicit
+CMTracker/VRPN and V2/V4 pants options, ball physics selection, and optional Y
+filtering. Public Y filtering and automatic recording default OFF. See
+[mocap setup](../docs/operations/foxglove_mocap_setup.md) and
+[lifecycle options](../docs/operations/foxglove_lifecycle.md).
 
 See [Runner, Xbox and field operation](../docs/operations/runtime_xbox.md) for
-the current public model_21800 workflow, installation and mode semantics.
-
-Current 17-sticker trousers use a pelvis-aligned Motive import and automatic
-asset matching. Console 1.8.13 replaces Venue Calibration with live asset status;
-see [the current import/setup procedure](extensions/hope-a3-console/README.md).
-The V2/V3 capture descriptions below apply only to legacy calibration mode.
-
-Current Runner/serve behavior, v12 assets, PR status and validation limits:
-[Runner, Xbox and serving](../docs/operations/runtime_xbox.md).
-The public [Console 1.8.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe)
-includes the Mac/Linux operator-profile selector and matches the checked-in source.
+runtime installation and mode semantics. Legacy V2/V3 calibration descriptions
+below apply only to that legacy mode.
 
 # HOPE A3 Foxglove Operator Interface
 
@@ -343,6 +341,8 @@ sudo install -D -o root -g root -m 0644 ~/foxglove_a3/network.env.example \
 sudoedit /etc/hope-foxglove/network.env
 sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_monitor.py \
   /usr/local/bin/hope_monitor.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_display_publishers.py \
+  /usr/local/lib/hope-foxglove/hope_display_publishers.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_monitor_core.py \
   /usr/local/lib/hope-foxglove/hope_monitor_core.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-foxglove-bridge.service \
