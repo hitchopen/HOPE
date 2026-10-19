@@ -457,6 +457,27 @@ instance only. To disable persistence as well, restore the lifecycle helper from
 the installer backup under `/var/backups/hope-elink-scheduler-*` after reconciling
 any subsequent changes.
 
+During `apply` or `restore`, catchable termination (`SIGINT`, `SIGTERM`,
+`SIGHUP`) is deferred to cancellation checkpoints. Cancellation before the final
+verified commit rolls touched threads back to their pre-call settings, keeps
+cleanup protected from repeated signals, and exits unsuccessfully. An ordinary
+error or `KeyboardInterrupt` also attempts rollback; a failed rollback is
+reported, never treated as success. A late cancellation after the verified
+commit may report failure with all requested settings already applied.
+
+`SIGKILL`, process crashes and power loss cannot be handled in-process. If the
+same ELink process survives with a partial scheduling change, an administrator
+can use the existing explicit `restore` action. It requires the matching
+root-owned, non-writable-by-others original receipt, exact process/thread start
+times, audited binaries and hardware. In addition to normal factory/target
+settings, **only restore** admits the known intermediate state: `SCHED_OTHER`,
+priority 0, CPU `[1]`. Unknown policies, priorities or CPU sets, missing/corrupt
+receipts and replaced processes remain rejected. Do not delete or recreate a
+receipt to bypass these checks. `apply`, `verify` and normal START remain strict;
+they do not silently repair partial settings. A failed START does not itself
+guarantee ELink teardown; use the attended managed recovery procedure if explicit
+restoration is unavailable. No recovery action sends gripper or joint commands.
+
 Scheduling readback and passive transport timings do not measure finger motion
 or ball release. Physical serve repeatability must be tested separately.
 

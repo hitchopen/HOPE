@@ -7,6 +7,7 @@ before this policy is applied. Thread creation order and inherited comm identify
 the roles only in this exact, audited binary layout.
 """
 import argparse
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
@@ -14,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import select
+import signal
 import stat
 import sys
 
@@ -39,6 +41,41 @@ DESIRED = {'policy': os.SCHED_RR, 'priority': 20, 'cpus': [1]}
 FACTORY = {'policy': os.SCHED_OTHER, 'priority': 0, 'cpus': [0, 1, 7]}
 ROLES = ('main', 'send', 'receive')
 PRIORITIES = (23, 20, 24)
+TERMINATION_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+class SchedulingInterrupted(InterruptedError):
+    def __init__(self, signum):
+        self.signum = signum
+        super().__init__(f'ELink scheduling interrupted by {signal.Signals(signum).name}')
+
+
+@contextmanager
+def deferred_termination():
+    """Defer catchable termination to checkpoints, never through rollback."""
+    received = []
+
+    def record(signum, _frame):
+        # Do not raise asynchronously: a second signal, or the first signal
+        # during rollback of an ordinary error, must not unwind cleanup.
+        if not received:
+            received.append(signum)
+
+    def check_cancelled():
+        if received:
+            raise SchedulingInterrupted(received[0])
+
+    previous = {sig: signal.getsignal(sig) for sig in TERMINATION_SIGNALS}
+    try:
+        for sig in TERMINATION_SIGNALS:
+            signal.signal(sig, record)
+        yield check_cancelled
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+    # A signal arriving after the last commit checkpoint still reports failure,
+    # but the fully verified settings are no longer a partial transaction.
+    check_cancelled()
 
 
 def validate_lifecycle_profile(lifecycle):
@@ -122,7 +159,7 @@ def find_process(config):
     return matches[0]
 
 
-def inspect(config):
+def inspect(config, *, for_restore=False):
     if not re.fullmatch(r'/tmp/hope_real/[A-Za-z0-9_-]+/mdu/system/hal_elink_a3_gripper\.yaml', str(config)):
         raise RuntimeError('Expected managed session ELink config path')
     # Managed recording relocates the session's mdu directory to persistent
@@ -159,13 +196,23 @@ def inspect(config):
     # Reject a TID wrap/replacement rather than guessing the role assignment.
     if [t['start_ticks'] for t in threads] != sorted(t['start_ticks'] for t in threads):
         raise RuntimeError('ELink thread creation order changed')
-    for thread, role, target in zip(threads, ROLES, targets(), strict=True):
+    for thread, role in zip(threads, ROLES, strict=True):
         thread['role'] = role
-        if thread['settings'] not in (FACTORY, target):
+    snapshot = {**hardware, 'config': str(config), 'pid': pid, 'start_ticks': process_start,
+                'library_sha256': HASHES[LIBRARY], 'threads': threads}
+    if for_restore:
+        # Recovery is administrator-requested, never implicit during START.
+        # Validate the existing receipt before admitting any partial state.
+        original_receipt(snapshot, create=False)
+    for thread, target in zip(threads, targets(), strict=True):
+        allowed = (FACTORY, target)
+        if for_restore:
+            # Both promotion (affinity first) and demotion (policy first) can
+            # stop here. No other policy/priority/CPU combination is admitted.
+            allowed += (dict(FACTORY, cpus=list(DESIRED['cpus'])),)
+        if thread['settings'] not in allowed:
             raise RuntimeError(f'Unexpected existing thread policy: {thread}')
-    return {**hardware, 'config': str(config), 'pid': pid, 'start_ticks': process_start,
-            'library_sha256': HASHES[LIBRARY],
-            'threads': threads}
+    return snapshot
 
 
 def same_thread(snapshot, thread):
@@ -191,36 +238,42 @@ def set_settings(tid, value):
 
 
 def change(snapshot, targets):
-    """Apply transactionally, restoring the observed settings on any failure."""
+    """Restore observed settings on errors/catchable cancellation, then fail."""
     touched = []
-    try:
-        for thread, target in zip(snapshot['threads'], targets, strict=True):
-            if not same_thread(snapshot, thread):
-                raise RuntimeError('ELink process/thread identity changed')
-            if settings(thread['tid']) != thread['settings']:
-                raise RuntimeError('ELink scheduling changed concurrently')
-            touched.append(thread)
-            set_settings(thread['tid'], target)
-            if not same_thread(snapshot, thread) or settings(thread['tid']) != target:
-                raise RuntimeError('ELink scheduling readback failed')
-        for thread, target in zip(snapshot['threads'], targets, strict=True):
-            if not same_thread(snapshot, thread) or settings(thread['tid']) != target:
-                raise RuntimeError('ELink final readback failed')
-    except Exception as error:
-        failures = []
-        for thread in reversed(touched):
-            if not same_thread(snapshot, thread):
-                failures.append(f"thread {thread['tid']} exited; not touching a reused TID")
-                continue
-            try:
-                set_settings(thread['tid'], thread['settings'])
+    with deferred_termination() as check_cancelled:
+        try:
+            check_cancelled()
+            for thread, target in zip(snapshot['threads'], targets, strict=True):
+                if not same_thread(snapshot, thread):
+                    raise RuntimeError('ELink process/thread identity changed')
                 if settings(thread['tid']) != thread['settings']:
-                    raise RuntimeError('rollback readback mismatch')
-            except Exception as rollback_error:
-                failures.append(str(rollback_error))
-        if failures:
-            raise RuntimeError(f'{error}; rollback issues: {failures}') from error
-        raise
+                    raise RuntimeError('ELink scheduling changed concurrently')
+                check_cancelled()
+                touched.append(thread)
+                set_settings(thread['tid'], target)
+                check_cancelled()
+                if not same_thread(snapshot, thread) or settings(thread['tid']) != target:
+                    raise RuntimeError('ELink scheduling readback failed')
+            for thread, target in zip(snapshot['threads'], targets, strict=True):
+                if not same_thread(snapshot, thread) or settings(thread['tid']) != target:
+                    raise RuntimeError('ELink final readback failed')
+            check_cancelled()  # Commit: all three threads have verified settings.
+        except BaseException as error:
+            # Includes KeyboardInterrupt/SystemExit as well as syscall errors.
+            # Keep the non-throwing signal handlers installed for all cleanup.
+            failures = []
+            for thread in reversed(touched):
+                try:
+                    if not same_thread(snapshot, thread):
+                        raise RuntimeError(f"thread {thread['tid']} exited; not touching a reused TID")
+                    set_settings(thread['tid'], thread['settings'])
+                    if not same_thread(snapshot, thread) or settings(thread['tid']) != thread['settings']:
+                        raise RuntimeError('rollback readback mismatch')
+                except BaseException as rollback_error:
+                    failures.append(str(rollback_error) or type(rollback_error).__name__)
+            if failures:
+                raise RuntimeError(f'{error}; rollback issues: {failures}') from error
+            raise
 
 
 def receipt_path(snapshot):
@@ -237,11 +290,20 @@ def original_receipt(snapshot, create):
             json.dump(snapshot, stream, indent=2)
             stream.flush()
             os.fsync(stream.fileno())
-    original = json.loads(path.read_text())
-    keys = ('pid', 'start_ticks', 'config', 'library_sha256')
-    identity = lambda s: [(t['tid'], t['start_ticks']) for t in s['threads']]
-    if any(original[k] != snapshot[k] for k in keys) or identity(original) != identity(snapshot):
-        raise RuntimeError('Rollback receipt belongs to a different ELink instance')
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+        raise RuntimeError('Rollback receipt must be an owned regular file, not writable by others')
+    try:
+        original = json.loads(path.read_text())
+        keys = ('pid', 'start_ticks', 'config', 'library_sha256')
+        identity = lambda s: [(t['tid'], t['start_ticks']) for t in s['threads']]
+        if any(original[k] != snapshot[k] for k in keys) or identity(original) != identity(snapshot):
+            raise RuntimeError('Rollback receipt belongs to a different ELink instance')
+        for thread, target in zip(original['threads'], targets(), strict=True):
+            if thread['settings'] not in (FACTORY, target):
+                raise RuntimeError('Rollback receipt contains unaudited original thread settings')
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'Invalid rollback receipt: {path}') from error
     return original
 
 
@@ -270,7 +332,7 @@ def main():
     STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (STATE / 'lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        snapshot = inspect(args.config)
+        snapshot = inspect(args.config, for_restore=args.action == 'restore')
         # Hold a pidfd through mutation/readback to detect process exit. Also
         # check process and task start times before touching each thread.
         fd = os.pidfd_open(snapshot['pid'])
@@ -298,6 +360,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
+    except SchedulingInterrupted as exc:
+        print(f'ELINK_SCHEDULER_ERROR: {exc}', file=sys.stderr)
+        sys.exit(128 + exc.signum)
     except Exception as exc:
         print(f'ELINK_SCHEDULER_ERROR: {exc}', file=sys.stderr)
         sys.exit(1)

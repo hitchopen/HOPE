@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 
 import pytest
 
@@ -38,8 +39,12 @@ def fake_threads(monkeypatch, tmp_path):
         actual[tid]['cpus'] = list(cpus)
     def scheduler(tid, kind, param):
         actual[tid].update(policy=kind, priority=param.sched_priority)
-    monkeypatch.setattr(policy.os, 'sched_setaffinity', affinity)
-    monkeypatch.setattr(policy.os, 'sched_setscheduler', scheduler)
+    # These are fake scheduling operations on every host, including platforms
+    # whose Python does not expose Linux's scheduler APIs.
+    monkeypatch.setattr(policy.os, 'sched_setaffinity', affinity, raising=False)
+    monkeypatch.setattr(policy.os, 'sched_setscheduler', scheduler, raising=False)
+    monkeypatch.setattr(policy.os, 'sched_param',
+                        lambda priority: SimpleNamespace(sched_priority=priority), raising=False)
     return snapshot, actual, live
 
 
