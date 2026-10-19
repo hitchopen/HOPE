@@ -133,3 +133,26 @@ TEST(FlightTransportV2,
   EXPECT_THROW(restore_packet_v2(received, packet, "other_config"),
                std::invalid_argument);
 }
+TEST(FlightTransportV2,
+     X09_CheckpointRejectsDifferentNetPhysicsEvenWithACallerSuppliedTag) {
+  ProbabilisticConfig config;
+  FlightPipeline original(config);
+  original.start(0, 1, BoundaryEvidence::RACKET_CONTACT,
+                 HistoryContinuity::kComplete);
+  for (int i = 0; i < 8; ++i) {
+    BallSample sample;
+    sample.source_time_ns = i * 5000000LL;
+    sample.frame_id = "table";
+    sample.position = Vec3(.3 + .01 * i, -.7, .8 - .001 * i);
+    original.observe(sample);
+  }
+  HitPlaneSnapshot plane;
+  plane.calibrated = true;
+  plane.x_hit_m = .15;
+  auto forecast = original.forecast(plane, 35000000);
+  auto packet =
+      encode_packet_v2(original, forecast, "session", "producer", "tag");
+  config.table.net_height += .01;
+  FlightPipeline other(config);
+  EXPECT_THROW(restore_packet_v2(other, packet, "tag"), std::invalid_argument);
+}

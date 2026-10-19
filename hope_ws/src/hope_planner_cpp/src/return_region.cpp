@@ -180,7 +180,8 @@ std::string physics_fingerprint(const ProbabilisticConfig &c) {
   for (double v : {c.physics.gravity[0], c.physics.gravity[1], c.physics.gravity[2],
        c.physics.drag_k, c.physics.magnus_k, c.physics.radius, c.physics.restitution_v,
        c.physics.table_tangential_gain, c.physics.table_friction_cap_mu,
-       c.table.length, c.table.width, c.table.y_max, c.integration_dt_s,
+       c.table.length, c.table.width, c.table.y_max, c.table.net_x, c.table.net_height,
+       c.table.net_overhang, c.integration_dt_s,
        c.trajectory_dt_s, c.horizon_s, c.x_hit, c.acceleration_spectral_density,
        c.bounce_velocity_std[0], c.bounce_velocity_std[1], c.bounce_velocity_std[2]})
     o << v << ':';
