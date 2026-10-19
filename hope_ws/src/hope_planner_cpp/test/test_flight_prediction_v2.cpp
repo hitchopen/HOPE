@@ -711,6 +711,10 @@ TEST(FlightV2History,
     restored.restore_snapshot(shot.export_snapshot());
     EXPECT_FALSE(restored.export_snapshot().boundary_qualified);
     EXPECT_EQ(restored.observed_contacts(), 2);
+    auto wrongly_qualified = shot.export_snapshot();
+    wrongly_qualified.boundary_qualified = true;
+    EXPECT_THROW(restored.restore_snapshot(wrongly_qualified),
+                 std::invalid_argument);
     shot.start(1200000000, direction, BoundaryEvidence::RACKET_CONTACT,
                HistoryContinuity::kComplete);
     EXPECT_FALSE(shot.confirm(PhysicalEventKind::TABLE, 1100000000, 1210000000,

@@ -285,6 +285,8 @@ bool validate_packet_v2(const hope_msgs::msg::FlightPacketV2 &p,
     return fail("packet_spin_checkpoint");
   for (const auto &e : p.event_ledger)
     if (e.shot_generation != p.shot_generation ||
+        (p.boundary_qualified && e.status == "CONFIRMED" &&
+         e.event_time_ns < p.boundary_time_ns) ||
         (e.status == "CONFIRMED" && e.confirmed_at_ns < e.event_time_ns))
       return fail("packet_event_identity");
   if (packet_v2_hash(p) != p.payload_sha256)

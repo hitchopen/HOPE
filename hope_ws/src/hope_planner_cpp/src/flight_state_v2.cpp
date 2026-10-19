@@ -614,6 +614,8 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   next_event_id_ = 1;
   for (const auto &e : events_) {
     if (e.generation != generation_ || !e.id ||
+        (boundary_qualified_ && e.status == EventStatus::CONFIRMED &&
+         e.event_time_ns < boundary_ns_) ||
         (e.status == EventStatus::CONFIRMED &&
          e.confirmed_at_ns < e.event_time_ns))
       throw std::invalid_argument("invalid snapshot ledger");
