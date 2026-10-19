@@ -45,3 +45,5 @@ uint64 input_count
 uint64 superseded_count
 uint64 target_event_id
 string target_kind
+string context_source
+int64 context_time_ns

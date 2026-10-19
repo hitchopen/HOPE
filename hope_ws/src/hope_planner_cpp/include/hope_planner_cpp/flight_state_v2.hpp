@@ -81,6 +81,8 @@ struct ShotSnapshot {
   MatchContext match = MatchContext::UNKNOWN;
   HistoryContinuity continuity = HistoryContinuity::kUnknown;
   ClassificationStatus classification = ClassificationStatus::PROVISIONAL;
+  std::string context_source;
+  std::int64_t context_time_ns = 0;
   std::deque<BallSample> observations;
   std::vector<ShotEvent> events;
   EffectiveSpin spin;
@@ -125,6 +127,9 @@ public:
   const std::string &reason() const { return reason_; }
   int observed_contacts() const;
   bool route_supported() const;
+  void set_history_continuity(HistoryContinuity);
+  const std::string &context_source() const { return match_source_; }
+  std::int64_t context_time_ns() const { return match_time_ns_; }
 
 private:
   void reclassify();

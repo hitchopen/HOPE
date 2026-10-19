@@ -188,14 +188,20 @@ public:
                                  : HistoryContinuity::kUnknown);
           } else if (m->operation == "RESET")
             pipeline_->invalidate("explicit_reset");
-          else if (m->operation == "CONTEXT")
-            pipeline_->shot().context(
+          else if (m->operation == "CONTEXT") {
+            const bool accepted = pipeline_->shot().context(
                 m->match_context == "SERVE" ? MatchContext::SERVE
                 : m->match_context == "NORMAL_RALLY"
                     ? MatchContext::NORMAL_RALLY
                     : MatchContext::UNKNOWN,
                 m->source_time_ns, m->authority, m->shot_generation);
-          else if (m->operation == "CONTACT") {
+            if (accepted && m->history_continuity == "complete")
+              pipeline_->shot().set_history_continuity(
+                  HistoryContinuity::kComplete);
+            else if (accepted && m->history_continuity == "incomplete")
+              pipeline_->shot().set_history_continuity(
+                  HistoryContinuity::kIncomplete);
+          } else if (m->operation == "CONTACT") {
             if (m->shot_generation != pipeline_->shot().generation())
               return;
             PhysicalEventKind kind;
@@ -267,6 +273,8 @@ public:
         wire.session_id = session_;
         wire.producer_id = producer_;
         wire.config_id = config_id_;
+        wire.context_source = job->pipeline.shot().context_source();
+        wire.context_time_ns = job->pipeline.shot().context_time_ns();
         wire.generated_at_ns = current;
         wire.published_at_ns = now().nanoseconds();
         wire.input_count = inputs_;

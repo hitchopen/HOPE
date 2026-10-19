@@ -44,3 +44,5 @@ geometry_msgs/Vector3 state_omega_rad_s
 string state_spin_mode
 int64 state_spin_measurement_time_ns
 uint64 state_spin_last_contact_id
+string context_source
+int64 context_time_ns

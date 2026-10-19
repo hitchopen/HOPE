@@ -171,7 +171,7 @@ bool ShotContext::observe(BallSample s) {
        samples_.back().source_time_ns) *
               1e-9L >
           config_.gap_warning_s)
-    continuity_ = HistoryContinuity::kIncomplete;
+    set_history_continuity(HistoryContinuity::kIncomplete);
   spin_.observe(s);
   samples_.push_back(s);
   while (samples_.size() > settings_.observation_capacity ||
@@ -317,10 +317,12 @@ bool ShotContext::context(MatchContext c, std::int64_t ns,
       (!match_source_.empty() &&
        (source != match_source_ || ns < match_time_ns_)))
     return false;
+  const bool semantic_change = match_ != c;
   match_ = c;
   match_time_ns_ = ns;
   match_source_ = source;
-  changed("authoritative_context");
+  if (semantic_change)
+    changed("authoritative_context");
   reclassify();
   return true;
 }
@@ -333,8 +335,16 @@ int ShotContext::observed_contacts() const {
   return n;
 }
 bool ShotContext::route_supported() const {
-  return active() && (continuity_ == HistoryContinuity::kComplete ||
-                      match_ != MatchContext::UNKNOWN);
+  // Match type constrains the route; it does not certify unobserved bounce
+  // history.
+  return active() && continuity_ == HistoryContinuity::kComplete;
+}
+void ShotContext::set_history_continuity(HistoryContinuity continuity) {
+  if (active() && continuity_ != continuity) {
+    continuity_ = continuity;
+    changed("history_qualification_changed");
+    reclassify();
+  }
 }
 void ShotContext::reclassify() {
   if (!active())
@@ -548,9 +558,10 @@ bool ShotContext::publishable(const ShotToken &t, std::int64_t now) {
   return true;
 }
 ShotSnapshot ShotContext::export_snapshot() const {
-  return {generation_, revision_, boundary_ns_, direction_,
-          state_,      match_,    continuity_,  classification_,
-          samples_,    events_,   spin_.value()};
+  return {generation_,   revision_,      boundary_ns_, direction_,
+          state_,        match_,         continuity_,  classification_,
+          match_source_, match_time_ns_, samples_,     events_,
+          spin_.value()};
 }
 void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   if (!snapshot.generation || snapshot.direction == 0 ||
@@ -574,6 +585,8 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   direction_ = snapshot.direction;
   state_ = route_ = snapshot.state;
   match_ = snapshot.match;
+  match_source_ = snapshot.context_source;
+  match_time_ns_ = snapshot.context_time_ns;
   continuity_ = snapshot.continuity;
   classification_ = snapshot.classification;
   samples_ = snapshot.observations;
@@ -767,6 +780,8 @@ bool FlightPipeline::observe(BallSample sample) {
   if (!admitted)
     return false;
   const auto update = tracker_.observe(sample);
+  if (update.new_track && update.reason != "initial_observation")
+    shot_.set_history_continuity(HistoryContinuity::kIncomplete);
   tracker_.set_effective_spin(shot_.spin());
   // Confirm a bracketed descending/rising top contact using source-time slopes.
   const auto &samples = shot_.samples();

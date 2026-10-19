@@ -641,3 +641,28 @@ TEST(FlightV2Numerics,
     EXPECT_NEAR(target->pre.position.x(), direction > 0 ? 2.74 : .9995, 1e-10);
   }
 }
+TEST(FlightV2History,
+     C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve) {
+  ProbabilisticConfig config;
+  config.gap_warning_s = .010;
+  ShotContext shot(config);
+  shot.start(0, -1, BoundaryEvidence::ACQUISITION, HistoryContinuity::kUnknown);
+  shot.observe(sample(0));
+  ASSERT_TRUE(shot.context(MatchContext::NORMAL_RALLY, 0, "referee",
+                           shot.generation()));
+  EXPECT_FALSE(shot.route_supported());
+  const auto generation = shot.generation(), size = shot.samples().size();
+  shot.set_history_continuity(HistoryContinuity::kComplete);
+  EXPECT_TRUE(shot.route_supported());
+  EXPECT_EQ(shot.generation(), generation);
+  EXPECT_EQ(shot.samples().size(), size);
+  auto token = shot.snapshot();
+  shot.observe(sample(20000000, Vec3(.24, -.7, .5)));
+  EXPECT_EQ(shot.continuity(), HistoryContinuity::kIncomplete);
+  EXPECT_FALSE(shot.publishable(token, 20000000));
+  EXPECT_FALSE(shot.route_supported());
+  const auto revision = shot.revision();
+  ASSERT_TRUE(shot.context(MatchContext::NORMAL_RALLY, 20000000, "referee",
+                           shot.generation()));
+  EXPECT_EQ(shot.revision(), revision);
+}

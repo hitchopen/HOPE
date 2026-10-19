@@ -131,6 +131,8 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
                                                                : "PROVISIONAL";
   w.history_continuity = name(shot.continuity());
   w.match_context = context_name(shot.match_context());
+  w.context_source = shot.context_source();
+  w.context_time_ns = shot.context_time_ns();
   w.physical_available = p.physical_available;
   w.target_valid = p.target.valid;
   w.target_incoming = p.target.incoming;
@@ -349,6 +351,8 @@ encode_packet_v2(const FlightPipeline &pipeline,
   p.state_spin_last_contact_id =
       checkpoint.belief.effective_spin.last_contact_id;
   p.match_context = context_name(snapshot.match);
+  p.context_source = snapshot.context_source;
+  p.context_time_ns = snapshot.context_time_ns;
   p.classification_status =
       snapshot.classification == ClassificationStatus::CONFIRMED
           ? "CONFIRMED"
@@ -376,6 +380,8 @@ void restore_packet_v2(FlightPipeline &pipeline,
     snapshot.state = PlayState::OPPONENT_SERVE;
   else
     throw std::invalid_argument("invalid packet play state");
+  snapshot.context_source = p.context_source;
+  snapshot.context_time_ns = p.context_time_ns;
   snapshot.direction =
       (snapshot.state == PlayState::RALLY || snapshot.state == PlayState::SERVE)
           ? 1

@@ -156,3 +156,39 @@ TEST(FlightTransportV2,
   FlightPipeline other(config);
   EXPECT_THROW(restore_packet_v2(other, packet, "tag"), std::invalid_argument);
 }
+TEST(FlightTransportV2,
+     C04_T06_AuthoritativeContextProvenanceSurvivesTransfer) {
+  FlightPipeline original({});
+  original.start(0, -1, BoundaryEvidence::RACKET_CONTACT,
+                 HistoryContinuity::kUnknown);
+  for (int i = 0; i < 8; ++i) {
+    BallSample s;
+    s.source_time_ns = i * 5000000LL;
+    s.position = Vec3(2. - .02 * i, -.7, .8 - .001 * i);
+    s.frame_id = "table";
+    s.clock_domain = "simulation";
+    original.observe(s);
+  }
+  ASSERT_TRUE(original.shot().context(MatchContext::NORMAL_RALLY, 30000000,
+                                      "independent_referee",
+                                      original.shot().generation()));
+  EXPECT_FALSE(original.shot().route_supported());
+  original.shot().set_history_continuity(HistoryContinuity::kComplete);
+  HitPlaneSnapshot plane;
+  plane.calibrated = true;
+  plane.x_hit_m = .15;
+  auto prediction = original.forecast(plane, 35000000);
+  auto packet =
+      encode_packet_v2(original, prediction, "session", "producer", "profile");
+  FlightPipeline restored({});
+  ASSERT_NO_THROW(restore_packet_v2(restored, packet, "profile"));
+  EXPECT_EQ(restored.shot().context_source(), "independent_referee");
+  EXPECT_EQ(restored.shot().context_time_ns(), 30000000);
+  EXPECT_TRUE(restored.shot().route_supported());
+  EXPECT_FALSE(restored.shot().context(MatchContext::SERVE, 35000000,
+                                       "other_source",
+                                       restored.shot().generation()));
+  const auto wire = encode_prediction(prediction, original.shot());
+  EXPECT_EQ(wire.context_source, "independent_referee");
+  EXPECT_EQ(wire.context_time_ns, 30000000);
+}
