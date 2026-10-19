@@ -7,6 +7,8 @@ uint64 context_revision
 string config_id
 string payload_sha256
 int64 boundary_time_ns
+# Acquisition time alone does not establish the physical shot's start.
+bool boundary_qualified
 string history_continuity
 string play_state
 string forecast_route

@@ -27,14 +27,20 @@ striker-side contact before the net. The observation queue, original timestamps,
 event identity, spin lineage and shot generation survive. Semantic revision changes
 immediately fence old solves. NORMAL_RALLY context instead forbids that contact;
 SERVE context constrains the ordered two-side route. Incomplete acquisition does
-not prove zero earlier bounces. Physical forecasts remain available while route
-targets wait for supported history. An armed service toss cannot autoqualify.
+not prove zero earlier bounces. Match type alone also cannot certify missing
+history. A receiver-side bounce after incomplete acquisition remains provisional,
+rather than proving that the net/striker bounce never happened. Trusted same-shot
+historical events may precede an unqualified acquisition timestamp; they cannot
+precede a qualified physical boundary. Packets preserve that distinction. Positive
+forbidden ordering/count evidence still rejects immediately. Verified history
+reclassification preserves the current samples and generation. Physical forecasts
+remain available while route targets wait for supported history. An armed service toss cannot autoqualify.
 
 Automatic acquisition requires at least six source observations over the configured
 25 ms span, horizontal launch speed at least 1 m/s and acceleration consistent with
 ballistic motion within the configured 8 m/s² residual. These are provisional
-engineering thresholds. Explicit boundary evidence establishes complete history;
-automatic acquisition always declares unknown prehistory. Held-ball rejection uses
+engineering thresholds. Qualified boundaries and explicit history-continuity evidence
+are distinct; automatic acquisition always declares unknown prehistory. Held-ball rejection uses
 elapsed time and spatial dispersion; moving non-ballistic rejection excludes
 observed/reversing contact windows. A vertical-velocity root records an apex without
 calling it held motion.
@@ -61,7 +67,14 @@ quaternions break differencing only. Reacquisition requires fresh increments;
 q/-q equivalence is preserved, and increments whose possible rotation exceeds
 half a revolution at the configured maximum rate are rejected. A rejected current
 increment cannot refresh measurement age. A zero resulting from a trusted contact
-is usable; absence of a prior never synthesizes angular state or Magnus.
+is usable; absence of a prior never synthesizes angular state or Magnus. Event IDs
+are identities, not chronological counters: historical evidence cannot suppress a
+later impulse merely because it received a larger ID. Impulses before the current
+measurement are already absorbed and never reapplied. A late applicable impulse
+that would require undoing a later impulse is explicitly ambiguous, preserves the
+cache and withholds route use until qualified evidence resolves it. Acquisition
+replays each sample's available spin causally; new-shot boundaries clear model
+spin as well as the trusted cache.
 
 Batch fitting records multiple observed free-flight/contact segments, resolves
 spin prospectively at source samples and retains a checkpoint outside window
@@ -101,7 +114,11 @@ command validity; net metadata alone cannot admit an outgoing route.
 New schema-2 observation, event, waypoint, prediction, context, packet and decision
 messages coexist with v1 messages. They require a coordinated rebuild of their new
 producers/consumers; existing wire types are unchanged. The relay emits authoritative
-validity before legacy placeholder substitution. Legacy PoseArray/v1 packets
+validity before legacy placeholder substitution. NamedPose provides no reliable
+orientation-quality bit, so `optitrack_mct_relay.ball_orientation_authoritative`
+defaults to false. Enable it only for a qualified orientation source; a finite
+quaternion, including numeric identity, cannot qualify itself. CSV replay likewise
+requires an explicit orientation-authority column. Legacy PoseArray/v1 packets
 without matched authoritative validity remain position-only. A real identity
 quaternion is usable only with authoritative validity. The parked Python planner
 is COLCON_IGNORE; its spin helper has matching hold/reset semantics and a directly
@@ -147,6 +164,10 @@ frame. Y bounds and minimum lead are planner decisions and never suppress useful
 physical forecasts. Existing production incoming snapshot isolation, precommit
 reversal cancellation, turn/reach guards, packet retransmission and one-shot
 receiver protections remain on their existing paths and are regression tested.
+The legacy selector additionally fences delayed pre-reset observations/forecasts
+by the authorized reset source floor, preventing retired work from halting a new
+session before its first flight. This inherited failure was reproduced against
+the untouched scaffold and has a deterministic regression.
 
 V2's shadow planner does not establish live robot feasibility or hardware
 cancellation. The current receiver has identity/revision lifecycle protections but
@@ -162,6 +183,8 @@ qualification remain adoption gates, not claims established by synthetic tests.
 | Contact Y bounds | [-1.20, -0.30] m, table frame | Robot workspace, turn/reach and team policy |
 | Plane offset/range | +0.58 m; [-0.30,+0.30] m | Venue/base/paddle registration |
 | Pose freshness/window | 0.20 s / 0.50 s; ten samples | Base stream and clock characterization |
+| Policy height / turn / reach | +0.76 m once; 40 degrees; existing reach contract disabled | Policy origin, support envelope and robot qualification |
+| Orientation authority | Relay default false | Qualified source quality semantics; cannot infer from quaternion values |
 | Planner lead | 50 ms | Receiver/policy transport and actuation timing |
 | Source publication age | 30 ms | Measured deployment load and clock budget |
 | Table/net geometry | 2.74 × 1.525 m; net x=1.37, h=.1525 | Registered venue survey |

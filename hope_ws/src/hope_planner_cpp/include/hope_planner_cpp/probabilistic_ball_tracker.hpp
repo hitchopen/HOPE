@@ -29,7 +29,7 @@ public:
   void set_effective_spin(const EffectiveSpin& spin) {
     config_.effective_spin=spin;
     if(!belief_.effective_spin.usable() || !spin.usable() || spin.measurement_time_ns>belief_.effective_spin.measurement_time_ns ||
-       spin.last_contact_id>belief_.effective_spin.last_contact_id)belief_.effective_spin=spin;
+       spin.last_contact_id!=belief_.effective_spin.last_contact_id)belief_.effective_spin=spin;
   }
   void set_propagation_audit_sink(std::function<void(const PropagationAudit &)> sink) {
     audit_sink_ = std::move(sink);

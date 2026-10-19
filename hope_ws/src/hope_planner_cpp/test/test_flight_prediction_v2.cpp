@@ -666,3 +666,123 @@ TEST(FlightV2History,
                            shot.generation()));
   EXPECT_EQ(shot.revision(), revision);
 }
+
+TEST(FlightV2History,
+     C04_ReceiverAcquisitionAcceptsVerifiedPrehistoryWithoutReset) {
+  for (int direction : {-1, 1}) {
+    ShotContext shot({});
+    shot.start(1000000000, direction, BoundaryEvidence::ACQUISITION,
+               HistoryContinuity::kUnknown);
+    auto s = sample(1000000000, Vec3(direction > 0 ? 2.1 : .6, -.7, .15));
+    s.producer_omega_valid = true;
+    s.producer_omega_rad_s = Vec3(0, 30, 0);
+    ASSERT_TRUE(shot.observe(s));
+    const auto generation = shot.generation();
+    ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 1100000000, 1120000000,
+                             contact_state(direction > 0 ? 2.3 : .4),
+                             "camera"));
+    ASSERT_TRUE(shot.active());
+    EXPECT_FALSE(shot.route_supported());
+    const auto omega = *shot.spin().omega;
+    const auto contact_id = shot.spin().last_contact_id;
+    ASSERT_TRUE(
+        shot.context(MatchContext::SERVE, 1120000000, "referee", generation));
+    ASSERT_TRUE(shot.active());
+    ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 700000000, 1130000000,
+                             contact_state(direction > 0 ? .4 : 2.3),
+                             "independent_history"));
+    auto net = contact_state(1.37);
+    net.position.z() = .3;
+    ASSERT_TRUE(shot.confirm(PhysicalEventKind::NET_CROSSING, 800000000,
+                             1130000000, net, "independent_history"));
+    EXPECT_EQ(shot.generation(), generation);
+    EXPECT_EQ(shot.samples().size(), 1u);
+    EXPECT_EQ(shot.samples().front().source_time_ns, 1000000000);
+    EXPECT_EQ(shot.spin().measurement_time_ns, 1000000000);
+    EXPECT_EQ(*shot.spin().omega, omega);
+    EXPECT_EQ(shot.spin().last_contact_id, contact_id);
+    EXPECT_FALSE(shot.events().front().pre.spin.usable());
+    shot.set_history_continuity(HistoryContinuity::kComplete);
+    ASSERT_TRUE(shot.active());
+    EXPECT_TRUE(shot.route_supported());
+    EXPECT_EQ(shot.state(),
+              direction > 0 ? PlayState::SERVE : PlayState::OPPONENT_SERVE);
+    ShotContext restored({});
+    restored.restore_snapshot(shot.export_snapshot());
+    EXPECT_FALSE(restored.export_snapshot().boundary_qualified);
+    EXPECT_EQ(restored.observed_contacts(), 2);
+    shot.start(1200000000, direction, BoundaryEvidence::RACKET_CONTACT,
+               HistoryContinuity::kComplete);
+    EXPECT_FALSE(shot.confirm(PhysicalEventKind::TABLE, 1100000000, 1210000000,
+                              contact_state(.4), "prior_shot"));
+  }
+}
+TEST(FlightV2History,
+     B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous) {
+  TrustedSpin spin;
+  auto s = sample(1000000000);
+  s.producer_omega_valid = true;
+  s.producer_omega_rad_s = Vec3(0, 30, 0);
+  spin.observe(s);
+  ASSERT_TRUE(spin.contact(7, 700000000, Vec3(3, 0, -2), {}));
+  EXPECT_EQ(spin.value().last_contact_id, 0u);
+  ASSERT_TRUE(spin.contact(2, 1100000000, Vec3(3, 0, -2), {}));
+  const auto omega = *spin.value().omega;
+  EXPECT_FALSE(spin.contact(2, 1100000000, Vec3(3, 0, -2), {}));
+  EXPECT_FALSE(spin.contact(8, 1050000000, Vec3(3, 0, -2), {}));
+  EXPECT_EQ(*spin.value().omega, omega);
+  s = sample(1200000000);
+  s.producer_omega_valid = true;
+  s.producer_omega_rad_s = Vec3(0, 35, 0);
+  spin.observe(s);
+  EXPECT_TRUE(spin.contact(8, 1050000000, Vec3(3, 0, -2), {}));
+  EXPECT_EQ(*spin.value().omega, Vec3(0, 35, 0));
+
+  ShotContext shot({});
+  shot.start(0, 1, BoundaryEvidence::RACKET_CONTACT,
+             HistoryContinuity::kComplete);
+  s = sample(1000000000);
+  s.producer_omega_valid = true;
+  s.producer_omega_rad_s = Vec3(0, 30, 0);
+  shot.observe(s);
+  ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 1100000000, 1120000000,
+                           contact_state(.4), "camera"));
+  EXPECT_FALSE(shot.confirm(PhysicalEventKind::TABLE, 1050000000, 1130000000,
+                            contact_state(.8), "late_camera"));
+  EXPECT_TRUE(shot.active());
+  EXPECT_FALSE(shot.route_supported());
+  EXPECT_EQ(shot.events().back().status, EventStatus::AMBIGUOUS);
+}
+
+TEST(FlightV2History,
+     B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt) {
+  FlightPipeline acquired({}), causal({});
+  causal.start(0, 1, BoundaryEvidence::RACKET_CONTACT,
+               HistoryContinuity::kUnknown);
+  for (int i = 0; i < 6; ++i) {
+    const double t = i * .005;
+    auto s =
+        sample(i * 5000000LL, Vec3(.3 + 3 * t, -.7, .5 + t - 4.905 * t * t));
+    if (i == 5) {
+      s.producer_omega_valid = true;
+      s.producer_omega_rad_s = Vec3(0, 300, 0);
+    }
+    acquired.observe(s);
+    causal.observe(s);
+  }
+  ASSERT_TRUE(acquired.shot().active());
+  EXPECT_LT(
+      (acquired.checkpoint().belief.mean - causal.checkpoint().belief.mean)
+          .norm(),
+      1e-14);
+  EXPECT_LT((acquired.checkpoint().belief.covariance -
+             causal.checkpoint().belief.covariance)
+                .norm(),
+            1e-14);
+  EXPECT_EQ(acquired.checkpoint().belief.effective_spin.measurement_time_ns,
+            25000000);
+  acquired.start(30000000, 1, BoundaryEvidence::RACKET_CONTACT,
+                 HistoryContinuity::kComplete);
+  acquired.observe(sample(30000000));
+  EXPECT_FALSE(acquired.checkpoint().belief.effective_spin.usable());
+}

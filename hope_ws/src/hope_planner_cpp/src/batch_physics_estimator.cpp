@@ -220,7 +220,8 @@ void BatchPhysicsEstimator::push(const BallSample& sample) noexcept {
     if (confirmed_post_samples > 0) {
       bounce_index_ = sample_count_ - 1 - confirmed_post_samples;
       const auto& center=samples_[bounce_index_];
-      const auto id=contacts_.empty()?1:contacts_.back().id+1;
+      const auto id=std::max(contacts_.empty()?std::uint64_t{0}:contacts_.back().id,
+                             trusted_spin_.value().last_contact_id)+1;
       if(contacts_.size()<64)contacts_.push_back({center.source_time_s,center.source_time_ns,id});
       else return; // bounded physical-shot ledger
       if(config_.spin_enabled && bounce_index_>0) {

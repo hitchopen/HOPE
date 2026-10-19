@@ -229,6 +229,8 @@ public:
               kind = PhysicalEventKind::TABLE;
             else if (m->event_kind == "net_collision")
               kind = PhysicalEventKind::NET_COLLISION;
+            else if (m->event_kind == "net_crossing")
+              kind = PhysicalEventKind::NET_CROSSING;
             else
               return;
             ModelState pre;

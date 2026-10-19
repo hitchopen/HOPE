@@ -1,6 +1,8 @@
 #pragma once
 #include "hope_planner_cpp/common_ball_physics.hpp"
 #include "hope_planner_cpp/spin_estimator.hpp"
+#include <algorithm>
+#include <vector>
 namespace hope_planner_cpp {
 // Owned by one physical shot. A missing measurement breaks only differencing.
 class TrustedSpin {
@@ -11,12 +13,27 @@ public:
     estimator_.reset();
     value_ = {};
     last_time_s_.reset();
+    contact_ids_.clear();
+    last_contact_time_ns_.reset();
   }
   const EffectiveSpin &value() const { return value_; }
   void restore(const EffectiveSpin &s) {
+    reset();
     value_ = s;
-    estimator_.reset();
-    last_time_s_.reset();
+    if (s.last_contact_id)
+      contact_ids_.push_back(s.last_contact_id);
+  }
+  // Restored owners supply the bounded confirmed ledger, without reapplying it.
+  void remember_contact(std::uint64_t id, std::int64_t ns) {
+    if (std::find(contact_ids_.begin(), contact_ids_.end(), id) ==
+        contact_ids_.end())
+      contact_ids_.push_back(id);
+    if (id == value_.last_contact_id)
+      last_contact_time_ns_ = ns;
+  }
+  bool can_apply_contact(std::int64_t ns) const {
+    return !value_.usable() || ns < value_.measurement_time_ns ||
+           !last_contact_time_ns_ || ns >= *last_contact_time_ns_;
   }
   EffectiveSpin observe(const BallSample &sample) {
     if (last_time_s_ && sample.source_time_s <= *last_time_s_)
@@ -54,11 +71,19 @@ public:
       value_.mode = EffectiveSpinMode::HELD;
     return value_;
   }
-  // Returns false for repeated/out-of-order contact IDs; no second impulse.
+  // IDs identify events, not their chronological order. Historical evidence may
+  // arrive after a newer prediction has already received a smaller ID.
   bool contact(std::uint64_t id, std::int64_t time_ns, const Vec3 &pre_velocity,
                const BallPhysics &p) {
-    if (!id || id <= value_.last_contact_id)
+    if (!id ||
+        std::find(contact_ids_.begin(), contact_ids_.end(), id) !=
+            contact_ids_.end() ||
+        !can_apply_contact(time_ns))
       return false;
+    remember_contact(id, time_ns);
+    // A fresh measurement already includes older physical impulses.
+    if (value_.usable() && time_ns < value_.measurement_time_ns)
+      return true;
     if (value_.usable() && value_.measurement_time_ns <= time_ns) {
       ModelState s;
       s.velocity = pre_velocity;
@@ -67,6 +92,7 @@ public:
       value_ = s.spin;
     }
     value_.last_contact_id = id;
+    last_contact_time_ns_ = time_ns;
     estimator_.reset();
     return true;
   }
@@ -76,5 +102,8 @@ private:
   double coherence_;
   EffectiveSpin value_;
   std::optional<double> last_time_s_;
+  // Bounded by the owning shot/batch event ledger.
+  std::vector<std::uint64_t> contact_ids_;
+  std::optional<std::int64_t> last_contact_time_ns_;
 };
 } // namespace hope_planner_cpp

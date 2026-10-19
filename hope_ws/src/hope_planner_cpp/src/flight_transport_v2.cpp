@@ -307,6 +307,7 @@ encode_packet_v2(const FlightPipeline &pipeline,
   p.shot_generation = snapshot.generation;
   p.context_revision = snapshot.revision;
   p.boundary_time_ns = snapshot.boundary_ns;
+  p.boundary_qualified = snapshot.boundary_qualified;
   p.history_continuity = name(snapshot.continuity);
   p.play_state = name(snapshot.state);
   p.forecast_route = name(pipeline.shot().route());
@@ -374,6 +375,7 @@ void restore_packet_v2(FlightPipeline &pipeline,
   snapshot.generation = p.shot_generation;
   snapshot.revision = p.context_revision;
   snapshot.boundary_ns = p.boundary_time_ns;
+  snapshot.boundary_qualified = p.boundary_qualified;
   if (p.play_state == "RALLY")
     snapshot.state = PlayState::RALLY;
   else if (p.play_state == "SERVE")

@@ -76,6 +76,7 @@ struct PredictedViolationBound {
 struct ShotSnapshot {
   std::uint64_t generation = 0, revision = 0;
   std::int64_t boundary_ns = 0;
+  bool boundary_qualified = false;
   int direction = 0;
   PlayState state = PlayState::INVALID;
   MatchContext match = MatchContext::UNKNOWN;
@@ -147,7 +148,8 @@ private:
   std::uint64_t generation_ = 0, revision_ = 0, next_event_id_ = 1,
                 solve_sequence_ = 0, published_sequence_ = 0;
   int direction_ = 0;
-  bool net_crossed_ = false, rejected_latch_ = false;
+  bool net_crossed_ = false, rejected_latch_ = false,
+       boundary_qualified_ = false;
   std::deque<BallSample> samples_, candidates_;
   std::vector<ShotEvent> events_;
 };

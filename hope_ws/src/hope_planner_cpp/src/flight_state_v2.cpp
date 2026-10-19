@@ -64,6 +64,7 @@ void ShotContext::start(std::int64_t ns, int d, BoundaryEvidence evidence,
   revision_ = 1;
   published_sequence_ = 0;
   boundary_ns_ = ns;
+  boundary_qualified_ = evidence != BoundaryEvidence::ACQUISITION;
   direction_ = d;
   net_crossed_ = false;
   rejected_latch_ = false;
@@ -351,8 +352,9 @@ void ShotContext::reclassify() {
     return;
   const auto striker =
       direction_ > 0 ? ContactSide::kReceiver : ContactSide::kOpponent;
-  int n = 0, total = 0;
+  int striker_contacts = 0, receiver_contacts = 0;
   bool net = false, serve = match_ == MatchContext::SERVE;
+  const bool complete = continuity_ == HistoryContinuity::kComplete;
   for (const auto &e : events_)
     if (e.status == EventStatus::CONFIRMED) {
       if (e.kind == PhysicalEventKind::NET_COLLISION) {
@@ -360,32 +362,35 @@ void ShotContext::reclassify() {
         return;
       }
       if (e.kind == PhysicalEventKind::NET_CROSSING) {
-        if (serve && n != 1) {
+        if (serve && complete && striker_contacts != 1) {
           invalidate("serve_net_before_striker_bounce");
           return;
         }
         net = true;
       }
       if (e.kind == PhysicalEventKind::TABLE) {
-        ++total;
         if (e.side == ContactSide::kAmbiguous) {
           changed("ambiguous_contact_side");
           continuity_ = HistoryContinuity::kUnknown;
           return;
         }
-        if (!net && e.side == striker) {
-          if (match_ == MatchContext::NORMAL_RALLY || ++n > 1) {
+        if (e.side == striker) {
+          if (match_ == MatchContext::NORMAL_RALLY || net ||
+              receiver_contacts || ++striker_contacts > 1) {
             invalidate("forbidden_striker_contact");
             return;
           }
           serve = true;
-        } else if (e.side == striker || !net || (serve && total != 2)) {
-          invalidate("forbidden_contact_order");
-          return;
-        } else if ((serve && total > 2) ||
-                   (!serve && direction_ < 0 && total > 1)) {
-          invalidate("forbidden_contact_count");
-          return;
+        } else {
+          ++receiver_contacts;
+          // With missing prehistory, an absent net/B1 record is not evidence
+          // that the ball never crossed/bounced there. Positive forbidden
+          // ordering/count evidence still rejects the shot immediately.
+          if ((complete && (!net || (serve && striker_contacts != 1))) ||
+              ((serve || direction_ < 0) && receiver_contacts > 1)) {
+            invalidate("forbidden_contact_order_or_count");
+            return;
+          }
         }
       }
     }
@@ -401,8 +406,9 @@ void ShotContext::reclassify() {
 bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
                           std::int64_t confirmed, const ModelState &pre,
                           const std::string &source, std::int64_t uncertainty) {
-  if (!active() || ns < boundary_ns_ || confirmed < ns || source.empty() ||
-      !pre.position.allFinite() || uncertainty < 0)
+  if (!active() || (boundary_qualified_ && ns < boundary_ns_) ||
+      confirmed < ns || source.empty() || !pre.position.allFinite() ||
+      uncertainty < 0)
     return false;
   if (kind == PhysicalEventKind::TABLE &&
       (!pre.velocity.allFinite() || pre.velocity.z() >= 0 ||
@@ -446,9 +452,19 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
   found->event_time_ns = ns;
   found->confirmed_at_ns = confirmed;
   found->time_uncertainty_ns = uncertainty;
+  if (kind == PhysicalEventKind::TABLE && !spin_.can_apply_contact(ns)) {
+    found->status = EventStatus::AMBIGUOUS;
+    found->pre = found->post = pre;
+    found->source = source;
+    continuity_ = HistoryContinuity::kIncomplete;
+    changed("late_contact_spin_order_ambiguous");
+    return false;
+  }
   found->status = EventStatus::CONFIRMED;
   found->source = source;
   found->pre = pre;
+  if (found->pre.spin.usable() && found->pre.spin.measurement_time_ns > ns)
+    found->pre.spin = {};
   found->post = pre;
   if (!found->pre.spin.usable() && spin_.value().usable() &&
       spin_.value().measurement_time_ns <= ns)
@@ -558,10 +574,10 @@ bool ShotContext::publishable(const ShotToken &t, std::int64_t now) {
   return true;
 }
 ShotSnapshot ShotContext::export_snapshot() const {
-  return {generation_,   revision_,      boundary_ns_, direction_,
-          state_,        match_,         continuity_,  classification_,
-          match_source_, match_time_ns_, samples_,     events_,
-          spin_.value()};
+  return {generation_,     revision_,     boundary_ns_,   boundary_qualified_,
+          direction_,      state_,        match_,         continuity_,
+          classification_, match_source_, match_time_ns_, samples_,
+          events_,         spin_.value()};
 }
 void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   if (!snapshot.generation || snapshot.direction == 0 ||
@@ -582,6 +598,7 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   generation_ = snapshot.generation;
   revision_ = snapshot.revision;
   boundary_ns_ = snapshot.boundary_ns;
+  boundary_qualified_ = snapshot.boundary_qualified;
   direction_ = snapshot.direction;
   state_ = route_ = snapshot.state;
   match_ = snapshot.match;
@@ -600,6 +617,9 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
         (e.status == EventStatus::CONFIRMED &&
          e.confirmed_at_ns < e.event_time_ns))
       throw std::invalid_argument("invalid snapshot ledger");
+    if (e.kind == PhysicalEventKind::TABLE &&
+        e.status == EventStatus::CONFIRMED)
+      spin_.remember_contact(e.id, e.event_time_ns);
     next_event_id_ = std::max(next_event_id_, e.id + 1);
     if (e.kind == PhysicalEventKind::NET_CROSSING &&
         e.status == EventStatus::CONFIRMED)
@@ -744,12 +764,14 @@ void FlightPipeline::start(std::int64_t ns, int direction,
                            BoundaryEvidence evidence,
                            HistoryContinuity continuity) {
   shot_.start(ns, direction, evidence, continuity);
+  tracker_.set_effective_spin({});
   tracker_.reset();
   origin_.reset();
   tracker_generation_ = shot_.generation();
 }
 void FlightPipeline::invalidate(const std::string &why) {
   shot_.invalidate(why);
+  tracker_.set_effective_spin({});
   tracker_.reset();
   origin_.reset();
   tracker_generation_ = shot_.generation();
@@ -765,15 +787,25 @@ bool FlightPipeline::observe(BallSample sample) {
     shot_.qualify_candidate();
   if (shot_.generation() != before ||
       tracker_generation_ != shot_.generation()) {
+    tracker_.set_effective_spin({});
     tracker_.reset();
     tracker_generation_ = shot_.generation();
     if (!shot_.active()) {
       origin_.reset();
       return false;
     }
+    TrustedSpin replay_spin;
     for (const auto &s : shot_.samples()) {
       tracker_.observe(s);
-      tracker_.set_effective_spin(shot_.spin());
+      replay_spin.observe(s);
+      for (const auto &event : shot_.events())
+        if (event.kind == PhysicalEventKind::TABLE &&
+            event.status == EventStatus::CONFIRMED &&
+            event.event_time_ns <= s.source_time_ns)
+          replay_spin.contact(event.id, event.event_time_ns, event.pre.velocity,
+                              config_.physics);
+      // Never assign the acquisition window's final spin to earlier intervals.
+      tracker_.set_effective_spin(replay_spin.value());
     }
     return !shot_.samples().empty();
   }

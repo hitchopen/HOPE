@@ -182,6 +182,7 @@ TEST(FlightTransportV2,
       encode_packet_v2(original, prediction, "session", "producer", "profile");
   FlightPipeline restored({});
   ASSERT_NO_THROW(restore_packet_v2(restored, packet, "profile"));
+  EXPECT_TRUE(restored.shot().export_snapshot().boundary_qualified);
   EXPECT_EQ(restored.shot().context_source(), "independent_referee");
   EXPECT_EQ(restored.shot().context_time_ns(), 30000000);
   EXPECT_TRUE(restored.shot().route_supported());
