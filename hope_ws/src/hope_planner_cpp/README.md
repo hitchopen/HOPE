@@ -38,10 +38,8 @@ deadlines are rejected. The horizontal angle is measured from the robot's
 current heading to the strike point. The shared production profile now uses
 `max_target_turn_deg: 180.0`, disabling angular rejection at the operator's
 request. The earlier 40 degree limit can be restored explicitly in the profile;
-the C++ default remains 40 degrees. Unavailable/invalid base poses are still
-rejected. Receipt age and source timestamp age no longer veto a shot: the
-Planner uses the latest valid heading, while source age remains in the audit
-CSV. This parameter is read at startup, so changing the YAML requires a
+the C++ default remains 40 degrees. Unavailable or stale base poses are still
+rejected. This parameter is read at startup, so changing the YAML requires a
 controlled Planner restart.
 There is no additional confidence, stability-frame, READY, or balance gate.
 

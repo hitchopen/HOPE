@@ -229,7 +229,8 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
   EXPECT_EQ(solve_rows, 1);
   EXPECT_NE(solve_row.find(",initial_incoming,"), std::string::npos);
   EXPECT_NE(solve_row.find(c.expected_valid ? "target_turn_allowed" :
-      (c.send_pose ? "target_turn_exceeds_limit" : "target_turn_base_unavailable")), std::string::npos);
+      (c.source_stale ? "target_turn_base_source_stale" : c.stale ? "target_turn_base_stale" :
+       (c.send_pose ? "target_turn_exceeds_limit" : "target_turn_base_unavailable"))), std::string::npos);
 
   std::error_code error;
   std::filesystem::remove(csv_path, error);
@@ -240,8 +241,7 @@ INSTANTIATE_TEST_SUITE_P(PoseAndFlat, PlannerNodeTurnGuard, ::testing::Values(
     TurnCase{-90,false,true,false}, TurnCase{0,false,false,false},
     TurnCase{0,true,true,true}, TurnCase{90,true,true,false},
     TurnCase{-90,true,true,false}, TurnCase{0,true,false,false},
-    // Receipt lag and a one-second-old exposure stamp no longer veto a shot.
-    TurnCase{0,false,true,true,true}, TurnCase{0,true,true,true,true},
-    TurnCase{0,false,true,true,false,true}, TurnCase{0,true,true,true,false,true}));
+    TurnCase{0,false,true,false,true}, TurnCase{0,true,true,false,true},
+    TurnCase{0,false,true,false,false,true}, TurnCase{0,true,true,false,false,true}));
 }  // namespace
 }  // namespace hope_planner_cpp
