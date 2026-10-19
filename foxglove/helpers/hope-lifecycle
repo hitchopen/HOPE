@@ -680,6 +680,8 @@ check_t3_hardware_config() {
     die "$step" ELINK_CONFIG_MISSING
   [[ -f "$MDU_HAL_GRIPPER_BASE_CONFIG" && ! -L "$MDU_HAL_GRIPPER_BASE_CONFIG" ]] || \
     die "$step" HAL_GRIPPER_CONFIG_MISSING
+  python3 "$(dirname "$SELF")/hope_elink_scheduler.py" check-hardware \
+    --lifecycle "$SELF" >/dev/null || die "$step" ELINK_HARDWARE_PROFILE_NOT_AUDITED
   render_t3_elink_config >/dev/null || die "$step" T3_ELINK_GRIPPER_CONFIG_INVALID
 }
 
