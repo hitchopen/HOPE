@@ -1,0 +1,19 @@
+[Unit]
+Description=HOPE read-only mocap configuration network transport
+After=network-online.target hope-lifecycle-supervisor.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agi
+Environment=ROS_DOMAIN_ID=232
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
+EnvironmentFile=-/etc/hope-foxglove/network.env
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/libexec/hope_mocap_config_transport.py'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

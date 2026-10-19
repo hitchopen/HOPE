@@ -108,7 +108,7 @@ static_peer_list_contains() {
 }
 
 parse_common() {
-  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 ]] || return 1
+  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 ]] || return 1
   SESSION_ID="$1"
   LAPTOP_WIFI_IP="$2"
   HDU_WIFI_IP="$3"
@@ -118,6 +118,16 @@ parse_common() {
   FIELD_MODE="${7:-OPTITRACK}"
   SERVE_CSV_SHA="${8:-DEFAULT}"
   GRIPPER_PROFILE="${9:-legacy}"
+  MOCAP_SOURCE="${10:-motive}"
+  VRPN_IP="${11:-NONE}"
+  VRPN_PORT="${12:-3883}"
+  VRPN_UNITS="${13:-mm}"
+  PANTS_PROFILE="${14:-v2}"
+  [[ "$MOCAP_SOURCE" == none || "$MOCAP_SOURCE" == motive || "$MOCAP_SOURCE" == vrpn ]] || return 1
+  [[ "$VRPN_IP" == NONE ]] || valid_ipv4 "$VRPN_IP" motive || return 1
+  [[ "$VRPN_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( VRPN_PORT <= 65535 )) || return 1
+  [[ "$VRPN_UNITS" == mm || "$VRPN_UNITS" == m ]] || return 1
+  [[ "$PANTS_PROFILE" == v2 || "$PANTS_PROFILE" == v4 ]] || return 1
   [[ "$GRIPPER_PROFILE" == legacy || "$GRIPPER_PROFILE" == new_20261015 ]] || return 1
   [[ "$FIELD_MODE" != PURE_SERVE ]] || FIELD_MODE=KERNEL
   [[ "$FIELD_MODE" == OPTITRACK || "$FIELD_MODE" == KERNEL ]] || return 1
@@ -760,7 +770,7 @@ preflight_mdu() {
 
 run_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
-  valid_ipv4 "$MOTIVE_IP" motive || die OPTITRACK MOTIVE_IP_REQUIRED
+  validate_laptop_mocap
   local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
   mkdir -p "$(dirname "$runtime_env")"
   {
@@ -771,6 +781,13 @@ run_laptop() {
     printf 'HOPE_LIFECYCLE_ROOT=%q\n' "$HOPE_ROOT"
     printf 'HOPE_LIFECYCLE_MARKER_ROOT=%q\n' "$LAPTOP_SHARE"
     printf 'HOPE_LIFECYCLE_TABLE_SIDE=%q\n' "$TABLE_SIDE"
+    printf 'HOPE_LIFECYCLE_MOCAP_SOURCE=%q\n' "$MOCAP_SOURCE"
+    printf 'HOPE_LIFECYCLE_VRPN_IP=%q\n' "$VRPN_IP"
+    printf 'HOPE_LIFECYCLE_VRPN_PORT=%q\n' "$VRPN_PORT"
+    printf 'HOPE_LIFECYCLE_VRPN_UNITS=%q\n' "$VRPN_UNITS"
+    printf 'HOPE_LIFECYCLE_PANTS_PROFILE=%q\n' "$PANTS_PROFILE"
+    printf 'HOPE_VRPN_PELVIS_ASSET_CONFIRMED=%q\n' "${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}"
+    printf 'HOPE_VRPN_WORLD_FRAME_CONFIRMED=%q\n' "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"
   } > "$runtime_env"
   case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
     direct) exec "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime" ;;
@@ -780,15 +797,27 @@ run_laptop() {
   esac
 }
 
+validate_laptop_mocap() {
+  case "$MOCAP_SOURCE" in
+    motive) valid_ipv4 "$MOTIVE_IP" motive || die MOCAP MOTIVE_IP_REQUIRED ;;
+    vrpn) valid_ipv4 "$VRPN_IP" motive || die MOCAP VRPN_IP_REQUIRED ;;
+    *) die MOCAP NO_SOURCE_SELECTED ;;
+  esac
+  for confirmed in "${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"; do
+    [[ "$confirmed" == true || "$confirmed" == false ]] || die MOCAP INVALID_SETUP_CONFIRMATION
+  done
+}
+
 start_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
-  valid_ipv4 "$MOTIVE_IP" motive || die OPTITRACK MOTIVE_IP_REQUIRED
-  if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py' >/dev/null; then
-    die OPTITRACK UNMANAGED_BRIDGE_PRESENT
+  validate_laptop_mocap
+  if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py|[a]vatar_pro_hope_bridge.launch.py|[o]ptitrack_mct_relay|[a]vatar_pro_vrpn_relay|[v]rpn_mocap/.*/client_node|[v]rpn_mocap/client_node' >/dev/null; then
+    die MOCAP UNMANAGED_BRIDGE_PRESENT
   fi
   start_tmux "$LAPTOP_SESSION" "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
-    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" || \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" \
+    "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" || \
     die OPTITRACK ALREADY_RUNNING
   sleep 2
   tmux_exists "$LAPTOP_SESSION" || die OPTITRACK START_FAILED

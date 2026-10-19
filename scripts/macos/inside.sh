@@ -21,6 +21,9 @@ ros_source_paths() {
   if [[ -d "${1:-/work}/NatNet2ROS2/src" ]]; then
     source_paths+=(../NatNet2ROS2/src)
   fi
+  if [[ -d "${1:-/work}/VRPN2ROS2/src" ]]; then
+    source_paths+=(../VRPN2ROS2/src)
+  fi
 }
 
 operation="$1"
