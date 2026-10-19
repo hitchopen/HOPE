@@ -124,6 +124,7 @@ type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
+  auto_record_on_start?: boolean;
   ball_model?: "berkeley" | "ppq002" | null;
   ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
@@ -1188,7 +1189,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             onClick={() => void fieldCommand({ op: recordingActive ? "record_off" : "record_on" })}>
             {recordBusy ? "Updating…" : recordingActive ? "Record OFF · Stop" : "Record ON · Start"}
           </button>
-          <span className="helper">{field?.mode === "KERNEL" ? "Default OFF · robot data (Kernel has no Planner/mocap)" : "Default OFF · robot, policy, Planner and mocap data"}</span>
+          <span className="helper">{field?.auto_record_on_start === true ? "START 后自动录制 · 可手动 Record OFF" : "Default OFF · 手动开启录制"} · {field?.mode === "KERNEL" ? "robot data (Kernel has no Planner/mocap)" : "robot, policy, Planner and mocap data"}</span>
           <span className="asset-path">{field?.recording.output}</span>
           <span className="helper">{field?.recording.error}</span>
         </div>
@@ -1199,7 +1200,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <span className="eyebrow">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "VRPN · POSE ONLY" : "MOTIVE · LIVE ASSET"}</span>
           <strong>{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "GEOMETRY NOT VERIFIED" : assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>
           <span className="asset-path">{markerAsset}</span>
-          <span className="helper">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${snapshot.lifecycleConfig.pants_profile?.toUpperCase()} · CMTracker · verify setup below` : assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
+          <span className="helper">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${(snapshot.lifecycleConfig.pants_profile ?? "—").toUpperCase()} · CMTracker · verify setup below` : assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
           <span className="helper">Live pelvis: {baseFresh ? "AVAILABLE" : "WAITING"} · selected robot: {markerAsset}</span>
           {snapshot.lifecycleConfig.mocap_source === "vrpn" ? <p className="helper">VRPN provides poses only; marker counts and live geometry are unavailable. Confirm the selected pants asset origin, axes and table frame in CMTracker.</p> : <><p className="helper">Set Motive Up Axis to Z. Keep the imported pelvis origin and axes unchanged, and align the Motive world with the table. No venue JSON or Cali V2/V3 capture is needed.</p>
           <p className="helper">Default mode accepts the current named asset without a fixed file or marker layout. Pelvis alignment is assumed from the imported asset; physical mounting is not measured.</p></>}
@@ -1260,7 +1261,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <div className="topic-path">停止后选择；保存到 Planner 和球包器，下次启动生效</div>
           </div>
           <select aria-label="Ball physics model" value={snapshot.field?.ball_model ?? ""}
-            disabled={!assetEditable || fieldBusy || kernelMode}
+            disabled={!assetEditable || kernelMode}
             onChange={(event) => void fieldCommand({ op: "set_ball_model", model: event.target.value })}>
             <option value="" disabled>沿用现有配置 · 尚未选择</option>
             <option value="berkeley">伯克利球 · 原模型 2026-10-10</option>
