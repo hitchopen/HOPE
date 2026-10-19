@@ -16,11 +16,13 @@ export MAKEFLAGS="-j${HOPE_JOBS:-2}"
 
 ros_source_paths() {
   source_paths=(src)
-  # Use identical discovery for build and test. Main keeps NatNet in a
-  # sibling workspace; older layouts keep it under hope_ws/src instead.
-  if [[ -d "${1:-/work}/NatNet2ROS2/src" ]]; then
-    source_paths+=(../NatNet2ROS2/src)
-  fi
+  # Discover both capture backends for build and test, without moving sources.
+  # Older layouts may already keep them under hope_ws/src.
+  for workspace in NatNet2ROS2 VRPN2ROS2; do
+    if [[ -d "${1:-/work}/$workspace/src" ]]; then
+      source_paths+=("../$workspace/src")
+    fi
+  done
 }
 
 operation="$1"
@@ -57,13 +59,38 @@ case "$operation" in
   test-ros)
     cd /work/hope_ws
     ros_source_paths
+    test_packages=(hope_planner_cpp motion_capture_tracking)
+    if [[ -d /opt/hope/ros/build/vrpn_mocap ]]; then
+      test_packages+=(vrpn_mocap)
+    fi
+    ctest_args=()
+    if [[ "${HOPE_ROS_LINT:-0}" != 1 ]]; then
+      printf 'Running functional ROS regression tests; inherited ament linters are separate (--with-lint).\n'
+      ctest_args=(--ctest-args -LE linter)
+    fi
     colcon --log-base /opt/hope/ros/log test \
       --base-paths "${source_paths[@]}" \
       --build-base /opt/hope/ros/build --install-base /opt/hope/ros/install \
-      --packages-select hope_planner_cpp motion_capture_tracking --executor sequential
-    colcon --log-base /opt/hope/ros/log test-result --test-result-base /opt/hope/ros/build --verbose
+      --packages-select "${test_packages[@]}" --executor sequential \
+      --return-code-on-test-failure "${ctest_args[@]}"
+    if [[ "${HOPE_ROS_LINT:-0}" == 1 ]]; then
+      colcon --log-base /opt/hope/ros/log test-result --test-result-base /opt/hope/ros/build --verbose
+    fi
     PYTHONPATH=/work/hope_ws/src/hope_planner${PYTHONPATH:+:$PYTHONPATH} \
       /usr/bin/python3 -m pytest /work/hope_ws/src/hope_planner/test -q
+    /usr/bin/python3 -m pytest -q \
+      /work/foxglove/tests/test_laptop_runtime_selection.py \
+      /work/foxglove/tests/test_lifecycle_core.py \
+      /work/foxglove/tests/test_macos_build_entry.py \
+      /work/foxglove/tests/test_macos_operator_contract.py \
+      /work/foxglove/tests/test_macos_operator_dispatch.py \
+      /work/foxglove/tests/test_operator_profiles.py \
+      /work/foxglove/tests/test_mocap_setup.py \
+      /work/hope_ws/src/hope_bringup/test/test_vrpn_pants_contract.py \
+      /work/hope_ws/src/hope_bringup/test/test_vrpn_pants_relay.py \
+      /work/a3_deploy/a3_deploy_example/tests/test_a3p_gripper_bridge.py
+    ROS_DOMAIN_ID=229 ROS_LOCALHOST_ONLY=1 \
+      /usr/bin/python3 -m pytest -q /work/foxglove/tests/test_mocap_config_transport_ros.py
     ;;
   build-runner)
     cd "${HOPE_DEPLOY_DIR:?missing deployment source path}"

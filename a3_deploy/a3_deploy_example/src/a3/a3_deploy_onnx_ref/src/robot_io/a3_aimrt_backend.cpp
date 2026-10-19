@@ -418,9 +418,10 @@ bool A3AimrtBackend::RegisterPubSub_() {
         auto proxy = std::make_shared<aimrt::channel::PublisherProxy<
             aimdk::protocol::HandCommandChannel>>(hand_pub);
         auto message = std::make_shared<aimdk::protocol::HandCommandChannel>();
-        a3_io::FillServeReleaseMessage(*message, 0, 0);  // Allocate before motion.
-        serve_release_publish_fn_ = [proxy, message, sequence = std::uint32_t{0}]() mutable {
-          a3_io::FillServeReleaseMessage(*message, sequence++, NowSystemNs());
+        a3_io::FillServeReleaseMessage(*message, 0, 0, native_serve_release_pos_, native_serve_release_force_, native_serve_release_velocity_);  // Allocate before motion.
+        serve_release_publish_fn_ = [proxy, message, position = native_serve_release_pos_, force = native_serve_release_force_,
+                                    velocity = native_serve_release_velocity_, sequence = std::uint32_t{0}]() mutable {
+          a3_io::FillServeReleaseMessage(*message, sequence++, NowSystemNs(), position, force, velocity);
           proxy->Publish(*message);
         };
         std::cerr << "[a3_backend] native serve release: same command thread, /body_drive/hand_joint_command, protobuf\n";

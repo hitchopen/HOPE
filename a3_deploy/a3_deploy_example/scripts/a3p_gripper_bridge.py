@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import hashlib
 import os
 import re
@@ -38,7 +39,9 @@ COMMAND_TOPIC = (
     "/body_drive/hand_joint_command/"
     "pb_3Aaimdk_2Eprotocol_2EHandCommandChannel"
 )
-CANONICAL_GRIP_SHA256 = "778bd928c424abe7cea50a87ea18a6561e9ac13ff9ab81e3747209e911027e4c"
+CANONICAL_GRIP_SHA256 = (
+    "778bd928c424abe7cea50a87ea18a6561e9ac13ff9ab81e3747209e911027e4c"
+)
 BURST_COUNT = 5
 BURST_PERIOD_S = 0.1
 MAX_PACKET_BYTES = 512
@@ -102,7 +105,7 @@ def _literal_assignment(tree: ast.Module, name: str) -> Any:
     raise RuntimeError(f"canonical_grip_missing_{name.lower()}")
 
 
-def load_grip_contract(path: Path) -> GripContract:
+def load_grip_contract(path: Path, profile: str = "legacy", profiles_path: Path | None = None) -> GripContract:
     """Load and content-bind the latest Yikang/Catrunaround grip presets."""
 
     if not path.is_absolute():
@@ -130,11 +133,35 @@ def load_grip_contract(path: Path) -> GripContract:
         raise RuntimeError("canonical_grip_presets_mismatch")
     if source_topic != COMMAND_TOPIC:
         raise RuntimeError("canonical_grip_topic_mismatch")
+    if profile not in {"legacy", "new_20261015"}:
+        raise RuntimeError("unknown_gripper_profile")
+    profiles_path = profiles_path or Path(__file__).resolve().with_name("gripper_profiles.json")
+    try:
+        catalog = json.loads(profiles_path.read_text(encoding="utf-8"))
+        if catalog["schema_version"] != 1:
+            raise ValueError("schema")
+        selected = catalog["profiles"][profile]
+        commands = {name: selected[name] for name in ("grab", "release")}
+        for command in commands.values():
+            if set(command) != {"cmd", "method", "pos", "force", "vel"}:
+                raise ValueError("fields")
+            if any(type(value) is not int for value in command.values()):
+                raise ValueError("types")
+            if command["cmd"] != 0 or command["method"] != 1 or not 1 <= command["force"] <= 100:
+                raise ValueError("mode/force")
+            if not 0 <= command["pos"] <= 4096 or not 1 <= command["vel"] <= 100:
+                raise ValueError("position/velocity")
+        if commands["grab"]["pos"] >= commands["release"]["pos"]:
+            raise ValueError("release")
+        if profile == "legacy" and commands != {name: {**value, "cmd": 0} for name, value in expected.items()}:
+            raise ValueError("legacy presets changed")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise RuntimeError("invalid_gripper_profile_catalog") from exc
     return GripContract(
         source_path=path,
         source_sha256=source_sha256,
-        grab={**expected["grab"], "cmd": 0},
-        release={**expected["release"], "cmd": 0},
+        grab=commands["grab"],
+        release=commands["release"],
     )
 
 
@@ -514,6 +541,7 @@ def run_bridge(
             (
                 f"READY\t{PROTOCOL_VERSION}\tIDLE\t{matched}\t"
                 f"grip_sha256={contract.source_sha256}\t"
+                f"grab_pos={contract.grab['pos']}\trelease_pos={contract.release['pos']}\t"
                 "transport=hand_command_topic_pb\t"
                 f"topic={publisher.command_topic}\t"
                 "physical_confirmation=0\tstate_observable=0\n"
@@ -720,6 +748,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--socket", type=Path)
     parser.add_argument("--ready-file", type=Path)
     parser.add_argument("--grip-source", type=Path)
+    parser.add_argument("--print-release-wire", action="store_true", help="输出所选配置的 RELEASE 字节，不创建节点或发送命令")
+    parser.add_argument("--gripper-profile", choices=("legacy", "new_20261015"), default="legacy")
     parser.add_argument("--subscriber-timeout-s", type=float, default=5.0)
     parser.add_argument("--allow-publish", action="store_true")
     parser.add_argument("--confirm-real-gripper", action="store_true")
@@ -731,7 +761,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.grip_source is None:
         parser.error("必须给 --grip-source 的绝对路径")
-    if args.check_contract:
+    if args.check_contract or args.print_release_wire:
         if any(
             value is not None for value in (args.socket, args.ready_file)
         ) or args.allow_publish or args.confirm_real_gripper:
@@ -751,7 +781,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        contract = load_grip_contract(args.grip_source)
+        contract = load_grip_contract(args.grip_source, args.gripper_profile)
+        if args.print_release_wire:
+            print(serialize_hand_command_channel(7, contract.release, 1.25).hex())
+            return 0
         if args.check_contract:
             _load_ros()
             print(

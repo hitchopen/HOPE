@@ -1,117 +1,82 @@
-"""Full Avatar-Pro (Chingmu VRPN) -> HOPE mocap bringup.
+"""CMTracker VRPN -> selected pelvis ground truth + ball transport.
 
-Chain:  Avatar-Pro / CMTracker (MCServer)  --VRPN-->  vrpn_mocap client_node
-        --> /vrpn_mocap/<object>/pose  --> avatar_pro_vrpn_relay
-        --> /poses, /tf, /ball/point, /{UCB_P1,UCB_P2}/pose --> planner / WBC
-
-Also starts the static HOPE world frame (table landmarks + mocap->base_link).
-
-TODO before running on hardware (see reimplement.md "Values you must fill in"):
-  * server   -> the Avatar-Pro / CMTracker (MCServer) PC IP on the arena LAN.
-  * port     -> the Chingmu VRPN port (default 3883).
-  * update_freq -> match the mocap camera rate (>= 240-360 Hz for the ball).
-  * object names + mocap->base_link offsets are set in the config files.
+Import config/pants_profiles/a3_{v2,v4}_{P1,P2}_ground_truth.json first.
+VRPN has no marker ModelDef: geometry cannot be verified over this protocol.
+The base wire remains invalid until the asset and table-world setup are
+explicitly confirmed. This launch never starts the robot Runner.
 """
-
+import hashlib
 from pathlib import Path
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    launch_dir = Path(__file__).resolve().parent
-    config_path = launch_dir.parent / "config" / "avatar_pro_vrpn.yaml"
-
-    server = LaunchConfiguration("server")
-    port = LaunchConfiguration("port")
-    update_freq = LaunchConfiguration("update_freq")
-    start_vrpn_client = LaunchConfiguration("start_vrpn_client")
-    start_world = LaunchConfiguration("start_world")
-    ball_tracking_mode = LaunchConfiguration("ball_tracking_mode")
-    ball_object = LaunchConfiguration("ball_object")
-    position_scale = LaunchConfiguration("position_scale")
-
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            "server", default_value="192.168.1.100",
-            description="TODO: Avatar-Pro / Chingmu VRPN server (MCServer PC) IP on the arena LAN.",
-        ),
-        DeclareLaunchArgument("port", default_value="3883", description="Chingmu VRPN port."),
-        DeclareLaunchArgument(
-            "update_freq", default_value="300.0",
-            description="VRPN client poll rate (Hz); match the mocap camera rate (arena "
-                        "cameras run 300 Hz; the planner's velocity polyfit window is sized "
-                        "for a >=240 Hz ball stream — 180 Hz doubles its time window).",
-        ),
-        DeclareLaunchArgument("start_vrpn_client", default_value="true"),
-        DeclareLaunchArgument("start_world", default_value="true"),
-        DeclareLaunchArgument(
-            "ball_tracking_mode", default_value="rigid_body",
-            description="How to track the ball: 'rigid_body' (default — the ball is the "
-                        "STANDARDIZED rigid body named in ball_object) or 'auto' "
-                        "(motion-based detection, fallback for setups without a ball body).",
-        ),
-        DeclareLaunchArgument(
-            "ball_object", default_value="Ball",
-            description="Ball rigid-body name in CMTracker. STANDARDIZED 2026-07-03: every "
-                        "AvatarPro setup must name the ball 'Ball' (robots: UCB_P1/UCB_P2).",
-        ),
-        DeclareLaunchArgument(
-            "position_scale", default_value="0.001",
-            description="Uniform position conversion applied by the relay. Use 0.001 for a "
-                        "millimetre VRPN feed and 1.0 when CMTracker already streams metres.",
-        ),
-
-        # Static HOPE world frame: table landmarks + mocap->base_link offsets.
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch_dir / "hope_world.launch.py")),
-            condition=IfCondition(start_world),
-        ),
-
-        # VRPN client: Avatar-Pro server -> /vrpn_mocap/<object>/pose (+ /tf).
-        Node(
-            package="vrpn_mocap",
-            executable="client_node",
-            namespace="vrpn_mocap",
-            name="client_node",
-            output="screen",
-            condition=IfCondition(start_vrpn_client),
-            parameters=[{
-                "server": server,
-                "port": ParameterValue(port, value_type=int),
-                "frame_id": "world",
-                "update_freq": ParameterValue(update_freq, value_type=float),
-                # multi_sensor:=true exposes EVERY VRPN sensor channel as its own
-                # topic (/vrpn_mocap/<sender>/<sensor>/pose). The ball is a single
-                # marker, not a nameable rigid body, so it usually only appears as
-                # a sensor channel rather than a named /vrpn_mocap/ball/pose. The
-                # relay matches objects on the sender name, so the extra
-                # sensor-index segment is harmless for PPT/UCB_P1/UCB_P2.
-                "multi_sensor": True,
-            }],
-        ),
-
-        # Relay: /vrpn_mocap/* -> HOPE-standard topics. The two ball launch args
-        # override the matching keys in the yaml (later entries win), so the ball
-        # tracking method can be chosen on the command line without editing config.
-        Node(
-            package="hope_bringup",
-            executable="avatar_pro_vrpn_relay",
-            name="avatar_pro_vrpn_relay",
-            output="screen",
-            parameters=[
-                str(config_path),
-                {
-                    "ball_tracking_mode": ball_tracking_mode,
-                    "ball_object": ball_object,
-                    "position_scale": ParameterValue(position_scale, value_type=float),
-                },
-            ],
-        ),
-    ])
+    config = Path(__file__).resolve().parent.parent / "config/avatar_pro_vrpn.yaml"
+    arg = LaunchConfiguration
+    typed = lambda name, kind: ParameterValue(arg(name), value_type=kind)
+    # A nominal contract ID, activated ONLY by world_frame_confirmed. Never
+    # reuse the Motive +90-degree venue receipt for a different VRPN world.
+    world_sha = hashlib.sha256(
+        b"hope.vrpn.operator_confirmed.canonical_table_world.v1;X=P1_to_P2;Z=up;"
+        b"table_bounds_x=0,2.74;y=-1.525,0;surface_z=0"
+    ).hexdigest()
+    declarations = [
+        ("server", "192.168.1.100", "CMTracker / AvatarPro VRPN server IP."),
+        ("port", "3883", "VRPN TCP/UDP port."),
+        ("update_freq", "300.0", "VRPN polling frequency, Hz."),
+        ("start_vrpn_client", "true", "Start the VRPN client."),
+        ("start_world", "false", "Compatibility argument; legacy Motive world is not loaded."),
+        ("start_base_pose", "true", "Start guarded schema-2 localization adapter."),
+        ("debug_session_id", "", "Flight packet session ID when packetization is enabled."),
+        ("ball_tracking_mode", "rigid_body", "rigid_body (Ball) or auto."),
+        ("ball_object", "Ball", "Case-sensitive ball sender name."),
+        ("position_scale", "0.001", "0.001 for millimetres; 1.0 for metres."),
+        ("pants_profile", "v2", "v2 or v4; initial standalone selection."),
+        ("table_side", "P1", "P1 or P2; applies to ball AND robot."),
+        ("follow_lifecycle_config", "true", "Follow Foxglove CONFIRM CONFIG; wait if unavailable."),
+        ("pelvis_asset_confirmed", "false", "Operator verified imported selected asset retains pelvis pivot/axes."),
+        ("world_frame_confirmed", "false", "Operator verified VRPN world matches canonical table surface frame."),
+        ("start_flight_packetizer", arg("world_frame_confirmed"),
+         "Enable Planner ball packets; defaults to world_frame_confirmed. Set false only for pose-only diagnostics."),
+        ("base_pose_output_topic", "/a3/base_pose_laptop_flat", "HDU relay input; do not bypass HDU clock stamping."),
+    ]
+    actions = [DeclareLaunchArgument(name, default_value=value, description=description)
+               for name, value, description in declarations]
+    actions += [
+        Node(package="vrpn_mocap", executable="client_node", namespace="vrpn_mocap",
+             name="client_node", output="screen", condition=IfCondition(arg("start_vrpn_client")),
+             parameters=[{"server": arg("server"), "port": typed("port", int),
+                          "frame_id": "world", "update_freq": typed("update_freq", float),
+                          "multi_sensor": True}]),
+        Node(package="hope_bringup", executable="avatar_pro_vrpn_relay",
+             name="avatar_pro_vrpn_relay", output="screen", parameters=[str(config), {
+                 "server": arg("server"), "port": typed("port", int),
+                 "ball_tracking_mode": arg("ball_tracking_mode"), "ball_object": arg("ball_object"),
+                 "position_scale": typed("position_scale", float), "pants_profile": arg("pants_profile"),
+                 "table_side": arg("table_side"), "follow_lifecycle_config": typed("follow_lifecycle_config", bool),
+             }]),
+        Node(package="hope_bringup", executable="hope_base_pose_flat_relay",
+             name="hope_base_pose_flat_relay", output="screen", condition=IfCondition(arg("start_base_pose")),
+             parameters=[{
+                 "localization_source": "vrpn_ground_truth",
+                 "vrpn_pelvis_asset_confirmed": typed("pelvis_asset_confirmed", bool),
+                 "world_frame_calibrated": typed("world_frame_confirmed", bool),
+                 "world_frame_sha256": world_sha, "source_stamp_mode": "input_header",
+                 "output_topic": arg("base_pose_output_topic"), "policy_z_offset": 0.76,
+             }]),
+        Node(package="hope_planner_cpp", executable="hope_ball_flight_packetizer",
+             name="hope_ball_flight_packetizer", output="screen",
+             condition=IfCondition(arg("start_flight_packetizer")), parameters=[
+                 PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
+                                       "model21800_flight_packetizer.yaml"]),
+                 {"session_id": arg("debug_session_id"), "flight_packet_topic": "/ball/flight_packet"},
+             ]),
+    ]
+    return LaunchDescription(actions)

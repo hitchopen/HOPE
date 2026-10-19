@@ -16,7 +16,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "foxglove/a3"))
 from hope_lifecycle_core import (
-    HelperEvent, LifecycleConfig, apply_config_updates, parse_helper_event,
+    HelperEvent, LifecycleConfig, apply_config_updates, config_to_document, parse_helper_event,
     validate_session_id,
 )
 
@@ -116,6 +116,21 @@ class OperatorProfileTests(unittest.TestCase):
                         if argv[host_index] == "agi@10.42.10.12":
                             self.assertEqual(argv[host_index + 1], "/usr/local/libexec/hope-lifecycle")
 
+    def test_selected_gripper_reaches_every_start_stage_for_both_modes(self):
+        namespace = backend_namespace({})
+        calls = []
+        backend = namespace["LifecycleBackend"](
+            run=lambda argv, **kwargs: calls.append(argv) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+        for mode in ("KERNEL", "OPTITRACK"):
+            for profile in ("mac", "linux"):
+                calls.clear()
+                config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
+                    mdu_internal_ip="10.42.10.12", operator_profile=profile, gripper_profile="new_20261015")
+                backend.start(config, "model21800_20261018T050406Z", lambda event: None, mode)
+                self.assertTrue(calls)
+                for argv in calls:
+                    self.assertEqual(argv[-3:], [mode, "DEFAULT", "new_20261015"])
+
     def test_kernel_mode_never_contacts_either_operator(self):
         namespace = backend_namespace({})
         calls = []
@@ -142,7 +157,9 @@ class OperatorProfileTests(unittest.TestCase):
         operator = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(operator)
         config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
-                                 mdu_internal_ip="10.42.10.12", revision=1)
+                                 mdu_internal_ip="10.42.10.12", revision=1,
+                                 gripper_profile="new_20261015", pants_profile="v4",
+                                 mocap_source="vrpn", vrpn_ip="192.168.100.99")
         for profile in ("mac", "linux"):
             source = operator._select_script("192.168.10.9", profile).split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
             parameters = []
@@ -164,11 +181,22 @@ class OperatorProfileTests(unittest.TestCase):
                 "rcl_interfaces.msg": SimpleNamespace(Parameter=SimpleNamespace, ParameterValue=SimpleNamespace),
             }
             with patch.dict(sys.modules, modules), \
-                 patch.object(Path, "read_text", return_value=json.dumps(config.values())), patch("builtins.print"):
+                 patch.object(Path, "read_text", return_value=json.dumps(config_to_document(config))), patch("builtins.print"):
                 exec(compile(source, "select-operator", "exec"), {})
             updated = apply_config_updates(config, parameters)
             self.assertEqual((updated.operator_profile, updated.laptop_wifi_ip), (profile, "192.168.10.9"))
             self.assertEqual(updated.hdu_wifi_ip, config.hdu_wifi_ip)
+            for key in ("gripper_profile", "pants_profile", "mocap_source", "vrpn_ip", "vrpn_port", "vrpn_units"):
+                self.assertEqual(getattr(updated, key), getattr(config, key))
+            parameters.clear()
+            field_document = config_to_document(config)
+            field_document["schema_version"] = 5
+            field_document.pop("operator_profile")
+            with patch.dict(sys.modules, modules), \
+                 patch.object(Path, "read_text", return_value=json.dumps(field_document)), \
+                 self.assertRaisesRegex(RuntimeError, "schema-5 venue settings were left unchanged"):
+                exec(compile(source, "select-operator", "exec"), {})
+            self.assertFalse(parameters)
 
 
 if __name__ == "__main__":

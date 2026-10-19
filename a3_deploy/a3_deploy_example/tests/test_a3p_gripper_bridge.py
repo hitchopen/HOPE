@@ -274,7 +274,7 @@ class FakeBridgePublisher:
 
 
 def start_fake_bridge(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str = "legacy"
 ) -> tuple[Path, Path, threading.Thread, list[BaseException]]:
     tmp_path.chmod(0o700)
     socket_path = (tmp_path / "bridge.sock").resolve()
@@ -291,7 +291,7 @@ def start_fake_bridge(
                     socket_path,
                     ready_file,
                     0.1,
-                    bridge.load_grip_contract(GRIP_PATH),
+                    bridge.load_grip_contract(GRIP_PATH, profile),
                 )
                 == 0
             )
@@ -304,11 +304,12 @@ def start_fake_bridge(
     return socket_path, ready_file, thread, failures
 
 
+@pytest.mark.parametrize("profile", ["legacy", "new_20261015"])
 def test_bridge_is_motionless_then_accepts_independent_idempotent_edges(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
 ) -> None:
     socket_path, ready_file, thread, failures = start_fake_bridge(
-        tmp_path, monkeypatch
+        tmp_path, monkeypatch, profile
     )
     publisher = FakeBridgePublisher.instances[0]
     assert publisher.published == []
@@ -374,7 +375,7 @@ def test_bridge_is_motionless_then_accepts_independent_idempotent_edges(
 
     wait_until(lambda: len(publisher.published) == 25)
 
-    contract = bridge.load_grip_contract(GRIP_PATH)
+    contract = bridge.load_grip_contract(GRIP_PATH, profile)
     assert publisher.published == [
         *([contract.grab] * bridge.BURST_COUNT),
         *([contract.release] * bridge.BURST_COUNT),
@@ -478,3 +479,37 @@ def test_cli_requires_paired_real_publish_confirmation() -> None:
         ]
     )
     assert args.allow_publish and args.confirm_real_gripper
+
+
+def test_new_calibration_preserves_sdk_and_legacy_values(tmp_path):
+    import json
+    legacy = bridge.load_grip_contract(GRIP_PATH)
+    new = bridge.load_grip_contract(GRIP_PATH, "new_20261015")
+    assert (legacy.grab["pos"], legacy.release["pos"]) == (800, 2000)
+    assert (new.grab["pos"], new.release["pos"]) == (850, 1500)
+    assert new.grab["force"] == new.release["force"] == 1
+    assert legacy.grab["force"] == legacy.release["force"] == 20
+    assert new.source_sha256 == legacy.source_sha256 == bridge.CANONICAL_GRIP_SHA256
+    assert new.grab["vel"] == new.release["vel"] == 100
+    with pytest.raises(RuntimeError, match="unknown_gripper_profile"):
+        bridge.load_grip_contract(GRIP_PATH, "typo")
+    catalog = json.loads(BRIDGE_PATH.with_name("gripper_profiles.json").read_text())
+    for invalid in (-1, 4097, True, "4000"):
+        catalog["profiles"]["new_20261015"]["release"]["pos"] = invalid
+        path = tmp_path / "profiles.json"
+        path.write_text(json.dumps(catalog))
+        with pytest.raises(RuntimeError, match="invalid_gripper_profile_catalog"):
+            bridge.load_grip_contract(GRIP_PATH, "new_20261015", path)
+
+
+@pytest.mark.parametrize("action", ["grab", "release"])
+@pytest.mark.parametrize("field", ["force", "vel"])
+@pytest.mark.parametrize("invalid", [0, -1, 101, True, "1"])
+def test_invalid_calibration_percent_rejected(tmp_path, action, field, invalid):
+    import json
+    catalog = json.loads(BRIDGE_PATH.with_name("gripper_profiles.json").read_text())
+    catalog["profiles"]["new_20261015"][action][field] = invalid
+    path = tmp_path / "profiles.json"
+    path.write_text(json.dumps(catalog))
+    with pytest.raises(RuntimeError, match="invalid_gripper_profile_catalog"):
+        bridge.load_grip_contract(GRIP_PATH, "new_20261015", path)

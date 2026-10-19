@@ -14,6 +14,7 @@ class RelayStartTests(unittest.TestCase):
             Path(directory, 'runner_transport_relay.log').write_text('RUNNER TRANSPORT HEALTHY old process\n')
             function = function.replace('"/tmp/hope_real/$SESSION_ID/hdu"', shlex.quote(directory))
             script = '''set -euo pipefail
+GRIPPER_PROFILE=legacy
 ROBOT_USER=unused HDU_RUNNER_TRANSPORT_SESSION=test SELF=unused SESSION_ID=test
 LAPTOP_WIFI_IP=none HDU_WIFI_IP=none MDU_INTERNAL_IP=none MOTIVE_IP=none TABLE_SIDE=P1 FIELD_MODE=KERNEL SERVE_CSV_SHA=DEFAULT
 started=0

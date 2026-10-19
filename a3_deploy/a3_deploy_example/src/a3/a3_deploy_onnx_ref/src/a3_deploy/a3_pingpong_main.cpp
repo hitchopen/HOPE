@@ -384,11 +384,40 @@ void PrintRefDiagBlock(const a3_pingpong::RefPlaybackDiagSnapshot& d) {
 
 int main(int argc, char** argv) {
   setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffer so status survives kill
+  std::uint32_t gripper_release_pos = 2000;  // Historical direct-binary default.
+  std::uint32_t gripper_release_force = 20;
+  std::uint32_t gripper_release_velocity = 60;
+  const auto gripper_profile = Flag(argc, argv, "--gripper-profile", "legacy");
+  try {
+    if (gripper_profile != "legacy" && gripper_profile != "new_20261015")
+      throw std::runtime_error("unknown gripper profile");
+    if (Has(argc, argv, "--gripper-profile") || Has(argc, argv, "--gripper-profiles")) {
+      const auto catalog_path = Flag(argc, argv, "--gripper-profiles",
+          (fs::path(argv[0]).parent_path() / "tools/gripper_profiles.json").string());
+      const auto catalog = YAML::LoadFile(catalog_path);
+      if (catalog["schema_version"].as<int>() != 1) throw std::runtime_error("profile schema");
+      const auto release = catalog["profiles"][gripper_profile]["release"];
+      const auto pos = release["pos"].as<int>();
+      const auto force = release["force"].as<int>();
+      const auto velocity = release["vel"].as<int>();
+      if (release.size() != 5 || pos < 0 || pos > 4096 ||
+          release["cmd"].as<int>() != 0 || release["method"].as<int>() != 1 ||
+          force < 1 || force > 100 || velocity < 1 || velocity > 100 ||
+          (gripper_profile == "legacy" && (pos != 2000 || force != 20 || velocity != 60)))
+        throw std::runtime_error("invalid release profile");
+      gripper_release_pos = static_cast<std::uint32_t>(pos);
+      gripper_release_force = static_cast<std::uint32_t>(force);
+      gripper_release_velocity = static_cast<std::uint32_t>(velocity);
+    }
+  } catch (const std::exception& error) {
+    std::cerr << "gripper profile preflight failed: " << error.what() << "\n";
+    return 2;
+  }
   // Wire-format preflight only: no backend initialization or actuator access.
   if (Has(argc, argv, "--inspect-serve-release-wire")) {
 #ifdef HAS_A3_TA_PROTO
     aimdk::protocol::HandCommandChannel message;
-    a3_io::FillServeReleaseMessage(message, 7, 1'250'000'000);
+    a3_io::FillServeReleaseMessage(message, 7, 1'250'000'000, gripper_release_pos, gripper_release_force, gripper_release_velocity);
     for (unsigned char byte : message.SerializeAsString()) std::printf("%02x", byte);
     std::printf("\n");
     return 0;
@@ -1375,7 +1404,11 @@ int main(int argc, char** argv) {
             std::cerr << "[serve_hal_clock] telemetry unavailable at startup; retry attachment in background, no Runner or replay gate\n";
           }
         }
-        backend->EnableNativeServeRelease();
+        backend->EnableNativeServeRelease(gripper_release_pos, gripper_release_force, gripper_release_velocity);
+        std::cout << "[serve] gripper_profile=" << gripper_profile
+                  << " release_pos=" << gripper_release_pos
+                  << " release_force=" << gripper_release_force
+                  << " release_velocity=" << gripper_release_velocity << "\n";
         serve->SetNativeReleasePublisher([&backend](std::uint64_t& stamp) {
           return backend->PublishServeRelease(stamp);
         });

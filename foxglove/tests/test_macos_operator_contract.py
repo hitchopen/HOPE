@@ -42,6 +42,35 @@ def container(cfg):
 
 
 class MacOperatorContractTests(unittest.TestCase):
+    def test_symlinked_lifecycle_helper_is_executable(self):
+        self.assertTrue((ROOT / "foxglove/helpers/hope-lifecycle").stat().st_mode & 0o111,
+                        "The container dispatches the checkout helper directly")
+
+    def test_entrypoint_handles_existing_and_new_primary_groups(self):
+        source = (ROOT / "scripts/macos/operator-entrypoint.sh").read_text()
+        account_setup = source.split('operator_group=hope', 1)[1].split(
+            '[[ "$(id -u "$operator_user")"', 1)[0]
+        account_setup = 'operator_group=hope' + account_setup
+        for group_exists in (True, False):
+            with self.subTest(group_exists=group_exists):
+                script = '''set -euo pipefail
+operator_user=operator
+operator_home=/home/operator
+id() { return 1; }
+getent() { return GROUP_STATUS; }
+groupadd() { printf 'groupadd:%s\\n' "$*"; }
+useradd() { printf '%s\\n' "$@"; }
+'''.replace("GROUP_STATUS", "0" if group_exists else "2") + account_setup
+                result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                arguments = result.stdout.splitlines()
+                self.assertIn("--create-home", arguments)
+                self.assertIn("--gid", arguments)
+                self.assertEqual(arguments[arguments.index("--gid") + 1], "hope")
+                self.assertNotIn("--user-group", arguments)
+                self.assertEqual("groupadd:hope" in arguments, not group_exists)
+                self.assertEqual(arguments[-1], "operator")
+
     def test_direct_cli_help_works_from_mac_scripts_directory(self):
         result = subprocess.run([sys.executable, str(ROOT / "scripts/macos/operator.py"), "--help"],
                                 cwd=ROOT / "scripts/macos", capture_output=True, text=True)
@@ -138,6 +167,7 @@ class MacOperatorContractTests(unittest.TestCase):
         cfg = config()
         operator.verify_container_contract(cfg, container(cfg))
         changes = [lambda c: c["Config"].update(Labels={}),
+                   lambda c: c["Config"].update(Labels={operator.CONTRACT_LABEL: "2"}),
                    lambda c: c["Config"].update(Env=["HOPE_OPERATOR_USER=dongc1"]),
                    lambda c: c["Mounts"][0].update(Source="/other/checkout"),
                    lambda c: c["Mounts"][1].update(Source="/other/config"),

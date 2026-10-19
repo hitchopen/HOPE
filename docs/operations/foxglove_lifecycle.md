@@ -142,11 +142,13 @@ successful configuration change is not evidence of live mocap/recording data.
 
 Install the matching `hope_lifecycle_core.py` and `hope_lifecycle_supervisor.py`
 on the HDU and restart its supervisor only while STOPPED. Install the bundled
-Console 1.8.14, which includes the **Operator computer** selector. Confirm the
+Console 1.8.15, which includes the **Operator computer**, gripper and mocap selectors. Confirm the
 profile and current Laptop IP together, either there or with `select-mac` /
-`select-linux`. Schema 1/2 documents migrate to Linux; schema 3 persists the
-profile. Older five-field clients preserve the current profile, but cannot
-display/select it. The Mac-specific service environment variables are trusted
+`select-linux`. Combined schema 6 preserves field schema-5 gripper, pants and
+VRPN settings while adding the operator profile; main's older profile-aware
+schemas also migrate. Older five/six/seven-field clients preserve newer selections.
+Do not replace a live schema-5 backend with PR #54's former schema-3 files.
+The Mac-specific service environment variables are trusted
 HDU configuration, not editable arbitrary commands from Foxglove.
 
 Add the two Mac-profile identity fields to older `operator.json` files. `bind`
@@ -505,3 +507,31 @@ three-machine dry rehearsal and then an attended hardware trial are still
 required. In particular, verify SSH keys, MDU sudoers, tmux availability,
 exact deployed Runner package, ROS service discovery, process identity, log
 flush, `agibot_pm` restoration and the physical PASSIVE/PD_STAND transitions.
+
+## Field gripper and mocap configuration
+
+Select the gripper while STOPPED and confirm the configuration before START.
+`legacy` preserves close/open positions 800/2000 and force 20 (speeds 40/60).
+`new_20261015` is the existing field profile identifier, updated on 2026-10-18:
+close 850, open 1500, force 1, speed 100. These are device command units, not
+millimetres or measured finger velocity. The default remains `legacy`.
+
+The Console, HDU supervisor, lifecycle helper, package launcher, Python bridge
+and native C++ release publisher carry the same selection. The launcher compares
+native and Python serialized release bytes before creating a bridge or starting
+Runner; mixed binaries/catalogs fail closed. Build/package the Runner and bridge
+together. The catalog is included at `tools/gripper_profiles.json`; it is not a
+browser-supplied file. Direct package use accepts `--gripper-profile new_20261015`.
+
+Combined schema 6 loads both main's older operator/gripper schemas and field
+schema 5, preserving gripper, pants, mocap source, VRPN endpoint/units, table side
+and network settings. Older clients retain settings they cannot edit. Install
+the matching HDU core/supervisor/helper and Console only during a separately
+approved stopped deployment. The Mac local build does not install them remotely.
+This port leaves Prepare motion, serving CSVs and release lead timing unchanged.
+
+Mocap capture is independently selected and started on the operator computer.
+See [Motive / ChingMu setup](foxglove_mocap_setup.md),
+[VRPN pants assets](vrpn_pants_profiles.md), and the
+[final Mac build](macos_deployment.md). ChingMu feeds the Mac VRPN receiver;
+the Mac publishes ROS2 to the HDU. No MDU mocap-server connection is required.

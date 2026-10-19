@@ -862,6 +862,7 @@ serve_bridge = gear_root / "scripts" / "a3p_gripper_bridge.py"
 if not serve_bridge.is_file():
     raise SystemExit(f"required serve025 bridge is missing: {serve_bridge}")
 copy_into(serve_bridge, "tools")
+copy_into(gear_root / "scripts" / "gripper_profiles.json", "tools")
 
 onnx_cfg = nested(cfg, ["onnx"]) or {}
 onnx_mode = str(onnx_cfg.get("mode") or "monolithic")
@@ -1389,6 +1390,35 @@ elif [[ -f /opt/ros/humble/setup.bash ]]; then
   set -u
 fi
 
+# Bind both command publishers to the same catalog and selection.
+GRIPPER_PROFILE=legacy
+GRIPPER_PROFILE_SEEN=0
+GRIPPER_PROFILE_EXPECT=0
+for _arg in "$@"; do
+  if [[ "$GRIPPER_PROFILE_EXPECT" == 1 ]]; then
+    case "$_arg" in legacy|new_20261015) GRIPPER_PROFILE="$_arg" ;; *) echo "invalid gripper profile" >&2; exit 64 ;; esac
+    GRIPPER_PROFILE_EXPECT=0
+    continue
+  fi
+  case "$_arg" in
+    --gripper-profile)
+      [[ "$GRIPPER_PROFILE_SEEN" == 0 ]] || { echo "duplicate gripper profile" >&2; exit 64; }
+      GRIPPER_PROFILE_SEEN=1
+      GRIPPER_PROFILE_EXPECT=1 ;;
+    --gripper-profile=*|--gripper-profiles|--gripper-profiles=*)
+      echo "use --gripper-profile legacy or new_20261015; catalog is package-owned" >&2; exit 64 ;;
+  esac
+done
+[[ "$GRIPPER_PROFILE_EXPECT" == 0 ]] || { echo "missing gripper profile" >&2; exit 64; }
+# Read-only wire check: a mixed/old native binary must never silently use 2000
+# after the operator selects the field preset. No ROS node is created here.
+GRIPPER_EXPECTED_WIRE="$(python3 "${SCRIPT_DIR}/tools/a3p_gripper_bridge.py" \
+  --grip-source "${SCRIPT_DIR}/tools/grip.py" --gripper-profile "$GRIPPER_PROFILE" --print-release-wire)"
+GRIPPER_NATIVE_WIRE="$("${SCRIPT_DIR}/a3_deploy_onnx_ref_pingpong" \
+  --inspect-serve-release-wire --gripper-profile "$GRIPPER_PROFILE" \
+  --gripper-profiles "${SCRIPT_DIR}/tools/gripper_profiles.json")"
+[[ "$GRIPPER_NATIVE_WIRE" == "$GRIPPER_EXPECTED_WIRE" ]] || { echo "gripper native/bridge profile mismatch" >&2; exit 65; }
+echo "[a3_pingpong] gripper_profile=$GRIPPER_PROFILE wire_match=1"
 SERVE_ENABLED=0
 SERVE_UNSUPPORTED_OVERRIDE=""
 SERVE_TIMELINE_OVERRIDE=0
@@ -1429,6 +1459,7 @@ if [[ "${SERVE_ENABLED}" == "0" ]]; then
   exec "${SCRIPT_DIR}/a3_deploy_onnx_ref_pingpong" \
     --runtime-cfg "${PINGPONG_RUNTIME_CFG}" \
     --aimrt-cfg "${A3_AIMRT_CFG}" \
+    --gripper-profiles "${SCRIPT_DIR}/tools/gripper_profiles.json" \
     "$@"
 fi
 
@@ -1528,6 +1559,7 @@ if [[ "${GRIPPER_AVAILABLE}" == "1" ]]; then
     --socket "${SERVE_SOCKET}" \
     --ready-file "${SERVE_READY}" \
     --grip-source "${SCRIPT_DIR}/tools/grip.py" \
+    --gripper-profile "${GRIPPER_PROFILE}" \
     --allow-publish \
     --confirm-real-gripper &
   GRIPPER_BRIDGE_PID=$!
@@ -1561,6 +1593,7 @@ echo "[a3_pingpong] transport=${A3_TRANSPORT} aimrt_cfg=${A3_AIMRT_CFG} runtime_
 "${SCRIPT_DIR}/a3_deploy_onnx_ref_pingpong" \
   --runtime-cfg "${PINGPONG_RUNTIME_CFG}" \
   --aimrt-cfg "${A3_AIMRT_CFG}" \
+  --gripper-profiles "${SCRIPT_DIR}/tools/gripper_profiles.json" \
   "$@" \
   "${SERVE_GRIPPER_ARGS[@]}" \
   "${SERVE_TIMELINE_ARGS[@]}" &
@@ -1775,6 +1808,7 @@ verify_package() {
     "motions/a3p_op3_serve025_smooth_center_v14.csv"
     "tools/a3p_gripper_bridge.py"
     "tools/grip.py"
+    "tools/gripper_profiles.json"
   )
   local serve_rel
   for serve_rel in "${serve_required[@]}"; do

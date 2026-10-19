@@ -79,7 +79,13 @@ class A3AimrtBackend : public RobotIOBackend {
   bool SendCommand(const RobotCommand& cmd) override;
   // Enable before Start. First release and its redundant copies are published
   // synchronously by the same command thread as SDK31, over native iceoryx.
-  void EnableNativeServeRelease() { native_serve_release_enabled_ = true; }
+  void EnableNativeServeRelease(std::uint32_t position = 2000,
+                                std::uint32_t force = 20, std::uint32_t velocity = 60) {
+    native_serve_release_pos_ = position;
+    native_serve_release_force_ = force;
+    native_serve_release_velocity_ = velocity;
+    native_serve_release_enabled_ = true;
+  }
   bool PublishServeRelease(std::uint64_t& publish_monotonic_ns);
   std::string Name() const override { return "a3"; }
   double StateRateHz() const override;
@@ -191,6 +197,9 @@ class A3AimrtBackend : public RobotIOBackend {
 
   std::atomic<std::uint32_t> seq_counter_{0};
   bool native_serve_release_enabled_{false};
+  std::uint32_t native_serve_release_pos_{2000};
+  std::uint32_t native_serve_release_force_{20};
+  std::uint32_t native_serve_release_velocity_{60};
   std::function<void()> serve_release_publish_fn_;
   std::atomic<bool>          inited_{false};
   std::atomic<bool>          started_{false};
