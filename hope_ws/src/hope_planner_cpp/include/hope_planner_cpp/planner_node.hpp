@@ -171,6 +171,7 @@ class PlannerNode final : public rclcpp::Node {
   bool post_net_one_shot_enabled_ = true;
   double max_target_turn_deg_ = 40.0;
   double target_turn_max_pose_age_s_ = 0.2;
+  bool target_turn_reject_stale_pose_ = true;
   bool flight_packet_input_enabled_ = false;
   std::string flight_packet_topic_ = "/ball/flight_packet";
   double post_net_commit_delay_s_ = 0.05;

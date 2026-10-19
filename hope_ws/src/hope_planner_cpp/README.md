@@ -38,9 +38,18 @@ deadlines are rejected. The horizontal angle is measured from the robot's
 current heading to the strike point. The shared production profile now uses
 `max_target_turn_deg: 180.0`, disabling angular rejection at the operator's
 request. The earlier 40 degree limit can be restored explicitly in the profile;
-the C++ default remains 40 degrees. Unavailable or stale base poses are still
-rejected. This parameter is read at startup, so changing the YAML requires a
-controlled Planner restart.
+the C++ default remains 40 degrees. Unavailable/invalid base poses are still
+rejected. Pose age is a separate site option: `target_turn_reject_stale_pose`
+defaults to `true`, preserving the Berkeley/main receipt and source age checks.
+The local PPQ field setup uses `false`: measured ages remain in the audit CSV,
+and exceeded ages emit a warning but do not veto a shot. Do not infer this option
+from the ball model, operating system, or robot model. Use
+`config/field_body_timing_audit.yaml` after the base parameter file, or retain
+its single parameter in the installed site's `model21800_hardware.yaml` when
+using the lifecycle helper. Both policies retain invalid-pose, strike-deadline,
+and configured turn-angle checks. Parameters are read at startup; changing them
+requires a controlled Planner restart. A source push does not change a running
+Planner or a robot's installed site configuration.
 There is no additional confidence, stability-frame, READY, or balance gate.
 
 Audit CSV creation is exclusive and refuses to truncate an existing attempt.
