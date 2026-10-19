@@ -22,6 +22,8 @@ find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(hope_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rcl_interfaces REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
@@ -68,6 +70,8 @@ target_link_libraries(hope_planner_cpp_node PRIVATE
   ${hope_msgs_TARGETS}
   ${std_msgs_TARGETS}
   ${std_srvs_TARGETS}
+  ${rcl_interfaces_TARGETS}
+  ${visualization_msgs_TARGETS}
 )
 
 add_executable(hope_planner_cpp_replay src/replay_main.cpp)
@@ -109,6 +113,13 @@ install(PROGRAMS
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_ball_y_filter_controls test/test_ball_y_filter_controls.cpp src/planner_node.cpp)
+  target_include_directories(test_ball_y_filter_controls PRIVATE include)
+  target_link_libraries(test_ball_y_filter_controls hope_planner_core Eigen3::Eigen rclcpp::rclcpp
+    ${diagnostic_msgs_TARGETS} ${geometry_msgs_TARGETS} ${hope_msgs_TARGETS}
+    ${std_msgs_TARGETS} ${std_srvs_TARGETS} ${rcl_interfaces_TARGETS} ${visualization_msgs_TARGETS})
+  ament_add_gtest(test_ball_y_filter test/test_ball_y_filter.cpp)
+  target_include_directories(test_ball_y_filter PRIVATE include)
   ament_add_gtest(test_spin_physics test/test_spin_physics.cpp)
   target_link_libraries(test_spin_physics hope_planner_core Eigen3::Eigen)
   ament_add_gtest(test_future_contact_predictor test/test_future_contact_predictor.cpp)
@@ -175,6 +186,8 @@ if(BUILD_TESTING)
     ${hope_msgs_TARGETS}
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS}
+  ${rcl_interfaces_TARGETS}
+  ${visualization_msgs_TARGETS}
   )
 
   ament_add_gtest(test_planner_node_turn_guard
@@ -191,6 +204,8 @@ if(BUILD_TESTING)
     ${hope_msgs_TARGETS}
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS}
+  ${rcl_interfaces_TARGETS}
+  ${visualization_msgs_TARGETS}
   )
 
   ament_add_gtest(test_flight_packet_pipeline
@@ -208,6 +223,8 @@ if(BUILD_TESTING)
     ${hope_msgs_TARGETS}
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS}
+  ${rcl_interfaces_TARGETS}
+  ${visualization_msgs_TARGETS}
   )
 endif()
 

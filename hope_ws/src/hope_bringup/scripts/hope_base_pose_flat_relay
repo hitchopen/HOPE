@@ -15,6 +15,7 @@ pose jumps.
 """
 
 import math
+import json
 import time
 from pathlib import Path
 
@@ -63,6 +64,7 @@ class BasePoseFlatRelay(Node):
         self.declare_parameter("pelvis_pose_topic", "/a3/mocap/pelvis_pose")
         self.declare_parameter("calibration_file", "")
         self.declare_parameter("localization_source", "calibration")
+        self.declare_parameter("vrpn_pelvis_asset_confirmed", False)
         self.declare_parameter("calibration_reload_period_s", 1.0)
         self.declare_parameter("require_marker_identity", False)
         self.declare_parameter(
@@ -105,8 +107,14 @@ class BasePoseFlatRelay(Node):
         )
         self._pelvis_frame = str(self.get_parameter("pelvis_frame").value)
         source = str(self.get_parameter("localization_source").value)
-        if source not in {"calibration", "motive_live", "motive_asset"}:
-            raise ValueError("localization_source must be calibration, motive_live or motive_asset")
+        if source not in {"calibration", "motive_live", "motive_asset", "vrpn_ground_truth"}:
+            raise ValueError("localization_source must be calibration, motive_live, motive_asset or vrpn_ground_truth")
+        self._vrpn_mode = source == "vrpn_ground_truth"
+        self._vrpn_selection = None
+        self._vrpn_confirmed = bool(self.get_parameter("vrpn_pelvis_asset_confirmed").value)
+        if self._vrpn_mode:
+            from vrpn_pants_contract import load_profiles
+            self._vrpn_profiles = load_profiles()
         self._asset_mode = source in {"motive_live", "motive_asset"}
         self._pinned_asset = source == "motive_asset"
         self._asset_seen_at = None
@@ -117,7 +125,7 @@ class BasePoseFlatRelay(Node):
             from motive_asset_contract import load_asset_points
             self._asset_points = load_asset_points()
         calibration_file = str(self.get_parameter("calibration_file").value).strip()
-        self._calibration_path = Path(calibration_file) if calibration_file and not self._asset_mode else None
+        self._calibration_path = Path(calibration_file) if calibration_file and not self._asset_mode and not self._vrpn_mode else None
         self._require_marker_identity = self._asset_mode or bool(
             self.get_parameter("require_marker_identity").value
         )
@@ -128,7 +136,7 @@ class BasePoseFlatRelay(Node):
         self._live_rigid_body_id: int | None = None
         self._extrinsic_calibrated = (
             False
-            if self._calibration_path is not None or self._asset_mode
+            if self._calibration_path is not None or self._asset_mode or self._vrpn_mode
             else bool(self.get_parameter("extrinsic_calibrated").value)
         )
         self._world_calibrated = bool(
@@ -221,12 +229,14 @@ class BasePoseFlatRelay(Node):
             self._asset_match_pub = self.create_publisher(Bool, "/hope/mocap/asset_match", 10)
             self._asset_text_pub = self.create_publisher(String, "/hope/mocap/asset_text", 10)
             self.create_timer(0.25, self._publish_asset_status)
-        self.create_subscription(
-            PoseStamped,
-            str(self.get_parameter("input_topic").value),
-            self._pose_cb,
-            input_qos,
-        )
+        if self._vrpn_mode:
+            self.create_subscription(String, "/hope/mocap/vrpn_observation",
+                                     self._vrpn_pose_cb, input_qos)
+        else:
+            self.create_subscription(
+                PoseStamped, str(self.get_parameter("input_topic").value),
+                self._pose_cb, input_qos,
+            )
         if self._require_marker_identity:
             # Keep motion_capture_tracking_interfaces optional for the generic
             # avatar/VRPN workspace. The OptiTrack launch enables this check
@@ -249,6 +259,49 @@ class BasePoseFlatRelay(Node):
         if self._calibration_path is not None:
             self.create_timer(reload_period_s, self._reload_calibration)
         self.create_timer(1.0, self._log_health)
+
+    def _vrpn_pose_cb(self, msg):
+        # The relay carries side/profile and pose in ONE message, avoiding a
+        # pose from the previous selection being interpreted with new offsets.
+        from vrpn_pants_contract import validate_observation
+        try:
+            document = json.loads(msg.data)
+            selection, position, quaternion = validate_observation(document, self._vrpn_profiles)
+            previous = self._vrpn_selection
+            if previous is not None and (selection.revision < previous.revision or
+                    (selection.revision == previous.revision and selection != previous)):
+                raise ValueError("reordered VRPN profile observation")
+            if not self._vrpn_confirmed:
+                raise ValueError("imported pelvis asset has not been confirmed")
+            if previous is not None and (selection.profile, selection.side) != (previous.profile, previous.side):
+                # Switching while stopped starts a different frame/asset history.
+                self._last_input_source_ns = self._last_source_ns = None
+                self._last_base_position = self._last_base_quaternion = None
+            self._vrpn_selection = selection
+            self._table_side = selection.side
+            self._expected_marker_frame = selection.body
+            self._offset, self._offset_quat = (0.0, 0.0, 0.0), (1.0, 0.0, 0.0, 0.0)
+            self._loaded_calibration_sha = document["asset_sha256"]
+            self._calibration_id = receipt_id_u52(self._loaded_calibration_sha)
+            self._extrinsic_calibrated = True
+            if self._world_calibrated:
+                self._runtime_world_sha = runtime_world_frame_sha256(
+                    str(self.get_parameter("world_frame_sha256").value), selection.side,
+                    self._table_length_m, self._table_width_m)
+                self._world_frame_id = receipt_id_u52(self._runtime_world_sha)
+            self._rebuild_flags()
+            pose = PoseStamped()
+            pose.header.frame_id = self._expected_input_frame
+            pose.header.stamp.sec, pose.header.stamp.nanosec = document["stamp"]
+            pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = position
+            (pose.pose.orientation.x, pose.pose.orientation.y,
+             pose.pose.orientation.z, pose.pose.orientation.w) = quaternion
+        except (ValueError, KeyError, TypeError) as exc:
+            self._invalidate_calibration(str(exc))
+            self._sequence += 1
+            self._pub.publish(Float64MultiArray(data=invalid_base_flat(sequence=self._sequence)))
+            return
+        self._pose_cb(pose)
 
     def _rebuild_flags(self) -> None:
         self._flags = FLAG_SOURCE_STAMP_HDU_ROS | FLAG_POLICY_Z_OFFSET_APPLIED

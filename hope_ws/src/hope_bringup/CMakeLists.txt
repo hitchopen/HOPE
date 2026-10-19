@@ -36,6 +36,7 @@ install(PROGRAMS
 
 install(FILES
   scripts/base_pose_contract.py
+  scripts/vrpn_pants_contract.py
   scripts/p1_calibration.py
   scripts/p1_marker_layout.py
   scripts/motive_asset_contract.py
@@ -62,6 +63,8 @@ if(BUILD_TESTING)
   set(ament_cmake_copyright_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
   find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(vrpn_pants_contract_test test/test_vrpn_pants_contract.py)
+  ament_add_pytest_test(vrpn_pants_relay_test test/test_vrpn_pants_relay.py)
   ament_add_pytest_test(table_side_transform_test test/test_table_side_transform.py)
   ament_add_pytest_test(source_time_rate_gate_test test/test_source_time_rate_gate.py)
   ament_add_pytest_test(natnet_preflight_test test/test_natnet_preflight.py)

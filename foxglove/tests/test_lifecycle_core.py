@@ -11,8 +11,7 @@ import sys
 sys.path.insert(0, str(FOXGLOVE_DIR / "a3"))
 
 from hope_lifecycle_core import (  # noqa: E402
-    CONFIG_FIELDS,
-    LEGACY_CONFIG_FIELDS,
+    CONFIG_FIELDS, LEGACY_CONFIG_FIELDS, OPERATOR_CONFIG_FIELDS,
     LifecycleConfig,
     apply_config_updates,
     config_from_document,
@@ -53,6 +52,8 @@ class LifecycleConfigTests(unittest.TestCase):
                 "table_side": "P1",
                 "operator_profile": "linux",
                 "gripper_profile": "legacy",
+                "pants_profile": "v2", "mocap_source": "none",
+                "vrpn_ip": "", "vrpn_port": "3883", "vrpn_units": "mm",
             },
         )
 
@@ -162,8 +163,8 @@ class LifecycleConfigTests(unittest.TestCase):
         selected = apply_config_updates(current, list({**current.values(),
             "operator_profile": "mac", "gripper_profile": "new_20261015"}.items()))
         self.assertEqual(config_from_document(config_to_document(selected)), selected)
-        for excluded in ({"gripper_profile"}, {"operator_profile", "gripper_profile"}):
-            old = [(name, value) for name, value in selected.values().items() if name not in excluded]
+        for fields in (LEGACY_CONFIG_FIELDS, OPERATOR_CONFIG_FIELDS):
+            old = [(name, selected.values()[name]) for name in fields]
             moved = apply_config_updates(selected, old)
             self.assertEqual(moved.gripper_profile, "new_20261015")
             self.assertEqual(moved.operator_profile, "mac")
@@ -183,7 +184,7 @@ class LifecycleConfigTests(unittest.TestCase):
             save_config_atomic(path, config)
             self.assertEqual(load_config(path), config)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(path.read_text())["schema_version"], 4)
+            self.assertEqual(json.loads(path.read_text())["schema_version"], 6)
 
     def test_unconfirmed_or_malformed_documents_fail(self):
         document = config_to_document(self.valid_config(revision=1))

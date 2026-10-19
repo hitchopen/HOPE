@@ -44,12 +44,30 @@ def backend_namespace(environment):
 
 
 class OperatorProfileTests(unittest.TestCase):
+    def test_ball_verification_uses_local_hdu_and_the_other_hosts_discovery_address(self):
+        namespace = backend_namespace({})
+        calls = []
+        def run(argv, **kwargs):
+            calls.append((argv, json.loads(kwargs['input'])))
+            return SimpleNamespace(returncode=0, stdout='{}', stderr='')
+        backend = namespace['LifecycleBackend'](run=run)
+        config = LifecycleConfig(laptop_wifi_ip='10.44.1.2', hdu_wifi_ip='10.44.1.3',
+                                 mdu_internal_ip='10.42.10.12', revision=1, operator_profile='mac')
+        backend.exchange_assets('hdu', config, {'op': 'verify_ball_model', 'model': 'berkeley'})
+        self.assertEqual(calls[-1][0], ['/usr/local/libexec/hope-lifecycle', 'ball-model-hdu'])
+        self.assertEqual(calls[-1][1]['_peer'], config.laptop_wifi_ip)
+        backend.exchange_assets('laptop', config, {'op': 'verify_ball_model', 'model': 'berkeley'})
+        self.assertIn('operator@hope-mac-operator', calls[-1][0])
+        self.assertEqual(calls[-1][1]['_peer'], config.hdu_wifi_ip)
+
     def exercise(self, backend, config):
         session = "model21800_20261018T050406Z"
         backend.start(config, session, lambda event: None)
         backend.kill_all_and_collect(config, session, lambda event: None)
         backend.exchange_recording("laptop", config, {"op": "status"})
         backend.exchange_assets("laptop", config, {"op": "list"})
+        for operation in ("read_ball_model", "select_ball_model", "verify_ball_model"):
+            backend.exchange_assets("laptop", config, {"op": operation, "model": "berkeley"})
 
     def assert_dispatched(self, command, user, external_helper):
         # Execute the real dispatcher entrypoint and root-owned contract reader.
@@ -100,10 +118,10 @@ class OperatorProfileTests(unittest.TestCase):
                     ssh_calls = [argv for argv in calls if argv[0] == "/usr/bin/ssh"]
                     host_index = 1 + len(namespace["SSH_OPTIONS"])
                     laptop_calls = [argv for argv in ssh_calls if argv[host_index] != "agi@10.42.10.12"]
-                    self.assertEqual(len(laptop_calls), 6)
+                    self.assertEqual(len(laptop_calls), 9)
                     self.assertEqual({argv[host_index + 2] for argv in laptop_calls},
                                      {"preflight-laptop", "prepare-laptop", "stop-capture-laptop",
-                                      "collect", "record-control", "field-assets-laptop"})
+                                      "collect", "record-control", "field-assets-laptop", "ball-model-laptop"})
                     for argv in laptop_calls:
                         if profile == "linux":
                             self.assertEqual(argv[host_index:host_index + 2],

@@ -130,8 +130,9 @@ class LifecycleBackend:
         return completed.stdout
 
     def start(self, config: LifecycleConfig, session_id: str, event_callback,
-              mode: str = "OPTITRACK", csv_sha: str = "DEFAULT") -> None:
+              mode: str = "OPTITRACK", csv_sha: str = "DEFAULT", ball_model: str | None = None) -> None:
         validate_session_id(session_id)
+        self.ball_model_verification = None
         laptop, laptop_helper = self._laptop(config)
         mdu = f"{ROBOT_USER}@{config.mdu_internal_ip}"
         motive_arg = config.motive_ip or "NONE"
@@ -186,6 +187,12 @@ class LifecycleBackend:
             self._invoke(
                 list(argv), timeout_s=timeout_s, event_callback=event_callback
             )
+            if step == "PLANNER" and ball_model is not None:
+                planner = self.exchange_assets("hdu", config, {"op": "verify_ball_model", "model": ball_model,
+                                                               "require_running": True})
+                packetizer = self.exchange_assets("laptop", config, {"op": "verify_ball_model", "model": ball_model})
+                self.ball_model_verification = {"model": ball_model, "planner": planner["runtime"],
+                                                "packetizer": packetizer["runtime"]}
 
     def kill_all_and_collect(
         self, config: LifecycleConfig, session_id: str, event_callback,
@@ -261,7 +268,15 @@ class LifecycleBackend:
             raise ValueError("confirm network configuration first")
         target, helper = (self._laptop(config) if host == "laptop"
                           else (f"{ROBOT_USER}@{config.mdu_internal_ip}", LIFECYCLE_HELPER))
-        result = self._run(self._ssh(target, helper, f"field-assets-{host}"),
+        if request.get("op") in {"read_ball_model", "select_ball_model", "verify_ball_model"}:
+            if host not in {"hdu", "laptop"}:
+                raise ValueError("ball physics is only configured on HDU and Laptop")
+            request = {**request, "_peer": config.laptop_wifi_ip if host == "hdu" else config.hdu_wifi_ip}
+            command = ([LIFECYCLE_HELPER, "ball-model-hdu"] if host == "hdu" else
+                       self._ssh(target, helper, "ball-model-laptop"))
+        else:
+            command = self._ssh(target, helper, f"field-assets-{host}")
+        result = self._run(command,
                            input=json.dumps(request, ensure_ascii=False), capture_output=True,
                            text=True, timeout=30, check=False)
         if result.returncode:
@@ -318,6 +333,10 @@ class HopeLifecycleSupervisor(Node):
             )
             for name in CONFIG_FIELDS
         }
+        # One snapshot prevents consumers combining a new profile with an old side.
+        self._mocap_config_pub = self.create_publisher(
+            String, "/hope/lifecycle/config/mocap", 10
+        )
         self.create_service(
             SetParameters,
             "/hope/lifecycle/apply_config",
@@ -376,6 +395,9 @@ class HopeLifecycleSupervisor(Node):
             result = self._last_result
         field_status = self._field.status()
         field_status["busy"] = self._field_busy
+        field_status["auto_record_on_start"] = os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1"
+        field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
+                                                    if state == "RUNNING" else None)
         self._field_publisher.publish(self._string(json.dumps(field_status, ensure_ascii=False)))
         self._lifecycle_publishers["state"].publish(self._string(state))
         self._lifecycle_publishers["step"].publish(self._string(step))
@@ -396,6 +418,14 @@ class HopeLifecycleSupervisor(Node):
         self._lifecycle_publishers["revision"].publish(revision_message)
         for name, value in config.values().items():
             self._config_publishers[name].publish(self._string(value))
+
+        self._mocap_config_pub.publish(self._string(json.dumps({
+            "revision": config.revision, "pants_profile": config.pants_profile,
+            "table_side": config.table_side, "state": state, "busy": busy,
+            "mocap_source": config.mocap_source, "motive_ip": config.motive_ip,
+            "vrpn_ip": config.vrpn_ip, "vrpn_port": config.vrpn_port,
+            "vrpn_units": config.vrpn_units,
+        }, sort_keys=True)))
 
     def _refresh_field(self) -> None:
         with self._lock:
@@ -603,7 +633,8 @@ class HopeLifecycleSupervisor(Node):
                 self._step = "PREFLIGHT"
             mode, csv_sha = self._field.runner_selection(config)
             self._session_mode = mode
-            self._backend.start(config, session_id, self._on_event, mode, csv_sha)
+            self._backend.start(config, session_id, self._on_event, mode, csv_sha,
+                                ball_model=self._field.status().get("ball_model"))
             self._wait_for_authoritative_runner()
         except (LifecycleFailure, OSError, ValueError, subprocess.TimeoutExpired) as exc:
             self.get_logger().error(
@@ -649,6 +680,13 @@ class HopeLifecycleSupervisor(Node):
                 self._busy = False
             return
         with self._lock:
+            # Main keeps manual recording. Field sites may explicitly opt in;
+            # only a completed START does this, never a supervisor restart.
+            if os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1":
+                try:
+                    self._field.recorder.start()
+                except Exception as exc:  # capture must not change control state
+                    self.get_logger().error(f"Automatic recording start failed: {exc}")
             self._state = "RUNNING"
             self._step = "RUNNER"
             self._last_result = "START_COMPLETE_RUNNER_PASSIVE"

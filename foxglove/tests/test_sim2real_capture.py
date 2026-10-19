@@ -230,3 +230,22 @@ def test_session_storage_survives_tmp_link_removal(tmp_path):
     link.unlink()
     subprocess.run(["bash", "-c", script, "test", str(persistent)], check=True)
     assert (link / "test.data").read_text() == "retained"
+
+
+def test_laptop_snapshot_keeps_main_natnet_and_selected_physics(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(HELPER.parent))
+    capture = load(HELPER, 'capture_snapshot_test')
+    root, output, home = tmp_path / 'repo', tmp_path / 'out', tmp_path / 'home'
+    output.mkdir()
+    relative = 'NatNet2ROS2/src/motion_capture_tracking_interfaces/msg/NamedPose.msg'
+    message = root / relative
+    message.parent.mkdir(parents=True)
+    message.write_text('string name\n')
+    selected = home / '.config/hope-foxglove/ball_physics.json'
+    selected.parent.mkdir(parents=True)
+    selected.write_text('{"chosen":"berkeley"}\n')
+    monkeypatch.setattr(Path, 'home', classmethod(lambda cls: home))
+    capture.snapshot(root, output, 'laptop')
+    assert (output / 'configuration' / relative).read_bytes() == message.read_bytes()
+    assert (output / 'configuration/selected_ball_physics.json').read_bytes() == selected.read_bytes()
+    assert '/ball/point' in capture.ROS_TOPICS and '/planner/diagnostics' in capture.ROS_TOPICS

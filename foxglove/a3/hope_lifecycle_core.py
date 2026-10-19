@@ -13,17 +13,23 @@ import tempfile
 from typing import IO, Mapping, Sequence
 
 
-CONFIG_SCHEMA_VERSION = 4
+CONFIG_SCHEMA_VERSION = 6
 NETWORK_CONFIG_FIELDS = (
     "laptop_wifi_ip",
     "hdu_wifi_ip",
     "mdu_internal_ip",
     "motive_ip",
+    "vrpn_ip",
 )
-REQUIRED_NETWORK_CONFIG_FIELDS = NETWORK_CONFIG_FIELDS[:-1]
-LEGACY_CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS, "table_side")
+REQUIRED_NETWORK_CONFIG_FIELDS = NETWORK_CONFIG_FIELDS[:3]
+LEGACY_CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS[:4], "table_side")
 OPERATOR_CONFIG_FIELDS = (*LEGACY_CONFIG_FIELDS, "operator_profile")
-CONFIG_FIELDS = (*OPERATOR_CONFIG_FIELDS, "gripper_profile")
+MAIN_CONFIG_FIELDS = (*OPERATOR_CONFIG_FIELDS, "gripper_profile")
+FIELD_CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS, "table_side", "gripper_profile", "pants_profile",
+                       "mocap_source", "vrpn_port", "vrpn_units")
+CONFIG_FIELDS = (*FIELD_CONFIG_FIELDS, "operator_profile")
+REQUEST_FIELD_SETS = tuple(map(frozenset, (LEGACY_CONFIG_FIELDS, OPERATOR_CONFIG_FIELDS,
+                                        MAIN_CONFIG_FIELDS, FIELD_CONFIG_FIELDS, CONFIG_FIELDS)))
 PRIVATE_NETWORKS = tuple(
     ipaddress.IPv4Network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 )
@@ -46,11 +52,15 @@ class LifecycleConfig:
     hdu_wifi_ip: str = ""
     mdu_internal_ip: str = ""
     motive_ip: str = ""
+    vrpn_ip: str = ""
+    mocap_source: str = "none"
+    vrpn_port: str = "3883"
+    vrpn_units: str = "mm"
     table_side: str = "P1"
-    revision: int = 0
-    # The operator identity is independent of its current Wi-Fi address.
     operator_profile: str = "linux"
     gripper_profile: str = "legacy"
+    pants_profile: str = "v2"
+    revision: int = 0
 
     def values(self) -> dict[str, str]:
         return {name: str(getattr(self, name)) for name in CONFIG_FIELDS}
@@ -99,7 +109,7 @@ def validate_ipv4(name: str, value: object) -> str:
         raise ValueError(f"{name} is not a valid IPv4 address") from exc
     # Motive is reached from the Laptop's dedicated capture NIC, not through
     # the HDU/MDU transport network. Direct-cable IPv4 link-local is valid here.
-    motive_link_local = name == "motive_ip" and address.is_link_local
+    motive_link_local = name in {"motive_ip", "vrpn_ip"} and address.is_link_local
     if (
         address.is_unspecified
         or address.is_multicast
@@ -121,15 +131,11 @@ def validate_table_side(value: object) -> str:
 
 
 def validate_config_value(name: str, value: object) -> str:
-    if name == "gripper_profile":
-        if not isinstance(value, str) or value not in {"legacy", "new_20261015"}:
-            raise ValueError("gripper_profile must be legacy or new_20261015")
-        return value
     if name == "operator_profile":
         if not isinstance(value, str) or value not in {"linux", "mac"}:
             raise ValueError("operator_profile must be exactly linux or mac")
         return value
-    if name == "motive_ip":
+    if name in {"motive_ip", "vrpn_ip"}:
         if value == "":
             return ""
         return validate_ipv4(name, value)
@@ -137,24 +143,48 @@ def validate_config_value(name: str, value: object) -> str:
         return validate_ipv4(name, value)
     if name == "table_side":
         return validate_table_side(value)
+    if name == "gripper_profile":
+        if not isinstance(value, str) or value not in {"legacy", "new_20261015"}:
+            raise ValueError("gripper_profile must be legacy or new_20261015")
+        return value
+    if name == "pants_profile":
+        if not isinstance(value, str) or value not in {"v2", "v4"}:
+            raise ValueError("pants_profile must be v2 or v4")
+        return value
+    if name in {"mocap_source", "vrpn_units"}:
+        choices = {"none", "motive", "vrpn"} if name == "mocap_source" else {"mm", "m"}
+        if not isinstance(value, str) or value not in choices:
+            raise ValueError(f"{name} must be one of {', '.join(sorted(choices))}")
+        return value
+    if name == "vrpn_port":
+        if (not isinstance(value, str) or re.fullmatch(r"[1-9][0-9]{0,4}", value) is None
+                or not 1 <= int(value) <= 65535):
+            raise ValueError("vrpn_port must be a decimal port from 1 to 65535")
+        return value
     raise ValueError(f"unsupported configuration field: {name}")
+
+
+def validate_mocap_setup(values: Mapping[str, str]) -> None:
+    source = values["mocap_source"]
+    if source in {"motive", "vrpn"} and not values[f"{source}_ip"]:
+        raise ValueError(f"{source}_ip is required for the selected mocap source")
 
 
 def apply_config_updates(
     current: LifecycleConfig,
     updates: Sequence[tuple[str, object]],
 ) -> LifecycleConfig:
-    if len(updates) not in {len(LEGACY_CONFIG_FIELDS), len(OPERATOR_CONFIG_FIELDS), len(CONFIG_FIELDS)}:
+    if len(updates) not in {len(fields) for fields in REQUEST_FIELD_SETS}:
         raise ValueError(
             "configuration request must contain three required IPv4 fields, "
-            "optional motive_ip, table_side, and optional operator/gripper profiles"
+            "mocap source/settings, table_side, gripper_profile, and pants_profile"
         )
     names = [name for name, _value in updates]
     if len(set(names)) != len(names):
         raise ValueError("configuration request contains duplicate fields")
-    if set(names) not in (set(LEGACY_CONFIG_FIELDS), set(OPERATOR_CONFIG_FIELDS), set(CONFIG_FIELDS)):
+    if frozenset(names) not in REQUEST_FIELD_SETS:
         unknown = sorted(set(names) - set(CONFIG_FIELDS))
-        missing = sorted(set(LEGACY_CONFIG_FIELDS) - set(names))
+        missing = sorted(set(CONFIG_FIELDS) - set(names))
         detail = []
         if unknown:
             detail.append(f"unknown={','.join(unknown)}")
@@ -164,9 +194,10 @@ def apply_config_updates(
     validated = {
         name: validate_config_value(name, value) for name, value in updates
     }
-    # Legacy consoles submit five fields; address edits must not switch identity.
-    validated.setdefault("operator_profile", current.operator_profile)
-    validated.setdefault("gripper_profile", current.gripper_profile)
+    # Older Mac/Linux consoles must not erase newer field selections.
+    for name, value in current.values().items():
+        validated.setdefault(name, value)
+    validate_mocap_setup(validated)
     return LifecycleConfig(**validated, revision=current.revision + 1)
 
 
@@ -176,14 +207,14 @@ def config_to_document(config: LifecycleConfig) -> dict[str, object]:
 
 def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     schema_version = document.get("schema_version")
-    if schema_version not in {1, 2, 3, CONFIG_SCHEMA_VERSION}:
+    if schema_version not in {1, 2, 3, 4, 5, CONFIG_SCHEMA_VERSION}:
         raise ValueError("unsupported lifecycle configuration schema")
     revision = document.get("revision")
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
         raise ValueError("configuration revision must be a positive integer")
     values = {
         name: validate_config_value(name, document.get(name))
-        for name in NETWORK_CONFIG_FIELDS
+        for name in NETWORK_CONFIG_FIELDS if name != "vrpn_ip"
     }
     # A deployed schema-1 configuration predates table-side selection and is
     # therefore exactly the historical P1/direct mode.  The next confirmation
@@ -193,14 +224,27 @@ def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
         if schema_version == 1
         else validate_table_side(document.get("table_side"))
     )
+    # main schema 3/4 used operator/gripper; field schema 3/4 used gripper/pants.
+    # Identify the lineage by its stored fields, never by a network address.
+    main_lineage = "operator_profile" in document
     values["operator_profile"] = (
-        "linux" if schema_version in {1, 2}
-        else validate_config_value("operator_profile", document.get("operator_profile"))
-    )
+        validate_config_value("operator_profile", document.get("operator_profile"))
+        if schema_version == 6 or (main_lineage and schema_version >= 3) else "linux")
     values["gripper_profile"] = (
-        "legacy" if schema_version in {1, 2, 3}
-        else validate_config_value("gripper_profile", document.get("gripper_profile"))
-    )
+        "legacy" if schema_version < 3 or (main_lineage and schema_version == 3)
+        else validate_config_value("gripper_profile", document.get("gripper_profile")))
+    values["pants_profile"] = (
+        validate_config_value("pants_profile", document.get("pants_profile"))
+        if schema_version >= 5 or (schema_version == 4 and not main_lineage) else "v2")
+    for name, default in {
+        # Historical field setups also stored VRPN addresses in motive_ip.
+        # An address alone cannot establish which protocol was intended.
+        "mocap_source": "none",
+        "vrpn_ip": "", "vrpn_port": "3883", "vrpn_units": "mm",
+    }.items():
+        values[name] = (default if schema_version < 5
+                        else validate_config_value(name, document.get(name)))
+    validate_mocap_setup(values)
     return LifecycleConfig(**values, revision=revision)
 
 
