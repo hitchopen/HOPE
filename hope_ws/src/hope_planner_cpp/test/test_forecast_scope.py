@@ -52,3 +52,23 @@ def test_entire_upstream_diff_has_no_historical_pipeline_and_complete_inventory(
     entries = json.loads((ROOT / 'docs/flight_prediction_minimal_scope_manifest.json').read_text())['files']
     assert paths == {entry['path'] for entry in entries}
     assert all(entry['why_needed'] and entry['owner'] and entry['tests'] for entry in entries)
+
+
+def test_legacy_defaults_command_types_and_original_sample_members_are_unchanged():
+    if not (REPO / '.git').exists():
+        import pytest
+        pytest.skip('Exact baseline Git comparison runs in the review checkout')
+    relative = str((ROOT / 'include/hope_planner_cpp/types.hpp').relative_to(REPO))
+    original = subprocess.check_output(['git', '-C', str(REPO), 'show',
+                                        BASE + ':' + relative], text=True)
+    current = (REPO / relative).read_text()
+    def definition(source, name):
+        found = re.search(r'struct ' + name + r'\s*\{.*?^\};', source, re.M | re.S)
+        assert found, name
+        return found.group()
+    for name in ['BallPhysics', 'TableParams', 'PlannerConfig', 'EstimatorConfig',
+                 'SpinEstimatorConfig', 'SpinEstimate', 'BallState',
+                 'StrikeTarget', 'RacketCommand']:
+        assert definition(original, name) == definition(current, name), name
+    # Appended V2 provenance is explicit; no old member is reordered or altered.
+    assert definition(current, 'BallSample').startswith(definition(original, 'BallSample')[:-3])
