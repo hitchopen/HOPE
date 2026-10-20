@@ -18,7 +18,7 @@ KD, KM, REST, GRIP, MU, RADIUS = .12861635416914574, .00379260504480258, .931377
 
 def independent_trace(direction, duration=1.2):
     """Piecewise DOP853 fixture, independent of the C++ algorithm under test."""
-    state = np.array([.15 if direction > 0 else 2.59, -.2, .30, direction*4., 0., -.5])
+    state = np.array([.15 if direction > 0 else 2.59, -.2, .30, direction*4.5, 0., -.5])
     omega = np.array([0., direction*30., 0.])
     pieces, contacts = [], []
     start = 0.
@@ -51,7 +51,11 @@ def independent_trace(direction, duration=1.2):
             if lower <= t <= upper + 1e-8:
                 return dense(min(t, upper)), spin
         raise ValueError(('fixture outside trajectory', t))
-    assert len(contacts) >= 2, contacts
+    # The intended legal serve has B1 on the striker half, B2 on the
+    # receiver half, and exits the table before a third table contact.
+    assert len(contacts) == 2, contacts
+    assert direction*(at(contacts[0])[0][0]-1.37) < 0
+    assert direction*(at(contacts[1])[0][0]-1.37) > 0
     return at, contacts
 
 
