@@ -11,12 +11,6 @@ hope_flight_prediction_v2:
     horizon_s: 1.5
     max_source_age_s: 0.030
     context_authority: fixture
-    # PROVISIONAL: replace with measured robot/contact workspace bounds before adoption.
-    planner.min_y_m: -1.20
-    planner.max_y_m: -0.30
-    planner.min_lead_s: 0.050
-    planner.policy_z_offset_m: 0.76
-    planner.max_turn_deg: 40.0
     physics.drag_k: 0.12861635416914574
     physics.magnus_k: 0.00379260504480258
     physics.restitution_v: 0.9313775047019153

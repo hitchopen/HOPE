@@ -1,10 +1,5 @@
 #include "hope_msgs/msg/flight_context_v2.hpp"
-#include "hope_msgs/msg/flight_decision_v2.hpp"
 #include "hope_planner_cpp/flight_transport_v2.hpp"
-#include "hope_planner_cpp/racket_target_planner.hpp"
-#include "hope_planner_cpp/reach_permission.hpp"
-#include "hope_planner_cpp/schema2_packer.hpp"
-#include "hope_planner_cpp/target_turn_guard.hpp"
 #include <chrono>
 #include <iomanip>
 #include <locale>
@@ -55,17 +50,6 @@ public:
         declare_parameter("physics.radius", config_.physics.radius);
     settings_.max_source_age_s = declare_parameter("max_source_age_s", .030);
     settings_.service_armed = declare_parameter("service_armed", false);
-    min_y_ = declare_parameter("planner.min_y_m", -1.20);
-    max_y_ = declare_parameter("planner.max_y_m", -.30);
-    min_lead_s_ = declare_parameter("planner.min_lead_s", .050);
-    policy_z_offset_ = declare_parameter("planner.policy_z_offset_m", .76);
-    max_turn_deg_ = declare_parameter("planner.max_turn_deg", 40.);
-    if (!std::isfinite(policy_z_offset_) || !std::isfinite(max_turn_deg_) ||
-        max_turn_deg_ <= 0 || max_turn_deg_ > 180)
-      throw std::invalid_argument("invalid command adapter geometry");
-    if (!std::isfinite(min_y_) || !std::isfinite(max_y_) || min_y_ >= max_y_ ||
-        !std::isfinite(min_lead_s_) || min_lead_s_ < 0)
-      throw std::invalid_argument("invalid planner provisional bounds");
     HitPlaneSettings plane_settings;
     const auto policy =
         declare_parameter<std::string>("plane_policy", "FOLLOW_POSE");
@@ -83,9 +67,6 @@ public:
     if (synthetic_) {
       plane_->use_test_plane(declare_parameter("test_plane_x_m", .15),
                              now().nanoseconds());
-      base_position_ = Vec3(plane_->snapshot().base_x_m,
-                            declare_parameter("test_base_y_m", -.7), 0);
-      base_valid_ = true;
     }
     pipeline_ = std::make_unique<FlightPipeline>(config_, settings_);
     std::ostringstream bundle;
@@ -96,14 +77,13 @@ public:
     for (double value : {plane_settings.offset_m, plane_settings.window_s,
                          plane_settings.max_age_s, plane_settings.max_span_m,
                          plane_settings.min_x_m, plane_settings.max_x_m,
-                         settings_.max_source_age_s, min_y_, max_y_,
-                         min_lead_s_, policy_z_offset_, max_turn_deg_})
+                         settings_.max_source_age_s})
       bundle << ';' << value;
     bundle << ';' << settings_.service_armed << ';' << clock_domain_;
     config_id_ = "flight-v2:sha256:" + sha256(bundle.str());
     for (const auto *topic :
          {"/hope/shadow/flight_v2/prediction",
-          "/hope/shadow/flight_v2/decision", "/hope/shadow/flight_v2/packet",
+          "/hope/shadow/flight_v2/packet",
           "/hope/shadow/flight_v2/trajectory"}) {
       if (get_node_topics_interface()->resolve_topic_name(topic).rfind(
               "/hope/shadow/flight_v2/", 0) != 0)
@@ -117,10 +97,7 @@ public:
         "/hope/shadow/flight_v2/trajectory", qos);
     packet_ = create_publisher<hope_msgs::msg::FlightPacketV2>(
         "/hope/shadow/flight_v2/packet", qos);
-    decision_ = create_publisher<hope_msgs::msg::FlightDecisionV2>(
-        "/hope/shadow/flight_v2/decision", qos);
     for (const auto &topic : {std::string(publisher_->get_topic_name()),
-                              std::string(decision_->get_topic_name()),
                               std::string(packet_->get_topic_name()),
                               std::string(full_->get_topic_name())})
       if (topic.rfind("/hope/shadow/flight_v2/", 0) != 0)
@@ -250,22 +227,12 @@ public:
         [this](std_msgs::msg::Float64MultiArray::ConstSharedPtr m) {
           std::lock_guard<std::mutex> guard(mutex_);
           const auto old = plane_->snapshot();
-          if (plane_->observe(m->data, steady_ns(), now().nanoseconds(),
-                              mapping_valid_)) {
-            base_position_ = Vec3(m->data[5], m->data[6], m->data[7]);
-            base_orientation_ = Eigen::Quaterniond(m->data[11], m->data[8],
-                                                   m->data[9], m->data[10])
-                                    .normalized();
-            base_source_ns_ =
-                static_cast<std::int64_t>(m->data[3]) * 1000000000LL +
-                static_cast<std::int64_t>(m->data[4]);
-            base_valid_ = true;
-          } else
-            base_valid_ = false;
+          const bool pose_valid = plane_->observe(
+              m->data, steady_ns(), now().nanoseconds(), mapping_valid_);
           auto current = plane_->for_solve(steady_ns(), now().nanoseconds());
           const bool incompatible =
               plane_->reason() == "base_world_frame_mismatch" ||
-              (old.calibrated && base_valid_ && m->data.size() == 16 &&
+              (old.calibrated && pose_valid && m->data.size() == 16 &&
                old.calibration_id != static_cast<std::uint64_t>(m->data[14]));
           if (incompatible ||
               (old.calibrated && current.calibrated &&
@@ -334,7 +301,6 @@ public:
         }
         publisher_->publish(wire);
         last_expiry_ = wire.expires_at_ns;
-        planner_locked(wire, now().nanoseconds());
       }
     });
   }
@@ -364,109 +330,6 @@ private:
     message.input_count = inputs_;
     message.superseded_count = work_.superseded();
     publisher_->publish(message);
-    if (dispatched_generation_) {
-      hope_msgs::msg::FlightDecisionV2 d;
-      d.session_id = session_;
-      d.shot_generation = *dispatched_generation_;
-      d.previously_dispatched = true;
-      d.reason = "revoked;hardware_cancellation_unqualified";
-      decision_->publish(d);
-    }
-  }
-  void planner_locked(const hope_msgs::msg::FlightPredictionV2 &m,
-                      std::int64_t current) {
-    hope_msgs::msg::FlightDecisionV2 decision;
-    decision.session_id = session_;
-    decision.shot_generation = m.shot_generation;
-    decision.context_revision = m.context_revision;
-    decision.forecast_revision = m.forecast_revision;
-    decision.predicted_arrival_time_ns = m.predicted_arrival_time_ns;
-    decision.planner_now_ns = current;
-    decision.lead_time_s = double(
-        (static_cast<long double>(m.predicted_arrival_time_ns) - current) *
-        1e-9L);
-    decision.previously_dispatched =
-        dispatched_generation_ && *dispatched_generation_ == m.shot_generation;
-    decision.reason = "target_unavailable";
-    if (m.expires_at_ns < current)
-      decision.reason = "forecast_expired_at_planner";
-    else if (m.target_valid && m.target_incoming && !m.target_historical) {
-      if (decision.previously_dispatched)
-        decision.reason = "one_shot_already_selected";
-      else if (m.target_position.y < min_y_ || m.target_position.y > max_y_)
-        decision.reason = "provisional_contact_y_bounds";
-      else if (decision.lead_time_s < min_lead_s_)
-        decision.reason = "planner_insufficient_lead";
-      else {
-        const Vec3 position(m.target_position.x, m.target_position.y,
-                            m.target_position.z);
-        const long double base_age =
-            (static_cast<long double>(current) - base_source_ns_) * 1e-9L;
-        const auto turn = check_target_turn(
-            position, base_position_, base_orientation_,
-            base_valid_ &&
-                (synthetic_ || (base_age >= -.001 && base_age <= .2)),
-            max_turn_deg_);
-        const auto reach = classify_reach_permission(
-            ReachPermissionConfig{}, m.target_position.y, base_position_.y(),
-            1., decision.lead_time_s);
-        if (!turn.allowed || !reach.target_admitted) {
-          decision.reason = !turn.allowed ? turn.reason : "reach_rejected";
-          decision_->publish(decision);
-          return;
-        }
-        StrikeTarget target;
-        target.valid = true;
-        target.ball_position =
-            Vec3(m.target_position.x, m.target_position.y, m.target_position.z);
-        target.ball_velocity =
-            Vec3(m.target_velocity.x, m.target_velocity.y, m.target_velocity.z);
-        target.strike_source_time_s = m.predicted_arrival_time_ns * 1e-9;
-        for (const auto &event : m.events)
-          if (event.kind == "table_bounce" && event.status == "PREDICTED" &&
-              event.event_time_ns > m.prediction_reference_time_ns &&
-              event.event_time_ns <= m.predicted_arrival_time_ns)
-            ++target.predicted_bounces;
-        const auto command =
-            RacketTargetPlanner(config_.physics, {}, config_.table)
-                .plan(target, Vec3(2.055, -.7625, 0), .5);
-        decision.admitted = command.valid;
-        decision.reason = command.reason;
-        decision.command.valid = command.valid;
-        put(decision.command.position, command.position);
-        put(decision.command.velocity, command.velocity);
-        put(decision.command.normal, command.normal);
-        put(decision.command.ball_velocity_outgoing,
-            command.outgoing_ball_velocity);
-        decision.command.strike_time = target.strike_source_time_s;
-        decision.command.time_to_strike = decision.lead_time_s;
-        decision.command.clears_net = command.clears_net;
-        decision.command.bypasses_net_posts = command.bypasses_net_posts;
-        decision.command.predicted_bounces = command.predicted_bounces;
-        decision.command.header.frame_id = frame_;
-        decision.command.header.stamp = rclcpp::Time(current);
-        decision.policy_z_offset_m = policy_z_offset_;
-        decision.frame_contract =
-            "table_xy_policy_world_z_offset_once;ball_center_reference;paddle_"
-            "registration_unqualified";
-        if (command.valid) {
-          const auto packed = Schema2Packer::pack(
-              &command, 1., command.strike_source_time_s, policy_z_offset_,
-              current, WireIdentity{m.forecast_revision, m.shot_generation, 1},
-              0, 0);
-          decision.flat_preview = packed.values;
-          decision.flat_preview[9] = decision.lead_time_s;
-          decision.command.position.z += policy_z_offset_;
-          if (!packed.valid) {
-            decision.admitted = false;
-            decision.command.valid = false;
-            decision.reason = "schema2_preview_rejected";
-          } else
-            dispatched_generation_ = m.shot_generation;
-        }
-      }
-    }
-    decision_->publish(decision);
   }
   std::mutex mutex_;
   ProbabilisticConfig config_;
@@ -475,21 +338,15 @@ private:
   std::unique_ptr<HitPlaneManager> plane_;
   LatestWork<Job> work_;
   std::thread worker_;
-  std::optional<std::uint64_t> dispatched_generation_;
   std::optional<std::int64_t> last_expiry_, last_full_source_,
       last_boundary_source_;
   std::string frame_, session_, authority_, config_id_, producer_,
       clock_domain_;
-  double min_y_, max_y_, min_lead_s_, policy_z_offset_, max_turn_deg_;
-  bool mapping_valid_ = true, synthetic_ = false, base_valid_ = false;
-  Vec3 base_position_ = Vec3::Zero();
-  Eigen::Quaterniond base_orientation_ = Eigen::Quaterniond::Identity();
-  std::int64_t base_source_ns_ = 0;
+  bool mapping_valid_ = true, synthetic_ = false;
   std::uint64_t inputs_ = 0;
   rclcpp::Publisher<hope_msgs::msg::FlightPredictionV2>::SharedPtr publisher_;
   rclcpp::Publisher<hope_msgs::msg::FlightPacketV2>::SharedPtr packet_;
   rclcpp::Publisher<hope_msgs::msg::FlightPredictionV2>::SharedPtr full_;
-  rclcpp::Publisher<hope_msgs::msg::FlightDecisionV2>::SharedPtr decision_;
   rclcpp::Subscription<hope_msgs::msg::BallObservationV2>::SharedPtr
       observation_;
   rclcpp::Subscription<hope_msgs::msg::FlightContextV2>::SharedPtr context_;

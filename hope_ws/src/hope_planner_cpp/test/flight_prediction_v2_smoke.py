@@ -10,7 +10,7 @@ import time
 
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
-from hope_msgs.msg import BallObservationV2, FlightContextV2, FlightPredictionV2, FlightDecisionV2
+from hope_msgs.msg import BallObservationV2, FlightContextV2, FlightPredictionV2
 
 
 def percentile(values, fraction):
@@ -23,7 +23,7 @@ def run(executable, rate):
                                 '-p', 'synthetic_plane:=true', '-p', 'plane_policy:=ON_REFRESH'],
                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     node = rclpy.create_node('flight_v2_acceptance_' + str(rate))
-    predictions, decisions, latency, trajectories = [], [], [], []
+    predictions, latency, trajectories = [], [], []
     def receive(message):
         if message.session_id != session:
             return
@@ -32,7 +32,6 @@ def run(executable, rate):
             latency.append((time.time_ns() - message.prediction_reference_time_ns) / 1e6)
     node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/prediction', receive, qos_profile_sensor_data)
     node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/trajectory', trajectories.append, qos_profile_sensor_data)
-    node.create_subscription(FlightDecisionV2, '/hope/shadow/flight_v2/decision', decisions.append, qos_profile_sensor_data)
     observation = node.create_publisher(BallObservationV2, '/hope/ball/observation_v2', qos_profile_sensor_data)
     context = node.create_publisher(FlightContextV2, '/hope/shadow/flight_v2/context', 32)
     def spin(duration):
@@ -114,12 +113,6 @@ def run(executable, rate):
         assert all(p.target_event_id > 0 and p.target_kind for p in forecasts if p.target_valid)
         assert all(p.target_spin_mode in ('POSITION_ONLY', '') for p in forecasts)
         assert all(p.published_at_ns >= p.prediction_reference_time_ns for p in forecasts)
-        for decision in decisions:
-            if decision.admitted:
-                assert decision.command.valid
-                assert decision.flat_preview[1] == 1.
-                assert abs(decision.command.position.z - decision.flat_preview[5]) < 1e-12
-                assert abs(decision.flat_preview[9] - decision.lead_time_s) < 1e-12
         assert trajectories and any(p.waypoints for p in trajectories), 'full trajectory output missing'
         for trajectory in trajectories:
             for waypoint in trajectory.waypoints:
@@ -134,7 +127,16 @@ def run(executable, rate):
         assert any(p.reason == 'forecast_expired' and not p.target_valid for p in predictions), 'expiry revocation missing'
         graph = node.get_publishers_info_by_topic('/hope/shadow/flight_v2/prediction')
         assert graph
-        assert not node.get_publishers_info_by_topic('/racket_command'), 'unexpected production publisher'
+        for topic in ('/racket_command', '/racket/command', '/racket_command_flat',
+                      '/hope/shadow/flight_v2/decision'):
+            assert not node.get_publishers_info_by_topic(topic), topic
+        emitted = [name for name, _ in node.get_topic_names_and_types()
+                   if node.get_publishers_info_by_topic(name) and
+                   any(info.node_name == 'hope_flight_prediction_v2'
+                       for info in node.get_publishers_info_by_topic(name))]
+        assert set(emitted) <= {'/rosout', '/parameter_events',
+            '/hope/shadow/flight_v2/prediction', '/hope/shadow/flight_v2/trajectory',
+            '/hope/shadow/flight_v2/packet'}, emitted
         # Count physical outputs against inputs after a four-sample startup allowance per flight.
         denominator = len(eligible_sources)
         eligible_outputs = {p.prediction_reference_time_ns for p in forecasts} & eligible_sources
@@ -151,12 +153,11 @@ def run(executable, rate):
                     observed_input_rate_hz=max(0, observed_inputs - 1) / source_span_s,
                     observed_input_count=observed_inputs,
                     unaccounted_input_count=sent - observed_inputs,
-                    admitted_decisions=sum(d.admitted for d in decisions),
                     publication_latency_ms=dict(p50=statistics.median(publication_latency),
                         p95=percentile(publication_latency, .95), p99=percentile(publication_latency, .99),
                         maximum=max(publication_latency)), input_count=sent, physical_outputs=len(forecasts), denominator=denominator,
                     physical_publication_coverage=coverage, target_outputs=sum(p.target_valid for p in forecasts),
-                    planner_decisions=len(decisions), superseded=max(p.superseded_count for p in forecasts),
+                    superseded=max(p.superseded_count for p in forecasts),
                     latency_ms=dict(p50=statistics.median(latency), p95=percentile(latency, .95),
                                     p99=percentile(latency, .99), maximum=max(latency)))
     finally:

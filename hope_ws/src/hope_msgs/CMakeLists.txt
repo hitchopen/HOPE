@@ -18,7 +18,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FlightPredictionV2.msg"
   "msg/FlightContextV2.msg"
   "msg/FlightPacketV2.msg"
-  "msg/FlightDecisionV2.msg"
   "msg/BallForecast.msg"
   "msg/BallForecastPhysicsEvent.msg"
   "msg/BallForecastWaypoint.msg"
