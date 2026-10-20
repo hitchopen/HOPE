@@ -187,10 +187,6 @@ struct RacketCommand {
   Vec3 target_land = Vec3::Zero();
   double strike_source_time_s = 0.0;
   int predicted_bounces = 0;
-  // Outgoing candidates never inherit spin across an unmodelled racket impulse.
-  EffectiveSpin outgoing_spin;
-  bool outgoing_route_valid = false;
-  double landing_duration_s = 0.0;
   bool clears_net = false;
   bool bypasses_net_posts = false;
   bool valid = false;

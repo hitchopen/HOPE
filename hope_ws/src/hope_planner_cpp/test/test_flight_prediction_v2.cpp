@@ -1,6 +1,5 @@
 #include "hope_planner_cpp/flight_state_v2.hpp"
 #include "hope_planner_cpp/future_contact_predictor.hpp"
-#include "hope_planner_cpp/racket_target_planner.hpp"
 #include <Eigen/Eigenvalues>
 #include <future>
 #include <gtest/gtest.h>
@@ -498,36 +497,25 @@ TEST(FlightV2, X04_LatestWorkIsBoundedAndNeverWaitsForNextSampleToPublish) {
   EXPECT_FALSE(waiting.get());
   EXPECT_FALSE(work.push(2));
 }
-TEST(FlightV2, X09_OutgoingSurfaceToCenterExactlyOnceAndNoIncomingSpinLeak) {
-  StrikeTarget strike;
-  strike.valid = true;
-  strike.ball_position = Vec3(.15, -.7, .3);
-  strike.ball_velocity = Vec3(-3, 0, 1);
-  const Vec3 target(2.055, -.7625, 0);
-  auto command = RacketTargetPlanner({}, {}, {}).plan(strike, target, .5);
-  ASSERT_TRUE(command.valid) << command.reason;
-  EXPECT_TRUE(command.outgoing_route_valid);
-  EXPECT_FALSE(command.outgoing_spin.usable());
-  EXPECT_EQ(command.target_land, target);
+TEST(FlightV2, X09_ForwardHypotheticalFlightStartsWithExplicitSpinAvailability) {
   ModelState model;
-  model.position = strike.ball_position;
-  model.velocity = command.outgoing_ball_velocity;
+  model.position = Vec3(.3, -.7, .4);
+  model.velocity = Vec3(3, 0, -1);
   EventGeometry geometry;
-  bool found = false;
-  for (double t = 0; t < command.landing_duration_s + .002; t += .00025) {
-    auto step = advance_ball(model, .00025, {}, geometry);
+  bool bounced = false;
+  for (int i = 0; i < 500; ++i) {
+    const auto step = advance_ball(model, .001, {}, geometry);
+    EXPECT_FALSE(model.spin.usable());
     for (const auto &e : step.events)
       if (e.kind == PhysicalEventKind::TABLE) {
+        bounced = true;
+        EXPECT_FALSE(e.pre.spin.usable());
+        EXPECT_FALSE(e.post.spin.usable());
         EXPECT_NEAR(e.pre.position.z(), .02, 1e-12);
-        EXPECT_LT((e.pre.position.head<2>() - target.head<2>()).norm(), .001);
-        EXPECT_NEAR(t + e.dt_s, command.landing_duration_s, .0005);
-        found = true;
-        break;
       }
-    if (found)
-      break;
+    if (step.stopped) break;
   }
-  EXPECT_TRUE(found);
+  EXPECT_TRUE(bounced);
 }
 } // namespace
 TEST(

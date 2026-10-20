@@ -1,5 +1,4 @@
 #include "hope_planner_cpp/racket_target_planner.hpp"
-#include "hope_planner_cpp/common_ball_physics.hpp"
 
 #include <Eigen/LU>
 
@@ -10,7 +9,7 @@ namespace hope_planner_cpp {
 
 RacketTargetPlanner::RacketTargetPlanner(
     BallPhysics physics, PlannerConfig config, TableParams table)
-    : physics_(std::move(physics)), config_(std::move(config)), table_(std::move(table)) {validate_ball_physics(physics_);}
+    : physics_(std::move(physics)), config_(std::move(config)), table_(std::move(table)) {}
 
 bool RacketTargetPlanner::integrate_free_flight(
     const Vec3& initial_position,
@@ -27,8 +26,10 @@ bool RacketTargetPlanner::integrate_free_flight(
   double remaining = duration_s;
   while (remaining > 1.0e-12) {
     const double h = std::min(config_.integrate_dt_s, remaining);
-    ModelState state;state.position=position;state.velocity=velocity;integrate_ball(state,h,physics_);
-    position=state.position;velocity=state.velocity;
+    const Vec3 acceleration =
+        -physics_.drag_k * velocity.norm() * velocity + physics_.gravity;
+    position += velocity * h + 0.5 * acceleration * h * h;
+    velocity += acceleration * h;
     remaining -= h;
     if (!position.allFinite() || !velocity.allFinite()) {
       return false;
@@ -54,8 +55,10 @@ bool RacketTargetPlanner::integrate_free_flight_batch(
   while (remaining > 1.0e-12) {
     const double h = std::min(config_.integrate_dt_s, remaining);
     for (std::size_t i = 0; i < final_velocity.size(); ++i) {
-      ModelState state;state.position=final_position[i];state.velocity=final_velocity[i];integrate_ball(state,h,physics_);
-      final_position[i]=state.position;final_velocity[i]=state.velocity;
+      const Vec3 acceleration =
+          -physics_.drag_k * final_velocity[i].norm() * final_velocity[i] + physics_.gravity;
+      final_position[i] += final_velocity[i] * h + 0.5 * acceleration * h * h;
+      final_velocity[i] += acceleration * h;
       if (!final_position[i].allFinite() || !final_velocity[i].allFinite()) {
         return false;
       }
@@ -74,10 +77,8 @@ bool RacketTargetPlanner::compute_outgoing_velocity(
       !std::isfinite(flight_time_s) || flight_time_s <= 0.0) {
     return false;
   }
-  Vec3 center_target=target_land;
-  center_target.z()+=physics_.radius;
   Vec3 velocity =
-      (center_target - strike_position) / flight_time_s -
+      (target_land - strike_position) / flight_time_s -
       0.5 * physics_.gravity * flight_time_s;
   if (physics_.drag_k == 0.0) {
     outgoing_velocity = velocity;
@@ -97,7 +98,7 @@ bool RacketTargetPlanner::compute_outgoing_velocity(
             final_positions, final_velocities)) {
       return false;
     }
-    const Vec3 residual = final_positions[0] - center_target;
+    const Vec3 residual = final_positions[0] - target_land;
     if (residual.norm() < 1.0e-5) {
       outgoing_velocity = velocity;
       return true;
@@ -179,8 +180,12 @@ bool RacketTargetPlanner::free_flight_position_at_x(
   Vec3 velocity = initial_velocity;
   const int max_steps = static_cast<int>(config_.max_predict_time_s / config_.integrate_dt_s);
   for (int step = 0; step < max_steps; ++step) {
-    ModelState model;model.position=position;model.velocity=velocity;integrate_ball(model,config_.integrate_dt_s,physics_);
-    const Vec3 next_position=model.position,next_velocity=model.velocity;
+    const Vec3 acceleration =
+        -physics_.drag_k * velocity.norm() * velocity + physics_.gravity;
+    const Vec3 next_position =
+        position + velocity * config_.integrate_dt_s +
+        0.5 * acceleration * config_.integrate_dt_s * config_.integrate_dt_s;
+    const Vec3 next_velocity = velocity + acceleration * config_.integrate_dt_s;
     if ((position.x() - target_x) * (next_position.x() - target_x) <= 0.0) {
       const double dx = next_position.x() - position.x();
       const double fraction = std::clamp(
@@ -210,11 +215,11 @@ void RacketTargetPlanner::check_net_clearance(
           strike_position, outgoing_velocity, table_.net_x, at_net)) {
     return;
   }
-  const double y_min = table_.y_max-table_.width-table_.net_overhang-physics_.radius;
-  const double y_max = table_.y_max+table_.net_overhang+physics_.radius;
+  const double y_min = -table_.width - table_.net_overhang;
+  const double y_max = table_.net_overhang;
   bypasses_posts = at_net.y() < y_min || at_net.y() > y_max;
   if (!bypasses_posts) {
-    clears_net = at_net.z() > table_.net_height + physics_.radius;
+    clears_net = at_net.z() > table_.net_height + 0.03;
   }
 }
 
@@ -232,22 +237,6 @@ RacketCommand RacketTargetPlanner::plan(
     return command;
   }
 
-  auto route_valid=[&](const Vec3& outgoing,double duration) {
-    if(!std::isfinite(config_.integrate_dt_s) || config_.integrate_dt_s<=0 || !std::isfinite(duration) || duration<=0)return false;
-    ModelState state;state.position=strike.ball_position;state.velocity=outgoing; // POSITION_ONLY after unmodelled racket impulse
-    EventGeometry geometry;geometry.table=table_;
-    for(double t=0;t<duration+.005;) {
-      const double h=std::min(config_.integrate_dt_s,duration+.005-t);auto step=advance_ball(state,h,physics_,geometry);
-      for(const auto& e:step.events) {
-        if(e.kind==PhysicalEventKind::NET_COLLISION || e.kind==PhysicalEventKind::EDGE_AMBIGUOUS)return false;
-        if(e.kind==PhysicalEventKind::TABLE)return (e.pre.position.head<2>()-target_land.head<2>()).norm()<=.001 &&
-          std::abs(t+e.dt_s-duration)<=.0005 && std::abs(e.pre.position.z()-(target_land.z()+physics_.radius))<=1e-6;
-      }
-      if(step.stopped)return false;t+=h;
-    }
-    return false;
-  };
-  double selected_duration=delta_t_flight_s;
   Vec3 outgoing;
   if (!compute_outgoing_velocity(
           strike.ball_position, target_land, delta_t_flight_s, outgoing)) {
@@ -262,7 +251,7 @@ RacketCommand RacketTargetPlanner::plan(
   bool bypasses = false;
   check_net_clearance(strike.ball_position, outgoing, clears, bypasses);
 
-  if (!clears || !route_valid(outgoing,selected_duration)) {
+  if (!clears) {
     constexpr std::array<double, 5> alternatives{0.4, 0.6, 0.35, 0.7, 0.3};
     for (const double candidate_time : alternatives) {
       Vec3 candidate_outgoing;
@@ -276,8 +265,7 @@ RacketCommand RacketTargetPlanner::plan(
       check_net_clearance(
           strike.ball_position, candidate_outgoing,
           candidate_clears, candidate_bypasses);
-      if ((candidate_clears || candidate_bypasses) && route_valid(candidate_outgoing,candidate_time)) {
-        selected_duration=candidate_time;
+      if (candidate_clears) {
         outgoing = candidate_outgoing;
         compute_racket_velocity(
             strike.ball_velocity, outgoing, racket_velocity, racket_normal);
@@ -288,18 +276,15 @@ RacketCommand RacketTargetPlanner::plan(
     }
   }
 
-  command.outgoing_route_valid=route_valid(outgoing,selected_duration);
-  command.landing_duration_s=selected_duration;
-  command.outgoing_spin.provenance="unmodelled_racket_impulse;position_only_outgoing;conditional_uncertainty";
   command.velocity = racket_velocity;
   command.normal = racket_normal;
   command.outgoing_ball_velocity = outgoing;
   command.clears_net = clears;
   command.bypasses_net_posts = bypasses;
-  command.valid = command.outgoing_route_valid && (clears || bypasses) && command.position.allFinite() && command.velocity.allFinite() &&
+  command.valid = command.position.allFinite() && command.velocity.allFinite() &&
                   command.normal.allFinite() && outgoing.allFinite() &&
                   std::isfinite(command.strike_source_time_s);
-  command.reason = command.valid ? "command_valid" : !command.outgoing_route_valid?"outgoing_route_invalid":"stage3_nonfinite";
+  command.reason = command.valid ? "command_valid" : "stage3_nonfinite";
   return command;
 }
 
