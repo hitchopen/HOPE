@@ -36,6 +36,8 @@ const char *name(PhysicalEventKind k) {
   }
 }
 void integrate_ball(ModelState &s, double h, const BallPhysics &p) {
+  if (h > 0 && s.spin.usable() && s.spin.mode == EffectiveSpinMode::MEASURED)
+    s.spin.mode = EffectiveSpinMode::HELD;
   const Vec3 w = s.spin.usable() ? *s.spin.omega : Vec3::Zero();
   const Vec3 v = s.velocity;
   const Vec3 a1 = ball_acceleration(p, v, w);

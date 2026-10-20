@@ -10,6 +10,7 @@ TEST(FlightTransportV2, B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip) {
       sample.source_time_ns = ns;
       sample.position = Vec3(.5, -.7, .4);
       sample.clock_domain = "simulation";
+      sample.producer_omega_provenance = "qualified_fixture";
       sample.orientation_valid = true;
       sample.orientation_authoritative = authoritative;
       auto encoded = encode_observation(sample);
@@ -23,6 +24,7 @@ TEST(FlightTransportV2, B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip) {
       EXPECT_TRUE(decoded.source_time_valid);
       EXPECT_TRUE(decoded.position_valid);
       EXPECT_EQ(decoded.position, sample.position);
+      EXPECT_EQ(decoded.producer_omega_provenance, "qualified_fixture");
       EXPECT_EQ(decoded.orientation_valid, authoritative);
       EXPECT_EQ(decoded.orientation_authoritative, authoritative);
     }
@@ -34,6 +36,8 @@ TEST(FlightTransportV2,
   packet.producer_id = "producer";
   packet.shot_generation = 2;
   packet.config_id = "profile";
+  packet.physics_profile = kFlightPhysicsProfile;
+  packet.model_config_id = flight_model_config_id({}, {});
   BallSample sample;
   sample.clock_domain = "simulation";
   sample.frame_id = "table";

@@ -84,6 +84,7 @@ BallSample decode_observation(const hope_msgs::msg::BallObservationV2 &w) {
   if (s.orientation_valid)
     s.orientation.normalize();
   s.producer_omega_rad_s = vector(w.omega_rad_s);
+  s.producer_omega_provenance = w.omega_provenance;
   s.producer_omega_valid = w.omega_valid &&
                            s.producer_omega_rad_s.allFinite() &&
                            s.producer_omega_rad_s.squaredNorm() > 0;
@@ -115,6 +116,7 @@ hope_msgs::msg::BallObservationV2 encode_observation(const BallSample &s) {
   w.orientation_valid = s.orientation_valid && s.orientation_authoritative;
   vector(w.omega_rad_s, s.producer_omega_rad_s);
   w.omega_valid = s.producer_omega_valid;
+  w.omega_provenance = s.producer_omega_provenance;
   return w;
 }
 hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
@@ -341,6 +343,8 @@ bool validate_packet_v2(const hope_msgs::msg::FlightPacketV2 &p,
   if (p.schema_version != 3 || p.session_id.empty() || p.producer_id.empty() ||
       !p.shot_generation || p.config_id.empty())
     return fail("packet_identity");
+  if (p.physics_profile != kFlightPhysicsProfile || p.model_config_id.empty())
+    return fail("packet_model_profile");
   if (p.observations.empty() || p.observations.size() > 4096 ||
       p.event_ledger.size() > 4096)
     return fail("packet_capacity");
@@ -395,8 +399,10 @@ encode_packet_v2(const FlightPipeline &pipeline,
   p.shot_generation = snapshot.generation;
   p.context_revision = snapshot.revision;
   p.physics_profile = kFlightPhysicsProfile;
-  p.model_config_id =
-      flight_model_config_id(pipeline.config(), pipeline.settings());
+  p.model_config_id = flight_model_config_id(
+      pipeline.config(), pipeline.settings(),
+      snapshot.observations.empty() ? "table"
+                                    : snapshot.observations.front().frame_id);
   p.boundary_time_ns = snapshot.boundary_ns;
   p.boundary_qualified = snapshot.boundary_qualified;
   p.history_continuity = name(snapshot.continuity);
@@ -462,6 +468,10 @@ void restore_packet_v2(FlightPipeline &pipeline,
   std::string reason;
   if (!validate_packet_v2(p, reason) || p.config_id != expected_config)
     throw std::invalid_argument("packet v2 rejected:" + reason);
+  if (p.model_config_id !=
+      flight_model_config_id(pipeline.config(), pipeline.settings(),
+                             p.observations.front().frame_id))
+    throw std::invalid_argument("packet model configuration mismatch");
   ShotSnapshot snapshot;
   snapshot.generation = p.shot_generation;
   snapshot.revision = p.context_revision;

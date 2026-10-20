@@ -951,3 +951,17 @@ TEST(FlightV2Association,
       EXPECT_EQ(pipeline.shot().spin().measurement_time_ns, 0);
     }
 }
+
+TEST(FlightV2SpinQuality,
+     B01_B06_HeldSpinIsNotReportedAsFreshMeasurementAfterPropagation) {
+  ModelState state;
+  state.position = Vec3(.3, -.7, .5);
+  state.velocity = Vec3(2, 0, 0);
+  state.spin.omega = Vec3(0, 30, 0);
+  state.spin.mode = EffectiveSpinMode::MEASURED;
+  state.spin.measurement_time_ns = 123;
+  integrate_ball(state, .005, {});
+  EXPECT_EQ(state.spin.mode, EffectiveSpinMode::HELD);
+  EXPECT_EQ(state.spin.measurement_time_ns, 123);
+  EXPECT_EQ(*state.spin.omega, Vec3(0, 30, 0));
+}

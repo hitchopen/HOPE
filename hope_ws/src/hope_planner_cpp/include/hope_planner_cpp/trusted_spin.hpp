@@ -45,8 +45,9 @@ public:
         sample.producer_omega_rad_s.squaredNorm() > 0) {
       value_.omega = sample.producer_omega_rad_s;
       measured = true;
-      value_.provenance =
-          "authoritative_producer_rad_s;conditional_model_uncertainty";
+      value_.provenance = "authoritative_producer_rad_s;" +
+                          sample.producer_omega_provenance +
+                          ";conditional_model_uncertainty";
       estimator_.reset();
     } else {
       auto qualified = sample;

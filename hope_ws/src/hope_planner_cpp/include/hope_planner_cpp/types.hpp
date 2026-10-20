@@ -108,6 +108,7 @@ struct BallSample {
   bool orientation_authoritative = false;
   Vec3 producer_omega_rad_s = Vec3::Zero();
   bool producer_omega_valid = false;
+  std::string producer_omega_provenance;
   std::uint64_t shot_generation = 0;
   Vec3 position = Vec3::Zero();
   // Motive/ROS orientation of the tracked ball, normalized in the callback.
