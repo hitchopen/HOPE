@@ -26,13 +26,13 @@
   "all_five_spin_modes": true,
   "nakashima_and_venue_remain_distinct": true,
   "note": "Each side compiled from its own complete source/header tree; no updated goldens.",
-  "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+  "tested_code_commit": "38e31927373d90c538984f6174b6ff3525edf35e",
   "fixture_digests_sha256": {
     "racket": "d83179b7b9a2d02ef8ebc2159db007b59460c76a2b42f2f1c743c57f17775a02",
     "receiving_flight": "72a261a8bb345b445f5c2f0ec35f3262c3a66e6f8e1f78327d10d50da27aefd5",
     "all_spin_modes": "af6ff79a636cccd3535979eff651a9a6a94e0b1a7ee2820072745afd66fa900a",
     "spin_and_batch": "13bc9e0061057d30bc477f631226f3b5e430f4b6ac3b7176241df945832313bd"
   },
-  "complete_fixture_artifact": "/workspace/.cloud-setup/v2-evidence/production-parity-final.json",
+  "complete_fixture_artifact": "/workspace/.cloud-setup/v2-evidence/production-parity-fixed-final.json",
   "regeneration": "scripts/flight_prediction_validation/production_parity.py --repo <HOPE> --output <full-receipt.json>"
 }

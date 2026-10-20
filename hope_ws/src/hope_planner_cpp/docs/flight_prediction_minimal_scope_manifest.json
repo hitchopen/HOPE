@@ -365,23 +365,10 @@
       "owning_requirement": "G0-G8"
     },
     {
-      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/on-refresh-minus-300.json",
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/production-config-pins.json",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "validation",
-      "why_needed": "Archive current-run on-refresh-minus-300.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
-      "origin_commit": "new minimal integration",
-      "production_behavior_affected": false,
-      "tests": [
-        "flight_v2_scope"
-      ],
-      "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G0-G8"
-    },
-    {
-      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/on-refresh-plus-300.json",
-      "category": "IN_SCOPE_DOCUMENTATION",
-      "owner": "validation",
-      "why_needed": "Archive current-run on-refresh-plus-300.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "why_needed": "Archive current-run production-config-pins.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
       "origin_commit": "new minimal integration",
       "production_behavior_affected": false,
       "tests": [
@@ -1017,7 +1004,7 @@
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "review_note": "V2-only revalidation fix: source gaps cannot prove smooth acceleration. History remains incomplete; no contact is fabricated. Production source remains unchanged.",
       "owning_requirement": "G1-G4"
     },
     {
@@ -1134,7 +1121,7 @@
       "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py",
       "category": "IN_SCOPE_TEST",
       "owner": "validation",
-      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "why_needed": "Independently pace synthetic observations and verify both rates/directions/plane policies, automatic contacts, causal spin, renewed history evidence and reset fences",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [

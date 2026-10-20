@@ -1,4 +1,1 @@
-{
-  "physics_profile": "thin-shell-forward-v3-receipt-20261010",
-  "model_config_id": "flight-model-v3:sha256:824cb7ac358b163a26df34b73ec05d424b6955bcf7e5135aed547d051120a024"
-}
+{"physics_profile":"thin-shell-forward-v3-receipt-20261010","model_config_id":"flight-model-v3:sha256:824cb7ac358b163a26df34b73ec05d424b6955bcf7e5135aed547d051120a024"}

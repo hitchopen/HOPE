@@ -16,3 +16,7 @@ The registered table-frame X-plane is base_x + 0.58 m. FOLLOW_POSE follows fresh
 The bounded worker owns one running and one latest pending job. Outputs are confined to /hope/shadow/flight_v2/{prediction,trajectory,packet}; every output must retain its exact registered channel, so command-topic, unregistered-shadow and cross-channel remaps fail. Observation/context revisions are 2; forecast/packet revisions are 3. Old schema-2 forecast/packet data are rejected.
 
 The OptiTrack relay adds a typed observation without changing legacy pose ordering, stamps, rate policy, placeholders or CSV columns. Orientation authority defaults false; an identity quaternion alone is not evidence. No clock-domain conversion is invented.
+
+Source-gap qualification: secant acceleration across a retained gap above the existing warning threshold cannot prove non-ballistic motion. Physical forecasting continues with incomplete history; no missing contact is invented. Held checks and later contiguous motion rejection remain active.
+
+The synthetic ROS source runs in a separate process, with actual acquisition intervals and both contacts checked at 150/300 Hz under both plane policies. It supplies explicitly synthetic match/history evidence and uses the selected 50 Hz full-output profile.

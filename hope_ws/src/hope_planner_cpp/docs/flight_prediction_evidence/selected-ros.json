@@ -6,53 +6,53 @@
       "rate_hz": 150,
       "requested_full_rate_hz": 50.0,
       "worker_delay_ms": 0,
-      "source_span_s": 2.446668206,
-      "published_input_rate_hz": 143.46040020434222,
-      "observed_input_rate_hz": 143.05168111544094,
-      "observed_input_count": 351,
-      "unaccounted_input_count": 1,
+      "source_span_s": 2.423721408,
+      "published_input_rate_hz": 144.81862430288027,
+      "observed_input_rate_hz": 144.81862430288027,
+      "observed_input_count": 352,
+      "unaccounted_input_count": 0,
       "input_count": 352,
-      "physical_outputs": 343,
+      "physical_outputs": 344,
       "denominator": 336,
-      "physical_publication_coverage": 0.9970238095238095,
-      "target_outputs": 211,
-      "full_physical_outputs": 116,
-      "full_source_coverage": 0.34523809523809523,
-      "full_received_rate_hz": 49.837108554492126,
+      "physical_publication_coverage": 1.0,
+      "target_outputs": 212,
+      "full_physical_outputs": 118,
+      "full_source_coverage": 0.34226190476190477,
+      "full_received_rate_hz": 49.888574363920895,
       "full_publication_latency_ms": {
-        "minimum": 0.559461,
-        "p50": 0.8760175,
-        "p95": 1.248814,
-        "p99": 1.331158,
-        "maximum": 1.502585
+        "minimum": 0.616885,
+        "p50": 0.9356605,
+        "p95": 1.430842,
+        "p99": 1.727745,
+        "maximum": 2.224498
       },
       "full_receipt_latency_ms": {
-        "minimum": 2.211175,
-        "p50": 3.3255160000000004,
-        "p95": 4.929991,
-        "p99": 7.685748,
-        "maximum": 19.346779
+        "minimum": 2.287079,
+        "p50": 3.8886075,
+        "p95": 5.747234,
+        "p99": 9.833951,
+        "maximum": 21.765204
       },
       "generation_latency_ms": {
-        "minimum": 0.451489,
-        "p50": 0.756471,
-        "p95": 1.075562,
-        "p99": 1.216521,
-        "maximum": 2.421005
+        "minimum": 0.466844,
+        "p50": 0.8326975000000001,
+        "p95": 1.195157,
+        "p99": 1.642045,
+        "maximum": 2.382267
       },
       "publication_latency_ms": {
-        "minimum": 0.496317,
-        "p50": 0.812142,
-        "p95": 1.15222,
-        "p99": 1.337173,
-        "maximum": 2.479333
+        "minimum": 0.509498,
+        "p50": 0.8913035,
+        "p95": 1.311388,
+        "p99": 1.764411,
+        "maximum": 2.456849
       },
       "latency_ms": {
-        "minimum": 0.932472,
-        "p50": 1.302679,
-        "p95": 1.732405,
-        "p99": 2.283788,
-        "maximum": 3.279852
+        "minimum": 0.956352,
+        "p50": 1.4263805,
+        "p95": 2.080677,
+        "p99": 3.075167,
+        "maximum": 3.666808
       },
       "superseded": 0,
       "queue_bound": {
@@ -60,10 +60,17 @@
         "pending": 1
       },
       "resources": {
-        "rss_kib": 32360,
-        "peak_rss_kib": 32360,
-        "node_cpu_s": 0.45
+        "rss_kib": 32504,
+        "peak_rss_kib": 32504,
+        "node_cpu_s": 0.49
       },
+      "boundary_ack_ms": [
+        0.430289,
+        0.139981,
+        0.284334,
+        0.209251,
+        0.19847
+      ],
       "lifecycle_reasons": {
         "semantic_context_superseded": 5,
         "qualified_boundary": 8,
@@ -78,92 +85,99 @@
         5
       ],
       "payload": {
-        "compact_mean_cdr_bytes": 6832.2307692307695,
-        "full_mean_cdr_bytes": 55380.57142857143,
-        "full_sampled_cdr_bytes_per_s": 2784116.8937453735,
+        "compact_mean_cdr_bytes": 7802.846153846154,
+        "full_mean_cdr_bytes": 54602.28571428572,
+        "full_sampled_cdr_bytes_per_s": 2748450.7234021416,
         "size_measurement": "sampled CDR; excludes DDS/network headers"
       },
       "first_physical_fixture_lead_ms": [
-        483.082402,
-        483.468777,
-        483.30401,
-        483.387547
+        482.90554,
+        482.907989,
+        483.168617,
+        483.28074
       ],
       "first_target_fixture_lead_ms": [
-        369.994833,
-        370.062964,
-        370.006328,
-        370.137587
+        369.847265,
+        369.828352,
+        370.029575,
+        370.078212
       ]
     },
     {
       "rate_hz": 300,
       "requested_full_rate_hz": 50.0,
       "worker_delay_ms": 0,
-      "source_span_s": 2.4620749450000003,
-      "published_input_rate_hz": 288.7808112599919,
-      "observed_input_rate_hz": 287.5623268242957,
-      "observed_input_count": 709,
-      "unaccounted_input_count": 3,
+      "source_span_s": 2.437063392,
+      "published_input_rate_hz": 291.74456533792124,
+      "observed_input_rate_hz": 291.33423542886646,
+      "observed_input_count": 711,
+      "unaccounted_input_count": 1,
       "input_count": 712,
-      "physical_outputs": 686,
+      "physical_outputs": 697,
       "denominator": 696,
-      "physical_publication_coverage": 0.9741379310344828,
-      "target_outputs": 377,
-      "full_physical_outputs": 118,
-      "full_source_coverage": 0.16954022988505746,
-      "full_received_rate_hz": 49.125994638585446,
+      "physical_publication_coverage": 0.9899425287356322,
+      "target_outputs": 383,
+      "full_physical_outputs": 117,
+      "full_source_coverage": 0.16666666666666666,
+      "full_received_rate_hz": 49.545121818808155,
       "full_publication_latency_ms": {
-        "minimum": 0.567328,
-        "p50": 0.8925075,
-        "p95": 2.080998,
-        "p99": 4.258998,
-        "maximum": 4.690513
+        "minimum": 0.56669,
+        "p50": 0.876376,
+        "p95": 1.241502,
+        "p99": 2.027662,
+        "maximum": 3.446371
       },
       "full_receipt_latency_ms": {
-        "minimum": 2.108469,
-        "p50": 3.866552,
-        "p95": 6.542892,
-        "p99": 10.955908,
-        "maximum": 26.040724
+        "minimum": 2.211093,
+        "p50": 3.50847,
+        "p95": 5.030825,
+        "p99": 6.348181,
+        "maximum": 36.881354
       },
       "generation_latency_ms": {
-        "minimum": 0.424242,
-        "p50": 0.7779065,
-        "p95": 1.369579,
-        "p99": 2.720945,
-        "maximum": 4.566536
+        "minimum": 0.452708,
+        "p50": 0.761022,
+        "p95": 1.091756,
+        "p99": 1.665896,
+        "maximum": 5.71747
       },
       "publication_latency_ms": {
-        "minimum": 0.464473,
-        "p50": 0.844752,
-        "p95": 1.493765,
-        "p99": 2.82422,
-        "maximum": 4.643913
+        "minimum": 0.495752,
+        "p50": 0.823602,
+        "p95": 1.179834,
+        "p99": 1.719607,
+        "maximum": 5.768337
       },
       "latency_ms": {
-        "minimum": 0.910978,
-        "p50": 1.328147,
-        "p95": 2.353839,
-        "p99": 3.771811,
-        "maximum": 5.513055
+        "minimum": 0.903552,
+        "p50": 1.281312,
+        "p95": 1.766594,
+        "p99": 2.93135,
+        "maximum": 6.477456
       },
-      "superseded": 15,
+      "superseded": 6,
       "queue_bound": {
         "running": 1,
         "pending": 1
       },
       "resources": {
-        "rss_kib": 32852,
-        "peak_rss_kib": 32852,
-        "node_cpu_s": 0.84
+        "rss_kib": 32960,
+        "peak_rss_kib": 32960,
+        "node_cpu_s": 0.78
       },
+      "boundary_ack_ms": [
+        0.372065,
+        0.160556,
+        0.250919,
+        0.207122,
+        0.225591
+      ],
       "lifecycle_reasons": {
         "semantic_context_superseded": 5,
         "qualified_boundary": 8,
         "contact_or_crossing_confirmed": 12,
-        "history_qualification_changed": 2,
-        "forecast_expired": 2
+        "forecast_expired": 2,
+        "history_qualification_changed": 1
       },
       "generations": [
         1,
@@ -173,22 +187,22 @@
         5
       ],
       "payload": {
-        "compact_mean_cdr_bytes": 8169.416666666667,
-        "full_mean_cdr_bytes": 48283.42857142857,
-        "full_sampled_cdr_bytes_per_s": 2392525.9861308914,
+        "compact_mean_cdr_bytes": 8528.68,
+        "full_mean_cdr_bytes": 48217.142857142855,
+        "full_sampled_cdr_bytes_per_s": 2393977.2370575597,
         "size_measurement": "sampled CDR; excludes DDS/network headers"
       },
       "first_physical_fixture_lead_ms": [
-        489.732972,
-        489.997149,
-        489.6987,
-        489.986425
+        489.704866,
+        490.078324,
+        490.042736,
+        489.967011
       ],
       "first_target_fixture_lead_ms": [
-        380.14613,
-        379.758161,
-        380.083155,
-        380.189805
+        380.225251,
+        380.195476,
+        379.94278,
+        380.082685
       ]
     },
     {
@@ -198,53 +212,53 @@
           "rate_hz": 150,
           "requested_full_rate_hz": 50.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.446668206,
-          "published_input_rate_hz": 143.46040020434222,
-          "observed_input_rate_hz": 143.05168111544094,
-          "observed_input_count": 351,
-          "unaccounted_input_count": 1,
+          "source_span_s": 2.423721408,
+          "published_input_rate_hz": 144.81862430288027,
+          "observed_input_rate_hz": 144.81862430288027,
+          "observed_input_count": 352,
+          "unaccounted_input_count": 0,
           "input_count": 352,
-          "physical_outputs": 343,
+          "physical_outputs": 344,
           "denominator": 336,
-          "physical_publication_coverage": 0.9970238095238095,
-          "target_outputs": 211,
-          "full_physical_outputs": 116,
-          "full_source_coverage": 0.34523809523809523,
-          "full_received_rate_hz": 49.837108554492126,
+          "physical_publication_coverage": 1.0,
+          "target_outputs": 212,
+          "full_physical_outputs": 118,
+          "full_source_coverage": 0.34226190476190477,
+          "full_received_rate_hz": 49.888574363920895,
           "full_publication_latency_ms": {
-            "minimum": 0.559461,
-            "p50": 0.8760175,
-            "p95": 1.248814,
-            "p99": 1.331158,
-            "maximum": 1.502585
+            "minimum": 0.616885,
+            "p50": 0.9356605,
+            "p95": 1.430842,
+            "p99": 1.727745,
+            "maximum": 2.224498
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.211175,
-            "p50": 3.3255160000000004,
-            "p95": 4.929991,
-            "p99": 7.685748,
-            "maximum": 19.346779
+            "minimum": 2.287079,
+            "p50": 3.8886075,
+            "p95": 5.747234,
+            "p99": 9.833951,
+            "maximum": 21.765204
           },
           "generation_latency_ms": {
-            "minimum": 0.451489,
-            "p50": 0.756471,
-            "p95": 1.075562,
-            "p99": 1.216521,
-            "maximum": 2.421005
+            "minimum": 0.466844,
+            "p50": 0.8326975000000001,
+            "p95": 1.195157,
+            "p99": 1.642045,
+            "maximum": 2.382267
           },
           "publication_latency_ms": {
-            "minimum": 0.496317,
-            "p50": 0.812142,
-            "p95": 1.15222,
-            "p99": 1.337173,
-            "maximum": 2.479333
+            "minimum": 0.509498,
+            "p50": 0.8913035,
+            "p95": 1.311388,
+            "p99": 1.764411,
+            "maximum": 2.456849
           },
           "latency_ms": {
-            "minimum": 0.932472,
-            "p50": 1.302679,
-            "p95": 1.732405,
-            "p99": 2.283788,
-            "maximum": 3.279852
+            "minimum": 0.956352,
+            "p50": 1.4263805,
+            "p95": 2.080677,
+            "p99": 3.075167,
+            "maximum": 3.666808
           },
           "superseded": 0,
           "queue_bound": {
@@ -252,10 +266,17 @@
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32360,
-            "peak_rss_kib": 32360,
-            "node_cpu_s": 0.45
+            "rss_kib": 32504,
+            "peak_rss_kib": 32504,
+            "node_cpu_s": 0.49
           },
+          "boundary_ack_ms": [
+            0.430289,
+            0.139981,
+            0.284334,
+            0.209251,
+            0.19847
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
@@ -270,92 +291,99 @@
             5
           ],
           "payload": {
-            "compact_mean_cdr_bytes": 6832.2307692307695,
-            "full_mean_cdr_bytes": 55380.57142857143,
-            "full_sampled_cdr_bytes_per_s": 2784116.8937453735,
+            "compact_mean_cdr_bytes": 7802.846153846154,
+            "full_mean_cdr_bytes": 54602.28571428572,
+            "full_sampled_cdr_bytes_per_s": 2748450.7234021416,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            483.082402,
-            483.468777,
-            483.30401,
-            483.387547
+            482.90554,
+            482.907989,
+            483.168617,
+            483.28074
           ],
           "first_target_fixture_lead_ms": [
-            369.994833,
-            370.062964,
-            370.006328,
-            370.137587
+            369.847265,
+            369.828352,
+            370.029575,
+            370.078212
           ]
         },
         {
           "rate_hz": 300,
           "requested_full_rate_hz": 50.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.4620749450000003,
-          "published_input_rate_hz": 288.7808112599919,
-          "observed_input_rate_hz": 287.5623268242957,
-          "observed_input_count": 709,
-          "unaccounted_input_count": 3,
+          "source_span_s": 2.437063392,
+          "published_input_rate_hz": 291.74456533792124,
+          "observed_input_rate_hz": 291.33423542886646,
+          "observed_input_count": 711,
+          "unaccounted_input_count": 1,
           "input_count": 712,
-          "physical_outputs": 686,
+          "physical_outputs": 697,
           "denominator": 696,
-          "physical_publication_coverage": 0.9741379310344828,
-          "target_outputs": 377,
-          "full_physical_outputs": 118,
-          "full_source_coverage": 0.16954022988505746,
-          "full_received_rate_hz": 49.125994638585446,
+          "physical_publication_coverage": 0.9899425287356322,
+          "target_outputs": 383,
+          "full_physical_outputs": 117,
+          "full_source_coverage": 0.16666666666666666,
+          "full_received_rate_hz": 49.545121818808155,
           "full_publication_latency_ms": {
-            "minimum": 0.567328,
-            "p50": 0.8925075,
-            "p95": 2.080998,
-            "p99": 4.258998,
-            "maximum": 4.690513
+            "minimum": 0.56669,
+            "p50": 0.876376,
+            "p95": 1.241502,
+            "p99": 2.027662,
+            "maximum": 3.446371
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.108469,
-            "p50": 3.866552,
-            "p95": 6.542892,
-            "p99": 10.955908,
-            "maximum": 26.040724
+            "minimum": 2.211093,
+            "p50": 3.50847,
+            "p95": 5.030825,
+            "p99": 6.348181,
+            "maximum": 36.881354
           },
           "generation_latency_ms": {
-            "minimum": 0.424242,
-            "p50": 0.7779065,
-            "p95": 1.369579,
-            "p99": 2.720945,
-            "maximum": 4.566536
+            "minimum": 0.452708,
+            "p50": 0.761022,
+            "p95": 1.091756,
+            "p99": 1.665896,
+            "maximum": 5.71747
           },
           "publication_latency_ms": {
-            "minimum": 0.464473,
-            "p50": 0.844752,
-            "p95": 1.493765,
-            "p99": 2.82422,
-            "maximum": 4.643913
+            "minimum": 0.495752,
+            "p50": 0.823602,
+            "p95": 1.179834,
+            "p99": 1.719607,
+            "maximum": 5.768337
           },
           "latency_ms": {
-            "minimum": 0.910978,
-            "p50": 1.328147,
-            "p95": 2.353839,
-            "p99": 3.771811,
-            "maximum": 5.513055
+            "minimum": 0.903552,
+            "p50": 1.281312,
+            "p95": 1.766594,
+            "p99": 2.93135,
+            "maximum": 6.477456
           },
-          "superseded": 15,
+          "superseded": 6,
           "queue_bound": {
             "running": 1,
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32852,
-            "peak_rss_kib": 32852,
-            "node_cpu_s": 0.84
+            "rss_kib": 32960,
+            "peak_rss_kib": 32960,
+            "node_cpu_s": 0.78
           },
+          "boundary_ack_ms": [
+            0.372065,
+            0.160556,
+            0.250919,
+            0.207122,
+            0.225591
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
             "contact_or_crossing_confirmed": 12,
-            "history_qualification_changed": 2,
-            "forecast_expired": 2
+            "forecast_expired": 2,
+            "history_qualification_changed": 1
           },
           "generations": [
             1,
@@ -365,22 +393,22 @@
             5
           ],
           "payload": {
-            "compact_mean_cdr_bytes": 8169.416666666667,
-            "full_mean_cdr_bytes": 48283.42857142857,
-            "full_sampled_cdr_bytes_per_s": 2392525.9861308914,
+            "compact_mean_cdr_bytes": 8528.68,
+            "full_mean_cdr_bytes": 48217.142857142855,
+            "full_sampled_cdr_bytes_per_s": 2393977.2370575597,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            489.732972,
-            489.997149,
-            489.6987,
-            489.986425
+            489.704866,
+            490.078324,
+            490.042736,
+            489.967011
           ],
           "first_target_fixture_lead_ms": [
-            380.14613,
-            379.758161,
-            380.083155,
-            380.189805
+            380.225251,
+            380.195476,
+            379.94278,
+            380.082685
           ]
         }
       ]

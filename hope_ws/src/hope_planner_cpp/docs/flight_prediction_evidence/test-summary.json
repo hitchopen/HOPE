@@ -1,5 +1,5 @@
 {
-  "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+  "tested_code_commit": "38e31927373d90c538984f6174b6ff3525edf35e",
   "ctest": {
     "hope_msgs": {
       "total": 2,
@@ -299,7 +299,235 @@
   "build_exit": 0,
   "colcon_test_exit": 0,
   "test_result_exit": 1,
-  "runtime_source_tree": "40723e55a9f28d85c691e6544e5dc463573cd009",
+  "runtime_source_tree": "9108112a248d5851548377c546b586e21788f000",
   "header_tree": "7d761410856891a1f0eb3263ba3d9099f767b663",
-  "tests_tree": "02ac0bc45cfbe743c11e5f2a757a2af6127a4d8b"
+  "tests_tree": "186dd1227a665a3a850f17776f727f41bddbfc30",
+  "clean_build_code_commit": "4a495ec1e1ba407c6c19bfd95afd8ad04e5859b5",
+  "validation_head": "38e31927373d90c538984f6174b6ff3525edf35e",
+  "native_assertions": {
+    "test_flight_prediction_v2": [
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "A01_C01_PublicStatesAndCandidateQualification",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "A03_A04_A05_A14_EndpointApexAndPrefixLegality",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "C08_ReversalAloneNeverChangesShotAndSameDirectionContactDoes",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "B02_B06_PositionOnlyNeverSynthesizesSpinAndEnergyIsDissipative",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "B08_QuaternionSignsAxesAndGapCausality",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "B09_A07_FiniteNetFootprintBelowTableAndOrdering",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "B10_X09_DerivativesCovarianceAndInvalidParameters",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "A10_T04_EventIdentityConfirmationAndPredictedTimeIsNotEvidence",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "A11_X01_X02_PlanePoliciesAndFreshness",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "X04_LatestWorkIsBoundedAndNeverWaitsForNextSampleToPublish",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2",
+        "name": "X09_ForwardHypotheticalFlightStartsWithExplicitSpinAvailability",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Support",
+        "name": "X03_ConditionalCovarianceNeverProvesViolationButCompleteConservativeBoundCan",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Motion",
+        "name": "A07_HeldMotionAndApexUsePhysicalEvidenceRatherThanLowVerticalSpeed",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Motion",
+        "name": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Load",
+        "name": "X04_PacedSlowSolvesPublishMonotoneFreshResultsWithOnePendingSlot",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Numerics",
+        "name": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2History",
+        "name": "C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2History",
+        "name": "C04_ReceiverAcquisitionAcceptsVerifiedPrehistoryWithoutReset",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2History",
+        "name": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2History",
+        "name": "B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Timing",
+        "name": "X04_SourceTimedMotionSurvivesSchedulerPauseAndCatchup",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Classification",
+        "name": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Classification",
+        "name": "C01_C04_C07_ContinuityLossRecomputesConfirmedRally",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Association",
+        "name": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Association",
+        "name": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Association",
+        "name": "A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Config",
+        "name": "B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2SpinQuality",
+        "name": "B01_B06_HeldSpinIsNotReportedAsFreshMeasurementAfterPropagation",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2ObservedEvents",
+        "name": "A12_T02_T03_NetCrossingCarriesBracketedBallVelocity",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightV2Plane",
+        "name": "A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent",
+        "status": "PASS"
+      }
+    ],
+    "test_flight_transport_v2": [
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "T01_B07_PacketHashCoversValidityCheckpointAndContactLedger",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "A12_T03_TargetAndEveryWaypointHaveExactArrivalEquation",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "B07_T06_TruncatedSnapshotReproducesPosteriorWithoutRefittingPastSpin",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "X09_CheckpointRejectsDifferentNetPhysicsEvenWithACallerSuppliedTag",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance",
+        "status": "PASS"
+      },
+      {
+        "suite": "hope_planner_cpp.FlightTransportV2",
+        "name": "X06_T06_DuplicatePacketsAndProducerRestartCannotRestoreRetiredState",
+        "status": "PASS"
+      }
+    ]
+  }
 }

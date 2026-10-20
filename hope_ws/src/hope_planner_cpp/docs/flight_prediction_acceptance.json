@@ -3,7 +3,7 @@
   "branch": "feature/flight-state-prediction-v2-minimal",
   "upstream_base": "8d599e7d21e196275cf426488555e2648e8fd789",
   "source": "9118a491df658fa7e68f042581af48890ec8b0b8",
-  "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+  "tested_code_commit": "38e31927373d90c538984f6174b6ff3525edf35e",
   "config_sha256": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
   "acceptance_cases": [
     {
@@ -21,11 +21,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A02",
@@ -42,11 +42,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A03",
@@ -63,11 +63,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A04",
@@ -80,11 +80,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A05",
@@ -97,11 +97,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A06",
@@ -118,11 +118,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A07",
@@ -136,14 +136,18 @@
         {
           "test": "test_flight_prediction_v2",
           "assertion": "A07_HeldMotionAndApexUsePhysicalEvidenceRatherThanLowVerticalSpeed"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A08",
@@ -156,11 +160,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A09",
@@ -188,11 +192,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A10",
@@ -217,11 +221,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A11",
@@ -245,11 +249,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A12",
@@ -273,11 +277,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A13",
@@ -292,14 +296,18 @@
         },
         {
           "test": "flight_v2_raw_scenarios"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "A14",
@@ -316,11 +324,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B01",
@@ -340,11 +348,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B02",
@@ -357,11 +365,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B03",
@@ -381,12 +389,12 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
       "review_note": "V2 rejected-spin invariant is owned by native TrustedSpin and causal replay, not untouched legacy fallback.",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B04",
@@ -403,11 +411,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B05",
@@ -434,11 +442,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B06",
@@ -459,11 +467,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B07",
@@ -484,11 +492,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B08",
@@ -505,11 +513,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B09",
@@ -522,11 +530,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B10",
@@ -553,11 +561,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B11",
@@ -578,11 +586,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "B12",
@@ -601,11 +609,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C01",
@@ -626,11 +634,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C02",
@@ -655,11 +663,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C03",
@@ -672,11 +680,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C04",
@@ -706,14 +714,18 @@
         {
           "test": "test_flight_transport_v2",
           "assertion": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C05",
@@ -730,11 +742,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C06",
@@ -755,11 +767,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C07",
@@ -784,11 +796,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "C08",
@@ -801,11 +813,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "T01",
@@ -829,11 +841,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "T02",
@@ -854,11 +866,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "T03",
@@ -886,11 +898,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "T04",
@@ -911,11 +923,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "T05",
@@ -928,11 +940,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "T06",
@@ -957,11 +969,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X01",
@@ -978,11 +990,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X02",
@@ -999,11 +1011,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X03",
@@ -1017,14 +1029,18 @@
         {
           "test": "test_flight_prediction_v2",
           "assertion": "X03_ConditionalCovarianceNeverProvesViolationButCompleteConservativeBoundCan"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X04",
@@ -1051,11 +1067,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X05",
@@ -1070,11 +1086,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X06",
@@ -1090,11 +1106,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X07",
@@ -1113,11 +1129,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X08",
@@ -1142,11 +1158,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X09",
@@ -1170,11 +1186,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     },
     {
       "id": "X10",
@@ -1192,11 +1208,11 @@
         }
       ],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-      "command": "bash scripts/flight_prediction_validation/verify.sh /workspace/.cloud-setup/v2-evidence/final",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
       "status": "PASS",
       "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
-      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/final/build/<package>/Testing/<run>/Test.xml"
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
     }
   ],
   "deferred_subassertions": [
@@ -1206,7 +1222,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1217,7 +1233,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1228,7 +1244,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1239,7 +1255,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1250,7 +1266,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1261,7 +1277,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1272,7 +1288,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1283,7 +1299,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1294,7 +1310,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1305,7 +1321,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1316,7 +1332,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1327,7 +1343,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1338,7 +1354,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1349,7 +1365,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1360,7 +1376,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1371,7 +1387,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1382,7 +1398,7 @@
       "scope": "DEFERRED_OUT_OF_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "not executed: scoped handoff excludes this downstream/adoption work",
       "status": "DEFERRED_OUT_OF_SCOPE",
       "evidence_path": "docs/flight_prediction_minimal_scope.md"
@@ -1395,7 +1411,7 @@
       "scope": "IN_SCOPE",
       "test": [],
       "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
-      "code_sha": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
       "command": "compare_recordings.py --dataset <qualified-held-out-dataset> --v2-executable <installed> --baseline-executable <installed> --output <report>",
       "status": "NOT_RUN",
       "evidence_path": "docs/flight_prediction_accuracy/NOT_RUN.json",
@@ -1750,21 +1766,44 @@
       "coverage_300_hz": 0.9439655172413793,
       "also_failed": "raw scenario target window",
       "resolution": "Retained logs; rerun clean isolated final build/tests with original thresholds. All final planner groups passed."
+    },
+    {
+      "operation": "Fixed-sleep START fixture",
+      "resolution": "Replaced arbitrary startup delay with a bounded acknowledgement and generation check; no coverage threshold changed."
+    },
+    {
+      "operation": "High-load source gaps",
+      "resolution": "A captured 128 ms source gap hid the table contact; a smooth secant-acceleration test across that gap is unsupported. The configured gap warning now gates that test; held checks remain active. No coefficient changed.",
+      "evidence": [
+        "debug-stderr-9402.txt",
+        "gap-regression-before.log",
+        "gap-regression-after.log"
+      ]
+    },
+    {
+      "operation": "Shared-process ROS source/receiver fixture",
+      "resolution": "Large packet decoding delayed the synthetic camera itself, sometimes skipping contacts. The final fixture uses an independent paced source process and reports actual rates/gaps; physical assertions retained. Default full output is 50 Hz, with higher cadences measured separately."
+    },
+    {
+      "operation": "Incomplete history after a gap",
+      "resolution": "Target correctly withheld until the independent synthetic authority renews complete-history evidence. The fixture reports each refresh; no contact is fabricated."
     }
   ],
   "artifact_root": "/workspace/.cloud-setup/v2-evidence",
   "reproduction": {
     "clean_command": "verify.sh /tmp/new-validation-output",
-    "raw_console": "final-console.log",
+    "raw_console": "independent-final-all-tests.log",
     "schema_catalog": {
       "source_repository": "ros-infrastructure/rep",
       "commit": "11ca24a41f31480dfb9562ba99f2a5b93d3ebda5",
       "path": "xsd/package_format3.xsd",
       "sha256": "f096a197ed6d7878984bb2501a55f7f1bd4895d254399fb7857e154bfb644f41"
-    }
+    },
+    "clean_build_console": "fixed-final-console.log",
+    "clean_output_root": "/workspace/.cloud-setup/v2-evidence/fixed-final"
   },
   "cadence": {
-    "executable_sha256": "7d18db6289eca7cf5c1e120b144a67232a2c507eb31627556e87eae7c4877ab4",
+    "executable_sha256": "5ae6f016458feb991a84e7212046ae56ed081d2b2516dbcc2e86bc809475be36",
     "selected_full_rate_hz": 50,
     "selected_profile_pass": true,
     "profiles": [
@@ -1777,53 +1816,53 @@
           "rate_hz": 150,
           "requested_full_rate_hz": 50.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.447367001,
-          "published_input_rate_hz": 143.41943805591094,
-          "observed_input_rate_hz": 143.41943805591094,
+          "source_span_s": 2.422563899,
+          "published_input_rate_hz": 144.88781911795508,
+          "observed_input_rate_hz": 144.88781911795508,
           "observed_input_count": 352,
           "unaccounted_input_count": 0,
           "input_count": 352,
           "physical_outputs": 344,
           "denominator": 336,
           "physical_publication_coverage": 1.0,
-          "target_outputs": 212,
-          "full_physical_outputs": 116,
+          "target_outputs": 176,
+          "full_physical_outputs": 118,
           "full_source_coverage": 0.34523809523809523,
-          "full_received_rate_hz": 49.95464914265982,
+          "full_received_rate_hz": 49.911464672138756,
           "full_publication_latency_ms": {
-            "minimum": 0.553437,
-            "p50": 0.885572,
-            "p95": 1.311944,
-            "p99": 1.59502,
-            "maximum": 5.214478
+            "minimum": 0.610403,
+            "p50": 0.922015,
+            "p95": 1.3318,
+            "p99": 1.793239,
+            "maximum": 2.747961
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.249864,
-            "p50": 3.557573,
-            "p95": 5.211958,
-            "p99": 16.590032,
-            "maximum": 20.970469
+            "minimum": 2.386672,
+            "p50": 3.9052685,
+            "p95": 6.489147,
+            "p99": 6.967062,
+            "maximum": 26.564523
           },
           "generation_latency_ms": {
-            "minimum": 0.479606,
-            "p50": 0.7864285,
-            "p95": 1.146274,
-            "p99": 1.475741,
-            "maximum": 5.093035
+            "minimum": 0.494478,
+            "p50": 0.7936289999999999,
+            "p95": 1.115232,
+            "p99": 2.119965,
+            "maximum": 2.584204
           },
           "publication_latency_ms": {
-            "minimum": 0.523693,
-            "p50": 0.8488994999999999,
-            "p95": 1.220041,
-            "p99": 1.751991,
-            "maximum": 5.163601
+            "minimum": 0.539256,
+            "p50": 0.8600745000000001,
+            "p95": 1.188643,
+            "p99": 2.174988,
+            "maximum": 2.693198
           },
           "latency_ms": {
-            "minimum": 0.939744,
-            "p50": 1.362825,
-            "p95": 1.97367,
-            "p99": 3.9891,
-            "maximum": 9.891121
+            "minimum": 1.034998,
+            "p50": 1.405398,
+            "p95": 1.93343,
+            "p99": 3.088974,
+            "maximum": 4.251929
           },
           "superseded": 0,
           "queue_bound": {
@@ -1831,14 +1870,22 @@
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32876,
-            "peak_rss_kib": 32876,
-            "node_cpu_s": 0.48
+            "rss_kib": 32464,
+            "peak_rss_kib": 32464,
+            "node_cpu_s": 0.49
           },
+          "boundary_ack_ms": [
+            0.403427,
+            0.170001,
+            0.225764,
+            0.263807,
+            0.223517
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
             "contact_or_crossing_confirmed": 12,
+            "history_qualification_changed": 1,
             "forecast_expired": 1
           },
           "generations": [
@@ -1849,22 +1896,22 @@
             5
           ],
           "payload": {
-            "compact_mean_cdr_bytes": 7802.846153846154,
-            "full_mean_cdr_bytes": 55593.142857142855,
-            "full_sampled_cdr_bytes_per_s": 2794005.381552732,
+            "compact_mean_cdr_bytes": 7243.538461538462,
+            "full_mean_cdr_bytes": 54531.42857142857,
+            "full_sampled_cdr_bytes_per_s": 2746195.585784334,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            483.110067,
-            483.284615,
-            483.254709,
-            483.339836
+            483.066509,
+            483.381174,
+            483.2429,
+            482.990739
           ],
           "first_target_fixture_lead_ms": [
-            370.133161,
-            370.086305,
-            370.0932,
-            369.904814
+            370.021048,
+            369.935279,
+            370.063692,
+            369.903194
           ]
         }
       },
@@ -1877,64 +1924,71 @@
           "rate_hz": 300,
           "requested_full_rate_hz": 50.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.460569281,
-          "published_input_rate_hz": 288.9575211274045,
-          "observed_input_rate_hz": 288.5511111117541,
-          "observed_input_count": 711,
-          "unaccounted_input_count": 1,
+          "source_span_s": 2.438731306,
+          "published_input_rate_hz": 291.54503337482475,
+          "observed_input_rate_hz": 289.4947870079132,
+          "observed_input_count": 707,
+          "unaccounted_input_count": 5,
           "input_count": 712,
-          "physical_outputs": 698,
+          "physical_outputs": 690,
           "denominator": 696,
-          "physical_publication_coverage": 0.9913793103448276,
-          "target_outputs": 442,
-          "full_physical_outputs": 117,
+          "physical_publication_coverage": 0.9798850574712644,
+          "target_outputs": 328,
+          "full_physical_outputs": 118,
           "full_source_coverage": 0.16810344827586207,
-          "full_received_rate_hz": 48.74573085041543,
+          "full_received_rate_hz": 49.941008813644544,
           "full_publication_latency_ms": {
-            "minimum": 0.529066,
-            "p50": 0.805487,
-            "p95": 1.236695,
-            "p99": 1.370743,
-            "maximum": 1.582214
+            "minimum": 0.565346,
+            "p50": 0.9472205,
+            "p95": 1.673552,
+            "p99": 2.66199,
+            "maximum": 4.010513
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.124626,
-            "p50": 3.460605,
-            "p95": 4.807966,
-            "p99": 7.308842,
-            "maximum": 21.433766
+            "minimum": 2.3927,
+            "p50": 4.0196125,
+            "p95": 7.29814,
+            "p99": 8.540088,
+            "maximum": 26.298086
           },
           "generation_latency_ms": {
-            "minimum": 0.441229,
-            "p50": 0.7087235000000001,
-            "p95": 1.012833,
-            "p99": 1.355881,
-            "maximum": 3.141442
+            "minimum": 0.456171,
+            "p50": 0.8118515,
+            "p95": 1.641645,
+            "p99": 2.728907,
+            "maximum": 4.151015
           },
           "publication_latency_ms": {
-            "minimum": 0.484374,
-            "p50": 0.7700935,
-            "p95": 1.084356,
-            "p99": 1.464383,
-            "maximum": 3.241983
+            "minimum": 0.499927,
+            "p50": 0.875284,
+            "p95": 1.743949,
+            "p99": 2.78818,
+            "maximum": 4.272879
           },
           "latency_ms": {
-            "minimum": 0.920234,
-            "p50": 1.250901,
-            "p95": 1.689911,
-            "p99": 2.575213,
-            "maximum": 5.287302
+            "minimum": 0.99027,
+            "p50": 1.4393655,
+            "p95": 3.206084,
+            "p99": 5.918014,
+            "maximum": 23.303661
           },
-          "superseded": 5,
+          "superseded": 9,
           "queue_bound": {
             "running": 1,
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32840,
-            "peak_rss_kib": 32840,
-            "node_cpu_s": 0.78
+            "rss_kib": 32384,
+            "peak_rss_kib": 32384,
+            "node_cpu_s": 0.91
           },
+          "boundary_ack_ms": [
+            0.577243,
+            0.184573,
+            0.25529,
+            0.539586,
+            0.35489
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
@@ -1949,22 +2003,21 @@
             5
           ],
           "payload": {
-            "compact_mean_cdr_bytes": 8635.08,
-            "full_mean_cdr_bytes": 47990.857142857145,
-            "full_sampled_cdr_bytes_per_s": 2359979.7653028225,
+            "compact_mean_cdr_bytes": 8016.875,
+            "full_mean_cdr_bytes": 55921.142857142855,
+            "full_sampled_cdr_bytes_per_s": 2797511.727424156,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            489.626343,
-            489.992579,
-            489.989665,
-            489.841912
+            489.646815,
+            489.893024,
+            488.688362,
+            489.919966
           ],
           "first_target_fixture_lead_ms": [
-            380.050839,
-            380.017971,
-            380.158728,
-            380.098543
+            380.159089,
+            379.738606,
+            379.035234
           ]
         }
       },
@@ -1977,64 +2030,178 @@
           "rate_hz": 150,
           "requested_full_rate_hz": 100.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.446825488,
-          "published_input_rate_hz": 143.45117856643807,
-          "observed_input_rate_hz": 140.9990216678665,
-          "observed_input_count": 346,
-          "unaccounted_input_count": 6,
+          "source_span_s": 2.423453158,
+          "published_input_rate_hz": 144.83465415509383,
+          "observed_input_rate_hz": 144.42201981277162,
+          "observed_input_count": 351,
+          "unaccounted_input_count": 1,
           "input_count": 352,
-          "physical_outputs": 337,
+          "physical_outputs": 332,
           "denominator": 336,
-          "physical_publication_coverage": 0.9791666666666666,
-          "target_outputs": 173,
-          "full_physical_outputs": 224,
-          "full_source_coverage": 0.6547619047619048,
-          "full_received_rate_hz": 94.16042072313768,
+          "physical_publication_coverage": 0.9642857142857143,
+          "target_outputs": 121,
+          "full_physical_outputs": 223,
+          "full_source_coverage": 0.6428571428571429,
+          "full_received_rate_hz": 93.61562410223337,
           "full_publication_latency_ms": {
-            "minimum": 0.543938,
-            "p50": 0.8674014999999999,
-            "p95": 1.295844,
-            "p99": 3.119978,
-            "maximum": 4.470699
+            "minimum": 0.587543,
+            "p50": 0.959705,
+            "p95": 1.559701,
+            "p99": 3.547883,
+            "maximum": 6.507661
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.166649,
-            "p50": 3.3798934999999997,
-            "p95": 4.862142,
-            "p99": 8.888619,
-            "maximum": 52.518537
+            "minimum": 2.346099,
+            "p50": 3.679216,
+            "p95": 5.653036,
+            "p99": 19.123187,
+            "maximum": 60.357218
           },
           "generation_latency_ms": {
-            "minimum": 0.466651,
-            "p50": 0.760769,
-            "p95": 1.161502,
-            "p99": 3.029325,
-            "maximum": 4.355335
+            "minimum": 0.503757,
+            "p50": 0.831268,
+            "p95": 1.433711,
+            "p99": 2.615255,
+            "maximum": 5.302247
           },
           "publication_latency_ms": {
-            "minimum": 0.510177,
-            "p50": 0.828546,
-            "p95": 1.295538,
-            "p99": 3.106752,
-            "maximum": 4.412411
+            "minimum": 0.550457,
+            "p50": 0.8943785,
+            "p95": 1.505606,
+            "p99": 2.688245,
+            "maximum": 5.531372
           },
           "latency_ms": {
-            "minimum": 0.958482,
-            "p50": 1.318243,
-            "p95": 2.123904,
-            "p99": 3.866285,
-            "maximum": 5.135884
+            "minimum": 0.975758,
+            "p50": 1.416245,
+            "p95": 2.560012,
+            "p99": 6.196533,
+            "maximum": 7.775247
           },
-          "superseded": 1,
+          "superseded": 11,
           "queue_bound": {
             "running": 1,
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32640,
-            "peak_rss_kib": 32640,
-            "node_cpu_s": 0.46
+            "rss_kib": 32172,
+            "peak_rss_kib": 32172,
+            "node_cpu_s": 0.5
           },
+          "boundary_ack_ms": [
+            0.51873,
+            0.175254,
+            0.297313,
+            0.282414,
+            0.272796
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "forecast_expired": 4,
+            "history_qualification_changed": 2
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 7429.615384615385,
+            "full_mean_cdr_bytes": 65554.66666666667,
+            "full_sampled_cdr_bytes_per_s": 6167424.34268251,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            478.793626,
+            480.94711,
+            483.251998,
+            483.26329
+          ],
+          "first_target_fixture_lead_ms": [
+            369.532616,
+            370.115448,
+            369.868666
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 100,
+        "input_rate_hz": 300,
+        "exit_code": 0,
+        "status": "PASS",
+        "metrics": {
+          "rate_hz": 300,
+          "requested_full_rate_hz": 100.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.436818062,
+          "published_input_rate_hz": 291.7739371221059,
+          "observed_input_rate_hz": 290.9531946829439,
+          "observed_input_count": 710,
+          "unaccounted_input_count": 2,
+          "input_count": 712,
+          "physical_outputs": 690,
+          "denominator": 696,
+          "physical_publication_coverage": 0.9798850574712644,
+          "target_outputs": 412,
+          "full_physical_outputs": 231,
+          "full_source_coverage": 0.3290229885057471,
+          "full_received_rate_hz": 96.58089958518268,
+          "full_publication_latency_ms": {
+            "minimum": 0.557733,
+            "p50": 0.869247,
+            "p95": 1.131246,
+            "p99": 1.595438,
+            "maximum": 1.893442
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.183012,
+            "p50": 3.481375,
+            "p95": 4.725375,
+            "p99": 5.523825,
+            "maximum": 57.563897
+          },
+          "generation_latency_ms": {
+            "minimum": 0.43889,
+            "p50": 0.7628525,
+            "p95": 1.037309,
+            "p99": 1.288363,
+            "maximum": 3.363768
+          },
+          "publication_latency_ms": {
+            "minimum": 0.481374,
+            "p50": 0.8267914999999999,
+            "p95": 1.126474,
+            "p99": 1.36016,
+            "maximum": 3.462336
+          },
+          "latency_ms": {
+            "minimum": 0.91122,
+            "p50": 1.2782665,
+            "p95": 1.696522,
+            "p99": 2.826981,
+            "maximum": 3.981246
+          },
+          "superseded": 12,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32736,
+            "peak_rss_kib": 32736,
+            "node_cpu_s": 0.79
+          },
+          "boundary_ack_ms": [
+            0.378904,
+            0.162539,
+            0.238257,
+            0.273541,
+            0.339461
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
@@ -2050,92 +2217,99 @@
             5
           ],
           "payload": {
-            "compact_mean_cdr_bytes": 7319.846153846154,
-            "full_mean_cdr_bytes": 69029,
-            "full_sampled_cdr_bytes_per_s": 6516892.634232687,
+            "compact_mean_cdr_bytes": 7963.083333333333,
+            "full_mean_cdr_bytes": 62806,
+            "full_sampled_cdr_bytes_per_s": 6082610.856813323,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            482.937702,
-            483.21148,
-            483.118055,
-            483.448692
+            489.420887,
+            489.977017,
+            489.980141,
+            489.833907
           ],
           "first_target_fixture_lead_ms": [
-            370.174211,
-            370.101456,
-            369.906072,
-            370.215903
+            379.949217,
+            379.958435,
+            379.695489,
+            380.190024
           ]
         }
       },
       {
-        "full_rate_hz": 100,
-        "input_rate_hz": 300,
+        "full_rate_hz": 150,
+        "input_rate_hz": 150,
         "exit_code": 0,
         "status": "PASS",
         "metrics": {
-          "rate_hz": 300,
-          "requested_full_rate_hz": 100.0,
+          "rate_hz": 150,
+          "requested_full_rate_hz": 150.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.4614753730000003,
-          "published_input_rate_hz": 288.85115317381644,
-          "observed_input_rate_hz": 288.0386323491362,
-          "observed_input_count": 710,
-          "unaccounted_input_count": 2,
-          "input_count": 712,
-          "physical_outputs": 692,
-          "denominator": 696,
-          "physical_publication_coverage": 0.9827586206896551,
-          "target_outputs": 440,
-          "full_physical_outputs": 231,
-          "full_source_coverage": 0.3275862068965517,
-          "full_received_rate_hz": 95.05571624187272,
+          "source_span_s": 2.425546743,
+          "published_input_rate_hz": 144.7096416562441,
+          "observed_input_rate_hz": 144.7096416562441,
+          "observed_input_count": 352,
+          "unaccounted_input_count": 0,
+          "input_count": 352,
+          "physical_outputs": 341,
+          "denominator": 336,
+          "physical_publication_coverage": 0.9910714285714286,
+          "target_outputs": 179,
+          "full_physical_outputs": 324,
+          "full_source_coverage": 0.9404761904761905,
+          "full_received_rate_hz": 135.9698060010002,
           "full_publication_latency_ms": {
-            "minimum": 0.521499,
-            "p50": 0.87762,
-            "p95": 1.337392,
-            "p99": 3.323013,
-            "maximum": 3.588072
+            "minimum": 0.598701,
+            "p50": 0.92191,
+            "p95": 1.242124,
+            "p99": 1.563643,
+            "maximum": 2.357837
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.239579,
-            "p50": 3.563249,
-            "p95": 5.519982,
-            "p99": 7.80602,
-            "maximum": 57.179536
+            "minimum": 2.237951,
+            "p50": 3.5223240000000002,
+            "p95": 4.980113,
+            "p99": 6.459334,
+            "maximum": 56.306883
           },
           "generation_latency_ms": {
-            "minimum": 0.438314,
-            "p50": 0.7687809999999999,
-            "p95": 1.324617,
-            "p99": 2.695334,
-            "maximum": 3.399688
+            "minimum": 0.502852,
+            "p50": 0.801309,
+            "p95": 1.118424,
+            "p99": 1.46849,
+            "maximum": 2.34468
           },
           "publication_latency_ms": {
-            "minimum": 0.481769,
-            "p50": 0.8311255,
-            "p95": 1.379795,
-            "p99": 2.79925,
-            "maximum": 3.523334
+            "minimum": 0.54804,
+            "p50": 0.876162,
+            "p95": 1.187688,
+            "p99": 1.72723,
+            "maximum": 2.447484
           },
           "latency_ms": {
-            "minimum": 0.940705,
-            "p50": 1.3057515,
-            "p95": 2.248952,
-            "p99": 4.144338,
-            "maximum": 19.372606
+            "minimum": 0.981627,
+            "p50": 1.367748,
+            "p95": 2.087601,
+            "p99": 5.439104,
+            "maximum": 53.437787
           },
-          "superseded": 10,
+          "superseded": 3,
           "queue_bound": {
             "running": 1,
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32312,
-            "peak_rss_kib": 32368,
-            "node_cpu_s": 0.83
+            "rss_kib": 32316,
+            "peak_rss_kib": 32316,
+            "node_cpu_s": 0.47
           },
+          "boundary_ack_ms": [
+            0.490848,
+            0.157126,
+            0.221023,
+            0.457819,
+            0.226589
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
@@ -2151,81 +2325,188 @@
             5
           ],
           "payload": {
-            "compact_mean_cdr_bytes": 8348.208333333334,
-            "full_mean_cdr_bytes": 70372.33333333333,
-            "full_sampled_cdr_bytes_per_s": 6718530.89197384,
+            "compact_mean_cdr_bytes": 6832.2307692307695,
+            "full_mean_cdr_bytes": 64010.58823529412,
+            "full_sampled_cdr_bytes_per_s": 8735145.90763026,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            489.803224,
-            489.914496,
-            489.569632,
-            489.97058
+            482.176203,
+            483.288996,
+            483.248085,
+            483.158229
           ],
           "first_target_fixture_lead_ms": [
-            379.540396,
-            380.171662,
-            379.465298,
-            380.075922
+            370.128672,
+            370.005656,
+            370.171902,
+            369.919719
           ]
         }
       },
       {
         "full_rate_hz": 150,
+        "input_rate_hz": 300,
+        "exit_code": 1,
+        "status": "FAIL",
+        "metrics": {
+          "rate_hz": 300,
+          "requested_full_rate_hz": 150.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.438612425,
+          "published_input_rate_hz": 291.55924603312064,
+          "observed_input_rate_hz": 286.6384148764435,
+          "observed_input_count": 700,
+          "unaccounted_input_count": 12,
+          "input_count": 712,
+          "physical_outputs": 658,
+          "denominator": 696,
+          "physical_publication_coverage": 0.9339080459770115,
+          "target_outputs": 312,
+          "full_physical_outputs": 328,
+          "full_source_coverage": 0.46264367816091956,
+          "full_received_rate_hz": 136.21871565177898,
+          "full_publication_latency_ms": {
+            "minimum": 0.53536,
+            "p50": 0.9415389999999999,
+            "p95": 1.912087,
+            "p99": 3.317314,
+            "maximum": 7.218108
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.51932,
+            "p50": 4.258706,
+            "p95": 8.583867,
+            "p99": 15.148728,
+            "maximum": 106.822117
+          },
+          "generation_latency_ms": {
+            "minimum": 0.42502,
+            "p50": 0.8388869999999999,
+            "p95": 2.154451,
+            "p99": 3.718088,
+            "maximum": 7.055253
+          },
+          "publication_latency_ms": {
+            "minimum": 0.463648,
+            "p50": 0.9014835,
+            "p95": 2.307141,
+            "p99": 3.773712,
+            "maximum": 7.165188
+          },
+          "latency_ms": {
+            "minimum": 1.001246,
+            "p50": 1.509696,
+            "p95": 5.459142,
+            "p99": 7.79103,
+            "maximum": 64.282517
+          },
+          "superseded": 28,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32816,
+            "peak_rss_kib": 32816,
+            "node_cpu_s": 0.9
+          },
+          "boundary_ack_ms": [
+            0.339679,
+            0.219821,
+            0.333498,
+            0.541368,
+            0.364332
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 11,
+            "forecast_expired": 3,
+            "history_qualification_changed": 2
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 8051.565217391304,
+            "full_mean_cdr_bytes": 69018.35294117648,
+            "full_sampled_cdr_bytes_per_s": 9424667.607609589,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            489.737653,
+            488.41562,
+            489.661803,
+            489.341747
+          ],
+          "first_target_fixture_lead_ms": [
+            378.062975,
+            380.105785,
+            378.641413
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 0,
         "input_rate_hz": 150,
         "exit_code": 0,
         "status": "PASS",
         "metrics": {
           "rate_hz": 150,
-          "requested_full_rate_hz": 150.0,
+          "requested_full_rate_hz": 0.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.44727845,
-          "published_input_rate_hz": 143.42462746729942,
-          "observed_input_rate_hz": 143.42462746729942,
+          "source_span_s": 2.424606461,
+          "published_input_rate_hz": 144.76576122594105,
+          "observed_input_rate_hz": 144.76576122594105,
           "observed_input_count": 352,
           "unaccounted_input_count": 0,
           "input_count": 352,
           "physical_outputs": 339,
           "denominator": 336,
           "physical_publication_coverage": 0.9851190476190477,
-          "target_outputs": 169,
-          "full_physical_outputs": 337,
-          "full_source_coverage": 0.9791666666666666,
-          "full_received_rate_hz": 140.13358356828016,
+          "target_outputs": 168,
+          "full_physical_outputs": 339,
+          "full_source_coverage": 0.9851190476190477,
+          "full_received_rate_hz": 142.65136378861698,
           "full_publication_latency_ms": {
-            "minimum": 0.542061,
-            "p50": 0.848652,
-            "p95": 1.227066,
-            "p99": 1.707478,
-            "maximum": 2.339188
+            "minimum": 0.59947,
+            "p50": 1.020521,
+            "p95": 1.875293,
+            "p99": 2.942213,
+            "maximum": 3.443695
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.12795,
-            "p50": 3.241706,
-            "p95": 4.555791,
-            "p99": 5.541835,
-            "maximum": 43.750079
+            "minimum": 2.198858,
+            "p50": 3.949444,
+            "p95": 6.700199,
+            "p99": 11.916583,
+            "maximum": 72.974239
           },
           "generation_latency_ms": {
-            "minimum": 0.46225,
-            "p50": 0.751005,
-            "p95": 1.09376,
-            "p99": 1.506591,
-            "maximum": 2.236584
+            "minimum": 0.513411,
+            "p50": 0.885263,
+            "p95": 1.754336,
+            "p99": 2.766399,
+            "maximum": 3.299869
           },
           "publication_latency_ms": {
-            "minimum": 0.507499,
-            "p50": 0.813629,
-            "p95": 1.191603,
-            "p99": 1.668269,
-            "maximum": 2.297635
+            "minimum": 0.560091,
+            "p50": 0.958327,
+            "p95": 1.828513,
+            "p99": 2.863866,
+            "maximum": 3.379799
           },
           "latency_ms": {
-            "minimum": 0.963128,
-            "p50": 1.28349,
-            "p95": 1.722431,
-            "p99": 2.620621,
-            "maximum": 2.87272
+            "minimum": 1.041903,
+            "p50": 1.565315,
+            "p95": 3.562568,
+            "p99": 5.297145,
+            "maximum": 7.090675
           },
           "superseded": 5,
           "queue_bound": {
@@ -2233,10 +2514,17 @@
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32592,
-            "peak_rss_kib": 32592,
-            "node_cpu_s": 0.46
+            "rss_kib": 32432,
+            "peak_rss_kib": 32432,
+            "node_cpu_s": 0.54
           },
+          "boundary_ack_ms": [
+            0.424253,
+            0.175298,
+            0.565178,
+            0.284988,
+            0.355718
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
@@ -2253,222 +2541,21 @@
           ],
           "payload": {
             "compact_mean_cdr_bytes": 6420.923076923077,
-            "full_mean_cdr_bytes": 65792.66666666667,
-            "full_sampled_cdr_bytes_per_s": 9248100.61288013,
+            "full_mean_cdr_bytes": 62157.11111111111,
+            "full_sampled_cdr_bytes_per_s": 8895677.670783686,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            483.148656,
-            483.322823,
-            482.950567,
-            483.268275
+            482.989792,
+            483.289197,
+            481.011746,
+            483.027905
           ],
           "first_target_fixture_lead_ms": [
-            370.093369,
-            369.905846,
-            370.007143,
-            370.078736
-          ]
-        }
-      },
-      {
-        "full_rate_hz": 150,
-        "input_rate_hz": 300,
-        "exit_code": 0,
-        "status": "PASS",
-        "metrics": {
-          "rate_hz": 300,
-          "requested_full_rate_hz": 150.0,
-          "worker_delay_ms": 0,
-          "source_span_s": 2.4610727160000003,
-          "published_input_rate_hz": 288.8984122157892,
-          "observed_input_rate_hz": 286.0541240505142,
-          "observed_input_count": 705,
-          "unaccounted_input_count": 7,
-          "input_count": 712,
-          "physical_outputs": 677,
-          "denominator": 696,
-          "physical_publication_coverage": 0.9612068965517241,
-          "target_outputs": 309,
-          "full_physical_outputs": 336,
-          "full_source_coverage": 0.4755747126436782,
-          "full_received_rate_hz": 138.08231382466914,
-          "full_publication_latency_ms": {
-            "minimum": 0.508415,
-            "p50": 0.8308424999999999,
-            "p95": 1.334397,
-            "p99": 1.645164,
-            "maximum": 2.303454
-          },
-          "full_receipt_latency_ms": {
-            "minimum": 2.051826,
-            "p50": 3.442578,
-            "p95": 6.08335,
-            "p99": 14.184813,
-            "maximum": 83.006169
-          },
-          "generation_latency_ms": {
-            "minimum": 0.43867,
-            "p50": 0.735787,
-            "p95": 1.243951,
-            "p99": 2.134981,
-            "maximum": 4.538657
-          },
-          "publication_latency_ms": {
-            "minimum": 0.483327,
-            "p50": 0.798877,
-            "p95": 1.296369,
-            "p99": 2.198366,
-            "maximum": 4.603524
-          },
-          "latency_ms": {
-            "minimum": 0.903399,
-            "p50": 1.286615,
-            "p95": 3.53761,
-            "p99": 6.650442,
-            "maximum": 16.987589
-          },
-          "superseded": 20,
-          "queue_bound": {
-            "running": 1,
-            "pending": 1
-          },
-          "resources": {
-            "rss_kib": 32412,
-            "peak_rss_kib": 32412,
-            "node_cpu_s": 0.8
-          },
-          "lifecycle_reasons": {
-            "semantic_context_superseded": 5,
-            "qualified_boundary": 8,
-            "contact_or_crossing_confirmed": 12,
-            "forecast_expired": 3,
-            "history_qualification_changed": 2
-          },
-          "generations": [
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "payload": {
-            "compact_mean_cdr_bytes": 8554.208333333334,
-            "full_mean_cdr_bytes": 65525.333333333336,
-            "full_sampled_cdr_bytes_per_s": 9079024.16755193,
-            "size_measurement": "sampled CDR; excludes DDS/network headers"
-          },
-          "first_physical_fixture_lead_ms": [
-            489.916289,
-            489.654731,
-            489.817079,
-            489.933094
-          ],
-          "first_target_fixture_lead_ms": [
-            379.172904,
-            376.407931,
-            380.050613
-          ]
-        }
-      },
-      {
-        "full_rate_hz": 0,
-        "input_rate_hz": 150,
-        "exit_code": 0,
-        "status": "PASS",
-        "metrics": {
-          "rate_hz": 150,
-          "requested_full_rate_hz": 0.0,
-          "worker_delay_ms": 0,
-          "source_span_s": 2.447220631,
-          "published_input_rate_hz": 143.42801607412568,
-          "observed_input_rate_hz": 140.97625511559363,
-          "observed_input_count": 346,
-          "unaccounted_input_count": 6,
-          "input_count": 352,
-          "physical_outputs": 338,
-          "denominator": 336,
-          "physical_publication_coverage": 0.9821428571428571,
-          "target_outputs": 146,
-          "full_physical_outputs": 338,
-          "full_source_coverage": 0.9821428571428571,
-          "full_received_rate_hz": 140.89222684091536,
-          "full_publication_latency_ms": {
-            "minimum": 0.523568,
-            "p50": 0.842199,
-            "p95": 1.214536,
-            "p99": 2.190855,
-            "maximum": 2.46698
-          },
-          "full_receipt_latency_ms": {
-            "minimum": 2.156453,
-            "p50": 3.3195905000000003,
-            "p95": 4.80069,
-            "p99": 5.944841,
-            "maximum": 43.616158
-          },
-          "generation_latency_ms": {
-            "minimum": 0.448575,
-            "p50": 0.7335480000000001,
-            "p95": 1.112563,
-            "p99": 2.064485,
-            "maximum": 2.361692
-          },
-          "publication_latency_ms": {
-            "minimum": 0.492841,
-            "p50": 0.7919415000000001,
-            "p95": 1.180625,
-            "p99": 2.138987,
-            "maximum": 2.430685
-          },
-          "latency_ms": {
-            "minimum": 0.945372,
-            "p50": 1.2749275,
-            "p95": 1.828079,
-            "p99": 3.334094,
-            "maximum": 5.231137
-          },
-          "superseded": 0,
-          "queue_bound": {
-            "running": 1,
-            "pending": 1
-          },
-          "resources": {
-            "rss_kib": 32500,
-            "peak_rss_kib": 32500,
-            "node_cpu_s": 0.44
-          },
-          "lifecycle_reasons": {
-            "semantic_context_superseded": 5,
-            "qualified_boundary": 8,
-            "contact_or_crossing_confirmed": 12,
-            "forecast_expired": 3,
-            "history_qualification_changed": 2
-          },
-          "generations": [
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "payload": {
-            "compact_mean_cdr_bytes": 7315.2307692307695,
-            "full_mean_cdr_bytes": 67364.44444444444,
-            "full_sampled_cdr_bytes_per_s": 9524314.024867248,
-            "size_measurement": "sampled CDR; excludes DDS/network headers"
-          },
-          "first_physical_fixture_lead_ms": [
-            482.947267,
-            483.28444,
-            483.436468,
-            483.314805
-          ],
-          "first_target_fixture_lead_ms": [
-            370.116578,
-            370.195397,
-            370.109908,
-            370.068141
+            370.186094,
+            370.099932,
+            369.576372,
+            370.079365
           ]
         }
       },
@@ -2481,53 +2568,53 @@
           "rate_hz": 300,
           "requested_full_rate_hz": 0.0,
           "worker_delay_ms": 0,
-          "source_span_s": 2.460343554,
-          "published_input_rate_hz": 288.98403186175517,
-          "observed_input_rate_hz": 286.5453480485758,
-          "observed_input_count": 706,
-          "unaccounted_input_count": 6,
+          "source_span_s": 2.437923177,
+          "published_input_rate_hz": 291.6416754669542,
+          "observed_input_rate_hz": 283.8481567132663,
+          "observed_input_count": 693,
+          "unaccounted_input_count": 19,
           "input_count": 712,
-          "physical_outputs": 645,
+          "physical_outputs": 631,
           "denominator": 696,
-          "physical_publication_coverage": 0.9152298850574713,
-          "target_outputs": 109,
-          "full_physical_outputs": 649,
-          "full_source_coverage": 0.9209770114942529,
-          "full_received_rate_hz": 266.53634707855394,
+          "physical_publication_coverage": 0.8951149425287356,
+          "target_outputs": 110,
+          "full_physical_outputs": 630,
+          "full_source_coverage": 0.8936781609195402,
+          "full_received_rate_hz": 261.0861461817832,
           "full_publication_latency_ms": {
-            "minimum": 0.492616,
-            "p50": 0.812968,
-            "p95": 1.553382,
-            "p99": 2.640867,
-            "maximum": 4.917556
+            "minimum": 0.533723,
+            "p50": 0.904415,
+            "p95": 1.982751,
+            "p99": 2.84278,
+            "maximum": 3.596928
           },
           "full_receipt_latency_ms": {
-            "minimum": 2.103815,
-            "p50": 3.246633,
-            "p95": 17.484347,
-            "p99": 31.658598,
-            "maximum": 106.57173
+            "minimum": 2.123773,
+            "p50": 4.648909,
+            "p95": 15.175026,
+            "p99": 56.160044,
+            "maximum": 134.87177
           },
           "generation_latency_ms": {
-            "minimum": 0.417643,
-            "p50": 0.715531,
-            "p95": 1.362414,
-            "p99": 2.566675,
-            "maximum": 4.811287
+            "minimum": 0.460583,
+            "p50": 0.797709,
+            "p95": 1.913667,
+            "p99": 2.758453,
+            "maximum": 3.520833
           },
           "publication_latency_ms": {
-            "minimum": 0.460598,
-            "p50": 0.771054,
-            "p95": 1.463906,
-            "p99": 2.625203,
-            "maximum": 4.882824
+            "minimum": 0.503798,
+            "p50": 0.862301,
+            "p95": 1.965825,
+            "p99": 2.809149,
+            "maximum": 3.569997
           },
           "latency_ms": {
-            "minimum": 0.871541,
-            "p50": 1.271923,
-            "p95": 7.542433,
-            "p99": 11.315569,
-            "maximum": 107.102919
+            "minimum": 0.971221,
+            "p50": 2.366809,
+            "p95": 8.179797,
+            "p99": 14.722374,
+            "maximum": 127.993834
           },
           "superseded": 26,
           "queue_bound": {
@@ -2535,16 +2622,23 @@
             "pending": 1
           },
           "resources": {
-            "rss_kib": 32748,
-            "peak_rss_kib": 32748,
-            "node_cpu_s": 0.79
+            "rss_kib": 32644,
+            "peak_rss_kib": 32644,
+            "node_cpu_s": 0.84
           },
+          "boundary_ack_ms": [
+            0.391448,
+            0.145669,
+            0.241548,
+            0.36903,
+            0.330097
+          ],
           "lifecycle_reasons": {
             "semantic_context_superseded": 5,
             "qualified_boundary": 8,
             "contact_or_crossing_confirmed": 12,
             "forecast_expired": 3,
-            "history_qualification_changed": 3
+            "history_qualification_changed": 2
           },
           "generations": [
             1,
@@ -2554,19 +2648,19 @@
             5
           ],
           "payload": {
-            "compact_mean_cdr_bytes": 8751,
-            "full_mean_cdr_bytes": 66451.87878787878,
-            "full_sampled_cdr_bytes_per_s": 17745035.766511638,
+            "compact_mean_cdr_bytes": 8203.434782608696,
+            "full_mean_cdr_bytes": 67245.5,
+            "full_sampled_cdr_bytes_per_s": 17598023.35231665,
             "size_measurement": "sampled CDR; excludes DDS/network headers"
           },
           "first_physical_fixture_lead_ms": [
-            489.964946,
-            489.791866,
-            489.909248,
-            490.053866
+            489.853689,
+            489.705991,
+            489.852192,
+            489.987239
           ],
           "first_target_fixture_lead_ms": [
-            379.761619
+            379.896172
           ]
         }
       }
@@ -2580,64 +2674,71 @@
         "rate_hz": 150,
         "requested_full_rate_hz": 50.0,
         "worker_delay_ms": 12,
-        "source_span_s": 2.447351256,
-        "published_input_rate_hz": 143.42036074285528,
-        "observed_input_rate_hz": 143.42036074285528,
+        "source_span_s": 2.4236564190000003,
+        "published_input_rate_hz": 144.82250753381226,
+        "observed_input_rate_hz": 144.82250753381226,
         "observed_input_count": 352,
         "unaccounted_input_count": 0,
         "input_count": 352,
-        "physical_outputs": 342,
+        "physical_outputs": 341,
         "denominator": 336,
-        "physical_publication_coverage": 0.9940476190476191,
+        "physical_publication_coverage": 0.9910714285714286,
         "target_outputs": 210,
-        "full_physical_outputs": 116,
-        "full_source_coverage": 0.34523809523809523,
-        "full_received_rate_hz": 49.93674680102928,
+        "full_physical_outputs": 118,
+        "full_source_coverage": 0.34226190476190477,
+        "full_received_rate_hz": 49.89599641394752,
         "full_publication_latency_ms": {
-          "minimum": 0.633426,
-          "p50": 0.9005259999999999,
-          "p95": 1.473432,
-          "p99": 2.955202,
-          "maximum": 7.239983
+          "minimum": 0.526521,
+          "p50": 0.9041675,
+          "p95": 1.261461,
+          "p99": 13.292302,
+          "maximum": 13.442626
         },
         "full_receipt_latency_ms": {
-          "minimum": 2.268927,
-          "p50": 3.799522,
-          "p95": 6.186705,
-          "p99": 10.57697,
-          "maximum": 21.997245
+          "minimum": 2.322983,
+          "p50": 3.642767,
+          "p95": 5.596535,
+          "p99": 17.333011,
+          "maximum": 19.003382
         },
         "generation_latency_ms": {
-          "minimum": 0.519561,
-          "p50": 0.8043279999999999,
-          "p95": 1.210041,
-          "p99": 7.156388,
-          "maximum": 13.35405
+          "minimum": 0.450938,
+          "p50": 0.760339,
+          "p95": 1.17357,
+          "p99": 2.449298,
+          "maximum": 13.50565
         },
         "publication_latency_ms": {
-          "minimum": 0.572795,
-          "p50": 0.8696485,
-          "p95": 1.391002,
-          "p99": 7.452043,
-          "maximum": 13.491946
+          "minimum": 0.494313,
+          "p50": 0.822341,
+          "p95": 1.255122,
+          "p99": 2.547615,
+          "maximum": 13.573502
         },
         "latency_ms": {
-          "minimum": 0.987894,
-          "p50": 1.4116255,
-          "p95": 2.212281,
-          "p99": 7.9111,
-          "maximum": 15.141393
+          "minimum": 0.960404,
+          "p50": 1.348758,
+          "p95": 2.027294,
+          "p99": 4.56878,
+          "maximum": 14.278216
         },
-        "superseded": 2,
+        "superseded": 3,
         "queue_bound": {
           "running": 1,
           "pending": 1
         },
         "resources": {
-          "rss_kib": 32908,
-          "peak_rss_kib": 32908,
-          "node_cpu_s": 0.49
+          "rss_kib": 32520,
+          "peak_rss_kib": 32520,
+          "node_cpu_s": 0.48
         },
+        "boundary_ack_ms": [
+          0.406316,
+          0.175419,
+          0.287072,
+          0.301804,
+          0.328795
+        ],
         "lifecycle_reasons": {
           "semantic_context_superseded": 5,
           "qualified_boundary": 8,
@@ -2652,92 +2753,99 @@
           5
         ],
         "payload": {
-          "compact_mean_cdr_bytes": 7391.538461538462,
-          "full_mean_cdr_bytes": 55593.142857142855,
-          "full_sampled_cdr_bytes_per_s": 2794023.3567471895,
+          "compact_mean_cdr_bytes": 6907.923076923077,
+          "full_mean_cdr_bytes": 54602.28571428572,
+          "full_sampled_cdr_bytes_per_s": 2748524.421580919,
           "size_measurement": "sampled CDR; excludes DDS/network headers"
         },
         "first_physical_fixture_lead_ms": [
-          482.816895,
-          483.077201,
-          483.290722,
-          483.40666
+          482.910343,
+          483.197455,
+          483.400401,
+          483.121412
         ],
         "first_target_fixture_lead_ms": [
-          369.868043,
-          370.028524,
-          369.695283,
-          369.913103
+          370.119359,
+          370.021613,
+          370.092424,
+          370.101759
         ]
       },
       {
         "rate_hz": 300,
         "requested_full_rate_hz": 50.0,
         "worker_delay_ms": 12,
-        "source_span_s": 2.462363952,
-        "published_input_rate_hz": 288.7469171332313,
-        "observed_input_rate_hz": 288.3408033257303,
-        "observed_input_count": 711,
-        "unaccounted_input_count": 1,
+        "source_span_s": 2.4382326340000002,
+        "published_input_rate_hz": 291.60466072246,
+        "observed_input_rate_hz": 287.5033293480231,
+        "observed_input_count": 702,
+        "unaccounted_input_count": 10,
         "input_count": 712,
-        "physical_outputs": 683,
+        "physical_outputs": 675,
         "denominator": 696,
-        "physical_publication_coverage": 0.9698275862068966,
-        "target_outputs": 393,
+        "physical_publication_coverage": 0.9583333333333334,
+        "target_outputs": 331,
         "full_physical_outputs": 117,
-        "full_source_coverage": 0.16810344827586207,
-        "full_received_rate_hz": 48.7076468851514,
+        "full_source_coverage": 0.16666666666666666,
+        "full_received_rate_hz": 49.500116432936366,
         "full_publication_latency_ms": {
-          "minimum": 0.578935,
-          "p50": 0.916063,
-          "p95": 2.006788,
-          "p99": 4.252697,
-          "maximum": 13.240707
+          "minimum": 0.503687,
+          "p50": 0.882787,
+          "p95": 2.96611,
+          "p99": 3.876995,
+          "maximum": 13.227823
         },
         "full_receipt_latency_ms": {
-          "minimum": 2.2936,
-          "p50": 4.010317,
-          "p95": 7.363494,
-          "p99": 8.800575,
-          "maximum": 16.609298
+          "minimum": 2.260719,
+          "p50": 3.679743,
+          "p95": 7.015418,
+          "p99": 16.422877,
+          "maximum": 30.153244
         },
         "generation_latency_ms": {
-          "minimum": 0.468825,
-          "p50": 0.852863,
-          "p95": 1.789186,
-          "p99": 4.151555,
-          "maximum": 13.113826
+          "minimum": 0.428174,
+          "p50": 0.791956,
+          "p95": 1.577622,
+          "p99": 4.38288,
+          "maximum": 13.117317
         },
         "publication_latency_ms": {
-          "minimum": 0.511048,
-          "p50": 0.920304,
-          "p95": 2.024422,
-          "p99": 4.212857,
-          "maximum": 13.181218
+          "minimum": 0.469035,
+          "p50": 0.856803,
+          "p95": 1.673602,
+          "p99": 4.497732,
+          "maximum": 13.196536
         },
         "latency_ms": {
-          "minimum": 0.873093,
-          "p50": 1.462409,
-          "p95": 3.261095,
-          "p99": 13.522376,
-          "maximum": 29.319934
+          "minimum": 0.922247,
+          "p50": 1.34326,
+          "p95": 2.723014,
+          "p99": 5.667882,
+          "maximum": 13.93757
         },
-        "superseded": 20,
+        "superseded": 19,
         "queue_bound": {
           "running": 1,
           "pending": 1
         },
         "resources": {
-          "rss_kib": 32680,
-          "peak_rss_kib": 32716,
-          "node_cpu_s": 0.9
+          "rss_kib": 33176,
+          "peak_rss_kib": 33176,
+          "node_cpu_s": 0.83
         },
+        "boundary_ack_ms": [
+          6.036501,
+          0.471739,
+          0.250687,
+          0.853984,
+          0.287322
+        ],
         "lifecycle_reasons": {
           "semantic_context_superseded": 5,
           "qualified_boundary": 8,
-          "contact_or_crossing_confirmed": 11,
-          "history_qualification_changed": 1,
-          "forecast_expired": 1
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 2,
+          "history_qualification_changed": 2
         },
         "generations": [
           1,
@@ -2747,78 +2855,26 @@
           5
         ],
         "payload": {
-          "compact_mean_cdr_bytes": 7965.25,
-          "full_mean_cdr_bytes": 61042.857142857145,
-          "full_sampled_cdr_bytes_per_s": 2999632.003338276,
+          "compact_mean_cdr_bytes": 8469.375,
+          "full_mean_cdr_bytes": 47995.42857142857,
+          "full_sampled_cdr_bytes_per_s": 2381826.4000574676,
           "size_measurement": "sampled CDR; excludes DDS/network headers"
         },
         "first_physical_fixture_lead_ms": [
-          489.007967,
-          489.98046,
-          489.74679,
-          489.917445
+          488.828151,
+          489.708174,
+          489.96757,
+          489.650984
         ],
         "first_target_fixture_lead_ms": [
-          379.985489,
-          379.993912,
-          379.861578,
-          379.069932
+          379.679589,
+          376.727255,
+          378.339584,
+          380.134152
         ]
       }
     ]
   },
-  "additional_raw_scenarios": [
-    {
-      "status": "PASS",
-      "truth": "synthetic independent DOP853 fixture; not physical qualification",
-      "scenarios": [
-        {
-          "direction": -1,
-          "rate_hz": 300,
-          "policy": "ON_REFRESH",
-          "physical_forecasts": 220,
-          "confirmed_bounces": 2,
-          "spin_modes": [
-            "CONTACT_PROPAGATED",
-            "HELD",
-            "MEASURED"
-          ],
-          "planes": [
-            0.15
-          ],
-          "generation": 1,
-          "automatic_acquisition": true,
-          "source_stamps_preserved": true,
-          "outside_legacy_robot_y_gate": true
-        }
-      ]
-    },
-    {
-      "status": "PASS",
-      "truth": "synthetic independent DOP853 fixture; not physical qualification",
-      "scenarios": [
-        {
-          "direction": 1,
-          "rate_hz": 300,
-          "policy": "ON_REFRESH",
-          "physical_forecasts": 221,
-          "confirmed_bounces": 2,
-          "spin_modes": [
-            "CONTACT_PROPAGATED",
-            "HELD",
-            "MEASURED"
-          ],
-          "planes": [
-            0.15
-          ],
-          "generation": 1,
-          "automatic_acquisition": true,
-          "source_stamps_preserved": true,
-          "outside_legacy_robot_y_gate": true
-        }
-      ]
-    }
-  ],
   "optional_experiments": [
     {
       "full_rate_hz": 100,
@@ -2841,8 +2897,8 @@
     {
       "full_rate_hz": 150,
       "input_rate_hz": 300,
-      "status": "PASS",
-      "exit_code": 0
+      "status": "FAIL",
+      "exit_code": 1
     },
     {
       "full_rate_hz": 0,
@@ -3216,16 +3272,16 @@
   "installed_binary_scope": {
     "status": "PASS",
     "inspected": [
-      "/workspace/.cloud-setup/v2-evidence/final/install/hope_planner_cpp/lib/hope_planner_cpp/hope_flight_prediction_v2_node",
-      "/workspace/.cloud-setup/v2-evidence/final/install/hope_planner_cpp/lib/libhope_v2_forecast_core.a",
-      "/workspace/.cloud-setup/v2-evidence/final/install/hope_planner_cpp/lib/libhope_v2_forward_physics.a",
-      "/workspace/.cloud-setup/v2-evidence/final/install/hope_planner_cpp/lib/libhope_v2_transport.a",
-      "/workspace/.cloud-setup/v2-evidence/final/install/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_baseline_replay"
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/hope_planner_cpp/hope_flight_prediction_v2_node",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/libhope_v2_forecast_core.a",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/libhope_v2_forward_physics.a",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/libhope_v2_transport.a",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_baseline_replay"
     ],
     "inverse_and_command_symbols_absent": true
   },
   "native_assertion_counts": {
-    "test_flight_prediction_v2": 35,
+    "test_flight_prediction_v2": 36,
     "test_flight_transport_v2": 8
   },
   "sanitizers": {
@@ -3247,9 +3303,10 @@
       "adaptive_flight_commit"
     ],
     "flags": "-O1 -g1 -fsanitize=address,undefined -fno-omit-frame-pointer; ASAN_OPTIONS=detect_leaks=1",
-    "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
-    "scope": "Native V2 and original production math/acquisition/scheduling subset; ROS executable/transport are not ASan-instrumented",
-    "raw_evidence": "/workspace/.cloud-setup/v2-evidence/sanitize.log"
+    "runtime_build_commit": "4a495ec1e1ba407c6c19bfd95afd8ad04e5859b5",
+    "applies_to_validation_head": "38e31927373d90c538984f6174b6ff3525edf35e",
+    "scope": "Native V2 and original production math/acquisition/scheduling subset; ROS executable/transport not ASan-instrumented",
+    "raw_evidence": "/workspace/.cloud-setup/v2-evidence/sanitize-fixed.log"
   },
   "config": {
     "physics_profile": "thin-shell-forward-v3-receipt-20261010",
@@ -3391,7 +3448,7 @@
     "merged": false,
     "robot_motion": false,
     "github_actions": "NOT_RUN",
-    "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+    "tested_code_commit": "38e31927373d90c538984f6174b6ff3525edf35e",
     "note": "Review branch is published only after final diff/scope checks; test evidence distinguishes code commit from following documentation commits."
   },
   "executed_exit_codes": {
@@ -3403,8 +3460,37 @@
       "pep257"
     ],
     "cadence_selected_profile": 0,
-    "optional_unrestricted_300_profile": 1,
+    "optional_150_full_at_300_input": 1,
+    "optional_unrestricted_at_300_input": 1,
     "final_extras": 0,
     "sanitizers": 0
+  },
+  "runtime_build_commit": "4a495ec1e1ba407c6c19bfd95afd8ad04e5859b5",
+  "local_ros_profile": "ROS_LOCALHOST_ONLY=1; ROS_DOMAIN_ID=184",
+  "build_attribution": "Fresh HOPE-only build at 4a495ec; only subsequent executable-validation changes are in the synthetic ROS fixture. Runtime sources/headers/messages/CMake are byte-identical on final validation head. All package groups rerun on that head.",
+  "gap_regression": {
+    "status": "PASS",
+    "assertion": "FlightV2Motion.A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration",
+    "before": "FAIL at incoming/150 Hz/t=.44; qualified_non_ballistic_motion",
+    "before_log": "gap-regression-before.log",
+    "after": "PASS for both directions at 150/300 Hz; missing contact stays unobserved/history incomplete; fresh contiguous non-ballistic motion still rejects",
+    "after_log": "gap-regression-after.log",
+    "diagnostic": "A captured 128 ms source gap hid the table contact; a smooth secant-acceleration test across that gap is unsupported. The configured gap warning now gates that test; held checks remain active. No coefficient changed."
+  },
+  "fixture_contract": {
+    "independent_source_process": true,
+    "raw_scenarios": 8,
+    "nominal_source_rates_hz": [
+      150,
+      300
+    ],
+    "plane_policies": [
+      "FOLLOW_POSE",
+      "ON_REFRESH"
+    ],
+    "full_output_rate_hz": 50,
+    "context": "Synthetic independent trace supplies match/prehistory evidence; gaps withdraw qualification and require renewed evidence. Both contacts are still observed/confirmed automatically.",
+    "startup": "Load harness awaits START acknowledgement before eligible input; thresholds and initial four-sample allowance unchanged.",
+    "source_pacing": "Independent ROS producer process; actual source rates and gaps recorded in all eight cases. Receiver packet decoding cannot pace camera measurements."
   }
 }
