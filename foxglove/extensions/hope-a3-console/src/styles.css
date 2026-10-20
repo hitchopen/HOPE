@@ -930,3 +930,30 @@ button:disabled {
   font-size: 13px;
   color: #aebbca;
 }
+
+.table-side-selector select {
+  grid-column: 1 / -1;
+  width: 100%;
+  color: #ffffff;
+  background: #0e1a2b;
+  border: 1px solid rgba(174, 187, 202, 0.34);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: inherit;
+  max-width: 100%;
+}
+/* Copyable, confirmed Laptop setup; long commands wrap within narrow panels. */
+.mocap-setup {
+  padding: 0.5rem 0;
+}
+.mocap-setup textarea {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #536377;
+  border-radius: 4px;
+  padding: 0.5rem;
+  font: 0.75rem "IBM Plex Mono", monospace;
+}

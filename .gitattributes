@@ -18,3 +18,6 @@ docs/assets/model_21800_gate3_mujoco.mp4 binary linguist-generated=true
 # Direct-install Foxglove releases remain ordinary Git blobs, not LFS pointers.
 *.foxe binary linguist-generated=true
 a3_deploy/a3_deploy_example/assets/a3_runtime/teleop_humanlike/*.onnx binary
+
+# Field-validated serve CSV: preserve deployed bytes and hash, including CRLF.
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_edge_center_v20.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

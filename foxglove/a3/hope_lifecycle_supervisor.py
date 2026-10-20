@@ -318,6 +318,10 @@ class HopeLifecycleSupervisor(Node):
             )
             for name in CONFIG_FIELDS
         }
+        # One snapshot prevents consumers combining a new profile with an old side.
+        self._mocap_config_pub = self.create_publisher(
+            String, "/hope/lifecycle/config/mocap", 10
+        )
         self.create_service(
             SetParameters,
             "/hope/lifecycle/apply_config",
@@ -396,6 +400,14 @@ class HopeLifecycleSupervisor(Node):
         self._lifecycle_publishers["revision"].publish(revision_message)
         for name, value in config.values().items():
             self._config_publishers[name].publish(self._string(value))
+
+        self._mocap_config_pub.publish(self._string(json.dumps({
+            "revision": config.revision, "pants_profile": config.pants_profile,
+            "table_side": config.table_side, "state": state, "busy": busy,
+            "mocap_source": config.mocap_source, "motive_ip": config.motive_ip,
+            "vrpn_ip": config.vrpn_ip, "vrpn_port": config.vrpn_port,
+            "vrpn_units": config.vrpn_units,
+        }, sort_keys=True)))
 
     def _refresh_field(self) -> None:
         with self._lock:

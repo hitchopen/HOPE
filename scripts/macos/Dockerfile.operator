@@ -1,8 +1,8 @@
 FROM hope-dev:jazzy-arm64
-LABEL org.hope.operator.contract="2"
 RUN apt-get update && apt-get install -y --no-install-recommends openssh-server tmux \
     && rm -rf /var/lib/apt/lists/*
 COPY operator-entrypoint.sh /usr/local/bin/hope-operator-entrypoint
 COPY operator-dispatch.py /usr/local/bin/hope-operator-dispatch
 RUN chmod 755 /usr/local/bin/hope-operator-*
+LABEL org.hope.operator.contract="3"
 ENTRYPOINT ["/usr/local/bin/hope-operator-entrypoint"]

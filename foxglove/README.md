@@ -1,7 +1,7 @@
 # Current Runner workflow
 
 For direct installation, use the committed
-[Console 1.8.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe).
+[Console 1.8.15 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.15.foxe).
 Node.js is needed
 only to rebuild the extension, not to install this package.
 
@@ -15,8 +15,10 @@ The V2/V3 capture descriptions below apply only to legacy calibration mode.
 
 Current Runner/serve behavior, v12 assets, PR status and validation limits:
 [Runner, Xbox and serving](../docs/operations/runtime_xbox.md).
-The public [Console 1.8.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe)
-includes the Mac/Linux operator-profile selector and matches the checked-in source.
+The public [Console 1.8.15 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.15.foxe)
+includes Mac/Linux, gripper and NatNet/VRPN selectors and matches the checked-in source.
+Combined lifecycle schema 6 preserves existing field schema-5 settings; source
+and image builds do not overwrite or restart the live HDU backend.
 
 # HOPE A3 Foxglove Operator Interface
 
@@ -102,8 +104,11 @@ distinct Wi-Fi addresses whenever the robot, Laptop, or venue changes:
   versions must pass the per-unit verification checklist before the layout
   is trusted.
 - **R6 — Mocap and optional marker-CAD calibration stay computer-side.** The
-  external computer receives NatNet from Motive and publishes
-  `/optitrack/rigid_body_markers`. If an approved setup procedure runs the
+  external computer receives NatNet from Motive or VRPN from ChingMu and sends
+  ROS2 to the HDU; the MDU needs no mocap-server route. NatNet alone supplies
+  `/optitrack/rigid_body_markers`; VRPN uses the explicitly confirmed pelvis/world
+  setup in [mocap setup](../docs/operations/foxglove_mocap_setup.md), not a fabricated
+  live marker audit. If an approved NatNet setup procedure runs the
   optional P1 marker-CAD calibration, only that computer writes
   `calibration/ucb_robot_to_pelvis.json`. The receipt includes the fixed extrinsic and
   a stationary world-pelvis audit snapshot; the latter is not a static runtime

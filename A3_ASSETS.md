@@ -92,8 +92,10 @@ operational instructions remain in the respective component guides.
 ## Hip Marker Shell (mocap calibration)
 
 See [pelvis marker hardware](agibot/README.md#pelvis-marker-hardware) for the
-original ten-marker shell, the 17-station v3 shell (seven front + ten rear) and their distinct
-calibration data. The shared frame contract is in
+current 17-station v3 shell (seven front + ten rear), printable parts and
+marker-to-`pelvis_link` tables. The current wrist mount is documented in
+[right_wrist_paddle_flange](agibot/right_wrist_paddle_flange/README.md).
+The shared frame contract is in
 [docs/interfaces/frames.md](docs/interfaces/frames.md).
 
 ## MuJoCo / AimRT Reference

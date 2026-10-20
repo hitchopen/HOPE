@@ -198,7 +198,11 @@ pelvis（所申报的 URDF 根坐标系）
    - **方式 1（推荐）：** 将 HOPE 规划器作为 ROS 2 节点运行；把 `RacketCommand` 话题桥接到 AimRT，由 A3 的原生 WBC 消费。由 `world → P1 → pelvis_link` 得到的 `pelvis_link` 位姿经 ROS 2 → AimRT 流动。
    - **方式 2：** 直接在 AimRT 内运行规划器，通过 AimRT 的 ROS 2 协议支持订阅动捕数据。
 
-4. **A3 P1 配准与当前标记点状态。** v2 CAD 表与物理 `a3_hip_marker_shell_p1_mocap_balls_0702.x_t` 外壳定义了全部十个标记点球心 `f1`–`f5`、`b1`–`b5`；真机动捕实验已确认十个点均可见。完整十点集合在 `pelvis_link` 中的名义质心为 `[-0.0024, 0, -0.1490] m`，应以全部十个标记点创建 Motive P1 资产。在 P1 局部轴已对齐到 `pelvis_link`（`+X` 向前、`+Y` 向左、`+Z` 向上）后，质心到骨盆的 CAD 核验枢轴平移为 `[+0.0024, 0, +0.1490] m`（`[+2.4, 0, +149.0] mm`）。仅凭质心无法确定姿态。一次性启动标定时，使用 `p1_pelvis_calibrator` 将动捕 `/P1/pose`（`world → P1`）与独立产生、按采集时刻同步且完整 6 自由度的 `world → pelvis_link` `PoseStamped` 对比；该工具不使用 `Table`，因为共同的 Table 变换会在每个样本中精确抵消。当前 A3 真机桥接仅提供骨盆 IMU、没有骨盆绝对平移，因此真机集成必须先由外部测量系统或状态估计器提供独立的 `/a3/calibration/pelvis_pose`，之后才能执行此流程。采集时应同时平移并旋转骨盆；低 RMS 只能说明一致性，工具会另行检查运动激励与时间覆盖，避免静止样本通过。把已安装标记板完整的 6 自由度 `P1 → pelvis_link` 修正保存为 JSON。正常启动时由 `p1_pelvis_tf_publisher` 将该 JSON 发布为静态 TF；其实测结果优先于 CAD 名义值。也可以选择把修正吸收到 Motive 的 P1 枢轴定义中，但不得同时再发布 ROS 2 静态 TF。工具和验收步骤见 [`docs/OPTITRACK.md`](../docs/OPTITRACK.md#calibrating-p1-to-an-a3-pelvis_link)。
+4. **A3 P1 配准与当前标记点状态。** 使用 [17 站位 v3 标记壳](../agibot/mocap_sticker_shell_v3/README.md)：前方七点，后方两排各五点，保留原始编号 **S04-S08 和 S11-S22**。[贴纸光学中心表](../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv) 直接使用 `pelvis_link` 米制坐标，**X 向前、Y 向左、Z 向上**，已计入 0.20 mm 贴纸及胶层厚度。随附 [A3_v3_17_stickers.motive](../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive) 使用 `UCB_P1`，另一球台侧使用 `UCB_P2`。其名义枢轴对齐骨盆，固定局部修正目标为零平移和单位旋转。Motive Streaming Up Axis 设为 **Z Up**，保留桥接程序的 MODELDEF 轴向转换；不得叠加第二次旋转或旧质心偏移。默认 `motive_live` 定位使用所选刚体的当前定义，无需标定 JSON。
+
+   可选实测标定应选择 `stickers_v3`，并遵循 [v3 安装与标定流程](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)。17 个站位均须定义，采样期间每点均须取得足够观测，不要求同帧全部可见。恢复的五个后方站位采用 CAD 名义坐标，原始导出没有这些点的实测观测。须核验 Motive 导入和实际安装布局；历史十点、24 站位及 12 点标定记录不适用于当前壳体。
+
+   独立的旧版位姿对审计由 `p1_pelvis_calibrator` 使用外部独立产生、按采集时刻同步的完整六自由度 `world → pelvis_link` 参考位姿执行。A3 桥接的骨盆 IMU 本身不能提供该绝对位姿。当前流程及独立审计的限制见 [OptiTrack 标定指南](../docs/OPTITRACK.md#optional-marker-cad-calibration-p1-to-an-a3-pelvis_link)。
 
 ### 4.4  竞赛报名要求
 

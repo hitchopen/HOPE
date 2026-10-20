@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
 import "@fontsource/ibm-plex-mono/400.css";
@@ -86,6 +87,11 @@ const TOPICS = {
   mduInternalIp: "/hope/lifecycle/config/mdu_internal_ip",
   motiveIp: "/hope/lifecycle/config/motive_ip",
   tableSide: "/hope/lifecycle/config/table_side",
+  pantsProfile: "/hope/lifecycle/config/pants_profile",
+  mocapSource: "/hope/lifecycle/config/mocap_source",
+  vrpnIp: "/hope/lifecycle/config/vrpn_ip",
+  vrpnPort: "/hope/lifecycle/config/vrpn_port",
+  vrpnUnits: "/hope/lifecycle/config/vrpn_units",
   operatorProfile: "/hope/lifecycle/config/operator_profile",
   gripperProfile: "/hope/lifecycle/config/gripper_profile",
 } as const;
@@ -130,6 +136,11 @@ const CONFIG_FIELDS = {
   hdu_wifi_ip: { label: "HDU IP", topic: TOPICS.hduWifiIp },
   mdu_internal_ip: { label: "MDU Internal", topic: TOPICS.mduInternalIp },
   motive_ip: { label: "Motive (optional telemetry)", topic: TOPICS.motiveIp },
+  vrpn_ip: { label: "青瞳 server IP · VRPN", topic: TOPICS.vrpnIp },
+  mocap_source: { label: "动捕系统", topic: TOPICS.mocapSource },
+  vrpn_port: { label: "VRPN port", topic: TOPICS.vrpnPort },
+  vrpn_units: { label: "VRPN units", topic: TOPICS.vrpnUnits },
+  pants_profile: { label: "Marker pants", topic: TOPICS.pantsProfile },
   table_side: { label: "Our table side", topic: TOPICS.tableSide },
   operator_profile: { label: "Operator computer", topic: TOPICS.operatorProfile },
   gripper_profile: { label: "Gripper", topic: TOPICS.gripperProfile },
@@ -141,6 +152,7 @@ const NETWORK_CONFIG_FIELDS: ConfigField[] = [
   "hdu_wifi_ip",
   "mdu_internal_ip",
   "motive_ip",
+  "vrpn_ip",
 ];
 const RUNNER_NETWORK_CONFIG_FIELDS: ConfigField[] = [
   "laptop_wifi_ip",
@@ -155,6 +167,11 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   mdu_internal_ip: "",
   motive_ip: "",
   table_side: "",
+  pants_profile: "",
+  mocap_source: "",
+  vrpn_ip: "",
+  vrpn_port: "",
+  vrpn_units: "",
   operator_profile: "",
   gripper_profile: "",
 };
@@ -507,6 +524,21 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.gripperProfile:
       next.lifecycleConfig.gripper_profile = stringValue(event.message);
+      break;
+    case TOPICS.mocapSource:
+      next.lifecycleConfig.mocap_source = stringValue(event.message);
+      break;
+    case TOPICS.vrpnIp:
+      next.lifecycleConfig.vrpn_ip = stringValue(event.message);
+      break;
+    case TOPICS.vrpnPort:
+      next.lifecycleConfig.vrpn_port = stringValue(event.message);
+      break;
+    case TOPICS.vrpnUnits:
+      next.lifecycleConfig.vrpn_units = stringValue(event.message);
+      break;
+    case TOPICS.pantsProfile:
+      next.lifecycleConfig.pants_profile = stringValue(event.message);
       break;
     case TOPICS.operatorProfile:
       next.lifecycleConfig.operator_profile = stringValue(event.message);
@@ -863,7 +895,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const pmFresh = isFresh(snapshot, TOPICS.agibotPm, now, 1_500);
   const runnerFresh =
     isFresh(snapshot, TOPICS.runnerAlive, now, 1_500) && snapshot.runnerAlive === true;
-  const markerFresh =
+  const markerFresh = snapshot.lifecycleConfig.mocap_source !== "vrpn" &&
     isFresh(snapshot, TOPICS.markers, now, 1_000) &&
     isFresh(snapshot, TOPICS.markerExpectedCount, now, 1_000) &&
     snapshot.markersFresh === true;
@@ -912,11 +944,19 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const recordingState = fieldFresh ? (field?.recording.state ?? "UNKNOWN") : "UNKNOWN";
   const recordingActive = ["ON", "STARTING", "STOPPING", "ERROR"].includes(recordingState);
   const assetFresh = isFresh(snapshot, TOPICS.assetMatched, now, 1_000);
+  const vrpnSelected = configDraft.mocap_source === "vrpn";
+  const setupCommand = mocapSetupCommand(snapshot.lifecycleConfig, snapshot.lifecycleSession);
   const configComplete =
     RUNNER_NETWORK_CONFIG_FIELDS.every((name) => configDraft[name].trim().length > 0) &&
     ["P1", "P2"].includes(configDraft.table_side) &&
     ["linux", "mac"].includes(configDraft.operator_profile) &&
-    ["legacy", "new_20261015"].includes(configDraft.gripper_profile);
+    ["legacy", "new_20261015"].includes(configDraft.gripper_profile) &&
+    ["v2", "v4"].includes(configDraft.pants_profile) &&
+    ["none", "motive", "vrpn"].includes(configDraft.mocap_source) &&
+    (configDraft.mocap_source !== "motive" || configDraft.motive_ip.trim().length > 0) &&
+    (!vrpnSelected || (configDraft.vrpn_ip.trim().length > 0 &&
+      /^[1-9][0-9]{0,4}$/.test(configDraft.vrpn_port) && Number(configDraft.vrpn_port) <= 65535)) &&
+    ["mm", "m"].includes(configDraft.vrpn_units);
   const timeCalibrationFresh = isFresh(snapshot, TOPICS.timeCalibrationState, now, 1_500);
   const timeCalibrationState = timeCalibrationFresh
     ? (snapshot.timeCalibrationState ?? "UNKNOWN")
@@ -1013,7 +1053,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     <div className="hope-console">
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">A3 SOURCE · 1.8.7</div>
+          <div className="eyebrow">A3 SOURCE · 1.8.15</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? "ROS 2"} · CONTROL :8766</span>
             <span
@@ -1067,7 +1107,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           detail={snapshot.estopText}
         />
         <GateChip
-          label={`${markerAsset} MARKERS · AUDIT ${markerFresh ? Math.round(snapshot.markerCount ?? 0) : "—"}/${markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? Math.round(snapshot.markerExpectedCount ?? 0) : "—"}`}
+          label={snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${markerAsset} MARKERS · N/A (VRPN)` : `${markerAsset} MARKERS · AUDIT ${markerFresh ? Math.round(snapshot.markerCount ?? 0) : "—"}/${markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? Math.round(snapshot.markerExpectedCount ?? 0) : "—"}`}
           value={markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? snapshot.markerCount === snapshot.markerExpectedCount : undefined}
           detail={`selected marker asset: ${markerAsset}`}
         />
@@ -1115,13 +1155,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
       <div className="field-assets">
         <section className="field-card">
-          <span className="eyebrow">MOTIVE · LIVE ASSET</span>
-          <strong>{assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>
+          <span className="eyebrow">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "VRPN · POSE ONLY" : "MOTIVE · LIVE ASSET"}</span>
+          <strong>{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "GEOMETRY NOT VERIFIED" : assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>
           <span className="asset-path">{markerAsset}</span>
-          <span className="helper">{assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
+          <span className="helper">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${snapshot.lifecycleConfig.pants_profile?.toUpperCase()} · CMTracker · verify setup below` : assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
           <span className="helper">Live pelvis: {baseFresh ? "AVAILABLE" : "WAITING"} · selected robot: {markerAsset}</span>
-          <p className="helper">Set Motive Up Axis to Z. Keep the imported pelvis origin and axes unchanged, and align the Motive world with the table. No venue JSON or Cali V2/V3 capture is needed.</p>
-          <p className="helper">Default mode accepts the current named asset without a fixed file or marker layout. Pelvis alignment is assumed from the imported asset; physical mounting is not measured.</p>
+          {snapshot.lifecycleConfig.mocap_source === "vrpn" ? <p className="helper">VRPN provides poses only; marker counts and live geometry are unavailable. Confirm the selected pants asset origin, axes and table frame in CMTracker.</p> : <><p className="helper">Set Motive Up Axis to Z. Keep the imported pelvis origin and axes unchanged, and align the Motive world with the table. No venue JSON or Cali V2/V3 capture is needed.</p>
+          <p className="helper">Default mode accepts the current named asset without a fixed file or marker layout. Pelvis alignment is assumed from the imported asset; physical mounting is not measured.</p></>}
         </section>
         <section className="field-card">
           <span className="eyebrow">SERVE CSV</span>
@@ -1191,14 +1231,32 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </button>
           ))}
         </div>
+        <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">MOCAP SYSTEM · 动捕系统</div>
+            <div className="topic-path">停止时选择并 CONFIRM CONFIG；每次只启动所选的一套动捕</div>
+          </div>
+          <select aria-label="Mocap system" value={configDraft.mocap_source}
+            disabled={!lifecycleStopped || lifecycleBusy}
+            onChange={(event) => {
+              setConfigTouched(true);
+              setConfigDraft((current) => ({ ...current, mocap_source: event.target.value }));
+            }}>
+            <option value="" disabled>请选择动捕系统</option>
+            {Object.entries(MOCAP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
         <div className="config-grid">
-          {NETWORK_CONFIG_FIELDS.map((name) => (
+          {NETWORK_CONFIG_FIELDS.filter((name) =>
+            name === "motive_ip" ? configDraft.mocap_source === "motive" :
+            name === "vrpn_ip" ? vrpnSelected : true).map((name) => (
             <label className="config-field" key={name}>
               <span>{CONFIG_FIELDS[name].label}</span>
               <input
                 type="text"
                 inputMode="decimal"
                 spellCheck={false}
+                disabled={!lifecycleStopped || lifecycleBusy}
                 value={configDraft[name]}
                 placeholder="IPv4 address"
                 onChange={(event) => {
@@ -1208,7 +1266,49 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               />
             </label>
           ))}
+          {vrpnSelected && <>
+            <label className="config-field"><span>VRPN port</span>
+              <input aria-label="VRPN port" inputMode="numeric" value={configDraft.vrpn_port}
+                disabled={!lifecycleStopped || lifecycleBusy}
+                onChange={(event) => { setConfigTouched(true); setConfigDraft((current) => ({ ...current, vrpn_port: event.target.value })); }} />
+            </label>
+            <label className="config-field"><span>VRPN 输出单位</span>
+              <select aria-label="VRPN units" value={configDraft.vrpn_units}
+                disabled={!lifecycleStopped || lifecycleBusy}
+                onChange={(event) => { setConfigTouched(true); setConfigDraft((current) => ({ ...current, vrpn_units: event.target.value })); }}>
+                <option value="mm">毫米 mm · ×0.001 → m</option>
+                <option value="m">米 m · ×1.0</option>
+              </select>
+            </label>
+          </>}
         </div>
+        <div className="mocap-setup">
+          {configDraft.mocap_source === "motive" && <p className="helper">Motive setup：导入 pelvis 对齐的 .motive 资产，刚体名 UCB_P1 / UCB_P2，球名 Ball；设置 Streaming Up Axis = Z，开启 NatNet Rigid Bodies 和 Labeled Markers。</p>}
+          {vrpnSelected && <>
+            <p className="helper">青瞳 setup：在 CMTracker 导入 a3_{configDraft.pants_profile}_{configDraft.table_side}_ground_truth.json；刚体名 UCB_P1 / UCB_P2，球名 Ball。开启 VRPN，并核对端口和输出单位。保留 pelvis_link 原点与 X前 / Y左 / Z上坐标轴，世界原点与球桌对齐。</p>
+            <p className="helper">默认启动只验收位姿；发布有效 base 还需在 Laptop 确认资产原点和场地坐标。选择不会修改 CMTracker；操作说明：docs/operations/foxglove_mocap_setup.md。</p>
+          </>}
+          {configDraft.mocap_source === "none" && <p className="helper">无动捕：用于 Runner-only 测试，不提供实时球和 pelvis 数据。</p>}
+          <p className="helper">START SYSTEM 启动 Runner。动捕单独在所选 Laptop 环境（Linux HOST / Mac operator container）的仓库根目录执行以下已确认配置命令；更换系统、地址、单位或球台侧后先停止原动捕，再重启。</p>
+          <p className="helper">停止该命令启动的动捕：tmux send-keys -t hope-optitrack C-c（两套系统沿用同一会话名）。</p>
+          {configTouched ? <p className="helper">配置已修改，请先 CONFIRM CONFIG。</p> : lifecycleFresh && setupCommand && (snapshot.lifecycleConfigRevision ?? 0) > 0 && <textarea aria-label="Confirmed mocap startup command" readOnly rows={5} value={setupCommand} />}
+        </div>
+        {vrpnSelected && <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">MARKER PANTS · 动捕裤子</div>
+            <div className="topic-path">停止时选择并 CONFIRM CONFIG；VRPN 同步切换标准坐标，CMTracker 需导入同版本文件</div>
+          </div>
+          <select aria-label="Marker pants profile" value={configDraft.pants_profile}
+            disabled={!lifecycleStopped || lifecycleBusy}
+            onChange={(event) => {
+              setConfigTouched(true);
+              setConfigDraft((current) => ({ ...current, pants_profile: event.target.value }));
+            }}>
+            <option value="" disabled>请选择裤子</option>
+            <option value="v2">V2 · 旧裤子 · 10 点</option>
+            <option value="v4">V4 · 新裤子 · 17 点贴纸</option>
+          </select>
+        </label>}
         <div className="table-side-selector">
           <div>
             <div className="eyebrow">OUR TABLE SIDE · LOCKED INTO NEXT START</div>

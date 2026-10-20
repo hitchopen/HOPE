@@ -8,8 +8,14 @@ set -euo pipefail
 operator_user="${HOPE_OPERATOR_USER:?missing HOPE_OPERATOR_USER}"
 operator_home="/home/$operator_user"
 operator_root="$operator_home/HOPE"
+operator_group=hope
+if ! getent group "$operator_group" >/dev/null; then
+  groupadd "$operator_group"
+fi
 if ! id "$operator_user" >/dev/null 2>&1; then
-  useradd --create-home --user-group --home-dir "$operator_home" --shell /bin/bash "$operator_user"
+  # Use a dedicated group: Ubuntu's pre-existing "operator" system group is
+  # unrelated to the HOPE login account and must not be reused or replaced.
+  useradd --create-home --gid "$operator_group" --home-dir "$operator_home" --shell /bin/bash "$operator_user"
 fi
 [[ "$(id -u "$operator_user")" -ge 1000 ]] || {
   echo 'Refusing a system account for the operator.' >&2; exit 64;
@@ -17,10 +23,12 @@ fi
 [[ "$(getent passwd "$operator_user" | cut -d: -f6)" == "$operator_home" ]] || {
   echo 'Existing operator home does not match the configured volume.' >&2; exit 64;
 }
+if [[ "$(id -gn "$operator_user")" != "$operator_group" ]]; then
+  usermod --gid "$operator_group" "$operator_user"
+fi
 # Unlock the account for public-key authentication only. sshd explicitly rejects
 # passwords and empty passwords, as well as root, PTYs and forwarding.
 passwd -d "$operator_user" >/dev/null
-operator_group="$(id -gn "$operator_user")"
 mkdir -p /run/sshd "$operator_home/.ssh" "$operator_home/.config/hope-foxglove" \
   "$operator_home/.local/libexec" "$operator_home/.local/state/hope-sim2real" \
   "$operator_root/hope_ws" /work/real_logs /work/artifacts/macos_setup/operator-calibration /operator-state/hostkeys

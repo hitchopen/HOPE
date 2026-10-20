@@ -57,6 +57,27 @@ class MacBuildEntryTests(unittest.TestCase):
         self.assertEqual(command[-4:], ["-c", "# test entry snapshot\n", "hope-macos", "build-ros"])
         self.assertFalse((self.root / "agi").exists())
 
+    def test_final_operator_build_builds_and_tests_locally_without_robot_actions(self):
+        run = self.invoke("build-operator", "--arch", "arm64", "--jobs", "3", "--clean-cache")
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual([command[2] for command in commands[:3]], ["image", "build-ros", "test-ros"])
+        self.assertIn("--clean-cache", commands[1])
+        self.assertEqual(commands[1][commands[1].index("--jobs") + 1], "3")
+        self.assertEqual(commands[-1][:2], ["docker", "build"])
+        self.assertIn("hope-operator:jazzy-arm64", commands[-1])
+        self.assertFalse(any("ssh" in command or "operator.py" in map(str, command) for command in commands))
+
+    def test_final_operator_build_has_explicit_build_only_mode(self):
+        run = self.invoke("build-operator", "--no-tests")
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(len(commands), 3)
+        self.assertIn("--no-tests", commands[1])
+        self.assertFalse(any("test-ros" in command for command in commands))
+
+    def test_final_operator_build_can_require_lint_as_well(self):
+        run = self.invoke("build-operator", "--with-lint")
+        self.assertIn("--with-lint", run.call_args_list[2].args[0])
+
     def test_exec_keeps_arguments_separate_and_ports_loopback_only(self):
         run = self.invoke("exec", "--publish-port", "8765", "--", "printf", "%s", "a b")
         command = run.call_args.args[0]
@@ -115,6 +136,23 @@ class RosDiscoveryParityTests(unittest.TestCase):
             root = Path(temporary)
             (root / "NatNet2ROS2/src").mkdir(parents=True)
             self.assertEqual(self.paths(root), ["src", "../NatNet2ROS2/src"])
+
+    def test_vrpn_workspace_is_discovered_alone_or_with_natnet(self):
+        with tempfile.TemporaryDirectory(prefix="hope capture sources ") as temporary:
+            root = Path(temporary)
+            (root / "VRPN2ROS2/src").mkdir(parents=True)
+            self.assertEqual(self.paths(root), ["src", "../VRPN2ROS2/src"])
+            (root / "NatNet2ROS2/src").mkdir(parents=True)
+            self.assertEqual(self.paths(root),
+                             ["src", "../NatNet2ROS2/src", "../VRPN2ROS2/src"])
+
+    def test_ros_tests_include_the_built_vrpn_backend(self):
+        block = INSIDE.split("  test-ros)\n", 1)[1].split("  build-runner)\n", 1)[0]
+        self.assertIn("test_packages+=(vrpn_mocap)", block)
+        self.assertIn('--packages-select "${test_packages[@]}"', block)
+        self.assertIn("--return-code-on-test-failure", block)
+        self.assertIn("--ctest-args -LE linter", block)
+        self.assertIn("ROS_DOMAIN_ID=229 ROS_LOCALHOST_ONLY=1", block)
 
     def test_build_and_test_both_pass_the_shared_discovery_to_colcon(self):
         for operation, following in (("build-ros", "test-ros"), ("test-ros", "build-runner")):

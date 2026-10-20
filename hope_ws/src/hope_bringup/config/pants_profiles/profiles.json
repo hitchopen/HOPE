@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "import_validation": "PENDING_CMTRACKER_ROUNDTRIP",
+  "physical_calibration": "NOT_PERFORMED",
+  "profiles": {
+    "v2": {
+      "label": "V2 old 10-marker pants",
+      "body_frame": "pelvis_link",
+      "axes": "X forward, Y left, Z up",
+      "marker_count": 10,
+      "marker_names": [
+        "f1",
+        "f2",
+        "f3",
+        "f4",
+        "f5",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5"
+      ],
+      "marker_positions_m": [
+        [
+          0.09,
+          0.0,
+          -0.13
+        ],
+        [
+          0.08,
+          0.05,
+          -0.14
+        ],
+        [
+          0.08,
+          -0.05,
+          -0.14
+        ],
+        [
+          0.078,
+          -0.03,
+          -0.18
+        ],
+        [
+          0.078,
+          0.03,
+          -0.18
+        ],
+        [
+          -0.09,
+          0.0,
+          -0.1
+        ],
+        [
+          -0.085,
+          0.055,
+          -0.13
+        ],
+        [
+          -0.085,
+          -0.055,
+          -0.13
+        ],
+        [
+          -0.085,
+          -0.03,
+          -0.18
+        ],
+        [
+          -0.085,
+          0.03,
+          -0.18
+        ]
+      ],
+      "centroid_subtracted": false,
+      "marker_to_pelvis_xyz_m": [
+        0,
+        0,
+        0
+      ],
+      "marker_to_pelvis_quaternion_xyzw": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "assets": {
+        "P1": {
+          "file": "a3_v2_P1_ground_truth.json",
+          "sha256": "ff9f91ab0e43d60e75dcbf28ef74e434097a9fbe1729474923278970ce172fbd"
+        },
+        "P2": {
+          "file": "a3_v2_P2_ground_truth.json",
+          "sha256": "261516b7d168ffb432fa74c7bad0869c29c07c8da5f4b81b639fd2cfdf19c322"
+        }
+      },
+      "source": {
+        "path": "hope_ws/src/hope_bringup/scripts/p1_marker_cad_registration_impl.py:V2_CAD_MARKERS_PELVIS_M",
+        "description": "V2 nominal 10-point CAD table; physical installation not measured"
+      }
+    },
+    "v4": {
+      "label": "V4 new 17-sticker pants",
+      "body_frame": "pelvis_link",
+      "axes": "X forward, Y left, Z up",
+      "marker_count": 17,
+      "marker_names": [
+        "S04",
+        "S05",
+        "S06",
+        "S07",
+        "S08",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22"
+      ],
+      "marker_positions_m": [
+        [
+          -0.02368099,
+          0.07205309,
+          -0.061630517
+        ],
+        [
+          -0.067166397,
+          0.047266147,
+          -0.054581659
+        ],
+        [
+          -0.079001398,
+          -0.001320496,
+          -0.05760387
+        ],
+        [
+          -0.063805908,
+          -0.052205169,
+          -0.060498038
+        ],
+        [
+          -0.019874543,
+          -0.072035522,
+          -0.054669064
+        ],
+        [
+          0.068681054,
+          0.013752572,
+          -0.093371537
+        ],
+        [
+          0.055717983,
+          0.068987617,
+          -0.102705623
+        ],
+        [
+          0.024198043,
+          0.082665663,
+          -0.090053739
+        ],
+        [
+          -0.0355257,
+          0.082456235,
+          -0.094529074
+        ],
+        [
+          -0.077885198,
+          0.04404497,
+          -0.097023108
+        ],
+        [
+          -0.086615966,
+          -0.018974166,
+          -0.113903749
+        ],
+        [
+          -0.065029671,
+          -0.065130802,
+          -0.099352277
+        ],
+        [
+          -0.022709647,
+          -0.083579602,
+          -0.089897553
+        ],
+        [
+          0.034664172,
+          -0.079647159,
+          -0.092671819
+        ],
+        [
+          0.066487736,
+          -0.030621789,
+          -0.093037623
+        ],
+        [
+          0.079131593,
+          0.034880717,
+          -0.156415262
+        ],
+        [
+          0.079112904,
+          -0.03487123,
+          -0.156402891
+        ]
+      ],
+      "centroid_subtracted": false,
+      "marker_to_pelvis_xyz_m": [
+        0,
+        0,
+        0
+      ],
+      "marker_to_pelvis_quaternion_xyzw": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "assets": {
+        "P1": {
+          "file": "a3_v4_P1_ground_truth.json",
+          "sha256": "d08bb6d6444dd8a4c1aa155acfe29c10f0433b09d8b34a297a49eaf826da710d"
+        },
+        "P2": {
+          "file": "a3_v4_P2_ground_truth.json",
+          "sha256": "cd2da35dff95a7b167925be5d3394c8cb87b13a1d89baedb32e6081f3fa5f676"
+        }
+      },
+      "source": {
+        "path": "agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv",
+        "sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0",
+        "description": "V4 operator alias for mocap_sticker_shell_v3, nominal outer sticker surface 0.20 mm"
+      }
+    }
+  }
+}

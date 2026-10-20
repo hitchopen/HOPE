@@ -29,6 +29,12 @@ to a known sender name (``rigid_body``) or selected by motion (``auto``).
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+import math
+import time
+
+from std_msgs.msg import Bool, String
+from vrpn_pants_contract import Selection, load_profiles, normalize_pose, observation, update_selection, validate_vrpn_setup
 
 import rclpy
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
@@ -90,6 +96,28 @@ class AvatarProVrpnRelay(Node):
         # (field 2026-07-07: /UCB_P1/pose read x=-315.9 -> mm) -> set
         # 0.001 there. Leave 1.0 when the mocap already streams metres.
         self.declare_parameter("position_scale", 1.0)
+        self.declare_parameter("pants_profile", "v2")
+        self.declare_parameter("table_side", "P1")
+        self.declare_parameter("follow_lifecycle_config", False)
+        self.declare_parameter("server", "")
+        self.declare_parameter("port", 3883)
+        self._profiles = load_profiles()
+        self._selection = Selection(str(self.get_parameter("pants_profile").value),
+                                    str(self.get_parameter("table_side").value))
+        self._follow_config = bool(self.get_parameter("follow_lifecycle_config").value)
+        self._config_seen = None
+        self._config_error = "waiting for Foxglove CONFIRM CONFIG" if self._follow_config else ""
+        self._observation_pub = self.create_publisher(String, "/hope/mocap/vrpn_observation", 10)
+        self._profile_match_pub = self.create_publisher(Bool, "/hope/mocap/asset_match", 10)
+        self._profile_status_pub = self.create_publisher(String, "/hope/mocap/asset_text", 10)
+        if self._follow_config:
+            self.create_subscription(String, "/hope/lifecycle/config/mocap", self._config_cb, 10)
+            # A boot-time supervisor can predate the USB DDS interface. The
+            # HDU read-only relay forwards the same snapshots on a distinct
+            # topic without restarting the active hardware session.
+            self.create_subscription(String, "/hope/lifecycle/config/mocap_transport", self._config_cb, 10)
+        self.create_timer(0.5, self._profile_status)
+
 
         self._vrpn_ns = str(self.get_parameter("vrpn_namespace").value).rstrip("/")
         self._ppt_object = str(self.get_parameter("ppt_object").value)
@@ -188,6 +216,39 @@ class AvatarProVrpnRelay(Node):
                 f"ball_tracking_mode=auto: locking onto the moving non-rigid marker "
                 f"-> {ball_point_topic}"
             )
+
+    def _config_cb(self, msg):
+        try:
+            document = json.loads(msg.data)
+            validate_vrpn_setup(document, server=str(self.get_parameter("server").value),
+                                port=int(self.get_parameter("port").value), scale=self._position_scale)
+            selected = update_selection(self._selection, document)
+            if selected.revision < 1:
+                raise ValueError("waiting for confirmed lifecycle configuration")
+            if selected != self._selection:
+                self._latest.clear()
+                self._motion.clear()
+                self._ball_topic = None
+            self._selection = selected
+            self._config_seen = time.monotonic()
+            self._config_error = ""
+        except (ValueError, KeyError, TypeError) as exc:
+            self._config_error = str(exc)
+            self._config_seen = None
+            self._latest.clear()
+
+    def _config_ready(self):
+        return not self._follow_config or (self._config_seen is not None and
+                                           time.monotonic() - self._config_seen < 3.0)
+
+    def _profile_status(self):
+        spec = self._profiles[self._selection.profile]
+        text = (f"VRPN · {self._selection.profile.upper()} · {spec['marker_count']} nominal points · "
+                f"{self._selection.body} · pelvis_link · pose-only; live geometry NOT verified")
+        if not self._config_ready():
+            text += " · BLOCKED: " + (self._config_error or "lifecycle configuration stale")
+        self._profile_match_pub.publish(Bool(data=False))
+        self._profile_status_pub.publish(String(data=text))
 
     # ---- discovery -------------------------------------------------------
 
@@ -304,20 +365,35 @@ class AvatarProVrpnRelay(Node):
     # ---- message handling ------------------------------------------------
 
     def _on_pose(self, topic: str, key: str, msg: PoseStamped) -> None:
+        if not self._config_ready():
+            self._latest.clear()
+            return
+        try:
+            normalized = self._normalize(msg, position_only=key in {"ball", "ball_candidate"})
+        except ValueError as exc:
+            self.get_logger().warning(f"invalid VRPN pose: {exc}", throttle_duration_sec=2.0)
+            return
         if key in self._pose_publishers:  # PPT / UCB_P1 / UCB_P2
-            normalized = self._normalize(msg)
             self._latest[key] = normalized
             self._pose_publishers[key].publish(normalized)
+            if key == self._selection.body:
+                p, q, stamp = normalized.pose.position, normalized.pose.orientation, normalized.header.stamp
+                self._observation_pub.publish(String(data=json.dumps(observation(
+                    self._selection, self._profiles, (stamp.sec, stamp.nanosec),
+                    (p.x, p.y, p.z), (q.x, q.y, q.z, q.w)), allow_nan=False)))
             if self._publish_tf:
                 self._broadcast_tf(key, normalized)
             return
 
         if key == "ball_candidate":
-            self._update_motion(topic, msg)
+            # Auto-detected point markers do not measure ball orientation.
+            normalized.pose.orientation.x = normalized.pose.orientation.y = 0.0
+            normalized.pose.orientation.z = normalized.pose.orientation.w = 0.0
+            self._update_motion(topic, normalized)
             if topic != self._ball_topic:
                 return
         # key == "ball" (pinned) or this candidate is the selected ball.
-        self._emit_ball(self._normalize(msg))
+        self._emit_ball(normalized)
 
     def _update_motion(self, topic: str, msg: PoseStamped) -> None:
         m = self._motion.get(topic)
@@ -345,7 +421,8 @@ class AvatarProVrpnRelay(Node):
         out.header = normalized.header
         out.point = normalized.pose.position
         self._ball_pub.publish(out)
-        if self._publish_tf:
+        q = normalized.pose.orientation
+        if self._publish_tf and q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w >= 0.25:
             self._broadcast_tf("ball", normalized)
         # Publish /poses synchronized to the BALL update only. The ball is the
         # planner's input; firing on every object would re-emit a stale ball
@@ -353,20 +430,28 @@ class AvatarProVrpnRelay(Node):
         if self._publish_pose_array:
             self._publish_poses(normalized.header.stamp)
 
-    def _normalize(self, msg: PoseStamped) -> PoseStamped:
+    def _normalize(self, msg: PoseStamped, position_only=False) -> PoseStamped:
+        if msg.header.frame_id not in ("", self._world_frame):
+            raise ValueError("VRPN world frame does not match configured world")
+        p, q = msg.pose.position, msg.pose.orientation
+        raw_q = (q.x, q.y, q.z, q.w)
+        # A named rigid ball carries the orientation needed for world angular
+        # velocity and Magnus. Point-only/invalid orientation remains explicitly
+        # invalid in /poses rather than masquerading as measured zero spin.
+        q_norm = math.sqrt(sum(v * v for v in raw_q))
+        ball_orientation_valid = (all(math.isfinite(v) for v in raw_q)
+                                  and 0.5 <= q_norm <= 1.5)
+        input_q = raw_q if not position_only or ball_orientation_valid else (0, 0, 0, 1)
+        position, quaternion = normalize_pose((p.x, p.y, p.z), input_q,
+                                               self._position_scale, self._selection)
+        if position_only and not ball_orientation_valid:
+            quaternion = (0.0, 0.0, 0.0, 0.0)
         normalized = PoseStamped()
-        normalized.header = msg.header
-        if not normalized.header.frame_id:
-            normalized.header.frame_id = self._world_frame
-        if self._position_scale == 1.0:
-            normalized.pose = msg.pose
-        else:  # unit conversion (e.g. mm->m); orientation is unit-free
-            s = self._position_scale
-            normalized.pose = Pose()
-            normalized.pose.position.x = msg.pose.position.x * s
-            normalized.pose.position.y = msg.pose.position.y * s
-            normalized.pose.position.z = msg.pose.position.z * s
-            normalized.pose.orientation = msg.pose.orientation
+        normalized.header.stamp = msg.header.stamp
+        normalized.header.frame_id = self._world_frame
+        normalized.pose.position.x, normalized.pose.position.y, normalized.pose.position.z = position
+        (normalized.pose.orientation.x, normalized.pose.orientation.y,
+         normalized.pose.orientation.z, normalized.pose.orientation.w) = quaternion
         return normalized
 
     def _broadcast_tf(self, object_key: str, msg: PoseStamped) -> None:

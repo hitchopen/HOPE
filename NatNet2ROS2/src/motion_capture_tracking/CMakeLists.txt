@@ -39,7 +39,13 @@ set(LIBMOTIONCAPTURE_ENABLE_NOKOV OFF CACHE INTERNAL "")
 # and set this variable to "ON"
 set(LIBMOTIONCAPTURE_ENABLE_MOTIONANALYSIS OFF CACHE INTERNAL "")
 
-add_subdirectory(deps/libmotioncapture EXCLUDE_FROM_ALL)
+if(BUILD_TESTING)
+  # CTest registers the vendor parser/transport tests too. Include their build
+  # targets so a normal colcon build followed by colcon test can execute them.
+  add_subdirectory(deps/libmotioncapture)
+else()
+  add_subdirectory(deps/libmotioncapture EXCLUDE_FROM_ALL)
+endif()
 
 include_directories(
   deps/libmotioncapture/include

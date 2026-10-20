@@ -18,7 +18,7 @@ import subprocess
 
 CONFIG = Path.home() / ".config/hope-macos"
 CONTRACT_LABEL = "org.hope.operator.contract"
-CONTRACT_VERSION = "2"
+CONTRACT_VERSION = "3"
 
 
 def validate_identity(user, helper):
@@ -262,10 +262,15 @@ if values.get('state')!='STOPPED':raise RuntimeError('operator change requires f
 import json
 from pathlib import Path
 cfg=json.loads(Path('/var/lib/hope-lifecycle/config.json').read_text())
+if cfg.get('schema_version', 0) < 6:
+    raise RuntimeError('HDU operator selection needs the combined schema-6 backend; '
+                       'schema-5 venue settings were left unchanged. Build/stage the matching '
+                       'release first; do not replace it with the old schema-3 files.')
 cfg.update(laptop_wifi_ip=laptop, operator_profile=profile)
 request=SetParameters.Request()
 request.parameters=[Parameter(name=k,value=ParameterValue(type=4,string_value=cfg[k])) for k in
- ('laptop_wifi_ip','hdu_wifi_ip','mdu_internal_ip','motive_ip','table_side','operator_profile')]
+ ('laptop_wifi_ip','hdu_wifi_ip','mdu_internal_ip','motive_ip','vrpn_ip','table_side',
+  'gripper_profile','pants_profile','mocap_source','vrpn_port','vrpn_units','operator_profile')]
 client=node.create_client(SetParameters,'/hope/lifecycle/apply_config')
 if not client.wait_for_service(timeout_sec=5):raise RuntimeError('configuration service unavailable')
 future=client.call_async(request);rclpy.spin_until_future_complete(node,future,timeout_sec=10)

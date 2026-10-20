@@ -3,6 +3,11 @@
   "created_utc": "2026-07-30T18:11:18Z",
   "approved": true,
   "blockers": [],
+  "documentation_update": {
+    "date": "2026-10-17",
+    "previous_file_sha256": "b2fe9506c0cab1cb4dc29ede773a0f5d0380c17caf23dee3a3efc28c50b441ac",
+    "note": "Updated dependent receipt hash after its coordinate-source metadata rename; world alignment measurements and approval are unchanged."
+  },
   "method": {
     "name": "operator_attested_manual_Motive_world_alignment",
     "runtime_table_rigid_body_required": false,
@@ -86,7 +91,7 @@
   "dependencies": {
     "p1_to_pelvis_receipt": {
       "path": "hope_ws/calibration_receipts/p1_marker_cad_registration_20260731_strict_long.json",
-      "sha256": "256223d917689083cb3c5cfb069cd7ab31713389581d281c4b165187a90b33bf"
+      "sha256": "b1b8f4446c6e94d30c4bbfb8856cb84fe828d3fd401d152b43338a61f77b4624"
     }
   },
   "invalidation_conditions": [
