@@ -115,7 +115,40 @@ int main(int argc, char **argv) {
                     : spin.mode == EffectiveSpinMode::CONTACT_PROPAGATED
                         ? "CONTACT_PROPAGATED"
                         : "POSITION_ONLY")
-                << "\"}\n";
+                << "\",\"future_events\":[";
+      bool comma = false;
+      if (state.valid) {
+        const auto resolved =
+            predictor.model_snapshot(state, state.physics_spin);
+        ModelState model;
+        model.position = state.position;
+        model.velocity = state.velocity;
+        model.spin = resolved.second;
+        EventGeometry geometry;
+        geometry.receiving_x = planner.x_hit;
+        for (double t = 0; t < planner.max_predict_time_cap_s;) {
+          const auto step = advance_ball(model, .001, resolved.first, geometry);
+          for (const auto &event : step.events) {
+            const auto dt = duration_ns(t + event.dt_s);
+            std::int64_t at;
+            if (!dt || !checked_arrival(s.source_time_ns, *dt, at))
+              continue;
+            if (comma)
+              std::cout << ',';
+            comma = true;
+            std::cout << "{\"kind\":\"" << name(event.kind)
+                      << "\",\"arrival_ns\":" << at;
+            vector("position", event.pre.position);
+            vector("velocity", event.pre.velocity);
+            vector("post_velocity", event.post.velocity);
+            std::cout << '}';
+          }
+          if (step.stopped)
+            break;
+          t += .001;
+        }
+      }
+      std::cout << "]}\n";
     }
     return 0;
   } catch (const std::exception &e) {

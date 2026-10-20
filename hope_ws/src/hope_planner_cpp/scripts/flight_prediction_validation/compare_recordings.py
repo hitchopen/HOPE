@@ -56,8 +56,17 @@ def compare(dataset, v2_executable, baseline_executable, synthetic=False):
                 for method in METHODS:
                     p=predictions[method].get(cutoff)
                     kind=event['kind']
-                    supported=p is not None and kind=='receiving_plane' and (method!='v2_ckf' or p.get('target_kind')==kind)
-                    valid=bool(supported and p['target_valid'])
+                    candidate=None
+                    supported=p is not None
+                    if p and kind=='receiving_plane' and (method!='v2_ckf' or p.get('target_kind')==kind) and p['target_valid']:
+                        candidate=p
+                    elif p and kind!='receiving_plane':
+                        events=[e for e in p.get('future_events',[]) if e['kind']==kind]
+                        ordinal=event.get('ordinal',1)
+                        if kind=='table_bounce':
+                            ordinal-=sum(flight.get(key,10**30)<cutoff for key in ('b1_ns','b2_ns'))
+                        if 0<ordinal<=len(events):candidate=events[ordinal-1]
+                    valid=bool(candidate is not None and p.get('physical_available'))
                     row=dict(session_id=flight['session_id'],ball_id=flight['ball_id'],flight_id=flight['flight_id'],
                              shot_type=flight.get('shot_type','unknown'),event_id=event['event_id'],event_kind=kind,method=method,
                              code_sha=dataset['code_pins'][method],config_id=p.get('model_config_id','not_triggered') if p else 'not_triggered',
@@ -66,11 +75,11 @@ def compare(dataset, v2_executable, baseline_executable, synthetic=False):
                              independent_truth=dataset.get('independent_truth',False),truth_available=event.get('truth_available',True),
                              information_cutoff_ns=cutoff,prediction_reference_time_ns=cutoff if p else None,
                              attempted=p is not None,actual_trigger=p.get('actual_trigger',False) if p else False,
-                             physical_available=p.get('physical_available',False) if p else False,target_valid=valid,
+                             physical_available=p.get('physical_available',False) if p else False,target_valid=bool(valid and p['target_valid'] and (kind=='receiving_plane' or method=='v2_ckf' and p.get('target_kind')==kind)),event_estimate_valid=valid,
                              trajectory_available=bool(p and method=='v2_ckf' and p.get('physical_available')),
                              reason=(p.get('reason','unavailable') if supported else 'unsupported_event' if p else 'not_triggered'),
-                             position=p.get('position') if p else None,velocity=p.get('velocity') if p else None,
-                             arrival_ns=p.get('arrival_ns') if p else None,covariance=p.get('covariance') if valid else None,
+                             position=candidate.get('position') if valid else None,velocity=candidate.get('velocity') if valid else None,
+                             arrival_ns=candidate.get('arrival_ns') if valid else None,covariance=candidate.get('covariance') if valid else None,
                              compute_ms=p.get('compute_ms') if p else None,b1_ns=flight.get('b1_ns'),b2_ns=flight.get('b2_ns'))
                     for name in ('position','velocity','arrival_ns'):
                         if name in event: row['truth_'+name]=event[name]

@@ -334,6 +334,17 @@ bool ShotContext::observe(BallSample s) {
           spin_.value().usable() ? *spin_.value().omega : Vec3::Zero();
       const Vec3 expected = ball_acceleration(config_.physics, velocity, omega);
       bool contact_window = v1.z() < 0 && v2.z() > 0;
+      // A smooth-window acceleration test cannot classify an interval that
+      // contains a plausible unresolved top contact. Keep forecasting until
+      // reversal evidence resolves it; held-ball rejection above still applies.
+      for (const auto &point : samples_)
+        if (point.position.z() >= config_.physics.radius - .01 &&
+            point.position.z() <= config_.physics.radius + .03 &&
+            point.position.x() >= 0 &&
+            point.position.x() <= config_.table.length &&
+            point.position.y() >= config_.table.y_max - config_.table.width &&
+            point.position.y() <= config_.table.y_max)
+          contact_window = true;
       for (const auto &event : events_)
         if (event.status == EventStatus::CONFIRMED &&
             event.kind == PhysicalEventKind::TABLE &&
@@ -592,6 +603,19 @@ void ShotContext::predict_events(const std::vector<PhysicalEvent> &predictions,
         found = &e;
         ++matches;
       }
+    // A transient unavailable horizon can retire a future hypothesis before
+    // the next solve recovers it. Reuse its identity when source-time and
+    // geometry still support the same event, rather than creating duplicates.
+    if (matches == 0)
+      for (auto &e : events_)
+        if (e.kind == p.kind && e.status == EventStatus::SUPERSEDED &&
+            std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
+                settings_.contact_association_s * 1e9L &&
+            (e.pre.position - p.pre.position).norm() <=
+                settings_.contact_association_m) {
+          found = &e;
+          ++matches;
+        }
     if (matches > 1)
       continue;
     if (!found) {

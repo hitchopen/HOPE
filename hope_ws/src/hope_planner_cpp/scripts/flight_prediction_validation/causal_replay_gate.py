@@ -28,7 +28,7 @@ def main():
                 prefix = subprocess.check_output(command, input=''.join(rows[:40]), text=True).splitlines()
                 def physical_output(line):
                     value=json.loads(line);value.pop('compute_ms',None);return value
-                assert [physical_output(r) for r in full[:40]] == [physical_output(r) for r in prefix], 'later spin/samples changed an earlier output' 
+                assert [physical_output(r) for r in full[:40]] == [physical_output(r) for r in prefix], 'later spin/samples changed an earlier output'
                 assert [json.loads(row)['source_ns'] for row in full] == stamps
                 duplicate = subprocess.run(command, input=rows[0] + rows[0], text=True,
                                            capture_output=True)

@@ -41,9 +41,9 @@ def validate(records, synthetic=False):
         reference=row.get('prediction_reference_time_ns')
         if reference is not None and reference>row['information_cutoff_ns']:
             raise ValueError('future source information exceeds matched cutoff')
-        if row['method']=='legacy_one_shot' and row['target_valid'] and not row.get('actual_trigger',False):
+        if row['method']=='legacy_one_shot' and row.get('event_estimate_valid',row['target_valid']) and not row.get('actual_trigger',False):
             raise ValueError('one-shot has no actual trigger; cannot invent a prediction')
-        if row['target_valid'] and row.get('truth_available',True):
+        if row.get('event_estimate_valid',row['target_valid']) and row.get('truth_available',True):
             for field in ('position','truth_position','velocity','truth_velocity','arrival_ns','truth_arrival_ns'):
                 if field not in row:
                     raise ValueError('missing eligible truth/prediction: '+field)
@@ -59,7 +59,7 @@ def validate(records, synthetic=False):
 def residuals(records):
     result=[]
     for row in records:
-        if not row['target_valid'] or not row.get('truth_available',True):
+        if not row.get('event_estimate_valid',row['target_valid']) or not row.get('truth_available',True):
             continue
         p=np.asarray(row['position'])-row['truth_position']
         v=np.asarray(row['velocity'])-row['truth_velocity']
@@ -100,6 +100,7 @@ def group_statistics(records, errors):
                        scored=len(scored),missing_truth=sum(not r.get('truth_available',True) for r in rows),
                        physical_coverage=sum(r.get('physical_available',False) for r in rows)/len(rows),
                        target_coverage=sum(r['target_valid'] for r in rows)/len(rows),
+                       event_estimate_coverage=sum(r.get('event_estimate_valid',r['target_valid']) for r in rows)/len(rows),
                        trajectory_coverage=sum(r.get('trajectory_available',False) for r in rows)/len(rows),
                        rejection_reasons=dict(Counter(r.get('reason','unavailable') for r in rows if not r['target_valid'])))
             group['metrics']={field:dict(signed=statistics([r[field] for r in scored]),

@@ -154,7 +154,7 @@ def scenario(executable, direction, rate, policy):
         assert any(p.classification_status == 'CONFIRMED' and p.play_state == ('SERVE' if direction > 0 else 'OPPONENT_SERVE') for p in physical), 'observed B1 did not confirm serve'
         confirmed = {e.event_id: e for p in physical for e in p.events
                      if e.kind == 'table_bounce' and e.status == 'CONFIRMED'}
-        assert len(confirmed) >= 2, [(p.reason, [(e.kind,e.status) for e in p.events]) for p in physical[-3:]]
+        assert len(confirmed) >= 2, (direction,rate,policy,contacts,sorted({(e.event_id,e.status,round((e.event_time_ns-start)*1e-9,4),round(e.position.x,3)) for p in physical for e in p.events if e.kind=='table_bounce'}),[p.reason for p,_ in predictions if not p.physical_available])
         b1 = min(confirmed.values(), key=lambda e:e.event_time_ns)
         assert any(e.event_id == b1.event_id and e.status == 'PREDICTED'
                    for p in physical for e in p.events), ('B1 identity changed on confirmation',b1.event_id,(b1.event_time_ns-start)*1e-9, sorted({(e.event_id,e.status,round((e.event_time_ns-start)*1e-9,4)) for p in physical for e in p.events if e.kind=='table_bounce' and e.event_time_ns<start+round(contacts[0]*1e9)+50_000_000}))

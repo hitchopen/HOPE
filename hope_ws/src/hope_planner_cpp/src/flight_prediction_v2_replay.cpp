@@ -213,6 +213,44 @@ int main(int argc, char **argv) {
         std::cout << ']';
       } else
         std::cout << "null";
+      std::cout << ",\"future_events\":[";
+      bool event_comma = false;
+      for (const auto &event : prediction.nominal.events) {
+        const auto dt = duration_ns(event.dt_s);
+        std::int64_t arrival;
+        if (!dt || !checked_arrival(prediction.reference_ns, *dt, arrival))
+          continue;
+        if (event_comma)
+          std::cout << ',';
+        event_comma = true;
+        std::cout << "{\"kind\":\"" << event.kind
+                  << "\",\"arrival_ns\":" << arrival << ",\"position\":";
+        vector(event.pre.head<3>());
+        std::cout << ",\"velocity\":";
+        vector(event.pre.tail<3>());
+        std::cout << ",\"post_velocity\":";
+        vector(event.post.tail<3>());
+        write_spin(event.pre_spin);
+        std::cout << ",\"covariance\":";
+        if (event.covariance.allFinite()) {
+          std::cout << '[';
+          for (int r = 0; r < 7; ++r) {
+            if (r)
+              std::cout << ',';
+            std::cout << '[';
+            for (int c = 0; c < 7; ++c) {
+              if (c)
+                std::cout << ',';
+              std::cout << event.covariance(r, c);
+            }
+            std::cout << ']';
+          }
+          std::cout << ']';
+        } else
+          std::cout << "null";
+        std::cout << '}';
+      }
+      std::cout << ']';
       std::cout << "}\n";
     }
     return 0;

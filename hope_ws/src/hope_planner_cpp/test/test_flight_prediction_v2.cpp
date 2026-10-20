@@ -897,3 +897,57 @@ TEST(FlightV2Config,
   EXPECT_THROW(set_flight_parameter(config, settings, "unknown", 0),
                std::invalid_argument);
 }
+
+TEST(FlightV2Association,
+     A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity) {
+  for (int direction : {-1, 1})
+    for (int rate : {150, 300}) {
+      FlightPipeline pipeline({});
+      ModelState truth;
+      truth.position = Vec3(direction > 0 ? .15 : 2.59, -.2, .30);
+      truth.velocity = Vec3(direction * 4., 0, -.5);
+      truth.spin.omega = Vec3(0, direction * 30., 0);
+      truth.spin.mode = EffectiveSpinMode::MEASURED;
+      HitPlaneSnapshot plane;
+      plane.calibrated = true;
+      plane.x_hit_m = .15;
+      bool context_sent = false;
+      std::uint64_t b1_id = 0;
+      std::int64_t previous = 0;
+      for (int i = 0; i < rate * .82; ++i) {
+        const std::int64_t ns = std::llround(i * 1e9 / rate);
+        if (i)
+          advance_ball(truth, (ns - previous) * 1e-9, {}, {});
+        previous = ns;
+        auto s = sample(ns, truth.position);
+        if (i == 0) {
+          s.producer_omega_valid = true;
+          s.producer_omega_rad_s = Vec3(0, direction * 30., 0);
+        }
+        pipeline.observe(s);
+        if (pipeline.shot().active() && !context_sent && ns > 100000000) {
+          pipeline.shot().context(MatchContext::SERVE, ns, "fixture",
+                                  pipeline.shot().generation());
+          context_sent = true;
+        }
+        if (pipeline.shot().observed_contacts())
+          pipeline.shot().set_history_continuity(HistoryContinuity::kComplete);
+        pipeline.forecast(plane, ns);
+        for (const auto &e : pipeline.shot().events())
+          if (e.kind == PhysicalEventKind::TABLE &&
+              e.event_time_ns < 300000000) {
+            if (!b1_id)
+              b1_id = e.id;
+            if (e.status == EventStatus::CONFIRMED)
+              EXPECT_EQ(e.id, b1_id);
+          }
+      }
+      EXPECT_TRUE(pipeline.shot().active())
+          << direction << ',' << rate << ':' << pipeline.shot().reason();
+      EXPECT_GE(pipeline.shot().observed_contacts(), 2)
+          << direction << ',' << rate << ':' << pipeline.shot().reason();
+      EXPECT_EQ(pipeline.shot().state(),
+                direction > 0 ? PlayState::SERVE : PlayState::OPPONENT_SERVE);
+      EXPECT_EQ(pipeline.shot().spin().measurement_time_ns, 0);
+    }
+}

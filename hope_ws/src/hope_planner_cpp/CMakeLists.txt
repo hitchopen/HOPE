@@ -297,6 +297,7 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(flight_v2_scoring test/test_flight_scoring.py)
   ament_add_pytest_test(flight_v2_accuracy_tooling test/test_scoped_accuracy.py)
+  ament_add_pytest_test(flight_v2_scope test/test_forecast_scope.py)
 endif()
 
 install(FILES docs/flight_prediction_implementation.md docs/flight_prediction_acceptance.md
