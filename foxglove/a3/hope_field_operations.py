@@ -198,7 +198,7 @@ class FieldOperations:
             mode = self._data["mode"]
             csv = self._data["csv"]
         digest = "DEFAULT"
-        if mode == "KERNEL" and csv:
+        if csv:
             # Recheck existence and bytes before changing any hardware state.
             result = self.exchange("mdu", config, {"op": "verify_csv", "sha256": csv["sha256"]})
             digest = result["sha256"]

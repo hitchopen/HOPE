@@ -143,6 +143,8 @@ struct ServeControllerDiag {
   ServeControllerState state{ServeControllerState::kIdle};
   ServeGripperState gripper_state{ServeGripperState::kUnavailable};
   std::string phase{"IDLE"};
+  std::string segment{"NONE"};
+  std::size_t segment_frame{0}, segment_frames{0};
   std::size_t frame{0};
   std::size_t transition_tick{0};
   int ready_ticks{0};
@@ -170,16 +172,11 @@ struct ServeControllerDiag {
   ServePlaybackAudit playback;
 };
 
-// Same-runner direct player for the named SDK31 serve025 timeline. PREPARE_SERVE
-// makes a smooth, controller-owned official-stand -> CSV-frame-0 transition.
-// READY_TO_SERVE consumes full31 q from the CSV with bounded ankle support and returns the same
-// publisher to MOTION after the CSV COMPLETE frame, or after a configured
-// early post-contact return to measured, settled official stand. CSV dq is direct with no
-// second runtime multiplier, preserving the selected CSV arm command exactly.
-// No q_des slot is filled or overwritten from stand pose. The CSV
-// has no gain columns, so the existing unscaled official
-// PD_STAND Kp/Kd vectors remain the controller-owned gain source; tau_ff is
-// zero.
+// Same-runner SDK31 player. Annotated bundles explicitly own Stand->Serve,
+// Serve->Stand and Serve->Policy commands; Normal selects the policy-ready
+// branch only after matching its actor/config hashes. Legacy CSVs retain the
+// original generated preparation and Stand-return behavior. Bounded runtime
+// ankle support is preserved at segment boundaries and fades into policy-ready.
 class PpServeController final {
  public:
   PpServeController(PpServe025FullbodyTimeline timeline,
@@ -192,6 +189,13 @@ class PpServeController final {
   PpServeController(const PpServeController&) = delete;
   PpServeController& operator=(const PpServeController&) = delete;
 
+  void SelectSegmentDestination(bool to_policy, const std::string& policy_sha256 = {},
+                                const std::string& deploy_sha256 = {});
+  bool has_segments() const noexcept { return timeline_.segments().present; }
+  double segment_policy_blend_s() const noexcept { return timeline_.segments().policy_blend_s; }
+  const char* selected_tail() const noexcept {
+    return !has_segments() ? "LEGACY" : (segment_to_policy_ ? "SERVE_TO_POLICY" : "SERVE_TO_STAND");
+  }
   void SetPolicyHandoffFrame(std::size_t frame);
   void SetPolicyReturnSeconds(double seconds);
   // Optional hand delay compensation only; all body CSV frames stay exact.
@@ -256,6 +260,7 @@ class PpServeController final {
   void ApplyPitchSupport_(const robot_io::RobotState& state,
                           robot_io::RobotCommand& command,
                           double envelope, double envelope_velocity);
+  void SetSegmentCommand_(const robot_io::RobotState& state, robot_io::RobotCommand& command);
   void SetTimelineCommand_(std::size_t frame,
                            const robot_io::RobotState& state,
                            robot_io::RobotCommand& command);
@@ -271,6 +276,9 @@ class PpServeController final {
                    const robot_io::RobotCommand& command);
   std::string PhaseName_() const;
 
+  bool segment_to_policy_{false}, segment_active_{false};
+  std::size_t segment_tick_{0};
+  Eigen::VectorXd segment_source_q_delta_, segment_source_dq_delta_;
   std::size_t policy_handoff_frame_ = kServe025CompleteFrame;
   double policy_return_seconds_ = 1.0;
   std::size_t release_lead_frames_ = 0;

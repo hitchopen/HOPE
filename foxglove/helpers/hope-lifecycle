@@ -767,8 +767,38 @@ preflight_mdu() {
     die PREFLIGHT RUNTIME_CONFIG_MISSING
   [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
     die PREFLIGHT AIMRT_CONFIG_MISSING
-  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_smooth_center_v14.csv" ]] || \
+  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv" ]] || \
     die PREFLIGHT SERVE025_TIMELINE_MISSING
+  # Validate the exact selected bytes with the installed Runner before HAL starts.
+  # Normal and Kernel resolve the same file; only the destination segment differs.
+  local validation_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+  if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
+    validation_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    [[ -r "$validation_csv" ]] || die PREFLIGHT SELECTED_CSV_MISSING
+    [[ "$(sha256sum "$validation_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
+      die PREFLIGHT SELECTED_CSV_CHANGED
+  fi
+  local -a validation_args=(--validate-serve-timeline "$validation_csv"
+    --validate-serve-stand --policy-dir "$MDU_DEPLOY/policy")
+  [[ "$FIELD_MODE" != KERNEL ]] || validation_args+=(--kernel-mode)
+  local validation_output
+  validation_output="$(
+    set +u
+    source /opt/ros/jazzy/setup.bash
+    set -u
+    export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
+  )" || {
+    printf "%s\n" "$validation_output" >&2
+    die PREFLIGHT SERVE_TIMELINE_INVALID
+  }
+  [[ "$validation_output" == *SERVE_STAND_VALID* &&
+     "$validation_output" == *SERVE_TIMELINE_VALID* ]] || \
+    die PREFLIGHT SERVE_VALIDATOR_UPDATE_REQUIRED
+  if grep -q '^#HOPE_SERVE_SEGMENTS_V1,' "$validation_csv"; then
+    [[ "$validation_output" == *SERVE_SEGMENTS_VALID* ]] || \
+      die PREFLIGHT SERVE_SEGMENT_RUNNER_UPDATE_REQUIRED
+  fi
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
   command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
@@ -1131,13 +1161,17 @@ run_runner() {
   local -a field_runner_args=(--planner)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
-    if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
-      local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
-      [[ -r "$selected_csv" ]] || die RUNNER SELECTED_CSV_MISSING
-      [[ "$(sha256sum "$selected_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
-        die RUNNER SELECTED_CSV_CHANGED
-      field_runner_args+=(--serve-timeline "$selected_csv")
-    fi
+  fi
+  # One selected trajectory for both modes; mode only changes post-serve ownership.
+  if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
+    local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    [[ -r "$selected_csv" ]] || die RUNNER SELECTED_CSV_MISSING
+    [[ "$(sha256sum "$selected_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
+      die RUNNER SELECTED_CSV_CHANGED
+    field_runner_args+=(--serve-timeline "$selected_csv")
+  else
+    # Pass the built-in choice explicitly; do not depend on wrapper fallback.
+    field_runner_args+=(--serve-timeline "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv")
   fi
   if [[ -d "$PWD/teleop_humanlike" ]]; then
     local teleop_asset
@@ -1148,6 +1182,11 @@ run_runner() {
     field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
   fi
   printf 'mode=%s\ncsv_sha256=%s\ngripper_profile=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" > "$session_dir/field_selection.txt"
+  local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+  [[ "$SERVE_CSV_SHA" == DEFAULT ]] || effective_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+  sha256sum "$effective_csv" >> "$session_dir/artifact_sha256.txt"
+  printf 'effective_csv=%s\neffective_csv_sha256=%s\n' "$effective_csv" \
+    "$(sha256sum "$effective_csv" | cut -d ' ' -f 1)" >> "$session_dir/field_selection.txt"
   set +e
   # Keep the log reader alive through Ctrl-C so Runner can drain its CSVs.
   python3 "$CAPTURE_HELPER" --controlled --role mdu --root "$MDU_DEPLOY" \

@@ -1,5 +1,6 @@
 // Local simulation ABI. Links the production controller; has no HAL or transport.
 #include "a3_pingpong/pp_serve_controller.hpp"
+#include "a3_pingpong/pp_sha256.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
 #include "a3_pingpong/pp_teleop_entry.hpp"
 #include "a3_pingpong/pp_policy.hpp"
@@ -13,8 +14,8 @@ using robot_io::RobotCommand;
 
 struct ReceiveProbe {
   bool kernel = false;
-  bool has_torso = false;
-  Eigen::Vector4d torso = Eigen::Vector4d(1,0,0,0);
+  Eigen::Vector4d torso_quat = Eigen::Vector4d(1, 0, 0, 0);
+  bool torso_set = false;
   std::uint64_t base_sequence = 0;
     std::unique_ptr<a3_pingpong::PpPolicy> policy;
     std::shared_ptr<a3_pingpong::PpBasePoseInput> base = std::make_shared<a3_pingpong::PpBasePoseInput>();
@@ -77,10 +78,10 @@ void* receive_create_mode(const char* onnx, const char* config, int kernel) {
 
 void* receive_create(const char* onnx, const char* config) { return receive_create_mode(onnx, config, 0); }
 void* receive_create_kernel(const char* onnx, const char* config) { return receive_create_mode(onnx, config, 1); }
-void receive_set_torso(void* p, const double* q) {
+void receive_set_torso(void* p, const double* quat) {
   auto& probe = *static_cast<ReceiveProbe*>(p);
-  probe.has_torso = true;
-  probe.torso = Eigen::Map<const Eigen::Vector4d>(q);
+  probe.torso_quat = Eigen::Map<const Eigen::Vector4d>(quat);
+  probe.torso_set = true;
 }
 void receive_destroy(void* p) { delete static_cast<ReceiveProbe*>(p); }
 int probe_return_seconds(void* p, double seconds) {
@@ -115,7 +116,7 @@ int receive_set_stand_offset(void* p, double radians) {
 
 void receive_rearm(void* p, int from_serve) {
   auto& policy = *static_cast<ReceiveProbe*>(p)->policy;
-  (void)from_serve;  // Native receive uses the same reset after measured stand recovery.
+  (void)from_serve;  // Both Stand and authored policy-ready entry use the native reset.
   policy.rearm_yaw_align();
 }
 void receive_delivered(void* p, const double* command, int sent) {
@@ -143,6 +144,11 @@ robot_io::RobotState State(const double* p) {
   return s;
 }
 
+void receive_delivered_state(void* p, const double* command, int handoff, const double* state) {
+  auto st = State(state);
+  static_cast<ReceiveProbe*>(p)->policy->RecordCommandDelivery(Read(command), true, handoff != 0, &st);
+}
+
 int receive_step(void* p, unsigned tick, const double* state, int handoff, double* out) {
   try {
     auto& probe = *static_cast<ReceiveProbe*>(p);
@@ -154,10 +160,10 @@ int receive_step(void* p, unsigned tick, const double* state, int handoff, doubl
                              static_cast<double>(a3_pingpong::kV17RequiredBaseFlags), 1, 1});
     policy.set_mode_handoff_hold(handoff != 0);
     RobotCommand command;
-    auto measured = State(state);
-    measured.has_secondary_imu = probe.has_torso;
-    measured.sec_imu_quat_wxyz = probe.torso;
-    if (!policy.ComputeCommand(tick, measured, command)) return -1;
+    auto robot_state = State(state);
+    robot_state.has_secondary_imu = probe.torso_set;
+    robot_state.sec_imu_quat_wxyz = probe.torso_quat;
+    if (!policy.ComputeCommand(tick, robot_state, command)) return -1;
     Write(command, out);
     return 0;
   } catch (const std::exception& e) {
@@ -219,14 +225,24 @@ void* probe_create(const char* csv, const double* stand) {
   try {
     a3_pingpong::PpServe025FullbodyTimeline timeline;
     std::string error;
-    if (!timeline.LoadCsv(csv, error)) return nullptr;
+    if (!timeline.LoadCsv(csv, error)) { std::fprintf(stderr, "%s\n", error.c_str()); return nullptr; }
     auto p = std::make_unique<Probe>();
     auto c = Read(stand);
     p->serve = std::make_unique<a3_pingpong::PpServeController>(std::move(timeline), c.q_des, c.kp, c.kd, nullptr);
     return p.release();
-  } catch (...) { return nullptr; }
+  } catch (const std::exception& e) { std::fprintf(stderr,"%s\n",e.what()); return nullptr; }
 }
 
+int probe_select_segments(void* v, int policy, const char* actor, const char* deploy) {
+  try { static_cast<Probe*>(v)->serve->SelectSegmentDestination(policy != 0,
+      a3_pingpong::PpSha256::File(actor), a3_pingpong::PpSha256::File(deploy)); return 0; }
+  catch (const std::exception& e) { std::fprintf(stderr,"%s\n",e.what()); return -1; }
+}
+const char* probe_phase(void* v) {
+  static thread_local std::string phase;
+  phase = static_cast<Probe*>(v)->serve->TakeDiag().phase;
+  return phase.c_str();
+}
 int probe_handoff_frame(void* v, int frame) {
   try { static_cast<Probe*>(v)->serve->SetPolicyHandoffFrame(frame); return 0; }
   catch (...) { return -1; }
@@ -306,8 +322,13 @@ int probe_serve(void* v, const double* q, const double* dq, const double* quat, 
 }
 
 int probe_begin(void* v, const double* source, const double* target, double duration) {
+  try { static_cast<Probe*>(v)->transition.Begin(Read(source), Read(target), duration); return 0; }
+  catch (...) { return -1; }
+}
+
+int probe_begin_impedance(void* v, const double* source, const double* target, double duration) {
   try {
-    static_cast<Probe*>(v)->transition.Begin(Read(source), Read(target), duration);
+    static_cast<Probe*>(v)->transition.BeginImpedance(Read(source), Read(target), duration);
     return 0;
   } catch (...) { return -1; }
 }

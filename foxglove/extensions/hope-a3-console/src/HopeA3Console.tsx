@@ -123,7 +123,9 @@ type FieldStatus = {
   mode: "OPTITRACK" | "KERNEL";
   calibration?: { name: string; sha256: string; profile: string; table_side: string } | null;
   calibration_sync: string;
-  csv?: { name: string; sha256: string; frames: number; hz: number } | null;
+  csv?: { name: string; sha256: string; frames: number; hz: number;
+    segments?: { version: number; branch_frame: number; policy_ready_s: number; policy_blend_s: number;
+      policy_sha256: string; clips: Record<string, { frames: number; duration_s: number }> } } | null;
   recording: { state: string; output: string; error: string };
   busy?: boolean;
   error?: string;
@@ -857,7 +859,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const startSystem = useCallback(async () => {
     const accepted = window.confirm(
       snapshot.field?.mode === "KERNEL"
-        ? "Start Kernel Mode with the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE; X/Ready and serve completion run the receive policy with local stance-foot odometry. No OptiTrack or Planner will be started."
+        ? "Start Kernel Mode with the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE; X/Ready runs the receive policy with local stance-foot odometry. Serve completion returns to Stand. No mocap or Planner will be started."
         : "Start STEP 0/1/2A/2B/4/5 now? Confirm the robot is physically supported and the hardware E-stop is reachable. The Runner will start in PASSIVE.",
     );
     if (accepted) {
@@ -1165,8 +1167,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         </section>
         <section className="field-card">
           <span className="eyebrow">SERVE CSV</span>
-          <strong>{field?.csv?.name ?? "serve025 · forwardhit_v4.csv (default)"}</strong>
+          <strong>{field?.csv?.name ?? "a3p_op3_serve025_v23_branch110_model14600.csv (default)"}</strong>
           <span className="helper">{field?.csv ? `Validated · ${field.csv.frames} frames · ${field.csv.hz} Hz · SHA ${field.csv.sha256.slice(0, 12)}` : "468 frames · 100 Hz · SDK 31-joint format"}</span>
+          {field?.csv?.segments && <span className="helper">
+            3 segments · branch {(field.csv.segments.branch_frame / field.csv.hz).toFixed(2)} s ·
+            Normal: Serve → Policy ready ({field.csv.segments.clips.SERVE_TO_POLICY?.duration_s.toFixed(2)} s) · Kernel: Serve → Stand
+          </span>}
           <div className="field-buttons">
             <button type="button" disabled={!assetEditable} onClick={() => csvInput.current?.click()}>Upload CSV</button>
             <button type="button" disabled={!assetEditable || field?.csv == undefined}
@@ -1175,7 +1181,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <input ref={csvInput} type="file" accept=".csv,text/csv" hidden
             onChange={(event) => { void uploadAsset(event.target.files?.[0]); event.target.value = ""; }} />
           <p className="helper">Select Kernel Mode, upload while stopped, then Run → SERVER → Stand → Start to Serve → load ball and clear hands → Serve → slowly lower arms → Stand → Start to Serve again.</p>
-          <span className="helper">Uploads use the Runner CSV validator and never start motion. Normal play retains its built-in serve CSV.</span>
+          <span className="helper">Uploads use the Runner CSV validator and never start motion. Normal Play and Kernel use the same selected CSV version. Annotated CSV: both modes use Stand → Serve; Kernel returns to Stand, Normal goes directly to the bound policy’s ready pose. Legacy CSV keeps its original handoff behavior.</span>
         </section>
       </div>
       {field?.error && <div className="operator-notice">{field.error}</div>}

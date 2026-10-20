@@ -47,6 +47,23 @@ class FieldAssetsTest(unittest.TestCase):
         return FieldOperations(self.root / "hdu", self.exchange,
             recorder=ManagedRecorder(self.root / "recordings"))
 
+    def test_annotated_csv_requires_segment_validator_and_preserves_metadata(self):
+        content = (ROOT / "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/archive/a3p_op3_serve025_v21_segments_model14600.csv").read_text()
+        request = {"op": "upload_csv", "name": "v21.csv", "content": content}
+        def old_validator(*args, **kwargs):
+            return SimpleNamespace(returncode=0, stdout="SERVE_TIMELINE_VALID", stderr="")
+        with self.assertRaisesRegex(ValueError, "annotated serve-segment update"):
+            csv_request(self.root, Path("/runner"), request, run=old_validator)
+        def validator(*args, **kwargs):
+            return SimpleNamespace(returncode=0, stdout="SERVE_SEGMENTS_VALID\nSERVE_TIMELINE_VALID", stderr="")
+        result = csv_request(self.root, Path("/runner"), request, run=validator)
+        self.assertEqual(result["segments"]["branch_frame"], 146)
+        self.assertEqual(result["segments"]["clips"]["SERVE_TO_POLICY"], {"frames": 81, "duration_s": .8})
+        verified = csv_request(self.root, Path("/runner"), {"op": "verify_csv", "sha256": result["sha256"]}, run=validator)
+        self.assertEqual(verified["segments"], result["segments"])
+        with self.assertRaisesRegex(ValueError, "annotated serve-segment update"):
+            csv_request(self.root, Path("/runner"), {"op": "verify_csv", "sha256": result["sha256"]}, run=old_validator)
+
     def test_calibration_round_trip_survives_restart_and_failed_load(self):
         field = self.manager()
         field.command({"op": "load_calibration", "name": "venue-A.json", "content": receipt()}, self.config, stopped=True)
@@ -59,6 +76,15 @@ class FieldAssetsTest(unittest.TestCase):
         exported = restarted.command({"op": "export_calibration"}, self.config, stopped=False)
         self.assertEqual(exported, {"name": "venue-A.json", "content": receipt()})
         self.assertTrue(all(op in {"read_calibration", "load_calibration"} for _, op in self.calls))
+
+    def test_v23_frame_event_contract_metadata(self):
+        from hope_field_assets import csv_segments_metadata
+        content = (ROOT / "a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_v23_branch110_model14600.csv").read_text()
+        metadata = csv_segments_metadata(content)
+        self.assertIn(",FRAME,SERVE_TO_POLICY,110,110,", content)
+        self.assertEqual(metadata["branch_frame"], 110)
+        self.assertEqual(set(metadata["clips"]), {"STAND_TO_SERVE", "SERVE_TO_STAND", "SERVE_TO_POLICY"})
+        self.assertEqual(metadata["clips"]["SERVE_TO_POLICY"], {"frames": 87, "duration_s": .86})
 
     def test_explicit_calibration_capture_is_adopted_without_new_session_fit(self):
         active = self.root / "laptop/ucb_robot_to_pelvis.json"
@@ -104,6 +130,65 @@ class FieldAssetsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "changed on the MDU"):
             field.runner_selection(self.config)
         self.assertEqual(field.status()["recording"]["state"], "OFF")
+
+    def test_mode_switch_preserves_and_verifies_the_selected_csv(self):
+        def exchange(host, config, request):
+            if request["op"] == "verify_ball_model":
+                return {}
+            return self.exchange(host, config, request)
+        field = FieldOperations(self.root / "hdu", exchange,
+            recorder=ManagedRecorder(self.root / "recordings"))
+        field.command({"op": "upload_csv", "name": "serve.csv", "content": "qualified CSV"},
+                      self.config, stopped=True)
+        selected = field.status()["csv"]
+        for mode in ("KERNEL", "OPTITRACK", "KERNEL"):
+            with self.subTest(mode=mode):
+                field.command({"op": "set_mode", "mode": mode}, self.config, stopped=True)
+                self.assertEqual(field.runner_selection(self.config), (mode, selected["sha256"]))
+                self.assertEqual(field.status()["csv"], selected)
+                path = Path(selected["path"])
+                path.write_text("tampered")
+                with self.assertRaisesRegex(ValueError, "changed on the MDU"):
+                    field.runner_selection(self.config)
+                path.write_text("qualified CSV")
+                path.unlink()
+                with self.assertRaises((ValueError, FileNotFoundError)):
+                    field.runner_selection(self.config)
+                path.write_text("qualified CSV")
+        field.command({"op": "use_default_csv"}, self.config, stopped=True)
+        for mode in ("KERNEL", "OPTITRACK"):
+            field.command({"op": "set_mode", "mode": mode}, self.config, stopped=True)
+            self.assertEqual(field.runner_selection(self.config), (mode, "DEFAULT"))
+
+    def test_helper_passes_same_csv_and_checks_bytes_in_both_modes(self):
+        helper = (ROOT / "foxglove/helpers/hope-lifecycle").read_text()
+        block = helper[helper.index("  local -a field_runner_args="):
+                       helper.index('  if [[ -d "$PWD/teleop_humanlike" ]]')]
+        block = block.replace("/agibot/hope-field-assets", str(self.root))
+        import hashlib
+        digest = hashlib.sha256(b"qualified CSV").hexdigest()
+        path = self.root / (digest + ".csv")
+        script = ('set -euo pipefail\ndie() { echo "$2" >&2; exit 1; }\n'
+                  'probe() {\n' + block + '\nprintf "%s\\n" "${field_runner_args[@]}";\n}\n'
+                  'FIELD_MODE="$1"; SERVE_CSV_SHA="$2"; MDU_DEPLOY=/fixed/package; probe')
+        for mode in ("KERNEL", "OPTITRACK"):
+            for state in ("valid", "tampered", "missing", "default"):
+                with self.subTest(mode=mode, state=state):
+                    path.write_text("qualified CSV" if state == "valid" else "tampered")
+                    if state == "missing":
+                        path.unlink()
+                    result = subprocess.run(["bash", "-c", script, "test", mode,
+                                             "DEFAULT" if state == "default" else digest],
+                                            capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode == 0, state in {"valid", "default"}, result.stderr)
+                    if state == "valid":
+                        self.assertEqual(result.stdout.splitlines()[-2:], ["--serve-timeline", str(path)])
+                    elif state == "default":
+                        self.assertEqual(result.stdout.splitlines()[-2:], [
+                            "--serve-timeline",
+                            "/fixed/package/motions/a3p_op3_serve025_v23_branch110_model14600.csv"])
+                    else:
+                        self.assertIn("SELECTED_CSV_", result.stderr)
 
     def test_untrusted_filename_cannot_escape_fixed_store(self):
         for name in ("../outside.csv", "/tmp/file.csv", "foo\\bar.csv", "x\n.csv"):

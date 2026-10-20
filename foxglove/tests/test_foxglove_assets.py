@@ -699,7 +699,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("SERVE025_TIMELINE_MISSING", helper)
         self.assertIn("GRIPPER_BRIDGE_MISSING", helper)
         self.assertIn(
-            "a3p_op3_serve025_smooth_center_v14.csv",
+            "a3p_op3_serve025_v23_branch110_model14600.csv",
             helper,
         )
         self.assertNotIn("SPIN001_ENTRY_SHA256_MISMATCH", helper)
