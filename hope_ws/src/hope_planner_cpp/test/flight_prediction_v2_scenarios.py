@@ -4,6 +4,8 @@ import argparse
 import json
 import math
 import subprocess
+import select
+import sys
 import time
 
 import numpy as np
@@ -59,6 +61,88 @@ def independent_trace(direction, duration=1.2):
     return at, contacts
 
 
+def trace_producer(direction, rate, session, sequence):
+    """Pace observations independently of the receiver's large packet decoding."""
+    at, contacts = independent_trace(direction)
+    node = rclpy.create_node('flight_trace_source_' + str(abs(hash(session))))
+    observation = node.create_publisher(BallObservationV2, '/hope/ball/observation_v2', qos_profile_sensor_data)
+    base = node.create_publisher(Float64MultiArray, '/hope/robot/base_pose', qos_profile_sensor_data)
+    context = node.create_publisher(FlightContextV2, '/hope/shadow/flight_v2/context', 32)
+    latest = [None]
+    def receive(message):
+        if message.session_id == session and message.physical_available:
+            latest[0] = message
+    node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/prediction', receive, qos_profile_sensor_data)
+    sent_stamps = []
+    context_sent = continuity_sent = False
+    continuity_refreshes = 0
+    last_refresh = 0
+    try:
+        deadline = time.monotonic() + 5
+        while observation.get_subscription_count() == 0 and time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=.01)
+        assert observation.get_subscription_count() > 0, 'fixture observation subscriber missing'
+        print(json.dumps(dict(ready=True)), flush=True)
+        start = int(sys.stdin.readline())
+        schedule = time.monotonic() + (start-time.time_ns())*1e-9
+        for i in range(round(.82*rate)):
+            if round(.32*rate) <= i < round(.32*rate)+2:
+                continue
+            deadline = schedule+i/rate+(.00015 if i%3 == 0 else 0)
+            while time.monotonic() < deadline:
+                rclpy.spin_once(node, timeout_sec=min(.0005, deadline-time.monotonic()))
+            ns = time.time_ns()
+            t = (ns-start)*1e-9
+            state, omega = at(t)
+            raw_spin = omega if i == 0 or contacts[1]+.035 < t < contacts[1]+.055 else None
+            if .075 < t < .10:
+                raw_spin = (0., 0., 0.)
+            message = BallObservationV2()
+            message.source_time_ns, message.source_time_valid = ns, True
+            message.clock_domain, message.clock_mapping_id = 'ros_system', 'fixture_wall'
+            message.clock_mapping_valid = True
+            message.frame_id, message.ball_id, message.position_valid = 'table', 'fixture', True
+            message.position.x, message.position.y, message.position.z = map(float, state[:3])
+            message.orientation.w = 1.
+            if raw_spin is not None:
+                message.omega_valid = True
+                message.omega_rad_s.x, message.omega_rad_s.y, message.omega_rad_s.z = map(float, raw_spin)
+            observation.publish(message)
+            sent_stamps.append(ns)
+            if i % max(1, rate//40) == 0:
+                sequence += 1
+                pose_ns = time.time_ns()
+                pose = Float64MultiArray()
+                pose.data = [2., 1., float(sequence), float(pose_ns//10**9), float(pose_ns%10**9),
+                             -.43 if t < .35 else -.33, -.2, 0., 0., 0., 0., 1., 1., 47., 7., 1.]
+                base.publish(pose)
+            current = latest[0]
+            def evidence(complete=False):
+                event = FlightContextV2()
+                event.session_id, event.authority, event.operation = session, 'fixture', 'CONTEXT'
+                event.source_time_ns = current.prediction_reference_time_ns
+                event.shot_generation = current.shot_generation
+                event.match_context = 'SERVE'
+                if complete:
+                    event.history_continuity = 'complete'
+                context.publish(event)
+            if current and .10 < t < contacts[0] and not context_sent:
+                evidence()
+                context_sent = True
+            if current and t > contacts[0]+.07:
+                if (not continuity_sent or current.history_continuity != 'complete') and ns-last_refresh > 30_000_000:
+                    evidence(complete=True)
+                    continuity_sent = True
+                    continuity_refreshes += 1
+                    last_refresh = ns
+            rclpy.spin_once(node, timeout_sec=0)
+        print(json.dumps(dict(stamps=sent_stamps, last_sequence=sequence,
+                              context_sent=context_sent, continuity_sent=continuity_sent,
+                              continuity_refreshes=continuity_refreshes)), flush=True)
+    finally:
+        node.destroy_node()
+
+
 def scenario(executable, direction, rate, policy):
     session = f'scoped_{direction}_{rate}_{policy}'
     process = subprocess.Popen([executable, '--ros-args', '-p', 'session_id:='+session,
@@ -74,6 +158,7 @@ def scenario(executable, direction, rate, policy):
     context = node.create_publisher(FlightContextV2, '/hope/shadow/flight_v2/context', 32)
     base = node.create_publisher(Float64MultiArray, '/hope/robot/base_pose', qos_profile_sensor_data)
     sequence = 0
+    source_process = None
     def spin(duration):
         deadline = time.monotonic()+duration
         while time.monotonic() < deadline:
@@ -113,51 +198,28 @@ def scenario(executable, direction, rate, policy):
         if policy == 'ON_REFRESH':
             evidence('REFRESH_PLANE')
             spin(.015)
-        at, contacts = independent_trace(direction)
-        start, schedule = time.time_ns(), time.monotonic()
-        context_sent = continuity_sent = False
-        continuity_refreshes = 0
-        last_continuity_refresh_ns = 0
-        sent_stamps = []
-        for i in range(round(.82*rate)):
-            if round(.32*rate) <= i < round(.32*rate)+2:
-                continue
-            deadline = schedule+i/rate+(.00015 if i%3 == 0 else 0)
-            while time.monotonic() < deadline:
-                rclpy.spin_once(node, timeout_sec=.001)
-            ns = time.time_ns()
-            t = (ns-start)*1e-9
-            state, omega = at(t)
-            raw_spin = omega if i == 0 or contacts[1]+.035 < t < contacts[1]+.055 else None
-            if .075 < t < .10:
-                raw_spin = np.zeros(3)  # Missing legacy sentinel.
-            if .10 < t < .12:
-                raw_spin = np.array([math.nan, 99., -88.])  # Rejected whole vector.
-            measurement(ns, state[:3], raw_spin)
-            sent_stamps.append(ns)
-            if i % max(1, rate//40) == 0:
-                pose(-.43 if t < .35 else -.33)
-            current = [p for p, _ in predictions if p.physical_available]
-            if current and .10 < t < contacts[0] and not context_sent:
-                p = current[-1]
-                evidence('CONTEXT', source_time_ns=p.prediction_reference_time_ns,
-                         shot_generation=p.shot_generation, match_context='SERVE')
-                context_sent = True
-            if current and t > contacts[0]+.07:
-                p = current[-1]
-                # The independent synthetic trace is the authority for complete
-                # prehistory. A later observation gap correctly withdraws that
-                # qualification, so refresh its evidence rather than requiring
-                # a target while the receiver reports incomplete history.
-                needs_history = not continuity_sent or p.history_continuity != 'complete'
-                if needs_history and ns - last_continuity_refresh_ns > 30_000_000:
-                    evidence('CONTEXT', source_time_ns=p.prediction_reference_time_ns,
-                             shot_generation=p.shot_generation, match_context='SERVE',
-                             history_continuity='complete')
-                    continuity_sent = True
-                    continuity_refreshes += 1
-                    last_continuity_refresh_ns = ns
-            rclpy.spin_once(node, timeout_sec=0)
+        _, contacts = independent_trace(direction)
+        source_process = subprocess.Popen([
+            sys.executable, __file__, '--executable', executable, '--trace-producer',
+            '--case', str(direction), str(rate), policy, '--session', session,
+            '--pose-sequence', str(sequence)], stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        assert select.select([source_process.stdout], [], [], 10)[0], 'fixture source startup timeout'
+        ready = source_process.stdout.readline()
+        assert ready and json.loads(ready).get('ready'), ready
+        start = time.time_ns() + 50_000_000
+        source_process.stdin.write(str(start) + '\n')
+        source_process.stdin.flush()
+        while source_process.poll() is None:
+            rclpy.spin_once(node, timeout_sec=.001)
+        output, source_errors = source_process.communicate(timeout=5)
+        assert source_process.returncode == 0, source_errors
+        source_report = json.loads(output.strip())
+        sent_stamps = source_report['stamps']
+        sequence = source_report['last_sequence']
+        context_sent = source_report['context_sent']
+        continuity_sent = source_report['continuity_sent']
+        continuity_refreshes = source_report['continuity_refreshes']
         spin(.045)
         physical = [p for p, _ in predictions if p.physical_available]
         assert physical and context_sent and continuity_sent
@@ -244,8 +306,14 @@ def scenario(executable, direction, rate, policy):
         return dict(direction=direction, rate_hz=rate, policy=policy, physical_forecasts=len(physical),
                     confirmed_bounces=len(confirmed), spin_modes=sorted(modes), planes=sorted(planes),
                     generation=generation, automatic_acquisition=True, source_stamps_preserved=True, outside_legacy_robot_y_gate=True,
-                    verified_history_refreshes=continuity_refreshes, requested_full_rate_hz=50)
+                    verified_history_refreshes=continuity_refreshes, requested_full_rate_hz=50,
+                    independent_source_process=True,
+                    actual_source_rate_hz=(len(sent_stamps)-1)/((sent_stamps[-1]-sent_stamps[0])*1e-9),
+                    max_source_gap_ms=max(b-a for a,b in zip(sent_stamps,sent_stamps[1:]))*1e-6)
     finally:
+        if source_process is not None and source_process.poll() is None:
+            source_process.terminate()
+            source_process.communicate(timeout=5)
         node.destroy_node()
         process.terminate()
         try:
@@ -259,16 +327,23 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--executable',required=True)
     parser.add_argument('--output')
+    parser.add_argument('--trace-producer', action='store_true')
+    parser.add_argument('--session')
+    parser.add_argument('--pose-sequence', type=int, default=0)
     parser.add_argument('--case',nargs=3,metavar=('DIRECTION','RATE','POLICY'))
     args=parser.parse_args()
     rclpy.init()
     try:
+        if args.trace_producer:
+            trace_producer(int(args.case[0]), int(args.case[1]), args.session, args.pose_sequence)
+            return
         if args.case:
             results=[scenario(args.executable,int(args.case[0]),int(args.case[1]),args.case[2])]
         else:
             results=[scenario(args.executable,direction,rate,'FOLLOW_POSE')
                      for direction in (-1,1) for rate in (150,300)]
-            results += [scenario(args.executable,direction,150,'ON_REFRESH') for direction in (-1,1)]
+            results += [scenario(args.executable,direction,rate,'ON_REFRESH')
+                        for direction in (-1,1) for rate in (150,300)]
         report=dict(status='PASS',truth='synthetic independent DOP853 fixture; not physical qualification',scenarios=results)
         print(json.dumps(report))
         if args.output:
