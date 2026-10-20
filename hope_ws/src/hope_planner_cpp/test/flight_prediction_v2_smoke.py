@@ -75,8 +75,28 @@ def run(executable, rate, full_rate=50., worker_delay_ms=0):
         boundary.direction = -1
         boundary.history_continuity = 'complete'
         boundary.source_time_ns = start
-        context.publish(boundary)
-        spin(.015)
+        boundary_ack_ms = []
+        expected_generations = set()
+        def start_flight():
+            # Context and observations use independent DDS subscriptions. A
+            # fixed sleep does not establish that START retired the old shot.
+            previous = max((p.shot_generation for p in predictions), default=0)
+            boundary.source_time_ns = time.time_ns()
+            context.publish(boundary)
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                acknowledgements = [p for p in predictions
+                    if p.shot_generation > previous
+                    and p.published_at_ns >= boundary.source_time_ns
+                    and p.forecast_status == 'REVOKED']
+                if acknowledgements:
+                    ack = acknowledgements[0]
+                    boundary_ack_ms.append(
+                        (ack.published_at_ns - boundary.source_time_ns) / 1e6)
+                    return ack.shot_generation
+                rclpy.spin_once(node, timeout_sec=.001)
+            raise AssertionError('START boundary acknowledgement missing')
+        start_flight()
         sent = 0
         eligible_sources = set()
         source_stamps = []
@@ -86,9 +106,7 @@ def run(executable, rate, full_rate=50., worker_delay_ms=0):
         # dynamics accuracy is independently tested against DOP853.
         # Multiple independent flights prevent a long invalid tail from obscuring coverage.
         for flight in range(4):
-            boundary.source_time_ns = time.time_ns()
-            context.publish(boundary)
-            spin(.008)
+            expected_generations.add(start_flight())
             schedule = time.monotonic()
             flight_source_start = time.time_ns()
             flight_starts.append(flight_source_start)
@@ -142,6 +160,10 @@ def run(executable, rate, full_rate=50., worker_delay_ms=0):
         spin(.06)
         forecasts = [p for p in predictions if p.physical_available]
         assert forecasts, 'no physical forecasts'
+        assert {p.shot_generation for p in forecasts} <= expected_generations, (
+            'unrequested shot generation', expected_generations,
+            [(p.shot_generation, p.reason) for p in predictions
+             if p.shot_generation not in expected_generations])
         for message in forecasts:
             assert message.schema_version == 3
             assert message.shot_id == message.shot_generation
@@ -220,6 +242,7 @@ def run(executable, rate, full_rate=50., worker_delay_ms=0):
                     generation_latency_ms=distribution(generation_latency), publication_latency_ms=distribution(publication_latency),
                     latency_ms=distribution(latency), superseded=max(p.superseded_count for p in forecasts),
                     queue_bound=dict(running=1,pending=1), resources=resources,
+                    boundary_ack_ms=boundary_ack_ms,
                     lifecycle_reasons=dict(Counter(p.reason for p in predictions if not p.physical_available)),
                     generations=sorted({p.shot_generation for p in predictions}),
                     payload=dict(compact_mean_cdr_bytes=statistics.mean(compact_sizes),
