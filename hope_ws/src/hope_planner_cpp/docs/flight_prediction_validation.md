@@ -44,6 +44,32 @@ command-packing symbols; source and ROS graph tests independently audit the boun
 Existing production/PR49 compatibility and baseline-trigger tests remain in the
 full gate; passing them does not reinstate a deferred downstream feature.
 
+## Installed-executable checks
+
+After the clean build, source its install and run from the checkout root. These
+are the installed checks used for the acceptance receipt; choose another output
+directory when reproducing. Keep throughput measurements separate from compilers
+or other test workloads.
+
+```bash
+source /tmp/hope-v2-scoped-final/install/setup.bash
+export ROS_DOMAIN_ID=188 ROS_LOCALHOST_ONLY=1
+scoped_tools=hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation
+scoped_tests=hope_ws/src/hope_planner_cpp/test
+scoped_bin=/tmp/hope-v2-scoped-final/install/hope_planner_cpp/lib/hope_planner_cpp
+python3 "$scoped_tools/numerical_gate.py" --executable "$scoped_bin/hope_flight_prediction_v2_replay" --output /tmp/scoped-numerical.json
+python3 "$scoped_tests/flight_prediction_v2_scenarios.py" --executable "$scoped_bin/hope_flight_prediction_v2_node" --output /tmp/scoped-raw.json
+python3 "$scoped_tests/flight_prediction_v2_smoke.py" --executable "$scoped_bin/hope_flight_prediction_v2_node" --worker-delay-ms 12
+python3 "$scoped_tests/matched_replay_gate.py" --baseline "$scoped_bin/hope_ball_flight_baseline_replay" --v2 "$scoped_bin/hope_flight_prediction_v2_replay" --output /tmp/scoped-synthetic-tooling
+python3 "$scoped_tools/benchmark_cadence.py" --executable "$scoped_bin/hope_flight_prediction_v2_node" --smoke "$scoped_tests/flight_prediction_v2_smoke.py" --output /tmp/scoped-cadence
+```
+
+`benchmark_cadence.py` retains all eight independent results, even when an optional
+profile fails. The complete sweep's exit reports the selected 50 Hz profile;
+individual statuses and raw logs remain part of the result. The synthetic plotting
+fixture deliberately includes unavailable/invalid method/event epochs; it exercises
+the scoring/coverage path and is not a coherent real-flight accuracy comparison.
+
 ## Actual scenario coverage
 
 Native APIs and installed ROS cover both directions and 150/300 Hz, actual

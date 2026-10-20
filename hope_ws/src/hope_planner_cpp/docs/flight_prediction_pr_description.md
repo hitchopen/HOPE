@@ -1,36 +1,69 @@
-PR49 lacked the required flight transitions and physical-shot lifecycle. This branch
-restores its reusable shadow scaffold on current `nightly_built` and adds a selectable
-v2 pipeline with coordinated shot ownership, five-state classification, explicit
-spin availability, common event physics and source-time target arrival semantics.
+# Scope V2 to causal ball-flight forecasts and complete its physical output contract
 
-The new observation/packet/forecast/context interfaces are versioned alongside the
-legacy interfaces. The relay preserves authoritative validity, the estimator remains
-six-state, and fitting, nominal/fallback prediction, adaptive contact timing and
-Stage 3 use the shared thin-shell/position-only kernel. Stage 3 converts a tabletop
-landing point to ball-center height exactly once and verifies its first contact.
-Existing planner/runner protections remain behind adapters; no learned policy or
-hardware cancellation protocol is replaced.
+V2 previously coupled ball prediction to a shadow racket decision and could label a
+serve confirmed from match context before observing its first bounce. This change
+ends V2 at ball-state, trajectory, physical-event and receiving-plane forecasts.
+SERVE context can constrain the anticipated route; only observed evidence confirms
+the public serve classification. Loss of history recomputes classification without
+inventing a new physical shot.
 
-The v2 launch is shadow-only and rejects output remapping outside its shadow
-namespace. The new compliance profile selects FOLLOW_POSE; existing production
-ON_REFRESH configuration remains unchanged. Contact Y bounds and several evidence,
-clock/plane and model settings are explicitly provisional.
+The V2 node no longer constructs decisions, calls the inverse racket planner,
+packs command previews, or applies robot Y/reach/turn/lead/policy-height admission.
+`FlightDecisionV2` was unused outside that adapter and is removed. The inverse
+`racket_target_planner.cpp` and `adaptive_flight_commit.cpp` are restored exactly
+to upstream `8d599e7`. Original command scalar goldens remain. Legacy PR49 command
+compatibility probes remain separately testable and are outside the V2 link graph.
 
-Validation and remaining qualification are recorded in
-[flight_prediction_acceptance.md](flight_prediction_acceptance.md), with machine-readable
-case mappings in `flight_prediction_acceptance.json`. Architecture and provisional
-parameters are in [flight_prediction_implementation.md](flight_prediction_implementation.md);
-source pins and port provenance are in `flight_prediction_port_manifest.json`.
+A separate `hope_ball_physics_core` provides shared forward free-flight/contact
+physics to estimation, forecasting, fallback and evaluation. All 18 fixed-input
+racket fixtures match upstream exactly. Receiving forward-model changes remain:
+two mutually valid differential fixtures differ by at most 49.67 ms arrival,
+10.49 mm position and 0.675 m/s velocity; a third changes validity. These are
+numerical behavior differences, not evidence of improved physical accuracy.
 
-Final verification used a clean HOPE distrobox/Jazzy build and installed executables.
-All 27 planner and 2 message test groups pass; bringup passes 24/26 groups, with
-only the two inherited lint suites failing (3,086 flake8 and 37 pep257 assertions).
-Focused ASan/UBSan/leak checks and six Python spin tests pass. The corrected paced
-source-time fixture and three installed 150/300 Hz repeats retain the 95% availability
-and 30 ms freshness thresholds. X08 is partial and complete Gate S is not claimed
-passed because of existing lint; independent physical validation is NOT RUN.
+Forecast/packet wire revision 3 adds an explicit current posterior, shot identity,
+spin validity/provenance, pre/post event states, source-referenced event lineage,
+conditional covariance and registered plane geometry. Observation/context remain
+revision 2. Consumers must rebuild the forecast interfaces together; old packets
+are rejected. Only `/hope/shadow/flight_v2/` forecast channels are published, with
+post-remapping guards. No runner, motion or production command publisher is enabled.
 
-No physical-accuracy, live frame/paddle registration, policy support or deployment
-adoption claim is made from synthetic or transport tests. Independent recordings and
-supervised adoption remain separate gates. This description is prepared locally;
-no branch push, PR publication, merge or robot launch is part of this implementation.
+Contact predictions retain identity through retirement and source confirmation;
+ambiguous simultaneous hypotheses remain explicit. Propagated spin is HELD rather
+than MEASURED while preserving its original acquisition time. Unavailable planes
+cannot create a default-X crossing event. Pose freshness is checked when preparing
+the forecast, with geometry frozen per solve. Incompatible clock domains invalidate
+ownership; missing compatible mappings revoke output without fabricating clock time.
+
+Full-trajectory and packet cadence are independently configurable; default 50 Hz,
+zero for every completed latest result. Compact updates retain exact source stamps.
+The bounded worker and publication fences reject stale generations and revisions.
+All 50/100/150/latest-result combinations at nominal 150/300 Hz are measured,
+including failed optional profiles. Consult the acceptance receipt for actual
+rates, coverage, freshness, CPU/RSS and CDR payload; higher settings are not a
+universal throughput guarantee.
+
+Validation uses a clean HOPE Jazzy distrobox build, 33/33 planner and 2/2 message
+CTest groups, plus 24/26 bringup groups. The complete repository gate remains
+failed for inherited flake8 (3,086) and pep257 (37) violations, reproduced before
+changes. Native ASan/UBSan/leak checks pass 13/13 groups; supported Python spin
+checks pass 6/6. Independent DOP853/analytic fixtures, causal replay, source/binary
+scope audits, packet transfer and installed raw ROS scenarios cover both directions,
+150/300 Hz, automatic two-bounce serves, spin dropout/reacquisition, plane policies,
+clock/frame faults and new-shot revocation. Exact final code/config pins and
+executed metrics are in `flight_prediction_acceptance.json` and its Markdown index.
+
+Matched one-shot/progressive/V2 replay and scoring generate three figure families
+on identical source cutoffs, retaining rejection and missing-truth denominators.
+One-shot emits only its actual trigger epochs; whole-shot comparisons use common
+valid pairs. Synthetic tooling generated 270 matched rows and six watermarked
+figures. **Independent physical accuracy is NOT_RUN:** no qualified recordings,
+annotations or registration/clock receipts are available. No physical superiority,
+complete uncertainty calibration or deployment readiness is claimed.
+
+Scope and future work: Stage 3 inverse landing/normal/velocity choices, command
+admission and robot scheduling are deferred. Real table/plane registration,
+position-only calibration and independent held-out accuracy remain necessary.
+This branch is prepared for user review; no PR, merge or robot deployment is part
+of this implementation task. See the scoped acceptance matrix for all 40 original
+cases, X01–X10, explicit deferred subassertions and F01–F11 dispositions.

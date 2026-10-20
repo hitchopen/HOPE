@@ -216,7 +216,9 @@ The shared mocap contract remains in [mocap/README.md](mocap/README.md).
 
 ## Flight prediction v2 (shadow)
 
-The selectable flight state/prediction v2 pipeline and its provisional parameters
+The forecast-only scope and restored downstream boundary are described in
+[the scope receipt](hope_ws/src/hope_planner_cpp/docs/flight_prediction_scope_v2.md).
+The flight state/prediction v2 pipeline and its provisional parameters
 are documented in [the implementation guide](hope_ws/src/hope_planner_cpp/docs/flight_prediction_implementation.md).
 See [the executed acceptance receipt](hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.md)
 for software results, reproduction commands, and the physical-data/adoption gates.

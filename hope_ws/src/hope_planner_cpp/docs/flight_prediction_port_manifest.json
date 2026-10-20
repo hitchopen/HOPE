@@ -40,12 +40,13 @@
     "packet": 3
   },
   "scope": "ball state/forward flight/events/receiving plane only; inverse and adaptive scheduling restored to pinned upstream",
-  "ci_evidence": "PR-triggered workflow query returned no runs at e73b312; no GitHub CI pass is claimed",
+  "ci_evidence": "PR-triggered workflow query and combined commit status query returned no runs/statuses at parent e73b312; no GitHub CI pass is claimed",
   "forward_library": "hope_ball_physics_core",
   "new_source_paths": [
     "src/ball_flight_baseline_replay.cpp",
     "scripts/flight_prediction_validation/accuracy.py",
     "scripts/flight_prediction_validation/compare_recordings.py"
   ],
-  "original_checkout_policy": "HOPE/nohope reference worktrees are preserved; no private runtime/build/data import"
+  "original_checkout_policy": "HOPE/nohope reference worktrees are preserved; no private runtime/build/data import",
+  "tested_scoped_source": "2bb6cc56b0aaa8747c99e20de8354bd20b204cbc"
 }
