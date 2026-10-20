@@ -1036,3 +1036,48 @@ TEST(FlightV2Plane, A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent) {
   for (const auto &event : prediction.nominal.events)
     EXPECT_NE(event.kind, "receiving_plane");
 }
+
+TEST(FlightV2Motion,
+     A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration) {
+  for (int direction : {-1, 1}) for (int rate : {150, 300}) {
+    ShotContext shot({});
+    shot.start(0, direction, BoundaryEvidence::RACKET_CONTACT,
+               HistoryContinuity::kComplete);
+    const BallPhysics physics;
+    const double bounce = (.4 + std::sqrt(.4 * .4 +
+        2 * 9.81 * (.5 - physics.radius))) / 9.81;
+    const double vz = .4 - 9.81 * bounce;
+    const double impulse = std::min(physics.table_tangential_gain * 4,
+        physics.table_friction_cap_mu * (1 + physics.restitution_v) * std::abs(vz));
+    auto position = [&](double t) -> Vec3 {
+      double x, z;
+      if (t <= bounce) {
+        x = 2 - 4 * t;
+        z = .5 + .4 * t - 4.905 * t * t;
+      } else {
+        const double dt = t - bounce;
+        x = 2 - 4 * bounce + (-4 + impulse) * dt;
+        z = physics.radius - physics.restitution_v * vz * dt - 4.905 * dt * dt;
+      }
+      return Vec3(direction < 0 ? x : 2.74 - x, -.7, z);
+    };
+    for (int i = 0; i <= int(.6 * rate); ++i) {
+      const double t = double(i) / rate;
+      if (t > .31 && t < .44) continue;  // A real source gap hides the contact.
+      shot.observe(sample(std::llround(t * 1e9), position(t)));
+      ASSERT_TRUE(shot.active()) << direction << ' ' << rate << ' ' << t
+                                << ' ' << shot.reason();
+    }
+    EXPECT_EQ(shot.continuity(), HistoryContinuity::kIncomplete);
+    EXPECT_EQ(shot.observed_contacts(), 0);  // Never fabricate the missing bounce.
+    const double height = position(.6).z();
+    for (int i = int(.6 * rate) + 1; i <= rate && shot.active(); ++i) {
+      const double t = double(i) / rate;
+      auto p = position(t);
+      p.z() = height;  // Fresh contiguous non-ballistic motion must still reject.
+      shot.observe(sample(std::llround(t * 1e9), p));
+    }
+    EXPECT_FALSE(shot.active());
+    EXPECT_EQ(shot.reason(), "qualified_non_ballistic_motion");
+  }
+}

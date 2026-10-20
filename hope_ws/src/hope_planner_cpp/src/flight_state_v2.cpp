@@ -352,8 +352,19 @@ bool ShotContext::observe(BallSample s) {
             event.event_time_ns >= a.source_time_ns &&
             event.event_time_ns <= c.source_time_ns)
           contact_window = true;
-      if (!contact_window && (acceleration - expected).norm() >
-                                 settings_.ballistic_residual_mps2) {
+      // A tracking gap can hide a contact without a measured reversal or a
+      // sample near table height. Its secant velocities do not establish one
+      // smooth acceleration. History is already incomplete; preserve XYZ and
+      // withhold this rejection until the gap leaves the retained window.
+      bool continuous_window = true;
+      for (std::size_t i = 1; i < samples_.size(); ++i)
+        if ((static_cast<long double>(samples_[i].source_time_ns) -
+             samples_[i - 1].source_time_ns) * 1e-9L > config_.gap_warning_s) {
+          continuous_window = false;
+          break;
+        }
+      if (continuous_window && !contact_window &&
+          (acceleration - expected).norm() > settings_.ballistic_residual_mps2) {
         invalidate("qualified_non_ballistic_motion");
         return false;
       }
