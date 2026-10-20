@@ -89,10 +89,10 @@ def scenario(executable, direction, rate, policy):
         for name, value in fields.items():
             setattr(message, name, value)
         context.publish(message)
-    def measurement(ns, xyz, omega=None, clock='ros_system', frame='table'):
+    def measurement(ns, xyz, omega=None, clock='ros_system', frame='table', mapping_valid=True):
         message = BallObservationV2()
         message.source_time_ns, message.source_time_valid = ns, True
-        message.clock_domain, message.clock_mapping_id, message.clock_mapping_valid = clock, 'fixture_wall', True
+        message.clock_domain, message.clock_mapping_id, message.clock_mapping_valid = clock, 'fixture_wall', mapping_valid
         message.frame_id, message.ball_id, message.position_valid = frame, 'fixture', True
         message.position.x, message.position.y, message.position.z = [float(v) for v in xyz]
         message.orientation.w = 1.
@@ -189,9 +189,12 @@ def scenario(executable, direction, rate, policy):
         new = [p for p, _ in predictions if p.published_at_ns > fence and p.physical_available]
         assert new and all(p.shot_generation != generation for p in new)
         assert all(not p.current_state.spin_available for p in new)
-        measurement(time.time_ns(), (1.8, -.2, .8), clock='unregistered')
+        measurement(time.time_ns(), (1.8, -.2, .8), mapping_valid=False)
         spin(.02)
         assert any(p.reason == 'clock_mapping_unavailable' for p, _ in predictions)
+        measurement(time.time_ns(), (1.8, -.2, .8), clock='unregistered')
+        spin(.02)
+        assert any(p.reason=='source_clock_domain_mismatch' and p.play_state=='INVALID' for p,_ in predictions)
         if policy == 'FOLLOW_POSE':
             # Fresh ball data with stale pose must retain physical forecasts.
             spin(.22)

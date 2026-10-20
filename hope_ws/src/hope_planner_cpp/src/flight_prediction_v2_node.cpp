@@ -135,13 +135,20 @@ public:
           sample.receipt_steady_ns = steady_ns();
           std::lock_guard<std::mutex> guard(mutex_);
           ++inputs_;
+          if (!sample.source_time_valid || !sample.position_valid)
+            return;
           if (sample.frame_id != frame_) {
             pipeline_->invalidate("registered_frame_mismatch");
             revoke_locked();
             return;
           }
-          if (!sample.clock_mapping_valid ||
-              sample.clock_domain != clock_domain_) {
+          if (sample.clock_domain != clock_domain_) {
+            mapping_valid_ = false;
+            pipeline_->invalidate("source_clock_domain_mismatch");
+            revoke_locked("source_clock_domain_mismatch");
+            return;
+          }
+          if (!sample.clock_mapping_valid) {
             mapping_valid_ = false;
             pipeline_->shot().revoke_outputs("clock_mapping_unavailable");
             revoke_locked("clock_mapping_unavailable");
@@ -154,6 +161,11 @@ public:
           if (previous_generation != pipeline_->shot().generation() ||
               previous_revision != pipeline_->shot().revision())
             revoke_locked(pipeline_->shot().reason());
+          if (!pipeline_->shot().active() ||
+              pipeline_->shot().samples().empty() ||
+              pipeline_->shot().samples().back().source_time_ns !=
+                  sample.source_time_ns)
+            return;
           // Sequence is reserved before copying; ordinary observations never
           // supersede semantic context.
           pipeline_->shot().snapshot();

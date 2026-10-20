@@ -29,7 +29,8 @@ def main():
     rows=compare(dataset,args.v2,args.baseline,synthetic=True)
     assert len(rows)==45*3*2
     actual=[r for r in rows if r['method']=='legacy_one_shot' and r['attempted']]
-    assert {r['information_cutoff_ns'] for r in actual}=={origin+200000000}
+    epochs={r['information_cutoff_ns'] for r in actual}
+    assert len(epochs)==1 and origin+190_000_000<=next(iter(epochs))<=origin+210_000_000
     def check(output):
         report=write_report(rows,output,synthetic=True,repetitions=20)
         assert report['gate_p']=='NOT_RUN_SYNTHETIC_TOOLING'

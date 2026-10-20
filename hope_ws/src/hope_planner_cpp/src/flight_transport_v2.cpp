@@ -178,7 +178,10 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
     current.spin_provenance = p.belief.effective_spin.provenance;
     if (current.spin_available)
       vector(current.omega_rad_s, *p.belief.effective_spin.omega);
-    current.linearization_quality = "conditional_ckf_posterior";
+    current.linearization_quality =
+        p.belief.last_measurement_time_ns == p.reference_ns
+            ? "conditional_ckf_posterior"
+            : "conditional_prediction_since_last_accepted_measurement";
     for (int r = 0; r < 6; ++r)
       for (int c = 0; c < 6; ++c)
         current.covariance[r * 6 + c] = p.belief.covariance(r, c);

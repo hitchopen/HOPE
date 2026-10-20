@@ -246,15 +246,16 @@ def figures(records, errors, output, synthetic):
         bins=defaultdict(list)
         for r in rows:
             if 'truth_arrival_ns' in r:
-                reference=r.get('prediction_reference_time_ns') or r['information_cutoff_ns']
+                reference=r.get('prediction_reference_time_ns')
+                if reference is None: reference=r['information_cutoff_ns']
                 bins[round((r['truth_arrival_ns']-reference)/50e6)*50].append(r)
-        axes[0].plot(sorted(bins),[np.mean([r['target_valid'] for r in bins[k]]) for k in sorted(bins)],marker='o',label=method)
+        axes[0].plot(sorted(bins),[np.mean([r.get('event_estimate_valid',r['target_valid']) for r in bins[k]]) for k in sorted(bins)],marker='o',label=method)
         latency=sorted(r['compute_ms'] for r in rows if r.get('compute_ms') is not None)
         if latency: axes[1].plot(latency,np.arange(1,len(latency)+1)/len(latency),label=method)
         distances=[r['conditional_position_mahalanobis'] for r in errors if r['method']==method and r['conditional_position_mahalanobis'] is not None]
         if distances:
             levels=np.linspace(.05,.99,20);axes[2].plot(levels,[np.mean(np.asarray(distances)<=chi2.ppf(x,3)) for x in levels],label=method)
-    axes[0].set(xlabel='Matched event lead bin (ms)',ylabel='Target coverage (all eligible cutoffs)')
+    axes[0].set(xlabel='Matched event lead bin (ms)',ylabel='Requested event estimate coverage (all cutoffs)')
     axes[1].set(xlabel='Offline prediction compute time (ms)',ylabel='Empirical CDF')
     axes[2].plot([0,1],[0,1],color='gray',linestyle='--');axes[2].set(xlabel='Nominal conditional position coverage',ylabel='Empirical coverage')
     axes[0].legend(fontsize=7);fig.suptitle(label+'\nStratified spin/phase/sample counts in tables.json; no full uncertainty calibration claim');fig.tight_layout()
