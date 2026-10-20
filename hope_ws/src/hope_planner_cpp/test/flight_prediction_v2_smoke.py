@@ -252,10 +252,15 @@ def main():
     rclpy.init()
     try:
         results = [run(args.executable, rate,args.full_rate,args.worker_delay_ms) for rate in args.rates]
-        bad = subprocess.run([args.executable, '--ros-args', '-r',
-                              '/hope/shadow/flight_v2/prediction:=/racket_command'],
-                             capture_output=True, text=True, timeout=10)
-        assert bad.returncode != 0 and 'shadow namespace' in bad.stderr, bad.stderr
+        for channel, destination in [
+                ('prediction', '/racket_command'),
+                ('prediction', '/hope/shadow/flight_v2/decision'),
+                ('trajectory', '/hope/shadow/flight_v2/prediction'),
+                ('packet', '/racket/command')]:
+            bad = subprocess.run([args.executable, '--ros-args', '-r',
+                                  '/hope/shadow/flight_v2/' + channel + ':=' + destination],
+                                 capture_output=True, text=True, timeout=10)
+            assert bad.returncode != 0 and 'shadow namespace' in bad.stderr, bad.stderr
         print(json.dumps(dict(status='PASS', streams=results)))
         if args.output:
             with open(args.output, 'w', encoding='utf-8') as output:

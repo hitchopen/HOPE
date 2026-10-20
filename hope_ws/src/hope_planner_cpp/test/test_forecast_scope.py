@@ -29,6 +29,7 @@ def test_v2_cannot_construct_commands_or_publish_control_topics():
         assert symbol not in source, symbol
     assert '/hope/shadow/flight_v2/trajectory' in source
     assert 'remapping must retain v2 shadow namespace' in source
+    assert 'resolve_topic_name(topic) != topic' in source
     cmake = (ROOT / 'CMakeLists.txt').read_text()
     v2 = cmake[cmake.index('# V2\'s forward-only'):]
     assert not FORBIDDEN_PATH.search(v2)

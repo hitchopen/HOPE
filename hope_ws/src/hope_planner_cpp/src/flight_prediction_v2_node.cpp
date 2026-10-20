@@ -110,10 +110,9 @@ public:
     for (const auto *topic :
          {"/hope/shadow/flight_v2/prediction", "/hope/shadow/flight_v2/packet",
           "/hope/shadow/flight_v2/trajectory"}) {
-      if (get_node_topics_interface()->resolve_topic_name(topic).rfind(
-              "/hope/shadow/flight_v2/", 0) != 0)
+      if (get_node_topics_interface()->resolve_topic_name(topic) != topic)
         throw std::invalid_argument(
-            "remapping must retain v2 shadow namespace");
+            "remapping must retain v2 shadow namespace and exact output channel");
     }
     auto qos = rclcpp::QoS(1).best_effort();
     publisher_ = create_publisher<hope_msgs::msg::FlightPredictionV2>(
@@ -127,7 +126,7 @@ public:
                               std::string(full_->get_topic_name())})
       if (topic.rfind("/hope/shadow/flight_v2/", 0) != 0)
         throw std::invalid_argument(
-            "remapping must retain v2 shadow namespace");
+            "remapping must retain v2 shadow namespace and exact output channel");
     observation_ = create_subscription<hope_msgs::msg::BallObservationV2>(
         "/hope/ball/observation_v2", qos,
         [this](hope_msgs::msg::BallObservationV2::ConstSharedPtr message) {

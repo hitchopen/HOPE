@@ -13,6 +13,6 @@ Spin is MEASURED, HELD, CONTACT_PROPAGATED or POSITION_ONLY. Unknown or rejected
 
 The registered table-frame X-plane is base_x + 0.58 m. FOLLOW_POSE follows fresh qualified pose; ON_REFRESH freezes the last qualified refresh. Pose loss withholds the plane event but preserves useful physical trajectories. No arbitrary-heading transform or live calibration is claimed.
 
-The bounded worker owns one running and one latest pending job. Outputs are confined to /hope/shadow/flight_v2/{prediction,trajectory,packet}; command-topic remaps fail. Observation/context revisions are 2; forecast/packet revisions are 3. Old schema-2 forecast/packet data are rejected.
+The bounded worker owns one running and one latest pending job. Outputs are confined to /hope/shadow/flight_v2/{prediction,trajectory,packet}; every output must retain its exact registered channel, so command-topic, unregistered-shadow and cross-channel remaps fail. Observation/context revisions are 2; forecast/packet revisions are 3. Old schema-2 forecast/packet data are rejected.
 
 The OptiTrack relay adds a typed observation without changing legacy pose ordering, stamps, rate policy, placeholders or CSV columns. Orientation authority defaults false; an identity quaternion alone is not evidence. No clock-domain conversion is invented.
