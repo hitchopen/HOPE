@@ -25,11 +25,14 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
+# Forecast binaries have no inverse planner/command-packer link dependency.
+add_library(hope_ball_physics_core
+  src/common_ball_physics.cpp src/batch_physics_estimator.cpp
+  src/spin_estimator.cpp src/trajectory_predictor.cpp)
+target_include_directories(hope_ball_physics_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_link_libraries(hope_ball_physics_core PUBLIC Eigen3::Eigen)
 add_library(hope_planner_core
-  src/common_ball_physics.cpp
-  src/batch_physics_estimator.cpp
-  src/spin_estimator.cpp
-  src/trajectory_predictor.cpp
   src/racket_target_planner.cpp
   src/reach_permission.cpp
   src/schema2_packer.cpp
@@ -51,7 +54,7 @@ target_include_directories(hope_planner_core
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(hope_planner_core PUBLIC
-  Eigen3::Eigen
+  hope_ball_physics_core Eigen3::Eigen
   ${hope_msgs_TARGETS}
 )
 
@@ -90,6 +93,7 @@ target_link_libraries(hope_ball_flight_packetizer PRIVATE
 )
 
 install(TARGETS
+  hope_ball_physics_core
   hope_planner_core
   hope_planner_cpp_node
   hope_planner_cpp_replay
@@ -224,12 +228,12 @@ target_link_libraries(hope_flight_transport_v2 PUBLIC hope_forecast_core rclcpp:
 install(TARGETS hope_flight_transport_v2 ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 target_include_directories(hope_forecast_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
-target_link_libraries(hope_forecast_core PUBLIC hope_planner_core Eigen3::Eigen)
+target_link_libraries(hope_forecast_core PUBLIC hope_ball_physics_core Eigen3::Eigen ${hope_msgs_TARGETS})
 add_executable(hope_flight_prediction_v2_node src/flight_prediction_v2_node.cpp)
 target_link_libraries(hope_flight_prediction_v2_node PRIVATE hope_flight_transport_v2 rclcpp::rclcpp ${hope_msgs_TARGETS} ${std_msgs_TARGETS})
 install(TARGETS hope_flight_prediction_v2_node RUNTIME DESTINATION lib/${PROJECT_NAME})
 add_library(hope_strike_selector_core src/strike_flight_detector.cpp src/strike_target_selector.cpp)
-target_link_libraries(hope_strike_selector_core PUBLIC hope_forecast_core ${hope_msgs_TARGETS})
+target_link_libraries(hope_strike_selector_core PUBLIC hope_forecast_core hope_planner_core ${hope_msgs_TARGETS})
 add_executable(hope_ball_event_forecaster_node src/hybrid_trajectory_node.cpp src/hybrid_trajectory_main.cpp)
 target_link_libraries(hope_ball_event_forecaster_node PRIVATE hope_forecast_core rclcpp::rclcpp
   ${geometry_msgs_TARGETS} ${diagnostic_msgs_TARGETS} ${std_msgs_TARGETS} ${std_srvs_TARGETS})
@@ -261,7 +265,7 @@ endif()
 install(FILES docs/ckf_strike_shadow.md DESTINATION share/${PROJECT_NAME}/docs)
 
 ament_export_include_directories(include)
-ament_export_libraries(hope_planner_core)
+ament_export_libraries(hope_planner_core hope_ball_physics_core)
 ament_export_dependencies(Eigen3 hope_msgs)
 
 if(BUILD_TESTING)
@@ -304,9 +308,12 @@ install(FILES docs/flight_prediction_implementation.md docs/flight_prediction_ac
   docs/flight_prediction_acceptance.json docs/flight_prediction_port_manifest.json
   docs/flight_prediction_pr_description.md DESTINATION share/${PROJECT_NAME}/docs)
 add_executable(hope_ball_flight_baseline_replay src/ball_flight_baseline_replay.cpp)
-target_link_libraries(hope_ball_flight_baseline_replay PRIVATE hope_forecast_core)
+target_link_libraries(hope_ball_flight_baseline_replay PRIVATE hope_forecast_core hope_planner_core)
 install(TARGETS hope_ball_flight_baseline_replay RUNTIME DESTINATION lib/${PROJECT_NAME})
 if(BUILD_TESTING)
+  add_test(NAME flight_v2_binary_scope COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/forecast_binary_scope.py
+    --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
   add_test(NAME flight_v2_baseline_epochs COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/baseline_replay_gate.py
     --baseline $<TARGET_FILE:hope_ball_flight_baseline_replay>
