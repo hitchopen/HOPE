@@ -139,6 +139,8 @@ namespaced because its message type differs from the HOPE `/poses` `PoseArray` c
 The A3-specific marker-CAD procedure, installed-layout requirements and
 receipt lifecycle are maintained in
 [agibot/README.md](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
+This optional measured procedure uses Motive/NatNet ModelDef; the ChingMu
+pose-only route uses the separately checked import assets described below.
 The current profile is the **17-station v3 sticker shell** (front seven unchanged,
 two rear rows of five), using its optical-centre
 TF table in ROS `pelvis_link` and the supplied pelvis-aligned native **P1** asset.
@@ -195,6 +197,31 @@ pose—including its quaternion and source header—into `/poses`.
 CMTracker/MCServer VRPN → /vrpn_mocap/<sender>/pose_id_<sensor_id> (PoseStamped)
                          → pose_to_posearray → /poses (PoseArray, Ball at index 0)
 ```
+
+For A3's current 17-sticker shell, the
+[shell-v3 VRPN asset package](../agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
+contains one CMTracker import file,
+[A3_v3_17_stickers.json](../agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json),
+with the same filename stem and internal `UCB_P1` body name as the Motive asset.
+It matches the existing **V4 P1** runtime file byte-for-byte; P1/P2 runtime
+profiles remain unchanged for compatibility and share its geometry.
+`mocap_sticker_shell_v3` is the CAD folder name, while **V4** is the
+runtime/dropdown selection for that same hardware. Configure site body names
+(`UCB_P1`/`UCB_P2`) and unique IDs in CMTracker as needed, preserving the
+pelvis-local geometry. The JSON defines the rigid body in the server; VRPN
+transports its pose, not the definition.
+
+The asset's millimetre-valued marker coordinates target nominal `pelvis_link`
+with ROS **X forward, Y left, Z up**. Keep them uncentered: do not subtract
+the marker centroid or apply Motive's Y-up-to-Z-up conversion. Body-local
+alignment does not establish the server's global world/table frame, which
+must be commissioned separately. CMTracker import/re-export and live
+installation/pivot/axis checks remain required; VRPN has no ModelDef to prove
+that the streamed body matches this nominal geometry. This is not a measured
+physical-calibration receipt. The existing optional NatNet calibration
+workflow is unchanged. For the A3-specific relay, V4 selection, stream units
+and confirmation gates, use the
+[VRPN operator guide](../docs/operations/vrpn_pants_profiles.md).
 
 The checked-in VRPN client polls at 500 Hz, above the typical 300–360 Hz
 source stream. Keep its `update_freq` at or above the measured venue stream

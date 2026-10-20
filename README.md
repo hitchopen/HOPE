@@ -214,6 +214,26 @@ Hardware, frame-table links and the setup procedure are maintained in
 Receipt storage and migration rules are in [calibration/README.md](calibration/README.md).
 The shared mocap contract remains in [mocap/README.md](mocap/README.md).
 
+### ChingMu / VRPN asset for the same shell
+
+The [shell-v3 VRPN asset package](agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
+provides one CMTracker import file,
+[A3_v3_17_stickers.json](agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json),
+using the same filename stem and internal **`UCB_P1`** body name as the Motive
+asset. It is byte-identical to the existing **V4 P1** runtime profile; existing
+runtime profiles remain unchanged for compatibility. The **v3 CAD folder and
+V4 runtime selector refer to the same 17-sticker shell**. Configure the site
+body name (`UCB_P1` or `UCB_P2`) and unique IDs in CMTracker as needed, without
+changing the shared pelvis-local geometry. VRPN then transports poses, not
+the asset definition.
+The uncentered marker coordinates target nominal `pelvis_link`, with ROS
+**X forward, Y left, Z up**; do not subtract the centroid or apply Motive's
+Y-up conversion. Server world/table alignment is a separate commissioning
+step. CMTracker import/re-export and live installation checks are still
+required: pose-only VRPN has no ModelDef to verify geometry, and this asset
+is not a physical-calibration receipt. The optional measured NatNet procedure
+above is unchanged. See the [VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
+
 ## Database
 
 Open-source datasets for HOPE and humanoid robot table-tennis research:
