@@ -176,6 +176,10 @@ def scenario(executable, direction, rate, policy):
             assert p.shot_id == generation
             assert p.current_state.position.z < .76
             if p.target_valid and not p.target_historical:
+                # X05: -.2 m lies outside the removed planner Y gate [-1.2,-.3].
+                # A physical forecast remains usable without robot admission.
+                assert p.target_position.y > -.3
+                assert abs(p.target_position.y+.2) < 1e-6
                 assert p.predicted_arrival_time_ns == p.prediction_reference_time_ns+p.arrival_dt_ns
         # A real new same-direction boundary clears spin and retires pending work.
         boundary = time.time_ns()
@@ -228,7 +232,7 @@ def scenario(executable, direction, rate, policy):
             assert any(p.reason == 'semantic_context_superseded' and p.play_state=='INVALID' for p,_ in predictions)
         return dict(direction=direction, rate_hz=rate, policy=policy, physical_forecasts=len(physical),
                     confirmed_bounces=len(confirmed), spin_modes=sorted(modes), planes=sorted(planes),
-                    generation=generation, automatic_acquisition=True, source_stamps_preserved=True)
+                    generation=generation, automatic_acquisition=True, source_stamps_preserved=True, outside_legacy_robot_y_gate=True)
     finally:
         node.destroy_node()
         process.terminate()
