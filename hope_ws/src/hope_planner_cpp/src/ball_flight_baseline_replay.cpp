@@ -85,9 +85,11 @@ int main(int argc, char **argv) {
           << "\",\"implementation_pin\":\"e73b312:unchanged_batch_"
              "incoming_and_fixed_trigger\",\"model_config_id\":\""
           << ("baseline-shared-v3:sha256:" +
-              sha256("e73b312;window=.18;min_span=.08;min_samples=12;spin=held;"
-                     "commit=.05;adaptive=false;plane=.15;horizon_cap=3;" +
-                     std::string(one_shot ? "one-shot" : "progressive")))
+              sha256(
+                  flight_model_config_id({}, {}) +
+                  ";e73b312;window=.18;min_span=.08;min_samples=12;spin=held;"
+                  "commit=.05;adaptive=false;plane=.15;horizon_cap=3;" +
+                  std::string(one_shot ? "one-shot" : "progressive")))
           << "\",\"source_ns\":" << s.source_time_ns
           << ",\"actual_trigger\":" << (actual_trigger ? "true" : "false")
           << ",\"physical_available\":" << (state.valid ? "true" : "false")

@@ -76,7 +76,7 @@ def residuals(records):
         covariance=row.get('covariance')
         value['conditional_position_mahalanobis']=None
         value['conditional_velocity_mahalanobis']=None
-        if covariance is not None:
+        if covariance is not None and row.get('linearization_quality')=='valid_linearized':
             cov=np.asarray(covariance)
             if cov.shape not in ((6,6),(7,7)) or not np.isfinite(cov).all():
                 raise ValueError('invalid conditional covariance shape/value')

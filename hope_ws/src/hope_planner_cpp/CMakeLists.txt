@@ -317,6 +317,10 @@ if(BUILD_TESTING)
   add_test(NAME flight_v2_binary_scope COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/forecast_binary_scope.py
     --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
+  add_test(NAME flight_v2_matched_replay_tooling COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/matched_replay_gate.py
+    --baseline $<TARGET_FILE:hope_ball_flight_baseline_replay>
+    --v2 $<TARGET_FILE:hope_flight_prediction_v2_replay>)
   add_test(NAME flight_v2_baseline_epochs COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/baseline_replay_gate.py
     --baseline $<TARGET_FILE:hope_ball_flight_baseline_replay>

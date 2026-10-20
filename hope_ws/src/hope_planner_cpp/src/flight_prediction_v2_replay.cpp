@@ -206,7 +206,9 @@ int main(int argc, char **argv) {
         std::cout << ']';
       } else
         std::cout << "null";
-      std::cout << ",\"future_events\":[";
+      std::cout << ",\"linearization_quality\":\""
+                << (target ? quality_name(target->quality) : "unavailable")
+                << "\",\"future_events\":[";
       bool event_comma = false;
       for (const auto &event : prediction.nominal.events) {
         const auto dt = duration_ns(event.dt_s);
@@ -224,7 +226,8 @@ int main(int argc, char **argv) {
         std::cout << ",\"post_velocity\":";
         vector(event.post.tail<3>());
         write_spin(event.pre_spin);
-        std::cout << ",\"covariance\":";
+        std::cout << ",\"linearization_quality\":\""
+                  << quality_name(event.quality) << "\",\"covariance\":";
         if (event.covariance.allFinite()) {
           std::cout << '[';
           for (int r = 0; r < 7; ++r) {
