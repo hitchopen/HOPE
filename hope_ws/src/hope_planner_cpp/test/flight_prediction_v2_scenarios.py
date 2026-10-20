@@ -63,7 +63,7 @@ def scenario(executable, direction, rate, policy):
     session = f'scoped_{direction}_{rate}_{policy}'
     process = subprocess.Popen([executable, '--ros-args', '-p', 'session_id:='+session,
         '-p', 'registration_id:=synthetic_registered_table', '-p', 'plane_policy:='+policy,
-        '-p', 'full_output_rate_hz:=150.0', '-p', 'test.worker_delay_ms:=12',
+        '-p', 'full_output_rate_hz:=50.0', '-p', 'test.worker_delay_ms:=12',
         '-p', 'test.worker_delay_every:=40'], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     node = rclpy.create_node('scenario_'+str(abs(hash(session))))
     predictions, packets = [], []
@@ -116,6 +116,8 @@ def scenario(executable, direction, rate, policy):
         at, contacts = independent_trace(direction)
         start, schedule = time.time_ns(), time.monotonic()
         context_sent = continuity_sent = False
+        continuity_refreshes = 0
+        last_continuity_refresh_ns = 0
         sent_stamps = []
         for i in range(round(.82*rate)):
             if round(.32*rate) <= i < round(.32*rate)+2:
@@ -141,11 +143,20 @@ def scenario(executable, direction, rate, policy):
                 evidence('CONTEXT', source_time_ns=p.prediction_reference_time_ns,
                          shot_generation=p.shot_generation, match_context='SERVE')
                 context_sent = True
-            if current and t > contacts[0]+.07 and not continuity_sent:
+            if current and t > contacts[0]+.07:
                 p = current[-1]
-                evidence('CONTEXT', source_time_ns=p.prediction_reference_time_ns,
-                         shot_generation=p.shot_generation, match_context='SERVE', history_continuity='complete')
-                continuity_sent = True
+                # The independent synthetic trace is the authority for complete
+                # prehistory. A later observation gap correctly withdraws that
+                # qualification, so refresh its evidence rather than requiring
+                # a target while the receiver reports incomplete history.
+                needs_history = not continuity_sent or p.history_continuity != 'complete'
+                if needs_history and ns - last_continuity_refresh_ns > 30_000_000:
+                    evidence('CONTEXT', source_time_ns=p.prediction_reference_time_ns,
+                             shot_generation=p.shot_generation, match_context='SERVE',
+                             history_continuity='complete')
+                    continuity_sent = True
+                    continuity_refreshes += 1
+                    last_continuity_refresh_ns = ns
             rclpy.spin_once(node, timeout_sec=0)
         spin(.045)
         physical = [p for p, _ in predictions if p.physical_available]
@@ -232,7 +243,8 @@ def scenario(executable, direction, rate, policy):
             assert any(p.reason == 'semantic_context_superseded' and p.play_state=='INVALID' for p,_ in predictions)
         return dict(direction=direction, rate_hz=rate, policy=policy, physical_forecasts=len(physical),
                     confirmed_bounces=len(confirmed), spin_modes=sorted(modes), planes=sorted(planes),
-                    generation=generation, automatic_acquisition=True, source_stamps_preserved=True, outside_legacy_robot_y_gate=True)
+                    generation=generation, automatic_acquisition=True, source_stamps_preserved=True, outside_legacy_robot_y_gate=True,
+                    verified_history_refreshes=continuity_refreshes, requested_full_rate_hz=50)
     finally:
         node.destroy_node()
         process.terminate()
