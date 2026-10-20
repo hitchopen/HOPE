@@ -8,6 +8,10 @@ if [ -e "$validation_root" ]; then
   exit 2
 fi
 mkdir -p "$validation_root"
+# Keep private/stale workspace overlays out of the clean public build.
+unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH PYTHONPATH LD_LIBRARY_PATH
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-187}
+export ROS_LOCALHOST_ONLY=1
 source /opt/ros/jazzy/setup.bash
 cd "$repo/hope_ws"
 colcon --log-base "$validation_root/log" build \

@@ -3,7 +3,7 @@
   "upstream_repository": "hitchopen/HOPE",
   "upstream_branch": "nightly_built",
   "actual_base": "8d599e7d21e196275cf426488555e2648e8fd789",
-  "branch": "feature/flight-state-prediction-v2",
+  "branch": "feature/flight-state-prediction-v2-scoped",
   "input_documents": [
     {
       "filename": "HOPE_Flight_State_and_Prediction_Implementation_Plan.md",
@@ -12,6 +12,10 @@
     {
       "filename": "HOPE_PR49_Flight_State_and_Prediction_Review.pdf",
       "sha256": "47e31d9cc368a8bc73de2f21847598c8b519570de47e57f65150eed97872dd96"
+    },
+    {
+      "filename": "HOPE_V2_Ball_Flight_Scoped_Implementation_Handoff.md",
+      "sha256": "b01095348faf937e53873bcf8504a9dbd6c8773f3818540aef10c5ba0a3c31d6"
     }
   ],
   "scaffold_original_commits": [
@@ -26,5 +30,22 @@
   "research_methodology": "Causal matched-source evaluation, impulse interpolation exclusion and explicit rejection denominators; new HOPE-local implementation from the supplied handoff, no private imports/binaries/data.",
   "new_native_reference": "Independent scipy DOP853 force/contact implementation in numerical_gate.py; not used as a runtime predictor.",
   "licensing": "HOPE Apache-2.0; imported scaffold retains original Git authorship. No new third-party code or recordings vendored.",
-  "changes_since_handoff_base": "Fetched upstream is 8d599e7, not the stale fork nightly. Includes later Mac/operator, lifecycle/deployment and asset work. The PR49 scaffold applied cleanly; current public code remains the baseline."
+  "changes_since_handoff_base": "Fetched upstream is 8d599e7, not the stale fork nightly. Includes later Mac/operator, lifecycle/deployment and asset work. The PR49 scaffold applied cleanly; current public code remains the baseline.",
+  "scoped_parent": "e73b3123bb881a10b562f1ba74a5173d667f31d8",
+  "upstream_checked": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "schema_versions": {
+    "observation": 2,
+    "context": 2,
+    "prediction": 3,
+    "packet": 3
+  },
+  "scope": "ball state/forward flight/events/receiving plane only; inverse and adaptive scheduling restored to pinned upstream",
+  "ci_evidence": "PR-triggered workflow query returned no runs at e73b312; no GitHub CI pass is claimed",
+  "forward_library": "hope_ball_physics_core",
+  "new_source_paths": [
+    "src/ball_flight_baseline_replay.cpp",
+    "scripts/flight_prediction_validation/accuracy.py",
+    "scripts/flight_prediction_validation/compare_recordings.py"
+  ],
+  "original_checkout_policy": "HOPE/nohope reference worktrees are preserved; no private runtime/build/data import"
 }

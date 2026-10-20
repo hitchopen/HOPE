@@ -115,11 +115,11 @@ install(PROGRAMS
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_spin_physics test/test_spin_physics.cpp)
-  target_link_libraries(test_spin_physics hope_planner_core Eigen3::Eigen)
+  target_link_libraries(test_spin_physics hope_ball_physics_core Eigen3::Eigen)
   ament_add_gtest(test_future_contact_predictor test/test_future_contact_predictor.cpp)
-  target_link_libraries(test_future_contact_predictor hope_planner_core Eigen3::Eigen)
+  target_link_libraries(test_future_contact_predictor hope_ball_physics_core Eigen3::Eigen)
   ament_add_gtest(test_batch_physics_estimator test/test_batch_physics_estimator.cpp)
-  target_link_libraries(test_batch_physics_estimator hope_planner_core Eigen3::Eigen)
+  target_link_libraries(test_batch_physics_estimator hope_ball_physics_core Eigen3::Eigen)
   target_include_directories(test_batch_physics_estimator PRIVATE include)
 
   ament_add_gtest(test_trajectory_and_stage3 test/test_trajectory_and_stage3.cpp)
@@ -131,7 +131,7 @@ if(BUILD_TESTING)
   target_include_directories(test_target_turn_guard PRIVATE include)
 
   ament_add_gtest(test_prediction_event_order test/test_prediction_event_order.cpp)
-  target_link_libraries(test_prediction_event_order hope_planner_core Eigen3::Eigen)
+  target_link_libraries(test_prediction_event_order hope_ball_physics_core Eigen3::Eigen)
   target_include_directories(test_prediction_event_order PRIVATE include)
 
   ament_add_gtest(test_schema2 test/test_schema2.cpp)
@@ -139,7 +139,7 @@ if(BUILD_TESTING)
   target_include_directories(test_schema2 PRIVATE include)
 
   ament_add_gtest(test_spin_estimator test/test_spin_estimator.cpp)
-  target_link_libraries(test_spin_estimator hope_planner_core Eigen3::Eigen)
+  target_link_libraries(test_spin_estimator hope_ball_physics_core Eigen3::Eigen)
   target_include_directories(test_spin_estimator PRIVATE include)
 
   ament_add_gtest(test_audit_logger test/test_audit_logger.cpp)
@@ -306,7 +306,10 @@ endif()
 
 install(FILES docs/flight_prediction_implementation.md docs/flight_prediction_acceptance.md
   docs/flight_prediction_acceptance.json docs/flight_prediction_port_manifest.json
-  docs/flight_prediction_pr_description.md DESTINATION share/${PROJECT_NAME}/docs)
+  docs/flight_prediction_pr_description.md docs/flight_prediction_scope_v2.md
+  docs/flight_prediction_physics_and_config.md docs/flight_prediction_validation.md
+  DESTINATION share/${PROJECT_NAME}/docs)
+install(DIRECTORY docs/flight_prediction_accuracy DESTINATION share/${PROJECT_NAME}/docs)
 add_executable(hope_ball_flight_baseline_replay src/ball_flight_baseline_replay.cpp)
 target_link_libraries(hope_ball_flight_baseline_replay PRIVATE hope_forecast_core hope_planner_core)
 install(TARGETS hope_ball_flight_baseline_replay RUNTIME DESTINATION lib/${PROJECT_NAME})
@@ -322,5 +325,18 @@ if(BUILD_TESTING)
     ${CMAKE_CURRENT_SOURCE_DIR}/test/flight_prediction_v2_scenarios.py
     --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
   set_tests_properties(flight_v2_raw_scenarios PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+endif()
+if(BUILD_TESTING)
+  set_property(TEST test_spin_physics test_future_contact_predictor test_batch_physics_estimator
+    test_prediction_event_order test_spin_estimator test_flight_prediction_v2 test_flight_transport_v2
+    flight_v2_numerical flight_v2_ros_transport flight_v2_causal_replay flight_v2_scoring
+    flight_v2_accuracy_tooling flight_v2_scope flight_v2_binary_scope flight_v2_raw_scenarios
+    APPEND PROPERTY LABELS flight_prediction_v2)
+  add_custom_target(check_flight_prediction_v2
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -L flight_prediction_v2
+    DEPENDS hope_flight_prediction_v2_node hope_flight_prediction_v2_replay
+      test_flight_prediction_v2 test_flight_transport_v2 test_spin_physics
+      test_future_contact_predictor test_batch_physics_estimator test_prediction_event_order test_spin_estimator
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 ament_package()

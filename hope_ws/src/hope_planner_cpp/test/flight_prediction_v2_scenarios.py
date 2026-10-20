@@ -163,7 +163,7 @@ def scenario(executable, direction, rate, policy):
         assert {'HELD', 'CONTACT_PROPAGATED', 'MEASURED'} <= modes, modes
         assert any(p.current_state.spin_measurement_time_ns == sent_stamps[0] and
                    p.current_state.spin_mode == 'CONTACT_PROPAGATED' for p in physical)
-        assert any(p.target_valid and not p.target_historical for p in physical), 'no supported ordered ball target'
+        assert any(p.target_valid and not p.target_historical for p in physical), ('no supported ordered ball target',direction,rate,policy,[(p.reason,p.plane_available,p.history_continuity,p.target_kind,round(p.current_state.position.x,3)) for p in physical[-8:]],sorted({p.reason for p in physical}))
         planes = {round(p.plane_x, 4) for p in physical if p.plane_available}
         assert .15 in planes
         assert (.25 in planes) == (policy == 'FOLLOW_POSE'), planes
@@ -211,9 +211,11 @@ def scenario(executable, direction, rate, policy):
                 pose(-.33)
                 spin(.002)
             for i in range(4):
-                ns=time.time_ns();t=(ns-begin)*1e-9
+                pose(-.33);spin(.002)
+                ns=time.time_ns()-5_000_000;t=(ns-begin)*1e-9
                 measurement(ns,(2.-3*t,-.2,1.-4.905*t*t));spin(1/rate)
             assert any(p.plane_available and p.shot_generation==stable_generation for p,_ in predictions if p.prediction_reference_time_ns>=begin)
+            assert any(p.plane_available and p.plane_pose_source_time_ns>p.prediction_reference_time_ns for p,_ in predictions if p.prediction_reference_time_ns>=begin), 'fresh pose rejected against an older ball timestamp'
             pose(-.33, world=9)
             spin(.02)
             assert any(p.reason == 'semantic_context_superseded' and p.play_state=='INVALID' for p,_ in predictions)
@@ -234,12 +236,16 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--executable',required=True)
     parser.add_argument('--output')
+    parser.add_argument('--case',nargs=3,metavar=('DIRECTION','RATE','POLICY'))
     args=parser.parse_args()
     rclpy.init()
     try:
-        results=[scenario(args.executable,direction,rate,'FOLLOW_POSE')
-                 for direction in (-1,1) for rate in (150,300)]
-        results += [scenario(args.executable,direction,150,'ON_REFRESH') for direction in (-1,1)]
+        if args.case:
+            results=[scenario(args.executable,int(args.case[0]),int(args.case[1]),args.case[2])]
+        else:
+            results=[scenario(args.executable,direction,rate,'FOLLOW_POSE')
+                     for direction in (-1,1) for rate in (150,300)]
+            results += [scenario(args.executable,direction,150,'ON_REFRESH') for direction in (-1,1)]
         report=dict(status='PASS',truth='synthetic independent DOP853 fixture; not physical qualification',scenarios=results)
         print(json.dumps(report))
         if args.output:

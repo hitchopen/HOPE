@@ -158,7 +158,7 @@ public:
           // supersede semantic context.
           pipeline_->shot().snapshot();
           Job job{*pipeline_,
-                  plane_->for_solve(steady_ns(), sample.source_time_ns),
+                  plane_->for_solve(steady_ns(), now().nanoseconds()),
                   sample.source_time_ns};
           work_.push(std::move(job));
         });
