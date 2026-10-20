@@ -861,3 +861,39 @@ TEST(FlightV2Classification,
   shot.set_history_continuity(HistoryContinuity::kComplete);
   EXPECT_EQ(shot.classification(), ClassificationStatus::CONFIRMED);
 }
+
+TEST(FlightV2Association,
+     A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity) {
+  ShotContext shot({});
+  shot.start(0, 1, BoundaryEvidence::RACKET_CONTACT,
+             HistoryContinuity::kComplete);
+  shot.observe(sample(0));
+  auto predicted = event(PhysicalEventKind::TABLE, .1, .5);
+  shot.predict_events({predicted}, 0);
+  const auto id = shot.events().front().id;
+  shot.predict_events({}, 110000000);
+  ASSERT_EQ(shot.events().front().status, EventStatus::SUPERSEDED);
+  EXPECT_EQ(shot.observed_contacts(), 0);
+  ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 100000000, 120000000,
+                           predicted.pre, "source_reversal"));
+  EXPECT_EQ(shot.events().front().id, id);
+  EXPECT_EQ(shot.events().front().event_time_ns, 100000000);
+  EXPECT_EQ(shot.events().front().confirmed_at_ns, 120000000);
+  EXPECT_EQ(shot.observed_contacts(), 1);
+}
+
+TEST(FlightV2Config,
+     B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive) {
+  ProbabilisticConfig config;
+  ShotSettings settings;
+  const auto original = flight_model_config_id(config, settings);
+  set_flight_parameter(config, settings, "physics.drag_k", .15);
+  EXPECT_NE(flight_model_config_id(config, settings), original);
+  EXPECT_THROW(set_flight_parameter(config, settings,
+                                    "physics.table_tangential_gain", .40001),
+               std::invalid_argument);
+  EXPECT_DOUBLE_EQ(config.physics.table_tangential_gain,
+                   BallPhysics{}.table_tangential_gain);
+  EXPECT_THROW(set_flight_parameter(config, settings, "unknown", 0),
+               std::invalid_argument);
+}

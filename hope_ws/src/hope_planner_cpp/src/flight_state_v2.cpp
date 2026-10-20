@@ -500,6 +500,19 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
       found = &e;
       ++matches;
     }
+  // Source evidence can confirm a contact several exposures after its
+  // predicted occurrence. The next forecast may already have superseded that
+  // prediction; retirement is not cancellation of its physical identity.
+  if (matches == 0)
+    for (auto &e : events_)
+      if (e.kind == kind && e.status == EventStatus::SUPERSEDED &&
+          std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
+              settings_.contact_association_s * 1e9L &&
+          (e.pre.position - pre.position).norm() <=
+              settings_.contact_association_m) {
+        found = &e;
+        ++matches;
+      }
   if (matches > 1) {
     for (auto &e : events_)
       if (e.kind == kind && e.status == EventStatus::PREDICTED)

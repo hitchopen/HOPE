@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise installed v2 ROS transport, paced input, revocation and shadow fences."""
 import argparse
+from collections import Counter
 import json
 import math
 import os
@@ -10,6 +11,7 @@ import time
 
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.serialization import serialize_message
 from hope_msgs.msg import BallObservationV2, FlightContextV2, FlightPredictionV2
 
 
@@ -17,21 +19,44 @@ def percentile(values, fraction):
     return sorted(values)[min(len(values) - 1, math.ceil(fraction * len(values)) - 1)]
 
 
-def run(executable, rate):
+def run(executable, rate, full_rate=50., worker_delay_ms=0):
     session = 'acceptance_' + str(rate)
     process = subprocess.Popen([executable, '--ros-args', '-p', 'session_id:=' + session,
-                                '-p', 'synthetic_plane:=true', '-p', 'plane_policy:=ON_REFRESH'],
+                                '-p', 'synthetic_plane:=true', '-p', 'plane_policy:=ON_REFRESH',
+                                '-p', 'full_output_rate_hz:=' + str(float(full_rate)),
+                                '-p', 'test.worker_delay_ms:=' + str(worker_delay_ms)],
                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     node = rclpy.create_node('flight_v2_acceptance_' + str(rate))
     predictions, latency, trajectories = [], [], []
+    compact_sizes, full_sizes = [], []
+    received_full = []
+    resources = {}
+    def process_resources():
+        try:
+            with open(f'/proc/{process.pid}/status', encoding='utf-8') as stream:
+                values = {line.split(':')[0]: line.split(':')[1].strip() for line in stream if ':' in line}
+            resources.update(rss_kib=int(values['VmRSS'].split()[0]), peak_rss_kib=int(values['VmHWM'].split()[0]))
+            with open(f'/proc/{process.pid}/stat', encoding='utf-8') as stream:
+                fields = stream.read().rsplit(')', 1)[1].split()
+            resources['node_cpu_s'] = (int(fields[11]) + int(fields[12])) / os.sysconf('SC_CLK_TCK')
+        except (FileNotFoundError, KeyError):
+            pass
+    def receive_full(message):
+        trajectories.append(message)
+        received_full.append(time.time_ns())
+        if len(trajectories) % 20 == 1:
+            full_sizes.append(len(serialize_message(message)))
+            process_resources()
     def receive(message):
         if message.session_id != session:
             return
         predictions.append(message)
+        if len(predictions) % 30 == 1:
+            compact_sizes.append(len(serialize_message(message)))
         if message.physical_available:
             latency.append((time.time_ns() - message.prediction_reference_time_ns) / 1e6)
     node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/prediction', receive, qos_profile_sensor_data)
-    node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/trajectory', trajectories.append, qos_profile_sensor_data)
+    node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/trajectory', receive_full, qos_profile_sensor_data)
     observation = node.create_publisher(BallObservationV2, '/hope/ball/observation_v2', qos_profile_sensor_data)
     context = node.create_publisher(FlightContextV2, '/hope/shadow/flight_v2/context', 32)
     def spin(duration):
@@ -55,6 +80,8 @@ def run(executable, rate):
         sent = 0
         eligible_sources = set()
         source_stamps = []
+        flight_starts = []
+        true_plane_times = []
         # Analytic drag-free ballistic input tests source-time transport/classification;
         # dynamics accuracy is independently tested against DOP853.
         # Multiple independent flights prevent a long invalid tail from obscuring coverage.
@@ -64,6 +91,11 @@ def run(executable, rate):
             spin(.008)
             schedule = time.monotonic()
             flight_source_start = time.time_ns()
+            flight_starts.append(flight_source_start)
+            first_bounce = (.4 + math.sqrt(.4**2 + 2*9.81*(.5-.02)))/9.81
+            bounce_vz = .4-9.81*first_bounce
+            dv = min(.38744443855065164*4, .16706204822993975*(1+.9313775047019153)*abs(bounce_vz))
+            true_plane_times.append(flight_source_start + round((first_bounce+(2-4*first_bounce-.15)/(4-dv))*1e9))
             for i in range(round(.60 * rate)):
                 if round(.24 * rate) <= i < round(.24 * rate) + 2:
                     continue  # repeatable source dropout; timestamps preserve the gap
@@ -110,6 +142,18 @@ def run(executable, rate):
         spin(.06)
         forecasts = [p for p in predictions if p.physical_available]
         assert forecasts, 'no physical forecasts'
+        for message in forecasts:
+            assert message.schema_version == 3
+            assert message.shot_id == message.shot_generation
+            assert message.current_state_available
+            assert message.current_state.prediction_reference_time_ns == message.prediction_reference_time_ns
+            assert message.current_state.arrival_dt_ns == 0
+            assert not message.current_state.spin_available
+            assert message.current_state.position.z < .76, 'physical state received policy height offset'
+            assert message.model_config_id.startswith('flight-model-v3:sha256:')
+            assert message.physics_profile == 'thin-shell-forward-v3-receipt-20261010'
+            for event in message.events:
+                assert event.event_time_ns == event.prediction_reference_time_ns + event.arrival_dt_ns
         assert all(p.target_event_id > 0 and p.target_kind for p in forecasts if p.target_valid)
         assert all(p.target_spin_mode in ('POSITION_ONLY', '') for p in forecasts)
         assert all(p.published_at_ns >= p.prediction_reference_time_ns for p in forecasts)
@@ -141,25 +185,52 @@ def run(executable, rate):
         denominator = len(eligible_sources)
         eligible_outputs = {p.prediction_reference_time_ns for p in forecasts} & eligible_sources
         coverage = len(eligible_outputs) / denominator
-        assert coverage >= .95, ('physical publication coverage', coverage, len(forecasts), denominator)
         assert percentile(latency, .95) <= 30, ('receipt P95 exceeds 30 ms', latency)
         assert all((p.published_at_ns - p.prediction_reference_time_ns) <= 30_000_000 for p in forecasts)
         source_span_s = (source_stamps[-1] - source_stamps[0]) * 1e-9
         observed_inputs = max(p.input_count for p in predictions)
         publication_latency = [(p.published_at_ns - p.prediction_reference_time_ns) / 1e6
                                for p in forecasts]
-        return dict(rate_hz=rate, source_span_s=source_span_s,
-                    published_input_rate_hz=(sent - 1) / source_span_s,
-                    observed_input_rate_hz=max(0, observed_inputs - 1) / source_span_s,
-                    observed_input_count=observed_inputs,
-                    unaccounted_input_count=sent - observed_inputs,
-                    publication_latency_ms=dict(p50=statistics.median(publication_latency),
-                        p95=percentile(publication_latency, .95), p99=percentile(publication_latency, .99),
-                        maximum=max(publication_latency)), input_count=sent, physical_outputs=len(forecasts), denominator=denominator,
+        def distribution(values):
+            return dict(p50=statistics.median(values), p95=percentile(values,.95),
+                        p99=percentile(values,.99), maximum=max(values)) if values else None
+        full_physical = [p for p in trajectories if p.physical_available]
+        full_sources = {p.prediction_reference_time_ns for p in full_physical} & eligible_sources
+        full_publication = [(p.published_at_ns-p.prediction_reference_time_ns)/1e6 for p in full_physical]
+        full_receipt = [(receipt-p.prediction_reference_time_ns)/1e6
+                        for p,receipt in zip(trajectories,received_full) if p.physical_available]
+        generation_latency = [(p.generated_at_ns-p.prediction_reference_time_ns)/1e6 for p in forecasts]
+        process_resources()
+        first_physical, first_target = [], []
+        for start,truth in zip(flight_starts,true_plane_times):
+            interval = [p for p in forecasts if start <= p.prediction_reference_time_ns < start+600_000_000]
+            if interval: first_physical.append((truth-interval[0].published_at_ns)/1e6)
+            usable = [p for p in interval if p.target_valid and not p.target_historical]
+            if usable: first_target.append((truth-usable[0].published_at_ns)/1e6)
+        assert all(0 <= age <= 30 for age in full_publication)
+        report = dict(rate_hz=rate, requested_full_rate_hz=full_rate, worker_delay_ms=worker_delay_ms,
+                    source_span_s=source_span_s, published_input_rate_hz=(sent-1)/source_span_s,
+                    observed_input_rate_hz=max(0,observed_inputs-1)/source_span_s,
+                    observed_input_count=observed_inputs, unaccounted_input_count=sent-observed_inputs,
+                    input_count=sent, physical_outputs=len(forecasts), denominator=denominator,
                     physical_publication_coverage=coverage, target_outputs=sum(p.target_valid for p in forecasts),
-                    superseded=max(p.superseded_count for p in forecasts),
-                    latency_ms=dict(p50=statistics.median(latency), p95=percentile(latency, .95),
-                                    p99=percentile(latency, .99), maximum=max(latency)))
+                    full_physical_outputs=len(full_physical), full_source_coverage=len(full_sources)/denominator,
+                    full_received_rate_hz=(len(trajectories)-1)/((received_full[-1]-received_full[0])*1e-9),
+                    full_publication_latency_ms=distribution(full_publication), full_receipt_latency_ms=distribution(full_receipt),
+                    generation_latency_ms=distribution(generation_latency), publication_latency_ms=distribution(publication_latency),
+                    latency_ms=distribution(latency), superseded=max(p.superseded_count for p in forecasts),
+                    queue_bound=dict(running=1,pending=1), resources=resources,
+                    lifecycle_reasons=dict(Counter(p.reason for p in predictions if not p.physical_available)),
+                    generations=sorted({p.shot_generation for p in predictions}),
+                    payload=dict(compact_mean_cdr_bytes=statistics.mean(compact_sizes),
+                                 full_mean_cdr_bytes=statistics.mean(full_sizes),
+                                 full_sampled_cdr_bytes_per_s=statistics.mean(full_sizes)*len(trajectories)/source_span_s,
+                                 size_measurement='sampled CDR; excludes DDS/network headers'),
+                    first_physical_fixture_lead_ms=first_physical, first_target_fixture_lead_ms=first_target)
+        print(json.dumps(report),flush=True)
+        assert coverage >= .95, ('physical publication coverage', coverage, len(forecasts), denominator)
+        return report
+
     finally:
         node.destroy_node()
         process.terminate()
@@ -174,10 +245,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--executable', required=True)
     parser.add_argument('--output')
+    parser.add_argument('--full-rate',type=float,default=50.)
+    parser.add_argument('--rates',type=int,nargs='+',default=[150,300])
+    parser.add_argument('--worker-delay-ms',type=int,default=0)
     args = parser.parse_args()
     rclpy.init()
     try:
-        results = [run(args.executable, rate) for rate in (150, 300)]
+        results = [run(args.executable, rate,args.full_rate,args.worker_delay_ms) for rate in args.rates]
         bad = subprocess.run([args.executable, '--ros-args', '-r',
                               '/hope/shadow/flight_v2/prediction:=/racket_command'],
                              capture_output=True, text=True, timeout=10)

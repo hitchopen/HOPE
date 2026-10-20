@@ -296,9 +296,19 @@ if(BUILD_TESTING)
     --executable $<TARGET_FILE:hope_flight_prediction_v2_replay>)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(flight_v2_scoring test/test_flight_scoring.py)
+  ament_add_pytest_test(flight_v2_accuracy_tooling test/test_scoped_accuracy.py)
 endif()
 
 install(FILES docs/flight_prediction_implementation.md docs/flight_prediction_acceptance.md
   docs/flight_prediction_acceptance.json docs/flight_prediction_port_manifest.json
   docs/flight_prediction_pr_description.md DESTINATION share/${PROJECT_NAME}/docs)
+add_executable(hope_ball_flight_baseline_replay src/ball_flight_baseline_replay.cpp)
+target_link_libraries(hope_ball_flight_baseline_replay PRIVATE hope_forecast_core)
+install(TARGETS hope_ball_flight_baseline_replay RUNTIME DESTINATION lib/${PROJECT_NAME})
+if(BUILD_TESTING)
+  add_test(NAME flight_v2_raw_scenarios COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/flight_prediction_v2_scenarios.py
+    --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
+  set_tests_properties(flight_v2_raw_scenarios PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+endif()
 ament_package()

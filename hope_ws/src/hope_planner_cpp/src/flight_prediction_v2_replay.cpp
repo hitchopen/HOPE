@@ -1,5 +1,6 @@
 #include "hope_planner_cpp/flight_state_v2.hpp"
 #include <algorithm>
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -154,9 +155,13 @@ int main(int argc, char **argv) {
                              : HistoryContinuity::kUnknown);
         }
       }
+      const auto started = std::chrono::steady_clock::now();
       pipeline.observe(s);
       auto prediction = pipeline.forecast(plane, s.source_time_ns);
-      std::cout << "{\"source_ns\":" << s.source_time_ns
+      std::cout << "{\"source_ns\":" << s.source_time_ns << ",\"compute_ms\":"
+                << std::chrono::duration<double, std::milli>(
+                       std::chrono::steady_clock::now() - started)
+                       .count()
                 << ",\"model_config_id\":\""
                 << flight_model_config_id(config, settings)
                 << "\",\"generation\":" << prediction.token.generation
