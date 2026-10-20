@@ -50,6 +50,31 @@ public:
         declare_parameter("physics.radius", config_.physics.radius);
     settings_.max_source_age_s = declare_parameter("max_source_age_s", .030);
     settings_.service_armed = declare_parameter("service_armed", false);
+    full_rate_hz_ = declare_parameter("full_output_rate_hz", 50.);
+    packet_rate_hz_ = declare_parameter("packet_output_rate_hz", 50.);
+    worker_delay_ms_ = declare_parameter("test.worker_delay_ms", 0);
+    worker_delay_every_ = declare_parameter("test.worker_delay_every", 100);
+    if (!std::isfinite(full_rate_hz_) || full_rate_hz_ < 0 ||
+        full_rate_hz_ > 300 || !std::isfinite(packet_rate_hz_) ||
+        packet_rate_hz_ < 0 || packet_rate_hz_ > 300 || worker_delay_ms_ < 0 ||
+        worker_delay_ms_ > 1000 || worker_delay_every_ < 1)
+      throw std::invalid_argument("invalid forecast cadence/test delay");
+    // Zero selects every completed latest result, with bounded existing
+    // backpressure.
+    config_.trajectory_dt_s =
+        declare_parameter("trajectory_dt_s", config_.trajectory_dt_s);
+    for (const auto &entry : std::vector<std::pair<std::string, double>>{
+             {"physics.gravity_x", config_.physics.gravity.x()},
+             {"physics.gravity_y", config_.physics.gravity.y()},
+             {"physics.gravity_z", config_.physics.gravity.z()},
+             {"table.length", config_.table.length},
+             {"table.width", config_.table.width},
+             {"table.y_max", config_.table.y_max},
+             {"table.net_x", config_.table.net_x},
+             {"table.net_height", config_.table.net_height},
+             {"table.net_overhang", config_.table.net_overhang}})
+      set_flight_parameter(config_, settings_, entry.first,
+                           declare_parameter(entry.first, entry.second));
     HitPlaneSettings plane_settings;
     const auto policy =
         declare_parameter<std::string>("plane_policy", "FOLLOW_POSE");
@@ -72,18 +97,18 @@ public:
     std::ostringstream bundle;
     bundle.imbue(std::locale::classic());
     bundle << std::hexfloat;
-    bundle << return_region_config_identity(config_, {}, frame_)
+    bundle << flight_model_config_id(config_, settings_, frame_)
            << ";flight-v2-rk4;conditional-uncertainty;plane=" << policy;
-    for (double value : {plane_settings.offset_m, plane_settings.window_s,
-                         plane_settings.max_age_s, plane_settings.max_span_m,
-                         plane_settings.min_x_m, plane_settings.max_x_m,
-                         settings_.max_source_age_s})
+    for (double value :
+         {plane_settings.offset_m, plane_settings.window_s,
+          plane_settings.max_age_s, plane_settings.max_span_m,
+          plane_settings.min_x_m, plane_settings.max_x_m,
+          settings_.max_source_age_s, full_rate_hz_, packet_rate_hz_})
       bundle << ';' << value;
     bundle << ';' << settings_.service_armed << ';' << clock_domain_;
     config_id_ = "flight-v2:sha256:" + sha256(bundle.str());
     for (const auto *topic :
-         {"/hope/shadow/flight_v2/prediction",
-          "/hope/shadow/flight_v2/packet",
+         {"/hope/shadow/flight_v2/prediction", "/hope/shadow/flight_v2/packet",
           "/hope/shadow/flight_v2/trajectory"}) {
       if (get_node_topics_interface()->resolve_topic_name(topic).rfind(
               "/hope/shadow/flight_v2/", 0) != 0)
@@ -251,17 +276,24 @@ public:
       }
     });
     worker_ = std::thread([this] {
+      std::uint64_t solves = 0;
       while (auto job = work_.take()) {
+        if (worker_delay_ms_ && ++solves % worker_delay_every_ == 0)
+          std::this_thread::sleep_for(
+              std::chrono::milliseconds(worker_delay_ms_));
         auto result = job->pipeline.forecast(job->plane, job->source);
-        std::lock_guard<std::mutex> guard(mutex_);
+        std::unique_lock<std::mutex> guard(mutex_);
         const auto current = now().nanoseconds();
         if (!mapping_valid_ || !pipeline_->accept(result.token, current))
           continue;
         pipeline_->shot().predict_events(result.events, result.reference_ns);
         auto wire = encode_prediction(result, pipeline_->shot());
+        wire.forecast_revision = pipeline_->shot().snapshot().solve_sequence;
         wire.session_id = session_;
         wire.producer_id = producer_;
         wire.config_id = config_id_;
+        wire.model_config_id = flight_model_config_id(
+            job->pipeline.config(), job->pipeline.settings(), frame_);
         wire.context_source = job->pipeline.shot().context_source();
         wire.context_time_ns = job->pipeline.shot().context_time_ns();
         wire.generated_at_ns = current;
@@ -280,27 +312,33 @@ public:
           revoke_locked("source_expired_before_publication");
           continue;
         }
-        // The job owns the exact posterior/reference; newer callback samples
-        // remain in the next job.
-        if (!last_full_source_ ||
-            static_cast<long double>(result.reference_ns) -
-                    *last_full_source_ >=
-                20000000) {
+        // Publish compact output before full serialization; keep the original
+        // immutable source state for all channels.
+        auto points = std::move(wire.waypoints);
+        publisher_->publish(wire);
+        wire.waypoints = std::move(points);
+        if (due(result.reference_ns, full_rate_hz_, next_full_source_) &&
+            publication_fresh())
           full_->publish(wire);
-          last_full_source_ = result.reference_ns;
+        last_expiry_ = wire.expires_at_ns;
+        if (due(result.reference_ns, packet_rate_hz_, next_packet_source_)) {
+          const auto ledger = wire.events;
+          guard.unlock();
           auto packet = encode_packet_v2(job->pipeline, result, session_,
                                          producer_, config_id_);
-          packet.event_ledger = wire.events;
+          packet.event_ledger = ledger;
           packet.payload_sha256 = packet_v2_hash(packet);
-          packet_->publish(packet);
+          guard.lock();
+          const long double age =
+              (static_cast<long double>(now().nanoseconds()) -
+               result.reference_ns) *
+              1e-9L;
+          if (pipeline_->shot().active() &&
+              pipeline_->shot().generation() == result.token.generation &&
+              pipeline_->shot().revision() == result.token.context_revision &&
+              age >= -.001 && age <= settings_.max_source_age_s)
+            packet_->publish(packet);
         }
-        wire.waypoints.clear();
-        if (!publication_fresh()) {
-          revoke_locked("source_expired_before_publication");
-          continue;
-        }
-        publisher_->publish(wire);
-        last_expiry_ = wire.expires_at_ns;
       }
     });
   }
@@ -318,11 +356,15 @@ private:
   };
   void
   revoke_locked(const std::string &reason = "semantic_context_superseded") {
+    last_expiry_.reset();
     hope_msgs::msg::FlightPredictionV2 message;
     message.session_id = session_;
     message.producer_id = producer_;
     message.config_id = config_id_;
     message.shot_generation = pipeline_->shot().generation();
+    message.shot_id = message.shot_generation;
+    message.forecast_revision = pipeline_->shot().snapshot().solve_sequence;
+    message.generated_at_ns = message.published_at_ns = now().nanoseconds();
     message.context_revision = pipeline_->shot().revision();
     message.play_state = name(pipeline_->shot().state());
     message.forecast_status = "REVOKED";
@@ -331,6 +373,25 @@ private:
     message.superseded_count = work_.superseded();
     publisher_->publish(message);
   }
+  static bool due(std::int64_t source, double rate,
+                  std::optional<std::int64_t> &next) {
+    if (rate == 0)
+      return true;
+    const auto period = static_cast<std::int64_t>(std::llround(1e9 / rate));
+    if (!next || static_cast<long double>(source) <
+                     static_cast<long double>(*next) - period)
+      next = source;
+    if (source < *next)
+      return false;
+    const long double future =
+        static_cast<long double>(*next) +
+        period * (1 + std::floor((static_cast<long double>(source) - *next) /
+                                 period));
+    next = future > std::numeric_limits<std::int64_t>::max()
+               ? source
+               : static_cast<std::int64_t>(future);
+    return true;
+  }
   std::mutex mutex_;
   ProbabilisticConfig config_;
   ShotSettings settings_;
@@ -338,10 +399,12 @@ private:
   std::unique_ptr<HitPlaneManager> plane_;
   LatestWork<Job> work_;
   std::thread worker_;
-  std::optional<std::int64_t> last_expiry_, last_full_source_,
-      last_boundary_source_;
+  std::optional<std::int64_t> last_expiry_, next_full_source_,
+      next_packet_source_, last_boundary_source_;
   std::string frame_, session_, authority_, config_id_, producer_,
       clock_domain_;
+  double full_rate_hz_ = 50., packet_rate_hz_ = 50.;
+  int worker_delay_ms_ = 0, worker_delay_every_ = 100;
   bool mapping_valid_ = true, synthetic_ = false;
   std::uint64_t inputs_ = 0;
   rclcpp::Publisher<hope_msgs::msg::FlightPredictionV2>::SharedPtr publisher_;

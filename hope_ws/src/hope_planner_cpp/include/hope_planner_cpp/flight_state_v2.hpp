@@ -63,6 +63,13 @@ struct ShotSettings {
   bool service_armed = false;
   void validate() const;
 };
+inline constexpr const char *kFlightPhysicsProfile =
+    "thin-shell-forward-v3-receipt-20261010";
+std::string flight_model_config_id(const ProbabilisticConfig &,
+                                   const ShotSettings &,
+                                   const std::string &frame = "table");
+void set_flight_parameter(ProbabilisticConfig &, ShotSettings &,
+                          const std::string &key, double value);
 bool checked_arrival(std::int64_t reference, std::int64_t duration,
                      std::int64_t &arrival);
 std::optional<std::int64_t> duration_ns(double seconds);
@@ -177,11 +184,13 @@ struct FlightPrediction {
   HitPlaneSnapshot plane;
   std::int64_t reference_ns = 0, arrival_dt_ns = 0, arrival_ns = 0,
                expires_ns = 0;
-  std::string reason;
+  std::string reason, model_config_id;
 };
 class FlightPipeline {
 public:
   FlightPipeline(ProbabilisticConfig, ShotSettings = {});
+  const ProbabilisticConfig &config() const { return config_; }
+  const ShotSettings &settings() const { return settings_; }
   ShotContext &shot() { return shot_; }
   const ShotContext &shot() const { return shot_; }
   bool observe(BallSample);

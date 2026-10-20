@@ -1,7 +1,10 @@
 #include "hope_planner_cpp/flight_state_v2.hpp"
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <limits>
+#include <locale>
+#include <sstream>
 #include <stdexcept>
 namespace hope_planner_cpp {
 const char *name(PlayState s) {
@@ -37,6 +40,68 @@ bool checked_arrival(std::int64_t r, std::int64_t d, std::int64_t &a) {
     return false;
   a = r + d;
   return true;
+}
+std::string flight_model_config_id(const ProbabilisticConfig &c,
+                                   const ShotSettings &s,
+                                   const std::string &frame) {
+  c.validate();
+  s.validate();
+  std::ostringstream out;
+  out.imbue(std::locale::classic());
+  out << std::hexfloat;
+  out << kFlightPhysicsProfile << ';'
+      << return_region_config_identity(c, {}, frame);
+  for (double value :
+       {s.observation_window_s, s.qualification_span_s, s.direction_speed_mps,
+        s.launch_speed_mps, s.ballistic_residual_mps2, s.contact_association_s,
+        s.contact_association_m, s.contact_exclusion_s, s.held_span_s,
+        s.held_displacement_m, s.max_source_age_s, s.supported_sigma,
+        s.supported_time_margin_s})
+    out << ';' << value;
+  out << ';' << s.observation_capacity << ';' << s.candidate_capacity << ';'
+      << s.event_capacity << ';' << s.service_armed;
+  return "flight-model-v3:sha256:" + sha256(out.str());
+}
+void set_flight_parameter(ProbabilisticConfig &c, ShotSettings &s,
+                          const std::string &key, double value) {
+  if (!std::isfinite(value))
+    throw std::invalid_argument("nonfinite flight parameter");
+  double *target = nullptr;
+  const std::pair<const char *, double *> options[] = {
+      {"physics.drag_k", &c.physics.drag_k},
+      {"physics.magnus_k", &c.physics.magnus_k},
+      {"physics.restitution_v", &c.physics.restitution_v},
+      {"physics.table_tangential_gain", &c.physics.table_tangential_gain},
+      {"physics.table_friction_cap_mu", &c.physics.table_friction_cap_mu},
+      {"physics.radius", &c.physics.radius},
+      {"physics.gravity_x", &c.physics.gravity.x()},
+      {"physics.gravity_y", &c.physics.gravity.y()},
+      {"physics.gravity_z", &c.physics.gravity.z()},
+      {"integration_dt_s", &c.integration_dt_s},
+      {"trajectory_dt_s", &c.trajectory_dt_s},
+      {"horizon_s", &c.horizon_s},
+      {"x_hit", &c.x_hit},
+      {"table.length", &c.table.length},
+      {"table.width", &c.table.width},
+      {"table.y_max", &c.table.y_max},
+      {"table.net_x", &c.table.net_x},
+      {"table.net_height", &c.table.net_height},
+      {"table.net_overhang", &c.table.net_overhang},
+      {"max_source_age_s", &s.max_source_age_s}};
+  for (const auto &entry : options)
+    if (key == entry.first)
+      target = entry.second;
+  if (!target)
+    throw std::invalid_argument("unknown flight parameter: " + key);
+  const double previous = *target;
+  *target = value;
+  try {
+    c.validate();
+    s.validate();
+  } catch (...) {
+    *target = previous;
+    throw;
+  }
 }
 std::optional<std::int64_t> duration_ns(double s) {
   const long double n = static_cast<long double>(s) * 1000000000.L;
@@ -866,6 +931,9 @@ bool FlightPipeline::observe(BallSample sample) {
 FlightPrediction FlightPipeline::forecast(const HitPlaneSnapshot &plane,
                                           std::int64_t now) {
   FlightPrediction out;
+  out.model_config_id = flight_model_config_id(
+      config_, settings_,
+      shot_.samples().empty() ? "table" : shot_.samples().back().frame_id);
   out.token = shot_.snapshot();
   out.state = shot_.state();
   out.route = shot_.route();

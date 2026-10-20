@@ -245,3 +245,38 @@ TEST(FlightTransportV2,
   if (prediction.target.event && !prediction.target.historical)
     EXPECT_NE(wire.target_linearization_quality, "unavailable");
 }
+TEST(FlightTransportV2,
+     X06_T06_DuplicatePacketsAndProducerRestartCannotRestoreRetiredState) {
+  FlightPipeline original({});
+  original.start(0, -1, BoundaryEvidence::RACKET_CONTACT,
+                 HistoryContinuity::kComplete);
+  for (int i = 0; i < 8; ++i) {
+    BallSample s;
+    s.source_time_ns = i * 5000000LL;
+    s.position = Vec3(2. - .02 * i, -.7, .5);
+    s.clock_domain = "simulation";
+    original.observe(s);
+  }
+  HitPlaneSnapshot plane;
+  plane.calibrated = true;
+  plane.x_hit_m = .15;
+  auto prediction = original.forecast(plane, 35000000);
+  auto packet =
+      encode_packet_v2(original, prediction, "session", "producer", "config");
+  FlightPacketAdmissionV2 receiver("session");
+  std::string reason;
+  EXPECT_TRUE(receiver.admit(packet, "config", reason));
+  EXPECT_FALSE(receiver.admit(packet, "config", reason));
+  EXPECT_EQ(reason, "duplicate_packet");
+  auto changed = packet;
+  changed.producer_id = "restart";
+  changed.payload_sha256 = packet_v2_hash(changed);
+  EXPECT_FALSE(receiver.admit(changed, "config", reason));
+  EXPECT_EQ(reason, "producer_restart_requires_session_reset");
+  changed = packet;
+  changed.context_revision++;
+  changed.payload_sha256 = packet_v2_hash(changed);
+  EXPECT_TRUE(receiver.admit(changed, "config", reason));
+  EXPECT_FALSE(receiver.admit(packet, "config", reason));
+  EXPECT_EQ(reason, "retired_packet");
+}

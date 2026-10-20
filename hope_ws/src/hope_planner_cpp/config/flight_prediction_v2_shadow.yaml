@@ -9,6 +9,10 @@ hope_flight_prediction_v2:
     synthetic_plane: false
     integration_dt_s: 0.001
     horizon_s: 1.5
+    trajectory_dt_s: 0.005
+    # Maximum full/packet cadence; 0 publishes every completed latest result.
+    full_output_rate_hz: 50.0
+    packet_output_rate_hz: 50.0
     max_source_age_s: 0.030
     context_authority: fixture
     physics.drag_k: 0.12861635416914574

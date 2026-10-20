@@ -27,11 +27,37 @@ void write_spin(const EffectiveSpin &spin) {
 int main(int argc, char **argv) {
   try {
     std::cout << std::setprecision(17);
-    if (argc == 7 && std::string(argv[1]) == "--rollout") {
-      const double h = std::stod(argv[2]);
-      const int direction = std::stoi(argv[3]);
-      const double speed = std::stod(argv[4]), spin = std::stod(argv[5]),
-                   duration = std::stod(argv[6]);
+    ProbabilisticConfig config;
+    ShotSettings settings;
+    std::vector<std::string> args;
+    for (int i = 1; i < argc; ++i) {
+      if (std::string(argv[i]) == "--set") {
+        if (++i >= argc)
+          throw std::invalid_argument("--set requires key=value");
+        const std::string parameter = argv[i];
+        const auto equal = parameter.find('=');
+        if (equal == std::string::npos)
+          throw std::invalid_argument("--set requires key=value");
+        std::size_t used = 0;
+        const double value = std::stod(parameter.substr(equal + 1), &used);
+        if (used != parameter.size() - equal - 1)
+          throw std::invalid_argument("invalid parameter value");
+        set_flight_parameter(config, settings, parameter.substr(0, equal),
+                             value);
+      } else
+        args.emplace_back(argv[i]);
+    }
+    if (args.size() == 1 && args[0] == "--profile") {
+      std::cout << "{\"physics_profile\":\"" << kFlightPhysicsProfile
+                << "\",\"model_config_id\":\""
+                << flight_model_config_id(config, settings) << "\"}\n";
+      return 0;
+    }
+    if (args.size() == 6 && args[0] == "--rollout") {
+      const double h = std::stod(args[1]);
+      const int direction = std::stoi(args[2]);
+      const double speed = std::stod(args[3]), spin = std::stod(args[4]),
+                   duration = std::stod(args[5]);
       if (!std::isfinite(h) || h <= 0 || h > .01 ||
           (direction != 1 && direction != -1) || !std::isfinite(duration) ||
           duration <= 0 || duration > 10)
@@ -43,11 +69,14 @@ int main(int argc, char **argv) {
         model.spin.omega = Vec3(5, spin, 8);
         model.spin.mode = EffectiveSpinMode::MEASURED;
       }
-      BallPhysics physics;
+      config.integration_dt_s = h;
+      const auto physics = config.physics;
       EventGeometry g;
       g.receiving_x = .15;
-      std::cout
-          << "{\"profile\":\"thin_shell_v2_receipt_20261010\",\"events\":[";
+      std::cout << "{\"profile\":\"" << kFlightPhysicsProfile
+                << "\",\"model_config_id\":\""
+                << flight_model_config_id(config, settings)
+                << "\",\"events\":[";
       bool comma = false;
       for (double t = 0; t < duration - 1e-12;) {
         double step_size = std::min(h, duration - t);
@@ -77,18 +106,18 @@ int main(int argc, char **argv) {
       std::cout << "}\n";
       return 0;
     }
-    if ((argc != 2 && argc != 4) || std::string(argv[1]) != "--observations") {
+    if ((args.size() != 1 && args.size() != 3) || args[0] != "--observations") {
       std::cerr
           << "Usage: --rollout step_s direction speed spin_y duration_s | "
              "--observations [direction complete|unknown] < "
-             "CSV(source_ns,x,y,z,omega_valid,wx,wy,wz)\n";
+             "CSV(source_ns,x,y,z,omega_valid,wx,wy,wz); --profile; optional "
+             "--set key=value\n";
       return 2;
     }
-    ProbabilisticConfig config;
-    FlightPipeline pipeline(config);
+    FlightPipeline pipeline(config, settings);
     HitPlaneSnapshot plane;
     plane.calibrated = true;
-    plane.x_hit_m = .15;
+    plane.x_hit_m = config.x_hit;
     plane.frame_id = "table";
     std::string line;
     bool first = true;
@@ -113,9 +142,9 @@ int main(int argc, char **argv) {
       s.ball_id = "fixture";
       if (first) {
         first = false;
-        if (argc == 4) {
-          const int direction = std::stoi(argv[2]);
-          const std::string continuity = argv[3];
+        if (args.size() == 3) {
+          const int direction = std::stoi(args[1]);
+          const std::string continuity = args[2];
           if ((direction != 1 && direction != -1) ||
               (continuity != "complete" && continuity != "unknown"))
             throw std::invalid_argument("invalid annotated boundary");
@@ -128,7 +157,9 @@ int main(int argc, char **argv) {
       pipeline.observe(s);
       auto prediction = pipeline.forecast(plane, s.source_time_ns);
       std::cout << "{\"source_ns\":" << s.source_time_ns
-                << ",\"generation\":" << prediction.token.generation
+                << ",\"model_config_id\":\""
+                << flight_model_config_id(config, settings)
+                << "\",\"generation\":" << prediction.token.generation
                 << ",\"state\":\"" << name(prediction.state)
                 << "\",\"physical_available\":"
                 << (prediction.physical_available ? "true" : "false")

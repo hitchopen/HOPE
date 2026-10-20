@@ -24,3 +24,23 @@ hope_msgs::msg::FlightPacketV2 encode_packet_v2(const FlightPipeline &,
 void restore_packet_v2(FlightPipeline &, const hope_msgs::msg::FlightPacketV2 &,
                        const std::string &expected_config);
 } // namespace hope_planner_cpp
+namespace hope_planner_cpp {
+// Forecast-packet admission only: never dispatches a command. A changed
+// producer needs an explicit fresh session/reset; equal counters cannot
+// silently rewind.
+class FlightPacketAdmissionV2 {
+public:
+  explicit FlightPacketAdmissionV2(std::string session)
+      : session_(std::move(session)) {}
+  bool admit(const hope_msgs::msg::FlightPacketV2 &, const std::string &config,
+             std::string &reason);
+  void reset_session(std::string session) {
+    *this = FlightPacketAdmissionV2(std::move(session));
+  }
+
+private:
+  std::string session_, producer_, hash_;
+  std::uint64_t generation_ = 0, revision_ = 0;
+  std::int64_t source_ = 0;
+};
+} // namespace hope_planner_cpp

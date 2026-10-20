@@ -48,3 +48,5 @@ int64 state_spin_measurement_time_ns
 uint64 state_spin_last_contact_id
 string context_source
 int64 context_time_ns
+string physics_profile
+string model_config_id

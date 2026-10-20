@@ -122,6 +122,8 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
   hope_msgs::msg::FlightPredictionV2 w;
   w.shot_generation = p.token.generation;
   w.shot_id = w.shot_generation;
+  w.physics_profile = kFlightPhysicsProfile;
+  w.model_config_id = p.model_config_id;
   w.context_revision = p.token.context_revision;
   w.forecast_revision = p.token.solve_sequence;
   w.play_state = name(p.state);
@@ -392,6 +394,9 @@ encode_packet_v2(const FlightPipeline &pipeline,
   p.config_id = config;
   p.shot_generation = snapshot.generation;
   p.context_revision = snapshot.revision;
+  p.physics_profile = kFlightPhysicsProfile;
+  p.model_config_id =
+      flight_model_config_id(pipeline.config(), pipeline.settings());
   p.boundary_time_ns = snapshot.boundary_ns;
   p.boundary_qualified = snapshot.boundary_qualified;
   p.history_continuity = name(snapshot.continuity);
@@ -609,5 +614,39 @@ void restore_packet_v2(FlightPipeline &pipeline,
       checkpoint.state_bias_covariance(i, j) =
           p.state_bias_covariance[i * 3 + j];
   pipeline.restore(snapshot, checkpoint, p.source_time_origin_ns);
+}
+} // namespace hope_planner_cpp
+namespace hope_planner_cpp {
+bool FlightPacketAdmissionV2::admit(const hope_msgs::msg::FlightPacketV2 &p,
+                                    const std::string &config,
+                                    std::string &reason) {
+  if (!validate_packet_v2(p, reason))
+    return false;
+  auto reject = [&](const char *r) {
+    reason = r;
+    return false;
+  };
+  if (p.session_id != session_ || p.config_id != config)
+    return reject("session_or_config_mismatch");
+  if (!producer_.empty()) {
+    if (p.producer_id != producer_)
+      return reject("producer_restart_requires_session_reset");
+    if (p.shot_generation < generation_ ||
+        (p.shot_generation == generation_ &&
+         (p.context_revision < revision_ || p.state_source_time_ns < source_)))
+      return reject("retired_packet");
+    if (p.shot_generation == generation_ && p.context_revision == revision_ &&
+        p.state_source_time_ns == source_)
+      return reject(p.payload_sha256 == hash_
+                        ? "duplicate_packet"
+                        : "equal_counter_payload_conflict");
+  }
+  producer_ = p.producer_id;
+  generation_ = p.shot_generation;
+  revision_ = p.context_revision;
+  source_ = p.state_source_time_ns;
+  hash_ = p.payload_sha256;
+  reason = "accepted";
+  return true;
 }
 } // namespace hope_planner_cpp

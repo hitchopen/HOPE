@@ -64,3 +64,5 @@ float64 target_time_std_s
 string target_linearization_quality
 bool target_spin_measured_valid
 string target_spin_provenance
+string physics_profile
+string model_config_id
