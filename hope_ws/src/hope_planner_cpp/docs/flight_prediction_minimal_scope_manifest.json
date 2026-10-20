@@ -12,7 +12,8 @@
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_bringup/CMakeLists.txt",
@@ -24,7 +25,8 @@
       "tests": [
         "planner_full_rate_relay_test"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_bringup/package.xml",
@@ -36,7 +38,8 @@
       "tests": [
         "planner_full_rate_relay_test"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_bringup/scripts/optitrack_mct_relay",
@@ -48,7 +51,8 @@
       "tests": [
         "planner_full_rate_relay_test"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
@@ -58,10 +62,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "planner_full_rate_relay_test"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_msgs/CMakeLists.txt",
@@ -75,7 +79,8 @@
         "test_flight_prediction_v2",
         "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/BallObservationV2.msg",
@@ -88,7 +93,8 @@
         "test_flight_transport_v2",
         "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightContextV2.msg",
@@ -101,7 +107,8 @@
         "test_flight_transport_v2",
         "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightEventV2.msg",
@@ -114,7 +121,8 @@
         "test_flight_transport_v2",
         "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightPacketV2.msg",
@@ -127,7 +135,8 @@
         "test_flight_transport_v2",
         "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightPredictionV2.msg",
@@ -140,7 +149,8 @@
         "test_flight_transport_v2",
         "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightWaypointV2.msg",
@@ -153,7 +163,8 @@
         "test_flight_transport_v2",
         "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/CMakeLists.txt",
@@ -167,7 +178,8 @@
         "test_flight_prediction_v2",
         "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/config/flight_prediction_v2_shadow.yaml",
@@ -180,43 +192,47 @@
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.json",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Preserve all 50 scoped requirement IDs with exact new execution evidence and separate physical/downstream outcomes",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Preserve all 50 scoped requirement IDs with exact new execution evidence and separate physical/downstream outcomes",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_accuracy/NOT_RUN.json",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Prevent physical-accuracy/adoption claims without independent held-out annotated data and clock/frame/plane receipts",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_accuracy/README.md",
@@ -228,277 +244,494 @@
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_engineering_report.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Replace stale scaffold reports with current architecture, measured results and remaining qualification steps",
       "origin_commit": "new minimal integration",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_engineering_report.pdf",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Replace stale scaffold reports with current architecture, measured results and remaining qualification steps",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/binary-scope.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run binary-scope.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/cadence.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run cadence.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/delayed-worker.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run delayed-worker.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/effective-profile.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run effective-profile.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/installed-binary-scope.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run installed-binary-scope.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/matched-tooling.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run matched-tooling.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/numerical.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run numerical.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/on-refresh-minus-300.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run on-refresh-minus-300.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/on-refresh-plus-300.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run on-refresh-plus-300.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/raw-scenarios.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run raw-scenarios.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/sanitizers.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run sanitizers.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/selected-ros.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run selected-ros.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/test-summary.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run test-summary.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_excluded_pr49_files.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Enumerate exactly 24 omitted historical paths and explain absence of hybrid/selector targets and messages",
       "origin_commit": "new minimal integration",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_implementation.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Explain isolated link graph, physical interfaces, lifecycle and observational quality/ownership",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_minimal_scope.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Record production preservation, ownership limits and public-struct rebuild requirement",
       "origin_commit": "new minimal integration",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_minimal_scope_manifest.json",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Make every changed file and all 113 source-diff decisions independently auditable",
       "origin_commit": "new minimal integration",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_physics_and_config.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "State unchanged V2 assumptions and distinct effective historical replay/default production models",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_port_manifest.json",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Pin GitHub upstream/source/other-fork histories and preserve source-branch provenance",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_pr_description.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Provide review-ready title/body for the new diff without opening or merging a PR",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_production_parity.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Archive strict independently compiled original/final mode and Stage 3 fixture equality",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_validation.md",
       "category": "IN_SCOPE_DOCUMENTATION",
       "owner": "review",
-      "why_needed": "Review contract, source pins and current validation evidence",
+      "why_needed": "Document tested clean build, solver, scope, parity, load and sanitizer reproduction and inherited failures",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/common_ball_physics.hpp",
       "category": "IN_SCOPE_FORWARD_PHYSICS",
       "owner": "physics",
-      "why_needed": "Independent forward dynamics or V2-only spin qualification, no production adoption",
+      "why_needed": "Expose reusable forward-only gravity/drag/Magnus/contact/event integration with caller-supplied explicit spin availability",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
+        "flight_v2_numerical",
         "test_flight_prediction_v2",
-        "flight_v2_numerical"
+        "flight_v2_installed_api"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/fixed_lag_types.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Transfer/validate causal posterior checkpoints and measurement-nuisance moments with physical model fingerprints",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_replay_input.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Parse shared replay acquisition ns exactly while preserving rejected angular data for V2 qualification",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_prediction_v2",
-        "flight_v2_raw_scenarios"
+        "flight_v2_baseline_epochs",
+        "flight_v2_causal_replay"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_spin_estimator.hpp",
       "category": "IN_SCOPE_FORWARD_PHYSICS",
       "owner": "physics",
-      "why_needed": "Independent forward dynamics or V2-only spin qualification, no production adoption",
-      "origin_commit": "new minimal integration",
+      "why_needed": "Isolate stricter V2 angular gap/alias evidence without modifying the production SpinEstimator",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_prediction_v2",
-        "flight_v2_numerical"
+        "test_flight_prediction_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "origin_path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/spin_estimator.hpp"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_state_v2.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Own five-state shot lifecycle, observed/predicted route separation, bounded latest work and selected physical targets",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_transport_v2.hpp",
       "category": "IN_SCOPE_TRANSPORT",
       "owner": "transport",
-      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "why_needed": "Encode/decode exact-time versioned physical observations, events, forecast waypoints and causal packets",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_transport_v2",
-        "flight_v2_ros_transport"
+        "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/forecast_noise_config.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Validate and version conditional forecast-noise assumptions shared by event propagation and configuration identity",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/hit_plane_manager.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Maintain registered table-frame +X plane under FOLLOW_POSE/ON_REFRESH and source-pose freshness constraints",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/nominal_event_forecast.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Propagate full nominal ball path, physical event-time/target moments and branch-conditioning labels",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_ball_tracker.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Estimate six-state physical posterior and conditional covariance from causal XYZ without inverse/control dependencies",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_physics.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Step the CKF through the same V2 forward contact/free-flight model as nominal forecasts",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_types.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Provide CKF belief/configuration types required by forecast, checkpoint and event covariance code",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/return_region.hpp",
       "category": "CONDITIONAL_SHARED_HELPER",
       "owner": "integration",
-      "why_needed": "Physical side/history enums and canonical configuration identity declarations",
+      "why_needed": "Retain required physical contact-side/history names and stable canonical SHA256/config fingerprints; no selector runtime",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
@@ -506,20 +739,22 @@
         "test_flight_prediction_v2",
         "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trusted_spin.hpp",
       "category": "IN_SCOPE_FORWARD_PHYSICS",
       "owner": "physics",
-      "why_needed": "Independent forward dynamics or V2-only spin qualification, no production adoption",
+      "why_needed": "Own measured/held/once-only-contact-propagated/position-only spin and source provenance per physical shot",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_numerical"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/types.hpp",
@@ -533,7 +768,8 @@
         "test_flight_prediction_v2",
         "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Append sample provenance and separate EffectiveSpin without changing any original default or command struct. Rebuild all C++ dependents; old-object ABI compatibility is not claimed.",
+      "owning_requirement": "G2"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/launch/flight_prediction_v2_shadow.launch.py",
@@ -546,7 +782,8 @@
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/package.xml",
@@ -560,7 +797,8 @@
         "test_flight_prediction_v2",
         "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/accuracy.py",
@@ -570,10 +808,11 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_accuracy_tooling",
+        "flight_v2_matched_replay_tooling"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/benchmark_cadence.py",
@@ -583,10 +822,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/causal_replay_gate.py",
@@ -596,10 +835,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_causal_replay"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/compare_recordings.py",
@@ -609,10 +848,11 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
+        "flight_v2_matched_replay_tooling",
         "flight_v2_accuracy_tooling"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/evaluate_recordings.py",
@@ -622,10 +862,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_scoring"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/numerical_gate.py",
@@ -635,10 +875,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_numerical"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/production_parity.py",
@@ -648,10 +888,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "production_parity.py"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G2"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/scoring.py",
@@ -661,10 +901,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_scoring"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify.sh",
@@ -677,169 +917,183 @@
         "flight_v2_scope",
         "flight_v2_accuracy_tooling"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/ball_flight_baseline_replay.cpp",
-      "category": "IN_SCOPE_FORECAST",
-      "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Evaluate original upstream Stage 1/2 at actual one-shot/progressive epochs without inventing unavailable event outputs",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_prediction_v2",
-        "flight_v2_raw_scenarios"
+        "flight_v2_baseline_epochs",
+        "flight_v2_matched_replay_tooling"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/common_ball_physics.cpp",
       "category": "IN_SCOPE_FORWARD_PHYSICS",
       "owner": "physics",
-      "why_needed": "Independent forward dynamics or V2-only spin qualification, no production adoption",
+      "why_needed": "Expose reusable forward-only gravity/drag/Magnus/contact/event integration with caller-supplied explicit spin availability",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
+        "flight_v2_numerical",
         "test_flight_prediction_v2",
-        "flight_v2_numerical"
+        "flight_v2_installed_api"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/fixed_lag_types.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Transfer/validate causal posterior checkpoints and measurement-nuisance moments with physical model fingerprints",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_node.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Publish only exact shadow physical channels with one-running/one-pending worker, revocation and freshness fencing",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_prediction_v2",
-        "flight_v2_raw_scenarios"
+        "flight_v2_ros_transport",
+        "flight_v2_raw_scenarios",
+        "flight_v2_binary_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Exercise the actual V2 pipeline/profile in exact-source-time offline numerical and causal replays",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_prediction_v2",
-        "flight_v2_raw_scenarios"
+        "flight_v2_numerical",
+        "flight_v2_causal_replay"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_spin_estimator.cpp",
       "category": "IN_SCOPE_FORWARD_PHYSICS",
       "owner": "physics",
-      "why_needed": "Independent forward dynamics or V2-only spin qualification, no production adoption",
-      "origin_commit": "new minimal integration",
+      "why_needed": "Isolate stricter V2 angular gap/alias evidence without modifying the production SpinEstimator",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_prediction_v2",
-        "flight_v2_numerical"
+        "test_flight_prediction_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "origin_path": "hope_ws/src/hope_planner_cpp/src/spin_estimator.cpp"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_state_v2.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Own five-state shot lifecycle, observed/predicted route separation, bounded latest work and selected physical targets",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_transport_v2.cpp",
       "category": "IN_SCOPE_TRANSPORT",
       "owner": "transport",
-      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "why_needed": "Encode/decode exact-time versioned physical observations, events, forecast waypoints and causal packets",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "test_flight_transport_v2",
-        "flight_v2_ros_transport"
+        "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/hit_plane_manager.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Maintain registered table-frame +X plane under FOLLOW_POSE/ON_REFRESH and source-pose freshness constraints",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Propagate full nominal ball path, physical event-time/target moments and branch-conditioning labels",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/probabilistic_ball_tracker.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Estimate six-state physical posterior and conditional covariance from causal XYZ without inverse/control dependencies",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/probabilistic_physics.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
-      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "why_needed": "Step the CKF through the same V2 forward contact/free-flight model as nominal forecasts",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
         "test_flight_prediction_v2",
         "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/return_region.cpp",
       "category": "CONDITIONAL_SHARED_HELPER",
       "owner": "integration",
-      "why_needed": "History/side names and SHA256 canonical configuration hashes required by causal packet validation",
+      "why_needed": "Retain required physical contact-side/history names and stable canonical SHA256/config fingerprints; no selector runtime",
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
@@ -847,7 +1101,8 @@
         "test_flight_prediction_v2",
         "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/baseline_replay_gate.py",
@@ -857,10 +1112,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_baseline_epochs"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/fixtures/scoped_production_sources.json",
@@ -870,10 +1125,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G2"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py",
@@ -883,10 +1138,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_raw_scenarios"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_smoke.py",
@@ -896,10 +1151,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_ros_transport"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/forecast_binary_scope.py",
@@ -909,10 +1164,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_binary_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/installed_forward_api.py",
@@ -922,10 +1177,10 @@
       "origin_commit": "new minimal integration",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_installed_api"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/matched_replay_gate.py",
@@ -935,10 +1190,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_matched_replay_tooling"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/native/CMakeLists.txt",
@@ -951,7 +1206,8 @@
         "flight_v2_scope",
         "flight_v2_accuracy_tooling"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/production_parity_probe.cpp",
@@ -961,10 +1217,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "production_parity.py"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G2"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_flight_prediction_v2.cpp",
@@ -974,10 +1230,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "test_flight_prediction_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_flight_scoring.py",
@@ -987,10 +1243,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_scoring"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_flight_transport_v2.cpp",
@@ -1000,10 +1256,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "test_flight_transport_v2"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_forecast_scope.py",
@@ -1013,10 +1269,10 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
-        "flight_v2_accuracy_tooling"
+        "flight_v2_scope"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_scoped_accuracy.py",
@@ -1026,576 +1282,576 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "flight_v2_scope",
         "flight_v2_accuracy_tooling"
       ],
-      "review_note": "Production source/defaults pinned; shared structs require rebuilding dependent packages."
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
     }
   ],
   "source_inventory": [
     {
       "path": "README.md",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Review contract, source pins and current validation evidence"
     },
     {
       "path": "hope_ws/src/hope_bringup/CMakeLists.txt",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Add authoritative V2 observations while preserving legacy pose stream"
     },
     {
       "path": "hope_ws/src/hope_bringup/package.xml",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Add authoritative V2 observations while preserving legacy pose stream"
     },
     {
       "path": "hope_ws/src/hope_bringup/scripts/optitrack_mct_relay",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Add authoritative V2 observations while preserving legacy pose stream"
     },
     {
       "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_msgs/CMakeLists.txt",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Register six V2 messages or independently build/export/test V2 runtime graph"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/BallForecast.msg",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/BallForecastPhysicsEvent.msg",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/BallForecastWaypoint.msg",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/BallObservationV2.msg",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightContextV2.msg",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightEventV2.msg",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightPacketV2.msg",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightPredictionV2.msg",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/FlightWaypointV2.msg",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/HybridTrajectoryContext.msg",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_msgs/msg/HybridTrajectoryIdentity.msg",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner/hope_planner/spin_estimator.py",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner/test/test_spin_estimator.py",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/CMakeLists.txt",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Register six V2 messages or independently build/export/test V2 runtime graph"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/config/ckf_strike_shadow.yaml",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/config/flight_prediction_v2_shadow.yaml",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/ckf_strike_shadow.md",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.json",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Preserve all 50 scoped requirement IDs with exact new execution evidence and separate physical/downstream outcomes"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.md",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Preserve all 50 scoped requirement IDs with exact new execution evidence and separate physical/downstream outcomes"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_accuracy/NOT_RUN.json",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Prevent physical-accuracy/adoption claims without independent held-out annotated data and clock/frame/plane receipts"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_accuracy/README.md",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Review contract, source pins and current validation evidence"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_implementation.md",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Explain isolated link graph, physical interfaces, lifecycle and observational quality/ownership"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_physics_and_config.md",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "State unchanged V2 assumptions and distinct effective historical replay/default production models"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_port_manifest.json",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Pin GitHub upstream/source/other-fork histories and preserve source-branch provenance"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_pr_description.md",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Provide review-ready title/body for the new diff without opening or merging a PR"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_scope_v2.md",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_validation.md",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Review contract, source pins and current validation evidence"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Document tested clean build, solver, scope, parity, load and sanitizer reproduction and inherited failures"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/ball_flight_state_machine.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/batch_physics_estimator.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/common_ball_physics.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Independent forward dynamics or V2-only spin qualification, no production adoption"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Expose reusable forward-only gravity/drag/Magnus/contact/event integration with caller-supplied explicit spin availability"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/fixed_lag_types.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Transfer/validate causal posterior checkpoints and measurement-nuisance moments with physical model fingerprints"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_replay_input.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Parse shared replay acquisition ns exactly while preserving rejected angular data for V2 qualification"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_state_v2.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Own five-state shot lifecycle, observed/predicted route separation, bounded latest work and selected physical targets"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_transport_v2.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Encode/decode exact-time versioned physical observations, events, forecast waypoints and causal packets"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/forecast_noise_config.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Validate and version conditional forecast-noise assumptions shared by event propagation and configuration identity"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/future_contact_predictor.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/hit_plane_manager.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Maintain registered table-frame +X plane under FOLLOW_POSE/ON_REFRESH and source-pose freshness constraints"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/hybrid_trajectory_coordinator.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/hybrid_trajectory_node.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/nominal_event_forecast.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Propagate full nominal ball path, physical event-time/target moments and branch-conditioning labels"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_ball_tracker.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Estimate six-state physical posterior and conditional covariance from causal XYZ without inverse/control dependencies"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_physics.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Step the CKF through the same V2 forward contact/free-flight model as nominal forecasts"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_types.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Provide CKF belief/configuration types required by forecast, checkpoint and event covariance code"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/return_region.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Physical side/history enums and canonical configuration identity declarations"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Retain required physical contact-side/history names and stable canonical SHA256/config fingerprints; no selector runtime"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/spin_estimator.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/strike_flight_detector.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/strike_target_selector.hpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trusted_spin.hpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Independent forward dynamics or V2-only spin qualification, no production adoption"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Own measured/held/once-only-contact-propagated/position-only spin and source provenance per physical shot"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/types.hpp",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Append V2 provenance and separate optional-spin value; preserve existing field order/defaults and command definitions"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/launch/ckf_strike_shadow.launch.py",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/launch/flight_prediction_v2_shadow.launch.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/package.xml",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Declare direct observation or validation dependencies"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/accuracy.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/benchmark_cadence.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/causal_replay_gate.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/compare_recordings.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/evaluate_recordings.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/numerical_gate.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/production_parity.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/scoring.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify.sh",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/ball_flight_baseline_replay.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Evaluate original upstream Stage 1/2 at actual one-shot/progressive epochs without inventing unavailable event outputs"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/ball_flight_state_machine.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/batch_physics_estimator.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/common_ball_physics.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Independent forward dynamics or V2-only spin qualification, no production adoption"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Expose reusable forward-only gravity/drag/Magnus/contact/event integration with caller-supplied explicit spin availability"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/fixed_lag_types.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Transfer/validate causal posterior checkpoints and measurement-nuisance moments with physical model fingerprints"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_packetizer_node.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_node.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Publish only exact shadow physical channels with one-running/one-pending worker, revocation and freshness fencing"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Exercise the actual V2 pipeline/profile in exact-source-time offline numerical and causal replays"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_state_v2.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Own five-state shot lifecycle, observed/predicted route separation, bounded latest work and selected physical targets"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_transport_v2.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Versioned causal observation/event/trajectory/checkpoint wire contract"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Encode/decode exact-time versioned physical observations, events, forecast waypoints and causal packets"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/hit_plane_manager.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Maintain registered table-frame +X plane under FOLLOW_POSE/ON_REFRESH and source-pose freshness constraints"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/hybrid_trajectory_coordinator.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/hybrid_trajectory_main.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/hybrid_trajectory_node.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Propagate full nominal ball path, physical event-time/target moments and branch-conditioning labels"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/planner_node.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/probabilistic_ball_tracker.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Estimate six-state physical posterior and conditional covariance from causal XYZ without inverse/control dependencies"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/probabilistic_physics.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Step the CKF through the same V2 forward contact/free-flight model as nominal forecasts"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/replay_main.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/return_region.cpp",
-      "disposition": "PORT_WITH_REVIEW",
-      "reason": "History/side names and SHA256 canonical configuration hashes required by causal packet validation"
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
+      "reason": "Retain required physical contact-side/history names and stable canonical SHA256/config fingerprints; no selector runtime"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/spin_estimator.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/strike_flight_detector.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/strike_target_selector.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/strike_target_selector_node.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/trajectory_predictor.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/baseline_replay_gate.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/ckf_strike_shadow_smoke.py",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/fixtures/scoped_production_sources.json",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_smoke.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/forecast_binary_scope.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/matched_replay_gate.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/native/CMakeLists.txt",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/production_parity_probe.cpp",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_flight_prediction_v2.cpp",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_flight_scoring.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_flight_transport_v2.cpp",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_forecast_scope.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_future_contact_predictor.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_prediction_event_order.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_scoped_accuracy.py",
-      "disposition": "PORT_WITH_REVIEW",
+      "disposition": "SELECTIVE_PORT_OR_REWRITE",
       "reason": "Executable forecast, causal comparison, regression or validation gate"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_shadow_runner_input.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_spin_physics.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_strike_flight_detector.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_strike_target_selector.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "EXCLUDE_HISTORICAL",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_trajectory_and_stage3.cpp",
-      "disposition": "BASE_OR_EXCLUDE",
+      "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     }
   ]

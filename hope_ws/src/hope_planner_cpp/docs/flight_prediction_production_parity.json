@@ -1,0 +1,38 @@
+{
+  "status": "PASS",
+  "base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "production_source_sha256": {
+    "hope_ws/src/hope_planner_cpp/src/racket_target_planner.cpp": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+    "hope_ws/src/hope_planner_cpp/src/adaptive_flight_commit.cpp": "a38800cb2796c0b99de106f970027083acac9d711f864a1261916e451e7a7846",
+    "hope_ws/src/hope_planner_cpp/src/trajectory_predictor.cpp": "adc299467296ff6924a3bf3de2349d750fe7f4999dab42710f3571beaa9c3590",
+    "hope_ws/src/hope_planner_cpp/src/batch_physics_estimator.cpp": "03ebd64aaca3cfadfab46a918e07a38a6e2ec5d932b1627a7557bc30cb79d3fe",
+    "hope_ws/src/hope_planner_cpp/src/spin_estimator.cpp": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/racket_target_planner.hpp": "702810cc94ca033ce5200f0579e166424fb7d0194ef021e9767362f5fbca57fa",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/adaptive_flight_commit.hpp": "55056f3873d1a38c93a0c91bd2399f2cf185d60f8e1bca94a38d40523542a4ed",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trajectory_predictor.hpp": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/batch_physics_estimator.hpp": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/spin_estimator.hpp": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/future_contact_predictor.hpp": "6b6b8d7230b2e56f4861341b240959bdf5cb1e7a02dc35b263a76190c2f7a30e"
+  },
+  "exact_fixture_parity": true,
+  "exceptions": [],
+  "fixture_counts": {
+    "racket": 18,
+    "receiving_flight": 3,
+    "all_spin_modes": 540,
+    "spin_and_batch": 140
+  },
+  "max_abs_difference": 0,
+  "all_five_spin_modes": true,
+  "nakashima_and_venue_remain_distinct": true,
+  "note": "Each side compiled from its own complete source/header tree; no updated goldens.",
+  "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+  "fixture_digests_sha256": {
+    "racket": "d83179b7b9a2d02ef8ebc2159db007b59460c76a2b42f2f1c743c57f17775a02",
+    "receiving_flight": "72a261a8bb345b445f5c2f0ec35f3262c3a66e6f8e1f78327d10d50da27aefd5",
+    "all_spin_modes": "af6ff79a636cccd3535979eff651a9a6a94e0b1a7ee2820072745afd66fa900a",
+    "spin_and_batch": "13bc9e0061057d30bc477f631226f3b5e430f4b6ac3b7176241df945832313bd"
+  },
+  "complete_fixture_artifact": "/workspace/.cloud-setup/v2-evidence/production-parity-final.json",
+  "regeneration": "scripts/flight_prediction_validation/production_parity.py --repo <HOPE> --output <full-receipt.json>"
+}

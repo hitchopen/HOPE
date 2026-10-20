@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "groups": 13,
+  "group_names": [
+    "flight_prediction_v2",
+    "spin_physics",
+    "future_contact_predictor",
+    "batch_physics_estimator",
+    "trajectory_and_stage3",
+    "target_turn_guard",
+    "prediction_event_order",
+    "schema2",
+    "spin_estimator",
+    "audit_logger",
+    "post_net_one_shot",
+    "incoming_trajectory",
+    "adaptive_flight_commit"
+  ],
+  "flags": "-O1 -g1 -fsanitize=address,undefined -fno-omit-frame-pointer; ASAN_OPTIONS=detect_leaks=1",
+  "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+  "scope": "Native V2 and original production math/acquisition/scheduling subset; ROS executable/transport are not ASan-instrumented",
+  "raw_evidence": "/workspace/.cloud-setup/v2-evidence/sanitize.log"
+}

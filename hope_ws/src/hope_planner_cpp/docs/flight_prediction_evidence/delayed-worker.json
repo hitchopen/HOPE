@@ -1,0 +1,194 @@
+{
+  "status": "PASS",
+  "streams": [
+    {
+      "rate_hz": 150,
+      "requested_full_rate_hz": 50.0,
+      "worker_delay_ms": 12,
+      "source_span_s": 2.447351256,
+      "published_input_rate_hz": 143.42036074285528,
+      "observed_input_rate_hz": 143.42036074285528,
+      "observed_input_count": 352,
+      "unaccounted_input_count": 0,
+      "input_count": 352,
+      "physical_outputs": 342,
+      "denominator": 336,
+      "physical_publication_coverage": 0.9940476190476191,
+      "target_outputs": 210,
+      "full_physical_outputs": 116,
+      "full_source_coverage": 0.34523809523809523,
+      "full_received_rate_hz": 49.93674680102928,
+      "full_publication_latency_ms": {
+        "minimum": 0.633426,
+        "p50": 0.9005259999999999,
+        "p95": 1.473432,
+        "p99": 2.955202,
+        "maximum": 7.239983
+      },
+      "full_receipt_latency_ms": {
+        "minimum": 2.268927,
+        "p50": 3.799522,
+        "p95": 6.186705,
+        "p99": 10.57697,
+        "maximum": 21.997245
+      },
+      "generation_latency_ms": {
+        "minimum": 0.519561,
+        "p50": 0.8043279999999999,
+        "p95": 1.210041,
+        "p99": 7.156388,
+        "maximum": 13.35405
+      },
+      "publication_latency_ms": {
+        "minimum": 0.572795,
+        "p50": 0.8696485,
+        "p95": 1.391002,
+        "p99": 7.452043,
+        "maximum": 13.491946
+      },
+      "latency_ms": {
+        "minimum": 0.987894,
+        "p50": 1.4116255,
+        "p95": 2.212281,
+        "p99": 7.9111,
+        "maximum": 15.141393
+      },
+      "superseded": 2,
+      "queue_bound": {
+        "running": 1,
+        "pending": 1
+      },
+      "resources": {
+        "rss_kib": 32908,
+        "peak_rss_kib": 32908,
+        "node_cpu_s": 0.49
+      },
+      "lifecycle_reasons": {
+        "semantic_context_superseded": 5,
+        "qualified_boundary": 8,
+        "contact_or_crossing_confirmed": 12,
+        "forecast_expired": 1
+      },
+      "generations": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "payload": {
+        "compact_mean_cdr_bytes": 7391.538461538462,
+        "full_mean_cdr_bytes": 55593.142857142855,
+        "full_sampled_cdr_bytes_per_s": 2794023.3567471895,
+        "size_measurement": "sampled CDR; excludes DDS/network headers"
+      },
+      "first_physical_fixture_lead_ms": [
+        482.816895,
+        483.077201,
+        483.290722,
+        483.40666
+      ],
+      "first_target_fixture_lead_ms": [
+        369.868043,
+        370.028524,
+        369.695283,
+        369.913103
+      ]
+    },
+    {
+      "rate_hz": 300,
+      "requested_full_rate_hz": 50.0,
+      "worker_delay_ms": 12,
+      "source_span_s": 2.462363952,
+      "published_input_rate_hz": 288.7469171332313,
+      "observed_input_rate_hz": 288.3408033257303,
+      "observed_input_count": 711,
+      "unaccounted_input_count": 1,
+      "input_count": 712,
+      "physical_outputs": 683,
+      "denominator": 696,
+      "physical_publication_coverage": 0.9698275862068966,
+      "target_outputs": 393,
+      "full_physical_outputs": 117,
+      "full_source_coverage": 0.16810344827586207,
+      "full_received_rate_hz": 48.7076468851514,
+      "full_publication_latency_ms": {
+        "minimum": 0.578935,
+        "p50": 0.916063,
+        "p95": 2.006788,
+        "p99": 4.252697,
+        "maximum": 13.240707
+      },
+      "full_receipt_latency_ms": {
+        "minimum": 2.2936,
+        "p50": 4.010317,
+        "p95": 7.363494,
+        "p99": 8.800575,
+        "maximum": 16.609298
+      },
+      "generation_latency_ms": {
+        "minimum": 0.468825,
+        "p50": 0.852863,
+        "p95": 1.789186,
+        "p99": 4.151555,
+        "maximum": 13.113826
+      },
+      "publication_latency_ms": {
+        "minimum": 0.511048,
+        "p50": 0.920304,
+        "p95": 2.024422,
+        "p99": 4.212857,
+        "maximum": 13.181218
+      },
+      "latency_ms": {
+        "minimum": 0.873093,
+        "p50": 1.462409,
+        "p95": 3.261095,
+        "p99": 13.522376,
+        "maximum": 29.319934
+      },
+      "superseded": 20,
+      "queue_bound": {
+        "running": 1,
+        "pending": 1
+      },
+      "resources": {
+        "rss_kib": 32680,
+        "peak_rss_kib": 32716,
+        "node_cpu_s": 0.9
+      },
+      "lifecycle_reasons": {
+        "semantic_context_superseded": 5,
+        "qualified_boundary": 8,
+        "contact_or_crossing_confirmed": 11,
+        "history_qualification_changed": 1,
+        "forecast_expired": 1
+      },
+      "generations": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "payload": {
+        "compact_mean_cdr_bytes": 7965.25,
+        "full_mean_cdr_bytes": 61042.857142857145,
+        "full_sampled_cdr_bytes_per_s": 2999632.003338276,
+        "size_measurement": "sampled CDR; excludes DDS/network headers"
+      },
+      "first_physical_fixture_lead_ms": [
+        489.007967,
+        489.98046,
+        489.74679,
+        489.917445
+      ],
+      "first_target_fixture_lead_ms": [
+        379.985489,
+        379.993912,
+        379.861578,
+        379.069932
+      ]
+    }
+  ]
+}

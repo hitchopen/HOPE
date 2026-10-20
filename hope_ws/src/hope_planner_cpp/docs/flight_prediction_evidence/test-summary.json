@@ -1,0 +1,305 @@
+{
+  "tested_code_commit": "dcd17786f5b32afa56da63713c5cd32c3dffdd78",
+  "ctest": {
+    "hope_msgs": {
+      "total": 2,
+      "passed": 2,
+      "failed": [],
+      "groups": [
+        {
+          "name": "lint_cmake",
+          "status": "passed"
+        },
+        {
+          "name": "xmllint",
+          "status": "passed"
+        }
+      ]
+    },
+    "hope_planner_cpp": {
+      "total": 30,
+      "passed": 30,
+      "failed": [],
+      "groups": [
+        {
+          "name": "test_spin_physics",
+          "status": "passed"
+        },
+        {
+          "name": "test_future_contact_predictor",
+          "status": "passed"
+        },
+        {
+          "name": "test_batch_physics_estimator",
+          "status": "passed"
+        },
+        {
+          "name": "test_trajectory_and_stage3",
+          "status": "passed"
+        },
+        {
+          "name": "test_target_turn_guard",
+          "status": "passed"
+        },
+        {
+          "name": "test_prediction_event_order",
+          "status": "passed"
+        },
+        {
+          "name": "test_schema2",
+          "status": "passed"
+        },
+        {
+          "name": "test_spin_estimator",
+          "status": "passed"
+        },
+        {
+          "name": "test_audit_logger",
+          "status": "passed"
+        },
+        {
+          "name": "test_post_net_one_shot",
+          "status": "passed"
+        },
+        {
+          "name": "test_incoming_trajectory",
+          "status": "passed"
+        },
+        {
+          "name": "test_adaptive_flight_commit",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_packet",
+          "status": "passed"
+        },
+        {
+          "name": "test_question_bank_fixture",
+          "status": "passed"
+        },
+        {
+          "name": "test_planner_node_one_shot",
+          "status": "passed"
+        },
+        {
+          "name": "test_planner_node_turn_guard",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_packet_pipeline",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_installed_api",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_prediction_v2",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_transport_v2",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_numerical",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_causal_replay",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_scoring",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_accuracy_tooling",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_scope",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_ros_transport",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_raw_scenarios",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_binary_scope",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_matched_replay_tooling",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_baseline_epochs",
+          "status": "passed"
+        }
+      ]
+    },
+    "hope_bringup": {
+      "total": 26,
+      "passed": 24,
+      "failed": [
+        "flake8",
+        "pep257"
+      ],
+      "groups": [
+        {
+          "name": "planner_full_rate_relay_test",
+          "status": "passed"
+        },
+        {
+          "name": "vrpn_pants_contract_test",
+          "status": "passed"
+        },
+        {
+          "name": "vrpn_pants_relay_test",
+          "status": "passed"
+        },
+        {
+          "name": "table_side_transform_test",
+          "status": "passed"
+        },
+        {
+          "name": "source_time_rate_gate_test",
+          "status": "passed"
+        },
+        {
+          "name": "natnet_preflight_test",
+          "status": "passed"
+        },
+        {
+          "name": "rally_mocap_interface_test",
+          "status": "passed"
+        },
+        {
+          "name": "natnet_launch_interfaces_test",
+          "status": "passed"
+        },
+        {
+          "name": "pose_to_posearray_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_pelvis_calibrator_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_pelvis_tf_publisher_test",
+          "status": "passed"
+        },
+        {
+          "name": "motive_asset_contract_test",
+          "status": "passed"
+        },
+        {
+          "name": "motive_asset_relay_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_marker_layout_test",
+          "status": "passed"
+        },
+        {
+          "name": "v3_optitrack_asset_test",
+          "status": "passed"
+        },
+        {
+          "name": "natnet_preflight_clock_sync_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_marker_cad_registration_test",
+          "status": "passed"
+        },
+        {
+          "name": "mocap_frame_probe_test",
+          "status": "passed"
+        },
+        {
+          "name": "base_pose_contract_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_calibration_test",
+          "status": "passed"
+        },
+        {
+          "name": "public_sticker_integration_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_marker_cad_calibration_server_test",
+          "status": "passed"
+        },
+        {
+          "name": "flake8",
+          "status": "failed"
+        },
+        {
+          "name": "lint_cmake",
+          "status": "passed"
+        },
+        {
+          "name": "pep257",
+          "status": "failed"
+        },
+        {
+          "name": "xmllint",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "baseline_ctest": {
+    "hope_msgs": {
+      "total": 2,
+      "passed": 2,
+      "failed": []
+    },
+    "hope_planner_cpp": {
+      "total": 17,
+      "passed": 17,
+      "failed": []
+    },
+    "hope_bringup": {
+      "total": 25,
+      "passed": 23,
+      "failed": [
+        "flake8",
+        "pep257"
+      ]
+    }
+  },
+  "inherited_lint": {
+    "flake8": {
+      "baseline_issues": 3086,
+      "final_issues": 3086,
+      "file_and_code_multiset_unchanged": true
+    },
+    "pep257": {
+      "baseline_issues": 37,
+      "final_issues": 37,
+      "file_and_code_multiset_unchanged": true
+    }
+  },
+  "skipped_individual_tests": [
+    {
+      "file": "natnet_launch_interfaces_test.xunit.xml",
+      "test": "test_replay_does_not_need_network_configuration[standalone]"
+    }
+  ],
+  "build_exit": 0,
+  "colcon_test_exit": 0,
+  "test_result_exit": 1,
+  "runtime_source_tree": "40723e55a9f28d85c691e6544e5dc463573cd009",
+  "header_tree": "7d761410856891a1f0eb3263ba3d9099f767b663",
+  "tests_tree": "02ac0bc45cfbe743c11e5f2a757a2af6127a4d8b"
+}

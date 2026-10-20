@@ -23,7 +23,9 @@
     "pr49_url": "https://github.com/hitchopen/HOPE/pull/49",
     "fork_metadata": "Public pages confirm timothyypark/HOPE and dongc1/HOPE fork hitchopen/HOPE",
     "api": "403 from network proxy; used authenticated Git reads and public GitHub pages",
-    "nohope_public_page": "404; Git access succeeded; parent relationship inferred from merge history"
+    "nohope_public_page": "404; Git access succeeded; parent relationship inferred from merge history",
+    "pr49_state": "CLOSED_UNMERGED",
+    "pr49_head": "84fc446e131a054204ed37fa3f1d1988c154879c"
   },
   "baseline_environment": {
     "image": "ros:jazzy-ros-base",
