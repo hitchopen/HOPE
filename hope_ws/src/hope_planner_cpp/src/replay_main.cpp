@@ -145,15 +145,6 @@ double number(const std::vector<std::string>& row, std::size_t index) {
   }
 }
 
-std::int64_t integer(const std::vector<std::string>& row, std::size_t index) {
-  if (index >= row.size()) return 0;
-  try {
-    return std::stoll(row[index]);
-  } catch (...) {
-    return 0;
-  }
-}
-
 double quantile(std::vector<double> values, double q) {
   values.erase(
       std::remove_if(values.begin(), values.end(), [](double value) {
@@ -282,6 +273,7 @@ Arguments parse_arguments(int argc, char** argv) {
       args.table_friction_cap_mu = std::stod(next());
     } else if (option == "--help" || option == "-h") {
       std::cout
+          << "LEGACY planner replay (includes downstream planning); use hope_flight_prediction_v2_replay for forecast-only output.\n"
           << "usage: hope_planner_cpp_replay --input mocap_raw.csv --output replay.csv "
              "[--x-hit 0.15] [--x-hit-bh-delta 0] [--solve-period 0.033] "
              "[--post-net-one-shot] [--post-net-delay 0.05] "
@@ -296,8 +288,8 @@ Arguments parse_arguments(int argc, char** argv) {
              "[--window 0.18] [--min-span 0.08] [--min-samples 12] "
              "[--huber-delta 0.003] [--recency-half-life 0] [--iterations 3] "
              "[--adaptive-horizon] [--max-predict-time-cap 3.0] "
-             "[--drag-k 0.119006] [--restitution-h 0.651740] "
-             "[--restitution-v 0.916598] "
+             "[--drag-k 0.12861635416914574] [--restitution-h 0.6125555614493483] "
+             "[--restitution-v 0.9313775047019153] "
              "[--bounce-min-reversal 0.00005] [--bounce-min-excursion 0.001] "
              "[--bounce-confirmation-samples 5] "
              "[--bounce-confirmation-max-span 0.05] "
@@ -308,10 +300,10 @@ Arguments parse_arguments(int argc, char** argv) {
              "[--control-zero-spin] "
              "[--spin-window 0.10] [--spin-min-span 0.05] "
              "[--spin-max-gap 0.05] [--spin-max-rev 20] "
-             "[--spin-huber-delta-rev 2] [--magnus-k 0.00327844] "
+             "[--spin-huber-delta-rev 2] [--magnus-k 0.00379260504480258] "
              "[--nakashima-friction-mu 0.25] "
-             "[--table-tangential-gain 0.369] "
-             "[--table-friction-cap-mu 2.0]\n";
+             "[--table-tangential-gain 0.38744443855065164] "
+             "[--table-friction-cap-mu 0.16706204822993975]\n";
       std::exit(0);
     } else {
       throw std::invalid_argument("unknown option: " + option);

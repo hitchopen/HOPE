@@ -25,4 +25,5 @@
   <export>
     <build_type>ament_cmake</build_type>
   </export>
+  <test_depend>python3-matplotlib</test_depend>
 </package>

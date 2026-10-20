@@ -6,7 +6,8 @@
 namespace hope_planner_cpp {
 namespace {
 
-TEST(TrajectoryAndStage3, SharedReceivingPhysicsAndUnmodifiedLegacyStage3RemainFinite) {
+TEST(TrajectoryAndStage3,
+     SharedReceivingPhysicsAndUnmodifiedLegacyStage3RemainFinite) {
   // Golden values use the 2026-08-23/24 engineering physics candidate.
   BallPhysics physics;
   physics.drag_k = 0.1317;
@@ -31,23 +32,25 @@ TEST(TrajectoryAndStage3, SharedReceivingPhysicsAndUnmodifiedLegacyStage3RemainF
   ASSERT_TRUE(strike.valid) << strike.reason;
   EXPECT_NEAR(strike.ball_position.x(), 0.15, 1e-12);
   EXPECT_NEAR(strike.ball_position.y(), -0.44583333, 1e-8);
-  auto fine_config=config;fine_config.integrate_dt_s=.00005;
-  const auto reference=TrajectoryPredictor(physics,fine_config,table).predict(state,config.x_hit);
+  auto fine_config = config;
+  fine_config.integrate_dt_s = .00005;
+  const auto reference = TrajectoryPredictor(physics, fine_config, table)
+                             .predict(state, config.x_hit);
   ASSERT_TRUE(reference.valid);
-  EXPECT_LT((strike.ball_position-reference.ball_position).norm(),.001);
-  EXPECT_LT((strike.ball_velocity-reference.ball_velocity).norm(),.005);
-  EXPECT_NEAR(strike.strike_source_time_s,reference.strike_source_time_s,.0005);
+  EXPECT_LT((strike.ball_position - reference.ball_position).norm(), .001);
+  EXPECT_LT((strike.ball_velocity - reference.ball_velocity).norm(), .005);
+  EXPECT_NEAR(strike.strike_source_time_s, reference.strike_source_time_s,
+              .0005);
   EXPECT_EQ(strike.predicted_bounces, 1);
 
-  const RacketCommand command = stage3.plan(
-      strike, config.target_land, config.delta_t_flight);
+  const RacketCommand command =
+      stage3.plan(strike, config.target_land, config.delta_t_flight);
   ASSERT_TRUE(command.valid) << command.reason;
   EXPECT_TRUE(command.clears_net);
   EXPECT_FALSE(command.bypasses_net_posts);
-  EXPECT_NEAR(command.normal.norm(),1.,1e-12);
+  EXPECT_NEAR(command.normal.norm(), 1., 1e-12);
   EXPECT_TRUE(command.velocity.allFinite());
   EXPECT_TRUE(command.outgoing_ball_velocity.allFinite());
-
 }
 
 TEST(TrajectoryAndStage3, KeepsMathematicalNoCrossingInvalid) {
@@ -79,8 +82,7 @@ TEST(TrajectoryAndStage3, LegacySpinModeIsExactlyTheLegacyPath) {
   state.valid = true;
   const auto legacy = predictor.predict(state, 0.15);
   const auto dispatched = predictor.predict_with_spin(
-      state, 0.15, Vec3(20.0, -30.0, 10.0),
-      SpinPhysicsMode::kLegacyNoSpin);
+      state, 0.15, Vec3(20.0, -30.0, 10.0), SpinPhysicsMode::kLegacyNoSpin);
   EXPECT_EQ(dispatched.valid, legacy.valid);
   EXPECT_EQ(dispatched.reason, legacy.reason);
   EXPECT_EQ(dispatched.ball_position, legacy.ball_position);
@@ -105,9 +107,9 @@ TEST(TrajectoryAndStage3, NakashimaTopspinChangesPostBounceCrossing) {
   state.source_time_s = 123.0;
   state.valid = true;
   const auto no_spin = predictor.predict(state, 0.15);
-  const auto topspin = predictor.predict_with_spin(
-      state, 0.15, Vec3(0.0, -40.0, 0.0),
-      SpinPhysicsMode::kNakashimaBounceAndMagnus);
+  const auto topspin =
+      predictor.predict_with_spin(state, 0.15, Vec3(0.0, -40.0, 0.0),
+                                  SpinPhysicsMode::kNakashimaBounceAndMagnus);
   ASSERT_TRUE(no_spin.valid);
   ASSERT_TRUE(topspin.valid) << topspin.reason;
   EXPECT_EQ(topspin.predicted_bounces, 1);
@@ -134,23 +136,25 @@ TEST(TrajectoryAndStage3, VenueGripSpinPathProducesFiniteCrossing) {
   state.velocity = Vec3(-4.2, 0.35, -1.2);
   state.source_time_s = 123.0;
   state.valid = true;
-  const auto result = predictor.predict_with_spin(
-      state, 0.15, Vec3(5.0, -35.0, 8.0),
-      SpinPhysicsMode::kVenueGripBounceAndMagnus);
+  const auto result =
+      predictor.predict_with_spin(state, 0.15, Vec3(5.0, -35.0, 8.0),
+                                  SpinPhysicsMode::kVenueGripBounceAndMagnus);
   ASSERT_TRUE(result.valid) << result.reason;
   EXPECT_TRUE(result.ball_position.allFinite());
   EXPECT_TRUE(result.ball_velocity.allFinite());
   EXPECT_EQ(result.predicted_bounces, 1);
   // RK4/shared thin-shell profile supersedes historical Euler scalar goldens.
   // An independent DOP853 gate checks the profile, not just this refinement.
-  config.integrate_dt_s=.00005;
-  const auto reference=TrajectoryPredictor(physics,config,table).predict_with_spin(
-    state,.15,Vec3(5.,-35.,8.),SpinPhysicsMode::kVenueGripBounceAndMagnus);
+  config.integrate_dt_s = .00005;
+  const auto reference =
+      TrajectoryPredictor(physics, config, table)
+          .predict_with_spin(state, .15, Vec3(5., -35., 8.),
+                             SpinPhysicsMode::kVenueGripBounceAndMagnus);
   ASSERT_TRUE(reference.valid);
-  EXPECT_LT((result.ball_position-reference.ball_position).norm(),.001);
-  EXPECT_LT((result.ball_velocity-reference.ball_velocity).norm(),.005);
-  EXPECT_NEAR(result.strike_source_time_s,reference.strike_source_time_s,.0005);
-
+  EXPECT_LT((result.ball_position - reference.ball_position).norm(), .001);
+  EXPECT_LT((result.ball_velocity - reference.ball_velocity).norm(), .005);
+  EXPECT_NEAR(result.strike_source_time_s, reference.strike_source_time_s,
+              .0005);
 }
 
 TEST(TrajectoryAndStage3, ZeroEffectiveFutureBounceGainArrivesEarlier) {
@@ -182,7 +186,8 @@ TEST(TrajectoryAndStage3, ZeroEffectiveFutureBounceGainArrivesEarlier) {
   EXPECT_LT(one_shot.ball_velocity.x(), venue.ball_velocity.x());
 }
 
-TEST(TrajectoryAndStage3, HistoricalUncappedZeroSpinRetentionMatchesDiagonalContact) {
+TEST(TrajectoryAndStage3,
+     HistoricalUncappedZeroSpinRetentionMatchesDiagonalContact) {
   BallPhysics physics;
   // Disable flight forces to isolate the actual production contact dispatch.
   physics.drag_k = 0.0;
@@ -207,5 +212,32 @@ TEST(TrajectoryAndStage3, HistoricalUncappedZeroSpinRetentionMatchesDiagonalCont
   EXPECT_NEAR(strike.ball_velocity.z(), 0.916598, 1e-9);
 }
 
-}  // namespace
-}  // namespace hope_planner_cpp
+} // namespace
+} // namespace hope_planner_cpp
+
+TEST(ScopedProduction, FixedBallInputPreservesOriginalStage3ScalarGoldens) {
+  using namespace hope_planner_cpp;
+  BallPhysics physics;
+  physics.drag_k = .1317;
+  physics.restitution_h = .64;
+  physics.restitution_v = .9607;
+  StrikeTarget strike;
+  strike.valid = true;
+  strike.ball_position = Vec3(.15, -.4458333333333333, .32482849618220022);
+  strike.ball_velocity =
+      Vec3(-2.2222423506951761, .18518686255793151, .18474390147945227);
+  strike.strike_source_time_s = 123.41225305436849;
+  strike.predicted_bounces = 1;
+  const auto command = RacketTargetPlanner(physics, {}, {})
+                           .plan(strike, Vec3(2.055, -.7625, 0), .5);
+  ASSERT_TRUE(command.valid);
+  EXPECT_NEAR(command.velocity.x(), 2.0019087745012918, 1e-8);
+  EXPECT_NEAR(command.velocity.y(), -.27676397921076445, 1e-8);
+  EXPECT_NEAR(command.velocity.z(), .50034781141521933, 1e-8);
+  EXPECT_NEAR(command.normal.x(), .96154701177380075, 1e-8);
+  EXPECT_NEAR(command.normal.y(), -.13293391815170605, 1e-8);
+  EXPECT_NEAR(command.normal.z(), .24032460871435926, 1e-8);
+  EXPECT_NEAR(command.outgoing_ball_velocity.x(), 4.3617531685177013, 1e-8);
+  EXPECT_NEAR(command.outgoing_ball_velocity.y(), -.72505081770656621, 1e-8);
+  EXPECT_NEAR(command.outgoing_ball_velocity.z(), 1.8303172614475833, 1e-8);
+}

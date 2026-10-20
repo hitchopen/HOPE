@@ -33,13 +33,18 @@ def main():
             results[label]=json.loads(subprocess.check_output([str(executable)],text=True))
     assert results['upstream']['racket']==results['scoped']['racket'], 'fixed-input command parity failed'
     delta=np.asarray(results['scoped']['receiving_flight'])-results['upstream']['receiving_flight']
+    before=np.asarray(results['upstream']['receiving_flight']);after=np.asarray(results['scoped']['receiving_flight'])
+    valid_pairs=(before[:,0]>0)&(after[:,0]>0)
+    valid_delta=delta[valid_pairs]
     receipt=dict(base=BASE,command_fixtures=18,command_max_abs_difference=0.,
                  upstream_sha256={name:hashlib.sha256(raw).hexdigest() for name,raw in sources.items()},
                  source_parity=['racket_target_planner.cpp','adaptive_flight_commit.cpp'],
                  receiving_forward_deltas=delta.tolist(),
-                 max_receiving_arrival_delta_s=float(np.max(np.abs(delta[:,1]))),
-                 max_receiving_position_delta_m=float(np.max(np.linalg.norm(delta[:,2:5],axis=1))),
-                 max_receiving_velocity_delta_mps=float(np.max(np.linalg.norm(delta[:,5:8],axis=1))),
+                 receiving_validity_changes=[dict(fixture=i,upstream=bool(a[0]),scoped=bool(b[0])) for i,(a,b) in enumerate(zip(before,after)) if a[0]!=b[0]],
+                 valid_pair_count=int(np.sum(valid_pairs)),
+                 max_receiving_arrival_delta_s=float(np.max(np.abs(valid_delta[:,1]))),
+                 max_receiving_position_delta_m=float(np.max(np.linalg.norm(valid_delta[:,2:5],axis=1))),
+                 max_receiving_velocity_delta_mps=float(np.max(np.linalg.norm(valid_delta[:,5:8],axis=1))),
                  note='Fixed ball-input inversion unchanged; end-to-end downstream inputs still change with shared radius-aware RK4 flight physics.')
     Path(args.output).write_text(json.dumps(receipt,indent=2)+'\n')
     print(json.dumps(receipt))
