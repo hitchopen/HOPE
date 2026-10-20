@@ -21,9 +21,11 @@ loader.exec_module(module)
 def relay(request):
     rclpy.init(args=["--ros-args", "-p", "publish_tf:=false", "-p",
                     "planner_poses_topic:=/poses/planner_full", "-p",
-                    "table_side:=" + request.param])
+                    "table_side:=" + request.param, '-p',
+                     'ball_orientation_authoritative:=true'])
     node = module.OptitrackMctRelay(messages.NamedPoseArrayV2)
-    node.full, node.limited = [], []
+    node.full, node.limited, node.observations = [], [], []
+    node._ball_observation_v2_pub.publish = node.observations.append
     node._planner_pose_array_pub.publish = node.full.append
     node._pose_array_pub.publish = node.limited.append
     node._ball_pub.publish = lambda message: None
@@ -53,6 +55,8 @@ def test_full_rate_preserves_exposures_and_side_transform(relay):
     for i in range(360):
         relay._on_frame(frame(i))
     assert len(relay.full) == 360
+    assert all(o.orientation_authoritative and o.orientation_valid
+               for o in relay.observations)
     assert 149 <= len(relay.limited) <= 151
     for i, msg in enumerate(relay.full):
         assert msg.header.stamp == frame(i).header.stamp
@@ -70,9 +74,27 @@ def test_position_only_ball_remains_available_to_planner(relay):
     msg.poses[0].pose.orientation.w = 0.0
     relay._on_frame(msg)
     assert len(relay.full) == 1
+    assert len(relay.observations) == 1
+    observation = relay.observations[0]
+    assert observation.source_time_ns == 100_000_000_000
+    assert observation.position_valid
+    assert observation.orientation_authoritative
+    assert not observation.orientation_valid
+    assert not observation.omega_valid
     assert relay.full[0].poses[0].orientation.w == pytest.approx(
         1.0 if relay._table_side == "P1" else 0.0, abs=1e-9)
     bad = frame(1)
     bad.poses[0].pose.position.x = float("nan")
     relay._on_frame(bad)
     assert len(relay.full) == 1
+
+
+def test_numeric_identity_without_source_authority_is_position_only(relay):
+    """Keep numeric identity unqualified without a measured-orientation contract."""
+    relay._ball_orientation_authoritative = False
+    relay._on_frame(frame(0))
+    assert len(relay.observations) == 1
+    observation = relay.observations[0]
+    assert observation.position_valid
+    assert not observation.orientation_authoritative
+    assert not observation.orientation_valid

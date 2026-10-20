@@ -214,4 +214,82 @@ endif()
 ament_export_include_directories(include)
 ament_export_libraries(hope_planner_core)
 ament_export_dependencies(Eigen3 hope_msgs)
+
+# V2's forward-only graph is separate from every legacy production object.
+add_library(hope_v2_forward_physics
+  src/common_ball_physics.cpp src/flight_spin_estimator.cpp)
+target_include_directories(hope_v2_forward_physics PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_link_libraries(hope_v2_forward_physics PUBLIC Eigen3::Eigen)
+add_library(hope_v2_forecast_core
+  src/probabilistic_physics.cpp src/probabilistic_ball_tracker.cpp
+  src/nominal_event_forecast.cpp src/fixed_lag_types.cpp src/return_region.cpp
+  src/hit_plane_manager.cpp src/flight_state_v2.cpp)
+target_link_libraries(hope_v2_forecast_core PUBLIC hope_v2_forward_physics)
+add_library(hope_v2_transport src/flight_transport_v2.cpp)
+target_link_libraries(hope_v2_transport PUBLIC hope_v2_forecast_core
+  rclcpp::rclcpp ${hope_msgs_TARGETS})
+add_executable(hope_flight_prediction_v2_node src/flight_prediction_v2_node.cpp)
+target_link_libraries(hope_flight_prediction_v2_node PRIVATE hope_v2_transport ${std_msgs_TARGETS})
+add_executable(hope_flight_prediction_v2_replay src/flight_prediction_v2_replay.cpp)
+target_link_libraries(hope_flight_prediction_v2_replay PRIVATE hope_v2_forecast_core)
+# Evaluation exporter links only the original Stage 1/2 objects, never Stage 3.
+add_library(hope_legacy_flight_evaluation STATIC
+  src/batch_physics_estimator.cpp src/spin_estimator.cpp
+  src/trajectory_predictor.cpp src/incoming_trajectory.cpp src/adaptive_flight_commit.cpp)
+target_include_directories(hope_legacy_flight_evaluation PUBLIC include)
+target_link_libraries(hope_legacy_flight_evaluation PUBLIC Eigen3::Eigen)
+add_executable(hope_ball_flight_baseline_replay src/ball_flight_baseline_replay.cpp)
+target_link_libraries(hope_ball_flight_baseline_replay PRIVATE
+  hope_legacy_flight_evaluation hope_v2_forecast_core)
+install(TARGETS hope_v2_forward_physics hope_v2_forecast_core hope_v2_transport
+  EXPORT hope_v2_targets ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
+install(TARGETS hope_flight_prediction_v2_node hope_flight_prediction_v2_replay
+  hope_ball_flight_baseline_replay RUNTIME DESTINATION lib/${PROJECT_NAME})
+ament_export_targets(hope_v2_targets HAS_LIBRARY_TARGET)
+ament_export_dependencies(rclcpp)
+install(DIRECTORY scripts/flight_prediction_validation DESTINATION lib/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  find_package(ament_cmake_pytest REQUIRED)
+  add_test(NAME flight_v2_installed_api COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/installed_forward_api.py --prefix ${CMAKE_INSTALL_PREFIX})
+  ament_add_gtest(test_flight_prediction_v2 test/test_flight_prediction_v2.cpp)
+  target_link_libraries(test_flight_prediction_v2 hope_v2_forecast_core)
+  ament_add_gtest(test_flight_transport_v2 test/test_flight_transport_v2.cpp)
+  target_link_libraries(test_flight_transport_v2 hope_v2_transport)
+  foreach(pair "numerical;numerical_gate.py" "causal_replay;causal_replay_gate.py")
+    list(GET pair 0 label)
+    list(GET pair 1 script)
+    add_test(NAME flight_v2_${label} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/scripts/flight_prediction_validation/${script}
+      --executable $<TARGET_FILE:hope_flight_prediction_v2_replay>)
+  endforeach()
+  foreach(pair "scoring;test_flight_scoring.py" "accuracy_tooling;test_scoped_accuracy.py" "scope;test_forecast_scope.py")
+    list(GET pair 0 label)
+    list(GET pair 1 script)
+    ament_add_pytest_test(flight_v2_${label} test/${script})
+  endforeach()
+  foreach(pair "ros_transport;flight_prediction_v2_smoke.py" "raw_scenarios;flight_prediction_v2_scenarios.py" "binary_scope;forecast_binary_scope.py")
+    list(GET pair 0 label)
+    list(GET pair 1 script)
+    add_test(NAME flight_v2_${label} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/${script}
+      --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
+    set_tests_properties(flight_v2_${label} PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+  endforeach()
+  foreach(pair "matched_replay_tooling;matched_replay_gate.py" "baseline_epochs;baseline_replay_gate.py")
+    list(GET pair 0 label)
+    list(GET pair 1 script)
+    add_test(NAME flight_v2_${label} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/${script}
+      --baseline $<TARGET_FILE:hope_ball_flight_baseline_replay>
+      --v2 $<TARGET_FILE:hope_flight_prediction_v2_replay>)
+  endforeach()
+endif()
+
+install(DIRECTORY docs/ DESTINATION share/${PROJECT_NAME}/docs
+  FILES_MATCHING PATTERN "flight_prediction*.md" PATTERN "flight_prediction*.json"
+  PATTERN "flight_prediction_accuracy" PATTERN "NOT_RUN.json" PATTERN "README.md")
 ament_package()

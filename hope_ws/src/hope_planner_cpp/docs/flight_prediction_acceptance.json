@@ -1,0 +1,1367 @@
+{
+  "schema_version": 4,
+  "branch": "feature/flight-state-prediction-v2-minimal",
+  "upstream_base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "source": "9118a491df658fa7e68f042581af48890ec8b0b8",
+  "tested_code_commit": "PENDING_FINAL_CODE_COMMIT",
+  "config_sha256": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+  "acceptance_cases": [
+    {
+      "id": "A01",
+      "subrequirement": "Exactly five public states; startup INVALID; qualified \u00b1X creates provisional rally family; held/toss rejects; rejected same flight does not re-arm.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_PublicStatesAndCandidateQualification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A02",
+      "subrequirement": "Confirmed first striker B1 reclassifies without losing state; known NORMAL_RALLY forbids it; forbidden order/count revokes ball target.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A03",
+      "subrequirement": "Outgoing RALLY B2 before opponent-end crossing retains RALLY and selects exact B1\u2013B2 apex (state/time/uncertainty).",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A04",
+      "subrequirement": "OPPONENT_RALLY B2 before receiving plane is forbidden; OPPONENT_SERVE needs ordered B2 then plane before B3.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A05",
+      "subrequirement": "A later predicted bounce after an already valid plane event does not invalidate the earlier event.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A06",
+      "subrequirement": "Both serve routes: new shot\u2192provisional rally\u2192striker B1/serve\u2192net\u2192receiver B2\u2192selected ball event\u2192**new observed racket shot boundary**; correct queue preservation/retirement.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A07",
+      "subrequirement": "Qualified held/non-ballistic motion, below-table states, net collision and bad clocks produce correct physical/data-quality reasons; no fabricated bounce, no apex-as-held error.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B09_A07_FiniteNetFootprintBelowTableAndOrdering"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_HeldMotionAndApexUsePhysicalEvidenceRatherThanLowVerticalSpeed"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A08",
+      "subrequirement": "Hard new shot/INVALID/provenance change clears dependent fit/events/spin/jobs; same-shot label change preserves raw data and supersedes forecast only.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A09",
+      "subrequirement": "Delayed work, expired callbacks and reversal cannot republish retired **ball forecasts**. Preserve legacy precommit reversal protections by regression.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        },
+        {
+          "test": "test_adaptive_flight_commit"
+        },
+        {
+          "test": "test_incoming_trajectory"
+        },
+        {
+          "test": "test_planner_node_turn_guard"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A10",
+      "subrequirement": "Predicted B1\u2192confirmed B1 retains event ID, distinct occurrence/confirmation time and one contact impulse/count.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_T04_EventIdentityConfirmationAndPredictedTimeIsNotEvidence"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A11",
+      "subrequirement": "`FOLLOW_POSE`: base +0.10 X\u2192next prediction plane +0.10; +0.58 offset, age/frame/range checked. Also test `ON_REFRESH` preservation.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A12",
+      "subrequirement": "Full *ball* target p/v/optional omega, reference/arrival, frame, covariance, historical status; physical Z never receives policy height offset.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A12_T02_T03_NetCrossingCarriesBracketedBallVelocity"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_T03_TargetAndEveryWaypointHaveExactArrivalEquation"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A13",
+      "subrequirement": "150/300 Hz, jitter/dropout, exact source delta-t, causality, no cross-shot spin increment, latency/availability report.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "flight_v2_ros_transport"
+        },
+        {
+          "test": "flight_v2_causal_replay"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "A14",
+      "subrequirement": "Nominal and fallback model/config agree; distinguish warmup, horizon, uncertainty, forbidden route and revoked/stale ball events.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B01",
+      "subrequirement": "Valid `(0,30,0)`\u2192missing/all-zero-sentinel/NaN/rejected\u2192new valid; preserve complete held vector and original source time, XYZ and causal recovery at both rates.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B06_HeldSpinIsNotReportedAsFreshMeasurementAfterPropagation"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B02",
+      "subrequirement": "No trusted spin\u2192POSITION_ONLY from start through every leg/two serve contacts; no synthetic omega/postbounce Magnus.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B02_B06_PositionOnlyNeverSynthesizesSpinAndEnergyIsDissipative"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B03",
+      "subrequirement": "Mutating rejected nonzero raw angular vector cannot alter result when trusted state/XYZ fixed.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous"
+        },
+        {
+          "test": "flight_v2_baseline_epochs"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN",
+      "review_note": "V2 rejected-spin invariant is owned by native TrustedSpin and causal replay, not untouched legacy fallback."
+    },
+    {
+      "id": "B04",
+      "subrequirement": "Accept individual zero components; distinguish genuine identity quaternion from synthetic placeholder through authoritative source quality.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B05",
+      "subrequirement": "Mocap relay\u2192v2 observation/packetizer/forecast receiver/replay preserves orientation validity, exact time and XYZ. Preserve legacy consumer behavior rather than expanding its command duties.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip"
+        },
+        {
+          "test": "planner_full_rate_relay_test"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B06",
+      "subrequirement": "Measured/held spin through one/two bounces produces once-only contact-propagated spin; absent-spin remains absent.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B02_B06_PositionOnlyNeverSynthesizesSpinAndEnergyIsDissipative"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B06_HeldSpinIsNotReportedAsFreshMeasurementAfterPropagation"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B07",
+      "subrequirement": "Trusted checkpoint survives window trim/refit/transfer/reclassification and clears on hard boundary; duplicate event doesn't apply impulse twice.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "T01_B07_PacketHashCoversValidityCheckpointAndContactLedger"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B07_T06_TruncatedSnapshotReproducesPosteriorWithoutRefittingPastSpin"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B08",
+      "subrequirement": "q/\u2212q, axis/frame signs, ambiguous long-gap rejection, original held-spin age and source-time delta tests.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B08_QuaternionSignsAxesAndGapCausality"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B09",
+      "subrequirement": "Below-table, radius-aware finite net, real top-table footprint, edge ambiguity, target/contact earliest-event and tie ordering.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B09_A07_FiniteNetFootprintBelowTableAndOrdering"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B10",
+      "subrequirement": "Common profile/mode in fit/nominal/fallback/V2 replay; parameter bounds, dissipative behavior, independent step/time/position convergence.",
+      "scope": "PHYSICS_ONLY",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X09_DerivativesCovarianceAndInvalidParameters"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive"
+        },
+        {
+          "test": "flight_v2_numerical"
+        },
+        {
+          "test": "flight_v2_baseline_epochs"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B11",
+      "subrequirement": "Valid spin reacquisition is prospective, not retroactive; separately score position-only real-flight error/uncertainty when independent truth exists.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "flight_v2_causal_replay"
+        },
+        {
+          "test": "flight_v2_scoring"
+        },
+        {
+          "test": "flight_v2_accuracy_tooling"
+        },
+        {
+          "test": "flight_v2_matched_replay_tooling"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "B12",
+      "subrequirement": "Publish exactly the rollout's contact/target arrival time and optional spin provenance; no fixed-rate, double-age or separate physics timing approximation in **our output**.",
+      "scope": "PHYSICS_ONLY",
+      "test": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "test_flight_transport_v2"
+        },
+        {
+          "test": "test_prediction_event_order"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C01",
+      "subrequirement": "Qualified \u00b1X shot begins correct provisional rally; complete evidence plus no striker bounce before net confirms rally; deadband does not change owner.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_PublicStatesAndCandidateQualification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C01_C04_C07_ContinuityLossRecomputesConfirmedRally"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C02",
+      "subrequirement": "Confirmed striker-side B1\u2192same-generation serve; preserve raw timestamps/queue/spin/B1 ID, increment semantic forecast revision and propagate contact once.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C03",
+      "subrequirement": "Second striker-side pre-net bounce invalidates, clears active shot; a merely predicted bounce never counts as observed; supported deterministic early invalidation is conservative.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C04",
+      "subrequirement": "First observation after net has unknown/incomplete prehistory; physical forecast may exist, but route target must wait for reliable history/evidence.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_ReceiverAcquisitionAcceptsVerifiedPrehistoryWithoutReset"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C01_C04_C07_ContinuityLossRecomputesConfirmedRally"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C05",
+      "subrequirement": "Predicted striker B1 selects provisional serve route without public confirmation/observed count; deleting hypothesis does not reset queue.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C06",
+      "subrequirement": "NORMAL_RALLY context forbids striker bounce, SERVE constrains order, receiver B2 doesn't revert serve, genuinely new racket return resets ownership.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C07",
+      "subrequirement": "Reclassification while a solve is pending: old semantic output is fenced, preserved samples remain usable; hard reset fences all retired work.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C01_C04_C07_ContinuityLossRecomputesConfirmedRally"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "C08",
+      "subrequirement": "Table/net-induced reversal is not a new racket shot; qualified same-direction contact is; label change is not a shot reset.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C08_ReversalAloneNeverChangesShotAndSameDirectionContactDoes"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "T01",
+      "subrequirement": "Every retained XYZ sample has exact original ns through both rates, trimming, queue and transport; integration uses actual delta-t.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "T01_B07_PacketHashCoversValidityCheckpointAndContactLedger"
+        },
+        {
+          "test": "flight_v2_causal_replay"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "T02",
+      "subrequirement": "Bounce at 10.000 s confirmed at 10.020 s keeps those two distinct timestamps plus evidence uncertainty.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A12_T02_T03_NetCrossingCarriesBracketedBallVelocity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "T03",
+      "subrequirement": "Reference 20.000 s + integrated duration 0.300 s\u2192arrival 20.300 s independent of later publish/receipt, for B1/B2/plane/end/apex.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A12_T02_T03_NetCrossingCarriesBracketedBallVelocity"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_T03_TargetAndEveryWaypointHaveExactArrivalEquation"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "T04",
+      "subrequirement": "Revision preserves event identity/history; predicted elapsed time never becomes an observation or racket contact automatically.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_T04_EventIdentityConfirmationAndPredictedTimeIsNotEvidence"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "T05",
+      "subrequirement": "Expose valid source-clock mapping/uncertainty; no `strike_start` field, no timing rejection due solely to robot lead, valid sim epoch zero.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "T06",
+      "subrequirement": "Hard boundary retires generation/forecasts, same-shot reclass preserves data and supersedes revision; no old output restores revoked ball target.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B07_T06_TruncatedSnapshotReproducesPosteriorWithoutRefittingPastSpin"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "X06_T06_DuplicatePacketsAndProducerRestartCannotRestoreRetiredState"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X01",
+      "subrequirement": "Both ON_REFRESH (frozen until refresh) and FOLLOW_POSE (fresh per forecast) are explicit and never silently substituted.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X02",
+      "subrequirement": "Valid moving-plane geometry is not treated as shot/ball provenance fault; real frame/calibration change still invalidates incompatible state.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X03",
+      "subrequirement": "Uncertain early forbidden prediction can recover with later causal observations; incomplete conditional covariance cannot justify hard invalidation; well-supported violation and confirmed forbidden event can.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X03_ConditionalCovarianceNeverProvesViolationButCompleteConservativeBoundCan"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X04",
+      "subrequirement": "Pace 150/300 Hz with occasional slower solves; monotone source-stamped publications and bounded latest-work queue, no starvation.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_LatestWorkIsBoundedAndNeverWaitsForNextSampleToPublish"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_PacedSlowSolvesPublishMonotoneFreshResultsWithOnePendingSlot"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_SourceTimedMotionSurvivesSchedulerPauseAndCatchup"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X05",
+      "subrequirement": "Ball forecasts continue and preserve physical validity despite target Y being outside robot reach range; a later flight remains qualifiable.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "flight_v2_raw_scenarios"
+        },
+        {
+          "test": "flight_v2_scope"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X06",
+      "subrequirement": "Duplicate/retransmitted V2 forecast packets preserve identity/hash/dedupe; producer restart and equal-counter conditions are documented without fabricating accepted events.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "X06_T06_DuplicatePacketsAndProducerRestartCannotRestoreRetiredState"
+        },
+        {
+          "test": "test_flight_transport_v2"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X07",
+      "subrequirement": "Ball frame/clock/reference point, p/v/optional omega, waypoint/event/plane geometry, no physical-policy Z conversion, installed v2 receiver/serializer parity.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "test_flight_transport_v2"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X08",
+      "subrequirement": "Clean HOPE-only configure/build/install/test/replay from no private checkout or stale overlays. Report inherited lint separately from scoped functional pass; do not hide it.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive"
+        },
+        {
+          "test": "flight_v2_scope"
+        },
+        {
+          "test": "flight_v2_baseline_epochs"
+        },
+        {
+          "test": "flight_v2_binary_scope"
+        },
+        {
+          "test": "flight_v2_installed_api"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X09",
+      "subrequirement": "One common forward/event kernel and coefficients for mean, covariance, event, fallback, V2 replay, and **forward-only** hypothetical-outgoing physics; spin after unmodelled racket impulse must not inherit incoming trusted state.",
+      "scope": "PHYSICS_ONLY",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X09_DerivativesCovarianceAndInvalidParameters"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X09_ForwardHypotheticalFlightStartsWithExplicitSpinAvailability"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "X09_CheckpointRejectsDifferentNetPhysicsEvenWithACallerSuppliedTag"
+        },
+        {
+          "test": "flight_v2_numerical"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    },
+    {
+      "id": "X10",
+      "subrequirement": "No V2 publication to production command topics, including remapping; no shadow adapter constructs racket commands.",
+      "scope": "IN_SCOPE",
+      "test": [
+        {
+          "test": "flight_v2_scope"
+        },
+        {
+          "test": "flight_v2_binary_scope"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "verify.sh <fresh output>; ctest --output-on-failure",
+      "status": "NOT_RUN",
+      "evidence_path": "PENDING_FINAL_RUN"
+    }
+  ],
+  "deferred_subassertions": [
+    {
+      "id": "A02",
+      "subrequirement": "No actual robot command cancellation.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A03",
+      "subrequirement": "No outgoing racket command.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A06",
+      "subrequirement": "Do not generate the racket return command.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A09",
+      "subrequirement": "Hardware command cancellation or new scheduling behavior.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A11",
+      "subrequirement": "No robot target recomputation.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A12",
+      "subrequirement": "Racket target/normal, command frame conversion or strike start.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A14",
+      "subrequirement": "No stale command use in actuator.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "B05",
+      "subrequirement": "Retooling live robot command receiver for V2 forecast.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "B10",
+      "subrequirement": "Adoption by downstream inverse optimizer deferred unless physics-only integration is safe.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "B12",
+      "subrequirement": "Adaptive commit/readiness/strike scheduling changes in `adaptive_flight_commit`.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "T05",
+      "subrequirement": "Planner's conversion, scheduling and motion rejection.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "T06",
+      "subrequirement": "Cancelling/retiming physical robot motion.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X05",
+      "subrequirement": "Y admission / Stage 3 / flat-command behavior.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X06",
+      "subrequirement": "One-shot robot command/action deduplication.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X07",
+      "subrequirement": "Typed/flat racket command, swing normal and policy Z support qualification.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X08",
+      "subrequirement": "Unrelated repository lint cleanup, unless separately authorized.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X09",
+      "subrequirement": "Inverse landing-point optimization, surface-to-center *Stage 3 target* conversion, candidate-choice or command-validity changes.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    }
+  ],
+  "physical_subassertions": [
+    {
+      "id": "B11",
+      "subrequirement": "Independent real-flight position-only and spin-group error/uncertainty plus matched baseline comparisons",
+      "scope": "IN_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "PENDING_FINAL_CODE_COMMIT",
+      "command": "compare_recordings.py --dataset <qualified-held-out-dataset> --v2-executable <installed> --baseline-executable <installed> --output <report>",
+      "status": "NOT_RUN",
+      "evidence_path": "docs/flight_prediction_accuracy/NOT_RUN.json",
+      "reason": "Independent physical truth/clock/frame receipts and annotated physical shots unavailable; synthetic tooling does not qualify"
+    }
+  ],
+  "gates": {
+    "G0": "NOT_RUN",
+    "G1": "NOT_RUN",
+    "G2": "NOT_RUN",
+    "G3": "NOT_RUN",
+    "G4": "NOT_RUN",
+    "G5": "NOT_RUN",
+    "G6": "NOT_RUN",
+    "G8": "NOT_RUN"
+  },
+  "gate_p": "NOT_RUN",
+  "historical_results_reused": false
+}

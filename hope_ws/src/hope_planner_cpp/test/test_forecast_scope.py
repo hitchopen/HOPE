@@ -1,0 +1,54 @@
+"""Check the runtime graph, whole upstream diff, and untouched production bytes."""
+import hashlib
+import json
+from pathlib import Path
+import re
+import subprocess
+
+ROOT = Path(__file__).parents[1]
+REPO = ROOT.parents[2]
+BASE = '8d599e7d21e196275cf426488555e2648e8fd789'
+FORBIDDEN_PATH = re.compile(
+    r'ckf_strike_shadow|strike_target_selector|strike_flight_detector|'
+    r'shadow_runner_input|hybrid_trajectory|ball_flight_state_machine|BallForecast|HybridTrajectory')
+
+
+def test_v2_cannot_construct_commands_or_publish_control_topics():
+    forbidden = ['RacketTargetPlanner', 'planner_locked', 'Schema2Packer',
+                 'Schema3Packer', 'FlightDecisionV2', 'RacketCommand', 'swing_sign',
+                 'policy_z_offset', 'target_land']
+    for name in ['common_ball_physics', 'flight_state_v2', 'flight_spin_estimator',
+                 'flight_transport_v2', 'probabilistic_ball_tracker',
+                 'probabilistic_physics', 'nominal_event_forecast', 'hit_plane_manager']:
+        for path in [ROOT / 'src' / (name + '.cpp'),
+                     ROOT / 'include/hope_planner_cpp' / (name + '.hpp')]:
+            for symbol in forbidden:
+                assert symbol not in path.read_text(), (path, symbol)
+    source = (ROOT / 'src/flight_prediction_v2_node.cpp').read_text()
+    for symbol in forbidden:
+        assert symbol not in source, symbol
+    assert '/hope/shadow/flight_v2/trajectory' in source
+    assert 'remapping must retain v2 shadow namespace' in source
+    cmake = (ROOT / 'CMakeLists.txt').read_text()
+    v2 = cmake[cmake.index('# V2\'s forward-only'):]
+    assert not FORBIDDEN_PATH.search(v2)
+    assert 'hope_planner_core' not in v2
+
+
+def test_production_sources_and_headers_remain_pinned_upstream():
+    for file, digest in json.loads((ROOT / 'test/fixtures/scoped_production_sources.json').read_text()).items():
+        assert hashlib.sha256((ROOT / file).read_bytes()).hexdigest() == digest, file
+
+
+def test_entire_upstream_diff_has_no_historical_pipeline_and_complete_inventory():
+    if not (REPO / '.git').exists():
+        # An exported clean source tree has no Git metadata. The manifest and
+        # source/binary gates still apply; the Git audit runs in the review checkout.
+        return
+    def git(*args):
+        return subprocess.check_output(['git', '-C', str(REPO), *args], text=True).splitlines()
+    paths = set(git('diff', '--name-only', BASE)) | set(git('ls-files', '--others', '--exclude-standard'))
+    assert not [p for p in paths if FORBIDDEN_PATH.search(p)]
+    entries = json.loads((ROOT / 'docs/flight_prediction_minimal_scope_manifest.json').read_text())['files']
+    assert paths == {entry['path'] for entry in entries}
+    assert all(entry['why_needed'] and entry['owner'] and entry['tests'] for entry in entries)
