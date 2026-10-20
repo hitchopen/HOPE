@@ -29,3 +29,7 @@ uint64 pre_spin_last_contact_id
 string pre_spin_provenance
 string spin_provenance
 bool spin_measured_valid
+# Distinguish mutually superseded revisions from two simultaneous event candidates.
+bool has_prediction_reference
+int64 last_prediction_reference_time_ns
+string evidence_source

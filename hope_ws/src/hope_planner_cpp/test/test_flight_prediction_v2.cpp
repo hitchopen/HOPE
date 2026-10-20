@@ -981,3 +981,40 @@ TEST(FlightV2ObservedEvents,
   EXPECT_EQ(event.event_time_ns, 32500000);
   EXPECT_EQ(event.confirmed_at_ns, 50000000);
 }
+
+TEST(
+    FlightV2Association,
+    A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous) {
+  ShotContext shot({});
+  shot.start(0, 1, BoundaryEvidence::RACKET_CONTACT,
+             HistoryContinuity::kComplete);
+  shot.observe(sample(0));
+  shot.predict_events({event(PhysicalEventKind::TABLE, .1, .5)}, 0);
+  const auto old = shot.events()[0].id;
+  shot.predict_events({}, 1000000);
+  shot.predict_events({event(PhysicalEventKind::TABLE, .14, .5)}, 1000000);
+  const auto recent = shot.events().back().id;
+  EXPECT_NE(old, recent);
+  shot.predict_events({event(PhysicalEventKind::TABLE, .098, .5)}, 2000000);
+  shot.predict_events({}, 110000000);
+  ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 100000000, 120000000,
+                           contact_state(.5), "camera"));
+  const auto confirmed = std::find_if(
+      shot.events().begin(), shot.events().end(),
+      [](const auto &e) { return e.status == EventStatus::CONFIRMED; });
+  ASSERT_NE(confirmed, shot.events().end());
+  EXPECT_EQ(confirmed->id, recent);
+  ShotContext ambiguous({});
+  ambiguous.start(0, 1, BoundaryEvidence::RACKET_CONTACT,
+                  HistoryContinuity::kComplete);
+  ambiguous.observe(sample(0));
+  ambiguous.predict_events({event(PhysicalEventKind::TABLE, .1, .5),
+                            event(PhysicalEventKind::TABLE, .11, .51)},
+                           0);
+  ASSERT_EQ(ambiguous.events().size(), 2u);
+  ambiguous.predict_events({}, 120000000);
+  EXPECT_FALSE(ambiguous.confirm(PhysicalEventKind::TABLE, 105000000, 125000000,
+                                 contact_state(.505), "camera"));
+  EXPECT_EQ(ambiguous.observed_contacts(), 0);
+  EXPECT_TRUE(ambiguous.active());
+}

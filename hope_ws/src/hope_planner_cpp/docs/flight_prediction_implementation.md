@@ -1,209 +1,157 @@
-# Flight state and prediction v2
+# Flight state and prediction v2: forecast-only contract
 
-This branch implements the refined 19 October handoff over fetched public HOPE
-nightly_built, with PR49's six additive scaffold commits restored. V2 is selected
-explicitly with `flight_prediction_v2_shadow.launch.py`. It cannot publish outside
-`/hope/shadow/flight_v2/`, including through ROS remapping. It starts INVALID and
-never launches a robot runner. Existing deployed YAML files are unchanged.
+The V2 product publishes the estimated and future **ball** state, physical events
+and registered receiving-plane intersection. Racket inversion, action feasibility,
+command generation/packing, robot timing and policy behavior are outside this
+pipeline. See `flight_prediction_scope_v2.md` for exact source dispositions.
 
-## Ownership and classification
+## State ownership and classification
 
-`ShotContext` owns source-stamped observations, a separate bounded candidate queue,
-physical-shot generation, semantic context revision, contact/event ledger and
-trusted spin. `FlightPipeline` coordinates that context with the existing six-state
-CKF. The existing correlated measurement-bias nuisance moments remain unchanged;
-there is no new nine-state ball estimator or stochastic ensemble.
+`ShotContext` owns bounded raw observations/candidates, generation, semantic
+revision, confirmed/predicted event history and trusted spin. `FlightPipeline`
+coordinates the existing six-state p/v CKF and its correlated measurement-bias
+nuisance moments. There is no nine-state spin filter or stochastic ensemble.
 
-The five v2 public states are INVALID, OPPONENT_RALLY, RALLY, OPPONENT_SERVE and
-SERVE. Legacy PlannerBallState and the old shadow topics are compatibility
-interfaces, not v2 state names. A qualified racket/free-flight/restart boundary
-clears the old posterior, observations, contacts and spin. Same-direction contacts
-also start a new generation. A direction reversal alone does not establish racket
-contact. INVALID latches out the rejected physical flight: acquisition cannot rearm
-it without a new qualified boundary or explicit correction/restart.
+The five public states are INVALID, OPPONENT_RALLY, RALLY, OPPONENT_SERVE and SERVE.
+Qualified ±X acquisition starts a provisional rally family. Service context may
+constrain `forecast_route` but never confirms an unobserved serve. A confirmed
+first striker-side bounce before the net confirms the corresponding serve while
+preserving the queue, timestamps, spin, generation and event ID. Complete history
+plus a confirmed net crossing without a striker bounce confirms rally. History
+loss recomputes classification; an observed B1 can independently support serve,
+whereas context alone cannot preserve a stale CONFIRMED status.
 
-A provisional +X/-X rally changes to the matching serve on its first confirmed
-striker-side contact before the net. The observation queue, original timestamps,
-event identity, spin lineage and shot generation survive. Semantic revision changes
-immediately fence old solves. NORMAL_RALLY context instead forbids that contact;
-SERVE context constrains the ordered two-side route. Incomplete acquisition does
-not prove zero earlier bounces. Match type alone also cannot certify missing
-history. A receiver-side bounce after incomplete acquisition remains provisional,
-rather than proving that the net/striker bounce never happened. Trusted same-shot
-historical events may precede an unqualified acquisition timestamp; they cannot
-precede a qualified physical boundary. Packets preserve that distinction. Positive
-forbidden ordering/count evidence still rejects immediately. Verified history
-reclassification preserves the current samples and generation. Physical forecasts
-remain available while route targets wait for supported history. An armed service toss cannot autoqualify.
+Match type and history continuity are separate evidence. Acquisition after an
+unseen net/bounce keeps physical forecasts and withholds unsupported route targets.
+Trusted historical events may precede an unqualified acquisition timestamp, but
+cannot precede a qualified physical boundary. Hard new shot, explicit invalidation
+or incompatible provenance clears the posterior, raw active queue, spin and ledger.
+Velocity reversal alone is not a new racket shot; a qualified same-direction shot
+is. Rejected flights cannot re-arm merely from more samples of that flight.
 
-Automatic acquisition requires at least six source observations over the configured
-25 ms span, horizontal launch speed at least 1 m/s and acceleration consistent with
-ballistic motion within the configured 8 m/s² residual. These are provisional
-engineering thresholds. Qualified boundaries and explicit history-continuity evidence
-are distinct; automatic acquisition always declares unknown prehistory. Held-ball rejection uses
-elapsed time and spatial dispersion; moving non-ballistic rejection excludes
-observed/reversing contact windows. A vertical-velocity root records an apex without
-calling it held motion.
+Predicted contacts do not increment observed counts. Source reversal confirmation
+retains distinct occurrence/confirmation times and propagates spin once. A predicted
+contact can be confirmed after its nominal time, even if a transient horizon
+superseded it. Recovering the same gated future hypothesis reuses its ID. Multiple
+plausible associations remain ambiguous. Smooth-window acceleration cannot prove
+non-ballistic motion across a plausible unresolved table contact; held-ball spatial
+rejection remains independent. Net crossings carry bracketed p/v, not a zero
+placeholder velocity. Apexes use the vertical-velocity root.
 
-Observed contacts use separate occurrence and confirmation times. Forecast contacts
-never increment observed counts or mutate the authoritative spin checkpoint. Time
-and geometry association retain event IDs on confirmation; ambiguous associations
-remain explicit. Superseded hypotheses are not observations. Confirmed route events
-survive estimator-window eviction. Retired hypotheses are bounded separately.
+## Physics, spin and uncertainty
 
-## Model, spin and uncertainty
+`common_ball_physics` is shared by fitting, CKF mean/sigma propagation, nominal
+forecast, receiving fallback and V2 replay. It uses RK4, actual top footprint,
+radius-aware descending contact, finite expanded net, event ordering and once-only
+impulses followed by remaining-substep propagation. An initially below-table ball
+is not teleported into a bounce; edge/tangent/branch ambiguity is explicit. Numerical
+ties favor collision over a target. Multiple contacts and all work are bounded.
 
-`common_ball_physics` supplies RK4 free flight, the thin-shell capped-slip impulse,
-the position-only effective contact model and event ordering for fitting,
-probabilistic propagation, nominal forecasts, receiving fallback, adaptive timing,
-outgoing inverse candidates and native replay. The default coefficients come from
-the unchanged 2026-10-10 calibration receipt. They are acceleration-law coefficients,
-not force coefficients to divide by mass again.
+MEASURED, HELD, CONTACT_PROPAGATED and POSITION_ONLY are distinct. Missing, rejected,
+nonfinite and raw all-zero sentinel vectors preserve the compatible whole vector
+and original measurement source stamp. Producer provenance survives observation,
+packet and forecast transport. Missing quaternions break differencing only;
+authoritative identity may be valid, synthetic identity is not. q/−q and long-gap
+ambiguity are checked. Positive-time propagation changes fresh MEASURED to HELD;
+future points do not pretend to contain new measurements. Confirmed table events
+propagate trusted angular state once; speculative forecasts modify only their
+copies. No qualified prior means no synthesized angular state or Magnus through
+any number of contacts. New measurements affect only subsequent intervals.
 
-MEASURED, HELD, CONTACT_PROPAGATED and POSITION_ONLY are distinct modes. Missing,
-all-zero raw sentinel, nonfinite and rejected angular measurements preserve a
-compatible complete trusted vector and its original measurement time. Missing
-quaternions break differencing only. Reacquisition requires fresh increments;
-q/-q equivalence is preserved, and increments whose possible rotation exceeds
-half a revolution at the configured maximum rate are rejected. A rejected current
-increment cannot refresh measurement age. A zero resulting from a trusted contact
-is usable; absence of a prior never synthesizes angular state or Magnus. Event IDs
-are identities, not chronological counters: historical evidence cannot suppress a
-later impulse merely because it received a larger ID. Impulses before the current
-measurement are already absorbed and never reapplied. A late applicable impulse
-that would require undoing a later impulse is explicitly ambiguous, preserves the
-cache and withholds route use until qualified evidence resolves it. Acquisition
-replays each sample's available spin causally; new-shot boundaries clear model
-spin as well as the trusted cache.
+The covariance is a conditional p/v local linearization. Free-flight Jacobians
+match RK4; event/contact maps and acceleration-based apex time derivatives provide
+conditional event covariance. Auxiliary spin/model, plane and clock uncertainty
+remain uncalibrated. PSD/symmetry and branch quality are checked. A narrow
+conditional covariance never proves a hard forbidden event. The conservative
+support API requires explicit bounds covering all omitted sources and separated
+event-order intervals. Confirmed forbidden events invalidate immediately.
 
-Batch fitting records multiple observed free-flight/contact segments, resolves
-spin prospectively at source samples and retains a checkpoint outside window
-trimming. It does not smear an impulse into a continuous acceleration fit. The CKF
-carries a separate auxiliary model lineage; speculative propagation never confirms
-a contact in the shot ledger. Packet snapshots preserve both trusted and posterior
-auxiliary spin, the six-state posterior and existing bias moments. A truncated raw
-suffix can be transferred without refitting it with future spin or losing history.
+## Physical route events
 
-Free-flight Jacobians differentiate the exact RK4 stages. Contact derivatives use
-the implemented event/reset/remaining-flight map; event-time covariance includes
-plane/contact roots and an acceleration-based apex root. Covariance outputs are
-explicitly **conditional p/v linearizations**. Auxiliary spin/model, plane and clock
-uncertainty are not calibrated. Branch-sensitive contacts, event-order interval
-overlap and uncertain net clearance withhold route targets. Small conditional
-covariance alone never proves a hard forbidden event. The deterministic support API
-requires an explicit conservative bound covering *all* relevant omissions and
-separated event-order intervals; the default runtime has no such calibrated bound.
-Confirmed forbidden events hard-invalidate immediately. Revocations report the
-underlying lifecycle reason so a physical rejection can be distinguished from a
-late publication or semantic revision.
+Incoming rally requires our-side B1 then receiving plane before B2. Incoming serve
+requires striker B1, net, receiver B2 then plane before B3. Outgoing rally uses
+opponent B1 then end crossing; if B2 comes first, it selects the exact B1–B2 apex.
+Outgoing serve requires B1/net/B2/end before B3 and has no apex exception. Legality
+stops at the selected target; later irrelevant predicted events do not revoke it.
+A historical apex is labelled historical. Warming up, exhausted horizon, uncertain
+history/ordering or an unavailable plane can suppress a selected ball event while
+a useful physical trajectory remains available. No robot lead/reach/Y gate exists.
 
-The tabletop footprint is not enlarged by the radius. Near-edge contacts outside
-the actual top return ambiguity. An initial below-top state is not clamped into a
-rebound. The finite net is radius-expanded, including its ends; around-post flight
-is preserved. Collisions win a quantized 1 ns numerical tie with targets. Contacts
-resolve first, then remaining flight; all work/horizons are bounded. Outgoing RALLY
-uses the B1–B2 apex exception, while serves have no apex exception. Legality stops
-at the selected target, so a later irrelevant bounce cannot revoke it.
+## Wire revision 3 and channels
 
-Post-racket angular transfer is unmodelled. Stage 3 therefore explicitly uses
-POSITION_ONLY outgoing candidates. External landing inputs remain tabletop surface
-points; the inverse solver adds the 20 mm radius once and verifies the first
-resolved table contact and flight duration. `outgoing_route_valid` is required for
-command validity; net metadata alone cannot admit an outgoing route.
+`BallObservationV2` and `FlightContextV2` remain wire revision 2. Forecast/packet
+revision 3 requires rebuilding producers and consumers; prior packets are rejected.
+All acquisition/reference/arrival stamps are signed int64 ns with validity and
+clock/mapping identity. Integration uses differences from a pinned integer origin.
+Zero and negative simulation epochs are valid. Duplicate/reordered measurements
+are rejected. Clock mapping loss revokes outputs; incompatible identity retires a
+shot. Exact arrival is reference + integrated duration, never publication/receipt.
 
-## Transport and timing
+Outputs are restricted before publisher creation and after remapping to:
 
-New schema-2 observation, event, waypoint, prediction, context, packet and decision
-messages coexist with v1 messages. They require a coordinated rebuild of their new
-producers/consumers; existing wire types are unchanged. The relay emits authoritative
-validity before legacy placeholder substitution. NamedPose provides no reliable
-orientation-quality bit, so `optitrack_mct_relay.ball_orientation_authoritative`
-defaults to false. Enable it only for a qualified orientation source; a finite
-quaternion, including numeric identity, cannot qualify itself. CSV replay likewise
-requires an explicit orientation-authority column. Legacy PoseArray/v1 packets
-without matched authoritative validity remain position-only. A real identity
-quaternion is usable only with authoritative validity. The parked Python planner
-is COLCON_IGNORE; its spin helper has matching hold/reset semantics and a directly
-executed regression suite.
+- `/hope/shadow/flight_v2/prediction`: compact state/event/selected-ball revisions.
+- `/hope/shadow/flight_v2/trajectory`: the same source snapshot plus full waypoints.
+- `/hope/shadow/flight_v2/packet`: transferable posterior, raw suffix, history and
+  trusted/model spin checkpoints.
 
-All source/acquisition stamps are signed int64 nanoseconds, with explicit validity,
-clock/mapping identity, sequence, separate receipt times and frame/ball/calibration
-provenance. Zero simulation epoch is valid. Integration uses differences from an
-exact integer origin. Duplicates and reordered samples are rejected. Clock
-mapping loss revokes outputs; incompatible clock/frame/ball identity retires the
-shot. Arrival is checked integer reference + duration, independent of publication
-or receipt. Forecast events/waypoints are never admitted as measured samples.
+There is no decision/control publisher. Physical coordinates never receive a policy
+height offset. `current_state` is the source-time CKF posterior with 6×6 covariance;
+waypoints have p/v/optional omega, original angular source/provenance, covariance,
+quality, reference, delta and absolute arrival. `spin_available` means usable for
+modelling; `spin_measured_valid` is true only at the actual measured instant.
+Selected physical events include conditional 7×7 p/v/time covariance and time std.
+The event ledger carries status, bounce index, pre/post velocity and spin, source
+occurrence/confirmation and signed reference delta, including historical events.
 
-Packet content hashes use canonical generated flow YAML with classic locale and
-17-digit doubles, prefixed with the schema/hash-format identity. CDR padding is
-excluded. Tests alter validity, checkpoint, sample order and hashes independently.
+`shot_id` is `shot_generation` within `session_id`, never a forecast revision.
+Public forecast revisions are allocated at publication/revocation. Raw worker
+sequence, generation/context and age fence results. One solve runs with one latest
+replaceable pending snapshot. Compact publication precedes full serialization;
+packet hashing runs outside the admission mutex and is fenced again afterward.
+Canonical YAML hashing uses classic locale and 17-digit doubles, excluding CDR
+padding. Duplicate/stale/equal-counter packet conflicts cannot silently rewind a
+receiver. Producer changes require explicit session reset.
 
-A running forecast owns an immutable pipeline/plane/config snapshot. The callback
-continues admitting observations while one worker solves; one replaceable latest
-pending snapshot bounds work. Generation/context, source age and monotone solve
-sequence fence publications. Ordinary samples do not invalidate running solves.
-The callback owns stable event-ID association when a result is published.
+Full and packet cadence are separately configurable (`full_output_rate_hz`,
+`packet_output_rate_hz`, defaults 50 Hz). Zero publishes every completed latest
+result. Phase-based decimation preserves original source stamps. Actual publication
+freshness is checked per channel. Full trajectories continue beyond the hitting
+plane within the bounded horizon. `benchmark_cadence.py` records compact/full
+coverage, receipt/publication latency, sampled CDR payload, node CPU/RSS, superseded
+work and actual rates. Higher settings are measured choices, not blanket guarantees.
 
-`/hope/shadow/flight_v2/prediction` carries continuous compact revisions and
-revocations. `/trajectory` retains full means/covariances and optional spin at
-50 Hz; `/packet` carries transferable snapshots at the same cadence. Both refer to
-their original source time. `/context` accepts only the configured session and
-authority. `/decision` is a planner-side shadow decision. No v2 publisher emits a
-production flat command. Perception never publishes strike-start time.
+## Registered plane
 
-## Planes and planner boundary
+`ON_REFRESH` intentionally freezes the qualified plane until permitted refresh;
+its original pose does not expire during the rally. `FOLLOW_POSE` snapshots the
+latest fresh registered base pose for each solve and holds it fixed within that
+solve. Base +0.10 X moves the next plane +0.10. Missing/stale/out-of-range pose
+withholds a target without clamping or using an old frozen plane. Normal geometry
+updates do not change ball ownership; a world/calibration mismatch does.
 
-ON_REFRESH preserves production-profile freeze semantics: a deliberately frozen
-plane does not expire merely because its source pose ages. FOLLOW_POSE snapshots
-the newest qualified registered pose for each solve, derives x = base_x + 0.58 m,
-and rejects stale/out-of-range poses without clamping or using an old plane. V2's
-shadow profile explicitly selects FOLLOW_POSE. Geometry revisions are separate
-from world/calibration identity and do not create ball/contact evidence.
+The implemented registration is a table +X plane through base_x + 0.58 m, with
+plane normal (1,0,0). This geometric normal is unrelated to a racket orientation.
+No arbitrary-heading or live table transform is inferred from an unqualified source.
+The default registration remains `UNQUALIFIED_SHADOW_REPLACE_BEFORE_ADOPTION`.
 
-The registered scalar plane assumes table +X forward. Arbitrary-heading plane
-registration is not inferred from an X-only interface. Targets remain in the table
-frame. Y bounds and minimum lead are planner decisions and never suppress useful
-physical forecasts. Existing production incoming snapshot isolation, precommit
-reversal cancellation, turn/reach guards, packet retransmission and one-shot
-receiver protections remain on their existing paths and are regression tested.
-The legacy selector additionally fences delayed pre-reset observations/forecasts
-by the authorized reset source floor, preventing retired work from halting a new
-session before its first flight. This inherited failure was reproduced against
-the untouched scaffold and has a deterministic regression.
+## Provisional values and adoption evidence
 
-V2's shadow planner does not establish live robot feasibility or hardware
-cancellation. The current receiver has identity/revision lifecycle protections but
-no new cancellation protocol is invented here. An already selected shadow command
-followed by revocation reports cancellation as unqualified; silence is not
-cancellation. Physical frame, paddle reference, policy support and live receiver
-qualification remain adoption gates, not claims established by synthetic tests.
-
-## Provisional parameters to revisit
-
-| Parameter | Current value/profile | Required future evidence |
+| Parameter | Current value | Evidence required before changing/adopting |
 |---|---|---|
-| Contact Y bounds | [-1.20, -0.30] m, table frame | Robot workspace, turn/reach and team policy |
-| Plane offset/range | +0.58 m; [-0.30,+0.30] m | Venue/base/paddle registration |
-| Pose freshness/window | 0.20 s / 0.50 s; ten samples | Base stream and clock characterization |
-| Policy height / turn / reach | +0.76 m once; 40 degrees; existing reach contract disabled | Policy origin, support envelope and robot qualification |
-| Orientation authority | Relay default false | Qualified source quality semantics; cannot infer from quaternion values |
-| Planner lead | 50 ms | Receiver/policy transport and actuation timing |
-| Source publication age | 30 ms | Measured deployment load and clock budget |
-| Table/net geometry | 2.74 × 1.525 m; net x=1.37, h=.1525 | Registered venue survey |
-| Radius/gravity/inertia | .02 m, 9.81 m/s², 2/3 | Ball/profile identification |
-| Drag/Magnus/contact coefficients | Existing 2026-10-10 receipt | Independent held-out flights; position-only scored separately |
-| Constant free-flight spin | Prior; no fitted decay | Independent orientation/spin recordings |
-| Qualification/held/contact thresholds | `ShotSettings` defaults | Timestamped varied-speed/spin/contact recordings |
-| Event support | 3 sigma, 1 ms separation; conditional by default | Bounds covering spin/model/plane/clock omissions |
-| Integration/horizon/full cadence | 1 ms / 1.5 s / 20 ms | Numerical and performance envelope changes |
-| Context/registration IDs | fixture / UNQUALIFIED_SHADOW | Actual session authority and registration receipts |
+| Plane offset/range | +0.58 m / [−0.30,+0.30] m | Surveyed base/table registration |
+| Pose source age/window/samples | 0.20 s / 0.50 s / ten | Source-clock and tracker characterization |
+| Acquisition/ballistic thresholds | 25 ms, 1 m/s, 8 m/s² residual | Varied real flights and held/toss/contact cases |
+| Observation window/capacity | 0.30 s / 192 samples | Dynamics and host workload |
+| Contact association | 30 ms / 0.10 m | Independent contact annotation uncertainty |
+| Clock/source budget | 30 ms | Measured deployment load and clock mapping |
+| Integrator/output/horizon | 1 ms / 5 ms / 1.5 s | Numerical and performance envelope |
+| Full/packet cadence | 50 Hz / 50 Hz | Committed cadence benchmark on target hardware |
+| Table/net/radius/gravity | 2.74×1.525 m; net 1.37/.1525 m; .02 m; 9.81 m/s² | Venue and ball identification |
+| Drag/Magnus/contact | 2026-10-10 receipt | Held-out independent ball recordings |
+| Position-only coefficients | Provisionally borrowed | Separate physical error/uncertainty assessment |
+| Orientation authority | Relay default false | Qualified source quality semantics |
+| Constant free-flight omega | Prior, no fitted decay | Independent orientation recordings |
+| Conservative forbidden bound | Unqualified by default | Spin/model/plane/clock error bounds |
 
-Changing these values requires rerunning the affected numerical, transport,
-availability and physical gates. Numerical agreement measures software solver
-agreement, not real-ball accuracy.
-
-The paced synthetic fixture derives analytic position from each actual acquisition
-stamp. Nominal frame indices are used only for pacing/dropout scheduling: pairing
-those nominal positions with delayed wall-clock stamps creates physically
-inconsistent motion under scheduler pauses. The deterministic 150/300 Hz pause
-regression checks source-time-consistent motion without relaxing availability.
+No real-ball accuracy, full uncertainty calibration, robot feasibility or deployment
+readiness is claimed. See the executed acceptance receipt and physical NOT_RUN file.

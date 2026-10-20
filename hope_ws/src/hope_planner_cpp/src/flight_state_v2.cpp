@@ -512,19 +512,27 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
       found = &e;
       ++matches;
     }
-  // Source evidence can confirm a contact several exposures after its
-  // predicted occurrence. The next forecast may already have superseded that
-  // prediction; retirement is not cancellation of its physical identity.
-  if (matches == 0)
+  // Compare retired alternatives by the last source snapshot that supported
+  // them. Older mutually superseded hypotheses must not make a later physical
+  // confirmation ambiguous; two candidates from one snapshot still do.
+  if (matches == 0) {
+    std::optional<std::int64_t> latest;
     for (auto &e : events_)
       if (e.kind == kind && e.status == EventStatus::SUPERSEDED &&
           std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
               settings_.contact_association_s * 1e9L &&
           (e.pre.position - pre.position).norm() <=
               settings_.contact_association_m) {
-        found = &e;
-        ++matches;
+        const auto reference = e.last_prediction_reference_ns.value_or(
+            std::numeric_limits<std::int64_t>::min());
+        if (!latest || reference > *latest) {
+          latest = reference;
+          found = &e;
+          matches = 1;
+        } else if (reference == *latest)
+          ++matches;
       }
+  }
   if (matches > 1) {
     for (auto &e : events_)
       if (e.kind == kind && e.status == EventStatus::PREDICTED)
@@ -595,7 +603,9 @@ void ShotContext::predict_events(const std::vector<PhysicalEvent> &predictions,
     ShotEvent *found = nullptr;
     int matches = 0;
     for (auto &e : events_)
-      if (e.kind == p.kind && e.status != EventStatus::CANCELLED &&
+      if (e.kind == p.kind &&
+          std::find(retained.begin(), retained.end(), e.id) == retained.end() &&
+          e.status != EventStatus::CANCELLED &&
           e.status != EventStatus::SUPERSEDED &&
           std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
               settings_.contact_association_s * 1e9L &&
@@ -604,19 +614,26 @@ void ShotContext::predict_events(const std::vector<PhysicalEvent> &predictions,
         found = &e;
         ++matches;
       }
-    // A transient unavailable horizon can retire a future hypothesis before
-    // the next solve recovers it. Reuse its identity when source-time and
-    // geometry still support the same event, rather than creating duplicates.
-    if (matches == 0)
+    if (matches == 0) {
+      std::optional<std::int64_t> latest;
       for (auto &e : events_)
         if (e.kind == p.kind && e.status == EventStatus::SUPERSEDED &&
+            std::find(retained.begin(), retained.end(), e.id) ==
+                retained.end() &&
             std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
                 settings_.contact_association_s * 1e9L &&
             (e.pre.position - p.pre.position).norm() <=
                 settings_.contact_association_m) {
-          found = &e;
-          ++matches;
+          const auto previous = e.last_prediction_reference_ns.value_or(
+              std::numeric_limits<std::int64_t>::min());
+          if (!latest || previous > *latest) {
+            latest = previous;
+            found = &e;
+            matches = 1;
+          } else if (previous == *latest)
+            ++matches;
         }
+    }
     if (matches > 1)
       continue;
     if (!found) {
@@ -639,6 +656,7 @@ void ShotContext::predict_events(const std::vector<PhysicalEvent> &predictions,
     retained.push_back(found->id);
     if (found->status == EventStatus::CONFIRMED)
       continue;
+    found->last_prediction_reference_ns = reference;
     found->event_time_ns = ns;
     found->pre = p.pre;
     found->post = p.post;

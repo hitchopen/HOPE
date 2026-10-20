@@ -234,6 +234,10 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
   for (const auto &e : shot.events()) {
     hope_msgs::msg::FlightEventV2 event;
     event.event_id = e.id;
+    event.has_prediction_reference = e.last_prediction_reference_ns.has_value();
+    event.last_prediction_reference_time_ns =
+        e.last_prediction_reference_ns.value_or(0);
+    event.evidence_source = e.source;
     event.shot_id = e.generation;
     event.bounce_index = 0;
     if (e.kind == PhysicalEventKind::TABLE &&
@@ -571,7 +575,9 @@ void restore_packet_v2(FlightPipeline &pipeline,
     e.post.spin = spin_from(wire.spin_available, wire.omega_rad_s,
                             wire.spin_mode, wire.spin_measurement_time_ns,
                             wire.spin_last_contact_id, wire.spin_provenance);
-    e.source = "packet_checkpoint";
+    e.source = wire.evidence_source;
+    if (wire.has_prediction_reference)
+      e.last_prediction_reference_ns = wire.last_prediction_reference_time_ns;
     snapshot.events.push_back(e);
   }
   auto checkpoint = pipeline.checkpoint();

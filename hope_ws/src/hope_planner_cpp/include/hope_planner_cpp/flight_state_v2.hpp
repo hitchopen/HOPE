@@ -48,6 +48,7 @@ struct ShotEvent {
   ContactSide side = ContactSide::kAmbiguous;
   ModelState pre, post;
   std::string source;
+  std::optional<std::int64_t> last_prediction_reference_ns;
 };
 struct ShotSettings {
   std::size_t observation_capacity = 192, candidate_capacity = 32,
