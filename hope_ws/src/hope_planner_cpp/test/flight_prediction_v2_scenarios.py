@@ -205,6 +205,7 @@ def scenario(executable, direction, rate, policy):
                 spin(1/rate)
             recent=[p for p,_ in predictions if p.prediction_reference_time_ns>=begin and p.physical_available]
             assert recent and all(not p.plane_available and not p.target_valid for p in recent)
+            assert all(not any(e.kind=='receiving_plane' and e.status=='PREDICTED' for e in p.events) for p in recent)
             stable_generation=recent[-1].shot_generation
             for _ in range(12):
                 pose(-.33)

@@ -1,0 +1,17 @@
+{
+  "gate_p": "NOT_RUN_INDEPENDENT_DATA_UNAVAILABLE",
+  "dataset_ids": [],
+  "required_inputs": [
+    "independent position/event truth and occurrence uncertainty",
+    "session/ball/physical-flight IDs and bounce annotations",
+    "camera acquisition clock mapping and table/plane registration receipts",
+    "both directions/serve contacts and speed/spin/dropout/position-only groups",
+    "pinned baseline/V2 source and effective configuration, held-out split"
+  ],
+  "figures": [
+    "01_plane_error_vs_lead.png",
+    "02_bounce_aligned_error.png",
+    "03_coverage_latency_uncertainty.png"
+  ],
+  "status": "Evaluation and plotting tools are executable; no physical scores fabricated."
+}

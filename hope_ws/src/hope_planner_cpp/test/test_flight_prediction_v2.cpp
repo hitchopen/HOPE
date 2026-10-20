@@ -995,9 +995,9 @@ TEST(
   shot.predict_events({event(PhysicalEventKind::TABLE, .14, .5)}, 1000000);
   const auto recent = shot.events().back().id;
   EXPECT_NE(old, recent);
-  shot.predict_events({event(PhysicalEventKind::TABLE, .098, .5)}, 2000000);
-  shot.predict_events({}, 110000000);
-  ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 100000000, 120000000,
+  shot.predict_events({event(PhysicalEventKind::TABLE, .119, .5)}, 2000000);
+  shot.predict_events({}, 130000000);
+  ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 110000000, 140000000,
                            contact_state(.5), "camera"));
   const auto confirmed = std::find_if(
       shot.events().begin(), shot.events().end(),
@@ -1017,4 +1017,22 @@ TEST(
                                  contact_state(.505), "camera"));
   EXPECT_EQ(ambiguous.observed_contacts(), 0);
   EXPECT_TRUE(ambiguous.active());
+}
+
+TEST(FlightV2Plane, A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent) {
+  FlightPipeline pipeline({});
+  pipeline.start(0, -1, BoundaryEvidence::RACKET_CONTACT,
+                 HistoryContinuity::kComplete);
+  for (int i = 0; i < 12; ++i) {
+    double t = .005 * i;
+    pipeline.observe(sample(i * 5000000LL,
+                            Vec3(2 - 4 * t, -.7, .5 + .4 * t - 4.905 * t * t)));
+  }
+  HitPlaneSnapshot unavailable;
+  const auto prediction = pipeline.forecast(unavailable, 55000000);
+  ASSERT_TRUE(prediction.physical_available);
+  EXPECT_FALSE(prediction.target.valid);
+  EXPECT_FALSE(prediction.nominal.hit_plane.has_value());
+  for (const auto &event : prediction.nominal.events)
+    EXPECT_NE(event.kind, "receiving_plane");
 }

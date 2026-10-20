@@ -1019,6 +1019,14 @@ FlightPrediction FlightPipeline::forecast(const HitPlaneSnapshot &plane,
   if (plane.calibrated)
     c.x_hit = plane.x_hit_m;
   out.nominal = forecast_nominal(out.belief, c);
+  if (!plane.calibrated) {
+    out.nominal.hit_plane.reset();
+    out.nominal.events.erase(
+        std::remove_if(
+            out.nominal.events.begin(), out.nominal.events.end(),
+            [](const auto &event) { return event.kind == "receiving_plane"; }),
+        out.nominal.events.end());
+  }
   out.physical_available = out.nominal.available;
   for (const auto &event : out.nominal.events) {
     PhysicalEvent e;

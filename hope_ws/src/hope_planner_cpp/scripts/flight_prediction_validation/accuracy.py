@@ -151,6 +151,30 @@ def paired_bootstrap(records, repetitions=500, unit='shot'):
                     np.asarray(values['v2_ckf'])-values['progressive_batch'],[.025,.975])])
 
 
+def paired_error_comparisons(errors, repetitions=500):
+    """Only compare error on common valid event/cutoff pairs; keep missingness separate."""
+    def key(row):
+        return tuple(row[k] for k in ('session_id','ball_id','flight_id','event_id','information_cutoff_ns'))
+    indexed={m:{key(r):r for r in errors if r['method']==m} for m in METHODS}
+    result=[]
+    for baseline,method in [('legacy_one_shot','progressive_batch'),('legacy_one_shot','v2_ckf'),('progressive_batch','v2_ckf')]:
+        common=sorted(set(indexed[baseline]) & set(indexed[method]))
+        units=sorted({k[:3] for k in common})
+        fields={}
+        for field in ('error_position_m','error_velocity_mps','error_time_ms'):
+            delta={k:abs(indexed[method][k][field])-abs(indexed[baseline][k][field]) for k in common}
+            rng=np.random.default_rng(0);draws=[]
+            for _ in range(repetitions):
+                if not units: break
+                chosen=rng.integers(0,len(units),len(units))
+                sample=[value for i in chosen for k,value in delta.items() if k[:3]==units[i]]
+                draws.append(np.mean(sample))
+            fields[field]=dict(common_valid_pairs=len(common),difference=statistics(list(delta.values())),
+                               whole_shot_mean_difference_95=[float(x) for x in np.quantile(draws,[.025,.975])] if draws else None)
+        result.append(dict(baseline=baseline,method=method,physical_flights=len(units),metrics=fields))
+    return result
+
+
 def write_report(records, output, synthetic=False, repetitions=500):
     validate(records,synthetic)
     errors=residuals(records)
@@ -166,6 +190,8 @@ def write_report(records, output, synthetic=False, repetitions=500):
     summary=dict(gate_p='NOT_RUN_SYNTHETIC_TOOLING' if synthetic else 'SCORED_INDEPENDENT_DATA',
                  uncertainty='conditional p/v/event covariance only; auxiliary spin/model/plane/clock omissions',
                  groups=group_statistics(records,errors),paired_bootstrap=paired_bootstrap(records,repetitions),
+                 paired_error_comparisons=paired_error_comparisons(errors,repetitions),
+                 coverage_semantics='new prediction at this exact source cutoff; one-shot intentionally sparse, not a measure of persisted-forecast lifetime',
                  strata=[dict(method=k[0],spin_mode=k[1],event_kind=k[2],phase=k[3],lead_bin_ms=k[4],
                               n=len(v),flights=len({(r['session_id'],r['flight_id']) for r in v}),
                               position=statistics([r['error_position_m'] for r in v]),
