@@ -12,7 +12,7 @@ def main():
     cases = 0
     for rate in (150, 300):
         for direction in (-1, 1):
-            for origin in (0, 1792412345678901234):
+            for origin in (-500000000, 0, 1792412345678901234):
                 rows = []
                 stamps = []
                 for i in range(80):
@@ -35,7 +35,7 @@ def main():
                 assert duplicate.returncode != 0 and 'duplicate' in duplicate.stderr
                 cases += 1
     print(json.dumps(dict(status='PASS', causal_prefix_cases=cases, rates=[150, 300],
-                          clocks=['zero_epoch', 'exact_unix_ns'])))
+                          clocks=['negative_epoch', 'zero_epoch', 'exact_unix_ns'])))
 
 
 if __name__ == '__main__':

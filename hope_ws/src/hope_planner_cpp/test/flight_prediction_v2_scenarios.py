@@ -183,7 +183,10 @@ def scenario(executable, direction, rate, policy):
             t = (ns-boundary)*1e-9
             measurement(ns, (1.8 if direction < 0 else .3, -.2, 1.-4.905*t*t))
             spin(1/rate)
-        new = [p for p, receipt in predictions if receipt > boundary+15_000_000 and p.physical_available]
+        resets=[p for p,_ in predictions if p.forecast_status=='REVOKED' and p.shot_generation>generation and p.published_at_ns>=boundary]
+        assert resets, 'new-shot revocation/ack missing'
+        fence=min(p.published_at_ns for p in resets)
+        new = [p for p, _ in predictions if p.published_at_ns > fence and p.physical_available]
         assert new and all(p.shot_generation != generation for p in new)
         assert all(not p.current_state.spin_available for p in new)
         measurement(time.time_ns(), (1.8, -.2, .8), clock='unregistered')
@@ -203,8 +206,9 @@ def scenario(executable, direction, rate, policy):
             recent=[p for p,_ in predictions if p.prediction_reference_time_ns>=begin and p.physical_available]
             assert recent and all(not p.plane_available and not p.target_valid for p in recent)
             stable_generation=recent[-1].shot_generation
-            pose(-.33)
-            spin(.005)
+            for _ in range(12):
+                pose(-.33)
+                spin(.002)
             for i in range(4):
                 ns=time.time_ns();t=(ns-begin)*1e-9
                 measurement(ns,(2.-3*t,-.2,1.-4.905*t*t));spin(1/rate)

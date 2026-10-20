@@ -70,6 +70,9 @@ def residuals(records):
                    error_vx_mps=float(v[0]),error_vy_mps=float(v[1]),error_vz_mps=float(v[2]),
                    error_velocity_mps=float(np.linalg.norm(v)),
                    error_time_ms=(row['arrival_ns']-row['truth_arrival_ns'])/1e6)
+        if row.get('post_velocity') is not None and row.get('truth_post_velocity') is not None:
+            value['error_post_velocity_mps']=float(np.linalg.norm(np.asarray(row['post_velocity'])-row['truth_post_velocity']))
+        value['conditional_time_standardized']=None
         covariance=row.get('covariance')
         value['conditional_position_mahalanobis']=None
         value['conditional_velocity_mahalanobis']=None
@@ -79,6 +82,8 @@ def residuals(records):
                 raise ValueError('invalid conditional covariance shape/value')
             if not np.allclose(cov,cov.T,atol=1e-9) or np.linalg.eigvalsh(cov).min() < -1e-10:
                 raise ValueError('conditional covariance must be symmetric PSD')
+            if cov.shape==(7,7) and cov[6,6]>1e-18:
+                value['conditional_time_standardized']=(row['arrival_ns']-row['truth_arrival_ns'])*1e-9/math.sqrt(cov[6,6])
             for offset,delta,name in [(0,p,'position'),(3,v,'velocity')]:
                 marginal=cov[offset:offset+3,offset:offset+3]
                 if np.linalg.eigvalsh(marginal).min()>1e-15:
@@ -91,7 +96,7 @@ def group_statistics(records, errors):
     """Keep truth-missing, physical, full-trajectory and route availability separate."""
     result={}
     fields=('error_position_m','error_y_m','error_z_m','error_velocity_mps','error_vx_mps',
-            'error_vy_mps','error_vz_mps','error_time_ms')
+            'error_vy_mps','error_vz_mps','error_time_ms','error_post_velocity_mps')
     for method in METHODS:
         for spin in sorted({r['spin_mode'] for r in records if r['method']==method}):
             rows=[r for r in records if r['method']==method and r['spin_mode']==spin]
@@ -103,14 +108,26 @@ def group_statistics(records, errors):
                        event_estimate_coverage=sum(r.get('event_estimate_valid',r['target_valid']) for r in rows)/len(rows),
                        trajectory_coverage=sum(r.get('trajectory_available',False) for r in rows)/len(rows),
                        rejection_reasons=dict(Counter(r.get('reason','unavailable') for r in rows if not r['target_valid'])))
-            group['metrics']={field:dict(signed=statistics([r[field] for r in scored]),
-                                       absolute=statistics([abs(r[field]) for r in scored])) for field in fields}
+            group['metrics']={field:dict(signed=statistics([r.get(field,math.nan) for r in scored]),
+                                       absolute=statistics([abs(r.get(field,math.nan)) for r in scored])) for field in fields}
             group['compute_ms']=statistics([r['compute_ms'] for r in rows if r.get('compute_ms') is not None])
             for marginal in ('position','velocity'):
                 values=[r['conditional_'+marginal+'_mahalanobis'] for r in scored
                         if r['conditional_'+marginal+'_mahalanobis'] is not None]
                 group['conditional_'+marginal+'_coverage']={str(level):float(np.mean(np.asarray(values)<=chi2.ppf(level,3)))
                                                            if values else None for level in (.68,.95)}
+            standardized=[r['conditional_time_standardized'] for r in scored if r['conditional_time_standardized'] is not None]
+            group['conditional_time_coverage']={str(level):float(np.mean(np.square(standardized)<=chi2.ppf(level,1))) if standardized else None for level in (.68,.95)}
+            first={}
+            for row in rows:
+                key=(row['session_id'],row['ball_id'],row['flight_id'],row['event_id'])
+                first.setdefault(key,dict(physical=None,target=None,truth=row.get('truth_arrival_ns')))
+                for kind,available in [('physical',row.get('physical_available',False)),('target',row['target_valid'])]:
+                    reference=row.get('prediction_reference_time_ns')
+                    if available and reference is not None:
+                        first[key][kind]=reference if first[key][kind] is None else min(first[key][kind],reference)
+            for kind in ('physical','target'):
+                group['first_'+kind+'_source_lead_ms']=statistics([(r['truth']-r[kind])/1e6 for r in first.values() if r['truth'] is not None and r[kind] is not None])
             result[method+'/'+spin]=group
     return result
 

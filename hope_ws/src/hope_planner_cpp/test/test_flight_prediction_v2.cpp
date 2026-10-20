@@ -965,3 +965,19 @@ TEST(FlightV2SpinQuality,
   EXPECT_EQ(state.spin.measurement_time_ns, 123);
   EXPECT_EQ(*state.spin.omega, Vec3(0, 30, 0));
 }
+
+TEST(FlightV2ObservedEvents,
+     A12_T02_T03_NetCrossingCarriesBracketedBallVelocity) {
+  ShotContext shot({});
+  shot.start(0, -1, BoundaryEvidence::RACKET_CONTACT,
+             HistoryContinuity::kComplete);
+  shot.observe(sample(0, Vec3(1.5, -.7, .4)));
+  shot.observe(sample(50000000, Vec3(1.3, -.7, .4)));
+  ASSERT_EQ(shot.events().size(), 1u);
+  const auto &event = shot.events().front();
+  EXPECT_EQ(event.kind, PhysicalEventKind::NET_CROSSING);
+  EXPECT_NEAR(event.pre.velocity.x(), -4., 1e-12);
+  EXPECT_EQ(event.pre.velocity, event.post.velocity);
+  EXPECT_EQ(event.event_time_ns, 32500000);
+  EXPECT_EQ(event.confirmed_at_ns, 50000000);
+}

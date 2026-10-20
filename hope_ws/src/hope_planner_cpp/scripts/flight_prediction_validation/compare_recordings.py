@@ -80,8 +80,9 @@ def compare(dataset, v2_executable, baseline_executable, synthetic=False):
                              reason=(p.get('reason','unavailable') if supported else 'unsupported_event' if p else 'not_triggered'),
                              position=candidate.get('position') if valid else None,velocity=candidate.get('velocity') if valid else None,
                              arrival_ns=candidate.get('arrival_ns') if valid else None,covariance=candidate.get('covariance') if valid else None,
+                             post_velocity=candidate.get('post_velocity') if valid else None,
                              compute_ms=p.get('compute_ms') if p else None,b1_ns=flight.get('b1_ns'),b2_ns=flight.get('b2_ns'))
-                    for name in ('position','velocity','arrival_ns'):
+                    for name in ('position','velocity','arrival_ns','post_velocity'):
                         if name in event: row['truth_'+name]=event[name]
                     rows.append(row)
     return rows

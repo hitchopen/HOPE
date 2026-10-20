@@ -1,3 +1,4 @@
+#include "hope_planner_cpp/flight_replay_input.hpp"
 #include "hope_planner_cpp/flight_state_v2.hpp"
 #include <algorithm>
 #include <chrono>
@@ -126,18 +127,10 @@ int main(int argc, char **argv) {
     while (std::getline(std::cin, line)) {
       if (line.empty() || line[0] == '#')
         continue;
-      std::replace(line.begin(), line.end(), ',', ' ');
-      std::istringstream in(line);
-      BallSample s;
-      int omega_valid;
-      if (!(in >> s.source_time_ns >> s.position.x() >> s.position.y() >>
-            s.position.z() >> omega_valid >> s.producer_omega_rad_s.x() >>
-            s.producer_omega_rad_s.y() >> s.producer_omega_rad_s.z()))
-        throw std::runtime_error("invalid observation CSV row");
+      BallSample s = parse_flight_observation_csv(line);
       if (previous && s.source_time_ns <= *previous)
         throw std::runtime_error("duplicate/out-of-order CSV source stamp");
       previous = s.source_time_ns;
-      s.producer_omega_valid = omega_valid == 1;
       s.frame_id = "table";
       s.clock_domain = "simulation";
       s.ball_id = "fixture";

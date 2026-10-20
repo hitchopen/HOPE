@@ -307,6 +307,10 @@ add_executable(hope_ball_flight_baseline_replay src/ball_flight_baseline_replay.
 target_link_libraries(hope_ball_flight_baseline_replay PRIVATE hope_forecast_core)
 install(TARGETS hope_ball_flight_baseline_replay RUNTIME DESTINATION lib/${PROJECT_NAME})
 if(BUILD_TESTING)
+  add_test(NAME flight_v2_baseline_epochs COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/baseline_replay_gate.py
+    --baseline $<TARGET_FILE:hope_ball_flight_baseline_replay>
+    --v2 $<TARGET_FILE:hope_flight_prediction_v2_replay>)
   add_test(NAME flight_v2_raw_scenarios COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/flight_prediction_v2_scenarios.py
     --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)

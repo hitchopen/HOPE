@@ -258,6 +258,7 @@ bool ShotContext::observe(BallSample s) {
       net.position = before.position + f * (s.position - before.position);
       const long double interval =
           static_cast<long double>(s.source_time_ns) - before.source_time_ns;
+      net.velocity = (s.position - before.position) / (double(interval) * 1e-9);
       const auto ns = before.source_time_ns +
                       static_cast<std::int64_t>(std::round(f * interval));
       const bool finite_net =

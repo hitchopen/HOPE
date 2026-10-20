@@ -1,6 +1,7 @@
 // Evaluation-only ball forecasts from existing progressive/fixed one-shot APIs.
 // No inverse planner, racket normal/velocity, command packing or dispatch.
 #include "hope_planner_cpp/batch_physics_estimator.hpp"
+#include "hope_planner_cpp/flight_replay_input.hpp"
 #include "hope_planner_cpp/flight_state_v2.hpp"
 #include "hope_planner_cpp/future_contact_predictor.hpp"
 #include "hope_planner_cpp/incoming_trajectory.hpp"
@@ -39,14 +40,7 @@ int main(int argc, char **argv) {
     while (std::getline(std::cin, line)) {
       if (line.empty() || line[0] == '#')
         continue;
-      std::replace(line.begin(), line.end(), ',', ' ');
-      std::istringstream row(line);
-      BallSample s;
-      int valid = 0;
-      if (!(row >> s.source_time_ns >> s.position.x() >> s.position.y() >>
-            s.position.z() >> valid >> s.producer_omega_rad_s.x() >>
-            s.producer_omega_rad_s.y() >> s.producer_omega_rad_s.z()))
-        throw std::invalid_argument("invalid observation CSV");
+      BallSample s = parse_flight_observation_csv(line);
       if (previous && s.source_time_ns <= *previous)
         throw std::invalid_argument("source order");
       previous = s.source_time_ns;
@@ -54,7 +48,6 @@ int main(int argc, char **argv) {
         origin = s.source_time_ns;
       s.source_time_s = double(
           (static_cast<long double>(s.source_time_ns) - *origin) * 1e-9L);
-      s.producer_omega_valid = valid == 1;
       s.frame_id = "table";
       s.clock_domain = "recorded_registered";
       const auto started = std::chrono::steady_clock::now();
