@@ -395,13 +395,19 @@ void ShotContext::reclassify() {
       }
     }
   net_crossed_ = net;
-  state_ = direction_ > 0 ? (serve ? PlayState::SERVE : PlayState::RALLY)
+  // Match context constrains a hypothesis; only physical evidence confirms a
+  // public serve. Recompute on every history/context change (no sticky status).
+  const bool observed_serve = striker_contacts == 1;
+  state_ = direction_ > 0
+               ? (observed_serve ? PlayState::SERVE : PlayState::RALLY)
+               : (observed_serve ? PlayState::OPPONENT_SERVE
+                                 : PlayState::OPPONENT_RALLY);
+  route_ = direction_ > 0 ? (serve ? PlayState::SERVE : PlayState::RALLY)
                           : (serve ? PlayState::OPPONENT_SERVE
                                    : PlayState::OPPONENT_RALLY);
-  route_ = state_;
-  if ((net && continuity_ == HistoryContinuity::kComplete) ||
-      match_ != MatchContext::UNKNOWN)
-    classification_ = ClassificationStatus::CONFIRMED;
+  classification_ = (observed_serve || (net && complete))
+                        ? ClassificationStatus::CONFIRMED
+                        : ClassificationStatus::PROVISIONAL;
 }
 bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
                           std::int64_t confirmed, const ModelState &pre,
@@ -542,7 +548,9 @@ void ShotContext::predict_events(const std::vector<PhysicalEvent> &predictions,
     if (e.status == EventStatus::PREDICTED &&
         std::find(retained.begin(), retained.end(), e.id) == retained.end())
       e.status = EventStatus::SUPERSEDED;
-  route_ = state_;
+  route_ = match_ == MatchContext::SERVE
+               ? (direction_ > 0 ? PlayState::SERVE : PlayState::OPPONENT_SERVE)
+               : state_;
   // A speculative first striker bounce changes only the forecast hypothesis.
   if (observed_contacts() == 0 && match_ == MatchContext::UNKNOWN)
     for (const auto &p : predictions) {

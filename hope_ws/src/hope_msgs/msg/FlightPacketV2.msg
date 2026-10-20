@@ -1,5 +1,5 @@
 # Immutable shot snapshot. No prediction/waypoint is admitted as an observation.
-uint16 schema_version 2
+uint16 schema_version 3
 string session_id
 string producer_id
 uint64 shot_generation

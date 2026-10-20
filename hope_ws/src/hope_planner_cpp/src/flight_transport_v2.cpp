@@ -121,6 +121,7 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
                                                      const ShotContext &shot) {
   hope_msgs::msg::FlightPredictionV2 w;
   w.shot_generation = p.token.generation;
+  w.shot_id = w.shot_generation;
   w.context_revision = p.token.context_revision;
   w.forecast_revision = p.token.solve_sequence;
   w.play_state = name(p.state);
@@ -143,6 +144,41 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
   w.predicted_arrival_time_ns = p.arrival_ns;
   w.expires_at_ns = p.expires_ns;
   w.uncertainty_provenance = p.nominal.uncertainty_provenance;
+  w.target_covariance.fill(NAN);
+  w.target_time_std_s = NAN;
+  w.target_linearization_quality = "unavailable";
+  w.target_status = p.target.historical ? "HISTORICAL"
+                    : p.target.valid    ? "SUPPORTED"
+                                        : "UNAVAILABLE";
+  vector(w.plane_point, Vec3(p.plane.x_hit_m, 0, 0));
+  vector(w.plane_normal, Vec3::UnitX());
+  w.plane_registration_id = p.plane.registration_id;
+  w.plane_frame_id = p.plane.frame_id;
+  w.current_state_available = p.belief.initialized &&
+                              p.belief.mean.allFinite() &&
+                              p.belief.covariance.allFinite();
+  if (w.current_state_available) {
+    auto &current = w.current_state;
+    current.prediction_reference_time_ns = current.predicted_arrival_time_ns =
+        p.reference_ns;
+    vector(current.position, p.belief.mean.head<3>());
+    vector(current.velocity, p.belief.mean.tail<3>());
+    current.spin_available = p.belief.effective_spin.usable();
+    current.spin_mode = name(p.belief.effective_spin.mode);
+    current.spin_measurement_time_ns =
+        p.belief.effective_spin.measurement_time_ns;
+    current.spin_measured_valid =
+        current.spin_available && current.spin_mode == "MEASURED" &&
+        current.spin_measurement_time_ns == p.reference_ns;
+    current.spin_last_contact_id = p.belief.effective_spin.last_contact_id;
+    current.spin_provenance = p.belief.effective_spin.provenance;
+    if (current.spin_available)
+      vector(current.omega_rad_s, *p.belief.effective_spin.omega);
+    current.linearization_quality = "conditional_ckf_posterior";
+    for (int r = 0; r < 6; ++r)
+      for (int c = 0; c < 6; ++c)
+        current.covariance[r * 6 + c] = p.belief.covariance(r, c);
+  }
   w.plane_x = p.plane.x_hit_m;
   w.plane_available = p.plane.calibrated;
   w.plane_revision = p.plane.generation;
@@ -154,10 +190,25 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
     w.ball_id = s.ball_id;
     w.clock_domain = s.clock_domain;
     w.clock_mapping_id = s.clock_mapping_id;
+    w.clock_uncertainty_s = s.clock_uncertainty_s;
   }
   if (p.target.event) {
     const auto &e = *p.target.event;
     w.target_kind = name(e.kind);
+    for (const auto &physical : p.nominal.events)
+      if (physical.kind == w.target_kind &&
+          std::abs(physical.dt_s - e.dt_s) < 1e-6) {
+        w.target_time_std_s = physical.time_std_s;
+        w.target_linearization_quality = quality_name(physical.quality);
+        for (int r = 0; r < 7; ++r)
+          for (int c = 0; c < 7; ++c)
+            w.target_covariance[r * 7 + c] = physical.covariance(r, c);
+        break;
+      }
+    w.target_spin_measured_valid =
+        e.pre.spin.usable() && e.pre.spin.mode == EffectiveSpinMode::MEASURED &&
+        e.pre.spin.measurement_time_ns == p.arrival_ns;
+    w.target_spin_provenance = e.pre.spin.provenance;
     for (const auto &entry : shot.events())
       if (entry.kind == e.kind && entry.status != EventStatus::SUPERSEDED &&
           entry.status != EventStatus::CANCELLED &&
@@ -179,6 +230,29 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
   for (const auto &e : shot.events()) {
     hope_msgs::msg::FlightEventV2 event;
     event.event_id = e.id;
+    event.shot_id = e.generation;
+    event.bounce_index = 0;
+    if (e.kind == PhysicalEventKind::TABLE &&
+        (e.status == EventStatus::PREDICTED ||
+         e.status == EventStatus::CONFIRMED))
+      for (const auto &candidate : shot.events())
+        if (candidate.kind == PhysicalEventKind::TABLE &&
+            (candidate.status == EventStatus::PREDICTED ||
+             candidate.status == EventStatus::CONFIRMED) &&
+            candidate.event_time_ns <= e.event_time_ns)
+          ++event.bounce_index;
+    event.pre_spin_available = e.pre.spin.usable();
+    event.pre_spin_mode = name(e.pre.spin.mode);
+    event.pre_spin_measurement_time_ns = e.pre.spin.measurement_time_ns;
+    event.pre_spin_last_contact_id = e.pre.spin.last_contact_id;
+    event.pre_spin_provenance = e.pre.spin.provenance;
+    if (event.pre_spin_available)
+      vector(event.pre_omega_rad_s, *e.pre.spin.omega);
+    event.spin_provenance = e.post.spin.provenance;
+    event.spin_measured_valid =
+        e.post.spin.usable() &&
+        e.post.spin.mode == EffectiveSpinMode::MEASURED &&
+        e.post.spin.measurement_time_ns == e.event_time_ns;
     event.shot_generation = e.generation;
     event.kind = name(e.kind);
     event.status = name(e.status);
@@ -187,8 +261,12 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
     event.confirmed_at_ns = e.confirmed_at_ns;
     event.time_uncertainty_ns = e.time_uncertainty_ns;
     event.prediction_reference_time_ns = p.reference_ns;
-    if (e.event_time_ns >= p.reference_ns)
-      event.arrival_dt_ns = e.event_time_ns - p.reference_ns;
+    const long double delta =
+        static_cast<long double>(e.event_time_ns) - p.reference_ns;
+    if (delta < std::numeric_limits<std::int64_t>::min() ||
+        delta > std::numeric_limits<std::int64_t>::max())
+      continue;
+    event.arrival_dt_ns = static_cast<std::int64_t>(delta);
     vector(event.position, e.pre.position);
     vector(event.pre_velocity, e.pre.velocity);
     vector(event.post_velocity, e.post.velocity);
@@ -223,6 +301,12 @@ hope_msgs::msg::FlightPredictionV2 encode_prediction(const FlightPrediction &p,
     vector(item.position, point.state.head<3>());
     vector(item.velocity, point.state.tail<3>());
     item.spin_available = point.spin.usable();
+    item.spin_measurement_time_ns = point.spin.measurement_time_ns;
+    item.spin_last_contact_id = point.spin.last_contact_id;
+    item.spin_provenance = point.spin.provenance;
+    item.spin_measured_valid =
+        item.spin_available && point.spin.mode == EffectiveSpinMode::MEASURED &&
+        point.spin.measurement_time_ns == item.predicted_arrival_time_ns;
     item.spin_mode = name(point.spin.mode);
     if (point.spin.usable())
       vector(item.omega_rad_s, *point.spin.omega);
@@ -243,7 +327,7 @@ std::string packet_v2_hash(hope_msgs::msg::FlightPacketV2 packet) {
   canonical.imbue(std::locale::classic());
   canonical << std::setprecision(17);
   hope_msgs::msg::to_flow_style_yaml(packet, canonical);
-  return sha256("hope-flight-packet-v2:canonical-flow-yaml-f64-17:" +
+  return sha256("hope-flight-packet-v3:canonical-flow-yaml-f64-17:" +
                 canonical.str());
 }
 bool validate_packet_v2(const hope_msgs::msg::FlightPacketV2 &p,
@@ -252,7 +336,7 @@ bool validate_packet_v2(const hope_msgs::msg::FlightPacketV2 &p,
     reason = why;
     return false;
   };
-  if (p.schema_version != 2 || p.session_id.empty() || p.producer_id.empty() ||
+  if (p.schema_version != 3 || p.session_id.empty() || p.producer_id.empty() ||
       !p.shot_generation || p.config_id.empty())
     return fail("packet_identity");
   if (p.observations.empty() || p.observations.size() > 4096 ||
@@ -450,6 +534,28 @@ void restore_packet_v2(FlightPipeline &pipeline,
     e.pre.position = e.post.position = vector(wire.position);
     e.pre.velocity = vector(wire.pre_velocity);
     e.post.velocity = vector(wire.post_velocity);
+    auto spin_from = [](bool available, const auto &omega,
+                        const std::string &mode, std::int64_t ns,
+                        std::uint64_t id, const std::string &provenance) {
+      EffectiveSpin spin;
+      if (available) {
+        spin.omega = vector(omega);
+        spin.mode = mode == "MEASURED" ? EffectiveSpinMode::MEASURED
+                    : mode == "HELD"   ? EffectiveSpinMode::HELD
+                                       : EffectiveSpinMode::CONTACT_PROPAGATED;
+        spin.measurement_time_ns = ns;
+        spin.last_contact_id = id;
+        spin.provenance = provenance;
+      }
+      return spin;
+    };
+    e.pre.spin =
+        spin_from(wire.pre_spin_available, wire.pre_omega_rad_s,
+                  wire.pre_spin_mode, wire.pre_spin_measurement_time_ns,
+                  wire.pre_spin_last_contact_id, wire.pre_spin_provenance);
+    e.post.spin = spin_from(wire.spin_available, wire.omega_rad_s,
+                            wire.spin_mode, wire.spin_measurement_time_ns,
+                            wire.spin_last_contact_id, wire.spin_provenance);
     e.source = "packet_checkpoint";
     snapshot.events.push_back(e);
   }

@@ -8,3 +8,8 @@ bool spin_available
 string spin_mode
 float64[36] covariance
 string linearization_quality
+# measured_valid is true only at the actual measurement instant; usable includes held/model spin.
+bool spin_measured_valid
+int64 spin_measurement_time_ns
+uint64 spin_last_contact_id
+string spin_provenance

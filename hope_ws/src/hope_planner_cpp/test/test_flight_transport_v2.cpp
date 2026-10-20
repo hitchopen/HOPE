@@ -193,3 +193,55 @@ TEST(FlightTransportV2,
   EXPECT_EQ(wire.context_source, "independent_referee");
   EXPECT_EQ(wire.context_time_ns, 30000000);
 }
+
+TEST(FlightTransportV2,
+     A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance) {
+  FlightPipeline pipeline({});
+  pipeline.start(0, -1, BoundaryEvidence::RACKET_CONTACT,
+                 HistoryContinuity::kComplete);
+  for (int i = 0; i < 12; ++i) {
+    BallSample s;
+    s.source_time_ns = i * 5000000LL;
+    s.position = Vec3(2. - .02 * i, -.7, .5 + .002 * i - .000122625 * i * i);
+    s.frame_id = "table";
+    s.clock_domain = "simulation";
+    s.producer_omega_valid = i == 0;
+    s.producer_omega_rad_s = Vec3(0, 30, 0);
+    pipeline.observe(s);
+  }
+  HitPlaneSnapshot plane;
+  plane.calibrated = true;
+  plane.x_hit_m = .15;
+  plane.frame_id = "table";
+  plane.registration_id = "fixture";
+  auto prediction = pipeline.forecast(plane, 55000000);
+  auto wire = encode_prediction(prediction, pipeline.shot());
+  EXPECT_EQ(wire.schema_version, 3);
+  EXPECT_EQ(wire.shot_id, wire.shot_generation);
+  ASSERT_TRUE(wire.current_state_available);
+  EXPECT_EQ(wire.current_state.predicted_arrival_time_ns, 55000000);
+  EXPECT_EQ(wire.current_state.arrival_dt_ns, 0);
+  EXPECT_TRUE(wire.current_state.spin_available);
+  EXPECT_FALSE(wire.current_state.spin_measured_valid);
+  EXPECT_EQ(wire.current_state.spin_measurement_time_ns, 0);
+  EXPECT_FALSE(wire.current_state.spin_provenance.empty());
+  EXPECT_EQ(wire.plane_point.x, .15);
+  EXPECT_EQ(wire.plane_normal.x, 1.);
+  EXPECT_EQ(wire.plane_registration_id, "fixture");
+  ASSERT_FALSE(wire.waypoints.empty());
+  for (const auto &point : wire.waypoints) {
+    EXPECT_EQ(point.predicted_arrival_time_ns,
+              point.prediction_reference_time_ns + point.arrival_dt_ns);
+    EXPECT_FALSE(point.spin_measured_valid);
+    if (point.spin_available)
+      EXPECT_EQ(point.spin_measurement_time_ns, 0);
+  }
+  for (const auto &event : wire.events) {
+    EXPECT_EQ(event.event_time_ns,
+              event.prediction_reference_time_ns + event.arrival_dt_ns);
+    if (event.pre_spin_available)
+      EXPECT_EQ(event.pre_spin_measurement_time_ns, 0);
+  }
+  if (prediction.target.event && !prediction.target.historical)
+    EXPECT_NE(wire.target_linearization_quality, "unavailable");
+}

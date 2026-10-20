@@ -497,7 +497,8 @@ TEST(FlightV2, X04_LatestWorkIsBoundedAndNeverWaitsForNextSampleToPublish) {
   EXPECT_FALSE(waiting.get());
   EXPECT_FALSE(work.push(2));
 }
-TEST(FlightV2, X09_ForwardHypotheticalFlightStartsWithExplicitSpinAvailability) {
+TEST(FlightV2,
+     X09_ForwardHypotheticalFlightStartsWithExplicitSpinAvailability) {
   ModelState model;
   model.position = Vec3(.3, -.7, .4);
   model.velocity = Vec3(3, 0, -1);
@@ -513,7 +514,8 @@ TEST(FlightV2, X09_ForwardHypotheticalFlightStartsWithExplicitSpinAvailability) 
         EXPECT_FALSE(e.post.spin.usable());
         EXPECT_NEAR(e.pre.position.z(), .02, 1e-12);
       }
-    if (step.stopped) break;
+    if (step.stopped)
+      break;
   }
   EXPECT_TRUE(bounced);
 }
@@ -802,4 +804,60 @@ TEST(FlightV2Timing, X04_SourceTimedMotionSurvivesSchedulerPauseAndCatchup) {
       ASSERT_TRUE(shot.active());
     }
   }
+}
+
+TEST(FlightV2Classification,
+     A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1) {
+  for (int direction : {-1, 1})
+    for (int rate : {150, 300}) {
+      ShotContext shot({});
+      shot.start(0, direction, BoundaryEvidence::RACKET_CONTACT,
+                 HistoryContinuity::kComplete);
+      auto s = sample(0);
+      s.producer_omega_valid = true;
+      s.producer_omega_rad_s = Vec3(0, 30, 0);
+      shot.observe(s);
+      const auto generation = shot.generation();
+      ASSERT_TRUE(shot.context(MatchContext::SERVE, 0, "referee", generation));
+      EXPECT_EQ(shot.state(),
+                direction > 0 ? PlayState::RALLY : PlayState::OPPONENT_RALLY);
+      EXPECT_EQ(shot.classification(), ClassificationStatus::PROVISIONAL);
+      EXPECT_EQ(shot.route(),
+                direction > 0 ? PlayState::SERVE : PlayState::OPPONENT_SERVE);
+      shot.set_history_continuity(HistoryContinuity::kUnknown);
+      EXPECT_EQ(shot.classification(), ClassificationStatus::PROVISIONAL);
+      auto b1 = event(PhysicalEventKind::TABLE, .1, direction > 0 ? .5 : 2.2);
+      shot.predict_events({b1}, 0);
+      const auto id = shot.events().front().id;
+      ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, 100000000,
+                               100000000 + std::llround(2e9 / rate), b1.pre,
+                               "camera"));
+      EXPECT_EQ(shot.generation(), generation);
+      EXPECT_EQ(shot.samples().front().source_time_ns, 0);
+      EXPECT_EQ(shot.events().front().id, id);
+      EXPECT_EQ(shot.observed_contacts(), 1);
+      EXPECT_EQ(shot.state(),
+                direction > 0 ? PlayState::SERVE : PlayState::OPPONENT_SERVE);
+      EXPECT_EQ(shot.classification(), ClassificationStatus::CONFIRMED);
+      EXPECT_EQ(shot.spin().mode, EffectiveSpinMode::CONTACT_PROPAGATED);
+      EXPECT_EQ(shot.spin().measurement_time_ns, 0);
+    }
+}
+TEST(FlightV2Classification,
+     C01_C04_C07_ContinuityLossRecomputesConfirmedRally) {
+  ShotContext shot({});
+  shot.start(0, -1, BoundaryEvidence::RACKET_CONTACT,
+             HistoryContinuity::kComplete);
+  shot.observe(sample(0));
+  auto net = contact_state(1.37);
+  net.position.z() = .4;
+  ASSERT_TRUE(shot.confirm(PhysicalEventKind::NET_CROSSING, 10000000, 20000000,
+                           net, "camera"));
+  EXPECT_EQ(shot.classification(), ClassificationStatus::CONFIRMED);
+  const auto token = shot.snapshot();
+  shot.set_history_continuity(HistoryContinuity::kIncomplete);
+  EXPECT_EQ(shot.classification(), ClassificationStatus::PROVISIONAL);
+  EXPECT_FALSE(shot.publishable(token, 20000000));
+  shot.set_history_continuity(HistoryContinuity::kComplete);
+  EXPECT_EQ(shot.classification(), ClassificationStatus::CONFIRMED);
 }

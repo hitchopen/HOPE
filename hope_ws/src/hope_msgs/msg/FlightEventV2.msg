@@ -19,3 +19,13 @@ uint64 spin_last_contact_id
 string uncertainty_provenance
 float64[49] covariance
 string linearization_quality
+uint64 shot_id
+uint32 bounce_index
+geometry_msgs/Vector3 pre_omega_rad_s
+bool pre_spin_available
+string pre_spin_mode
+int64 pre_spin_measurement_time_ns
+uint64 pre_spin_last_contact_id
+string pre_spin_provenance
+string spin_provenance
+bool spin_measured_valid

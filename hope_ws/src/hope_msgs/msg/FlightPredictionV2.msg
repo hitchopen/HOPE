@@ -1,4 +1,5 @@
-uint16 schema_version 2
+# V2 pipeline forecast wire revision 3. Coordinated producer/consumer rebuild required.
+uint16 schema_version 3
 string session_id
 string producer_id
 string config_id
@@ -47,3 +48,19 @@ uint64 target_event_id
 string target_kind
 string context_source
 int64 context_time_ns
+
+# shot_id is the immutable shot_generation within session_id, never forecast_revision.
+uint64 shot_id
+bool current_state_available
+FlightWaypointV2 current_state
+float64 clock_uncertainty_s
+geometry_msgs/Point plane_point
+geometry_msgs/Vector3 plane_normal
+string plane_registration_id
+string plane_frame_id
+string target_status
+float64[49] target_covariance
+float64 target_time_std_s
+string target_linearization_quality
+bool target_spin_measured_valid
+string target_spin_provenance
