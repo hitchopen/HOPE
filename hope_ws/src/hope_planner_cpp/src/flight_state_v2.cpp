@@ -390,10 +390,29 @@ bool ShotContext::qualify_candidate() {
              v2 = (c.position - b.position) / bc;
   const Vec3 v = (v1 + v2) * .5, accel = 2 * (v2 - v1) / (ab + bc);
   if (std::abs(v.x()) < settings_.launch_speed_mps ||
-      v.norm() < settings_.launch_speed_mps ||
-      (accel - config_.physics.gravity).norm() >
-          settings_.ballistic_residual_mps2)
+      v.norm() < settings_.launch_speed_mps)
     return false;
+  // A smooth acceleration hypothesis requires continuous contact-free data.
+  // Only spin qualified by the middle source cutoff can explain its curvature.
+  TrustedSpin candidate_spin;
+  for (std::size_t i = 0; i < candidates_.size(); ++i) {
+    const auto &point = candidates_[i];
+    if ((i && (static_cast<long double>(point.source_time_ns) -
+               candidates_[i - 1].source_time_ns) * 1e-9L > config_.gap_warning_s) ||
+        point.position.z() <= config_.physics.radius + .03) {
+      reason_ = "acquisition_discontinuous_or_contact_window";
+      return false;
+    }
+    if (point.source_time_ns <= b.source_time_ns) candidate_spin.observe(point);
+  }
+  const auto &spin = candidate_spin.value();
+  const Vec3 expected = ball_acceleration(config_.physics, v,
+      spin.usable() ? *spin.omega : Vec3::Zero());
+  if ((accel - expected).norm() > settings_.ballistic_residual_mps2) {
+    reason_ = spin.usable() ? "acquisition_qualified_spin_model_residual"
+                           : "acquisition_position_only_model_residual_spin_unobserved";
+    return false;
+  }
   // Acquisition does not establish racket contact or complete prehistory.
   const auto boundary = a.source_time_ns;
   const int d = v.x() > 0 ? 1 : -1;
