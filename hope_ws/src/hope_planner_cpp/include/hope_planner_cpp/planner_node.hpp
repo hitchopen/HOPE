@@ -129,6 +129,11 @@ class PlannerNode final : public rclcpp::Node {
   a3_deploy::SessionHomeReceipt solve_home_; // solver thread only
   bool solve_home_valid_ = false;
   bool solve_posture_stable_ = false;
+  std::mutex hit_speed_scale_publish_mutex_;
+  std::atomic<double> hit_speed_scale_{1.0};
+  std::string hit_speed_scale_state_file_;
+  std::atomic<double> last_command_hit_speed_scale_{NAN};
+  rclcpp::Service<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr hit_speed_scale_service_;
   RuntimePlaneReference runtime_plane_;
   PlaneSelection solve_plane_; // solver thread only
   std::uint64_t plane_flight_counter_ = 0;

@@ -495,7 +495,8 @@ rather than part of a normal one-click start.
 `start` returns quickly. Progress and failures are published under
 `/hope/lifecycle/**`; the console must reach `RUNNING · RUNNER` and
 `START_COMPLETE_RUNNER_PASSIVE` before the operator uses Stand/Calibration/
-Refresh x_hit/Ready or the Server flow.
+Ready or the Server flow. The Console removes Refresh x_hit; shared HOME is
+captured on policy entry.
 
 The helper intentionally preserves the current fixed3 Runner argv. The checked
 in model_21800 policy metadata is `training_recipe=rally_v14`, while the native

@@ -34,6 +34,7 @@ hope_planner:
     batch_estimator_iterations: 3
 
     ball_pose_index: 0
+    # Legacy fallback only: schema 4 uses Runner HOME.x + ONNX plane_x.
     x_hit: 0.15
     x_hit_follow_robot: false
     require_x_hit_calibration: false
