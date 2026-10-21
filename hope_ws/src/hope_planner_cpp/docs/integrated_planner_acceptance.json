@@ -2830,7 +2830,9 @@
   "historical_evidence_head": "3346e03002b47611e3531d7147392faec9e9268f",
   "review_corrections": {
     "receipt": "integrated_planner_pr64_review_corrections.json",
-    "status": "VALIDATION_IN_PROGRESS",
-    "historical_results_preserved": true
+    "status": "REVIEW_REGRESSION_COMPLETE_WITH_INHERITED_LINT",
+    "tested_source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e",
+    "historical_results_preserved": true,
+    "publication_pending": true
   }
 }

@@ -6,7 +6,7 @@ Review corrections and broader V3 qualification are separate outcomes.
 | --- | --- |
 | G1 input | Broader negative QoS/restart/registration matrix and measured cross-host source-clock guarantees. |
 | G2 handoff | Identical source-cutoff native/installed comparison is added here; broader source variants remain to be qualified. |
-| G3 numerical | Rerun independent outgoing and geometry/covariance references; synthetic model agreement is not real accuracy. |
+| G3 numerical | PASS for declared synthetic envelope: 144 independent outgoing candidates, corrected finite-net and event-covariance cases. Synthetic model agreement is not real accuracy. |
 | G4 lifecycle | Semantic races, long-gap reacquisition and worker expiry are covered here; representative real receiver restart/postcommit operation remains. |
 | G5 actor | Real schema-2 decoder and 110-D builder are tested; achieved paddle pose/normal and actual tracking remain NOT_RUN. |
 | G6 graph/performance | Localhost synthetic high-rate matrix is tested here; target host/network load, combined diagnostic saturation and VRPN adapter remain unqualified. |

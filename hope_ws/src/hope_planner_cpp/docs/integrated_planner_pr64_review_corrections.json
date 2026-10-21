@@ -1,1 +1,4552 @@
-{"status":"VALIDATION_IN_PROGRESS"}
+{
+  "schema_version": 1,
+  "status": "REVIEW_REGRESSION_COMPLETE",
+  "review_regression_complete": true,
+  "software_complete": false,
+  "simulation_qualified": false,
+  "physically_qualified": false,
+  "deployment_authorized": false,
+  "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e",
+  "integration_base": "3346e03002b47611e3531d7147392faec9e9268f",
+  "runtime_last_source_commit": "65adda5e98512ec645158b85d51698f003a3d5d5",
+  "old_pr64_head": "9118a491df658fa7e68f042581af48890ec8b0b8",
+  "original_pr64_modified": false,
+  "branch": "feature/integrated-racket-planner-v2-review-fixes",
+  "worktree": "/workspace/HOPE-integrated-v2-review-fixes",
+  "evidence_root": "/workspace/.cloud-setup/pr64-review/closure",
+  "full_suite_cache": "/workspace/.cloud-setup/pr64-review/retest-912d456",
+  "baseline_root": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline",
+  "repository_audit": {
+    "hope_origin_main": "58108499672dcf47bf76d4ef9f7b65f1b652bad2",
+    "hitchopen_main_observed": "3b3c40237225d917a1bfe1bdff6f4a58af7eed9e",
+    "hitchopen_nightly_pin": "8d599e7d21e196275cf426488555e2648e8fd789",
+    "nohope_unchanged": "96e71c1adb217d14b925681173cebe00d8427f21",
+    "nohope_dongc1_main": "c2a627f26c957a079b5cc2586ab6cf49aae4a221",
+    "nohope_divergence_upstream_only": 3,
+    "nohope_divergence_local_only": 9,
+    "pr64_base_branch": "nightly_built",
+    "pr64_state_observed": "OPEN",
+    "note": "Upstream main has advanced; no rebase, new coefficients, schemas4/5 or upstream PR changes are included."
+  },
+  "findings": {
+    "R01": {
+      "priority": "P1",
+      "baseline_status": "FAIL_REPRODUCED",
+      "corrected_status": "PASS",
+      "root_correction": "Configured aerodynamic acceleration; continuous recent launch suffix; explicit position-only rejection diagnostic.",
+      "baseline_tests": [
+        "RV01_DragAcquisitionBothRatesDirectionsAndSpin"
+      ],
+      "corrected_tests": [
+        "RV01_DragAcquisitionBothRatesDirectionsAndSpin"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV01*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV01*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R02": {
+      "priority": "P1",
+      "baseline_status": "FAIL_REPRODUCED",
+      "corrected_status": "PASS",
+      "root_correction": "Stable source reversal identity, physical time-bracket predicted association, intervening-motion rearm; no repeated spin/revision update.",
+      "baseline_tests": [
+        "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce"
+      ],
+      "corrected_tests": [
+        "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV03b*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV03b*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R03": {
+      "priority": "P1",
+      "baseline_status": "FAIL_REPRODUCED",
+      "corrected_status": "PASS",
+      "root_correction": "Bounded causal spin checkpoints and pure post-contact quaternion refit.",
+      "baseline_tests": [
+        "RV05_DelayedContactSegmentsQuaternionWindow"
+      ],
+      "corrected_tests": [
+        "RV05_DelayedContactSegmentsQuaternionWindow"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV05*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV05*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R04": {
+      "priority": "P2",
+      "baseline_status": "FAIL_REPRODUCED",
+      "corrected_status": "PASS",
+      "root_correction": "Conservative swept broad phase followed by continuous sphere/finite-rectangle narrow phase; nearest-surface collision covariance.",
+      "baseline_tests": [
+        "RV08_FiniteNetCornerClearanceAndTrueContact"
+      ],
+      "corrected_tests": [
+        "RV08_FiniteNetCornerClearanceAndTrueContact"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV08*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV08*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R05": {
+      "priority": "P2",
+      "baseline_status": "FAIL_REPRODUCED",
+      "corrected_status": "PASS",
+      "root_correction": "Resolve historical pre-bracket spin, reconstruct descending-side pre-impact state, apply one impulse and replay affected CKF suffix.",
+      "baseline_tests": [
+        "RV06_HistoricalPreContactSpinRestoresImpactVelocity"
+      ],
+      "corrected_tests": [
+        "RV06_HistoricalPreContactSpinRestoresImpactVelocity"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV06*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV06*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R06": {
+      "priority": "P2",
+      "baseline_status": "FAIL_REPRODUCED",
+      "corrected_status": "PASS",
+      "root_correction": "Ordered segment propagation, saltation, one bounce-noise injection and event-local root covariance.",
+      "baseline_tests": [
+        "RV10_SameStepBounceNoiseReachesPlane"
+      ],
+      "corrected_tests": [
+        "RV10_SameStepBounceNoiseReachesPlane"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV10*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV10*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R07": {
+      "priority": "P2",
+      "baseline_status": "PASS_ALREADY_FIXED",
+      "corrected_status": "PASS",
+      "root_correction": "Existing no-op/rejected context protection retained; delayed worker and integrated semantic revision fence.",
+      "baseline_tests": [
+        "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem"
+      ],
+      "corrected_tests": [
+        "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV12*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV12*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R08": {
+      "priority": "P2",
+      "baseline_status": "PASS_ALREADY_FIXED",
+      "corrected_status": "PASS",
+      "root_correction": "Legacy sources preserved with friction sensitivity and strict 701-fixture parity.",
+      "baseline_tests": [
+        "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero"
+      ],
+      "corrected_tests": [
+        "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV13*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV13*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    },
+    "R09": {
+      "priority": "P2",
+      "baseline_status": "FAIL_REPRODUCED",
+      "corrected_status": "PASS",
+      "root_correction": "Availability based on authority/qualified signal rather than magnitude; stationary angular coherence qualified only after span/count gates.",
+      "baseline_tests": [
+        "RV07_AuthoritativeAndQuaternionZeroRemainAvailable"
+      ],
+      "corrected_tests": [
+        "RV07_AuthoritativeAndQuaternionZeroRemainAvailable"
+      ],
+      "fixture_kind": "new independent equivalent; not exact original reviewer trace",
+      "baseline_command": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV07*",
+      "corrected_command": "/workspace/.cloud-setup/pr64-review/retest-912d456/native/test_v2_pr64_review_regressions --gtest_filter=PR64Review.RV07*",
+      "baseline_executable_sha256": "9f55f2ae3a6819d1292cd870f8a49f817592f12e52300c45eb9eab127e8816c9",
+      "corrected_executable_sha256": "16affcf0db480060feda8aa30d60a0f59f56284fb9fbdf3f68044779cb971e6c",
+      "artifacts": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/review-cases.xml",
+        "/workspace/.cloud-setup/pr64-review/closure/review-cases.xml"
+      ]
+    }
+  },
+  "acceptance": {
+    "RV01": {
+      "status": "PASS",
+      "checks": [
+        "RV01_DragAcquisitionBothRatesDirectionsAndSpin",
+        "RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly"
+      ],
+      "fixture": {
+        "rates_hz": [
+          150,
+          300
+        ],
+        "speed_mps": [
+          10,
+          12
+        ],
+        "directions": [
+          -1,
+          1
+        ],
+        "spin": [
+          "unavailable",
+          "producer_qualified_y20"
+        ],
+        "source_intervals": "alternating .95/1.05 of nominal",
+        "position_noise_m": [
+          0,
+          0.0001
+        ],
+        "geometry": "x=2.5,z=.32 at 10; x=2.6,z=.30 at 12; outgoing reflected about table midpoint; vy=0,vz=-.5"
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV02": {
+      "status": "PASS",
+      "checks": [
+        "RV02_HeldImpossibleAccelerationAndProvenanceFaults"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV03": {
+      "status": "PASS",
+      "checks": [
+        "RV03_OneFastBounceHasOneStableIdentity",
+        "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce",
+        "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation",
+        "RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce"
+      ],
+      "fixture": {
+        "rates_hz": [
+          150,
+          300
+        ],
+        "position_m": [
+          1.5,
+          -0.7,
+          0.2525
+        ],
+        "velocity_mps": [
+          -20,
+          0,
+          -5
+        ],
+        "spin_available": false,
+        "origin_ns": 1800000000000000000,
+        "truth_bounces": 1
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV04": {
+      "status": "PASS",
+      "checks": [
+        "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact"
+      ],
+      "fixture": {
+        "close_bounces": "configured gravity -100 m/s2, measurement std .1 mm, source150/300 Hz; no time-only refractory",
+        "hidden_contact": "default physics; source gap .025-.130 s; retained history incomplete, no fabricated confirmation"
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV05": {
+      "status": "PASS",
+      "checks": [
+        "RV05_DelayedContactSegmentsQuaternionWindow"
+      ],
+      "fixture": {
+        "rates_hz": [
+          150,
+          300
+        ],
+        "quaternion": "Y-axis angle=10*min(t,.12)+54.2*max(0,t-.12); alternating q/-q",
+        "contact_s": 0.12,
+        "delayed_confirmation_s": 0.14,
+        "spin_min_span_s": 0.05
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV06": {
+      "status": "PASS",
+      "checks": [
+        "RV06_HistoricalPreContactSpinRestoresImpactVelocity",
+        "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix"
+      ],
+      "fixture": {
+        "pre_velocity_mps": [
+          3,
+          0,
+          -2
+        ],
+        "qualified_pre_omega_rad_s": [
+          0,
+          150,
+          0
+        ],
+        "post_measurement_rad_s": [
+          0,
+          54.2,
+          0
+        ],
+        "pre_measurement_s": 0,
+        "contact_s": 0.01,
+        "newer_measurement_s": 0.02,
+        "expected_post_vx": 3,
+        "wrong_no_spin_vx": 2.35468
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV07": {
+      "status": "PASS",
+      "checks": [
+        "RV07_AuthoritativeAndQuaternionZeroRemainAvailable"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV08": {
+      "status": "PASS",
+      "checks": [
+        "RV08_FiniteNetCornerClearanceAndTrueContact",
+        "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn"
+      ],
+      "fixture": {
+        "radius_m": 0.02,
+        "corner_clearance_m": 0.02753,
+        "reference": "finite rectangle Euclidean distance; exact linear top/side/corner tests; both approaches; no pole geometry"
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV09": {
+      "status": "PASS",
+      "checks": [
+        "RV09_NetFirstContactTimeAcrossStepSizes",
+        "RV09b_TrueCornerCollisionWinsPlaneTie"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV10": {
+      "status": "PASS",
+      "checks": [
+        "RV10_SameStepBounceNoiseReachesPlane"
+      ],
+      "fixture": {
+        "bounce_s": 0.000499,
+        "plane_s": 0.00075,
+        "integration_dt_s": [
+          0.001,
+          0.0005,
+          0.00025
+        ],
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "drag_k": 0,
+        "magnus_k": 0,
+        "prior_covariance_diagonal": 1e-10,
+        "acceleration_spectral_density": 0,
+        "bounce_velocity_std": [
+          0.65,
+          0.3,
+          0.45
+        ],
+        "expected_vx_variance": 0.4225
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV11": {
+      "status": "PASS",
+      "checks": [
+        "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl",
+        "RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization"
+      ],
+      "fixture": {
+        "reference": "Independent central finite difference of analytic post-impulse event map; fixed branch, fixed spin; no stochastic runtime",
+        "epsilon_mps": 1e-06,
+        "covariance_norm_tolerance": 1e-08,
+        "PSD_eigenvalue_roundoff_tolerance": 1e-10
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV12": {
+      "status": "PASS",
+      "checks": [
+        "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV13": {
+      "status": "PASS",
+      "checks": [
+        "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero"
+      ],
+      "fixture": {
+        "nakashima_friction_mu": [
+          0,
+          0.5
+        ],
+        "modes": 5,
+        "angular_vector": [
+          0,
+          0,
+          0
+        ]
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV14": {
+      "status": "PASS",
+      "checks": [
+        "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV15": {
+      "status": "PASS",
+      "checks": [
+        "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV16": {
+      "status": "PASS",
+      "checks": [
+        "review_geometry_150_net_clear",
+        "review_geometry_150_net_collision",
+        "review_geometry_150_uncertain_contact",
+        "review_geometry_150_held",
+        "review_chain_150_10_unknown",
+        "review_chain_150_10_zero",
+        "review_chain_150_10_known",
+        "review_chain_150_12_unknown",
+        "review_chain_150_12_zero",
+        "review_chain_150_12_known",
+        "review_chain_150_20_unknown",
+        "review_chain_150_20_zero",
+        "review_chain_150_20_known",
+        "integrated_chain_150_FOLLOW_POSE",
+        "integrated_chain_150_ON_REFRESH",
+        "review_geometry_300_net_clear",
+        "review_geometry_300_net_collision",
+        "review_geometry_300_uncertain_contact",
+        "review_geometry_300_held",
+        "review_chain_300_10_unknown",
+        "review_chain_300_10_zero",
+        "review_chain_300_10_known",
+        "review_chain_300_12_unknown",
+        "review_chain_300_12_zero",
+        "review_chain_300_12_known",
+        "review_chain_300_20_unknown",
+        "review_chain_300_20_zero",
+        "review_chain_300_20_known",
+        "integrated_chain_300_FOLLOW_POSE",
+        "integrated_chain_300_ON_REFRESH",
+        "review_source_cutoff_parity"
+      ],
+      "fixture": {
+        "rates_hz": [
+          150,
+          300
+        ],
+        "speeds_mps": [
+          10,
+          12,
+          20
+        ],
+        "spin": [
+          "unknown",
+          "quaternion_zero",
+          "quaternion_known_piecewise"
+        ],
+        "adapters": "raw NamedPoseArrayV2 -> optitrack_mct_relay + hope_base_pose_flat_relay -> single installed planner -> actual C++ PpRacketTargetInput",
+        "optional_referee_publisher": false,
+        "performance_epoch": "ten flights for 10/12 m/s positives; original two flights for 5 m/s; phase>.100s and lead>.130s, physical frame fault excluded, unknown history included",
+        "coverage_threshold": 0.95,
+        "publication_age_budget_ms": 30,
+        "actual_decoder_p95_budget_ms": 30,
+        "full_trajectory_default_hz": 50,
+        "observer_diagnostic_depth": 128,
+        "negative_cases": [
+          "true_net_collision",
+          "bounce_adjacent_order_uncertain",
+          "held_ball",
+          "wrong_frame",
+          "missing_base"
+        ],
+        "physical_only_cases": [
+          "20_mps",
+          "net_flyover_with_unrepresentable_outgoing_action"
+        ]
+      },
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV17": {
+      "status": "PASS",
+      "checks": [
+        "RV17_CausalCheckpointAndObservationCutoffParity",
+        "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger",
+        "review_chain_150_10_unknown",
+        "review_chain_150_10_zero",
+        "review_chain_150_10_known",
+        "review_chain_150_12_unknown",
+        "review_chain_150_12_zero",
+        "review_chain_150_12_known",
+        "review_chain_150_20_unknown",
+        "review_chain_150_20_zero",
+        "review_chain_150_20_known",
+        "review_chain_300_10_unknown",
+        "review_chain_300_10_zero",
+        "review_chain_300_10_known",
+        "review_chain_300_12_unknown",
+        "review_chain_300_12_zero",
+        "review_chain_300_12_known",
+        "review_chain_300_20_unknown",
+        "review_chain_300_20_zero",
+        "review_chain_300_20_known",
+        "review_context_worker_race",
+        "review_source_cutoff_parity"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV18": {
+      "status": "PASS",
+      "checks": [
+        "flight_v2_scope",
+        "flight_v2_binary_scope",
+        "flight_v2_installed_api",
+        "review_startup_guards"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV19": {
+      "status": "PASS_WITH_INHERITED_LINT",
+      "checks": [
+        "legacy-parity",
+        "baseline lint multiset comparison"
+      ],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    },
+    "RV20": {
+      "status": "AWAITING_USER_PUBLICATION_CHOICE",
+      "checks": [],
+      "fixture": null,
+      "source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e"
+    }
+  },
+  "fixtures": {
+    "RV01": {
+      "rates_hz": [
+        150,
+        300
+      ],
+      "speed_mps": [
+        10,
+        12
+      ],
+      "directions": [
+        -1,
+        1
+      ],
+      "spin": [
+        "unavailable",
+        "producer_qualified_y20"
+      ],
+      "source_intervals": "alternating .95/1.05 of nominal",
+      "position_noise_m": [
+        0,
+        0.0001
+      ],
+      "geometry": "x=2.5,z=.32 at 10; x=2.6,z=.30 at 12; outgoing reflected about table midpoint; vy=0,vz=-.5"
+    },
+    "RV03": {
+      "rates_hz": [
+        150,
+        300
+      ],
+      "position_m": [
+        1.5,
+        -0.7,
+        0.2525
+      ],
+      "velocity_mps": [
+        -20,
+        0,
+        -5
+      ],
+      "spin_available": false,
+      "origin_ns": 1800000000000000000,
+      "truth_bounces": 1
+    },
+    "RV04": {
+      "close_bounces": "configured gravity -100 m/s2, measurement std .1 mm, source150/300 Hz; no time-only refractory",
+      "hidden_contact": "default physics; source gap .025-.130 s; retained history incomplete, no fabricated confirmation"
+    },
+    "RV05": {
+      "rates_hz": [
+        150,
+        300
+      ],
+      "quaternion": "Y-axis angle=10*min(t,.12)+54.2*max(0,t-.12); alternating q/-q",
+      "contact_s": 0.12,
+      "delayed_confirmation_s": 0.14,
+      "spin_min_span_s": 0.05
+    },
+    "RV06": {
+      "pre_velocity_mps": [
+        3,
+        0,
+        -2
+      ],
+      "qualified_pre_omega_rad_s": [
+        0,
+        150,
+        0
+      ],
+      "post_measurement_rad_s": [
+        0,
+        54.2,
+        0
+      ],
+      "pre_measurement_s": 0,
+      "contact_s": 0.01,
+      "newer_measurement_s": 0.02,
+      "expected_post_vx": 3,
+      "wrong_no_spin_vx": 2.35468
+    },
+    "RV08": {
+      "radius_m": 0.02,
+      "corner_clearance_m": 0.02753,
+      "reference": "finite rectangle Euclidean distance; exact linear top/side/corner tests; both approaches; no pole geometry"
+    },
+    "RV10": {
+      "bounce_s": 0.000499,
+      "plane_s": 0.00075,
+      "integration_dt_s": [
+        0.001,
+        0.0005,
+        0.00025
+      ],
+      "gravity": [
+        0,
+        0,
+        0
+      ],
+      "drag_k": 0,
+      "magnus_k": 0,
+      "prior_covariance_diagonal": 1e-10,
+      "acceleration_spectral_density": 0,
+      "bounce_velocity_std": [
+        0.65,
+        0.3,
+        0.45
+      ],
+      "expected_vx_variance": 0.4225
+    },
+    "RV11": {
+      "reference": "Independent central finite difference of analytic post-impulse event map; fixed branch, fixed spin; no stochastic runtime",
+      "epsilon_mps": 1e-06,
+      "covariance_norm_tolerance": 1e-08,
+      "PSD_eigenvalue_roundoff_tolerance": 1e-10
+    },
+    "RV13": {
+      "nakashima_friction_mu": [
+        0,
+        0.5
+      ],
+      "modes": 5,
+      "angular_vector": [
+        0,
+        0,
+        0
+      ]
+    },
+    "RV16": {
+      "rates_hz": [
+        150,
+        300
+      ],
+      "speeds_mps": [
+        10,
+        12,
+        20
+      ],
+      "spin": [
+        "unknown",
+        "quaternion_zero",
+        "quaternion_known_piecewise"
+      ],
+      "adapters": "raw NamedPoseArrayV2 -> optitrack_mct_relay + hope_base_pose_flat_relay -> single installed planner -> actual C++ PpRacketTargetInput",
+      "optional_referee_publisher": false,
+      "performance_epoch": "ten flights for 10/12 m/s positives; original two flights for 5 m/s; phase>.100s and lead>.130s, physical frame fault excluded, unknown history included",
+      "coverage_threshold": 0.95,
+      "publication_age_budget_ms": 30,
+      "actual_decoder_p95_budget_ms": 30,
+      "full_trajectory_default_hz": 50,
+      "observer_diagnostic_depth": 128,
+      "negative_cases": [
+        "true_net_collision",
+        "bounce_adjacent_order_uncertain",
+        "held_ball",
+        "wrong_frame",
+        "missing_base"
+      ],
+      "physical_only_cases": [
+        "20_mps",
+        "net_flyover_with_unrepresentable_outgoing_action"
+      ]
+    }
+  },
+  "baseline_focused": {
+    "RV01_DragAcquisitionBothRatesDirectionsAndSpin": {
+      "status": "FAIL",
+      "seconds": "0.001",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:80\nValue of: acquired\n  Actual: false\nExpected: true\nstartup\nGoogle Test trace:\n/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:37: 150:10:-1:false\n"
+      ],
+      "failure_count": 80
+    },
+    "RV02_HeldImpossibleAccelerationAndProvenanceFaults": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV03_OneFastBounceHasOneStableIdentity": {
+      "status": "PASS",
+      "seconds": "0.177",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce": {
+      "status": "FAIL",
+      "seconds": "0.017",
+      "properties": {
+        "confirmed_ids_150": "2",
+        "confirmed_ids_300": "1"
+      },
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:163\nExpected: (p.shot().observed_contacts()) <= (1), actual: 2 vs 1\n"
+      ],
+      "failure_count": 3
+    },
+    "RV05_DelayedContactSegmentsQuaternionWindow": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:186\nExpected: (spin.value().mode) != (EffectiveSpinMode::MEASURED), actual: 4-byte object <00-00 00-00> vs 4-byte object <00-00 00-00>\n"
+      ],
+      "failure_count": 12
+    },
+    "RV06_HistoricalPreContactSpinRestoresImpactVelocity": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {
+        "pre_spin_available": "false",
+        "post_vx": "2.354680"
+      },
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:216\nValue of: e.pre.spin.usable()\n  Actual: false\nExpected: true\n"
+      ],
+      "failure_count": 1
+    },
+    "RV07_AuthoritativeAndQuaternionZeroRemainAvailable": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:227\nValue of: spin.value().usable()\n  Actual: false\nExpected: true\n"
+      ],
+      "failure_count": 1
+    },
+    "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:253\nValue of: restored.events().front().pre.spin.usable()\n  Actual: false\nExpected: true\n"
+      ],
+      "failure_count": 1
+    },
+    "RV08_FiniteNetCornerClearanceAndTrueContact": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {
+        "clearance_02753_collision": "true"
+      },
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:269\nExpected equality of these values:\n  collision\n    Which is: true\n  clearance<=.02\n    Which is: false\n-1:0.027529999999999999\n"
+      ],
+      "failure_count": 2
+    },
+    "RV09_NetFirstContactTimeAcrossStepSizes": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:283\nThe difference between time+e.dt_s and (.03-std::sqrt(.02*.02-.012*.012))/20 is 0.0001999999999927239, which exceeds 1e-9, where\ntime+e.dt_s evaluates to 0.00050000000000727598,\n(.03-std::sqrt(.02*.02-.012*.012))/20 evaluates to 0.00069999999999999988, and\n1e-9 evaluates to 1.0000000000000001e-09.\n"
+      ],
+      "failure_count": 3
+    },
+    "RV10_SameStepBounceNoiseReachesPlane": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {
+        "vx_variance_dt_1000": "0.000000",
+        "vx_variance_dt_500": "0.422500",
+        "vx_variance_dt_250": "0.422500"
+      },
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:308\nThe difference between e.covariance(3,3) and .4225 is 0.42249999989999998, which exceeds 1e-6, where\ne.covariance(3,3) evaluates to 1e-10,\n.4225 evaluates to 0.42249999999999999, and\n1e-6 evaluates to 9.9999999999999995e-07.\n"
+      ],
+      "failure_count": 2
+    },
+    "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact": {
+      "status": "FAIL",
+      "seconds": "0.002",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:333\nExpected equality of these values:\n  select_physical_return(f,p.shot().export_snapshot(),c,f.reference_ns).reason\n    Which is: \"NOT_INCOMING\"\n  \"SECOND_RECEIVER_BOUNCE\"\n"
+      ],
+      "failure_count": 1
+    },
+    "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:378\nExpected: ((f.hit_plane->covariance_budget.bounce-reference).norm()) < (1e-8), actual: 0.47708753091200817 vs 1e-08\n"
+      ],
+      "failure_count": 1
+    },
+    "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:441\nExpected: (eligible_count) > (20), actual: 0 vs 20\n"
+      ],
+      "failure_count": 2
+    },
+    "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:454\nValue of: result.command.valid\n  Actual: false\nExpected: true\nnet_collision\n"
+      ],
+      "failure_count": 1
+    },
+    "RV17_CausalCheckpointAndObservationCutoffParity": {
+      "status": "PASS",
+      "seconds": "0.047",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:496\nValue of: p.shot().active()\n  Actual: false\nExpected: true\n"
+      ],
+      "failure_count": 4
+    },
+    "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn": {
+      "status": "FAIL",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [
+        "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/pinned-source/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:512\nValue of: f.nominal.hit_plane\n  Actual: false\nExpected: true\n"
+      ],
+      "failure_count": 1
+    }
+  },
+  "corrected_focused": {
+    "RV01_DragAcquisitionBothRatesDirectionsAndSpin": {
+      "status": "PASS",
+      "seconds": "0.759",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV02_HeldImpossibleAccelerationAndProvenanceFaults": {
+      "status": "PASS",
+      "seconds": "0.001",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly": {
+      "status": "PASS",
+      "seconds": "0.001",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV03_OneFastBounceHasOneStableIdentity": {
+      "status": "PASS",
+      "seconds": "0.175",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce": {
+      "status": "PASS",
+      "seconds": "0.018",
+      "properties": {
+        "confirmed_ids_150": "1",
+        "confirmed_ids_300": "1"
+      },
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation": {
+      "status": "PASS",
+      "seconds": "0.001",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV05_DelayedContactSegmentsQuaternionWindow": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV06_HistoricalPreContactSpinRestoresImpactVelocity": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {
+        "pre_spin_available": "true",
+        "post_vx": "3.000000"
+      },
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV07_AuthoritativeAndQuaternionZeroRemainAvailable": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV08_FiniteNetCornerClearanceAndTrueContact": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {
+        "clearance_02753_collision": "false"
+      },
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV09_NetFirstContactTimeAcrossStepSizes": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV09b_TrueCornerCollisionWinsPlaneTie": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV10_SameStepBounceNoiseReachesPlane": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {
+        "vx_variance_dt_1000": "0.422500",
+        "vx_variance_dt_500": "0.422500",
+        "vx_variance_dt_250": "0.422500"
+      },
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact": {
+      "status": "PASS",
+      "seconds": "0.003",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing": {
+      "status": "PASS",
+      "seconds": "0.222",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV17_CausalCheckpointAndObservationCutoffParity": {
+      "status": "PASS",
+      "seconds": "0.036",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger": {
+      "status": "PASS",
+      "seconds": "0.002",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    },
+    "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn": {
+      "status": "PASS",
+      "seconds": "0.",
+      "properties": {},
+      "failures": [],
+      "failure_count": 0
+    }
+  },
+  "baseline_fixture_source_sha256": "cc55f86938101407f30c0035ae28490d32ee3bfe43bc7c9badc062ada0b67998",
+  "final_fixture_source_sha256": "d518a6dd63de58d86d23ec1f898b453b423e5edc65776463c5995ed08f4d7977",
+  "baseline_fixture_scope": "Recorded 20 cases; final adds recent launch, collision tie, branch/tangent and packet-resume/authority-corroboration controls. Common counterexample inputs unchanged.",
+  "baseline_ros": {
+    "hope_msgs": {
+      "cases": {
+        "lint_cmake": "passed",
+        "xmllint": "passed"
+      },
+      "case_artifacts": {
+        "lint_cmake": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_msgs/Testing/20261021-1046/Test.xml",
+          "sha256": "b4b245027d9ddcbc289d63fdf3904036d1fd4eb5d79aa0e8cc56032f0db287ab"
+        },
+        "xmllint": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_msgs/Testing/20261021-1046/Test.xml",
+          "sha256": "b4b245027d9ddcbc289d63fdf3904036d1fd4eb5d79aa0e8cc56032f0db287ab"
+        }
+      },
+      "groups": 2,
+      "passed": 2,
+      "failed": []
+    },
+    "hope_planner_cpp": {
+      "cases": {
+        "test_integrated_return": "passed",
+        "integrated_outgoing_reference": "passed",
+        "integrated_chain_150_FOLLOW_POSE": "passed",
+        "integrated_chain_150_ON_REFRESH": "passed",
+        "integrated_chain_300_FOLLOW_POSE": "failed",
+        "integrated_chain_300_ON_REFRESH": "passed",
+        "test_spin_physics": "passed",
+        "test_future_contact_predictor": "passed",
+        "test_batch_physics_estimator": "passed",
+        "test_trajectory_and_stage3": "passed",
+        "test_target_turn_guard": "passed",
+        "test_prediction_event_order": "passed",
+        "test_schema2": "passed",
+        "test_spin_estimator": "passed",
+        "test_audit_logger": "passed",
+        "test_post_net_one_shot": "passed",
+        "test_incoming_trajectory": "passed",
+        "test_adaptive_flight_commit": "passed",
+        "test_flight_packet": "passed",
+        "test_question_bank_fixture": "passed",
+        "test_planner_node_one_shot": "passed",
+        "test_planner_node_turn_guard": "passed",
+        "test_flight_packet_pipeline": "passed",
+        "integrated_context_noop": "passed",
+        "flight_v2_installed_api": "passed",
+        "test_flight_prediction_v2": "passed",
+        "test_flight_transport_v2": "passed",
+        "flight_v2_numerical": "passed",
+        "flight_v2_causal_replay": "passed",
+        "flight_v2_scoring": "passed",
+        "flight_v2_accuracy_tooling": "passed",
+        "flight_v2_scope": "passed",
+        "flight_v2_ros_transport": "passed",
+        "flight_v2_raw_scenarios": "passed",
+        "flight_v2_binary_scope": "passed",
+        "flight_v2_matched_replay_tooling": "passed",
+        "flight_v2_baseline_epochs": "passed"
+      },
+      "case_artifacts": {
+        "test_integrated_return": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "integrated_outgoing_reference": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "integrated_chain_150_FOLLOW_POSE": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "integrated_chain_150_ON_REFRESH": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "integrated_chain_300_FOLLOW_POSE": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "integrated_chain_300_ON_REFRESH": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_spin_physics": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_future_contact_predictor": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_batch_physics_estimator": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_trajectory_and_stage3": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_target_turn_guard": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_prediction_event_order": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_schema2": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_spin_estimator": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_audit_logger": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_post_net_one_shot": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_incoming_trajectory": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_adaptive_flight_commit": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_flight_packet": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_question_bank_fixture": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_planner_node_one_shot": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_planner_node_turn_guard": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_flight_packet_pipeline": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "integrated_context_noop": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_installed_api": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_flight_prediction_v2": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "test_flight_transport_v2": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_numerical": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_causal_replay": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_scoring": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_accuracy_tooling": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_scope": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_ros_transport": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_raw_scenarios": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_binary_scope": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_matched_replay_tooling": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        },
+        "flight_v2_baseline_epochs": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/Testing/20261021-1046/Test.xml",
+          "sha256": "23d310a030da16e75ae812c325ba2428d0253cdfda57f1f27f18162eb3b6eaa8"
+        }
+      },
+      "groups": 37,
+      "passed": 36,
+      "failed": [
+        "integrated_chain_300_FOLLOW_POSE"
+      ]
+    },
+    "hope_bringup": {
+      "cases": {
+        "planner_full_rate_relay_test": "passed",
+        "vrpn_pants_contract_test": "passed",
+        "vrpn_pants_relay_test": "passed",
+        "table_side_transform_test": "passed",
+        "source_time_rate_gate_test": "passed",
+        "natnet_preflight_test": "passed",
+        "rally_mocap_interface_test": "passed",
+        "natnet_launch_interfaces_test": "passed",
+        "pose_to_posearray_test": "passed",
+        "p1_pelvis_calibrator_test": "passed",
+        "p1_pelvis_tf_publisher_test": "passed",
+        "motive_asset_contract_test": "passed",
+        "motive_asset_relay_test": "passed",
+        "p1_marker_layout_test": "passed",
+        "v3_optitrack_asset_test": "passed",
+        "natnet_preflight_clock_sync_test": "passed",
+        "p1_marker_cad_registration_test": "passed",
+        "mocap_frame_probe_test": "passed",
+        "base_pose_contract_test": "passed",
+        "p1_calibration_test": "passed",
+        "public_sticker_integration_test": "passed",
+        "p1_marker_cad_calibration_server_test": "passed",
+        "flake8": "failed",
+        "lint_cmake": "passed",
+        "pep257": "failed",
+        "xmllint": "passed"
+      },
+      "case_artifacts": {
+        "planner_full_rate_relay_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "vrpn_pants_contract_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "vrpn_pants_relay_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "table_side_transform_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "source_time_rate_gate_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "natnet_preflight_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "rally_mocap_interface_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "natnet_launch_interfaces_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "pose_to_posearray_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "p1_pelvis_calibrator_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "p1_pelvis_tf_publisher_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "motive_asset_contract_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "motive_asset_relay_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "p1_marker_layout_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "v3_optitrack_asset_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "natnet_preflight_clock_sync_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "p1_marker_cad_registration_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "mocap_frame_probe_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "base_pose_contract_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "p1_calibration_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "public_sticker_integration_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "p1_marker_cad_calibration_server_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "flake8": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "lint_cmake": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "pep257": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        },
+        "xmllint": {
+          "path": "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/Testing/20261021-1048/Test.xml",
+          "sha256": "1f26eb5c51283f7ad9d361b541ec921654eab24afd2cc659eede03026eab1307"
+        }
+      },
+      "groups": 26,
+      "passed": 24,
+      "failed": [
+        "flake8",
+        "pep257"
+      ]
+    }
+  },
+  "inherited_lint": {
+    "flake8": {
+      "baseline_failures": 3086,
+      "corrected_failures": 3086,
+      "identical_issue_multiset": true,
+      "issue_multiset_sha256": "0c8a79e466f90441812c6a66031c9b3bec81f596db309fd2b9a5879abcb7cfdc"
+    },
+    "pep257": {
+      "baseline_failures": 37,
+      "corrected_failures": 37,
+      "identical_issue_multiset": true,
+      "issue_multiset_sha256": "74d6716a91c1d58dd30af6be80f4643d679a649e031efbf758608bd5d360608f"
+    }
+  },
+  "core_source_equivalence": {
+    "core_tested_commit": "912d4564c0f58b54e11d378a1d9ead25bf992c7f",
+    "ros_runtime_code_commit": "65adda5e98512ec645158b85d51698f003a3d5d5",
+    "final_native_sanitizer_and_closure_fixture_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e",
+    "changed_paths_since_core": [
+      "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_node.cpp",
+      "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py",
+      "hope_ws/src/hope_planner_cpp/test/integrated_context_noop.py",
+      "hope_ws/src/hope_planner_cpp/test/integrated_producer_chain.py",
+      "hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp"
+    ],
+    "native_production_sources_identical_since_912d456": true,
+    "focused_test_rebuilt_and_rerun_at_final_fixture": true,
+    "note": "Later fixture changes include safe fatal acquisition assertions, ten fast-flight exposures, qualified spin seeds, explicit unavailable sentinels and independently paced publish-only cameras. Final native and sanitizer groups were rebuilt and rerun; ROS closure reran the changed raw camera and focused C++ groups. Other ROS groups use identical runtime and their recorded latest fixtures.",
+    "ros_production_cpp_sources_identical_since_65adda5": true
+  },
+  "corrected_ros": {
+    "hope_msgs": {
+      "cases": {
+        "lint_cmake": "passed",
+        "xmllint": "passed"
+      },
+      "case_artifacts": {
+        "lint_cmake": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_msgs/Testing/20261021-1132/Test.xml",
+          "sha256": "d7514b63c95cc1dbee4bea093524f08d57eb23cd8322d4b28aaff70aff342668"
+        },
+        "xmllint": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_msgs/Testing/20261021-1132/Test.xml",
+          "sha256": "d7514b63c95cc1dbee4bea093524f08d57eb23cd8322d4b28aaff70aff342668"
+        }
+      },
+      "groups": 2,
+      "passed": 2,
+      "failed": []
+    },
+    "hope_planner_cpp": {
+      "cases": {
+        "test_integrated_return": "passed",
+        "test_v2_pr64_review_regressions": "passed",
+        "integrated_outgoing_reference": "passed",
+        "review_geometry_150_net_clear": "passed",
+        "review_geometry_150_net_collision": "passed",
+        "review_geometry_150_uncertain_contact": "passed",
+        "review_geometry_150_held": "passed",
+        "review_chain_150_10_unknown": "passed",
+        "review_chain_150_10_zero": "passed",
+        "review_chain_150_10_known": "passed",
+        "review_chain_150_12_unknown": "passed",
+        "review_chain_150_12_zero": "passed",
+        "review_chain_150_12_known": "passed",
+        "review_chain_150_20_unknown": "passed",
+        "review_chain_150_20_zero": "passed",
+        "review_chain_150_20_known": "passed",
+        "integrated_chain_150_FOLLOW_POSE": "passed",
+        "integrated_chain_150_ON_REFRESH": "passed",
+        "review_geometry_300_net_clear": "passed",
+        "review_geometry_300_net_collision": "passed",
+        "review_geometry_300_uncertain_contact": "passed",
+        "review_geometry_300_held": "passed",
+        "review_chain_300_10_unknown": "passed",
+        "review_chain_300_10_zero": "passed",
+        "review_chain_300_10_known": "passed",
+        "review_chain_300_12_unknown": "passed",
+        "review_chain_300_12_zero": "passed",
+        "review_chain_300_12_known": "passed",
+        "review_chain_300_20_unknown": "passed",
+        "review_chain_300_20_zero": "passed",
+        "review_chain_300_20_known": "passed",
+        "integrated_chain_300_FOLLOW_POSE": "passed",
+        "integrated_chain_300_ON_REFRESH": "passed",
+        "test_spin_physics": "passed",
+        "test_future_contact_predictor": "passed",
+        "test_batch_physics_estimator": "passed",
+        "test_trajectory_and_stage3": "passed",
+        "test_target_turn_guard": "passed",
+        "test_prediction_event_order": "passed",
+        "test_schema2": "passed",
+        "test_spin_estimator": "passed",
+        "test_audit_logger": "passed",
+        "test_post_net_one_shot": "passed",
+        "test_incoming_trajectory": "passed",
+        "test_adaptive_flight_commit": "passed",
+        "test_flight_packet": "passed",
+        "test_question_bank_fixture": "passed",
+        "test_planner_node_one_shot": "passed",
+        "test_planner_node_turn_guard": "passed",
+        "test_flight_packet_pipeline": "passed",
+        "integrated_context_noop": "passed",
+        "review_context_worker_race": "passed",
+        "review_source_cutoff_parity": "passed",
+        "review_startup_guards": "passed",
+        "flight_v2_installed_api": "passed",
+        "test_flight_prediction_v2": "passed",
+        "test_flight_transport_v2": "passed",
+        "flight_v2_numerical": "passed",
+        "flight_v2_causal_replay": "passed",
+        "flight_v2_scoring": "passed",
+        "flight_v2_accuracy_tooling": "passed",
+        "flight_v2_scope": "passed",
+        "flight_v2_ros_transport": "passed",
+        "flight_v2_raw_scenarios": "passed",
+        "flight_v2_binary_scope": "passed",
+        "flight_v2_matched_replay_tooling": "passed",
+        "flight_v2_baseline_epochs": "passed"
+      },
+      "case_artifacts": {
+        "test_integrated_return": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_v2_pr64_review_regressions": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1208/Test.xml",
+          "sha256": "f1c956901390052faacdfc01cb3e9e435330c6258b86acbcbaba68dd4d450eea"
+        },
+        "integrated_outgoing_reference": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_150_net_clear": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_150_net_collision": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_150_uncertain_contact": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_150_held": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_10_unknown": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_10_zero": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_10_known": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_12_unknown": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_12_zero": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_12_known": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_20_unknown": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_20_zero": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_150_20_known": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "integrated_chain_150_FOLLOW_POSE": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "integrated_chain_150_ON_REFRESH": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_300_net_clear": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_300_net_collision": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_300_uncertain_contact": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_geometry_300_held": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_10_unknown": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_10_zero": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_10_known": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_12_unknown": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_12_zero": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_12_known": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_20_unknown": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_20_zero": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_chain_300_20_known": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "integrated_chain_300_FOLLOW_POSE": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "integrated_chain_300_ON_REFRESH": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_spin_physics": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_future_contact_predictor": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_batch_physics_estimator": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_trajectory_and_stage3": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_target_turn_guard": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_prediction_event_order": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_schema2": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_spin_estimator": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_audit_logger": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_post_net_one_shot": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_incoming_trajectory": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_adaptive_flight_commit": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_flight_packet": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_question_bank_fixture": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_planner_node_one_shot": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_planner_node_turn_guard": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_flight_packet_pipeline": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "integrated_context_noop": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_context_worker_race": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_source_cutoff_parity": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "review_startup_guards": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_installed_api": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_flight_prediction_v2": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "test_flight_transport_v2": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_numerical": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_causal_replay": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_scoring": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_accuracy_tooling": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_scope": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_ros_transport": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_raw_scenarios": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1208/Test.xml",
+          "sha256": "f1c956901390052faacdfc01cb3e9e435330c6258b86acbcbaba68dd4d450eea"
+        },
+        "flight_v2_binary_scope": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_matched_replay_tooling": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        },
+        "flight_v2_baseline_epochs": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/Testing/20261021-1132/Test.xml",
+          "sha256": "f66a885d40f30b31825f8304786cb2886f3c35f84c16fa05a4071660b2d0445b"
+        }
+      },
+      "groups": 67,
+      "passed": 67,
+      "failed": []
+    },
+    "hope_bringup": {
+      "cases": {
+        "planner_full_rate_relay_test": "passed",
+        "vrpn_pants_contract_test": "passed",
+        "vrpn_pants_relay_test": "passed",
+        "table_side_transform_test": "passed",
+        "source_time_rate_gate_test": "passed",
+        "natnet_preflight_test": "passed",
+        "rally_mocap_interface_test": "passed",
+        "natnet_launch_interfaces_test": "passed",
+        "pose_to_posearray_test": "passed",
+        "p1_pelvis_calibrator_test": "passed",
+        "p1_pelvis_tf_publisher_test": "passed",
+        "motive_asset_contract_test": "passed",
+        "motive_asset_relay_test": "passed",
+        "p1_marker_layout_test": "passed",
+        "v3_optitrack_asset_test": "passed",
+        "natnet_preflight_clock_sync_test": "passed",
+        "p1_marker_cad_registration_test": "passed",
+        "mocap_frame_probe_test": "passed",
+        "base_pose_contract_test": "passed",
+        "p1_calibration_test": "passed",
+        "public_sticker_integration_test": "passed",
+        "p1_marker_cad_calibration_server_test": "passed",
+        "flake8": "failed",
+        "lint_cmake": "passed",
+        "pep257": "failed",
+        "xmllint": "passed"
+      },
+      "case_artifacts": {
+        "planner_full_rate_relay_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "vrpn_pants_contract_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "vrpn_pants_relay_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "table_side_transform_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "source_time_rate_gate_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "natnet_preflight_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "rally_mocap_interface_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "natnet_launch_interfaces_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "pose_to_posearray_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "p1_pelvis_calibrator_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "p1_pelvis_tf_publisher_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "motive_asset_contract_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "motive_asset_relay_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "p1_marker_layout_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "v3_optitrack_asset_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "natnet_preflight_clock_sync_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "p1_marker_cad_registration_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "mocap_frame_probe_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "base_pose_contract_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "p1_calibration_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "public_sticker_integration_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "p1_marker_cad_calibration_server_test": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "flake8": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "lint_cmake": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "pep257": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        },
+        "xmllint": {
+          "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_bringup/Testing/20261021-1139/Test.xml",
+          "sha256": "21e5c55b6753e83fe71f2721c3c32e3fd7ca68307a42744441d99405dbcfd772"
+        }
+      },
+      "groups": 26,
+      "passed": 24,
+      "failed": [
+        "flake8",
+        "pep257"
+      ]
+    }
+  },
+  "baseline_gate_exits": {
+    "sanitized-configure": 0,
+    "native-configure": 0,
+    "ros-test": 0,
+    "native-build": 0,
+    "sanitized-build": 0,
+    "ros-test-result": 1,
+    "outgoing-reference": 0,
+    "review-cases": 1,
+    "sanitized-test": 8,
+    "ros-build": 0,
+    "aggregate": 1,
+    "native-test": 8
+  },
+  "corrected_gate_exits": {
+    "legacy-parity": 0,
+    "ros-test": 0,
+    "native-build": 0,
+    "sanitized-build": 0,
+    "ros-test-result": 1,
+    "outgoing-reference": 0,
+    "review-cases": 0,
+    "sanitized-test": 0,
+    "ros-build": 0,
+    "aggregate": 1,
+    "native-test": 0,
+    "refresh_300_10_unknown": 0,
+    "expiry_150": 0,
+    "refresh_150_10_unknown": 0,
+    "refresh_150_12_known": 0,
+    "refresh_300_12_known": 0,
+    "expiry_300": 0,
+    "ros-closure": 0
+  },
+  "native": {
+    "artifact": "/workspace/.cloud-setup/pr64-review/closure/native-test.log",
+    "sha256": "2293b2355c907fc8446d2c0fe26ca275158714c0abdb2ff3c29693d6fa453b97",
+    "log_tail": [
+      "      Start 14: integrated_return",
+      "14/15 Test #14: integrated_return ................   Passed    0.06 sec",
+      "      Start 15: v2_pr64_review_regressions",
+      "15/15 Test #15: v2_pr64_review_regressions .......   Passed    1.29 sec",
+      "",
+      "100% tests passed, 0 tests failed out of 15",
+      "",
+      "Total Test time (real) =   2.62 sec"
+    ]
+  },
+  "sanitized": {
+    "artifact": "/workspace/.cloud-setup/pr64-review/closure/sanitized-test.log",
+    "sha256": "c428baf398abed76f0327a46d5e04769814350be9b7835d6af8b55d48e3728cf",
+    "log_tail": [
+      "      Start 14: integrated_return",
+      "14/15 Test #14: integrated_return ................   Passed    2.49 sec",
+      "      Start 15: v2_pr64_review_regressions",
+      "15/15 Test #15: v2_pr64_review_regressions .......   Passed   52.05 sec",
+      "",
+      "100% tests passed, 0 tests failed out of 15",
+      "",
+      "Total Test time (real) =  83.25 sec"
+    ]
+  },
+  "installed_chains": [
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 10.0,
+      "spin": "known",
+      "scenario": "standard",
+      "valid_commands": 200,
+      "decoded_callbacks": 210,
+      "matched_commands": 200,
+      "before_bounce_commands": 200,
+      "trace_receipt_ms": {
+        "p50": 2.5338095000000003,
+        "p95": 4.853295349999994,
+        "p99": 8.782541889999962,
+        "max": 14.525514
+      },
+      "actual_decoder_ms": {
+        "p50": 2.1898625000000003,
+        "p95": 4.582611749999998,
+        "p99": 8.458183909999992,
+        "max": 15.048946
+      },
+      "source_to_publication_ms": {
+        "p50": 2.034509,
+        "p95": 3.927336449999991,
+        "p99": 8.350130619999993,
+        "max": 14.056449
+      },
+      "resources": {
+        "VmHWM_kib": 35600,
+        "VmRSS_kib": 35600,
+        "node_cpu_s": 1.12
+      },
+      "relay_ball_observations": 552,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 1.0,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "reasons": {
+        "BASE_UNAVAILABLE": 147,
+        "SOURCE_EXPIRED": 367,
+        "SHADOW_COMMAND_VALID": 97,
+        "SOURCE_UNQUALIFIED": 41,
+        "PLANE_UNQUALIFIED": 2,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PHYSICAL_CONTEXT_CHANGED": 19,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 26
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_10_known.json",
+        "sha256": "73ba378a2ca1ac5ce4fad426bff01499f5ecd859e3ce19a94cf8a442ead58894"
+      },
+      "source_stats": {
+        "sent": 1907,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.22367207866257446,
+        "plane_s": 0.2791772854887325,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 10.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 199,
+      "decoded_callbacks": 208,
+      "matched_commands": 199,
+      "before_bounce_commands": 199,
+      "trace_receipt_ms": {
+        "p50": 2.414997,
+        "p95": 4.2611894999999995,
+        "p99": 6.537199100000001,
+        "max": 8.15914
+      },
+      "actual_decoder_ms": {
+        "p50": 2.139233,
+        "p95": 3.7383740999999984,
+        "p99": 6.231277420000002,
+        "max": 8.240537
+      },
+      "source_to_publication_ms": {
+        "p50": 1.981092,
+        "p95": 3.508925899999998,
+        "p99": 5.581007100000008,
+        "max": 7.478762
+      },
+      "resources": {
+        "VmHWM_kib": 35596,
+        "VmRSS_kib": 35596,
+        "node_cpu_s": 1.1
+      },
+      "relay_ball_observations": 550,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 1.0,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "reasons": {
+        "BASE_UNAVAILABLE": 151,
+        "SOURCE_EXPIRED": 361,
+        "SHADOW_COMMAND_VALID": 88,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 2,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PHYSICAL_CONTEXT_CHANGED": 28,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_10_unknown.json",
+        "sha256": "c191b15c763b4aaa15e94d813024e124a424989c1375017950260dd3eb9c709a"
+      },
+      "source_stats": {
+        "sent": 1907,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.213236322841728,
+        "plane_s": 0.2812211345031234,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 10.0,
+      "spin": "zero",
+      "scenario": "standard",
+      "valid_commands": 200,
+      "decoded_callbacks": 208,
+      "matched_commands": 200,
+      "before_bounce_commands": 200,
+      "trace_receipt_ms": {
+        "p50": 2.565134,
+        "p95": 5.443117599999999,
+        "p99": 11.715216919999971,
+        "max": 16.870703
+      },
+      "actual_decoder_ms": {
+        "p50": 2.3236285,
+        "p95": 3.733557149999999,
+        "p99": 5.96356895,
+        "max": 10.915655
+      },
+      "source_to_publication_ms": {
+        "p50": 2.150361,
+        "p95": 3.5249027999999987,
+        "p99": 5.81547261,
+        "max": 8.842195
+      },
+      "resources": {
+        "VmHWM_kib": 35784,
+        "VmRSS_kib": 35784,
+        "node_cpu_s": 1.13
+      },
+      "relay_ball_observations": 552,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 1.0,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "reasons": {
+        "BASE_UNAVAILABLE": 125,
+        "SOURCE_EXPIRED": 367,
+        "SHADOW_COMMAND_VALID": 89,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 2,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PHYSICAL_CONTEXT_CHANGED": 27,
+        "CONTACT_EXPIRED": 9,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_10_zero.json",
+        "sha256": "3e38108fa77ce2f65565d8749743b691a52501cf54677989cb3f717c74938c49"
+      },
+      "source_stats": {
+        "sent": 1907,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.213236322841728,
+        "plane_s": 0.2810951942112959,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 12.0,
+      "spin": "known",
+      "scenario": "standard",
+      "valid_commands": 40,
+      "decoded_callbacks": 49,
+      "matched_commands": 40,
+      "before_bounce_commands": 40,
+      "trace_receipt_ms": {
+        "p50": 2.8298680000000003,
+        "p95": 4.0737993,
+        "p99": 6.9223911499999975,
+        "max": 8.668583
+      },
+      "actual_decoder_ms": {
+        "p50": 2.5664085,
+        "p95": 3.669647649999999,
+        "p99": 4.15183414,
+        "max": 4.23193
+      },
+      "source_to_publication_ms": {
+        "p50": 2.340479,
+        "p95": 3.0386044,
+        "p99": 3.45418177,
+        "max": 3.659695
+      },
+      "resources": {
+        "VmHWM_kib": 35836,
+        "VmRSS_kib": 35836,
+        "node_cpu_s": 1.01
+      },
+      "relay_ball_observations": 480,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 1.0,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 20,
+      "covered_command_epochs": 20,
+      "reasons": {
+        "BASE_UNAVAILABLE": 132,
+        "SOURCE_EXPIRED": 352,
+        "CONTACT_ORDER_UNCERTAIN": 35,
+        "SHADOW_COMMAND_VALID": 59,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PHYSICAL_CONTEXT_CHANGED": 8,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18,
+        "CONTACT_EXPIRED": 5
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_12_known.json",
+        "sha256": "dea4e3b21282384e2d76edd8c835d10285fcf6afe07d1f6af3c37d26dde68783"
+      },
+      "source_stats": {
+        "sent": 1907,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.21835783971248784,
+        "plane_s": 0.24158328611451804,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 12.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 124,
+      "decoded_callbacks": 134,
+      "matched_commands": 124,
+      "before_bounce_commands": 124,
+      "trace_receipt_ms": {
+        "p50": 2.981912,
+        "p95": 5.217114349999999,
+        "p99": 8.801357439999995,
+        "max": 27.685384
+      },
+      "actual_decoder_ms": {
+        "p50": 2.691676,
+        "p95": 4.734573399999999,
+        "p99": 8.236692679999992,
+        "max": 28.167157
+      },
+      "source_to_publication_ms": {
+        "p50": 2.4825595,
+        "p95": 3.9951440499999995,
+        "p99": 7.859542659999988,
+        "max": 27.131932
+      },
+      "resources": {
+        "VmHWM_kib": 35364,
+        "VmRSS_kib": 35364,
+        "node_cpu_s": 1.31
+      },
+      "relay_ball_observations": 490,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 1.0,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 20,
+      "covered_command_epochs": 20,
+      "reasons": {
+        "BASE_UNAVAILABLE": 255,
+        "SOURCE_EXPIRED": 353,
+        "SHADOW_COMMAND_VALID": 78,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PLANE_BEFORE_FIRST_BOUNCE": 9,
+        "PHYSICAL_CONTEXT_CHANGED": 9,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 26,
+        "CONTACT_ORDER_UNCERTAIN": 2
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_12_unknown.json",
+        "sha256": "26523740879535cc8bdba3a25a557319f8dcc81076a072bce2b3169a468dcada"
+      },
+      "source_stats": {
+        "sent": 1907,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.20622642854829343,
+        "plane_s": 0.24310546351249626,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 12.0,
+      "spin": "zero",
+      "scenario": "standard",
+      "valid_commands": 127,
+      "decoded_callbacks": 135,
+      "matched_commands": 127,
+      "before_bounce_commands": 127,
+      "trace_receipt_ms": {
+        "p50": 2.802309,
+        "p95": 4.548736799999997,
+        "p99": 6.587572699999996,
+        "max": 9.819678
+      },
+      "actual_decoder_ms": {
+        "p50": 2.532594,
+        "p95": 4.181678399999995,
+        "p99": 6.307318819999999,
+        "max": 9.502628
+      },
+      "source_to_publication_ms": {
+        "p50": 2.316793,
+        "p95": 3.515991099999998,
+        "p99": 5.910778159999997,
+        "max": 9.266657
+      },
+      "resources": {
+        "VmHWM_kib": 36024,
+        "VmRSS_kib": 36024,
+        "node_cpu_s": 1.08
+      },
+      "relay_ball_observations": 491,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 1.0,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 20,
+      "covered_command_epochs": 20,
+      "reasons": {
+        "BASE_UNAVAILABLE": 125,
+        "SOURCE_EXPIRED": 360,
+        "CONTACT_ORDER_UNCERTAIN": 10,
+        "SHADOW_COMMAND_VALID": 79,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 9,
+        "PHYSICAL_CONTEXT_CHANGED": 19,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_12_zero.json",
+        "sha256": "33bd1d94e74b1c0ccd2cfa28947e40220b4658e77c41437d800db5e6d0bc7ec5"
+      },
+      "source_stats": {
+        "sent": 1907,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.20622642854829343,
+        "plane_s": 0.24307523434476022,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "speed_mps": 20.0,
+      "spin": "known",
+      "rate_hz": 150,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 187,
+        "SOURCE_EXPIRED": 114,
+        "RETURN_UNSUPPORTED": 2,
+        "IMPACT_OR_VELOCITY_CONTRACT": 8,
+        "PLANE_BEFORE_FIRST_BOUNCE": 2,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 4,
+        "PHYSICAL_SHOT_CHANGED": 1
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_20_known.json",
+        "sha256": "9d457ffe0b91c62eb539adbd35a4ad85548f23b30c60da752336aaca21113a40"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.13269121520109478,
+        "plane_s": 0.1458413845949477,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 14
+    },
+    {
+      "status": "PASS",
+      "speed_mps": 20.0,
+      "spin": "unknown",
+      "rate_hz": 150,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 187,
+        "SOURCE_EXPIRED": 113,
+        "RETURN_UNSUPPORTED": 1,
+        "IMPACT_OR_VELOCITY_CONTRACT": 9,
+        "CONTACT_ORDER_UNCERTAIN": 2,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 4,
+        "PHYSICAL_SHOT_CHANGED": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_20_unknown.json",
+        "sha256": "0e402ea62c806f9a4b2d6226d150d8687dd2f77996ea375358b159441b89e496"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.1293097869795691,
+        "plane_s": 0.14670994718419797,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 15
+    },
+    {
+      "status": "PASS",
+      "speed_mps": 20.0,
+      "spin": "zero",
+      "rate_hz": 150,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 188,
+        "SOURCE_EXPIRED": 96,
+        "CONTACT_ORDER_UNCERTAIN": 2,
+        "IMPACT_OR_VELOCITY_CONTRACT": 9,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 5,
+        "PHYSICAL_SHOT_CHANGED": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_150_20_zero.json",
+        "sha256": "963b87ae3c526b0565a7ded311335a0946e6b97cfbcfda64c9ddb745a8391f38"
+      },
+      "source_stats": {
+        "sent": 708,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.1293097869795691,
+        "plane_s": 0.1466876425000089,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 16
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 10.0,
+      "spin": "known",
+      "scenario": "standard",
+      "valid_commands": 407,
+      "decoded_callbacks": 414,
+      "matched_commands": 404,
+      "before_bounce_commands": 407,
+      "trace_receipt_ms": {
+        "p50": 2.37832,
+        "p95": 5.1042112999999985,
+        "p99": 11.303618639999994,
+        "max": 19.932145
+      },
+      "actual_decoder_ms": {
+        "p50": 2.1122315,
+        "p95": 3.82437705,
+        "p99": 5.376384869999987,
+        "max": 7.010572
+      },
+      "source_to_publication_ms": {
+        "p50": 1.918877,
+        "p95": 3.4991449999999995,
+        "p99": 4.75590914,
+        "max": 6.755033
+      },
+      "resources": {
+        "VmHWM_kib": 36580,
+        "VmRSS_kib": 36580,
+        "node_cpu_s": 1.95
+      },
+      "relay_ball_observations": 1099,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.9933333333333333,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 150,
+      "covered_command_epochs": 149,
+      "reasons": {
+        "BASE_UNAVAILABLE": 131,
+        "SOURCE_EXPIRED": 376,
+        "SHADOW_COMMAND_VALID": 99,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 2,
+        "PHYSICAL_SHOT_CHANGED": 9,
+        "PHYSICAL_CONTEXT_CHANGED": 27,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_10_known.json",
+        "sha256": "994caa1a7cc6da0ab2b4694478c58f7a425b697079285f34a1a9c30ff7aaf6e0"
+      },
+      "source_stats": {
+        "sent": 3813,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.22367207866257446,
+        "plane_s": 0.2791772854887325,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 10.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 407,
+      "decoded_callbacks": 416,
+      "matched_commands": 406,
+      "before_bounce_commands": 407,
+      "trace_receipt_ms": {
+        "p50": 2.362645,
+        "p95": 4.920653399999998,
+        "p99": 15.279460179999994,
+        "max": 26.3376
+      },
+      "actual_decoder_ms": {
+        "p50": 2.0253259999999997,
+        "p95": 3.6255725,
+        "p99": 5.239347849999996,
+        "max": 7.364401
+      },
+      "source_to_publication_ms": {
+        "p50": 1.865824,
+        "p95": 3.1590012,
+        "p99": 4.5933095999999995,
+        "max": 6.597559
+      },
+      "resources": {
+        "VmHWM_kib": 36568,
+        "VmRSS_kib": 36568,
+        "node_cpu_s": 1.85
+      },
+      "relay_ball_observations": 1101,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.99375,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 160,
+      "covered_command_epochs": 159,
+      "reasons": {
+        "BASE_UNAVAILABLE": 148,
+        "SOURCE_EXPIRED": 366,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "SHADOW_COMMAND_VALID": 90,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 3,
+        "PHYSICAL_CONTEXT_CHANGED": 27,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 27
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_10_unknown.json",
+        "sha256": "fa90ab053870d05f8acb556b620576d75384d1dbd78107feab09a855349788f8"
+      },
+      "source_stats": {
+        "sent": 3813,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.213236322841728,
+        "plane_s": 0.2812211345031234,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 10.0,
+      "spin": "zero",
+      "scenario": "standard",
+      "valid_commands": 409,
+      "decoded_callbacks": 418,
+      "matched_commands": 408,
+      "before_bounce_commands": 409,
+      "trace_receipt_ms": {
+        "p50": 2.309739,
+        "p95": 4.003694399999995,
+        "p99": 10.504310160000044,
+        "max": 22.354978
+      },
+      "actual_decoder_ms": {
+        "p50": 2.0286144999999998,
+        "p95": 3.0616347499999996,
+        "p99": 4.3301931499999995,
+        "max": 5.82192
+      },
+      "source_to_publication_ms": {
+        "p50": 1.858862,
+        "p95": 2.7830366,
+        "p99": 3.8379954400000025,
+        "max": 4.90596
+      },
+      "resources": {
+        "VmHWM_kib": 36516,
+        "VmRSS_kib": 36516,
+        "node_cpu_s": 1.86
+      },
+      "relay_ball_observations": 1097,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.99375,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 160,
+      "covered_command_epochs": 159,
+      "reasons": {
+        "BASE_UNAVAILABLE": 252,
+        "SOURCE_EXPIRED": 367,
+        "SHADOW_COMMAND_VALID": 89,
+        "SOURCE_UNQUALIFIED": 40,
+        "PLANE_UNQUALIFIED": 2,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PHYSICAL_CONTEXT_CHANGED": 29,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18,
+        "CONTACT_EXPIRED": 7
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_10_zero.json",
+        "sha256": "4678b0380dfc90108dce0b8a5e98d3ede85a1baae2af8e877a2b68922da1dd3e"
+      },
+      "source_stats": {
+        "sent": 3813,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.213236322841728,
+        "plane_s": 0.2810951942112959,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 12.0,
+      "spin": "known",
+      "scenario": "standard",
+      "valid_commands": 110,
+      "decoded_callbacks": 130,
+      "matched_commands": 110,
+      "before_bounce_commands": 110,
+      "trace_receipt_ms": {
+        "p50": 2.5817215,
+        "p95": 7.320893049999988,
+        "p99": 18.48805990999999,
+        "max": 21.551586
+      },
+      "actual_decoder_ms": {
+        "p50": 2.359844,
+        "p95": 3.24298825,
+        "p99": 7.981657909999985,
+        "max": 11.937292
+      },
+      "source_to_publication_ms": {
+        "p50": 2.178379,
+        "p95": 3.0458185999999996,
+        "p99": 4.848635739999994,
+        "max": 11.48679
+      },
+      "resources": {
+        "VmHWM_kib": 36668,
+        "VmRSS_kib": 36668,
+        "node_cpu_s": 1.81
+      },
+      "relay_ball_observations": 957,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.975,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 40,
+      "covered_command_epochs": 39,
+      "reasons": {
+        "BASE_UNAVAILABLE": 123,
+        "SOURCE_EXPIRED": 359,
+        "CONTACT_ORDER_UNCERTAIN": 33,
+        "SHADOW_COMMAND_VALID": 66,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 9,
+        "PHYSICAL_CONTEXT_CHANGED": 9,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_12_known.json",
+        "sha256": "c5bec8a542a07c8162c334ef7fee32727182b22a21ae3a498ff13124bb5c6af4"
+      },
+      "source_stats": {
+        "sent": 3813,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.21835783971248784,
+        "plane_s": 0.24158328611451804,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 12.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 256,
+      "decoded_callbacks": 265,
+      "matched_commands": 255,
+      "before_bounce_commands": 256,
+      "trace_receipt_ms": {
+        "p50": 2.879448,
+        "p95": 6.53390875,
+        "p99": 24.18984724999996,
+        "max": 34.285255
+      },
+      "actual_decoder_ms": {
+        "p50": 2.521774,
+        "p95": 4.8814763999999995,
+        "p99": 6.524877200000002,
+        "max": 8.012007
+      },
+      "source_to_publication_ms": {
+        "p50": 2.321282,
+        "p95": 4.17546525,
+        "p99": 5.31796894999999,
+        "max": 6.820478
+      },
+      "resources": {
+        "VmHWM_kib": 36304,
+        "VmRSS_kib": 36304,
+        "node_cpu_s": 2.02
+      },
+      "relay_ball_observations": 964,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.975,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 40,
+      "covered_command_epochs": 39,
+      "reasons": {
+        "BASE_UNAVAILABLE": 126,
+        "SOURCE_EXPIRED": 351,
+        "CONTACT_ORDER_UNCERTAIN": 10,
+        "SHADOW_COMMAND_VALID": 80,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 9,
+        "PHYSICAL_CONTEXT_CHANGED": 18,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 27
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_12_unknown.json",
+        "sha256": "9f491cfd7746534e3b0a19dbe89fa9ebab18866f0b4b756c759ba6cffe4b3597"
+      },
+      "source_stats": {
+        "sent": 3813,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.20622642854829343,
+        "plane_s": 0.24310546351249626,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 12.0,
+      "spin": "zero",
+      "scenario": "standard",
+      "valid_commands": 258,
+      "decoded_callbacks": 267,
+      "matched_commands": 258,
+      "before_bounce_commands": 258,
+      "trace_receipt_ms": {
+        "p50": 2.6792415,
+        "p95": 5.682366399999999,
+        "p99": 20.009870700000015,
+        "max": 26.991037
+      },
+      "actual_decoder_ms": {
+        "p50": 2.341802,
+        "p95": 4.075183899999998,
+        "p99": 5.832239380000002,
+        "max": 12.340929
+      },
+      "source_to_publication_ms": {
+        "p50": 2.1837595,
+        "p95": 3.433677799999999,
+        "p99": 4.395663680000001,
+        "max": 9.259112
+      },
+      "resources": {
+        "VmHWM_kib": 36168,
+        "VmRSS_kib": 36168,
+        "node_cpu_s": 1.8
+      },
+      "relay_ball_observations": 964,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 1.0,
+      "observer_trace_depth": 128,
+      "scored_flights": 10,
+      "command_denominator": 40,
+      "covered_command_epochs": 40,
+      "reasons": {
+        "BASE_UNAVAILABLE": 124,
+        "SOURCE_EXPIRED": 351,
+        "CONTACT_ORDER_UNCERTAIN": 10,
+        "SHADOW_COMMAND_VALID": 81,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 9,
+        "PLANE_BEFORE_FIRST_BOUNCE": 8,
+        "PHYSICAL_CONTEXT_CHANGED": 9,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 27
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_12_zero.json",
+        "sha256": "72db39f30215982370b3c7b007f1ef9d743bc9f754eea7b5bcd03387884756fb"
+      },
+      "source_stats": {
+        "sent": 3813,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.20622642854829343,
+        "plane_s": 0.24307523434476022,
+        "command_epoch_contract": "first_10_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "speed_mps": 20.0,
+      "spin": "known",
+      "rate_hz": 300,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 174,
+        "SOURCE_EXPIRED": 113,
+        "IMPACT_OR_VELOCITY_CONTRACT": 12,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 4,
+        "PHYSICAL_SHOT_CHANGED": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_20_known.json",
+        "sha256": "af2861ca11dd7c5fa010d0364c9ce2643d5dab901bcb7e219b92b04d4e79d172"
+      },
+      "source_stats": {
+        "sent": 1413,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.13269121520109478,
+        "plane_s": 0.1458413845949477,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 16
+    },
+    {
+      "status": "PASS",
+      "speed_mps": 20.0,
+      "spin": "unknown",
+      "rate_hz": 300,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 163,
+        "SOURCE_EXPIRED": 112,
+        "PHYSICAL_SHOT_CHANGED": 2,
+        "IMPACT_OR_VELOCITY_CONTRACT": 11,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 6
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_20_unknown.json",
+        "sha256": "8443e959a5beff63b80da5dac25ad55e8d1e23e2a0e24b25194898dee3e1240e"
+      },
+      "source_stats": {
+        "sent": 1413,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.1293097869795691,
+        "plane_s": 0.14670994718419797,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 17
+    },
+    {
+      "status": "PASS",
+      "speed_mps": 20.0,
+      "spin": "zero",
+      "rate_hz": 300,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 170,
+        "SOURCE_EXPIRED": 114,
+        "IMPACT_OR_VELOCITY_CONTRACT": 12,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 4,
+        "PHYSICAL_SHOT_CHANGED": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_chain_300_20_zero.json",
+        "sha256": "633319f48a89211ced9a7292ef410ed761c6f27356ce26e009c1d8ce02f320a4"
+      },
+      "source_stats": {
+        "sent": 1412,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.1293097869795691,
+        "plane_s": 0.1466876425000089,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 16
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 129,
+        "SOURCE_EXPIRED": 122,
+        "SOURCE_UNQUALIFIED": 39,
+        "invalid_base_schema": 9
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_150_held.json",
+        "sha256": "45391c00e131500901beb513726070127d35337e4987740a9286a00cb8dde8e5"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.23998669751337917,
+        "plane_s": 0.40200973620607766,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 0
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 126,
+        "SOURCE_EXPIRED": 105,
+        "IMPACT_OR_VELOCITY_CONTRACT": 20,
+        "SOURCE_UNQUALIFIED": 40,
+        "PHYSICAL_SHOT_CHANGED": 1,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_150_net_clear.json",
+        "sha256": "f8af3212f6e351cc7615b1d26a1fcf942eae398f2e734df38ff544d44ca3a32c"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.16040894956624444,
+        "plane_s": 0.2588742517276824,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 22
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 173,
+        "SOURCE_EXPIRED": 117,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 12,
+        "PHYSICAL_SHOT_CHANGED": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_150_net_collision.json",
+        "sha256": "2d641953c29c0a0418ed3a04062e02ff93dbbbc8f1043251a37aa7f64ac32c88"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.15696072781951897,
+        "plane_s": 0.2593097814147323,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 12
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 125,
+        "SOURCE_EXPIRED": 72,
+        "CONTACT_ORDER_UNCERTAIN": 20,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 1,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_150_uncertain_contact.json",
+        "sha256": "5b9ec1daa05221acf458cad3508f653d0504463d79fbabe2a2bbbfd35eabc179"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.2399866975133986,
+        "plane_s": 0.24056656758481304,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 22
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 127,
+        "SOURCE_EXPIRED": 122,
+        "SOURCE_UNQUALIFIED": 39,
+        "invalid_base_schema": 9
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_300_held.json",
+        "sha256": "ecdc8c582ac976625e5383299b03f66e2359b335ff88e876ce5c1c8ebc3aea25"
+      },
+      "source_stats": {
+        "sent": 1412,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.23998669751337917,
+        "plane_s": 0.40200973620607766,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 0
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "valid_commands": 0,
+      "decoded_callbacks": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 130,
+        "SOURCE_EXPIRED": 105,
+        "IMPACT_OR_VELOCITY_CONTRACT": 17,
+        "CONTACT_ORDER_UNCERTAIN": 2,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 1,
+        "PHYSICAL_SHOT_CHANGED": 2,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 3
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_300_net_clear.json",
+        "sha256": "1185a081c32fc1820d58c5069fb393817f805e484543e157d825bf1623475768"
+      },
+      "source_stats": {
+        "sent": 1412,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.16040894956624444,
+        "plane_s": 0.2588742517276824,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 23
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 170,
+        "SOURCE_EXPIRED": 117,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 12,
+        "PHYSICAL_SHOT_CHANGED": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_300_net_collision.json",
+        "sha256": "525be8a259a90b37319578cd4ba0f42180dc0558c5d92a79a2a32bb6d01eddbb"
+      },
+      "source_stats": {
+        "sent": 1413,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.15696072781951897,
+        "plane_s": 0.2593097814147323,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 12
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 147,
+        "SOURCE_EXPIRED": 72,
+        "CONTACT_ORDER_UNCERTAIN": 20,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 1,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/review_geometry_300_uncertain_contact.json",
+        "sha256": "b386bbb033bf39322bcf32ecfc7fdc8393603671f3261ccd1ea17ac0e3b8beb0"
+      },
+      "source_stats": {
+        "sent": 1413,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.2399866975133986,
+        "plane_s": 0.24056656758481304,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      },
+      "physical_rows_count": 22
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 5.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 61,
+      "decoded_callbacks": 65,
+      "matched_commands": 61,
+      "before_bounce_commands": 55,
+      "trace_receipt_ms": {
+        "p50": 2.6185,
+        "p95": 3.734517,
+        "p99": 4.330468199999999,
+        "max": 4.595166
+      },
+      "actual_decoder_ms": {
+        "p50": 2.262204,
+        "p95": 3.607261,
+        "p99": 4.0431919999999995,
+        "max": 4.352432
+      },
+      "source_to_publication_ms": {
+        "p50": 2.064292,
+        "p95": 3.218156,
+        "p99": 3.772681799999999,
+        "max": 4.186257
+      },
+      "resources": {
+        "VmHWM_kib": 35616,
+        "VmRSS_kib": 35616,
+        "node_cpu_s": 0.4
+      },
+      "relay_ball_observations": 260,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.975609756097561,
+      "observer_trace_depth": 128,
+      "scored_flights": 2,
+      "command_denominator": 41,
+      "covered_command_epochs": 40,
+      "reasons": {
+        "BASE_UNAVAILABLE": 133,
+        "SOURCE_EXPIRED": 92,
+        "SHADOW_COMMAND_VALID": 27,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 3,
+        "PLANE_BEFORE_FIRST_BOUNCE": 3,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 4,
+        "PHYSICAL_SHOT_CHANGED": 1
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/integrated_chain_150_FOLLOW_POSE.json",
+        "sha256": "621e1483163500ea6ba6b8581e12894201e063e4bcff0d4055a4363bf2af70aa"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.23998669751337917,
+        "plane_s": 0.40200973620607766,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "ON_REFRESH",
+      "speed_mps": 5.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 62,
+      "decoded_callbacks": 66,
+      "matched_commands": 62,
+      "before_bounce_commands": 56,
+      "trace_receipt_ms": {
+        "p50": 2.5392205,
+        "p95": 3.24477445,
+        "p99": 3.6839265200000004,
+        "max": 4.067475
+      },
+      "actual_decoder_ms": {
+        "p50": 2.207519,
+        "p95": 2.99368535,
+        "p99": 3.1849937900000005,
+        "max": 3.451845
+      },
+      "source_to_publication_ms": {
+        "p50": 2.0442935,
+        "p95": 2.7651440999999997,
+        "p99": 2.98922011,
+        "max": 3.251184
+      },
+      "resources": {
+        "VmHWM_kib": 35664,
+        "VmRSS_kib": 35664,
+        "node_cpu_s": 0.38
+      },
+      "relay_ball_observations": 260,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.975609756097561,
+      "observer_trace_depth": 128,
+      "scored_flights": 2,
+      "command_denominator": 41,
+      "covered_command_epochs": 40,
+      "reasons": {
+        "BASE_UNAVAILABLE": 132,
+        "SOURCE_EXPIRED": 92,
+        "SHADOW_COMMAND_VALID": 28,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_BEFORE_FIRST_BOUNCE": 6,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 4,
+        "PHYSICAL_SHOT_CHANGED": 1
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/integrated_chain_150_ON_REFRESH.json",
+        "sha256": "ff3b1eec0092524eaf894956eec50efe8f31d75d978a0d55962d454720968fac"
+      },
+      "source_stats": {
+        "sent": 707,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.23998669751337917,
+        "plane_s": 0.40200973620607766,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "speed_mps": 5.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 126,
+      "decoded_callbacks": 129,
+      "matched_commands": 125,
+      "before_bounce_commands": 114,
+      "trace_receipt_ms": {
+        "p50": 2.385875,
+        "p95": 6.42780475,
+        "p99": 25.02221875,
+        "max": 29.878404
+      },
+      "actual_decoder_ms": {
+        "p50": 2.06349,
+        "p95": 3.1479524,
+        "p99": 3.7433481200000003,
+        "max": 3.835908
+      },
+      "source_to_publication_ms": {
+        "p50": 1.8908635,
+        "p95": 2.92009275,
+        "p99": 3.53746575,
+        "max": 4.53588
+      },
+      "resources": {
+        "VmHWM_kib": 35972,
+        "VmRSS_kib": 35972,
+        "node_cpu_s": 0.6
+      },
+      "relay_ball_observations": 512,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.9634146341463414,
+      "observer_trace_depth": 128,
+      "scored_flights": 2,
+      "command_denominator": 82,
+      "covered_command_epochs": 79,
+      "reasons": {
+        "BASE_UNAVAILABLE": 140,
+        "SOURCE_EXPIRED": 90,
+        "SHADOW_COMMAND_VALID": 28,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 1,
+        "PLANE_BEFORE_FIRST_BOUNCE": 5,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 6,
+        "PHYSICAL_SHOT_CHANGED": 1
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/integrated_chain_300_FOLLOW_POSE.json",
+        "sha256": "e60fea8181bf79c7f9806bf316c144eaa78ad29832b6ca1c8e4901acb7d00cb5"
+      },
+      "source_stats": {
+        "sent": 1413,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.23998669751337917,
+        "plane_s": 0.40200973620607766,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    },
+    {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "ON_REFRESH",
+      "speed_mps": 5.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 127,
+      "decoded_callbacks": 129,
+      "matched_commands": 126,
+      "before_bounce_commands": 115,
+      "trace_receipt_ms": {
+        "p50": 2.314202,
+        "p95": 9.447775299999968,
+        "p99": 20.664617439999986,
+        "max": 24.042614
+      },
+      "actual_decoder_ms": {
+        "p50": 2.0090079999999997,
+        "p95": 2.70217825,
+        "p99": 4.036667,
+        "max": 7.297796
+      },
+      "source_to_publication_ms": {
+        "p50": 1.876329,
+        "p95": 2.557835599999999,
+        "p99": 5.421195839999987,
+        "max": 11.581081
+      },
+      "resources": {
+        "VmHWM_kib": 36608,
+        "VmRSS_kib": 36608,
+        "node_cpu_s": 0.58
+      },
+      "relay_ball_observations": 514,
+      "command_coverage_gate": "PASS",
+      "command_coverage": 0.975609756097561,
+      "observer_trace_depth": 128,
+      "scored_flights": 2,
+      "command_denominator": 82,
+      "covered_command_epochs": 80,
+      "reasons": {
+        "BASE_UNAVAILABLE": 140,
+        "SOURCE_EXPIRED": 92,
+        "SHADOW_COMMAND_VALID": 28,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_BEFORE_FIRST_BOUNCE": 6,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 4,
+        "PHYSICAL_SHOT_CHANGED": 1
+      },
+      "camera_driver_included": false,
+      "synthetic_registration": true,
+      "context_publisher": false,
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/integrated_chain_300_ON_REFRESH.json",
+        "sha256": "897797427342d6eda5515e6ea80adc60661c87c1a095ff3c245a615228f80902"
+      },
+      "source_stats": {
+        "sent": 1412,
+        "synthetic_source_cyclic_gc": "disabled_during_pacing",
+        "bounce_s": 0.23998669751337917,
+        "plane_s": 0.40200973620607766,
+        "command_epoch_contract": "first_2_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included"
+      }
+    }
+  ],
+  "source_hashes": {
+    "hope_ws/src/hope_planner_cpp/CMakeLists.txt": "e098fa776b9d58c1651f97344c1796864c783e93cbf2729596261e78c0a50337",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/common_ball_physics.hpp": "746079d2ac9bc2ac5809a41eac6574bd8a37cf29e4b401e1efd022a70f9e6aef",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_state_v2.hpp": "dc02dfde6a930cd36448a97e7aafc140cf1cee97acc5220d86a66dfa498d0ade",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trusted_spin.hpp": "192cece035fdfaae8287524aa920e4e86d1a6f5f7c0395fa0245d27e3594f639",
+    "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_integrated.sh": "493dc6bc943dc0a29af0d153615ebd99169865855e653139d7df0cae8ec287aa",
+    "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_pr64_review.sh": "7051e383784c9267ee9006fc6c424a39b5af1ad0639cd26ac7c07c09949560f5",
+    "hope_ws/src/hope_planner_cpp/src/common_ball_physics.cpp": "d79aaf3cfe8cbe7bc5763800827f717bfd875f414e460b8b286a8bc46c089aa7",
+    "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_node.cpp": "9f986d187ba1569ea595058fbb9b5077ab29e6c0c7125ee6b180efdb54c05e2d",
+    "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp": "1e094d8145b3d6a044650821f24b48d20a179e83d2007477648406a34b991153",
+    "hope_ws/src/hope_planner_cpp/src/flight_spin_estimator.cpp": "0efc532c7d1597f4d0c287e87fa435800879e5ec7ec5ab28a279f01d4f586699",
+    "hope_ws/src/hope_planner_cpp/src/flight_state_v2.cpp": "5a3c6ed44371a3d1b50932a0310c470f36b1354ed167f0b50160769fa4c724bb",
+    "hope_ws/src/hope_planner_cpp/src/flight_transport_v2.cpp": "d1ea1acbcd5b436a53fc9a19de89c8f5c3d3bd6697aa3f1737b00294413feba7",
+    "hope_ws/src/hope_planner_cpp/src/integrated_planner_runtime.cpp": "c3b2246b01ffbfaecdcf6997cb57c3464e5dcb1fdf3a88ab67668f5583e65d7f",
+    "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp": "04747ad13e702caa4214974a53d021b2013da3fdcebe2d722148baf0e2a5eae4",
+    "hope_ws/src/hope_planner_cpp/src/return_region.cpp": "3c12d6078a63207492c8849fe71c219560b7fbb5fcaace39fb658d1de87756c8",
+    "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py": "75a15f11fcf10f49827c4dcb5139ffc31b0337f1580bdf28bf1e5adfe9ad5dbd",
+    "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_smoke.py": "1f08c7b9861e79f32e096ed1b50831248a3cd519da7f2c0be02d919b723305ed",
+    "hope_ws/src/hope_planner_cpp/test/integrated_context_noop.py": "6b4cd2c3930e33ffcb36dd486a638d5fa0c6393aa65ff729c20904d92a74c916",
+    "hope_ws/src/hope_planner_cpp/test/integrated_producer_chain.py": "71ed365dac4d19b616ad79cc1c0a6fcf0d4e4cd73aee4989026a40a25523a70f",
+    "hope_ws/src/hope_planner_cpp/test/native/CMakeLists.txt": "4ac2e85f0d45bcedc5894c0d1f88c2b8da002a96057eafa3bda66c36ca92d42a",
+    "hope_ws/src/hope_planner_cpp/test/review_cutoff_parity.py": "89d971b841d0d3fa42bc7d6d1980b9d3a9b5e4f93c19e58b9609fce508e8424a",
+    "hope_ws/src/hope_planner_cpp/test/review_policy_contract.py": "67c88fa7122f4512eb3be3a013a34b8c84ea160efcd94e0efcd4e6443b164868",
+    "hope_ws/src/hope_planner_cpp/test/review_startup_guards.py": "db8d2cfa4f581bce72c69f7e30f1927babebf9de0b7b6ca9668566f961b8c6bf",
+    "hope_ws/src/hope_planner_cpp/test/test_flight_prediction_v2.cpp": "48245b7ed05f83addd9c5a6c45264f366e8b122797f2a528380c1b498b781021",
+    "hope_ws/src/hope_planner_cpp/test/test_flight_transport_v2.cpp": "2711c0f3b081eea26675f2a05d8a757920054ab76d527ee652ac8e7e5a8df241",
+    "hope_ws/src/hope_planner_cpp/test/test_forecast_scope.py": "3908c4bf2e1ea745f243cebdaea8259a004df111a06e2adba8e74d185ea2a7d6",
+    "hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp": "d518a6dd63de58d86d23ec1f898b453b423e5edc65776463c5995ed08f4d7977"
+  },
+  "configuration_hashes": {
+    "hope_ws/src/hope_planner_cpp/config/model14600_mujoco_material_match_diagnostic.yaml": "327186bd3d5d938698d8c4f6a05dd9e98d39918ea4c6a0ed3900a073dc62ca24",
+    "hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml": "9b62e89b58fedad5131999877879b78f66a3d6675a314f48ff0e58c5dca991c8",
+    "hope_ws/src/hope_planner_cpp/config/model14600_adaptive_flight_packetizer.yaml": "903d9b4252b6bac4f95abb2f928b7f116b1c49d7076a60959dc8ea4d4be43e1e",
+    "hope_ws/src/hope_planner_cpp/config/model14600_contact_observation_candidate.yaml": "52d9925d6f6b61100112ebad530f53b01184ef242203a7526434721b05bb47bf",
+    "hope_ws/src/hope_planner_cpp/config/ball_physics_real_20261010.yaml": "5e46060ddaf2c3ea84b59fe06ce8dfe834e31bebaa404ae1fbc1172cfb613a3c",
+    "hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml": "903d9b4252b6bac4f95abb2f928b7f116b1c49d7076a60959dc8ea4d4be43e1e",
+    "hope_ws/src/hope_planner_cpp/config/model14600_spin_contact.yaml": "5e46060ddaf2c3ea84b59fe06ce8dfe834e31bebaa404ae1fbc1172cfb613a3c",
+    "hope_ws/src/hope_planner_cpp/config/integrated_planner.shadow.yaml": "1690eea4533c2644002600c2cdd4e73aa2f77ebc0ae574096db709133468525f",
+    "hope_ws/src/hope_planner_cpp/config/flight_prediction_v2_shadow.yaml": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d"
+  },
+  "interface_hashes": {
+    "hope_ws/src/hope_msgs/msg/FlightPredictionV2.msg": "d221806520cd3d63f230bec49fc1b8c62044dc505627ce711e5e1410ebbe2e3d",
+    "hope_ws/src/hope_msgs/msg/BallObservationV2.msg": "a4dc360a56733b597bc0ea0231cc3f42805ced99e7e18235a554149e3a25109e",
+    "hope_ws/src/hope_msgs/msg/BallFlightSample.msg": "2c7d0580ec1b7b5660a0c07acca778aeb19f78865373bda1e07a1449957de225",
+    "hope_ws/src/hope_msgs/msg/BallFlightPacket.msg": "5e820416779e54927885ee61069eb51635cd9d6475aca80a47dd009b3d3cea90",
+    "hope_ws/src/hope_msgs/msg/RacketCommand.msg": "8154d7a78c201f8b7ad8910ddf08ca2098486ec9197c8e24df3253c0f099165c",
+    "hope_ws/src/hope_msgs/msg/FlightEventV2.msg": "d2bb649ebc8d386f9a42b0baf2cbfa0e2cc6d04b8ae20f66f8caa582f5b1f149",
+    "hope_ws/src/hope_msgs/msg/FlightPacketV2.msg": "a241d9e38c2a68d8642f319d07294f88877e68ab41c62c5f81bbf8c431cd0ae8",
+    "hope_ws/src/hope_msgs/msg/FlightWaypointV2.msg": "02776c33afe034e11245b1f62f5849271e67438366bd4641065e38f7bd28f85a",
+    "hope_ws/src/hope_msgs/msg/FlightContextV2.msg": "2191901e470b06f09a42babecaa4451c80ace539f5ef8719e475ed49e3e4c8ac"
+  },
+  "executable_hashes": {
+    "hope_planner_cpp_node": {
+      "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/hope_planner_cpp_node",
+      "sha256": "9fa8a339924a5cf9abe3b8a2e5ec68df46f2d018835375a53e23196ec0768b43"
+    },
+    "hope_flight_prediction_v2_node": {
+      "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/hope_flight_prediction_v2_node",
+      "sha256": "957673776d02469723fe8d6ca55950664821661b50c3838701a00355930a6813"
+    },
+    "hope_flight_prediction_v2_replay": {
+      "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/hope_flight_prediction_v2_replay",
+      "sha256": "210991014d0b1329d79d593c29317b61ae4cbbc0a310adb5b4199e5e70e5e325"
+    },
+    "hope_integrated_runner_probe": {
+      "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/hope_integrated_runner_probe",
+      "sha256": "62a58fc95f550dfeacbfc2ca56067c4074dbc5c98ffc666d147c82ce7c27555d"
+    },
+    "hope_integrated_return_sweep": {
+      "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/hope_integrated_return_sweep",
+      "sha256": "0ee4cd3eb42d84dbac7e4bdcaf7924aa7d74818d249dca470f7b2608680ec9c3"
+    },
+    "test_v2_pr64_review_regressions": {
+      "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/build/hope_planner_cpp/test_v2_pr64_review_regressions",
+      "sha256": "b6a49f030a91fa28d1afadd531475215eeeeab34b0a582cb239e1b75d8884bf7"
+    }
+  },
+  "source_cutoff_parity": {
+    "status": "PASS",
+    "results": [
+      {
+        "rate_hz": 150,
+        "qualified_spin": false,
+        "matched_cutoffs": 41,
+        "pre_bounce_cutoffs": 27,
+        "post_bounce_cutoffs": 11,
+        "compared_events": 123,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 46,
+        "fixture": "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/hope_planner_cpp/review_source_cutoff_parity-150-False.csv"
+      },
+      {
+        "rate_hz": 150,
+        "qualified_spin": true,
+        "matched_cutoffs": 41,
+        "pre_bounce_cutoffs": 29,
+        "post_bounce_cutoffs": 9,
+        "compared_events": 125,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 46,
+        "fixture": "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/hope_planner_cpp/review_source_cutoff_parity-150-True.csv"
+      },
+      {
+        "rate_hz": 300,
+        "qualified_spin": false,
+        "matched_cutoffs": 85,
+        "pre_bounce_cutoffs": 56,
+        "post_bounce_cutoffs": 23,
+        "compared_events": 255,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 93,
+        "fixture": "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/hope_planner_cpp/review_source_cutoff_parity-300-False.csv"
+      },
+      {
+        "rate_hz": 300,
+        "qualified_spin": true,
+        "matched_cutoffs": 84,
+        "pre_bounce_cutoffs": 58,
+        "post_bounce_cutoffs": 19,
+        "compared_events": 254,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 93,
+        "fixture": "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/hope_planner_cpp/review_source_cutoff_parity-300-True.csv"
+      }
+    ]
+  },
+  "outgoing_reference": {
+    "status": "PASS",
+    "total_candidates": 144,
+    "accepted": 144,
+    "rejections": {},
+    "reference": "independent scipy DOP853 rtol=2e-12 atol=2e-14 + analytic normal impact",
+    "max_position_error_m": 3.2938040705144405e-13,
+    "max_event_time_error_s": 7.882583474838611e-14,
+    "max_impact_closure_mps": 0.0,
+    "physical_accuracy": "NOT_RUN",
+    "artifact": {
+      "path": "/workspace/.cloud-setup/pr64-review/retest-912d456/outgoing-reference.json",
+      "sha256": "4201ffde44bccb85d281e20d0485069edebccbb95aa952f62a3fbdde045b28fa"
+    }
+  },
+  "policy_artifact_contract": {
+    "status": "PASS",
+    "scope": "Two replaceable artifacts: metadata/110-D ABI and finite CPU inference only.\n\nReal decoder and observation-builder semantics are exercised by the C++ suite.\nThis is not achieved paddle tracking or a native Runner --inspect-policy run.\n",
+    "results": [
+      {
+        "artifact": "a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx",
+        "sha256": "6bf1a2418f8538e23577a0153f2fe6a1e78dee91f41650a232259432a84a4dc8",
+        "recipe": "rally_v14",
+        "cases": [
+          {
+            "lead_s": 0.2,
+            "velocity": [
+              1.5,
+              -0.2,
+              0.8
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.08,
+            "velocity": [
+              2.0,
+              0.1,
+              1.2
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.4,
+            "velocity": [
+              1.0,
+              0.0,
+              0.5
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          }
+        ],
+        "contract": {
+          "observation_names": "base_ang_vel,joint_pos,joint_vel,actions,projected_gravity,base_forward_xy,base_target_delta_xy,racket_target_rel_base,racket_target_vel_w,time_to_strike",
+          "actor_obs_total_dim": "110",
+          "world_frame_contract": "table_p1_to_p2_v1",
+          "actor_obs_contract": "hitter_pure"
+        }
+      },
+      {
+        "artifact": "hope_training/whole_body_tracking/checkpoints/policy.onnx",
+        "sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+        "recipe": "continuous_rally_sim2real_v3",
+        "cases": [
+          {
+            "lead_s": 0.2,
+            "velocity": [
+              1.5,
+              -0.2,
+              0.8
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.08,
+            "velocity": [
+              2.0,
+              0.1,
+              1.2
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.4,
+            "velocity": [
+              1.0,
+              0.0,
+              0.5
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          }
+        ],
+        "contract": {
+          "observation_names": "base_ang_vel,joint_pos,joint_vel,actions,projected_gravity,base_forward_xy,base_target_delta_xy,racket_target_rel_base,racket_target_vel_w,time_to_strike",
+          "actor_obs_total_dim": "110",
+          "world_frame_contract": "table_p1_to_p2_v1",
+          "actor_obs_contract": "hitter_pure"
+        }
+      }
+    ]
+  },
+  "upstream_decoder_compatibility": {
+    "source_commit": "3b3c40237225d917a1bfe1bdff6f4a58af7eed9e",
+    "tests": {
+      "I17_I18_I19_UnknownIncompleteAndEarlyPrediction": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "I20_PhysicalOrderingAndDirectionNegatives": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "I21_I22_AdvisoryGameContextAndPhysicalSupport": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "SignedSimulationEpochAndRegistrationMismatch": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "P03_IndependentAnalyticClosureAndApproach": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "P01_P03_P05_P08_P09_ActualActionFirstLandingAndDuration": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "P02_FiniteUnconvergedIsRejected": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "P04_AnalyticNoDragSurfaceRadiusAndHeightOnce": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "P06_P07_NetAndGeometryFaultsReject": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "P08_RetryRecordsActualSelectedDuration": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "L01_L02_L03_SemanticIdentityAndFreshness": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "L05_L06_CommitAndExactIntegerOverflow": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "W01_W02_W03_W05_ActualSchema2Decoder": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      },
+      "I12_I17_I19_ActualCkfWithoutContextPublisher": {
+        "status": "PASS",
+        "seconds": "0.044",
+        "properties": {},
+        "failures": []
+      },
+      "I21_GameIllegalHistoryDoesNotRetirePhysicalTrack": {
+        "status": "PASS",
+        "seconds": "0.",
+        "properties": {},
+        "failures": []
+      }
+    },
+    "artifact": "/workspace/.cloud-setup/pr64-review/upstream-decoder-compat/test.log"
+  },
+  "wire_resume_before": {
+    "source_commit": "5ff2b2315677feaf29c52c8c6d74c379079e8ee2",
+    "artifact": "/workspace/.cloud-setup/pr64-review/wire-resume-before.xml",
+    "sha256": "51c7e779c13f9be54102a70654360ca0990dd0f9a94d5ab95edbe6ce5f4cdbe0",
+    "results": {
+      "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation": {
+        "status": "FAIL",
+        "seconds": "0.001",
+        "properties": {},
+        "failures": [
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 5\n  original.shot().revision()\n    Which is: 4\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 5\n  original.shot().revision()\n    Which is: 4\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 5\n  original.shot().revision()\n    Which is: 4\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 4\n  original.shot().revision()\n    Which is: 3\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 4\n  original.shot().revision()\n    Which is: 3\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 4\n  original.shot().revision()\n    Which is: 3\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 4\n  original.shot().revision()\n    Which is: 3\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 4\n  original.shot().revision()\n    Which is: 3\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 4\n  original.shot().revision()\n    Which is: 3\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:208\nExpected equality of these values:\n  restored.shot().observed_contacts()\n    Which is: 2\n  1\n",
+          "/workspace/HOPE-integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp:209\nExpected equality of these values:\n  restored.shot().revision()\n    Which is: 4\n  original.shot().revision()\n    Which is: 3\n"
+        ]
+      }
+    }
+  },
+  "remaining_requirements": "integrated_planner_review_remaining_qualification.md",
+  "publication_options": "integrated_planner_pr64_publication_options.md",
+  "model_limits": [
+    "Six-state CKF; deterministic RK4/event forward rollouts.",
+    "Conditional PV covariance excludes uncalibrated spin/model/plane/clock uncertainty.",
+    "Finite zero-thickness rectangular net, no pole thickness.",
+    "20m/s physical support never implies actor feasibility.",
+    "Full native Runner --inspect-policy and actual achieved paddle tracking are NOT_RUN in this cloud task.",
+    "Real PPQ004 upstream data exists but corrected-planner held-out physical validation is NOT_RUN."
+  ],
+  "verification_entrypoint": "bash hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_pr64_review.sh /new/absolute/evidence",
+  "this_run": "Full clean baseline executed once. Clean corrected build at 5ff2b23 exposed the old smoke profile expectation and one pacing-overrun coverage failure. Packet-resume regression then reproduced before the final fix. All native/sanitizer groups rebuilt and rerun at dc914c8. Full 67-group ROS run passed 66, then the corrected raw camera fixture and focused C++ group passed targeted closure on identical runtime sources. Latest result per test name is reported, with every artifact retained; this is cumulative closure, not a single 67/67 invocation. Numerical/parity gates are core-source-equivalent; earlier pilot failures and abbreviated eight-epoch scoring remain archived. Fast positive fixtures were frozen at ten scored flights before the final full run; thresholds and all slow/rejected rows are unchanged.",
+  "closure_gate_exits": {
+    "refresh_300_10_unknown": 0,
+    "expiry_150": 0,
+    "native-build": 0,
+    "sanitized-build": 0,
+    "refresh_150_10_unknown": 0,
+    "review-cases": 0,
+    "sanitized-test": 0,
+    "refresh_150_12_known": 0,
+    "refresh_300_12_known": 0,
+    "ros-build": 0,
+    "expiry_300": 0,
+    "ros-closure": 0,
+    "native-test": 0
+  },
+  "raw_scenarios": {
+    "status": "PASS",
+    "truth": "synthetic independent DOP853 fixture; not physical qualification",
+    "scenarios": [
+      {
+        "direction": -1,
+        "rate_hz": 150,
+        "policy": "FOLLOW_POSE",
+        "physical_forecasts": 116,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15,
+          0.25
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 147.56869960893985,
+        "max_source_gap_ms": 19.853039
+      },
+      {
+        "direction": -1,
+        "rate_hz": 300,
+        "policy": "FOLLOW_POSE",
+        "physical_forecasts": 224,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15,
+          0.25
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 297.61040813994987,
+        "max_source_gap_ms": 10.015127
+      },
+      {
+        "direction": 1,
+        "rate_hz": 150,
+        "policy": "FOLLOW_POSE",
+        "physical_forecasts": 116,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15,
+          0.25
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 147.56774453319977,
+        "max_source_gap_ms": 19.981645999999998
+      },
+      {
+        "direction": 1,
+        "rate_hz": 300,
+        "policy": "FOLLOW_POSE",
+        "physical_forecasts": 213,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15,
+          0.25
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 297.5918715124292,
+        "max_source_gap_ms": 10.131309
+      },
+      {
+        "direction": -1,
+        "rate_hz": 150,
+        "policy": "ON_REFRESH",
+        "physical_forecasts": 115,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 147.57074445260636,
+        "max_source_gap_ms": 19.965517
+      },
+      {
+        "direction": -1,
+        "rate_hz": 300,
+        "policy": "ON_REFRESH",
+        "physical_forecasts": 225,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 297.62277628769675,
+        "max_source_gap_ms": 9.982460999999999
+      },
+      {
+        "direction": 1,
+        "rate_hz": 150,
+        "policy": "ON_REFRESH",
+        "physical_forecasts": 114,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 147.5673892184186,
+        "max_source_gap_ms": 19.986812
+      },
+      {
+        "direction": 1,
+        "rate_hz": 300,
+        "policy": "ON_REFRESH",
+        "physical_forecasts": 220,
+        "confirmed_bounces": 2,
+        "spin_modes": [
+          "CONTACT_PROPAGATED",
+          "HELD",
+          "MEASURED"
+        ],
+        "planes": [
+          0.15
+        ],
+        "generation": 1,
+        "automatic_acquisition": true,
+        "source_stamps_preserved": true,
+        "outside_legacy_robot_y_gate": true,
+        "verified_history_refreshes": 1,
+        "requested_full_rate_hz": 50,
+        "independent_source_process": true,
+        "actual_source_rate_hz": 297.59181064958574,
+        "max_source_gap_ms": 10.026947999999999
+      }
+    ]
+  },
+  "supplementary_installed": {
+    "expiry_150": {
+      "status": "PASS",
+      "worker_delay_ms": 40,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 134,
+        "SOURCE_EXPIRED": 91,
+        "PHYSICAL_SHOT_CHANGED": 5,
+        "TIMING_OR_REVISION_REJECTED": 16,
+        "PHYSICAL_CONTEXT_CHANGED": 10,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 4,
+        "PLANE_BEFORE_FIRST_BOUNCE": 2
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/closure/expiry_150.json",
+        "sha256": "4e7224d04a64730c03f3604d7fca059d4275b29e1df873bc6840ca18bf7e4d1a"
+      },
+      "case": "delayed_worker_expiry",
+      "source_eligible_epochs": 41,
+      "superseded_work": 86,
+      "queue_bound": {
+        "running": 1,
+        "pending": 1
+      }
+    },
+    "expiry_300": {
+      "status": "PASS",
+      "worker_delay_ms": 40,
+      "valid_commands": 0,
+      "reasons": {
+        "BASE_UNAVAILABLE": 126,
+        "SOURCE_EXPIRED": 90,
+        "PHYSICAL_SHOT_CHANGED": 7,
+        "TIMING_OR_REVISION_REJECTED": 15,
+        "PHYSICAL_CONTEXT_CHANGED": 10,
+        "SOURCE_UNQUALIFIED": 39,
+        "PLANE_UNQUALIFIED": 2,
+        "PLANE_BEFORE_FIRST_BOUNCE": 4,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 1
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/closure/expiry_300.json",
+        "sha256": "1737b88f97b7b92f152c10c4fc355f876025c51b53dc67b7164cfbc536d7e9a6"
+      },
+      "case": "delayed_worker_expiry",
+      "source_eligible_epochs": 82,
+      "superseded_work": 195,
+      "queue_bound": {
+        "running": 1,
+        "pending": 1
+      }
+    },
+    "refresh_150_10_unknown": {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "ON_REFRESH",
+      "speed_mps": 10.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 200,
+      "actual_decoder_ms": {
+        "p50": 2.310799,
+        "p95": 3.2480934499999985,
+        "p99": 4.226958389999986,
+        "max": 15.77314
+      },
+      "source_to_publication_ms": {
+        "p50": 2.0333925,
+        "p95": 2.8769633999999997,
+        "p99": 3.41489108,
+        "max": 5.491661
+      },
+      "command_coverage": 1.0,
+      "scored_flights": 10,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "reasons": {
+        "BASE_UNAVAILABLE": 133,
+        "SOURCE_EXPIRED": 372,
+        "SHADOW_COMMAND_VALID": 90,
+        "SOURCE_UNQUALIFIED": 39,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 20,
+        "PHYSICAL_SHOT_CHANGED": 9,
+        "PLANE_BEFORE_FIRST_BOUNCE": 9,
+        "PHYSICAL_CONTEXT_CHANGED": 27
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/closure/refresh_150_10_unknown.json",
+        "sha256": "51dc20cfe8a2971e5b86795dd54b3c30ef63a5228156cc28018aba138c15faac"
+      }
+    },
+    "refresh_150_12_known": {
+      "status": "PASS",
+      "rate_hz": 150,
+      "plane_policy": "ON_REFRESH",
+      "speed_mps": 12.0,
+      "spin": "known",
+      "scenario": "standard",
+      "valid_commands": 40,
+      "actual_decoder_ms": {
+        "p50": 2.7219265000000004,
+        "p95": 4.575446949999999,
+        "p99": 4.95662204,
+        "max": 4.989407
+      },
+      "source_to_publication_ms": {
+        "p50": 2.476178,
+        "p95": 3.5127611499999962,
+        "p99": 4.70333117,
+        "max": 4.707503
+      },
+      "command_coverage": 1.0,
+      "scored_flights": 10,
+      "command_denominator": 20,
+      "covered_command_epochs": 20,
+      "reasons": {
+        "BASE_UNAVAILABLE": 134,
+        "SOURCE_EXPIRED": 351,
+        "CONTACT_ORDER_UNCERTAIN": 38,
+        "SHADOW_COMMAND_VALID": 57,
+        "SOURCE_UNQUALIFIED": 76,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PLANE_BEFORE_FIRST_BOUNCE": 9,
+        "CONTACT_EXPIRED": 3,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/closure/refresh_150_12_known.json",
+        "sha256": "588230f7c4167bca592d3b7f75db6ad77c0d801fdab413faf3b8b082d38a207f"
+      }
+    },
+    "refresh_300_10_unknown": {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "ON_REFRESH",
+      "speed_mps": 10.0,
+      "spin": "unknown",
+      "scenario": "standard",
+      "valid_commands": 407,
+      "actual_decoder_ms": {
+        "p50": 2.0665620000000002,
+        "p95": 3.235667,
+        "p99": 5.1868405499999986,
+        "max": 8.435609
+      },
+      "source_to_publication_ms": {
+        "p50": 1.902182,
+        "p95": 2.9899709999999984,
+        "p99": 4.718635459999999,
+        "max": 8.257947
+      },
+      "command_coverage": 0.9875,
+      "scored_flights": 10,
+      "command_denominator": 160,
+      "covered_command_epochs": 158,
+      "reasons": {
+        "BASE_UNAVAILABLE": 134,
+        "SOURCE_EXPIRED": 375,
+        "SHADOW_COMMAND_VALID": 90,
+        "SOURCE_UNQUALIFIED": 39,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 20,
+        "PHYSICAL_SHOT_CHANGED": 9,
+        "PHYSICAL_CONTEXT_CHANGED": 35,
+        "PLANE_BEFORE_FIRST_BOUNCE": 1
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/closure/refresh_300_10_unknown.json",
+        "sha256": "926c87468039ba9be8a3f47b265641a8351886b4db473f2b00cce27553c525f4"
+      }
+    },
+    "refresh_300_12_known": {
+      "status": "PASS",
+      "rate_hz": 300,
+      "plane_policy": "ON_REFRESH",
+      "speed_mps": 12.0,
+      "spin": "known",
+      "scenario": "standard",
+      "valid_commands": 112,
+      "actual_decoder_ms": {
+        "p50": 2.2115169999999997,
+        "p95": 2.8752820499999996,
+        "p99": 3.89412911,
+        "max": 4.968683
+      },
+      "source_to_publication_ms": {
+        "p50": 2.0430505,
+        "p95": 2.6828790499999995,
+        "p99": 3.7276731100000005,
+        "max": 3.982599
+      },
+      "command_coverage": 1.0,
+      "scored_flights": 10,
+      "command_denominator": 40,
+      "covered_command_epochs": 40,
+      "reasons": {
+        "BASE_UNAVAILABLE": 125,
+        "SOURCE_EXPIRED": 351,
+        "CONTACT_ORDER_UNCERTAIN": 30,
+        "SHADOW_COMMAND_VALID": 59,
+        "SOURCE_UNQUALIFIED": 75,
+        "PHYSICAL_SHOT_CHANGED": 18,
+        "PLANE_BEFORE_FIRST_BOUNCE": 9,
+        "CONTACT_EXPIRED": 4,
+        "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18,
+        "PHYSICAL_CONTEXT_CHANGED": 5
+      },
+      "artifact": {
+        "path": "/workspace/.cloud-setup/pr64-review/closure/refresh_300_12_known.json",
+        "sha256": "2ed5020fce04f6968f4f78c0888cac1391397adcae6e02c6271bca2295d92848"
+      }
+    }
+  },
+  "validation_environment": {
+    "kind": "Docker cloud workspace",
+    "toolchain_artifact": "/workspace/.cloud-setup/pr64-review/toolchain.txt",
+    "container_image_artifact": "/workspace/.cloud-setup/pr64-review/container-image-id.txt",
+    "hardware_qualification": false
+  },
+  "gate_accounting": "All build/test exits preserved. Aggregate verify_integrated remains nonzero for inherited bringup lint; cumulative latest-per-test functional closure is reported separately.",
+  "baseline_expected_focused_failures": 15,
+  "baseline_focused_count": 20,
+  "corrected_focused_count": 25,
+  "build_configuration_hashes": {
+    "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/native/CMakeCache.txt": "9cda53452a4c8e2d5f6773be33edb8f9aaac99dd5aaea1450cc6ed3354138861",
+    "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/sanitized/CMakeCache.txt": "d672afe2ed7487f4068946b826c3e18c8973691550af9e0d4bf4e670a2359f28",
+    "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/motion_capture_tracking_interfaces/CMakeCache.txt": "462560995484778739ea038b1a3a907e375b42dcd01a70c7abdede3b2c8e478a",
+    "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_planner_cpp/CMakeCache.txt": "9e8f6c7dc2df3a01f6203525ac95db7389ddd137299ddc2e653c9ec9f59f6d8c",
+    "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_bringup/CMakeCache.txt": "17006d4f6d04df9ad221b39224035392fc984265314aa5fcb8f9f57356d8dbd8",
+    "/workspace/.cloud-setup/pr64-review/qualification-85d22fd/baseline/build/hope_msgs/CMakeCache.txt": "f2467592491a0144791e48f1f6b18b3e66719e7ddfdfb064eda2ceaf863b6007",
+    "/workspace/.cloud-setup/pr64-review/final-5ff2b23/native/CMakeCache.txt": "7c87a6f5a20c92066a021c7be58f847b876993a14728f452c86e6870134573c2",
+    "/workspace/.cloud-setup/pr64-review/final-5ff2b23/sanitized/CMakeCache.txt": "1f9b4d0e148691e521c2b28c41b0ad7443026f846174fafe8d09756a5b60864b",
+    "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/motion_capture_tracking_interfaces/CMakeCache.txt": "fcf7ee3686e62cc06ea41f54b3f47d7d6be09c12977e4c49660dd5ce191e516a",
+    "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/hope_planner_cpp/CMakeCache.txt": "97f7db97bcf3ac4f84ef89a9fe6a9468d06ce8928dce1b45ec6b989100e04e4c",
+    "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/hope_bringup/CMakeCache.txt": "ce366a0df961af171650bb99ba4ca8b2b7866ca10eafca033e60b220611281e7",
+    "/workspace/.cloud-setup/pr64-review/final-5ff2b23/build/hope_msgs/CMakeCache.txt": "f8c665d5ee708416cea79b0cb7b969c3365f0f758a43b8653d49ea28e0904ffb"
+  },
+  "evidence_archive": {
+    "path": "/workspace/.cloud-setup/pr64-review/pr64-review-evidence.tar.gz",
+    "manifest": "/workspace/.cloud-setup/pr64-review/evidence-manifest.json",
+    "contents": "Source patch and review documents, fixture sources, raw log/XML/JSON receipts, toolchain/configuration pins and checksums; no compiled caches or credentials."
+  }
+}
