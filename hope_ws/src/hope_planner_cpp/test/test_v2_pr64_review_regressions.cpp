@@ -157,10 +157,18 @@ TEST(PR64Review, RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce) {
     p.start(observation(0,state).source_time_ns,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
     EventGeometry g;g.receiving_x=.15;
     std::set<std::uint64_t> ids;int physical=0;
+    std::optional<std::uint64_t> confirmed_revision;
     for(int i=0;i<rate/5;++i) {
-      auto s=observation(i*1./rate,state);p.observe(s);p.forecast(plane(),s.source_time_ns);
+      auto s=observation(i*1./rate,state);p.observe(s);
+      auto forecast=p.forecast(plane(),s.source_time_ns);
       EXPECT_TRUE(p.shot().active())<<p.shot().reason();
       EXPECT_LE(p.shot().observed_contacts(),1);
+      if(p.shot().observed_contacts()==1) {
+        if(!confirmed_revision)confirmed_revision=p.shot().revision();
+        EXPECT_EQ(p.shot().revision(),*confirmed_revision);
+        auto eligibility=select_physical_return(forecast,p.shot().export_snapshot(),c,s.source_time_ns);
+        EXPECT_NE(eligibility.reason,"SECOND_RECEIVER_BOUNCE");
+      }
       for(const auto &e:p.shot().events())
         if(e.kind==PhysicalEventKind::TABLE&&e.status==EventStatus::CONFIRMED)ids.insert(e.id);
       auto step=advance_ball(state,1./rate,c.physics,g);
