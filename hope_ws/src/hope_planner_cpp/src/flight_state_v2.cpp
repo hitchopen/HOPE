@@ -534,7 +534,9 @@ void ShotContext::reclassify() {
 }
 bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
                           std::int64_t confirmed, const ModelState &pre,
-                          const std::string &source, std::int64_t uncertainty) {
+                          const std::string &source, std::int64_t uncertainty,
+                          std::optional<std::int64_t> reversal_ns,
+                          std::int64_t bracket_begin_ns, std::int64_t bracket_end_ns) {
   if (!active() || (boundary_qualified_ && ns < boundary_ns_) ||
       confirmed < ns || source.empty() || !pre.position.allFinite() ||
       uncertainty < 0)
@@ -548,13 +550,27 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
     return false;
   ShotEvent *found = nullptr;
   int matches = 0;
+  if (reversal_ns) {
+    if (bracket_begin_ns > *reversal_ns || bracket_end_ns < *reversal_ns ||
+        bracket_begin_ns > ns || bracket_end_ns < ns) return false;
+    for (const auto &e : events_)
+      if (e.kind == kind && e.status == EventStatus::CONFIRMED &&
+          e.reversal_sample_ns == reversal_ns) return true;
+  }
+  auto compatible_event = [&](const ShotEvent &e) {
+    // A different observed reversal is never the same event. Predicted
+    // hypotheses associate by the physical time bracket, without a speed-
+    // dependent 10 cm gate.
+    if (reversal_ns) return e.status != EventStatus::CONFIRMED &&
+        e.event_time_ns >= bracket_begin_ns && e.event_time_ns <= bracket_end_ns;
+    return std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
+               settings_.contact_association_s * 1e9L &&
+           (e.pre.position - pre.position).norm() <= settings_.contact_association_m;
+  };
   for (auto &e : events_)
     if (e.kind == kind && e.status != EventStatus::CANCELLED &&
         e.status != EventStatus::SUPERSEDED &&
-        std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
-            settings_.contact_association_s * 1e9L &&
-        (e.pre.position - pre.position).norm() <=
-            settings_.contact_association_m) {
+        compatible_event(e)) {
       found = &e;
       ++matches;
     }
@@ -565,10 +581,7 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
     std::optional<std::int64_t> latest;
     for (auto &e : events_)
       if (e.kind == kind && e.status == EventStatus::SUPERSEDED &&
-          std::abs(static_cast<long double>(e.event_time_ns) - ns) <=
-              settings_.contact_association_s * 1e9L &&
-          (e.pre.position - pre.position).norm() <=
-              settings_.contact_association_m) {
+          compatible_event(e)) {
         const auto reference = e.last_prediction_reference_ns.value_or(
             std::numeric_limits<std::int64_t>::min());
         if (!latest || reference > *latest) {
@@ -602,6 +615,9 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
   found->event_time_ns = ns;
   found->confirmed_at_ns = confirmed;
   found->time_uncertainty_ns = uncertainty;
+  found->reversal_sample_ns = reversal_ns;
+  found->bracket_begin_ns = bracket_begin_ns;
+  found->bracket_end_ns = bracket_end_ns;
   if (kind == PhysicalEventKind::TABLE && !spin_.can_apply_contact(ns)) {
     found->status = EventStatus::AMBIGUOUS;
     found->pre = found->post = pre;
@@ -997,7 +1013,13 @@ bool FlightPipeline::observe(BallSample sample) {
   if (samples.size() >= 5) {
     const std::size_t n = samples.size();
     const auto &a = samples[n - 5];
-    const auto &low = samples[n - 3];
+    // All overlapping windows resolve the same adjacent source reversal, not
+    // whichever sample happens to be the middle of today's five-point window.
+    const auto minimum = std::min_element(samples.begin() + (n - 5), samples.end(),
+        [](const auto &x, const auto &y) { return x.position.z() < y.position.z(); });
+    if (minimum == samples.begin() + (n - 5) || minimum == samples.end() - 1)
+      return update.accepted;
+    const auto &low = *minimum;
     const auto &b = samples[n - 1];
     const double ta = double(
         (static_cast<long double>(low.source_time_ns) - a.source_time_ns) *
@@ -1020,7 +1042,9 @@ bool FlightPipeline::observe(BallSample sample) {
       shot_.confirm(
           PhysicalEventKind::TABLE, low.source_time_ns, b.source_time_ns, pre,
           "source_reversal_bracket",
-          static_cast<std::int64_t>(std::round(std::max(ta, tb) * 1e9)));
+          static_cast<std::int64_t>(std::round(std::max(ta, tb) * 1e9)),
+          low.source_time_ns, (minimum - 1)->source_time_ns,
+          (minimum + 1)->source_time_ns);
       if (!shot_.active()) {
         tracker_.reset();
         return false;

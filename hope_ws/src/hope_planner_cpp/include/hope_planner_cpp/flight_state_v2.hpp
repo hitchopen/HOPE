@@ -49,6 +49,10 @@ struct ShotEvent {
   ModelState pre, post;
   std::string source;
   std::optional<std::int64_t> last_prediction_reference_ns;
+  // Adjacent source samples enclosing one observed vertical reversal. This is
+  // independent of the moving predicted position and survives checkpointing.
+  std::optional<std::int64_t> reversal_sample_ns;
+  std::int64_t bracket_begin_ns = 0, bracket_end_ns = 0;
 };
 struct ShotSettings {
   std::size_t observation_capacity = 192, candidate_capacity = 32,
@@ -115,7 +119,9 @@ public:
                std::uint64_t generation);
   bool confirm(PhysicalEventKind, std::int64_t occurrence_ns,
                std::int64_t confirmed_ns, const ModelState &pre,
-               const std::string &source, std::int64_t uncertainty_ns = 0);
+               const std::string &source, std::int64_t uncertainty_ns = 0,
+               std::optional<std::int64_t> reversal_ns = {},
+               std::int64_t bracket_begin_ns = 0, std::int64_t bracket_end_ns = 0);
   void predict_events(const std::vector<PhysicalEvent> &,
                       std::int64_t reference_ns);
   ShotToken snapshot();
