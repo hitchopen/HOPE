@@ -118,7 +118,7 @@ TEST(ServeSegments, ModesPlaySelectedTailAndNormalRequiresMeasuredReady) {
       EXPECT_TRUE(cmd.tau_ff.isApprox(clip[idx].tau_ff,1e-10));
       EXPECT_TRUE(cmd.kp.isApprox(clip[idx].kp,1e-10));
       EXPECT_TRUE(cmd.kd.isApprox(clip[idx].kd,1e-10));
-      if (normal) { state=State(cmd); state.dq.setConstant(.5); } else state=State(cmd);
+      if (normal) { state=State(cmd); state.dq.setConstant(.7); } else state=State(cmd);
       if(normal && idx==0) EXPECT_TRUE(cmd.q_des.isApprox(source.q_des,1e-12));
     }
     if(normal) {
@@ -137,7 +137,42 @@ TEST(ServeSegments, NeverSettledPolicyTargetFaultsInsteadOfEngagingActor) {
   for(int i=0;i<501;++i){ASSERT_TRUE(c.ComputeCommand(i,state,cmd));state=State(cmd);}
   c.TriggerReadyToServe();
   for(int i=0;i<101+147;++i){ASSERT_TRUE(c.ComputeCommand(i,state,cmd));state=State(cmd);}
-  for(int i=0;i<183;++i){state=State(cmd);state.dq.setConstant(.5);ASSERT_TRUE(c.ComputeCommand(i,state,cmd));}
+  for(int i=0;i<183;++i){state=State(cmd);state.dq.setConstant(.7);ASSERT_TRUE(c.ComputeCommand(i,state,cmd));}
   EXPECT_EQ(c.state(),ServeControllerState::kFault);
+}
+TEST(ServeSegments, PolicyHandoffAcceptsDoubledTolerancesButRejectsEachExceededLimit) {
+  // The first case exceeds every old limit but satisfies every new limit.
+  // Each remaining case independently exceeds one of the new limits.
+  const double cases[][4] = {
+      {.187, .45, .134, .30},
+      {.201, .45, .134, .30},
+      {.187, .601, .134, .30},
+      {.187, .45, .241, .30},
+      {.187, .45, .134, .401}};
+  for (int scenario=0; scenario<5; ++scenario) {
+    SCOPED_TRACE(scenario);
+    auto t=Segments(); const auto b=t.segments(); auto stand=b.commands[0].front();
+    PpServeController c(std::move(t),stand.q_des,stand.kp,stand.kd,nullptr);
+    c.SelectSegmentDestination(true,b.policy_sha256,b.deploy_sha256);
+    auto cmd=stand; auto state=State(cmd); c.Start();
+    for(int i=0;i<501;++i){ASSERT_TRUE(c.ComputeCommand(i,state,cmd));state=State(cmd);}
+    c.TriggerReadyToServe();
+    for(int i=0;i<101+147;++i){ASSERT_TRUE(c.ComputeCommand(i,state,cmd));state=State(cmd);}
+    // Hold an unsettled measurement until the clip reaches its final command.
+    for(std::size_t i=0;i<b.commands[2].size();++i) {
+      state=State(cmd); state.dq.setConstant(.7);
+      ASSERT_TRUE(c.ComputeCommand(i,state,cmd));
+    }
+    ASSERT_EQ(c.state(),ServeControllerState::kHandoffReady);
+    const auto& sample=cases[scenario];
+    for(int i=0;i<5;++i) {
+      state=State(b.commands[2].back()); state.q[0]+=sample[0]; state.dq[0]=sample[1];
+      state.imu_quat_wxyz=Eigen::Vector4d(std::cos(sample[2]/2),0,std::sin(sample[2]/2),0);
+      state.imu_gyro[0]=sample[3];
+      ASSERT_TRUE(c.ComputeCommand(i,state,cmd));
+      if(i<4) EXPECT_EQ(c.state(),ServeControllerState::kHandoffReady);
+    }
+    EXPECT_EQ(c.state(),scenario==0 ? ServeControllerState::kComplete : ServeControllerState::kHandoffReady);
+  }
 }
 } // namespace

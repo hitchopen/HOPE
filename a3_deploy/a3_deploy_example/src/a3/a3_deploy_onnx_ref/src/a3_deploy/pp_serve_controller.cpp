@@ -186,10 +186,12 @@ void PpServeController::SetSegmentCommand_(const robot_io::RobotState& state,
     command.q_des += (1-Smooth5_(elapsed/duration))*segment_source_q_delta_ + v*segment_source_dq_delta_;
     command.dq_des += -Smooth5Derivative_(elapsed/duration)/duration*segment_source_q_delta_ + dv*segment_source_dq_delta_;
     const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
+    // Allow twice the original measured-ready tolerances for the policy handoff.
+    // Keep the five consecutive samples and the one-second timeout unchanged.
     const bool quiet = index >= bundle.policy_ready_frame &&
-        (state.q-clip.back().q_des).cwiseAbs().maxCoeff() <= .10 &&
-        state.dq.cwiseAbs().maxCoeff() <= .3 &&
-        gravity[2] <= -std::cos(.12) && state.imu_gyro.norm() <= .2;
+        (state.q-clip.back().q_des).cwiseAbs().maxCoeff() <= .20 &&
+        state.dq.cwiseAbs().maxCoeff() <= .6 &&
+        gravity[2] <= -std::cos(.24) && state.imu_gyro.norm() <= .4;
     policy_return_quiet_ticks_ = quiet ? policy_return_quiet_ticks_ + 1 : 0;
     phase_ = index + 1 < clip.size() ? "CSV_SERVE_TO_POLICY" : "WAIT_POLICY_READY";
     if (index + 1 == clip.size() && policy_return_quiet_ticks_ >= 5) {
