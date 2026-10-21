@@ -48,6 +48,9 @@ struct IntegratedPlannerRuntime::Impl {
   bool pending_valid=false,return_eligible=false,source_fault=false;
   bool outgoing_valid=false,execution_admitted=false;
   double last_solver_ms=0,last_source_age_ms=0;
+  bool physical_available=false;
+  std::int64_t physical_source_ns=0;
+  std::string physical_reason="WAITING", return_reason="WAITING";
   rclcpp::Subscription<hope_msgs::msg::BallObservationV2>::SharedPtr observation;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr base_sub;
   rclcpp::Subscription<hope_msgs::msg::FlightContextV2>::SharedPtr context;
@@ -198,10 +201,13 @@ struct IntegratedPlannerRuntime::Impl {
     source_fault=false;
     last_observation_ns=sample.source_time_ns;
     const auto generation=pipeline->shot().generation();
+    const auto revision=pipeline->shot().revision();
     pipeline->observe(sample);
     if (generation!=pipeline->shot().generation()) {
       ++epoch; invalidate_locked("PHYSICAL_SHOT_CHANGED"); game="UNKNOWN";
       last_context_ns=std::numeric_limits<std::int64_t>::min();
+    } else if (revision!=pipeline->shot().revision()) {
+      ++epoch;invalidate_locked("PHYSICAL_CONTEXT_CHANGED");
     }
     if (!pipeline->shot().active() || pipeline->shot().samples().empty() ||
         pipeline->shot().samples().back().source_time_ns!=sample.source_time_ns) return;
@@ -222,7 +228,12 @@ struct IntegratedPlannerRuntime::Impl {
         const auto now=node.now().nanoseconds(),steady=monotonic_ns();
         last_solver_ms=(steady-started)*1e-6;
         last_source_age_ms=(static_cast<long double>(now)-forecast.reference_ns)*1e-6L;
-        if (job->epoch!=epoch || forecast.token.generation!=pipeline->shot().generation()) continue;
+        if (job->epoch!=epoch || forecast.token.generation!=pipeline->shot().generation() ||
+            forecast.token.context_revision!=pipeline->shot().revision()) continue;
+        physical_available=forecast.physical_available;
+        physical_source_ns=forecast.reference_ns;
+        physical_reason=forecast.reason;
+        return_reason=eligibility.reason;
         return_eligible=eligibility.eligible;
         outgoing_valid=result.return_ok;
         if (!eligibility.input) { invalidate_locked(eligibility.reason);continue; }
@@ -284,6 +295,7 @@ struct IntegratedPlannerRuntime::Impl {
     const auto now=node.now().nanoseconds(),steady=monotonic_ns();
     if (!last_observation_ns || static_cast<long double>(now)-last_observation_ns>30000000.L) {
       return_eligible=false;outgoing_valid=false;
+      physical_available=false;
     }
     if (source_fault) {return_eligible=false;outgoing_valid=false;invalidate_locked("SOURCE_UNQUALIFIED");}
     else if (!base_fresh(now,steady)) invalidate_locked("BASE_UNAVAILABLE");
@@ -305,6 +317,13 @@ struct IntegratedPlannerRuntime::Impl {
         pipeline->shot().continuity()==HistoryContinuity::kIncomplete?"INCOMPLETE":"UNKNOWN");
     add("return_eligible",return_eligible?"true":"false");add("command_valid",pending_valid?"true":"false");
     add("outgoing_return_valid",outgoing_valid?"true":"false");
+    add("physical_available",physical_available?"true":"false");
+    add("physical_source_ns",std::to_string(physical_source_ns));
+    add("physical_reason",physical_reason);add("return_reason",return_reason);
+    add("physical_shot",std::to_string(pipeline->shot().generation()));
+    add("physical_state",name(pipeline->shot().state()));
+    add("observed_contacts",std::to_string(pipeline->shot().observed_contacts()));
+    add("spin_mode",std::to_string(static_cast<int>(pipeline->shot().spin().mode)));
     add("execution_admitted",execution_admitted?"true":"false");
     add("inputs",std::to_string(inputs));add("accepted",std::to_string(accepted));add("rejected",std::to_string(rejected));
     add("commands",std::to_string(commands));add("superseded",std::to_string(work.superseded()));
