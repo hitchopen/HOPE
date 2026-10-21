@@ -128,7 +128,8 @@ def run(args, rate, policy):
         ('ball_calibration_id', registration), ('planner_poses_topic', '/poses/planner_full')])
     base = launch(args.bringup/'hope_base_pose_flat_relay', base_params)
     planner = launch(args.planner, [('prediction_backend', 'v2'), ('registration_id', registration),
-        ('world_frame_id', int(world_sha[:13], 16)), ('plane_policy', policy)])
+        ('world_frame_id', int(world_sha[:13], 16)), ('plane_policy', policy),
+        ('test.worker_delay_ms', args.worker_delay_ms)])
     launch(args.decoder)
     node = rclpy.create_node(f'integrated_chain_observer_{rate}_{policy.lower()}')
     decoded, wire, traces, statuses, observations, legacy, bases = [], [], [], [], [], [], []
@@ -174,6 +175,15 @@ def run(args, rate, policy):
         camera.join(timeout=5)
         assert not camera.is_alive()
         valid = [w for w in wire if w[1] == 1.]
+        if args.worker_delay_ms >= 30:
+            assert not valid and not decoded and not traces, 'expired solve published a command'
+            assert observations and source_stats['eligible_stamps'], 'vacuous delayed-worker fixture'
+            superseded = max(int(s.get('superseded', 0)) for s in statuses)
+            assert superseded > 0, 'delay did not exercise latest-pending backpressure'
+            return {'status': 'PASS', 'case': 'delayed_worker_expiry', 'worker_delay_ms': args.worker_delay_ms,
+                    'valid_commands': 0, 'source_eligible_epochs': len(source_stats['eligible_stamps']),
+                    'superseded_work': superseded, 'queue_bound': {'running': 1, 'pending': 1},
+                    'reasons': dict(Counter(s['reason'] for s in statuses)), 'source': source_stats}
         assert valid and decoded and traces, (Counter(s['reason'] for s in statuses),
             bases[:1], bases[-1:], len(observations), len(legacy))
         assert all(t['game_history'] != 'COMPLETE' for t in traces)
@@ -256,6 +266,7 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--rate', type=int, choices=[150, 300], default=300)
     p.add_argument('--plane-policy', choices=['FOLLOW_POSE', 'ON_REFRESH'], default='FOLLOW_POSE')
+    p.add_argument('--worker-delay-ms', type=int, default=0)
     args = p.parse_args()
     os.environ.setdefault('ROS_LOCALHOST_ONLY', '1')
     rclpy.init()

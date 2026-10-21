@@ -16,6 +16,13 @@ cmake -S "$repo/hope_ws/src/hope_planner_cpp/test/native" -B "$evidence/native" 
   -DCMAKE_BUILD_TYPE=Release > "$evidence/native-build.log" 2>&1
 cmake --build "$evidence/native" -j2 >> "$evidence/native-build.log" 2>&1
 ctest --test-dir "$evidence/native" --output-on-failure > "$evidence/native-test.log" 2>&1
+cmake -S "$repo/hope_ws/src/hope_planner_cpp/test/native" -B "$evidence/sanitized" \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g1' \
+  > "$evidence/sanitized-build.log" 2>&1
+cmake --build "$evidence/sanitized" -j2 >> "$evidence/sanitized-build.log" 2>&1
+ASAN_OPTIONS=detect_leaks=1 ctest --test-dir "$evidence/sanitized" --output-on-failure \
+  > "$evidence/sanitized-test.log" 2>&1
 python3 "$repo/hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/integrated_numerical_gate.py" \
   --executable "$evidence/native/hope_integrated_return_sweep" --output "$evidence/outgoing-reference.json"
 cd "$repo/hope_ws"

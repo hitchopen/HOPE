@@ -52,7 +52,11 @@
         "planner_full_rate_relay_test"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Retain the configured surveyed ball calibration identity at the real typed producer boundary.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
@@ -179,7 +183,30 @@
         "test_flight_transport_v2"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Link the integrated application separately from the command-free forecast graph and register required checks.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/README.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/config/flight_prediction_v2_shadow.yaml",
@@ -194,6 +221,25 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/config/integrated_planner.shadow.yaml",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide a separate opt-in one-node shadow profile using existing physical input producers.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.json",
@@ -479,7 +525,11 @@
         "flight_v2_scope"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G0-G8"
+      "owning_requirement": "G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_physics_and_config.md",
@@ -545,6 +595,117 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_acceptance.json",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_acceptance.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_contract.json",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_contract.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_migration.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr_description.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/common_ball_physics.hpp",
@@ -615,7 +776,11 @@
         "flight_v2_raw_scenarios"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Explicit application-only advisory game legality; default standalone semantics remain unchanged.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_transport_v2.hpp",
@@ -659,6 +824,44 @@
       "owning_requirement": "G1-G4"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/integrated_command_lifecycle.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Semantic physical-shot wire identity, exact deadlines, source age, producer freeze and overflow fences.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/integrated_planner_runtime.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/nominal_event_forecast.hpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
@@ -671,6 +874,25 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/planner_node.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_ball_tracker.hpp",
@@ -713,6 +935,25 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/return_eligibility.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Select local receiver bounce-to-plane opportunities without a game-history veto.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/return_region.hpp",
@@ -759,6 +1000,25 @@
       "owning_requirement": "G2"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/validated_return_planner.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Converged shared-engine inverse solve, actual paddle-action reconstruction and first-landing validation.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/launch/flight_prediction_v2_shadow.launch.py",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
@@ -773,6 +1033,25 @@
       "owning_requirement": "G1-G4"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/launch/integrated_planner.launch.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide a separate opt-in one-node shadow profile using existing physical input producers.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/package.xml",
       "category": "CONDITIONAL_SHARED_HELPER",
       "owner": "integration",
@@ -785,7 +1064,11 @@
         "test_flight_transport_v2"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Link the integrated application separately from the command-free forecast graph and register required checks.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/accuracy.py",
@@ -855,6 +1138,25 @@
       "owning_requirement": "G6"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/integrated_numerical_gate.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/numerical_gate.py",
       "category": "IN_SCOPE_TEST",
       "owner": "validation",
@@ -906,6 +1208,44 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_integrated.sh",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide reproducible integrated verification or read-only source readiness inspection.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/integrated_preflight.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide reproducible integrated verification or read-only source readiness inspection.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/ball_flight_baseline_replay.cpp",
@@ -963,7 +1303,11 @@
         "flight_v2_binary_scope"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Revoke only on accepted semantic/plane changes, preventing ignored-context revocation.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp",
@@ -1005,7 +1349,11 @@
         "flight_v2_raw_scenarios"
       ],
       "review_note": "V2-only revalidation fix: source gaps cannot prove smooth acceleration. History remains incomplete; no contact is fabricated. Production source remains unchanged.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Explicit application-only advisory game legality; default standalone semantics remain unchanged.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_transport_v2.cpp",
@@ -1035,6 +1383,25 @@
       "owning_requirement": "G1-G4"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/src/integrated_planner_runtime.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp",
       "category": "IN_SCOPE_FORECAST",
       "owner": "forecast",
@@ -1047,6 +1414,25 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/planner_node.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/probabilistic_ball_tracker.cpp",
@@ -1077,6 +1463,25 @@
       "owning_requirement": "G1-G4"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/src/return_eligibility.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Select local receiver bounce-to-plane opportunities without a game-history veto.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/src/return_region.cpp",
       "category": "CONDITIONAL_SHARED_HELPER",
       "owner": "integration",
@@ -1090,6 +1495,25 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/validated_return_planner.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Converged shared-engine inverse solve, actual paddle-action reconstruction and first-landing validation.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/baseline_replay_gate.py",
@@ -1128,7 +1552,11 @@
         "flight_v2_raw_scenarios"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_smoke.py",
@@ -1170,6 +1598,81 @@
       "owning_requirement": "G1-G4"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_context_noop.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_producer_chain.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_return_sweep.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_runner_probe.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/test/matched_replay_gate.py",
       "category": "IN_SCOPE_TEST",
       "owner": "validation",
@@ -1194,7 +1697,11 @@
         "flight_v2_accuracy_tooling"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/production_parity_probe.cpp",
@@ -1259,7 +1766,30 @@
         "flight_v2_scope"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_integrated_return.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_scoped_accuracy.py",
@@ -1841,5 +2371,6 @@
       "disposition": "BASE_UNCHANGED",
       "reason": "Preserve original production semantics or omit historical hybrid/selector scaffolding"
     }
-  ]
+  ],
+  "integration_base": "4dc0959348f2aa777330d177d16eb70f778a79e6"
 }
