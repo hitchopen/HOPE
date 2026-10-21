@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Raw-observation forecast scenarios; synthetic registration is not live qualification."""
 import argparse
-import gc
 import json
 import math
 import subprocess
@@ -86,7 +85,6 @@ def trace_producer(direction, rate, session, sequence):
         print(json.dumps(dict(ready=True)), flush=True)
         start = int(sys.stdin.readline())
         schedule = time.monotonic() + (start-time.time_ns())*1e-9
-        gc.disable()  # Short-lived independent camera: no cyclic-GC pacing stalls.
         for i in range(round(.82*rate)):
             if round(.32*rate) <= i < round(.32*rate)+2:
                 continue
@@ -215,7 +213,9 @@ def scenario(executable, direction, rate, policy):
         source_process.stdin.write(str(start) + '\n')
         source_process.stdin.flush()
         source_output = []
+        source_deadline = time.monotonic()+5.
         while source_process.poll() is None:
+            assert time.monotonic() < source_deadline, ("source_producer_timeout", direction, rate, policy)
             rclpy.spin_once(node, timeout_sec=.001)
             # Drain before waiting for exit: on hosts with small pipe buffers
             # the final acquisition-stamp report can otherwise block its
