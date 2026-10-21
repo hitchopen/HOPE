@@ -681,6 +681,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [notice, setNotice] = useState("Waiting for authoritative Runner state");
   const [configDraft, setConfigDraft] = useState<LifecycleConfigDraft>(EMPTY_CONFIG);
   const [configTouched, setConfigTouched] = useState(false);
+  const savedPanel = useRef((context.initialState ?? {}) as Record<string, unknown>);
+  const configHost = snapshot.lifecycleConfig.hdu_wifi_ip;
   const [fieldBusy, setFieldBusy] = useState(false);
   const [recordBusy, setRecordBusy] = useState(false);
   const csvInput = useRef<HTMLInputElement>(null);
@@ -688,8 +690,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const previewBallYFilter = useCallback((draft: BallYFilterDraft, options: { kernelMode: boolean; edited: boolean }) => {
     context.layout.addPanel({ position: "sibling", type: "3D", updateIfExists: true,
       getState: (existing) => withBallYPreview(existing, draft, options) });
-    context.saveState({ ...(context.initialState as Record<string, unknown> | undefined),
-      ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited });
+    savedPanel.current = { ...savedPanel.current,
+      ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited,
+      ballYFilterRobot: latest.current.lifecycleConfig.hdu_wifi_ip };
+    context.saveState(savedPanel.current);
   }, [context]);
 
   useLayoutEffect(() => {
@@ -1676,7 +1680,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             available={!kernelMode && context.callService != undefined &&
               isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.ballYFilter?.configurable === true}
             kernelMode={kernelMode} onApply={applyBallYFilter}
-            initialState={context.initialState} onPreview={previewBallYFilter}
+            key={configHost}
+            initialState={configHost && savedPanel.current.ballYFilterRobot === configHost ? savedPanel.current : undefined} onPreview={previewBallYFilter}
           />
           </div>
           <ActionButton
