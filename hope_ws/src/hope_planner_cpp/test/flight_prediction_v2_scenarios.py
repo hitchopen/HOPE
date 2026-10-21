@@ -3,6 +3,8 @@
 import argparse
 import json
 import math
+import os
+from pathlib import Path
 import subprocess
 import select
 import sys
@@ -74,6 +76,7 @@ def trace_producer(direction, rate, session, sequence):
             latest[0] = message
     node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/prediction', receive, qos_profile_sensor_data)
     sent_stamps = []
+    seed_spin_stamps = []
     context_sent = continuity_sent = False
     continuity_refreshes = 0
     last_refresh = 0
@@ -94,7 +97,7 @@ def trace_producer(direction, rate, session, sequence):
             ns = time.time_ns()
             t = (ns-start)*1e-9
             state, omega = at(t)
-            raw_spin = omega if i == 0 or contacts[1]+.035 < t < contacts[1]+.055 else None
+            raw_spin = omega if t < .04 or contacts[1]+.035 < t < contacts[1]+.055 else None
             if .075 < t < .10:
                 raw_spin = (0., 0., 0.)
             message = BallObservationV2()
@@ -111,6 +114,7 @@ def trace_producer(direction, rate, session, sequence):
                 message.omega_rad_s.x, message.omega_rad_s.y, message.omega_rad_s.z = map(float, raw_spin)
             observation.publish(message)
             sent_stamps.append(ns)
+            if t < .04: seed_spin_stamps.append(ns)
             if i % max(1, rate//40) == 0:
                 sequence += 1
                 pose_ns = time.time_ns()
@@ -128,7 +132,7 @@ def trace_producer(direction, rate, session, sequence):
                 if complete:
                     event.history_continuity = 'complete'
                 context.publish(event)
-            if current and .10 < t < contacts[0] and not context_sent:
+            if current and .04 < t < contacts[0] and not context_sent:
                 evidence()
                 context_sent = True
             if current and t > contacts[0]+.07:
@@ -138,7 +142,7 @@ def trace_producer(direction, rate, session, sequence):
                     continuity_refreshes += 1
                     last_refresh = ns
             rclpy.spin_once(node, timeout_sec=0)
-        print(json.dumps(dict(stamps=sent_stamps, last_sequence=sequence,
+        print(json.dumps(dict(stamps=sent_stamps, seed_spin_stamps=seed_spin_stamps, last_sequence=sequence,
                               context_sent=context_sent, continuity_sent=continuity_sent,
                               continuity_refreshes=continuity_refreshes)), flush=True)
     finally:
@@ -237,7 +241,7 @@ def scenario(executable, direction, rate, policy):
         assert len(generations) == 1, [(p.play_state, p.reason) for p, _ in predictions]
         generation = physical[0].shot_generation
         assert any(p.match_context == 'SERVE' and p.classification_status == 'PROVISIONAL'
-                   and p.play_state == ('RALLY' if direction > 0 else 'OPPONENT_RALLY') for p in physical), 'premature serve confirmation'
+                   and p.play_state == ('RALLY' if direction > 0 else 'OPPONENT_RALLY') for p in physical), ('no provisional serve-context forecast', direction, rate, policy, [(p.match_context,p.classification_status,p.play_state,round((p.prediction_reference_time_ns-start)*1e-9,4)) for p in physical[:25]])
         assert any(p.classification_status == 'CONFIRMED' and p.play_state == ('SERVE' if direction > 0 else 'OPPONENT_SERVE') for p in physical), 'observed B1 did not confirm serve'
         confirmed = {e.event_id: e for p in physical for e in p.events
                      if e.kind == 'table_bounce' and e.status == 'CONFIRMED'}
@@ -248,7 +252,10 @@ def scenario(executable, direction, rate, policy):
         assert b1.confirmed_at_ns >= b1.event_time_ns
         modes = {p.current_state.spin_mode for p in physical}
         assert {'HELD', 'CONTACT_PROPAGATED', 'MEASURED'} <= modes, modes
-        assert any(p.current_state.spin_measurement_time_ns == sent_stamps[0] and
+        delivered_seed_stamps = {o.source_time_ns for packet in packets for o in packet.observations
+                                 if o.omega_valid and o.source_time_ns in source_report['seed_spin_stamps']}
+        assert delivered_seed_stamps, 'no qualified pre-contact angular source reached the node'
+        assert any(p.current_state.spin_measurement_time_ns == max(delivered_seed_stamps) and
                    p.current_state.spin_mode == 'CONTACT_PROPAGATED' for p in physical)
         assert any(p.target_valid and not p.target_historical for p in physical), ('no supported ordered ball target',direction,rate,policy,[(p.reason,p.plane_available,p.history_continuity,p.target_kind,round(p.current_state.position.x,3)) for p in physical[-8:]],sorted({p.reason for p in physical}))
         planes = {round(p.plane_x, 4) for p in physical if p.plane_available}
@@ -321,6 +328,18 @@ def scenario(executable, direction, rate, policy):
                     actual_source_rate_hz=(len(sent_stamps)-1)/((sent_stamps[-1]-sent_stamps[0])*1e-9),
                     max_source_gap_ms=max(b-a for a,b in zip(sent_stamps,sent_stamps[1:]))*1e-6)
     finally:
+        diagnostics = dict(direction=direction, rate_hz=rate, policy=policy,
+            observations=locals().get('source_report', {}), contacts_s=locals().get('contacts', []),
+            predictions=[dict(source_ns=p.prediction_reference_time_ns, generation=p.shot_generation,
+                match=p.match_context, state=p.play_state, classification=p.classification_status,
+                physical=p.physical_available, reason=p.reason, spin=p.current_state.spin_mode,
+                spin_measurement_ns=p.current_state.spin_measurement_time_ns,
+                events=[dict(id=e.event_id, kind=e.kind, status=e.status, time_ns=e.event_time_ns,
+                             confirmed_ns=e.confirmed_at_ns, source=e.evidence_source) for e in p.events])
+                for p, _ in predictions])
+        location=Path(os.environ.get('HOPE_REVIEW_SCENARIO_EVIDENCE_DIR', '/tmp'))
+        location.mkdir(parents=True, exist_ok=True)
+        (location/f'flight-v2-{direction}-{rate}-{policy}.json').write_text(json.dumps(diagnostics,indent=2)+'\n')
         if source_process is not None and source_process.poll() is None:
             source_process.terminate()
             source_process.communicate(timeout=5)
