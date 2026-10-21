@@ -33,9 +33,9 @@ def relay(request):
     rclpy.shutdown()
 
 
-def frame(index, ball=True):
+def frame(index, ball=True, hz=360):
     msg = messages.NamedPoseArrayV2()
-    ns = 100_000_000_000 + round(index * 1e9 / 360)
+    ns = 100_000_000_000 + round(index * 1e9 / hz)
     msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(ns, 1_000_000_000)
     msg.header.frame_id = "world"
     if ball:
@@ -49,20 +49,21 @@ def frame(index, ball=True):
     return msg
 
 
-def test_full_rate_preserves_exposures_and_side_transform(relay):
-    for i in range(360):
-        relay._on_frame(frame(i))
-    assert len(relay.full) == 360
+@pytest.mark.parametrize("hz", [300, 360])
+def test_full_rate_preserves_exposures_and_side_transform(relay, hz):
+    for i in range(hz):
+        relay._on_frame(frame(i, hz=hz))
+    assert len(relay.full) == hz
     assert 149 <= len(relay.limited) <= 151
     for i, msg in enumerate(relay.full):
-        assert msg.header.stamp == frame(i).header.stamp
+        assert msg.header.stamp == frame(i, hz=hz).header.stamp
         assert len(msg.poses) == 1
         expected = [1.0, -0.5, 0.3] if relay._table_side == "P1" else [1.74, -1.025, 0.3]
         p = msg.poses[0].position
         assert [p.x, p.y, p.z] == pytest.approx(expected)
-    for i in range(360, 380):
-        relay._on_frame(frame(i, ball=False))
-    assert len(relay.full) == 360  # never repeat a cached ball at a new stamp
+    for i in range(hz, hz + 20):
+        relay._on_frame(frame(i, ball=False, hz=hz))
+    assert len(relay.full) == hz  # never repeat a cached ball at a new stamp
 
 
 def test_position_only_ball_remains_available_to_planner(relay):

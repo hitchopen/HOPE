@@ -29,6 +29,7 @@ const char* incoming_phase_name(IncomingPhase phase) noexcept;
 struct IncomingTrajectoryConfig {
   double net_x = 1.37;
   double estimator_window_s = 0.18;
+  double estimator_max_sample_gap_s = 0.0;
   double commit_delay_s = 0.05;
   double opponent_side_margin_m = 0.05;
   double incoming_speed_threshold_mps = 0.25;

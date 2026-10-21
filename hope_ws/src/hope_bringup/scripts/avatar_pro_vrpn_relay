@@ -76,6 +76,8 @@ class AvatarProVrpnRelay(Node):
         self.declare_parameter("p2_pose_topic", "/UCB_P2/pose")
         self.declare_parameter("ball_point_topic", "/ball/point")
         self.declare_parameter("poses_topic", "/poses")
+        self.declare_parameter("planner_poses_topic", "/poses/planner_full")
+        self.declare_parameter("input_qos_depth", 64)
         self.declare_parameter(
             "pose_array_order", ["ball", "PPT", "UCB_P1", "UCB_P2"]
         )
@@ -171,7 +173,7 @@ class AvatarProVrpnRelay(Node):
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
-            depth=1,
+            depth=max(1, int(self.get_parameter("input_qos_depth").value)),
         )
         self._sensor_qos = sensor_qos
 
@@ -179,6 +181,13 @@ class AvatarProVrpnRelay(Node):
         self._tf_broadcaster = TransformBroadcaster(self)
         self._pose_array_pub = self.create_publisher(
             PoseArray, str(self.get_parameter("poses_topic").value), sensor_qos
+        )
+        planner_topic = str(self.get_parameter("planner_poses_topic").value)
+        if planner_topic == str(self.get_parameter("poses_topic").value):
+            raise ValueError("planner_poses_topic must differ from poses_topic")
+        self._planner_pose_array_pub = (
+            self.create_publisher(PoseArray, planner_topic, sensor_qos)
+            if planner_topic else None
         )
         self._ball_pub = self.create_publisher(
             PointStamped, str(self.get_parameter("ball_point_topic").value), sensor_qos
@@ -417,6 +426,13 @@ class AvatarProVrpnRelay(Node):
 
     def _emit_ball(self, normalized: PoseStamped) -> None:
         self._latest["ball"] = normalized
+        # Raw exposure stream shared with the NatNet relay's planner topic.
+        # Ball-only, no interpolation, timer resampling or cached body frames.
+        if self._planner_pose_array_pub is not None:
+            full = PoseArray()
+            full.header = normalized.header
+            full.poses = [normalized.pose]
+            self._planner_pose_array_pub.publish(full)
         out = PointStamped()
         out.header = normalized.header
         out.point = normalized.pose.position

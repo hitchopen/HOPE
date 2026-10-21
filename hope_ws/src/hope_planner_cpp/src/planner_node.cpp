@@ -212,6 +212,9 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   estimator_config_.window_s =
       declare_parameter<double>("batch_estimator_window_s", 0.18);
   incoming_trajectory_config_.estimator_window_s = estimator_config_.window_s;
+  estimator_config_.max_sample_gap_s = declare_parameter<double>("batch_max_sample_gap_s", 0.0);
+  estimator_config_.single_flight_only = declare_parameter<bool>("batch_single_flight_only", false);
+  incoming_trajectory_config_.estimator_max_sample_gap_s = estimator_config_.max_sample_gap_s;
   estimator_config_.min_span_s =
       declare_parameter<double>("batch_estimator_min_span_s", 0.08);
   estimator_config_.post_bounce_min_span_s =

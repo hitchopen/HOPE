@@ -18,7 +18,7 @@ hope_planner:
     incoming_opponent_side_margin_m: 0.05
     incoming_speed_threshold_mps: 0.25
     outgoing_speed_threshold_mps: 0.25
-    incoming_direction_fit_samples: 4
+    incoming_direction_fit_samples: 16
     incoming_direction_confirmations: 2
     incoming_pre_roll_samples: 24
     incoming_source_gap_reset_s: 0.25
@@ -28,7 +28,7 @@ hope_planner:
 
     batch_estimator_window_s: 0.18
     batch_estimator_min_span_s: 0.08
-    batch_estimator_min_samples: 12
+    batch_estimator_min_samples: 24
     batch_estimator_huber_delta_m: 0.003
     batch_estimator_recency_half_life_s: 0.0
     batch_estimator_iterations: 3
@@ -98,3 +98,7 @@ hope_planner:
     x_hit_calibration_status_file: ""
     debug_csv_path: ""
     debug_session_id: ""
+    batch_single_flight_only: true
+    batch_post_bounce_min_span_s: 0.08
+    batch_post_bounce_exclusion_s: 0.008
+    batch_max_sample_gap_s: 0.02
