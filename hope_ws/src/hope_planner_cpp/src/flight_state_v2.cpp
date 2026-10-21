@@ -561,9 +561,25 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
   if (reversal_ns) {
     if (bracket_begin_ns > *reversal_ns || bracket_end_ns < *reversal_ns ||
         bracket_begin_ns > ns || bracket_end_ns < ns) return false;
-    for (const auto &e : events_)
+    ShotEvent *corroborated = nullptr;
+    for (auto &e : events_)
       if (e.kind == kind && e.status == EventStatus::CONFIRMED &&
           e.reversal_sample_ns == reversal_ns) return true;
+      else if (e.kind == kind && e.status == EventStatus::CONFIRMED &&
+               !e.reversal_sample_ns && e.event_time_ns >= bracket_begin_ns &&
+               e.event_time_ns <= bracket_end_ns) {
+        if (corroborated) return false; // Two existing contacts are unresolved.
+        corroborated = &e;
+      }
+    if (corroborated) {
+      // Corroboration of an authoritative contact (or a wire checkpoint
+      // without internal bracket fields) keeps its ID and impulse. Distance
+      // travelled at high speed is not a second observed physical contact.
+      corroborated->reversal_sample_ns = reversal_ns;
+      corroborated->bracket_begin_ns = bracket_begin_ns;
+      corroborated->bracket_end_ns = bracket_end_ns;
+      return true;
+    }
     for (auto it = events_.rbegin(); it != events_.rend(); ++it)
       if (it->kind == kind && it->status == EventStatus::CONFIRMED && it->reversal_sample_ns) {
         // Rearm only after a verified intervening rise and descent. Time or

@@ -222,6 +222,26 @@ TEST(PR64Review, RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservatio
     EXPECT_TRUE(transferred);EXPECT_GE(continued,2);
   }
 }
+TEST(PR64Review, RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce) {
+  ShotSettings settings;settings.game_legality_advisory=true;
+  ShotContext s({},settings);const auto epoch=observation(0,{}).source_time_ns;
+  s.start(epoch,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+  ModelState pre;pre.position=Vec3(.6,-.7,.02);pre.velocity=Vec3(-20,0,-5);
+  auto measured=observation(0,pre);measured.producer_omega_valid=true;
+  measured.producer_omega_rad_s=Vec3::Zero();s.observe(measured);
+  ASSERT_TRUE(s.confirm(PhysicalEventKind::TABLE,epoch+40000000,epoch+50000000,pre,"authority"));
+  const auto revision=s.revision(),id=s.events().front().id;
+  const auto omega=s.spin().omega;
+  pre.position.x()-=.13;
+#ifndef HOPE_PR64_BASELINE
+  ASSERT_TRUE(s.confirm(PhysicalEventKind::TABLE,epoch+41000000,epoch+53333333,pre,
+      "source_reversal_bracket",6666667,epoch+40000000,epoch+33333333,epoch+46666667));
+#else
+  s.confirm(PhysicalEventKind::TABLE,epoch+41000000,epoch+53333333,pre,"source_reversal_bracket",6666667);
+#endif
+  EXPECT_EQ(s.observed_contacts(),1);EXPECT_EQ(s.revision(),revision);
+  EXPECT_EQ(s.events().front().id,id);EXPECT_EQ(s.spin().omega,omega);
+}
 TEST(PR64Review, RV05_DelayedContactSegmentsQuaternionWindow) {
   for (int rate : {150, 300}) {
     TrustedSpin spin;
