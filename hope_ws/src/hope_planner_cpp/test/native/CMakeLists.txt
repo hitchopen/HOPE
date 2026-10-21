@@ -42,5 +42,8 @@ target_include_directories(test_integrated_return PRIVATE
   ${PLANNER}/../../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include)
 target_link_libraries(test_integrated_return PRIVATE hope_integrated_native GTest::gtest_main)
 add_test(NAME integrated_return COMMAND test_integrated_return)
+add_executable(test_v2_pr64_review_regressions ${PLANNER}/test/test_v2_pr64_review_regressions.cpp)
+target_link_libraries(test_v2_pr64_review_regressions PRIVATE hope_integrated_native GTest::gtest_main)
+add_test(NAME v2_pr64_review_regressions COMMAND test_v2_pr64_review_regressions)
 add_executable(hope_integrated_return_sweep ${PLANNER}/test/integrated_return_sweep.cpp)
 target_link_libraries(hope_integrated_return_sweep PRIVATE hope_integrated_native)
