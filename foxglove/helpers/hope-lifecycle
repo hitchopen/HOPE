@@ -845,13 +845,42 @@ validate_laptop_mocap() {
   done
 }
 
+reconnect_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
+  mkdir -p "$(dirname "$runtime_env")"
+  local connection_lock
+  exec {connection_lock}>"${runtime_env}.connection.lock"
+  flock -n "$connection_lock" || die MOCAP CONNECTION_BUSY
+  local preserved_pelvis=false preserved_world=false
+  read -r preserved_pelvis preserved_world < <(
+    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" --confirmations "$runtime_env" \
+      "$HDU_WIFI_IP" "$MOCAP_SOURCE" "$MOTIVE_IP" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" "$TABLE_SIDE"
+  )
+  export HOPE_VRPN_PELVIS_ASSET_CONFIRMED="$preserved_pelvis"
+  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="$preserved_world"
+  if tmux_exists "$LAPTOP_SESSION"; then
+    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" \
+      "$runtime_env" "$HDU_WIFI_IP" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
+    stop_laptop
+  fi
+  if [[ "$MOCAP_SOURCE" == none ]]; then
+    emit MOCAP COMPLETE DISABLED
+  else
+    start_laptop
+  fi
+}
+
 start_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
   validate_laptop_mocap
   if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py|[a]vatar_pro_hope_bridge.launch.py|[o]ptitrack_mct_relay|[a]vatar_pro_vrpn_relay|[v]rpn_mocap/.*/client_node|[v]rpn_mocap/client_node' >/dev/null; then
     die MOCAP UNMANAGED_BRIDGE_PRESENT
   fi
-  start_tmux "$LAPTOP_SESSION" "$SELF" _run-laptop \
+  start_tmux "$LAPTOP_SESSION" /usr/bin/env \
+    "HOPE_VRPN_PELVIS_ASSET_CONFIRMED=${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" \
+    "HOPE_VRPN_WORLD_FRAME_CONFIRMED=${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
+    "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" \
     "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" || \
@@ -1457,6 +1486,7 @@ main() {
     prepare-hdu) prepare_hdu ;;
     prepare-mdu) prepare_mdu ;;
     start-laptop) start_laptop ;;
+    reconnect-laptop) reconnect_laptop ;;
     start-base) start_base ;;
     start-runner-transport) start_runner_transport ;;
     start-planner) start_planner ;;
