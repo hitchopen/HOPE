@@ -81,6 +81,11 @@ def main():
         context.publish(message)
         spin(.002)
         assert revoked() == initial+1, 'repeat of accepted context revoked again'
+        for invalid in ['UNSUPPORTED_MATCH_CONTEXT', '']:
+            message.match_context = invalid
+            context.publish(message)
+            spin(.002)
+        assert revoked() == initial+1, 'unsupported enum value withdrew accepted context'
         spin(.04)
         assert all(not m.physical_available or m.context_revision >= fence
                    for m in predictions[index:]), 'stale in-flight result reappeared after semantic fence'

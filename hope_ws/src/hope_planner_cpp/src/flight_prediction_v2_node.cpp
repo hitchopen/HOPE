@@ -225,6 +225,9 @@ public:
           } else if (m->operation == "RESET")
             pipeline_->invalidate("explicit_reset");
           else if (m->operation == "CONTEXT") {
+            if (m->match_context != "UNKNOWN" && m->match_context != "SERVE" &&
+                m->match_context != "NORMAL_RALLY")
+              return;
             const bool accepted = pipeline_->shot().context(
                 m->match_context == "SERVE" ? MatchContext::SERVE
                 : m->match_context == "NORMAL_RALLY"
