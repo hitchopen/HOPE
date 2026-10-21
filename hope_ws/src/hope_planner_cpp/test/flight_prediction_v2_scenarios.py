@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Raw-observation forecast scenarios; synthetic registration is not live qualification."""
 import argparse
+import gc
 import json
 import math
 import subprocess
@@ -85,6 +86,7 @@ def trace_producer(direction, rate, session, sequence):
         print(json.dumps(dict(ready=True)), flush=True)
         start = int(sys.stdin.readline())
         schedule = time.monotonic() + (start-time.time_ns())*1e-9
+        gc.disable()  # Short-lived independent camera: no cyclic-GC pacing stalls.
         for i in range(round(.82*rate)):
             if round(.32*rate) <= i < round(.32*rate)+2:
                 continue
@@ -105,7 +107,9 @@ def trace_producer(direction, rate, session, sequence):
             message.position.x, message.position.y, message.position.z = map(float, state[:3])
             message.orientation.w = 1.
             if raw_spin is not None:
-                message.omega_valid = True
+                # These zeros are deliberately unqualified placeholders, not
+                # the authoritative measured-zero case tested elsewhere.
+                message.omega_valid = not (.075 < t < .10)
                 message.omega_rad_s.x, message.omega_rad_s.y, message.omega_rad_s.z = map(float, raw_spin)
             observation.publish(message)
             sent_stamps.append(ns)
