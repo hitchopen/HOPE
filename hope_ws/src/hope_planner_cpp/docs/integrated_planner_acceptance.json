@@ -2826,5 +2826,11 @@
     "pr_created": false,
     "existing_pr64_modified": false,
     "live_output": "UNAVAILABLE"
+  },
+  "historical_evidence_head": "3346e03002b47611e3531d7147392faec9e9268f",
+  "review_corrections": {
+    "receipt": "integrated_planner_pr64_review_corrections.json",
+    "status": "VALIDATION_IN_PROGRESS",
+    "historical_results_preserved": true
   }
 }

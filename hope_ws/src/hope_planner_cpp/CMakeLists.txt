@@ -144,6 +144,30 @@ if(BUILD_TESTING)
     --executable $<TARGET_FILE:hope_integrated_return_sweep>
     --output ${CMAKE_CURRENT_BINARY_DIR}/integrated_outgoing_reference.json)
   foreach(rate 150 300)
+    foreach(scenario net_clear net_collision uncertain_contact held)
+      add_test(NAME review_geometry_${rate}_${scenario} COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_producer_chain.py
+        --planner $<TARGET_FILE:hope_planner_cpp_node>
+        --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+        --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+        --rate ${rate} --scenario ${scenario}
+        --output ${CMAKE_CURRENT_BINARY_DIR}/review_geometry_${rate}_${scenario}.json)
+      set_tests_properties(review_geometry_${rate}_${scenario} PROPERTIES
+        RUN_SERIAL TRUE TIMEOUT 60 ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+    endforeach()
+    foreach(speed 10 12 20)
+      foreach(spin unknown zero known)
+        add_test(NAME review_chain_${rate}_${speed}_${spin} COMMAND ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_producer_chain.py
+          --planner $<TARGET_FILE:hope_planner_cpp_node>
+          --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+          --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+          --rate ${rate} --speed ${speed} --spin ${spin}
+          --output ${CMAKE_CURRENT_BINARY_DIR}/review_chain_${rate}_${speed}_${spin}.json)
+        set_tests_properties(review_chain_${rate}_${speed}_${spin} PROPERTIES
+          RUN_SERIAL TRUE TIMEOUT 60 ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+      endforeach()
+    endforeach()
     foreach(policy FOLLOW_POSE ON_REFRESH)
       add_test(NAME integrated_chain_${rate}_${policy} COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_producer_chain.py
@@ -308,6 +332,23 @@ if(BUILD_TESTING)
     --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
   set_tests_properties(integrated_context_noop PROPERTIES RUN_SERIAL TRUE TIMEOUT 30
     ENVIRONMENT "ROS_DOMAIN_ID=195;ROS_LOCALHOST_ONLY=1")
+  add_test(NAME review_context_worker_race COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_context_noop.py
+    --executable $<TARGET_FILE:hope_flight_prediction_v2_node> --worker-delay-ms 12)
+  set_tests_properties(review_context_worker_race PROPERTIES RUN_SERIAL TRUE TIMEOUT 30
+    ENVIRONMENT "ROS_DOMAIN_ID=195;ROS_LOCALHOST_ONLY=1")
+  add_test(NAME review_source_cutoff_parity COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/review_cutoff_parity.py
+    --node $<TARGET_FILE:hope_flight_prediction_v2_node>
+    --replay $<TARGET_FILE:hope_flight_prediction_v2_replay>
+    --output ${CMAKE_CURRENT_BINARY_DIR}/review_source_cutoff_parity.json)
+  set_tests_properties(review_source_cutoff_parity PROPERTIES RUN_SERIAL TRUE TIMEOUT 45
+    ENVIRONMENT "ROS_DOMAIN_ID=196;ROS_LOCALHOST_ONLY=1")
+  add_test(NAME review_startup_guards COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/review_startup_guards.py
+    --node $<TARGET_FILE:hope_planner_cpp_node>)
+  set_tests_properties(review_startup_guards PROPERTIES RUN_SERIAL TRUE TIMEOUT 40
+    ENVIRONMENT "ROS_DOMAIN_ID=197;ROS_LOCALHOST_ONLY=1")
   add_test(NAME flight_v2_installed_api COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/installed_forward_api.py --prefix ${CMAKE_INSTALL_PREFIX})
   ament_add_gtest(test_flight_prediction_v2 test/test_flight_prediction_v2.cpp)

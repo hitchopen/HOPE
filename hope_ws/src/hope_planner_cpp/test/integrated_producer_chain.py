@@ -17,7 +17,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.optimize import brentq
 import rclpy
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, ReliabilityPolicy
 from diagnostic_msgs.msg import DiagnosticArray
 from geometry_msgs.msg import PoseArray
 from hope_msgs.msg import BallObservationV2
@@ -25,34 +25,63 @@ from motion_capture_tracking_interfaces.msg import NamedPoseArrayV2, NamedPose, 
 from std_msgs.msg import Float64MultiArray
 
 
-def flight():
-    """Independent DOP853 plant; bounce impulse is explicit position-only."""
-    def rhs(_, s):
-        v = s[3:]
-        return np.r_[v, np.array([0., 0., -9.81]) - .12861635416914574*np.linalg.norm(v)*v]
+def flight(speed=5., spin='unknown', scenario='standard'):
+    """Independent DOP853 plant, explicit thin-shell impulse and orientation.
+
+    New fast-flight equivalents have frozen initial geometry below. They are
+    not the unavailable original reviewer's exact recordings.
+    """
+    omega = 30. if spin == 'known' else 0.
+    drag = 0. if scenario in ['net_clear', 'net_collision'] else .12861635416914574
+    def rhs(w):
+        def derivative(_, s):
+            v = s[3:6]
+            a = np.array([0., 0., -9.81]) - drag*np.linalg.norm(v)*v
+            if spin != 'unknown':
+                a += .00379260504480258*np.cross([0., w, 0.], v)
+            return np.r_[v, a, w]
+        return derivative
     def contact(_, s):
         return s[2] - .02
     contact.direction = -1
     contact.terminal = True
-    before = solve_ivp(rhs, [0, 1], [1.8, -.7, .4, -5., 0., -.5],
+    geometry = {5.: (1.8, .4, -.5), 10.: (2.5, .32, -.5),
+                12.: (2.6, .3, -.5), 20.: (2.6, .65, -5.)}
+    x, z, vz = geometry[speed]
+    velocity_x = -speed
+    if scenario in ['net_clear', 'net_collision']:
+        x, velocity_x = 2.6, -10.
+        net_time = (x-1.37)/10
+        vz = -4.+9.81*net_time
+        z = .1525+.024-vz*net_time+4.905*net_time**2
+        if scenario == 'net_collision': z -= .015
+    if scenario == 'uncertain_contact': x = 1.2
+    before = solve_ivp(rhs(omega), [0, 1], [x, -.7, z, velocity_x, 0., vz, 0.],
                        events=contact, dense_output=True, rtol=1e-11, atol=1e-13)
     bounce = before.t[-1]
     post = before.y[:, -1].copy()
-    speed = np.linalg.norm(post[3:5])
-    impulse = min(.38744443855065164*speed,
+    slip = post[3] - .02*omega if spin != 'unknown' else post[3]
+    impulse = min(.38744443855065164*abs(slip),
                   .16706204822993975*(1+.9313775047019153)*abs(post[5]))
-    post[3:5] *= 1-impulse/speed
+    dv = -np.sign(slip)*impulse
+    post[3] += dv
+    if spin != 'unknown': omega -= dv/((2./3)*.02)
     post[5] *= -.9313775047019153
-    after = solve_ivp(rhs, [bounce, .7], post, dense_output=True, rtol=1e-11, atol=1e-13)
+    after = solve_ivp(rhs(omega), [bounce, .7], post, dense_output=True, rtol=1e-11, atol=1e-13)
     return before, after, bounce
 
 
-def source(rate, stop, ready, stats):
+def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standard'):
     rclpy.init()
     node = rclpy.create_node('integrated_synthetic_camera')
     pub = node.create_publisher(NamedPoseArrayV2, '/optitrack/poses', qos_profile_sensor_data)
-    before, after, bounce = flight()
-    plane_time = brentq(lambda t: after.sol(t)[0]-.15, bounce, .7)
+    before, after, bounce = flight(speed, spin, scenario)
+    plane_x = .15
+    if scenario == 'uncertain_contact': plane_x = float(before.sol(bounce)[0]-.002)
+    plane_time = brentq(lambda t: after.sol(t)[0]-plane_x, bounce, .7)
+    visible_end = min(.45, plane_time+.025)
+    if scenario == 'net_collision':
+        visible_end = brentq(lambda t: before.sol(t)[0]-1.37, 0., bounce)
     discovery_deadline = time.monotonic()+10.
     while pub.get_subscription_count() == 0 and time.monotonic() < discovery_deadline:
         rclpy.spin_once(node, timeout_sec=.01)
@@ -79,15 +108,19 @@ def source(rate, stop, ready, stats):
         msg.latencies.append(latency)
         base = NamedPose()
         base.name = 'UCB_P1'
-        base.pose.position.x, base.pose.position.y = -.43, -.7
+        base.pose.position.x, base.pose.position.y = plane_x-.58, -.7
         base.pose.orientation.w = 1.
         msg.poses.append(base)
-        if elapsed > .8 and phase < .45:
+        if elapsed > .8 and phase < visible_end:
             state = before.sol(phase) if phase < bounce else after.sol(phase)
+            if scenario == 'held': state = np.array([1.8, -.7, .4, 0., 0., 0., 0.])
             ball = NamedPose()
             ball.name = 'Ball'
             ball.pose.position.x, ball.pose.position.y, ball.pose.position.z = map(float, state[:3])
-            # Unavailable orientation must preserve XYZ without inventing spin.
+            # Authority is explicitly configured on the real relay.
+            if spin != 'unknown':
+                ball.pose.orientation.y = float(np.sin(state[6]/2))
+                ball.pose.orientation.w = float(np.cos(state[6]/2))
             msg.poses.append(ball)
         pub.publish(msg)
         sent.append(stamp)
@@ -125,31 +158,36 @@ def run(args, rate, policy):
                    ('calibration_sha256', base_sha), ('world_frame_sha256', world_sha),
                    ('source_stamp_mode', 'input_header'), ('policy_z_offset', '0.76')]
     relay = launch(args.bringup/'optitrack_mct_relay', [('publish_tf', 'false'),
-        ('ball_calibration_id', registration), ('planner_poses_topic', '/poses/planner_full')])
+        ('ball_calibration_id', registration), ('ball_orientation_authoritative', str(args.spin != 'unknown').lower()), ('planner_poses_topic', '/poses/planner_full')])
     base = launch(args.bringup/'hope_base_pose_flat_relay', base_params)
     planner = launch(args.planner, [('prediction_backend', 'v2'), ('registration_id', registration),
         ('world_frame_id', int(world_sha[:13], 16)), ('plane_policy', policy),
-        ('test.worker_delay_ms', args.worker_delay_ms)])
+        ('test.worker_delay_ms', args.worker_delay_ms),
+        ('physics.drag_k', 0. if args.scenario in ['net_clear', 'net_collision'] else .12861635416914574)])
     launch(args.decoder)
     node = rclpy.create_node(f'integrated_chain_observer_{rate}_{policy.lower()}')
     decoded, wire, traces, statuses, observations, legacy, bases = [], [], [], [], [], [], []
+    # Observation callbacks may pause briefly under Python GC. Preserve the
+    # diagnostic evidence rather than dropping a 5-deep best-effort reader's
+    # rows; this does not alter the planner's one-running/one-pending bound.
+    trace_qos = QoSProfile(depth=128, reliability=ReliabilityPolicy.BEST_EFFORT)
     node.create_subscription(Float64MultiArray, '/a3/base_pose_flat', lambda m: bases.append(list(m.data)), qos_profile_sensor_data)
     node.create_subscription(Float64MultiArray, '/hope/test/integrated_runner/decoded',
-                             lambda m: decoded.append(list(m.data)), 10)
+                             lambda m: decoded.append(list(m.data)), 128)
     node.create_subscription(Float64MultiArray, '/hope/shadow/integrated_planner/racket_target',
-                             lambda m: wire.append(list(m.data)), 10)
+                             lambda m: wire.append(list(m.data)), 128)
     def trace(m):
         for d in m.status:
             row = {kv.key: kv.value for kv in d.values}
             row['receipt_time_ns'] = time.time_ns()
             traces.append(row)
-    node.create_subscription(DiagnosticArray, '/hope/shadow/integrated_planner/trace', trace, qos_profile_sensor_data)
+    node.create_subscription(DiagnosticArray, '/hope/shadow/integrated_planner/trace', trace, trace_qos)
     node.create_subscription(DiagnosticArray, '/hope/shadow/integrated_planner/status',
         lambda m: statuses.extend([{**{kv.key: kv.value for kv in d.values}, 'reason': d.message} for d in m.status]), 10)
     node.create_subscription(BallObservationV2, '/hope/ball/observation_v2', observations.append, qos_profile_sensor_data)
     node.create_subscription(PoseArray, '/poses/planner_full', legacy.append, qos_profile_sensor_data)
     stop, ready, queue = mp.Event(), mp.Event(), mp.Queue()
-    camera = mp.Process(target=source, args=(rate, stop, ready, queue))
+    camera = mp.Process(target=source, args=(rate, stop, ready, queue, args.speed, args.spin, args.scenario))
     try:
         until = time.monotonic()+1.
         while time.monotonic() < until:
@@ -184,6 +222,38 @@ def run(args, rate, policy):
                     'valid_commands': 0, 'source_eligible_epochs': len(source_stats['eligible_stamps']),
                     'superseded_work': superseded, 'queue_bound': {'running': 1, 'pending': 1},
                     'reasons': dict(Counter(s['reason'] for s in statuses)), 'source': source_stats}
+        physical = [s for s in statuses if s.get('physical_available') == 'true']
+        if args.scenario != 'held': assert physical, ('no physical forecast', Counter(s['reason'] for s in statuses))
+        if args.scenario in ['held', 'net_collision', 'uncertain_contact']:
+            assert not valid and not decoded, ('unsupported flight emitted command', len(valid))
+            reasons = Counter(s['reason'] for s in statuses)
+            if args.scenario == 'held':
+                assert not physical and observations, 'held ball acquired a physical shot'
+            elif args.scenario == 'net_collision':
+                assert reasons['PHYSICAL_TERMINATION_BEFORE_CONTACT'] > 0, reasons
+            else:
+                assert reasons['CONTACT_ORDER_UNCERTAIN']+reasons['BOUNCE_ORDER_UNCERTAIN'] > 0, reasons
+            return {'status': 'PASS', 'case': args.scenario, 'rate_hz': rate,
+                    'valid_commands': 0, 'reasons': dict(reasons), 'source': source_stats,
+                    'physical_rows': physical}
+        if args.scenario == 'net_clear':
+            assert any(s.get('return_eligible') == 'true' for s in physical), 'flyover never became physically eligible'
+            assert not any(s.get('return_reason') == 'PHYSICAL_TERMINATION_BEFORE_CONTACT'
+                           for s in physical if int(s.get('observed_contacts', 0)) == 0), 'false net termination'
+            assert valid or any(s['reason'] == 'IMPACT_OR_VELOCITY_CONTRACT' for s in statuses)
+            return {'status': 'PASS', 'case': 'clearing_net_physics_actor_separate', 'rate_hz': rate,
+                    'valid_commands': len(valid), 'decoded_callbacks': len(decoded), 'physical_rows': physical,
+                    'reasons': dict(Counter(s['reason'] for s in statuses)), 'source': source_stats}
+        if args.speed == 20.:
+            assert any(int(s.get('accepted', 0)) > 10 for s in statuses), 'fast flight never acquired'
+            assert any(int(s.get('observed_contacts', 0)) == 1 for s in physical), 'fast bounce not observed'
+            assert not any(int(s.get('observed_contacts', 0)) > 1 for s in physical), 'duplicate bounce'
+            assert all(float(t['source_age_ms']) <= 30 for t in traces)
+            return {'status': 'PASS', 'case': 'fast_physical_tracking_execution_separate',
+                    'speed_mps': args.speed, 'spin': args.spin, 'rate_hz': rate,
+                    'valid_commands': len(valid), 'decoded_callbacks': len(decoded),
+                    'physical_rows': physical, 'reasons': dict(Counter(s['reason'] for s in statuses)),
+                    'source': source_stats, 'wire': wire, 'decoded': decoded, 'traces': traces}
         assert valid and decoded and traces, (Counter(s['reason'] for s in statuses),
             bases[:1], bases[-1:], len(observations), len(legacy))
         assert all(t['game_history'] != 'COMPLETE' for t in traces)
@@ -192,7 +262,10 @@ def run(args, rate, policy):
         assert any(w[1] == 0 for w in wire), 'no pending revocation'
         assert any(s['reason'] == 'BASE_UNAVAILABLE' for s in statuses)
         assert any(s['reason'] == 'SOURCE_UNQUALIFIED' for s in statuses)
-        assert all(not o.orientation_valid and not o.omega_valid for o in observations)
+        if args.spin == 'unknown':
+            assert all(not o.orientation_valid and not o.omega_valid for o in observations)
+        else:
+            assert any(o.orientation_valid and o.orientation_authoritative for o in observations)
         assert observations and legacy
         assert all(o.calibration_id == registration for o in observations)
         wire_by_seq = {int(w[14]): w for w in valid}
@@ -217,6 +290,7 @@ def run(args, rate, policy):
         by_seq = {int(t['command_sequence']): t for t in traces}
         decode_latency = [((int(d[13])*10**9+int(d[14]))-int(by_seq[int(d[0])]['source_time_ns']))/1e6
                           for d in decoded if int(d[0]) in by_seq and d[10] == 0]
+        assert decode_latency and np.percentile(decode_latency, 95) <= 30., ('decoder latency', decode_latency)
         publication_age = [float(t['source_age_ms']) for t in traces]
         resources = {}
         for line in Path(f'/proc/{planner.pid}/status').read_text().splitlines():
@@ -227,20 +301,26 @@ def run(args, rate, policy):
         resources['node_cpu_s'] = (int(cpu_fields[11])+int(cpu_fields[12]))/os.sysconf('SC_CLK_TCK')
         def distribution(values):
             return dict(zip(['p50', 'p95', 'p99', 'max'], map(float, np.percentile(values, [50, 95, 99, 100]))))
-        return {'status': 'PASS', 'rate_hz': rate, 'plane_policy': policy,
+        return {'status': 'PASS', 'rate_hz': rate, 'plane_policy': policy, 'speed_mps': args.speed, 'spin': args.spin, 'scenario': args.scenario,
                 'valid_commands': len(valid), 'decoded_callbacks': len(decoded), 'matched_commands': matched,
                 'before_bounce_commands': sum(t['bounce_observed'] == 'false' for t in traces),
                 'trace_receipt_ms': distribution(latencies),
                 'actual_decoder_ms': distribution(decode_latency),
                 'source_to_publication_ms': distribution(publication_age), 'resources': resources,
                 'relay_ball_observations': len(observations), 'legacy_full_rate_frames': len(legacy),
-                'command_coverage_gate': 'PASS', 'command_coverage': coverage,
+                'command_coverage_gate': 'PASS', 'command_coverage': coverage, 'observer_trace_depth': 128,
                 'command_denominator': len(expected), 'covered_command_epochs': len(covered),
                 'reasons': dict(Counter(s['reason'] for s in statuses)), 'source': source_stats,
                 'traces': traces, 'wire': wire, 'decoded': decoded, 'graph': graph,
                 'camera_driver_included': False, 'synthetic_registration': True,
                 'context_publisher': False}
     finally:
+        # Preserve failed and rejected epochs too; threshold failures must be
+        # reviewable rather than disappearing before the success-only receipt.
+        args.output.with_suffix('.raw.json').write_text(json.dumps({
+            'rate_hz': rate, 'speed_mps': args.speed, 'spin': args.spin,
+            'statuses': statuses, 'traces': traces, 'wire': wire, 'decoded': decoded,
+            'source': locals().get('source_stats', {})}, indent=2)+'\n')
         stop.set()
         if camera.pid:
             camera.join(timeout=5)
@@ -266,6 +346,9 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--rate', type=int, choices=[150, 300], default=300)
     p.add_argument('--plane-policy', choices=['FOLLOW_POSE', 'ON_REFRESH'], default='FOLLOW_POSE')
+    p.add_argument('--speed', type=float, choices=[5., 10., 12., 20.], default=5.)
+    p.add_argument('--scenario', choices=['standard', 'net_clear', 'net_collision', 'uncertain_contact', 'held'], default='standard')
+    p.add_argument('--spin', choices=['unknown', 'zero', 'known'], default='unknown')
     p.add_argument('--worker-delay-ms', type=int, default=0)
     args = p.parse_args()
     os.environ.setdefault('ROS_LOCALHOST_ONLY', '1')

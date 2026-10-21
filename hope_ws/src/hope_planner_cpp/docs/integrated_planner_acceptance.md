@@ -1,5 +1,9 @@
 # Integrated planner implementation and qualification
 
+The evidence below is historical at `3346e030` / runtime `5ed18fa`. New review
+corrections and reruns are tracked separately in
+[integrated_planner_pr64_review_corrections.md](integrated_planner_pr64_review_corrections.md).
+
 This branch implements an opt-in **shadow** single-node V2 return path over
 minimal `4dc0959348f2aa777330d177d16eb70f778a79e6`. It does not claim full V3
 software completion, simulation qualification, physical qualification or live

@@ -13,11 +13,14 @@ from hope_msgs.msg import BallObservationV2, FlightContextV2, FlightPredictionV2
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--executable', required=True)
+    p.add_argument('--worker-delay-ms', type=int, default=0)
     args = p.parse_args()
     rclpy.init()
     node = rclpy.create_node('v2_context_noop_regression')
     process = subprocess.Popen([args.executable, '--ros-args', '-p', 'synthetic_plane:=true',
-        '-p', 'session_id:=noop_regression', '-p', 'plane_policy:=ON_REFRESH'],
+        '-p', 'session_id:=noop_regression', '-p', 'plane_policy:=ON_REFRESH',
+        '-p', f'test.worker_delay_ms:={args.worker_delay_ms}',
+        '-p', 'test.worker_delay_every:=1'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     predictions = []
     node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/prediction',
@@ -53,6 +56,15 @@ def main():
         message.session_id, message.authority = 'noop_regression', 'fixture'
         message.shot_generation, message.source_time_ns = generation, last
         initial = revoked()
+        message.operation, message.match_context = 'CONTEXT', 'SERVE'
+        for field, bad in [('shot_generation', generation+1), ('authority', 'wrong-authority'),
+                           ('session_id', 'wrong-session')]:
+            original = getattr(message, field)
+            setattr(message, field, bad)
+            context.publish(message)
+            spin(.001)
+            setattr(message, field, original)
+        assert revoked() == initial, 'rejected context revoked a forecast'
         for op in ['UNSUPPORTED', 'REFRESH_PLANE', 'CONTEXT', 'CONTEXT']:
             message.operation = op
             message.match_context = 'UNKNOWN'
@@ -63,10 +75,18 @@ def main():
         context.publish(message)
         spin(.003)
         assert revoked() == initial+1, 'accepted semantic change did not revoke'
+        fence = next(m.context_revision for m in reversed(predictions)
+                     if m.reason == 'semantic_context_superseded')
+        index = len(predictions)
         context.publish(message)
         spin(.002)
         assert revoked() == initial+1, 'repeat of accepted context revoked again'
-        print(json.dumps({'status': 'PASS', 'ignored_revocations': 0, 'accepted_semantic_revocations': 1}))
+        spin(.04)
+        assert all(not m.physical_available or m.context_revision >= fence
+                   for m in predictions[index:]), 'stale in-flight result reappeared after semantic fence'
+        print(json.dumps({'status': 'PASS', 'worker_delay_ms': args.worker_delay_ms,
+                          'ignored_revocations': 0, 'accepted_semantic_revocations': 1,
+                          'post_fence_stale_results': 0}))
     finally:
         process.terminate()
         process.wait(timeout=5)

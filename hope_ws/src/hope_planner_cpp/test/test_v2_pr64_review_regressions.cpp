@@ -33,14 +33,16 @@ TEST(PR64Review, RV01_DragAcquisitionBothRatesDirectionsAndSpin) {
   for (int rate : {150, 300})
     for (double speed : {10., 12.})
       for (int direction : {-1, 1})
-        for (bool known : {false, true}) {
+        for (bool known : {false, true}) for (bool noisy : {false,true}) {
           SCOPED_TRACE(::testing::Message() << rate << ":" << speed << ":" << direction << ":" << known);
           ProbabilisticConfig c;
           ShotSettings settings;
           settings.game_legality_advisory = true;
           FlightPipeline pipeline(c, settings);
           ModelState state;
-          state.position = Vec3(direction < 0 ? 2.6 : .14, -.7, .42);
+          const double incoming_x=speed==10?2.5:2.6;
+          state.position = Vec3(direction < 0 ? incoming_x : c.table.length-incoming_x,
+                                -.7, speed==10?.32:.3);
           state.velocity = Vec3(direction * speed, 0, -.5);
           if (known) {
             state.spin.omega = Vec3(0, 20, 0);
@@ -51,11 +53,14 @@ TEST(PR64Review, RV01_DragAcquisitionBothRatesDirectionsAndSpin) {
           double t = 0;
           bool acquired = false, physical = false, future_plane = false;
           std::uint64_t generation = 0;
-          for (int i = 0; i < rate / 3; ++i) {
+          int true_bounces=0;
+          for (int i = 0; i < rate / 2; ++i) {
             auto s = observation(t, state);
+            if(noisy)s.position+=Vec3(.0001*std::sin(i*1.7),.0001*std::cos(i*.7),.0001*std::sin(i*.3));
             s.producer_omega_valid = known;
             if (known) s.producer_omega_rad_s = *state.spin.omega;
             pipeline.observe(s);
+            if(acquired) { EXPECT_TRUE(pipeline.shot().active())<<pipeline.shot().reason(); }
             if (pipeline.shot().active()) {
               acquired = true;
               if (!generation) generation = pipeline.shot().generation();
@@ -67,12 +72,15 @@ TEST(PR64Review, RV01_DragAcquisitionBothRatesDirectionsAndSpin) {
             // Deliberately vary source intervals without hiding a contact.
             const double dt = (i % 2 ? .95 : 1.05) / rate;
             auto step = advance_ball(state, dt, c.physics, geometry);
+            for(const auto &e:step.events)if(e.kind==PhysicalEventKind::TABLE)++true_bounces;
             t += dt;
-            if (step.stopped || (direction < 0 && state.position.x() < .15)) break;
+            if (step.stopped || (direction < 0 && state.position.x() < .15) ||
+                (direction>0 && state.position.x()>c.table.length)) break;
           }
           EXPECT_TRUE(acquired) << pipeline.shot().reason();
           EXPECT_TRUE(physical);
-          if (direction < 0) EXPECT_TRUE(future_plane);
+          if (direction < 0) { EXPECT_TRUE(future_plane); }
+          EXPECT_EQ(true_bounces,1);
         }
 }
 TEST(PR64Review, RV02_HeldImpossibleAccelerationAndProvenanceFaults) {
@@ -106,6 +114,10 @@ TEST(PR64Review, RV03_OneFastBounceHasOneStableIdentity) {
       ModelState state;
       state.position = Vec3(2.5, -.7, .65);
       state.velocity = Vec3(-speed, 0, -5);
+      auto probe = state;
+      probe.position.x() = 0;
+      while (probe.position.z() > c.physics.radius) integrate_ball(probe, .00001, c.physics);
+      state.position.x() = .6 - probe.position.x();
       auto first = observation(0, state);
       // Isolate R02 from R01; automatic acquisition is tested separately.
       p.start(first.source_time_ns, -1, BoundaryEvidence::RESTART, HistoryContinuity::kUnknown);
@@ -136,6 +148,28 @@ BallSample angular(double t, double angle) {
   s.orientation_valid = s.orientation_authoritative = true;
   s.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(angle, Vec3::UnitY()));
   return s;
+}
+TEST(PR64Review, RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce) {
+  for(int rate:{150,300}) {
+    ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
+    FlightPipeline p(c,settings);ModelState state;
+    state.position=Vec3(1.5,-.7,.2525);state.velocity=Vec3(-20,0,-5);
+    p.start(observation(0,state).source_time_ns,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+    EventGeometry g;g.receiving_x=.15;
+    std::set<std::uint64_t> ids;int physical=0;
+    for(int i=0;i<rate/5;++i) {
+      auto s=observation(i*1./rate,state);p.observe(s);p.forecast(plane(),s.source_time_ns);
+      EXPECT_TRUE(p.shot().active())<<p.shot().reason();
+      EXPECT_LE(p.shot().observed_contacts(),1);
+      for(const auto &e:p.shot().events())
+        if(e.kind==PhysicalEventKind::TABLE&&e.status==EventStatus::CONFIRMED)ids.insert(e.id);
+      auto step=advance_ball(state,1./rate,c.physics,g);
+      for(const auto &e:step.events)if(e.kind==PhysicalEventKind::TABLE)++physical;
+      if(state.position.x()<.15||step.stopped)break;
+    }
+    EXPECT_EQ(physical,1);EXPECT_EQ(ids.size(),1u);
+    RecordProperty("confirmed_ids_"+std::to_string(rate),std::to_string(ids.size()));
+  }
 }
 TEST(PR64Review, RV05_DelayedContactSegmentsQuaternionWindow) {
   for (int rate : {150, 300}) {
@@ -172,10 +206,13 @@ TEST(PR64Review, RV06_HistoricalPreContactSpinRestoresImpactVelocity) {
   ModelState pre; pre.position = Vec3(.6,-.7,.02); pre.velocity = Vec3(3,0,-2);
   auto s = observation(0, pre); s.producer_omega_valid = true;
   s.producer_omega_rad_s = Vec3(0,150,0); shot.observe(s);
-  s = observation(.02, pre); s.producer_omega_rad_s = Vec3(0,54.2,0); shot.observe(s);
+  s = observation(.02, pre); s.producer_omega_valid = true;
+  s.producer_omega_rad_s = Vec3(0,54.2,0); shot.observe(s);
   pre.spin = shot.spin(); // Deliberately latest, causally wrong for the earlier bounce.
   ASSERT_TRUE(shot.confirm(PhysicalEventKind::TABLE, epoch+10000000, epoch+20000000, pre, "review"));
   const auto &e = shot.events().front();
+  RecordProperty("pre_spin_available",e.pre.spin.usable()?"true":"false");
+  RecordProperty("post_vx",std::to_string(e.post.velocity.x()));
   ASSERT_TRUE(e.pre.spin.usable());
   EXPECT_EQ(*e.pre.spin.omega, Vec3(0,150,0));
   EXPECT_NEAR(e.post.velocity.x(), 3., 1e-12); // vx - R*wy = 0: no slip impulse.
@@ -198,6 +235,25 @@ TEST(PR64Review, RV07_AuthoritativeAndQuaternionZeroRemainAvailable) {
   EXPECT_EQ(spin.value().mode, EffectiveSpinMode::MEASURED);
   EXPECT_EQ(*spin.value().omega, Vec3::Zero());
 }
+TEST(PR64Review, RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix) {
+  ShotSettings settings;settings.game_legality_advisory=true;
+  ShotContext shot({},settings);
+  const auto epoch=observation(0,{}).source_time_ns;
+  shot.start(epoch,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+  ModelState state;state.position=Vec3(.6,-.7,.02);state.velocity=Vec3(3,0,-2);
+  auto s=observation(0,state);s.producer_omega_valid=true;s.producer_omega_rad_s=Vec3(0,150,0);
+  shot.observe(s);s=observation(.02,state);s.producer_omega_valid=true;s.producer_omega_rad_s=Vec3(0,54.2,0);
+  shot.observe(s);
+  auto snapshot=shot.export_snapshot();
+#ifndef HOPE_PR64_BASELINE
+  snapshot.spin_checkpoint.reset();
+#endif
+  ShotContext restored({},settings);restored.restore_snapshot(snapshot);
+  ASSERT_TRUE(restored.confirm(PhysicalEventKind::TABLE,epoch+10000000,epoch+20000000,state,"wire_review"));
+  ASSERT_TRUE(restored.events().front().pre.spin.usable());
+  EXPECT_EQ(*restored.events().front().pre.spin.omega,Vec3(0,150,0));
+  EXPECT_NEAR(restored.events().front().post.velocity.x(),3,1e-12);
+}
 TEST(PR64Review, RV08_FiniteNetCornerClearanceAndTrueContact) {
   BallPhysics physics; physics.gravity.setZero(); physics.drag_k = physics.magnus_k = 0;
   EventGeometry g;
@@ -211,6 +267,7 @@ TEST(PR64Review, RV08_FiniteNetCornerClearanceAndTrueContact) {
       bool collision=false;
       for (const auto &e:step.events) collision |= e.kind==PhysicalEventKind::NET_COLLISION;
       EXPECT_EQ(collision,clearance<=.02) << direction << ":" << clearance;
+      if(direction==1 && clearance==.02753) RecordProperty("clearance_02753_collision",collision?"true":"false");
     }
 }
 TEST(PR64Review, RV09_NetFirstContactTimeAcrossStepSizes) {
@@ -246,6 +303,7 @@ TEST(PR64Review, RV10_SameStepBounceNoiseReachesPlane) {
     auto f=forecast_nominal(b,c,n);
     ASSERT_TRUE(f.hit_plane);
     const auto &e=*f.hit_plane;
+    RecordProperty("vx_variance_dt_"+std::to_string(std::llround(dt*1e6)),std::to_string(e.covariance(3,3)));
     EXPECT_NEAR(e.dt_s,.000750,1e-10);
     EXPECT_NEAR(e.covariance(3,3),.4225,1e-6);
     EXPECT_NEAR(e.covariance_budget.bounce(3,3),.4225,1e-8);
@@ -253,5 +311,213 @@ TEST(PR64Review, RV10_SameStepBounceNoiseReachesPlane) {
     Eigen::SelfAdjointEigenSolver<Matrix7> eigen(e.covariance);
     EXPECT_GE(eigen.eigenvalues().minCoeff(),-1e-10);
   }
+}
+TEST(PR64Review, RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact) {
+  for(int rate:{150,300}) {
+    ProbabilisticConfig c; c.physics.drag_k=0; c.physics.gravity.z()=-100;
+    c.measurement_std_m=Vec3::Constant(.0001);
+    ShotSettings settings;settings.game_legality_advisory=true;
+    FlightPipeline p(c,settings);
+    ModelState state;state.position=Vec3(.9,-.7,.025);state.velocity=Vec3(-2,0,-1);
+    p.start(observation(0,state).source_time_ns,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+    EventGeometry g;g.receiving_x=.15;
+    int true_count=0;
+    for(int i=0;i<rate/10;++i) {
+      p.observe(observation(double(i)/rate,state));
+      for(const auto &e:advance_ball(state,1./rate,c.physics,g).events)
+        if(e.kind==PhysicalEventKind::TABLE)++true_count;
+      if(p.shot().observed_contacts()>=2)break;
+    }
+    EXPECT_GE(true_count,2); EXPECT_EQ(p.shot().observed_contacts(),2);
+    auto f=p.forecast(plane(),p.shot().samples().back().source_time_ns);
+    EXPECT_EQ(select_physical_return(f,p.shot().export_snapshot(),c,f.reference_ns).reason,"SECOND_RECEIVER_BOUNCE");
+  }
+  // A long missing interval spans the sole bounce: no source reversal exists.
+  ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
+  FlightPipeline p(c,settings);ModelState state;
+  state.position=Vec3(1,-.7,.1);state.velocity=Vec3(-3,0,-1);
+  p.start(observation(0,state).source_time_ns,-1,BoundaryEvidence::RESTART,HistoryContinuity::kComplete);
+  EventGeometry g;
+  bool hidden=false;
+  for(int i=0;i<60;++i) {
+    const double t=i/300.;
+    if(t<.025||t>.13)p.observe(observation(t,state));
+    for(const auto &e:advance_ball(state,1./300,c.physics,g).events)
+      if(e.kind==PhysicalEventKind::TABLE)hidden=true;
+  }
+  EXPECT_TRUE(hidden); EXPECT_EQ(p.shot().observed_contacts(),0);
+  EXPECT_EQ(p.shot().continuity(),HistoryContinuity::kIncomplete);
+}
+TEST(PR64Review, RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl) {
+  // Independent analytic event map for a post-bounce impulse. No runtime
+  // Jacobian, covariance helper or stochastic runtime participates in this oracle.
+  ProbabilisticConfig c;c.physics.drag_k=c.physics.magnus_k=0;c.physics.gravity.setZero();
+  c.horizon_s=.002;
+  StateBelief b;b.initialized=true;b.covariance=1e-14*Matrix6::Identity();
+  const double impulse=c.physics.table_friction_cap_mu*(1+c.physics.restitution_v);
+  const double vx=-3+impulse, vz=c.physics.restitution_v;
+  const double dx=-vx*.000251;
+  b.mean<<c.x_hit+3*.000499+dx,-.7,.020499,-3,0,-1;
+  auto map=[&](const Vec3 &dv) {
+    const Vec3 v=Vec3(vx,0,vz)+dv;
+    const double duration=-dx/v.x();
+    Eigen::Matrix<double,7,1> x;
+    x<<c.x_hit,-.7+duration*v.y(),.02+duration*v.z(),v,.000499+duration;
+    return x;
+  };
+  Eigen::Matrix<double,7,3> j;
+  for(int k=0;k<3;++k) {
+    Vec3 a=Vec3::Zero();a[k]=1e-6;
+    j.col(k)=(map(a)-map(-a))/(2e-6);
+  }
+  const Matrix7 reference=j*c.bounce_velocity_std.array().square().matrix().asDiagonal()*j.transpose();
+  auto n=ForecastNoiseConfig::inherited(c);n.acceleration_spectral_density=0;n.attribute_covariance=true;
+  for(double dt:{.001,.0005,.00025}) {
+    c.integration_dt_s=dt;
+    auto f=forecast_nominal(b,c,n);ASSERT_TRUE(f.hit_plane);
+    EXPECT_LT((f.hit_plane->covariance_budget.bounce-reference).norm(),1e-8);
+    EXPECT_LT((f.waypoints.back().covariance_budget.total()-f.waypoints.back().covariance).norm(),1e-9);
+  }
+  // Plane first, no contact in the step: noise from a future bounce is absent.
+  b.mean<<c.x_hit+.001,-.7,.5,-3,0,-1;
+  auto f=forecast_nominal(b,c,n);ASSERT_TRUE(f.hit_plane);
+  EXPECT_TRUE(f.hit_plane->covariance_budget.bounce.isZero());
+}
+TEST(PR64Review, RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem) {
+  ShotContext s({});s.start(0,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+  BallSample sample;sample.source_time_ns=1;sample.source_time_s=1e-9;
+  sample.position=Vec3(1,-.7,.4);ASSERT_TRUE(s.observe(sample));
+  auto job=s.snapshot();
+  EXPECT_FALSE(s.context(MatchContext::SERVE,1,"referee",s.generation()+1));
+  EXPECT_TRUE(s.context(MatchContext::UNKNOWN,1,"referee",s.generation()));
+  EXPECT_TRUE(s.publishable(job,1));
+  auto delayed=s.snapshot();
+  EXPECT_FALSE(s.context(MatchContext::SERVE,1,"wrong-authority",s.generation()));
+  EXPECT_EQ(s.revision(),delayed.context_revision);
+  EXPECT_TRUE(s.context(MatchContext::SERVE,1,"referee",s.generation()));
+  EXPECT_FALSE(s.publishable(delayed,1));
+  auto current=s.snapshot();
+  s.context(MatchContext::SERVE,1,"referee",s.generation());
+  EXPECT_TRUE(s.publishable(current,1));
+}
+TEST(PR64Review, RV13_OriginalNakashimaFrictionSensitivityAndTrueZero) {
+  PlannerConfig config;config.adaptive_predict_horizon=true;config.max_predict_time_cap_s=3;
+  BallState s;s.valid=true;s.position=Vec3(1.4,-.55,.35);s.velocity=Vec3(-4.2,.35,-1.2);
+  BallPhysics a,b;a.nakashima_friction_mu=0;b.nakashima_friction_mu=.5;
+  TrajectoryPredictor p(a,config,{}),q(b,config,{});
+  for(auto mode:{SpinPhysicsMode::kNakashimaBounce,SpinPhysicsMode::kNakashimaBounceAndMagnus,
+                SpinPhysicsMode::kVenueGripBounce,SpinPhysicsMode::kVenueGripBounceAndMagnus,
+                SpinPhysicsMode::kLegacyNoSpin}) {
+    auto x=p.predict_with_spin(s,.15,Vec3::Zero(),mode), y=q.predict_with_spin(s,.15,Vec3::Zero(),mode);
+    ASSERT_TRUE(x.valid)<<x.reason;ASSERT_TRUE(y.valid)<<y.reason;
+    if(mode==SpinPhysicsMode::kNakashimaBounce||mode==SpinPhysicsMode::kNakashimaBounceAndMagnus)
+      EXPECT_GT((x.ball_velocity-y.ball_velocity).norm(),.1);
+    else EXPECT_EQ(x.ball_velocity,y.ball_velocity);
+  }
+}
+TEST(PR64Review, RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing) {
+  int eligible_count=0, commands=0;
+  for(int rate:{150,300})for(double speed:{10.,12.}) {
+    ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
+    FlightPipeline p(c,settings);ModelState state;
+    state.position=Vec3(speed==10?2.5:2.6,-.7,speed==10?.32:.3);state.velocity=Vec3(-speed,0,-.5);
+    EventGeometry g;g.receiving_x=.15;
+    for(int i=0;i<rate/2;++i) {
+      auto s=observation(double(i)/rate,state);p.observe(s);
+      if(p.shot().active()) {
+        auto f=p.forecast(plane(),s.source_time_ns);
+        auto e=select_physical_return(f,p.shot().export_snapshot(),c,s.source_time_ns);
+        if(e.eligible) {
+          ++eligible_count;
+          EXPECT_NE(e.input->history,HistoryContinuity::kComplete);
+          auto result=ValidatedReturnPlanner(c).solve(*e.input);
+          if(result.command.valid) {++commands;EXPECT_TRUE(result.return_ok);}
+        }
+      }
+      auto step=advance_ball(state,1./rate,c.physics,g);
+      if(state.position.x()<.15||step.stopped)break;
+    }
+  }
+  EXPECT_GT(eligible_count,20); EXPECT_GT(commands,10);
+}
+TEST(PR64Review, RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel) {
+  ProbabilisticConfig c;c.physics.drag_k=c.physics.magnus_k=0;
+  const double net_time=(c.table.net_x-.15)/4;
+  const double vz=-1.6+9.81*net_time;
+  const double z=c.table.net_height+.024-vz*net_time+4.905*net_time*net_time;
+  const double duration=(vz+std::sqrt(vz*vz+19.62*(z-.02)))/9.81;
+  ContactPlanningInput i;i.contact.pre.position=Vec3(.15,-.7,z);
+  i.contact.pre.velocity=Vec3(-3,0,vz);
+  ValidatedReturnSettings settings;settings.durations_s={duration};
+  settings.landing_surface=Vec3(.15+4*duration,-.7,0);
+  auto result=ValidatedReturnPlanner(c,settings).solve(i);
+  ASSERT_TRUE(result.command.valid)<<result.reason;
+  EXPECT_GT(result.net_clearance_m,0);
+  EXPECT_LT((result.reconstructed.velocity-Vec3(4,0,vz)).norm(),1e-4);
+  // A physically lower trajectory really hits the net and must remain invalid.
+  i.contact.pre.position.z()-=.015;
+  result=ValidatedReturnPlanner(c,settings).solve(i);
+  EXPECT_FALSE(result.command.valid);
+}
+TEST(PR64Review, RV17_CausalCheckpointAndObservationCutoffParity) {
+  ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
+  FlightPipeline p(c,settings);ModelState state;
+  state.position=Vec3(1,-.7,.12);state.velocity=Vec3(-3,0,-1);
+  p.start(observation(0,state).source_time_ns,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+  EventGeometry g;
+  for(int i=0;i<45;++i) {
+    auto s=observation(i/300.,state);
+    s.producer_omega_valid=true;s.producer_omega_rad_s=Vec3(0,i<20?30:54.2,0);
+    p.observe(s);
+    if(i>6 && p.shot().active()) {
+      FlightPipeline restored(c,settings);
+      restored.restore(p.shot().export_snapshot(),p.checkpoint(),p.source_origin_ns());
+      auto a=p.forecast(plane(),s.source_time_ns),b=restored.forecast(plane(),s.source_time_ns);
+      EXPECT_EQ(a.belief.mean,b.belief.mean);EXPECT_EQ(a.belief.covariance,b.belief.covariance);
+      ASSERT_EQ(a.nominal.events.size(),b.nominal.events.size());
+      for(std::size_t j=0;j<a.nominal.events.size();++j) {
+        EXPECT_EQ(a.nominal.events[j].pre,b.nominal.events[j].pre);
+        EXPECT_EQ(a.nominal.events[j].pre_spin.omega,b.nominal.events[j].pre_spin.omega);
+      }
+    }
+    advance_ball(state,1./300,c.physics,g);
+  }
+}
+TEST(PR64Review, RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger) {
+  ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
+  FlightPipeline p(c,settings);std::uint64_t previous=0;
+  for(int flight=0;flight<2;++flight) {
+    ModelState state;state.position=Vec3(2.5,-.7,.32);state.velocity=Vec3(-10,0,-.5);
+    EventGeometry g;
+    for(int i=0;i<35;++i) {
+      auto s=observation(flight+i/150.,state);p.observe(s);
+      if(i==0&&flight) { EXPECT_FALSE(p.shot().active()); }
+      if(i==10) {
+        EXPECT_TRUE(p.shot().active());
+        EXPECT_GT(p.shot().generation(),previous);previous=p.shot().generation();
+        EXPECT_EQ(p.shot().observed_contacts(),0);
+      }
+      advance_ball(state,1./150,c.physics,g);
+    }
+  }
+}
+TEST(PR64Review, RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn) {
+  ProbabilisticConfig c;c.physics.drag_k=c.physics.magnus_k=0;
+  StateBelief b;b.initialized=true;b.covariance=Matrix6::Identity()*1e-10;
+  const double net_time=(2.6-c.table.net_x)/10;
+  const double vz=-4.+9.81*net_time;
+  const double z=c.table.net_height+.024-vz*net_time+4.905*net_time*net_time;
+  b.mean<<2.6,-.7,z,-10,0,vz;
+  FlightPrediction f;f.belief=b;f.nominal=forecast_nominal(b,c);
+  ASSERT_TRUE(f.nominal.hit_plane);
+  EXPECT_FALSE(std::any_of(f.nominal.events.begin(),f.nominal.events.end(),
+      [](const auto &e){return e.kind=="net_collision";}));
+  f.physical_available=true;f.plane=plane();f.plane.x_hit_m=c.x_hit;
+  f.reference_ns=observation(0,{}).source_time_ns;
+  f.expires_ns=f.reference_ns+30000000;f.token.generation=1;
+  ShotSnapshot snapshot;snapshot.generation=1;snapshot.direction=-1;snapshot.boundary_ns=f.reference_ns;
+  snapshot.observations.push_back(observation(0,{}));
+  auto result=select_physical_return(f,snapshot,c,f.reference_ns);
+  EXPECT_TRUE(result.eligible)<<result.reason;
 }
 } // namespace
