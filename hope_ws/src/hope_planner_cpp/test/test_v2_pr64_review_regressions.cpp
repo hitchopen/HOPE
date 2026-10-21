@@ -288,6 +288,22 @@ TEST(PR64Review, RV09_NetFirstContactTimeAcrossStepSizes) {
     EXPECT_TRUE(found);
   }
 }
+TEST(PR64Review, RV09b_TrueCornerCollisionWinsPlaneTie) {
+  BallPhysics p;p.gravity.setZero();p.drag_k=p.magnus_k=0;
+  EventGeometry g;
+  const double offset=std::sqrt(p.radius*p.radius-2*.012*.012);
+  g.receiving_x=g.table.net_x+offset;
+  ModelState s;s.position=Vec3(g.table.net_x+.03,g.table.y_max+g.table.net_overhang+.012,
+                              g.table.net_height+.012);
+  s.velocity=Vec3(-20,0,0);
+  const auto step=advance_ball(s,.001,p,g);
+  ASSERT_FALSE(step.events.empty());
+  EXPECT_EQ(step.events.front().kind,PhysicalEventKind::NET_COLLISION);
+  EXPECT_NEAR(step.events.front().dt_s,(.03-offset)/20,1e-9);
+  EXPECT_TRUE(step.stopped);
+  EXPECT_FALSE(std::any_of(step.events.begin(),step.events.end(),
+      [](const auto &e){return e.kind==PhysicalEventKind::PLANE;}));
+}
 TEST(PR64Review, RV10_SameStepBounceNoiseReachesPlane) {
   for (double dt : {.001,.0005,.00025}) {
     ProbabilisticConfig c; c.physics.drag_k=c.physics.magnus_k=0; c.physics.gravity.setZero();
@@ -399,6 +415,18 @@ TEST(PR64Review, RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThe
   auto current=s.snapshot();
   s.context(MatchContext::SERVE,1,"referee",s.generation());
   EXPECT_TRUE(s.publishable(current,1));
+}
+TEST(PR64Review, RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization) {
+  ProbabilisticConfig c;c.physics.drag_k=c.physics.magnus_k=0;c.horizon_s=.01;
+  StateBelief b;b.initialized=true;b.covariance=1e-6*Matrix6::Identity();
+  b.mean<<.001,-.7,.021,-.01,0,-1;
+  auto f=forecast_nominal(b,c);
+  auto bounce=std::find_if(f.events.begin(),f.events.end(),[](const auto &e){return e.kind=="table_bounce";});
+  ASSERT_NE(bounce,f.events.end());EXPECT_EQ(bounce->quality,LinearizationQuality::BranchSensitive);
+  b.mean<<c.x_hit+.000001,-.7,.5,-.01,0,-1;
+  f=forecast_nominal(b,c);ASSERT_TRUE(f.hit_plane);
+  EXPECT_EQ(f.hit_plane->quality,LinearizationQuality::IllConditioned);
+  EXPECT_NE(f.uncertainty_provenance.find("unmodelled"),std::string::npos);
 }
 TEST(PR64Review, RV13_OriginalNakashimaFrictionSensitivityAndTrueZero) {
   PlannerConfig config;config.adaptive_predict_horizon=true;config.max_predict_time_cap_s=3;
