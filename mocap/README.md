@@ -243,7 +243,9 @@ The existing OptiTrack template is preserved unchanged. The new design retains
 its 40.50 mm spherical cavity and nominal 2.025 mm radial wall, with smaller
 radial apertures and a separately optimized asymmetric marker constellation.
 Use the matching **15-marker jig and asset together**. Do not use this asset
-with an 18-marker jig or a different marker arrangement.
+with an earlier 15-marker jig, an 18-marker jig, or a different arrangement.
+This **wide-spacing revision** changes the marker positions: reprint the jig,
+reposition all stickers, and import the matching new asset together.
 
 Supporting files:
 
@@ -254,6 +256,41 @@ Supporting files:
 This operator release contains the STL, native import JSON, preview, and this
 guide. Development scripts, tests, and detailed diagnostic JSON files are not
 included. The native asset itself contains all 15 nominal marker coordinates.
+
+Use these SHA-256 fingerprints to distinguish this revision from earlier files
+with the same names:
+
+| Release file | SHA-256 |
+|---|---|
+| STL | `514bb517853068ef20d0eaf83895dcf474986143b8d443da5a284afd16b3084a` |
+| Native asset JSON | `f6431bbc260c14dbe65c2a7ddfcba08ae117348b52899453289090c0fe091d49` |
+
+### Wider sticker separation
+
+The revised layout prioritizes edge-to-edge clearance while retaining the
+previous design's four-/five-marker incorrect-match margins:
+
+| Geometric measure | Previous 15-marker layout | Wide-spacing revision |
+|---|---:|---:|
+| Minimum center-to-center chord | 13.012 mm | **14.298 mm** |
+| Minimum nominal surface edge-to-edge gap | 7.253 mm | **8.622 mm (+18.9%)** |
+| Four-marker competing-fit RMS | 0.430028 mm | 0.430030 mm |
+| Five-marker competing-fit RMS | 0.860056 mm | 0.860060 mm |
+
+Surface clearance assumes nominal 6 mm circular footprints conforming to a
+radius-20-mm sphere: `40 × asin(center_chord / 40) − 6` mm. It is **not**
+the camera-image/pixel gap, and is not simply the center chord minus 6 mm.
+Sticker conformation, placement error and optical reflections affect the
+installed clearance; check the closest pair on the finished ball.
+
+ChingMu requested sufficient edge margin but supplied no numeric minimum.
+The 8.622 mm result is therefore a geometric improvement, **not vendor
+acceptance**. More widely packed candidates weakened subset discrimination,
+so this release retains the four-/five-marker matching margins instead of
+maximizing spacing alone. Its three-marker margin is smaller, as disclosed
+below. Adequate camera resolution, exposure and multi-camera coverage are
+still required: wider surface spacing cannot guarantee separate marker
+images under foreshortening, blur or reflections.
 
 ### Printing and applying the stickers
 
@@ -354,18 +391,27 @@ these results cannot be independently rerun from the supplied files alone.
 
 | Correctly reconstructed subset | Smallest competing-fit point RMS (larger is better) | Conservative combined per-point error budget, strictly below |
 |---|---:|---:|
-| 3 markers | 0.013490 mm | 0.006745 mm |
-| 4 markers | 0.430028 mm | 0.215014 mm |
-| 5 markers | 0.860056 mm | 0.430028 mm |
+| 3 markers | 0.005654 mm | 0.002827 mm |
+| 4 markers | 0.430030 mm | 0.215015 mm |
+| 5 markers | 0.860060 mm | 0.430030 mm |
 
 The last column is **half the competing-fit gap**, a sufficient mathematical
 condition for excluding two simultaneous fits, not measured sensor accuracy
-or a recommended vendor tolerance. The roughly 7 micrometre three-marker
-budget is especially unsuitable as a practical tracking claim. Marker centers
-are at least 13.012 mm apart, leaving about 7.253 mm between nominal sticker
-edges along the sphere. The 4,096-direction visibility proxy finds at least
-five outward-facing centers in **95.31%** of directions and a minimum of four;
-196 cap-boundary checks also find a minimum of four. These are single-direction
+or a recommended vendor tolerance. It assumes the total point error and
+the alternative-fit RMS acceptance threshold are each below the listed
+budget; more generally, their sum must be below the competing-fit gap.
+Systematic placement/calibration errors consume that budget too. CMTracker's
+actual matching criteria have not been established here.
+
+The three-marker gap decreases from 0.013490 to 0.005654 mm (about 58%);
+its roughly **2.8 micrometre half-gap is not a practical robustness claim**.
+Do not treat this layout as reliable three-marker-only tracking or relocking.
+The preserved margins apply to four-/five-marker subsets, not every subset
+size. Marker centers are at least 14.298 mm apart, leaving about 8.622 mm
+between nominal sticker edges along the sphere.
+The 4,096-direction visibility proxy finds at least five outward-facing
+centers in **95.46%** of directions and a minimum of four;
+198 cap-boundary checks also find a minimum of four. These are single-direction
 geometric visibility checks, not camera triangulation results. A five-marker
 tracking requirement therefore needs suitable multi-camera coverage and can
 still lose tracking under occlusion; do not claim visibility is guaranteed.
