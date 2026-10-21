@@ -22,6 +22,7 @@ find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(hope_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rcl_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
@@ -43,7 +44,7 @@ add_library(hope_planner_core
 find_path(HOPE_RECORDING_INCLUDE_DIR a3_deploy/recording_file.hpp
   HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include"
   REQUIRED)
-target_include_directories(hope_planner_core PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
+target_include_directories(hope_planner_core PUBLIC "$<BUILD_INTERFACE:${HOPE_RECORDING_INCLUDE_DIR}>")
 target_include_directories(hope_planner_core
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -68,6 +69,7 @@ target_link_libraries(hope_planner_cpp_node PRIVATE
   ${hope_msgs_TARGETS}
   ${std_msgs_TARGETS}
   ${std_srvs_TARGETS}
+    ${rcl_interfaces_TARGETS}
 )
 
 add_executable(hope_planner_cpp_replay src/replay_main.cpp)
@@ -98,6 +100,7 @@ install(TARGETS
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/ DESTINATION include)
+install(FILES "${HOPE_RECORDING_INCLUDE_DIR}/a3_deploy/session_home_contract.hpp" DESTINATION include/a3_deploy)
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS
@@ -161,6 +164,13 @@ if(BUILD_TESTING)
   target_link_libraries(test_question_bank_fixture hope_planner_core Eigen3::Eigen)
   target_include_directories(test_question_bank_fixture PRIVATE include)
 
+  ament_add_gtest(test_runtime_plane_reference test/test_runtime_plane_reference.cpp)
+  target_link_libraries(test_runtime_plane_reference hope_planner_core Eigen3::Eigen)
+  ament_add_gtest(test_planner_runtime_plane test/test_planner_runtime_plane.cpp src/planner_node.cpp)
+  target_link_libraries(test_planner_runtime_plane hope_planner_core Eigen3::Eigen rclcpp::rclcpp
+    ${diagnostic_msgs_TARGETS} ${geometry_msgs_TARGETS} ${hope_msgs_TARGETS}
+    ${std_msgs_TARGETS} ${std_srvs_TARGETS} ${rcl_interfaces_TARGETS})
+
   ament_add_gtest(test_planner_node_one_shot
     test/test_planner_node_one_shot.cpp
     src/planner_node.cpp
@@ -175,6 +185,7 @@ if(BUILD_TESTING)
     ${hope_msgs_TARGETS}
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS}
+    ${rcl_interfaces_TARGETS}
   )
 
   ament_add_gtest(test_planner_node_turn_guard
@@ -191,6 +202,7 @@ if(BUILD_TESTING)
     ${hope_msgs_TARGETS}
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS}
+    ${rcl_interfaces_TARGETS}
   )
 
   ament_add_gtest(test_flight_packet_pipeline
@@ -208,6 +220,7 @@ if(BUILD_TESTING)
     ${hope_msgs_TARGETS}
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS}
+    ${rcl_interfaces_TARGETS}
   )
 endif()
 

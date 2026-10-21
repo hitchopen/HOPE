@@ -681,7 +681,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertNotIn("pkill", script)
             self.assertNotIn("killall", script)
         self.assertIn("--no-fall-guard", helper)
-        self.assertIn('field_runner_args=(--planner)', helper)
+        self.assertIn('field_runner_args=(--planner --shared-session-home)', helper)
         self.assertIn('"${field_runner_args[@]}" --policy-native --serve', helper)
         self.assertIn('--trace-csv "$session_dir/sim2real/runner_trace.csv"', helper)
         self.assertIn('--obs-csv "$session_dir/sim2real/policy_obs_actions.csv"', helper)
