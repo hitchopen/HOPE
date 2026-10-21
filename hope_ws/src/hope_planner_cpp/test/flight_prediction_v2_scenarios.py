@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Raw-observation forecast scenarios; synthetic registration is not live qualification."""
 import argparse
+import gc
 import json
 import math
 import os
@@ -69,17 +70,8 @@ def trace_producer(direction, rate, session, sequence):
     node = rclpy.create_node('flight_trace_source_' + str(abs(hash(session))))
     observation = node.create_publisher(BallObservationV2, '/hope/ball/observation_v2', qos_profile_sensor_data)
     base = node.create_publisher(Float64MultiArray, '/hope/robot/base_pose', qos_profile_sensor_data)
-    context = node.create_publisher(FlightContextV2, '/hope/shadow/flight_v2/context', 32)
-    latest = [None]
-    def receive(message):
-        if message.session_id == session and message.physical_available:
-            latest[0] = message
-    node.create_subscription(FlightPredictionV2, '/hope/shadow/flight_v2/prediction', receive, qos_profile_sensor_data)
     sent_stamps = []
     seed_spin_stamps = []
-    context_sent = continuity_sent = False
-    continuity_refreshes = 0
-    last_refresh = 0
     try:
         deadline = time.monotonic() + 5
         while observation.get_subscription_count() == 0 and time.monotonic() < deadline:
@@ -88,12 +80,13 @@ def trace_producer(direction, rate, session, sequence):
         print(json.dumps(dict(ready=True)), flush=True)
         start = int(sys.stdin.readline())
         schedule = time.monotonic() + (start-time.time_ns())*1e-9
+        gc.disable()
         for i in range(round(.82*rate)):
             if round(.32*rate) <= i < round(.32*rate)+2:
                 continue
             deadline = schedule+i/rate+(.00015 if i%3 == 0 else 0)
             while time.monotonic() < deadline:
-                rclpy.spin_once(node, timeout_sec=min(.0005, deadline-time.monotonic()))
+                time.sleep(max(0., min(.0005, deadline-time.monotonic())))
             ns = time.time_ns()
             t = (ns-start)*1e-9
             state, omega = at(t)
@@ -122,30 +115,11 @@ def trace_producer(direction, rate, session, sequence):
                 pose.data = [2., 1., float(sequence), float(pose_ns//10**9), float(pose_ns%10**9),
                              -.43 if t < .35 else -.33, -.2, 0., 0., 0., 0., 1., 1., 47., 7., 1.]
                 base.publish(pose)
-            current = latest[0]
-            def evidence(complete=False):
-                event = FlightContextV2()
-                event.session_id, event.authority, event.operation = session, 'fixture', 'CONTEXT'
-                event.source_time_ns = current.prediction_reference_time_ns
-                event.shot_generation = current.shot_generation
-                event.match_context = 'SERVE'
-                if complete:
-                    event.history_continuity = 'complete'
-                context.publish(event)
-            if current and .04 < t < contacts[0] and not context_sent:
-                evidence()
-                context_sent = True
-            if current and t > contacts[0]+.07:
-                if (not continuity_sent or current.history_continuity != 'complete') and ns-last_refresh > 30_000_000:
-                    evidence(complete=True)
-                    continuity_sent = True
-                    continuity_refreshes += 1
-                    last_refresh = ns
-            rclpy.spin_once(node, timeout_sec=0)
+        gc.enable()
         print(json.dumps(dict(stamps=sent_stamps, seed_spin_stamps=seed_spin_stamps, last_sequence=sequence,
-                              context_sent=context_sent, continuity_sent=continuity_sent,
-                              continuity_refreshes=continuity_refreshes)), flush=True)
+                              source_contract="publish_only_no_forecast_decoding")), flush=True)
     finally:
+        gc.enable()
         node.destroy_node()
 
 
@@ -217,10 +191,30 @@ def scenario(executable, direction, rate, policy):
         source_process.stdin.write(str(start) + '\n')
         source_process.stdin.flush()
         source_output = []
+        context_sent = continuity_sent = False
+        continuity_refreshes = 0
+        last_refresh = 0
         source_deadline = time.monotonic()+5.
         while source_process.poll() is None:
             assert time.monotonic() < source_deadline, ("source_producer_timeout", direction, rate, policy)
             rclpy.spin_once(node, timeout_sec=.001)
+            # Referee bookkeeping lives in the receiver, so decoding a large
+            # forecast can never pause the independent camera across a bounce.
+            current = next((p for p, _ in reversed(predictions) if p.physical_available), None)
+            now = time.time_ns()
+            elapsed = (now-start)*1e-9
+            if current and .04 < elapsed < contacts[0] and not context_sent:
+                evidence('CONTEXT', source_time_ns=current.prediction_reference_time_ns,
+                         shot_generation=current.shot_generation, match_context='SERVE')
+                context_sent = True
+            if current and elapsed > contacts[0]+.07:
+                if (not continuity_sent or current.history_continuity != 'complete') and now-last_refresh > 30_000_000:
+                    evidence('CONTEXT', source_time_ns=current.prediction_reference_time_ns,
+                             shot_generation=current.shot_generation, match_context='SERVE',
+                             history_continuity='complete')
+                    continuity_sent = True
+                    continuity_refreshes += 1
+                    last_refresh = now
             # Drain before waiting for exit: on hosts with small pipe buffers
             # the final acquisition-stamp report can otherwise block its
             # writer, even though camera pacing has already completed.
@@ -231,9 +225,8 @@ def scenario(executable, direction, rate, policy):
         source_report = json.loads((''.join(source_output) + output).strip())
         sent_stamps = source_report['stamps']
         sequence = source_report['last_sequence']
-        context_sent = source_report['context_sent']
-        continuity_sent = source_report['continuity_sent']
-        continuity_refreshes = source_report['continuity_refreshes']
+        source_report.update(context_sent=context_sent, continuity_sent=continuity_sent,
+                             continuity_refreshes=continuity_refreshes)
         spin(.045)
         physical = [p for p, _ in predictions if p.physical_available]
         assert physical and context_sent and continuity_sent
