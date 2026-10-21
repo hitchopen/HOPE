@@ -591,7 +591,7 @@ class HopeLifecycleSupervisor(Node):
 
     def _start(self, _request, response):
         with self._lock:
-            if self._busy or self._field_busy or self._state != "STOPPED":
+            if self._busy or self._field_busy or self._state not in {"STOPPED", "FAILED"}:
                 response.success = False
                 response.message = f"lifecycle start rejected in state {self._state}"
                 return response
@@ -601,8 +601,19 @@ class HopeLifecycleSupervisor(Node):
                     "confirm the three Runner IPv4 fields and table side before starting"
                 )
                 return response
+            previous_state = self._state
+            previous_session = self._session_id
+            previous_mode = self._session_mode
+            cleanup_session = previous_session if previous_state == "FAILED" else None
+            if previous_state == "FAILED" and not cleanup_session:
+                response.success = False
+                response.message = "failed session identity is missing; cannot safely clean up"
+                return response
             try:
-                operation_lock = try_acquire_hardware_operation_lock()
+                # A failed managed START retains this lock until cleanup succeeds.
+                operation_lock = self._hardware_operation_lock
+                if operation_lock is None:
+                    operation_lock = try_acquire_hardware_operation_lock()
             except OSError as exc:
                 response.success = False
                 response.message = f"hardware-operation interlock unavailable: {exc}"
@@ -616,24 +627,23 @@ class HopeLifecycleSupervisor(Node):
             config = self._config
             session_id = datetime.now(timezone.utc).strftime("model21800_%Y%m%dT%H%M%SZ")
             self._busy = True
-            self._state = "STARTING"
-            self._step = "SESSION"
-            self._session_id = session_id
-            self._last_result = "START_ACCEPTED"
+            self._state = "KILLING" if cleanup_session else "STARTING"
+            self._step = "RECOVERY_CLEANUP" if cleanup_session else "SESSION"
+            self._session_id = cleanup_session or session_id
+            self._last_result = "START_RECOVERY_ACCEPTED" if cleanup_session else "START_ACCEPTED"
             self._hardware_operation_lock = operation_lock
         try:
-            self._pool.submit(self._run_start, config, session_id)
+            self._pool.submit(self._run_start, config, session_id, cleanup_session, previous_mode)
         except Exception as exc:  # noqa: BLE001 - hardware has not changed yet
             with self._lock:
                 self._busy = False
-                self._state = "STOPPED"
-                self._step = "IDLE"
-                self._session_id = ""
+                self._state = previous_state
+                self._step = "RECOVERY_CLEANUP" if cleanup_session else "IDLE"
+                self._session_id = previous_session
                 self._last_result = f"START_SUBMIT_FAILED: {type(exc).__name__}"
-                release_hardware_operation_lock(
-                    self._hardware_operation_lock
-                )
-                self._hardware_operation_lock = None
+                if not cleanup_session:
+                    release_hardware_operation_lock(self._hardware_operation_lock)
+                    self._hardware_operation_lock = None
             response.success = False
             response.message = f"cannot start lifecycle worker: {exc}"
             return response
@@ -641,9 +651,19 @@ class HopeLifecycleSupervisor(Node):
         response.message = f"start accepted for {session_id}; follow lifecycle state topics"
         return response
 
-    def _run_start(self, config: LifecycleConfig, session_id: str) -> None:
+    def _run_start(self, config: LifecycleConfig, session_id: str,
+                   cleanup_session: str | None = None, cleanup_mode: str = "OPTITRACK") -> None:
+        recovering = cleanup_session is not None
         try:
+            if recovering:
+                self._field.recorder.stop(wait=False)
+                self._backend.kill_all_and_collect(
+                    config, cleanup_session, self._on_event, cleanup_mode)
+                # Never release the operation lock between cleanup and retry.
+                recovering = False
             with self._lock:
+                self._state = "STARTING"
+                self._session_id = session_id
                 self._step = "PREFLIGHT"
             mode, csv_sha = self._field.runner_selection(config)
             self._session_mode = mode
@@ -656,17 +676,17 @@ class HopeLifecycleSupervisor(Node):
             )
             with self._lock:
                 managed_recovery = "MANAGED_" in str(exc)
-                if self._step == "PREFLIGHT" and not managed_recovery:
+                if self._step == "PREFLIGHT" and not managed_recovery and not recovering:
                     self._state = "STOPPED"
                     self._session_id = ""
-                    self._last_result = f"PREFLIGHT_REJECTED: {str(exc)[:300]}"
+                    self._last_result = f"PREFLIGHT_REJECTED: {(str(exc).strip().splitlines() or [type(exc).__name__])[-1][-300:]}"
                     release_hardware_operation_lock(
                         self._hardware_operation_lock
                     )
                     self._hardware_operation_lock = None
                 else:
                     self._state = "FAILED"
-                    prefix = "MANAGED_RECOVERY_REQUIRED" if managed_recovery else "START_FAILED"
+                    prefix = "START_CLEANUP_FAILED" if recovering else "MANAGED_RECOVERY_REQUIRED" if managed_recovery else "START_FAILED"
                     if managed_recovery:
                         try:
                             previous_session = validate_session_id(
@@ -678,7 +698,7 @@ class HopeLifecycleSupervisor(Node):
                             pass
                         else:
                             self._session_id = previous_session
-                    self._last_result = f"{prefix}: {str(exc)[:280]}"
+                    self._last_result = f"{prefix}: {(str(exc).strip().splitlines() or [type(exc).__name__])[-1][-280:]}"
                 self._busy = False
             return
         except Exception as exc:  # noqa: BLE001 - never leave hardware lifecycle busy

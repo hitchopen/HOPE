@@ -1365,7 +1365,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             type="button"
             disabled={
               !configComplete ||
-              !lifecycleStopped ||
+              !(lifecycleStopped || lifecycleState === "FAILED") ||
               lifecycleBusy ||
               timeCalibrationBlocksStart ||
               busy.applyLifecycleConfig === true
@@ -1378,7 +1378,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             className="system-start"
             type="button"
             disabled={
-              !lifecycleStopped ||
+              !(lifecycleStopped || lifecycleState === "FAILED") ||
               lifecycleBusy ||
               timeCalibrationBlocksStart ||
               (snapshot.lifecycleConfigRevision ?? 0) < 1 ||
@@ -1391,7 +1391,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           >
             {busy.startLifecycle === true || (lifecycleBusy && lifecycleState === "STARTING")
               ? "STARTING…"
-              : "START SYSTEM"}
+              : lifecycleBusy && lifecycleState === "KILLING" ? "CLEANING…"
+              : lifecycleState === "FAILED" ? "RETRY START · 自动清理后重试" : "START SYSTEM"}
           </button>
           <button
             className="system-stop"

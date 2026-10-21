@@ -65,27 +65,39 @@ def live_parameters(node_name: str, names: list[str]) -> dict | None:
     node = rclpy.create_node("hope_ball_model_check", start_parameter_services=False)
     try:
         client = node.create_client(GetParameters, f"/{node_name}/get_parameters")
-        available = client.wait_for_service(timeout_sec=2.0)
-        found = sum(name == node_name for name, _ in node.get_node_names_and_namespaces())
-        if found > 1:
-            raise ValueError(f"duplicate {node_name} nodes; cannot verify ball physics")
-        if not available:
-            executable = "hope_planner_cpp_node" if node_name == "hope_planner" else node_name
-            for cmdline in Path("/proc").glob("[0-9]*/cmdline"):
-                try:
-                    argv = cmdline.read_bytes().split(b"\0")
-                    if argv and Path(argv[0].decode()).name == executable:
-                        raise ValueError(f"{node_name} exists but its parameters are unreachable")
-                except (OSError, UnicodeError):
-                    continue
-            if found:
-                raise ValueError(f"{node_name} discovered but parameters are unavailable")
-            return None
-        future = client.call_async(GetParameters.Request(names=names))
-        rclpy.spin_until_future_complete(node, future, timeout_sec=3.0)
-        if not future.done() or future.result() is None:
-            raise ValueError(f"{node_name} parameter read timed out")
-        return dict(zip(names, map(parameter_value_to_python, future.result().values)))
+        # Keep the same DDS participant while discovery catches up. Four attempts
+        # bound discovery + replies to 20 s, below the caller's 30 s timeout.
+        error = f"{node_name} parameters are unreachable"
+        for attempt in range(4):
+            available = client.wait_for_service(timeout_sec=2.0)
+            found = sum(name == node_name for name, _ in node.get_node_names_and_namespaces())
+            if found > 1:
+                raise ValueError(f"duplicate {node_name} nodes; cannot verify ball physics")
+            if not available:
+                executable = "hope_planner_cpp_node" if node_name == "hope_planner" else node_name
+                process_found = False
+                for cmdline in Path("/proc").glob("[0-9]*/cmdline"):
+                    try:
+                        argv = cmdline.read_bytes().split(b"\0")
+                        if argv and Path(argv[0].decode()).name == executable:
+                            process_found = True
+                            break
+                    except (OSError, UnicodeError):
+                        continue
+                if not found and not process_found:
+                    return None
+                error = f"{node_name} exists but its parameters are unreachable"
+                continue
+            future = client.call_async(GetParameters.Request(names=names))
+            rclpy.spin_until_future_complete(node, future, timeout_sec=3.0)
+            if future.done() and future.result() is not None:
+                if sum(name == node_name for name, _ in node.get_node_names_and_namespaces()) > 1:
+                    raise ValueError(f"duplicate {node_name} nodes; cannot verify ball physics")
+                return dict(zip(names, map(parameter_value_to_python, future.result().values)))
+            client.remove_pending_request(future)
+            future.cancel()
+            error = f"{node_name} parameter read timed out"
+        raise ValueError(f"{error} after 4 attempts (20 s maximum)")
     finally:
         node.destroy_node()
         rclpy.shutdown()
