@@ -194,6 +194,7 @@ struct IntegratedPlannerRuntime::Impl {
         static_cast<long double>(now)-sample.source_time_ns>30000000.L ||
         static_cast<long double>(now)-sample.source_time_ns < -1000000.L) {
       ++rejected; ++epoch;source_fault=true;return_eligible=false;outgoing_valid=false;
+      physical_available=false;physical_reason="SOURCE_UNQUALIFIED";
       pipeline->shot().revoke_outputs("SOURCE_UNQUALIFIED");
       invalidate_locked("SOURCE_UNQUALIFIED"); return;
     }
@@ -204,6 +205,7 @@ struct IntegratedPlannerRuntime::Impl {
     const auto revision=pipeline->shot().revision();
     pipeline->observe(sample);
     if (generation!=pipeline->shot().generation()) {
+      physical_available=false;
       ++epoch; invalidate_locked("PHYSICAL_SHOT_CHANGED"); game="UNKNOWN";
       last_context_ns=std::numeric_limits<std::int64_t>::min();
     } else if (revision!=pipeline->shot().revision()) {

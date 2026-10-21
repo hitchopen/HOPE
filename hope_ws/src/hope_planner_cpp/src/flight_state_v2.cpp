@@ -819,6 +819,7 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   next_event_id_ = 1;
   for (const auto &e : events_) {
     if (e.generation != generation_ || !e.id ||
+        e.time_uncertainty_ns < 0 ||
         (boundary_qualified_ && e.status == EventStatus::CONFIRMED &&
          e.event_time_ns < boundary_ns_) ||
         (e.status == EventStatus::CONFIRMED &&
@@ -852,8 +853,11 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
         if (e.kind == PhysicalEventKind::TABLE && e.status == EventStatus::CONFIRMED &&
             e.confirmed_at_ns <= sample.source_time_ns &&
             std::find(applied.begin(),applied.end(),e.id)==applied.end()) {
-          recovered.contact(e.id,e.event_time_ns,e.pre.velocity,config_.physics,
-              e.bracket_end_ns ? e.bracket_end_ns : e.event_time_ns+e.time_uncertainty_ns,
+          std::int64_t end=e.event_time_ns;
+          if (e.bracket_end_ns) end=e.bracket_end_ns;
+          else if (!checked_arrival(e.event_time_ns,e.time_uncertainty_ns,end))
+            end=std::numeric_limits<std::int64_t>::max();
+          recovered.contact(e.id,e.event_time_ns,e.pre.velocity,config_.physics,end,
               e.reversal_sample_ns ? std::optional<std::int64_t>(e.bracket_begin_ns) : std::nullopt);
           applied.push_back(e.id);
         }
