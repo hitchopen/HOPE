@@ -12,6 +12,7 @@ struct ModelState {
 };
 void integrate_ball(ModelState &, double duration_s, const BallPhysics &);
 void apply_model_contact(ModelState &, const BallPhysics &);
+double finite_net_distance(const Vec3 &, const TableParams &);
 enum class PhysicalEventKind {
   TABLE,
   NET_COLLISION,

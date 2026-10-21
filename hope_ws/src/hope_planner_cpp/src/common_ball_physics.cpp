@@ -54,7 +54,7 @@ void apply_model_contact(ModelState &s, const BallPhysics &p) {
     s.spin.omega = w;
     s.spin.mode = EffectiveSpinMode::CONTACT_PROPAGATED;
     s.spin.provenance = "thin_shell_contact;constant_free_flight_spin_prior;"
-                        "conditional_uncertainty";
+                        "conditional_uncertainty;pre=" + s.spin.provenance;
   } else {
     const Vec3 slip(s.velocity.x(), s.velocity.y(), 0);
     const double speed = slip.norm();
@@ -67,6 +67,12 @@ void apply_model_contact(ModelState &s, const BallPhysics &p) {
     s.velocity.z() *= -p.restitution_v;
     s.spin = EffectiveSpin{};
   }
+}
+double finite_net_distance(const Vec3 &position, const TableParams &table) {
+  const double dy = std::max({table.y_max-table.width-table.net_overhang-position.y(),
+                              position.y()-table.y_max-table.net_overhang, 0.});
+  const double dz = std::max({-position.z(), position.z()-table.net_height, 0.});
+  return Vec3(position.x()-table.net_x, dy, dz).norm();
 }
 namespace {
 bool top(const Vec3 &p, const TableParams &t) {
@@ -137,34 +143,55 @@ ModelStep advance_ball(ModelState &s, double h, const BallPhysics &p,
       else if (edge(hit.position, g.table, p.radius))
         add(PhysicalEventKind::EDGE_AMBIGUOUS, t);
     }
-    // Swept finite radius-expanded net box. Axis roots handle entry through the
-    // top/side too.
+    // Conservative swept AABB is only broad phase. The narrow phase uses
+    // Euclidean distance to the finite, zero-thickness rectangle, including
+    // its four edges/corners (no unmodelled poles).
     const Vec3 lower(g.table.net_x - p.radius,
-                     g.table.y_max - g.table.width - g.table.net_overhang -
-                         p.radius,
+                     g.table.y_max - g.table.width - g.table.net_overhang - p.radius,
                      -p.radius);
     const Vec3 upper(g.table.net_x + p.radius,
                      g.table.y_max + g.table.net_overhang + p.radius,
                      g.table.net_height + p.radius);
-    double enter = 0, exit = remaining;
+    const double speed_bound = initial.velocity.norm() + p.gravity.norm()*remaining;
+    const double acceleration_bound = p.gravity.norm() + p.drag_k*speed_bound*speed_bound +
+        p.magnus_k*(initial.spin.usable() ? initial.spin.omega->norm() : 0)*speed_bound;
+    const double sag = acceleration_bound*remaining*remaining/8;
     bool intersects = true;
-    for (int axis = 0; axis < 3; ++axis) {
-      const double a = initial.position[axis], b = next.position[axis];
-      if (std::max(a, b) < lower[axis] || std::min(a, b) > upper[axis]) {
+    for (int axis = 0; axis < 3; ++axis)
+      if (std::max(initial.position[axis], next.position[axis])+sag < lower[axis] ||
+          std::min(initial.position[axis], next.position[axis])-sag > upper[axis])
         intersects = false;
+    if (intersects) {
+      auto distance = [&](double time) {
+        return finite_net_distance(at(initial, time, p).position, g.table);
+      };
+      // Bounded minimization on <=1 ms pieces also finds a grazing root with
+      // no sign change. Root tolerance is 0.1 nm in separation, <1 ns in time.
+      constexpr double tolerance = 1e-10;
+      const int pieces = std::max(1, static_cast<int>(std::ceil(remaining/.001)));
+      for (int piece=0; piece<pieces; ++piece) {
+        const double begin = remaining*piece/pieces, end = remaining*(piece+1)/pieces;
+        double lo=begin, hi=end;
+        for (int k=0; k<40; ++k) {
+          const double a=lo+(hi-lo)/3, b=hi-(hi-lo)/3;
+          if (distance(a)<distance(b)) hi=b; else lo=a;
+        }
+        double minimum=(lo+hi)*.5;
+        if (distance(begin)<distance(minimum)) minimum=begin;
+        if (distance(end)<distance(minimum)) minimum=end;
+        if (distance(minimum)>p.radius+tolerance) continue;
+        lo=begin; hi=minimum;
+        if (distance(begin)<=p.radius+tolerance) hi=begin;
+        else if (distance(minimum)<p.radius) {
+          for (int k=0; k<42; ++k) {
+            const double mid=(lo+hi)*.5;
+            if (distance(mid)>p.radius) lo=mid; else hi=mid;
+          }
+        }
+        add(PhysicalEventKind::NET_COLLISION, hi);
         break;
       }
-      if (a < lower[axis])
-        enter = std::max(enter, root(initial, remaining, p, axis, lower[axis]));
-      if (a > upper[axis])
-        enter = std::max(enter, root(initial, remaining, p, axis, upper[axis]));
-      if (b < lower[axis])
-        exit = std::min(exit, root(initial, remaining, p, axis, lower[axis]));
-      if (b > upper[axis])
-        exit = std::min(exit, root(initial, remaining, p, axis, upper[axis]));
     }
-    if (intersects && enter <= exit + 1e-12)
-      add(PhysicalEventKind::NET_COLLISION, enter);
     auto crossing = [&](double x, PhysicalEventKind kind, int direction) {
       const double a = initial.position.x() - x, b = next.position.x() - x;
       if ((direction < 0 && a > 0 && b <= 0) ||
