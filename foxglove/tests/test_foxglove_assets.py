@@ -227,7 +227,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
                     unit,
                 )
 
-    def test_control_layout_has_only_fixed_local_actions_x_hit_and_estop(self):
+    def test_control_layout_has_only_fixed_local_actions_and_estop(self):
         layout = json.loads(
             (
                 FOXGLOVE_DIR
@@ -245,7 +245,6 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             [
                 "/hope/calibrate_v2",
                 "/hope/calibrate_v3",
-                "/hope/refresh_x_hit",
                 "/hope/runner/emergency_passive",
                 "/hope/runner/enter_motion",
                 "/hope/runner/enter_pd_stand",
@@ -263,10 +262,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertIn("world→pelvis", calibration["buttonTooltip"])
             self.assertIn("Does not refresh x_hit", calibration["buttonTooltip"])
             self.assertEqual(calibration["timeoutSeconds"], 40)
-        self.assertEqual(
-            panels["ServiceCall!refreshxhit"]["serviceName"],
-            "/hope/refresh_x_hit",
-        )
+        self.assertNotIn("ServiceCall!refreshxhit", panels)
         self.assertIn(
             "loses support",
             panels["ServiceCall!passive"]["buttonText"].lower(),
@@ -446,7 +442,6 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertEqual(package["displayName"], "HOPE A3 Console")
         for service in (
             "/hope/safety/trigger_estop",
-            "/hope/refresh_x_hit",
             "/hope/runner/set_server",
             "/hope/runner/set_receiver",
             "/hope/runner/enter_pd_stand",
@@ -469,7 +464,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("/hope/lifecycle/stop_and_collect", extension)
         self.assertNotIn("/hope/control/enter_", extension)
         self.assertNotIn("context.publish", extension)
-        self.assertIn('key === "refreshXHit"', extension)
+        self.assertNotIn('refreshXHit', extension)
         self.assertNotIn("/hope/calibrate_v2", extension)
         self.assertNotIn("/hope/calibrate_v3", extension)
         self.assertIn('"UCB_P2 · ROTATE 180°"', extension)
@@ -477,7 +472,6 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn('markerAsset: "/hope/mocap/marker_asset"', extension)
         self.assertIn('markers: "/hope/mocap/marker_count"', extension)
         self.assertNotIn('markersLegacy:', extension)
-        self.assertIn('? 7_000', extension)
         self.assertIn("E-STOP ASSERTED", extension)
         self.assertIn("CLICK TO REASSERT", extension)
         self.assertIn("BACKEND UNKNOWN · CLICK STILL ASSERTS", extension)
@@ -681,7 +675,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertNotIn("pkill", script)
             self.assertNotIn("killall", script)
         self.assertIn("--no-fall-guard", helper)
-        self.assertIn('field_runner_args=(--planner)', helper)
+        self.assertIn('field_runner_args=(--planner --shared-session-home)', helper)
         self.assertIn('"${field_runner_args[@]}" --policy-native --serve', helper)
         self.assertIn('--trace-csv "$session_dir/sim2real/runner_trace.csv"', helper)
         self.assertIn('--obs-csv "$session_dir/sim2real/policy_obs_actions.csv"', helper)

@@ -11,6 +11,9 @@ import {
 import { createRoot } from "react-dom/client";
 
 import { BallModelStatus, ballModelDisplay } from "./ballModelStatus";
+
+import { HitSpeedScaleControls } from "./HitSpeedScaleControls";
+import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { robotConnectionUrl, switchRobot } from "./robotConnection";
 import { mergeConfirmedConfig } from "./lifecycleConfig";
@@ -23,9 +26,13 @@ import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
+import { PlaneModeControls } from "./PlaneModeControls";
+import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
+
 import "./styles.css";
 
 const TOPICS = {
+  plannerDiagnostics: "/planner/diagnostics",
   fieldStatus: "/hope/field/status",
   ntpOffset: "/hope/ntp/offset_ms",
   ntpSkew: "/hope/ntp/skew_ppm",
@@ -72,8 +79,6 @@ const TOPICS = {
   lastAction: "/hope/runner/last_action",
   lastResult: "/hope/runner/last_action_result",
   lastReason: "/hope/runner/last_action_reason",
-  xHitSuccess: "/hope/x_hit/success",
-  xHitStatus: "/hope/x_hit/status",
   lifecycleState: "/hope/lifecycle/state",
   lifecycleStep: "/hope/lifecycle/step",
   lifecycleSession: "/hope/lifecycle/session_id",
@@ -105,7 +110,6 @@ const SERVICES = {
   setServer: "/hope/runner/set_server",
   setReceiver: "/hope/runner/set_receiver",
   stand: "/hope/runner/enter_pd_stand",
-  refreshXHit: "/hope/refresh_x_hit",
   ready: "/hope/runner/enter_motion",
   teleop: "/hope/runner/enter_teleop",
   prepareServe: "/hope/runner/prepare_serve",
@@ -218,6 +222,7 @@ function xboxPreviewValue(message: unknown): XboxPreview | undefined {
 }
 
 type Snapshot = {
+  hitSpeedScale?: HitSpeedScaleState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
   ntpOffsetMs?: number;
@@ -264,8 +269,7 @@ type Snapshot = {
   lastAction?: string;
   lastResult?: string;
   lastReason?: string;
-  xHitSuccess?: boolean;
-  xHitStatus?: string;
+  planeMode?: PlaneModeState;
   field?: FieldStatus;
   lifecycleState?: string;
   lifecycleStep?: string;
@@ -325,6 +329,10 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
+    case TOPICS.plannerDiagnostics:
+      next.planeMode = decodePlaneMode(event.message);
+      next.hitSpeedScale = decodeHitSpeedScale(event.message);
+      break;
     case TOPICS.fieldStatus:
       try {
         next.field = JSON.parse(stringValue(event.message) ?? "null") as FieldStatus;
@@ -475,12 +483,6 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.lastReason:
       next.lastReason = stringValue(event.message);
-      break;
-    case TOPICS.xHitSuccess:
-      next.xHitSuccess = boolValue(event.message);
-      break;
-    case TOPICS.xHitStatus:
-      next.xHitStatus = stringValue(event.message);
       break;
     case TOPICS.lifecycleState:
       next.lifecycleState = stringValue(event.message);
@@ -778,11 +780,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         const timeoutMs =
           key === "estop"
             ? 5_000
-            : key === "refreshXHit"
-                ? 7_000
-                : key === "timeCalibration"
-                  ? 10_000
-                  : 3_000;
+            : key === "timeCalibration"
+              ? 10_000
+              : 3_000;
         const raw = await Promise.race([
           context.callService(SERVICES[key], {}),
           timeoutAfter(timeoutMs),
@@ -797,6 +797,46 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     },
     [busy, context],
   );
+
+  const applyHitSpeedScale = useCallback(async (scale: number) => {
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(HIT_SPEED_SCALE_SERVICE, hitSpeedScaleRequest(scale)), timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.hitSpeedScale?.scale === scale) {
+        setNotice(`击球力度已确认：${scale}；从后续新目标生效。`);
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("请求已接受，状态回读超时；请核对当前击球力度。");
+  }, [context]);
+
+  const applyPlaneMode = useCallback(async (mode: PlaneMode) => {
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(PLANE_MODE_SERVICE, planeModeRequest(mode)), timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.planeMode?.requested === mode) {
+        setNotice("已确认下一球平面模式；本球目标保持不变。");
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("请求已接受，状态回读超时；请核对下一球模式。");
+  }, [context]);
 
   const fieldCommand = useCallback(async (payload: Record<string, unknown>) => {
     const recording = payload.op === "record_on" || payload.op === "record_off";
@@ -1638,6 +1678,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </button>
           </div>
         </div>
+          <PlaneModeControls
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.planeMode : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.planeMode?.configurable === true}
+            onApply={applyPlaneMode}
+          />
         <div className="action-grid">
           <ActionButton
             label="Stand"
@@ -1656,21 +1702,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "stand"}
             onClick={() => void invoke("stand")}
           />
-          {!kernelMode && <ActionButton
-            label="Refresh x_hit"
-            detail={
-              snapshot.xHitSuccess === true
-                ? (snapshot.xHitStatus ?? "DONE · Planner acknowledged")
-                : runnerStanding
-                  ? (snapshot.xHitStatus ?? "refresh Planner x_hit only")
-                  : "LOCKED · stand first"
-            }
-            disabled={!runnerUsable || !runnerStanding}
-            busy={busy.refreshXHit === true}
-            completed={snapshot.xHitSuccess === true}
-            next={false}
-            onClick={() => void invoke("refreshXHit")}
-          />}
           <ActionButton
             label="Ready"
             detail={
@@ -1695,6 +1726,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             completed={runnerReady}
             next={nextStep === "ready"}
             onClick={() => void invoke("ready")}
+          />
+          <HitSpeedScaleControls key={snapshot.lifecycleConfig.hdu_wifi_ip}
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.hitSpeedScale : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.hitSpeedScale?.configurable === true}
+            kernelMode={kernelMode} onApply={applyHitSpeedScale}
           />
           <ActionButton
             label="Start to Serve · Raise hand"
@@ -1778,7 +1815,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           />
         </div>
         <div className="sequence-footer">
-          <span title={snapshot.xHitStatus}>{lastAction}</span>
+          <span>{lastAction}</span>
           <ActionButton
             label="Runner Passive"
             detail="ZERO GAINS · robot loses support"

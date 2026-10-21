@@ -1,5 +1,6 @@
 #include "hope_planner_cpp/planner_node.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
+#include "hope_planner_cpp/hit_speed_scale_state.hpp"
 
 #include <Eigen/Geometry>
 
@@ -34,6 +35,12 @@ diagnostic_msgs::msg::KeyValue diagnostic_value(
 std::string number_string(double value, int precision = 6) {
   std::ostringstream stream;
   stream << std::fixed << std::setprecision(precision) << value;
+  return stream.str();
+}
+
+std::string scale_string(double value) {
+  std::ostringstream stream;
+  stream << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
   return stream.str();
 }
 
@@ -296,8 +303,23 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   publish_serve_ball_flat_ = declare_parameter<bool>("publish_serve_ball_flat", true);
   racket_flat_schema_ = static_cast<int>(
       declare_parameter<int>("racket_flat_schema", 2));
-  if (racket_flat_schema_ != 2 && racket_flat_schema_ != 3) {
-    throw std::invalid_argument("racket_flat_schema must be 2 or 3");
+  if (racket_flat_schema_ != 2 && racket_flat_schema_ != 3 && racket_flat_schema_ != 4) {
+    throw std::invalid_argument("racket_flat_schema must be 2, 3, or 4");
+  }
+  const auto home_topic = declare_parameter<std::string>("session_home_input_topic", "");
+  session_home_max_age_s_ = declare_parameter<double>("session_home_max_age_s", 0.5);
+  if ((racket_flat_schema_ == 4 && home_topic.empty()) ||
+      !std::isfinite(session_home_max_age_s_) || session_home_max_age_s_ <= 0.0 ||
+      (racket_flat_schema_ == 4 && (x_hit_follow_robot_ || x_hit_freeze_session_home_ ||
+          x_hit_bh_delta_ != 0.0)))
+    throw std::invalid_argument("schema4 requires Runner HOME and a fixed station plane");
+  if (racket_flat_schema_ == 4) {
+    home_subscription_ = create_subscription<std_msgs::msg::Float64MultiArray>(
+        home_topic, rclcpp::QoS(10).reliable().durability_volatile(),
+        [this](std_msgs::msg::Float64MultiArray::ConstSharedPtr msg) {
+          std::lock_guard<std::mutex> lock(base_mutex_);
+          shared_home_.accept(msg->data, steady_now_ns());
+        });
   }
   reach_permission_config_.enabled =
       declare_parameter<bool>("reach_permission_enabled", false);
@@ -408,6 +430,77 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   }
   const std::string flat_topic =
       declare_parameter<std::string>("racket_flat_topic", "/racket/command_flat");
+  rcl_interfaces::msg::ParameterDescriptor plane_descriptor;
+  plane_descriptor.read_only = true;
+  plane_descriptor.description = "Initial plane mode; runtime changes use /hope/planner/set_plane_mode";
+  const auto initial_plane_mode = parse_plane_mode(declare_parameter<std::string>(
+      "plane_reference_mode", "fixed", plane_descriptor));
+  runtime_plane_configurable_ = racket_flat_schema_ == 4 && post_net_one_shot_enabled_ && !question_fixture_enabled_;
+  if (!runtime_plane_configurable_ && initial_plane_mode != PlaneMode::Fixed)
+    throw std::invalid_argument("runtime plane modes require shared HOME and one-shot Planner");
+  runtime_plane_.request(initial_plane_mode);
+  plane_mode_service_ = create_service<rcl_interfaces::srv::SetParametersAtomically>(
+      "/hope/planner/set_plane_mode",
+      [this](const std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Request> request,
+             std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Response> response) {
+        try {
+          if (!runtime_plane_configurable_) throw std::invalid_argument("This Planner configuration does not support runtime plane modes");
+          if (request->parameters.size() != 1 || request->parameters[0].name != "mode" ||
+              request->parameters[0].value.type != 4)
+            throw std::invalid_argument("Supply exactly one mode(string)");
+          const auto mode = parse_plane_mode(request->parameters[0].value.string_value);
+          { std::lock_guard<std::mutex> lock(base_mutex_);
+            if (mode != PlaneMode::Fixed && shared_home_.value.epoch != 0 && !shared_home_.value.runtime_planes)
+              throw std::invalid_argument("Runner upgrade required for dynamic planes");
+          }
+          runtime_plane_.request(mode);
+          response->result.successful = true;
+          response->result.reason = "Selected for the next flight; published targets and Runner state are unchanged";
+        } catch (const std::exception& error) {
+          response->result.successful = false;
+          response->result.reason = error.what();
+        }
+      });
+
+  rcl_interfaces::msg::ParameterDescriptor scale_descriptor;
+  scale_descriptor.read_only = true;
+  scale_descriptor.description = "Startup scale; live changes use /hope/planner/set_hit_speed_scale";
+  const double startup_scale = declare_parameter<double>("hit_speed_scale", 1.0, scale_descriptor);
+  hit_speed_scale_state_file_ = declare_parameter<std::string>("hit_speed_scale_state_file", "", scale_descriptor);
+  const double initial_scale = question_fixture_enabled_ ? startup_scale :
+      load_hit_speed_scale(hit_speed_scale_state_file_, startup_scale);
+  if (!std::isfinite(initial_scale) || initial_scale < 0.0 ||
+      (question_fixture_enabled_ && initial_scale != 1.0)) {
+    throw std::invalid_argument("hit_speed_scale must be finite and nonnegative; exact fixtures require 1");
+  }
+  hit_speed_scale_.store(initial_scale);
+  hit_speed_scale_service_ = create_service<rcl_interfaces::srv::SetParametersAtomically>(
+      "/hope/planner/set_hit_speed_scale",
+      [this](const std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Request> request,
+             std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Response> response) {
+        if (question_fixture_enabled_ || request->parameters.size() != 1 ||
+            request->parameters[0].name != "scale" || request->parameters[0].value.type != 3 ||
+            !std::isfinite(request->parameters[0].value.double_value) ||
+            request->parameters[0].value.double_value < 0.0) {
+          response->result.successful = false;
+          response->result.reason = "Supply exactly one finite nonnegative scale(double); exact fixtures are locked";
+          return;
+        }
+        // Serialize acceptance with publication: after this acknowledgement,
+        // a new output cannot publish a scale sampled before the request.
+        std::lock_guard<std::mutex> lock(hit_speed_scale_publish_mutex_);
+        try {
+          save_hit_speed_scale(hit_speed_scale_state_file_, request->parameters[0].value.double_value);
+        } catch (const std::exception& error) {
+          response->result.successful = false;
+          response->result.reason = error.what();
+          return;
+        }
+        hit_speed_scale_.store(request->parameters[0].value.double_value);
+        response->result.successful = true;
+        response->result.reason = "Applied to subsequent new targets; already published commands are unchanged";
+      });
+
   const std::string base_flat_topic =
       declare_parameter<std::string>("base_flat_topic", "/a3/base_pose_flat");
   const std::string serve_ball_topic =
@@ -472,7 +565,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "base_yaw_deg,target_bearing_deg,target_turn_deg,post_net_future_bounce_restitution_v,base_source_age_ms,"
       "future_contact_spin_enabled,future_contact_spin_used,future_contact_spin_tangential_gain,"
       "future_contact_spin_omega_scale,future_contact_spin_min_coherence,"
-      "future_contact_magnus_enabled,physics_drag_k,physics_magnus_k,physics_table_gain,physics_table_mu,physics_spin_reason");
+      "future_contact_magnus_enabled,physics_drag_k,physics_magnus_k,physics_table_gain,physics_table_mu,physics_spin_reason,session_home_epoch,plane_mode,plane_reference_x,plane_world_x,plane_selection_reason,hit_speed_scale");
   std::string flight_packet_audit_path = declare_parameter<std::string>(
       "flight_packet_audit_csv_path", "");
   if (flight_packet_audit_path.empty() && !debug_path.empty()) {
@@ -961,8 +1054,8 @@ void PlannerNode::set_base_snapshot(const BaseSnapshot& snapshot) noexcept {
   std::lock_guard<std::mutex> lock(base_mutex_);
   // A valid base packet at process startup is not a HOME receipt.  Gate3 publishes an origin
   // sample before reset/placement; latching here classified both physical lanes as FH.  HOME is
-  // frozen atomically at the first valid solve in select_swing_sign(), when the robot has entered
-  // the playing session.  Side and support intent then share that one immutable scalar.
+  // frozen at the first valid solve for legacy wire schemas. Schema 4 uses
+  // the Runner policy-entry receipt for both plane and side choice.
   base_ = snapshot;
 }
 
@@ -990,12 +1083,16 @@ void PlannerNode::base_flat_callback(
   static std::atomic<std::uint64_t> invalid_count{0};
   try {
     const auto& value = message->data;
+    std::uint64_t calibration_id = 0, world_id = 0;
     bool valid = value.size() == 16 && value[0] == 2.0 && value[1] == 1.0;
+    valid = valid && std::isfinite(value[13]) && value[13] >= 0.0 &&
+        value[13] <= static_cast<double>(std::numeric_limits<int>::max()) &&
+        a3_deploy::SessionHomeReceipt::integer(value[14], calibration_id) &&
+        a3_deploy::SessionHomeReceipt::integer(value[15], world_id);
     if (valid) {
       const int flags = static_cast<int>(value[13]);
       valid = static_cast<double>(flags) == value[13] &&
               (flags & kRequiredBaseFlags) == kRequiredBaseFlags &&
-              value[14] > 0.0 && value[15] > 0.0 &&
               value[3] > 0.0 && value[4] >= 0.0 && value[4] < 1.0e9;
     }
     Vec3 position = Vec3::Zero();
@@ -1013,6 +1110,8 @@ void PlannerNode::base_flat_callback(
     snapshot.position = position;
     snapshot.orientation_valid = valid;
     if (valid) {
+      snapshot.calibration_id = calibration_id;
+      snapshot.world_id = world_id;
       snapshot.orientation = Eigen::Quaterniond(value[8], value[9], value[10], value[11]).normalized();
     }
     snapshot.receipt_steady_ns = receipt;
@@ -1082,6 +1181,7 @@ void PlannerNode::robot_pose_callback(
 }
 
 double PlannerNode::active_x_hit() const noexcept {
+  if (racket_flat_schema_ == 4) return solve_plane_.plane_x;
   if (x_hit_follow_robot_) {
     const BaseSnapshot snapshot = base_snapshot();
     if (snapshot.valid) {
@@ -1094,7 +1194,9 @@ double PlannerNode::active_x_hit() const noexcept {
 double PlannerNode::select_swing_sign(
     double intercept_y, double base_x, double base_y) noexcept {
   double reference_y = base_y;
-  if (swing_side_reference_mode_ == "session_home_v1") {
+  if (swing_side_reference_mode_ == "session_home_v1" && racket_flat_schema_ == 4) {
+    reference_y = solve_home_valid_ ? solve_home_.y : std::numeric_limits<double>::quiet_NaN();
+  } else if (swing_side_reference_mode_ == "session_home_v1") {
     std::lock_guard<std::mutex> lock(base_mutex_);
     reference_y =
         session_home_reference_.resolve_xy_on_solve(base_x, base_y).second;
@@ -1197,6 +1299,27 @@ void PlannerNode::solver_loop() noexcept {
             static_cast<std::int64_t>(solve_period_s_ * 1.0e9);
       }
 
+      if (racket_flat_schema_ == 4) {
+        std::lock_guard<std::mutex> lock(base_mutex_);
+        if (solve_home_.epoch != shared_home_.value.epoch) last_swing_sign_ = 0.0;
+        solve_home_ = shared_home_.value;
+        solve_posture_stable_ = shared_home_.posture_stable;
+        solve_home_valid_ = base_.valid && shared_home_.fresh(solve_start_ns,
+            static_cast<std::int64_t>(session_home_max_age_s_ * 1e9),
+            base_.calibration_id, base_.world_id);
+      }
+      if (racket_flat_schema_ == 4) {
+        const auto body = base_snapshot();
+        const double age = (solve_start_ns - body.receipt_steady_ns) * 1e-9;
+        const double source_age = (wall_now_ns() - body.source_stamp_ns) * 1e-9;
+        const bool fresh = body.valid && body.orientation_valid && body.receipt_steady_ns > 0 &&
+            body.source_stamp_ns > 0 && age >= 0 && age <= target_turn_max_pose_age_s_ &&
+            source_age >= -0.05 && source_age <= target_turn_max_pose_age_s_;
+        solve_plane_ = runtime_plane_.select(solve_home_.epoch, ++plane_flight_counter_,
+            solve_home_.x, solve_home_.plane_x, body.position.x(), fresh,
+            solve_home_.runtime_planes, solve_home_valid_ && solve_posture_stable_);
+        solve_home_valid_ = solve_home_valid_ && solve_plane_.valid;
+      }
       SolveAudit audit;
       audit.input_samples_consumed = pending_input_samples;
       audit.input_samples_coalesced =
@@ -1236,7 +1359,7 @@ void PlannerNode::solver_loop() noexcept {
           post_net_one_shot_enabled_ && post_net_predictor_
           ? post_net_predictor_.get()
           : predictor_.get();
-      if (state.valid) {
+      if (state.valid && (racket_flat_schema_ != 4 || solve_home_valid_)) {
         strike = post_net_one_shot_enabled_
             ? future_contact_predictor_->predict(state, active_x_hit(), spin_shadow.spin)
             : control_predictor->predict_with_spin(state, active_x_hit(), Vec3::Zero(),
@@ -1261,7 +1384,9 @@ void PlannerNode::solver_loop() noexcept {
           }
         }
       }
-      if (spin_shadow_enabled_ && state.valid) {
+      if (racket_flat_schema_ == 4 && !solve_home_valid_) strike.reason =
+          solve_plane_.valid ? "runner_home_missing_stale_or_frame_mismatch" : solve_plane_.reason;
+      if (spin_shadow_enabled_ && state.valid && (racket_flat_schema_ != 4 || solve_home_valid_)) {
         const double shadow_x_hit =
             active_x_hit() + (swing_sign < 0.0 ? x_hit_bh_delta_ : 0.0);
         // Missing/unusable orientation deliberately falls back to zero omega
@@ -1402,13 +1527,21 @@ void PlannerNode::publish_solve(
     const BallSample& latest_sample,
     const BallState& state,
     const StrikeTarget& strike,
-    const RacketCommand& command,
+    const RacketCommand& unscaled_command,
     double swing_sign,
     const SolveAudit& audit,
     const SpinShadowAudit& spin_shadow,
     const PostNetOneShotEvent& one_shot_event,
     std::int64_t solve_finished_steady_ns) noexcept {
   try {
+    std::lock_guard<std::mutex> filter_lock(hit_speed_scale_publish_mutex_);
+    const double hit_speed_scale = hit_speed_scale_.load();
+    RacketCommand command = unscaled_command;
+    command.velocity *= hit_speed_scale;
+    if (!command.velocity.allFinite()) {
+      command.valid = false;
+      command.reason = "hit_speed_scale_overflow";
+    }
     // With /poses.header.stamp in the camera-exposure Unix epoch, Stage 2's
     // strike_source_time_s is already the true absolute crossing deadline.
     // Subtract the HDU wall time once at publication. This accounts for the
@@ -1434,6 +1567,14 @@ void PlannerNode::publish_solve(
                       time_to_strike_s > 0.0;
     const char* timing_reject_reason = !legal_swing_sign ? "invalid_swing_sign" :
         (!std::isfinite(time_to_strike_s) ? "strike_deadline_invalid" : "strike_deadline_expired");
+    if (racket_flat_schema_ == 4) {
+      std::lock_guard<std::mutex> lock(base_mutex_);
+      wire_valid = wire_valid && solve_home_valid_ &&
+          solve_home_.epoch == shared_home_.value.epoch && base_.valid &&
+          shared_home_.fresh(steady_now_ns(),
+              static_cast<std::int64_t>(session_home_max_age_s_ * 1e9),
+              base_.calibration_id, base_.world_id);
+    }
     const bool timing_valid = wire_valid;
     // Use one consistent pose for admission and audit. Reject the entire new
     // command; never clamp/rotate the target or alter an in-progress swing.
@@ -1479,6 +1620,11 @@ void PlannerNode::publish_solve(
     double immutable_home_y = std::numeric_limits<double>::quiet_NaN();
     Vec3 target_position_actor_world = Vec3::Constant(
         std::numeric_limits<double>::quiet_NaN());
+    if (racket_flat_schema_ == 4) {
+      immutable_home_x = solve_home_.x;
+      immutable_home_y = solve_home_.y;
+      target_position_actor_world = command.position + Vec3(0.0, 0.0, policy_z_offset_);
+    }
     if (wire_valid && racket_flat_schema_ == 3) {
       {
         std::lock_guard<std::mutex> lock(base_mutex_);
@@ -1509,7 +1655,7 @@ void PlannerNode::publish_solve(
       }
     }
     const auto identity = schema2_packer_.next_identity(
-        wire_valid, solve_finished_steady_ns);
+        wire_valid, solve_finished_steady_ns, racket_flat_schema_ == 4 && post_net_one_shot_enabled_);
     if (wire_valid && racket_flat_schema_ == 3) {
       if (identity.flight_id != reach_permission_flight_id_) {
         reach_permission_latched_ = candidate_permission;
@@ -1550,8 +1696,23 @@ void PlannerNode::publish_solve(
           state.sample_span_s);
       packet_valid = packet.valid;
       packet_values.assign(packet.values.begin(), packet.values.end());
+      if (racket_flat_schema_ == 4) {
+        packet_values[0] = 4.0;
+        packet_values.push_back(packet_valid ? static_cast<double>(solve_home_.epoch) : 0.0);
+        if (solve_plane_.mode != PlaneMode::Fixed) {
+          packet_values[0] = 5.0;
+          packet_values.push_back(packet_valid ? solve_plane_.reference_x : 0.0);
+          packet_values.push_back(static_cast<double>(solve_plane_.mode));
+        }
+      }
     }
     if (packet_valid) {
+      last_command_hit_speed_scale_.store(hit_speed_scale);
+      if (racket_flat_schema_ == 4) {
+        auto published_plane = solve_plane_;
+        published_plane.flight = identity.flight_id;
+        runtime_plane_.commit(published_plane);
+      }
       ++valid_count_;
     }
 
@@ -1637,7 +1798,7 @@ void PlannerNode::publish_solve(
           << solve_finished_steady_ns << ',' << (packet_valid ? 1 : 0) << ','
           << (command.valid && !timing_valid ? timing_reject_reason :
               (target_turn_evaluated && !target_turn.allowed
-                  ? target_turn.reason : audit.reason)) << ','
+                  ? target_turn.reason : (unscaled_command.valid && !command.valid ? command.reason : audit.reason))) << ','
           << latest_sample.position.x() << ',' << latest_sample.position.y() << ','
           << latest_sample.position.z() << ',' << state.sample_count << ','
           << state.sample_span_s << ','
@@ -1767,7 +1928,10 @@ void PlannerNode::publish_solve(
           << future_contact_config_.omega_scale << ',' << future_contact_config_.min_coherence << ','
           << future_contact_config_.magnus_enabled << ',' << physics_.drag_k << ','
           << physics_.magnus_k << ',' << physics_.table_tangential_gain << ','
-          << physics_.table_friction_cap_mu << ',' << state.physics_spin.reason;
+          << physics_.table_friction_cap_mu << ',' << state.physics_spin.reason << ',' << (racket_flat_schema_ == 4 ? solve_home_.epoch : 0)
+          << ',' << plane_mode_name(solve_plane_.mode) << ',' << solve_plane_.reference_x
+          << ',' << solve_plane_.plane_x << ',' << solve_plane_.reason
+          << ',' << hit_speed_scale;
       audit_logger_->enqueue(row.str());
     }
   } catch (...) {
@@ -1783,7 +1947,23 @@ void PlannerNode::publish_diagnostics() noexcept {
     hit_plane.data = {1.0, static_cast<double>(wall_now_ns()) * 1e-9,
                      x_hit_follow_robot_ ? x_hit_max_
                          : x_hit_fh_.load() + std::max(0.0, x_hit_bh_delta_)};
-    hit_plane_publisher_->publish(hit_plane);
+    a3_deploy::SessionHomeMailbox home;
+    bool home_fresh = false;
+    if (racket_flat_schema_ == 4) {
+      std::lock_guard<std::mutex> lock(base_mutex_);
+      home = shared_home_;
+      home_fresh = base_.valid && home.fresh(steady_now_ns(),
+          static_cast<std::int64_t>(session_home_max_age_s_ * 1e9),
+          base_.calibration_id, base_.world_id);
+      hit_plane.data[2] = home.value.x + home.value.plane_x;
+      if (runtime_plane_.requested() != PlaneMode::Fixed) {
+        const auto last = runtime_plane_.last_command();
+        if (last.valid && last.epoch == home.value.epoch)
+          hit_plane.data[2] = std::max(hit_plane.data[2], last.plane_x);
+        if (base_.valid) hit_plane.data[2] = std::max(hit_plane.data[2], base_.position.x() + home.value.plane_x);
+      }
+    }
+    if (racket_flat_schema_ != 4 || home_fresh) hit_plane_publisher_->publish(hit_plane);
     const auto now = steady_now_ns();
     const double elapsed = std::max(
         1.0e-6, (now - health_previous_steady_ns_) * 1.0e-9);
@@ -1806,6 +1986,28 @@ void PlannerNode::publish_diagnostics() noexcept {
         : diagnostic_msgs::msg::DiagnosticStatus::WARN;
     status.message =
         "batch_physics_cpp_no_ekf_persistent_bounce; diagnostics are audit-only";
+    status.values.push_back(diagnostic_value("hit_speed_scale", scale_string(hit_speed_scale_.load())));
+    status.values.push_back(diagnostic_value("hit_speed_scale_configurable", question_fixture_enabled_ ? "false" : "true"));
+    status.values.push_back(diagnostic_value("hit_speed_scale_persistent", !question_fixture_enabled_ && !hit_speed_scale_state_file_.empty() ? "true" : "false"));
+    status.values.push_back(diagnostic_value("hit_speed_scale_last_command", scale_string(last_command_hit_speed_scale_.load())));
+    const auto selected_plane = runtime_plane_.last_selection();
+    const auto command_plane = runtime_plane_.last_command();
+    const bool current_plane = home_fresh && command_plane.valid && command_plane.epoch == home.value.epoch;
+    status.values.push_back(diagnostic_value("plane_mode_configurable", runtime_plane_configurable_ ? "true" : "false"));
+    status.values.push_back(diagnostic_value("plane_mode_requested", plane_mode_name(runtime_plane_.requested())));
+    status.values.push_back(diagnostic_value("plane_mode_last_command", current_plane ? plane_mode_name(command_plane.mode) : "none"));
+    status.values.push_back(diagnostic_value("plane_last_flight", current_plane ? std::to_string(command_plane.flight) : "0"));
+    status.values.push_back(diagnostic_value("plane_reference_x", number_string(current_plane ? command_plane.reference_x : NAN, 6)));
+    status.values.push_back(diagnostic_value("plane_world_x", number_string(current_plane ? command_plane.plane_x : NAN, 6)));
+    status.values.push_back(diagnostic_value("plane_selection_reason", selected_plane.epoch == home.value.epoch ? selected_plane.reason : "waiting_for_ball"));
+    status.values.push_back(diagnostic_value("plane_runtime_supported", home_fresh && home.value.runtime_planes ? "true" : "false"));
+    status.values.push_back(diagnostic_value("plane_posture_stable", home_fresh && home.posture_stable ? "true" : "false"));
+    status.values.push_back(diagnostic_value("session_home_source", racket_flat_schema_ == 4 ? "runner" : "planner_legacy"));
+    status.values.push_back(diagnostic_value("session_home_epoch", std::to_string(home.value.epoch)));
+    status.values.push_back(diagnostic_value("session_home_fresh", home_fresh ? "true" : "false"));
+    status.values.push_back(diagnostic_value("session_home_x", number_string(home.value.x, 6)));
+    status.values.push_back(diagnostic_value("session_home_y", number_string(home.value.y, 6)));
+    status.values.push_back(diagnostic_value("session_home_plane_x", number_string(home.value.plane_x, 6)));
     status.values.push_back(diagnostic_value("receive_hz", number_string(receive_rate, 2)));
     status.values.push_back(diagnostic_value("solve_hz", number_string(solve_rate, 2)));
     status.values.push_back(diagnostic_value(
@@ -1943,6 +2145,7 @@ void PlannerNode::publish_diagnostics() noexcept {
 }
 
 std::pair<bool, std::string> PlannerNode::calibrate_x_hit() noexcept {
+  if (racket_flat_schema_ == 4) return {false, "Runner owns session HOME and ONNX strike plane; re-enter policy mode to recapture HOME"};
   try {
     if (x_hit_follow_robot_) {
       return {false, "x_hit_follow_robot=true; fixed-plane refresh is not applicable"};

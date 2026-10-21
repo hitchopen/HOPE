@@ -8,6 +8,7 @@
     address: "0.0.0.0"
     tls: false
     topic_whitelist:
+      - "^/planner/diagnostics$"
       - "^/hope/field/status$"
       - "^/hope/(observer_alive|session/.*|planner/.*|base/.*|ball/.*|command/.*|x_hit/.*|runner/.*|opponent/.*|lifecycle/.*|mocap/.*|system/(hdu_active|hdu_text|mdu_active|mdu_text))$"
       - "^/hope/safety/(estop_ready|estop_full_ready|estop_latched|estop_text)$"
@@ -21,6 +22,8 @@
     # refresh, and the assert-only emergency path. No wildcard service,
     # parameters, or client publishing. Internal topics are not browser-writable.
     service_whitelist:
+      - "^/hope/planner/set_plane_mode$"
+      - "^/hope/planner/set_hit_speed_scale$"
       - "^/hope/safety/trigger_estop$"
       - "^/hope/safety/reset_software_estop$"
       - "^/hope/calibrate_stickers_v3$"

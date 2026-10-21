@@ -183,6 +183,8 @@ class FieldAssetsTest(unittest.TestCase):
                                              "DEFAULT" if state == "default" else digest],
                                             capture_output=True, text=True, timeout=5)
                     self.assertEqual(result.returncode == 0, state in {"valid", "default"}, result.stderr)
+                    if result.returncode == 0:
+                        self.assertEqual("--shared-session-home" in result.stdout.splitlines(), mode == "OPTITRACK")
                     if state == "valid":
                         self.assertEqual(result.stdout.splitlines()[-2:], ["--serve-timeline", str(path)])
                     elif state == "default":

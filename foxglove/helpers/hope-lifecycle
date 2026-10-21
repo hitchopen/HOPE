@@ -1194,7 +1194,7 @@ run_runner() {
       /etc/systemd/system/agibot-mdu-phc2sys.service \
       /etc/systemd/system/agibot_pm.service
   } > "$session_dir/artifact_sha256.txt"
-  local -a field_runner_args=(--planner)
+  local -a field_runner_args=(--planner --shared-session-home)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
   fi

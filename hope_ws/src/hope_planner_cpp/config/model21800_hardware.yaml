@@ -34,6 +34,7 @@ hope_planner:
     batch_estimator_iterations: 3
 
     ball_pose_index: 0
+    # Legacy fallback only: schema 4 uses Runner HOME.x + ONNX plane_x.
     x_hit: 0.15
     x_hit_follow_robot: false
     require_x_hit_calibration: false
@@ -83,7 +84,11 @@ hope_planner:
     publish_base_flat: false
     publish_flat_cmd: true
     publish_typed_command: true
-    racket_flat_schema: 2
+    # Managed normal-play Runner uses --shared-session-home. Install both together.
+    racket_flat_schema: 4
+    session_home_input_topic: "/hope/runner/session_home_hdu_flat"
+    session_home_max_age_s: 0.5
+    plane_reference_mode: "fixed"
     racket_flat_topic: "/racket/command_flat"
     publish_serve_ball_flat: true
     serve_ball_flat_topic: "/serve/ball_state_flat"

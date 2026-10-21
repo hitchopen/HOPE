@@ -21,7 +21,7 @@ struct Schema2Packet {
 
 class Schema2Packer {
  public:
-  WireIdentity next_identity(bool valid, std::int64_t steady_now_ns) noexcept;
+  WireIdentity next_identity(bool valid, std::int64_t steady_now_ns, bool new_physical_flight = false) noexcept;
 
   static Schema2Packet pack(
       const RacketCommand* command,
