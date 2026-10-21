@@ -378,8 +378,15 @@ bool ShotContext::qualify_candidate() {
   if (active() || rejected_latch_ || settings_.service_armed ||
       candidates_.size() < 6)
     return false;
-  const auto &a = candidates_.front();
-  const auto &b = candidates_[candidates_.size() / 2];
+  // Qualify a continuous recent launch window. Older held-ball candidates are
+  // not observations of this flight and must not dilute its curvature for an
+  // entire candidate-capacity interval after release.
+  std::size_t first = candidates_.size()-6;
+  while (first > 0 &&
+         (static_cast<long double>(candidates_.back().source_time_ns)-candidates_[first].source_time_ns)*1e-9L <
+             settings_.qualification_span_s) --first;
+  const auto &a = candidates_[first];
+  const auto &b = candidates_[first+(candidates_.size()-first)/2];
   const auto &c = candidates_.back();
   const double ab = double(
       (static_cast<long double>(b.source_time_ns) - a.source_time_ns) * 1e-9L);
@@ -396,9 +403,9 @@ bool ShotContext::qualify_candidate() {
   // A smooth acceleration hypothesis requires continuous contact-free data.
   // Only spin qualified by the middle source cutoff can explain its curvature.
   TrustedSpin candidate_spin;
-  for (std::size_t i = 0; i < candidates_.size(); ++i) {
+  for (std::size_t i = first; i < candidates_.size(); ++i) {
     const auto &point = candidates_[i];
-    if ((i && (static_cast<long double>(point.source_time_ns) -
+    if ((i > first && (static_cast<long double>(point.source_time_ns) -
                candidates_[i - 1].source_time_ns) * 1e-9L > config_.gap_warning_s) ||
         point.position.z() <= config_.physics.radius + .03) {
       reason_ = "acquisition_discontinuous_or_contact_window";

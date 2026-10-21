@@ -104,6 +104,21 @@ TEST(PR64Review, RV02_HeldImpossibleAccelerationAndProvenanceFaults) {
     EXPECT_FALSE(p.shot().active());
   }
 }
+TEST(PR64Review, RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly) {
+  for(int rate:{150,300}) {
+    FlightPipeline p({});ModelState state;state.position=Vec3(2.5,-.7,.32);
+    for(int i=0;i<rate/2;++i)p.observe(observation(i*1./rate,state));
+    EXPECT_FALSE(p.shot().active());
+    state.velocity=Vec3(-10,0,-.5);
+    for(int i=0;i<=std::ceil(.06*rate);++i) {
+      p.observe(observation(.5+i*1./rate,state));
+      integrate_ball(state,1./rate,{});
+    }
+    EXPECT_TRUE(p.shot().active())<<p.shot().reason();
+    EXPECT_EQ(p.shot().continuity(),HistoryContinuity::kUnknown);
+    EXPECT_GT(p.shot().samples().front().source_time_ns,observation(.49,{}).source_time_ns);
+  }
+}
 TEST(PR64Review, RV03_OneFastBounceHasOneStableIdentity) {
   for (int rate : {150, 300})
     for (double speed : {10., 12., 20.}) {
