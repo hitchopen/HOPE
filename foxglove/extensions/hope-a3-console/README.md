@@ -194,3 +194,19 @@ operator selection described above. Install the matching profile-aware HDU
 supervisor and confirm the operator profile before starting a session.
 See [current Runner/serve behavior](../../../docs/operations/runtime_xbox.md)
 for Kernel completion, v12 timing and release limitations.
+
+## Reviewed ball models
+
+The STOPPED-only selector offers Berkeley, local one-star PPQ002 and local
+three-star PPQ004. It writes matching 14-parameter overlays to HDU and Laptop,
+rolls back partial writes, and distinguishes saved/configured/actually loaded
+parameters. Restart the separately managed Laptop mocap/packetizer after a
+selection, then START SYSTEM. Kernel mode bypasses this mocap-dependent gate.
+Install `foxglove/a3/hope_ball_models.py` alongside the existing HDU helpers in
+`/usr/local/bin`, update `hope-lifecycle` on both hosts, update the Laptop helper
+and ROS launch files, and install all three profile YAML/receipt pairs. Rebuild
+and install the Console through the existing deployment workflow. Source-only
+changes do not hot-reload an already running supervisor or packetizer.
+
+See `calibration/ppq004_20261020/README.md` for complete trajectories, provenance
+and offline reproduction. No speed-adaptive model is selected automatically.

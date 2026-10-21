@@ -1,0 +1,56 @@
+[
+  {
+    "path": "raw/ppq_004_1.c3d.gz",
+    "bytes": 50340608,
+    "sha256": "9d9c187c9f23f32b432b2b1a6b9317d17ca2e753c660f0eab4412ca1748f09b2",
+    "compressed_sha256": "ecf3d34a744c19c617cf18f65c562a0106afc3ba09790194a44c1c2b9af75c80"
+  },
+  {
+    "path": "trajectories/part1.csv.gz",
+    "bytes": 6489186,
+    "sha256": "22aba6a32232818841012a255265ea96c6b1370b023f9bd75ab46baab010aa76",
+    "compressed_sha256": "11adf9ef3d215cc1255080ef5d0f87007c86870a1d9285f961ff49f6922c4e4e"
+  },
+  {
+    "path": "fit/part1/raw_extracted.npz.gz",
+    "bytes": 26791702,
+    "sha256": "6366cf914067567e2c2cbd30515b170b0089bd21b3fbd7895f1520a86dc116da",
+    "compressed_sha256": "69a0df5ce67a3daa216256981a7ba2f6f8c0445a7b2a585597c10fda82ca11c2"
+  },
+  {
+    "path": "raw/ppq_004_2.c3d.gz",
+    "bytes": 50340608,
+    "sha256": "00985613af045b217f14d911b387d35702da2ad65808a8a9944576b6fdf300e0",
+    "compressed_sha256": "21669322ffdf2cd6e5e78e3cec3dc190b13f4275ec9252a20f19fbf0f7acf5fd"
+  },
+  {
+    "path": "trajectories/part2.csv.gz",
+    "bytes": 7858463,
+    "sha256": "63cf37397006a796a4ce36835cc8b86b19683801a983af8afb1ab36b48672460",
+    "compressed_sha256": "c7d4a719e4594cabcb8792c1efeab74b0d2159b3749e9cdaab0c1c32a8dbaf8b"
+  },
+  {
+    "path": "fit/part2/raw_extracted.npz.gz",
+    "bytes": 28291219,
+    "sha256": "07c881f5c93ded5d451ceea4dc67b52f89de6092effbaf0dad67526fcf9cc23c",
+    "compressed_sha256": "49da3ab4688cabe6b40d7ee3ffdaae43f3e4b81388f01500789a2f93cfc59349"
+  },
+  {
+    "path": "raw/ppq_004_3.c3d.gz",
+    "bytes": 12190976,
+    "sha256": "c67d20a98765231440ac24743902cff2a54ed985a1bcc1ec97e5e4037e917483",
+    "compressed_sha256": "3c3a34b35a19125780904e642f61eda53df820edda42131cfbc834954213d0cc"
+  },
+  {
+    "path": "trajectories/part3.csv.gz",
+    "bytes": 1288678,
+    "sha256": "33f279349592c5d1a92be68f9990ebcee18b33aa36b226d76ca606233810fc8d",
+    "compressed_sha256": "50edb866a173eb8e41a3bb6530a57b04a780bf2fcecd2cd7668212649e094778"
+  },
+  {
+    "path": "fit/part3/raw_extracted.npz.gz",
+    "bytes": 5490012,
+    "sha256": "9185d01437e8708b39b9c2b2250d1892fd5a1e4aa918a48dd7fcd6a3c8d961e4",
+    "compressed_sha256": "307f66782e649d59d6b71e02a97191798bd155fae701565a9384e93db511055f"
+  }
+]

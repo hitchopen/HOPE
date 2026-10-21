@@ -1,0 +1,240 @@
+{
+  "unified": {
+    "n": 3,
+    "velocity_error_mps_median_p90": [
+      0.1318224242532751,
+      0.13742270701308018
+    ],
+    "spin_error_rad_s_median_p90": [
+      16.53373454829879,
+      17.79871971790529
+    ],
+    "capped_count": 2
+  },
+  "train_n": 94,
+  "test_n": 3,
+  "analyses": {
+    "total_speed": {
+      "training_tertiles_mps": [
+        1.2153120544228422,
+        4.037721734296506
+      ],
+      "bins": [
+        {
+          "bin": 0,
+          "train_n": 31,
+          "test_n": 0,
+          "params": [
+            0.9353200570208039,
+            0.5069155067585405,
+            0.16706204822993975
+          ],
+          "fit": {
+            "success": true,
+            "cost": 0.27990359523360414,
+            "optimality": 2.928219612353891e-07,
+            "jac_singular_values": [
+              4.807500537328226,
+              0.7952729230109737,
+              0.0
+            ],
+            "n": 31,
+            "capped_count": 0
+          },
+          "unified": null,
+          "speed_specific": null
+        },
+        {
+          "bin": 1,
+          "train_n": 31,
+          "test_n": 0,
+          "params": [
+            0.9277495519644195,
+            0.3980561513655889,
+            0.18843113078266435
+          ],
+          "fit": {
+            "success": true,
+            "cost": 0.3953089375551941,
+            "optimality": 2.2203956659223526e-09,
+            "jac_singular_values": [
+              9.17915832607716,
+              7.6494584753248995,
+              3.2647465457959752
+            ],
+            "n": 31,
+            "capped_count": 4
+          },
+          "unified": null,
+          "speed_specific": null
+        },
+        {
+          "bin": 2,
+          "train_n": 32,
+          "test_n": 3,
+          "params": [
+            0.9405292049106776,
+            0.4160448774781717,
+            0.2212432155856588
+          ],
+          "fit": {
+            "success": true,
+            "cost": 1.2559914076094891,
+            "optimality": 0.03088783563453986,
+            "jac_singular_values": [
+              23.420502701503192,
+              17.400677849330208,
+              11.292865265468738
+            ],
+            "n": 32,
+            "capped_count": 16
+          },
+          "unified": {
+            "n": 3,
+            "velocity_error_mps_median_p90": [
+              0.1318224242532751,
+              0.13742270701308018
+            ],
+            "spin_error_rad_s_median_p90": [
+              16.53373454829879,
+              17.79871971790529
+            ],
+            "capped_count": 2
+          },
+          "speed_specific": {
+            "n": 3,
+            "velocity_error_mps_median_p90": [
+              0.12654596612609828,
+              0.14512267383431585
+            ],
+            "spin_error_rad_s_median_p90": [
+              16.2661342701781,
+              18.220095823213782
+            ],
+            "capped_count": 2
+          }
+        }
+      ],
+      "speed_specific_velocity_median_p90": [
+        0.12654596612609828,
+        0.14512267383431585
+      ],
+      "speed_specific_spin_median_p90": [
+        16.2661342701781,
+        18.220095823213782
+      ]
+    },
+    "normal_speed": {
+      "training_tertiles_mps": [
+        0.9998813629059188,
+        2.6479385091142014
+      ],
+      "bins": [
+        {
+          "bin": 0,
+          "train_n": 31,
+          "test_n": 0,
+          "params": [
+            0.9365983474807804,
+            0.439785793888374,
+            0.22623141311422573
+          ],
+          "fit": {
+            "success": true,
+            "cost": 0.34194711233976727,
+            "optimality": 1.4987737447127463e-09,
+            "jac_singular_values": [
+              4.579795157173553,
+              1.9613856611520857,
+              0.9904968506242905
+            ],
+            "n": 31,
+            "capped_count": 1
+          },
+          "unified": null,
+          "speed_specific": null
+        },
+        {
+          "bin": 1,
+          "train_n": 31,
+          "test_n": 0,
+          "params": [
+            0.9336410256871714,
+            0.39469552876556946,
+            0.23046138402986305
+          ],
+          "fit": {
+            "success": true,
+            "cost": 0.44750956815794324,
+            "optimality": 9.359814241639158e-09,
+            "jac_singular_values": [
+              10.075038942898383,
+              8.105577671199969,
+              3.0296819810772804
+            ],
+            "n": 31,
+            "capped_count": 6
+          },
+          "unified": null,
+          "speed_specific": null
+        },
+        {
+          "bin": 2,
+          "train_n": 32,
+          "test_n": 3,
+          "params": [
+            0.9388535383767247,
+            0.41235032943772276,
+            0.21898111628444947
+          ],
+          "fit": {
+            "success": true,
+            "cost": 1.1755761100947284,
+            "optimality": 5.734416208409634e-09,
+            "jac_singular_values": [
+              24.125425544930785,
+              17.620516024233833,
+              11.435906840154235
+            ],
+            "n": 32,
+            "capped_count": 14
+          },
+          "unified": {
+            "n": 3,
+            "velocity_error_mps_median_p90": [
+              0.1318224242532751,
+              0.13742270701308018
+            ],
+            "spin_error_rad_s_median_p90": [
+              16.53373454829879,
+              17.79871971790529
+            ],
+            "capped_count": 2
+          },
+          "speed_specific": {
+            "n": 3,
+            "velocity_error_mps_median_p90": [
+              0.13399431778875126,
+              0.13805930409378891
+            ],
+            "spin_error_rad_s_median_p90": [
+              16.705143408786565,
+              17.592869441172546
+            ],
+            "capped_count": 2
+          }
+        }
+      ],
+      "speed_specific_velocity_median_p90": [
+        0.13399431778875126,
+        0.13805930409378891
+      ],
+      "speed_specific_spin_median_p90": [
+        16.705143408786565,
+        17.592869441172546
+      ]
+    }
+  },
+  "speed_adaptation_supported": false,
+  "limitation": "Only file 3 contacts are held out. Fewer than 8 per speed bin cannot establish a speed law. Contact velocities are reconstructed, not direct truth."
+}
