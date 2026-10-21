@@ -72,7 +72,7 @@ def flight(speed=5., spin='unknown', scenario='standard'):
     return before, after, bounce
 
 
-def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standard'):
+def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standard', scored_flights=2):
     rclpy.init()
     node = rclpy.create_node('integrated_synthetic_camera')
     pub = node.create_publisher(NamedPoseArrayV2, '/optitrack/poses', qos_profile_sensor_data)
@@ -107,7 +107,7 @@ def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standar
         stamp = time.time_ns()
         msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(stamp, 10**9)
         # A physical frame fault at the end must revoke pending work.
-        msg.header.frame_id = 'wrong_frame' if 1.0 < elapsed < 1.08 or elapsed > 4.0 else 'world'
+        msg.header.frame_id = 'wrong_frame' if 1.0 < elapsed < 1.08 or elapsed > scored_flights+2.0 else 'world'
         latency = LatencyInfo()
         latency.source, latency.latency = 'NatNetClockUncertainty', 20
         msg.latencies.append(latency)
@@ -133,18 +133,22 @@ def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standar
         # 100 ms acquisition and before 130 ms lead, excluding the deliberate
         # physical frame fault and required-base outage. All game histories
         # remain in the denominator. Every launched source exposure is retained.
-        if (.8 < elapsed < 2.4 and .1 < phase < plane_time-.13 and
+        if (.8 < elapsed < scored_flights+.4 and .1 < phase < plane_time-.13 and
                 not (1.0 < elapsed < 1.08)):
             eligible_stamps.append(stamp)
         index += 1
     stats.put({'sent': index, 'synthetic_source_cyclic_gc': 'disabled_during_pacing', 'source_intervals_ns': np.diff(sent).tolist(), 'bounce_s': bounce,
                'plane_s': plane_time, 'eligible_stamps': eligible_stamps,
-               'command_epoch_contract': 'first_two_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included'})
+               'command_epoch_contract': f'first_{scored_flights}_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included'})
     node.destroy_node()
     rclpy.shutdown()
 
 
 def run(args, rate, policy):
+    # Fast returns have short eligible windows (as few as four source epochs
+    # per flight). Freeze ten flights before scoring, retaining every exposure
+    # and the original 100 ms warmup / 130 ms lead / 95% / 30 ms gates.
+    scored_flights = 10 if args.speed in [10., 12.] else 2
     processes = []
     logs = []
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -192,7 +196,7 @@ def run(args, rate, policy):
     node.create_subscription(BallObservationV2, '/hope/ball/observation_v2', observations.append, qos_profile_sensor_data)
     node.create_subscription(PoseArray, '/poses/planner_full', legacy.append, qos_profile_sensor_data)
     stop, ready, queue = mp.Event(), mp.Event(), mp.Queue()
-    camera = mp.Process(target=source, args=(rate, stop, ready, queue, args.speed, args.spin, args.scenario))
+    camera = mp.Process(target=source, args=(rate, stop, ready, queue, args.speed, args.spin, args.scenario, scored_flights))
     try:
         until = time.monotonic()+1.
         while time.monotonic() < until:
@@ -206,10 +210,10 @@ def run(args, rate, policy):
         assert ready.is_set(), 'source failed to initialize'
         start = time.monotonic()
         base_stopped = False
-        while time.monotonic()-start < 4.7:
+        while time.monotonic()-start < scored_flights+2.7:
             rclpy.spin_once(node, timeout_sec=.002)
             # Missing mandatory pose producer must become observable after TTL.
-            if time.monotonic()-start > 2.5 and not base_stopped:
+            if time.monotonic()-start > scored_flights+.5 and not base_stopped:
                 base.terminate()
                 base.wait(timeout=5)
                 base_stopped = True
@@ -313,7 +317,7 @@ def run(args, rate, policy):
                 'actual_decoder_ms': distribution(decode_latency),
                 'source_to_publication_ms': distribution(publication_age), 'resources': resources,
                 'relay_ball_observations': len(observations), 'legacy_full_rate_frames': len(legacy),
-                'command_coverage_gate': 'PASS', 'command_coverage': coverage, 'observer_trace_depth': 128,
+                'command_coverage_gate': 'PASS', 'command_coverage': coverage, 'observer_trace_depth': 128, 'scored_flights': scored_flights,
                 'command_denominator': len(expected), 'covered_command_epochs': len(covered),
                 'reasons': dict(Counter(s['reason'] for s in statuses)), 'source': source_stats,
                 'traces': traces, 'wire': wire, 'decoded': decoded, 'graph': graph,
