@@ -247,6 +247,17 @@ int main(int argc, char **argv) {
         std::cout << '}';
       }
       std::cout << ']';
+      std::cout << ",\"current_state\":{\"position\":";
+      vector(prediction.belief.mean.head<3>());
+      std::cout << ",\"velocity\":";
+      vector(prediction.belief.mean.tail<3>());
+      write_spin(prediction.belief.effective_spin);
+      std::cout << ",\"covariance\":[";
+      for(int row=0;row<6;++row) for(int col=0;col<6;++col) {
+        if(row||col)std::cout<<',';
+        std::cout<<prediction.belief.covariance(row,col);
+      }
+      std::cout << "]}";
       std::cout << "}\n";
     }
     return 0;

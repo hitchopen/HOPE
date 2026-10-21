@@ -229,6 +229,29 @@ NominalBallForecast forecast_nominal(const StateBelief &b,
             a.topRows<6>() += f * a.row(6);
             event.covariance = a * pc * a.transpose();
           }
+        } else if (e.kind == PhysicalEventKind::NET_COLLISION) {
+          const Vec3 nearest(c.table.net_x,
+              std::clamp(e.pre.position.y(), c.table.y_max-c.table.width-c.table.net_overhang,
+                         c.table.y_max+c.table.net_overhang),
+              std::clamp(e.pre.position.z(), 0., c.table.net_height));
+          const Vec3 separation=e.pre.position-nearest;
+          const Vec3 normal=separation.normalized();
+          const double slope=normal.dot(e.pre.velocity);
+          if (!normal.allFinite() || std::abs(slope)<.05)
+            event.quality=LinearizationQuality::IllConditioned;
+          else {
+            Eigen::Matrix<double,7,6> projection=Eigen::Matrix<double,7,6>::Zero();
+            projection.topRows<6>()=Matrix6::Identity();
+            projection.bottomLeftCorner<1,3>()=-normal.transpose()/slope;
+            projection.topRows<6>()+=flow(event.pre,c.physics,e.pre.spin)*projection.row(6);
+            event.covariance=projection*pc*projection.transpose();
+            if(budget.available) {
+              event.covariance_budget.available=true;
+              event.covariance_budget.posterior=projection*budget.posterior*projection.transpose();
+              event.covariance_budget.free_flight=projection*budget.free_flight*projection.transpose();
+              event.covariance_budget.bounce=projection*budget.bounce*projection.transpose();
+            }
+          }
         } else {
           const int axis = (e.kind == PhysicalEventKind::TABLE ||
                             e.kind == PhysicalEventKind::GROUND ||

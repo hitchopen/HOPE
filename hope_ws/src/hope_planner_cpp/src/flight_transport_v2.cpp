@@ -614,6 +614,7 @@ void restore_packet_v2(FlightPipeline &pipeline,
         p.state_spin_measurement_time_ns;
     checkpoint.belief.effective_spin.last_contact_id =
         p.state_spin_last_contact_id;
+    checkpoint.belief.effective_spin.provenance = "wire_checkpoint_lineage_only";
   }
   checkpoint.innovation_sum_squared = p.innovation_sum_squared;
   checkpoint.consecutive_rejections = p.consecutive_rejections;

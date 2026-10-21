@@ -37,6 +37,8 @@ public:
       contact_ids_.push_back(id);
     if (id == value_.last_contact_id)
       last_contact_time_ns_ = ns;
+    if (id == baseline_.last_contact_id && baseline_time_ns_)
+      baseline_time_ns_ = std::max(*baseline_time_ns_, ns);
   }
   bool can_apply_contact(std::int64_t ns) const {
     return predates_retained_source(ns) || !last_contact_time_ns_ || ns >= *last_contact_time_ns_;
@@ -111,7 +113,8 @@ public:
   // IDs identify events, not their chronological order. Historical evidence may
   // arrive after a newer prediction has already received a smaller ID.
   bool contact(std::uint64_t id, std::int64_t time_ns, const Vec3 &pre_velocity,
-               const BallPhysics &p, std::int64_t bracket_end_ns = 0) {
+               const BallPhysics &p, std::int64_t bracket_end_ns = 0,
+               std::optional<std::int64_t> pre_cutoff_ns = {}) {
     if (!id ||
         std::find(contact_ids_.begin(), contact_ids_.end(), id) !=
             contact_ids_.end() ||
@@ -123,7 +126,7 @@ public:
       contact_ids_.push_back(id);
       return true;
     }
-    value_ = at(time_ns);
+    value_ = at(pre_cutoff_ns.value_or(time_ns));
     remember_contact(id, time_ns);
     if (value_.usable() && value_.measurement_time_ns <= time_ns) {
       ModelState s;

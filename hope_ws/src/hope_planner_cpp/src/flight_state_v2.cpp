@@ -206,6 +206,14 @@ bool ShotContext::observe(BallSample s) {
         invalidate("source_clock_discontinuity");
       return false;
     }
+    if ((static_cast<long double>(s.source_time_ns)-samples_.back().source_time_ns)*1e-9L >
+        config_.max_tracking_gap_s) {
+      // Beyond the track's supported gap this is a new acquisition, not an
+      // extra bounce appended to the old shot. Resume only after the ordinary
+      // multi-sample ballistic qualifier; a single resumed point is no launch.
+      invalidate("source_gap_requires_new_acquisition");
+      rejected_latch_ = false;
+    }
   }
   if (!active()) {
     if (!candidates_.empty() &&
@@ -637,7 +645,7 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
   found->pre = pre;
   // Resolve the checkpoint at the physical source cutoff, rather than throwing
   // away a too-new latest measurement and losing the usable historical one.
-  found->pre.spin = spin_.at(ns);
+  found->pre.spin = spin_.at(reversal_ns ? bracket_begin_ns : ns);
   found->post = found->pre;
   found->side = pre.position.x() < config_.table.net_x ? ContactSide::kReceiver
                                                        : ContactSide::kOpponent;
@@ -646,7 +654,8 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
   if (kind == PhysicalEventKind::TABLE) {
     apply_model_contact(found->post, config_.physics);
     found->post.spin.last_contact_id = found->id;
-    spin_.contact(found->id, ns, pre.velocity, config_.physics, bracket_end_ns);
+    spin_.contact(found->id, ns, pre.velocity, config_.physics, bracket_end_ns,
+                  reversal_ns ? std::optional<std::int64_t>(bracket_begin_ns) : std::nullopt);
   }
   std::stable_sort(events_.begin(), events_.end(),
                    [](const auto &a, const auto &b) {
@@ -823,6 +832,38 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
         e.status == EventStatus::CONFIRMED)
       net_crossed_ = true;
   }
+  if (!snapshot.spin_checkpoint) {
+    // Wire checkpoints contain raw observations and the event ledger, but no
+    // in-memory quaternion estimator. Recover a causal suffix when the raw
+    // evidence supports the exact checkpoint; otherwise retain the explicit
+    // latest checkpoint without inventing unavailable older spin.
+    TrustedSpin recovered;
+    std::vector<std::uint64_t> applied;
+    for (const auto &e : events_)
+      if (e.kind == PhysicalEventKind::TABLE && e.status == EventStatus::CONFIRMED &&
+          e.event_time_ns < samples_.front().source_time_ns) {
+        recovered.restore(e.post.spin);
+        recovered.remember_contact(e.id,e.event_time_ns);
+        applied.push_back(e.id);
+      }
+    for (const auto &sample : samples_) {
+      recovered.observe(sample);
+      for (const auto &e : events_)
+        if (e.kind == PhysicalEventKind::TABLE && e.status == EventStatus::CONFIRMED &&
+            e.confirmed_at_ns <= sample.source_time_ns &&
+            std::find(applied.begin(),applied.end(),e.id)==applied.end()) {
+          recovered.contact(e.id,e.event_time_ns,e.pre.velocity,config_.physics,
+              e.bracket_end_ns ? e.bracket_end_ns : e.event_time_ns+e.time_uncertainty_ns,
+              e.reversal_sample_ns ? std::optional<std::int64_t>(e.bracket_begin_ns) : std::nullopt);
+          applied.push_back(e.id);
+        }
+    }
+    const auto &r = recovered.value(), &s = snapshot.spin;
+    if (r.usable()==s.usable() && (!s.usable() ||
+        ((r.omega.value()-s.omega.value()).norm()<1e-8 &&
+         r.measurement_time_ns==s.measurement_time_ns && r.last_contact_id==s.last_contact_id)))
+      spin_ = std::move(recovered);
+  }
   solve_sequence_ = published_sequence_ = 0;
   rejected_latch_ = false;
   reason_ = "restored_shot_checkpoint";
@@ -838,11 +879,20 @@ void FlightPipeline::restore(const ShotSnapshot &snapshot,
   ShotContext shot(config_, settings_);
   shot.restore_snapshot(snapshot);
   ProbabilisticBallTracker tracker(config_);
-  tracker.restore_checkpoint(checkpoint);
+  auto resolved = checkpoint;
+  auto &spin = resolved.belief.effective_spin;
+  if (spin.usable() && shot.spin().usable() &&
+      spin.measurement_time_ns==shot.spin().measurement_time_ns &&
+      spin.last_contact_id==shot.spin().last_contact_id &&
+      (*spin.omega-*shot.spin().omega).norm()<1e-8 && !shot.spin().provenance.empty())
+    spin.provenance = shot.spin().provenance;
+  tracker.restore_checkpoint(resolved);
+  tracker.set_effective_spin(spin);
   shot_ = std::move(shot);
   tracker_ = std::move(tracker);
   origin_ = origin;
   tracker_generation_ = shot_.generation();
+  tracker_history_.clear();
 }
 RouteTarget select_route_target(const ShotContext &shot,
                                 const std::vector<PhysicalEvent> &events,
@@ -992,7 +1042,6 @@ bool FlightPipeline::observe(BallSample sample) {
     tracker_history_.clear();
     tracker_generation_ = shot_.generation();
     if (!shot_.active()) {
-      origin_.reset();
       return false;
     }
     TrustedSpin replay_spin;
@@ -1054,10 +1103,37 @@ bool FlightPipeline::observe(BallSample sample) {
       ModelState pre;
       pre.position = low.position;
       pre.velocity = (low.position - a.position) / ta;
-      pre.spin = shot_.spin();
+      auto occurrence = low.source_time_ns;
+      pre.spin = shot_.spin_at((minimum - 1)->source_time_ns);
+      if (minimum >= samples.begin() + 2) {
+        // Use two strictly descending-side samples, then find the surface
+        // root. A sampled minimum after impact is never a pre-impact velocity
+        // or angular measurement. The full adjacent bracket remains uncertain.
+        const auto &left = *(minimum - 1), &older = *(minimum - 2);
+        const double dt = static_cast<double>((static_cast<long double>(left.source_time_ns)-older.source_time_ns)*1e-9L);
+        const double span = static_cast<double>((static_cast<long double>((minimum+1)->source_time_ns)-left.source_time_ns)*1e-9L);
+        ModelState prior;
+        prior.position = left.position; prior.spin = pre.spin;
+        prior.velocity = (left.position-older.position)/dt;
+        prior.velocity += .5*dt*ball_acceleration(config_.physics,prior.velocity,
+            prior.spin.usable()?*prior.spin.omega:Vec3::Zero());
+        auto end = prior; integrate_ball(end,span,config_.physics);
+        if (prior.velocity.z()<0 && prior.position.z()>=config_.physics.radius &&
+            end.position.z()<=config_.physics.radius) {
+          double lo=0,hi=span;
+          for(int k=0;k<32;++k) {
+            auto trial=prior; const double mid=(lo+hi)*.5;
+            integrate_ball(trial,mid,config_.physics);
+            if(trial.position.z()>config_.physics.radius)lo=mid;else hi=mid;
+          }
+          pre=prior;integrate_ball(pre,(lo+hi)*.5,config_.physics);
+          pre.position.z()=config_.physics.radius;
+          occurrence=left.source_time_ns+std::llround((lo+hi)*.5*1e9);
+        }
+      }
       const auto count_before = shot_.observed_contacts();
       shot_.confirm(
-          PhysicalEventKind::TABLE, low.source_time_ns, b.source_time_ns, pre,
+          PhysicalEventKind::TABLE, occurrence, b.source_time_ns, pre,
           "source_reversal_bracket",
           static_cast<std::int64_t>(std::round(std::max(ta, tb) * 1e9)),
           low.source_time_ns, (minimum - 1)->source_time_ns,
