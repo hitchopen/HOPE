@@ -1,0 +1,1224 @@
+{
+  "schema_version": 1,
+  "recording": "ppq_002",
+  "ball_type": "one-star, per operator",
+  "date_local": "2026-10-15",
+  "raw_source": "/media/user/6745-2301/ppq002/ppq_002.c3d",
+  "raw_sha256": "d21856cda874351f67bd88a1627042c7ff66f9e624486babe26fa0b3c963f078",
+  "raw_ulb_sha256": "7a354fdc309749ad21c88fd8863fb961fbc5d3e07f30a1780a61aa2b9bd23bdb",
+  "ulb_parsed": false,
+  "operator_confirmation": {
+    "ball": "one-star table-tennis ball",
+    "recording": "ppq002",
+    "confirmed": "same ball and table throughout recording; world frame and ball-centre origin unchanged",
+    "source": "direct user reply"
+  },
+  "raw": {
+    "frames": 47780,
+    "rate_hz": 300.0,
+    "duration_s": 159.26666666666668,
+    "raw_sha256": "d21856cda874351f67bd88a1627042c7ff66f9e624486babe26fa0b3c963f078",
+    "ball": {
+      "markers": 14,
+      "tracked": 40488,
+      "centroid_quantiles": [
+        [
+          -2.2217798233032227,
+          -3.952404499053955,
+          -29.348173141479492
+        ],
+        [
+          -0.20800476521253583,
+          -0.9891651153564452,
+          0.03182076793164015
+        ],
+        [
+          1.3007581233978271,
+          -0.6581301689147949,
+          0.38025353848934174
+        ],
+        [
+          2.7598606228828433,
+          -0.012370521295814481,
+          0.7547987848520279
+        ],
+        [
+          76.59620666503906,
+          2.3821945190429688,
+          8.04870891571045
+        ]
+      ],
+      "rigid_rms_mm": [
+        0.00013446514397409757,
+        0.00022245753186841087,
+        0.0003697064516657813
+      ],
+      "sphere_offset": [
+        -0.000600482235436769,
+        0.0005457734463311878,
+        -5.3353952794177935e-05
+      ],
+      "sphere_radius": 0.01980507047276237,
+      "sphere_residual": 0.0005170452102994973
+    }
+  },
+  "parameters": {
+    "drag_k": 0.1276482540395671,
+    "magnus_k": 0.004099236435745766,
+    "restitution_v": 0.9554747160275279,
+    "table_tangential_gain": 0.42833593603054454,
+    "table_friction_cap_mu": 0.22361815544013583,
+    "restitution_h": 0.5716640639694555,
+    "post_net_future_bounce_tangential_gain": 0.42833593603054454,
+    "post_net_future_bounce_restitution_v": 0.9554747160275279,
+    "future_contact_spin_enabled": true,
+    "future_contact_magnus_enabled": true,
+    "future_contact_spin_tangential_gain": 0.42833593603054454,
+    "future_contact_spin_omega_scale": 1.0,
+    "future_contact_spin_min_coherence": 0.4,
+    "spin_window_s": 0.18
+  },
+  "previous_parameters": {
+    "drag_k": 0.12562070851939272,
+    "magnus_k": 0.004060203305901695,
+    "restitution_v": 0.9398884451943814,
+    "table_tangential_gain": 0.4095501337300715,
+    "table_friction_cap_mu": 0.22332158274483332,
+    "restitution_h": 0.5904498662699285,
+    "post_net_future_bounce_tangential_gain": 0.4095501337300715,
+    "post_net_future_bounce_restitution_v": 0.9398884451943814,
+    "future_contact_spin_enabled": true,
+    "future_contact_magnus_enabled": true,
+    "future_contact_spin_tangential_gain": 0.4095501337300715,
+    "future_contact_spin_omega_scale": 1.0,
+    "future_contact_spin_min_coherence": 0.4,
+    "spin_window_s": 0.18
+  },
+  "fixed_priors": {
+    "g": 9.81,
+    "radius_m": 0.02,
+    "inertia_coefficient": 0.6666666666666666,
+    "spin_decay": 0
+  },
+  "unidentified": [
+    "mass",
+    "spin_decay",
+    "paddle_contact"
+  ],
+  "fit": {
+    "candidates": 183,
+    "accepted": 140,
+    "quality_frames": 39490,
+    "rejection_tags_nonexclusive": {
+      "duration": 10,
+      "speed": 19,
+      "gravity_screen": 16,
+      "position_discontinuity": 15,
+      "spin_incoherent": 17,
+      "spin_jump": 13
+    },
+    "train_flights": 100,
+    "heldout_flights": 38,
+    "cross_block_excluded": 2,
+    "speed_mps_min_max": [
+      1.6193382482982872,
+      5.8127746145653445
+    ],
+    "spin_rev_s_min_max": [
+      0.6055208074181466,
+      25.377630973614565
+    ],
+    "optimizer": {
+      "success": true,
+      "nfev": 145,
+      "cost": 0.14297901817301992,
+      "optimality": 0.0007408349514162068,
+      "termination": "`ftol` termination condition is satisfied."
+    },
+    "flight_bootstrap": {
+      "method": "20-second block bootstrap, 24 resamples, single recording only",
+      "samples": [
+        [
+          0.12750593840860838,
+          0.004182475351622282
+        ],
+        [
+          0.12914300212988017,
+          0.004108411737337699
+        ],
+        [
+          0.1268537446362802,
+          0.004330369874272671
+        ],
+        [
+          0.12784714086617907,
+          0.004133583153347331
+        ],
+        [
+          0.12771659180737566,
+          0.004221252104045821
+        ],
+        [
+          0.12858223573492764,
+          0.004093752569653507
+        ],
+        [
+          0.12877509639233511,
+          0.004243901382029923
+        ],
+        [
+          0.12743863714779155,
+          0.004246766664717232
+        ],
+        [
+          0.12888459538657368,
+          0.004267244430026174
+        ],
+        [
+          0.1286211170105945,
+          0.004089014869880721
+        ],
+        [
+          0.12808133615436235,
+          0.0042286235935916445
+        ],
+        [
+          0.12767756731892854,
+          0.004118002687696962
+        ],
+        [
+          0.12786718886680493,
+          0.00405026464417404
+        ],
+        [
+          0.12786743165753203,
+          0.004215847478614309
+        ],
+        [
+          0.12895936611885195,
+          0.004142484666682442
+        ],
+        [
+          0.12619934350111933,
+          0.0042312494506400004
+        ],
+        [
+          0.12781766602999894,
+          0.004087645823093328
+        ],
+        [
+          0.12799396032515503,
+          0.004017057696078569
+        ],
+        [
+          0.1281230342719126,
+          0.004132915724014526
+        ],
+        [
+          0.1277547383521456,
+          0.004176556972159548
+        ],
+        [
+          0.1270958697484659,
+          0.004064514550682843
+        ],
+        [
+          0.12701854045104968,
+          0.0042536402049918424
+        ],
+        [
+          0.12517488907875024,
+          0.00429146365953525
+        ],
+        [
+          0.1263182324830908,
+          0.004007950047701275
+        ]
+      ],
+      "optimizer_diagnostics": [
+        {
+          "success": true,
+          "nfev": 107,
+          "optimality": 0.00171523827924752,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 125,
+          "optimality": 0.000986541737775501,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 68,
+          "optimality": 0.0011149338160989508,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 66,
+          "optimality": 0.0022079885066490206,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 127,
+          "optimality": 0.0021282195379981783,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 114,
+          "optimality": 0.0018812566506848163,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 81,
+          "optimality": 0.00333291622425198,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 105,
+          "optimality": 0.00091088821153258,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 108,
+          "optimality": 0.0010065553918144525,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 97,
+          "optimality": 0.0011485999471701827,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 126,
+          "optimality": 0.0013310333600604425,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 100,
+          "optimality": 0.002175231407688296,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 82,
+          "optimality": 0.0014796175635985384,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 71,
+          "optimality": 0.0021237430779335025,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 116,
+          "optimality": 0.0019933737683371783,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 93,
+          "optimality": 0.001379694040961978,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 99,
+          "optimality": 0.001439755265908239,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 106,
+          "optimality": 0.0009573591177333054,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 97,
+          "optimality": 0.0020406270903959075,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 65,
+          "optimality": 0.0010477618684352468,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 93,
+          "optimality": 0.002527304445413884,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 125,
+          "optimality": 0.001864343890455865,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 142,
+          "optimality": 0.0010034355595030103,
+          "termination": "`ftol` termination condition is satisfied."
+        },
+        {
+          "success": true,
+          "nfev": 76,
+          "optimality": 0.0017250752992457943,
+          "termination": "`ftol` termination condition is satisfied."
+        }
+      ],
+      "percentile_95": [
+        [
+          0.12576395037161248,
+          0.0040131869455182195
+        ],
+        [
+          0.12903741142353894,
+          0.004307998800798654
+        ]
+      ]
+    },
+    "contacts": {
+      "flight_state_parameters_from": "all_fit.json",
+      "parameters": [
+        0.9554747160275279,
+        0.42833593603054454,
+        0.22361815544013583
+      ],
+      "parameter_order": [
+        "restitution_v",
+        "table_tangential_gain",
+        "table_friction_cap_mu"
+      ],
+      "all_fit": {
+        "success": true,
+        "cost": 0.864856421218317,
+        "optimality": 6.577153233242443e-09,
+        "jac_singular_values": [
+          23.431660565477287,
+          15.929407372198284,
+          10.788924763680322
+        ],
+        "n": 31,
+        "capped_count": 11
+      },
+      "train_parameters": [
+        0.9513409123884781,
+        0.4396274401563335,
+        0.22197562607811958
+      ],
+      "train_fit": {
+        "success": true,
+        "cost": 0.6908198259385001,
+        "optimality": 4.21895222671973e-09,
+        "jac_singular_values": [
+          18.96710752893285,
+          14.061908039142297,
+          9.233664309912896
+        ],
+        "n": 25,
+        "capped_count": 7
+      },
+      "holdout_old": {
+        "n": 6,
+        "velocity_error_mps_median_p90": [
+          0.1761127041150965,
+          0.23200436072182407
+        ],
+        "spin_error_rad_s_median_p90": [
+          9.91985794322766,
+          17.66517439775911
+        ],
+        "capped_count": 4
+      },
+      "holdout_new": {
+        "n": 6,
+        "velocity_error_mps_median_p90": [
+          0.14792240413742588,
+          0.22091552709974455
+        ],
+        "spin_error_rad_s_median_p90": [
+          12.352650284064776,
+          20.68261352149679
+        ],
+        "capped_count": 4
+      },
+      "bootstrap_percentile_95": [
+        [
+          0.9482152026794735,
+          0.4044384169891933,
+          0.20984000948750922
+        ],
+        [
+          0.9657794471396455,
+          0.4626673121579789,
+          0.22796791863977256
+        ]
+      ],
+      "bootstrap_method": "20-second temporal block resampling, 150 repeats",
+      "normal_restitution_distribution": [
+        0.9268949268346933,
+        0.9578488405847315,
+        0.9825970739584704
+      ],
+      "contact_height_distribution": [
+        0.0184390899301011,
+        0.021241640330847664,
+        0.024513997099559225
+      ]
+    },
+    "contact_candidates_and_rejections": {
+      "candidates": 172,
+      "rejected": {
+        "outside_table_contact": 36,
+        "spin_quality": 65,
+        "flight_residual": 22,
+        "incomplete_window": 16,
+        "contact_continuity": 2
+      }
+    }
+  },
+  "validation": {
+    "flight": {
+      "previous": {
+        "count": 33,
+        "endpoint_mm": {
+          "n": 33,
+          "median": 25.431327889412024,
+          "p90": 62.1236884531913
+        },
+        "endpoint_y_mm": {
+          "n": 33,
+          "median": 14.262779859193774,
+          "p90": 39.54521246272599
+        },
+        "endpoint_z_mm": {
+          "n": 33,
+          "median": 10.228702122521007,
+          "p90": 35.66980952366314
+        },
+        "future_rms_mm": {
+          "n": 33,
+          "median": 13.209600027347493,
+          "p90": 37.91737212971364
+        },
+        "net_time_ms": {
+          "n": 19,
+          "median": 1.6756684108942266,
+          "p90": 4.270087360096997
+        },
+        "net_y_mm": {
+          "n": 19,
+          "median": 10.135944854563483,
+          "p90": 24.589275673144158
+        },
+        "net_z_mm": {
+          "n": 19,
+          "median": 4.979293555973263,
+          "p90": 30.556311552973952
+        }
+      },
+      "fitted": {
+        "count": 33,
+        "endpoint_mm": {
+          "n": 33,
+          "median": 24.22809734266968,
+          "p90": 60.65418686242735
+        },
+        "endpoint_y_mm": {
+          "n": 33,
+          "median": 14.203494290498941,
+          "p90": 38.95245109833354
+        },
+        "endpoint_z_mm": {
+          "n": 33,
+          "median": 11.882162618111474,
+          "p90": 34.45785364325405
+        },
+        "future_rms_mm": {
+          "n": 33,
+          "median": 12.876669835485487,
+          "p90": 38.17195758510971
+        },
+        "net_time_ms": {
+          "n": 19,
+          "median": 1.4284753315809695,
+          "p90": 4.521285090247007
+        },
+        "net_y_mm": {
+          "n": 19,
+          "median": 10.34697305508059,
+          "p90": 25.03092729630751
+        },
+        "net_z_mm": {
+          "n": 19,
+          "median": 5.116438440365578,
+          "p90": 30.148737330837033
+        }
+      },
+      "magnus_off": {
+        "count": 33,
+        "endpoint_mm": {
+          "n": 33,
+          "median": 31.78204093501899,
+          "p90": 97.0322214285075
+        },
+        "endpoint_y_mm": {
+          "n": 33,
+          "median": 15.445169223425758,
+          "p90": 85.96034470651163
+        },
+        "endpoint_z_mm": {
+          "n": 33,
+          "median": 19.337486264564053,
+          "p90": 41.422858579487865
+        },
+        "future_rms_mm": {
+          "n": 33,
+          "median": 19.28418015019447,
+          "p90": 52.143519579172356
+        },
+        "net_time_ms": {
+          "n": 19,
+          "median": 1.8192604952610991,
+          "p90": 3.8080311829650433
+        },
+        "net_y_mm": {
+          "n": 19,
+          "median": 11.565181277986225,
+          "p90": 41.690029862983934
+        },
+        "net_z_mm": {
+          "n": 19,
+          "median": 8.094066025057078,
+          "p90": 32.583436783101924
+        }
+      }
+    },
+    "contact_strict_holdout": {
+      "flight_state_parameters_from": "training_fit.json",
+      "parameters": [
+        0.9549240414129349,
+        0.42794889600271097,
+        0.2235071124567148
+      ],
+      "parameter_order": [
+        "restitution_v",
+        "table_tangential_gain",
+        "table_friction_cap_mu"
+      ],
+      "all_fit": {
+        "success": true,
+        "cost": 0.862426216131321,
+        "optimality": 1.196769378968289e-09,
+        "jac_singular_values": [
+          23.432913121907553,
+          15.930202166482495,
+          10.792631072869876
+        ],
+        "n": 31,
+        "capped_count": 11
+      },
+      "train_parameters": [
+        0.9508112002993413,
+        0.4391353772509725,
+        0.22182833726326173
+      ],
+      "train_fit": {
+        "success": true,
+        "cost": 0.6891752359546717,
+        "optimality": 5.480003703585254e-09,
+        "jac_singular_values": [
+          18.970072693956464,
+          14.062284852834814,
+          9.237498548810684
+        ],
+        "n": 25,
+        "capped_count": 7
+      },
+      "holdout_old": {
+        "n": 6,
+        "velocity_error_mps_median_p90": [
+          0.17482058020204053,
+          0.22940858961142066
+        ],
+        "spin_error_rad_s_median_p90": [
+          9.93905910688391,
+          17.667741169309487
+        ],
+        "capped_count": 4
+      },
+      "holdout_new": {
+        "n": 6,
+        "velocity_error_mps_median_p90": [
+          0.14841726650796933,
+          0.21947292708053073
+        ],
+        "spin_error_rad_s_median_p90": [
+          12.295318813116127,
+          20.5842791052392
+        ],
+        "capped_count": 4
+      },
+      "bootstrap_percentile_95": [
+        [
+          0.9476973284489464,
+          0.4041708777046997,
+          0.20997109690355983
+        ],
+        [
+          0.9652605837066998,
+          0.46196154194582173,
+          0.2278737568623503
+        ]
+      ],
+      "bootstrap_method": "20-second temporal block resampling, 150 repeats",
+      "normal_restitution_distribution": [
+        0.9261293905833486,
+        0.9576814356389166,
+        0.9825515430972298
+      ],
+      "contact_height_distribution": [
+        0.018439371865951022,
+        0.02124825503022349,
+        0.02451495982730729
+      ]
+    },
+    "state": {
+      "previous": {
+        "n": 33,
+        "velocity_median_p90_mps": [
+          0.5646867880486675,
+          1.5618240416213827
+        ],
+        "spin_median_p90_rad_s": [
+          8.684391372883278,
+          17.621188118684266
+        ]
+      },
+      "fitted": {
+        "n": 33,
+        "velocity_median_p90_mps": [
+          0.5717882713924402,
+          1.560742282346268
+        ],
+        "spin_median_p90_rad_s": [
+          8.684391372883278,
+          17.621188118684266
+        ]
+      },
+      "scope": "Observed local polynomial/rotation derivatives have measurement noise; temporal holdout arcs, 150 ms causal prefix, no spin decay."
+    },
+    "cpp_acceptance": {
+      "previous_rows": 117,
+      "new_rows": 117,
+      "identity_and_acceptance_changes": [],
+      "matched": true
+    },
+    "cpp_replay": {
+      "previous": {
+        "input": "/home/user/.cache/hope-setup/results/ball_refit_ppq002_20261015/cpp_replay_input.csv",
+        "output": "/home/user/.cache/hope-setup/results/ball_refit_ppq002_20261015/cpp_replay_previous.csv",
+        "adaptive_horizon": true,
+        "post_net_one_shot": true,
+        "post_net_delay_s": 0.05,
+        "post_net_future_bounce_tangential_gain": 0.40955,
+        "post_net_future_bounce_restitution_v": 0.939888,
+        "net_x": 1.37,
+        "incoming_opponent_side_margin_m": 0.05,
+        "incoming_speed_threshold_mps": 0.25,
+        "outgoing_speed_threshold_mps": 0.25,
+        "incoming_direction_fit_samples": 4,
+        "incoming_direction_confirmations": 2,
+        "incoming_pre_roll_samples": 24,
+        "incoming_source_gap_reset_s": 0.25,
+        "drag_k": 0.125621,
+        "restitution_h": 0.59045,
+        "restitution_v": 0.939888,
+        "bounce_min_reversal_m": 5e-05,
+        "bounce_min_excursion_m": 0.001,
+        "bounce_confirmation_samples": 5,
+        "bounce_confirmation_max_span_s": 0.05,
+        "bounce_sparse_confirmation_min_span_s": 0.012,
+        "bounce_sparse_confirmation_excursion_m": 0.005,
+        "bounce_refractory_s": 0.12,
+        "spin_mode": "venue-grip-magnus",
+        "control_zero_spin": false,
+        "spin_window_s": 0.18,
+        "spin_max_rev_s": 20,
+        "magnus_k": 0.0040602,
+        "nakashima_friction_mu": 0.25,
+        "table_tangential_gain": 0.40955,
+        "table_friction_cap_mu": 0.223322,
+        "raw_ball_rows": 47780,
+        "estimator_kind": "batch_physics_cpp_no_ekf_persistent_bounce",
+        "accepted_ball_rows": 39489,
+        "raw_file_acceptance": 0.826476,
+        "solve_rows": 59,
+        "valid_rows": 58,
+        "spin_valid_solve_rows": 56,
+        "bounce_transition_solve_rows": 0,
+        "bounce_transition_valid_rows": 0,
+        "one_shot_net_crossings": 61,
+        "one_shot_commits": 59,
+        "trajectory_epochs": 121,
+        "trajectory_source_resets": 13,
+        "measured_crossings": 58,
+        "estimator_p50_ms": 0.07476,
+        "estimator_p95_ms": 0.09094059999999998,
+        "stage2_p50_ms": 0.006907,
+        "stage2_p95_ms": 0.011167499999999997,
+        "stage3_p50_ms": 0.033247,
+        "stage3_p95_ms": 0.05098419999999999,
+        "total_p50_ms": 0.116036,
+        "total_p95_ms": 0.14967930000000002,
+        "valid_estimator_p50_ms": 0.0748685,
+        "valid_estimator_p95_ms": 0.09095389999999999,
+        "valid_stage2_p50_ms": 0.0069305,
+        "valid_stage2_p95_ms": 0.01119075,
+        "valid_stage3_p50_ms": 0.033443,
+        "valid_stage3_p95_ms": 0.050988799999999994,
+        "valid_total_p50_ms": 0.117008,
+        "valid_total_p95_ms": 0.14968495,
+        "reasons": {
+          "command_valid": 58,
+          "estimator_not_ready": 1
+        },
+        "spin_reasons": {
+          "spin_insufficient_span": 3,
+          "spin_valid": 56
+        }
+      },
+      "fitted": {
+        "input": "/home/user/.cache/hope-setup/results/ball_refit_ppq002_20261015/cpp_replay_input.csv",
+        "output": "/home/user/.cache/hope-setup/results/ball_refit_ppq002_20261015/cpp_replay_fitted.csv",
+        "adaptive_horizon": true,
+        "post_net_one_shot": true,
+        "post_net_delay_s": 0.05,
+        "post_net_future_bounce_tangential_gain": 0.428336,
+        "post_net_future_bounce_restitution_v": 0.955475,
+        "net_x": 1.37,
+        "incoming_opponent_side_margin_m": 0.05,
+        "incoming_speed_threshold_mps": 0.25,
+        "outgoing_speed_threshold_mps": 0.25,
+        "incoming_direction_fit_samples": 4,
+        "incoming_direction_confirmations": 2,
+        "incoming_pre_roll_samples": 24,
+        "incoming_source_gap_reset_s": 0.25,
+        "drag_k": 0.127648,
+        "restitution_h": 0.571664,
+        "restitution_v": 0.955475,
+        "bounce_min_reversal_m": 5e-05,
+        "bounce_min_excursion_m": 0.001,
+        "bounce_confirmation_samples": 5,
+        "bounce_confirmation_max_span_s": 0.05,
+        "bounce_sparse_confirmation_min_span_s": 0.012,
+        "bounce_sparse_confirmation_excursion_m": 0.005,
+        "bounce_refractory_s": 0.12,
+        "spin_mode": "venue-grip-magnus",
+        "control_zero_spin": false,
+        "spin_window_s": 0.18,
+        "spin_max_rev_s": 20,
+        "magnus_k": 0.00409924,
+        "nakashima_friction_mu": 0.25,
+        "table_tangential_gain": 0.428336,
+        "table_friction_cap_mu": 0.223618,
+        "raw_ball_rows": 47780,
+        "estimator_kind": "batch_physics_cpp_no_ekf_persistent_bounce",
+        "accepted_ball_rows": 39489,
+        "raw_file_acceptance": 0.826476,
+        "solve_rows": 59,
+        "valid_rows": 58,
+        "spin_valid_solve_rows": 56,
+        "bounce_transition_solve_rows": 0,
+        "bounce_transition_valid_rows": 0,
+        "one_shot_net_crossings": 61,
+        "one_shot_commits": 59,
+        "trajectory_epochs": 121,
+        "trajectory_source_resets": 13,
+        "measured_crossings": 58,
+        "estimator_p50_ms": 0.085912,
+        "estimator_p95_ms": 0.0908025,
+        "stage2_p50_ms": 0.007245,
+        "stage2_p95_ms": 0.011642599999999993,
+        "stage3_p50_ms": 0.048439,
+        "stage3_p95_ms": 0.0505214,
+        "total_p50_ms": 0.140826,
+        "total_p95_ms": 0.1503085,
+        "valid_estimator_p50_ms": 0.085927,
+        "valid_estimator_p95_ms": 0.09083675,
+        "valid_stage2_p50_ms": 0.007289,
+        "valid_stage2_p95_ms": 0.011714399999999998,
+        "valid_stage3_p50_ms": 0.048441,
+        "valid_stage3_p95_ms": 0.0505281,
+        "valid_total_p50_ms": 0.141028,
+        "valid_total_p95_ms": 0.15032125,
+        "reasons": {
+          "command_valid": 58,
+          "estimator_not_ready": 1
+        },
+        "spin_reasons": {
+          "spin_insufficient_span": 3,
+          "spin_valid": 56
+        }
+      }
+    },
+    "limitations": [
+      "Single recording and only six held-out table contacts; spin contact error regresses",
+      "Some net and flight-tail metrics regress; no universal improvement claim",
+      "Fixed 150ms causal initialization; fixed-delay replay does not validate adaptive scheduling or real networking",
+      "Online spin validity still capped at 20 rev/s",
+      "Real robot hitting unverified"
+    ]
+  },
+  "regression": {
+    "python_parameter_tests_passed": 14,
+    "cpp_contact_tests_passed": 3,
+    "planner_build": "PASS",
+    "mujoco_build": "PASS"
+  },
+  "artifact_directory": "/home/user/.cache/hope-setup/results/ball_refit_ppq002_20261015",
+  "deployment": {
+    "status": "deployed_and_runtime_verified",
+    "session_id": "model21800_20261015T113155Z",
+    "runner_mode": "PASSIVE",
+    "policy": "model14600",
+    "policy_sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+    "policy_unchanged": true,
+    "receive_only_preserved": true,
+    "gripper_profile": "new_20261015",
+    "pants_profile": "v2",
+    "hdu": {
+      "before_sha256": "62abd9d0446647ad4057b0743848594337c44e940c97f0c30f2510327e3c86bb",
+      "after_sha256": "f07c96b2706b0a256b9ada364480531c509edfc939aa8f86ca89a3954c2308a5",
+      "backup": "/home/agi/hope_physics_backups/ppq002_20261015/model21800_hardware.yaml",
+      "configuration": "/home/agi/hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml"
+    },
+    "hdu_binary_sha256": "bdc693cc8ad03b9a97afe70c491b51277e8d4701d83f53ef864f288273197a30",
+    "hdu_binary_note": "Existing compatible ARM binary retained; all fitted physics coefficients explicitly loaded through ROS YAML.",
+    "hdu_planner_pid": 111121,
+    "laptop_packetizer_pid": 2747525,
+    "mdu_runner_pid": 24997,
+    "parameter_verification": {
+      "/hope_planner": {
+        "actual": {
+          "drag_k": 0.1276482540395671,
+          "magnus_k": 0.004099236435745766,
+          "restitution_v": 0.9554747160275279,
+          "table_tangential_gain": 0.42833593603054454,
+          "table_friction_cap_mu": 0.22361815544013583,
+          "restitution_h": 0.5716640639694555,
+          "post_net_future_bounce_tangential_gain": 0.42833593603054454,
+          "post_net_future_bounce_restitution_v": 0.9554747160275279,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": 0.42833593603054454,
+          "future_contact_spin_omega_scale": 1.0,
+          "future_contact_spin_min_coherence": 0.4,
+          "spin_window_s": 0.18
+        },
+        "matches": {
+          "drag_k": true,
+          "magnus_k": true,
+          "restitution_v": true,
+          "table_tangential_gain": true,
+          "table_friction_cap_mu": true,
+          "restitution_h": true,
+          "post_net_future_bounce_tangential_gain": true,
+          "post_net_future_bounce_restitution_v": true,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": true,
+          "future_contact_spin_omega_scale": true,
+          "future_contact_spin_min_coherence": true,
+          "spin_window_s": true
+        },
+        "all_match": true
+      },
+      "/hope_ball_flight_packetizer": {
+        "actual": {
+          "drag_k": 0.1276482540395671,
+          "magnus_k": 0.004099236435745766,
+          "restitution_v": 0.9554747160275279,
+          "table_tangential_gain": 0.42833593603054454,
+          "table_friction_cap_mu": 0.22361815544013583,
+          "restitution_h": 0.5716640639694555,
+          "post_net_future_bounce_tangential_gain": 0.42833593603054454,
+          "post_net_future_bounce_restitution_v": 0.9554747160275279,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": 0.42833593603054454,
+          "future_contact_spin_omega_scale": 1.0,
+          "future_contact_spin_min_coherence": 0.4,
+          "spin_window_s": 0.18
+        },
+        "matches": {
+          "drag_k": true,
+          "magnus_k": true,
+          "restitution_v": true,
+          "table_tangential_gain": true,
+          "table_friction_cap_mu": true,
+          "restitution_h": true,
+          "post_net_future_bounce_tangential_gain": true,
+          "post_net_future_bounce_restitution_v": true,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": true,
+          "future_contact_spin_omega_scale": true,
+          "future_contact_spin_min_coherence": true,
+          "spin_window_s": true
+        },
+        "all_match": true
+      }
+    },
+    "hardware_state": {
+      "counts": {
+        "/hope/clock/message_text": 238,
+        "/hope/runner/alive": 59,
+        "/hope/vendor/tf_ready": 59,
+        "/hope/pelvis/text": 59,
+        "/hope/runner/command_fault_latched": 59,
+        "/hope/clock/message_fresh": 234,
+        "/hope/base/valid": 24,
+        "/hope/base/fresh": 58,
+        "/hope/runner/local_role": 23,
+        "/hope/runner/policy_native": 23,
+        "/hope/runner/mode": 58,
+        "/hope/runner/command_publishing": 23,
+        "/hope/runner/session_matches": 58,
+        "/hope/clock/message_latency_ms": 230,
+        "/hope/lifecycle/last_result": 24,
+        "/hope/pelvis/tf": 58,
+        "/hope/pelvis/pose": 58,
+        "/hope/runner/state_sequence": 57,
+        "/hope/lifecycle/session_id": 23,
+        "/hope/lifecycle/state": 23,
+        "/hope/runner/session_id": 21
+      },
+      "last": {
+        "/hope/clock/message_text": {
+          "data": "A3 ROS clock - /ros2/body_drive/pelvis_imu/data header stamp = +0.486 ms"
+        },
+        "/hope/runner/alive": {
+          "data": true
+        },
+        "/hope/vendor/tf_ready": {
+          "data": true
+        },
+        "/hope/pelvis/text": {
+          "data": "world -> pelvis_link | authoritative mocap pelvis pose | pos [m] x=-0.466 y=-1.591 z=+0.457 | quat x=+0.0002 y=+0.0520 z=+0.0059 w=+0.9986 | rpy [deg] r=+0.1 p=+6.0 y=+0.7"
+        },
+        "/hope/runner/command_fault_latched": {
+          "data": false
+        },
+        "/hope/clock/message_fresh": {
+          "data": true
+        },
+        "/hope/base/valid": {
+          "data": true
+        },
+        "/hope/base/fresh": {
+          "data": true
+        },
+        "/hope/runner/local_role": {
+          "data": "UNASSIGNED"
+        },
+        "/hope/runner/policy_native": {
+          "data": true
+        },
+        "/hope/runner/mode": {
+          "data": "PASSIVE"
+        },
+        "/hope/runner/command_publishing": {
+          "data": true
+        },
+        "/hope/runner/session_matches": {
+          "data": true
+        },
+        "/hope/clock/message_latency_ms": {
+          "data": 0.485584
+        },
+        "/hope/lifecycle/last_result": {
+          "data": "START_COMPLETE_RUNNER_PASSIVE"
+        },
+        "/hope/pelvis/tf": {
+          "transforms": [
+            {
+              "header": {
+                "stamp": {
+                  "sec": 1792064068,
+                  "nanosec": 723974802
+                },
+                "frame_id": "world"
+              },
+              "child_frame_id": "pelvis_link",
+              "transform": {
+                "translation": {
+                  "x": -0.4664967942006739,
+                  "y": -1.591288098134452,
+                  "z": 0.4568200812548856
+                },
+                "rotation": {
+                  "x": 0.0001757426350650416,
+                  "y": 0.052018439272877186,
+                  "z": 0.005918065681302382,
+                  "w": 0.9986285733888913
+                }
+              }
+            }
+          ]
+        },
+        "/hope/pelvis/pose": {
+          "header": {
+            "stamp": {
+              "sec": 1792064068,
+              "nanosec": 723974802
+            },
+            "frame_id": "world"
+          },
+          "pose": {
+            "position": {
+              "x": -0.4664967942006739,
+              "y": -1.591288098134452,
+              "z": 0.4568200812548856
+            },
+            "orientation": {
+              "x": 0.0001757426350650416,
+              "y": 0.052018439272877186,
+              "z": 0.005918065681302382,
+              "w": 0.9986285733888913
+            }
+          }
+        },
+        "/hope/runner/state_sequence": {
+          "data": 3
+        },
+        "/hope/lifecycle/session_id": {
+          "data": "model21800_20261015T113155Z"
+        },
+        "/hope/lifecycle/state": {
+          "data": "RUNNING"
+        },
+        "/hope/runner/session_id": {
+          "data": "model21800_20261015T113155Z"
+        }
+      },
+      "latency_min_max_ms": [
+        0.317991,
+        1.588128
+      ],
+      "duration_s": 12.01202015400031
+    },
+    "laptop_restart": "Independent data bridge required a separate managed restart; initial runtime audit caught old values, final query matches all 14 values.",
+    "control_actions": "Managed restart from verified PASSIVE, restored PASSIVE; no PD_STAND/MOTION request",
+    "robot_clock_changed": false,
+    "field_hitting": "NOT_PROVEN",
+    "local_backup": "/home/user/.cache/hope-setup/results/ball_refit_ppq002_20261015/pre_adoption_backup",
+    "rollback": "With managed session stopped, restore HDU backup and corresponding local files from pre_adoption_backup; restart independent Laptop bridge and managed Runner lifecycle to load PPQ000 again."
+  },
+  "gate3": {
+    "directory": "/home/user/Desktop/workspace/nohope/agi/a3_deploy_example/gate3/runs/20261015_193102_235821",
+    "status": "failed",
+    "exit_code": 1,
+    "certification_pass": false,
+    "runner_gate_pass": false,
+    "physical_ball_pass": false,
+    "completed_serves": 26,
+    "engaged_serves": 26,
+    "falls": 0,
+    "drain": "complete",
+    "physical_contact_pass": true,
+    "landing_pass": true,
+    "home_support_failures": [
+      "base_yaw_peak",
+      "support_midpoint_end",
+      "foot_anchor_end",
+      "foot_heading_end",
+      "signed_width_min",
+      "signed_width_max_authorized"
+    ],
+    "torso_hold_pass": true,
+    "collision_ledger_pass": true,
+    "idle_smoothness_pass": true,
+    "actual_q_ledger_consistency_pass": true,
+    "all_14_physics_parameters_match": true,
+    "parameters_receipt": "/home/user/Desktop/workspace/nohope/agi/a3_deploy_example/gate3/runs/20261015_193102_235821/pp_planner_debug.csv.ball_physics.json",
+    "limitation": "Zero initial-spin serves with spin generated after table bounce; no real-robot motion qualification.",
+    "evidence_sha256": {
+      "run.json": "98b33bfa4225f949f259c06717fa27bcdd784ffe832a4bc3c231aa73602f546e",
+      "pp_rally_report.json": "630f78d10f3e2539a3044c8b950a8c44f13d4f77997385a27b17905ae3bb4de3",
+      "pp_mujoco_plant_report.json": "22124d71911b143c762bf14094ef8d248fd5a202d91129ec27b9eecad571be47",
+      "pp_physical_ball_report.json": "e1b9b69df9bac3a983dbb9390c9633fb5b8b96361824d35cffb8791fc4751724",
+      "pp_gate3_drain_report.json": "798052d8c1f2d4f08f50fe8c223998ffcda4c7a08a32f265743d7ec20666f9b2",
+      "pp_planner_debug.csv.ball_physics.json": "abf3dce70d8aa3868bb4d51a06ab349e725eaf22c4acbbeb9ed8930de3162803"
+    }
+  },
+  "reproducibility": {
+    "baseline_argument": "/home/user/.cache/hope-setup/results/ball_refit_ppq002_20261015/baseline_ppq000.json",
+    "python": "distrobox hope /home/user/.cache/hope-setup/ballfit-venv/bin/python",
+    "tools_directory": "hope_training/ball_physics_fit"
+  },
+  "recorded_utc": "2026-10-15T11:35:54.254210+00:00",
+  "local_artifact_sha256": {
+    "hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml": "c9811cce61d249aff4f8228af44a1624adf28a42009e450a7d3a527d014e9377",
+    "hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml": "d1e2c1272b229331f61c76a841c7b6a556ddb56b876175ae779a4bd5a65fbb74",
+    "hope_ws/src/hope_planner_cpp/config/model14600_spin_contact.yaml": "ae6da8cd5516d68c4b3611f7fa8c57bf4ee2612afeac85569ca9b1977babb46e",
+    "hope_ws/src/hope_planner_cpp/config/model14600_adaptive_flight_packetizer.yaml": "d1e2c1272b229331f61c76a841c7b6a556ddb56b876175ae779a4bd5a65fbb74",
+    "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/types.hpp": "60eb1442b6d52750a885fb5a71b726838db59c4f53e1c12a745a047770cbf0eb",
+    "agi/a3_deploy_example/scripts/pp_ball_physics.py": "b46423835b268c0a1c9141554ccb28c9e62b42b19aa98a637ba0a36b87e1acd8",
+    "agi/a3_deploy_example/scripts/tests/test_ball_physics_config.py": "959c35e35c900545906e5f0476ba5b47f9e9f32266bf19081e4f456a5deb7b16",
+    "agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/module/mujoco_sim_module/mujoco_sim_module.h": "323a7c0591b1389cd198ed961b05fe734343c5af3bf33f51a3d6321cbdf85a1f",
+    "agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/module/mujoco_sim_module/common/gate3_ball_contact_model.h": "6cf3d1e63e42c1a691b66927b3b4488f7277394fdd03e0f8950a5776c9161ce8",
+    "agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/module/mujoco_sim_module/common/gate3_ball_contact_model_test.cc": "a511b68e58c22b09ee814606e42700876cc9ec448451914a9f34d9865dc7c9e8",
+    "hope_training/ball_physics_fit/extract_ppq_c3d.py": "b308ec621726566abf4dc98bd2619974d0f4938ecba6bd701a74065221c3b75a",
+    "hope_training/ball_physics_fit/refit_c3d_recording.py": "15d36ac7584ee949cf4c5a6f316d8bdd8fc638a77b620e3911655f11f8ee0512",
+    "hope_training/ball_physics_fit/refit_table_contact.py": "5a542ef0ff77eebfd82cdccb658194f13663c1cf7514236d1d56f96d02ad7703",
+    "hope_training/ball_physics_fit/validate_ppq_recording.py": "c0a8af3be6f8690361a945d7ba3bb39d516a3b8bacc0ca5780244b95cd4a5e75",
+    "hope_training/ball_physics_fit/shooting_kernel.cpp": "4f6a5432f4254933ccab1b627a1cac94e4e192b074a1042bb0f7b4ee91567add",
+    "hope_ws/src/hope_planner_cpp/config/ball_physics_ppq002_20261015.yaml": "9eec7bb60006bc72c6325a13f71f0758a6505578f6d321a74c0311ec98125912",
+    "docs/operations/ball_physics_ppq002_20261015.md": "b4d6d12dc5af3b28f152c03b15e79f2d896c72bed9ebed717f1ed161cb97b61a",
+    "hope_ws/install/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_node": "1475573db0df35ee3079e46e35b49bc7c1ef87774eab54a1f96395e294f00a62",
+    "hope_ws/install/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_packetizer": "1b6a4f8b74ccfbc6d0c6b30589d9211494affd0f24e677c66743fe20f6bd3d30",
+    "hope_ws/install/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_replay": "d7f609790bfc424a9c80115c790b05a66713c7da2b7031cbcfa8dede5429ead9",
+    "agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/cmake-build-gate3-current/install/lib/libmujoco_sim_pkg.so": "a2160b4cc9ce3f6136b69927b899330344d9484b3de42e60270f9bab7efed3a6",
+    "docs/operations/ball_physics_calibration.md": "541e46963880c78986c6abf4dee5aaecc14914bdb576800d03f7a62543f5d164",
+    "hope_training/ball_physics_fit/README.md": "998c0586e8f90b3302cfb626141460bbb73423b2ba5c03193eea6f75f6669f9e"
+  },
+  "evidence_sha256": {
+    "cpp_acceptance_comparison.json": "ad431a6ec40c0ac5da7d612f801e0794730b45b152d7e37efa1b2eae0e0742c5",
+    "contacts_strict_holdout.json": "d8458a0b5ce14bfabef9814fb138ddda5797c7ac3dde7d2bea1c39aab39be92c",
+    "modified_files.json": "7b30f62f80349887da4aff8e1a38a00518d322e57f9899e629b78d1cb9d290fd",
+    "heldout_validation.json": "126826e40f57d6c8b6cb736e2ee64ea8bd1ca3d8f3c4408b5cc6547ceb33db95",
+    "baseline_ppq000.json": "d10ab7ff9c76d539adfe2fa04a84dbda15f7df32b6af342eca007b721584082d",
+    "cpp_replay_fitted.json": "89f8faf4f45f9c187186dcf790dd098cac9fc3dc839d2d5cecb5c7474d370e00",
+    "adopted_parameters.json": "b513acbb5220cce010cd5b5563da707e0ca5c0a917e98544347530e9bdfc7bf3",
+    "raw_manifest.json": "a466e6fabe3c7a748fba4fc3291a39f9cfd10c3a2315e1442e759b3d81e8b29d",
+    "state_after.json": "ef85e0850fdf1ff446cc4e834275737b2879a0e1554fbb2e0c652718274464ea",
+    "deployment_parameter_comparison.json": "6320c13829b1974ca937a38b3da1156f42d0243656966e84a43f70c6cb3df8cb",
+    "uncertainty.json": "454a91744915c6da22290fceda5e774edf65d1b7ee69c01977110c7b89e7419c",
+    "training_fit.json": "53181f63bc7f3ea78ebd4d8a7d884266e88e25badd72428fd0873773baf31bea",
+    "all_fit.json": "d76ea76ea8129d8372490056b7d1ba2e5b979f9542f3e9daeafac16cb5aa6b4b",
+    "deployment_parameter_comparison.initial.json": "708ba8f33655a7f1c626fb5d7828084002a984a3c9211d00fcfcd00f9af6a78f",
+    "segments.json": "8b4f6dd55e714e6a2c2cc89c9dca3b42525919035edfd3927a80fabed9f472e8",
+    "contact_fit.json": "c1de55555b68dc4a10f63c021eab7061f1b3ae50151937c129a3ec1909ad1612",
+    "contacts.json": "c9ac52ba8344274fd199f7f1b8d1a135e42b97fc6d2c0543ac16b8b53d7ba45b",
+    "heldout_state_validation.json": "30a4455f0ace74e3291582834d880b4712b7ff90cfedc92a29af65b87f7a5b70",
+    "cpp_replay_previous.json": "755790be77ea07fd0174a5392cb303b6de886caff940ec629a049628c2b9d4a5",
+    "operator_confirmation.json": "8b3a2d88e34a9d1d25198604145f5eb929b20476d39d6d17863188bc9ef815d7",
+    "contact_fit_strict_holdout.json": "1bf0624fe61f5fba2978efb66a7effffbac6f4e9c804da6892fe93aad76cfc7b"
+  }
+}

@@ -1,0 +1,839 @@
+{
+  "ppq002": {
+    "summary": {
+      "count": 24,
+      "endpoint_mm": {
+        "n": 24,
+        "median": 19.89552928535648,
+        "p90": 62.36246555160936
+      },
+      "endpoint_y_mm": {
+        "n": 24,
+        "median": 11.353624815700597,
+        "p90": 36.48885144786259
+      },
+      "endpoint_z_mm": {
+        "n": 24,
+        "median": 9.198902946181288,
+        "p90": 29.414441217799425
+      },
+      "future_rms_mm": {
+        "n": 24,
+        "median": 12.223447838586434,
+        "p90": 33.769729086103645
+      },
+      "net_time_ms": {
+        "n": 9,
+        "median": 1.7727905435116487,
+        "p90": 6.312788135258963
+      },
+      "net_y_mm": {
+        "n": 9,
+        "median": 5.352196598268133,
+        "p90": 23.218556935337816
+      },
+      "net_z_mm": {
+        "n": 9,
+        "median": 9.145594112411281,
+        "p90": 24.37625468250566
+      }
+    },
+    "rows": [
+      {
+        "id": 300001,
+        "duration": 0.2400000000000002,
+        "endpoint_mm": 14.906174028545784,
+        "endpoint_y_mm": 7.509925616303148,
+        "endpoint_z_mm": 9.141870674945999,
+        "future_rms_mm": 11.741203612150555
+      },
+      {
+        "id": 300003,
+        "duration": 0.4666666666666668,
+        "endpoint_mm": 31.341979543454126,
+        "endpoint_y_mm": 22.901945587195716,
+        "endpoint_z_mm": 10.948952804579976,
+        "future_rms_mm": 19.029084841437175,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 2.0585786766110226,
+        "net_y_mm": 5.352196598268133,
+        "net_z_mm": 3.127660382291897
+      },
+      {
+        "id": 300004,
+        "duration": 0.5099999999999998,
+        "endpoint_mm": 51.39721981877287,
+        "endpoint_y_mm": 15.683565549796995,
+        "endpoint_z_mm": 23.368072897726314,
+        "future_rms_mm": 28.598007203214927,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 3.741186135700292,
+        "net_y_mm": 6.818972768753984,
+        "net_z_mm": 21.636531118871094
+      },
+      {
+        "id": 300005,
+        "duration": 0.5999999999999996,
+        "endpoint_mm": 121.0500817062487,
+        "endpoint_y_mm": 56.76251856855319,
+        "endpoint_z_mm": 7.461667963682944,
+        "future_rms_mm": 75.64679825037514,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 5.3196255809033755,
+        "net_y_mm": 17.620030362798023,
+        "net_z_mm": 6.802628982840453
+      },
+      {
+        "id": 300007,
+        "duration": 0.1999999999999993,
+        "endpoint_mm": 4.0055959199308475,
+        "endpoint_y_mm": 0.662469790770448,
+        "endpoint_z_mm": 3.7279277152518775,
+        "future_rms_mm": 6.568907546732814
+      },
+      {
+        "id": 300010,
+        "duration": 0.47666666666666657,
+        "endpoint_mm": 57.399253595232544,
+        "endpoint_y_mm": 14.174785787849142,
+        "endpoint_z_mm": 32.005741926402195,
+        "future_rms_mm": 29.55356148617816,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.7212704181288887,
+        "net_y_mm": 3.3828277294642994,
+        "net_z_mm": 9.145594112411281
+      },
+      {
+        "id": 300012,
+        "duration": 0.21333333333333115,
+        "endpoint_mm": 12.84336640150516,
+        "endpoint_y_mm": 12.383218424732778,
+        "endpoint_z_mm": 3.0045311291174714,
+        "future_rms_mm": 11.909370827182206
+      },
+      {
+        "id": 300013,
+        "duration": 0.3100000000000023,
+        "endpoint_mm": 3.755601563925746,
+        "endpoint_y_mm": 0.4034529012515442,
+        "endpoint_z_mm": 3.5867955946661327,
+        "future_rms_mm": 4.984291414658736
+      },
+      {
+        "id": 300014,
+        "duration": 0.28999999999999915,
+        "endpoint_mm": 9.19849794272257,
+        "endpoint_y_mm": 1.0703057787699866,
+        "endpoint_z_mm": 8.386884990660432,
+        "future_rms_mm": 8.995501757290015,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 1.698851754618036,
+        "net_y_mm": 1.3781064395760323,
+        "net_z_mm": 12.538299593487956
+      },
+      {
+        "id": 300016,
+        "duration": 0.22666666666666657,
+        "endpoint_mm": 5.068786173195518,
+        "endpoint_y_mm": 4.871445205801628,
+        "endpoint_z_mm": 1.3866260756098399,
+        "future_rms_mm": 7.470914188939507
+      },
+      {
+        "id": 300017,
+        "duration": 0.4800000000000004,
+        "endpoint_mm": 52.06351629570149,
+        "endpoint_y_mm": 42.31181110243412,
+        "endpoint_z_mm": 13.712632426456706,
+        "future_rms_mm": 33.66982842056138
+      },
+      {
+        "id": 300018,
+        "duration": 0.206666666666667,
+        "endpoint_mm": 22.334686913575112,
+        "endpoint_y_mm": 16.329852716843398,
+        "endpoint_z_mm": 9.255935217416578,
+        "future_rms_mm": 16.69304492882336
+      },
+      {
+        "id": 300019,
+        "duration": 0.6099999999999994,
+        "endpoint_mm": 64.48955639005658,
+        "endpoint_y_mm": 19.636570541322396,
+        "endpoint_z_mm": 58.66631800750077,
+        "future_rms_mm": 33.812543657050334
+      },
+      {
+        "id": 300020,
+        "duration": 0.3433333333333337,
+        "endpoint_mm": 29.781980132546625,
+        "endpoint_y_mm": 18.42984566445893,
+        "endpoint_z_mm": 22.485332329321373,
+        "future_rms_mm": 15.018388594872873
+      },
+      {
+        "id": 300021,
+        "duration": 0.2566666666666677,
+        "endpoint_mm": 16.765864061613136,
+        "endpoint_y_mm": 0.2297713636024712,
+        "endpoint_z_mm": 15.598814072800566,
+        "future_rms_mm": 12.279479207456506
+      },
+      {
+        "id": 300022,
+        "duration": 0.6033333333333317,
+        "endpoint_mm": 14.644820230623006,
+        "endpoint_y_mm": 14.274033888220238,
+        "endpoint_z_mm": 0.4556810984511772,
+        "future_rms_mm": 9.998657539356074,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.4697157310629141,
+        "net_y_mm": 4.576124798172265,
+        "net_z_mm": 8.562140505317506
+      },
+      {
+        "id": 300023,
+        "duration": 0.30666666666666487,
+        "endpoint_mm": 19.969671896082488,
+        "endpoint_y_mm": 9.205775648043202,
+        "endpoint_z_mm": 9.585928746531746,
+        "future_rms_mm": 12.167416469716363
+      },
+      {
+        "id": 300024,
+        "duration": 0.3200000000000003,
+        "endpoint_mm": 11.577623123764942,
+        "endpoint_y_mm": 7.745625730709249,
+        "endpoint_z_mm": 7.891799618518131,
+        "future_rms_mm": 9.460807678719043
+      },
+      {
+        "id": 300025,
+        "duration": 0.23000000000000398,
+        "endpoint_mm": 11.347137485082028,
+        "endpoint_y_mm": 6.286647121761635,
+        "endpoint_z_mm": 7.349787923903783,
+        "future_rms_mm": 9.107472885044196
+      },
+      {
+        "id": 300026,
+        "duration": 0.6566666666666663,
+        "endpoint_mm": 68.59003010390605,
+        "endpoint_y_mm": 51.68551805164601,
+        "endpoint_z_mm": 44.023598651642125,
+        "future_rms_mm": 43.51571990948814,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 1.7727905435116487,
+        "net_y_mm": 45.61266322549695,
+        "net_z_mm": 23.569628902938454
+      },
+      {
+        "id": 300028,
+        "duration": 0.5133333333333354,
+        "endpoint_mm": 19.821386674630478,
+        "endpoint_y_mm": 1.2595374284669614,
+        "endpoint_z_mm": 19.692140474421198,
+        "future_rms_mm": 13.729591036020725,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.9768698595478964,
+        "net_y_mm": 2.4074422160582643,
+        "net_z_mm": 4.274924565561111
+      },
+      {
+        "id": 300030,
+        "duration": 0.403333333333336,
+        "endpoint_mm": 24.043449746239652,
+        "endpoint_y_mm": 3.0622800459175483,
+        "endpoint_z_mm": 16.21490975293303,
+        "future_rms_mm": 10.71452714123558
+      },
+      {
+        "id": 300032,
+        "duration": 0.519999999999996,
+        "endpoint_mm": 30.283607996600438,
+        "endpoint_y_mm": 12.431149776566564,
+        "endpoint_z_mm": 4.963489307266637,
+        "future_rms_mm": 21.4521134877804,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 10.28543835268131,
+        "net_y_mm": 17.313806839195923,
+        "net_z_mm": 27.60275780077448
+      },
+      {
+        "id": 300033,
+        "duration": 0.3133333333333326,
+        "endpoint_mm": 16.762673228786596,
+        "endpoint_y_mm": 10.324031206668415,
+        "endpoint_z_mm": 3.837332116363966,
+        "future_rms_mm": 9.002687412206422
+      }
+    ]
+  },
+  "ppq004": {
+    "summary": {
+      "count": 24,
+      "endpoint_mm": {
+        "n": 24,
+        "median": 20.774344788539725,
+        "p90": 61.01482235913383
+      },
+      "endpoint_y_mm": {
+        "n": 24,
+        "median": 10.983319661137525,
+        "p90": 36.43930912379416
+      },
+      "endpoint_z_mm": {
+        "n": 24,
+        "median": 8.968622633017509,
+        "p90": 29.68070760433961
+      },
+      "future_rms_mm": {
+        "n": 24,
+        "median": 11.98828113812476,
+        "p90": 33.40346372016764
+      },
+      "net_time_ms": {
+        "n": 9,
+        "median": 1.6014441176690208,
+        "p90": 6.2253125510644445
+      },
+      "net_y_mm": {
+        "n": 9,
+        "median": 5.1691018850250625,
+        "p90": 23.483769164473948
+      },
+      "net_z_mm": {
+        "n": 9,
+        "median": 11.291228031366119,
+        "p90": 26.6585462504384
+      }
+    },
+    "rows": [
+      {
+        "id": 300001,
+        "duration": 0.2400000000000002,
+        "endpoint_mm": 14.60173540237681,
+        "endpoint_y_mm": 7.368428595628362,
+        "endpoint_z_mm": 9.236564828435968,
+        "future_rms_mm": 11.643335535969257
+      },
+      {
+        "id": 300003,
+        "duration": 0.4666666666666668,
+        "endpoint_mm": 29.13662611958788,
+        "endpoint_y_mm": 22.51465301005795,
+        "endpoint_z_mm": 12.022150633051947,
+        "future_rms_mm": 17.901483893030726,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 1.8363539869830636,
+        "net_y_mm": 5.1691018850250625,
+        "net_z_mm": 3.709355182793861
+      },
+      {
+        "id": 300004,
+        "duration": 0.5099999999999998,
+        "endpoint_mm": 55.77019447362374,
+        "endpoint_y_mm": 16.06346428539618,
+        "endpoint_z_mm": 24.602315693231652,
+        "future_rms_mm": 30.833214279406587,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 4.050130020760712,
+        "net_y_mm": 6.951451679298559,
+        "net_z_mm": 22.73610074000687
+      },
+      {
+        "id": 300005,
+        "duration": 0.5999999999999996,
+        "endpoint_mm": 113.7260132242597,
+        "endpoint_y_mm": 58.58616542284412,
+        "endpoint_z_mm": 8.882122070332045,
+        "future_rms_mm": 71.73232128973179,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 5.1276258875901926,
+        "net_y_mm": 17.842456604145074,
+        "net_z_mm": 6.737201397962966
+      },
+      {
+        "id": 300007,
+        "duration": 0.1999999999999993,
+        "endpoint_mm": 3.906507875333717,
+        "endpoint_y_mm": 0.7035271726855141,
+        "endpoint_z_mm": 3.487175917096519,
+        "future_rms_mm": 6.428656270010188
+      },
+      {
+        "id": 300010,
+        "duration": 0.47666666666666657,
+        "endpoint_mm": 57.88606728956991,
+        "endpoint_y_mm": 11.204358703178707,
+        "endpoint_z_mm": 31.85716128052874,
+        "future_rms_mm": 29.691226224691906,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.7840442056985253,
+        "net_y_mm": 3.050538827275129,
+        "net_z_mm": 9.040217669728733
+      },
+      {
+        "id": 300012,
+        "duration": 0.21333333333333115,
+        "endpoint_mm": 12.825394560280943,
+        "endpoint_y_mm": 12.392408593117299,
+        "endpoint_z_mm": 2.9282217235802044,
+        "future_rms_mm": 11.923728182748139
+      },
+      {
+        "id": 300013,
+        "duration": 0.3100000000000023,
+        "endpoint_mm": 4.243750031042831,
+        "endpoint_y_mm": 0.3802306885891671,
+        "endpoint_z_mm": 3.5343615586220514,
+        "future_rms_mm": 4.964403743038487
+      },
+      {
+        "id": 300014,
+        "duration": 0.28999999999999915,
+        "endpoint_mm": 9.081399302328952,
+        "endpoint_y_mm": 1.1094716581147024,
+        "endpoint_z_mm": 8.589832297488726,
+        "future_rms_mm": 8.913259754418831,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 1.6014441176690208,
+        "net_y_mm": 1.347561320449553,
+        "net_z_mm": 12.272475710312813
+      },
+      {
+        "id": 300016,
+        "duration": 0.22666666666666657,
+        "endpoint_mm": 5.266878356280832,
+        "endpoint_y_mm": 4.934319127011144,
+        "endpoint_z_mm": 1.6713770591562511,
+        "future_rms_mm": 7.388713239958376
+      },
+      {
+        "id": 300017,
+        "duration": 0.4800000000000004,
+        "endpoint_mm": 52.027782917513306,
+        "endpoint_y_mm": 42.40701888682399,
+        "endpoint_z_mm": 12.47506665592879,
+        "future_rms_mm": 33.715349560086324
+      },
+      {
+        "id": 300018,
+        "duration": 0.206666666666667,
+        "endpoint_mm": 22.093676148600064,
+        "endpoint_y_mm": 16.34959527929636,
+        "endpoint_z_mm": 9.005944086211247,
+        "future_rms_mm": 16.579834381641472
+      },
+      {
+        "id": 300019,
+        "duration": 0.6099999999999994,
+        "endpoint_mm": 62.35571738894694,
+        "endpoint_y_mm": 19.764367087669488,
+        "endpoint_z_mm": 56.17280508711842,
+        "future_rms_mm": 32.675730093690724
+      },
+      {
+        "id": 300020,
+        "duration": 0.3433333333333337,
+        "endpoint_mm": 29.277738467373553,
+        "endpoint_y_mm": 18.318756067280397,
+        "endpoint_z_mm": 21.945705736751364,
+        "future_rms_mm": 14.771404073636946
+      },
+      {
+        "id": 300021,
+        "duration": 0.2566666666666677,
+        "endpoint_mm": 16.067291766144127,
+        "endpoint_y_mm": 0.017475495455832046,
+        "endpoint_z_mm": 15.20726316009225,
+        "future_rms_mm": 11.979781934441526
+      },
+      {
+        "id": 300022,
+        "duration": 0.6033333333333317,
+        "endpoint_mm": 16.046155441548358,
+        "endpoint_y_mm": 14.513465790818358,
+        "endpoint_z_mm": 0.9881173481596089,
+        "future_rms_mm": 10.924928925756731,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 1.2321195923295503,
+        "net_y_mm": 4.405054027989408,
+        "net_z_mm": 11.291228031366119
+      },
+      {
+        "id": 300023,
+        "duration": 0.30666666666666487,
+        "endpoint_mm": 19.637225045794672,
+        "endpoint_y_mm": 9.22614112699116,
+        "endpoint_z_mm": 8.93130117982377,
+        "future_rms_mm": 11.996780341807995
+      },
+      {
+        "id": 300024,
+        "duration": 0.3200000000000003,
+        "endpoint_mm": 12.912353712274871,
+        "endpoint_y_mm": 8.068019597200493,
+        "endpoint_z_mm": 8.512773446040844,
+        "future_rms_mm": 9.998410323522796
+      },
+      {
+        "id": 300025,
+        "duration": 0.23000000000000398,
+        "endpoint_mm": 11.093520185100168,
+        "endpoint_y_mm": 6.343749075866989,
+        "endpoint_z_mm": 7.09741957432758,
+        "future_rms_mm": 9.020907909751418
+      },
+      {
+        "id": 300026,
+        "duration": 0.6566666666666663,
+        "endpoint_mm": 68.70628383550888,
+        "endpoint_y_mm": 52.03819714590829,
+        "endpoint_z_mm": 44.7188024353717,
+        "future_rms_mm": 43.83071985276022,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.859970343009886,
+        "net_y_mm": 46.04901940578942,
+        "net_z_mm": 26.16221095679816
+      },
+      {
+        "id": 300028,
+        "duration": 0.5133333333333354,
+        "endpoint_mm": 21.91146453128478,
+        "endpoint_y_mm": 1.9995626168467506,
+        "endpoint_z_mm": 20.152565490431215,
+        "future_rms_mm": 15.848963404959536,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.9376068374367386,
+        "net_y_mm": 2.4209648384689864,
+        "net_z_mm": 4.321601536989128
+      },
+      {
+        "id": 300030,
+        "duration": 0.403333333333336,
+        "endpoint_mm": 26.507666790896575,
+        "endpoint_y_mm": 3.038194873567268,
+        "endpoint_z_mm": 17.35604319156826,
+        "future_rms_mm": 11.31729852051019
+      },
+      {
+        "id": 300032,
+        "duration": 0.519999999999996,
+        "endpoint_mm": 32.18382740333103,
+        "endpoint_y_mm": 10.762280619096343,
+        "endpoint_z_mm": 4.821907576229065,
+        "future_rms_mm": 22.50712833326811,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 10.616059204961449,
+        "net_y_mm": 17.212647099992484,
+        "net_z_mm": 28.64388742499935
+      },
+      {
+        "id": 300033,
+        "duration": 0.3133333333333326,
+        "endpoint_mm": 18.77596569995835,
+        "endpoint_y_mm": 11.21807785619361,
+        "endpoint_z_mm": 3.585333993696649,
+        "future_rms_mm": 9.958911458916424
+      }
+    ]
+  },
+  "magnus_off": {
+    "summary": {
+      "count": 24,
+      "endpoint_mm": {
+        "n": 24,
+        "median": 30.053012723096096,
+        "p90": 111.84437146455676
+      },
+      "endpoint_y_mm": {
+        "n": 24,
+        "median": 8.70038287010516,
+        "p90": 77.02105535355321
+      },
+      "endpoint_z_mm": {
+        "n": 24,
+        "median": 18.719670824362808,
+        "p90": 87.83321220299379
+      },
+      "future_rms_mm": {
+        "n": 24,
+        "median": 20.010251631738814,
+        "p90": 63.36125816822857
+      },
+      "net_time_ms": {
+        "n": 9,
+        "median": 2.1054034642613573,
+        "p90": 6.413022687844551
+      },
+      "net_y_mm": {
+        "n": 9,
+        "median": 12.926755857733617,
+        "p90": 31.889225255132853
+      },
+      "net_z_mm": {
+        "n": 9,
+        "median": 22.845538076250726,
+        "p90": 51.4579603796111
+      }
+    },
+    "rows": [
+      {
+        "id": 300001,
+        "duration": 0.2400000000000002,
+        "endpoint_mm": 5.237656257453441,
+        "endpoint_y_mm": 4.59651936987715,
+        "endpoint_z_mm": 2.428308534558041,
+        "future_rms_mm": 7.525064941775768
+      },
+      {
+        "id": 300003,
+        "duration": 0.4666666666666668,
+        "endpoint_mm": 98.58986395851133,
+        "endpoint_y_mm": 3.893403646242355,
+        "endpoint_z_mm": 98.44679246380939,
+        "future_rms_mm": 53.35994395567928,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 2.1054034642613573,
+        "net_y_mm": 3.3127572160205343,
+        "net_z_mm": 22.845538076250726
+      },
+      {
+        "id": 300004,
+        "duration": 0.5099999999999998,
+        "endpoint_mm": 131.40735832051323,
+        "endpoint_y_mm": 32.1603434392832,
+        "endpoint_z_mm": 112.57644822337751,
+        "future_rms_mm": 68.48539385204126,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 3.9110355591172596,
+        "net_y_mm": 12.926755857733617,
+        "net_z_mm": 50.78761858629788
+      },
+      {
+        "id": 300005,
+        "duration": 0.5999999999999996,
+        "endpoint_mm": 168.96732574043017,
+        "endpoint_y_mm": 118.7893004098629,
+        "endpoint_z_mm": 59.20927498008834,
+        "future_rms_mm": 97.10229801913866,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 5.069045407544409,
+        "net_y_mm": 23.032973716024195,
+        "net_z_mm": 10.945524505199034
+      },
+      {
+        "id": 300007,
+        "duration": 0.1999999999999993,
+        "endpoint_mm": 6.496105319400237,
+        "endpoint_y_mm": 0.08831548650456433,
+        "endpoint_z_mm": 6.409472032877339,
+        "future_rms_mm": 5.272710221371441
+      },
+      {
+        "id": 300010,
+        "duration": 0.47666666666666657,
+        "endpoint_mm": 108.9635644151862,
+        "endpoint_y_mm": 104.72700621279135,
+        "endpoint_z_mm": 29.82647611150082,
+        "future_rms_mm": 57.18224108358906,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 1.2663506712824457,
+        "net_y_mm": 15.568022538935189,
+        "net_z_mm": 8.996789937392169
+      },
+      {
+        "id": 300012,
+        "duration": 0.21333333333333115,
+        "endpoint_mm": 13.61139742569939,
+        "endpoint_y_mm": 13.528052004047053,
+        "endpoint_z_mm": 1.503787076200136,
+        "future_rms_mm": 13.054056276061457
+      },
+      {
+        "id": 300013,
+        "duration": 0.3100000000000023,
+        "endpoint_mm": 27.35254338892818,
+        "endpoint_y_mm": 8.991758955044116,
+        "endpoint_z_mm": 23.257209860733937,
+        "future_rms_mm": 16.345353687336207
+      },
+      {
+        "id": 300014,
+        "duration": 0.28999999999999915,
+        "endpoint_mm": 15.687862271546543,
+        "endpoint_y_mm": 3.6455491827181996,
+        "endpoint_z_mm": 9.51787319583916,
+        "future_rms_mm": 7.5265972265278975,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.21341390688833783,
+        "net_y_mm": 1.9405754474935977,
+        "net_z_mm": 2.1264041151181634
+      },
+      {
+        "id": 300016,
+        "duration": 0.22666666666666657,
+        "endpoint_mm": 16.588699097485517,
+        "endpoint_y_mm": 11.528354857654854,
+        "endpoint_z_mm": 4.180667755354736,
+        "future_rms_mm": 11.619140915558908
+      },
+      {
+        "id": 300017,
+        "duration": 0.4800000000000004,
+        "endpoint_mm": 60.917076480473824,
+        "endpoint_y_mm": 47.81363406445424,
+        "endpoint_z_mm": 36.42290734140718,
+        "future_rms_mm": 38.62359014635262
+      },
+      {
+        "id": 300018,
+        "duration": 0.206666666666667,
+        "endpoint_mm": 20.718998749162964,
+        "endpoint_y_mm": 15.882309708457608,
+        "endpoint_z_mm": 12.618340711913866,
+        "future_rms_mm": 14.45418075148125
+      },
+      {
+        "id": 300019,
+        "duration": 0.6099999999999994,
+        "endpoint_mm": 32.75348205726401,
+        "endpoint_y_mm": 5.619873035881184,
+        "endpoint_z_mm": 4.790884943037144,
+        "future_rms_mm": 23.675149576141422
+      },
+      {
+        "id": 300020,
+        "duration": 0.3433333333333337,
+        "endpoint_mm": 12.879275984367153,
+        "endpoint_y_mm": 5.031566706707569,
+        "endpoint_z_mm": 5.602869225412199,
+        "future_rms_mm": 7.48589759908627
+      },
+      {
+        "id": 300021,
+        "duration": 0.2566666666666677,
+        "endpoint_mm": 17.660066014197966,
+        "endpoint_y_mm": 8.409006785166206,
+        "endpoint_z_mm": 14.182131787991679,
+        "future_rms_mm": 12.18821901792493
+      },
+      {
+        "id": 300022,
+        "duration": 0.6033333333333317,
+        "endpoint_mm": 60.014683990430235,
+        "endpoint_y_mm": 8.3663914711547,
+        "endpoint_z_mm": 56.71544514789617,
+        "future_rms_mm": 35.71975591578305,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 2.196138378784851,
+        "net_y_mm": 6.148694053596193,
+        "net_z_mm": 48.61714818889923
+      },
+      {
+        "id": 300023,
+        "duration": 0.30666666666666487,
+        "endpoint_mm": 10.108143734846676,
+        "endpoint_y_mm": 5.419801426777726,
+        "endpoint_z_mm": 8.289735506267103,
+        "future_rms_mm": 7.128519624543723
+      },
+      {
+        "id": 300024,
+        "duration": 0.3200000000000003,
+        "endpoint_mm": 15.035637047755678,
+        "endpoint_y_mm": 7.18572146135954,
+        "endpoint_z_mm": 12.430698473636433,
+        "future_rms_mm": 11.30778168006751
+      },
+      {
+        "id": 300025,
+        "duration": 0.23000000000000398,
+        "endpoint_mm": 10.289926444738285,
+        "endpoint_y_mm": 6.534764197339449,
+        "endpoint_z_mm": 2.354230017840908,
+        "future_rms_mm": 9.632641462135407
+      },
+      {
+        "id": 300026,
+        "duration": 0.6566666666666663,
+        "endpoint_mm": 109.53291657686069,
+        "endpoint_y_mm": 89.53852162030995,
+        "endpoint_z_mm": 63.06819159442414,
+        "future_rms_mm": 65.12177660975537,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.9871996383503112,
+        "net_y_mm": 67.31423141156745,
+        "net_z_mm": 35.43566054768732
+      },
+      {
+        "id": 300028,
+        "duration": 0.5133333333333354,
+        "endpoint_mm": 112.83499498785507,
+        "endpoint_y_mm": 34.7039948356982,
+        "endpoint_z_mm": 104.71645984660543,
+        "future_rms_mm": 59.25338180466603,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 0.9771569364543098,
+        "net_y_mm": 3.344222673217878,
+        "net_z_mm": 6.521153781039346
+      },
+      {
+        "id": 300030,
+        "duration": 0.403333333333336,
+        "endpoint_mm": 70.30539120903603,
+        "endpoint_y_mm": 45.38029532728327,
+        "endpoint_z_mm": 43.93940665382446,
+        "future_rms_mm": 34.23728175540244
+      },
+      {
+        "id": 300032,
+        "duration": 0.519999999999996,
+        "endpoint_mm": 78.58431935087656,
+        "endpoint_y_mm": 4.48425762885174,
+        "endpoint_z_mm": 57.47119954140681,
+        "future_rms_mm": 43.92160632880924,
+        "observed_net_crossing": true,
+        "predicted_net_crossing": true,
+        "net_time_ms": 11.788931809045112,
+        "net_y_mm": 16.862180279952454,
+        "net_z_mm": 54.13932755286399
+      },
+      {
+        "id": 300033,
+        "duration": 0.3133333333333326,
+        "endpoint_mm": 50.56108915313514,
+        "endpoint_y_mm": 20.31121394669608,
+        "endpoint_z_mm": 36.394835523606886,
+        "future_rms_mm": 26.561358765988544
+      }
+    ]
+  }
+}
