@@ -97,7 +97,8 @@ base packet. Its provenance ID is not an asset-file checksum.
 
 This mode assumes pelvis alignment; it does not measure the physical mounting
 or verify the Motive table origin. Set the table/world origin in Motive as before.
-`TIME CALIBRATION` and `Refresh x_hit` remain separate operations. No
+`TIME CALIBRATION` remains a separate operation. The Console no longer exposes
+`Refresh x_hit`; shared HOME is captured when entering policy mode. No
 `calibration/ucb_robot_to_pelvis.json` is read, created or overwritten.
 
 The pinned 17-marker check is opt-in via `localization_source:=motive_asset`;
@@ -194,3 +195,12 @@ operator selection described above. Install the matching profile-aware HDU
 supervisor and confirm the operator profile before starting a session.
 See [current Runner/serve behavior](../../../docs/operations/runtime_xbox.md)
 for Kernel completion, v12 timing and release limitations.
+
+### Hit speed scale
+
+The Ready controls expose a nonnegative racket-velocity multiplier. Wait for
+fresh Planner diagnostics after Apply; a service receipt alone is not displayed
+as an applied value. The hardware profile persists the accepted scale across
+restart. Kernel Mode and exact question fixtures do not expose this control.
+Position, normal and strike deadline remain unchanged; landing predictions still
+refer to the original, unscaled solution. This is not physical-hit qualification.

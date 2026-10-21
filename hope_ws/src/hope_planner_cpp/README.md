@@ -229,3 +229,23 @@ correctness, or physical robot behavior. The field runbook documents how to
 build, run, and collect evidence for this candidate; that documentation is not
 a qualification claim. Treat the candidate as unqualified until the planned
 HDU ARM replay and supported-robot field test have passed.
+
+### Runtime hit speed scale
+
+`hit_speed_scale` defaults to `1.0` at startup. The dedicated
+`/hope/planner/set_hit_speed_scale` (`rcl_interfaces/srv/SetParametersAtomically`)
+accepts exactly one `scale` double, finite and nonnegative, while Planner is running.
+It scales all three components of the planned racket velocity before command
+admission, flat/typed publication, and CSV logging. Position, normal, deadline,
+flight identity, and the original Stage 3 landing solution are unchanged.
+The outgoing-ball/net/landing predictions still describe the unscaled solution.
+Already published one-shot flights and their retransmissions remain immutable.
+Exact question-bank fixtures lock the scale to 1 and ignore saved settings. When
+`hit_speed_scale_state_file` is configured, updates are saved atomically before
+acknowledgement and restored on restart. An invalid saved file fails startup;
+a failed write leaves the live value unchanged. Without a saved file, the startup
+parameter (default 1) applies. Hardware config uses
+`/var/lib/hope-lifecycle/planner_hit_speed_scale.state`. Diagnostics report
+`hit_speed_scale_persistent`, `hit_speed_scale`,
+`hit_speed_scale_configurable`, and `hit_speed_scale_last_command`; the last value
+is NaN until a valid target is published. CSV rows include their applied scale.

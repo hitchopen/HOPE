@@ -180,16 +180,6 @@
       "buttonTooltip": "Use only after stable PD_STAND with the V3 marker carrier installed. Use the new V03 ten-point table, persist the world→pelvis audit snapshot, and wait for a matching fresh base receipt. Does not refresh x_hit.",
       "buttonColor": "#6a1b9a"
     },
-    "ServiceCall!refreshxhit": {
-      "serviceName": "/hope/refresh_x_hit",
-      "requestPayload": "{}",
-      "layout": "vertical",
-      "editingMode": false,
-      "timeoutSeconds": 7,
-      "buttonText": "REFRESH X_HIT",
-      "buttonTooltip": "Refresh only the current Planner x_hit through its atomic request/status contract. Does not recalibrate world→pelvis.",
-      "buttonColor": "#00838f"
-    },
     "ServiceCall!stand": {
       "serviceName": "/hope/runner/enter_pd_stand",
       "requestPayload": "{}",
@@ -361,12 +351,7 @@
             },
             "second": {
               "direction": "column",
-              "first": {
-                "direction": "row",
-                "first": "ServiceCall!refreshxhit",
-                "second": "ServiceCall!ready",
-                "splitPercentage": 50
-              },
+              "first": "ServiceCall!ready",
               "second": {
                 "direction": "column",
                 "first": {

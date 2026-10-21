@@ -1,5 +1,6 @@
 #include "hope_planner_cpp/planner_node.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
+#include "hope_planner_cpp/hit_speed_scale_state.hpp"
 
 #include <Eigen/Geometry>
 
@@ -34,6 +35,12 @@ diagnostic_msgs::msg::KeyValue diagnostic_value(
 std::string number_string(double value, int precision = 6) {
   std::ostringstream stream;
   stream << std::fixed << std::setprecision(precision) << value;
+  return stream.str();
+}
+
+std::string scale_string(double value) {
+  std::ostringstream stream;
+  stream << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
   return stream.str();
 }
 
@@ -457,6 +464,45 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
         }
       });
 
+  rcl_interfaces::msg::ParameterDescriptor scale_descriptor;
+  scale_descriptor.read_only = true;
+  scale_descriptor.description = "Startup scale; live changes use /hope/planner/set_hit_speed_scale";
+  const double startup_scale = declare_parameter<double>("hit_speed_scale", 1.0, scale_descriptor);
+  hit_speed_scale_state_file_ = declare_parameter<std::string>("hit_speed_scale_state_file", "", scale_descriptor);
+  const double initial_scale = question_fixture_enabled_ ? startup_scale :
+      load_hit_speed_scale(hit_speed_scale_state_file_, startup_scale);
+  if (!std::isfinite(initial_scale) || initial_scale < 0.0 ||
+      (question_fixture_enabled_ && initial_scale != 1.0)) {
+    throw std::invalid_argument("hit_speed_scale must be finite and nonnegative; exact fixtures require 1");
+  }
+  hit_speed_scale_.store(initial_scale);
+  hit_speed_scale_service_ = create_service<rcl_interfaces::srv::SetParametersAtomically>(
+      "/hope/planner/set_hit_speed_scale",
+      [this](const std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Request> request,
+             std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Response> response) {
+        if (question_fixture_enabled_ || request->parameters.size() != 1 ||
+            request->parameters[0].name != "scale" || request->parameters[0].value.type != 3 ||
+            !std::isfinite(request->parameters[0].value.double_value) ||
+            request->parameters[0].value.double_value < 0.0) {
+          response->result.successful = false;
+          response->result.reason = "Supply exactly one finite nonnegative scale(double); exact fixtures are locked";
+          return;
+        }
+        // Serialize acceptance with publication: after this acknowledgement,
+        // a new output cannot publish a scale sampled before the request.
+        std::lock_guard<std::mutex> lock(hit_speed_scale_publish_mutex_);
+        try {
+          save_hit_speed_scale(hit_speed_scale_state_file_, request->parameters[0].value.double_value);
+        } catch (const std::exception& error) {
+          response->result.successful = false;
+          response->result.reason = error.what();
+          return;
+        }
+        hit_speed_scale_.store(request->parameters[0].value.double_value);
+        response->result.successful = true;
+        response->result.reason = "Applied to subsequent new targets; already published commands are unchanged";
+      });
+
   const std::string base_flat_topic =
       declare_parameter<std::string>("base_flat_topic", "/a3/base_pose_flat");
   const std::string serve_ball_topic =
@@ -521,7 +567,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "base_yaw_deg,target_bearing_deg,target_turn_deg,post_net_future_bounce_restitution_v,base_source_age_ms,"
       "future_contact_spin_enabled,future_contact_spin_used,future_contact_spin_tangential_gain,"
       "future_contact_spin_omega_scale,future_contact_spin_min_coherence,"
-      "future_contact_magnus_enabled,physics_drag_k,physics_magnus_k,physics_table_gain,physics_table_mu,physics_spin_reason,session_home_epoch,plane_mode,plane_reference_x,plane_world_x,plane_selection_reason");
+      "future_contact_magnus_enabled,physics_drag_k,physics_magnus_k,physics_table_gain,physics_table_mu,physics_spin_reason,session_home_epoch,plane_mode,plane_reference_x,plane_world_x,plane_selection_reason,hit_speed_scale");
   std::string flight_packet_audit_path = declare_parameter<std::string>(
       "flight_packet_audit_csv_path", "");
   if (flight_packet_audit_path.empty() && !debug_path.empty()) {
@@ -1483,13 +1529,21 @@ void PlannerNode::publish_solve(
     const BallSample& latest_sample,
     const BallState& state,
     const StrikeTarget& strike,
-    const RacketCommand& command,
+    const RacketCommand& unscaled_command,
     double swing_sign,
     const SolveAudit& audit,
     const SpinShadowAudit& spin_shadow,
     const PostNetOneShotEvent& one_shot_event,
     std::int64_t solve_finished_steady_ns) noexcept {
   try {
+    std::lock_guard<std::mutex> filter_lock(hit_speed_scale_publish_mutex_);
+    const double hit_speed_scale = hit_speed_scale_.load();
+    RacketCommand command = unscaled_command;
+    command.velocity *= hit_speed_scale;
+    if (!command.velocity.allFinite()) {
+      command.valid = false;
+      command.reason = "hit_speed_scale_overflow";
+    }
     // With /poses.header.stamp in the camera-exposure Unix epoch, Stage 2's
     // strike_source_time_s is already the true absolute crossing deadline.
     // Subtract the HDU wall time once at publication. This accounts for the
@@ -1655,6 +1709,7 @@ void PlannerNode::publish_solve(
       }
     }
     if (packet_valid) {
+      last_command_hit_speed_scale_.store(hit_speed_scale);
       if (racket_flat_schema_ == 4) {
         auto published_plane = solve_plane_;
         published_plane.flight = identity.flight_id;
@@ -1745,7 +1800,7 @@ void PlannerNode::publish_solve(
           << solve_finished_steady_ns << ',' << (packet_valid ? 1 : 0) << ','
           << (command.valid && !timing_valid ? timing_reject_reason :
               (target_turn_evaluated && !target_turn.allowed
-                  ? target_turn.reason : audit.reason)) << ','
+                  ? target_turn.reason : (unscaled_command.valid && !command.valid ? command.reason : audit.reason))) << ','
           << latest_sample.position.x() << ',' << latest_sample.position.y() << ','
           << latest_sample.position.z() << ',' << state.sample_count << ','
           << state.sample_span_s << ','
@@ -1877,7 +1932,8 @@ void PlannerNode::publish_solve(
           << physics_.magnus_k << ',' << physics_.table_tangential_gain << ','
           << physics_.table_friction_cap_mu << ',' << state.physics_spin.reason << ',' << (racket_flat_schema_ == 4 ? solve_home_.epoch : 0)
           << ',' << plane_mode_name(solve_plane_.mode) << ',' << solve_plane_.reference_x
-          << ',' << solve_plane_.plane_x << ',' << solve_plane_.reason;
+          << ',' << solve_plane_.plane_x << ',' << solve_plane_.reason
+          << ',' << hit_speed_scale;
       audit_logger_->enqueue(row.str());
     }
   } catch (...) {
@@ -1932,6 +1988,10 @@ void PlannerNode::publish_diagnostics() noexcept {
         : diagnostic_msgs::msg::DiagnosticStatus::WARN;
     status.message =
         "batch_physics_cpp_no_ekf_persistent_bounce; diagnostics are audit-only";
+    status.values.push_back(diagnostic_value("hit_speed_scale", scale_string(hit_speed_scale_.load())));
+    status.values.push_back(diagnostic_value("hit_speed_scale_configurable", question_fixture_enabled_ ? "false" : "true"));
+    status.values.push_back(diagnostic_value("hit_speed_scale_persistent", !question_fixture_enabled_ && !hit_speed_scale_state_file_.empty() ? "true" : "false"));
+    status.values.push_back(diagnostic_value("hit_speed_scale_last_command", scale_string(last_command_hit_speed_scale_.load())));
     const auto selected_plane = runtime_plane_.last_selection();
     const auto command_plane = runtime_plane_.last_command();
     const bool current_plane = home_fresh && command_plane.valid && command_plane.epoch == home.value.epoch;
