@@ -26,6 +26,8 @@ BatchPhysicsEstimator::BatchPhysicsEstimator(
       config_.spin_min_coherence < 0.0 || config_.spin_min_coherence > 1.0)
     throw std::invalid_argument("invalid estimator spin coherence");
   config_.window_s = std::max(0.02, config_.window_s);
+  if (!std::isfinite(config_.max_sample_gap_s) || config_.max_sample_gap_s < 0.0)
+    throw std::invalid_argument("invalid estimator sample gap");
   config_.min_span_s = std::clamp(config_.min_span_s, 0.0, config_.window_s);
   config_.min_samples = std::clamp<std::size_t>(config_.min_samples, 6, kMaxEstimatorSamples);
   config_.huber_delta_m = std::max(1.0e-6, config_.huber_delta_m);
@@ -145,9 +147,11 @@ void BatchPhysicsEstimator::push(const BallSample& sample) noexcept {
   }
 
   if (sample_count_ > 0 &&
-      sample.source_time_s <= samples_[sample_count_ - 1].source_time_s) {
-    // A non-increasing source clock cannot define derivatives.  This is a
-    // source-epoch boundary, not a gap-duration restart.
+      (sample.source_time_s <= samples_[sample_count_ - 1].source_time_s ||
+       (config_.max_sample_gap_s > 0.0 &&
+        sample.source_time_s - samples_[sample_count_ - 1].source_time_s >
+            config_.max_sample_gap_s))) {
+    // Never fit across a source epoch or a configured continuity break.
     reset();
   }
 
@@ -386,8 +390,27 @@ bool BatchPhysicsEstimator::simulate_positions(
 }
 
 BallState BatchPhysicsEstimator::estimate() noexcept {
-  if (config_.post_bounce_min_span_s > 0.0 && flight_bounce_seen_ &&
+  if (config_.single_flight_only && !flight_bounce_seen_) {
+    // Until the contact detector has enough confirmation frames, a visible
+    // near-table reversal is not a free-flight fit. Keep the previous clean
+    // candidate rather than fitting a velocity through the impulse.
+    for (std::size_t i = 1; i + 1 < sample_count_; ++i) {
+      if (samples_[i].position.z() <= config_.bounce_center_z_max_m &&
+          samples_[i - 1].position.z() - samples_[i].position.z() >=
+              config_.bounce_min_reversal_m &&
+          samples_[i + 1].position.z() - samples_[i].position.z() >=
+              config_.bounce_min_reversal_m) {
+        BallState pending;
+        pending.reason = "contact_confirmation_pending";
+        return pending;
+      }
+    }
+  }
+  if ((config_.single_flight_only || config_.post_bounce_min_span_s > 0.0) &&
+      flight_bounce_seen_ &&
       sample_count_ > 0) {
+    const double min_span = config_.post_bounce_min_span_s > 0.0
+        ? config_.post_bounce_min_span_s : config_.min_span_s;
     const double cutoff = last_bounce_source_time_s_ +
         config_.post_bounce_exclusion_s;
     std::size_t first = 0;
@@ -395,9 +418,9 @@ BallState BatchPhysicsEstimator::estimate() noexcept {
       ++first;
     if (sample_count_ - first >= config_.min_samples &&
         samples_[sample_count_ - 1].source_time_s - samples_[first].source_time_s +
-                1.0e-12 >= config_.post_bounce_min_span_s) {
+                1.0e-12 >= min_span) {
       EstimatorConfig post_config = config_;
-      post_config.min_span_s = config_.post_bounce_min_span_s;
+      post_config.min_span_s = min_span;
       post_config.post_bounce_min_span_s = 0.0;  // no recursive contact fit
       BatchPhysicsEstimator post(physics_, post_config, spin_config_);
       for (std::size_t i = first; i < sample_count_; ++i) post.push(samples_[i]);
@@ -410,6 +433,13 @@ BallState BatchPhysicsEstimator::estimate() noexcept {
         measured.reason = "post_bounce_free_flight";
         return measured;
       }
+    }
+    if (config_.single_flight_only) {
+      BallState pending;
+      pending.bounce_epoch_active = true;
+      pending.bounce_source_time_s = last_bounce_source_time_s_;
+      pending.reason = "post_bounce_segment_not_ready";
+      return pending;
     }
   }
   BallState output;

@@ -37,14 +37,16 @@ IncomingTrajectoryConfig declare_trajectory_config(rclcpp::Node& node) {
   config.net_x = node.declare_parameter<double>("net_x", 1.37);
   config.estimator_window_s =
       node.declare_parameter<double>("flight_window_s", 0.18);
+  config.estimator_max_sample_gap_s =
+      node.declare_parameter<double>("batch_max_sample_gap_s", 0.0);
   config.commit_delay_s =
       node.declare_parameter<double>("post_net_commit_delay_s", 0.05);
   config.adaptive.enabled = node.declare_parameter<bool>("adaptive_commit_enabled", false);
   config.adaptive.policy_lead_s = node.declare_parameter<double>("adaptive_policy_lead_s", 0.35);
   config.adaptive.transport_budget_s = node.declare_parameter<double>("adaptive_transport_budget_s", 0.10);
-  config.adaptive.max_post_net_wait_s = node.declare_parameter<double>("adaptive_max_post_net_wait_s", 0.50);
-  config.adaptive.post_bounce_span_s = node.declare_parameter<double>("adaptive_post_bounce_span_s", 0.08);
-  config.adaptive.contact_exclusion_s = node.declare_parameter<double>("adaptive_contact_exclusion_s", 0.008);
+  config.adaptive.solve_budget_s = node.declare_parameter<double>("adaptive_solve_budget_s", 0.005);
+  config.adaptive.policy_tick_s = node.declare_parameter<double>("adaptive_policy_tick_s", 0.02);
+  config.adaptive.max_sample_age_s = node.declare_parameter<double>("adaptive_max_sample_age_s", 0.05);
   config.adaptive.evaluation_period_s = node.declare_parameter<double>("adaptive_evaluation_period_s", 0.01);
   config.opponent_side_margin_m =
       node.declare_parameter<double>("incoming_opponent_side_margin_m", 0.05);
@@ -78,6 +80,16 @@ CommitPredictionConfig declare_prediction_config(rclcpp::Node& node) {
   config.observed_physics.table_friction_cap_mu = node.declare_parameter<double>("table_friction_cap_mu", BallPhysics{}.table_friction_cap_mu);
   config.estimator.spin_enabled = config.future_contact.magnus_enabled;
   config.estimator.spin_min_coherence = config.future_contact.min_coherence;
+  config.estimator.single_flight_only =
+      node.declare_parameter<bool>("batch_single_flight_only", false);
+  config.estimator.min_span_s =
+      node.declare_parameter<double>("batch_estimator_min_span_s", 0.08);
+  config.estimator.min_samples = static_cast<std::size_t>(std::max(
+      6, static_cast<int>(node.declare_parameter<int>("batch_estimator_min_samples", 12))));
+  config.estimator.huber_delta_m = node.declare_parameter<double>("batch_estimator_huber_delta_m", 0.003);
+  config.estimator.recency_half_life_s =
+      node.declare_parameter<double>("batch_estimator_recency_half_life_s", 0.0);
+  config.estimator.robust_iterations = node.declare_parameter<int>("batch_estimator_iterations", 3);
   config.future_physics = config.observed_physics;
   config.future_physics.table_tangential_gain = node.declare_parameter<double>("post_net_future_bounce_tangential_gain", config.observed_physics.table_tangential_gain);
   config.future_physics.restitution_v = node.declare_parameter<double>("post_net_future_bounce_restitution_v", config.observed_physics.restitution_v);
@@ -202,9 +214,10 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
   RCLCPP_INFO(
       get_logger(),
       "Laptop Flight Packet producer started: input=%s output=%s session=%s "
-      "producer=%s window=%.3fs net+%.3fs retries=%zu QoS=best_effort/KeepLast(1)",
+      "producer=%s window=%.3fs scheduling=%s legacy_net_delay=%.3fs retries=%zu QoS=best_effort/KeepLast(1)",
       pose_topic.c_str(), packet_topic_.c_str(), session_id_.c_str(),
       producer_instance_id_.c_str(), trajectory_config_.estimator_window_s,
+      trajectory_config_.adaptive.enabled ? "hit_deadline" : "fixed_post_net",
       trajectory_config_.commit_delay_s, retransmit_delays_ms_.size());
 }
 

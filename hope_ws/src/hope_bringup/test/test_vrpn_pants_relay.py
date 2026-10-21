@@ -113,3 +113,27 @@ def test_rigid_ball_orientation_reaches_pose_array_and_invalid_spin_stays_invali
             assert [q.x,q.y,q.z,q.w]==[0,0,0,0]
             assert arrays[-1].poses[0].position.x==pytest.approx(2 if side=='P1' else .74)
     relay.destroy_node()
+
+
+@pytest.mark.parametrize("side", ["P1", "P2"])
+def test_planner_full_stream_preserves_all_300hz_ball_exposures(ros, side):
+    relay = load('avatar_pro_vrpn_relay').AvatarProVrpnRelay()
+    full = []
+    relay._planner_pose_array_pub.publish = full.append
+    relay._config_cb(String(data=json.dumps(dict(
+        revision=1, pants_profile='v2', table_side=side, state='STOPPED', busy=False,
+        mocap_source='vrpn', vrpn_ip='192.168.100.99', vrpn_port='3883', vrpn_units='mm'))))
+    for i in range(300):
+        msg = pose(relay, 2000)
+        ns = 100_000_000_000 + round(i * 1e9 / 300)
+        msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(ns, 10**9)
+        relay._on_pose('/vrpn_mocap/Ball/pose', 'ball', msg)
+        # A body callback must never re-publish the cached ball.
+        relay._on_pose('/vrpn_mocap/UCB_P1/pose', 'UCB_P1', msg)
+    assert len(full) == 300
+    for i, msg in enumerate(full):
+        assert msg.header.stamp.sec * 10**9 + msg.header.stamp.nanosec == (
+            100_000_000_000 + round(i * 1e9 / 300))
+        assert len(msg.poses) == 1
+        assert msg.poses[0].position.x == pytest.approx(2.0 if side == 'P1' else .74)
+    relay.destroy_node()

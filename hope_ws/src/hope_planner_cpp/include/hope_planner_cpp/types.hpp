@@ -58,6 +58,10 @@ struct EstimatorConfig {
   bool spin_enabled = false;
   double spin_min_coherence = 0.4;
   double window_s = 0.18;
+  // Zero preserves legacy behavior. Otherwise fit only the latest continuous
+  // exposure segment; never bridge a mocap outage with stale history.
+  double max_sample_gap_s = 0.0;
+  bool single_flight_only = false;
   double min_span_s = 0.08;
   std::size_t min_samples = 12;
   double huber_delta_m = 0.003;
