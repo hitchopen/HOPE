@@ -456,6 +456,18 @@ bool A3AimrtBackend::RegisterPubSub_() {
                 << runner_state_topic_ << "\n";
     }
 
+    {
+      auto pub = ch.GetPublisher("/hope/runner/session_home_flat");
+      if (!aimrt::channel::RegisterPublishType<std_msgs::msg::Float64MultiArray>(pub))
+        throw std::runtime_error("register session HOME publish failed");
+      auto proxy = std::make_shared<aimrt::channel::PublisherProxy<std_msgs::msg::Float64MultiArray>>(pub);
+      session_home_publish_fn_ = [proxy](const std::vector<double>& values) {
+        std_msgs::msg::Float64MultiArray message;
+        message.data = values;
+        proxy->Publish(message);
+      };
+    }
+
     if (locomotion_input_cb_) {
       auto pub = ch.GetPublisher("/hope/runner/teleop_state_flat");
       if (!aimrt::channel::RegisterPublishType<std_msgs::msg::Float64MultiArray>(pub))
@@ -785,6 +797,13 @@ void A3AimrtBackend::SetRunnerControlTopic(std::string topic) {
 }
 void A3AimrtBackend::SetRunnerStateTopic(std::string topic) {
   if (!topic.empty()) runner_state_topic_ = std::move(topic);
+}
+
+bool A3AimrtBackend::PublishSessionHome(const std::vector<double>& values) {
+  std::lock_guard<std::mutex> lock(runner_state_publish_mutex_);
+  if (!started_.load(std::memory_order_acquire) || !session_home_publish_fn_) return false;
+  session_home_publish_fn_(values);
+  return true;
 }
 
 bool A3AimrtBackend::PublishRunnerState(const std::vector<double>& values) {

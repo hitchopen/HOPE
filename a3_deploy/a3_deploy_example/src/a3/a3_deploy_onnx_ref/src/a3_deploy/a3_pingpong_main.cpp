@@ -508,7 +508,7 @@ int main(int argc, char** argv) {
                  " [--gain-scale F] [--swing-speed F] [--stand-kp K --stand-kd D]\n"
                  "       [--reference-playback|--mode reference-playback]"
                  " [--no-publish|--dry-run] [--warmup-sec S]\n"
-                 "       [--planner] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
+                 "       [--planner] [--shared-session-home] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
                  " [--engage-min-tts S] [--cmd-timeout S] [--invalid-grace S] [--vel-gate-margin M]"
                  " [--pending-expire-after-strike S]"
                  " [--demo] [--policy-native]"
@@ -1041,6 +1041,7 @@ int main(int argc, char** argv) {
   // engage machine relies on; swing_rest_s>=0 arms the inter-swing rest timer.
   pcfg.planner_mode = planner_mode;
   pcfg.kernel_mode = kernel_mode;
+  pcfg.shared_session_home = Has(argc, argv, "--shared-session-home");
   if (kernel_mode) {
     pcfg.yaw_align = true;
     std::cout << "[kernel] IMU entry heading + stance-foot odometry; estimated XY/vxy and FK height; no OptiTrack/Planner; not authoritative localization\n";
@@ -1256,6 +1257,8 @@ int main(int argc, char** argv) {
     base_in = std::make_shared<a3_pingpong::PpBasePoseInput>();
     pp->SetRacketInput(racket_in);
     pp->SetBasePoseInput(base_in);
+    if (pcfg.shared_session_home) pp->SetSessionHomePublisher(
+        [backend_ptr = backend.get()](const std::vector<double>& values) { backend_ptr->PublishSessionHome(values); });
     backend->SetRacketTargetCallback(
         [racket_in](const std::vector<double>& a) { racket_in->SetFromFlat(a); });
     backend->SetBasePoseCallback(

@@ -48,6 +48,7 @@
 #include <utility>
 
 #include "a3_deploy/numeric_safety.hpp"
+#include "a3_deploy/session_home_contract.hpp"
 #include "a3_pingpong/pp_footstep_task.hpp"
 #include "a3_pingpong/pp_base_estimator.hpp"
 #include "a3_pingpong/pp_kernel_odometry.hpp"
@@ -126,6 +127,7 @@ struct PpPolicyConfig {
   // Unitree-style policy directory contract. Empty keeps legacy ONNX-metadata
   // loading for old artifacts; formal HitterPingPong deploy always sets it.
   std::string deploy_cfg_path;
+  bool shared_session_home = false; // Runner receipt -> Planner schema 4
   bool kernel_mode = false; // No-mocap actor WAIT test; never admits world-frame planner shots.
   int level = 1;                 // 0 = hold wind-up (quasi-stand), 1 = periodic forehand
   bool legs_passive = false;     // hold leg joints at nominal (firm PD) — for a HOISTED demo
@@ -917,6 +919,18 @@ class PpPolicy {
           stay_if_reachable_ ? "ON" : "OFF (CLI)",
           hp_y_band_[0][0], hp_y_band_[0][1], hp_y_band_[1][0], hp_y_band_[1][1]);
     }
+    if (cfg_.shared_session_home) {
+      if (!cfg_.planner_mode || cfg_.kernel_mode || cfg_.loc_mode != LocMode::kExternalBase ||
+          !onnx_.uses_ball_clock_followthrough() || onnx_.obs_dim() != kObsDim110 ||
+          onnx_.uses_build2_rapid_preempt_contract() || cfg_.fixed_station_replay ||
+          cfg_.moving_station_replay || !onnx_.uses_authoritative_mocap_pose() ||
+          onnx_.hp_pos_boxes().size() != 2 ||
+          onnx_.hp_pos_boxes()[0][0] != onnx_.hp_pos_boxes()[0][1] ||
+          onnx_.hp_pos_boxes()[1][0] != onnx_.hp_pos_boxes()[1][1] ||
+          reach_offset_clip_[0][0] != reach_offset_clip_[1][0] ||
+          hp_base_target_range_[0] != 0.0 || hp_base_target_range_[1] != 0.0)
+        throw std::invalid_argument("shared HOME requires calibrated ball-clock 110-D policy with a common fixed station-relative X plane");
+    }
     if (onnx_.uses_small_station_contract() || onnx_.uses_ball_clock_followthrough())
       std::fprintf(stderr, "[pp] validated_policy_abi=%s\n", onnx_.policy_abi());
     if (cfg_.fixed_station_replay)
@@ -988,8 +1002,13 @@ class PpPolicy {
   // when cfg_.planner_mode is set; absent/stale streams degrade to a held stand.
   void SetRacketInput(std::shared_ptr<PpRacketTargetInput> r) { racket_in_ = std::move(r); }
   void SetBasePoseInput(std::shared_ptr<PpBasePoseInput> b) { base_in_ = std::move(b); }
+  void SetSessionHomePublisher(std::function<void(const std::vector<double>&)> cb) {
+    session_home_publish_ = std::move(cb);
+  }
+  const a3_deploy::SessionHomeReceipt& session_home_unsafe() const { return shared_home_receipt_; }
   bool planner_mode() const { return cfg_.planner_mode; }
   int expected_planner_wire_schema() const {
+    if (cfg_.shared_session_home) return 4;
     if (!onnx_.uses_schema27_optional_reach_obs()) return 0;
     return onnx_.optional_reach_schema3_wire_required() ? 3 : 2;
   }
@@ -1358,6 +1377,8 @@ class PpPolicy {
       base_velocity_xy_est_.setZero();
       ResetFiniteLateralGait_();
       station_session_origin_set_ = false;
+      shared_home_receipt_ = {};
+      plane_posture_gate_.reset();
       native_tail_home_recovery_latched_ = false;
       planner_static_active_ = false;
       static_settle_ticks_ = 0;
@@ -1808,6 +1829,7 @@ class PpPolicy {
     oracle_fresh_ = false;
     oracle_age_s_ = -1.0;
     std::uint64_t localization_seq = 0;
+    std::uint64_t localized_calibration_id = 0, localized_world_id = 0;
     switch (cfg_.loc_mode) {
       case LocMode::kKernelImuLocal: {
         // IMU attitudes above are relative to the heading captured on entry.
@@ -1861,6 +1883,8 @@ class PpPolicy {
                 s, cfg_.external_base_max_age_s,
                 /*require_authoritative=*/mocap_authoritative)) {
           st.base_pos_w = s.pos;
+          localized_calibration_id = s.calibration_id;
+          localized_world_id = s.world_frame_id;
           if (s.authoritative) {
             // The high-rate pelvis gyro only propagates the most recent mocap
             // attitude over a short transport interval. It never supplies the
@@ -1937,12 +1961,32 @@ class PpPolicy {
         localized_base && !station_session_origin_set_) {
       station_session_origin_w_ = Vec2(st.base_pos_w[0], st.base_pos_w[1]);
       station_session_origin_set_ = true;
+      if (cfg_.shared_session_home) {
+        const auto wall_us = static_cast<std::uint64_t>(PpNowWallSec() * 1e6);
+        shared_home_epoch_counter_ = std::max(shared_home_epoch_counter_ + 1, wall_us);
+        shared_home_receipt_ = {shared_home_epoch_counter_, st.base_pos_w[0],
+            st.base_pos_w[1], reach_offset_clip_[0][0],
+            localized_calibration_id, localized_world_id, true};
+      }
+
       std::fprintf(stderr,
           "[pp station] localized MOTION-entry HOME=(%+.3f,%+.3f); absolute trained box "
           "x[%.2f,%.2f] y[%.2f,%.2f]\n",
           station_session_origin_w_[0], station_session_origin_w_[1],
           hp_base_target_range_[0], hp_base_target_range_[1],
           hp_base_target_range_[2], hp_base_target_range_[3]);
+    }
+    if (cfg_.shared_session_home && base_fresh_ && session_home_publish_ &&
+        shared_home_receipt_.epoch != 0 &&
+        localized_calibration_id == shared_home_receipt_.calibration_id &&
+        localized_world_id == shared_home_receipt_.world_id) {
+      const bool posture_stable = plane_posture_gate_.update(PpNowSteadySec(),
+          level_.load() == 0 && !planner_engaged_, base_velocity_xy_valid_,
+          st.base_velocity_xy_w.norm(), st.base_ang_vel_b.norm(),
+          projected_gravity_body(st.base_quat_w)[2]);
+      session_home_publish_(shared_home_receipt_.pack(++shared_home_sequence_, posture_stable));
+    } else {
+      plane_posture_gate_.reset();
     }
     last_base_pos_ = st.base_pos_w;
     last_base_quat_w_ = st.base_quat_w;  // yaw-aligned; PlannerEngageStep_ gates on it next tick
@@ -4333,6 +4377,11 @@ class PpPolicy {
       return;
     }
     const auto snap = racket_in_->Latest();
+    if (cfg_.shared_session_home && !SharedHomeCommandMatches_(snap.cmd)) {
+      ClearPendingStation_(tick_idx, "session_home_mismatch");
+      set_planner_status_("session_home_mismatch");
+      return;
+    }
     planner_current_msg_seq_ = snap.seq;
     planner_current_producer_epoch_ = snap.producer_epoch;
     planner_current_flight_id_ = snap.cmd.flight_id;
@@ -4387,7 +4436,7 @@ class PpPolicy {
     }
     if (planner_revision_release_blocked(
             revisioned_planner_contract,
-            schema27_reach_wire ? 2 : snap.cmd.schema,
+            (schema27_reach_wire || cfg_.shared_session_home) ? 2 : snap.cmd.schema,
             snap.cmd.stable_revision_count)) {
       ClearPendingStation_(tick_idx, "planner_schema");
       if ((gate_warn_tick_++ % 25) == 0) {
@@ -5507,8 +5556,11 @@ class PpPolicy {
   // is ignored), locked-side band membership, speed cap, and a tts floor mirroring training's
   // midswing_resample_tts_floor so the final approach is not perturbed.
   void StreamTargetStep_(std::uint64_t tick_idx) {
-    if (!racket_in_) return;
+    // Shared-reference Planner sends one immutable target per ball. A newer
+    // flight or UI mode must never move the in-progress swing's target.
+    if (cfg_.shared_session_home || !racket_in_) return;
     const auto snap = racket_in_->Latest();
+    if (cfg_.shared_session_home && !SharedHomeCommandMatches_(snap.cmd)) return;
     planner_current_msg_seq_ = snap.seq;
     planner_current_producer_epoch_ = snap.producer_epoch;
     if (!snap.has_valid || snap.invalid_after) return;
@@ -5879,6 +5931,18 @@ class PpPolicy {
   // schema22 fail-closes unless this remains enabled. Schema23 always commands session HOME
   // and treats the corresponding support/reachability flags as telemetry-only.
   bool stay_if_reachable_ = false;
+  bool SharedHomeCommandMatches_(const PpRacketMsg& cmd) const {
+    PpBaseSample base;
+    return shared_home_receipt_.matches_command(cmd.schema, cmd.home_epoch,
+               cmd.frame_code, cmd.pos_w.x(), cmd.plane_reference_x, cmd.plane_mode) && base_in_ &&
+        base_in_->Latest(base, cfg_.external_base_max_age_s, true) &&
+        base.calibration_id == shared_home_receipt_.calibration_id &&
+        base.world_frame_id == shared_home_receipt_.world_id;
+  }
+  a3_deploy::SessionHomeReceipt shared_home_receipt_;
+  std::uint64_t shared_home_epoch_counter_ = 0, shared_home_sequence_ = 0;
+  a3_deploy::PlanePostureGate plane_posture_gate_;
+  std::function<void(const std::vector<double>&)> session_home_publish_;
   bool station_session_origin_set_ = false;
   Vec2 station_session_origin_w_ = Vec2::Zero();
   // Schema-21 Build2 minimal rootfix only: after contact+0.12 the base target
