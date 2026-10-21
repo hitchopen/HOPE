@@ -1,0 +1,26 @@
+hope_planner:
+  ros__parameters:
+    prediction_backend: v2
+    return_backend: shared_physics
+    output_mode: shadow
+    observation_topic: /hope/ball/observation_v2
+    base_pose_topic: /a3/base_pose_flat
+    frame_id: world
+    source_clock_domain: ros_system
+    clock_mapping_id: natnet_exposure_unix_v1
+    ball_id: Ball
+    registration_id: UNQUALIFIED_SHADOW
+    world_frame_id: 1
+    plane_policy: FOLLOW_POSE
+    plane_offset_m: 0.58
+    x_hit_bh_delta: 0.0
+    runner_contract: schema2_ball_center_velocity_normal_v1
+    policy_z_offset: 0.76
+    target_turn_max_deg: 40.0
+    minimum_lead_s: 0.08
+    maximum_reach_m: 0.95
+    target_land_x: 2.055
+    target_land_y: -0.7625
+    outgoing_durations_s: [0.5, 0.4, 0.6, 0.7]
+    integration_dt_s: 0.001
+    horizon_s: 1.5

@@ -32,3 +32,15 @@ endforeach()
 
 add_executable(hope_flight_prediction_v2_replay ${PLANNER}/src/flight_prediction_v2_replay.cpp)
 target_link_libraries(hope_flight_prediction_v2_replay PRIVATE hope_native_core)
+
+add_library(hope_integrated_native
+  ${PLANNER}/src/return_eligibility.cpp ${PLANNER}/src/validated_return_planner.cpp)
+target_link_libraries(hope_integrated_native PUBLIC hope_native_core)
+add_executable(test_integrated_return ${PLANNER}/test/test_integrated_return.cpp)
+set_target_properties(test_integrated_return PROPERTIES CXX_STANDARD 20)
+target_include_directories(test_integrated_return PRIVATE
+  ${PLANNER}/../../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include)
+target_link_libraries(test_integrated_return PRIVATE hope_integrated_native GTest::gtest_main)
+add_test(NAME integrated_return COMMAND test_integrated_return)
+add_executable(hope_integrated_return_sweep ${PLANNER}/test/integrated_return_sweep.cpp)
+target_link_libraries(hope_integrated_return_sweep PRIVATE hope_integrated_native)

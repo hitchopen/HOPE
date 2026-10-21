@@ -74,6 +74,12 @@ std::int64_t PlannerNode::wall_now_ns() noexcept {
 
 PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
     : rclcpp::Node("hope_planner", options) {
+  const auto backend = declare_parameter<std::string>("prediction_backend", "legacy");
+  if (backend == "v2") {
+    integrated_runtime_ = std::make_unique<IntegratedPlannerRuntime>(*this);
+    return;
+  }
+  if (backend != "legacy") throw std::invalid_argument("unknown prediction_backend");
   declare_parameter<std::string>("ball_rigid_body_name", "pingpong_ball");
   ball_pose_index_ = static_cast<int>(declare_parameter<int>("ball_pose_index", 0));
   input_qos_depth_ = std::clamp(
@@ -647,6 +653,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
 }
 
 PlannerNode::~PlannerNode() {
+  integrated_runtime_.reset();
   stop_requested_.store(true, std::memory_order_release);
   wake_condition_.notify_all();
   if (solver_thread_.joinable()) {

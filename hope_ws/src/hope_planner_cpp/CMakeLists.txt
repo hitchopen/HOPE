@@ -70,6 +70,28 @@ target_link_libraries(hope_planner_cpp_node PRIVATE
   ${std_srvs_TARGETS}
 )
 
+# Application integration is intentionally outside the forward-only graph.
+add_library(hope_integrated_return
+  src/return_eligibility.cpp src/validated_return_planner.cpp)
+target_include_directories(hope_integrated_return PUBLIC include)
+target_link_libraries(hope_integrated_return PUBLIC hope_v2_forecast_core)
+add_library(hope_integrated_runtime src/integrated_planner_runtime.cpp)
+target_include_directories(hope_integrated_runtime PUBLIC include)
+target_link_libraries(hope_integrated_runtime PUBLIC hope_integrated_return
+  hope_v2_transport hope_planner_core rclcpp::rclcpp ${std_msgs_TARGETS}
+  ${std_srvs_TARGETS} ${diagnostic_msgs_TARGETS})
+target_link_libraries(hope_planner_cpp_node PRIVATE hope_integrated_runtime)
+install(TARGETS hope_integrated_return hope_integrated_runtime
+  ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
+add_executable(hope_integrated_runner_probe test/integrated_runner_probe.cpp)
+set_target_properties(hope_integrated_runner_probe PROPERTIES CXX_STANDARD 20)
+target_include_directories(hope_integrated_runner_probe PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
+target_link_libraries(hope_integrated_runner_probe PRIVATE Eigen3::Eigen rclcpp::rclcpp ${std_msgs_TARGETS})
+install(TARGETS hope_integrated_runner_probe RUNTIME DESTINATION lib/${PROJECT_NAME})
+add_executable(hope_integrated_return_sweep test/integrated_return_sweep.cpp)
+target_link_libraries(hope_integrated_return_sweep PRIVATE hope_integrated_return)
+install(TARGETS hope_integrated_return_sweep RUNTIME DESTINATION lib/${PROJECT_NAME})
+
 add_executable(hope_planner_cpp_replay src/replay_main.cpp)
 target_include_directories(hope_planner_cpp_replay PRIVATE include)
 target_link_libraries(hope_planner_cpp_replay PRIVATE hope_planner_core Eigen3::Eigen)
@@ -101,6 +123,7 @@ install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS
+  scripts/integrated_preflight.py
   scripts/audit_bounce_transition.py
   scripts/audit_model21800_replay.py
   scripts/audit_spin_observability.py
@@ -109,6 +132,28 @@ install(PROGRAMS
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  ament_add_gtest(test_integrated_return test/test_integrated_return.cpp)
+  set_target_properties(test_integrated_return PROPERTIES CXX_STANDARD 20)
+  target_include_directories(test_integrated_return PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
+  target_link_libraries(test_integrated_return hope_integrated_return hope_planner_core)
+  add_test(NAME integrated_outgoing_reference COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/flight_prediction_validation/integrated_numerical_gate.py
+    --executable $<TARGET_FILE:hope_integrated_return_sweep>
+    --output ${CMAKE_CURRENT_BINARY_DIR}/integrated_outgoing_reference.json)
+  foreach(rate 150 300)
+    foreach(policy FOLLOW_POSE ON_REFRESH)
+      add_test(NAME integrated_chain_${rate}_${policy} COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_producer_chain.py
+        --planner $<TARGET_FILE:hope_planner_cpp_node>
+        --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+        --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+        --rate ${rate} --plane-policy ${policy}
+        --output ${CMAKE_CURRENT_BINARY_DIR}/integrated_chain_${rate}_${policy}.json)
+      set_tests_properties(integrated_chain_${rate}_${policy} PROPERTIES
+        RUN_SERIAL TRUE TIMEOUT 60 ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+    endforeach()
+  endforeach()
   ament_add_gtest(test_spin_physics test/test_spin_physics.cpp)
   target_link_libraries(test_spin_physics hope_planner_core Eigen3::Eigen)
   ament_add_gtest(test_future_contact_predictor test/test_future_contact_predictor.cpp)
@@ -165,6 +210,7 @@ if(BUILD_TESTING)
     test/test_planner_node_one_shot.cpp
     src/planner_node.cpp
   )
+  target_link_libraries(test_planner_node_one_shot hope_integrated_runtime)
   target_include_directories(test_planner_node_one_shot PRIVATE include)
   target_link_libraries(test_planner_node_one_shot
     hope_planner_core
@@ -181,6 +227,7 @@ if(BUILD_TESTING)
     test/test_planner_node_turn_guard.cpp
     src/planner_node.cpp
   )
+  target_link_libraries(test_planner_node_turn_guard hope_integrated_runtime)
   target_include_directories(test_planner_node_turn_guard PRIVATE include)
   target_link_libraries(test_planner_node_turn_guard
     hope_planner_core
@@ -198,6 +245,7 @@ if(BUILD_TESTING)
     src/planner_node.cpp
     src/flight_packetizer_node.cpp
   )
+  target_link_libraries(test_flight_packet_pipeline hope_integrated_runtime)
   target_include_directories(test_flight_packet_pipeline PRIVATE include)
   target_link_libraries(test_flight_packet_pipeline
     hope_planner_core
@@ -253,6 +301,11 @@ install(DIRECTORY scripts/flight_prediction_validation DESTINATION lib/${PROJECT
 if(BUILD_TESTING)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   find_package(ament_cmake_pytest REQUIRED)
+  add_test(NAME integrated_context_noop COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_context_noop.py
+    --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)
+  set_tests_properties(integrated_context_noop PROPERTIES RUN_SERIAL TRUE TIMEOUT 30
+    ENVIRONMENT "ROS_DOMAIN_ID=195;ROS_LOCALHOST_ONLY=1")
   add_test(NAME flight_v2_installed_api COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/installed_forward_api.py --prefix ${CMAKE_INSTALL_PREFIX})
   ament_add_gtest(test_flight_prediction_v2 test/test_flight_prediction_v2.cpp)
@@ -291,5 +344,6 @@ endif()
 
 install(DIRECTORY docs/ DESTINATION share/${PROJECT_NAME}/docs
   FILES_MATCHING PATTERN "flight_prediction*.md" PATTERN "flight_prediction*.json"
+  PATTERN "integrated_planner*.md" PATTERN "integrated_planner*.json"
   PATTERN "flight_prediction_accuracy" PATTERN "NOT_RUN.json" PATTERN "README.md")
 ament_package()

@@ -2,6 +2,8 @@
 #include <Eigen/LU>
 #include <cmath>
 #include <stdexcept>
+#include <sstream>
+#include <locale>
 
 namespace hope_planner_cpp {
 PaddleImpact reconstruct_paddle_impact(const Vec3 &in, const Vec3 &r, const Vec3 &n, double e) {
@@ -33,7 +35,18 @@ void ValidatedReturnSettings::validate(const ProbabilisticConfig &c) const {
     if (!std::isfinite(t) || t < .1 || t > 1.5) throw std::invalid_argument("invalid outgoing duration");
 }
 ValidatedReturnPlanner::ValidatedReturnPlanner(ProbabilisticConfig c, ValidatedReturnSettings s)
-  : config_(std::move(c)), settings_(std::move(s)) { config_.validate(); settings_.validate(config_); }
+  : config_(std::move(c)), settings_(std::move(s)) {
+  config_.validate(); settings_.validate(config_);
+  std::ostringstream id;id.imbue(std::locale::classic());id<<std::hexfloat;
+  id<<flight_model_config_id(config_,{},"table")<<";normal-only-constant-e-v1;outgoing-POSITION_ONLY;";
+  for (double value : {settings_.restitution, settings_.endpoint_tolerance_m,
+      settings_.landing_tolerance_m, settings_.time_tolerance_s, settings_.impact_tolerance_mps,
+      settings_.max_racket_speed_mps, settings_.max_ball_speed_mps, settings_.landing_surface.x(),
+      settings_.landing_surface.y()}) id<<value<<';';
+  id<<settings_.max_iterations<<';';
+  for (double duration : settings_.durations_s) id<<duration<<';';
+  return_config_id_="shared-return-v1:sha256:"+sha256(id.str());
+}
 Vec3 ValidatedReturnPlanner::endpoint(const Vec3 &p, const Vec3 &v, double t) const {
   ModelState state; state.position=p; state.velocity=v; // POSITION_ONLY after paddle.
   for (double elapsed=0; elapsed < t-1e-12;) {
@@ -83,6 +96,7 @@ bool ValidatedReturnPlanner::validate_action(const ContactPlanningInput &input, 
         }
         out.return_ok=true; out.command.clears_net=true;
         out.command.valid=out.solve_ok && out.impact_ok; out.reason="RETURN_VALID";
+        out.command.reason=out.reason;
         return out.command.valid;
       }
     }
@@ -92,7 +106,10 @@ bool ValidatedReturnPlanner::validate_action(const ContactPlanningInput &input, 
   out.reason="LANDING_HORIZON_EXHAUSTED"; return false;
 }
 ValidatedReturn ValidatedReturnPlanner::solve(const ContactPlanningInput &input) const {
-  ValidatedReturn out; out.model_config_id=input.model_config_id;
+  ValidatedReturn out; out.model_config_id=input.model_config_id+";"+return_config_id_;
+  out.command.target_land=settings_.landing_surface;
+  out.command.predicted_bounces=1;
+  out.command.strike_source_time_s=static_cast<double>(input.arrival_ns)*1e-9;
   const Vec3 p=input.contact.pre.position, in=input.contact.pre.velocity;
   if (!p.allFinite() || !in.allFinite() || p.z()<=config_.physics.radius || in.x()>=-.5) {
     out.reason="INVALID_INCOMING_CONTACT"; return out;

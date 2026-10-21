@@ -180,6 +180,9 @@ public:
           if (m->schema_version != 2 || m->session_id != session_ ||
               m->authority != authority_)
             return;
+          const auto before_generation = pipeline_->shot().generation();
+          const auto before_revision = pipeline_->shot().revision();
+          const auto before_plane = plane_->snapshot().generation;
           const auto current_source = now().nanoseconds();
           if (static_cast<long double>(m->source_time_ns) - current_source >
               1000000.L)
@@ -256,7 +259,10 @@ public:
             plane_->freeze(steady_ns(), m->source_time_ns,
                            pipeline_->shot().generation(),
                            !pipeline_->shot().active());
-          revoke_locked();
+          if (before_generation != pipeline_->shot().generation() ||
+              before_revision != pipeline_->shot().revision() ||
+              before_plane != plane_->snapshot().generation)
+            revoke_locked();
         });
     base_ = create_subscription<std_msgs::msg::Float64MultiArray>(
         "/hope/robot/base_pose", qos,

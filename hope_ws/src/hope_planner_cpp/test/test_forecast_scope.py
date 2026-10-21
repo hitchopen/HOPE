@@ -38,7 +38,22 @@ def test_v2_cannot_construct_commands_or_publish_control_topics():
 
 def test_production_sources_and_headers_remain_pinned_upstream():
     for file, digest in json.loads((ROOT / 'test/fixtures/scoped_production_sources.json').read_text()).items():
-        assert hashlib.sha256((ROOT / file).read_bytes()).hexdigest() == digest, file
+        data = (ROOT / file).read_bytes()
+        if file == 'src/planner_node.cpp':
+            # Only the explicit application dispatch/destruction hooks may
+            # differ. The full legacy constructor/solver stays byte-pinned.
+            source = data.decode()
+            dispatch = '''  const auto backend = declare_parameter<std::string>("prediction_backend", "legacy");
+  if (backend == "v2") {
+    integrated_runtime_ = std::make_unique<IntegratedPlannerRuntime>(*this);
+    return;
+  }
+  if (backend != "legacy") throw std::invalid_argument("unknown prediction_backend");
+'''
+            assert source.count(dispatch) == 1
+            assert source.count('  integrated_runtime_.reset();\n') == 1
+            data = source.replace(dispatch, '').replace('  integrated_runtime_.reset();\n', '').encode()
+        assert hashlib.sha256(data).hexdigest() == digest, file
 
 
 def test_entire_upstream_diff_has_no_historical_pipeline_and_complete_inventory():

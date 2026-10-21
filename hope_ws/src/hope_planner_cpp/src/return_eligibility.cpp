@@ -21,6 +21,7 @@ ReturnEligibility select_physical_return(const FlightPrediction &f, const ShotSn
   const auto &source = s.observations.back();
   if (!source.position_valid || !source.source_time_valid || !source.clock_mapping_valid ||
       source.frame_id.empty() || source.calibration_id.empty() ||
+      source.calibration_id != f.plane.registration_id ||
       source.clock_mapping_id.empty() || source.ball_id.empty() ||
       !std::isfinite(source.clock_uncertainty_s) || source.clock_uncertainty_s < 0 ||
       source.clock_uncertainty_s > .001)

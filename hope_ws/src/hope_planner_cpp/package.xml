@@ -3,7 +3,7 @@
 <package format="3">
   <name>hope_planner_cpp</name>
   <version>0.1.0</version>
-  <description>Deterministic C++ real-time planner for the HOPE model_21800 hardware path.</description>
+  <description>HOPE legacy planner and single-node V2 shared-physics return planner.</description>
   <maintainer email="maintainer@example.com">HOPE Maintainers</maintainer>
   <license>Apache-2.0</license>
 

@@ -90,6 +90,9 @@ class OptitrackMctRelay(Node):
         # a qualified source that measures ball orientation (not marker identity).
         self.declare_parameter("ball_orientation_authoritative", False)
         self.declare_parameter("world_frame", "world")
+        # Correlates the surveyed table transform with the planner. Empty is
+        # intentionally unqualified; naming a frame does not register it.
+        self.declare_parameter("ball_calibration_id", "")
         self.declare_parameter("table_pose_topic", "/table/pose")
         self.declare_parameter("p1_pose_topic", "/UCB_P1/pose")
         self.declare_parameter("p2_pose_topic", "/UCB_P2/pose")
@@ -332,6 +335,9 @@ class OptitrackMctRelay(Node):
             observation.sequence = self._debug_frame_seq
             observation.receipt_wall_ns = receipt_wall_ns
             observation.frame_id = ball.header.frame_id
+            observation.calibration_id = str(
+                self.get_parameter("ball_calibration_id").value
+            )
             observation.ball_id = self._ball_object
             observation.position = ball.pose.position
             observation.position_valid = True

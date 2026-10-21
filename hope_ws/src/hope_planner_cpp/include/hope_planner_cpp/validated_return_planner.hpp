@@ -41,5 +41,6 @@ private:
   Vec3 endpoint(const Vec3 &, const Vec3 &, double) const;
   ProbabilisticConfig config_;
   ValidatedReturnSettings settings_;
+  std::string return_config_id_;
 };
 } // namespace hope_planner_cpp

@@ -210,11 +210,17 @@ def scenario(executable, direction, rate, policy):
         start = time.time_ns() + 50_000_000
         source_process.stdin.write(str(start) + '\n')
         source_process.stdin.flush()
+        source_output = []
         while source_process.poll() is None:
             rclpy.spin_once(node, timeout_sec=.001)
+            # Drain before waiting for exit: on hosts with small pipe buffers
+            # the final acquisition-stamp report can otherwise block its
+            # writer, even though camera pacing has already completed.
+            if select.select([source_process.stdout], [], [], 0)[0]:
+                source_output.append(source_process.stdout.readline())
         output, source_errors = source_process.communicate(timeout=5)
         assert source_process.returncode == 0, source_errors
-        source_report = json.loads(output.strip())
+        source_report = json.loads((''.join(source_output) + output).strip())
         sent_stamps = source_report['stamps']
         sequence = source_report['last_sequence']
         context_sent = source_report['context_sent']
