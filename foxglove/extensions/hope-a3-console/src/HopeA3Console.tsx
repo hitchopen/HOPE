@@ -1365,7 +1365,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             type="button"
             disabled={
               !configComplete ||
-              !(lifecycleStopped || lifecycleState === "FAILED") ||
+              !lifecycleStopped ||
               lifecycleBusy ||
               timeCalibrationBlocksStart ||
               busy.applyLifecycleConfig === true
@@ -1384,7 +1384,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               (snapshot.lifecycleConfigRevision ?? 0) < 1 ||
               configTouched ||
               fieldBusy || field?.busy === true || !fieldFresh ||
-              (!kernelMode && !ballDisplay.ready) ||
+              (!kernelMode && lifecycleState !== "FAILED" && !ballDisplay.ready) ||
               busy.startLifecycle === true
             }
             onClick={() => void startSystem()}
