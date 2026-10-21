@@ -149,7 +149,7 @@ NominalBallForecast forecast_nominal(const StateBelief &b,
   NominalBallForecast out;
   out.source = b;
   out.uncertainty_provenance =
-      "thin_shell_v2;conditional_pv_linearization;auxiliary_spin_model_plane_"
+      "thin_shell_review_v4;ordered_saltation_event_covariance;conditional_pv_linearization;auxiliary_spin_model_plane_"
       "clock_uncertainty_unmodelled;uncalibrated";
   if (!b.initialized || !b.mean.allFinite())
     return out;
@@ -193,32 +193,17 @@ NominalBallForecast forecast_nominal(const StateBelief &b,
     const double h =
         std::min({c.integration_dt_s, c.horizon_s - t, next_waypoint - t});
     const auto before = model;
-    const Matrix6 prior = covariance;
-    const auto prior_budget = budget;
     const auto step = advance_ball(model, h, c.physics, geometry);
-    auto local = c;
-    local.effective_spin = before.spin;
-    bool branch = false;
-    const bool contact =
-        std::any_of(step.events.begin(), step.events.end(), [](const auto &e) {
-          return e.kind == PhysicalEventKind::TABLE;
-        });
-    const Matrix6 j = contact
-                          ? physical_step_jacobian(pack(before), step.elapsed_s,
-                                                   local, branch)
-                          : free_flight_jacobian(pack(before), step.elapsed_s,
-                                                 c.physics, before.spin);
-    if (branch && quality != LinearizationQuality::Unavailable)
-      quality = LinearizationQuality::BranchSensitive;
-    if (quality != LinearizationQuality::Unavailable) {
-      covariance = j * prior * j.transpose() +
-                   process_covariance(step.elapsed_s,
-                                      noise.acceleration_spectral_density);
-      budget = transform(prior_budget, j);
-      if (budget.available)
-        budget.free_flight += process_covariance(
-            step.elapsed_s, noise.acceleration_spectral_density);
-    }
+    auto segment_start = before;
+    double cursor = 0;
+    auto propagate = [&](const ModelState &start, double duration) {
+      if (quality == LinearizationQuality::Unavailable) return;
+      const Matrix6 j = free_flight_jacobian(pack(start), duration, c.physics, start.spin);
+      const Matrix6 q = process_covariance(duration, noise.acceleration_spectral_density);
+      covariance = j * covariance * j.transpose() + q;
+      budget = transform(budget, j);
+      if (budget.available) budget.free_flight += q;
+    };
     for (const auto &e : step.events) {
       ForecastPhysicsEvent event;
       event.pre_spin = e.pre.spin;
@@ -228,11 +213,10 @@ NominalBallForecast forecast_nominal(const StateBelief &b,
       event.pre = pack(e.pre);
       event.post = pack(e.post);
       event.quality = quality;
-      const Matrix6 jf =
-          free_flight_jacobian(pack(before), e.dt_s, c.physics, before.spin);
-      const Matrix6 pc =
-          jf * prior * jf.transpose() +
-          process_covariance(e.dt_s, noise.acceleration_spectral_density);
+      propagate(segment_start, e.dt_s - cursor);
+      cursor = e.dt_s;
+      segment_start = e.post;
+      const Matrix6 pc = covariance;
       if (quality != LinearizationQuality::Unavailable) {
         if (e.kind == PhysicalEventKind::APEX) {
           const auto f = flow(event.pre, c.physics, e.pre.spin);
@@ -255,10 +239,8 @@ NominalBallForecast forecast_nominal(const StateBelief &b,
                                                       c.physics, e.pre.spin);
           if (std::abs(event.pre[axis + 3]) < .05)
             event.quality = LinearizationQuality::IllConditioned;
-          if (prior_budget.available) {
-            auto terms = transform(prior_budget, jf);
-            terms.free_flight +=
-                process_covariance(e.dt_s, noise.acceleration_spectral_density);
+          if (budget.available) {
+            const auto &terms = budget;
             event.covariance_budget.available = true;
             event.covariance_budget.posterior = spatial_event_covariance(
                 event.pre, terms.posterior, axis, c.physics, e.pre.spin);
@@ -278,11 +260,14 @@ NominalBallForecast forecast_nominal(const StateBelief &b,
         Matrix6 qb = Matrix6::Zero();
         qb.bottomRightCorner<3, 3>() =
             noise.bounce_velocity_std.array().square().matrix().asDiagonal();
-        const Matrix6 remaining = free_flight_jacobian(pack(e.post), h - e.dt_s,
-                                                       c.physics, e.post.spin);
-        covariance += remaining * qb * remaining.transpose();
-        if (budget.available)
-          budget.bounce += remaining * qb * remaining.transpose();
+        auto local = c;
+        local.effective_spin = e.pre.spin;
+        const Matrix6 reset = bounce_saltation(event.pre, local);
+        if (reset.allFinite() && quality != LinearizationQuality::Unavailable) {
+          covariance = reset * covariance * reset.transpose() + qb;
+          budget = transform(budget, reset);
+          if (budget.available) budget.bounce += qb;
+        } else quality = event.quality = LinearizationQuality::Unavailable;
         const double sx = 3 * std::sqrt(std::max(0., pc(0, 0))),
                      sy = 3 * std::sqrt(std::max(0., pc(1, 1)));
         if (e.pre.position.x() - sx <= 0 ||
@@ -299,6 +284,7 @@ NominalBallForecast forecast_nominal(const StateBelief &b,
       if (out.events.size() < 128)
         out.events.push_back(event);
     }
+    propagate(segment_start, step.elapsed_s - cursor);
     covariance = .5 * (covariance + covariance.transpose()).eval();
     if (!covariance.allFinite())
       quality = LinearizationQuality::Unavailable;
