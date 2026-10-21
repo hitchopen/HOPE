@@ -35,7 +35,7 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
         state[index] = typeof value === 'function' ? value(state[index]) : value;
       }];
     },
-    useRef: (current) => ({ current }),
+    useRef: (current) => ({ current: current === api.INITIAL_SNAPSHOT ? { ...current, lifecycleConfig: { ...config } } : current }),
     useMemo: (callback) => callback(),
     useCallback: (callback) => callback,
     useEffect: () => {},

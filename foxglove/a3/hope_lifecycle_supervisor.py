@@ -248,6 +248,16 @@ class LifecycleBackend:
         return collection_reason
 
 
+    def reconnect_mocap(self, config: LifecycleConfig) -> None:
+        target, helper = self._laptop(config)
+        session_id = datetime.now(timezone.utc).strftime("model21800_%Y%m%dT%H%M%SZ")
+        common = [session_id, config.laptop_wifi_ip, config.hdu_wifi_ip,
+                  config.mdu_internal_ip, config.motive_ip or "NONE", config.table_side,
+                  "OPTITRACK", "DEFAULT", config.gripper_profile, config.mocap_source,
+                  config.vrpn_ip or "NONE", config.vrpn_port, config.vrpn_units, config.pants_profile]
+        self._invoke(self._ssh(target, helper, "reconnect-laptop", *common),
+                     timeout_s=25.0, event_callback=lambda _event: None)
+
     def exchange_recording(self, host: str, config: LifecycleConfig, request: dict) -> dict:
         if config.revision < 1:
             raise ValueError("confirm network configuration first")
@@ -514,30 +524,47 @@ class HopeLifecycleSupervisor(Node):
                 ]
                 return response
             updates.append((parameter.name, parameter.value.string_value))
+        operation_lock = None
+        saved = False
+        claimed = False
         try:
             updated = apply_config_updates(current, updates)
+            if current.hdu_wifi_ip and updated.hdu_wifi_ip != current.hdu_wifi_ip:
+                raise ValueError("Robot IP selects a new Foxglove connection; current robot configuration is unchanged")
+            with self._lock:
+                if self._config is not current or self._busy or self._field_busy or self._state not in {"STOPPED", "CONFIG_ERROR"}:
+                    raise ValueError("state changed while confirming configuration; retry")
+                operation_lock = try_acquire_hardware_operation_lock()
+                if operation_lock is None:
+                    raise ValueError("another hardware operation is in progress")
+                self._field_busy = True
+                claimed = True
+                reconnect = any(getattr(current, name) != getattr(updated, name) for name in (
+                    "operator_profile", "laptop_wifi_ip", "motive_ip", "vrpn_ip", "mocap_source", "vrpn_port",
+                    "vrpn_units", "pants_profile", "table_side")) or "MOCAP_FAILED" in self._last_result
             save_config_atomic(CONFIG_PATH, updated)
-        except (OSError, ValueError) as exc:
-            response.results = [
-                SetParametersResult(successful=False, reason=str(exc))
-                for _parameter in request.parameters
-            ]
-            return response
-        with self._lock:
-            self._config = updated
-            self._state = "STOPPED"
-            self._last_result = f"CONFIG_CONFIRMED_REVISION_{updated.revision}"
-        response.results = [
-            SetParametersResult(
-                successful=True,
-                reason=(
-                    "confirmed lifecycle configuration revision "
-                    f"{updated.revision} table_side={updated.table_side} "
-                    f"operator_profile={updated.operator_profile}"
-                ),
-            )
-            for _parameter in request.parameters
-        ]
+            saved = True
+            with self._lock:
+                self._config = updated
+                self._state = "STOPPED"
+                self._last_result = f"CONFIG_SAVED_REVISION_{updated.revision}"
+            if reconnect:
+                self._field_pool.submit(self._backend.reconnect_mocap, updated).result()
+            with self._lock:
+                self._last_result = f"CONFIG_CONFIRMED_REVISION_{updated.revision}"
+            reason = "Saved configuration; mocap receiver reconnected, check fresh pose data" if reconnect else "Saved configuration"
+            response.results = [SetParametersResult(successful=True, reason=reason) for _ in request.parameters]
+        except (OSError, ValueError, LifecycleFailure, subprocess.SubprocessError) as exc:
+            reason = f"Configuration saved; mocap connection failed: {exc}" if saved else str(exc)
+            if saved:
+                with self._lock:
+                    self._last_result = f"CONFIG_SAVED_MOCAP_FAILED: {exc}"
+            response.results = [SetParametersResult(successful=False, reason=reason) for _ in request.parameters]
+        finally:
+            if claimed:
+                with self._lock:
+                    self._field_busy = False
+            release_hardware_operation_lock(operation_lock)
         return response
 
     def _on_event(self, event) -> None:
