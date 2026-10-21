@@ -116,6 +116,7 @@ class A3AimrtBackend : public RobotIOBackend {
   void SetRunnerControlCallback(FlatArrayCallback cb);
   void SetRunnerControlTopic(std::string topic);
   void SetRunnerStateTopic(std::string topic);
+  bool PublishSessionHome(const std::vector<double>& values);
   bool PublishRunnerState(const std::vector<double>& values);
   void SetLocomotionInputCallback(FlatArrayCallback cb);
   bool PublishLocomotionState(const std::vector<double>& values);
@@ -184,6 +185,7 @@ class A3AimrtBackend : public RobotIOBackend {
   FlatArrayCallback locomotion_input_cb_{};
   std::function<void(const std::vector<double>&)> locomotion_state_publish_fn_{};
   std::string runner_control_topic_{"/hope/runner/control_request_flat"};
+  std::function<void(const std::vector<double>&)> session_home_publish_fn_{};
   std::string runner_state_topic_{"/hope/runner/state_flat"};
   std::mutex runner_state_publish_mutex_;
   std::function<void(const std::vector<double>&)> runner_state_publish_fn_{};

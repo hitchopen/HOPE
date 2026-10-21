@@ -89,6 +89,11 @@ class HopeRunnerTransportRelay(Node):
         self._teleop_state_subscription = self.create_subscription(
             Float64MultiArray, '/hope/runner/teleop_state_flat',
             self._teleop_state_publisher.publish, stream_qos)
+        self._home_publisher = self.create_publisher(
+            Float64MultiArray, '/hope/runner/session_home_hdu_flat', stream_qos)
+        self._home_subscription = self.create_subscription(
+            Float64MultiArray, '/hope/runner/session_home_flat',
+            self._home_publisher.publish, stream_qos)
         # Preserve original source timestamp/session/sequence. No timer replay
         # and no relay receipt time that could make an old input look fresh.
 
