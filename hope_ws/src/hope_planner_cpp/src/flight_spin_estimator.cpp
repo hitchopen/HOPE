@@ -164,7 +164,7 @@ SpinEstimate FlightSpinEstimator::estimate() const noexcept {
         : 0.0;
     output.coherence = total_rotation_norm > 1.0e-12
         ? std::clamp(total_rotation.norm() / total_rotation_norm, 0.0, 1.0)
-        : 0.0;
+        : 1.0; // A qualified constant orientation is a coherent zero signal.
     if (retained_count < config_.min_increments) {
       output.reason = "spin_insufficient_increments";
       return output;

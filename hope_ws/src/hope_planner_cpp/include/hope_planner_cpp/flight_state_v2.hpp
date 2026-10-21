@@ -72,7 +72,7 @@ struct ShotSettings {
   void validate() const;
 };
 inline constexpr const char *kFlightPhysicsProfile =
-    "thin-shell-forward-v3-receipt-20261010";
+    "thin-shell-forward-v4-pr64-causal-contact-finite-net-20261021";
 std::string flight_model_config_id(const ProbabilisticConfig &,
                                    const ShotSettings &,
                                    const std::string &frame = "table");
@@ -102,6 +102,7 @@ struct ShotSnapshot {
   std::deque<BallSample> observations;
   std::vector<ShotEvent> events;
   EffectiveSpin spin;
+  std::optional<TrustedSpin> spin_checkpoint;
 };
 class ShotContext {
 public:
@@ -142,6 +143,7 @@ public:
   const std::deque<BallSample> &candidates() const { return candidates_; }
   const std::vector<ShotEvent> &events() const { return events_; }
   const EffectiveSpin &spin() const { return spin_.value(); }
+  EffectiveSpin spin_at(std::int64_t ns) const { return spin_.at(ns); }
   const std::string &reason() const { return reason_; }
   int observed_contacts() const;
   bool route_supported() const;
@@ -225,6 +227,11 @@ private:
   ProbabilisticBallTracker tracker_;
   std::optional<std::int64_t> origin_;
   std::uint64_t tracker_generation_ = 0;
+  struct TrackerHistory {
+    std::int64_t next_observation_ns;
+    FullTrackerCheckpoint before;
+  };
+  std::deque<TrackerHistory> tracker_history_;
 };
 // One running solve plus one replaceable latest input. Close wakes the worker.
 template <class T> class LatestWork {

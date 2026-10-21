@@ -255,7 +255,7 @@ TEST(FlightV2, B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification) {
     const auto source = spin.value().measurement_time_ns;
     for (int i = 1; i < 8; ++i) {
       s = sample(std::llround(i * 1e9 / rate));
-      s.producer_omega_valid = i % 2;
+      s.producer_omega_valid = i != 1 && i % 2; // Zero placeholder has no authority.
       s.producer_omega_rad_s = i == 1 ? Vec3(0, 0, 0) : Vec3(NAN, 2, 3);
       spin.observe(s);
       ASSERT_TRUE(spin.value().usable());
@@ -729,7 +729,9 @@ TEST(FlightV2History,
   s.producer_omega_valid = true;
   s.producer_omega_rad_s = Vec3(0, 35, 0);
   spin.observe(s);
-  EXPECT_TRUE(spin.contact(8, 1050000000, Vec3(3, 0, -2), {}));
+  // A new measurement establishes current spin, but cannot repair the
+  // ambiguous historical ordering of two already retained contact impulses.
+  EXPECT_FALSE(spin.contact(8, 1050000000, Vec3(3, 0, -2), {}));
   EXPECT_EQ(*spin.value().omega, Vec3(0, 35, 0));
 
   ShotContext shot({});

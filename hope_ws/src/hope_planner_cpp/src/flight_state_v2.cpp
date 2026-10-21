@@ -262,15 +262,8 @@ bool ShotContext::observe(BallSample s) {
       net.velocity = (s.position - before.position) / (double(interval) * 1e-9);
       const auto ns = before.source_time_ns +
                       static_cast<std::int64_t>(std::round(f * interval));
-      const bool finite_net =
-          net.position.y() >= config_.table.y_max - config_.table.width -
-                                  config_.table.net_overhang -
-                                  config_.physics.radius &&
-          net.position.y() <= config_.table.y_max + config_.table.net_overhang +
-                                  config_.physics.radius &&
-          net.position.z() <=
-              config_.table.net_height + config_.physics.radius &&
-          net.position.z() >= -config_.physics.radius;
+      const bool finite_net = finite_net_distance(net.position, config_.table) <=
+                              config_.physics.radius + 1e-10;
       confirm(finite_net ? PhysicalEventKind::NET_COLLISION
                          : PhysicalEventKind::NET_CROSSING,
               ns, s.source_time_ns, net, "source_bracket");
@@ -556,6 +549,19 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
     for (const auto &e : events_)
       if (e.kind == kind && e.status == EventStatus::CONFIRMED &&
           e.reversal_sample_ns == reversal_ns) return true;
+    for (auto it = events_.rbegin(); it != events_.rend(); ++it)
+      if (it->kind == kind && it->status == EventStatus::CONFIRMED && it->reversal_sample_ns) {
+        // Rearm only after a verified intervening rise and descent. Time or
+        // horizontal separation alone cannot turn overlapping minima into a
+        // new bounce. Closely spaced real bounces still have their own apex.
+        double peak = -std::numeric_limits<double>::infinity();
+        for (const auto &s : samples_)
+          if (s.source_time_ns > *it->reversal_sample_ns && s.source_time_ns < *reversal_ns)
+            peak = std::max(peak, s.position.z());
+        if (peak <= std::max(it->pre.position.z(), pre.position.z()) +
+                    std::max(.001, 2*config_.measurement_std_m.z())) return false;
+        break;
+      }
   }
   auto compatible_event = [&](const ShotEvent &e) {
     // A different observed reversal is never the same event. Predicted
@@ -629,12 +635,9 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
   found->status = EventStatus::CONFIRMED;
   found->source = source;
   found->pre = pre;
-  if (found->pre.spin.usable() && found->pre.spin.measurement_time_ns > ns)
-    found->pre.spin = {};
-  found->post = pre;
-  if (!found->pre.spin.usable() && spin_.value().usable() &&
-      spin_.value().measurement_time_ns <= ns)
-    found->pre.spin = spin_.value();
+  // Resolve the checkpoint at the physical source cutoff, rather than throwing
+  // away a too-new latest measurement and losing the usable historical one.
+  found->pre.spin = spin_.at(ns);
   found->post = found->pre;
   found->side = pre.position.x() < config_.table.net_x ? ContactSide::kReceiver
                                                        : ContactSide::kOpponent;
@@ -642,7 +645,8 @@ bool ShotContext::confirm(PhysicalEventKind kind, std::int64_t ns,
     found->side = ContactSide::kAmbiguous;
   if (kind == PhysicalEventKind::TABLE) {
     apply_model_contact(found->post, config_.physics);
-    spin_.contact(found->id, ns, pre.velocity, config_.physics);
+    found->post.spin.last_contact_id = found->id;
+    spin_.contact(found->id, ns, pre.velocity, config_.physics, bracket_end_ns);
   }
   std::stable_sort(events_.begin(), events_.end(),
                    [](const auto &a, const auto &b) {
@@ -768,7 +772,7 @@ ShotSnapshot ShotContext::export_snapshot() const {
   return {generation_,     revision_,     boundary_ns_,   boundary_qualified_,
           direction_,      state_,        match_,         continuity_,
           classification_, match_source_, match_time_ns_, samples_,
-          events_,         spin_.value()};
+          events_,         spin_.value(), spin_};
 }
 void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   if (!snapshot.generation || snapshot.direction == 0 ||
@@ -799,7 +803,8 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   classification_ = snapshot.classification;
   samples_ = snapshot.observations;
   events_ = snapshot.events;
-  spin_.restore(snapshot.spin);
+  if (snapshot.spin_checkpoint) spin_ = *snapshot.spin_checkpoint;
+  else spin_.restore(snapshot.spin);
   candidates_.clear();
   net_crossed_ = false;
   next_event_id_ = 1;
@@ -960,6 +965,7 @@ void FlightPipeline::start(std::int64_t ns, int direction,
   tracker_.set_effective_spin({});
   tracker_.reset();
   origin_.reset();
+  tracker_history_.clear();
   tracker_generation_ = shot_.generation();
 }
 void FlightPipeline::invalidate(const std::string &why) {
@@ -967,6 +973,7 @@ void FlightPipeline::invalidate(const std::string &why) {
   tracker_.set_effective_spin({});
   tracker_.reset();
   origin_.reset();
+  tracker_history_.clear();
   tracker_generation_ = shot_.generation();
 }
 bool FlightPipeline::observe(BallSample sample) {
@@ -982,6 +989,7 @@ bool FlightPipeline::observe(BallSample sample) {
       tracker_generation_ != shot_.generation()) {
     tracker_.set_effective_spin({});
     tracker_.reset();
+    tracker_history_.clear();
     tracker_generation_ = shot_.generation();
     if (!shot_.active()) {
       origin_.reset();
@@ -989,6 +997,7 @@ bool FlightPipeline::observe(BallSample sample) {
     }
     TrustedSpin replay_spin;
     for (const auto &s : shot_.samples()) {
+      tracker_history_.push_back({s.source_time_ns, tracker_.export_checkpoint()});
       tracker_.observe(s);
       replay_spin.observe(s);
       for (const auto &event : shot_.events())
@@ -1004,6 +1013,10 @@ bool FlightPipeline::observe(BallSample sample) {
   }
   if (!admitted)
     return false;
+  tracker_history_.push_back({sample.source_time_ns, tracker_.export_checkpoint()});
+  while (!tracker_history_.empty() && !shot_.samples().empty() &&
+         tracker_history_.front().next_observation_ns < shot_.samples().front().source_time_ns)
+    tracker_history_.pop_front();
   const auto update = tracker_.observe(sample);
   if (update.new_track && update.reason != "initial_observation")
     shot_.set_history_continuity(HistoryContinuity::kIncomplete);
@@ -1021,6 +1034,9 @@ bool FlightPipeline::observe(BallSample sample) {
       return update.accepted;
     const auto &low = *minimum;
     const auto &b = samples[n - 1];
+    for (std::size_t i=n-4; i<n; ++i)
+      if ((static_cast<long double>(samples[i].source_time_ns)-samples[i-1].source_time_ns)*1e-9L >
+          config_.gap_warning_s) return update.accepted;
     const double ta = double(
         (static_cast<long double>(low.source_time_ns) - a.source_time_ns) *
         1e-9L);
@@ -1039,6 +1055,7 @@ bool FlightPipeline::observe(BallSample sample) {
       pre.position = low.position;
       pre.velocity = (low.position - a.position) / ta;
       pre.spin = shot_.spin();
+      const auto count_before = shot_.observed_contacts();
       shot_.confirm(
           PhysicalEventKind::TABLE, low.source_time_ns, b.source_time_ns, pre,
           "source_reversal_bracket",
@@ -1048,6 +1065,26 @@ bool FlightPipeline::observe(BallSample sample) {
       if (!shot_.active()) {
         tracker_.reset();
         return false;
+      }
+      if (shot_.observed_contacts() > count_before) {
+        // Delayed observation of a contact can invalidate angular increments
+        // used by the last few CKF propagations. Reapply only that bounded
+        // source suffix from an actual saved checkpoint, never restart a shot
+        // or inject the post-contact velocity as a position measurement.
+        auto checkpoint = tracker_history_.end();
+        for (auto it = tracker_history_.begin(); it != tracker_history_.end(); ++it)
+          if (it->next_observation_ns <= (minimum - 1)->source_time_ns) checkpoint = it;
+        if (checkpoint != tracker_history_.end()) {
+          const auto resume = checkpoint->next_observation_ns;
+          tracker_.restore_checkpoint(checkpoint->before);
+          tracker_.set_effective_spin(checkpoint->before.belief.effective_spin);
+          tracker_history_.erase(checkpoint, tracker_history_.end());
+          for (const auto &s : samples) if (s.source_time_ns >= resume) {
+            tracker_history_.push_back({s.source_time_ns, tracker_.export_checkpoint()});
+            tracker_.observe(s);
+            tracker_.set_effective_spin(shot_.spin_at(s.source_time_ns));
+          }
+        }
       }
       tracker_.set_effective_spin(shot_.spin());
     }
