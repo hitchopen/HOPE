@@ -194,6 +194,34 @@ TEST(PR64Review, RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce) {
     RecordProperty("confirmed_ids_"+std::to_string(rate),std::to_string(ids.size()));
   }
 }
+TEST(PR64Review, RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation) {
+  for(int rate:{150,300}) {
+    ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
+    FlightPipeline original(c,settings),restored(c,settings);
+    ModelState state;state.position=Vec3(1.5,-.7,.2525);state.velocity=Vec3(-20,0,-5);
+    original.start(observation(0,state).source_time_ns,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+    EventGeometry g;bool transferred=false;int continued=0;
+    for(int i=0;i<rate/5;++i) {
+      auto s=observation(i*1./rate,state);original.observe(s);
+      if(transferred) {
+        restored.observe(s);++continued;
+        EXPECT_EQ(restored.shot().observed_contacts(),1);
+        EXPECT_EQ(restored.shot().revision(),original.shot().revision());
+      } else if(original.shot().observed_contacts()==1) {
+        auto snapshot=original.shot().export_snapshot();
+#ifndef HOPE_PR64_BASELINE
+        snapshot.spin_checkpoint.reset();
+        for(auto &e:snapshot.events) {e.reversal_sample_ns.reset();e.bracket_begin_ns=e.bracket_end_ns=0;}
+#endif
+        restored.restore(snapshot,original.checkpoint(),original.source_origin_ns());
+        transferred=true;
+      }
+      auto step=advance_ball(state,1./rate,c.physics,g);
+      if(state.position.x()<.15||step.stopped)break;
+    }
+    EXPECT_TRUE(transferred);EXPECT_GE(continued,2);
+  }
+}
 TEST(PR64Review, RV05_DelayedContactSegmentsQuaternionWindow) {
   for (int rate : {150, 300}) {
     TrustedSpin spin;

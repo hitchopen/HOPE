@@ -3,6 +3,43 @@
 #include <rclcpp/serialization.hpp>
 #include <rclcpp/serialized_message.hpp>
 using namespace hope_planner_cpp;
+TEST(FlightTransportV2, RV03_RV06_PacketResumeCannotReconfirmTheSameReversal) {
+  for(int rate:{150,300}) for(bool known:{false,true}) {
+    ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
+    FlightPipeline original(c,settings),restored(c,settings);
+    constexpr std::int64_t epoch=20000000000LL;
+    original.start(epoch,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
+    ModelState state;state.position=Vec3(1.5,-.7,.2525);state.velocity=Vec3(-20,0,-5);
+    if(known){state.spin.omega=Vec3::Zero();state.spin.mode=EffectiveSpinMode::MEASURED;}
+    EventGeometry g;HitPlaneSnapshot plane;plane.calibrated=true;plane.x_hit_m=.15;plane.frame_id="table";
+    bool transferred=false;int continued=0;
+    for(int i=0;i<rate/5;++i) {
+      BallSample sample;sample.source_time_ns=epoch+std::llround(i*1e9/rate);
+      sample.position=state.position;sample.frame_id="table";sample.clock_domain="simulation";
+      sample.ball_id="wire_ball";sample.calibration_id="wire";
+      sample.producer_omega_valid=known;
+      if(known)sample.producer_omega_rad_s=*state.spin.omega;
+      original.observe(sample);
+      if(transferred) {
+        restored.observe(sample);++continued;
+        EXPECT_EQ(restored.shot().observed_contacts(),1);
+        EXPECT_EQ(restored.shot().revision(),original.shot().revision());
+        EXPECT_LT((restored.checkpoint().belief.mean-original.checkpoint().belief.mean).norm(),1e-10);
+        EXPECT_EQ(restored.shot().spin().omega,original.shot().spin().omega);
+      } else if(original.shot().observed_contacts()==1) {
+        auto prediction=original.forecast(plane,sample.source_time_ns);
+        auto packet=encode_packet_v2(original,prediction,"wire_resume","producer","config");
+        rclcpp::Serialization<hope_msgs::msg::FlightPacketV2> serializer;
+        rclcpp::SerializedMessage bytes;serializer.serialize_message(&packet,&bytes);
+        hope_msgs::msg::FlightPacketV2 received;serializer.deserialize_message(&bytes,&received);
+        restore_packet_v2(restored,received,"config");transferred=true;
+      }
+      auto step=advance_ball(state,1./rate,c.physics,g);
+      if(state.position.x()<.15||step.stopped)break;
+    }
+    EXPECT_TRUE(transferred);EXPECT_GE(continued,2);
+  }
+}
 TEST(FlightTransportV2, B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip) {
   for (auto ns : {std::int64_t(0), std::int64_t(1792412345678901234LL)})
     for (bool authoritative : {false, true}) {

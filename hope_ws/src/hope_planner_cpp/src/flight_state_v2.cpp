@@ -824,7 +824,7 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   candidates_.clear();
   net_crossed_ = false;
   next_event_id_ = 1;
-  for (const auto &e : events_) {
+  for (auto &e : events_) {
     if (e.generation != generation_ || !e.id ||
         e.time_uncertainty_ns < 0 ||
         (boundary_qualified_ && e.status == EventStatus::CONFIRMED &&
@@ -832,6 +832,27 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
         (e.status == EventStatus::CONFIRMED &&
          e.confirmed_at_ns < e.event_time_ns))
       throw std::invalid_argument("invalid snapshot ledger");
+    if (e.kind == PhysicalEventKind::TABLE && e.status == EventStatus::CONFIRMED &&
+        e.source == "source_reversal_bracket" && !e.reversal_sample_ns) {
+      // The unchanged wire already carries the exact confirmation sample and
+      // bounded raw history. Reconstruct the original five-point window's
+      // reversal key; packet resume must not mint a second physical contact.
+      auto end = std::find_if(samples_.begin(),samples_.end(),[&](const auto &s) {
+        return s.source_time_ns == e.confirmed_at_ns;
+      });
+      if (end != samples_.end() && end-samples_.begin() >= 4) {
+        const auto first=end-4;
+        const auto low=std::min_element(first,end+1,[](const auto &a,const auto &b) {
+          return a.position.z()<b.position.z();
+        });
+        if (low!=first && low!=end && e.event_time_ns >= (low-1)->source_time_ns &&
+            e.event_time_ns <= (low+1)->source_time_ns) {
+          e.reversal_sample_ns=low->source_time_ns;
+          e.bracket_begin_ns=(low-1)->source_time_ns;
+          e.bracket_end_ns=(low+1)->source_time_ns;
+        }
+      }
+    }
     if (e.kind == PhysicalEventKind::TABLE &&
         e.status == EventStatus::CONFIRMED)
       spin_.remember_contact(e.id, e.event_time_ns);

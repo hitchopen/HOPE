@@ -173,7 +173,7 @@ def run(executable, rate, full_rate=50., worker_delay_ms=0):
             assert not message.current_state.spin_available
             assert message.current_state.position.z < .76, 'physical state received policy height offset'
             assert message.model_config_id.startswith('flight-model-v3:sha256:')
-            assert message.physics_profile == 'thin-shell-forward-v3-receipt-20261010'
+            assert message.physics_profile == 'thin-shell-forward-v4-pr64-causal-contact-finite-net-20261021'
             for event in message.events:
                 assert event.event_time_ns == event.prediction_reference_time_ns + event.arrival_dt_ns
         assert all(p.target_event_id > 0 and p.target_kind for p in forecasts if p.target_valid)
