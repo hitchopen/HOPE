@@ -957,3 +957,15 @@ button:disabled {
   padding: 0.5rem;
   font: 0.75rem "IBM Plex Mono", monospace;
 }
+
+.plane-mode-controls {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  font-size: 12px;
+  border: 1px solid var(--border, #59616d);
+  border-radius: 6px;
+}
+.plane-mode-controls label { display: grid; gap: 6px; }
+.plane-mode-controls select { width: 100%; min-width: 0; padding: 6px; }
+.plane-mode-controls [role="alert"] { color: #ff968d; }

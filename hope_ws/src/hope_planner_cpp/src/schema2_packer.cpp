@@ -5,10 +5,10 @@
 namespace hope_planner_cpp {
 
 WireIdentity Schema2Packer::next_identity(
-    bool valid, std::int64_t steady_now_ns) noexcept {
+    bool valid, std::int64_t steady_now_ns, bool new_physical_flight) noexcept {
   ++command_sequence_;
   if (valid) {
-    if (last_valid_steady_ns_ <= 0 || steady_now_ns <= last_valid_steady_ns_ ||
+    if (new_physical_flight || last_valid_steady_ns_ <= 0 || steady_now_ns <= last_valid_steady_ns_ ||
         steady_now_ns - last_valid_steady_ns_ > 250'000'000LL) {
       ++flight_id_;
       revision_id_ = 1;

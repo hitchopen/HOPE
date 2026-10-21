@@ -10,6 +10,8 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import { PlaneModeControls } from "./PlaneModeControls";
+import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
@@ -23,6 +25,7 @@ import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
 
 const TOPICS = {
+  plannerDiagnostics: "/planner/diagnostics",
   fieldStatus: "/hope/field/status",
   ntpOffset: "/hope/ntp/offset_ms",
   ntpSkew: "/hope/ntp/skew_ppm",
@@ -260,6 +263,7 @@ type Snapshot = {
   lastReason?: string;
   xHitSuccess?: boolean;
   xHitStatus?: string;
+  planeMode?: PlaneModeState;
   field?: FieldStatus;
   lifecycleState?: string;
   lifecycleStep?: string;
@@ -319,6 +323,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
+    case TOPICS.plannerDiagnostics:
+      next.planeMode = decodePlaneMode(event.message);
+      break;
     case TOPICS.fieldStatus:
       try {
         next.field = JSON.parse(stringValue(event.message) ?? "null") as FieldStatus;
@@ -761,6 +768,26 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     },
     [busy, context],
   );
+
+  const applyPlaneMode = useCallback(async (mode: PlaneMode) => {
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(PLANE_MODE_SERVICE, planeModeRequest(mode)), timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.planeMode?.requested === mode) {
+        setNotice("已确认下一球平面模式；本球目标保持不变。");
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("请求已接受，状态回读超时；请核对下一球模式。");
+  }, [context]);
 
   const fieldCommand = useCallback(async (payload: Record<string, unknown>) => {
     const recording = payload.op === "record_on" || payload.op === "record_off";
@@ -1560,6 +1587,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </button>
           </div>
         </div>
+          <PlaneModeControls
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.planeMode : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.planeMode?.configurable === true}
+            onApply={applyPlaneMode}
+          />
         <div className="action-grid">
           <ActionButton
             label="Stand"
@@ -1581,13 +1614,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           {!kernelMode && <ActionButton
             label="Refresh x_hit"
             detail={
-              snapshot.xHitSuccess === true
+              snapshot.planeMode?.configurable === true
+                ? "HOME 由 Runner 捕获；重新进入 policy 模式更新 HOME"
+                : snapshot.xHitSuccess === true
                 ? (snapshot.xHitStatus ?? "DONE · Planner acknowledged")
                 : runnerStanding
                   ? (snapshot.xHitStatus ?? "refresh Planner x_hit only")
                   : "LOCKED · stand first"
             }
-            disabled={!runnerUsable || !runnerStanding}
+            disabled={!runnerUsable || !runnerStanding || snapshot.planeMode?.configurable === true}
             busy={busy.refreshXHit === true}
             completed={snapshot.xHitSuccess === true}
             next={false}
