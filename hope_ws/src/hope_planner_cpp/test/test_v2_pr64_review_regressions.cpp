@@ -114,7 +114,7 @@ TEST(PR64Review, RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly) {
       p.observe(observation(.5+i*1./rate,state));
       integrate_ball(state,1./rate,{});
     }
-    EXPECT_TRUE(p.shot().active())<<p.shot().reason();
+    ASSERT_TRUE(p.shot().active())<<p.shot().reason();
     EXPECT_EQ(p.shot().continuity(),HistoryContinuity::kUnknown);
     EXPECT_GT(p.shot().samples().front().source_time_ns,observation(.49,{}).source_time_ns);
   }
