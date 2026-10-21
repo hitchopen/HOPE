@@ -8,8 +8,10 @@ from pathlib import Path
 import signal
 import subprocess
 import threading
+import time
 
 from hope_field_assets import atomic_write, asset_name, calibration_metadata
+from hope_ball_models import PROFILES
 
 MODES = {"OPTITRACK", "KERNEL"}
 
@@ -103,7 +105,9 @@ class FieldOperations:
         self.exchange = exchange
         self.recorder = recorder or ManagedRecorder(Path("/agibot/data/bag/hope_pingpong_telemetry"))
         self._lock = threading.RLock()
-        self._data = {"mode": "OPTITRACK", "csv": None, "calibration": None}
+        self._data = {"mode": "OPTITRACK", "csv": None, "calibration": None, "ball_model": None}
+        self.ball_model_status = {"state": "CHECKING", "configured_model": None, "endpoints": {}}
+        self._ball_checked_at = None
         self.calibration_sync = "NOT_CHECKED"
         self.error = ""
         try:
@@ -112,6 +116,8 @@ class FieldOperations:
                 saved["mode"] = "KERNEL"
             if saved.get("mode") not in MODES:
                 raise ValueError("invalid saved operating mode")
+            if saved.get("ball_model") is not None and saved["ball_model"] not in PROFILES:
+                raise ValueError("invalid saved ball model")
             self._data.update({key: saved.get(key) for key in self._data})
         except FileNotFoundError:
             pass
@@ -123,8 +129,36 @@ class FieldOperations:
 
     def status(self) -> dict:
         with self._lock:
-            return {**self._data, "calibration_sync": self.calibration_sync,
+            ball_status = {**self.ball_model_status, "age_s":
+                           None if self._ball_checked_at is None else time.monotonic() - self._ball_checked_at}
+            return {**self._data, "ball_model_status": ball_status, "calibration_sync": self.calibration_sync,
                     "error": self.error, "recording": self.recorder.status()}
+
+    def refresh_ball_models(self, config) -> dict:
+        endpoints = {}
+        for host in ("hdu", "laptop"):
+            try:
+                endpoints[host] = self.exchange(host, config, {"op": "inspect_ball_model"})
+            except (OSError, ValueError, subprocess.SubprocessError) as exc:
+                endpoints[host] = {"runtime": "UNAVAILABLE", "error": str(exc)[-400:]}
+        models = [e.get("configured_model") for e in endpoints.values()]
+        runtimes = [e.get("runtime") for e in endpoints.values()]
+        same = models[0] is not None and models[0] == models[1]
+        if "UNAVAILABLE" in runtimes:
+            state = "UNAVAILABLE"
+        elif not same or "MISMATCH" in runtimes:
+            state = "MISMATCH"
+        elif all(r == "VERIFIED" for r in runtimes):
+            state = "LOADED"
+        else:
+            state = "CONFIGURED"
+        with self._lock:
+            if self._data["ball_model"] is not None and models != [self._data["ball_model"]] * 2:
+                state = "MISMATCH"
+            self.ball_model_status = {"state": state, "configured_model": models[0] if same else None,
+                                      "endpoints": endpoints}
+            self._ball_checked_at = time.monotonic()
+        return self.status()
 
     def refresh(self, config) -> None:
         """Adopt an existing or explicitly recomputed receipt. Never capture or start ROS."""
@@ -150,9 +184,42 @@ class FieldOperations:
 
     def command(self, request: dict, config, *, stopped: bool) -> dict:
         operation = request.get("op")
-        if operation in {"set_mode", "upload_csv", "use_default_csv", "load_calibration"} and not stopped:
+        if operation in {"set_mode", "upload_csv", "use_default_csv", "load_calibration", "set_ball_model"} and not stopped:
             raise ValueError("stop the Runner lifecycle before changing mode, CSV or calibration")
-        if operation == "set_mode":
+        if operation == "set_ball_model":
+            model = request.get("model")
+            if model not in PROFILES:
+                raise ValueError("ball model must be berkeley, ppq002 or ppq004")
+            previous = {host: self.exchange(host, config, {"op": "read_ball_model"})["model"]
+                        for host in ("laptop", "hdu")}
+            attempted = []
+            try:
+                for host in ("laptop", "hdu"):
+                    attempted.append(host)  # Even a timed-out write may have committed.
+                    result = self.exchange(host, config, {"op": "select_ball_model", "model": model})
+                    if result.get("model") != model:
+                        raise ValueError(f"{host} did not confirm ball model")
+                with self._lock:
+                    old_model = self._data["ball_model"]
+                    self._data["ball_model"] = model
+                    try:
+                        self._save()
+                    except Exception:
+                        self._data["ball_model"] = old_model
+                        raise
+            except Exception as exc:
+                failed = []
+                for host in reversed(attempted):
+                    try:
+                        restored = self.exchange(host, config, {"op": "select_ball_model", "model": previous[host]})
+                        if restored.get("model") != previous[host]:
+                            raise ValueError("rollback was not confirmed")
+                    except Exception:
+                        failed.append(host)
+                if failed:
+                    raise ValueError(f"ball model update failed; rollback unconfirmed on {failed}: {exc}") from exc
+                raise
+        elif operation == "set_mode":
             request = {**request, "mode": "KERNEL" if request.get("mode") == "PURE_SERVE" else request.get("mode")}
             if request.get("mode") not in MODES:
                 raise ValueError("mode must be OPTITRACK or KERNEL")
@@ -191,12 +258,22 @@ class FieldOperations:
             self.recorder.stop()
         else:
             raise ValueError("unsupported field operation")
+        if operation == "set_ball_model":
+            return self.refresh_ball_models(config)
         return self.status()
 
     def runner_selection(self, config) -> tuple[str, str]:
         with self._lock:
             mode = self._data["mode"]
             csv = self._data["csv"]
+        if mode != "KERNEL":
+            # Also verify an absent selection: an interrupted/uncertain write
+            # must not leave an unnoticed one-sided physics override.
+            verified = [self.exchange(host, config, {"op": "verify_ball_model", "model": self._data["ball_model"]})
+                        for host in ("laptop", "hdu")]
+            models = [result.get("configured_model") for result in verified]
+            if models[0] is None or models[0] != models[1]:
+                raise ValueError("Planner and packetizer configured ball models do not match")
         digest = "DEFAULT"
         if csv:
             # Recheck existence and bytes before changing any hardware state.

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# A script file avoids distrobox-enter's shell re-parsing of inline bash -c.
+set -eo pipefail
+root="$1"
+source /opt/ros/jazzy/setup.bash
+set -u
+exec python3 "$root/foxglove/a3/hope_ball_models.py" --role laptop \
+  --config-dir "$root/hope_ws/src/hope_planner_cpp/config" \
+  --base-config "$root/hope_ws/install/hope_planner_cpp/share/hope_planner_cpp/config/model21800_flight_packetizer.yaml"

@@ -85,7 +85,7 @@ class OperatorProfileTests(unittest.TestCase):
             def run(argv, **kwargs):
                 calls.append(argv)
                 stdout = ("HOPE_LIFECYCLE_V1 step=COLLECT state=COMPLETE reason=LOGS_COLLECTED\n"
-                          if "collect" in argv else "{}")
+                          if "collect" in argv else json.dumps({"configured_model": "berkeley", "runtime": "VERIFIED"}))
                 return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
             backend = namespace["LifecycleBackend"](run=run)
             config = LifecycleConfig(laptop_wifi_ip="10.44.1.2", hdu_wifi_ip="10.44.1.3",
@@ -100,10 +100,10 @@ class OperatorProfileTests(unittest.TestCase):
                     ssh_calls = [argv for argv in calls if argv[0] == "/usr/bin/ssh"]
                     host_index = 1 + len(namespace["SSH_OPTIONS"])
                     laptop_calls = [argv for argv in ssh_calls if argv[host_index] != "agi@10.42.10.12"]
-                    self.assertEqual(len(laptop_calls), 6)
+                    self.assertEqual(len(laptop_calls), 7)
                     self.assertEqual({argv[host_index + 2] for argv in laptop_calls},
                                      {"preflight-laptop", "prepare-laptop", "stop-capture-laptop",
-                                      "collect", "record-control", "field-assets-laptop"})
+                                      "collect", "record-control", "field-assets-laptop", "ball-model-laptop"})
                     for argv in laptop_calls:
                         if profile == "linux":
                             self.assertEqual(argv[host_index:host_index + 2],
@@ -120,22 +120,24 @@ class OperatorProfileTests(unittest.TestCase):
         namespace = backend_namespace({})
         calls = []
         backend = namespace["LifecycleBackend"](
-            run=lambda argv, **kwargs: calls.append(argv) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+            run=lambda argv, **kwargs: calls.append(argv) or SimpleNamespace(returncode=0, stdout=json.dumps({"configured_model": "berkeley", "runtime": "VERIFIED"}), stderr=""))
         for mode in ("KERNEL", "OPTITRACK"):
             for profile in ("mac", "linux"):
                 calls.clear()
                 config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
-                    mdu_internal_ip="10.42.10.12", operator_profile=profile, gripper_profile="new_20261015")
+                    mdu_internal_ip="10.42.10.12", operator_profile=profile, gripper_profile="new_20261015", revision=1)
                 backend.start(config, "model21800_20261018T050406Z", lambda event: None, mode)
                 self.assertTrue(calls)
                 for argv in calls:
+                    if any(a in argv for a in ("ball-model-hdu", "ball-model-laptop")):
+                        continue
                     self.assertEqual(argv[-3:], [mode, "DEFAULT", "new_20261015"])
 
     def test_kernel_mode_never_contacts_either_operator(self):
         namespace = backend_namespace({})
         calls = []
         backend = namespace["LifecycleBackend"](
-            run=lambda argv, **kwargs: calls.append(argv) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+            run=lambda argv, **kwargs: calls.append(argv) or SimpleNamespace(returncode=0, stdout=json.dumps({"configured_model": "berkeley", "runtime": "VERIFIED"}), stderr=""))
         for profile in ("mac", "linux"):
             config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", mdu_internal_ip="10.42.10.12",
                                      operator_profile=profile)

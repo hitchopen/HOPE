@@ -33,6 +33,8 @@ class FieldAssetsTest(unittest.TestCase):
 
     def exchange(self, host, config, request):
         self.calls.append((host, request["op"]))
+        if request["op"] == "verify_ball_model":
+            return {"configured_model": "ppq004", "runtime": "VERIFIED"}
         if host == "laptop":
             return calibration_request(self.root / "laptop", request)
         return csv_request(self.root / "mdu", Path("/fixed/runner"), request, run=self.validate)
@@ -134,7 +136,7 @@ class FieldAssetsTest(unittest.TestCase):
     def test_mode_switch_preserves_and_verifies_the_selected_csv(self):
         def exchange(host, config, request):
             if request["op"] == "verify_ball_model":
-                return {}
+                return {"configured_model": "ppq004", "runtime": "VERIFIED"}
             return self.exchange(host, config, request)
         field = FieldOperations(self.root / "hdu", exchange,
             recorder=ManagedRecorder(self.root / "recordings"))
@@ -265,6 +267,7 @@ class LifecycleModeTest(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertFalse(any("collect" in argv for argv in calls))
         calls.clear()
+        backend.exchange_assets = lambda *_: {"configured_model": "ppq004", "runtime": "VERIFIED"}
         backend.start(config, session, lambda event: None)
         self.assertTrue(any("start-base" in argv for argv in calls))
         self.assertTrue(any("start-planner" in argv for argv in calls))

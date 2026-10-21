@@ -69,6 +69,14 @@ def snapshot(root, output, role):
         shutil.copy2(src, dst)
         entries.append({"source": str(src), "copy": str(dst.relative_to(output)),
                         "sha256": sha256(dst), "bytes": dst.stat().st_size})
+    selection = (Path("/var/lib/hope-lifecycle/ball_physics.json") if role == "hdu" else
+                 Path.home() / ".config/hope-foxglove/ball_physics.json")
+    if role in {"hdu", "laptop"} and selection.is_file():
+        dst = output / "configuration/selected_ball_physics.json"
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(selection, dst)
+        entries.append({"source": str(selection), "copy": str(dst.relative_to(output)),
+                        "sha256": sha256(dst), "bytes": dst.stat().st_size})
     if role == "mdu":
         for name in ("a3_deploy_onnx_ref_pingpong", "a3_body_drive_debug_record",
                      "libaimrt_record_playback_plugin.so", "liba3_body_drive_debug_ros2_ts.so"):

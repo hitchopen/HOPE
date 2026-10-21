@@ -18,6 +18,9 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    # Written by the stopped-only Foxglove ball selector; late override wins.
+    ball_profile = Path.home() / ".config/hope-foxglove/ball_physics.json"
+    ball_overrides = [str(ball_profile)] if ball_profile.exists() else []
     config = Path(__file__).resolve().parent.parent / "config/avatar_pro_vrpn.yaml"
     arg = LaunchConfiguration
     typed = lambda name, kind: ParameterValue(arg(name), value_type=kind)
@@ -76,6 +79,7 @@ def generate_launch_description():
              condition=IfCondition(arg("start_flight_packetizer")), parameters=[
                  PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
                                        "model21800_flight_packetizer.yaml"]),
+                 *ball_overrides,
                  {"session_id": arg("debug_session_id"), "flight_packet_topic": "/ball/flight_packet"},
              ]),
     ]

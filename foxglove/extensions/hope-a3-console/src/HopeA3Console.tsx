@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import { BallModelStatus, ballModelDisplay } from "./ballModelStatus";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
@@ -120,6 +121,9 @@ type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
+  ball_model_status?: BallModelStatus;
+  ball_model?: "berkeley" | "ppq002" | "ppq004" | null;
+  ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
   calibration?: { name: string; sha256: string; profile: string; table_side: string } | null;
   calibration_sync: string;
@@ -941,6 +945,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const fieldFresh = isFresh(snapshot, TOPICS.fieldStatus, now, 2_000);
   const field = snapshot.field;
   const kernelMode = field?.mode === "KERNEL";
+  const ballDisplay = ballModelDisplay(field?.ball_model_status, fieldFresh);
   const assetEditable = fieldFresh && lifecycleState === "STOPPED" && !lifecycleBusy &&
     !fieldBusy && field?.busy !== true && !configTouched && (snapshot.lifecycleConfigRevision ?? 0) > 0;
   const recordingState = fieldFresh ? (field?.recording.state ?? "UNKNOWN") : "UNKNOWN";
@@ -1288,6 +1293,22 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </label>
           </>}
         </div>
+        <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">BALL PHYSICS · 球物理模型</div>
+            <div className="topic-path">停止后选择；保存到 Planner 和球包器，下次启动生效</div>
+          </div>
+          <select aria-label="Ball physics model" value={ballDisplay.value}
+            disabled={!assetEditable || fieldBusy || kernelMode || field?.ball_model_status == undefined}
+            onChange={(event) => void fieldCommand({ op: "set_ball_model", model: event.target.value })}>
+            <option value="" disabled>两端未确认同一模型</option>
+            <option value="berkeley">伯克利球 · 原模型 2026-10-10</option>
+            <option value="ppq002">我们的一星球 · PPQ002</option>
+            <option value="ppq004">我们的三星球 · PPQ004 · 统一模型 2026-10-20</option>
+          </select>
+        </label>
+        <p className="helper" role="status">{ballDisplay.text}</p>
+        <p className="helper">切换后请重启 Laptop 动捕／球包器，再 START SYSTEM；启动会检查实际物理参数，混用旧模型时拒绝启动。已保存的选择不代表当前进程已切换。</p>
         <div className="mocap-setup">
           {configDraft.mocap_source === "motive" && <p className="helper">Motive setup：导入 pelvis 对齐的 .motive 资产，刚体名 UCB_P1 / UCB_P2，球名 Ball；设置 Streaming Up Axis = Z，开启 NatNet Rigid Bodies 和 Labeled Markers。</p>}
           {vrpnSelected && <>
@@ -1363,6 +1384,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               (snapshot.lifecycleConfigRevision ?? 0) < 1 ||
               configTouched ||
               fieldBusy || field?.busy === true || !fieldFresh ||
+              (!kernelMode && !ballDisplay.ready) ||
               busy.startLifecycle === true
             }
             onClick={() => void startSystem()}
