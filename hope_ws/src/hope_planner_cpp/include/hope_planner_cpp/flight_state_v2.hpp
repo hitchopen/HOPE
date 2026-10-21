@@ -62,6 +62,9 @@ struct ShotSettings {
   double max_source_age_s = .030, supported_sigma = 3.,
          supported_time_margin_s = .001;
   bool service_armed = false;
+  // Application opt-in: retain game-illegal evidence without retiring the
+  // physical track. Standalone forecasting retains its established default.
+  bool game_legality_advisory = false;
   void validate() const;
 };
 inline constexpr const char *kFlightPhysicsProfile =

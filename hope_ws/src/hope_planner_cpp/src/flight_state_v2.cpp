@@ -60,6 +60,7 @@ std::string flight_model_config_id(const ProbabilisticConfig &c,
     out << ';' << value;
   out << ';' << s.observation_capacity << ';' << s.candidate_capacity << ';'
       << s.event_capacity << ';' << s.service_armed;
+  if (s.game_legality_advisory) out << ";game_legality_advisory";
   return "flight-model-v3:sha256:" + sha256(out.str());
 }
 void set_flight_parameter(ProbabilisticConfig &c, ShotSettings &s,
@@ -438,6 +439,21 @@ void ShotContext::set_history_continuity(HistoryContinuity continuity) {
 void ShotContext::reclassify() {
   if (!active())
     return;
+  if (settings_.game_legality_advisory) {
+    bool striker_bounce = false;
+    for (const auto &event : events_)
+      if (event.status == EventStatus::CONFIRMED) {
+        if (event.kind == PhysicalEventKind::NET_CROSSING) net_crossed_ = true;
+        if (event.kind == PhysicalEventKind::TABLE &&
+            ((direction_ < 0 && event.side == ContactSide::kOpponent) ||
+             (direction_ > 0 && event.side == ContactSide::kReceiver))) striker_bounce = true;
+      }
+    state_ = direction_ < 0 ? (striker_bounce ? PlayState::OPPONENT_SERVE : PlayState::OPPONENT_RALLY)
+                            : (striker_bounce ? PlayState::SERVE : PlayState::RALLY);
+    route_ = state_;
+    classification_ = striker_bounce ? ClassificationStatus::CONFIRMED : ClassificationStatus::PROVISIONAL;
+    return;
+  }
   const auto striker =
       direction_ > 0 ? ContactSide::kReceiver : ContactSide::kOpponent;
   int striker_contacts = 0, receiver_contacts = 0;
