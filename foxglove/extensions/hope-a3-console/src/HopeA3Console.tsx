@@ -10,8 +10,6 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
-import { PlaneModeControls } from "./PlaneModeControls";
-import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
@@ -22,6 +20,9 @@ import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
+import { PlaneModeControls } from "./PlaneModeControls";
+import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
+
 import "./styles.css";
 
 const TOPICS = {
