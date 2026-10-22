@@ -216,7 +216,7 @@ class OperationsDrainTests(unittest.TestCase):
                     drain_thread.join(5)
                 if not destroyed.is_set():
                     node.close()
-                    executor.shutdown(wait_for_threads=True)
+                    __import__("hope_operations_runtime").shutdown_executor(executor)
                     node.destroy_node()
                 probe.destroy_node()
                 rclpy.try_shutdown()

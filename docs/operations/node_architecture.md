@@ -403,3 +403,19 @@ units. Retain a coherent previous module/unit/native/helper bundle for rollback.
 Validation for this change is isolated ROS transport/concurrency testing and
 source checks. Venue interface selection, field Runner rematching and CPU
 profiling still require a separate stopped deployment and attended field test.
+
+## Early Jazzy executor compatibility
+
+Source-built Jazzy rclpy 7.1.6 has no `wait_for_threads` shutdown argument
+and does not join the MultiThreadedExecutor worker pool. Once spinning stops,
+join that pool before the base executor destroys guard conditions. Newer
+Jazzy keeps its public `shutdown(wait_for_threads=True)` path. During drain,
+ignore only a second delivery of the identical already-propagating exception;
+other callback failures remain diagnostic. Operations and Monitor use the same
+shutdown adapter.
+
+On the deployed HDU (Python 3.11 / rclpy 7.1.6), the final 14 runtime,
+reconnect, drain, timeout, service and Monitor checks passed without the prior
+shutdown warning. A managed START then reached PASSIVE with the native gateway
+HEALTHY and a matching Runner session; this is startup transport evidence, not
+an injected network-failure recovery test or physical-hit qualification.

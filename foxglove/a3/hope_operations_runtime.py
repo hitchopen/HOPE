@@ -1,5 +1,7 @@
 """Graceful ROS shutdown for operations and lifecycle/command compatibility entries."""
 import signal
+import inspect
+import sys
 import math
 import threading
 import time
@@ -9,7 +11,26 @@ from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.signals import SignalHandlerOptions
 
 
-def drain_and_destroy(node, executor, *, response_grace_s=0.2, response_timeout_s=5.0):
+def shutdown_executor(executor, *, abandon_responses=False):
+    """Join callback threads on both early and current Jazzy executors.
+
+    HDU rclpy 7.1.6 inherits Executor.shutdown: it neither accepts
+    wait_for_threads nor joins MultiThreadedExecutor's worker pool. Stop
+    admission first, then explicitly join that pool before destroying nodes.
+    Inspect the installed base API rather than catching unrelated TypeErrors.
+    """
+    kwargs = {"timeout_sec": 0.0} if abandon_responses else {}
+    if "wait_for_threads" in inspect.signature(MultiThreadedExecutor.shutdown).parameters:
+        executor.shutdown(**kwargs, wait_for_threads=True)
+    else:
+        # The caller has stopped spinning. Early Executor.shutdown destroys
+        # guard conditions without waiting for callbacks; join first so a
+        # finishing callback cannot touch a guard already marked for deletion.
+        executor._executor.shutdown(wait=True)
+        executor.shutdown(**kwargs)
+
+
+def drain_and_destroy(node, executor, *, response_grace_s=0.2, response_timeout_s=5.0, callback_error=None):
     """Drain workers and suspended RPCs while keeping status and DDS live.
 
     A completed worker does not mean its ROS service response has been sent.
@@ -83,20 +104,17 @@ def drain_and_destroy(node, executor, *, response_grace_s=0.2, response_timeout_
                 except Exception as exc:
                     # A telemetry callback failure must not abandon lifecycle
                     # ownership or strand a command waiting for a DDS receipt.
-                    report("callback", exc)
+                    # Early Jazzy can enqueue the same completed Task twice.
+                    # Its already-propagating exception is not a new drain fault.
+                    if exc is not callback_error:
+                        report("callback", exc)
             else:
                 done.wait(0.05)
     finally:
         # Keep cleanup joined even if a non-callback interruption escapes.
         cleanup.join()
         try:
-            if abandon_responses:
-                # Do not wait again for suspended coroutine work in the base
-                # executor. Running callback threads must still join before
-                # their ROS entities are destroyed.
-                executor.shutdown(timeout_sec=0.0, wait_for_threads=True)
-            else:
-                executor.shutdown(wait_for_threads=True)
+            shutdown_executor(executor, abandon_responses=abandon_responses)
         finally:
             node.destroy_node()
 
@@ -120,7 +138,7 @@ def run_node(node_factory, *, num_threads=4):
         try:
             if node is not None:
                 if executor is not None:
-                    drain_and_destroy(node, executor)
+                    drain_and_destroy(node, executor, callback_error=sys.exc_info()[1])
                 else:
                     node.destroy_node()
         finally:

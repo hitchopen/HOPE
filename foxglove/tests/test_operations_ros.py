@@ -173,7 +173,7 @@ class OperationsRosTests(unittest.TestCase):
                 release.set()
                 operations.stop_accepting()
                 operations.close()
-                executor.shutdown()
+                __import__("hope_operations_runtime").shutdown_executor(executor)
                 probe.destroy_node()
                 operations.destroy_node()
                 rclpy.shutdown()

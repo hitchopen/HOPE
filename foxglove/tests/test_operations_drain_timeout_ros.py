@@ -35,7 +35,10 @@ def test_suspended_response_times_out_only_after_worker_cleanup(tmp_path):
     assert report["events"] == ["admission_sealed", "cleanup_started", "cleanup_released",
                                 "cleanup_complete", "executor_shutdown", "node_destroyed",
                                 "context_shutdown"]
-    assert report["shutdown_arguments"] == {"timeout_sec": 0.0, "wait_for_threads": True}
+    expected_shutdown = {"timeout_sec": 0.0}
+    if report["native_thread_join"]:
+        expected_shutdown["wait_for_threads"] = True
+    assert report["shutdown_arguments"] == expected_shutdown
     assert report["response_timeout_s"] - 0.02 <= report["post_cleanup_elapsed_s"] < 3.0
     diagnostics = "\n".join(report["diagnostics"])
     assert "shutdown response drain timed out" in diagnostics
@@ -49,6 +52,7 @@ def test_suspended_response_times_out_only_after_worker_cleanup(tmp_path):
 
 
 def _run_child(report_path):
+    import inspect
     import threading
     import time
     from unittest.mock import Mock, patch
@@ -69,7 +73,8 @@ def _run_child(report_path):
     cleanup_finished_at, controller_errors = [], []
     logger = Mock()
     report = {"ros_distro": os.environ.get("ROS_DISTRO"), "events": [],
-              "response_timeout_s": response_timeout_s}
+              "response_timeout_s": response_timeout_s,
+              "native_thread_join": "wait_for_threads" in inspect.signature(MultiThreadedExecutor.shutdown).parameters}
     events = report["events"]
 
     class PendingService(RosComponent):
@@ -122,6 +127,9 @@ def _run_child(report_path):
             result = yield from super().__await__()
             # The real worker is finished, but its service coroutine can never
             # finish. This yields a real rclpy Future without blocking a thread.
+            # Older Jazzy polls suspended Tasks instead of registering a
+            # resume callback. Both versions have reached the unresolved wait.
+            response_waiting.set()
             yield from Future.__await__(never_completed)
             return result
 

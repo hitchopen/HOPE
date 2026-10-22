@@ -61,7 +61,7 @@ def runtime(tmp_path):
         finally:
             node.stop_accepting()
             node.close()
-            executor.shutdown(wait_for_threads=True)
+            __import__("hope_operations_runtime").shutdown_executor(executor)
             probe.destroy_node()
             node.destroy_node()
             rclpy.try_shutdown()

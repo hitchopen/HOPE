@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import struct
+import tempfile
 import sys
 import time
 import unittest
@@ -34,6 +35,8 @@ class NativeTransportTests(unittest.TestCase):
         self.extra_nodes = []
         self.processes = []
         self.logs = []
+        self.log_dir = tempfile.TemporaryDirectory(prefix="hope-native-test-")
+        self.addCleanup(self.log_dir.cleanup)
 
     def tearDown(self):
         for proc in self.processes:
@@ -60,7 +63,7 @@ class NativeTransportTests(unittest.TestCase):
                      'local_teleop_state_topic', 'remote_session_home_topic',
                      'local_session_home_topic')
             parameters = {**{key: '/cpu_native_test/' + key for key in names}, **parameters}
-        output = open('/tmp/' + name + '-isolated-test.log', 'w')
+        output = open(Path(self.log_dir.name) / (name + '-isolated-test.log'), 'w')
         self.logs.append(output)
         args = [str(Path(os.environ['HOPE_NATIVE_BIN_DIR']) / name), '--ros-args']
         for key, value in parameters.items():
@@ -132,7 +135,7 @@ class NativeTransportTests(unittest.TestCase):
         self.discover([pub], base)
         self.spin(1.1)
         self.assertEqual(received, [])
-        base_log = Path('/tmp/hope-base-pose-transport-relay-isolated-test.log')
+        base_log = (Path(self.log_dir.name) / 'hope-base-pose-transport-relay-isolated-test.log')
         self.assertIn('received=0 published=0 base_age=unseen', base_log.read_text())
         expected = []
         def send(sequence):
@@ -226,7 +229,7 @@ rclpy.shutdown()
             state.publish(Float64MultiArray(data=[2., 123., 1.]))
             self.spin(.1)
         self.assertTrue(received)
-        text = Path('/tmp/hope-transport-gateway-isolated-test.log').read_text()
+        text = (Path(self.log_dir.name) / 'hope-transport-gateway-isolated-test.log').read_text()
         self.assertIn('TRANSPORT GATEWAY HEALTHY', text)
         self.assertIn('local_state_subscribers=1', text)
         self.assertIn('operations_state_readers=1 operations_control_writers=1', text)
@@ -252,7 +255,7 @@ rclpy.shutdown()
             for _ in range(15):
                 state.publish(Float64MultiArray(data=[2., 123., 1.]))
                 self.spin(.1)
-        log = Path('/tmp/hope-transport-gateway-isolated-test.log')
+        log = (Path(self.log_dir.name) / 'hope-transport-gateway-isolated-test.log')
         feed()
         self.assertNotIn('TRANSPORT GATEWAY HEALTHY', log.read_text())
         self.assertIn('operations_state_readers=0 operations_control_writers=0', log.read_text())
@@ -282,7 +285,7 @@ rclpy.shutdown()
             'local_control_topic': '/cpu_native_test/control',
             'remote_control_topic': '/cpu_native_test/remote_control'})
         self.discover([state, control], proc)
-        log = Path('/tmp/hope-transport-gateway-isolated-test.log')
+        log = (Path(self.log_dir.name) / 'hope-transport-gateway-isolated-test.log')
 
         def one_packet_then_wait():
             state.publish(Float64MultiArray(data=[2., 123., 1.]))
@@ -319,6 +322,10 @@ rclpy.shutdown()
             'remote_session_home_topic': '/cpu_native_test/kernel_home',
             'local_session_home_topic': '/cpu_native_test/kernel_home_out'})
         self.discover([home], proc)
+        deadline = time.monotonic() + 5
+        while ('hope_transport_gateway', '/') not in self.node.get_node_names_and_namespaces():
+            self.assertLess(time.monotonic(), deadline, 'gateway node graph was not discovered')
+            self.spin(.05)
         graph = self.node.get_subscriber_names_and_types_by_node('hope_transport_gateway', '/')
         self.assertFalse(any('base_pose' in topic for topic, _types in graph))
         home.publish(Float64MultiArray(data=[1., 5., 17.]))
