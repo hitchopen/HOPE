@@ -239,6 +239,12 @@ above is unchanged. See the [VRPN operator guide](docs/operations/vrpn_pants_pro
 Open-source datasets for HOPE and humanoid robot table-tennis research:
 
 1. [HOPE-2026-Beijing (ModelScope)](https://www.modelscope.cn/datasets/hitchopen/HOPE-2026-Beijing/files) — Beijing robot table-tennis motion-capture recordings in CSV and FBX formats.
+2. [PPQ004 three-star ball dataset](calibration/ppq004_20261020/README.md) — three raw C3D recordings, complete trajectory CSVs and extracted NPZ data, with checksums and archived fit results.
+
+For the recorded ball/table setup, the [calculated flight and bounce coefficients](hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml)
+are provided alongside the [Python fitting pipeline](calibration/ppq004_20261020/tools/refit_ppq_multibounce.py),
+which uses SciPy and a C++ RK4 kernel. See the [reproduction instructions](calibration/ppq004_20261020/REPRODUCE.md)
+for dependencies and commands.
 
 ## Preserved Reference Documents
 
@@ -258,6 +264,8 @@ document disagrees with the shipped code, the code and the `docs/` contracts win
 The competition rulebooks ship at the repository root:
 [HOPE_AI_Challenge_2026_Rules_EN.docx](HOPE_AI_Challenge_2026_Rules_EN.docx) (English) and
 [HOPE_AI_Challenge_2026_Rules_ZH.docx](HOPE_AI_Challenge_2026_Rules_ZH.docx) (中文).
+Both specify a professional three-star 40+ plastic table-tennis ball for official
+matches and the exhibition match (§2(8)).
 
 ## Folder Map
 
