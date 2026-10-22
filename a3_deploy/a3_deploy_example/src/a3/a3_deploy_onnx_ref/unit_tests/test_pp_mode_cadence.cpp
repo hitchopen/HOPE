@@ -234,3 +234,21 @@ TEST(PpModeCadence, SlowReleasePublicationDoesNotCompressNextSwingFrame) {
   EXPECT_FALSE(cadence.DueTime(542'000'000, 2, 10'000'000));
   EXPECT_TRUE(cadence.DueTime(544'000'000, 2, 10'000'000));
 }
+
+TEST(ServeHalClock, ReleaseReceiptFollowsSelectedLegacyAndFieldProfiles) {
+  for (const auto positions : {std::pair{800ULL, 2000ULL}, std::pair{850ULL, 1500ULL}}) {
+    const auto [closed, opened] = positions;
+    EXPECT_FALSE(a3_io::IsServeHalSelectionEdge(~0ULL, opened));
+    EXPECT_FALSE(a3_io::IsServeHalSelectionEdge(opened, opened));
+    EXPECT_TRUE(a3_io::IsServeHalSelectionEdge(closed, opened));
+    a3_io::ServeHalSnapshot receipt{42, 1000, 1000, opened, 1000};
+    EXPECT_TRUE(a3_io::IsServeHalRelease(receipt, 1001, 42, opened));
+    EXPECT_FALSE(a3_io::IsServeHalRelease(receipt, 1001, 43, opened));
+    EXPECT_FALSE(a3_io::IsServeHalRelease(receipt, 1001, 42, closed));
+    EXPECT_FALSE(a3_io::IsServeHalRelease(receipt, 100'001'001, 42, opened));
+    EXPECT_FALSE(a3_io::IsServeHalRelease(receipt, 999, 42, opened));
+    EXPECT_TRUE(a3_io::IsServeHalSelectionEdge(opened, closed));
+    receipt.left = closed;
+    EXPECT_FALSE(a3_io::IsServeHalRelease(receipt, 1001, 42, opened));
+  }
+}
