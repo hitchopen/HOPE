@@ -112,6 +112,8 @@ install(PROGRAMS
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_swing_side_support test/test_swing_side_support.cpp)
+  target_include_directories(test_swing_side_support PRIVATE include)
   ament_add_gtest(test_spin_physics test/test_spin_physics.cpp)
   target_link_libraries(test_spin_physics hope_planner_core Eigen3::Eigen)
   ament_add_gtest(test_future_contact_predictor test/test_future_contact_predictor.cpp)
