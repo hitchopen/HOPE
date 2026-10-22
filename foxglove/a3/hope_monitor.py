@@ -58,6 +58,7 @@ from rclpy.callback_groups import (
 )
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
+from hope_display_publishers import display_publisher
 from rclpy.qos import qos_profile_sensor_data, qos_profile_system_default
 from rclpy.time import Time
 from sensor_msgs.msg import Imu
@@ -162,75 +163,75 @@ class HopeMonitor(Node):
             "estop_latch_path", "/var/lib/hope-monitor/estop-latched"
         )
 
-        self.pub_offset = self.create_publisher(Float64, "/hope/ntp/offset_ms", 10)
-        self.pub_skew = self.create_publisher(Float64, "/hope/ntp/skew_ppm", 10)
-        self.pub_disp = self.create_publisher(
+        self.pub_offset = display_publisher(self, Float64, "/hope/ntp/offset_ms", 10)
+        self.pub_skew = display_publisher(self, Float64, "/hope/ntp/skew_ppm", 10)
+        self.pub_disp = display_publisher(self,
             Float64, "/hope/ntp/root_dispersion_ms", 10
         )
-        self.pub_qualified = self.create_publisher(Bool, "/hope/ntp/utc_qualified", 10)
-        self.pub_ntp_gate = self.create_publisher(Bool, "/hope/ntp/gate_pass", 10)
-        self.pub_ntp_text = self.create_publisher(String, "/hope/ntp/text", 10)
+        self.pub_qualified = display_publisher(self, Bool, "/hope/ntp/utc_qualified", 10)
+        self.pub_ntp_gate = display_publisher(self, Bool, "/hope/ntp/gate_pass", 10)
+        self.pub_ntp_text = display_publisher(self, String, "/hope/ntp/text", 10)
         if not self._native_clock_topics:
-            self.pub_message_latency = self.create_publisher(
+            self.pub_message_latency = display_publisher(self,
                 Float64, "/hope/clock/message_latency_ms", 10
             )
-            self.pub_message_fresh = self.create_publisher(
+            self.pub_message_fresh = display_publisher(self,
                 Bool, "/hope/clock/message_fresh", 10
             )
-            self.pub_message_text = self.create_publisher(
+            self.pub_message_text = display_publisher(self,
                 String, "/hope/clock/message_text", 10
             )
-        self.pub_cpu_load = self.create_publisher(
+        self.pub_cpu_load = display_publisher(self,
             Float64, "/hope/system/cpu_load_percent", 10
         )
-        self.pub_cpu_text = self.create_publisher(
+        self.pub_cpu_text = display_publisher(self,
             String, "/hope/system/cpu_text", 10
         )
-        self.pub_cpu_top_process = self.create_publisher(
+        self.pub_cpu_top_process = display_publisher(self,
             String, "/hope/system/cpu_top_process", 10
         )
-        self.pub_pm_active = self.create_publisher(
+        self.pub_pm_active = display_publisher(self,
             Bool, "/hope/vendor/agibot_pm_active", 10
         )
-        self.pub_pm_text = self.create_publisher(
+        self.pub_pm_text = display_publisher(self,
             String, "/hope/vendor/agibot_pm_text", 10
         )
-        self.pub_hdu_active = self.create_publisher(
+        self.pub_hdu_active = display_publisher(self,
             Bool, "/hope/system/hdu_active", 10
         )
-        self.pub_hdu_text = self.create_publisher(
+        self.pub_hdu_text = display_publisher(self,
             String, "/hope/system/hdu_text", 10
         )
-        self.pub_tf_ready = self.create_publisher(
+        self.pub_tf_ready = display_publisher(self,
             Bool, "/hope/vendor/tf_ready", 10
         )
-        self.pub_estop_ready = self.create_publisher(
+        self.pub_estop_ready = display_publisher(self,
             Bool, "/hope/safety/estop_ready", 10
         )
-        self.pub_estop_full_ready = self.create_publisher(
+        self.pub_estop_full_ready = display_publisher(self,
             Bool, "/hope/safety/estop_full_ready", 10
         )
-        self.pub_estop_text = self.create_publisher(
+        self.pub_estop_text = display_publisher(self,
             String, "/hope/safety/estop_text", 10
         )
-        self.pub_estop_latched = self.create_publisher(
+        self.pub_estop_latched = display_publisher(self,
             Bool, "/hope/safety/estop_latched", 10
         )
-        self.pub_pelvis = self.create_publisher(PoseStamped, "/hope/pelvis/pose", 10)
-        self.pub_pelvis_text = self.create_publisher(String, "/hope/pelvis/text", 10)
-        self.pub_pelvis_marker = self.create_publisher(
+        self.pub_pelvis = display_publisher(self, PoseStamped, "/hope/pelvis/pose", 10)
+        self.pub_pelvis_text = display_publisher(self, String, "/hope/pelvis/text", 10)
+        self.pub_pelvis_marker = display_publisher(self,
             Marker, "/hope/pelvis/marker", 10
         )
-        self.pub_pelvis_tf = self.create_publisher(
+        self.pub_pelvis_tf = display_publisher(self,
             TFMessage, "/hope/pelvis/tf", 10
         )
-        self.pub_runner_ready = self.create_publisher(
+        self.pub_runner_ready = display_publisher(self,
             Bool, "/hope/control/runner_ready", 10
         )
-        self.pub_calibration_ready = self.create_publisher(
+        self.pub_calibration_ready = display_publisher(self,
             Bool, "/hope/control/calibration_ready", 10
         )
-        self.pub_control_text = self.create_publisher(
+        self.pub_control_text = display_publisher(self,
             String, "/hope/control/state_text", 10
         )
         self._mode_command_pub = self.create_publisher(

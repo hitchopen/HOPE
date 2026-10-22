@@ -406,6 +406,7 @@ class HopeLifecycleSupervisor(Node):
             result = self._last_result
         field_status = self._field.status()
         field_status["busy"] = self._field_busy
+        field_status["auto_record_on_start"] = os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1"
         field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
                                                      if state == "RUNNING" else None)
         self._field_publisher.publish(self._string(json.dumps(field_status, ensure_ascii=False)))
@@ -741,6 +742,13 @@ class HopeLifecycleSupervisor(Node):
                 self._busy = False
             return
         with self._lock:
+            # Main keeps manual recording. Field sites may explicitly opt in;
+            # only a completed START does this, never a supervisor restart.
+            if os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1":
+                try:
+                    self._field.recorder.start()
+                except Exception as exc:  # capture must not change control state
+                    self.get_logger().error(f"Automatic recording start failed: {exc}")
             self._state = "RUNNING"
             self._step = "RUNNER"
             self._last_result = "START_COMPLETE_RUNNER_PASSIVE"
