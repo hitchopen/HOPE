@@ -1,0 +1,8 @@
+# Explicit P1 field overlay; load after the base Planner parameters.
+# Operator-selected right boundary, not a new marker survey.
+# An existing ball_y_filter_state_file takes precedence over these defaults.
+hope_planner:
+  ros__parameters:
+    ball_y_filter_enabled: true
+    ball_y_filter_min_m: -1.30
+    ball_y_filter_max_m: -0.5543593239924284
