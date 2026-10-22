@@ -2,6 +2,7 @@
 
 #include "hope_planner_cpp/audit_logger.hpp"
 #include "a3_deploy/session_home_contract.hpp"
+#include "hope_planner_cpp/ball_y_filter.hpp"
 #include "hope_planner_cpp/batch_physics_estimator.hpp"
 #include "hope_planner_cpp/flight_packet.hpp"
 #include "hope_planner_cpp/incoming_trajectory.hpp"
@@ -27,6 +28,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_srvs/srv/trigger.hpp>
+#include <rcl_interfaces/srv/set_parameters_atomically.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -56,6 +59,13 @@ class PlannerNode final : public rclcpp::Node {
     bool valid = false;
     std::int64_t receipt_steady_ns = 0;
     std::int64_t source_stamp_ns = 0;
+    // Audit only. Wall-clock source age includes clock offset; receipt gaps use steady time.
+    std::int64_t receipt_wall_ns = 0;
+    double receive_gap_ms = std::numeric_limits<double>::quiet_NaN();
+    double source_gap_ms = std::numeric_limits<double>::quiet_NaN();
+    double max_receive_gap_ms = 0.0;
+    std::uint64_t received = 0;
+    std::uint64_t invalid = 0;
   };
 
   struct CalibrationSample {
@@ -141,6 +151,11 @@ class PlannerNode final : public rclcpp::Node {
   rclcpp::Service<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr plane_mode_service_;
   double session_home_max_age_s_ = 0.5;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr home_subscription_;
+  std::atomic<std::uint64_t> target_turn_evaluations_{0};
+  std::atomic<std::uint64_t> base_pose_age_exceeded_commands_{0};
+  std::atomic<std::uint64_t> base_receipt_stale_rejections_{0};
+  std::atomic<std::uint64_t> base_source_stale_rejections_{0};
+  std::uint64_t health_previous_base_received_ = 0;
   std::mutex calibration_mutex_;
   std::deque<CalibrationSample> calibration_samples_;
 
@@ -189,6 +204,12 @@ class PlannerNode final : public rclcpp::Node {
   std::string session_id_;
   bool post_net_one_shot_enabled_ = true;
   double max_target_turn_deg_ = 40.0;
+  BallYFilter ball_y_filter_;
+  std::string ball_y_filter_state_file_;
+  std::mutex ball_y_filter_publish_mutex_;
+  rclcpp::Service<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr ball_y_filter_service_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr ball_y_filter_markers_publisher_;
+  std::atomic<std::uint64_t> ball_y_filter_rejections_{0};
   double target_turn_max_pose_age_s_ = 0.2;
   bool target_turn_reject_stale_pose_ = true;
   bool flight_packet_input_enabled_ = false;
