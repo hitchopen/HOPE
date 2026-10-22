@@ -4,12 +4,14 @@
 reported separately. RV20 awaits a publication choice. This does not complete
 broader V3 simulation or physical qualification.
 
-Tested source: `dc914c8e985d8aaef87cbc22bb91b2deabc3c82e` on
+Historical cloud-tested source: `dc914c8e985d8aaef87cbc22bb91b2deabc3c82e` on
 `feature/integrated-racket-planner-v2-review-fixes`, descended from exact
 `3346e03002b47611e3531d7147392faec9e9268f`. Production core last changed at
 `912d456`; the standalone context guard last changed at `65adda5`. Later commits
 change fixtures. Final receipt/document changes follow the tested source.
 The JSON companion pins source/config/interface/binary hashes and case artifacts.
+The local distrobox verification below independently checks the preserved
+corrections and two additional regression assertions at `be642ba`.
 
 ## Repository audit and scope
 
@@ -47,7 +49,15 @@ and repeated corroboration of an authoritative contact. Wire restore rebuilds
 private reversal metadata from existing retained samples/confirmation time;
 message definitions do not change.
 
-## Executed validation and accounting
+## Code map
+
+- [Acquisition, physical reversal identities and causal tracker replay](../src/flight_state_v2.cpp).
+- [Spin checkpoints, contact segmentation and explicit zero availability](../include/hope_planner_cpp/trusted_spin.hpp), with the [quaternion estimator](../src/flight_spin_estimator.cpp).
+- [Continuous sphere contact with the finite net](../src/common_ball_physics.cpp).
+- [Ordered contact resets and event covariance](../src/nominal_event_forecast.cpp).
+- [Focused review regressions](../test/test_v2_pr64_review_regressions.cpp) and [ROS context/contact fences](../test/integrated_context_noop.py).
+
+## Historical cloud validation and accounting
 
 | Check | Result |
 | --- | --- |
@@ -89,6 +99,61 @@ faults cannot produce a valid command. Corrected incoming flyover may still
 fail the runner impact/velocity contract. A native representable outgoing
 edge-clearance case validates reconstructed impact, net passage and legal first
 landing; no execution guard is overridden to manufacture validity.
+
+## Local verification on 21 October 2026
+
+Worktree: `/home/tpark/workspace/HOPE/integrated-v2-review-fixes`, on the same
+corrections branch. The existing remote head `1e379f5` was inspected and
+preserved. The local follow-ups add regression coverage, without changing
+production sources, interfaces, configuration defaults or model coefficients:
+
+- `6961cf1`: accepted ROS contact evidence revokes once, its duplicate does not
+  revoke, and the contact fences a pending solve. Both normal and 12 ms delayed
+  worker variants pass, alongside the existing rejected/no-op context checks.
+- `be642ba`: an incoming plane four milliseconds after a bounce is rejected as
+  `CONTACT_ORDER_UNCERTAIN` with configured bounce noise. The identical
+  physical branch is `RETURN_ELIGIBLE` when that noise is explicitly disabled.
+  The test covers 5 ms and 0.25 ms integration; it fails on the pinned baseline.
+
+| Local gate | Executed result |
+| --- | --- |
+| Final focused fixture on actual baseline `3346e030` | 6/26 pass; 20 expected review failures retained. |
+| Final corrected focused fixture | 26/26 pass in release and ASan/UBSan builds. |
+| Corrected native and sanitizer CTest suites | 15/15 groups each. |
+| Strict legacy numerical parity | 701/701 fixtures; maximum difference zero. |
+| Independent outgoing reference | 144/144 accepted candidates; maximum position difference 3.294e-13 m and event-time difference 7.883e-14 s. |
+| Installed ROS | `hope_msgs` 2/2, `hope_planner_cpp` 67/67 in one invocation, `hope_bringup` 24/26. |
+| Inherited bringup lint | 3,086 flake8 and 37 pep257 failures; normalized failure multisets exactly match the local baseline. Aggregate verification exits 1. |
+| Installed source/decoder matrix | All 30 cases pass: 18 fast speed/spin cases, eight geometry/held controls, four original plane-policy cases. |
+| Fast FOLLOW_POSE command coverage | All twelve 10/12 m/s profiles achieve 100%; worst actual decoder P95 2.845 ms. All emitted command source ages remain within 30 ms. |
+| 20 m/s execution separation | All six cases acquire and confirm one physical bounce; zero valid commands. Execution limits remain unchanged. |
+| Source cutoffs and raw scenarios | Four library/installed cutoff comparisons and all eight updated raw-camera scenarios pass. |
+| Compatible policies | Two distinct existing artifacts pass metadata checks and six finite CPU inferences; actual paddle tracking remains NOT_RUN. |
+| Supplemental plane/expiry checks | Four fast ON_REFRESH cases pass at 150/300 Hz with 100% coverage; both 40 ms delayed-worker cases emit zero valid commands. |
+
+The clean entry point started at `6961cf1`. After the initial 25-case native and
+sanitizer runs, the additional uncertainty/admission test was compiled and the
+complete 26-case focused suite rerun against baseline, corrected release and
+corrected sanitizers. The installed ROS build includes that expanded fixture.
+Production/configuration/interface bytes are identical between `6961cf1` and
+`be642ba`; the receipt records both source pins, initial artifacts and follow-up
+artifacts rather than overwriting an earlier execution.
+
+The historical baseline's installed raw-camera fixture timed out at 120 seconds
+on this host, yielding 36/37 planner groups. This remains a baseline failure in
+the evidence. The corrected publish-only, bounded fixture passed; no baseline
+timeout was relabeled as a pass. The original baseline native/sanitizer groups
+pass apart from the intentionally injected review regression group.
+
+Local raw evidence is under `/tmp/hope-pr64-local-20261021`; the JSON companion's
+`local_verification` records exact source/config/binary hashes, commands, case
+results and artifact locations. A curated 3.99 MB raw-evidence archive is retained
+locally at `artifacts/pr64-local-20261021-evidence.tar.gz` (ignored generated
+artifact; its SHA-256 is in the JSON). The optional policy check used ONNX Runtime
+1.31.0 installed only under `/tmp/hope-pr64-policy-packages`; system Python was
+unchanged. Historical cloud results above remain intact.
+This verification closes the review regression endpoint, not the broader V3
+simulation/physical gates or the separate upstream publication decision.
 
 ## Model and compatibility limits
 

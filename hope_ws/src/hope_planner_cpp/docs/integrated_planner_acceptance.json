@@ -2833,6 +2833,22 @@
     "status": "REVIEW_REGRESSION_COMPLETE_WITH_INHERITED_LINT",
     "tested_source_commit": "dc914c8e985d8aaef87cbc22bb91b2deabc3c82e",
     "historical_results_preserved": true,
-    "publication_pending": true
+    "publication_pending": true,
+    "local_verification": {
+      "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9",
+      "status": "REVIEW_REGRESSION_COMPLETE_WITH_INHERITED_LINT",
+      "planner_ctest": {
+        "passed": 67,
+        "total": 67,
+        "one_invocation": true
+      },
+      "focused": {
+        "passed": 26,
+        "total": 26,
+        "release_and_sanitizers": true
+      },
+      "historical_results_preserved": true,
+      "upstream_publication_pending": true
+    }
   }
 }

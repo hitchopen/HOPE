@@ -1,7 +1,10 @@
 # Integrated planner implementation and qualification
 
-The evidence below is historical at `3346e030` / runtime `5ed18fa`. New review
-corrections are regression-complete at `dc914c8` (cumulative 67/67 planner groups, inherited bringup lint retained); results are tracked separately in
+The evidence below is historical at `3346e030` / runtime `5ed18fa`. Review
+corrections were first verified at `dc914c8` (cumulative 67/67 planner groups).
+The local `hope` distrobox follow-up at `be642ba` passes 67/67 planner groups in
+one invocation and the expanded 26-case focused suite. Inherited bringup lint
+remains visible; both sets of results are tracked separately in
 [integrated_planner_pr64_review_corrections.md](integrated_planner_pr64_review_corrections.md).
 
 This branch implements an opt-in **shadow** single-node V2 return path over

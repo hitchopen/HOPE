@@ -4548,5 +4548,2086 @@
     "path": "/workspace/.cloud-setup/pr64-review/pr64-review-evidence.tar.gz",
     "manifest": "/workspace/.cloud-setup/pr64-review/evidence-manifest.json",
     "contents": "Source patch and review documents, fixture sources, raw log/XML/JSON receipts, toolchain/configuration pins and checksums; no compiled caches or credentials."
+  },
+  "receipt_scopes": {
+    "historical_cloud": "Original root source_commit and execution fields are preserved.",
+    "local": "local_verification records the independent hope distrobox run and two test followups."
+  },
+  "latest_verified_source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9",
+  "local_verification": {
+    "environment": {
+      "environment": "distrobox enter hope",
+      "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+      "python": "3.12.3 (main, Jul 15 2026, 23:46:41) [GCC 13.3.0]",
+      "numpy_ros": "1.26.4",
+      "scipy": "1.11.4",
+      "compiler": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+      "cmake": "cmake version 3.28.3",
+      "ros_prefix": "/opt/ros/jazzy",
+      "policy_dependencies": "/tmp/hope-pr64-policy-packages",
+      "robot_actuation": false,
+      "policy_test_environment": {
+        "onnxruntime": "1.31.0",
+        "numpy": "2.5.4",
+        "installation_scope": "/tmp/hope-pr64-policy-packages only; system Python unchanged"
+      }
+    },
+    "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9",
+    "entrypoint_source_commit": "6961cf1f44ba81c91e40f13095a0dce256606a52",
+    "integration_base": "3346e03002b47611e3531d7147392faec9e9268f",
+    "evidence_root": "/tmp/hope-pr64-local-20261021",
+    "fixture_kind": "independent equivalents",
+    "upstream_pr64_modified": false,
+    "robot_actuation": false,
+    "production_changed_since_entrypoint": [],
+    "followup_accounting": "The clean entrypoint started at entrypoint_source_commit. The final commit adds one review test; production/config/interface sources are identical. Original full-suite artifacts remain intact. Changed focused groups were rebuilt and rerun as explicit followups, and the installed ROS build uses the expanded fixture.",
+    "baseline": {
+      "gate_exits": {
+        "aggregate": 1,
+        "ros-test-result": 1,
+        "ros-test": 0,
+        "ros-build": 0,
+        "outgoing-reference": 0,
+        "sanitized-test": 8,
+        "sanitized-build": 0,
+        "sanitized-configure": 0,
+        "review-cases": 1,
+        "native-test": 8,
+        "native-build": 0,
+        "native-configure": 0
+      },
+      "focused": {
+        "path": "/tmp/hope-pr64-local-20261021/baseline-review-followup.xml",
+        "sha256": "4803f26eeb8d9b2f86d2707a7231f8724d1e7511b314f71b2b2664e44082c40c",
+        "total": 26,
+        "passed": 6,
+        "cases": [
+          {
+            "name": "RV01_DragAcquisitionBothRatesDirectionsAndSpin",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV02_HeldImpossibleAccelerationAndProvenanceFaults",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV03_OneFastBounceHasOneStableIdentity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce",
+            "status": "FAIL",
+            "properties": {
+              "confirmed_ids_150": "2",
+              "confirmed_ids_300": "1"
+            }
+          },
+          {
+            "name": "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV05_DelayedContactSegmentsQuaternionWindow",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV06_HistoricalPreContactSpinRestoresImpactVelocity",
+            "status": "FAIL",
+            "properties": {
+              "pre_spin_available": "false",
+              "post_vx": "2.354680"
+            }
+          },
+          {
+            "name": "RV07_AuthoritativeAndQuaternionZeroRemainAvailable",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV08_FiniteNetCornerClearanceAndTrueContact",
+            "status": "FAIL",
+            "properties": {
+              "clearance_02753_collision": "true"
+            }
+          },
+          {
+            "name": "RV09_NetFirstContactTimeAcrossStepSizes",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV09b_TrueCornerCollisionWinsPlaneTie",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV10_SameStepBounceNoiseReachesPlane",
+            "status": "FAIL",
+            "properties": {
+              "vx_variance_dt_1000": "0.000000",
+              "vx_variance_dt_500": "0.422500",
+              "vx_variance_dt_250": "0.422500"
+            }
+          },
+          {
+            "name": "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV11c_BounceNoiseChangesPhysicalReturnAdmission",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV17_CausalCheckpointAndObservationCutoffParity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn",
+            "status": "FAIL",
+            "properties": {}
+          }
+        ]
+      },
+      "native": {
+        "path": "/tmp/hope-pr64-local-20261021/baseline/native-test.log",
+        "sha256": "db78b6f5bf0f11f0ac19bca9dc8a8d8ca010b76c2eb755d5b0d6646fc712e3e7",
+        "total": 15,
+        "failed": 1
+      },
+      "sanitized": {
+        "path": "/tmp/hope-pr64-local-20261021/baseline/sanitized-test.log",
+        "sha256": "47fee025562268f47865035aa8036ed3e8a9441d0029a9d95c2f88eac3f5af86",
+        "total": 15,
+        "failed": 1
+      },
+      "ros": {
+        "hope_msgs": {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/build/hope_msgs/Testing/20261022-0244/Test.xml",
+          "sha256": "32e63542ca48fc206e0dd67dc81d970b7b9aed24dca21eaec71b6929a35e86d8",
+          "total": 2,
+          "passed": 2,
+          "failed": []
+        },
+        "hope_planner_cpp": {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/build/hope_planner_cpp/Testing/20261022-0244/Test.xml",
+          "sha256": "7715b7f766163735f020845d6eb9f821fe4a40b1f255ffae47e6b6f840ee490b",
+          "total": 37,
+          "passed": 36,
+          "failed": [
+            "flight_v2_raw_scenarios"
+          ]
+        },
+        "hope_bringup": {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/build/hope_bringup/Testing/20261022-0247/Test.xml",
+          "sha256": "0185fd5ee80a920e795fdb23c9598b4f1d9e40ab672dbc1d07bfc1e0a3552867",
+          "total": 26,
+          "passed": 24,
+          "failed": [
+            "flake8",
+            "pep257"
+          ]
+        }
+      },
+      "lint": {
+        "flake8": {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/build/hope_bringup/test_results/hope_bringup/flake8.xunit.xml",
+          "sha256": "c6f874c81610b0a8657cce8cf5c0533bbc3207cee1307a91255b074da57b2dc8",
+          "failed_cases": 3086,
+          "normalized_failure_multiset_sha256": "821fb03892dbc78b6c9c60c273698b5c8e6a7aaf40a8650028101c1cf3a03589"
+        },
+        "pep257": {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/build/hope_bringup/test_results/hope_bringup/pep257.xunit.xml",
+          "sha256": "55f44b31049fbeea552fe3437ec3beee4ac6562cc819792e4f312e530765831c",
+          "failed_cases": 37,
+          "normalized_failure_multiset_sha256": "0db3e7c3e765217107672283a0f5eaeed00b3c1bf5f083dabb09430f9e986d11"
+        }
+      },
+      "initial_focused": {
+        "path": "/tmp/hope-pr64-local-20261021/baseline/review-cases.xml",
+        "sha256": "aef4cce0cc2e439879b910d79dc3a763354bd72e2010d44290af8a629c4716a4",
+        "total": 25,
+        "passed": 6,
+        "cases": [
+          {
+            "name": "RV01_DragAcquisitionBothRatesDirectionsAndSpin",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV02_HeldImpossibleAccelerationAndProvenanceFaults",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV03_OneFastBounceHasOneStableIdentity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce",
+            "status": "FAIL",
+            "properties": {
+              "confirmed_ids_150": "2",
+              "confirmed_ids_300": "1"
+            }
+          },
+          {
+            "name": "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV05_DelayedContactSegmentsQuaternionWindow",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV06_HistoricalPreContactSpinRestoresImpactVelocity",
+            "status": "FAIL",
+            "properties": {
+              "pre_spin_available": "false",
+              "post_vx": "2.354680"
+            }
+          },
+          {
+            "name": "RV07_AuthoritativeAndQuaternionZeroRemainAvailable",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV08_FiniteNetCornerClearanceAndTrueContact",
+            "status": "FAIL",
+            "properties": {
+              "clearance_02753_collision": "true"
+            }
+          },
+          {
+            "name": "RV09_NetFirstContactTimeAcrossStepSizes",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV09b_TrueCornerCollisionWinsPlaneTie",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV10_SameStepBounceNoiseReachesPlane",
+            "status": "FAIL",
+            "properties": {
+              "vx_variance_dt_1000": "0.000000",
+              "vx_variance_dt_500": "0.422500",
+              "vx_variance_dt_250": "0.422500"
+            }
+          },
+          {
+            "name": "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV17_CausalCheckpointAndObservationCutoffParity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger",
+            "status": "FAIL",
+            "properties": {}
+          },
+          {
+            "name": "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn",
+            "status": "FAIL",
+            "properties": {}
+          }
+        ]
+      },
+      "review_followup_exit": 1,
+      "binary_hashes": [
+        {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/native/test_v2_pr64_review_regressions",
+          "sha256": "207dce36ebee40a46d30a5860b642117ba5f1bebc4fe6502a931d0f1101cdf15"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/native/hope_integrated_return_sweep",
+          "sha256": "92089643e339e369217ce0cb9deb5a227ccae3f0f3a509ffc3bfc978ff98ef91"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/install/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_node",
+          "sha256": "7232bb6b866ecd158959595020bd2883be1f22d6d06997134b4637930df81b95"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/install/hope_planner_cpp/lib/hope_planner_cpp/hope_flight_prediction_v2_node",
+          "sha256": "a1d3febfa623ba5571fc5c851b2ea301be6a33692d73163adc3cfdb93c2c3cbb"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/baseline/install/hope_planner_cpp/lib/hope_planner_cpp/hope_integrated_runner_probe",
+          "sha256": "6a5d64571e812c73939a7ec8dc7c855fa5b382578dfc30a8bc1e4cb8f7a5e353"
+        }
+      ]
+    },
+    "corrected": {
+      "gate_exits": {
+        "aggregate": 1,
+        "ros-test-result": 1,
+        "ros-test": 0,
+        "ros-build": 0,
+        "legacy-parity": 0,
+        "outgoing-reference": 0,
+        "sanitized-test": 0,
+        "sanitized-build": 0,
+        "sanitized-configure": 0,
+        "review-cases": 0,
+        "native-test": 0,
+        "native-build": 0,
+        "native-configure": 0
+      },
+      "focused": {
+        "path": "/tmp/hope-pr64-local-20261021/corrected-review-followup.xml",
+        "sha256": "704cc59cdb8af62d4cbf8494b4642f8d74f410ada840f0ee1a1aae530bc7369e",
+        "total": 26,
+        "passed": 26,
+        "cases": [
+          {
+            "name": "RV01_DragAcquisitionBothRatesDirectionsAndSpin",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV02_HeldImpossibleAccelerationAndProvenanceFaults",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03_OneFastBounceHasOneStableIdentity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce",
+            "status": "PASS",
+            "properties": {
+              "confirmed_ids_150": "1",
+              "confirmed_ids_300": "1"
+            }
+          },
+          {
+            "name": "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV05_DelayedContactSegmentsQuaternionWindow",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV06_HistoricalPreContactSpinRestoresImpactVelocity",
+            "status": "PASS",
+            "properties": {
+              "pre_spin_available": "true",
+              "post_vx": "3.000000"
+            }
+          },
+          {
+            "name": "RV07_AuthoritativeAndQuaternionZeroRemainAvailable",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV08_FiniteNetCornerClearanceAndTrueContact",
+            "status": "PASS",
+            "properties": {
+              "clearance_02753_collision": "false"
+            }
+          },
+          {
+            "name": "RV09_NetFirstContactTimeAcrossStepSizes",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV09b_TrueCornerCollisionWinsPlaneTie",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV10_SameStepBounceNoiseReachesPlane",
+            "status": "PASS",
+            "properties": {
+              "vx_variance_dt_1000": "0.422500",
+              "vx_variance_dt_500": "0.422500",
+              "vx_variance_dt_250": "0.422500"
+            }
+          },
+          {
+            "name": "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV11c_BounceNoiseChangesPhysicalReturnAdmission",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV17_CausalCheckpointAndObservationCutoffParity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn",
+            "status": "PASS",
+            "properties": {}
+          }
+        ]
+      },
+      "native": {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/native-test.log",
+        "sha256": "6ae3cc22b8a0197ff28a0e195cd1cc26b4efadb55c9b9056e49c3e1f6588ba40",
+        "total": 15,
+        "failed": 0
+      },
+      "sanitized": {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/sanitized-test.log",
+        "sha256": "463593431aa365cab4f5475bf1f02b0aed54fc4e332ae5fab04a6734cb156921",
+        "total": 15,
+        "failed": 0
+      },
+      "ros": {
+        "hope_msgs": {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_msgs/Testing/20261022-0301/Test.xml",
+          "sha256": "a37be4eba0fdc16f8dd96843981ddce3ec63ffe5ae4afd06a1e73956e36f230f",
+          "total": 2,
+          "passed": 2,
+          "failed": []
+        },
+        "hope_planner_cpp": {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/Testing/20261022-0301/Test.xml",
+          "sha256": "7e7a611b6bffa3b312c3ccb989b892f4b2beb81b945accaff1ae2237c5de948b",
+          "total": 67,
+          "passed": 67,
+          "failed": []
+        },
+        "hope_bringup": {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_bringup/Testing/20261022-0309/Test.xml",
+          "sha256": "119d4de6b62f6668c0341c6e5eb9fb3569f325cc08f4e30f9389132f181896c2",
+          "total": 26,
+          "passed": 24,
+          "failed": [
+            "flake8",
+            "pep257"
+          ]
+        }
+      },
+      "lint": {
+        "flake8": {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_bringup/test_results/hope_bringup/flake8.xunit.xml",
+          "sha256": "68b17b7787fac76545196556d5196dff5dd6d73bde72951403f924c42911a070",
+          "failed_cases": 3086,
+          "normalized_failure_multiset_sha256": "821fb03892dbc78b6c9c60c273698b5c8e6a7aaf40a8650028101c1cf3a03589"
+        },
+        "pep257": {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_bringup/test_results/hope_bringup/pep257.xunit.xml",
+          "sha256": "55f44b31049fbeea552fe3437ec3beee4ac6562cc819792e4f312e530765831c",
+          "failed_cases": 37,
+          "normalized_failure_multiset_sha256": "0db3e7c3e765217107672283a0f5eaeed00b3c1bf5f083dabb09430f9e986d11"
+        }
+      },
+      "initial_focused": {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/review-cases.xml",
+        "sha256": "78610a9ab2cf44ba74660860af13b080f70cf259c9ceef0ec759606fec827409",
+        "total": 25,
+        "passed": 25,
+        "cases": [
+          {
+            "name": "RV01_DragAcquisitionBothRatesDirectionsAndSpin",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV02_HeldImpossibleAccelerationAndProvenanceFaults",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03_OneFastBounceHasOneStableIdentity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce",
+            "status": "PASS",
+            "properties": {
+              "confirmed_ids_150": "1",
+              "confirmed_ids_300": "1"
+            }
+          },
+          {
+            "name": "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV05_DelayedContactSegmentsQuaternionWindow",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV06_HistoricalPreContactSpinRestoresImpactVelocity",
+            "status": "PASS",
+            "properties": {
+              "pre_spin_available": "true",
+              "post_vx": "3.000000"
+            }
+          },
+          {
+            "name": "RV07_AuthoritativeAndQuaternionZeroRemainAvailable",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV08_FiniteNetCornerClearanceAndTrueContact",
+            "status": "PASS",
+            "properties": {
+              "clearance_02753_collision": "false"
+            }
+          },
+          {
+            "name": "RV09_NetFirstContactTimeAcrossStepSizes",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV09b_TrueCornerCollisionWinsPlaneTie",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV10_SameStepBounceNoiseReachesPlane",
+            "status": "PASS",
+            "properties": {
+              "vx_variance_dt_1000": "0.422500",
+              "vx_variance_dt_500": "0.422500",
+              "vx_variance_dt_250": "0.422500"
+            }
+          },
+          {
+            "name": "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV17_CausalCheckpointAndObservationCutoffParity",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger",
+            "status": "PASS",
+            "properties": {}
+          },
+          {
+            "name": "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn",
+            "status": "PASS",
+            "properties": {}
+          }
+        ]
+      },
+      "review_followup_exit": 0,
+      "binary_hashes": [
+        {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/native/test_v2_pr64_review_regressions",
+          "sha256": "ef323717e7c4812b6121daa98866b2cede0807f2fa74ae5e6df5b47913d9ae5d"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/native/hope_integrated_return_sweep",
+          "sha256": "5ce0712d874238ac03d670d51b45ca731f86937b7f2687e85d87c62227ef3a72"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/install/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_node",
+          "sha256": "f255d9af81a6a194b543889ef84080147c6d8002b7a0ba78d520e69cc2782112"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/install/hope_planner_cpp/lib/hope_planner_cpp/hope_flight_prediction_v2_node",
+          "sha256": "b00cdddc0f2fe4983005aa033c1f547ed13cf4d436116d9beb38af8e6f440842"
+        },
+        {
+          "path": "/tmp/hope-pr64-local-20261021/corrected/install/hope_planner_cpp/lib/hope_planner_cpp/hope_integrated_runner_probe",
+          "sha256": "6a5d64571e812c73939a7ec8dc7c855fa5b382578dfc30a8bc1e4cb8f7a5e353"
+        }
+      ]
+    },
+    "sanitized_review_followup": {
+      "path": "/tmp/hope-pr64-local-20261021/sanitized-review-followup.xml",
+      "sha256": "89d2b0ce670873c927a149fff022bea4cb5b91a781ea81ca987e133bc4f677b0",
+      "total": 26,
+      "passed": 26,
+      "cases": [
+        {
+          "name": "RV01_DragAcquisitionBothRatesDirectionsAndSpin",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV02_HeldImpossibleAccelerationAndProvenanceFaults",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV03_OneFastBounceHasOneStableIdentity",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce",
+          "status": "PASS",
+          "properties": {
+            "confirmed_ids_150": "1",
+            "confirmed_ids_300": "1"
+          }
+        },
+        {
+          "name": "RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV05_DelayedContactSegmentsQuaternionWindow",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV06_HistoricalPreContactSpinRestoresImpactVelocity",
+          "status": "PASS",
+          "properties": {
+            "pre_spin_available": "true",
+            "post_vx": "3.000000"
+          }
+        },
+        {
+          "name": "RV07_AuthoritativeAndQuaternionZeroRemainAvailable",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV08_FiniteNetCornerClearanceAndTrueContact",
+          "status": "PASS",
+          "properties": {
+            "clearance_02753_collision": "false"
+          }
+        },
+        {
+          "name": "RV09_NetFirstContactTimeAcrossStepSizes",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV09b_TrueCornerCollisionWinsPlaneTie",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV10_SameStepBounceNoiseReachesPlane",
+          "status": "PASS",
+          "properties": {
+            "vx_variance_dt_1000": "0.422500",
+            "vx_variance_dt_500": "0.422500",
+            "vx_variance_dt_250": "0.422500"
+          }
+        },
+        {
+          "name": "RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV11c_BounceNoiseChangesPhysicalReturnAdmission",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV13_OriginalNakashimaFrictionSensitivityAndTrueZero",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV17_CausalCheckpointAndObservationCutoffParity",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger",
+          "status": "PASS",
+          "properties": {}
+        },
+        {
+          "name": "RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn",
+          "status": "PASS",
+          "properties": {}
+        }
+      ]
+    },
+    "sanitized_review_followup_exit": 0,
+    "followup_fixture_sha256": "566591fce12e2644cdd70ba2f9e2722fe3f2dc5d2a830aa058c7541b6226fd93",
+    "initial_baseline_fixture_sha256": "d518a6dd63de58d86d23ec1f898b453b423e5edc65776463c5995ed08f4d7977",
+    "source_hashes": {
+      "hope_ws/src/hope_planner_cpp/CMakeLists.txt": "e098fa776b9d58c1651f97344c1796864c783e93cbf2729596261e78c0a50337",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/common_ball_physics.hpp": "746079d2ac9bc2ac5809a41eac6574bd8a37cf29e4b401e1efd022a70f9e6aef",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_state_v2.hpp": "dc02dfde6a930cd36448a97e7aafc140cf1cee97acc5220d86a66dfa498d0ade",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trusted_spin.hpp": "192cece035fdfaae8287524aa920e4e86d1a6f5f7c0395fa0245d27e3594f639",
+      "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_integrated.sh": "493dc6bc943dc0a29af0d153615ebd99169865855e653139d7df0cae8ec287aa",
+      "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_pr64_review.sh": "7051e383784c9267ee9006fc6c424a39b5af1ad0639cd26ac7c07c09949560f5",
+      "hope_ws/src/hope_planner_cpp/src/common_ball_physics.cpp": "d79aaf3cfe8cbe7bc5763800827f717bfd875f414e460b8b286a8bc46c089aa7",
+      "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_node.cpp": "9f986d187ba1569ea595058fbb9b5077ab29e6c0c7125ee6b180efdb54c05e2d",
+      "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp": "1e094d8145b3d6a044650821f24b48d20a179e83d2007477648406a34b991153",
+      "hope_ws/src/hope_planner_cpp/src/flight_spin_estimator.cpp": "0efc532c7d1597f4d0c287e87fa435800879e5ec7ec5ab28a279f01d4f586699",
+      "hope_ws/src/hope_planner_cpp/src/flight_state_v2.cpp": "5a3c6ed44371a3d1b50932a0310c470f36b1354ed167f0b50160769fa4c724bb",
+      "hope_ws/src/hope_planner_cpp/src/flight_transport_v2.cpp": "d1ea1acbcd5b436a53fc9a19de89c8f5c3d3bd6697aa3f1737b00294413feba7",
+      "hope_ws/src/hope_planner_cpp/src/integrated_planner_runtime.cpp": "c3b2246b01ffbfaecdcf6997cb57c3464e5dcb1fdf3a88ab67668f5583e65d7f",
+      "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp": "04747ad13e702caa4214974a53d021b2013da3fdcebe2d722148baf0e2a5eae4",
+      "hope_ws/src/hope_planner_cpp/src/return_region.cpp": "3c12d6078a63207492c8849fe71c219560b7fbb5fcaace39fb658d1de87756c8",
+      "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py": "75a15f11fcf10f49827c4dcb5139ffc31b0337f1580bdf28bf1e5adfe9ad5dbd",
+      "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_smoke.py": "1f08c7b9861e79f32e096ed1b50831248a3cd519da7f2c0be02d919b723305ed",
+      "hope_ws/src/hope_planner_cpp/test/integrated_context_noop.py": "a2f6c7cd58240157bf6db3f3fa2e16788d8ff722119ef11d6b1ef705f7314d3c",
+      "hope_ws/src/hope_planner_cpp/test/integrated_producer_chain.py": "71ed365dac4d19b616ad79cc1c0a6fcf0d4e4cd73aee4989026a40a25523a70f",
+      "hope_ws/src/hope_planner_cpp/test/native/CMakeLists.txt": "4ac2e85f0d45bcedc5894c0d1f88c2b8da002a96057eafa3bda66c36ca92d42a",
+      "hope_ws/src/hope_planner_cpp/test/review_cutoff_parity.py": "89d971b841d0d3fa42bc7d6d1980b9d3a9b5e4f93c19e58b9609fce508e8424a",
+      "hope_ws/src/hope_planner_cpp/test/review_policy_contract.py": "67c88fa7122f4512eb3be3a013a34b8c84ea160efcd94e0efcd4e6443b164868",
+      "hope_ws/src/hope_planner_cpp/test/review_startup_guards.py": "db8d2cfa4f581bce72c69f7e30f1927babebf9de0b7b6ca9668566f961b8c6bf",
+      "hope_ws/src/hope_planner_cpp/test/test_flight_prediction_v2.cpp": "48245b7ed05f83addd9c5a6c45264f366e8b122797f2a528380c1b498b781021",
+      "hope_ws/src/hope_planner_cpp/test/test_flight_transport_v2.cpp": "2711c0f3b081eea26675f2a05d8a757920054ab76d527ee652ac8e7e5a8df241",
+      "hope_ws/src/hope_planner_cpp/test/test_forecast_scope.py": "3908c4bf2e1ea745f243cebdaea8259a004df111a06e2adba8e74d185ea2a7d6",
+      "hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp": "566591fce12e2644cdd70ba2f9e2722fe3f2dc5d2a830aa058c7541b6226fd93"
+    },
+    "configuration_hashes": {
+      "hope_ws/src/hope_planner_cpp/config/integrated_planner.shadow.yaml": "1690eea4533c2644002600c2cdd4e73aa2f77ebc0ae574096db709133468525f",
+      "hope_ws/src/hope_msgs/msg/FlightPredictionV2.msg": "d221806520cd3d63f230bec49fc1b8c62044dc505627ce711e5e1410ebbe2e3d",
+      "hope_ws/src/hope_msgs/msg/FlightPacketV2.msg": "a241d9e38c2a68d8642f319d07294f88877e68ab41c62c5f81bbf8c431cd0ae8"
+    },
+    "policy_contract": {
+      "status": "PASS",
+      "scope": "Two replaceable artifacts: metadata/110-D ABI and finite CPU inference only.\n\nReal decoder and observation-builder semantics are exercised by the C++ suite.\nThis is not achieved paddle tracking or a native Runner --inspect-policy run.\n",
+      "results": [
+        {
+          "artifact": "a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx",
+          "sha256": "6bf1a2418f8538e23577a0153f2fe6a1e78dee91f41650a232259432a84a4dc8",
+          "recipe": "rally_v14",
+          "cases": [
+            {
+              "lead_s": 0.2,
+              "velocity": [
+                1.5,
+                -0.2,
+                0.8
+              ],
+              "output_shapes": [
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  4
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ]
+              ]
+            },
+            {
+              "lead_s": 0.08,
+              "velocity": [
+                2.0,
+                0.1,
+                1.2
+              ],
+              "output_shapes": [
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  4
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ]
+              ]
+            },
+            {
+              "lead_s": 0.4,
+              "velocity": [
+                1.0,
+                0.0,
+                0.5
+              ],
+              "output_shapes": [
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  4
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ]
+              ]
+            }
+          ],
+          "contract": {
+            "observation_names": "base_ang_vel,joint_pos,joint_vel,actions,projected_gravity,base_forward_xy,base_target_delta_xy,racket_target_rel_base,racket_target_vel_w,time_to_strike",
+            "actor_obs_total_dim": "110",
+            "world_frame_contract": "table_p1_to_p2_v1",
+            "actor_obs_contract": "hitter_pure"
+          }
+        },
+        {
+          "artifact": "hope_training/whole_body_tracking/checkpoints/policy.onnx",
+          "sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+          "recipe": "continuous_rally_sim2real_v3",
+          "cases": [
+            {
+              "lead_s": 0.2,
+              "velocity": [
+                1.5,
+                -0.2,
+                0.8
+              ],
+              "output_shapes": [
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  4
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ]
+              ]
+            },
+            {
+              "lead_s": 0.08,
+              "velocity": [
+                2.0,
+                0.1,
+                1.2
+              ],
+              "output_shapes": [
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  4
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ]
+              ]
+            },
+            {
+              "lead_s": 0.4,
+              "velocity": [
+                1.0,
+                0.0,
+                0.5
+              ],
+              "output_shapes": [
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  31
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  4
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ],
+                [
+                  1,
+                  14,
+                  3
+                ]
+              ]
+            }
+          ],
+          "contract": {
+            "observation_names": "base_ang_vel,joint_pos,joint_vel,actions,projected_gravity,base_forward_xy,base_target_delta_xy,racket_target_rel_base,racket_target_vel_w,time_to_strike",
+            "actor_obs_total_dim": "110",
+            "world_frame_contract": "table_p1_to_p2_v1",
+            "actor_obs_contract": "hitter_pure"
+          }
+        }
+      ]
+    },
+    "context_callback_results": [
+      {
+        "status": "PASS",
+        "worker_delay_ms": 0,
+        "ignored_revocations": 0,
+        "accepted_semantic_revocations": 1,
+        "accepted_contact_revocations": 1,
+        "duplicate_contact_revocations": 0,
+        "post_fence_stale_results": 0
+      },
+      {
+        "status": "PASS",
+        "worker_delay_ms": 12,
+        "ignored_revocations": 0,
+        "accepted_semantic_revocations": 1,
+        "accepted_contact_revocations": 1,
+        "duplicate_contact_revocations": 0,
+        "post_fence_stale_results": 0
+      }
+    ],
+    "source_cutoff_parity": {
+      "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_source_cutoff_parity.json",
+      "sha256": "8e6ced67f9c18b8428977296820f59a66f5eccec26a61f8c76efdb7f787c0ff2",
+      "status": "PASS",
+      "results": [
+        {
+          "rate_hz": 150,
+          "qualified_spin": false,
+          "matched_cutoffs": 41,
+          "pre_bounce_cutoffs": 27,
+          "post_bounce_cutoffs": 11,
+          "compared_events": 123,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 46,
+          "fixture": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_source_cutoff_parity-150-False.csv"
+        },
+        {
+          "rate_hz": 150,
+          "qualified_spin": true,
+          "matched_cutoffs": 41,
+          "pre_bounce_cutoffs": 29,
+          "post_bounce_cutoffs": 9,
+          "compared_events": 125,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 46,
+          "fixture": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_source_cutoff_parity-150-True.csv"
+        },
+        {
+          "rate_hz": 300,
+          "qualified_spin": false,
+          "matched_cutoffs": 85,
+          "pre_bounce_cutoffs": 56,
+          "post_bounce_cutoffs": 23,
+          "compared_events": 255,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 93,
+          "fixture": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_source_cutoff_parity-300-False.csv"
+        },
+        {
+          "rate_hz": 300,
+          "qualified_spin": true,
+          "matched_cutoffs": 85,
+          "pre_bounce_cutoffs": 60,
+          "post_bounce_cutoffs": 19,
+          "compared_events": 258,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 93,
+          "fixture": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_source_cutoff_parity-300-True.csv"
+        }
+      ]
+    },
+    "installed_chains": [
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/integrated_chain_150_FOLLOW_POSE.json",
+        "sha256": "498c170742694b6285aa66cf3109c5b492bae4d9fbbc7f8761e75d283c94205c",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 5.0,
+        "spin": "unknown",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 41,
+        "covered_command_epochs": 40,
+        "command_coverage": 0.975609756097561,
+        "actual_decoder_ms": {
+          "p50": 2.271954,
+          "p95": 2.45236895,
+          "p99": 2.88073351,
+          "max": 3.211725
+        },
+        "valid_commands": 62
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/integrated_chain_150_ON_REFRESH.json",
+        "sha256": "ac72085245c6dbe832b44e3d9d83594fb7e6d29398e6da70885e0b2baf530e02",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 5.0,
+        "spin": "unknown",
+        "plane_policy": "ON_REFRESH",
+        "scenario": "standard",
+        "command_denominator": 41,
+        "covered_command_epochs": 40,
+        "command_coverage": 0.975609756097561,
+        "actual_decoder_ms": {
+          "p50": 2.2440515000000003,
+          "p95": 2.4883442,
+          "p99": 3.1190535200000005,
+          "max": 3.412383
+        },
+        "valid_commands": 62
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/integrated_chain_300_FOLLOW_POSE.json",
+        "sha256": "64048665f0a4e643be62e1f4f0d9db0d6ad97aa60eed0d7cb486be2008e3a99a",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 5.0,
+        "spin": "unknown",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 82,
+        "covered_command_epochs": 81,
+        "command_coverage": 0.9878048780487805,
+        "actual_decoder_ms": {
+          "p50": 2.1437225,
+          "p95": 2.3707397999999995,
+          "p99": 2.52834512,
+          "max": 3.07162
+        },
+        "valid_commands": 128
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/integrated_chain_300_ON_REFRESH.json",
+        "sha256": "37c4fffad9f7173f869e94fde8a234c7fe795f2f8566ad96568b1df11ec5f33c",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 5.0,
+        "spin": "unknown",
+        "plane_policy": "ON_REFRESH",
+        "scenario": "standard",
+        "command_denominator": 82,
+        "covered_command_epochs": 81,
+        "command_coverage": 0.9878048780487805,
+        "actual_decoder_ms": {
+          "p50": 2.1686565,
+          "p95": 2.4194800499999998,
+          "p99": 2.66051977,
+          "max": 3.332833
+        },
+        "valid_commands": 128
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_10_known.json",
+        "sha256": "886511c79e3f47f116bb39475812d4bb0c4fe2f45a74030d9bdd51393fb808cf",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 10.0,
+        "spin": "known",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 80,
+        "covered_command_epochs": 80,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.2078385000000003,
+          "p95": 2.47973665,
+          "p99": 2.6338868199999994,
+          "max": 3.239034
+        },
+        "valid_commands": 200
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_10_unknown.json",
+        "sha256": "0558618d7052d273f745e08ca3cc0e16f48d8857eecbf371845937e8f252db30",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 10.0,
+        "spin": "unknown",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 80,
+        "covered_command_epochs": 80,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.204276,
+          "p95": 2.4115837,
+          "p99": 2.525270559999998,
+          "max": 2.971884
+        },
+        "valid_commands": 200
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_10_zero.json",
+        "sha256": "6e9e11033499839a8d5322ba4475bdadbdca484acd3ae7f5c1461d7d4d0b44bf",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 10.0,
+        "spin": "zero",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 80,
+        "covered_command_epochs": 80,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.2208985,
+          "p95": 2.4412670499999995,
+          "p99": 2.5768720699999994,
+          "max": 2.963573
+        },
+        "valid_commands": 200
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_12_known.json",
+        "sha256": "32bafc5018241dc0c68647e69ad42748a21778fb82224827eddfc57c31acbecf",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 12.0,
+        "spin": "known",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 20,
+        "covered_command_epochs": 20,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.6311204999999998,
+          "p95": 2.750507,
+          "p99": 2.85087145,
+          "max": 2.863837
+        },
+        "valid_commands": 40
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_12_unknown.json",
+        "sha256": "d3ddfad043e292199dca4243a954acebadd73c410799b27aad40a44ca6a0f396",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 12.0,
+        "spin": "unknown",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 20,
+        "covered_command_epochs": 20,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.5503825,
+          "p95": 2.74284825,
+          "p99": 2.78490337,
+          "max": 2.850777
+        },
+        "valid_commands": 130
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_12_zero.json",
+        "sha256": "10b84b11cc97a76fa925c1e5797b46f9dfbb24945927d5c1901ee678968cebc4",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 12.0,
+        "spin": "zero",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 20,
+        "covered_command_epochs": 20,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.6329015,
+          "p95": 2.84454335,
+          "p99": 3.06373658,
+          "max": 3.167793
+        },
+        "valid_commands": 130
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_20_known.json",
+        "sha256": "330b5bae696cbc9913d8ff086ef0565f3464c75ed7df0dabb423e3d46777fd9b",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 20.0,
+        "spin": "known",
+        "case": "fast_physical_tracking_execution_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_20_unknown.json",
+        "sha256": "42332761348b51fd81f39fa99f9446569c7a47b736fe6c7a8133e6bca848dedf",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 20.0,
+        "spin": "unknown",
+        "case": "fast_physical_tracking_execution_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_150_20_zero.json",
+        "sha256": "52fbc991bbc5bd66334e4835098130d777aa5dfdf177ee6c84bc9ac91240520d",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 20.0,
+        "spin": "zero",
+        "case": "fast_physical_tracking_execution_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_10_known.json",
+        "sha256": "f25f9d9539a7d433e79d51244b0936fbbbdfbd4658bae4a6338711c71c06b8c0",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 10.0,
+        "spin": "known",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 150,
+        "covered_command_epochs": 150,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.099791,
+          "p95": 2.361775549999998,
+          "p99": 2.57283426,
+          "max": 3.113177
+        },
+        "valid_commands": 410
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_10_unknown.json",
+        "sha256": "1a64ba35c286960305f57cef005ac8ca64d3f562ae61c0493a05aa20fdcde52f",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 10.0,
+        "spin": "unknown",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 160,
+        "covered_command_epochs": 160,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.050517,
+          "p95": 2.2234521,
+          "p99": 2.49760658,
+          "max": 3.014628
+        },
+        "valid_commands": 410
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_10_zero.json",
+        "sha256": "71fcdf30458905b235ebf3b555f949a2687c4364bfa13338cf71e7e36e3a7b5d",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 10.0,
+        "spin": "zero",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 160,
+        "covered_command_epochs": 160,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.121163,
+          "p95": 2.32081255,
+          "p99": 2.5284757599999996,
+          "max": 2.829405
+        },
+        "valid_commands": 410
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_12_known.json",
+        "sha256": "f701455aa8dd5f144c764bed32d09dc5dfcf4e5310c748be822406087d0b0f5f",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 12.0,
+        "spin": "known",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 40,
+        "covered_command_epochs": 40,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.5444459999999998,
+          "p95": 2.728482,
+          "p99": 2.8328710599999996,
+          "max": 2.836529
+        },
+        "valid_commands": 108
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_12_unknown.json",
+        "sha256": "a87df864de6ae06621d3b28b1918663b5b90d738dc9d74cd15c75ef426a78422",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 12.0,
+        "spin": "unknown",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 40,
+        "covered_command_epochs": 40,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.4548025,
+          "p95": 2.614498,
+          "p99": 2.709840200000001,
+          "max": 2.79141
+        },
+        "valid_commands": 260
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_12_zero.json",
+        "sha256": "49d5afd041701e479edbd28d07012410beaf4841a9ccb82c8f2129f500dc2879",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 12.0,
+        "spin": "zero",
+        "plane_policy": "FOLLOW_POSE",
+        "scenario": "standard",
+        "command_denominator": 40,
+        "covered_command_epochs": 40,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.5165435,
+          "p95": 2.6727373,
+          "p99": 2.7697896000000006,
+          "max": 2.89827
+        },
+        "valid_commands": 260
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_20_known.json",
+        "sha256": "426a877a20ae594d064167228f1121fd36f42048e5da362cf4840f51e8e875ec",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 20.0,
+        "spin": "known",
+        "case": "fast_physical_tracking_execution_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_20_unknown.json",
+        "sha256": "6816c14d2efb88a5f9d1dfa81b12134273cc50d698002e1c1aed985b961b8d59",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 20.0,
+        "spin": "unknown",
+        "case": "fast_physical_tracking_execution_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_chain_300_20_zero.json",
+        "sha256": "c2f5c33dbb98fb5fa19a9a32d10069245d45445ef4aca58a08c2398fd1e05339",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 20.0,
+        "spin": "zero",
+        "case": "fast_physical_tracking_execution_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_150_held.json",
+        "sha256": "bbdea6d37d88f99cba7382cc08352c2346e6d826efbfd6a834c3884667212b3d",
+        "status": "PASS",
+        "rate_hz": 150,
+        "case": "held",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_150_net_clear.json",
+        "sha256": "01c23261c12acdcb81f55f6156eee0e2884f01f9e6192a7a884875361df427d1",
+        "status": "PASS",
+        "rate_hz": 150,
+        "case": "clearing_net_physics_actor_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_150_net_collision.json",
+        "sha256": "5dbbbe4f0eba549acbd97825e6309e747eb6211a992d7b8290336b933578fd90",
+        "status": "PASS",
+        "rate_hz": 150,
+        "case": "net_collision",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_150_uncertain_contact.json",
+        "sha256": "fb654c67257e5febe838ab9d48cfaf34fe1e80fb8fcf1c4704cffb6aac5bef29",
+        "status": "PASS",
+        "rate_hz": 150,
+        "case": "uncertain_contact",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_300_held.json",
+        "sha256": "beb84b2e6edae75006eecd40c41d5345af7baf3e1b5198df5c63048b6c737d63",
+        "status": "PASS",
+        "rate_hz": 300,
+        "case": "held",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_300_net_clear.json",
+        "sha256": "55c8b2a959b2c908532def6d45ca95716ff5bb6cf76a826d6cd699841d6e30c4",
+        "status": "PASS",
+        "rate_hz": 300,
+        "case": "clearing_net_physics_actor_separate",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_300_net_collision.json",
+        "sha256": "3a14e4068b30a1925860646d2de27fd87e2aaa0c2350abe2648e3550b1391cd2",
+        "status": "PASS",
+        "rate_hz": 300,
+        "case": "net_collision",
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/build/hope_planner_cpp/review_geometry_300_uncertain_contact.json",
+        "sha256": "5a164362a7ee96b6054f3bad2f3519bc75f1ee22f9c9c3a1909559947800a54f",
+        "status": "PASS",
+        "rate_hz": 300,
+        "case": "uncertain_contact",
+        "valid_commands": 0
+      }
+    ],
+    "supplementary": [
+      {
+        "path": "/tmp/hope-pr64-local-20261021/supplementary/expired_worker_150.json",
+        "sha256": "bd897e5346339378294ed5fc238c0eaa26d0b74d83db2ba5d4f0295ae5fd90ce",
+        "status": "PASS",
+        "case": "delayed_worker_expiry",
+        "worker_delay_ms": 40,
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/supplementary/expired_worker_300.json",
+        "sha256": "d2bffcaa8c7c015ac9d9ef63917014f416ab0580dec9cbc9d2ed52042329c4ac",
+        "status": "PASS",
+        "case": "delayed_worker_expiry",
+        "worker_delay_ms": 40,
+        "valid_commands": 0
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/supplementary/on_refresh_150_10.json",
+        "sha256": "6908edf1cc5de97d3f01c4ecbd5894d25ed4affd79268f86225f0092448951a8",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 10.0,
+        "spin": "unknown",
+        "plane_policy": "ON_REFRESH",
+        "scenario": "standard",
+        "command_denominator": 80,
+        "covered_command_epochs": 80,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.2161435000000003,
+          "p95": 2.4832323,
+          "p99": 2.6459431199999983,
+          "max": 3.046677
+        },
+        "valid_commands": 200
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/supplementary/on_refresh_150_12.json",
+        "sha256": "be927ba88ede808f8bfc4b8e13186355aa34c5bd8c69fcd8350893a1013b8d39",
+        "status": "PASS",
+        "rate_hz": 150,
+        "speed_mps": 12.0,
+        "spin": "unknown",
+        "plane_policy": "ON_REFRESH",
+        "scenario": "standard",
+        "command_denominator": 20,
+        "covered_command_epochs": 20,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.5539375,
+          "p95": 2.70176015,
+          "p99": 2.72771487,
+          "max": 2.778342
+        },
+        "valid_commands": 130
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/supplementary/on_refresh_300_10.json",
+        "sha256": "dafe81154b696516051aa3ecdd296cf2ca663f8bd0b044d574dc5492ae38ac48",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 10.0,
+        "spin": "unknown",
+        "plane_policy": "ON_REFRESH",
+        "scenario": "standard",
+        "command_denominator": 160,
+        "covered_command_epochs": 160,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.1116585,
+          "p95": 2.3630154999999995,
+          "p99": 2.5726260199999995,
+          "max": 2.908948
+        },
+        "valid_commands": 410
+      },
+      {
+        "path": "/tmp/hope-pr64-local-20261021/supplementary/on_refresh_300_12.json",
+        "sha256": "300f4637760a11143fc5333177ba404dfb8bab471299a746aea51481d42b0a85",
+        "status": "PASS",
+        "rate_hz": 300,
+        "speed_mps": 12.0,
+        "spin": "unknown",
+        "plane_policy": "ON_REFRESH",
+        "scenario": "standard",
+        "command_denominator": 40,
+        "covered_command_epochs": 40,
+        "command_coverage": 1.0,
+        "actual_decoder_ms": {
+          "p50": 2.416801,
+          "p95": 2.5767938,
+          "p99": 2.6419781,
+          "max": 2.736786
+        },
+        "valid_commands": 260
+      }
+    ],
+    "supplementary_exits": {
+      "aggregate": 0,
+      "expired_worker_300": 0,
+      "on_refresh_300_12": 0,
+      "on_refresh_300_10": 0,
+      "expired_worker_150": 0,
+      "on_refresh_150_12": 0,
+      "on_refresh_150_10": 0
+    },
+    "references": {
+      "outgoing-reference": {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/outgoing-reference.json",
+        "sha256": "4201ffde44bccb85d281e20d0485069edebccbb95aa952f62a3fbdde045b28fa",
+        "status": "PASS",
+        "total_candidates": 144,
+        "accepted": 144,
+        "rejections": {},
+        "reference": "independent scipy DOP853 rtol=2e-12 atol=2e-14 + analytic normal impact",
+        "max_position_error_m": 3.2938040705144405e-13,
+        "max_event_time_error_s": 7.882583474838611e-14,
+        "max_impact_closure_mps": 0.0,
+        "physical_accuracy": "NOT_RUN"
+      },
+      "legacy-parity": {
+        "path": "/tmp/hope-pr64-local-20261021/corrected/legacy-parity.json",
+        "sha256": "95a8a48542e9e9ed62f17b35f7cede614b8e933122ce3454d2c67b534ff99c52",
+        "status": "PASS",
+        "base": "8d599e7d21e196275cf426488555e2648e8fd789",
+        "production_source_sha256": {
+          "hope_ws/src/hope_planner_cpp/src/racket_target_planner.cpp": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+          "hope_ws/src/hope_planner_cpp/src/adaptive_flight_commit.cpp": "a38800cb2796c0b99de106f970027083acac9d711f864a1261916e451e7a7846",
+          "hope_ws/src/hope_planner_cpp/src/trajectory_predictor.cpp": "adc299467296ff6924a3bf3de2349d750fe7f4999dab42710f3571beaa9c3590",
+          "hope_ws/src/hope_planner_cpp/src/batch_physics_estimator.cpp": "03ebd64aaca3cfadfab46a918e07a38a6e2ec5d932b1627a7557bc30cb79d3fe",
+          "hope_ws/src/hope_planner_cpp/src/spin_estimator.cpp": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+          "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/racket_target_planner.hpp": "702810cc94ca033ce5200f0579e166424fb7d0194ef021e9767362f5fbca57fa",
+          "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/adaptive_flight_commit.hpp": "55056f3873d1a38c93a0c91bd2399f2cf185d60f8e1bca94a38d40523542a4ed",
+          "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trajectory_predictor.hpp": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+          "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/batch_physics_estimator.hpp": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+          "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/spin_estimator.hpp": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9",
+          "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/future_contact_predictor.hpp": "6b6b8d7230b2e56f4861341b240959bdf5cb1e7a02dc35b263a76190c2f7a30e"
+        },
+        "exact_fixture_parity": true,
+        "exceptions": [],
+        "fixture_counts": {
+          "racket": 18,
+          "receiving_flight": 3,
+          "all_spin_modes": 540,
+          "spin_and_batch": 140
+        },
+        "max_abs_difference": 0,
+        "all_five_spin_modes": true,
+        "nakashima_and_venue_remain_distinct": true,
+        "note": "Each side compiled from its own complete source/header tree; no updated goldens."
+      }
+    },
+    "verification_commands": [
+      "bash hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_pr64_review.sh /tmp/hope-pr64-local-20261021",
+      "bash /tmp/hope-pr64-local-20261021/run_supplementary.sh",
+      "PYTHONPATH=/tmp/hope-pr64-policy-packages python3 /home/tpark/workspace/HOPE/integrated-v2-review-fixes/hope_ws/src/hope_planner_cpp/test/review_policy_contract.py --repo /home/tpark/workspace/HOPE/integrated-v2-review-fixes --output /tmp/hope-pr64-local-20261021/policy-contract.json",
+      "cmake --build <baseline/native|corrected/native|corrected/sanitized> --target test_v2_pr64_review_regressions -j2; <build>/test_v2_pr64_review_regressions --gtest_output=xml:<evidence>/<label>-review-followup.xml",
+      "python3 /tmp/hope-pr64-local-20261021/collect_local_receipt.py"
+    ],
+    "date": "2026-10-21",
+    "timezone": "America/Los_Angeles",
+    "status": "REVIEW_REGRESSION_COMPLETE_WITH_INHERITED_LINT",
+    "review_regression_complete": true,
+    "software_complete": false,
+    "simulation_qualified": false,
+    "physically_qualified": false,
+    "deployment_authorized": false,
+    "old_pr64_observed": {
+      "url": "https://github.com/hitchopen/HOPE/pull/64",
+      "state": "open",
+      "head_sha": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "modified_by_this_work": false
+    },
+    "model_profile": "thin-shell-forward-v4-pr64-causal-contact-finite-net-20261021",
+    "wire_versions": {
+      "observation": 2,
+      "context": 2,
+      "forecast": 3,
+      "packet": 3,
+      "runner": 2
+    },
+    "acceptance": {
+      "RV01": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV02": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV03": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV04": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV05": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV06": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV07": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV08": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV09": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV10": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV11": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV12": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV13": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV14": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV15": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV16": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV17": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV18": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV19": {
+        "status": "PASS",
+        "source_commit": "be642ba261c3b553f9a427bae9fb0f0d0a181cc9"
+      },
+      "RV20": {
+        "status": "PENDING_USER_PUBLICATION_CHOICE",
+        "options": "integrated_planner_pr64_publication_options.md",
+        "upstream_pr_modified": false
+      }
+    },
+    "acceptance_extensions": {
+      "RV11": "RV11c_BounceNoiseChangesPhysicalReturnAdmission; fails baseline coarse step, passes corrected coarse/refined",
+      "RV12": "accepted and duplicate contact callbacks with zero and 12 ms worker delay; exactly one contact revocation"
+    },
+    "lint_accounting": "Aggregate exit 1 is preserved; failed issue multisets match the baseline exactly.",
+    "baseline_timeout_accounting": "Historical installed raw-camera fixture timed out at 120 s; baseline planner 36/37. Corrected updated fixture passes in the single 67/67 run.",
+    "evidence_archive": {
+      "path": "/home/tpark/workspace/HOPE/integrated-v2-review-fixes/artifacts/pr64-local-20261021-evidence.tar.gz",
+      "sha256": "bb12cdf3065cc5925d1c92efb6e584418b8fcb9b58a5b3bf741a5f9f0ec88391",
+      "size_bytes": 3988973,
+      "scope": "Curated raw logs/XML/JSON, source rows, fixtures and build flags; no build binaries or policies. Local ignored artifact, not a GitHub upload."
+    }
   }
 }
