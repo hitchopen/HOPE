@@ -1493,7 +1493,8 @@ def main():
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        executor.shutdown()
+        from hope_operations_runtime import shutdown_executor
+        shutdown_executor(executor)
         node.stop_workers()
         node.destroy_node()
         rclpy.try_shutdown()

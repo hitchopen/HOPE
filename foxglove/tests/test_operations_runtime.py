@@ -63,3 +63,16 @@ def test_closed_dds_and_status_errors_still_join_cleanup_before_destroy():
     assert "status publisher closed" in diagnostics
     assert "cleanup diagnostic" in diagnostics
     assert "DDS context closed before pending RPC responses could drain" in diagnostics
+
+
+def test_early_jazzy_shutdown_joins_pool_before_return(monkeypatch):
+    import hope_operations_runtime as runtime
+    order = []
+    class EarlyExecutor:
+        def shutdown(self, timeout_sec=None):
+            order.append(("stop", timeout_sec))
+    monkeypatch.setattr(runtime, "MultiThreadedExecutor", EarlyExecutor)
+    executor = EarlyExecutor()
+    executor._executor = SimpleNamespace(shutdown=lambda **kw: order.append(("join", kw)))
+    runtime.shutdown_executor(executor, abandon_responses=True)
+    assert order == [("join", {"wait": True}), ("stop", 0.0)]

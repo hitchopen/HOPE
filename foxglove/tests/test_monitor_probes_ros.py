@@ -140,7 +140,7 @@ def test_five_stalled_probes_leave_runner_base_and_default_callbacks_live(tmp_pa
             assert not node._dds_future.done()
         finally:
             release.set()
-            executor.shutdown()
+            __import__("hope_operations_runtime").shutdown_executor(executor)
             node.stop_workers()
             node._probe_pool.shutdown(wait=True)
             probe.destroy_node()
@@ -176,7 +176,7 @@ def test_interface_future_change_reaches_real_executor_as_reconnect(tmp_path):
             assert len(source_threads) >= 2
             assert all(thread_id != threading.get_ident() for thread_id in source_threads)
         finally:
-            executor.shutdown()
+            __import__("hope_operations_runtime").shutdown_executor(executor)
             node.stop_workers()
             node._probe_pool.shutdown(wait=True)
             node.destroy_node()
