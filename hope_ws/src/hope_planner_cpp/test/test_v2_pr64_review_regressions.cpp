@@ -470,6 +470,56 @@ TEST(PR64Review, RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl) {
   auto f=forecast_nominal(b,c,n);ASSERT_TRUE(f.hit_plane);
   EXPECT_TRUE(f.hit_plane->covariance_budget.bounce.isZero());
 }
+TEST(PR64Review, RV11c_BounceNoiseChangesPhysicalReturnAdmission) {
+  // A plane four milliseconds after contact isolates an application-level
+  // effect: configured bounce noise makes the contact order uncertain. With
+  // that noise explicitly disabled the same physical branch is eligible.
+  for (double dt : {.005, .00025}) {
+    ProbabilisticConfig c;
+    c.physics.drag_k = c.physics.magnus_k = 0;
+    c.physics.gravity.setZero();
+    c.integration_dt_s = dt;
+    c.trajectory_dt_s = c.horizon_s = .01;
+    ModelState contact;
+    contact.velocity = Vec3(-3, 0, -2);
+    apply_model_contact(contact, c.physics);
+    StateBelief belief;
+    belief.initialized = true;
+    belief.covariance = 1e-10 * Matrix6::Identity();
+    belief.mean << c.x_hit + 3 * .000499 - contact.velocity.x() * .004,
+        -.7, c.physics.radius + 2 * .000499, -3, 0, -2;
+    ModelState initial;
+    initial.position = belief.mean.head<3>();
+    const auto source = observation(0, initial);
+    ShotSnapshot shot;
+    shot.generation = 1;
+    shot.direction = -1;
+    shot.boundary_ns = source.source_time_ns;
+    shot.observations.push_back(source);
+    FlightPrediction forecast;
+    forecast.physical_available = true;
+    forecast.belief = belief;
+    forecast.token.generation = shot.generation;
+    forecast.reference_ns = source.source_time_ns;
+    forecast.expires_ns = forecast.reference_ns + 30000000;
+    forecast.plane = plane();
+    auto noise = ForecastNoiseConfig::inherited(c);
+    noise.acceleration_spectral_density = 0;
+    for (bool uncertain : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << dt << ":" << uncertain);
+      noise.bounce_velocity_std = uncertain ? c.bounce_velocity_std : Vec3::Zero();
+      forecast.nominal = forecast_nominal(belief, c, noise);
+      ASSERT_TRUE(forecast.nominal.hit_plane);
+      const auto result = select_physical_return(forecast, shot, c, forecast.reference_ns);
+      EXPECT_EQ(result.eligible, !uncertain);
+      EXPECT_EQ(result.reason, uncertain ? "CONTACT_ORDER_UNCERTAIN" : "RETURN_ELIGIBLE");
+      EXPECT_NEAR(forecast.nominal.hit_plane->covariance(3, 3),
+                  uncertain ? .4225 : 0., 1e-8);
+      if (result.input)
+        EXPECT_EQ(result.input->covariance, forecast.nominal.hit_plane->covariance);
+    }
+  }
+}
 TEST(PR64Review, RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem) {
   ShotContext s({});s.start(0,-1,BoundaryEvidence::RESTART,HistoryContinuity::kUnknown);
   BallSample sample;sample.source_time_ns=1;sample.source_time_s=1e-9;
