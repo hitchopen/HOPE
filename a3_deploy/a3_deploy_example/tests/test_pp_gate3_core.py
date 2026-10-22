@@ -776,19 +776,43 @@ class Gate3CppPlannerEvidenceTest(unittest.TestCase):
             any("identity conflicts" in item for item in report["errors"])
         )
 
+    def test_adaptive_physical_spin_receipt_and_physics_checks(self) -> None:
+        row = cpp_planner_audit_row(1)
+        row.update({
+            "control_stage2_mode": "post_net_one_shot_physical_spin_magnus",
+            "commit_source_time_s": row["net_cross_source_time_s"] + 0.327334,
+            "post_net_commit_delay_s": 0.05,
+            "post_net_future_bounce_tangential_gain": 0.38744443855065164,
+            "future_contact_magnus_enabled": 1,
+            "physics_drag_k": 0.12861635416914574,
+            "physics_magnus_k": 0.00379260504480258,
+            "physics_table_gain": 0.38744443855065164,
+            "physics_table_mu": 0.16706204822993975,
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "planner.csv"
+            write_cpp_planner_audit(path, [row])
+            report = audit_cpp_planner_debug_csv(path, 1)
+            self.assertTrue(report["planner_contract_pass"], report["errors"])
+            row["physics_drag_k"] = 0.0
+            write_cpp_planner_audit(path, [row])
+            report = audit_cpp_planner_debug_csv(path, 1)
+            self.assertFalse(report["planner_contract_pass"])
+            self.assertTrue(any("physics_drag_k" in error for error in report["errors"]))
+
     def test_duplicate_identity_or_non_cpp_contract_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / "planner.csv"
             first = cpp_planner_audit_row(1)
             second = cpp_planner_audit_row(2)
             second["command_seq"] = 1
-            second["post_net_commit_delay_s"] = 0.06
+            second["commit_source_time_s"] = second["net_cross_source_time_s"] - 0.01
             second["logger_drops"] = 1
             write_cpp_planner_audit(path, [first, second])
             report = audit_cpp_planner_debug_csv(path, 2)
         self.assertFalse(report["planner_contract_pass"])
         self.assertTrue(any("command_seq sequence" in item for item in report["errors"]))
-        self.assertTrue(any("50 ms" in item for item in report["errors"]))
+        self.assertTrue(any("precedes net crossing" in item for item in report["errors"]))
         self.assertTrue(any("logger drops" in item for item in report["errors"]))
 
 
