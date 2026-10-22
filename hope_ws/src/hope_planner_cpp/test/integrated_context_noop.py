@@ -86,11 +86,38 @@ def main():
             context.publish(message)
             spin(.002)
         assert revoked() == initial+1, 'unsupported enum value withdrew accepted context'
+
+        # An accepted contact is a separate semantic fence. Queue a fresh
+        # observation first so the delayed-worker variant also has a solve
+        # that must be retired by this contact, then repeat the same evidence.
+        last = time.time_ns()
+        t = (last-start)*1e-9
+        m.source_time_ns = last
+        m.position.x, m.position.z = 1.8-5*t, .4-.5*t-4.905*t*t
+        observation.publish(m)
+        spin(.003)
+        message.operation, message.event_kind = 'CONTACT', 'table_bounce'
+        message.source_time_ns = message.event_time_ns = message.confirmed_at_ns = last
+        message.position.x, message.position.y, message.position.z = .6, -.7, .02
+        message.pre_velocity.x, message.pre_velocity.z = -3., -2.
+        context.publish(message)
+        spin(.003)
+        assert revoked() == initial+2, 'accepted contact did not revoke exactly once'
+        contact_fence = next(m.context_revision for m in reversed(predictions)
+                             if m.reason == 'semantic_context_superseded')
+        assert contact_fence > fence, 'accepted contact did not advance semantic revision'
+        contact_index = len(predictions)
+        context.publish(message)
+        spin(.003)
+        assert revoked() == initial+2, 'duplicate accepted contact revoked again'
         spin(.04)
         assert all(not m.physical_available or m.context_revision >= fence
                    for m in predictions[index:]), 'stale in-flight result reappeared after semantic fence'
+        assert all(not m.physical_available or m.context_revision >= contact_fence
+                   for m in predictions[contact_index:]), 'pre-contact solve reappeared after accepted contact'
         print(json.dumps({'status': 'PASS', 'worker_delay_ms': args.worker_delay_ms,
                           'ignored_revocations': 0, 'accepted_semantic_revocations': 1,
+                          'accepted_contact_revocations': 1, 'duplicate_contact_revocations': 0,
                           'post_fence_stale_results': 0}))
     finally:
         process.terminate()
