@@ -111,6 +111,13 @@ pw.txt
 # Local research notes
 /research/
 
+# Local development notes, review/bug reports and one-off test scripts.
+# Reusable regression tests and public runtime evidence remain tracked.
+/.local-dev/
+# Retired PR bookkeeping paths; use .local-dev/notes/ for local copies.
+/docs/operations/pr_batch_plan_20261021.md
+/docs/operations/today_prs_20261021.md
+
 # Repository-local temporary files
 /tmp/
 

@@ -43,6 +43,7 @@ Services:
 """
 
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 import math
 import os
 from pathlib import Path
@@ -116,6 +117,14 @@ MODE_COMMAND_PASSIVE = 0
 MODE_COMMAND_PD_STAND = 1
 MODE_COMMAND_MOTION = 2
 
+
+@dataclass(frozen=True)
+class CpuProbeResult:
+    load: float | None = None
+    top_text: str = "TOP CPU PROCESS WARMING UP"
+    error: str = ""
+
+
 class HopeMonitor(Node):
     def __init__(self):
         super().__init__("hope_monitor")
@@ -137,7 +146,7 @@ class HopeMonitor(Node):
         self._native_clock_topics = bool(self.get_parameter("native_clock_topics").value)
         self.declare_parameter("message_latency_stale_after_s", 0.5)
         self.declare_parameter("agibot_pm_unit", "agibot_pm.service")
-        self.declare_parameter("hdu_runtime_unit", "hope-observer.service")
+        self.declare_parameter("hdu_runtime_unit", "hope-lifecycle-supervisor.service")
         self.declare_parameter("cpu_publish_period_s", 1.0)
         self.declare_parameter("tf_stale_after_s", 0.5)
         self.declare_parameter("enable_tf_fallback", True)
@@ -391,11 +400,16 @@ class HopeMonitor(Node):
         if float(self.get_parameter("calibration_timeout_s").value) <= 0.0:
             raise ValueError("calibration_timeout_s must be positive")
         self._probe_pool = ThreadPoolExecutor(
-            max_workers=3, thread_name_prefix="hope-monitor-probe"
+            max_workers=5, thread_name_prefix="hope-monitor-probe"
         )
+        # At most one task per source: NTP, PM, HDU, CPU and interface probes.
+        # Slow external reads must not hold the default subscription group.
         self._ntp_future: Future[NtpProbeResult] | None = None
         self._pm_future: Future[ServiceProbeResult] | None = None
         self._hdu_future: Future[ServiceProbeResult] | None = None
+        self._cpu_future: Future[CpuProbeResult] | None = self._probe_pool.submit(self._probe_cpu)
+        self._dds_interfaces = None
+        self._dds_future = self._probe_pool.submit(read_ipv4_interface_signature)
         self.create_timer(period, self._poll_ntp)
         self.create_timer(period, self._poll_pm)
         self.create_timer(period, self._poll_hdu)
@@ -405,19 +419,24 @@ class HopeMonitor(Node):
         self.create_timer(0.2, self._poll_pelvis)
         if not self._native_clock_topics:
             self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
-        self._dds_interfaces = read_ipv4_interface_signature()
         self.create_timer(1.0, self._poll_dds_interfaces)
 
     def _poll_dds_interfaces(self):
-        current = read_ipv4_interface_signature()
-        if current is None:
+        if self._dds_future is None:
+            self._dds_future = self._probe_pool.submit(read_ipv4_interface_signature)
             return
-        if self._dds_interfaces is None:
+        if not self._dds_future.done():
+            return
+        # Retrieve on the executor: a probe RuntimeError must propagate, and
+        # the deliberate reconnect exception below must never stay in a worker.
+        current = self._dds_future.result()
+        if current is not None and self._dds_interfaces is None:
             self._dds_interfaces = current
-        elif current != self._dds_interfaces:
+        elif current is not None and current != self._dds_interfaces:
             # systemd recreates DDS on the new addresses. The persistent E-stop
             # latch remains authoritative across this monitor-only restart.
             raise RuntimeError("Network interfaces changed; reconnecting monitor DDS")
+        self._dds_future = self._probe_pool.submit(read_ipv4_interface_signature)
 
     # ---- CPU load ----------------------------------------------------------
     @staticmethod
@@ -435,7 +454,10 @@ class HopeMonitor(Node):
             result[sample.pid] = sample
         return result
 
-    def _poll_cpu(self):
+    def _probe_cpu(self):
+        # This source has only one pending future. Read both counter sets and
+        # rotate their baselines together in its worker, never in the timer.
+        # The returned value is immutable and the worker never uses ROS objects.
         try:
             current = parse_proc_stat_cpu(
                 Path("/proc/stat").read_text(encoding="utf-8")
@@ -446,11 +468,7 @@ class HopeMonitor(Node):
             self._previous_cpu_times = current
             self._previous_process_cpu_times = process_current
             if previous is None:
-                self.pub_cpu_text.publish(String(data="CPU LOAD WARMING UP"))
-                self.pub_cpu_top_process.publish(
-                    String(data="TOP CPU PROCESS WARMING UP")
-                )
-                return
+                return CpuProbeResult()
             load = cpu_load_percent(previous, current)
             top_process = top_process_cpu_load(
                 process_previous,
@@ -459,18 +477,7 @@ class HopeMonitor(Node):
                 cpu_count=os.cpu_count() or 1,
             )
         except (OSError, ValueError) as exc:
-            self.pub_cpu_text.publish(
-                String(data=f"CPU LOAD UNAVAILABLE | {exc}")
-            )
-            self.get_logger().warn(
-                f"CPU load probe unavailable: {exc}", throttle_duration_sec=30
-            )
-            return
-
-        self.pub_cpu_load.publish(Float64(data=load))
-        self.pub_cpu_text.publish(
-            String(data=f"A3 aggregate CPU load = {load:.1f}%")
-        )
+            return CpuProbeResult(error=str(exc), top_text="TOP CPU PROCESS UNAVAILABLE")
         if top_process is None:
             top_text = "TOP CPU PROCESS UNAVAILABLE"
         else:
@@ -479,7 +486,31 @@ class HopeMonitor(Node):
                 f"core={top_process.core_percent:.1f}% "
                 f"system={top_process.system_percent:.1f}%"
             )
-        self.pub_cpu_top_process.publish(String(data=top_text))
+        return CpuProbeResult(load=load, top_text=top_text)
+
+    def _poll_cpu(self):
+        if self._cpu_future is None:
+            self._cpu_future = self._probe_pool.submit(self._probe_cpu)
+            return
+        if not self._cpu_future.done():
+            return
+        completed, self._cpu_future = self._cpu_future, None
+        # Preserve exception propagation, but do not reread a failed future
+        # if a caller recovers and polls again. Avoid scheduling work on the
+        # exception path while the current entry point is about to exit.
+        result = completed.result()
+        self._cpu_future = self._probe_pool.submit(self._probe_cpu)
+        if result.error:
+            self.pub_cpu_text.publish(String(data=f"CPU LOAD UNAVAILABLE | {result.error}"))
+            self.get_logger().warn(
+                f"CPU load probe unavailable: {result.error}", throttle_duration_sec=30
+            )
+        elif result.load is None:
+            self.pub_cpu_text.publish(String(data="CPU LOAD WARMING UP"))
+        else:
+            self.pub_cpu_load.publish(Float64(data=result.load))
+            self.pub_cpu_text.publish(String(data=f"A3 aggregate CPU load = {result.load:.1f}%"))
+        self.pub_cpu_top_process.publish(String(data=result.top_text))
 
     # ---- timestamp latency -------------------------------------------------
     def _on_native_latency_message(self, message):

@@ -55,7 +55,7 @@ def test_invalid_or_incomplete_setup_rejected(changes):
 def test_helper_dispatch_keeps_selected_setup_and_rejects_second_stack():
     helper = (FOXGLOVE / "helpers/hope-lifecycle").read_text()
     parser = helper[helper.index("valid_ipv4() {"):helper.index("require_user() {")]
-    starter = helper[helper.index("validate_laptop_mocap() {"):helper.index("run_base() {")]
+    starter = helper[helper.index("validate_laptop_mocap() {"):helper.index("run_transport_gateway() {")]
     stubs = '''
 LAPTOP_USER=unused LAPTOP_SESSION=hope-optitrack SELF=helper
 require_user() { :; }
@@ -98,7 +98,9 @@ def test_real_runtime_selects_only_vrpn_without_natnet_assets(tmp_path, units, s
         script.chmod(0o755)
     wrap = ws / "install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
     wrap.parent.mkdir(parents=True)
-    wrap.write_text('#!/bin/bash\nshift 5\nexec "$@"\n')
+    # Current main supplies both the HDU and loopback peer; tolerate the
+    # wrapper's variable peer list instead of assuming exactly five options.
+    wrap.write_text('#!/bin/bash\nwhile [[ "$1" != -- ]]; do shift; done\nshift\nexec "$@"\n')
     wrap.chmod(0o755)
     env_file = tmp_path / "runtime.env"
     env_file.write_text(f'''HOPE_LIFECYCLE_ROOT='{root}'

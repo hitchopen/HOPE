@@ -20,6 +20,13 @@ includes Mac/Linux, gripper and NatNet/VRPN selectors and matches the checked-in
 Combined lifecycle schema 6 preserves existing field schema-5 settings; source
 and image builds do not overwrite or restart the live HDU backend.
 
+The [onboard node architecture](../docs/operations/node_architecture.md) describes
+the consolidated runtime: one `hope_operations` node, an early independent
+native base relay and a late native Runner gateway. A full session has 10 HOPE
+onboard nodes (9 HDU, 1 MDU), down from 12; optional mocap configuration transport
+makes 11. Install the matching modules, native base relay, gateway and
+helper only while STOPPED, preserving venue configuration and service drop-ins.
+
 # HOPE A3 Foxglove Operator Interface
 
 > **Formal model_21800 operator stack.** This directory combines monitoring,
@@ -93,10 +100,13 @@ distinct Wi-Fi addresses whenever the robot, Laptop, or venue changes:
   only while the live vendor `HalEmergencyService/SetEmergencyCommand` RPC is
   matched. It can only encode `software_emergency_stop=true`; it contains no
   reset/release path.
-- **R3 — Additive only.** Two dedicated fleet-monitoring HDU systemd units; no
-  vendor runner file is modified. The Runner observer, command proxy and 8766
-  bridge are separately staged opt-in units. Disabling the units removes their runtime effect; the documented
-  removal procedure separately cleans installed and build artifacts.
+- **R3 — Explicit service ownership.** Fleet monitoring, native IMU and the
+  attended bridge remain separate. One operations node owns observer, command
+  proxy and lifecycle modules under `hope-lifecycle-supervisor.service`. The old
+  observer/proxy units are disabled compatibility shims with no ROS process.
+  Starting a shim starts operations; stopping a shim does not stop operations.
+  Use the canonical service for stop/restart; observer cannot be disabled separately.
+  Vendor Runner files are unchanged; see the stopped migration procedure below.
 - **R4 — Bandwidth is opt-in.** The topic whitelist excludes H.265 camera
   and lidar streams by default. Add them per-robot, deliberately.
 - **R5 — Verify per unit before trusting.** Fleet defaults below were
@@ -139,7 +149,9 @@ A3 unit                                          External computer
             ⇄ ROS2/FastDDS domain 232  ──┐
   hope_monitor.py (health, E-stop, scene) ──┤
   fleet foxglove_bridge ─────────────────┴── ws://<robot-ip>:8765 ──► monitoring / E-stop
-  Runner observer + command proxy ◄──► native Runner request/state
+  hope_operations (observer + commands + lifecycle)
+       ◄──► native transport gateway ◄──► native Runner request/state
+       ◄──── independent native base relay ◄──── Laptop base pose
   attended control bridge ─────────────── ws://<robot-ip>:8766 ──► A3 Console
 
 Motive ── NatNet ──► adapter ── v3 17-sticker calibration ──► calibration/ucb_robot_to_pelvis.json
@@ -164,15 +176,21 @@ foxglove/
     |-- fastdds_bridge_profile.xml   UDPv4-only, address-agnostic host profile
     |-- network.env.example          one-place Laptop static-peer configuration
     |-- hope_monitor.py              health, scene and assert-only E-stop monitor
-    |-- hope_observer.py             normalized Runner/operator state publisher
-    |-- hope_command_proxy.py        fixed Runner and calibration service proxy
-    |-- hope_lifecycle_supervisor.py fixed process lifecycle authority
+    |-- hope_operations.py           one ROS node for lifecycle/commands/observer
+    |-- hope_operations_core.py      shared snapshots and bounded workers
+    |-- hope_operations_runtime.py   graceful shutdown and service-response drain
+    |-- hope_telemetry.py            contained callback faults and visible diagnostics
+    |-- hope_observer.py             observer module and compatibility entry point
+    |-- hope_command_proxy.py        command module and compatibility entry point
+    |-- hope_lifecycle_supervisor.py lifecycle module and compatibility entry point
+    |-- native/base_pose_transport.cpp independent early native base relay
+    |-- native/transport_gateway.cpp five Runner wire routes, started after Runner
     |-- hope-foxglove-bridge.service read-only fleet bridge
     |-- hope-foxglove-control-bridge.service
     |-- hope-monitor.service
-    |-- hope-observer.service
-    |-- hope-command-proxy.service
-    |-- hope-lifecycle-supervisor.service
+    |-- hope-observer.service        disabled no-process compatibility shim
+    |-- hope-command-proxy.service   disabled no-process compatibility shim
+    |-- hope-lifecycle-supervisor.service canonical operations service
     `-- patches/                     pinned A3 ament-index compatibility patches
 ```
 
@@ -320,9 +338,9 @@ shutdown, topics, and service restrictions using this checklist.
 
 ### 2. Install the bridge and monitor services
 
-The calibration JSON and base-pose relay are computer-side components. Do not
-create a calibration directory or install a JSON-reading world service on the
-robot.
+The calibration JSON and authoritative base-pose source remain computer-side
+components; the independent HDU native base relay forwards their original wire payload. Do not create
+a calibration directory or install a JSON-reading world service on the robot.
 
 ```bash
 ssh "agi@$A3_HOST"
@@ -333,18 +351,23 @@ cmake -S ~/foxglove_a3/native -B ~/hope_field_native_build -DCMAKE_BUILD_TYPE=Re
 cmake --build ~/hope_field_native_build -j2
 sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-imu-telemetry \
   /usr/local/libexec/hope-imu-telemetry
-sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-runner-transport-relay-native \
-  /usr/local/libexec/hope-runner-transport-relay
-# The matching lifecycle helper executes the relay directly (without python3).
-# Deploy that helper together with the native relay; preserve venue configuration.
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/bridge_params.yaml \
-  /etc/hope-foxglove/bridge_params.yaml
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/fastdds_bridge_profile.xml \
-  /etc/hope-foxglove/fastdds_bridge_profile.xml
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/network.env.example \
-  /etc/hope-foxglove/network.env
-# Edit this one file and set ROS_STATIC_PEERS to the Laptop Wi-Fi address.
-# Re-check it after every venue or network change.
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-transport-gateway \
+  /usr/local/libexec/hope-transport-gateway
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-base-pose-transport-relay \
+  /usr/local/libexec/hope-base-pose-transport-relay
+# The matching helper starts the native base relay before Planner/HAL,
+# then starts the five-route gateway after Runner. No Python base relay is launched.
+# Complete the STOPPED operations/helper migration linked below before START.
+# Bootstrap missing configuration only; preserve existing venue values.
+for item in bridge_params.yaml fastdds_bridge_profile.xml; do
+  if ! sudo test -e "/etc/hope-foxglove/$item"; then
+    sudo install -D -o root -g root -m 0644 "$HOME/foxglove_a3/$item" "/etc/hope-foxglove/$item"
+  fi
+done
+if ! sudo test -e /etc/hope-foxglove/network.env; then
+  sudo install -D -o root -g root -m 0644 ~/foxglove_a3/network.env.example /etc/hope-foxglove/network.env
+fi
+# Reconcile addresses and interface policy for this venue; do not reset a live file.
 sudoedit /etc/hope-foxglove/network.env
 sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_monitor.py \
   /usr/local/bin/hope_monitor.py
@@ -366,19 +389,43 @@ sudo systemctl enable --now hope-imu-telemetry.service hope-monitor.service hope
 systemctl status hope-monitor hope-foxglove-bridge --no-pager
 ```
 
-High-rate IMU reception, clock display publication, and Runner/teleop transport
+For the attended control plane, complete the [operations and gateway migration](../docs/operations/node_architecture.md#stopped-migration-and-installation).
+Disable the old observer/proxy services before replacing their units; install
+`hope_operations.py`, `hope_operations_core.py`, `hope_operations_runtime.py`,
+`hope_telemetry.py` and all existing module
+dependencies together. Preserve canonical lifecycle drop-ins and move any old
+observer/proxy overrides into that service. Only the canonical operations unit
+is normally enabled.
+With empty `ROS_STATIC_PEERS`, the canonical unit warns on stderr and uses the
+address-agnostic DDS profile for configuration/diagnostics. Configure the venue's
+`network.env` and restart the canonical service while STOPPED; the lifecycle
+helper still requires peers before START. Preserve the explicit-peer wrapper
+when peers are configured.
+
+High-rate IMU reception, clock display publication, and base/Runner/teleop transport
 run in C++. A fixed native wait set receives IMU data independently of the 20 Hz
 display timer. Original HDU `CLOCK_MONOTONIC` receipt time determines freshness;
 the three `/hope/clock` display topics have one native publisher. The Python
 node retains the independent safety endpoints and slower health checks. A lost
 IMU makes freshness false after 0.5 s; a lost native process makes the Console's
-latency stream stale after its existing 0.5 s receipt timeout. The relay starts after Runner, retains
-the original payload, and never replays commands on a timer. Both bridges use two
+latency stream stale after its existing 0.5 s receipt timeout. The independent
+native base relay starts before Planner/HAL, so base data still reaches the HDU
+if Runner is absent or fails, or the late Runner gateway crashes. KERNEL skips
+base relay and Planner. The gateway starts after Runner and carries its five
+routes, including Runner-produced HOME. Both transports retain the original
+payload and never replay commands on a timer. Both bridges use two
 executor threads. The laptop samples Xbox input at 50 Hz; TELEOP, enabled input,
 and mode transitions retain that rate, while inactive heartbeats and GUI preview
 use 10 Hz with immediate state edges. Runner's 200 ms watchdog is unchanged.
 
 The read-only observer still evaluates every source and freshness gate at 5 Hz.
+Operations' shared base and Runner readers each use reliable depth 10 and a
+separate mutually exclusive reception group outside telemetry callbacks.
+Malformed packets retain command-side last-good data and its original receipt
+time, while separate diagnostics invalidate the observer display; explicit
+invalid base packets invalidate the shared value. Filesystem cache errors or
+overdue refreshes show `UNKNOWN`, retain known identity, and suppress stale
+Planner/x_hit health claims.
 Its 34 non-liveness Bool/String display statuses publish on every changed value;
 unchanged values keep a 0.4 s heartbeat, quantized to the existing 0.2 s snapshot
 ticks (normally 0.4–0.6 s). Liveness, Runner mode/session matching, fault status,

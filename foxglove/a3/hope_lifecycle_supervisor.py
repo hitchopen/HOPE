@@ -13,12 +13,13 @@ import subprocess
 import threading
 import time
 
-import rclpy
 from rcl_interfaces.msg import ParameterType, SetParametersResult
 from rcl_interfaces.srv import SetParameters
 from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from hope_operations_core import BoundedWorker, CachedCall, RosComponent, WorkerAdmission, telemetry_callback
+from hope_operations_runtime import run_node
+from hope_runner_control_core import runner_session_fingerprint
 from std_msgs.msg import Bool, String, UInt32
 from std_srvs.srv import Trigger
 
@@ -161,7 +162,8 @@ class LifecycleBackend:
             # The operator may run the Laptop bridge separately when ball/base
             # telemetry is needed, but an absent Motive stream must not block
             # starting HAL and the authoritative Runner in PASSIVE.
-            ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 20.0),
+            # Keep placement telemetry independent of slow/failed Runner bring-up.
+            ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 10.0),
             ("PLANNER", [LIFECYCLE_HELPER, "start-planner", *common], 20.0),
             # agibot_pm has a 90 s systemd stop timeout on the MDU. Field
             # shutdown commonly takes 40-60 s, so do not orphan a successful
@@ -171,10 +173,11 @@ class LifecycleBackend:
             # The MDU AimRT participant must exist before this explicit-peer
             # HDU participant.  Reversing these two steps reproduces the field
             # failure where Runner DATA reaches the HDU UDP socket but the old
-            # reader callback never matches.
+            # reader callback never matches. Base has its own early participant
+            # and remains available if this Runner gateway fails.
             (
-                "RUNNER_TRANSPORT",
-                [LIFECYCLE_HELPER, "start-runner-transport", *common],
+                "TRANSPORT_GATEWAY",
+                [LIFECYCLE_HELPER, "start-transport-gateway", *common],
                 20.0,
             ),
         )
@@ -294,12 +297,15 @@ class LifecycleBackend:
         return json.loads(result.stdout)
 
 
-class HopeLifecycleSupervisor(Node):
-    def __init__(self):
-        super().__init__(
-            "hope_lifecycle_supervisor",
-            start_parameter_services=False,
-        )
+class LifecycleModule(RosComponent):
+    def __init__(self, node, *, shared_state=None):
+        RosComponent.__init__(self, node)
+        self._shared_state = shared_state
+        self._admission = shared_state.admission if shared_state is not None else WorkerAdmission()
+        self._rpc_workers = BoundedWorker("hope-lifecycle-rpc", capacity=2, admission=self._admission)
+        self._record_workers = BoundedWorker("hope-record-rpc", capacity=2, admission=self._admission)
+        self._closed = False
+        self._stopping = False
         self._callback_group = ReentrantCallbackGroup()
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hope-lifecycle")
@@ -350,43 +356,47 @@ class HopeLifecycleSupervisor(Node):
         self.create_service(
             SetParameters,
             "/hope/lifecycle/apply_config",
-            self._apply_config,
+            self._worker_callback(self._apply_config, self._rpc_workers),
             callback_group=self._callback_group,
         )
         self.create_service(
             Trigger,
             "/hope/lifecycle/start",
-            self._start,
+            self._worker_callback(self._start, self._rpc_workers),
             callback_group=self._callback_group,
         )
         self.create_service(
             Trigger,
             "/hope/lifecycle/kill_all_and_collect",
-            self._kill_all_and_collect,
+            self._worker_callback(self._kill_all_and_collect, self._rpc_workers),
             callback_group=self._callback_group,
         )
-        self.create_subscription(
-            String,
-            "/hope/runner/mode",
-            self._on_runner_mode,
-            10,
-            callback_group=self._callback_group,
-        )
-        self.create_subscription(
-            Bool,
-            "/hope/runner/session_matches",
-            self._on_runner_session_matches,
-            10,
-            callback_group=self._callback_group,
-        )
+        if shared_state is None:
+            self.create_subscription(
+                String,
+                "/hope/runner/mode",
+                self._on_runner_mode,
+                10,
+                callback_group=self._callback_group,
+            )
+            self.create_subscription(
+                Bool,
+                "/hope/runner/session_matches",
+                self._on_runner_session_matches,
+                10,
+                callback_group=self._callback_group,
+            )
         self._field_publisher = self.create_publisher(String, "/hope/field/status", 10)
-        self.create_service(SetParameters, "/hope/field/command", self._field_command,
+        self.create_service(SetParameters, "/hope/field/command",
+                            self._worker_callback(self._field_command, self._field_worker),
                             callback_group=self._callback_group)
         # The pelvis-aligned Motive asset replaces the venue JSON workflow.
         # Legacy JSON import/export remains an explicit maintenance API; do not
         # poll or adopt an old file into the default asset-based session.
-        self.create_timer(0.5, self._publish)
-        self.create_timer(15.0, self._refresh_ball_models)
+        self._field_snapshot = CachedCall("hope-field-status", self._field.status,
+                                          {"error": "field status pending"})
+        self._publish_timer = self.create_timer(0.5, self._publish)
+        self._refresh_timer = self.create_timer(15.0, self._refresh_ball_models)
         if self._config.revision > 0:
             self._field.recorder.stop(wait=False)  # default OFF after supervisor restart
 
@@ -396,6 +406,7 @@ class HopeLifecycleSupervisor(Node):
         message.data = value
         return message
 
+    @telemetry_callback
     def _publish(self) -> None:
         with self._lock:
             config = self._config
@@ -404,18 +415,25 @@ class HopeLifecycleSupervisor(Node):
             session_id = self._session_id
             busy = self._busy
             result = self._last_result
-        field_status = self._field.status()
+            draining = self._stopping
+        field_status = dict(self._field_snapshot.poll())
+        if self._field_snapshot.error:
+            field_status["error"] = self._field_snapshot.error
         field_status["busy"] = self._field_busy
+        field_status["draining"] = draining
         field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
                                                      if state == "RUNNING" else None)
-        self._field_publisher.publish(self._string(json.dumps(field_status, ensure_ascii=False)))
+        field_wire = json.dumps(field_status, ensure_ascii=False)
+        if self._shared_state is not None:
+            self._shared_state.set_field_status(field_wire, field_status)
+        self._field_publisher.publish(self._string(field_wire))
         self._lifecycle_publishers["state"].publish(self._string(state))
         self._lifecycle_publishers["step"].publish(self._string(step))
         self._lifecycle_publishers["session"].publish(self._string(session_id))
         self._lifecycle_publishers["result"].publish(self._string(result))
         self._lifecycle_publishers["summary"].publish(
             self._string(
-                f"state={state} step={step} session={session_id or 'NONE'} "
+                f"state={state} step={step} session={session_id or 'NONE'} draining={int(draining)} "
                 f"config_revision={config.revision} table_side={config.table_side} "
                 f"result={result}"
             )
@@ -439,7 +457,7 @@ class HopeLifecycleSupervisor(Node):
 
     def _refresh_ball_models(self) -> None:
         with self._lock:
-            if self._busy or self._field_busy or self._field_refresh_running or self._config.revision < 1:
+            if self._stopping or self._closed or self._busy or self._field_busy or self._field_refresh_running or self._config.revision < 1:
                 return
             self._field_refresh_running = True
             config = self._config
@@ -449,11 +467,20 @@ class HopeLifecycleSupervisor(Node):
             finally:
                 with self._lock:
                     self._field_refresh_running = False
-        self._field_pool.submit(refresh)
+        # Admission and submit share the close lock; no refresh can land
+        # after close has started shutting down the asset worker.
+        with self._lock:
+            if self._stopping or self._closed:
+                self._field_refresh_running = False
+                return
+            try:
+                self._field_pool.submit(refresh)
+            except RuntimeError:
+                self._field_refresh_running = False
 
     def _refresh_field(self) -> None:
         with self._lock:
-            if self._field_busy or self._field_refresh_running or self._config.revision < 1:
+            if self._stopping or self._closed or self._field_busy or self._field_refresh_running or self._config.revision < 1:
                 return
             self._field_refresh_running = True
             config = self._config
@@ -463,7 +490,27 @@ class HopeLifecycleSupervisor(Node):
             finally:
                 with self._lock:
                     self._field_refresh_running = False
-        self._field_pool.submit(refresh)
+        with self._lock:
+            if self._stopping or self._closed:
+                self._field_refresh_running = False
+                return
+            try:
+                self._field_pool.submit(refresh)
+            except RuntimeError:
+                self._field_refresh_running = False
+
+    def _field_worker(self, request):
+        # Recording must not wait behind laptop SSH, configuration reconnects,
+        # or CSV uploads. Parsing/validation still happens in _field_command.
+        try:
+            raw = request.parameters[0].value.string_value if len(request.parameters) == 1 else ""
+            if len(raw) <= 4096:
+                payload = json.loads(raw)
+                if payload.get("op") in {"record_on", "record_off"}:
+                    return self._record_workers
+        except (ValueError, AttributeError, TypeError, RecursionError):
+            pass
+        return self._rpc_workers
 
     def _field_command(self, request, response):
         try:
@@ -590,19 +637,26 @@ class HopeLifecycleSupervisor(Node):
             self._last_result = "WAITING_FOR_AUTHORITATIVE_RUNNER_PASSIVE"
         while time.monotonic() < deadline:
             now = time.monotonic()
-            with self._lock:
-                mode = self._runner_mode
-                mode_fresh = (
-                    self._runner_mode_received > 0.0
-                    and now - self._runner_mode_received
-                    <= RUNNER_STATE_FRESHNESS_S
-                )
-                session_matches = self._runner_session_matches
-                session_matches_fresh = (
-                    self._runner_session_matches_received > 0.0
-                    and now - self._runner_session_matches_received
-                    <= RUNNER_STATE_FRESHNESS_S
-                )
+            if self._shared_state is not None:
+                snapshot = self._shared_state.runner.snapshot()
+                runner = snapshot.value
+                mode = runner.run_mode if runner is not None else "UNKNOWN"
+                mode_fresh = (snapshot.received_ns > 0 and
+                              now - snapshot.received_ns * 1e-9 <= RUNNER_STATE_FRESHNESS_S)
+                with self._lock:
+                    session_id = self._session_id
+                session_matches = bool(runner is not None and session_id and
+                                       runner.session_fingerprint == runner_session_fingerprint(session_id))
+                session_matches_fresh = mode_fresh
+            else:
+                with self._lock:
+                    mode = self._runner_mode
+                    mode_fresh = (self._runner_mode_received > 0.0 and
+                                  now - self._runner_mode_received <= RUNNER_STATE_FRESHNESS_S)
+                    session_matches = self._runner_session_matches
+                    session_matches_fresh = (
+                        self._runner_session_matches_received > 0.0 and
+                        now - self._runner_session_matches_received <= RUNNER_STATE_FRESHNESS_S)
             if (
                 mode_fresh
                 and mode == "PASSIVE"
@@ -815,30 +869,69 @@ class HopeLifecycleSupervisor(Node):
             release_hardware_operation_lock(self._hardware_operation_lock)
             self._hardware_operation_lock = None
 
+    def stop_accepting(self):
+        self._admission.seal()
+        with self._lock:
+            self._stopping = True
+        self._rpc_workers.stop_accepting()
+        self._record_workers.stop_accepting()
+        self._field_snapshot.stop_refreshing()
+        self._refresh_timer.cancel()
+
     def close(self) -> None:
         with self._lock:
-            release_hardware_operation_lock(self._hardware_operation_lock)
-            self._hardware_operation_lock = None
-        self._field_pool.shutdown(wait=True, cancel_futures=True)
-        self._field.recorder.stop()
-        self._pool.shutdown(wait=False, cancel_futures=True)
+            if self._closed:
+                return
+            self._closed = True
+        errors = []
+        def finish(callback):
+            try:
+                callback()
+                return True
+            except Exception as exc:
+                errors.append(exc)
+                return False
+        finish(self.stop_accepting)
+        finish(self._rpc_workers.close)
+        finish(self._record_workers.close)
+        # Never release the hardware interlock while an accepted START/KILL
+        # worker can still mutate the managed session.
+        lifecycle_joined = finish(lambda: self._pool.shutdown(wait=True, cancel_futures=True))
+        finish(lambda: self._field_pool.shutdown(wait=True, cancel_futures=True))
+        finish(self._field_snapshot.close)
+        finish(self._field.recorder.stop)
+        if lifecycle_joined:
+            with self._lock:
+                release_hardware_operation_lock(self._hardware_operation_lock)
+                self._hardware_operation_lock = None
+        if errors:
+            raise RuntimeError("lifecycle cleanup failed: " + "; ".join(str(exc) for exc in errors)) from errors[0]
+
+    def quiescent(self):
+        with self._lock:
+            return (self._state in {"STOPPED", "CONFIG_ERROR"} and not self._busy
+                    and not self._field_busy and not self._field_refresh_running
+                    and self._hardware_operation_lock is None
+                    and not self._rpc_workers.busy and not self._record_workers.busy)
+
+
+class HopeLifecycleSupervisor(Node, LifecycleModule):
+    """Compatibility entry point; the composed runtime uses LifecycleModule."""
+    def __init__(self):
+        Node.__init__(self, "hope_lifecycle_supervisor", start_parameter_services=False)
+        LifecycleModule.__init__(self, self)
+
+    def destroy_node(self):
+        try:
+            self.close()
+        finally:
+            self._admission.close()
+            result = Node.destroy_node(self)
+        return result
 
 
 def main() -> None:
-    rclpy.init()
-    node = HopeLifecycleSupervisor()
-    executor = MultiThreadedExecutor(num_threads=4)
-    executor.add_node(node)
-    try:
-        executor.spin()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        executor.shutdown()
-        node.close()
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(HopeLifecycleSupervisor)
 
 
 if __name__ == "__main__":

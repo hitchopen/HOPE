@@ -25,6 +25,14 @@ The native MDU Runner remains the authority for PASSIVE, PD_STAND, MOTION,
 role, serve state, action admission and action acknowledgements. The lifecycle
 supervisor owns process state only.
 
+The canonical `hope-lifecycle-supervisor.service` now runs one
+`hope_operations` ROS node containing lifecycle, command-proxy and observer
+modules. The old observer/proxy units are no-process compatibility shims and
+are not normally enabled. See [node ownership and stopped migration](node_architecture.md)
+for the 10-node inventory (9 HDU + 1 MDU, reduced from 12), shared snapshots,
+bounded workers, independent early native base relay and late Runner gateway.
+Optional mocap configuration transport makes 11 nodes.
+
 ## macOS operator
 
 Apple Silicon Macs can run Foxglove Desktop while the fixed Laptop lifecycle
@@ -283,10 +291,10 @@ cd "$(git rev-parse --show-toplevel)"
 export HOPE_ROOT="$PWD"
 export LAPTOP_USER="${USER}"
 export ROBOT_USER="${ROBOT_USER:-agi}"
-export LAPTOP_IP=<laptop-wifi-ip>
-export HDU_IP=<hdu-wifi-ip>
-export MDU_IP=<mdu-internal-ip>
-export MOTIVE_INTERFACE_IP=<laptop-motive-nic-ip>
+export LAPTOP_IP="<laptop-wifi-ip>"
+export HDU_IP="<hdu-wifi-ip>"
+export MDU_IP="<mdu-internal-ip>"
+export MOTIVE_INTERFACE_IP="<laptop-motive-nic-ip>"
 ```
 
 Store the same local wired-NIC address as `HOPE_MOTIVE_INTERFACE_IP` in
@@ -415,53 +423,72 @@ environment flag only affects worker-thread logging. The shared header is
 `a3_deploy/recording_file.hpp`; isolated Planner builds can set
 `HOPE_RECORDING_INCLUDE_DIR` to the staged include directory.
 
-## Install the HDU supervisor
+## Install the HDU operations service
 
-Stage `foxglove/a3/` as described in `foxglove/README.md` and refresh
-`~/foxglove_a3/fastdds_bridge_profile.xml` from this branch, then run on the
-HDU:
+Stage the matching `foxglove/a3/` directory and lifecycle/helper companions.
+Use the complete [STOPPED migration procedure](node_architecture.md#stopped-migration-and-installation):
+stop and disable the old observer/proxy units **before overwriting them**, stop
+the canonical service, then install all Python modules, the native base relay, gateway and
+the matching helper together. `hope_operations_core.py`,
+`hope_operations_runtime.py`, `hope_telemetry.py` and the existing
+field/assets/recording/core dependencies are required; copying only
+`hope_lifecycle_supervisor.py` is no longer sufficient.
+
+Keep `/etc/hope-foxglove/network.env`, DDS profiles and all venue-specific
+`hope-lifecycle-supervisor.service.d` drop-ins. Reconcile any `ExecStart`
+override with `hope_operations.py`, and move old observer/proxy parameter
+settings, including venue-specific `calibration_service_v2` and
+`calibration_service_v3` names, to the canonical service. Archive obsolete observer/proxy `ExecStart`
+overrides outside their active `.service.d` directories so the compatibility
+units still resolve to `/usr/bin/true`. Initialize bridge/profile example files
+only when absent. The [first-install procedure](foxglove_first_hardware_test.md#64-安装-fleet-monitorrunner-control-plane-和-lifecycle-supervisor)
+includes the rest of the persistent services.
+
+After files and overrides are reconciled, run on the stopped HDU:
 
 ```bash
-sudo install -D -o root -g root -m 0755 \
-  ~/foxglove_a3/hope_lifecycle_supervisor.py \
-  /usr/local/bin/hope_lifecycle_supervisor.py
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/hope_lifecycle_core.py \
-  /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/hope-lifecycle-supervisor.service \
-  /etc/systemd/system/hope-lifecycle-supervisor.service
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/bridge_params_control.yaml \
-  /etc/hope-foxglove/control_bridge_params.yaml
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/fastdds_bridge_profile.xml \
-  /etc/hope-foxglove/fastdds_bridge_profile.xml
-
 sudo systemctl daemon-reload
-sudo systemctl enable --now \
-  hope-observer.service \
-  hope-command-proxy.service \
-  hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service
-```
-
-These four units form the always-available, fixed-action control plane needed
-to start a stopped robot from Foxglove. They do not start HAL, Planner or
-Runner, and they do not stop `agibot_pm`. In lifecycle mode, leave them running
-after `KILL ALL & COLLECT` so the next session can be started without a terminal.
-
-Read-only verification:
-
-```bash
+sudo systemctl enable --now hope-lifecycle-supervisor.service hope-foxglove-control-bridge.service
 systemctl status hope-lifecycle-supervisor.service --no-pager
+systemctl is-enabled hope-observer.service hope-command-proxy.service  # expected: disabled
 ros2 topic echo /hope/lifecycle/summary --once
 ros2 service type /hope/lifecycle/apply_config
 ros2 service type /hope/lifecycle/start
 ros2 service type /hope/lifecycle/kill_all_and_collect
 ```
 
-Do not use Start as an installation smoke test on hardware.
+The canonical unit's 45-minute stop bound lets accepted SSH/collection work
+finish while DDS callbacks and the hardware lock remain owned. Shutdown closes
+new action admission and reports `DRAINING`; lifecycle state, step and field
+status keep publishing while accepted work completes. Requests during this
+phase are rejected as draining, rather than as a busy operator action. After
+worker cleanup completes, suspended service responses get a separate
+five-second drain budget. Expiry logs pending callback names/counts and
+abandons those responses; it does not shorten collection or interrupt a
+synchronously blocked callback thread. A missing response does not establish
+whether its action succeeded. An idle STOPPED instance exits promptly.
+Preserve this behavior when reconciling old timeout drop-ins.
+
+Deployment also requires the [Jazzy reconnect verification gate](node_architecture.md#reconnect-verification-required-before-deployment).
+An unskipped timer/executor subprocess test must show graceful cleanup followed
+by a non-zero exit. A direct `_check_network()` test or the unit's
+`Restart=on-failure` setting alone does not prove that path or an observed HDU
+restart; preserve the runtime/package evidence with the stopped deployment check.
+
+Starting an observer/proxy compatibility shim starts the canonical service;
+stopping a shim does not stop operations. Stop or restart
+`hope-lifecycle-supervisor.service` directly. The observer has no independent
+disable switch in this combined process.
+
+When `ROS_STATIC_PEERS` is empty, the canonical unit writes a stderr warning
+and uses the address-agnostic DDS profile for configuration and diagnostics.
+Configure `/etc/hope-foxglove/network.env` and restart the canonical service
+while lifecycle is STOPPED. The lifecycle helper still requires peers before
+START; configured peers retain the explicit-peer wrapper and interface selection.
+
+Operations and the attended bridge remain available after `KILL ALL & COLLECT`.
+Starting these services does not start HAL, Planner or Runner or stop
+`agibot_pm`. Do not use Start as an installation smoke test on hardware.
 
 ## Start behavior
 
@@ -475,12 +502,23 @@ After the operator confirms the four boxes and acknowledges the physical
 support/E-stop dialog, the supervisor creates one session and runs:
 
 ```text
-SESSION -> OPTITRACK -> BASE_RELAY -> PLANNER -> HAL -> RUNNER(PASSIVE)
+PREFLIGHT -> SESSION -> BASE_RELAY -> PLANNER -> HAL -> RUNNER(PASSIVE)
+          -> TRANSPORT_GATEWAY -> RUNNER_VERIFY
 ```
 
-Each long-lived process runs in a fixed tmux session owned by the normal host
+KERNEL skips the base relay and Planner. Laptop mocap is
+managed independently and is not a START admission requirement. The independent
+native `hope-base-pose-transport-relay` starts before Planner/HAL and forwards
+live base data even if Runner is absent, Runner startup fails or the gateway
+crashes. No Python process runs this base route. The five-route Runner gateway
+starts after the field Runner participant exists, retaining the existing
+explicit-peer Fast DDS wrapper and interfaces. Its health gate requires fresh
+Runner traffic and bidirectional endpoints, not base or mocap packets.
+Its HOME route remains late because Runner produces HOME itself.
+
+Each lifecycle-managed long-lived process runs in a fixed tmux session owned by the normal host
 account. No generic command string enters tmux. A complete three-host preflight
-runs before creating the session. An unmanaged bridge, base relay, Planner,
+runs before creating the session. An unmanaged bridge, gateway, legacy relay, Planner,
 HAL or Runner makes preflight return to `STOPPED` instead of killing it or
 offering cleanup for a process it does not own. A leftover fixed tmux session
 is distinguishable as managed state: the supervisor enters `FAILED` and offers
@@ -518,16 +556,17 @@ or first transitioning to PASSIVE/PD_STAND. Before confirming it:
    is not a kill admission gate.
 
 "All" means every fixed session created by this lifecycle: Runner, HAL,
-Planner, base relay, world/calibration processes and the Laptop OptiTrack/
-marker/packetizer session. It does not mean arbitrary host processes: the
+Planner, independent base relay and Runner transport gateway, with cleanup of legacy relay sessions.
+The independently managed Laptop mocap bridge remains running; the collection
+step stops its session capture and collects evidence. It does not mean arbitrary host processes: the
 helper uses exact managed tmux session names and never exposes `pkill`,
 `killall`, a shell command box or a browser-supplied process selector.
 
 The fixed reverse sequence is:
 
 ```text
-Runner -> HAL -> restore agibot_pm -> Planner -> base relay
-       -> Laptop bridge -> rsync HDU/MDU evidence to Laptop
+Runner -> HAL -> restore agibot_pm -> transport gateway -> Planner -> base relay
+       -> legacy relay cleanup -> stop Laptop capture -> collect evidence
 ```
 
 If any cleanup step fails, the supervisor continues the remaining cleanup and

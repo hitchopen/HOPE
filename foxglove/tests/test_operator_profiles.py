@@ -34,7 +34,7 @@ class Dispatched(Exception):
 def backend_namespace(environment):
     # Load the actual service constants/backend without requiring ROS on macOS.
     source = SUPERVISOR.read_text()
-    backend = source[source.index('LIFECYCLE_HELPER = '):source.index('\nclass HopeLifecycleSupervisor')]
+    backend = source[source.index('LIFECYCLE_HELPER = '):source.index('\nclass LifecycleModule')]
     namespace = dict(os=os, re=re, Path=Path, subprocess=subprocess, json=json,
                      HelperEvent=HelperEvent, LifecycleConfig=LifecycleConfig,
                      parse_helper_event=parse_helper_event, validate_session_id=validate_session_id)
