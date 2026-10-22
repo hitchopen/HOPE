@@ -26,7 +26,8 @@ from hope_sim2real_control import state_root, process_identity
 ROS_TOPICS = [
     "/optitrack/poses", "/optitrack/rigid_body_markers", "/optitrack/tf",
     "/poses", "/rigid_body_markers", "/a3/base_pose_laptop_flat", "/a3/base_pose_flat",
-    "/UCB_P1/pose", "/UCB_P2/pose", "/ball/pose", "/ball/flight_packet",
+    "/UCB_P1/pose", "/UCB_P2/pose", "/ball/pose", "/ball/point", "/ball/flight_packet",
+    "/planner/diagnostics",
     "/racket/command_flat", "/hope/runner/state_flat", "/hope/runner/state_hdu_flat",
     "/hope/runner/control_request_flat", "/hope/runner/control_request_hdu_flat",
     "/hope/runner/summary", "/hope/planner/attempt", "/hope/planner/hit_plane", "/hope/lifecycle/summary",
@@ -57,6 +58,8 @@ def snapshot(root, output, role):
                 "run_a3_pingpong.sh"],
         "hdu": ["src/hope_planner_cpp/config/*.yaml", "src/hope_planner_cpp/config/*.json"],
         "laptop": ["hope_ws/src/hope_bringup/config/*.yaml", "calibration/*.json",
+                   "hope_ws/src/hope_bringup/config/pants_profiles/*.json",
+                   "NatNet2ROS2/src/motion_capture_tracking_interfaces/msg/*.msg",
                    "hope_ws/src/hope_planner_cpp/config/*flight_packetizer.yaml",
                    "hope_ws/calibration_receipts/*.json",
                    "hope_ws/src/hope_msgs/msg/*.msg",

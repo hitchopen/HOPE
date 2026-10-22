@@ -1545,7 +1545,7 @@ int main(int argc, char** argv) {
       std::cerr << "[pingpong] WARN: cannot open trace csv " << trace_path << "\n";
     }
   }
-  std::ostream* trace_ptr = trace.is_open() ? &trace : nullptr;
+  a3_deploy::AsyncCsvFile* trace_ptr = trace.is_open() ? &trace : nullptr;
 
   // --- optional per-tick OBS CSV (the full 180-D obs) for A/B/C comparison ---
   a3_deploy::AsyncCsvFile obscsv;
@@ -1565,7 +1565,7 @@ int main(int argc, char** argv) {
       std::cerr << "[pingpong] WARN: cannot open obs csv " << obs_csv_path << "\n";
     }
   }
-  std::ostream* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
+  a3_deploy::AsyncCsvFile* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
   const int loc_mode_int = static_cast<int>(loc_mode);
 
   // SHADOW free-running clock. The driver's `tick` is PUBLISH-GATED: in SHADOW
@@ -2046,7 +2046,7 @@ int main(int argc, char** argv) {
         hybrid_run_hope_next = !run_hope_this_tick;
       publish = (m == Mode::kMotion);  // SHADOW computes but does not publish
       // --- OBS CSV row (only when the policy ran, so obs is current) ---
-      if (obscsv_ptr) {
+      if (obscsv_ptr && obscsv_ptr->is_recording()) {
         const auto d = ppp->take_obs_debug();
         if (d.valid) {
           auto& o = *obscsv_ptr;
@@ -2105,7 +2105,7 @@ int main(int argc, char** argv) {
     }
 
     // --- CSV trace row (all modes; final post-gain command + measured state) ---
-    if (trace_ptr) {
+    if (trace_ptr && trace_ptr->is_recording()) {
       auto& o = *trace_ptr;
       const auto g = ppp->last_proj_grav();
       const auto planner = ppp->planner_trace_snapshot(tick);
@@ -2223,6 +2223,10 @@ int main(int argc, char** argv) {
         trace_previous_shot_seq = planner.shot_seq;
       }
       o.flush();  // enqueue the complete row; disk I/O stays on the worker
+    } else {
+      // Never compare a resumed row with an arbitrarily old command.
+      trace_previous_q_des.resize(0);
+      trace_previous_shot_seq = 0;
     }
     return publish;
   };
