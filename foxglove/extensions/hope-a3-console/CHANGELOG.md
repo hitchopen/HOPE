@@ -1,12 +1,11 @@
 # Changelog
 
-## 1.9.0
+## 1.8.15
 
-- Combine Mac/Linux operator selection with schema-6 NatNet/VRPN, units and V2/V4 pants configuration.
-- Select Berkeley/PPQ002 ball physics and preserve each site's existing defaults.
-- Add local Y-range preview and atomic Planner apply/readback; public filter defaults OFF.
-- Show the selected automatic/manual recording policy; manual remains the public default.
-- Include the current serve/gripper options. Requires matching lifecycle, Planner and capture helpers.
+- Add field gripper presets, independent NatNet/VRPN selection and V2/V4 pants settings.
+- Keep source, endpoint, units and pelvis/world confirmations explicit in the Mac capture command.
+- Match the combined schema-6 backend, which preserves schema-5 venue configuration and Mac/Linux selection.
+- Rebuild the installer; no robot services or motion start when installing the panel.
 
 ## 1.8.14
 

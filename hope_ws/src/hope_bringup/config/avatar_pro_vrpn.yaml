@@ -42,6 +42,8 @@ avatar_pro_vrpn_relay:
     p1_pose_topic: "/UCB_P1/pose"
     p2_pose_topic: "/UCB_P2/pose"
     ball_point_topic: "/ball/point"
+    planner_poses_topic: /poses/planner_full
+    input_qos_depth: 64
     poses_topic: "/poses"
 
     # Keep ball first so hope_planner's default ball_pose_index=0 works.

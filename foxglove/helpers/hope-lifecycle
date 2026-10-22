@@ -698,6 +698,13 @@ check_t3_hardware_config() {
     die "$step" ELINK_CONFIG_MISSING
   [[ -f "$MDU_HAL_GRIPPER_BASE_CONFIG" && ! -L "$MDU_HAL_GRIPPER_BASE_CONFIG" ]] || \
     die "$step" HAL_GRIPPER_CONFIG_MISSING
+  python3 "$(dirname "$SELF")/hope_elink_scheduler.py" check-hardware \
+    --lifecycle "$SELF" >/dev/null || die "$step" ELINK_HARDWARE_PROFILE_NOT_AUDITED
+  sudo -n "$(dirname "$SELF")/hope_elink_scheduler.py" check-privileges >/dev/null || \
+    die "$step" ELINK_SCHEDULER_SUDO_NOT_READY
+  sudo -n -l -- "$(dirname "$SELF")/hope_elink_scheduler.py" apply \
+    --config "/tmp/hope_real/$SESSION_ID/mdu/system/hal_elink_a3_gripper.yaml" >/dev/null || \
+    die "$step" ELINK_SCHEDULER_APPLY_NOT_PERMITTED
   render_t3_elink_config >/dev/null || die "$step" T3_ELINK_GRIPPER_CONFIG_INVALID
 }
 
@@ -760,8 +767,38 @@ preflight_mdu() {
     die PREFLIGHT RUNTIME_CONFIG_MISSING
   [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
     die PREFLIGHT AIMRT_CONFIG_MISSING
-  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_smooth_center_v14.csv" ]] || \
+  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv" ]] || \
     die PREFLIGHT SERVE025_TIMELINE_MISSING
+  # Validate the exact selected bytes with the installed Runner before HAL starts.
+  # Normal and Kernel resolve the same file; only the destination segment differs.
+  local validation_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+  if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
+    validation_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    [[ -r "$validation_csv" ]] || die PREFLIGHT SELECTED_CSV_MISSING
+    [[ "$(sha256sum "$validation_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
+      die PREFLIGHT SELECTED_CSV_CHANGED
+  fi
+  local -a validation_args=(--validate-serve-timeline "$validation_csv"
+    --validate-serve-stand --policy-dir "$MDU_DEPLOY/policy")
+  [[ "$FIELD_MODE" != KERNEL ]] || validation_args+=(--kernel-mode)
+  local validation_output
+  validation_output="$(
+    set +u
+    source /opt/ros/jazzy/setup.bash
+    set -u
+    export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
+  )" || {
+    printf "%s\n" "$validation_output" >&2
+    die PREFLIGHT SERVE_TIMELINE_INVALID
+  }
+  [[ "$validation_output" == *SERVE_STAND_VALID* &&
+     "$validation_output" == *SERVE_TIMELINE_VALID* ]] || \
+    die PREFLIGHT SERVE_VALIDATOR_UPDATE_REQUIRED
+  if grep -q '^#HOPE_SERVE_SEGMENTS_V1,' "$validation_csv"; then
+    [[ "$validation_output" == *SERVE_SEGMENTS_VALID* ]] || \
+      die PREFLIGHT SERVE_SEGMENT_RUNNER_UPDATE_REQUIRED
+  fi
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
   command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
@@ -808,13 +845,42 @@ validate_laptop_mocap() {
   done
 }
 
+reconnect_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
+  mkdir -p "$(dirname "$runtime_env")"
+  local connection_lock
+  exec {connection_lock}>"${runtime_env}.connection.lock"
+  flock -n "$connection_lock" || die MOCAP CONNECTION_BUSY
+  local preserved_pelvis=false preserved_world=false
+  read -r preserved_pelvis preserved_world < <(
+    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" --confirmations "$runtime_env" \
+      "$HDU_WIFI_IP" "$MOCAP_SOURCE" "$MOTIVE_IP" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" "$TABLE_SIDE"
+  )
+  export HOPE_VRPN_PELVIS_ASSET_CONFIRMED="$preserved_pelvis"
+  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="$preserved_world"
+  if tmux_exists "$LAPTOP_SESSION"; then
+    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" \
+      "$runtime_env" "$HDU_WIFI_IP" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
+    stop_laptop
+  fi
+  if [[ "$MOCAP_SOURCE" == none ]]; then
+    emit MOCAP COMPLETE DISABLED
+  else
+    start_laptop
+  fi
+}
+
 start_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
   validate_laptop_mocap
   if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py|[a]vatar_pro_hope_bridge.launch.py|[o]ptitrack_mct_relay|[a]vatar_pro_vrpn_relay|[v]rpn_mocap/.*/client_node|[v]rpn_mocap/client_node' >/dev/null; then
     die MOCAP UNMANAGED_BRIDGE_PRESENT
   fi
-  start_tmux "$LAPTOP_SESSION" "$SELF" _run-laptop \
+  start_tmux "$LAPTOP_SESSION" /usr/bin/env \
+    "HOPE_VRPN_PELVIS_ASSET_CONFIRMED=${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" \
+    "HOPE_VRPN_WORLD_FRAME_CONFIRMED=${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
+    "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" \
     "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" || \
@@ -1081,6 +1147,8 @@ start_hal() {
   wait_for_session_log "$MDU_ELINK_SESSION" "$elink_log" \
     "Enter ElinkKeepAliveLoop" 160 || die HAL ELINK_START_FAILED
   check_t3_elink_ready HAL
+  sudo -n "$(dirname "$SELF")/hope_elink_scheduler.py" apply --config "$elink_config" || \
+    die HAL ELINK_SCHEDULER_NOT_READY
   emit HAL STARTING ELINK_READY_WITH_GRIPPER_TOPIC
   start_tmux "$MDU_HAL_SESSION" "$SELF" _run-hal \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
@@ -1126,16 +1194,20 @@ run_runner() {
       /etc/systemd/system/agibot-mdu-phc2sys.service \
       /etc/systemd/system/agibot_pm.service
   } > "$session_dir/artifact_sha256.txt"
-  local -a field_runner_args=(--planner)
+  local -a field_runner_args=(--planner --shared-session-home)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
-    if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
-      local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
-      [[ -r "$selected_csv" ]] || die RUNNER SELECTED_CSV_MISSING
-      [[ "$(sha256sum "$selected_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
-        die RUNNER SELECTED_CSV_CHANGED
-      field_runner_args+=(--serve-timeline "$selected_csv")
-    fi
+  fi
+  # One selected trajectory for both modes; mode only changes post-serve ownership.
+  if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
+    local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    [[ -r "$selected_csv" ]] || die RUNNER SELECTED_CSV_MISSING
+    [[ "$(sha256sum "$selected_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
+      die RUNNER SELECTED_CSV_CHANGED
+    field_runner_args+=(--serve-timeline "$selected_csv")
+  else
+    # Pass the built-in choice explicitly; do not depend on wrapper fallback.
+    field_runner_args+=(--serve-timeline "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv")
   fi
   if [[ -d "$PWD/teleop_humanlike" ]]; then
     local teleop_asset
@@ -1146,6 +1218,11 @@ run_runner() {
     field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
   fi
   printf 'mode=%s\ncsv_sha256=%s\ngripper_profile=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" > "$session_dir/field_selection.txt"
+  local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+  [[ "$SERVE_CSV_SHA" == DEFAULT ]] || effective_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+  sha256sum "$effective_csv" >> "$session_dir/artifact_sha256.txt"
+  printf 'effective_csv=%s\neffective_csv_sha256=%s\n' "$effective_csv" \
+    "$(sha256sum "$effective_csv" | cut -d ' ' -f 1)" >> "$session_dir/field_selection.txt"
   set +e
   # Keep the log reader alive through Ctrl-C so Runner can drain its CSVs.
   python3 "$CAPTURE_HELPER" --controlled --role mdu --root "$MDU_DEPLOY" \
@@ -1351,9 +1428,14 @@ main() {
       ;;
     ball-model-laptop)
       require_user "$LAPTOP_USER" BALL_MODEL
-      local -a runtime=(/usr/bin/distrobox enter hope --)
-      [[ "${HOPE_LAPTOP_RUNTIME:-distrobox}" != direct ]] || runtime=()
-      exec "${runtime[@]}" /bin/bash "$HOPE_ROOT/foxglove/helpers/hope-laptop-ball-model" "$HOPE_ROOT"
+      local -a ball_command=(/bin/bash)
+      case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
+        distrobox) ball_command=(/usr/bin/distrobox enter hope -- /bin/bash) ;;
+        direct) ;;
+        *) die BALL_MODEL INVALID_LAPTOP_RUNTIME ;;
+      esac
+      exec "${ball_command[@]}" \
+        "$HOPE_ROOT/foxglove/helpers/hope-laptop-ball-model" "$HOPE_ROOT"
       ;;
     record-control)
       exec python3 "$(dirname "$SELF")/hope_sim2real_control.py"
@@ -1404,6 +1486,7 @@ main() {
     prepare-hdu) prepare_hdu ;;
     prepare-mdu) prepare_mdu ;;
     start-laptop) start_laptop ;;
+    reconnect-laptop) reconnect_laptop ;;
     start-base) start_base ;;
     start-runner-transport) start_runner_transport ;;
     start-planner) start_planner ;;

@@ -83,7 +83,10 @@ V3_CAD_MARKERS_PELVIS_M: dict[str, Vector3] = {
 
 V2_MARKER_LAYOUT = MarkerLayout(
     layout_id="v2",
-    coordinate_source="agibot/pku/README.md marker table v2",
+    coordinate_source=(
+        "hope_ws/src/hope_bringup/scripts/p1_marker_cad_registration_impl.py:"
+        "V2_CAD_MARKERS_PELVIS_M (historical ten-marker ball table)"
+    ),
     source_files=(),
     markers_pelvis_m=V2_CAD_MARKERS_PELVIS_M,
     nominal_only_markers=frozenset(("f1", "b1")),

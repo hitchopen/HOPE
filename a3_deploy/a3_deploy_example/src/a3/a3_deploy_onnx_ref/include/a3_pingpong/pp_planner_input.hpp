@@ -32,6 +32,8 @@
 //      [3..5]=pos_w(x,y,z)  [6..8]=vel_w(x,y,z)
 //      [9]=time_to_strike(s)  [10]=strike_time(s, informational)
 //      [11]=frame_code(0=world/table, 1=base_link)   (optional; default 0)
+//    RACKET schema 4: schema-2 layout plus HOME epoch at [19] (20 doubles).
+//      Accepted only in explicit shared-HOME mode; frame_code must be 0.
 //    RACKET revisioned /racket/command_flat (19 doubles)
 //      [0]=schema(2) [1]=valid [2]=swing_sign [3..5]=pos [6..8]=vel
 //      [9]=time_to_strike [10]=absolute strike wall time [11]=frame_code
@@ -109,6 +111,9 @@ struct PpRacketMsg {
   double deadline_steady_s = 0.0; // receipt-time conversion into MDU monotonic
   int frame_code = 0;          // 0 = world/table, 1 = base_link
   int schema = 1;
+  std::uint64_t home_epoch = 0; // schema 4/5: Runner session HOME receipt
+  double plane_reference_x = 0.0; // schema 5: world station snapshot for this flight
+  int plane_mode = 0; // 0=fixed, 1=current, 2=posture-stable
   double producer_wall_s = 0.0;
   std::uint64_t command_seq = 0;
   // Local Runner identity epoch. Schema 2 has no producer boot nonce, so this
@@ -135,9 +140,9 @@ class PpRacketTargetInput {
       : expected_revisioned_schema_(expected_revisioned_schema) {
     if (expected_revisioned_schema_ != 0 &&
         expected_revisioned_schema_ != 2 &&
-        expected_revisioned_schema_ != 3) {
+        expected_revisioned_schema_ != 3 && expected_revisioned_schema_ != 4) {
       throw std::invalid_argument(
-          "expected Planner wire schema must be 0, 2, or 3");
+          "expected Planner wire schema must be 0, 2, 3, or 4");
     }
   }
 
@@ -156,7 +161,8 @@ class PpRacketTargetInput {
       return;
     }
     if (expected_revisioned_schema_ != 0 &&
-        a[0] != static_cast<double>(expected_revisioned_schema_)) {
+        a[0] != static_cast<double>(expected_revisioned_schema_) &&
+        !(expected_revisioned_schema_ == 4 && a[0] == 5.0)) {
       // Mixed/duplicate publishers must not consume sequence space or replace
       // the expected-schema mailbox. Ignore before any lifecycle state moves.
       WarnIgnored_("wire schema incompatible with loaded artifact");
@@ -172,6 +178,14 @@ class PpRacketTargetInput {
     }
     if (a[0] == 3.0) {
       SetSchema2Or3_(a, now_wall, now_steady, true);
+      return;
+    }
+    if (a[0] == 4.0 || a[0] == 5.0) {
+      if (expected_revisioned_schema_ != 4) {
+        WarnIgnored_("schema4 requires explicit shared HOME mode");
+        return;
+      }
+      SetSchema2Or3_(a, now_wall, now_steady, false, true, a[0] == 5.0);
       return;
     }
     Reject_(now_wall, "unsupported schema");
@@ -200,7 +214,7 @@ class PpRacketTargetInput {
     s.producer_epoch = last_valid_.producer_epoch;
     s.valid_age_s = now_steady - last_valid_receipt_steady_;
     const bool absolute_deadline_schema =
-        last_valid_.schema == 2 || last_valid_.schema == 3;
+        last_valid_.schema == 2 || last_valid_.schema == 3 || last_valid_.schema == 4 || last_valid_.schema == 5;
     s.producer_age_s = absolute_deadline_schema
         ? now_wall - last_valid_.producer_wall_s : s.valid_age_s;
     s.control_time_to_strike_s =
@@ -275,10 +289,10 @@ class PpRacketTargetInput {
   }
 
   void SetSchema2Or3_(const std::vector<double>& a, double now_wall,
-                      double now_steady, bool schema3) {
-    const std::size_t expected_size = schema3 ? 21 : 19;
+                      double now_steady, bool schema3, bool schema4 = false, bool schema5 = false) {
+    const std::size_t expected_size = schema5 ? 22 : schema4 ? 20 : schema3 ? 21 : 19;
     if (a.size() != expected_size) {
-      Reject_(now_wall, schema3 ? "schema3 size!=21" : "schema2 size!=19");
+      Reject_(now_wall, schema5 ? "schema5 size!=22" : schema4 ? "schema4 size!=20" : schema3 ? "schema3 size!=21" : "schema2 size!=19");
       return;
     }
     for (std::size_t i = 2; i < expected_size; ++i) {
@@ -287,6 +301,15 @@ class PpRacketTargetInput {
                                    "schema2 non-finite required field");
         return;
       }
+    }
+    std::uint64_t home_epoch = 0;
+    if (schema4 && (!ExactU52_(a[19], home_epoch, a[1] == 0.0) || a[11] != 0.0)) {
+      Reject_(now_wall, "schema4 requires world frame and HOME epoch");
+      return;
+    }
+    if (schema5 && a[21] != 1.0 && a[21] != 2.0) {
+      Reject_(now_wall, "schema5 requires current or posture-stable mode");
+      return;
     }
     std::uint64_t producer_sec = 0;
     std::uint64_t producer_nsec = 0;
@@ -348,7 +371,10 @@ class PpRacketTargetInput {
     // evidence, matching the operator-owned safety decision for this runner.
     m.deadline_steady_s = now_steady + (m.strike_time - now_wall);
     m.frame_code = static_cast<int>(a[11]);
-    m.schema = schema3 ? 3 : 2;
+    m.schema = schema5 ? 5 : schema4 ? 4 : schema3 ? 3 : 2;
+    m.home_epoch = home_epoch;
+    m.plane_reference_x = schema5 ? a[20] : 0.0;
+    m.plane_mode = schema5 ? static_cast<int>(a[21]) : 0;
     m.producer_wall_s = producer_wall;
     m.command_seq = command_seq;
     m.flight_id = flight_id;
@@ -363,6 +389,9 @@ class PpRacketTargetInput {
     bool reach_label_mutation = false;
     {
       std::lock_guard<std::mutex> lk(mu_);
+      // Shared-reference modes are strictly one-shot. Never let a later mode
+      // switch/revision move an already accepted physical-flight target.
+      if (schema5 && m.valid && shared_reference_flights_.count({home_epoch, flight_id})) return;
       ++event_seq_;
       const bool transport_reordered =
           (have_wire_seq_ && command_seq <= last_wire_seq_) ||
@@ -395,6 +424,10 @@ class PpRacketTargetInput {
         last_wire_seq_ = command_seq;
         seq_ = command_seq;
         if (m.valid) {
+          if (schema5) {
+            shared_reference_flights_[{home_epoch, flight_id}] = true;
+            while (shared_reference_flights_.size() > 256) shared_reference_flights_.erase(shared_reference_flights_.begin());
+          }
           if (m.schema == 3 &&
               permission_it == schema3_permission_by_flight_.end()) {
             schema3_permission_by_flight_.emplace(
@@ -407,6 +440,7 @@ class PpRacketTargetInput {
           const bool same_track = have_schema2_valid_ &&
               flight_id == last_schema2_flight_id_ &&
               m.swing_sign == last_schema2_valid_.swing_sign &&
+              m.home_epoch == last_schema2_valid_.home_epoch &&
               m.reach_level == last_schema2_valid_.reach_level &&
               m.swing_foot_sign == last_schema2_valid_.swing_foot_sign;
           const bool stable = same_track &&
@@ -511,6 +545,7 @@ class PpRacketTargetInput {
   std::uint64_t event_seq_ = 0;
   std::uint64_t last_valid_event_seq_ = 0;
   std::uint64_t last_invalid_event_seq_ = 0;
+  std::map<std::pair<std::uint64_t, std::uint64_t>, bool> shared_reference_flights_;
   std::map<std::uint64_t, std::pair<double, double>>
       schema3_permission_by_flight_;
   const int expected_revisioned_schema_ = 0;

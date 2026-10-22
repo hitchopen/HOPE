@@ -45,7 +45,7 @@ add_library(hope_planner_core
 find_path(HOPE_RECORDING_INCLUDE_DIR a3_deploy/recording_file.hpp
   HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include"
   REQUIRED)
-target_include_directories(hope_planner_core PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
+target_include_directories(hope_planner_core PUBLIC "$<BUILD_INTERFACE:${HOPE_RECORDING_INCLUDE_DIR}>")
 target_include_directories(hope_planner_core
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -102,6 +102,7 @@ install(TARGETS
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/ DESTINATION include)
+install(FILES "${HOPE_RECORDING_INCLUDE_DIR}/a3_deploy/session_home_contract.hpp" DESTINATION include/a3_deploy)
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS
@@ -171,6 +172,13 @@ if(BUILD_TESTING)
   ament_add_gtest(test_question_bank_fixture test/test_question_bank_fixture.cpp)
   target_link_libraries(test_question_bank_fixture hope_planner_core Eigen3::Eigen)
   target_include_directories(test_question_bank_fixture PRIVATE include)
+
+  ament_add_gtest(test_runtime_plane_reference test/test_runtime_plane_reference.cpp)
+  target_link_libraries(test_runtime_plane_reference hope_planner_core Eigen3::Eigen)
+  ament_add_gtest(test_planner_runtime_plane test/test_planner_runtime_plane.cpp src/planner_node.cpp)
+  target_link_libraries(test_planner_runtime_plane hope_planner_core Eigen3::Eigen rclcpp::rclcpp
+    ${diagnostic_msgs_TARGETS} ${geometry_msgs_TARGETS} ${hope_msgs_TARGETS}
+    ${std_msgs_TARGETS} ${std_srvs_TARGETS} ${rcl_interfaces_TARGETS} ${visualization_msgs_TARGETS})
 
   ament_add_gtest(test_planner_node_one_shot
     test/test_planner_node_one_shot.cpp

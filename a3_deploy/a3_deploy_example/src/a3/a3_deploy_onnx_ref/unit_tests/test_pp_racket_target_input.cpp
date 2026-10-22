@@ -33,6 +33,53 @@ std::vector<double> Schema2Racket(std::uint64_t command_seq,
       static_cast<double>(flight_id), static_cast<double>(revision), 8.0, 0.12};
 }
 
+TEST(PpRacketTargetInput, Schema5FreezesFlightReferenceAndRetainsMonotonicDeadline) {
+  PpRacketTargetInput input(4), legacy(2);
+  auto wire = Schema2Racket(1, 1, -.4);
+  wire[0] = 5; wire.insert(wire.end(), {100, -.4, 1});
+  legacy.SetFromFlat(wire); EXPECT_FALSE(legacy.Latest().has_valid);
+  input.SetFromFlat(wire);
+  auto first = input.Latest(); ASSERT_TRUE(first.has_valid);
+  EXPECT_EQ(first.cmd.schema, 5); EXPECT_EQ(first.cmd.plane_mode, 1);
+  EXPECT_DOUBLE_EQ(first.cmd.plane_reference_x, -.4);
+  EXPECT_NEAR(first.control_time_to_strike_s, 1., .05);
+  wire[14] = 2; wire[16] = 2; wire[3] = .28; wire[20] = -.3; wire[21] = 2;
+  input.SetFromFlat(wire);
+  EXPECT_EQ(input.Latest().cmd.command_seq, 1);
+  EXPECT_DOUBLE_EQ(input.Latest().cmd.pos_w.x(), first.cmd.pos_w.x());
+  EXPECT_DOUBLE_EQ(input.Latest().cmd.deadline_steady_s, first.cmd.deadline_steady_s);
+  wire[15] = 78; wire[16] = 1;
+  input.SetFromFlat(wire);
+  EXPECT_EQ(input.Latest().cmd.command_seq, 2);
+  EXPECT_EQ(input.Latest().cmd.plane_mode, 2);
+  wire[14] = 3; wire[15] = 79; wire[21] = 9;
+  input.SetFromFlat(wire); EXPECT_EQ(input.Latest().cmd.flight_id, 78);
+}
+
+TEST(PpRacketTargetInput, SharedHomeSchema4PreservesDeadlineAndRejectsLegacyWire) {
+  PpRacketTargetInput input(4);
+  input.SetFromFlat(Schema2Racket(1, 1));
+  EXPECT_FALSE(input.Latest().has_valid);
+  auto wire = Schema2Racket(2, 1);
+  wire[0] = 4;
+  wire.push_back(1234567890123456.0);
+  PpRacketTargetInput legacy;
+  legacy.SetFromFlat(wire);
+  EXPECT_FALSE(legacy.Latest().has_valid);
+  input.SetFromFlat(wire);
+  const auto latest = input.Latest();
+  ASSERT_TRUE(latest.has_valid);
+  EXPECT_EQ(latest.cmd.schema, 4);
+  EXPECT_EQ(latest.cmd.home_epoch, 1234567890123456ULL);
+  EXPECT_NEAR(latest.control_time_to_strike_s, 1., .05);
+  wire[14] = 3;
+  wire[16] = 2;
+  wire[19] = 0;
+  input.SetFromFlat(wire);
+  EXPECT_TRUE(input.Latest().invalid_after);
+  EXPECT_EQ(input.Latest().cmd.command_seq, 2U);
+}
+
 TEST(PpRacketTargetInput, Schema2TracksRevisionStabilityAsTelemetry) {
   PpRacketTargetInput input;
   input.SetFromFlat(Schema2Racket(1, 1));

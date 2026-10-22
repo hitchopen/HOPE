@@ -1,0 +1,16 @@
+{
+  "drag_k": 0.12453915600992894,
+  "magnus_k": 0.00399279130564425,
+  "restitution_v": 0.9373319241133231,
+  "table_tangential_gain": 0.41642144985036184,
+  "table_friction_cap_mu": 0.218520906499864,
+  "restitution_h": 0.5835785501496382,
+  "post_net_future_bounce_tangential_gain": 0.41642144985036184,
+  "post_net_future_bounce_restitution_v": 0.9373319241133231,
+  "future_contact_spin_enabled": true,
+  "future_contact_magnus_enabled": true,
+  "future_contact_spin_tangential_gain": 0.41642144985036184,
+  "future_contact_spin_omega_scale": 1.0,
+  "future_contact_spin_min_coherence": 0.4,
+  "spin_window_s": 0.18
+}

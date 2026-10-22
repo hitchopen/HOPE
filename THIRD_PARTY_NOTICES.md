@@ -100,7 +100,9 @@ The `agibot/` tree contains Agibot A3 robot materials, each component under its 
   example Unitree SDK2, ONNX Runtime, RKNN runtime, RapidJSON), each governed by its own license
   retained in-tree alongside the respective component. The Agibot-authored deploy sources carry
   `Agibot Inc.` copyright headers and are included under Agibot's terms.
-- `agibot/pku/` — open-source hardware (hip marker shell, wrist racket adapter); see its README.
+- `agibot/mocap_sticker_shell_v3/` and `agibot/right_wrist_paddle_flange/` — the
+  current pelvis marker shell and right wrist paddle flange; see their READMEs
+  and retained source records for provenance and applicable attribution.
 - `agibot/URDF/` — Agibot A3 URDF and meshes, carrying Agibot's copyright.
 
 The high-level A3 arm runner consolidated under

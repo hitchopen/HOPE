@@ -1,18 +1,15 @@
 # HOPE A3 Console
 
-Download `hopeopen.hope-a3-console-1.9.0.foxe` from this directory and open it in
+Download `hopeopen.hope-a3-console-1.8.15.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to
 `ws://<HDU-IP>:8766` after installing the matching HDU/Laptop services.
 
-The console preserves Mac/Linux operators, Xbox actions, Normal Play and Kernel
-Mode. Schema 6 adds explicit Motive/NatNet or CMTracker/VRPN setup, V2/V4 pants,
-server units, and independent gripper selection. It also includes selectable
-Berkeley/PPQ002 ball physics and optional Y filtering with local preview and
-Planner readback. Public Y filtering and automatic recording default OFF.
-Motive live asset behavior and the legacy calibration services remain available.
-See [mocap setup](../../../docs/operations/foxglove_mocap_setup.md) for migration.
+The public console supports Xbox A/B/X/Y mode actions, LT movement, LB+RB software
+E-stop and software reset; Normal Play and Kernel Mode; and the public 24-sticker
+calibration plus separate legacy V2/V3 profiles. It calls the dedicated services
+in `bridge_params_control.yaml`; Runner remains the body-command owner.
 
 Install the matching control-plane helpers, configs and service units from this
 same checkout. See [Runtime operation](../../../docs/operations/runtime_xbox.md)
@@ -31,7 +28,16 @@ fonts, manifest and notices into the `.foxe`. `dist/` and `node_modules/` are
 build inputs/outputs; the ready-to-install `.foxe` is committed as an ordinary
 Git blob. When changing console source, regenerate the installer from that source.
 When changing the release version, update the exact filename allowed by this
-directory's `.gitignore` and the download links, and remove the superseded installer.
+directory's `.gitignore` and the download links. The former 1.8.14 installer is
+retained only for rollback; it does not contain the new gripper/VRPN selectors.
+
+This release uses combined lifecycle schema 6, migrating field schema 5 without
+losing gripper/pants/VRPN settings and retaining Mac/Linux operator selection.
+Choose the gripper and **MOCAP SYSTEM** explicitly while STOPPED; see
+[mocap setup](../../../docs/operations/foxglove_mocap_setup.md).
+The Mac container account uses group `hope`, not Ubuntu's system `operator` group.
+Install matching services during an approved deployment; installing this panel
+alone does not update a live schema-5 HDU.
 
 Install the generated `.foxe` through Foxglove Desktop's Extensions screen,
 then import `foxglove/layouts/model21800_console.json`.
@@ -91,7 +97,8 @@ base packet. Its provenance ID is not an asset-file checksum.
 
 This mode assumes pelvis alignment; it does not measure the physical mounting
 or verify the Motive table origin. Set the table/world origin in Motive as before.
-`TIME CALIBRATION` and `Refresh x_hit` remain separate operations. No
+`TIME CALIBRATION` remains a separate operation. The Console no longer exposes
+`Refresh x_hit`; shared HOME is captured when entering policy mode. No
 `calibration/ucb_robot_to_pelvis.json` is read, created or overwritten.
 
 The pinned 17-marker check is opt-in via `localization_source:=motive_asset`;
@@ -182,9 +189,34 @@ ROS 2 message-latency card.
 ## Public release
 
 The current public installer is
-[Console 1.9.0](hopeopen.hope-a3-console-1.9.0.foxe), built from this directory's
+[Console 1.8.14](hopeopen.hope-a3-console-1.8.14.foxe), built from this directory's
 source. It includes the live marker-count workflow and explicit Linux/Mac
 operator selection described above. Install the matching profile-aware HDU
 supervisor and confirm the operator profile before starting a session.
 See [current Runner/serve behavior](../../../docs/operations/runtime_xbox.md)
 for Kernel completion, v12 timing and release limitations.
+
+## Reviewed ball models
+
+The STOPPED-only selector offers Berkeley, local one-star PPQ002 and local
+three-star PPQ004. It writes matching 14-parameter overlays to HDU and Laptop,
+rolls back partial writes, and distinguishes saved/configured/actually loaded
+parameters. Restart the separately managed Laptop mocap/packetizer after a
+selection, then START SYSTEM. Kernel mode bypasses this mocap-dependent gate.
+Install `foxglove/a3/hope_ball_models.py` alongside the existing HDU helpers in
+`/usr/local/bin`, update `hope-lifecycle` on both hosts, update the Laptop helper
+and ROS launch files, and install all three profile YAML/receipt pairs. Rebuild
+and install the Console through the existing deployment workflow. Source-only
+changes do not hot-reload an already running supervisor or packetizer.
+
+See `calibration/ppq004_20261020/README.md` for complete trajectories, provenance
+and offline reproduction. No speed-adaptive model is selected automatically.
+
+### Hit speed scale
+
+The Ready controls expose a nonnegative racket-velocity multiplier. Wait for
+fresh Planner diagnostics after Apply; a service receipt alone is not displayed
+as an applied value. The hardware profile persists the accepted scale across
+restart. Kernel Mode and exact question fixtures do not expose this control.
+Position, normal and strike deadline remain unchanged; landing predictions still
+refer to the original, unscaled solution. This is not physical-hit qualification.

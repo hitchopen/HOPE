@@ -3,8 +3,11 @@
 Mac users: see [macOS development and operator setup](docs/operations/macos_deployment.md).
 The operator backend supports any normal Mac login, with explicit Mac/Linux
 profiles and separate configurable container/robot accounts; no personal Mac
-username or local administrator account is hardcoded. Console 1.8.14 includes
-the profile selector. This support does not change robot motions or scheduling.
+username or local administrator account is hardcoded. Console 1.8.15 includes
+operator, gripper and NatNet/VRPN selectors. The final Mac build includes both
+mocap workspaces, uses the `hope` container group, and preserves schema-5 venue
+settings through the combined schema-6 backend. It does not deploy to the robot
+or change robot motions or scheduling.
 
 Runtime updates from October 11–13: [deployment and Gate 3](docs/operations/deploy_and_gate3.md),
 [shared ball physics](docs/operations/ball_physics_calibration.md),
@@ -17,6 +20,12 @@ See the [30-ball Gate3 run and video](docs/gates/model14600_gate3_30balls_202610
 HOPE is an open platform for humanoid robot table tennis, developed by [Hitch Interactive](https://hitchinteractive.com) (Intelligent Racing Inc.) in collaboration with the [ROAR Platform](https://roar.berkeley.edu) at UC Berkeley. The challenge invites teams to deploy whole-body humanoid controllers that can rally a ping-pong ball against human opponents or other robots, using off-the-shelf humanoid hardware and an open-source perception and planning stack.
 
 This repository contains the full HOPE stack for the Agibot A3: Isaac Lab training for a **unified forehand/backhand whole-body policy** (the deploy-grade 110-D `hitter_pure` rally line, proven on real A3 hardware), a **no-spin planner** in both Python and low-latency C++ (ROS 2), a **MuJoCo/AimRT simulation with a real ball plant** for closed-loop evaluation, and the **native C++ A3 deploy runner** (`a3_pingpong`) — plus the preserved HOPE **reference design documents**, the **challenge rulebooks**, and the A3 source assets, reference software and mounting hardware indexed in [agibot/README.md](agibot/README.md).
+
+The current printable mounting hardware is the
+[v3 pelvis marker shell](agibot/mocap_sticker_shell_v3/README.md) and the
+[right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md).
+Their component guides link the release STLs, printing instructions and marker
+transforms to `pelvis_link`.
 
 ## How To Read This Repository
 
@@ -188,15 +197,15 @@ even while ROS 2 topics appear healthy.
 The current sticker profile uses the **17-station v3 sticker shell: seven unchanged
 front markers and two rear rows of five (original IDs)**, with the supplied
 [A3_v3_17_stickers.motive](agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
-asset, internally named **`P1`**. Its origin targets the nominal CAD `pelvis_link`
+asset, internally named **`UCB_P1`**. Its origin targets the nominal CAD `pelvis_link`
 origin and ROS axes **X forward, Y left, Z up**. With Motive Streaming **Up Axis
 = Z Up** and the existing MODELDEF axis conversion, the intended fixed
-`P1 → pelvis_link` correction is zero translation and identity rotation.
+`UCB_P1 → pelvis_link` correction is zero translation and identity rotation.
 This is an offline-checked candidate, not a verified live calibration: the five
 restored rear points are CAD-nominal, not observed in the source export. Validate
 Motive import/re-export, then generate a fresh installed-layout receipt.
-For the current runtime, rename the imported body to `UCB_P1` or `UCB_P2`
-for the selected table side, use the `stickers_v3` profile, and save the fresh
+For the current runtime, keep `UCB_P1` for table side P1 or rename it to `UCB_P2`
+for table side P2, use the `stickers_v3` profile, and save the fresh
 receipt to `calibration/ucb_robot_to_pelvis.json`. All earlier 12-point,
 old 24-station and ten-marker receipts cannot be reused for this sticker profile.
 
@@ -205,11 +214,37 @@ Hardware, frame-table links and the setup procedure are maintained in
 Receipt storage and migration rules are in [calibration/README.md](calibration/README.md).
 The shared mocap contract remains in [mocap/README.md](mocap/README.md).
 
+### ChingMu / VRPN asset for the same shell
+
+The [shell-v3 VRPN asset package](agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
+provides one CMTracker import file,
+[A3_v3_17_stickers.json](agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json),
+using the same filename stem and internal **`UCB_P1`** body name as the Motive
+asset. It is byte-identical to the existing **V4 P1** runtime profile; existing
+runtime profiles remain unchanged for compatibility. The **v3 CAD folder and
+V4 runtime selector refer to the same 17-sticker shell**. Configure the site
+body name (`UCB_P1` or `UCB_P2`) and unique IDs in CMTracker as needed, without
+changing the shared pelvis-local geometry. VRPN then transports poses, not
+the asset definition.
+The uncentered marker coordinates target nominal `pelvis_link`, with ROS
+**X forward, Y left, Z up**; do not subtract the centroid or apply Motive's
+Y-up conversion. Server world/table alignment is a separate commissioning
+step. CMTracker import/re-export and live installation checks are still
+required: pose-only VRPN has no ModelDef to verify geometry, and this asset
+is not a physical-calibration receipt. The optional measured NatNet procedure
+above is unchanged. See the [VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
+
 ## Database
 
 Open-source datasets for HOPE and humanoid robot table-tennis research:
 
 1. [HOPE-2026-Beijing (ModelScope)](https://www.modelscope.cn/datasets/hitchopen/HOPE-2026-Beijing/files) — Beijing robot table-tennis motion-capture recordings in CSV and FBX formats.
+2. [PPQ004 three-star ball dataset](calibration/ppq004_20261020/README.md) — three raw C3D recordings, complete trajectory CSVs and extracted NPZ data, with checksums and archived fit results.
+
+For the recorded ball/table setup, the [calculated flight and bounce coefficients](hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml)
+are provided alongside the [Python fitting pipeline](calibration/ppq004_20261020/tools/refit_ppq_multibounce.py),
+which uses SciPy and a C++ RK4 kernel. See the [reproduction instructions](calibration/ppq004_20261020/REPRODUCE.md)
+for dependencies and commands.
 
 ## Preserved Reference Documents
 
@@ -229,6 +264,8 @@ document disagrees with the shipped code, the code and the `docs/` contracts win
 The competition rulebooks ship at the repository root:
 [HOPE_AI_Challenge_2026_Rules_EN.docx](HOPE_AI_Challenge_2026_Rules_EN.docx) (English) and
 [HOPE_AI_Challenge_2026_Rules_ZH.docx](HOPE_AI_Challenge_2026_Rules_ZH.docx) (中文).
+Both specify a professional three-star 40+ plastic table-tennis ball for official
+matches and the exhibition match (§2(8)).
 
 ## Folder Map
 
@@ -249,7 +286,7 @@ The competition rulebooks ship at the repository root:
 | `hope_ws/` | ROS 2 workspace: `hope_planner_cpp` (the supported C++ packetizer/Planner runtime), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (wire messages), and `calibration_receipts/` (venue calibration evidence). The retired Python Planner source is excluded from colcon and retained only for offline comparison. Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
 | `a3_deploy/` | The native C++ deploy runner, gate/rehearsal script suite, parity harness, and deploy runbooks (`a3_deploy_example/`); the MuJoCo/AimRT simulation fork with the real ball plant (`A3_MuJoCo_Sim/`); and the optional user-supplied URDF override location (`URDF/`). |
 | [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
-| [agibot/](agibot/README.md) | A3 source robot models, vendor deploy/simulation references, clock synchronization and mounting hardware, including the v3 marker shell and serving gripper STL. See the folder README for the complete map, printing units and hardware-specific guidance. |
+| [agibot/](agibot/README.md) | A3 source robot models, vendor deploy/simulation references, clock synchronization and mounting hardware: the [v3 marker shell](agibot/mocap_sticker_shell_v3/README.md), [right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md) and serving gripper STL. See the folder README for the complete map, printing units and hardware-specific guidance. |
 | `mocap/` | Motion-capture frame/topic contract ([mocap/README.md](mocap/README.md)) and the preserved mocap reference documents (EN/ZH). |
 
 ## System Architecture

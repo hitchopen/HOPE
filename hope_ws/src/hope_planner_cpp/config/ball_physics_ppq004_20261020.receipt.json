@@ -1,0 +1,52 @@
+{
+  "status": "DEPLOYED_RUNTIME_PARAMETERS_VERIFIED_PASSIVE",
+  "model": "PPQ004_UNIFIED",
+  "parameters": {
+    "drag_k": 0.12453915600992894,
+    "magnus_k": 0.00399279130564425,
+    "restitution_v": 0.9373319241133231,
+    "table_tangential_gain": 0.41642144985036184,
+    "table_friction_cap_mu": 0.218520906499864,
+    "restitution_h": 0.5835785501496382,
+    "post_net_future_bounce_tangential_gain": 0.41642144985036184,
+    "post_net_future_bounce_restitution_v": 0.9373319241133231,
+    "future_contact_spin_enabled": true,
+    "future_contact_magnus_enabled": true,
+    "future_contact_spin_tangential_gain": 0.41642144985036184,
+    "future_contact_spin_omega_scale": 1.0,
+    "future_contact_spin_min_coherence": 0.4,
+    "spin_window_s": 0.18
+  },
+  "profile_sha256": "6aaf01c98b91395bbf33faa966ea473ba001f5e0d136e5fd4b6638e2cba162a2",
+  "data": [
+    {
+      "source": "/media/user/6745-2301/1020/ppq_004.ulb",
+      "local": "/home/user/Desktop/workspace/nohope/output/ball_ppq004_20261020/raw/ppq_004.ulb",
+      "sha256": "d03bdb3b37b1a50c1ef32a7e7045a9b4047b11895ab7fb0a61b333450721bc99",
+      "bytes": 23900713
+    },
+    {
+      "source": "/media/user/6745-2301/1020/ppq_004_1.c3d",
+      "local": "/home/user/Desktop/workspace/nohope/output/ball_ppq004_20261020/raw/ppq_004_1.c3d",
+      "sha256": "9d9c187c9f23f32b432b2b1a6b9317d17ca2e753c660f0eab4412ca1748f09b2",
+      "bytes": 50340608
+    },
+    {
+      "source": "/media/user/6745-2301/1020/ppq_004_2.c3d",
+      "local": "/home/user/Desktop/workspace/nohope/output/ball_ppq004_20261020/raw/ppq_004_2.c3d",
+      "sha256": "00985613af045b217f14d911b387d35702da2ad65808a8a9944576b6fdf300e0",
+      "bytes": 50340608
+    },
+    {
+      "source": "/media/user/6745-2301/1020/ppq_004_3.c3d",
+      "local": "/home/user/Desktop/workspace/nohope/output/ball_ppq004_20261020/raw/ppq_004_3.c3d",
+      "sha256": "c67d20a98765231440ac24743902cff2a54ed985a1bcc1ec97e5e4037e917483",
+      "bytes": 12190976
+    }
+  ],
+  "evidence_directory": "/home/user/Desktop/workspace/nohope/output/ball_ppq004_20261020",
+  "runtime_session": "model21800_20261020T105118Z",
+  "physical_validation": "NOT_TESTED",
+  "portable_evidence_directory": "calibration/ppq004_20261020",
+  "status_scope": "Historical 2026-10-20 receipt; not a claim about this checkout or current robot"
+}

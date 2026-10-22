@@ -1,8 +1,13 @@
 {
   "approved": true,
   "blockers": [],
+  "documentation_update": {
+    "date": "2026-10-17",
+    "previous_file_sha256": "47a66d19e99d1940ec4edd9d06ae8b0c3dab08262397e54bf6add2ea541d55a0",
+    "note": "Retired coordinate-source path replaced by the embedded historical v2 table reference; measurement and calibration values are unchanged."
+  },
   "cad": {
-    "coordinate_source": "agibot/pku/README.md marker table v2",
+    "coordinate_source": "hope_ws/src/hope_bringup/scripts/p1_marker_cad_registration_impl.py:V2_CAD_MARKERS_PELVIS_M (historical ten-marker ball table)",
     "nominal_only_marker_names": [
       "b1",
       "f1"

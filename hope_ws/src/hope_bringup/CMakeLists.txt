@@ -79,6 +79,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(motive_asset_relay_test test/test_motive_asset_relay.py)
   ament_add_pytest_test(p1_marker_layout_test test/test_p1_marker_layout.py)
   ament_add_pytest_test(v3_optitrack_asset_test test/test_v3_optitrack_asset.py)
+  ament_add_pytest_test(v3_vrpn_asset_test test/test_v3_vrpn_asset.py)
   ament_add_pytest_test(
     natnet_preflight_clock_sync_test
     test/test_natnet_preflight_clock_sync.py

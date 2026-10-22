@@ -73,7 +73,7 @@ def validate_mocap_interface(context):
 
 
 def generate_launch_description():
-    # Explicit saved selection; absent selection retains this site's base physics.
+    # Written by the stopped-only Foxglove ball selector; late override wins.
     ball_profile = Path.home() / ".config/hope-foxglove/ball_physics.json"
     ball_overrides = [str(ball_profile)] if ball_profile.exists() else []
     launch_dir = Path(__file__).resolve().parent

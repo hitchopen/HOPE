@@ -54,6 +54,12 @@ aimrt:
       - type: ros2
         options:
           pub_topics_options:
+            - topic_name: "/hope/runner/session_home_flat"
+              qos:
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
             - topic_name: "/hope/runner/state_flat"
               qos: &runner_control_qos
                 history: keep_last
@@ -98,6 +104,8 @@ aimrt:
     # Body-drive state+command stay iceoryx. Runner state is telemetry over ROS2.
     pub_topics_options:
       - topic_name: "/hope/runner/teleop_state_flat"
+        enable_backends: [ros2]
+      - topic_name: "/hope/runner/session_home_flat"
         enable_backends: [ros2]
       - topic_name: "/hope/runner/state_flat"
         enable_backends: [ros2]

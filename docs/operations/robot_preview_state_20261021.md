@@ -6,10 +6,9 @@ robots remounts the range control, avoiding reuse of another robot's local draft
 Saving a preview preserves other saved panel fields. This only changes local
 preview state and never applies a Planner parameter or publishes a robot command.
 
-This is a narrow follow-up to the existing field/site options branch containing
-BallYFilterControls. Keep that feature dependency when integrating into main.
-When combining with operator-connections, use its single savedPanel reference
-and configHost binding rather than declaring duplicates.
+This is a narrow follow-up to the main integration of optional Y filtering on
+`codex/hope-y-filter-main-20261022`. It shares the existing `savedPanel` reference
+and `configHost` binding with operator connections.
 
-Validation: Console build and all 21 frontend tests passed on the nohope site
-options parent. No deployment or hardware operation was performed.
+Validation: Console build and all 38 frontend tests passed against the current
+main integration. No deployment or hardware operation was performed.

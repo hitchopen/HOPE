@@ -1,0 +1,332 @@
+[
+  {
+    "part": 1,
+    "frame": 16725,
+    "chain_id": "1:0",
+    "height_before_m": 0.11063062823604397,
+    "height_after_m": 0.09728698021173185,
+    "apparent_sqrt_height_ratio": 0.9377556128074983,
+    "local_velocity_e": 0.9277203753005712,
+    "normal_speed_mps": 1.4684225788351533
+  },
+  {
+    "part": 1,
+    "frame": 16810,
+    "chain_id": "1:0",
+    "height_before_m": 0.09524739809665293,
+    "height_after_m": 0.07997713062471017,
+    "apparent_sqrt_height_ratio": 0.9163393758943339,
+    "local_velocity_e": 0.8887237959751493,
+    "normal_speed_mps": 1.3607465236890797
+  },
+  {
+    "part": 1,
+    "frame": 17997,
+    "chain_id": "1:1",
+    "height_before_m": 0.037506181558059085,
+    "height_after_m": 0.03251926194492759,
+    "apparent_sqrt_height_ratio": 0.931148427880791,
+    "local_velocity_e": 0.9280395103434791,
+    "normal_speed_mps": 0.7983862686178776
+  },
+  {
+    "part": 1,
+    "frame": 18050,
+    "chain_id": "1:1",
+    "height_before_m": 0.02809471658730048,
+    "height_after_m": 0.024955701308341596,
+    "apparent_sqrt_height_ratio": 0.9424809088701999,
+    "local_velocity_e": 0.8237524665868768,
+    "normal_speed_mps": 0.6848291328274178
+  },
+  {
+    "part": 1,
+    "frame": 18097,
+    "chain_id": "1:1",
+    "height_before_m": 0.023252688277204475,
+    "height_after_m": 0.023381679581047088,
+    "apparent_sqrt_height_ratio": 1.0027698497933697,
+    "local_velocity_e": 1.0890547702435918,
+    "normal_speed_mps": 0.5650110587867768
+  },
+  {
+    "part": 1,
+    "frame": 18144,
+    "chain_id": "1:1",
+    "height_before_m": 0.02920375178627407,
+    "height_after_m": 0.02780787009305478,
+    "apparent_sqrt_height_ratio": 0.9758083694010463,
+    "local_velocity_e": 1.1910131346959552,
+    "normal_speed_mps": 0.665292425353965
+  },
+  {
+    "part": 1,
+    "frame": 24603,
+    "chain_id": "1:2",
+    "height_before_m": 0.14712739556799417,
+    "height_after_m": 0.13350318362436697,
+    "apparent_sqrt_height_ratio": 0.9525746888860469,
+    "local_velocity_e": 0.8453435621792138,
+    "normal_speed_mps": 1.9155624380266891
+  },
+  {
+    "part": 1,
+    "frame": 24701,
+    "chain_id": "1:2",
+    "height_before_m": 0.12758632098321793,
+    "height_after_m": 0.11242878286692927,
+    "apparent_sqrt_height_ratio": 0.9387213540000949,
+    "local_velocity_e": 0.9626544935063438,
+    "normal_speed_mps": 1.5371504525466333
+  },
+  {
+    "part": 1,
+    "frame": 24794,
+    "chain_id": "1:2",
+    "height_before_m": 0.11316257489433454,
+    "height_after_m": 0.08545767267272251,
+    "apparent_sqrt_height_ratio": 0.8690086916531137,
+    "local_velocity_e": 0.9118832744180491,
+    "normal_speed_mps": 1.4617329121691809
+  },
+  {
+    "part": 1,
+    "frame": 24874,
+    "chain_id": "1:2",
+    "height_before_m": 0.08197806736062646,
+    "height_after_m": 0.07558150260022076,
+    "apparent_sqrt_height_ratio": 0.9601938567284842,
+    "local_velocity_e": 0.9224636899806763,
+    "normal_speed_mps": 1.336530285873739
+  },
+  {
+    "part": 1,
+    "frame": 41046,
+    "chain_id": "1:3",
+    "height_before_m": 0.04878301553436909,
+    "height_after_m": 0.04340743054600185,
+    "apparent_sqrt_height_ratio": 0.9432954032592163,
+    "local_velocity_e": 0.9287458328229248,
+    "normal_speed_mps": 1.0429227604390554
+  },
+  {
+    "part": 1,
+    "frame": 41101,
+    "chain_id": "1:3",
+    "height_before_m": 0.04021579381181051,
+    "height_after_m": 0.036546019970402605,
+    "apparent_sqrt_height_ratio": 0.9532827202284198,
+    "local_velocity_e": 1.0766128585775623,
+    "normal_speed_mps": 0.8077868540753631
+  },
+  {
+    "part": 1,
+    "frame": 41152,
+    "chain_id": "1:3",
+    "height_before_m": 0.041403492000402664,
+    "height_after_m": 0.03788453264129695,
+    "apparent_sqrt_height_ratio": 0.9565605838328677,
+    "local_velocity_e": 1.0205654674806246,
+    "normal_speed_mps": 0.930955229624317
+  },
+  {
+    "part": 2,
+    "frame": 4377,
+    "chain_id": "2:0",
+    "height_before_m": 0.1565515720427761,
+    "height_after_m": 0.12593627053889814,
+    "apparent_sqrt_height_ratio": 0.8969055212544225,
+    "local_velocity_e": 0.7621814554794653,
+    "normal_speed_mps": 2.0503354581046964
+  },
+  {
+    "part": 2,
+    "frame": 4472,
+    "chain_id": "2:0",
+    "height_before_m": 0.11470361127564357,
+    "height_after_m": 0.10026075687216038,
+    "apparent_sqrt_height_ratio": 0.9349253675937285,
+    "local_velocity_e": 1.0244315872416545,
+    "normal_speed_mps": 1.3289732485575276
+  },
+  {
+    "part": 2,
+    "frame": 13866,
+    "chain_id": "2:1",
+    "height_before_m": 0.03185570032237489,
+    "height_after_m": 0.01798781222418477,
+    "apparent_sqrt_height_ratio": 0.7514422229422332,
+    "local_velocity_e": 0.60678718393911,
+    "normal_speed_mps": 0.8540911098669075
+  },
+  {
+    "part": 2,
+    "frame": 24736,
+    "chain_id": "2:2",
+    "height_before_m": 0.03680817511844502,
+    "height_after_m": 0.02495962605647018,
+    "apparent_sqrt_height_ratio": 0.8234683164243585,
+    "local_velocity_e": 0.7700643410848281,
+    "normal_speed_mps": 0.7913689787449697
+  },
+  {
+    "part": 2,
+    "frame": 24785,
+    "chain_id": "2:2",
+    "height_before_m": 0.026398119623221923,
+    "height_after_m": 0.02653681006867111,
+    "apparent_sqrt_height_ratio": 1.0026234588185243,
+    "local_velocity_e": 1.1176263256004852,
+    "normal_speed_mps": 0.6122822394024302
+  },
+  {
+    "part": 2,
+    "frame": 32026,
+    "chain_id": "2:3",
+    "height_before_m": 0.09890764275344714,
+    "height_after_m": 0.08752194173740906,
+    "apparent_sqrt_height_ratio": 0.9406835432647437,
+    "local_velocity_e": 0.9024618725151372,
+    "normal_speed_mps": 1.417057453280846
+  },
+  {
+    "part": 2,
+    "frame": 32107,
+    "chain_id": "2:3",
+    "height_before_m": 0.08624394103838257,
+    "height_after_m": 0.06979630229685374,
+    "apparent_sqrt_height_ratio": 0.8996051033803633,
+    "local_velocity_e": 0.89409872218101,
+    "normal_speed_mps": 1.3041412083971653
+  },
+  {
+    "part": 2,
+    "frame": 47206,
+    "chain_id": "2:4",
+    "height_before_m": 0.09214593312256805,
+    "height_after_m": 0.07880120700394969,
+    "apparent_sqrt_height_ratio": 0.9247585357990209,
+    "local_velocity_e": 0.9616875290699953,
+    "normal_speed_mps": 1.293893471129222
+  },
+  {
+    "part": 2,
+    "frame": 47283,
+    "chain_id": "2:4",
+    "height_before_m": 0.0794078694428533,
+    "height_after_m": 0.06417471633356742,
+    "apparent_sqrt_height_ratio": 0.8989803664383207,
+    "local_velocity_e": 0.8696859773633361,
+    "normal_speed_mps": 1.240930827437785
+  },
+  {
+    "part": 2,
+    "frame": 47352,
+    "chain_id": "2:4",
+    "height_before_m": 0.06420727971737547,
+    "height_after_m": 0.055679710555399504,
+    "apparent_sqrt_height_ratio": 0.9312286935822095,
+    "local_velocity_e": 0.8510293584009782,
+    "normal_speed_mps": 1.1679043267602003
+  },
+  {
+    "part": 2,
+    "frame": 47417,
+    "chain_id": "2:4",
+    "height_before_m": 0.054375661799550785,
+    "height_after_m": 0.04143126824801291,
+    "apparent_sqrt_height_ratio": 0.8728946585531026,
+    "local_velocity_e": 0.8175710503038331,
+    "normal_speed_mps": 1.0609976310664473
+  },
+  {
+    "part": 2,
+    "frame": 47474,
+    "chain_id": "2:4",
+    "height_before_m": 0.043112944389641195,
+    "height_after_m": 0.04027691606044738,
+    "apparent_sqrt_height_ratio": 0.9665498616443284,
+    "local_velocity_e": 0.9581128145790936,
+    "normal_speed_mps": 0.9249588598775583
+  },
+  {
+    "part": 2,
+    "frame": 47527,
+    "chain_id": "2:4",
+    "height_before_m": 0.03950343557667438,
+    "height_after_m": 0.034514351190206266,
+    "apparent_sqrt_height_ratio": 0.9347219109840915,
+    "local_velocity_e": 0.8770555763297766,
+    "normal_speed_mps": 0.9258793075742783
+  },
+  {
+    "part": 2,
+    "frame": 60283,
+    "chain_id": "2:5",
+    "height_before_m": 0.049863760663200904,
+    "height_after_m": 0.04651116744799294,
+    "apparent_sqrt_height_ratio": 0.9657975639237872,
+    "local_velocity_e": 0.9106220307855196,
+    "normal_speed_mps": 1.0119623759043508
+  },
+  {
+    "part": 2,
+    "frame": 60341,
+    "chain_id": "2:5",
+    "height_before_m": 0.044380522428013915,
+    "height_after_m": 0.03896468891534461,
+    "apparent_sqrt_height_ratio": 0.9369995914316237,
+    "local_velocity_e": 0.8868448443197301,
+    "normal_speed_mps": 0.9543458728676629
+  },
+  {
+    "part": 2,
+    "frame": 60396,
+    "chain_id": "2:5",
+    "height_before_m": 0.04003076955954755,
+    "height_after_m": 0.03525982091863226,
+    "apparent_sqrt_height_ratio": 0.9385190266832026,
+    "local_velocity_e": 0.9350253603035229,
+    "normal_speed_mps": 0.8811798913994358
+  },
+  {
+    "part": 2,
+    "frame": 60448,
+    "chain_id": "2:5",
+    "height_before_m": 0.037957749459153485,
+    "height_after_m": 0.03010093062091706,
+    "apparent_sqrt_height_ratio": 0.8905119134570254,
+    "local_velocity_e": 0.8369185779431897,
+    "normal_speed_mps": 0.8804910891800274
+  },
+  {
+    "part": 2,
+    "frame": 62771,
+    "chain_id": "2:6",
+    "height_before_m": 0.0754057856837144,
+    "height_after_m": 0.0615358167370529,
+    "apparent_sqrt_height_ratio": 0.9033616503580731,
+    "local_velocity_e": 0.8378135224714818,
+    "normal_speed_mps": 1.2378603610712966
+  },
+  {
+    "part": 2,
+    "frame": 62840,
+    "chain_id": "2:6",
+    "height_before_m": 0.06466249990964518,
+    "height_after_m": 0.04791407957761215,
+    "apparent_sqrt_height_ratio": 0.8608060873171879,
+    "local_velocity_e": 0.8116407238666745,
+    "normal_speed_mps": 1.1406532068393047
+  },
+  {
+    "part": 2,
+    "frame": 62901,
+    "chain_id": "2:6",
+    "height_before_m": 0.04926335209865037,
+    "height_after_m": 0.04724247649565719,
+    "apparent_sqrt_height_ratio": 0.9792742793613712,
+    "local_velocity_e": 0.8614997208575801,
+    "normal_speed_mps": 0.9914922274835343
+  }
+]

@@ -7,6 +7,8 @@ No request can select an executable or a destination outside these stores.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import hashlib
 import json
 import os
@@ -64,11 +66,9 @@ def calibration_metadata(content: str, name: str, side: str) -> dict:
     if receipt.rigid_body_id is None:
         raise ValueError("calibration is missing its Motive rigid body identity")
     profile = document.get("cad", {}).get("marker_layout")
-    if profile is None and document.get("marker_layout"):
-        profile = "stickers_v3"
-    if profile not in {"v2", "v3", "stickers_v3"}:
-        raise ValueError("calibration must identify marker layout stickers_v3, v2 or v3")
-    if document.get("runtime_world", {}).get("table_side", "P1" if profile == "stickers_v3" else None) != side:
+    if profile not in {"v2", "v3"}:
+        raise ValueError("calibration must identify marker layout v2 or v3")
+    if document.get("runtime_world", {}).get("table_side") != side:
         raise ValueError("calibration runtime world does not match the selected table side")
     return dict(name=asset_name(name, ".json"), sha256=receipt.receipt_sha256,
                 profile=profile, table_side=side, rigid_body_id=receipt.rigid_body_id)
@@ -100,7 +100,37 @@ def calibration_request(root: Path, request: dict) -> dict:
     return {"calibration": metadata, "content": content}
 
 
+def csv_segments_metadata(content: str) -> dict | None:
+    """Display metadata only; native Runner remains the acceptance authority."""
+    rows = list(csv.reader(io.StringIO(content)))
+    markers = [i for i, row in enumerate(rows) if row and row[0] == "#HOPE_SERVE_SEGMENTS_V1"]
+    if not markers:
+        return None
+    marker = markers[0]
+    _, branch, blend, policy, deploy = rows[marker][:5]
+    clips = {}
+    ready_s = None
+    for row in rows[marker + 2:]:
+        if row[3] == "END":
+            clips[row[0]] = {"frames": int(row[1]) + 1, "duration_s": float(row[2])}
+        if row[0] == "SERVE_TO_POLICY" and row[3] == "POLICY_READY":
+            ready_s = float(row[2])
+    return {"version": 1, "branch_frame": int(branch), "policy_blend_s": float(blend),
+            "policy_ready_s": ready_s, "policy_sha256": policy, "deploy_sha256": deploy,
+            "clips": clips}
+
+
 def csv_request(root: Path, validator: Path, request: dict, *, run=subprocess.run) -> dict:
+    def validate(path: Path, content: str) -> None:
+        result = run([str(validator), "--validate-serve-timeline", str(path)],
+                     capture_output=True, text=True, timeout=20, check=False)
+        if result.returncode:
+            raise ValueError("CSV rejected: " + (result.stderr or result.stdout)[-1500:])
+        if "SERVE_TIMELINE_VALID" not in result.stdout:
+            raise ValueError("MDU Runner needs the field-workflow update")
+        if "#HOPE_SERVE_SEGMENTS_V1," in content and "SERVE_SEGMENTS_VALID" not in result.stdout:
+            raise ValueError("MDU Runner needs the annotated serve-segment update")
+
     operation = request.get("op")
     if operation == "verify_csv":
         digest = str(request.get("sha256", ""))
@@ -109,6 +139,8 @@ def csv_request(root: Path, validator: Path, request: dict, *, run=subprocess.ru
         target = root / (digest + ".csv")
         if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
             raise ValueError("selected CSV changed on the MDU; upload it again")
+        # A previous upload receipt cannot qualify a replaced/downgraded Runner.
+        validate(target, target.read_text())
     elif operation == "upload_csv":
         asset_name(request["name"], ".csv")
         encoded = request["content"].encode("utf-8")
@@ -120,20 +152,18 @@ def csv_request(root: Path, validator: Path, request: dict, *, run=subprocess.ru
         try:
             with os.fdopen(fd, "wb") as stream:
                 stream.write(encoded)
-            result = run([str(validator), "--validate-serve-timeline", staging],
-                         capture_output=True, text=True, timeout=20, check=False)
-            if result.returncode:
-                raise ValueError("CSV rejected: " + (result.stderr or result.stdout)[-1500:])
-            # Require the new validation-only binary, not an old binary ignoring flags.
-            if "SERVE_TIMELINE_VALID" not in result.stdout:
-                raise ValueError("MDU Runner needs the field-workflow update")
+            validate(Path(staging), request["content"])
             target = root / (digest + ".csv")
             atomic_write(target, encoded)
         finally:
             Path(staging).unlink(missing_ok=True)
     else:
         raise ValueError("unsupported MDU asset operation")
-    return {"sha256": digest, "path": str(target), "frames": 468, "hz": 100}
+    metadata = {"sha256": digest, "path": str(target), "frames": 468, "hz": 100}
+    segments = csv_segments_metadata(target.read_text())
+    if segments is not None:
+        metadata["segments"] = segments
+    return metadata
 
 
 def main() -> None:

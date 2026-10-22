@@ -35,7 +35,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=[
         "image", "shell", "build-ros", "test-ros", "build-runner",
-        "build-sim", "inspect-policy", "build-rockchip", "build-thor", "exec",
+        "build-sim", "inspect-policy", "build-rockchip", "build-thor", "exec", "build-operator",
     ])
     parser.add_argument("--arch", choices=["arm64", "amd64"], default="arm64")
     parser.add_argument("--jobs", type=int, default=2)
@@ -43,8 +43,10 @@ def main():
     parser.add_argument("--teleop-policy-dir", type=Path)
     parser.add_argument("--build-only", action="store_true")
     parser.add_argument("--no-tests", action="store_true", help="omit ROS test targets when building a runtime workspace")
+    parser.add_argument("--with-lint", action="store_true",
+                        help="also run inherited ament linters (test-ros/build-operator); default is functional regression tests")
     parser.add_argument("--clean-cache", action="store_true",
-                        help="reset ROS CMake caches after changing checkout layout (build-ros only)")
+                        help="reset ROS CMake caches after changing checkout layout (build-ros/build-operator)")
     parser.add_argument("--publish-port", type=int, action="append", default=[],
                         help="publish a container TCP port on Mac localhost (shell/exec only)")
     parser.add_argument("--virtual-display", action="store_true",
@@ -52,8 +54,10 @@ def main():
     args, extra = parser.parse_known_args()
     if args.jobs < 1:
         parser.error("--jobs must be positive")
-    if args.clean_cache and args.operation != "build-ros":
-        parser.error("--clean-cache requires build-ros")
+    if args.clean_cache and args.operation not in {"build-ros", "build-operator"}:
+        parser.error("--clean-cache requires build-ros or build-operator")
+    if args.with_lint and (args.operation not in {"test-ros", "build-operator"} or args.no_tests):
+        parser.error("--with-lint requires test-ros or build-operator with tests enabled")
     if extra and args.operation != "exec":
         parser.error("unexpected arguments: " + " ".join(extra))
     if args.publish_port and args.operation not in ("shell", "exec"):
@@ -62,9 +66,31 @@ def main():
         parser.error("--virtual-display requires shell or exec")
     if any(not 1 <= port <= 65535 for port in args.publish_port):
         parser.error("ports must be between 1 and 65535")
+    if args.operation == "build-operator":
+        if args.arch != "arm64":
+            parser.error("the Mac operator image requires --arch arm64")
+        # Local build only: never invokes operator.py bind/select or robot SSH.
+        entry = Path(__file__).resolve()
+        run([sys.executable, entry, "image", "--arch", "arm64"])
+        build = [sys.executable, entry, "build-ros", "--arch", "arm64", "--jobs", str(args.jobs)]
+        if args.no_tests:
+            build.append("--no-tests")
+        if args.clean_cache:
+            build.append("--clean-cache")
+        run(build)
+        if not args.no_tests:
+            tests = [sys.executable, entry, "test-ros", "--arch", "arm64", "--jobs", str(args.jobs)]
+            if args.with_lint:
+                tests.append("--with-lint")
+            run(tests)
+        run(["docker", "build", "--provenance=false", "--platform", "linux/arm64", "-t", "hope-operator:jazzy-arm64",
+             "-f", ROOT / "scripts/macos/Dockerfile.operator", ROOT / "scripts/macos"])
+        print("Mac operator built locally: NatNet + VRPN, operator:hope, schema-5 migration support. "
+              "No robot files, profiles or services changed; live network acceptance is still required.")
+        return
     image = "hope-dev:jazzy-" + args.arch
     if args.operation == "image":
-        run(["docker", "build", "--platform", "linux/" + args.arch,
+        run(["docker", "build", "--provenance=false", "--platform", "linux/" + args.arch,
              "-t", image, "-f", ROOT / "scripts/macos/Dockerfile.ros",
              ROOT / "scripts/macos"])
         return
@@ -143,6 +169,8 @@ def main():
         command += ["-e", "HOPE_BUILD_ONLY=1"]
     if args.no_tests:
         command += ["-e", "HOPE_ROS_TESTING=OFF"]
+    if args.with_lint:
+        command += ["-e", "HOPE_ROS_LINT=1"]
     if args.clean_cache:
         command += ["-e", "HOPE_ROS_CLEAN_CACHE=1"]
     # Snapshot the entry script so editing it during a long build cannot move

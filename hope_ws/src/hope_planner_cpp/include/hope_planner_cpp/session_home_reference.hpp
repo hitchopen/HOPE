@@ -40,21 +40,21 @@ struct SessionHomeReference {
 };
 
 // Pure Schmitt selector shared by the node and its lifecycle/venue tests.  A
-// missing HOME is not a geometric origin: it must fail closed rather than
+// missing reference (live body or explicit HOME) is not a geometric origin: fail closed rather than
 // silently classifying a world-Y lane relative to zero.
 inline double select_swing_sign_with_hysteresis(
     double intercept_y,
-    double immutable_home_y,
+    double reference_y,
     double split_y,
     double hysteresis_y,
     double previous_sign) noexcept {
-  if (!std::isfinite(intercept_y) || !std::isfinite(immutable_home_y) ||
+  if (!std::isfinite(intercept_y) || !std::isfinite(reference_y) ||
       !std::isfinite(split_y) || !std::isfinite(hysteresis_y) ||
       hysteresis_y < 0.0) {
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  const double relative_y = intercept_y - immutable_home_y;
+  const double relative_y = intercept_y - reference_y;
   const double low = split_y - hysteresis_y;
   const double high = split_y + hysteresis_y;
   if (previous_sign > 0.5) {

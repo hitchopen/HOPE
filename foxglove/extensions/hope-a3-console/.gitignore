@@ -2,4 +2,5 @@ node_modules/
 dist/
 *.foxe
 # Only the current public installer is tracked alongside its source.
-!hopeopen.hope-a3-console-1.9.0.foxe
+!hopeopen.hope-a3-console-1.8.14.foxe
+!hopeopen.hope-a3-console-1.8.15.foxe

@@ -125,6 +125,23 @@ PpServeController::PpServeController(
           "model stand pose does not match serve025 CSV COMPLETE frame");
     }
   }
+  if (timeline_.segments().present) {
+    policy_handoff_frame_ = timeline_.segments().branch_frame;
+    for (std::size_t segment = 0; segment < 3; ++segment) {
+      const auto& clip = timeline_.segments().commands[segment];
+      for (std::size_t i = 0; i < clip.size(); ++i) {
+        const auto& c = clip[i];
+        if (segment < 2 || i == 0) {
+          if ((c.kp-official_stand_kp_sdk_).cwiseAbs().maxCoeff() > 1e-8 ||
+              (c.kd-official_stand_kd_sdk_).cwiseAbs().maxCoeff() > 1e-8 || c.tau_ff.norm() > 1e-8)
+            throw std::invalid_argument("serve segment Stand/source impedance mismatch");
+        } else if ((c.kp.array() > official_stand_kp_sdk_.array()+1e-8).any() ||
+                   (c.kd.array() > 2*official_stand_kd_sdk_.array()+1e-8).any()) {
+          throw std::invalid_argument("serve policy segment gain envelope exceeded");
+        }
+      }
+    }
+  }
   FillPdCommand_(official_stand_q_sdk_, Eigen::VectorXd::Zero(kDof),
                  last_command_);
   if (!gripper_ || !gripper_->Snapshot().running) {
@@ -137,7 +154,61 @@ PpServeController::~PpServeController() {
   if (gripper_) gripper_->Stop();
 }
 
+void PpServeController::SelectSegmentDestination(bool to_policy,
+    const std::string& policy_sha256, const std::string& deploy_sha256) {
+  if (active() || !timeline_.segments().present)
+    throw std::invalid_argument("segment destination requires an idle segmented controller");
+  if (to_policy) timeline_.segments().RequirePolicy(policy_sha256, deploy_sha256);
+  segment_to_policy_ = to_policy;
+  policy_handoff_frame_ = timeline_.segments().branch_frame;
+}
+
+void PpServeController::SetSegmentCommand_(const robot_io::RobotState& state,
+                                          robot_io::RobotCommand& command) {
+  const auto& bundle = timeline_.segments();
+  const auto& clip = bundle.At(segment_to_policy_ ? ServeSegment::kServeToPolicy : ServeSegment::kServeToStand);
+  const auto index = std::min(segment_tick_, clip.size()-1);
+  command = clip[index];
+  if (!segment_to_policy_) {
+    // Retain the original recovery's bounded ankle support and exact clock.
+    source_frame_ = bundle.branch_frame + index;
+    SetTimelineCommand_(source_frame_, state, command);
+    phase_ = "CSV_SERVE_TO_STAND";
+    if (index + 1 == clip.size()) state_.store(ServeControllerState::kComplete, std::memory_order_release);
+  } else {
+    const double elapsed = segment_tick_ / kServe025FullbodyRunnerHz;
+    const double duration = bundle.policy_ready_frame / kServe025FullbodyRunnerHz;
+    const double u = std::clamp(elapsed / .15, 0., 1.);
+    const double v = .15 * (u - 6*u*u*u + 8*u*u*u*u - 3*u*u*u*u*u);
+    const double dv = 1 - 18*u*u + 32*u*u*u - 15*u*u*u*u;
+    // Only the runtime ankle support differs from the authored branch pose.
+    // Preserve that full source command, then remove its residual smoothly.
+    command.q_des += (1-Smooth5_(elapsed/duration))*segment_source_q_delta_ + v*segment_source_dq_delta_;
+    command.dq_des += -Smooth5Derivative_(elapsed/duration)/duration*segment_source_q_delta_ + dv*segment_source_dq_delta_;
+    const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
+    // Allow twice the original measured-ready tolerances for the policy handoff.
+    // Keep the five consecutive samples and the one-second timeout unchanged.
+    const bool quiet = index >= bundle.policy_ready_frame &&
+        (state.q-clip.back().q_des).cwiseAbs().maxCoeff() <= .20 &&
+        state.dq.cwiseAbs().maxCoeff() <= .6 &&
+        gravity[2] <= -std::cos(.24) && state.imu_gyro.norm() <= .4;
+    policy_return_quiet_ticks_ = quiet ? policy_return_quiet_ticks_ + 1 : 0;
+    phase_ = index + 1 < clip.size() ? "CSV_SERVE_TO_POLICY" : "WAIT_POLICY_READY";
+    if (index + 1 == clip.size() && policy_return_quiet_ticks_ >= 5) {
+      phase_ = "POLICY_READY_COMPLETE";
+      state_.store(ServeControllerState::kComplete, std::memory_order_release);
+    } else if (segment_tick_ >= clip.size() + 100) {
+      TripFault_("CSV policy-ready target did not settle within 1 second; policy handoff blocked");
+    }
+  }
+  ++segment_tick_;
+  last_command_ = command;
+  UpdateSupportTelemetry_(state, command);
+}
+
 void PpServeController::SetPolicyHandoffFrame(std::size_t frame) {
+  if (has_segments() && frame != timeline_.segments().branch_frame)
+    throw std::invalid_argument("annotated CSV owns its branch frame; cutoff override conflicts");
   if (frame <= kServe025ContactFrame || frame > kServe025CompleteFrame || active())
     throw std::invalid_argument("serve policy handoff must follow contact and be configured while idle");
   policy_handoff_frame_ = frame;
@@ -259,6 +330,8 @@ bool PpServeController::ValidateState_(
 }
 
 void PpServeController::ResetAction_() {
+  segment_active_ = false;
+  segment_tick_ = 0;
   entry_transition_.Reset();
   replay_entry_transition_.Reset();
   replay_entry_tick_ = kServeReplaySettleTicks;
@@ -517,6 +590,32 @@ void PpServeController::FillPdCommand_(
 void PpServeController::SetTransitionCommand_(
     std::size_t tick, const robot_io::RobotState& state,
     robot_io::RobotCommand& command) {
+  if (has_segments()) {
+    const auto& clip = timeline_.segments().At(ServeSegment::kStandToServe);
+    command = clip.at(std::min(tick, clip.size()-1));
+    const double elapsed = tick / kServe025FullbodyRunnerHz;
+    if (entry_command_valid_) {
+      // The preceding Stand recovery has already completed. Preserve even
+      // float/CSV rounding residuals at this boundary without retiming the clip.
+      const auto& first = clip.front();
+      const double h = 1-Smooth5_(elapsed/.25);
+      const double dh = -Smooth5Derivative_(elapsed/.25)/.25;
+      const double u = std::clamp(elapsed/.15, 0., 1.);
+      const double v = .15*(u-6*u*u*u+8*u*u*u*u-3*u*u*u*u*u);
+      const double dv = 1-18*u*u+32*u*u*u-15*u*u*u*u;
+      command.q_des += h*(entry_command_.q_des-first.q_des)+v*entry_command_.dq_des;
+      command.dq_des += dh*(entry_command_.q_des-first.q_des)+dv*entry_command_.dq_des;
+      command.kp += h*(entry_command_.kp-first.kp);
+      command.kd += h*(entry_command_.kd-first.kd);
+      command.tau_ff += h*(entry_command_.tau_ff-first.tau_ff);
+      if (tick == 0) command = entry_command_;
+    }
+    ApplyPitchSupport_(state, command, Smooth5_(elapsed/.25), Smooth5Derivative_(elapsed/.25)/.25);
+    UpdateSupportTelemetry_(state, command);
+    last_command_ = command;
+    phase_ = "CSV_STAND_TO_SERVE";
+    return;
+  }
   constexpr double kDurationS =
       static_cast<double>(kServe025FullbodyTransitionTicks - 1) /
       kServe025FullbodyRunnerHz;
@@ -626,7 +725,7 @@ void PpServeController::SetTimelineCommand_(
     // Keep the same strike and complete follow-through in both Kernel and
     // early policy-handoff modes. Resume support when CSV recovery begins;
     // enabling full replay must not reintroduce IMU feedback mid-swing.
-    const std::size_t kResumeFrame = policy_handoff_frame_ < kServe025CompleteFrame
+    const std::size_t kResumeFrame = (!has_segments() && policy_handoff_frame_ < kServe025CompleteFrame)
         ? policy_handoff_frame_ + 1 : kServe025RecoveryFrame;
     if (frame >= kResumeFrame) {
       const auto gravity = projected_gravity_body(state.imu_quat_wxyz.normalized());
@@ -745,8 +844,9 @@ bool PpServeController::ComputeCommand(
       source_frame_ = 0;
       SetTransitionCommand_(transition_tick_, state, command);
       ++transition_tick_;
-      if (transition_tick_ >= kServe025FullbodyTransitionTicks) {
-        transition_tick_ = kServe025FullbodyTransitionTicks - 1;
+      const auto prepare_ticks = has_segments() ? timeline_.segments().At(ServeSegment::kStandToServe).size() : kServe025FullbodyTransitionTicks;
+      if (transition_tick_ >= prepare_ticks) {
+        transition_tick_ = prepare_ticks - 1;
         // Capture at the deterministic end of preparation, before Play is
         // available. The first operator's waiting time must not set support
         // for this entire session. READY feedback and the smooth pre-play
@@ -855,7 +955,16 @@ bool PpServeController::ComputeCommand(
           (command.q_des.segment(5, 14) - state.q.segment(5, 14)).cwiseAbs().maxCoeff());
       if (frame == policy_handoff_frame_) {
         playback_.finished = true;
-        if (frame < kServe025CompleteFrame) {
+        if (has_segments()) {
+          const auto& source = timeline_.segments().At(ServeSegment::kServeToPolicy).front();
+          segment_source_q_delta_ = command.q_des - source.q_des;
+          segment_source_dq_delta_ = command.dq_des - source.dq_des;
+          segment_active_ = true;
+          segment_tick_ = segment_to_policy_ ? 0 : 1;
+          policy_return_quiet_ticks_ = 0;
+          phase_ = segment_to_policy_ ? "CSV_SERVE_TO_POLICY" : "CSV_SERVE_TO_STAND";
+          state_.store(ServeControllerState::kHandoffReady, std::memory_order_release);
+        } else if (frame < kServe025CompleteFrame) {
           // The post-contact pose is far outside the receive actor's WAIT
           // posture (including its executed-action feedback). A live actor
           // crossfade is continuous but drives the legs while the arms are
@@ -893,6 +1002,7 @@ bool PpServeController::ComputeCommand(
     }
 
     case ServeControllerState::kHandoffReady: {
+      if (segment_active_) { SetSegmentCommand_(state, command); break; }
       FillPdCommand_(official_stand_q_sdk_, Eigen::VectorXd::Zero(kDof), command);
       const double elapsed = static_cast<double>(policy_return_tick_++) / kServe025FullbodyRunnerHz;
       policy_return_transition_.Apply(elapsed, command);
@@ -979,6 +1089,15 @@ void PpServeController::UpdateDiag_(
   value.frame = source_frame_;
   value.playback = playback_;
   value.transition_tick = transition_tick_;
+  if (has_segments() && segment_active_) {
+    value.segment = selected_tail();
+    value.segment_frames = timeline_.segments().At(segment_to_policy_ ? ServeSegment::kServeToPolicy : ServeSegment::kServeToStand).size();
+    value.segment_frame = std::min(segment_tick_ == 0 ? 0 : segment_tick_-1, value.segment_frames-1);
+  } else if (has_segments() && phase_ == "CSV_STAND_TO_SERVE") {
+    value.segment = "STAND_TO_SERVE";
+    value.segment_frames = timeline_.segments().At(ServeSegment::kStandToServe).size();
+    value.segment_frame = state_.load() == ServeControllerState::kWaitReadyToServe ? value.segment_frames-1 : transition_tick_-1;
+  }
   value.cleanup_required = cleanup_required();
   value.release_acknowledged = release_acknowledged_;
   value.release_dispatch_monotonic_ns = release_dispatch_monotonic_ns_;

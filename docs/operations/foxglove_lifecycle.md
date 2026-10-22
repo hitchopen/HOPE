@@ -142,11 +142,13 @@ successful configuration change is not evidence of live mocap/recording data.
 
 Install the matching `hope_lifecycle_core.py` and `hope_lifecycle_supervisor.py`
 on the HDU and restart its supervisor only while STOPPED. Install the bundled
-Console 1.8.14, which includes the **Operator computer** selector. Confirm the
+Console 1.8.15, which includes the **Operator computer**, gripper and mocap selectors. Confirm the
 profile and current Laptop IP together, either there or with `select-mac` /
-`select-linux`. Schema 1/2 documents migrate to Linux; schema 3 persists the
-profile. Older five-field clients preserve the current profile, but cannot
-display/select it. The Mac-specific service environment variables are trusted
+`select-linux`. Combined schema 6 preserves field schema-5 gripper, pants and
+VRPN settings while adding the operator profile; main's older profile-aware
+schemas also migrate. Older five/six/seven-field clients preserve newer selections.
+Do not replace a live schema-5 backend with PR #54's former schema-3 files.
+The Mac-specific service environment variables are trusted
 HDU configuration, not editable arbitrary commands from Foxglove.
 
 Add the two Mac-profile identity fields to older `operator.json` files. `bind`
@@ -311,9 +313,9 @@ ssh -o BatchMode=yes -J "${ROBOT_USER}@${HDU_IP}" \
 Do not put passwords in the repository, UI, ROS messages, unit files, helper
 arguments or process environment. Install SSH public keys once instead.
 
-`tmux` must be installed on all three machines. The MDU robot account also
-needs narrow passwordless sudo only for the commands already present in STEP 4
-and STEP 6. Install with `visudo -f /etc/sudoers.d/hope-lifecycle`:
+`tmux` must be installed on all three machines. The MDU robot account needs
+passwordless sudo for the vendor service actions and the fixed scheduler helper.
+Install the service rules with `visudo -f /etc/sudoers.d/hope-lifecycle`:
 
 ```sudoers
 <robot-user> ALL=(root) NOPASSWD: /usr/bin/systemctl stop agibot_pm.service
@@ -323,6 +325,35 @@ and STEP 6. Install with `visudo -f /etc/sudoers.d/hope-lifecycle`:
 Confirm the resolved command path with `command -v systemctl` on the MDU
 before installing that file. The helper uses `sudo -n` and fails closed rather
 than prompting.
+
+The scheduler installer creates `/etc/sudoers.d/hope-elink-scheduler`, owned by
+root with mode `0440`. For the default account, its rule is:
+
+```sudoers
+agi ALL=(root) NOPASSWD: NOSETENV: /usr/local/libexec/hope_elink_scheduler.py check-privileges, /usr/local/libexec/hope_elink_scheduler.py apply --config /tmp/hope_real/*/mdu/system/hal_elink_a3_gripper.yaml
+```
+
+The helper validates the complete argument list and session path, including the
+single session-name component matched by the sudoers wildcard. The rule grants
+no Python interpreter, arbitrary script, shell, `inspect`, or `restore` command.
+Inspection and restoration remain administrator actions. Do not add a general
+`sudo python3` permission.
+
+The installer requires `sudo`, `visudo`, and `runuser`; validates the existing
+and proposed sudoers configuration; installs the helper as root-owned `0755`;
+then runs the actual privilege probe as the selected robot account and checks
+its `apply` authorization. If installation or either probe fails, it restores
+the previous lifecycle, scheduler, and dedicated sudoers file. A successful
+install prints `MDU_ELINK_SCHEDULER_INSTALLED`. Copying Python files alone is
+not a complete scheduler installation.
+
+From the configured robot account, check permissions without starting HAL:
+
+```bash
+sudo -n /usr/local/libexec/hope_elink_scheduler.py check-privileges
+sudo -n -l -- /usr/local/libexec/hope_elink_scheduler.py apply \
+  --config /tmp/hope_real/permission_probe/mdu/system/hal_elink_a3_gripper.yaml
+```
 
 ## Install the fixed helper
 
@@ -351,11 +382,17 @@ scp foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py fo
 ssh "${ROBOT_USER}@${HDU_IP}" \
   'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
 
+ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
+  'mkdir -p /tmp/hope-elink-install/a3 /tmp/hope-elink-install/helpers'
 scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/helpers/hope-lifecycle foxglove/helpers/hope_sim2real_capture.py foxglove/helpers/hope_sim2real_control.py \
-  "${ROBOT_USER}@${MDU_IP}:/tmp/"
+  foxglove/helpers/hope_elink_scheduler.py \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/helpers/"
+scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
+  foxglove/a3/install_mdu_elink_scheduler.sh \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/a3/"
 ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
-  'sudo install -o root -g root -m 0755 /tmp/hope-lifecycle /tmp/hope_sim2real_capture.py /tmp/hope_sim2real_control.py /usr/local/libexec/'
+  'cd /tmp/hope-elink-install && python3 helpers/hope_elink_scheduler.py check-hardware --lifecycle helpers/hope-lifecycle && sudo install -o root -g root -m 0755 helpers/hope-lifecycle helpers/hope_sim2real_capture.py helpers/hope_sim2real_control.py /usr/local/libexec/ && sudo bash a3/install_mdu_elink_scheduler.sh --robot-user "$(id -un)"'
 ```
 
 The MDU active package also needs the logging-enabled Runner,
@@ -458,7 +495,8 @@ rather than part of a normal one-click start.
 `start` returns quickly. Progress and failures are published under
 `/hope/lifecycle/**`; the console must reach `RUNNING · RUNNER` and
 `START_COMPLETE_RUNNER_PASSIVE` before the operator uses Stand/Calibration/
-Refresh x_hit/Ready or the Server flow.
+Ready or the Server flow. The Console removes Refresh x_hit; shared HOME is
+captured on policy entry.
 
 The helper intentionally preserves the current fixed3 Runner argv. The checked
 in model_21800 policy metadata is `training_recipe=rally_v14`, while the native
@@ -497,6 +535,163 @@ finishes in `FAILED` with the failed step in `last_result`. The vendor E-stop
 remains a separate assert-only path and is never used by lifecycle startup or
 kill/collection.
 
+## Independent PD Stand transition
+
+Runner's `--pd-stand-blend-sec` defaults to **5.0 seconds**, independently of
+the existing motion/policy entry blend. From PASSIVE, the transition starts
+from measured joint position/velocity and zero gains, then blends to the
+standing target and Kp/Kd using the existing quintic transition. Entry velocity
+decays over 0.25 seconds. This changes the command transition, not the standing
+target or policy, and is not proof of a safe physical stand on another robot.
+
+Planner's `target_turn_max_pose_age_s: 0.2` receive-age and source-age checks
+remain enabled by default. Sites can explicitly set
+`target_turn_reject_stale_pose: false` to record and warn on pose age without
+vetoing a shot; invalid-pose, strike-deadline and turn-angle checks remain.
+See the [Planner site-option documentation](../../hope_ws/src/hope_planner_cpp/README.md).
+Historical deployment evidence and its limitations are preserved in [the 2026-10-18 runtime field notes](runtime_field_notes_20261018.md).
+
+## ELink transport scheduling
+
+The audited A3_T3D0 vendor ELink library creates three transport threads (main
+loop, UDP send, UDP receive) outside the named AimRT executors. Changing only
+`hand_control_worker` does not prioritize those threads. On this deployment,
+`hope_elink_scheduler.py` places only the three transport threads on CPU 1 with
+`SCHED_RR` priorities 24 (receive), 23 (main), and 20 (send). Receive/main must
+preempt the sender: equal priorities retained millisecond waits during sender
+CPU bursts. Runner, EtherCAT, the hand command cycle, and the serial bridge
+retain their existing settings. CPU 7 was also trialed but retained waits.
+
+Run `foxglove/a3/install_mdu_elink_scheduler.sh` as root on the MDU, keeping
+its sibling `../helpers/hope_elink_scheduler.py` in the copied package. Pass
+`--robot-user <account>` for the account used by the HDU's MDU SSH connection
+(default `agi`, matching `HOPE_ROBOT_USER`). The installer backs up and patches
+the installed lifecycle helper and installs the dedicated sudo rule described
+below without restarting robot services. Managed START applies and verifies this policy after ELink
+readiness and before EtherCAT/Runner startup; failure stops START admission.
+The installer and lifecycle use the scheduler's read-only `check-hardware`
+command to verify the same `A3_T3D0_ELINK_HAND_V2` profile. Installation rejects
+an incompatible installed lifecycle before changing any files. PREFLIGHT and
+START repeat the check before stopping `agibot_pm`, so a vendor update is caught
+before the robot changes process ownership. They also execute the helper's
+read-only `check-privileges` action through noninteractive sudo and query the
+exact session's `apply` permission. Missing sudo setup fails early with
+`ELINK_SCHEDULER_SUDO_NOT_READY` or `ELINK_SCHEDULER_APPLY_NOT_PERMITTED`.
+The supported paths are:
+
+| Component | Audited profile value |
+| --- | --- |
+| Robot model (`/agibot/data/info/model`) | `A3_T3D0` |
+| ELink factory configuration | `/opt/agibot/config/hal_elink/hal_elink_a3_cfg.yaml` |
+| EtherCAT configuration | `/opt/agibot/config/hal_ethercat/hal_ethercat_a3_t3d0_cfg.yaml` |
+| `/opt/agibot/bin/libhal_elink_pkg.so` SHA-256 | `f83690f1c8a3d7e1f50a7c38bd5ed2ccc01543274b680d548af38f7f154225af` |
+| `/opt/agibot/bin/aimrt_main` SHA-256 | `9ab4c3fa441b4c13fac543b8778cd650a5e1751cad26fda1f4a918912e113ad6` |
+
+These hashes match the T3 deployment's existing HAL-clock audit manifest; this
+fix does not authorize another vendor build. The earlier `A3_P1D0` scheduler
+restriction was inconsistent with this lifecycle. P1/Ultra remains unsupported
+by the combined startup path. The separate legacy
+`install_mdu_elink_gripper_backend.sh` targets P1/Ultra and is not a prerequisite
+for this T3 lifecycle, which renders a session-owned ELink configuration.
+
+The scheduler also checks the exact executable and mapped ELink library hashes, managed
+session path, process/thread start times, and the audited three-thread layout.
+An unknown vendor build requires a new audit, not removal of these checks.
+
+To check the installed pair without root or starting any process:
+
+```bash
+python3 /usr/local/libexec/hope_elink_scheduler.py check-hardware \
+  --lifecycle /usr/local/libexec/hope-lifecycle
+```
+
+For an existing session, the root-only helper accepts `inspect`, `apply`,
+`verify`, and `restore`, each with
+`--config /tmp/hope_real/<session>/mdu/system/hal_elink_a3_gripper.yaml`.
+Execute `/usr/local/libexec/hope_elink_scheduler.py` directly; its fixed
+`/usr/bin/python3 -I` shebang runs isolated from user Python paths and startup
+modules. Privileged actions check that the helper and all parent directories are
+root-owned and have no group/other write permissions.
+Apply needs no process restart and publishes no robot commands. The first
+pre-change settings are retained in `/var/lib/hope/elink-scheduler/`; repeated
+apply preserves that rollback receipt. Restore affects the same process/thread
+instance only. To disable persistence as well, restore the lifecycle helper from
+the installer backup under `/var/backups/hope-elink-scheduler-*` after reconciling
+any subsequent changes.
+
+During `apply` or `restore`, catchable termination (`SIGINT`, `SIGTERM`,
+`SIGHUP`) is deferred to cancellation checkpoints. Cancellation before the final
+verified commit rolls touched threads back to their pre-call settings, keeps
+cleanup protected from repeated signals, and exits unsuccessfully. An ordinary
+error or `KeyboardInterrupt` also attempts rollback; a failed rollback is
+reported, never treated as success. A late cancellation after the verified
+commit may report failure with all requested settings already applied.
+
+`SIGKILL`, process crashes and power loss cannot be handled in-process. If the
+same ELink process survives with a partial scheduling change, an administrator
+can use the existing explicit `restore` action. It requires the matching
+root-owned, non-writable-by-others original receipt, exact process/thread start
+times, audited binaries and hardware. In addition to normal factory/target
+settings, **only restore** admits the known intermediate state: `SCHED_OTHER`,
+priority 0, CPU `[1]`. Unknown policies, priorities or CPU sets, missing/corrupt
+receipts and replaced processes remain rejected. Do not delete or recreate a
+receipt to bypass these checks. `apply`, `verify` and normal START remain strict;
+they do not silently repair partial settings. A failed START does not itself
+guarantee ELink teardown; use the attended managed recovery procedure if explicit
+restoration is unavailable. No recovery action sends gripper or joint commands.
+
+Scheduling readback and passive transport timings do not measure finger motion
+or ball release. Physical serve repeatability must be tested separately.
+
+## Field v20 serve asset
+
+The operator reported successful ball contact with
+`a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_edge_center_v20.csv`
+on 2026-10-18. Its adjacent manifest records the exact asset hash, field runtime
+requirements, simulation results and remaining limits. This report establishes
+successful contact, not a measured success rate or consistently legal serves.
+
+The CSV preserves v19's left arm, body/leg channels, Prepare target, event
+sequence and recovery from frame 160. Only right-arm position/derivative columns
+in frames 63–159 change. Two measured-response models were used to move the
+strike-window racket center toward a 40 mm higher target while retaining its
+normal. Smooth admission at frames 64–71 avoids the backswing proximity of an
+earlier discarded candidate. The 40 mm value is an optimization target, not an
+independently measured robot displacement.
+
+This is a selectable field asset, not a default-motion replacement. Upload it
+through the field CSV interface only while the lifecycle is stopped and idle.
+Keep the previous selected asset/hash for rollback. Use managed START and verify
+the loaded CSV hash and `START_COMPLETE_RUNNER_PASSIVE` before operator motion.
+The recorded deployment used 468 frames at 100 Hz, handoff frame 467, and
+`serve_release_lead_frames: 3`: the CSV RELEASE event remains at frame 48 and the
+command is sent at frame 45. Do not shift the CSV event as well.
+
+The successful field deployment used a separate existing Runner build, the
+`new_20261015` gripper profile (grab/release positions 850/1500, force 1, velocity
+100), and its previously tested Prepare transition. Exact Runner/config hashes
+are in the manifest. Those field runtime/profile changes are not introduced by
+this asset addition; a stock main build does not reproduce the full tested
+setup merely by selecting v20. Preserve the field runtime when using this
+asset; treat a different runtime or gripper as a new validation configuration.
+The asset is selected by upload, so the packaged v14 default remains unchanged.
+
+Offline validation used five measured v19 joint-response cycles (first three
+for selection, last two held out). In 315 position/delay cases per response
+model at assumed 60–120 ms detachment delay, contacts increased from 295 to 315;
+legal bounce sequences increased from 236 to 264 (lag/gain) or 255 (FIR).
+Native-controller floating-base MuJoCo cases at 60/80/100/110/120 ms all produced
+the legal bounce sequence without simulated falls. These are conditional
+simulation results, not field success rates. Wider 0–180 ms sweeps introduced
+misses at 10–50 ms. Actual physical detachment latency is not identified; the
+rigid gripper CAD, ball release position and contact materials remain model
+assumptions. Keep these limitations when comparing future field results.
+
+The deployment receipt recorded session `model21800_20261018T125856Z`, successful
+managed PASSIVE startup, exact loaded asset hash, ELink scheduling readback, and
+499.8–501.0 Hz with no additional halts over 30 seconds. Foxglove commands then
+changed the mode to SERVE, so the observation is not a sustained-PASSIVE test.
+
 ## Verification boundary
 
 Repository unit tests, shell parsing and extension packaging prove only the
@@ -506,7 +701,7 @@ required. In particular, verify SSH keys, MDU sudoers, tmux availability,
 exact deployed Runner package, ROS service discovery, process identity, log
 flush, `agibot_pm` restoration and the physical PASSIVE/PD_STAND transitions.
 
-## Field gripper and Prepare configuration
+## Field gripper and mocap configuration
 
 Select the gripper while STOPPED and confirm the configuration before START.
 `legacy` preserves close/open positions 800/2000 and force 20 (speeds 40/60).
@@ -521,10 +716,20 @@ Runner; mixed binaries/catalogs fail closed. Build/package the Runner and bridge
 together. The catalog is included at `tools/gripper_profiles.json`; it is not a
 browser-supplied file. Direct package use accepts `--gripper-profile new_20261015`.
 
-Lifecycle schema 6 combines gripper, Mac/Linux operator and VRPN/pants options.
-Both historical main and field schemas migrate without guessing the capture
-protocol from an IP. Old five/six/seven-field requests preserve newer options. Install the HDU core/supervisor/helper and Console together
-while STOPPED. No robot service is restarted by this source change.
+Combined schema 6 loads both main's older operator/gripper schemas and field
+schema 5, preserving gripper, pants, mocap source, VRPN endpoint/units, table side
+and network settings. Older clients retain settings they cannot edit. Install
+the matching HDU core/supervisor/helper and Console only during a separately
+approved stopped deployment. The Mac local build does not install them remotely.
+Gripper and mocap selection do not change the selected serving CSV.
+
+Mocap capture is independently selected and started on the operator computer.
+See [Motive / ChingMu setup](foxglove_mocap_setup.md),
+[VRPN pants assets](vrpn_pants_profiles.md), and the
+[final Mac build](macos_deployment.md). ChingMu feeds the Mac VRPN receiver;
+the Mac publishes ROS2 to the HDU. No MDU mocap-server connection is required.
+
+## Prepare motion and release timing
 
 Prepare retains its five-second duration and READY target. The left arm clears
 first; the right shoulder pitch/roll and elbow begin at 2.0 s, then shoulder yaw
@@ -535,65 +740,6 @@ command ordering, not physical collision safety.
 The two packaged ping-pong runtime configurations use release lead 3 (frame
 48 event -> frame 45 command at 100 Hz). The controller accepts 0–4 frames only
 while idle; frame 44 was a trial, not the retained default. These parameters do
-not identify the physical command-to-detachment delay. The v20 CSV asset is
-proposed separately in #53; this PR does not select a new serve CSV. Retain the
-previous asset for rollback when changing an installed selection.
-
-## Site options: ball physics and body timing
-
-The Berkeley and local PPQ field setups share code, not implicit site defaults.
-The Console's **Ball physics model** selector writes an explicit Berkeley
-(`ball_physics_real_20261010.yaml`) or PPQ002 profile on both the HDU and the
-selected Laptop. The same 14 parameters feed Planner and flight packetizer.
-An absent selection preserves the installed base parameters. This change does
-not replace the Berkeley C++/simulator defaults, model14600 policy, calibration,
-Motive network interface, or the chosen Mac/Linux operator identity.
-
-Select only while STOPPED. A two-host update retains prior selections for
-rollback, including uncertain writes. Restart the Laptop capture/packetizer
-after selecting, then perform the normal managed START. The supervisor reads
-actual ROS parameters before HAL/Runner start; a saved selection alone is not
-proof of runtime activation. `NOT_RUNNING` means the optional Laptop packetizer
-was absent, not verified. Kernel-only serving does not require a ball model.
-
-Deploy the matching supervisor, `hope_field_operations.py`, `hope_ball_models.py`
-and lifecycle helper together. HDU installs `hope_ball_models.py` alongside
-`hope_field_assets.py` in `/usr/local/bin`; retain both reviewed YAMLs in the HDU
-workspace's Planner config directory. Laptop uses the checkout's matching
-`hope-laptop-ball-model`, Python modules, configs, and updated bringup launch
-files. Linux uses the existing Distrobox; the Mac operator container uses
-`HOPE_LAPTOP_RUNTIME=direct` and its forced-command dispatcher must also include
-`ball-model-laptop`. The `hope_bringup` and NatNet launch paths apply the saved
-override after the base packetizer parameters. VRPN/pants setup also applies
-this override; see [mocap setup](foxglove_mocap_setup.md). Motive network
-interface and calibration paths remain unchanged.
-
-Body timing is independent: Berkeley/main keeps
-`target_turn_reject_stale_pose: true`; the local field chooses `false`, keeping
-age diagnostics without an age veto. See the Planner README and
-`field_body_timing_audit.yaml`. Selecting PPQ002 does not silently change this
-option. Preserve the selected site's value when updating installed files.
-
-## Recording and display CPU options
-
-Public/main defaults keep recording manual. A site may set
-`HOPE_AUTO_RECORD_ON_START=1` in the supervisor environment to start recording
-only after authoritative Runner readiness at the end of START. Unset or `0`
-keeps the existing manual behavior. Restarting the supervisor does not trigger
-recording. Record OFF still stops the current capture segment. Capture errors
-remain visible in field status and do not change control state. The existing
-Mac/Linux three-host distributed acknowledgements and Kernel-only role selection
-remain intact.
-
-Runner trace/observation CSVs now check the recording switch before formatting
-rows; OFF avoids that CPU work. Segment headers/health accounting remain, and
-trace comparisons reset across OFF intervals. Captures include `/ball/point`,
-Planner diagnostics and the selected per-host ball physics file.
-
-Monitor/observer display publishers omit automatic per-publisher QoS warning
-callbacks by default. Topic types, QoS, rates and command/subscription behavior
-are unchanged. `HOPE_DISPLAY_QOS_EVENTS=1` restores those warning callbacks for
-diagnosis. Install `hope_display_publishers.py` with the matching monitor and
-observer under `/usr/local/lib/hope-foxglove/`; partial deployment would fail
-imports. No service is installed/restarted by this source change. CPU reduction
-on Berkeley hardware requires a later measurement; source tests verify behavior.
+not identify the physical command-to-detachment delay. The v20 CSV asset was
+added separately in #53; these runtime changes do not select a new serve CSV.
+Retain the previous asset for rollback when changing an installed selection.

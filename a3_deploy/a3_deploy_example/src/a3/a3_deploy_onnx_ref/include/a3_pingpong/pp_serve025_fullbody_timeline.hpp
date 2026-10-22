@@ -1,14 +1,13 @@
 // Copyright (c) 2026, AgiBot Inc. All rights reserved.
 //
 // Strict, transport-free reader for the original 100 Hz serve025 execution
-// timeline.
-// The CSV owns all 31 desired joint positions and velocities during the
-// action.  It deliberately does not contain controller gains or transport
-// fields; those remain properties of the existing RobotCommand path.
+// timeline, optionally followed by a versioned, annotated three-segment bundle.
+// Legacy FRAME rows own q/dq. Segment rows own all five RobotCommand fields.
 #pragma once
 
 #include "robot_io/robot_io_backend.hpp"
 
+#include <array>
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -67,6 +66,22 @@ struct Serve025FullbodyTimelineStats {
   int max_abs_qd_sdk_index{-1};
 };
 
+enum class ServeSegment : std::size_t { kStandToServe, kServeToStand, kServeToPolicy };
+inline constexpr std::array<const char*, 3> kServeSegmentNames = {
+    "STAND_TO_SERVE", "SERVE_TO_STAND", "SERVE_TO_POLICY"};
+
+struct ServeSegmentBundle {
+  bool present{false};
+  std::size_t branch_frame{0};
+  std::size_t policy_ready_frame{0};
+  double policy_blend_s{0.0};
+  std::string policy_sha256, deploy_sha256;
+  std::array<std::vector<robot_io::RobotCommand>, 3> commands;
+  const auto& At(ServeSegment segment) const { return commands.at(static_cast<std::size_t>(segment)); }
+  // Bind an authored policy-ready pose/impedance to its exact actor and config.
+  void RequirePolicy(const std::string& policy, const std::string& deploy) const;
+};
+
 class PpServe025FullbodyTimeline final {
  public:
   // No whole-file digest or embedded artifact ID participates in acceptance.
@@ -79,6 +94,7 @@ class PpServe025FullbodyTimeline final {
   const Serve025FullbodyFrame& complete() const noexcept {
     return At(kServe025CompleteFrame);
   }
+  const ServeSegmentBundle& segments() const noexcept { return segments_; }
   const Serve025FullbodyTimelineStats& stats() const noexcept {
     return stats_;
   }
@@ -87,6 +103,7 @@ class PpServe025FullbodyTimeline final {
   bool empty() const noexcept { return frames_.empty(); }
 
  private:
+  ServeSegmentBundle segments_;
   std::string csv_path_;
   Serve025FullbodyTimelineStats stats_{};
   Serve025FullbodyFrame fallback_{};

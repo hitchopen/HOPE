@@ -41,6 +41,7 @@
 #include "a3_deploy/a3_policy_driver.hpp"
 #include "a3_deploy/async_csv_file.hpp"
 #include "a3_pingpong/pp_command_safety.hpp"
+#include "a3_pingpong/pp_sha256.hpp"
 #include "a3_pingpong/pp_hybrid_lower_policy.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
 #include "a3_pingpong/pp_teleop_entry.hpp"
@@ -477,11 +478,20 @@ int main(int argc, char** argv) {
           throw std::runtime_error("serve Stand joint mapping invalid");
         const double offset = a3_pingpong::ServeStandLateralOffset(
             a3_pingpong::to_sdk_order(policy.default_q(), mapping), timeline.complete().q_sdk);
+        if (timeline.segments().present && !Has(argc, argv, "--kernel-mode") && !Has(argc, argv, "--serve-only")) timeline.segments().RequirePolicy(
+            policy.deploy_policy_sha256(), a3_pingpong::PpSha256::File((directory / "params/deploy.yaml").string()));
         std::cout << "SERVE_STAND_VALID lateral_offset_rad=" << offset << '\n';
       } catch (const std::exception& e) {
         std::cerr << "SERVE_STAND_INVALID: " << e.what() << '\n';
         return 2;
       }
+    }
+    if (timeline.segments().present) {
+      const auto& bundle = timeline.segments();
+      std::cout << "SERVE_SEGMENTS_VALID branch_frame=" << bundle.branch_frame
+                << " policy_blend_s=" << bundle.policy_blend_s << '\n';
+      for (std::size_t i = 0; i < 3; ++i)
+        std::cout << a3_pingpong::kServeSegmentNames[i] << " frames=" << bundle.commands[i].size() << '\n';
     }
     std::cout << "SERVE_TIMELINE_VALID frames=468 hz=100\n";
     return 0;
@@ -498,7 +508,7 @@ int main(int argc, char** argv) {
                  " [--gain-scale F] [--swing-speed F] [--stand-kp K --stand-kd D]\n"
                  "       [--reference-playback|--mode reference-playback]"
                  " [--no-publish|--dry-run] [--warmup-sec S]\n"
-                 "       [--planner] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
+                 "       [--planner] [--shared-session-home] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
                  " [--engage-min-tts S] [--cmd-timeout S] [--invalid-grace S] [--vel-gate-margin M]"
                  " [--pending-expire-after-strike S]"
                  " [--demo] [--policy-native]"
@@ -1031,6 +1041,7 @@ int main(int argc, char** argv) {
   // engage machine relies on; swing_rest_s>=0 arms the inter-swing rest timer.
   pcfg.planner_mode = planner_mode;
   pcfg.kernel_mode = kernel_mode;
+  pcfg.shared_session_home = Has(argc, argv, "--shared-session-home");
   if (kernel_mode) {
     pcfg.yaw_align = true;
     std::cout << "[kernel] IMU entry heading + stance-foot odometry; estimated XY/vxy and FK height; no OptiTrack/Planner; not authoritative localization\n";
@@ -1246,6 +1257,8 @@ int main(int argc, char** argv) {
     base_in = std::make_shared<a3_pingpong::PpBasePoseInput>();
     pp->SetRacketInput(racket_in);
     pp->SetBasePoseInput(base_in);
+    if (pcfg.shared_session_home) pp->SetSessionHomePublisher(
+        [backend_ptr = backend.get()](const std::vector<double>& values) { backend_ptr->PublishSessionHome(values); });
     backend->SetRacketTargetCallback(
         [racket_in](const std::vector<double>& a) { racket_in->SetFromFlat(a); });
     backend->SetBasePoseCallback(
@@ -1333,14 +1346,14 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  std::string serve_timeline_path;
+  std::string serve_timeline_path, serve_timeline_sha256;
   if (serve_requested) {
     serve_timeline_path =
         Has(argc, argv, "--serve-timeline")
             ? Resolve(Flag(argc, argv, "--serve-timeline", ""), cfgdir)
             : DefaultServeAsset(
                   cfgdir,
-                  "a3p_op3_serve025_smooth_center_v14.csv");
+                  "a3p_op3_serve025_v23_branch110_model14600.csv");
     const std::string gripper_socket =
         Flag(argc, argv, "--serve-gripper-socket", "");
     if (!gripper_socket.empty() &&
@@ -1355,6 +1368,7 @@ int main(int argc, char** argv) {
       if (!timeline.LoadCsv(serve_timeline_path, timeline_error)) {
         throw std::runtime_error(timeline_error);
       }
+      serve_timeline_sha256 = a3_pingpong::PpSha256::File(serve_timeline_path);
       if (official_stand && !Has(argc, argv, "--stand-lateral-offset-rad")) {
         const double offset = a3_pingpong::ServeStandLateralOffset(
             pp->official_stand_q(), timeline.complete().q_sdk);
@@ -1381,7 +1395,15 @@ int main(int argc, char** argv) {
           std::move(timeline), pp->official_stand_q(),
           pp->official_stand_kp(), pp->official_stand_kd(),
           std::move(gripper));
-      if (!serve_only) serve->SetPolicyHandoffFrame(
+      if (serve->has_segments()) {
+        if (kernel_mode || serve_only) serve->SelectSegmentDestination(false);
+        else serve->SelectSegmentDestination(true, pp->onnx().deploy_policy_sha256(),
+                                             a3_pingpong::PpSha256::File(deploy_cfg_path));
+        if (Has(argc, argv, "--serve-handoff-frame"))
+          serve->SetPolicyHandoffFrame(std::stoul(Flag(argc, argv, "--serve-handoff-frame", "")));
+        if (Has(argc, argv, "--serve-return-sec"))
+          throw std::invalid_argument("annotated CSV owns return timing; remove --serve-return-sec");
+      } else if (!serve_only) serve->SetPolicyHandoffFrame(
           std::stoul(Flag(argc, argv, "--serve-handoff-frame",
               std::to_string(a3_pingpong::DefaultServeHandoffFrame(kernel_mode, serve_only)))));
       serve->SetPolicyReturnSeconds(std::stod(Flag(argc, argv, "--serve-return-sec", kernel_mode ? "2.5" : "1.0")));
@@ -1421,6 +1443,8 @@ int main(int argc, char** argv) {
     std::cout
         << "[serve] serve025 named SDK31 timeline loaded: csv="
         << serve_timeline_path
+        << " sha256=" << serve_timeline_sha256
+        << " selected_tail=" << serve->selected_tail()
         << " handoff_frame=" << serve->handoff_frame()
         << " release_command_frame=" << serve->release_frame()
         << " frames=" << serve->frame_count()
@@ -1431,8 +1455,7 @@ int main(int argc, char** argv) {
            "READY_TO_SERVE -> full31 CSV action; release dispatch uses configured lead, "
            "strike frame=60, contact frame=78. Arm q_des/dq_des follow the selected "
            "SDK31 CSV without a second runtime velocity multiplier. Bounded ankle "
-           "pitch support preserves the CSV arm path and stance width. Kp/Kd remain the unscaled official PD_STAND gains and "
-           "tau_ff remains zero. RELEASE publishes native protobuf on the body command thread; "
+           "pitch support preserves the CSV arm path and stance width. Legacy playback uses Stand gains; annotated segments own q/dq/tau_ff/kp/kd. RELEASE publishes native protobuf on the body command thread; "
            "OPEN/GRAB use the optional bridge. Publication is not physical release feedback. "
            "Recovery hands the same "
            "Runner to Stand in Kernel mode, or P1/P2 receive policy in normal "
@@ -1522,7 +1545,7 @@ int main(int argc, char** argv) {
       std::cerr << "[pingpong] WARN: cannot open trace csv " << trace_path << "\n";
     }
   }
-  a3_deploy::AsyncCsvFile* trace_ptr = trace.is_open() ? &trace : nullptr;
+  std::ostream* trace_ptr = trace.is_open() ? &trace : nullptr;
 
   // --- optional per-tick OBS CSV (the full 180-D obs) for A/B/C comparison ---
   a3_deploy::AsyncCsvFile obscsv;
@@ -1542,7 +1565,7 @@ int main(int argc, char** argv) {
       std::cerr << "[pingpong] WARN: cannot open obs csv " << obs_csv_path << "\n";
     }
   }
-  a3_deploy::AsyncCsvFile* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
+  std::ostream* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
   const int loc_mode_int = static_cast<int>(loc_mode);
 
   // SHADOW free-running clock. The driver's `tick` is PUBLISH-GATED: in SHADOW
@@ -1613,6 +1636,8 @@ int main(int argc, char** argv) {
   const double motion_blend_sec = std::stod(Flag(argc, argv, "--motion-blend-sec", "0.5"));
   if (!std::isfinite(motion_blend_sec) || motion_blend_sec < 0)
     throw std::invalid_argument("--motion-blend-sec must be finite and nonnegative");
+  std::printf("[pd_stand] legacy_pose_gain_blend_sec=%.3f entry_velocity_decay_sec=%.3f\n",
+              motion_blend_sec, motion_blend_sec);
   // V17 field logs showed policy-native silently forcing this to zero, which
   // exposed the full stand->policy q_des discontinuity. Keep at least 0.5 s.
   // The affine policy's low-gain controller needs time to acquire its gravity
@@ -1626,7 +1651,13 @@ int main(int argc, char** argv) {
       argc, argv, "--policy-entry-blend-sec", std::to_string(default_policy_entry_sec)));
   if (!std::isfinite(policy_motion_blend_sec) || policy_motion_blend_sec < 0)
     throw std::invalid_argument("--policy-entry-blend-sec must be finite and nonnegative");
-  const double serve_policy_blend_sec = std::stod(Flag(argc, argv, "--serve-policy-blend-sec", "0.5"));
+  const double serve_policy_blend_sec = serve && serve->has_segments()
+      ? serve->segment_policy_blend_s() : std::stod(Flag(argc, argv, "--serve-policy-blend-sec", "0.5"));
+  if (serve && serve->has_segments() && Has(argc, argv, "--serve-policy-blend-sec")) {
+    const double requested = std::stod(Flag(argc, argv, "--serve-policy-blend-sec", ""));
+    if (!std::isfinite(requested) || std::abs(requested - serve_policy_blend_sec) > 1e-9)
+      throw std::invalid_argument("annotated CSV owns policy blend duration; override conflicts");
+  }
   if (!std::isfinite(serve_policy_blend_sec) || serve_policy_blend_sec < 0)
     throw std::invalid_argument("--serve-policy-blend-sec must be finite and nonnegative");
   double active_policy_blend_sec = policy_motion_blend_sec;
@@ -1869,7 +1900,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, runner_control.serve_only()
             ? "[serve] CSV complete -> PD_STAND (Pure Serve)\n"
             : kernel_mode ? "[serve] measured stand recovery complete -> PD_STAND (Kernel; arms lowered)\n"
-            : "[serve] measured stand recovery complete -> MOTION; entering P1/P2 "
+            : "[serve] selected return complete -> MOTION; entering P1/P2 "
               "receive policy through continuous handoff\n");
       } else if (servep->state() ==
                  a3_pingpong::ServeControllerState::kFault) {
@@ -2015,7 +2046,7 @@ int main(int argc, char** argv) {
         hybrid_run_hope_next = !run_hope_this_tick;
       publish = (m == Mode::kMotion);  // SHADOW computes but does not publish
       // --- OBS CSV row (only when the policy ran, so obs is current) ---
-      if (obscsv_ptr && obscsv_ptr->is_recording()) {
+      if (obscsv_ptr) {
         const auto d = ppp->take_obs_debug();
         if (d.valid) {
           auto& o = *obscsv_ptr;
@@ -2074,7 +2105,7 @@ int main(int argc, char** argv) {
     }
 
     // --- CSV trace row (all modes; final post-gain command + measured state) ---
-    if (trace_ptr && trace_ptr->is_recording()) {
+    if (trace_ptr) {
       auto& o = *trace_ptr;
       const auto g = ppp->last_proj_grav();
       const auto planner = ppp->planner_trace_snapshot(tick);
@@ -2192,10 +2223,6 @@ int main(int argc, char** argv) {
         trace_previous_shot_seq = planner.shot_seq;
       }
       o.flush();  // enqueue the complete row; disk I/O stays on the worker
-    } else {
-      // Never compare a resumed row with an arbitrarily old command.
-      trace_previous_q_des.resize(0);
-      trace_previous_shot_seq = 0;
     }
     return publish;
   };
@@ -2867,7 +2894,7 @@ int main(int argc, char** argv) {
       const auto d = servep->TakeDiag();
       std::printf(
           "[status] mode=SERVE state=%s phase=%s frame=%zu/%zu "
-          "transition=%zu/%zu gripper=%s gripper_fault=%s "
+          "transition=%zu/%zu segment=%s segment_frame=%zu/%zu gripper=%s gripper_fault=%s "
           "cleanup_required=%d "
           "ready_ticks=%d local_ready=%d q_or_tracking_err=%.3f "
           "tracking_warning=%d "
@@ -2881,6 +2908,7 @@ int main(int argc, char** argv) {
           d.phase.c_str(), d.frame, servep->frame_count(),
           d.transition_tick,
           a3_pingpong::kServe025FullbodyTransitionTicks,
+          d.segment.c_str(), d.segment_frame, d.segment_frames,
           a3_pingpong::ServeGripperStateName(d.gripper_state),
           d.gripper_fault_reason.empty()
               ? "-"

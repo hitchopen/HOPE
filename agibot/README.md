@@ -18,8 +18,8 @@ are documented in [A3_ASSETS.md](../A3_ASSETS.md), not built in this folder.
 | [code_deployment/](code_deployment/) | Vendor C++ deployment example, body-drive I/O, runtime configuration and packaging. Start with the [deployment README](code_deployment/a3_deploy_example/README.md) and [RobotIOBackend guide](code_deployment/a3_deploy_example/README_robot_io_backend.md). |
 | [A3_MuJoCo_Sim/](A3_MuJoCo_Sim/README.md) | Vendor AimRT/MuJoCo simulation reference; implementation under `aimrt_mujoco_sim/`. |
 | [ntp_sync/](ntp_sync/README.md) | A3 HDU Chrony and supervised HDU-to-MDU PTP clock synchronization; includes installation, verification and recovery procedures. |
-| [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables and geometry validation. |
-| [pku/](pku/README.md) | Original contributed mounting references: the ten-marker hip shell and wrist racket adapter, with their source records and mounting guidance. |
+| [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables, geometry validation, and OptiTrack/ChingMu asset definitions. |
+| [right_wrist_paddle_flange/](right_wrist_paddle_flange/README.md) | Current 45-degree right wrist paddle flange: hollow connector cavity, smooth exterior reinforcement, printable STL and printing/fit notes. |
 | [agibot_left_gripper_serve_addon.STL](agibot_left_gripper_serve_addon.STL) | Developer-supplied left-gripper serving fixture. **Metre-scale coordinates; see the printing scale warning below.** |
 
 ## Robot models and software boundaries
@@ -55,7 +55,7 @@ the current release; the earlier locally repaired STL is not the release master.
 ### Printing scale
 
 STL does not encode units. This file's coordinates are **metre-scale**, unlike
-the millimetre-scale v3 shell STLs:
+the millimetre-scale v3 shell and right wrist paddle flange STLs:
 
 - Import as **metres** if the application supports an explicit source unit.
 - If the slicer assumes millimetres, multiply all axes by **1,000**
@@ -76,31 +76,59 @@ The reviewed file's SHA-256 is
 `6db32e9cc54bd407206b9645c8176d9633288c48097d572d14b17b62a9abb9fe`.
 Recheck dimensions and geometry when replacing the asset.
 
+## Right wrist paddle flange
+
+Use [right_wrist_paddle_flange/](right_wrist_paddle_flange/README.md) for the
+current 45-degree right wrist paddle mount. Its printable master is
+[45deg_right_wrist_flange_mm.stl](right_wrist_paddle_flange/45deg_right_wrist_flange_mm.stl).
+The hollow connector space, mounting interfaces and screw passages are retained,
+with smooth outward reinforcement across the external wall. Import the STL in
+**millimetres at 100% scale**. The component README and linked print notes give
+the dimensions, geometry checks and assembly guidance.
+
 ## Pelvis marker hardware
 
-There are two distinct layouts; their marker names and calibration data are
-not interchangeable:
-
-- **Dual-mode shell v3:** 17 asymmetric stations (seven unchanged front, rear
-  upper S04-S08 and middle S14-S18 rows of five) with flat 12 mm sticker
-  seats and central **blind** marker-ball mounting bores with side-access
-  captive-nut pockets. The proposed through-hole/internal-nut redesign is
-  not included. Use the
-  [v3 README](mocap_sticker_shell_v3/README.md) for printable parts,
-  installation, hardware limits and the sticker/mount-seat transform tables.
-  Ball diameter alone does not determine the installed sphere centre; the
-  ball/stud/spacer offset still needs measurement.
-- **Original ten-marker shell:** five front (`f1`–`f5`) and five rear
-  (`b1`–`b5`) markers. Its source geometry and coordinate reference remain
-  under [pku/](pku/README.md) for historical reference. Its calibration
-  receipts and ball-centre coordinates are not valid for the v3 stickers.
+The current [dual-mode shell v3](mocap_sticker_shell_v3/README.md) has
+**17 asymmetric stations**: seven front markers and rear upper S04-S08 and
+middle S14-S18 rows of five. The stations have flat 12 mm sticker seats and
+central **blind** marker-ball mounting bores with side-access captive-nut pockets.
+Use the v3 README for printable halves, installation, hardware limits and the
+sticker/mount-seat transform tables. Ball diameter alone does not determine
+the installed sphere centre; the ball/stud/spacer offset still needs measurement.
 
 For A3, `pelvis_link` uses ROS axes **X forward, Y left, Z up**. CAD print
 orientation is not a robot-frame registration. Use the v3
 [CAD registration record](mocap_sticker_shell_v3/documents/CAD_registration.md)
 and its metre-valued transform tables; rotating a part for printing does not
 change those tables. Mesh validation does not certify physical fit or crash
-survival for either shell.
+survival.
+
+### ChingMu / VRPN shell-v3 asset
+
+For the 17-sticker shell, import the single CMTracker definition
+[A3_v3_17_stickers.json](mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json).
+Its filename stem and internal `UCB_P1` body name match the Motive asset.
+It is byte-identical to the existing **V4 P1 runtime profile**; existing P1/P2
+runtime profiles remain unchanged for compatibility and share this geometry.
+Configure the site body name (`UCB_P1` or `UCB_P2`) and unique IDs in CMTracker
+as needed; a separate P2 release asset is not required.
+
+The **v3 CAD folder and V4 runtime/dropdown label name the same 17-sticker
+hardware**, not the retired ten-ball V3 layout. Its `markerPose` values are
+the nominal sticker optical centres in `pelvis_link`, expressed in
+millimetres with **X forward, Y left, Z up**. Do not subtract the centroid,
+add a second marker-to-pelvis offset, or apply Motive's Y-up conversion.
+For either table side, retain the same pelvis-local geometry, not a mirrored shell.
+
+Importing the JSON configures the CMTracker server; VRPN subsequently sends
+poses and supplies no ModelDef for an automatic geometry check. Verify
+CMTracker import/re-export, installed markers, pivot and axes, then separately
+commission the server's global world/table coordinates. This nominal asset
+does not certify physical calibration or replace the optional measured
+Motive/NatNet workflow below. Follow the
+[asset package README](mocap_sticker_shell_v3/vrpn_asset/README.md)
+and [VRPN operation guide](../docs/operations/vrpn_pants_profiles.md) for the
+V4 selection, unit settings and confirmation gates.
 
 ### V3 sticker P1-to-pelvis calibration
 

@@ -22,6 +22,8 @@
     # refresh, and the assert-only emergency path. No wildcard service,
     # parameters, or client publishing. Internal topics are not browser-writable.
     service_whitelist:
+      - "^/hope/planner/set_plane_mode$"
+      - "^/hope/planner/set_hit_speed_scale$"
       - "^/hope/planner/set_ball_y_filter$"
       - "^/hope/safety/trigger_estop$"
       - "^/hope/safety/reset_software_estop$"
