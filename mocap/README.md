@@ -265,15 +265,13 @@ OptiTrack driver level).
 
 The [ChingMu Ping Pong Ball Marker Template.stl](<ChingMu Ping Pong Ball Marker Template.stl>)
 is a **placement jig for eighteen flat, circular 6 mm reflective stickers on a
-40 mm ball**. Remove the jig before tracking or play. This revision restores the
-original 18-marker count after the 15-marker design proved insufficient in
-physical testing, and reoptimizes the original 18-point layout for greater
-sticker clearance and fewer ambiguous partial matches.
+40 mm ball**. Remove the jig before tracking or play. The asymmetric layout is
+optimized for sticker clearance, partial-marker correspondence and coverage
+across viewing directions.
 
-**Replace the 15-marker jig and asset together.** Reprint this jig, reposition
-all eighteen stickers, and import the matching asset. The new coordinates are
-also incompatible with earlier experimental 18-marker jigs. The OptiTrack
-files remain a separate design.
+**Use the matching 18-marker jig and asset together.** Print this jig, position
+all eighteen stickers, and import the matching asset. The OptiTrack files
+remain a separate design.
 
 - [Native CMTracker import asset: Ball](<ChingMu Ping Pong Ball Marker Asset.json>)
   contains 18 points / 54 XYZ numbers in millimetres. It is the coordinate
@@ -285,8 +283,7 @@ guide. Development scripts, tests, baseline data and detailed verification
 reports are excluded. The measurements below record pre-release checks;
 the full audit cannot be independently rerun from this operator package alone.
 
-Use these SHA-256 fingerprints to distinguish this revision from earlier files
-with the same names:
+Use these SHA-256 fingerprints to verify the matching release files:
 
 | Release file | SHA-256 |
 |---|---|
@@ -301,21 +298,15 @@ view coverage. For equal-size stickers on the same sphere, maximizing minimum
 center separation also maximizes minimum nominal surface edge clearance.
 The frozen result is a finite constrained search, **not a proven global optimum**.
 
-| Nominal measure | Original 18-marker baseline | Revised 18-marker layout |
-|---|---:|---:|
-| Minimum center-to-center chord | 12.221 mm | **13.568 mm** |
-| Minimum surface edge-to-edge gap | 6.420 mm | **7.843 mm (+22.2%)** |
-| Four-marker competing-fit RMS | 0.258068 mm | **0.260009 mm** |
-| Five-marker competing-fit RMS | 0.688182 mm | **0.690009 mm** |
-| Minimum centers in the 75.52° incidence proxy | 5 | **5** |
+| Nominal measure | 18-marker layout |
+|---|---:|
+| Minimum center-to-center chord | **13.568 mm** |
+| Minimum surface edge-to-edge gap | **7.843 mm** |
+| Four-marker competing-fit RMS | **0.260009 mm** |
+| Five-marker competing-fit RMS | **0.690009 mm** |
+| Minimum centers in the 75.52° incidence proxy | **5** |
 
-The original 18-marker baseline was recovered from local development files;
-it was never released on `main`. The comparison describes nominal geometry,
-not a controlled hardware comparison. The retired 15-marker layout had a
-larger 8.622 mm surface gap and four-/five-marker gaps of 0.430030/0.860060 mm,
-but its same visibility proxy reached five centers in only 95.46% of directions
-and fell to four. Restoring 18 points trades some of that spacing for coverage;
-the revised 18-point layout improves the recovered 18-point baseline.
+These measurements describe nominal geometry, not hardware tracking accuracy.
 
 Surface clearance assumes nominal 6 mm footprints conforming to a radius-20-mm
 sphere: `40 * asin(center_chord / 40) - 6` mm. It is not the projected image gap
@@ -325,10 +316,9 @@ conformation, blur and reflections affect the installed result.
 At `normal · view > 0.25` (incidence below 75.52 degrees), all **4,096**
 sampled directions contain at least **five** marker centers; **95.68%** contain
 six or more. All **1,144** cap-boundary sector samples also contain at least
-five. For the stricter 60-degree incidence proxy, the minimum is **two**
-(original baseline: three), with at least five in **49.44%** of directions
-(original: 50.24%). The spacing improvement therefore does not improve every
-viewing-angle metric.
+five. For the stricter 60-degree incidence proxy, the minimum is **two**,
+with at least five in **49.44%** of directions. Coverage therefore depends on
+the incidence angle accepted by the actual cameras and reflective stickers.
 
 These are finite single-direction geometric checks. They do not model camera
 positions, triangulation, occlusion by other objects, image merging or exposure.
@@ -339,7 +329,7 @@ still require adequate multi-camera coverage and a live tracking test.
 ### Printing and applying the stickers
 
 The STL contains **two watertight pieces, with nine apertures per half**, laid
-out open side upward. It preserves the 40.50 mm spherical cavity, nominal
+out open side upward. It has a 40.50 mm spherical cavity, nominal
 2.025 mm radial wall and 6.20 mm inner aperture diameter. Three unequally
 spaced, differently sized keys register the halves in one nominal orientation.
 The cavity gives 0.25 mm radial clearance around a nominal 40 mm ball.
@@ -370,13 +360,12 @@ the resulting pose; it does not import this definition.
 | `id` | `3` | Provisional project-unique body ID; check collisions. This is not the VRPN sensor index. |
 | `markerPose` | 54 numbers, XYZ in mm | 18 nominal surface centers, in M01–M18 authoring order; live labels need not use this order. |
 | `Rbc` | Identity 3×3 | Preserve authored right-handed ball-local axes; verify the installed vendor version. |
-| `minMarker` | `5` | Retained proposed minimum reconstructed-marker setting; not the total count or a validated dropout rule. |
-| `filterEnable` | `false` | Retained fast-ball setting; verify actual server delay and noise. |
+| `minMarker` | `5` | Proposed minimum reconstructed-marker setting; not the total count or a validated dropout rule. |
+| `filterEnable` | `false` | Proposed fast-ball setting; verify actual server delay and noise. |
 
-All other native fields are preserved, **including `beta: 15`**. It is an opaque
-vendor parameter, not the marker count; do not change it to 18. The field
-semantics and proposed tracking settings still require verification in the
-installed CMTracker version.
+The native field **`beta: 15`** is an opaque vendor parameter, not the marker
+count; do not change it to 18. The field semantics and proposed tracking
+settings still require verification in the installed CMTracker version.
 
 1. Back up the CMTracker project and import into an isolated test project.
    Confirm exactly **18 markers**, the name `Ball`, and an unused body ID.
@@ -411,10 +400,9 @@ pruning and reflection handling.
 
 All 816 nominal triangles are noncollinear, scalene and mutually distinct
 above a 0.000001 mm distance tolerance. Exact correspondence uniqueness does
-not imply robustness under noise. The three-marker gap is smaller than the
-original 18-marker baseline's 0.012587 mm; the spacing search protects the
-four-/five-marker margins and removes exact triangle symmetries, but does
-not preserve a useful three-marker noise margin.
+not imply robustness under noise. The three-marker competing-fit gap is too
+small for a practical noise margin. The spacing search constrains the
+four-/five-marker margins and excludes exact triangle symmetries.
 
 The half-gap is a sufficient two-fit error budget: total point error plus the
 alternative-fit acceptance threshold must be below the competing-fit gap.
