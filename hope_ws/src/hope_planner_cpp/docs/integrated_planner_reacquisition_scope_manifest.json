@@ -192,8 +192,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -250,8 +257,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -685,8 +699,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -710,8 +731,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -780,8 +808,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -799,8 +834,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -818,8 +860,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -837,8 +886,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -850,7 +906,20 @@
         "review_source_cutoff_parity",
         "installed review chain matrix",
         "flight_v2_scope"
-      ]
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_review_scope_manifest.json",
@@ -878,8 +947,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -927,8 +1003,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -947,8 +1030,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -971,8 +1061,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1179,8 +1276,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1357,8 +1461,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1435,8 +1546,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1533,8 +1651,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1553,8 +1678,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1573,8 +1705,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1597,8 +1736,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1612,7 +1758,20 @@
         "test_flight_transport_v2"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/hit_plane_manager.cpp",
@@ -1649,8 +1808,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1782,8 +1948,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1801,8 +1974,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1850,8 +2030,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -1865,7 +2052,20 @@
         "flight_v2_ros_transport"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/forecast_binary_scope.py",
@@ -1932,8 +2132,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2007,8 +2214,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2039,8 +2253,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2058,8 +2279,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2077,8 +2305,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2096,8 +2331,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2109,7 +2351,20 @@
         "review_source_cutoff_parity",
         "installed review chain matrix",
         "flight_v2_scope"
-      ]
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/review_policy_contract.py",
@@ -2148,8 +2403,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2189,7 +2451,20 @@
         "test_flight_transport_v2"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
-      "owning_requirement": "G1-G4"
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_forecast_scope.py",
@@ -2210,8 +2485,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {
@@ -2248,8 +2530,15 @@
       "continuation_change": {
         "owner": "integrated planner continuation",
         "base": "e9bf01579123eca35ce315b0f605814f8c952255",
-        "requirements": "G0\u2013G5 / RA01\u2013RA08 / SP01\u2013SP09 / BP01\u2013BP05",
-        "why_needed": "Auditable continuation implementation and verification; pinned legacy bytes and historical receipts preserved."
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
       }
     },
     {

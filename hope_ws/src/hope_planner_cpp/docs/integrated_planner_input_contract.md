@@ -163,3 +163,7 @@ Base schema-2 slots 8..11 are **w,x,y,z**, as written by the existing base relay
 The integrated consumer constructs Eigen's quaternion in that order. The
 policy-height flag removes the actor offset for physical reach; serialization
 and the unchanged 110-D observation builder apply that offset exactly once.
+
+Explicit producer `omega_valid=true` with a finite zero vector represents measured
+zero through the ROS decoder as well as the native engine. `omega_valid=false`
+and nonfinite vectors remain unavailable; no zero is inferred from missing data.

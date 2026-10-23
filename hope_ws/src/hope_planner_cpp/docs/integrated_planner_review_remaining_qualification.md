@@ -1,5 +1,10 @@
 # Remaining integrated qualification
 
+This is the historical PR64 correction roadmap. The later continuation results,
+including recovered consecutive flights and the still-open timing gate, are in
+[integrated_planner_reacquisition_spin_qualification.md](integrated_planner_reacquisition_spin_qualification.md).
+Its G0–G7 numbering is separate from the historical V3 gates below.
+
 Review corrections and broader V3 qualification are separate outcomes.
 
 | Gate | Remaining work |
