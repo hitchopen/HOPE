@@ -309,6 +309,27 @@ def run(args):
         rounds = []
         generation_order = []
         for i, (lo, hi) in bounds.items():
+            a_sources = {
+                r["stamp_ns"]
+                for r in rows
+                if r["round"] == i and r["opportunity"] == "A"
+            }
+            rejected_sources = {
+                r["stamp_ns"]
+                for r in rows
+                if r["round"] == i
+                and r["opportunity"] in ["A_REJECT", "A_CONTINUED_REJECTED"]
+            }
+            assert any(
+                int(s.get("latest_source_ns", "0")) in a_sources
+                and s["physical_state"] != "INVALID"
+                for s in statuses
+            ), ("A never acquired", i)
+            assert any(
+                int(s.get("latest_source_ns", "0")) in rejected_sources
+                and s["rejection_reason"] == "observed_under_table"
+                for s in statuses
+            ), ("A never physically rejected", i)
             b = [t for t in traces if lo <= int(t["source_time_ns"]) <= hi]
             assert b, (
                 "B produced zero valid commands",

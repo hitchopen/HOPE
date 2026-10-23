@@ -202,7 +202,7 @@ def run(executable, rate, full_rate=50., worker_delay_ms=0):
                        for info in node.get_publishers_info_by_topic(name))]
         assert set(emitted) <= {'/rosout', '/parameter_events',
             '/hope/shadow/flight_v2/prediction', '/hope/shadow/flight_v2/trajectory',
-            '/hope/shadow/flight_v2/packet'}, emitted
+            '/hope/shadow/flight_v2/packet', '/hope/shadow/flight_v2/readiness'}, emitted
         # Count physical outputs against inputs after a four-sample startup allowance per flight.
         denominator = len(eligible_sources)
         eligible_outputs = {p.prediction_reference_time_ns for p in forecasts} & eligible_sources
