@@ -111,7 +111,7 @@ TEST(Reacquisition,
   EXPECT_EQ(p.shot().generation(), retired);
   // Rearm is an explicit profile choice; service-armed input still needs its
   // explicit boundary even if automatic rearm is requested.
-  FlightPipeline standalone;
+  FlightPipeline standalone({});
   a = initial();
   feed(standalone, a, 0, .08, 300);
   ASSERT_TRUE(standalone.shot().active());

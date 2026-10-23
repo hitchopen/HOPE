@@ -40,7 +40,7 @@ run_gate native-build cmake --build "$evidence/native" -j2
 run_gate native-test ctest --test-dir "$evidence/native" --output-on-failure
 run_gate review-cases "$evidence/native/test_v2_pr64_review_regressions" \
   --gtest_output="xml:$evidence/review-cases.xml"
-if [[ -x "$evidence/native/test_reacquisition_spin" ]]; then
+if [[ -f "$repo/hope_ws/src/hope_planner_cpp/test/test_reacquisition_spin.cpp" ]]; then
   run_gate reacquisition-cases "$evidence/native/test_reacquisition_spin" \
     --gtest_output="xml:$evidence/reacquisition-cases.xml"
   run_gate counterexample-cases "$evidence/native/test_reacquisition_counterexamples" \
