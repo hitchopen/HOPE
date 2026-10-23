@@ -47,3 +47,7 @@ target_link_libraries(test_v2_pr64_review_regressions PRIVATE hope_integrated_na
 add_test(NAME v2_pr64_review_regressions COMMAND test_v2_pr64_review_regressions)
 add_executable(hope_integrated_return_sweep ${PLANNER}/test/integrated_return_sweep.cpp)
 target_link_libraries(hope_integrated_return_sweep PRIVATE hope_integrated_native)
+
+add_executable(test_reacquisition_counterexamples ${PLANNER}/test/reacquisition_counterexamples.cpp)
+target_link_libraries(test_reacquisition_counterexamples PRIVATE hope_native_core GTest::gtest_main)
+add_test(NAME reacquisition_counterexamples COMMAND test_reacquisition_counterexamples)
