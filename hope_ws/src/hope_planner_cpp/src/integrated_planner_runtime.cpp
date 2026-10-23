@@ -2,6 +2,7 @@
 #include "hope_planner_cpp/integrated_command_lifecycle.hpp"
 #include "hope_planner_cpp/flight_transport_v2.hpp"
 #include "hope_planner_cpp/target_turn_guard.hpp"
+#include "hope_planner_cpp/base_pose_orientation.hpp"
 #include "hope_msgs/msg/flight_context_v2.hpp"
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <hope_msgs/msg/racket_command.hpp>
@@ -44,7 +45,8 @@ struct IntegratedPlannerRuntime::Impl {
   std::uint64_t epoch=0,inputs=0,accepted=0,commands=0,rejected=0;
   std::int64_t last_observation_ns=0,last_context_ns=std::numeric_limits<std::int64_t>::min();
   double policy_z=0.76,max_turn=40,min_lead=.08,max_reach=.95,split_y=-.25;
-  int worker_delay_ms=0;
+  int worker_delay_ms=0,first_worker_delay_ms=0;
+  std::uint64_t stale_work_discarded=0,last_discarded_generation=0,generation_at_discard=0;
   bool pending_valid=false,return_eligible=false,source_fault=false;
   bool outgoing_valid=false,execution_admitted=false;
   double last_solver_ms=0,last_source_age_ms=0;
@@ -81,14 +83,17 @@ struct IntegratedPlannerRuntime::Impl {
     max_reach=node.declare_parameter("maximum_reach_m",.95);
     split_y=node.declare_parameter("swing_side_split_y",-.25);
     worker_delay_ms=node.declare_parameter("test.worker_delay_ms",0);
+    first_worker_delay_ms=node.declare_parameter("test.first_worker_delay_ms",0);
     if (node.declare_parameter("x_hit_bh_delta",0.)!=0)
       throw std::invalid_argument("nonzero backhand plane offset is unsupported by integrated profile");
     for (double value : {policy_z,max_turn,min_lead,max_reach,split_y})
       if (!std::isfinite(value)) throw std::invalid_argument("nonfinite execution settings");
     if (max_turn<=0 || max_turn>40 || min_lead<.08 || min_lead>.5 ||
-        max_reach<=0 || max_reach>1.2 || worker_delay_ms<0 || worker_delay_ms>1000)
+        max_reach<=0 || max_reach>1.2 || worker_delay_ms<0 || worker_delay_ms>1000 ||
+        first_worker_delay_ms<0 || first_worker_delay_ms>1000)
       throw std::invalid_argument("unsupported execution limits");
     settings.game_legality_advisory=true;
+    settings.automatic_rearm=node.declare_parameter("automatic_rearm_enabled",true);
     config.integration_dt_s=node.declare_parameter("integration_dt_s",.001);
     config.horizon_s=node.declare_parameter("horizon_s",1.5);
     config.physics.drag_k=node.declare_parameter("physics.drag_k",config.physics.drag_k);
@@ -138,7 +143,7 @@ struct IntegratedPlannerRuntime::Impl {
           }
           base.position=Vec3(w[5],w[6],w[7]);
           if (static_cast<unsigned>(w[13])&16u) base.position.z()-=policy_z;
-          base.orientation=Eigen::Quaterniond(w[11],w[8],w[9],w[10]).normalized();
+          base.orientation=*base_orientation_wxyz(w);
           base.source_ns=static_cast<std::int64_t>(w[3])*1000000000LL+static_cast<std::int64_t>(w[4]);
           base.receipt_ns=steady; base.calibration=static_cast<std::uint64_t>(w[14]);base.valid=true;
           if (!pipeline->shot().active() && !plane->snapshot().calibrated)
@@ -218,6 +223,7 @@ struct IntegratedPlannerRuntime::Impl {
     work.push(Job{*pipeline,plane->for_solve(sample.receipt_steady_ns,now),base,epoch});
   }
   void run() {
+    bool first_solve=true;
     while (auto job=work.take()) {
       try {
         const auto started=monotonic_ns();
@@ -225,13 +231,18 @@ struct IntegratedPlannerRuntime::Impl {
         auto eligibility=select_physical_return(forecast,job->pipeline.shot().export_snapshot(),config,node.now().nanoseconds());
         ValidatedReturn result;
         if (eligibility.input) result=planner->solve(*eligibility.input);
-        if (worker_delay_ms) std::this_thread::sleep_for(std::chrono::milliseconds(worker_delay_ms));
+        const int delay=first_solve && first_worker_delay_ms ? first_worker_delay_ms : worker_delay_ms;
+        first_solve=false;
+        if (delay) std::this_thread::sleep_for(std::chrono::milliseconds(delay));
         std::lock_guard<std::mutex> lock(mutex);
         const auto now=node.now().nanoseconds(),steady=monotonic_ns();
         last_solver_ms=(steady-started)*1e-6;
         last_source_age_ms=(static_cast<long double>(now)-forecast.reference_ns)*1e-6L;
         if (job->epoch!=epoch || forecast.token.generation!=pipeline->shot().generation() ||
-            forecast.token.context_revision!=pipeline->shot().revision()) continue;
+            forecast.token.context_revision!=pipeline->shot().revision()) {
+          ++stale_work_discarded;last_discarded_generation=forecast.token.generation;
+          generation_at_discard=pipeline->shot().generation();continue;
+        }
         physical_available=forecast.physical_available;
         physical_source_ns=forecast.reference_ns;
         physical_reason=forecast.reason;
@@ -284,6 +295,16 @@ struct IntegratedPlannerRuntime::Impl {
         record("solver_residual_m",std::to_string(result.solver_residual_m));
         record("impact_residual_mps",std::to_string(result.impact_residual_mps));
         record("landing_x",std::to_string(result.first_landing.x()));record("landing_y",std::to_string(result.first_landing.y()));
+        const auto readiness=job->pipeline.shot().spin_readiness();
+        record("spin_readiness",readiness.state);
+        record("spin_measurement_ns",std::to_string(readiness.measurement_time_ns));
+        record("spin_collected_span_s",std::to_string(readiness.span_s));
+        record("spin_collected_increments",std::to_string(readiness.increments));
+        record("acquisition_state",job->pipeline.shot().acquisition_state());
+        record("source_origin_ns",std::to_string(job->pipeline.source_origin_ns()));
+        record("base_yaw_deg",std::to_string(turn.base_yaw_deg));
+        record("target_bearing_deg",std::to_string(turn.target_bearing_deg));
+        record("turn_deg",std::to_string(turn.turn_deg));
         record("outgoing_duration_s",std::to_string(result.selected_duration_s));
         record("net_clearance_m",std::to_string(result.net_clearance_m));record("outgoing_spin","POSITION_ONLY");
         receipt.status.push_back(detail);trace->publish(receipt);
@@ -326,9 +347,28 @@ struct IntegratedPlannerRuntime::Impl {
     add("physical_state",name(pipeline->shot().state()));
     add("observed_contacts",std::to_string(pipeline->shot().observed_contacts()));
     add("spin_mode",std::to_string(static_cast<int>(pipeline->shot().spin().mode)));
+    const auto readiness=pipeline->shot().spin_readiness();
+    add("spin_readiness",readiness.state); add("spin_reason",readiness.reason);
+    add("spin_collected_span_s",std::to_string(readiness.span_s));
+    add("spin_collected_increments",std::to_string(readiness.increments));
+    add("spin_measurement_ns",std::to_string(readiness.measurement_time_ns));
+    add("acquisition_state",pipeline->shot().acquisition_state());
+    add("acquisition_reason",pipeline->shot().reason());
+    add("rejection_reason",pipeline->shot().rejection_reason());
+    add("rejection_source_ns",std::to_string(pipeline->shot().rejection_source_ns()));
+    add("automatic_rearm_enabled",settings.automatic_rearm?"true":"false");
+    add("latest_source_ns",std::to_string(last_observation_ns));
+    add("candidate_samples",std::to_string(pipeline->shot().candidates().size()));
+    add("retained_samples",std::to_string(pipeline->shot().samples().size()));
+    add("source_origin_ns",std::to_string(pipeline->source_origin_ns()));
+    const auto forward=base.orientation*Vec3::UnitX();
+    add("base_yaw_deg",std::to_string(std::atan2(forward.y(),forward.x())*180./3.141592653589793));
     add("execution_admitted",execution_admitted?"true":"false");
     add("inputs",std::to_string(inputs));add("accepted",std::to_string(accepted));add("rejected",std::to_string(rejected));
     add("commands",std::to_string(commands));add("superseded",std::to_string(work.superseded()));
+    add("stale_work_discarded",std::to_string(stale_work_discarded));
+    add("last_discarded_generation",std::to_string(last_discarded_generation));
+    add("generation_at_discard",std::to_string(generation_at_discard));
     add("solver_ms",std::to_string(last_solver_ms));add("source_age_ms",std::to_string(last_source_age_ms));
     array.status.push_back(d);status->publish(array);
   }

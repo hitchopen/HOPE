@@ -3,6 +3,7 @@ hope_planner:
     prediction_backend: v2
     return_backend: shared_physics
     output_mode: shadow
+    automatic_rearm_enabled: true
     observation_topic: /hope/ball/observation_v2
     base_pose_topic: /a3/base_pose_flat
     frame_id: world

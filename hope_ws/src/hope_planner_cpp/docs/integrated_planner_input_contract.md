@@ -127,3 +127,39 @@ be remapped: `racket_target` (19 schema-2 doubles, reliable depth 1), `command`
 reliable depth 1) and `trace` (per-command provenance/residuals, best effort
 depth 10). The decoder probe is a test-only, non-actuating consumer. No live
 distributed command-authority mechanism is claimed or enabled.
+
+## Reacquisition and angular readiness
+
+The integrated V2 profile enables `automatic_rearm_enabled`; standalone V2 and
+the library default it off. After a rejection, the integrated owner keeps a
+source identity/time fence. A compatible gap greater than `max_tracking_gap_s`
+or a quiet held interval followed by launch permits a new ballistic candidate.
+Continuous rejected motion, a direction reversal or elapsed wall time cannot
+clear the fence. A clock discontinuity still requires an explicit reset.
+Service-armed acquisition still requires an explicit boundary. Successful
+reacquisition creates one generation with a fresh source origin, CKF, spin and
+event ledger. Existing worker generation/epoch checks discard retired work.
+
+Candidate position history (32 samples by default) and angular history (192)
+are independently bounded. Angular evidence accumulates across qualification
+attempts and is looked up at or before the dynamic window midpoint. Held and
+contact prefixes are excluded. Supported position-only acquisition can begin
+before spin is available; later measured spin does not create a new generation.
+The original angular span, rate, quality and calibration requirements remain.
+Measured zero and missing angular evidence are distinct.
+
+Status and command traces expose `spin_readiness` (`UNAVAILABLE`, `COLLECTING`,
+`READY_MEASURED`, `HELD`, `CONTACT_PROPAGATED`), angular span/increment count,
+measurement time, acquisition/rejection state, generation and source origin.
+Standalone V2 publishes the corresponding source-keyed diagnostics on the
+exact shadow topic `/hope/shadow/flight_v2/readiness`, at up to 50 Hz. These
+diagnostics do not extend any serialized observation, context, forecast or
+runner schema. Offline observation CSV accepts the original eight columns or
+six appended columns: orientation-valid, orientation-authoritative, qw,qx,qy,qz.
+The configuration fingerprint includes the causal candidate-spin version and
+the rearm setting; the deterministic physics profile and coefficients remain.
+
+Base schema-2 slots 8..11 are **w,x,y,z**, as written by the existing base relay.
+The integrated consumer constructs Eigen's quaternion in that order. The
+policy-height flag removes the actor offset for physical reach; serialization
+and the unchanged 110-D observation builder apply that offset exactly once.

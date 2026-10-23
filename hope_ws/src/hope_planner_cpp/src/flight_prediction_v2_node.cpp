@@ -1,6 +1,7 @@
 #include "hope_msgs/msg/flight_context_v2.hpp"
 #include "hope_planner_cpp/flight_transport_v2.hpp"
 #include <chrono>
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <iomanip>
 #include <locale>
 #include <rclcpp/rclcpp.hpp>
@@ -50,6 +51,7 @@ public:
         declare_parameter("physics.radius", config_.physics.radius);
     settings_.max_source_age_s = declare_parameter("max_source_age_s", .030);
     settings_.service_armed = declare_parameter("service_armed", false);
+    settings_.automatic_rearm = declare_parameter("automatic_rearm_enabled", false);
     full_rate_hz_ = declare_parameter("full_output_rate_hz", 50.);
     packet_rate_hz_ = declare_parameter("packet_output_rate_hz", 50.);
     worker_delay_ms_ = declare_parameter("test.worker_delay_ms", 0);
@@ -115,6 +117,10 @@ public:
             "remapping must retain v2 shadow namespace and exact output channel");
     }
     auto qos = rclcpp::QoS(1).best_effort();
+    const std::string readiness_topic="/hope/shadow/flight_v2/readiness";
+    if (get_node_topics_interface()->resolve_topic_name(readiness_topic)!=readiness_topic)
+      throw std::invalid_argument("remapping must retain v2 shadow namespace and exact output channel");
+    readiness_publisher_=create_publisher<diagnostic_msgs::msg::DiagnosticArray>(readiness_topic,rclcpp::QoS(1).best_effort());
     publisher_ = create_publisher<hope_msgs::msg::FlightPredictionV2>(
         "/hope/shadow/flight_v2/prediction", qos);
     full_ = create_publisher<hope_msgs::msg::FlightPredictionV2>(
@@ -336,6 +342,25 @@ public:
         // immutable source state for all channels.
         auto points = std::move(wire.waypoints);
         publisher_->publish(wire);
+        if (due(result.reference_ns,50.,next_readiness_source_)) {
+          const auto r=job->pipeline.shot().spin_readiness();
+          diagnostic_msgs::msg::DiagnosticArray a;a.header.stamp=now();
+          diagnostic_msgs::msg::DiagnosticStatus d;d.name="flight_v2/readiness";
+          d.message=job->pipeline.shot().acquisition_state();d.hardware_id="non_actuating_shadow";
+          auto add=[&](const std::string &key,const std::string &value) {
+            diagnostic_msgs::msg::KeyValue v;v.key=key;v.value=value;d.values.push_back(v);
+          };
+          add("source_time_ns",std::to_string(result.reference_ns));
+          add("spin_readiness",r.state);add("spin_reason",r.reason);
+          // Keep enough precision for same-cutoff evidence comparisons.
+          std::ostringstream span;span<<std::setprecision(17)<<r.span_s;
+          add("spin_collected_span_s",span.str());
+          add("spin_collected_increments",std::to_string(r.increments));
+          add("spin_measurement_ns",std::to_string(r.measurement_time_ns));
+          add("physical_generation",std::to_string(job->pipeline.shot().generation()));
+          add("source_origin_ns",std::to_string(job->pipeline.source_origin_ns()));
+          a.status.push_back(d);readiness_publisher_->publish(a);
+        }
         wire.waypoints = std::move(points);
         if (due(result.reference_ns, full_rate_hz_, next_full_source_) &&
             publication_fresh())
@@ -415,6 +440,8 @@ private:
   std::mutex mutex_;
   ProbabilisticConfig config_;
   ShotSettings settings_;
+  rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr readiness_publisher_;
+  std::optional<std::int64_t> next_readiness_source_;
   std::unique_ptr<FlightPipeline> pipeline_;
   std::unique_ptr<HitPlaneManager> plane_;
   LatestWork<Job> work_;

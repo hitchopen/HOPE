@@ -69,6 +69,9 @@ struct ShotSettings {
   // Application opt-in: retain game-illegal evidence without retiring the
   // physical track. Standalone forecasting retains its established default.
   bool game_legality_advisory = false;
+  // Explicit opt-in for long-running integrated sessions; standalone retains
+  // its explicit-boundary default and service_armed is always respected.
+  bool automatic_rearm = false;
   void validate() const;
 };
 inline constexpr const char *kFlightPhysicsProfile =
@@ -145,6 +148,21 @@ public:
   const EffectiveSpin &spin() const { return spin_.value(); }
   EffectiveSpin spin_at(std::int64_t ns) const { return spin_.at(ns); }
   const std::string &reason() const { return reason_; }
+  const std::string &rejection_reason() const { return rejection_reason_; }
+  std::int64_t rejection_source_ns() const {
+    return rejection_fence_ ? rejection_fence_->source_time_ns : 0;
+  }
+  const char *acquisition_state() const {
+    if (active()) return "ACTIVE_SHOT";
+    if (!rejected_latch_) return "COLLECTING_INITIAL_SHOT";
+    if (rearm_candidate_) return "COLLECTING_NEW_SHOT";
+    return rejection_reason_ == "source_clock_discontinuity" ? "WAIT_SOURCE_RESET" : "WAIT_NEW_FLIGHT";
+  }
+  SpinReadiness spin_readiness() const {
+    return active() ? spin_.readiness() : candidate_spin_.readiness();
+  }
+  const EffectiveSpin &acquisition_spin() const { return acquisition_spin_; }
+  std::int64_t acquisition_spin_cutoff_ns() const { return acquisition_spin_cutoff_ns_; }
   int observed_contacts() const;
   bool route_supported() const;
   void set_history_continuity(HistoryContinuity);
@@ -152,12 +170,21 @@ public:
   std::int64_t context_time_ns() const { return match_time_ns_; }
 
 private:
+  friend class FlightPipeline;
+  // One owner for quarantine/fresh-launch evidence and candidate segmentation.
+  bool collect_candidate(const BallSample &);
+  void rebase_times(std::int64_t origin_ns);
   void reclassify();
   void changed(const std::string &);
   bool compatible(const BallSample &, const BallSample &) const;
   ProbabilisticConfig config_;
   ShotSettings settings_;
-  TrustedSpin spin_;
+  TrustedSpin spin_, candidate_spin_;
+  EffectiveSpin acquisition_spin_;
+  std::int64_t acquisition_spin_cutoff_ns_ = 0;
+  std::optional<BallSample> rejection_fence_, candidate_last_, quiet_anchor_;
+  std::string rejection_reason_;
+  bool rearm_candidate_ = false;
   PlayState state_ = PlayState::INVALID, route_ = PlayState::INVALID;
   ClassificationStatus classification_ = ClassificationStatus::PROVISIONAL;
   HistoryContinuity continuity_ = HistoryContinuity::kUnknown;

@@ -64,6 +64,21 @@ service/launch transition and operator deployment decision remain separate.
 Reproduce all feasible checks using
 `scripts/flight_prediction_validation/verify_integrated.sh /new/absolute/evidence`.
 The entry point retains inherited bringup lint failures in its exit status.
+The continuation entry point also reproduces the pinned `e9bf015` failures,
+runs RA/SP/BP cases and the ten-round installed reacquisition matrix, and checks
+both policy artifacts using CPU ONNX Runtime. Install NumPy, SciPy and
+onnxruntime in the validation Python environment; optionally set
+`HOPE_POLICY_PYTHONPATH` to an external tool-only dependency directory.
+Use a new evidence directory for every run. Full logs, individual exit codes,
+JUnit/CTest output, source pins and raw chain traces are retained even when a
+gate fails. Current outcomes are in `integrated_planner_reacquisition_spin_qualification.md`.
+
+The integrated shadow profile now explicitly enables `automatic_rearm_enabled`.
+Set it false to retain explicit-boundary recovery; standalone V2 continues to
+default false. Rebuild all C++ dependents after this change. No sensor producer
+or runner wire migration is needed. PR64 is closed and unmerged; its historical
+receipts are not qualification of this continuation, and publication is a
+separate decision.
 `test/integrated_producer_chain.py` exercises 150/300 Hz and both plane policies,
 including pre-bounce UNKNOWN-history commands, real C++ decoding, invalid frame
 recovery, missing-base revocation and retained legacy relay outputs. It starts

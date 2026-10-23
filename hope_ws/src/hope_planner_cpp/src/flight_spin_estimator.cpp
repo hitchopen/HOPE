@@ -38,6 +38,11 @@ void FlightSpinEstimator::reset() noexcept {
   last_increment_retained_ = false;
 }
 
+void FlightSpinEstimator::rebase_time(double offset) noexcept {
+  if (have_previous_) previous_time_s_ -= offset;
+  for (std::size_t i=0;i<increment_count_;++i) increments_[i].end_time_s -= offset;
+}
+
 void FlightSpinEstimator::append(const Increment& increment) noexcept {
   if (increment_count_ < kCapacity) {
     increments_[increment_count_++] = increment;

@@ -21,6 +21,8 @@ class FlightSpinEstimator {
 
   void reset() noexcept;
   void push(const BallSample& sample) noexcept;
+  // Change relative origin without changing source cutoffs or angular evidence.
+  void rebase_time(double offset_s) noexcept;
   SpinEstimate estimate() const noexcept;
   bool current_increment_valid() const noexcept {return last_increment_retained_;}
 

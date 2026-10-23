@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
       std::cerr
           << "Usage: --rollout step_s direction speed spin_y duration_s | "
              "--observations [direction complete|unknown] < "
-             "CSV(source_ns,x,y,z,omega_valid,wx,wy,wz); --profile; optional "
+             "CSV(source_ns,x,y,z,omega_valid,wx,wy,wz[,orientation_valid,orientation_authoritative,qw,qx,qy,qz]); --profile; optional "
              "--set key=value\n";
       return 2;
     }
@@ -247,6 +247,12 @@ int main(int argc, char **argv) {
         std::cout << '}';
       }
       std::cout << ']';
+      const auto readiness=pipeline.shot().spin_readiness();
+      std::cout << ",\"spin_readiness\":\"" << readiness.state
+                << "\",\"spin_collected_span_s\":" << readiness.span_s
+                << ",\"spin_measurement_ns\":" << readiness.measurement_time_ns
+                << ",\"spin_collected_increments\":" << readiness.increments
+                << ",\"source_origin_ns\":" << pipeline.source_origin_ns();
       std::cout << ",\"current_state\":{\"position\":";
       vector(prediction.belief.mean.head<3>());
       std::cout << ",\"velocity\":";

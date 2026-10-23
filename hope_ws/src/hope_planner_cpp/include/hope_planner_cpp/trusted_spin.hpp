@@ -5,6 +5,12 @@
 #include <deque>
 #include <vector>
 namespace hope_planner_cpp {
+struct SpinReadiness {
+  std::string state = "UNAVAILABLE", reason = "no_qualified_angular_increments";
+  std::size_t increments = 0;
+  double span_s = 0;
+  std::int64_t measurement_time_ns = 0;
+};
 // Owned by one physical shot. A missing measurement breaks only differencing.
 class TrustedSpin {
 public:
@@ -22,6 +28,25 @@ public:
     contact_checkpoints_.clear();
   }
   const EffectiveSpin &value() const { return value_; }
+  SpinReadiness readiness() const {
+    const auto estimate = estimator_.estimate();
+    SpinReadiness r;
+    r.increments = estimate.retained_increments;
+    r.span_s = estimate.sample_span_s;
+    r.measurement_time_ns = value_.measurement_time_ns;
+    r.reason = estimate.reason;
+    if (value_.usable()) {
+      r.state = value_.mode == EffectiveSpinMode::MEASURED ? "READY_MEASURED" :
+          value_.mode == EffectiveSpinMode::CONTACT_PROPAGATED ? "CONTACT_PROPAGATED" : "HELD";
+      r.reason = value_.provenance;
+    } else if (r.increments) r.state = "COLLECTING";
+    return r;
+  }
+  void rebase_time(double offset) {
+    estimator_.rebase_time(offset);
+    if (last_time_s_) *last_time_s_ -= offset;
+    for (auto &entry : history_) entry.sample.source_time_s -= offset;
+  }
   void restore(const EffectiveSpin &s) {
     reset();
     value_ = s;

@@ -14,8 +14,8 @@ inline BallSample parse_flight_observation_csv(std::string line) {
   std::string token;
   while (input >> token)
     fields.push_back(token);
-  if (fields.size() != 8)
-    throw std::invalid_argument("observation CSV requires 8 fields");
+  if (fields.size() != 8 && fields.size() != 14)
+    throw std::invalid_argument("observation CSV requires 8 fields or 14 with quaternion provenance");
   std::size_t used = 0;
   BallSample sample;
   sample.source_time_ns = std::stoll(fields[0], &used);
@@ -36,6 +36,14 @@ inline BallSample parse_flight_observation_csv(std::string line) {
   sample.producer_omega_valid = fields[4] == "1";
   sample.producer_omega_rad_s = Vec3(number(5), number(6), number(7));
   sample.producer_omega_provenance = "recorded_producer_validity";
+  if (fields.size() == 14) {
+    for (int index : {8,9})
+      if (fields[index] != "0" && fields[index] != "1")
+        throw std::invalid_argument("orientation validity/authority must be 0 or 1");
+    sample.orientation_valid = fields[8] == "1";
+    sample.orientation_authoritative = fields[9] == "1";
+    sample.orientation = Eigen::Quaterniond(number(10),number(11),number(12),number(13));
+  }
   return sample;
 }
 } // namespace hope_planner_cpp

@@ -61,12 +61,19 @@ std::string flight_model_config_id(const ProbabilisticConfig &c,
   out << ';' << s.observation_capacity << ';' << s.candidate_capacity << ';'
       << s.event_capacity << ';' << s.service_armed;
   if (s.game_legality_advisory) out << ";game_legality_advisory";
+  if (s.automatic_rearm) out << ";automatic_rearm";
+  out << ";bounded-causal-candidate-spin-v2";
   return "flight-model-v3:sha256:" + sha256(out.str());
 }
 void set_flight_parameter(ProbabilisticConfig &c, ShotSettings &s,
                           const std::string &key, double value) {
   if (!std::isfinite(value))
     throw std::invalid_argument("nonfinite flight parameter");
+  if (key == "automatic_rearm_enabled") {
+    if (value != 0 && value != 1) throw std::invalid_argument("automatic_rearm_enabled must be 0 or 1");
+    s.automatic_rearm = value == 1;
+    return;
+  }
   double *target = nullptr;
   const std::pair<const char *, double *> options[] = {
       {"physics.drag_k", &c.physics.drag_k},
@@ -124,8 +131,10 @@ void ShotContext::start(std::int64_t ns, int d, BoundaryEvidence evidence,
                         HistoryContinuity continuity, const std::string &why) {
   if (d != 1 && d != -1)
     throw std::invalid_argument("qualified boundary requires direction");
-  if (rejected_latch_ && evidence == BoundaryEvidence::ACQUISITION)
-    return;
+  if (rejected_latch_ && evidence == BoundaryEvidence::ACQUISITION &&
+      !(settings_.automatic_rearm && rearm_candidate_)) return;
+  const bool acquisition = evidence == BoundaryEvidence::ACQUISITION;
+  auto angular_history = candidate_spin_;
   ++generation_;
   revision_ = 1;
   published_sequence_ = 0;
@@ -134,6 +143,10 @@ void ShotContext::start(std::int64_t ns, int d, BoundaryEvidence evidence,
   direction_ = d;
   net_crossed_ = false;
   rejected_latch_ = false;
+  rearm_candidate_ = false;
+  rejection_fence_.reset(); rejection_reason_.clear();
+  candidate_last_.reset(); quiet_anchor_.reset();
+  acquisition_spin_ = {}; acquisition_spin_cutoff_ns_ = 0;
   samples_.clear();
   events_.clear();
   spin_.reset();
@@ -149,8 +162,16 @@ void ShotContext::start(std::int64_t ns, int d, BoundaryEvidence evidence,
   for (auto sample : candidates)
     if (sample.source_time_ns >= ns)
       observe(std::move(sample));
+  if (acquisition && active()) spin_ = std::move(angular_history);
+  candidate_spin_.reset();
 }
 void ShotContext::invalidate(const std::string &why) {
+  // Retain only a source-identity/time fence, never the old estimation ledger.
+  if (!samples_.empty()) rejection_fence_ = samples_.back();
+  rejection_reason_ = why;
+  candidate_last_ = rejection_fence_;
+  quiet_anchor_.reset(); rearm_candidate_ = false;
+  candidate_spin_.reset(); acquisition_spin_ = {}; acquisition_spin_cutoff_ns_ = 0;
   ++generation_;
   ++revision_;
   state_ = route_ = PlayState::INVALID;
@@ -189,6 +210,50 @@ bool ShotContext::compatible(const BallSample &a, const BallSample &b) const {
          a.clock_domain == b.clock_domain &&
          a.clock_mapping_id == b.clock_mapping_id && a.ball_id == b.ball_id;
 }
+bool ShotContext::collect_candidate(const BallSample &s) {
+  if (!s.clock_mapping_valid || !std::isfinite(s.clock_uncertainty_s) ||
+      s.clock_uncertainty_s < 0 || s.clock_uncertainty_s > .001) return false;
+  if (rejected_latch_ && rejection_fence_ && !compatible(*rejection_fence_,s)) return false;
+  if (candidate_last_ && (s.source_time_ns <= candidate_last_->source_time_ns ||
+      !compatible(*candidate_last_,s))) return false;
+  const double gap = candidate_last_ ? double((static_cast<long double>(s.source_time_ns)-
+      candidate_last_->source_time_ns)*1e-9L) : 0;
+  bool quiet_launch = false, angular_boundary = false;
+  if (quiet_anchor_ && (s.position-quiet_anchor_->position).norm() > settings_.held_displacement_m) {
+    const double quiet_span = candidate_last_ ? double((static_cast<long double>(candidate_last_->source_time_ns)-
+        quiet_anchor_->source_time_ns)*1e-9L) : 0;
+    quiet_launch = quiet_span >= settings_.held_span_s;
+    angular_boundary = quiet_span >= settings_.qualification_span_s;
+    quiet_anchor_ = s;
+  }
+  if (!quiet_anchor_) quiet_anchor_ = s;
+  candidate_last_ = s;
+  bool new_opportunity = false;
+  if (rejected_latch_ && settings_.automatic_rearm && !rearm_candidate_) {
+    if (!rejection_fence_ || rejection_reason_ == "source_clock_discontinuity") return false;
+    new_opportunity = gap > config_.max_tracking_gap_s || quiet_launch;
+    if (!new_opportunity) return false;
+    rearm_candidate_ = true;
+    reason_ = gap > config_.max_tracking_gap_s ? "rearm_qualified_source_gap" : "rearm_held_to_launch";
+  }
+  if (new_opportunity || gap > config_.gap_warning_s || angular_boundary ||
+      s.position.z() <= config_.physics.radius + .03) {
+    candidates_.clear(); candidate_spin_.reset();
+    quiet_anchor_ = s;
+  }
+  candidate_spin_.observe(s);
+  candidates_.push_back(s);
+  while (candidates_.size() > settings_.candidate_capacity) candidates_.pop_front();
+  return true;
+}
+void ShotContext::rebase_times(std::int64_t origin) {
+  if (samples_.empty()) return;
+  const double offset = samples_.front().source_time_s - double(
+      (static_cast<long double>(samples_.front().source_time_ns)-origin)*1e-9L);
+  for (auto &s : samples_) s.source_time_s -= offset;
+  for (auto &s : candidates_) s.source_time_s -= offset;
+  spin_.rebase_time(offset); candidate_spin_.rebase_time(offset);
+}
 bool ShotContext::observe(BallSample s) {
   if (!s.source_time_valid || !s.position_valid || !s.position.allFinite() ||
       !std::isfinite(s.source_time_s))
@@ -212,17 +277,14 @@ bool ShotContext::observe(BallSample s) {
       // extra bounce appended to the old shot. Resume only after the ordinary
       // multi-sample ballistic qualifier; a single resumed point is no launch.
       invalidate("source_gap_requires_new_acquisition");
-      rejected_latch_ = false;
+      // Standalone retains the established active-gap recovery contract.
+      // Integrated automatic rearm goes through the same fenced helper as an
+      // already-rejected shot, rather than clearing the latch here.
+      if (!settings_.automatic_rearm) rejected_latch_ = false;
     }
   }
   if (!active()) {
-    if (!candidates_.empty() &&
-        (s.source_time_ns <= candidates_.back().source_time_ns ||
-         !compatible(candidates_.back(), s)))
-      return false;
-    candidates_.push_back(s);
-    while (candidates_.size() > settings_.candidate_capacity)
-      candidates_.pop_front();
+    collect_candidate(s);
     return false;
   }
   if (s.source_time_ns < boundary_ns_)
@@ -375,7 +437,7 @@ bool ShotContext::observe(BallSample s) {
   return true;
 }
 bool ShotContext::qualify_candidate() {
-  if (active() || rejected_latch_ || settings_.service_armed ||
+  if (active() || (rejected_latch_ && !(settings_.automatic_rearm && rearm_candidate_)) || settings_.service_armed ||
       candidates_.size() < 6)
     return false;
   // Qualify a continuous recent launch window. Older held-ball candidates are
@@ -402,7 +464,7 @@ bool ShotContext::qualify_candidate() {
     return false;
   // A smooth acceleration hypothesis requires continuous contact-free data.
   // Only spin qualified by the middle source cutoff can explain its curvature.
-  TrustedSpin candidate_spin;
+  // Candidate angular history is independently retained across short dynamic windows.
   for (std::size_t i = first; i < candidates_.size(); ++i) {
     const auto &point = candidates_[i];
     if ((i > first && (static_cast<long double>(point.source_time_ns) -
@@ -411,21 +473,24 @@ bool ShotContext::qualify_candidate() {
       reason_ = "acquisition_discontinuous_or_contact_window";
       return false;
     }
-    if (point.source_time_ns <= b.source_time_ns) candidate_spin.observe(point);
+
   }
-  const auto &spin = candidate_spin.value();
+  const auto spin = candidate_spin_.at(b.source_time_ns);
+  const auto cutoff = b.source_time_ns;
   const Vec3 expected = ball_acceleration(config_.physics, v,
       spin.usable() ? *spin.omega : Vec3::Zero());
   if ((accel - expected).norm() > settings_.ballistic_residual_mps2) {
-    reason_ = spin.usable() ? "acquisition_qualified_spin_model_residual"
-                           : "acquisition_position_only_model_residual_spin_unobserved";
+    reason_ = spin.usable() ? "acquisition_qualified_spin_model_residual" :
+        candidate_spin_.readiness().state == "COLLECTING" ? "SPIN_COLLECTING_MODEL_NOT_YET_SUPPORTED" :
+        "MODEL_UNSUPPORTED_WHILE_SPIN_UNKNOWN";
     return false;
   }
   // Acquisition does not establish racket contact or complete prehistory.
-  const auto boundary = a.source_time_ns;
+  const auto boundary = candidates_.front().source_time_ns;
   const int d = v.x() > 0 ? 1 : -1;
   start(boundary, d, BoundaryEvidence::ACQUISITION, HistoryContinuity::kUnknown,
         "ballistic_acquisition_incomplete_history");
+  if (active()) { acquisition_spin_ = spin; acquisition_spin_cutoff_ns_ = cutoff; }
   return active();
 }
 bool ShotContext::context(MatchContext c, std::int64_t ns,
@@ -914,6 +979,9 @@ void ShotContext::restore_snapshot(const ShotSnapshot &snapshot) {
   }
   solve_sequence_ = published_sequence_ = 0;
   rejected_latch_ = false;
+  candidate_spin_.reset(); candidate_last_.reset(); quiet_anchor_.reset();
+  rejection_fence_.reset(); rejection_reason_.clear(); rearm_candidate_ = false;
+  acquisition_spin_ = {}; acquisition_spin_cutoff_ns_ = 0;
   reason_ = "restored_shot_checkpoint";
 }
 void FlightPipeline::restore(const ShotSnapshot &snapshot,
@@ -1092,19 +1160,16 @@ bool FlightPipeline::observe(BallSample sample) {
     if (!shot_.active()) {
       return false;
     }
-    TrustedSpin replay_spin;
+    if (settings_.automatic_rearm && !shot_.samples().empty()) {
+      origin_ = shot_.samples().front().source_time_ns;
+      shot_.rebase_times(*origin_);
+    }
     for (const auto &s : shot_.samples()) {
       tracker_history_.push_back({s.source_time_ns, tracker_.export_checkpoint()});
       tracker_.observe(s);
-      replay_spin.observe(s);
-      for (const auto &event : shot_.events())
-        if (event.kind == PhysicalEventKind::TABLE &&
-            event.status == EventStatus::CONFIRMED &&
-            event.event_time_ns <= s.source_time_ns)
-          replay_spin.contact(event.id, event.event_time_ns, event.pre.velocity,
-                              config_.physics);
-      // Never assign the acquisition window's final spin to earlier intervals.
-      tracker_.set_effective_spin(replay_spin.value());
+      // Historical lookup includes candidate angular evidence older than the
+      // short dynamic suffix, and never pulls a future measurement backward.
+      tracker_.set_effective_spin(shot_.spin_at(s.source_time_ns));
     }
     return !shot_.samples().empty();
   }
