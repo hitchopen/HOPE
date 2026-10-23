@@ -86,8 +86,7 @@ BallSample decode_observation(const hope_msgs::msg::BallObservationV2 &w) {
   s.producer_omega_rad_s = vector(w.omega_rad_s);
   s.producer_omega_provenance = w.omega_provenance;
   s.producer_omega_valid = w.omega_valid &&
-                           s.producer_omega_rad_s.allFinite() &&
-                           s.producer_omega_rad_s.squaredNorm() > 0;
+                           s.producer_omega_rad_s.allFinite();
   if (s.clock_domain.empty() || !std::isfinite(s.clock_uncertainty_s) ||
       s.clock_uncertainty_s < 0)
     s.clock_mapping_valid = false;

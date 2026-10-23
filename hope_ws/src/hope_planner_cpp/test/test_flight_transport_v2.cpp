@@ -3,6 +3,25 @@
 #include <rclcpp/serialization.hpp>
 #include <rclcpp/serialized_message.hpp>
 using namespace hope_planner_cpp;
+TEST(FlightTransportV2, SP07_ExplicitProducerZeroSurvivesTheRealDecoder) {
+  BallSample source;
+  source.clock_domain = "simulation";
+  source.producer_omega_rad_s = Vec3::Zero();
+  source.producer_omega_provenance = "authoritative_sensor_rad_s";
+  source.producer_omega_valid = true;
+  const auto decoded = decode_observation(encode_observation(source));
+  ASSERT_TRUE(decoded.producer_omega_valid);
+  TrustedSpin spin;
+  spin.observe(decoded);
+  ASSERT_TRUE(spin.value().usable());
+  EXPECT_EQ(spin.value().mode, EffectiveSpinMode::MEASURED);
+  EXPECT_EQ(spin.value().omega->norm(), 0.);
+  source.producer_omega_valid = false;
+  EXPECT_FALSE(decode_observation(encode_observation(source)).producer_omega_valid);
+  source.producer_omega_valid = true;
+  source.producer_omega_rad_s.x() = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(decode_observation(encode_observation(source)).producer_omega_valid);
+}
 TEST(FlightTransportV2, RV03_RV06_PacketResumeCannotReconfirmTheSameReversal) {
   for(int rate:{150,300}) for(bool known:{false,true}) {
     ProbabilisticConfig c;ShotSettings settings;settings.game_legality_advisory=true;
