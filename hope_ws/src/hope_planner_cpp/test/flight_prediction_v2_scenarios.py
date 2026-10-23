@@ -77,6 +77,21 @@ def trace_producer(direction, rate, session, sequence):
         while observation.get_subscription_count() == 0 and time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=.01)
         assert observation.get_subscription_count() > 0, 'fixture observation subscriber missing'
+        # Pay the first RMW publication/serialization cost before starting
+        # paced exposures. A cold writer blocked 283 ms after frame zero on
+        # this host; catching up then omitted the first physical bounce.
+        # This observation is explicitly invalid and cannot seed acquisition.
+        warm = BallObservationV2()
+        warm.source_time_ns = time.time_ns()
+        warm.source_time_valid = True
+        warm.position_valid = False
+        observation.publish(warm)
+        sequence += 1
+        pose_ns = time.time_ns()
+        warm_pose = Float64MultiArray()
+        warm_pose.data = [2.,1.,float(sequence),float(pose_ns//10**9),float(pose_ns%10**9),
+                          -.43,-.2,0.,0.,0.,0.,1.,1.,47.,7.,1.]
+        base.publish(warm_pose)
         print(json.dumps(dict(ready=True)), flush=True)
         start = int(sys.stdin.readline())
         schedule = time.monotonic() + (start-time.time_ns())*1e-9

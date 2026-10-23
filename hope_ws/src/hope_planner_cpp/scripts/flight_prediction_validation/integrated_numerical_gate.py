@@ -41,7 +41,7 @@ def main():
             return state[0]-1.37
         net.direction = 1
         solved = solve_ivp(rhs, [0, 1.5], np.r_[initial, outgoing],
-                           rtol=2e-12, atol=2e-14, events=[landing, net], dense_output=True)
+                           method='DOP853', rtol=2e-12, atol=2e-14, events=[landing, net], dense_output=True)
         assert len(solved.t_events[0]) == 1
         assert len(solved.t_events[1]) == 1
         t = solved.t_events[0][0]

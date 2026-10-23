@@ -51,3 +51,16 @@ target_link_libraries(hope_integrated_return_sweep PRIVATE hope_integrated_nativ
 add_executable(test_reacquisition_counterexamples ${PLANNER}/test/reacquisition_counterexamples.cpp)
 target_link_libraries(test_reacquisition_counterexamples PRIVATE hope_native_core GTest::gtest_main)
 add_test(NAME reacquisition_counterexamples COMMAND test_reacquisition_counterexamples)
+
+target_compile_definitions(test_reacquisition_counterexamples PRIVATE HOPE_REARM_CONTINUATION=1)
+add_executable(test_reacquisition_spin ${PLANNER}/test/test_reacquisition_spin.cpp)
+target_link_libraries(test_reacquisition_spin PRIVATE hope_integrated_native GTest::gtest_main)
+add_test(NAME reacquisition_spin COMMAND test_reacquisition_spin)
+
+add_executable(test_base_pose_contract ${PLANNER}/test/test_base_pose_contract.cpp)
+set_target_properties(test_base_pose_contract PROPERTIES CXX_STANDARD 20)
+target_include_directories(test_base_pose_contract PRIVATE ${PLANNER}/../../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include)
+target_link_libraries(test_base_pose_contract PRIVATE hope_native_core GTest::gtest_main)
+add_test(NAME base_pose_contract COMMAND test_base_pose_contract)
+add_executable(hope_base_pose_contract_probe ${PLANNER}/test/base_pose_contract_probe.cpp)
+target_link_libraries(hope_base_pose_contract_probe PRIVATE hope_native_core)

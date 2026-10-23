@@ -133,6 +133,82 @@ install(PROGRAMS
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  ament_add_gtest(test_reacquisition_counterexamples test/reacquisition_counterexamples.cpp)
+  target_compile_definitions(test_reacquisition_counterexamples PRIVATE HOPE_REARM_CONTINUATION=1)
+  target_link_libraries(test_reacquisition_counterexamples hope_integrated_return)
+  ament_add_gtest(test_reacquisition_spin test/test_reacquisition_spin.cpp)
+  target_link_libraries(test_reacquisition_spin hope_integrated_return hope_planner_core)
+  ament_add_gtest(test_base_pose_contract test/test_base_pose_contract.cpp)
+  set_target_properties(test_base_pose_contract PROPERTIES CXX_STANDARD 20)
+  target_include_directories(test_base_pose_contract PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
+  target_link_libraries(test_base_pose_contract hope_integrated_return hope_planner_core)
+  add_executable(hope_base_pose_contract_probe test/base_pose_contract_probe.cpp)
+  target_link_libraries(hope_base_pose_contract_probe hope_v2_forecast_core)
+  add_test(NAME base_pose_producer_contract COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/base_pose_producer_contract.py
+    --probe $<TARGET_FILE:hope_base_pose_contract_probe>
+    --output ${CMAKE_CURRENT_BINARY_DIR}/base_pose_producer_contract.json)
+  foreach(rate 150 300)
+    foreach(policy FOLLOW_POSE ON_REFRESH)
+      foreach(spin unknown quaternion_only zero)
+        add_test(NAME reacquisition_chain_${rate}_${policy}_${spin} COMMAND ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/test/reacquisition_producer_chain.py
+          --planner $<TARGET_FILE:hope_planner_cpp_node>
+          --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+          --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+          --rate ${rate} --policy ${policy} --spin ${spin}
+          --output ${CMAKE_CURRENT_BINARY_DIR}/reacquisition_chain_${rate}_${policy}_${spin}.json)
+        set_tests_properties(reacquisition_chain_${rate}_${policy}_${spin} PROPERTIES RUN_SERIAL TRUE TIMEOUT 75
+          ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+      endforeach()
+    endforeach()
+    add_test(NAME reacquisition_delayed_${rate} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/reacquisition_producer_chain.py
+      --planner $<TARGET_FILE:hope_planner_cpp_node> --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+      --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+      --rate ${rate} --policy FOLLOW_POSE --spin unknown --first-worker-delay-ms 750
+      --output ${CMAKE_CURRENT_BINARY_DIR}/reacquisition_delayed_${rate}.json)
+    set_tests_properties(reacquisition_delayed_${rate} PROPERTIES RUN_SERIAL TRUE TIMEOUT 75
+      ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+    foreach(yaw 0 30 -30 50)
+      add_test(NAME base_yaw_chain_${rate}_${yaw} COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_producer_chain.py
+        --planner $<TARGET_FILE:hope_planner_cpp_node> --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+        --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+        --rate ${rate} --base-yaw ${yaw}
+        --output ${CMAKE_CURRENT_BINARY_DIR}/base_yaw_chain_${rate}_${yaw}.json)
+      set_tests_properties(base_yaw_chain_${rate}_${yaw} PROPERTIES RUN_SERIAL TRUE TIMEOUT 60
+        ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+    endforeach()
+    foreach(spec 10_unknown 12_known)
+      string(REPLACE "_" ";" parts ${spec})
+      list(GET parts 0 speed)
+      list(GET parts 1 spin)
+      add_test(NAME review_refresh_${rate}_${spec} COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_producer_chain.py
+        --planner $<TARGET_FILE:hope_planner_cpp_node> --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+        --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+        --rate ${rate} --plane-policy ON_REFRESH --speed ${speed} --spin ${spin}
+        --output ${CMAKE_CURRENT_BINARY_DIR}/review_refresh_${rate}_${spec}.json)
+      set_tests_properties(review_refresh_${rate}_${spec} PROPERTIES RUN_SERIAL TRUE TIMEOUT 60
+        ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+    endforeach()
+    add_test(NAME review_worker_expiry_${rate} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_producer_chain.py
+      --planner $<TARGET_FILE:hope_planner_cpp_node> --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+      --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+      --rate ${rate} --worker-delay-ms 40
+      --output ${CMAKE_CURRENT_BINARY_DIR}/review_worker_expiry_${rate}.json)
+    set_tests_properties(review_worker_expiry_${rate} PROPERTIES RUN_SERIAL TRUE TIMEOUT 60
+      ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
+  endforeach()
+  add_test(NAME reacquisition_source_cutoff_parity COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/reacquisition_cutoff_parity.py
+    --node $<TARGET_FILE:hope_flight_prediction_v2_node>
+    --replay $<TARGET_FILE:hope_flight_prediction_v2_replay>
+    --output ${CMAKE_CURRENT_BINARY_DIR}/reacquisition_source_cutoff_parity.json)
+  set_tests_properties(reacquisition_source_cutoff_parity PROPERTIES RUN_SERIAL TRUE TIMEOUT 120
+    ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
   ament_add_gtest(test_integrated_return test/test_integrated_return.cpp)
   ament_add_gtest(test_v2_pr64_review_regressions test/test_v2_pr64_review_regressions.cpp)
   target_link_libraries(test_v2_pr64_review_regressions hope_integrated_return hope_planner_core)
@@ -304,7 +380,7 @@ add_library(hope_v2_transport src/flight_transport_v2.cpp)
 target_link_libraries(hope_v2_transport PUBLIC hope_v2_forecast_core
   rclcpp::rclcpp ${hope_msgs_TARGETS})
 add_executable(hope_flight_prediction_v2_node src/flight_prediction_v2_node.cpp)
-target_link_libraries(hope_flight_prediction_v2_node PRIVATE hope_v2_transport ${std_msgs_TARGETS})
+target_link_libraries(hope_flight_prediction_v2_node PRIVATE hope_v2_transport ${std_msgs_TARGETS} ${diagnostic_msgs_TARGETS})
 add_executable(hope_flight_prediction_v2_replay src/flight_prediction_v2_replay.cpp)
 target_link_libraries(hope_flight_prediction_v2_replay PRIVATE hope_v2_forecast_core)
 # Evaluation exporter links only the original Stage 1/2 objects, never Stage 3.

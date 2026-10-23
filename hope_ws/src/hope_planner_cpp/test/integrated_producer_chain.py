@@ -58,7 +58,7 @@ def flight(speed=5., spin='unknown', scenario='standard'):
         if scenario == 'net_collision': z -= .015
     if scenario == 'uncertain_contact': x = 1.2
     before = solve_ivp(rhs(omega), [0, 1], [x, -.7, z, velocity_x, 0., vz, 0.],
-                       events=contact, dense_output=True, rtol=1e-11, atol=1e-13)
+                       method='DOP853', events=contact, dense_output=True, rtol=1e-11, atol=1e-13)
     bounce = before.t[-1]
     post = before.y[:, -1].copy()
     slip = post[3] - .02*omega if spin != 'unknown' else post[3]
@@ -68,11 +68,11 @@ def flight(speed=5., spin='unknown', scenario='standard'):
     post[3] += dv
     if spin != 'unknown': omega -= dv/((2./3)*.02)
     post[5] *= -.9313775047019153
-    after = solve_ivp(rhs(omega), [bounce, .7], post, dense_output=True, rtol=1e-11, atol=1e-13)
+    after = solve_ivp(rhs(omega), [bounce, .7], post, method='DOP853', dense_output=True, rtol=1e-11, atol=1e-13)
     return before, after, bounce
 
 
-def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standard', scored_flights=2):
+def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standard', scored_flights=2, base_yaw=0.):
     rclpy.init()
     node = rclpy.create_node('integrated_synthetic_camera')
     pub = node.create_publisher(NamedPoseArrayV2, '/optitrack/poses', qos_profile_sensor_data)
@@ -114,7 +114,8 @@ def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standar
         base = NamedPose()
         base.name = 'UCB_P1'
         base.pose.position.x, base.pose.position.y = plane_x-.58, -.7
-        base.pose.orientation.w = 1.
+        base.pose.orientation.w = float(np.cos(np.deg2rad(base_yaw)/2))
+        base.pose.orientation.z = float(np.sin(np.deg2rad(base_yaw)/2))
         msg.poses.append(base)
         if elapsed > .8 and phase < visible_end:
             state = before.sol(phase) if phase < bounce else after.sol(phase)
@@ -196,7 +197,7 @@ def run(args, rate, policy):
     node.create_subscription(BallObservationV2, '/hope/ball/observation_v2', observations.append, qos_profile_sensor_data)
     node.create_subscription(PoseArray, '/poses/planner_full', legacy.append, qos_profile_sensor_data)
     stop, ready, queue = mp.Event(), mp.Event(), mp.Queue()
-    camera = mp.Process(target=source, args=(rate, stop, ready, queue, args.speed, args.spin, args.scenario, scored_flights))
+    camera = mp.Process(target=source, args=(rate, stop, ready, queue, args.speed, args.spin, args.scenario, scored_flights, args.base_yaw))
     try:
         until = time.monotonic()+1.
         while time.monotonic() < until:
@@ -263,6 +264,12 @@ def run(args, rate, policy):
                     'valid_commands': len(valid), 'decoded_callbacks': len(decoded),
                     'physical_rows': physical, 'reasons': dict(Counter(s['reason'] for s in statuses)),
                     'source': source_stats, 'wire': wire, 'decoded': decoded, 'traces': traces}
+        if abs(args.base_yaw) > 40:
+            assert not valid and not decoded and physical
+            assert any(s['reason'] == 'target_turn_exceeds_limit' for s in statuses)
+            assert any(s.get('outgoing_return_valid') == 'true' for s in statuses), 'vacuous yaw rejection'
+            return {'status':'PASS','case':'rotated_base_turn_rejected','base_yaw_deg':args.base_yaw,
+                    'valid_commands':0,'reasons':dict(Counter(s['reason'] for s in statuses)), 'source':source_stats}
         assert valid and decoded and traces, (Counter(s['reason'] for s in statuses),
             bases[:1], bases[-1:], len(observations), len(legacy))
         assert all(t['game_history'] != 'COMPLETE' for t in traces)
@@ -322,7 +329,7 @@ def run(args, rate, policy):
                 'reasons': dict(Counter(s['reason'] for s in statuses)), 'source': source_stats,
                 'traces': traces, 'wire': wire, 'decoded': decoded, 'graph': graph,
                 'camera_driver_included': False, 'synthetic_registration': True,
-                'context_publisher': False}
+                'context_publisher': False, 'base_yaw_deg': args.base_yaw}
     finally:
         # Preserve failed and rejected epochs too; threshold failures must be
         # reviewable rather than disappearing before the success-only receipt.
@@ -358,6 +365,7 @@ def main():
     p.add_argument('--speed', type=float, choices=[5., 10., 12., 20.], default=5.)
     p.add_argument('--scenario', choices=['standard', 'net_clear', 'net_collision', 'uncertain_contact', 'held'], default='standard')
     p.add_argument('--spin', choices=['unknown', 'zero', 'known'], default='unknown')
+    p.add_argument('--base-yaw', type=float, default=0.)
     p.add_argument('--worker-delay-ms', type=int, default=0)
     args = p.parse_args()
     os.environ.setdefault('ROS_LOCALHOST_ONLY', '1')

@@ -65,7 +65,9 @@ def test_entire_upstream_diff_has_no_historical_pipeline_and_complete_inventory(
         return subprocess.check_output(['git', '-C', str(REPO), *args], text=True).splitlines()
     paths = set(git('diff', '--name-only', BASE)) | set(git('ls-files', '--others', '--exclude-standard'))
     assert not [p for p in paths if FORBIDDEN_PATH.search(p)]
-    manifest = ROOT / 'docs/integrated_planner_review_scope_manifest.json'
+    manifest = ROOT / 'docs/integrated_planner_reacquisition_scope_manifest.json'
+    if not manifest.exists():
+        manifest = ROOT / 'docs/integrated_planner_review_scope_manifest.json'
     if not manifest.exists():
         manifest = ROOT / 'docs/flight_prediction_minimal_scope_manifest.json'
     entries = json.loads(manifest.read_text())['files']

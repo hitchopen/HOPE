@@ -31,11 +31,28 @@ run_gate() {
   echo "$status" > "$evidence/$label.exit"
   if (( status != 0 )); then aggregate=1; fi
 }
+if [[ -e "$repo/.git" && -f "$repo/hope_ws/src/hope_planner_cpp/test/reacquisition_baseline_probe.py" ]]; then
+  run_gate failing-before python3 "$repo/hope_ws/src/hope_planner_cpp/test/reacquisition_baseline_probe.py" \
+    --repo "$repo" --output "$evidence/failing-before"
+fi
 run_gate native-configure cmake -S "$repo/hope_ws/src/hope_planner_cpp/test/native" -B "$evidence/native" -DCMAKE_BUILD_TYPE=Release
 run_gate native-build cmake --build "$evidence/native" -j2
 run_gate native-test ctest --test-dir "$evidence/native" --output-on-failure
 run_gate review-cases "$evidence/native/test_v2_pr64_review_regressions" \
   --gtest_output="xml:$evidence/review-cases.xml"
+if [[ -x "$evidence/native/test_reacquisition_spin" ]]; then
+  run_gate reacquisition-cases "$evidence/native/test_reacquisition_spin" \
+    --gtest_output="xml:$evidence/reacquisition-cases.xml"
+  run_gate counterexample-cases "$evidence/native/test_reacquisition_counterexamples" \
+    --gtest_output="xml:$evidence/counterexample-cases.xml"
+  run_gate base-cases "$evidence/native/test_base_pose_contract" \
+    --gtest_output="xml:$evidence/base-cases.xml"
+  run_gate base-producer python3 "$repo/hope_ws/src/hope_planner_cpp/test/base_pose_producer_contract.py" \
+    --probe "$evidence/native/hope_base_pose_contract_probe" --output "$evidence/base-producer.json"
+  run_gate policy-contract env PYTHONPATH="${HOPE_POLICY_PYTHONPATH:-}" python3 \
+    "$repo/hope_ws/src/hope_planner_cpp/test/review_policy_contract.py" --repo "$repo" \
+    --output "$evidence/policy-contract.json"
+fi
 run_gate sanitized-configure cmake -S "$repo/hope_ws/src/hope_planner_cpp/test/native" -B "$evidence/sanitized" \
   -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g1'
 run_gate sanitized-build cmake --build "$evidence/sanitized" -j2
