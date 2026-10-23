@@ -234,6 +234,16 @@ required: pose-only VRPN has no ModelDef to verify geometry, and this asset
 is not a physical-calibration receipt. The optional measured NatNet procedure
 above is unchanged. See the [VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
 
+### ChingMu 18-marker ping-pong ball
+
+The [18-sticker ball jig and CMTracker asset](mocap/README.md#chingmu-18-sticker-ping-pong-ball-template-and-asset)
+use eighteen 6 mm stickers on a 40 mm ball. The asymmetric layout has optimized
+edge clearance and audited partial-match ambiguity and viewing-direction
+coverage. Use the matching jig and `Ball` asset together, and position all
+eighteen stickers with the supplied jig.
+The package includes a two-piece STL, native import JSON, preview and the
+[printing/import guide](mocap/README.md#chingmu-18-sticker-ping-pong-ball-template-and-asset).
+
 ## Database
 
 Open-source datasets for HOPE and humanoid robot table-tennis research:
