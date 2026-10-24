@@ -1,0 +1,3240 @@
+{
+  "schema_version": 1,
+  "status": "IMPLEMENTED_FUNCTIONAL_PASS_TIMING_GATE_FAILED_ON_FIRST_RUN",
+  "scope": "G0\u2013G5 continuation software, localhost synthetic source-to-decoder evidence",
+  "base_sha": "e9bf01579123eca35ce315b0f605814f8c952255",
+  "tested_sha": "a1f2f7a7e654b9ccd247f247cd50b6bc2910ad7a",
+  "worktree_clean_at_test_start": true,
+  "software_complete": false,
+  "simulation_qualified": false,
+  "physically_qualified": false,
+  "deployment_authorized": false,
+  "evidence_root": "/workspace/.cloud-setup/reacquisition-spin",
+  "verification_root": "/workspace/.cloud-setup/reacquisition-spin/qualification-verified",
+  "environment": "PRETTY_NAME=\"Ubuntu 24.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\ng++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\ncmake version 3.28.3\n3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]\n1.26.4 1.11.4\nmax 100000\nmax\n",
+  "repository_audit": {
+    "implementation_base": "e9bf01579123eca35ce315b0f605814f8c952255",
+    "branch": "feature/integrated-planner-reacquisition-spin-readiness",
+    "clean_before_baseline": true,
+    "fork_review_head": "e9bf01579123eca35ce315b0f605814f8c952255",
+    "upstream_main_observed": "8d24642474205f6cfb48263cd22896306feeac47",
+    "upstream_nightly_observed": "91aecabfd44cb258ac998158e724be9017d883a7",
+    "fork_nightly_observed": "6616b1df795b6b5db242435fafc394295e0b45cf",
+    "historical_pr64_head": "9118a491df658fa7e68f042581af48890ec8b0b8",
+    "pr64_state": "CLOSED",
+    "pr64_merged": false,
+    "nohope_head": "96e71c1adb217d14b925681173cebe00d8427f21",
+    "nohope_parent": "c2a627f26c957a079b5cc2586ab6cf49aae4a221",
+    "nohope_parent_only_local_only": "3\t9",
+    "notes": [
+      "Fetched current relevant origin/upstream refs. Nightly upstream rewrote history; retained original remote-tracking pin and fetched current head into dated audit namespace.",
+      "Installed raw MCT fixtures send quaternion-only spin: optitrack_mct_relay never populates omega_valid. E02 acceptance fixture uses 30 m/s and 100 rad/s (within the unchanged 20 rev/s bound); direct producer-omega control passes. The earlier 300 rad/s pilot was excluded as over-range.",
+      "PPQ004 real data available in upstream calibration tree; no coefficient migration authorized or applied."
+    ]
+  },
+  "frozen_contract": {
+    "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+    "scope": "G0-G5 software correction; G6/G7 independently measured if achievable, otherwise explicitly unqualified",
+    "automatic_rearm": {
+      "standalone_default": false,
+      "integrated_default": true,
+      "evidence": [
+        "compatible qualified source gap > max_tracking_gap_s followed by ordinary multi-sample acquisition",
+        "held_span_s quiet interval followed by fresh ballistic launch"
+      ],
+      "continuous_rejected_motion": "quarantined, never timer-only release"
+    },
+    "spin": {
+      "minimum_span_s": 0.05,
+      "minimum_increments": 3,
+      "quality_thresholds": "unchanged",
+      "acquisition_model_cutoff": "no later than dynamic secant midpoint",
+      "position_only_early_acquisition": true
+    },
+    "pose": {
+      "producer_order": "wxyz",
+      "turn_limit_deg": 40,
+      "policy_z_offset_m": 0.76
+    },
+    "installed_matrix": {
+      "rates_hz": [
+        150,
+        300
+      ],
+      "plane_policies": [
+        "FOLLOW_POSE",
+        "ON_REFRESH"
+      ],
+      "spin": [
+        "unknown",
+        "quaternion_only",
+        "zero"
+      ],
+      "rounds": 10,
+      "opportunities_per_round": [
+        "A automatic acquisition then observed under-table rejection",
+        "B eligible fresh flight via gap on even rounds or quiet-release on odd rounds"
+      ],
+      "B_eligible_epochs": "phase>100ms, lead>130ms; original physical/robot constraints; all launched exposures retained",
+      "source_age_at_valid_publication_max_ms": 30,
+      "decoder_receipt_p95_max_ms": 30,
+      "coverage_min": 0.95,
+      "worker_bound": {
+        "running": 1,
+        "pending": 1
+      }
+    },
+    "separate_negatives": [
+      "continuous rejected motion",
+      "frame/calibration/clock and order faults",
+      "base yaw 50 turn rejection",
+      "40ms expired worker"
+    ],
+    "invariants": [
+      "shadow output only",
+      "legacy files/goldens unchanged",
+      "no COMPLETE history",
+      "one CKF6",
+      "schema2 runner and schema2/3 transport unchanged",
+      "existing PR64 tests untouched"
+    ],
+    "E02_fixture": {
+      "speed_mps": 30,
+      "omega_rad_s": [
+        0,
+        0,
+        100
+      ],
+      "duration_s": 0.085,
+      "max_rev_s_unchanged": 20,
+      "rationale": "In-range angular motion, with default Magnus curvature that remains unsupported by position-only model through the causal readiness cutoff. 300 rad/s pilot was over-range and is archived as excluded."
+    }
+  },
+  "gates": {
+    "G0": "PASS: pinned baseline and E01/E02/E03 failures reproduced",
+    "G1": "PASS: RA01\u2013RA08",
+    "G2": "PASS: SP01\u2013SP09",
+    "G3": "PASS: BP01\u2013BP05 and actual producer/decoder matrix",
+    "G4": "FUNCTIONAL_PASS_TIMING_GATE_FAILED: all 140 B opportunities recovered; 13/14 matrix cases passed, one 300 Hz coverage failure retained",
+    "G5": "NOT_FULLY_QUALIFIED: two first-run 300 Hz coverage failures (92.5%, 91.25%) below 95%; inherited lint failures unchanged",
+    "G6": "NOT_RUN: native Runner/plant absent, evaluation-only Arm B adapter outstanding",
+    "G7": "NOT_RUN: real data inventoried, no independently registered robot/clock/contact or operational approval"
+  },
+  "native_groups": 18,
+  "sanitized_groups": 18,
+  "cases": {
+    "review": [
+      "PR64Review.RV01_DragAcquisitionBothRatesDirectionsAndSpin",
+      "PR64Review.RV02_HeldImpossibleAccelerationAndProvenanceFaults",
+      "PR64Review.RV01b_RecentLaunchAfterHeldCandidatePrefixAcquiresPromptly",
+      "PR64Review.RV03_OneFastBounceHasOneStableIdentity",
+      "PR64Review.RV03b_ReproducedOverlappingTwentyMetrePerSecondBounce",
+      "PR64Review.RV03c_WireStyleRestorePreservesReversalIdentityOnNextObservation",
+      "PR64Review.RV03d_ObservedBracketCorroboratesAuthoritativeContactOnce",
+      "PR64Review.RV05_DelayedContactSegmentsQuaternionWindow",
+      "PR64Review.RV06_HistoricalPreContactSpinRestoresImpactVelocity",
+      "PR64Review.RV07_AuthoritativeAndQuaternionZeroRemainAvailable",
+      "PR64Review.RV06b_WireStyleCheckpointRecoversHistoricalSpinSuffix",
+      "PR64Review.RV08_FiniteNetCornerClearanceAndTrueContact",
+      "PR64Review.RV09_NetFirstContactTimeAcrossStepSizes",
+      "PR64Review.RV09b_TrueCornerCollisionWinsPlaneTie",
+      "PR64Review.RV10_SameStepBounceNoiseReachesPlane",
+      "PR64Review.RV04_RealCloseBouncesRemainDistinctAndGapDoesNotInventContact",
+      "PR64Review.RV11_IndependentImpulseCovarianceOracleAndFreeFlightControl",
+      "PR64Review.RV11c_BounceNoiseChangesPhysicalReturnAdmission",
+      "PR64Review.RV12_NoOpAndRejectedContextsPreserveJobsSemanticChangeFencesThem",
+      "PR64Review.RV11b_EdgeBranchAndTangentPlaneNeverClaimValidLinearization",
+      "PR64Review.RV13_OriginalNakashimaFrictionSensitivityAndTrueZero",
+      "PR64Review.RV14_FastAcquisitionReachesPhysicalReturnAndValidatedOutgoing",
+      "PR64Review.RV15_ClearingTopEdgeReturnUsesCorrectedSharedKernel",
+      "PR64Review.RV17_CausalCheckpointAndObservationCutoffParity",
+      "PR64Review.RV17b_LongGapStartsFreshQualifiedShotWithoutOldBounceLedger",
+      "PR64Review.RV08b_NetTopFlyoverRemainsAnEligibleIncomingReturn"
+    ],
+    "reacquisition": [
+      "Reacquisition.RA01_AlreadyRejectedThenGapNeedsMultipleNewSamples",
+      "Reacquisition.RA02_QuietHeldReleaseWithoutSourceGap",
+      "Reacquisition.RA03_ContinuousRejectedMotionAndDirectionChangeStayQuarantined",
+      "Reacquisition.RA04_ProvenanceAndClockFaultCannotAuthorizeNewEpoch",
+      "Reacquisition.RA05_NewPosteriorMatchesFreshOwnerWithNoOldSpinOrContacts",
+      "Reacquisition.RA06_RetiredSnapshotCannotPublishIntoNewGeneration",
+      "Reacquisition.RA07_TenRejectRearmCyclesRemainBounded",
+      "Reacquisition.RA08_BothRatesDirectionsSpeedsAndJitterHavePhysicalForecasts",
+      "SpinReadiness.SP01_FullPositionOnlyShotNeverClaimsMeasuredZero",
+      "SpinReadiness.SP02_QuaternionOnlyCollectsBeforeMeasuredAtBothRates",
+      "SpinReadiness.SP03_MagnusAcquisitionActuallyUsesCausalQuaternionSpin",
+      "SpinReadiness.SP04_PositionOnlyStartsPromptlyThenSameGenerationAdoptsSpin",
+      "SpinReadiness.SP05_HeldOrientationExcludedFromLaunchAngularWindow",
+      "SpinReadiness.SP06_UntrustedInvalidReorderedAndSignAliases",
+      "SpinReadiness.SP07_ValidZeroAndMissingRemainDistinct",
+      "SpinReadiness.SP08_DelayedBounceDropoutAndPostOnlyRecovery",
+      "SpinReadiness.SP09_BoundedAttemptsAndUnsupportedUnknownSpin"
+    ],
+    "counterexample": [
+      "ContinuationBefore.E01_RejectThenGapAndOrdinaryBallB",
+      "ContinuationBefore.E02_QuaternionOnlyMagnusAcquisition",
+      "ContinuationBefore.NegativeControl_HeldNeverAcquires",
+      "ContinuationBefore.Control_QuaternionStreamMeetsUnchangedQualityThresholds"
+    ],
+    "base": [
+      "BaseContract.BP01_WxyzRoundTripAndHeading",
+      "BaseContract.BP02_AnalyticTurnGateAtRotatedYaw",
+      "BaseContract.BP03_PitchRollAndSignAreEquivalent",
+      "BaseContract.BP04_InvalidStaleWorldAndReorderedInputsFailClosed",
+      "BaseContract.BP05_ActualPackerDecoderAnd110DHeightOnceAtRotatedBase"
+    ]
+  },
+  "ros": {
+    "hope_msgs": {
+      "groups": 2,
+      "passed": 2,
+      "failed": []
+    },
+    "hope_planner_cpp": {
+      "groups": 100,
+      "passed": 96,
+      "failed": [
+        "reacquisition_chain_300_FOLLOW_POSE_unknown",
+        "review_chain_300_10_zero",
+        "review_source_cutoff_parity",
+        "flight_v2_ros_transport"
+      ]
+    },
+    "hope_bringup": {
+      "groups": 26,
+      "passed": 24,
+      "failed": [
+        "flake8",
+        "pep257"
+      ]
+    }
+  },
+  "baseline_lint": {
+    "flake8": {
+      "failures": 3086,
+      "exact_baseline_multiset_match": true,
+      "multiset_sha256": "0079a2701df42b28c20501fe25564e91dca3d96757b110e0157cc7e7b1f10a45"
+    },
+    "pep257": {
+      "failures": 37,
+      "exact_baseline_multiset_match": true,
+      "multiset_sha256": "823d3682366fa97945ffdc98b12dd00fbeec9252c9bce21c23509b45d64fb777"
+    }
+  },
+  "exit_status": {
+    "sanitized-configure": 0,
+    "legacy-parity": 0,
+    "native-configure": 0,
+    "ros-test": 0,
+    "base-producer": 0,
+    "native-build": 0,
+    "sanitized-build": 0,
+    "ros-test-result": 1,
+    "counterexample-cases": 0,
+    "outgoing-reference": 0,
+    "base-cases": 0,
+    "review-cases": 0,
+    "sanitized-test": 0,
+    "ros-build": 0,
+    "policy-contract": 0,
+    "aggregate": 1,
+    "reacquisition-cases": 0,
+    "failing-before": 0,
+    "native-test": 0
+  },
+  "baseline": {
+    "source_sha": "e9bf01579123eca35ce315b0f605814f8c952255",
+    "clean": true,
+    "exits": {
+      "sanitized-configure": 0,
+      "legacy-parity": 0,
+      "native-configure": 0,
+      "ros-test": 0,
+      "native-build": 0,
+      "sanitized-build": 0,
+      "ros-test-result": 1,
+      "outgoing-reference": 0,
+      "review-cases": 0,
+      "sanitized-test": 0,
+      "ros-build": 0,
+      "aggregate": 1,
+      "native-test": 0
+    },
+    "ros": {
+      "hope_msgs": {
+        "groups": 2,
+        "passed": 2,
+        "failed": []
+      },
+      "hope_planner_cpp": {
+        "groups": 67,
+        "passed": 66,
+        "failed": [
+          "flight_v2_raw_scenarios"
+        ]
+      },
+      "hope_bringup": {
+        "groups": 26,
+        "passed": 24,
+        "failed": [
+          "flake8",
+          "pep257"
+        ]
+      }
+    },
+    "outgoing_reference_caveat": "Historical script labeled DOP853 but used default RK45; corrected continuation explicitly selects DOP853.",
+    "raw_scenario_failure": "Cold first publication delayed source by ~283ms. Failed unchanged targeted repeat as well. Continuation fixture warms explicitly invalid input before the scored source schedule; assertions and physics preserved."
+  },
+  "installed_reacquisition_matrix": [
+    {
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "quaternion_only",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 79,
+      "covered_command_epochs": 79,
+      "decoder_ms": {
+        "p50": 2.259981,
+        "p95": 3.428850099999999,
+        "p99": 4.707423820000003,
+        "max": 5.396608
+      },
+      "resources": {
+        "VmHWM_kib": 35700,
+        "VmRSS_kib": 35700
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_FOLLOW_POSE_quaternion_only.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "unknown",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "decoder_ms": {
+        "p50": 2.244435,
+        "p95": 4.006311000000001,
+        "p99": 6.0820766000000015,
+        "max": 6.462243
+      },
+      "resources": {
+        "VmHWM_kib": 35680,
+        "VmRSS_kib": 35680
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_FOLLOW_POSE_unknown.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "zero",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "decoder_ms": {
+        "p50": 2.33558,
+        "p95": 3.3879550000000003,
+        "p99": 4.589880560000003,
+        "max": 5.677189
+      },
+      "resources": {
+        "VmHWM_kib": 35588,
+        "VmRSS_kib": 35588
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_FOLLOW_POSE_zero.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 150,
+      "plane_policy": "ON_REFRESH",
+      "spin": "quaternion_only",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "decoder_ms": {
+        "p50": 2.3739850000000002,
+        "p95": 4.0167949499999995,
+        "p99": 6.622680700000008,
+        "max": 9.371865
+      },
+      "resources": {
+        "VmHWM_kib": 35684,
+        "VmRSS_kib": 35684
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_ON_REFRESH_quaternion_only.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 150,
+      "plane_policy": "ON_REFRESH",
+      "spin": "unknown",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "decoder_ms": {
+        "p50": 2.450244,
+        "p95": 3.7081868,
+        "p99": 5.779394960000001,
+        "max": 9.556378
+      },
+      "resources": {
+        "VmHWM_kib": 35896,
+        "VmRSS_kib": 35896
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_ON_REFRESH_unknown.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 150,
+      "plane_policy": "ON_REFRESH",
+      "spin": "zero",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "decoder_ms": {
+        "p50": 2.3110215,
+        "p95": 3.418237,
+        "p99": 4.347023599999996,
+        "max": 5.415336
+      },
+      "resources": {
+        "VmHWM_kib": 35764,
+        "VmRSS_kib": 35764
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_ON_REFRESH_zero.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 150,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "unknown",
+      "first_worker_delay_ms": 750,
+      "cross_generation_discard_observed": true,
+      "command_coverage": 1.0,
+      "command_denominator": 80,
+      "covered_command_epochs": 80,
+      "decoder_ms": {
+        "p50": 2.372967,
+        "p95": 4.3838164,
+        "p99": 6.754114959999996,
+        "max": 8.254324
+      },
+      "resources": {
+        "VmHWM_kib": 35668,
+        "VmRSS_kib": 35668
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_delayed_150.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "quaternion_only",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 150,
+      "covered_command_epochs": 150,
+      "decoder_ms": {
+        "p50": 1.965799,
+        "p95": 2.840447800000001,
+        "p99": 4.038403680000003,
+        "max": 6.96498
+      },
+      "resources": {
+        "VmHWM_kib": 36372,
+        "VmRSS_kib": 36372
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_FOLLOW_POSE_quaternion_only.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "status": "FAIL_COVERAGE",
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_FOLLOW_POSE_unknown.raw.json",
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "unknown",
+      "first_worker_delay_ms": 0,
+      "command_coverage": 0.925,
+      "command_denominator": 160,
+      "covered_command_epochs": 148,
+      "decoder_ms": {
+        "p50": 2.3692545000000003,
+        "p95": 6.9461204,
+        "p99": 12.321195929999993,
+        "max": 26.775945
+      },
+      "resources": null,
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "note": "All B positivity/new-generation assertions passed before the coverage assertion failed; raw A/B audit also passed. Resource snapshot was after the failing assertion and is unavailable."
+    },
+    {
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "zero",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 1.0,
+      "command_denominator": 160,
+      "covered_command_epochs": 160,
+      "decoder_ms": {
+        "p50": 2.079355,
+        "p95": 3.6119104,
+        "p99": 4.939309040000001,
+        "max": 7.039082
+      },
+      "resources": {
+        "VmHWM_kib": 36592,
+        "VmRSS_kib": 36592
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_FOLLOW_POSE_zero.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 300,
+      "plane_policy": "ON_REFRESH",
+      "spin": "quaternion_only",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 0.98,
+      "command_denominator": 150,
+      "covered_command_epochs": 147,
+      "decoder_ms": {
+        "p50": 2.134769,
+        "p95": 3.895543100000002,
+        "p99": 5.650700180000007,
+        "max": 11.017451
+      },
+      "resources": {
+        "VmHWM_kib": 36884,
+        "VmRSS_kib": 36884
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_ON_REFRESH_quaternion_only.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 300,
+      "plane_policy": "ON_REFRESH",
+      "spin": "unknown",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": true,
+      "command_coverage": 0.99375,
+      "command_denominator": 160,
+      "covered_command_epochs": 159,
+      "decoder_ms": {
+        "p50": 2.048402,
+        "p95": 3.537104499999999,
+        "p99": 5.621482260000012,
+        "max": 15.252222
+      },
+      "resources": {
+        "VmHWM_kib": 36656,
+        "VmRSS_kib": 36656
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_ON_REFRESH_unknown.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 300,
+      "plane_policy": "ON_REFRESH",
+      "spin": "zero",
+      "first_worker_delay_ms": 0,
+      "cross_generation_discard_observed": false,
+      "command_coverage": 0.9875,
+      "command_denominator": 160,
+      "covered_command_epochs": 158,
+      "decoder_ms": {
+        "p50": 2.284632,
+        "p95": 4.919358199999999,
+        "p99": 6.736563679999999,
+        "max": 8.678663
+      },
+      "resources": {
+        "VmHWM_kib": 36792,
+        "VmRSS_kib": 36792
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_ON_REFRESH_zero.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    },
+    {
+      "rate_hz": 300,
+      "plane_policy": "FOLLOW_POSE",
+      "spin": "unknown",
+      "first_worker_delay_ms": 750,
+      "cross_generation_discard_observed": true,
+      "command_coverage": 0.9875,
+      "command_denominator": 160,
+      "covered_command_epochs": 158,
+      "decoder_ms": {
+        "p50": 2.083465,
+        "p95": 4.229465200000002,
+        "p99": 7.982608999999992,
+        "max": 13.819717
+      },
+      "resources": {
+        "VmHWM_kib": 36528,
+        "VmRSS_kib": 36528
+      },
+      "file": "qualification-verified/build/hope_planner_cpp/reacquisition_delayed_300.json",
+      "rounds": 10,
+      "A_launched": 10,
+      "B_launched": 10,
+      "B_generations": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39
+      ],
+      "status": "PASS"
+    }
+  ],
+  "source_cutoff_parity": {
+    "status": "PASS",
+    "results": [
+      {
+        "rate_hz": 150,
+        "quaternion_only": false,
+        "matched_cutoffs": 50,
+        "readiness_cutoffs": 17,
+        "pre_bounce_cutoffs": 27,
+        "post_bounce_cutoffs": 13,
+        "compared_events": 155,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 63,
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/qualification-verified/build/hope_planner_cpp/reacquisition_source_cutoff_parity-150-False.csv"
+      },
+      {
+        "rate_hz": 150,
+        "quaternion_only": true,
+        "matched_cutoffs": 50,
+        "readiness_cutoffs": 17,
+        "pre_bounce_cutoffs": 29,
+        "post_bounce_cutoffs": 11,
+        "compared_events": 157,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 63,
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/qualification-verified/build/hope_planner_cpp/reacquisition_source_cutoff_parity-150-True.csv"
+      },
+      {
+        "rate_hz": 300,
+        "quaternion_only": false,
+        "matched_cutoffs": 104,
+        "readiness_cutoffs": 19,
+        "pre_bounce_cutoffs": 56,
+        "post_bounce_cutoffs": 26,
+        "compared_events": 325,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 126,
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/qualification-verified/build/hope_planner_cpp/reacquisition_source_cutoff_parity-300-False.csv"
+      },
+      {
+        "rate_hz": 300,
+        "quaternion_only": true,
+        "matched_cutoffs": 103,
+        "readiness_cutoffs": 18,
+        "pre_bounce_cutoffs": 58,
+        "post_bounce_cutoffs": 23,
+        "compared_events": 324,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 126,
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/qualification-verified/build/hope_planner_cpp/reacquisition_source_cutoff_parity-300-True.csv"
+      }
+    ]
+  },
+  "historical_source_cutoff_parity": {
+    "status": "PASS",
+    "results": [
+      {
+        "rate_hz": 150,
+        "qualified_spin": false,
+        "producer_zero_before_contact": false,
+        "matched_cutoffs": 37,
+        "pre_bounce_cutoffs": 24,
+        "post_bounce_cutoffs": 10,
+        "compared_events": 112,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 46,
+        "consumed_source_rows": 42,
+        "source_rows_missing_before_last_ledger": [
+          1792737924382857833,
+          1792737924383035711,
+          1792737924383110844
+        ],
+        "uncovered_tail_rows": [
+          1792737924483468706
+        ],
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-150-False.csv"
+      },
+      {
+        "rate_hz": 150,
+        "qualified_spin": true,
+        "producer_zero_before_contact": false,
+        "matched_cutoffs": 40,
+        "pre_bounce_cutoffs": 29,
+        "post_bounce_cutoffs": 8,
+        "compared_events": 123,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 46,
+        "consumed_source_rows": 45,
+        "source_rows_missing_before_last_ledger": [],
+        "uncovered_tail_rows": [
+          1792737925218813378
+        ],
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-150-True.csv"
+      },
+      {
+        "rate_hz": 150,
+        "qualified_spin": true,
+        "producer_zero_before_contact": true,
+        "matched_cutoffs": 40,
+        "pre_bounce_cutoffs": 27,
+        "post_bounce_cutoffs": 10,
+        "compared_events": 121,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 46,
+        "consumed_source_rows": 45,
+        "source_rows_missing_before_last_ledger": [],
+        "uncovered_tail_rows": [
+          1792737925951580611
+        ],
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-150-True-producer-zero.csv"
+      },
+      {
+        "rate_hz": 300,
+        "qualified_spin": false,
+        "producer_zero_before_contact": false,
+        "matched_cutoffs": 85,
+        "pre_bounce_cutoffs": 56,
+        "post_bounce_cutoffs": 23,
+        "compared_events": 255,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 93,
+        "consumed_source_rows": 93,
+        "source_rows_missing_before_last_ledger": [],
+        "uncovered_tail_rows": [],
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-300-False.csv"
+      },
+      {
+        "rate_hz": 300,
+        "qualified_spin": true,
+        "producer_zero_before_contact": false,
+        "matched_cutoffs": 85,
+        "pre_bounce_cutoffs": 60,
+        "post_bounce_cutoffs": 20,
+        "compared_events": 259,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 93,
+        "consumed_source_rows": 93,
+        "source_rows_missing_before_last_ledger": [],
+        "uncovered_tail_rows": [],
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-300-True.csv"
+      },
+      {
+        "rate_hz": 300,
+        "qualified_spin": true,
+        "producer_zero_before_contact": true,
+        "matched_cutoffs": 85,
+        "pre_bounce_cutoffs": 56,
+        "post_bounce_cutoffs": 23,
+        "compared_events": 255,
+        "max_state_error": 0.0,
+        "max_covariance_error": 0.0,
+        "max_event_state_error": 0.0,
+        "all_source_rows": 93,
+        "consumed_source_rows": 93,
+        "source_rows_missing_before_last_ledger": [],
+        "uncovered_tail_rows": [],
+        "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-300-True-producer-zero.csv"
+      }
+    ]
+  },
+  "outgoing_reference": {
+    "status": "PASS",
+    "total_candidates": 144,
+    "accepted": 144,
+    "rejections": {},
+    "reference": "independent scipy DOP853 rtol=2e-12 atol=2e-14 + analytic normal impact",
+    "max_position_error_m": 1.3465681451976442e-12,
+    "max_event_time_error_s": 8.141265439576273e-13,
+    "max_impact_closure_mps": 0.0,
+    "physical_accuracy": "NOT_RUN"
+  },
+  "legacy_parity": {
+    "status": "PASS",
+    "base": "8d599e7d21e196275cf426488555e2648e8fd789",
+    "production_source_sha256": {
+      "hope_ws/src/hope_planner_cpp/src/racket_target_planner.cpp": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+      "hope_ws/src/hope_planner_cpp/src/adaptive_flight_commit.cpp": "a38800cb2796c0b99de106f970027083acac9d711f864a1261916e451e7a7846",
+      "hope_ws/src/hope_planner_cpp/src/trajectory_predictor.cpp": "adc299467296ff6924a3bf3de2349d750fe7f4999dab42710f3571beaa9c3590",
+      "hope_ws/src/hope_planner_cpp/src/batch_physics_estimator.cpp": "03ebd64aaca3cfadfab46a918e07a38a6e2ec5d932b1627a7557bc30cb79d3fe",
+      "hope_ws/src/hope_planner_cpp/src/spin_estimator.cpp": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/racket_target_planner.hpp": "702810cc94ca033ce5200f0579e166424fb7d0194ef021e9767362f5fbca57fa",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/adaptive_flight_commit.hpp": "55056f3873d1a38c93a0c91bd2399f2cf185d60f8e1bca94a38d40523542a4ed",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trajectory_predictor.hpp": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/batch_physics_estimator.hpp": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/spin_estimator.hpp": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/future_contact_predictor.hpp": "6b6b8d7230b2e56f4861341b240959bdf5cb1e7a02dc35b263a76190c2f7a30e"
+    },
+    "exact_fixture_parity": true,
+    "exceptions": [],
+    "fixture_counts": {
+      "racket": 18,
+      "receiving_flight": 3,
+      "all_spin_modes": 540,
+      "spin_and_batch": 140
+    },
+    "max_abs_difference": 0,
+    "all_five_spin_modes": true,
+    "nakashima_and_venue_remain_distinct": true,
+    "note": "Each side compiled from its own complete source/header tree; no updated goldens."
+  },
+  "policy_contract": {
+    "status": "PASS",
+    "scope": "Two replaceable artifacts: metadata/110-D ABI and finite CPU inference only.\n\nReal decoder and observation-builder semantics are exercised by the C++ suite.\nThis is not achieved paddle tracking or a native Runner --inspect-policy run.\n",
+    "results": [
+      {
+        "artifact": "a3_deploy/a3_deploy_example/models/model_21800/policy/exported/policy.onnx",
+        "sha256": "6bf1a2418f8538e23577a0153f2fe6a1e78dee91f41650a232259432a84a4dc8",
+        "recipe": "rally_v14",
+        "cases": [
+          {
+            "lead_s": 0.2,
+            "velocity": [
+              1.5,
+              -0.2,
+              0.8
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.08,
+            "velocity": [
+              2.0,
+              0.1,
+              1.2
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.4,
+            "velocity": [
+              1.0,
+              0.0,
+              0.5
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          }
+        ],
+        "contract": {
+          "observation_names": "base_ang_vel,joint_pos,joint_vel,actions,projected_gravity,base_forward_xy,base_target_delta_xy,racket_target_rel_base,racket_target_vel_w,time_to_strike",
+          "actor_obs_total_dim": "110",
+          "world_frame_contract": "table_p1_to_p2_v1",
+          "actor_obs_contract": "hitter_pure"
+        }
+      },
+      {
+        "artifact": "hope_training/whole_body_tracking/checkpoints/policy.onnx",
+        "sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+        "recipe": "continuous_rally_sim2real_v3",
+        "cases": [
+          {
+            "lead_s": 0.2,
+            "velocity": [
+              1.5,
+              -0.2,
+              0.8
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.08,
+            "velocity": [
+              2.0,
+              0.1,
+              1.2
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          },
+          {
+            "lead_s": 0.4,
+            "velocity": [
+              1.0,
+              0.0,
+              0.5
+            ],
+            "output_shapes": [
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                31
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                4
+              ],
+              [
+                1,
+                14,
+                3
+              ],
+              [
+                1,
+                14,
+                3
+              ]
+            ]
+          }
+        ],
+        "contract": {
+          "observation_names": "base_ang_vel,joint_pos,joint_vel,actions,projected_gravity,base_forward_xy,base_target_delta_xy,racket_target_rel_base,racket_target_vel_w,time_to_strike",
+          "actor_obs_total_dim": "110",
+          "world_frame_contract": "table_p1_to_p2_v1",
+          "actor_obs_contract": "hitter_pure"
+        }
+      }
+    ]
+  },
+  "g6_readiness": {
+    "status": "NOT_RUN",
+    "preflight_exit": 2,
+    "preflight_log": "/workspace/.cloud-setup/reacquisition-spin/g6-preflight.log",
+    "reason": "The configured native a3_deploy_onnx_ref_pingpong package is absent; the instrumented AimRT MuJoCo install is also absent. Python MuJoCo and CPU ONNX inference do not supply these runtimes.",
+    "runtime_config": "# Paths relative to the repository root. Install once, or use --configure to\n# save machine-local overrides in runtime.local.yaml (ignored by Git).\nrunner_dist: a3_deploy/a3_deploy_example/dist/a3_deploy_x86_64\nsim_install: a3_deploy/A3_MuJoCo_Sim/aimrt_mujoco_sim/cmake-build-model21800-gate3/install\nhope_ws: hope_ws\n",
+    "required_metrics": [
+      "achieved paddle face normal and velocity",
+      "actual contact time and position",
+      "first outgoing landing and net clearance",
+      "admissions, late/missed returns and duplicate swings",
+      "stability and recovery across consecutive rejected/new balls"
+    ],
+    "comparison_arms": [
+      "legacy incoming / legacy outgoing",
+      "V2 incoming / legacy outgoing (evaluation-only adapter outstanding)",
+      "V2 incoming / shared-physics outgoing"
+    ],
+    "force_every_flight": false,
+    "activation_attempted": false
+  },
+  "real_data_inventory": {
+    "source_sha": "8d24642474205f6cfb48263cd22896306feeac47",
+    "dataset": "calibration/ppq004_20261020/",
+    "status": "AVAILABLE_HASHES_VERIFIED_NOT_EVALUATED_WITH_CONTINUATION",
+    "rate_hz": 300,
+    "train_parts": [
+      1,
+      2
+    ],
+    "holdout_parts": [
+      3
+    ],
+    "heldout_arcs": 27,
+    "causal_scoreable_arcs": 24,
+    "qualified_spin_contact_holdouts": 3,
+    "limitations": [
+      "Relative capture times are not cross-host synchronized wall-clock evidence.",
+      "Source trajectory measurements and archived fit scores do not certify surveyed robot/paddle geometry or achieved paddle outcomes.",
+      "No final all-data fit or changed upstream coefficients substituted into the pinned planner.",
+      "No physical activation authorized by the implementation task."
+    ],
+    "files": [
+      {
+        "path": "raw/ppq_004_1.c3d.gz",
+        "bytes": 50340608,
+        "sha256": "9d9c187c9f23f32b432b2b1a6b9317d17ca2e753c660f0eab4412ca1748f09b2",
+        "compressed_sha256": "ecf3d34a744c19c617cf18f65c562a0106afc3ba09790194a44c1c2b9af75c80",
+        "actual_compressed_sha256": "ecf3d34a744c19c617cf18f65c562a0106afc3ba09790194a44c1c2b9af75c80",
+        "actual_sha256": "9d9c187c9f23f32b432b2b1a6b9317d17ca2e753c660f0eab4412ca1748f09b2",
+        "actual_bytes": 50340608
+      },
+      {
+        "path": "trajectories/part1.csv.gz",
+        "bytes": 6489186,
+        "sha256": "22aba6a32232818841012a255265ea96c6b1370b023f9bd75ab46baab010aa76",
+        "compressed_sha256": "11adf9ef3d215cc1255080ef5d0f87007c86870a1d9285f961ff49f6922c4e4e",
+        "actual_compressed_sha256": "11adf9ef3d215cc1255080ef5d0f87007c86870a1d9285f961ff49f6922c4e4e",
+        "actual_sha256": "22aba6a32232818841012a255265ea96c6b1370b023f9bd75ab46baab010aa76",
+        "actual_bytes": 6489186,
+        "csv_has_header": false,
+        "first_two_rows": [
+          [
+            "7.37",
+            "3.0213877410371457",
+            "-1.1290506543208594",
+            "0.09136015079090615",
+            "0.0",
+            "-7.439398154868011e-09",
+            "9.025607243755478e-09",
+            "0.9999999999999999"
+          ],
+          [
+            "7.373333333333333",
+            "3.018098203524471",
+            "-1.1286304077210056",
+            "0.08965971526548024",
+            "-0.05687501808099024",
+            "0.08502267787198876",
+            "0.007810667115432533",
+            "0.9947237656982842"
+          ]
+        ]
+      },
+      {
+        "path": "fit/part1/raw_extracted.npz.gz",
+        "bytes": 26791702,
+        "sha256": "6366cf914067567e2c2cbd30515b170b0089bd21b3fbd7895f1520a86dc116da",
+        "compressed_sha256": "69a0df5ce67a3daa216256981a7ba2f6f8c0445a7b2a585597c10fda82ca11c2",
+        "actual_compressed_sha256": "69a0df5ce67a3daa216256981a7ba2f6f8c0445a7b2a585597c10fda82ca11c2",
+        "actual_sha256": "6366cf914067567e2c2cbd30515b170b0089bd21b3fbd7895f1520a86dc116da",
+        "actual_bytes": 26791702
+      },
+      {
+        "path": "raw/ppq_004_2.c3d.gz",
+        "bytes": 50340608,
+        "sha256": "00985613af045b217f14d911b387d35702da2ad65808a8a9944576b6fdf300e0",
+        "compressed_sha256": "21669322ffdf2cd6e5e78e3cec3dc190b13f4275ec9252a20f19fbf0f7acf5fd",
+        "actual_compressed_sha256": "21669322ffdf2cd6e5e78e3cec3dc190b13f4275ec9252a20f19fbf0f7acf5fd",
+        "actual_sha256": "00985613af045b217f14d911b387d35702da2ad65808a8a9944576b6fdf300e0",
+        "actual_bytes": 50340608
+      },
+      {
+        "path": "trajectories/part2.csv.gz",
+        "bytes": 7858463,
+        "sha256": "63cf37397006a796a4ce36835cc8b86b19683801a983af8afb1ab36b48672460",
+        "compressed_sha256": "c7d4a719e4594cabcb8792c1efeab74b0d2159b3749e9cdaab0c1c32a8dbaf8b",
+        "actual_compressed_sha256": "c7d4a719e4594cabcb8792c1efeab74b0d2159b3749e9cdaab0c1c32a8dbaf8b",
+        "actual_sha256": "63cf37397006a796a4ce36835cc8b86b19683801a983af8afb1ab36b48672460",
+        "actual_bytes": 7858463,
+        "csv_has_header": false,
+        "first_two_rows": [
+          [
+            "0.0",
+            "0.32451264054688567",
+            "-0.8048172991439506",
+            "0.07819718075484236",
+            "-2.6618728870356734e-10",
+            "-4.2157579436589435e-09",
+            "1.2746163850021705e-09",
+            "1.0"
+          ],
+          [
+            "0.0033333333333333335",
+            "0.32122543719018803",
+            "-0.8042753587484989",
+            "0.08366948603370208",
+            "0.028735670836906098",
+            "-0.05041154264989844",
+            "0.0020538852393919838",
+            "0.9983129364806578"
+          ]
+        ]
+      },
+      {
+        "path": "fit/part2/raw_extracted.npz.gz",
+        "bytes": 28291219,
+        "sha256": "07c881f5c93ded5d451ceea4dc67b52f89de6092effbaf0dad67526fcf9cc23c",
+        "compressed_sha256": "49da3ab4688cabe6b40d7ee3ffdaae43f3e4b81388f01500789a2f93cfc59349",
+        "actual_compressed_sha256": "49da3ab4688cabe6b40d7ee3ffdaae43f3e4b81388f01500789a2f93cfc59349",
+        "actual_sha256": "07c881f5c93ded5d451ceea4dc67b52f89de6092effbaf0dad67526fcf9cc23c",
+        "actual_bytes": 28291219
+      },
+      {
+        "path": "raw/ppq_004_3.c3d.gz",
+        "bytes": 12190976,
+        "sha256": "c67d20a98765231440ac24743902cff2a54ed985a1bcc1ec97e5e4037e917483",
+        "compressed_sha256": "3c3a34b35a19125780904e642f61eda53df820edda42131cfbc834954213d0cc",
+        "actual_compressed_sha256": "3c3a34b35a19125780904e642f61eda53df820edda42131cfbc834954213d0cc",
+        "actual_sha256": "c67d20a98765231440ac24743902cff2a54ed985a1bcc1ec97e5e4037e917483",
+        "actual_bytes": 12190976
+      },
+      {
+        "path": "trajectories/part3.csv.gz",
+        "bytes": 1288678,
+        "sha256": "33f279349592c5d1a92be68f9990ebcee18b33aa36b226d76ca606233810fc8d",
+        "compressed_sha256": "50edb866a173eb8e41a3bb6530a57b04a780bf2fcecd2cd7668212649e094778",
+        "actual_compressed_sha256": "50edb866a173eb8e41a3bb6530a57b04a780bf2fcecd2cd7668212649e094778",
+        "actual_sha256": "33f279349592c5d1a92be68f9990ebcee18b33aa36b226d76ca606233810fc8d",
+        "actual_bytes": 1288678,
+        "csv_has_header": false,
+        "first_two_rows": [
+          [
+            "0.0",
+            "-0.12036527178921493",
+            "-0.47740211623346074",
+            "0.6318756722486942",
+            "-7.447284159005875e-09",
+            "0.0",
+            "7.181760554607505e-09",
+            "1.0"
+          ],
+          [
+            "0.0033333333333333335",
+            "-0.12364408165254907",
+            "-0.47762859269192176",
+            "0.6331445186210781",
+            "-0.031067890373822984",
+            "-0.13070982081295146",
+            "-0.0003791474030259582",
+            "0.9909336936334403"
+          ]
+        ]
+      },
+      {
+        "path": "fit/part3/raw_extracted.npz.gz",
+        "bytes": 5490012,
+        "sha256": "9185d01437e8708b39b9c2b2250d1892fd5a1e4aa918a48dd7fcd6a3c8d961e4",
+        "compressed_sha256": "307f66782e649d59d6b71e02a97191798bd155fae701565a9384e93db511055f",
+        "actual_compressed_sha256": "307f66782e649d59d6b71e02a97191798bd155fae701565a9384e93db511055f",
+        "actual_sha256": "9185d01437e8708b39b9c2b2250d1892fd5a1e4aa918a48dd7fcd6a3c8d961e4",
+        "actual_bytes": 5490012
+      }
+    ]
+  },
+  "preserved_contracts": {
+    "status": "PASS",
+    "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+    "files": {
+      "hope_ws/src/hope_msgs/msg/BallObservationV2.msg": "a4dc360a56733b597bc0ea0231cc3f42805ced99e7e18235a554149e3a25109e",
+      "hope_ws/src/hope_msgs/msg/FlightContextV2.msg": "2191901e470b06f09a42babecaa4451c80ace539f5ef8719e475ed49e3e4c8ac",
+      "hope_ws/src/hope_msgs/msg/FlightPredictionV2.msg": "d221806520cd3d63f230bec49fc1b8c62044dc505627ce711e5e1410ebbe2e3d",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/types.hpp": "20ddd84c540253b3c7b947cedb2eae875276d8e089b40a116263bbc77954118e",
+      "hope_ws/src/hope_planner_cpp/src/schema2_packer.cpp": "c629b598103a27f1dde80a93fe2d34119e4913b2185314650ddc4b1d17decbfa",
+      "hope_ws/src/hope_planner_cpp/src/schema3_packer.cpp": "a475779d99e2c1c5f72ed9a44bba7b5ef1af839b1451b3dbd8ae734e01aa3f14",
+      "hope_ws/src/hope_planner_cpp/src/racket_target_planner.cpp": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+      "hope_ws/src/hope_bringup/scripts/optitrack_mct_relay": "afd37b44638a107c31fd072b2220b1f32e74a951bacafd21381c700b35172043",
+      "hope_ws/src/hope_bringup/scripts/base_pose_contract.py": "6b0da2f8e3b6d9f0d9283bd046cfe8aedc1f2ba374acab8eb67e4645eb4467bc"
+    },
+    "all_fixture_and_policy_changes": []
+  },
+  "source_file_hashes": {
+    "source_sha": "a1f2f7a7e654b9ccd247f247cd50b6bc2910ad7a",
+    "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+    "sha256": {
+      "hope_ws/src/hope_planner_cpp/CMakeLists.txt": "1b517e8939f4a10236d8b52393b1c8a943f9e3376afe3051a682b005b0341cde",
+      "hope_ws/src/hope_planner_cpp/config/integrated_planner.shadow.yaml": "7254828395b03af31296e09bab5b054a8eb379509406ad2270a95adcb2915598",
+      "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_contract.md": "82f16b9908773a9c7251f2b75b999b920bd0a4e0ac15c4ffe2a99752acaa48a9",
+      "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_migration.md": "397f822f3b8df5d3dbb97f886f8dd6ec7dffe2f46498a7581a67301c2527c25d",
+      "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_draft_pr.md": "55f0b642a2389db12ac7800c512c7a6c6c0b76a18837f6cb54ea27ca0f2aa49a",
+      "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_scope_manifest.json": "01039f8e66bb4e35466cc838506b421c033cece321c24c3f497cb559269081ba",
+      "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_spin_qualification.json": "7eef1830b51d6d1551ca070f18147e225646e84bc83bf620ece3ed3ffeffb325",
+      "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_spin_qualification.md": "55f0b642a2389db12ac7800c512c7a6c6c0b76a18837f6cb54ea27ca0f2aa49a",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/base_pose_orientation.hpp": "1a5681d240307690fe4dab6885d896aca63f40431f19891b92095736a061a0a7",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_replay_input.hpp": "a45569ae2b2789db5aef559144c336fca812a8280c9dbe047e7453c6af016f99",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_spin_estimator.hpp": "2b7dc05ea8f883d0e99a3c0fe099f2d0b023ffe7f1f5a7cae3999c9b214b9a24",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_state_v2.hpp": "5b345b84df073c886a90c565ae8eecf044cdb3de6f052aa2db5c0345968a4c9c",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trusted_spin.hpp": "37bad5f53b568a875cefacbffbe687a1fcb9856855a1158ffe2fb00f0cc45e12",
+      "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/integrated_numerical_gate.py": "96803f45d850ab9ece968c0eca907cfa326679e36ffeed9a82278ccb5095c693",
+      "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_integrated.sh": "2ed4a3c4a1a56c60b19c6fa5623acbf17014b99de3c678354b3251f7df2d3b70",
+      "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_node.cpp": "87d5c71106b1e41e41f04a3a8c12064cabe102baa6ea51487ff4012a111ae8fc",
+      "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp": "8d8e751a62a2dab4af5daff41df793268c55a80426c0cb83a2e63ef5cac0456f",
+      "hope_ws/src/hope_planner_cpp/src/flight_spin_estimator.cpp": "83c8c1d063680ed7964efb1f387c2e0590ff4ab15291d85bd4df07c81f5db0b0",
+      "hope_ws/src/hope_planner_cpp/src/flight_state_v2.cpp": "34a4d52194beb47490eb30d1a86bbb8541665cdc96ab360b75a9818d8ffcbe81",
+      "hope_ws/src/hope_planner_cpp/src/integrated_planner_runtime.cpp": "2f570765dc3840b7a9be2180351ca08b9ecaa04fe2a00b2d9488d56386471538",
+      "hope_ws/src/hope_planner_cpp/test/base_pose_contract_probe.cpp": "316e9677e061b63624a6220db696ebf238d2c248c7b9c3e5d90efc3bbcb24967",
+      "hope_ws/src/hope_planner_cpp/test/base_pose_producer_contract.py": "2a38fc32d224797a958270ba7a5dc5b05e0554152180f33a53a7fa75e5daf85b",
+      "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py": "b4426be16448850b6b8d07a29f8710f92d982b4d898100be6c7bb54083f8d8d1",
+      "hope_ws/src/hope_planner_cpp/test/integrated_producer_chain.py": "478414eeb045240cf9ad0f46e74ab095177df839dd6f496f7a7c092ec4f6f844",
+      "hope_ws/src/hope_planner_cpp/test/native/CMakeLists.txt": "692cf4030000e65b205b73f49748ae900594ba22826be0ed648fe45532b96da8",
+      "hope_ws/src/hope_planner_cpp/test/reacquisition_baseline_probe.py": "35c5508b56110006441b45af99dfc5f405ab84e89edc12b6deea0f1478648e82",
+      "hope_ws/src/hope_planner_cpp/test/reacquisition_counterexamples.cpp": "229c80865751abc22c824b21912db48a4a9463eef55a829b9ecc5510bce9d17a",
+      "hope_ws/src/hope_planner_cpp/test/reacquisition_cutoff_parity.py": "8673bcfdc190cdc8dad76944927996bc687d1093d82530e6b02fdcc74e098470",
+      "hope_ws/src/hope_planner_cpp/test/reacquisition_producer_chain.py": "3740547cd9b5986b0b7281c3300adfdd7aa3295ac8f7c84663014ca07b86c994",
+      "hope_ws/src/hope_planner_cpp/test/test_base_pose_contract.cpp": "00a30285e8cac57e8f80eee267b5a44661960fcc0d898272ff9a9ec47e11f1c8",
+      "hope_ws/src/hope_planner_cpp/test/test_forecast_scope.py": "d4c75e99213c7c1d47ce09616f94961ccb488bd20af7a5c5bbe93068397b47dc",
+      "hope_ws/src/hope_planner_cpp/test/test_reacquisition_spin.cpp": "e212cc6852bad766663959c52bb962d110463bf79f88fce6a8e629deb6c16cb9"
+    }
+  },
+  "timing_first_run": {
+    "status": "FAILED_FROZEN_COVERAGE_GATE",
+    "file": "/workspace/.cloud-setup/reacquisition-spin/qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_FOLLOW_POSE_unknown.raw.json",
+    "covered": 148,
+    "eligible": 160,
+    "coverage": 0.925,
+    "threshold": 0.95,
+    "missing_observation_receipts": 9,
+    "source_max_interval_ms": 20.790819,
+    "missing": [
+      {
+        "stamp_ns": 1792736920847620529,
+        "round": 0,
+        "phase": 0.807571561995428,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736920890132971,
+        "round": 0,
+        "phase": 0.850086548004765,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736922646789166,
+        "round": 1,
+        "phase": 0.8067429940041622,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": true
+      },
+      {
+        "stamp_ns": 1792736924460221120,
+        "round": 2,
+        "phase": 0.8201715919945856,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736924466771167,
+        "round": 2,
+        "phase": 0.8267247439885979,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736924466894873,
+        "round": 2,
+        "phase": 0.8268501520156861,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": true
+      },
+      {
+        "stamp_ns": 1792736924470144298,
+        "round": 2,
+        "phase": 0.8300986160116737,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": true
+      },
+      {
+        "stamp_ns": 1792736924486238897,
+        "round": 2,
+        "phase": 0.846190100995591,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736926271772900,
+        "round": 3,
+        "phase": 0.8317279089940712,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736926271913531,
+        "round": 3,
+        "phase": 0.8318691509892233,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736926271986260,
+        "round": 3,
+        "phase": 0.8319420600135345,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      },
+      {
+        "stamp_ns": 1792736926272100221,
+        "round": 3,
+        "phase": 0.8320559309911915,
+        "opportunity": "B",
+        "fault": null,
+        "seen_at_typed_observer": false
+      }
+    ],
+    "interpretation": "Source scheduling gaps and catch-up bursts are directly visible. Nine missing command epochs were also absent at the typed observer; three reached that observer. No proof that all losses occurred outside the planner. Preserve failure and repeat this exact case only after the full serial suite finishes; do not alter thresholds or drop these exposures."
+  },
+  "timing_repeat": {
+    "status": "PASS",
+    "rate_hz": 300,
+    "plane_policy": "FOLLOW_POSE",
+    "spin": "unknown",
+    "worker_delay_ms": 0,
+    "first_worker_delay_ms": 0,
+    "cross_generation_discard_observed": false,
+    "rounds": [
+      {
+        "round": 0,
+        "B_generation": 3,
+        "B_valid_commands": 41,
+        "B_decoded": 41,
+        "B_source_bounds_ns": [
+          1792737998074814452,
+          1792737998378151809
+        ],
+        "new_flight_evidence": "gap"
+      },
+      {
+        "round": 1,
+        "B_generation": 7,
+        "B_valid_commands": 40,
+        "B_decoded": 40,
+        "B_source_bounds_ns": [
+          1792737999874817882,
+          1792738000178174553
+        ],
+        "new_flight_evidence": "held_release"
+      },
+      {
+        "round": 2,
+        "B_generation": 11,
+        "B_valid_commands": 40,
+        "B_decoded": 40,
+        "B_source_bounds_ns": [
+          1792738001674838240,
+          1792738001978178506
+        ],
+        "new_flight_evidence": "gap"
+      },
+      {
+        "round": 3,
+        "B_generation": 15,
+        "B_valid_commands": 40,
+        "B_decoded": 40,
+        "B_source_bounds_ns": [
+          1792738003474812388,
+          1792738003778180285
+        ],
+        "new_flight_evidence": "held_release"
+      },
+      {
+        "round": 4,
+        "B_generation": 19,
+        "B_valid_commands": 41,
+        "B_decoded": 41,
+        "B_source_bounds_ns": [
+          1792738005274813776,
+          1792738005578158388
+        ],
+        "new_flight_evidence": "gap"
+      },
+      {
+        "round": 5,
+        "B_generation": 23,
+        "B_valid_commands": 40,
+        "B_decoded": 40,
+        "B_source_bounds_ns": [
+          1792738007074819306,
+          1792738007378170078
+        ],
+        "new_flight_evidence": "held_release"
+      },
+      {
+        "round": 6,
+        "B_generation": 27,
+        "B_valid_commands": 41,
+        "B_decoded": 41,
+        "B_source_bounds_ns": [
+          1792738008874817116,
+          1792738009178175588
+        ],
+        "new_flight_evidence": "gap"
+      },
+      {
+        "round": 7,
+        "B_generation": 31,
+        "B_valid_commands": 40,
+        "B_decoded": 40,
+        "B_source_bounds_ns": [
+          1792738010674812790,
+          1792738010978144016
+        ],
+        "new_flight_evidence": "held_release"
+      },
+      {
+        "round": 8,
+        "B_generation": 35,
+        "B_valid_commands": 41,
+        "B_decoded": 41,
+        "B_source_bounds_ns": [
+          1792738012474826070,
+          1792738012778177835
+        ],
+        "new_flight_evidence": "gap"
+      },
+      {
+        "round": 9,
+        "B_generation": 39,
+        "B_valid_commands": 40,
+        "B_decoded": 40,
+        "B_source_bounds_ns": [
+          1792738014274816482,
+          1792738014578160150
+        ],
+        "new_flight_evidence": "held_release"
+      }
+    ],
+    "command_coverage": 1.0,
+    "command_denominator": 160,
+    "covered_command_epochs": 160,
+    "coverage_gate": "PASS",
+    "decoder_ms": {
+      "p50": 2.0398544999999997,
+      "p95": 3.4807933999999987,
+      "p99": 5.002138670000001,
+      "max": 7.825598
+    },
+    "resources": {
+      "VmHWM_kib": 36500,
+      "VmRSS_kib": 36500
+    },
+    "reasons": {
+      "BASE_UNAVAILABLE": 82,
+      "SOURCE_EXPIRED": 561,
+      "SHADOW_COMMAND_VALID": 131,
+      "PHYSICAL_SHOT_CHANGED": 33,
+      "SOURCE_UNQUALIFIED": 20,
+      "invalid_base_schema": 150,
+      "PHYSICAL_CONTEXT_CHANGED": 30,
+      "PHYSICAL_TERMINATION_BEFORE_CONTACT": 30
+    },
+    "candidate_bound": 32,
+    "worker_bound": {
+      "running": 1,
+      "pending": 1
+    },
+    "physical_registration": false,
+    "context_publisher": false
+  },
+  "review_timing_repeat": {
+    "status": "PASS",
+    "rate_hz": 300,
+    "plane_policy": "FOLLOW_POSE",
+    "speed_mps": 10.0,
+    "spin": "zero",
+    "scenario": "standard",
+    "valid_commands": 407,
+    "decoded_callbacks": 415,
+    "matched_commands": 405,
+    "before_bounce_commands": 407,
+    "trace_receipt_ms": {
+      "p50": 2.24631,
+      "p95": 3.8489920999999994,
+      "p99": 8.555704099999998,
+      "max": 19.230665
+    },
+    "actual_decoder_ms": {
+      "p50": 1.952588,
+      "p95": 2.895573,
+      "p99": 4.597088239999992,
+      "max": 5.536083
+    },
+    "source_to_publication_ms": {
+      "p50": 1.772959,
+      "p95": 2.754567499999999,
+      "p99": 4.489841759999999,
+      "max": 8.279475
+    },
+    "resources": {
+      "VmHWM_kib": 36852,
+      "VmRSS_kib": 36852,
+      "node_cpu_s": 1.82
+    },
+    "relay_ball_observations": 1103,
+    "legacy_full_rate_frames": 1103,
+    "command_coverage_gate": "PASS",
+    "command_coverage": 1.0,
+    "observer_trace_depth": 128,
+    "scored_flights": 10,
+    "command_denominator": 160,
+    "covered_command_epochs": 160,
+    "reasons": {
+      "BASE_UNAVAILABLE": 139,
+      "SOURCE_EXPIRED": 360,
+      "SHADOW_COMMAND_VALID": 90,
+      "SOURCE_UNQUALIFIED": 39,
+      "PLANE_UNQUALIFIED": 2,
+      "PHYSICAL_SHOT_CHANGED": 9,
+      "PHYSICAL_CONTEXT_CHANGED": 36,
+      "PHYSICAL_TERMINATION_BEFORE_CONTACT": 18
+    },
+    "graph": {
+      "/UCB_P1/pose": [
+        "geometry_msgs/msg/PoseStamped"
+      ],
+      "/UCB_P2/pose": [
+        "geometry_msgs/msg/PoseStamped"
+      ],
+      "/a3/base_pose_flat": [
+        "std_msgs/msg/Float64MultiArray"
+      ],
+      "/ball/point": [
+        "geometry_msgs/msg/PointStamped"
+      ],
+      "/ball/pose": [
+        "geometry_msgs/msg/PoseStamped"
+      ],
+      "/hope/ball/observation_v2": [
+        "hope_msgs/msg/BallObservationV2"
+      ],
+      "/hope/integrated_planner/game_context": [
+        "hope_msgs/msg/FlightContextV2"
+      ],
+      "/hope/shadow/integrated_planner/command": [
+        "hope_msgs/msg/RacketCommand"
+      ],
+      "/hope/shadow/integrated_planner/racket_target": [
+        "std_msgs/msg/Float64MultiArray"
+      ],
+      "/hope/shadow/integrated_planner/status": [
+        "diagnostic_msgs/msg/DiagnosticArray"
+      ],
+      "/hope/shadow/integrated_planner/trace": [
+        "diagnostic_msgs/msg/DiagnosticArray"
+      ],
+      "/hope/test/integrated_runner/decoded": [
+        "std_msgs/msg/Float64MultiArray"
+      ],
+      "/optitrack/poses": [
+        "motion_capture_tracking_interfaces/msg/NamedPoseArrayV2"
+      ],
+      "/parameter_events": [
+        "rcl_interfaces/msg/ParameterEvent"
+      ],
+      "/poses": [
+        "geometry_msgs/msg/PoseArray"
+      ],
+      "/poses/planner_full": [
+        "geometry_msgs/msg/PoseArray"
+      ],
+      "/rosout": [
+        "rcl_interfaces/msg/Log"
+      ],
+      "/table/pose": [
+        "geometry_msgs/msg/PoseStamped"
+      ],
+      "/tf": [
+        "tf2_msgs/msg/TFMessage"
+      ]
+    },
+    "camera_driver_included": false,
+    "synthetic_registration": true,
+    "context_publisher": false,
+    "base_yaw_deg": 0.0
+  },
+  "actual_opportunity_audit": {
+    "status": "PASS",
+    "scope": "All initial matrix attempts, including the failed coverage case; no timing threshold waived.",
+    "A_acquired_and_rejected": 140,
+    "B_acquired_and_decoded": 140,
+    "files": [
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_FOLLOW_POSE_quaternion_only.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 17,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_FOLLOW_POSE_unknown.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_FOLLOW_POSE_zero.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_ON_REFRESH_quaternion_only.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 18,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_ON_REFRESH_unknown.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_150_ON_REFRESH_zero.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_FOLLOW_POSE_quaternion_only.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_FOLLOW_POSE_unknown.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 39,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 37,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 22,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 35,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_FOLLOW_POSE_zero.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 39,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_ON_REFRESH_quaternion_only.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 38,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 38,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 39,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 38,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 38,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_ON_REFRESH_unknown.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_chain_300_ON_REFRESH_zero.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 39,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 37,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 39,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 42,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_delayed_150.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 13,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 20,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 19,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      },
+      {
+        "file": "qualification-verified/build/hope_planner_cpp/reacquisition_delayed_300.raw.json",
+        "rounds": [
+          {
+            "round": 0,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 26,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 1,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 2,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 3,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 4,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 5,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 39,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 6,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 39,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 7,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 40,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 8,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 41,
+            "B_new_origin": true,
+            "B_decoded": true
+          },
+          {
+            "round": 9,
+            "A_acquired": true,
+            "A_rejection": "observed_under_table",
+            "B_command_count": 38,
+            "B_new_origin": true,
+            "B_decoded": true
+          }
+        ]
+      }
+    ]
+  },
+  "post_full_suite_corrections": {
+    "sha": "f089137eec49e05fd2b29cbc4f0f75dc76f580c0",
+    "changes": [
+      "Explicit producer zero survives decode_observation; nonfinite and invalid-flag data still rejected",
+      "Transport output allowlist includes exact readiness diagnostic topic",
+      "Older parity test replays actual consumed prefixes from checkpoint observation ledgers; published/missing/tail source rows are separately retained",
+      "Repeated-chain assertions additionally require actual A acquisition and observed-under-table rejection"
+    ],
+    "validation": {
+      "targeted_transport_and_six_cutoff_cases": "post-review-tests.log: 3/3 groups PASS",
+      "reacquisition_cutoffs_and_scope": "post-final-cutoffs.log: 2/2 groups PASS"
+    },
+    "full_suite_repeated_after_corrections": false,
+    "file_sha256": {
+      "hope_ws/src/hope_planner_cpp/src/flight_transport_v2.cpp": "3f829895f628c076ffd003b51f23c12e9c8aa446f81e3a2c422e298ac7b9b85a",
+      "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_smoke.py": "172c5e89895795688f88ff68d3a7174dd3e47a47e4c985cddb6dd4dbe6c033ab",
+      "hope_ws/src/hope_planner_cpp/test/reacquisition_producer_chain.py": "cd16c50f204812f04dfe71b963148f1d50f614271f631683b8e36b0bd2551586",
+      "hope_ws/src/hope_planner_cpp/test/review_cutoff_parity.py": "e8016c93cb6580068f4071e7ff821adb729423fb46c4a85b802467ab49ac8c8d",
+      "hope_ws/src/hope_planner_cpp/test/test_flight_transport_v2.cpp": "88d2167cae419479e88c4aab86dbd84f3a292f924fb66a9a43c3551af0c95339"
+    },
+    "reacquisition_source_cutoff_parity": {
+      "status": "PASS",
+      "results": [
+        {
+          "rate_hz": 150,
+          "quaternion_only": false,
+          "matched_cutoffs": 50,
+          "readiness_cutoffs": 17,
+          "pre_bounce_cutoffs": 27,
+          "post_bounce_cutoffs": 13,
+          "compared_events": 155,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 63,
+          "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-150-False.csv"
+        },
+        {
+          "rate_hz": 150,
+          "quaternion_only": true,
+          "matched_cutoffs": 49,
+          "readiness_cutoffs": 17,
+          "pre_bounce_cutoffs": 29,
+          "post_bounce_cutoffs": 11,
+          "compared_events": 153,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 63,
+          "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-150-True.csv"
+        },
+        {
+          "rate_hz": 300,
+          "quaternion_only": false,
+          "matched_cutoffs": 102,
+          "readiness_cutoffs": 19,
+          "pre_bounce_cutoffs": 56,
+          "post_bounce_cutoffs": 24,
+          "compared_events": 321,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 126,
+          "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-300-False.csv"
+        },
+        {
+          "rate_hz": 300,
+          "quaternion_only": true,
+          "matched_cutoffs": 104,
+          "readiness_cutoffs": 18,
+          "pre_bounce_cutoffs": 59,
+          "post_bounce_cutoffs": 23,
+          "compared_events": 328,
+          "max_state_error": 0.0,
+          "max_covariance_error": 0.0,
+          "max_event_state_error": 0.0,
+          "all_source_rows": 126,
+          "fixture": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-300-True.csv"
+        }
+      ]
+    }
+  },
+  "known_excluded_runs": [
+    "before-overrange-pilot used 300 rad/s beyond unchanged 20 rev/s; excluded",
+    "development quaternion oracle initially used unrounded seconds; corrected to actual source ns without loosening tolerance",
+    "qualification-final stopped after a test-only constructor compile error; retained, superseded by qualification-verified"
+  ],
+  "publication": "Local review branch only; continuation publication is a separate choice; PR64 remains closed and unmerged.",
+  "timing_failures": [
+    {
+      "case": "reacquisition_chain_300_FOLLOW_POSE_unknown",
+      "covered": 148,
+      "eligible": 160,
+      "coverage": 0.925,
+      "repeat_covered": 160,
+      "repeat_eligible": 160,
+      "gate_remains_unqualified": true
+    },
+    {
+      "case": "review_chain_300_10_zero",
+      "covered": 146,
+      "eligible": 160,
+      "coverage": 0.9125,
+      "repeat_covered": 160,
+      "repeat_eligible": 160,
+      "max_source_interval_ms": 22.90642,
+      "observed_expired_source_age_ms": 42.534018,
+      "gate_remains_unqualified": true
+    }
+  ],
+  "frozen_performance_thresholds_changed": false,
+  "failed_exposures_removed_from_denominators": false,
+  "core_correction_implemented": true,
+  "artifact": {
+    "artifact": "/workspace/.cloud-setup/reacquisition-spin/reacquisition-spin-evidence.tar.gz",
+    "sha256": "fb23fd72ccdff4bb38e5c9820937ad1ee22421f53c15421cbeecb067c42ea3c8",
+    "bytes": 15579488,
+    "files": 1575,
+    "manifest_sha256": "41c59d6403928e718b796c736b81bfbaeb9ca0ce6f91bbfc5d5f53b7c1fe6022",
+    "scope": "Raw baseline, full-run, corrected targeted checks and timing retries; binaries identified by hash and build logs, not bundled."
+  }
+}

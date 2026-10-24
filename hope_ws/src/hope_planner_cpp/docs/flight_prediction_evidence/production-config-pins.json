@@ -1,0 +1,16 @@
+{
+  "base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "status": "PASS",
+  "unchanged_yaml_sha256": {
+    "hope_ws/src/hope_planner_cpp/config/ball_physics_opti_20261003.receipt.json": "f76b4ec8ba041b3642a1de03a0fb16810cda226b0b3e9ef9c1d07bf31eba9bc3",
+    "hope_ws/src/hope_planner_cpp/config/ball_physics_real_20261010.receipt.json": "e3c19874d8383ac720790d818cbbf280c2dc98db85483cb171dad0bc9d72753e",
+    "hope_ws/src/hope_planner_cpp/config/ball_physics_real_20261010.yaml": "5e46060ddaf2c3ea84b59fe06ce8dfe834e31bebaa404ae1fbc1172cfb613a3c",
+    "hope_ws/src/hope_planner_cpp/config/model14600_adaptive_flight_packetizer.yaml": "903d9b4252b6bac4f95abb2f928b7f116b1c49d7076a60959dc8ea4d4be43e1e",
+    "hope_ws/src/hope_planner_cpp/config/model14600_contact_observation_candidate.yaml": "52d9925d6f6b61100112ebad530f53b01184ef242203a7526434721b05bb47bf",
+    "hope_ws/src/hope_planner_cpp/config/model14600_mujoco_material_match_diagnostic.yaml": "327186bd3d5d938698d8c4f6a05dd9e98d39918ea4c6a0ed3900a073dc62ca24",
+    "hope_ws/src/hope_planner_cpp/config/model14600_spin_contact.yaml": "5e46060ddaf2c3ea84b59fe06ce8dfe834e31bebaa404ae1fbc1172cfb613a3c",
+    "hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml": "903d9b4252b6bac4f95abb2f928b7f116b1c49d7076a60959dc8ea4d4be43e1e",
+    "hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml": "9b62e89b58fedad5131999877879b78f66a3d6675a314f48ff0e58c5dca991c8"
+  },
+  "note": "All existing YAML bytes preserved; baseline exporter declares its effective upstream-default profile explicitly."
+}

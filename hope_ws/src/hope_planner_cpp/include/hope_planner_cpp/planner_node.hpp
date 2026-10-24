@@ -1,4 +1,5 @@
 #pragma once
+#include "hope_planner_cpp/integrated_planner_runtime.hpp"
 
 #include "hope_planner_cpp/audit_logger.hpp"
 #include "a3_deploy/session_home_contract.hpp"
@@ -48,6 +49,7 @@ class PlannerNode final : public rclcpp::Node {
   ~PlannerNode() override;
 
  private:
+  std::unique_ptr<IntegratedPlannerRuntime> integrated_runtime_;
   struct BaseSnapshot {
     Vec3 position = Vec3::Zero();
     Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();

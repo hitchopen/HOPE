@@ -1,5 +1,13 @@
 # hope_planner_cpp
 
+The opt-in `prediction_backend: v2` now embeds the six-state CKF and shared
+physics in this same node. It predicts post-bounce contacts even with unknown
+game history, solves and reconstructs the paddle action, and checks its first
+outgoing landing before emitting schema-2 **shadow** previews. Legacy remains
+the default. See [integration contracts and migration](docs/integrated_planner_input_migration.md)
+and [current verification and remaining gates](docs/integrated_planner_acceptance.md).
+The production description below describes the preserved legacy backend.
+
 Deterministic C++17 Planner for the `model_21800` hardware contract. This is
 the only supported ROS Planner runtime for production, Foxglove and Gate 3.
 The ROS production path contains a non-recursive, bounce-aware batch physics estimator, the

@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Replay public HOPE methods at the same source cutoffs and score independent truth."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+from accuracy import METHODS, write_report
+
+REQUIRED = ['independent position/event truth and occurrence uncertainty',
+            'session/ball/physical-flight IDs and bounce annotations',
+            'camera acquisition clock mapping and table/plane registration receipts',
+            'both directions/serve contacts and speed/spin/dropout/position-only groups',
+            'pinned baseline/V2 source and effective configuration, held-out split']
+
+
+def replay(executable, args, csv):
+    process=subprocess.run([executable,*args],input=csv,text=True,capture_output=True,check=True)
+    return {row['source_ns']:row for line in process.stdout.splitlines() if line.strip()
+            for row in [json.loads(line)]}
+
+
+def compare(dataset, v2_executable, baseline_executable, synthetic=False):
+    for field in ('frame_id','clock_mapping_id','registration_receipt_sha256','code_pins','flights'):
+        if field not in dataset:
+            raise ValueError('missing dataset provenance: '+field)
+    if dataset['frame_id']!='table' or not dataset['clock_mapping_id']:
+        raise ValueError('registered table/source-clock coordinates required')
+    if not synthetic and not dataset.get('independent_truth',False):
+        raise ValueError('same-sensor/proxy data cannot qualify independent real-ball accuracy')
+    if dataset.get('plane_policy', 'FIXED') != 'FIXED' or dataset.get('x_hit', .15) != .15:
+        raise ValueError('matched replay supports only registered fixed x_hit=0.15; moving-plane datasets require a separate adapter')
+    rows=[]
+    for flight in dataset['flights']:
+        observations=flight['observations']
+        stamps=[r['source_ns'] for r in observations]
+        if not stamps or any(b<=a for a,b in zip(stamps,stamps[1:])):
+            raise ValueError('acquisition stamps must be strictly ordered')
+        if flight.get('split')!='held_out' and not synthetic:
+            raise ValueError('physical scoring requires a held-out whole-flight/session split')
+        csv=''.join(','.join(str(v) for v in [r['source_ns'],*r['position'],int(r.get('omega_valid',False)),*r.get('omega_rad_s',[0,0,0])])+'\n' for r in observations)
+        predictions={'v2_ckf':replay(v2_executable,['--observations',str(flight['direction']),
+                       'complete' if flight.get('complete_history',False) else 'unknown'],csv),
+                     'legacy_one_shot':replay(baseline_executable,['--method','one-shot'],csv),
+                     'progressive_batch':replay(baseline_executable,['--method','progressive'],csv)}
+        common_spin={}; held=False
+        for observation in observations:
+            angular=observation.get('omega_rad_s',[0,0,0])
+            measured=observation.get('omega_valid',False) and all(__import__('math').isfinite(v) for v in angular) and any(v!=0 for v in angular)
+            held=held or measured
+            common_spin[observation['source_ns']]=observation.get('spin_mode', 'MEASURED' if measured else 'HELD' if held else 'POSITION_ONLY')
+        for event in flight['truth_events']:
+            for cutoff in flight.get('information_cutoffs_ns',stamps):
+                if cutoff not in stamps:
+                    raise ValueError('matched cutoff must identify an actual shared acquisition, never an interpolated baseline')
+                if event.get('arrival_ns') is not None and cutoff>event['arrival_ns']:
+                    continue  # Future-event eligibility ends at independently annotated occurrence.
+                for method in METHODS:
+                    p=predictions[method].get(cutoff)
+                    kind=event['kind']
+                    candidate=None
+                    supported=p is not None and kind in p.get('supported_events', [kind])
+                    if p and kind=='receiving_plane' and (method!='v2_ckf' or p.get('target_kind')==kind) and p['target_valid']:
+                        candidate=p
+                    elif p and kind!='receiving_plane':
+                        events=[e for e in p.get('future_events',[]) if e['kind']==kind]
+                        ordinal=event.get('ordinal',1)
+                        if kind=='table_bounce':
+                            ordinal-=sum(flight.get(key,10**30)<cutoff for key in ('b1_ns','b2_ns'))
+                        if 0<ordinal<=len(events):candidate=events[ordinal-1]
+                    valid=bool(candidate is not None and p.get('physical_available'))
+                    row=dict(session_id=flight['session_id'],ball_id=flight['ball_id'],flight_id=flight['flight_id'],
+                             shot_type=flight.get('shot_type','unknown'),event_id=event['event_id'],event_kind=kind,method=method,
+                             code_sha=dataset['code_pins'][method],config_id=p.get('model_config_id','not_triggered') if p else 'not_triggered',
+                             frame_id=dataset['frame_id'],clock_mapping_id=dataset['clock_mapping_id'],
+                             spin_mode=common_spin[cutoff],model_spin_mode=p.get('spin_mode','POSITION_ONLY') if p else 'UNAVAILABLE',
+                             independent_truth=dataset.get('independent_truth',False),truth_available=event.get('truth_available',True),
+                             information_cutoff_ns=cutoff,prediction_reference_time_ns=cutoff if p else None,
+                             attempted=p is not None,actual_trigger=p.get('actual_trigger',False) if p else False,
+                             physical_available=p.get('physical_available',False) if p else False,target_valid=bool(valid and p['target_valid'] and (kind=='receiving_plane' or method=='v2_ckf' and p.get('target_kind')==kind)),event_estimate_valid=valid,
+                             trajectory_available=bool(p and method=='v2_ckf' and p.get('physical_available')),
+                             reason=(p.get('reason','unavailable') if supported else 'unsupported_event' if p else 'not_triggered'),
+                             position=candidate.get('position') if valid else None,velocity=candidate.get('velocity') if valid else None,
+                             arrival_ns=candidate.get('arrival_ns') if valid else None,covariance=candidate.get('covariance') if valid else None,
+                             post_velocity=candidate.get('post_velocity') if valid else None,
+                             linearization_quality=candidate.get('linearization_quality','unavailable') if valid else 'unavailable',
+                             compute_ms=p.get('compute_ms') if p else None,b1_ns=flight.get('b1_ns'),b2_ns=flight.get('b2_ns'))
+                    for name in ('position','velocity','arrival_ns','post_velocity'):
+                        if name in event: row['truth_'+name]=event[name]
+                    rows.append(row)
+    return rows
+
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--dataset')
+    parser.add_argument('--v2-executable')
+    parser.add_argument('--baseline-executable')
+    parser.add_argument('--output',required=True)
+    parser.add_argument('--allow-synthetic',action='store_true',help='Tooling tests only; never Gate P qualification')
+    args=parser.parse_args()
+    output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
+    if not args.dataset:
+        receipt=dict(gate_p='NOT_RUN_INDEPENDENT_DATA_UNAVAILABLE',dataset_ids=[],required_inputs=REQUIRED,
+                     figures=['01_plane_error_vs_lead.png','02_bounce_aligned_error.png','03_coverage_latency_uncertainty.png'],
+                     status='Evaluation and plotting tools are executable; no physical scores fabricated.')
+        (output/'NOT_RUN.json').write_text(json.dumps(receipt,indent=2)+'\n')
+        print(json.dumps(receipt));return 2
+    if not args.v2_executable or not args.baseline_executable:
+        parser.error('both public HOPE replay executables are required with --dataset')
+    raw=Path(args.dataset).read_bytes();dataset=json.loads(raw)
+    rows=compare(dataset,args.v2_executable,args.baseline_executable,args.allow_synthetic)
+    (output/'matched.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
+    summary=write_report(rows,output,args.allow_synthetic)
+    manifest=dict(dataset_sha256=hashlib.sha256(raw).hexdigest(),registration=dataset['registration_receipt_sha256'],
+                  code_pins=dataset['code_pins'],input_flights=[(r['session_id'],r['ball_id'],r['flight_id']) for r in dataset['flights']],
+                  executables={key:hashlib.sha256(Path(path).read_bytes()).hexdigest() for key,path in
+                               [('v2',args.v2_executable),('baselines',args.baseline_executable)]},gate_p=summary['gate_p'])
+    (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    print(json.dumps(manifest));return 0
+
+
+if __name__=='__main__':
+    raise SystemExit(main())

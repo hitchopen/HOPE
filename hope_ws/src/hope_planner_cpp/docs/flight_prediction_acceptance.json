@@ -1,0 +1,3496 @@
+{
+  "schema_version": 4,
+  "branch": "feature/flight-state-prediction-v2-minimal",
+  "upstream_base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "source": "9118a491df658fa7e68f042581af48890ec8b0b8",
+  "tested_code_commit": "38e31927373d90c538984f6174b6ff3525edf35e",
+  "config_sha256": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+  "acceptance_cases": [
+    {
+      "id": "A01",
+      "subrequirement": "Exactly five public states; startup INVALID; qualified \u00b1X creates provisional rally family; held/toss rejects; rejected same flight does not re-arm.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_PublicStatesAndCandidateQualification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A02",
+      "subrequirement": "Confirmed first striker B1 reclassifies without losing state; known NORMAL_RALLY forbids it; forbidden order/count revokes ball target.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A03",
+      "subrequirement": "Outgoing RALLY B2 before opponent-end crossing retains RALLY and selects exact B1\u2013B2 apex (state/time/uncertainty).",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A04",
+      "subrequirement": "OPPONENT_RALLY B2 before receiving plane is forbidden; OPPONENT_SERVE needs ordered B2 then plane before B3.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A05",
+      "subrequirement": "A later predicted bounce after an already valid plane event does not invalidate the earlier event.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A06",
+      "subrequirement": "Both serve routes: new shot\u2192provisional rally\u2192striker B1/serve\u2192net\u2192receiver B2\u2192selected ball event\u2192**new observed racket shot boundary**; correct queue preservation/retirement.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A07",
+      "subrequirement": "Qualified held/non-ballistic motion, below-table states, net collision and bad clocks produce correct physical/data-quality reasons; no fabricated bounce, no apex-as-held error.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B09_A07_FiniteNetFootprintBelowTableAndOrdering"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_HeldMotionAndApexUsePhysicalEvidenceRatherThanLowVerticalSpeed"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A08",
+      "subrequirement": "Hard new shot/INVALID/provenance change clears dependent fit/events/spin/jobs; same-shot label change preserves raw data and supersedes forecast only.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A09",
+      "subrequirement": "Delayed work, expired callbacks and reversal cannot republish retired **ball forecasts**. Preserve legacy precommit reversal protections by regression.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        },
+        {
+          "test": "test_adaptive_flight_commit"
+        },
+        {
+          "test": "test_incoming_trajectory"
+        },
+        {
+          "test": "test_planner_node_turn_guard"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A10",
+      "subrequirement": "Predicted B1\u2192confirmed B1 retains event ID, distinct occurrence/confirmation time and one contact impulse/count.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_T04_EventIdentityConfirmationAndPredictedTimeIsNotEvidence"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A11",
+      "subrequirement": "`FOLLOW_POSE`: base +0.10 X\u2192next prediction plane +0.10; +0.58 offset, age/frame/range checked. Also test `ON_REFRESH` preservation.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A12",
+      "subrequirement": "Full *ball* target p/v/optional omega, reference/arrival, frame, covariance, historical status; physical Z never receives policy height offset.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A12_T02_T03_NetCrossingCarriesBracketedBallVelocity"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_T03_TargetAndEveryWaypointHaveExactArrivalEquation"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A13",
+      "subrequirement": "150/300 Hz, jitter/dropout, exact source delta-t, causality, no cross-shot spin increment, latency/availability report.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "flight_v2_ros_transport"
+        },
+        {
+          "test": "flight_v2_causal_replay"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "A14",
+      "subrequirement": "Nominal and fallback model/config agree; distinguish warmup, horizon, uncertainty, forbidden route and revoked/stale ball events.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A04_A05_A14_EndpointApexAndPrefixLegality"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B01",
+      "subrequirement": "Valid `(0,30,0)`\u2192missing/all-zero-sentinel/NaN/rejected\u2192new valid; preserve complete held vector and original source time, XYZ and causal recovery at both rates.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B06_HeldSpinIsNotReportedAsFreshMeasurementAfterPropagation"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B02",
+      "subrequirement": "No trusted spin\u2192POSITION_ONLY from start through every leg/two serve contacts; no synthetic omega/postbounce Magnus.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B02_B06_PositionOnlyNeverSynthesizesSpinAndEnergyIsDissipative"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B03",
+      "subrequirement": "Mutating rejected nonzero raw angular vector cannot alter result when trusted state/XYZ fixed.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous"
+        },
+        {
+          "test": "flight_v2_baseline_epochs"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "review_note": "V2 rejected-spin invariant is owned by native TrustedSpin and causal replay, not untouched legacy fallback.",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B04",
+      "subrequirement": "Accept individual zero components; distinguish genuine identity quaternion from synthetic placeholder through authoritative source quality.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B05",
+      "subrequirement": "Mocap relay\u2192v2 observation/packetizer/forecast receiver/replay preserves orientation validity, exact time and XYZ. Preserve legacy consumer behavior rather than expanding its command duties.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B04_B05_ExactTimeAndAuthoritativeValidityRoundTrip"
+        },
+        {
+          "test": "planner_full_rate_relay_test"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B06",
+      "subrequirement": "Measured/held spin through one/two bounces produces once-only contact-propagated spin; absent-spin remains absent.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B02_B06_PositionOnlyNeverSynthesizesSpinAndEnergyIsDissipative"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B06_HeldSpinIsNotReportedAsFreshMeasurementAfterPropagation"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B07",
+      "subrequirement": "Trusted checkpoint survives window trim/refit/transfer/reclassification and clears on hard boundary; duplicate event doesn't apply impulse twice.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "T01_B07_PacketHashCoversValidityCheckpointAndContactLedger"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B07_T06_TruncatedSnapshotReproducesPosteriorWithoutRefittingPastSpin"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B08",
+      "subrequirement": "q/\u2212q, axis/frame signs, ambiguous long-gap rejection, original held-spin age and source-time delta tests.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B01_B03_B04_B07_B08_TrustedVectorDropoutAndRequalification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B08_QuaternionSignsAxesAndGapCausality"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B09",
+      "subrequirement": "Below-table, radius-aware finite net, real top-table footprint, edge ambiguity, target/contact earliest-event and tie ordering.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B09_A07_FiniteNetFootprintBelowTableAndOrdering"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B10",
+      "subrequirement": "Common profile/mode in fit/nominal/fallback/V2 replay; parameter bounds, dissipative behavior, independent step/time/position convergence.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X09_DerivativesCovarianceAndInvalidParameters"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A03_A11_B10_AnalyticApexAndBothTargetDirectionsMeetEventBudget"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive"
+        },
+        {
+          "test": "flight_v2_numerical"
+        },
+        {
+          "test": "flight_v2_baseline_epochs"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B11",
+      "subrequirement": "Prospective causal spin reacquisition and executable matched scoring/plotting; independent physical error/uncertainty is tracked separately as NOT_RUN.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "flight_v2_causal_replay"
+        },
+        {
+          "test": "flight_v2_scoring"
+        },
+        {
+          "test": "flight_v2_accuracy_tooling"
+        },
+        {
+          "test": "flight_v2_matched_replay_tooling"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "B12",
+      "subrequirement": "Publish exactly the rollout's contact/target arrival time and optional spin provenance; no fixed-rate, double-age or separate physics timing approximation in **our output**.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "test_flight_transport_v2"
+        },
+        {
+          "test": "test_prediction_event_order"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C01",
+      "subrequirement": "Qualified \u00b1X shot begins correct provisional rally; complete evidence plus no striker bounce before net confirms rally; deadband does not change owner.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_PublicStatesAndCandidateQualification"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C01_C04_C07_ContinuityLossRecomputesConfirmedRally"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C02",
+      "subrequirement": "Confirmed striker-side B1\u2192same-generation serve; preserve raw timestamps/queue/spin/B1 ID, increment semantic forecast revision and propagate contact once.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A06_A10_B06_C02_RawTwoBounceServeKeepsHypothesisIdentity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C03",
+      "subrequirement": "Second striker-side pre-net bounce invalidates, clears active shot; a merely predicted bounce never counts as observed; supported deterministic early invalidation is conservative.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C04",
+      "subrequirement": "First observation after net has unknown/incomplete prehistory; physical forecast may exist, but route target must wait for reliable history/evidence.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_ReceiverAcquisitionAcceptsVerifiedPrehistoryWithoutReset"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B03_B05_C04_ContactIdsAreIdentityAndLateImpulsesAreAmbiguous"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C01_C04_C07_ContinuityLossRecomputesConfirmedRally"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C05",
+      "subrequirement": "Predicted striker B1 selects provisional serve route without public confirmation/observed count; deleting hypothesis does not reset queue.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C06",
+      "subrequirement": "NORMAL_RALLY context forbids striker bounce, SERVE constrains order, receiver B2 doesn't revert serve, genuinely new racket return resets ownership.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C05_C06_ObservedAndPredictedRoutesAreSeparate"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A01_C01_C02_C05_C06_ServeContextNeverConfirmsUnobservedB1"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C07",
+      "subrequirement": "Reclassification while a solve is pending: old semantic output is fenced, preserved samples remain usable; hard reset fences all retired work.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C04_C07_MatchTypeDoesNotCertifyMissingHistoryAndGapFencesOldSolve"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C01_C04_C07_ContinuityLossRecomputesConfirmedRally"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "C08",
+      "subrequirement": "Table/net-induced reversal is not a new racket shot; qualified same-direction contact is; label change is not a shot reset.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "C08_ReversalAloneNeverChangesShotAndSameDirectionContactDoes"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "T01",
+      "subrequirement": "Every retained XYZ sample has exact original ns through both rates, trimming, queue and transport; integration uses actual delta-t.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B05_T01_AcquisitionReplaysSpinCausallyAndNewShotClearsIt"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "T01_B07_PacketHashCoversValidityCheckpointAndContactLedger"
+        },
+        {
+          "test": "flight_v2_causal_replay"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "T02",
+      "subrequirement": "Bounce at 10.000 s confirmed at 10.020 s keeps those two distinct timestamps plus evidence uncertainty.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A06_C06_T02_OrderedServesInBothDirectionsAndFirstReturn"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A12_T02_T03_NetCrossingCarriesBracketedBallVelocity"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "T03",
+      "subrequirement": "Reference 20.000 s + integrated duration 0.300 s\u2192arrival 20.300 s independent of later publish/receipt, for B1/B2/plane/end/apex.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A12_T02_T03_NetCrossingCarriesBracketedBallVelocity"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_T03_TargetAndEveryWaypointHaveExactArrivalEquation"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "T04",
+      "subrequirement": "Revision preserves event identity/history; predicted elapsed time never becomes an observation or racket contact automatically.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_T04_EventIdentityConfirmationAndPredictedTimeIsNotEvidence"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C02_T02_T04_ConfirmationAfterPredictedTimeRetainsRetiredIdentity"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A10_C07_T04_RetiredAlternativesUseLatestSourceButSimultaneousCandidatesStayAmbiguous"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "T05",
+      "subrequirement": "Expose valid source-clock mapping/uncertainty; no `strike_start` field, no timing rejection due solely to robot lead, valid sim epoch zero.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "T01_T03_T05_ExactEpochZeroDuplicatesOverflowAndProvenance"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "T06",
+      "subrequirement": "Hard boundary retires generation/forecasts, same-shot reclass preserves data and supersedes revision; no old output restores revoked ball target.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A02_A08_C02_C03_T06_ReclassificationPreservesShotDataAndHardResetRetires"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "B07_T06_TruncatedSnapshotReproducesPosteriorWithoutRefittingPastSpin"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "C04_T06_AuthoritativeContextProvenanceSurvivesTransfer"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "X06_T06_DuplicatePacketsAndProducerRestartCannotRestoreRetiredState"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X01",
+      "subrequirement": "Both ON_REFRESH (frozen until refresh) and FOLLOW_POSE (fresh per forecast) are explicit and never silently substituted.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X02",
+      "subrequirement": "Valid moving-plane geometry is not treated as shot/ball provenance fault; real frame/calibration change still invalidates incompatible state.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_PlanePoliciesAndFreshness"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A11_X01_X02_MissingPoseNeverCreatesFallbackPlaneEvent"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X03",
+      "subrequirement": "Uncertain early forbidden prediction can recover with later causal observations; incomplete conditional covariance cannot justify hard invalidation; well-supported violation and confirmed forbidden event can.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A09_C07_X03_OrdinarySamplesDoNotStarveAndUncertainViolationCanRecover"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X03_ConditionalCovarianceNeverProvesViolationButCompleteConservativeBoundCan"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X04",
+      "subrequirement": "Pace 150/300 Hz with occasional slower solves; monotone source-stamped publications and bounded latest-work queue, no starvation.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_LatestWorkIsBoundedAndNeverWaitsForNextSampleToPublish"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_PacedSlowSolvesPublishMonotoneFreshResultsWithOnePendingSlot"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X04_SourceTimedMotionSurvivesSchedulerPauseAndCatchup"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        },
+        {
+          "test": "flight_v2_raw_scenarios"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X05",
+      "subrequirement": "Ball forecasts continue and preserve physical validity despite target Y being outside robot reach range; a later flight remains qualifiable.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "flight_v2_raw_scenarios"
+        },
+        {
+          "test": "flight_v2_scope"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X06",
+      "subrequirement": "Duplicate/retransmitted V2 forecast packets preserve identity/hash/dedupe; producer restart and equal-counter conditions are documented without fabricating accepted events.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "X06_T06_DuplicatePacketsAndProducerRestartCannotRestoreRetiredState"
+        },
+        {
+          "test": "test_flight_transport_v2"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X07",
+      "subrequirement": "Ball frame/clock/reference point, p/v/optional omega, waypoint/event/plane geometry, no physical-policy Z conversion, installed v2 receiver/serializer parity.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "A12_B12_T03_X07_ForecastOnlyPosteriorSpinGeometryAndEventCovariance"
+        },
+        {
+          "test": "test_flight_transport_v2"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X08",
+      "subrequirement": "Clean HOPE-only configure/build/install/test/replay from no private checkout or stale overlays. Report inherited lint separately from scoped functional pass; do not hide it.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X08_SharedProfileOverridesAreValidatedAndIdentitySensitive"
+        },
+        {
+          "test": "flight_v2_scope"
+        },
+        {
+          "test": "flight_v2_baseline_epochs"
+        },
+        {
+          "test": "flight_v2_binary_scope"
+        },
+        {
+          "test": "flight_v2_installed_api"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X09",
+      "subrequirement": "One common forward/event kernel and coefficients for mean, covariance, event, fallback, V2 replay, and **forward-only** hypothetical-outgoing physics; spin after unmodelled racket impulse must not inherit incoming trusted state.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "B10_X09_DerivativesCovarianceAndInvalidParameters"
+        },
+        {
+          "test": "test_flight_prediction_v2",
+          "assertion": "X09_ForwardHypotheticalFlightStartsWithExplicitSpinAvailability"
+        },
+        {
+          "test": "test_flight_transport_v2",
+          "assertion": "X09_CheckpointRejectsDifferentNetPhysicsEvenWithACallerSuppliedTag"
+        },
+        {
+          "test": "flight_v2_numerical"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    },
+    {
+      "id": "X10",
+      "subrequirement": "No V2 publication to production command topics, including remapping; no shadow adapter constructs racket commands.",
+      "scope": "FORECAST_PHYSICS_SOFTWARE",
+      "test": [
+        {
+          "test": "flight_v2_scope"
+        },
+        {
+          "test": "flight_v2_binary_scope"
+        },
+        {
+          "test": "flight_v2_ros_transport"
+        }
+      ],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "source /opt/ros/jazzy/setup.bash; source <final>/install/setup.bash; ROS_LOCALHOST_ONLY=1 colcon test --packages-select hope_msgs hope_planner_cpp hope_bringup --build-base <final>/build --install-base <final>/install --executor sequential; colcon test-result --test-result-base <final>/build --verbose",
+      "status": "PASS",
+      "evidence_path": "docs/flight_prediction_evidence/test-summary.json",
+      "raw_evidence_path": "/workspace/.cloud-setup/v2-evidence/fixed-final/build/<package>/Testing/<run>/Test.xml"
+    }
+  ],
+  "deferred_subassertions": [
+    {
+      "id": "A02",
+      "subrequirement": "No actual robot command cancellation.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A03",
+      "subrequirement": "No outgoing racket command.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A06",
+      "subrequirement": "Do not generate the racket return command.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A09",
+      "subrequirement": "Hardware command cancellation or new scheduling behavior.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A11",
+      "subrequirement": "No robot target recomputation.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A12",
+      "subrequirement": "Racket target/normal, command frame conversion or strike start.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "A14",
+      "subrequirement": "No stale command use in actuator.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "B05",
+      "subrequirement": "Retooling live robot command receiver for V2 forecast.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "B10",
+      "subrequirement": "Adoption by downstream inverse optimizer deferred unless physics-only integration is safe.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "B12",
+      "subrequirement": "Adaptive commit/readiness/strike scheduling changes in `adaptive_flight_commit`.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "T05",
+      "subrequirement": "Planner's conversion, scheduling and motion rejection.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "T06",
+      "subrequirement": "Cancelling/retiming physical robot motion.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X05",
+      "subrequirement": "Y admission / Stage 3 / flat-command behavior.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X06",
+      "subrequirement": "One-shot robot command/action deduplication.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X07",
+      "subrequirement": "Typed/flat racket command, swing normal and policy Z support qualification.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X08",
+      "subrequirement": "Unrelated repository lint cleanup, unless separately authorized.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    },
+    {
+      "id": "X09",
+      "subrequirement": "Inverse landing-point optimization, surface-to-center *Stage 3 target* conversion, candidate-choice or command-validity changes.",
+      "scope": "DEFERRED_OUT_OF_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "not executed: scoped handoff excludes this downstream/adoption work",
+      "status": "DEFERRED_OUT_OF_SCOPE",
+      "evidence_path": "docs/flight_prediction_minimal_scope.md"
+    }
+  ],
+  "physical_subassertions": [
+    {
+      "id": "B11",
+      "subrequirement": "Independent real-flight position-only and spin-group error/uncertainty plus matched baseline comparisons",
+      "scope": "IN_SCOPE",
+      "test": [],
+      "config_sha": "c3ca86f15a140d82bdb4964a965fe1570ded7681d4a924903ee1881b090c214d",
+      "code_sha": "38e31927373d90c538984f6174b6ff3525edf35e",
+      "command": "compare_recordings.py --dataset <qualified-held-out-dataset> --v2-executable <installed> --baseline-executable <installed> --output <report>",
+      "status": "NOT_RUN",
+      "evidence_path": "docs/flight_prediction_accuracy/NOT_RUN.json",
+      "reason": "Independent physical truth/clock/frame receipts and annotated physical shots unavailable; synthetic tooling does not qualify"
+    }
+  ],
+  "gates": {
+    "G0": "PASS",
+    "G1": "PASS",
+    "G2": "PASS",
+    "G3": "PASS",
+    "G4": "PASS",
+    "G5": "PASS_SELECTED_50_HZ_FULL_PROFILE",
+    "G6": "PASS",
+    "G8": "PASS_WITH_DISCLOSED_INHERITED_LINT",
+    "G7": "NOT_RUN_INDEPENDENT_DATA_UNAVAILABLE"
+  },
+  "gate_p": "NOT_RUN",
+  "historical_results_reused": false,
+  "documentation_only_commits_may_follow": true,
+  "environment": {
+    "distribution": "Ubuntu 24.04",
+    "ros": "Jazzy",
+    "compiler": "GCC 13.3.0",
+    "cmake": "3.28.3",
+    "python": "3.12.3",
+    "numpy": "1.26.4",
+    "scipy": "1.11.4",
+    "matplotlib": "3.6.3",
+    "image_digest": "sha256:103b6c417973394659af6804d4917cd489b91e5ed22eb7bef263025a3bed2410",
+    "clean_container_no_private_checkout": true
+  },
+  "ctest": {
+    "hope_msgs": {
+      "total": 2,
+      "passed": 2,
+      "failed": [],
+      "groups": [
+        {
+          "name": "lint_cmake",
+          "status": "passed"
+        },
+        {
+          "name": "xmllint",
+          "status": "passed"
+        }
+      ]
+    },
+    "hope_planner_cpp": {
+      "total": 30,
+      "passed": 30,
+      "failed": [],
+      "groups": [
+        {
+          "name": "test_spin_physics",
+          "status": "passed"
+        },
+        {
+          "name": "test_future_contact_predictor",
+          "status": "passed"
+        },
+        {
+          "name": "test_batch_physics_estimator",
+          "status": "passed"
+        },
+        {
+          "name": "test_trajectory_and_stage3",
+          "status": "passed"
+        },
+        {
+          "name": "test_target_turn_guard",
+          "status": "passed"
+        },
+        {
+          "name": "test_prediction_event_order",
+          "status": "passed"
+        },
+        {
+          "name": "test_schema2",
+          "status": "passed"
+        },
+        {
+          "name": "test_spin_estimator",
+          "status": "passed"
+        },
+        {
+          "name": "test_audit_logger",
+          "status": "passed"
+        },
+        {
+          "name": "test_post_net_one_shot",
+          "status": "passed"
+        },
+        {
+          "name": "test_incoming_trajectory",
+          "status": "passed"
+        },
+        {
+          "name": "test_adaptive_flight_commit",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_packet",
+          "status": "passed"
+        },
+        {
+          "name": "test_question_bank_fixture",
+          "status": "passed"
+        },
+        {
+          "name": "test_planner_node_one_shot",
+          "status": "passed"
+        },
+        {
+          "name": "test_planner_node_turn_guard",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_packet_pipeline",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_installed_api",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_prediction_v2",
+          "status": "passed"
+        },
+        {
+          "name": "test_flight_transport_v2",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_numerical",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_causal_replay",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_scoring",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_accuracy_tooling",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_scope",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_ros_transport",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_raw_scenarios",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_binary_scope",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_matched_replay_tooling",
+          "status": "passed"
+        },
+        {
+          "name": "flight_v2_baseline_epochs",
+          "status": "passed"
+        }
+      ]
+    },
+    "hope_bringup": {
+      "total": 26,
+      "passed": 24,
+      "failed": [
+        "flake8",
+        "pep257"
+      ],
+      "groups": [
+        {
+          "name": "planner_full_rate_relay_test",
+          "status": "passed"
+        },
+        {
+          "name": "vrpn_pants_contract_test",
+          "status": "passed"
+        },
+        {
+          "name": "vrpn_pants_relay_test",
+          "status": "passed"
+        },
+        {
+          "name": "table_side_transform_test",
+          "status": "passed"
+        },
+        {
+          "name": "source_time_rate_gate_test",
+          "status": "passed"
+        },
+        {
+          "name": "natnet_preflight_test",
+          "status": "passed"
+        },
+        {
+          "name": "rally_mocap_interface_test",
+          "status": "passed"
+        },
+        {
+          "name": "natnet_launch_interfaces_test",
+          "status": "passed"
+        },
+        {
+          "name": "pose_to_posearray_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_pelvis_calibrator_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_pelvis_tf_publisher_test",
+          "status": "passed"
+        },
+        {
+          "name": "motive_asset_contract_test",
+          "status": "passed"
+        },
+        {
+          "name": "motive_asset_relay_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_marker_layout_test",
+          "status": "passed"
+        },
+        {
+          "name": "v3_optitrack_asset_test",
+          "status": "passed"
+        },
+        {
+          "name": "natnet_preflight_clock_sync_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_marker_cad_registration_test",
+          "status": "passed"
+        },
+        {
+          "name": "mocap_frame_probe_test",
+          "status": "passed"
+        },
+        {
+          "name": "base_pose_contract_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_calibration_test",
+          "status": "passed"
+        },
+        {
+          "name": "public_sticker_integration_test",
+          "status": "passed"
+        },
+        {
+          "name": "p1_marker_cad_calibration_server_test",
+          "status": "passed"
+        },
+        {
+          "name": "flake8",
+          "status": "failed"
+        },
+        {
+          "name": "lint_cmake",
+          "status": "passed"
+        },
+        {
+          "name": "pep257",
+          "status": "failed"
+        },
+        {
+          "name": "xmllint",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "inherited_lint": {
+    "flake8": {
+      "baseline_issues": 3086,
+      "final_issues": 3086,
+      "file_and_code_multiset_unchanged": true
+    },
+    "pep257": {
+      "baseline_issues": 37,
+      "final_issues": 37,
+      "file_and_code_multiset_unchanged": true
+    }
+  },
+  "skipped_individual_tests": [
+    {
+      "file": "natnet_launch_interfaces_test.xunit.xml",
+      "test": "test_replay_does_not_need_network_configuration[standalone]"
+    }
+  ],
+  "physical_data": {
+    "gate_p": "NOT_RUN",
+    "dataset_ids": [],
+    "reason": "Independent held-out annotated ball trajectories and clock/frame/plane receipts unavailable"
+  },
+  "legacy_compatibility": {
+    "default_behavior": "EXACT_UPSTREAM",
+    "abi": "BallSample grows; rebuild C++ dependents. Compatibility with old binary objects is not claimed.",
+    "production_exceptions": []
+  },
+  "evaluation_limits": [
+    "Matched three-method replay accepts only registered fixed x_hit=.15 sessions",
+    "Historical one-shot/progressive APIs expose receiving-plane estimates; unsupported bounce/apex outputs are not generated with V2 physics",
+    "Legacy baseline uses declared upstream-default physical profile with estimator/future spin and Magnus disabled; no angular orientation is manufactured",
+    "Historical scaffold results are not reused as new results",
+    "Source/packet uncertainty is conditional; synthetic numerical and ROS tests do not establish physical accuracy",
+    "Legacy PoseArray fallback quality, retired Python parity, inverse planning, scheduling and robot adoption remain outside this branch"
+  ],
+  "source_reviews": {
+    "pr49": "CLOSED_UNMERGED",
+    "pr49_head": "84fc446e131a054204ed37fa3f1d1988c154879c",
+    "nohope_unchanged": true,
+    "github_api": "Proxy 403; public GitHub page and scoped Git reads verified instead"
+  },
+  "prior_diagnostics": [
+    {
+      "operation": "ROS apt index and direct GitHub API",
+      "status": "NETWORK_DENIED",
+      "resolution": "Use verified official ROS Docker image and Git/public-page reads; no verification disabled"
+    },
+    {
+      "operation": "Baseline first test run",
+      "status": "SETUP_FAILURE",
+      "resolution": "Restored complete public NatNet fixtures and official pinned XML schema catalog; corrected baseline has only two inherited lint groups"
+    },
+    {
+      "operation": "Installed API first consumer",
+      "status": "TEST_HARNESS_FAILURE",
+      "resolution": "Use exported hope_planner_cpp::hope_v2_forward_physics namespace; independent consumer now builds/runs"
+    },
+    {
+      "operation": "First broad ROS tests during two concurrent builds",
+      "status": "FAILED_UNDER_CPU_CONTENTION",
+      "coverage_300_hz": 0.9439655172413793,
+      "also_failed": "raw scenario target window",
+      "resolution": "Retained logs; rerun clean isolated final build/tests with original thresholds. All final planner groups passed."
+    },
+    {
+      "operation": "Fixed-sleep START fixture",
+      "resolution": "Replaced arbitrary startup delay with a bounded acknowledgement and generation check; no coverage threshold changed."
+    },
+    {
+      "operation": "High-load source gaps",
+      "resolution": "A captured 128 ms source gap hid the table contact; a smooth secant-acceleration test across that gap is unsupported. The configured gap warning now gates that test; held checks remain active. No coefficient changed.",
+      "evidence": [
+        "debug-stderr-9402.txt",
+        "gap-regression-before.log",
+        "gap-regression-after.log"
+      ]
+    },
+    {
+      "operation": "Shared-process ROS source/receiver fixture",
+      "resolution": "Large packet decoding delayed the synthetic camera itself, sometimes skipping contacts. The final fixture uses an independent paced source process and reports actual rates/gaps; physical assertions retained. Default full output is 50 Hz, with higher cadences measured separately."
+    },
+    {
+      "operation": "Incomplete history after a gap",
+      "resolution": "Target correctly withheld until the independent synthetic authority renews complete-history evidence. The fixture reports each refresh; no contact is fabricated."
+    }
+  ],
+  "artifact_root": "/workspace/.cloud-setup/v2-evidence",
+  "reproduction": {
+    "clean_command": "verify.sh /tmp/new-validation-output",
+    "raw_console": "independent-final-all-tests.log",
+    "schema_catalog": {
+      "source_repository": "ros-infrastructure/rep",
+      "commit": "11ca24a41f31480dfb9562ba99f2a5b93d3ebda5",
+      "path": "xsd/package_format3.xsd",
+      "sha256": "f096a197ed6d7878984bb2501a55f7f1bd4895d254399fb7857e154bfb644f41"
+    },
+    "clean_build_console": "fixed-final-console.log",
+    "clean_output_root": "/workspace/.cloud-setup/v2-evidence/fixed-final"
+  },
+  "cadence": {
+    "executable_sha256": "5ae6f016458feb991a84e7212046ae56ed081d2b2516dbcc2e86bc809475be36",
+    "selected_full_rate_hz": 50,
+    "selected_profile_pass": true,
+    "profiles": [
+      {
+        "full_rate_hz": 50,
+        "input_rate_hz": 150,
+        "exit_code": 0,
+        "status": "PASS",
+        "metrics": {
+          "rate_hz": 150,
+          "requested_full_rate_hz": 50.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.422563899,
+          "published_input_rate_hz": 144.88781911795508,
+          "observed_input_rate_hz": 144.88781911795508,
+          "observed_input_count": 352,
+          "unaccounted_input_count": 0,
+          "input_count": 352,
+          "physical_outputs": 344,
+          "denominator": 336,
+          "physical_publication_coverage": 1.0,
+          "target_outputs": 176,
+          "full_physical_outputs": 118,
+          "full_source_coverage": 0.34523809523809523,
+          "full_received_rate_hz": 49.911464672138756,
+          "full_publication_latency_ms": {
+            "minimum": 0.610403,
+            "p50": 0.922015,
+            "p95": 1.3318,
+            "p99": 1.793239,
+            "maximum": 2.747961
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.386672,
+            "p50": 3.9052685,
+            "p95": 6.489147,
+            "p99": 6.967062,
+            "maximum": 26.564523
+          },
+          "generation_latency_ms": {
+            "minimum": 0.494478,
+            "p50": 0.7936289999999999,
+            "p95": 1.115232,
+            "p99": 2.119965,
+            "maximum": 2.584204
+          },
+          "publication_latency_ms": {
+            "minimum": 0.539256,
+            "p50": 0.8600745000000001,
+            "p95": 1.188643,
+            "p99": 2.174988,
+            "maximum": 2.693198
+          },
+          "latency_ms": {
+            "minimum": 1.034998,
+            "p50": 1.405398,
+            "p95": 1.93343,
+            "p99": 3.088974,
+            "maximum": 4.251929
+          },
+          "superseded": 0,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32464,
+            "peak_rss_kib": 32464,
+            "node_cpu_s": 0.49
+          },
+          "boundary_ack_ms": [
+            0.403427,
+            0.170001,
+            0.225764,
+            0.263807,
+            0.223517
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "history_qualification_changed": 1,
+            "forecast_expired": 1
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 7243.538461538462,
+            "full_mean_cdr_bytes": 54531.42857142857,
+            "full_sampled_cdr_bytes_per_s": 2746195.585784334,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            483.066509,
+            483.381174,
+            483.2429,
+            482.990739
+          ],
+          "first_target_fixture_lead_ms": [
+            370.021048,
+            369.935279,
+            370.063692,
+            369.903194
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 50,
+        "input_rate_hz": 300,
+        "exit_code": 0,
+        "status": "PASS",
+        "metrics": {
+          "rate_hz": 300,
+          "requested_full_rate_hz": 50.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.438731306,
+          "published_input_rate_hz": 291.54503337482475,
+          "observed_input_rate_hz": 289.4947870079132,
+          "observed_input_count": 707,
+          "unaccounted_input_count": 5,
+          "input_count": 712,
+          "physical_outputs": 690,
+          "denominator": 696,
+          "physical_publication_coverage": 0.9798850574712644,
+          "target_outputs": 328,
+          "full_physical_outputs": 118,
+          "full_source_coverage": 0.16810344827586207,
+          "full_received_rate_hz": 49.941008813644544,
+          "full_publication_latency_ms": {
+            "minimum": 0.565346,
+            "p50": 0.9472205,
+            "p95": 1.673552,
+            "p99": 2.66199,
+            "maximum": 4.010513
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.3927,
+            "p50": 4.0196125,
+            "p95": 7.29814,
+            "p99": 8.540088,
+            "maximum": 26.298086
+          },
+          "generation_latency_ms": {
+            "minimum": 0.456171,
+            "p50": 0.8118515,
+            "p95": 1.641645,
+            "p99": 2.728907,
+            "maximum": 4.151015
+          },
+          "publication_latency_ms": {
+            "minimum": 0.499927,
+            "p50": 0.875284,
+            "p95": 1.743949,
+            "p99": 2.78818,
+            "maximum": 4.272879
+          },
+          "latency_ms": {
+            "minimum": 0.99027,
+            "p50": 1.4393655,
+            "p95": 3.206084,
+            "p99": 5.918014,
+            "maximum": 23.303661
+          },
+          "superseded": 9,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32384,
+            "peak_rss_kib": 32384,
+            "node_cpu_s": 0.91
+          },
+          "boundary_ack_ms": [
+            0.577243,
+            0.184573,
+            0.25529,
+            0.539586,
+            0.35489
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "forecast_expired": 1
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 8016.875,
+            "full_mean_cdr_bytes": 55921.142857142855,
+            "full_sampled_cdr_bytes_per_s": 2797511.727424156,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            489.646815,
+            489.893024,
+            488.688362,
+            489.919966
+          ],
+          "first_target_fixture_lead_ms": [
+            380.159089,
+            379.738606,
+            379.035234
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 100,
+        "input_rate_hz": 150,
+        "exit_code": 0,
+        "status": "PASS",
+        "metrics": {
+          "rate_hz": 150,
+          "requested_full_rate_hz": 100.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.423453158,
+          "published_input_rate_hz": 144.83465415509383,
+          "observed_input_rate_hz": 144.42201981277162,
+          "observed_input_count": 351,
+          "unaccounted_input_count": 1,
+          "input_count": 352,
+          "physical_outputs": 332,
+          "denominator": 336,
+          "physical_publication_coverage": 0.9642857142857143,
+          "target_outputs": 121,
+          "full_physical_outputs": 223,
+          "full_source_coverage": 0.6428571428571429,
+          "full_received_rate_hz": 93.61562410223337,
+          "full_publication_latency_ms": {
+            "minimum": 0.587543,
+            "p50": 0.959705,
+            "p95": 1.559701,
+            "p99": 3.547883,
+            "maximum": 6.507661
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.346099,
+            "p50": 3.679216,
+            "p95": 5.653036,
+            "p99": 19.123187,
+            "maximum": 60.357218
+          },
+          "generation_latency_ms": {
+            "minimum": 0.503757,
+            "p50": 0.831268,
+            "p95": 1.433711,
+            "p99": 2.615255,
+            "maximum": 5.302247
+          },
+          "publication_latency_ms": {
+            "minimum": 0.550457,
+            "p50": 0.8943785,
+            "p95": 1.505606,
+            "p99": 2.688245,
+            "maximum": 5.531372
+          },
+          "latency_ms": {
+            "minimum": 0.975758,
+            "p50": 1.416245,
+            "p95": 2.560012,
+            "p99": 6.196533,
+            "maximum": 7.775247
+          },
+          "superseded": 11,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32172,
+            "peak_rss_kib": 32172,
+            "node_cpu_s": 0.5
+          },
+          "boundary_ack_ms": [
+            0.51873,
+            0.175254,
+            0.297313,
+            0.282414,
+            0.272796
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "forecast_expired": 4,
+            "history_qualification_changed": 2
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 7429.615384615385,
+            "full_mean_cdr_bytes": 65554.66666666667,
+            "full_sampled_cdr_bytes_per_s": 6167424.34268251,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            478.793626,
+            480.94711,
+            483.251998,
+            483.26329
+          ],
+          "first_target_fixture_lead_ms": [
+            369.532616,
+            370.115448,
+            369.868666
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 100,
+        "input_rate_hz": 300,
+        "exit_code": 0,
+        "status": "PASS",
+        "metrics": {
+          "rate_hz": 300,
+          "requested_full_rate_hz": 100.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.436818062,
+          "published_input_rate_hz": 291.7739371221059,
+          "observed_input_rate_hz": 290.9531946829439,
+          "observed_input_count": 710,
+          "unaccounted_input_count": 2,
+          "input_count": 712,
+          "physical_outputs": 690,
+          "denominator": 696,
+          "physical_publication_coverage": 0.9798850574712644,
+          "target_outputs": 412,
+          "full_physical_outputs": 231,
+          "full_source_coverage": 0.3290229885057471,
+          "full_received_rate_hz": 96.58089958518268,
+          "full_publication_latency_ms": {
+            "minimum": 0.557733,
+            "p50": 0.869247,
+            "p95": 1.131246,
+            "p99": 1.595438,
+            "maximum": 1.893442
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.183012,
+            "p50": 3.481375,
+            "p95": 4.725375,
+            "p99": 5.523825,
+            "maximum": 57.563897
+          },
+          "generation_latency_ms": {
+            "minimum": 0.43889,
+            "p50": 0.7628525,
+            "p95": 1.037309,
+            "p99": 1.288363,
+            "maximum": 3.363768
+          },
+          "publication_latency_ms": {
+            "minimum": 0.481374,
+            "p50": 0.8267914999999999,
+            "p95": 1.126474,
+            "p99": 1.36016,
+            "maximum": 3.462336
+          },
+          "latency_ms": {
+            "minimum": 0.91122,
+            "p50": 1.2782665,
+            "p95": 1.696522,
+            "p99": 2.826981,
+            "maximum": 3.981246
+          },
+          "superseded": 12,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32736,
+            "peak_rss_kib": 32736,
+            "node_cpu_s": 0.79
+          },
+          "boundary_ack_ms": [
+            0.378904,
+            0.162539,
+            0.238257,
+            0.273541,
+            0.339461
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "history_qualification_changed": 2,
+            "forecast_expired": 2
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 7963.083333333333,
+            "full_mean_cdr_bytes": 62806,
+            "full_sampled_cdr_bytes_per_s": 6082610.856813323,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            489.420887,
+            489.977017,
+            489.980141,
+            489.833907
+          ],
+          "first_target_fixture_lead_ms": [
+            379.949217,
+            379.958435,
+            379.695489,
+            380.190024
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 150,
+        "input_rate_hz": 150,
+        "exit_code": 0,
+        "status": "PASS",
+        "metrics": {
+          "rate_hz": 150,
+          "requested_full_rate_hz": 150.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.425546743,
+          "published_input_rate_hz": 144.7096416562441,
+          "observed_input_rate_hz": 144.7096416562441,
+          "observed_input_count": 352,
+          "unaccounted_input_count": 0,
+          "input_count": 352,
+          "physical_outputs": 341,
+          "denominator": 336,
+          "physical_publication_coverage": 0.9910714285714286,
+          "target_outputs": 179,
+          "full_physical_outputs": 324,
+          "full_source_coverage": 0.9404761904761905,
+          "full_received_rate_hz": 135.9698060010002,
+          "full_publication_latency_ms": {
+            "minimum": 0.598701,
+            "p50": 0.92191,
+            "p95": 1.242124,
+            "p99": 1.563643,
+            "maximum": 2.357837
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.237951,
+            "p50": 3.5223240000000002,
+            "p95": 4.980113,
+            "p99": 6.459334,
+            "maximum": 56.306883
+          },
+          "generation_latency_ms": {
+            "minimum": 0.502852,
+            "p50": 0.801309,
+            "p95": 1.118424,
+            "p99": 1.46849,
+            "maximum": 2.34468
+          },
+          "publication_latency_ms": {
+            "minimum": 0.54804,
+            "p50": 0.876162,
+            "p95": 1.187688,
+            "p99": 1.72723,
+            "maximum": 2.447484
+          },
+          "latency_ms": {
+            "minimum": 0.981627,
+            "p50": 1.367748,
+            "p95": 2.087601,
+            "p99": 5.439104,
+            "maximum": 53.437787
+          },
+          "superseded": 3,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32316,
+            "peak_rss_kib": 32316,
+            "node_cpu_s": 0.47
+          },
+          "boundary_ack_ms": [
+            0.490848,
+            0.157126,
+            0.221023,
+            0.457819,
+            0.226589
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "forecast_expired": 2,
+            "history_qualification_changed": 1
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 6832.2307692307695,
+            "full_mean_cdr_bytes": 64010.58823529412,
+            "full_sampled_cdr_bytes_per_s": 8735145.90763026,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            482.176203,
+            483.288996,
+            483.248085,
+            483.158229
+          ],
+          "first_target_fixture_lead_ms": [
+            370.128672,
+            370.005656,
+            370.171902,
+            369.919719
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 150,
+        "input_rate_hz": 300,
+        "exit_code": 1,
+        "status": "FAIL",
+        "metrics": {
+          "rate_hz": 300,
+          "requested_full_rate_hz": 150.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.438612425,
+          "published_input_rate_hz": 291.55924603312064,
+          "observed_input_rate_hz": 286.6384148764435,
+          "observed_input_count": 700,
+          "unaccounted_input_count": 12,
+          "input_count": 712,
+          "physical_outputs": 658,
+          "denominator": 696,
+          "physical_publication_coverage": 0.9339080459770115,
+          "target_outputs": 312,
+          "full_physical_outputs": 328,
+          "full_source_coverage": 0.46264367816091956,
+          "full_received_rate_hz": 136.21871565177898,
+          "full_publication_latency_ms": {
+            "minimum": 0.53536,
+            "p50": 0.9415389999999999,
+            "p95": 1.912087,
+            "p99": 3.317314,
+            "maximum": 7.218108
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.51932,
+            "p50": 4.258706,
+            "p95": 8.583867,
+            "p99": 15.148728,
+            "maximum": 106.822117
+          },
+          "generation_latency_ms": {
+            "minimum": 0.42502,
+            "p50": 0.8388869999999999,
+            "p95": 2.154451,
+            "p99": 3.718088,
+            "maximum": 7.055253
+          },
+          "publication_latency_ms": {
+            "minimum": 0.463648,
+            "p50": 0.9014835,
+            "p95": 2.307141,
+            "p99": 3.773712,
+            "maximum": 7.165188
+          },
+          "latency_ms": {
+            "minimum": 1.001246,
+            "p50": 1.509696,
+            "p95": 5.459142,
+            "p99": 7.79103,
+            "maximum": 64.282517
+          },
+          "superseded": 28,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32816,
+            "peak_rss_kib": 32816,
+            "node_cpu_s": 0.9
+          },
+          "boundary_ack_ms": [
+            0.339679,
+            0.219821,
+            0.333498,
+            0.541368,
+            0.364332
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 11,
+            "forecast_expired": 3,
+            "history_qualification_changed": 2
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 8051.565217391304,
+            "full_mean_cdr_bytes": 69018.35294117648,
+            "full_sampled_cdr_bytes_per_s": 9424667.607609589,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            489.737653,
+            488.41562,
+            489.661803,
+            489.341747
+          ],
+          "first_target_fixture_lead_ms": [
+            378.062975,
+            380.105785,
+            378.641413
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 0,
+        "input_rate_hz": 150,
+        "exit_code": 0,
+        "status": "PASS",
+        "metrics": {
+          "rate_hz": 150,
+          "requested_full_rate_hz": 0.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.424606461,
+          "published_input_rate_hz": 144.76576122594105,
+          "observed_input_rate_hz": 144.76576122594105,
+          "observed_input_count": 352,
+          "unaccounted_input_count": 0,
+          "input_count": 352,
+          "physical_outputs": 339,
+          "denominator": 336,
+          "physical_publication_coverage": 0.9851190476190477,
+          "target_outputs": 168,
+          "full_physical_outputs": 339,
+          "full_source_coverage": 0.9851190476190477,
+          "full_received_rate_hz": 142.65136378861698,
+          "full_publication_latency_ms": {
+            "minimum": 0.59947,
+            "p50": 1.020521,
+            "p95": 1.875293,
+            "p99": 2.942213,
+            "maximum": 3.443695
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.198858,
+            "p50": 3.949444,
+            "p95": 6.700199,
+            "p99": 11.916583,
+            "maximum": 72.974239
+          },
+          "generation_latency_ms": {
+            "minimum": 0.513411,
+            "p50": 0.885263,
+            "p95": 1.754336,
+            "p99": 2.766399,
+            "maximum": 3.299869
+          },
+          "publication_latency_ms": {
+            "minimum": 0.560091,
+            "p50": 0.958327,
+            "p95": 1.828513,
+            "p99": 2.863866,
+            "maximum": 3.379799
+          },
+          "latency_ms": {
+            "minimum": 1.041903,
+            "p50": 1.565315,
+            "p95": 3.562568,
+            "p99": 5.297145,
+            "maximum": 7.090675
+          },
+          "superseded": 5,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32432,
+            "peak_rss_kib": 32432,
+            "node_cpu_s": 0.54
+          },
+          "boundary_ack_ms": [
+            0.424253,
+            0.175298,
+            0.565178,
+            0.284988,
+            0.355718
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "forecast_expired": 2,
+            "history_qualification_changed": 1
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 6420.923076923077,
+            "full_mean_cdr_bytes": 62157.11111111111,
+            "full_sampled_cdr_bytes_per_s": 8895677.670783686,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            482.989792,
+            483.289197,
+            481.011746,
+            483.027905
+          ],
+          "first_target_fixture_lead_ms": [
+            370.186094,
+            370.099932,
+            369.576372,
+            370.079365
+          ]
+        }
+      },
+      {
+        "full_rate_hz": 0,
+        "input_rate_hz": 300,
+        "exit_code": 1,
+        "status": "FAIL",
+        "metrics": {
+          "rate_hz": 300,
+          "requested_full_rate_hz": 0.0,
+          "worker_delay_ms": 0,
+          "source_span_s": 2.437923177,
+          "published_input_rate_hz": 291.6416754669542,
+          "observed_input_rate_hz": 283.8481567132663,
+          "observed_input_count": 693,
+          "unaccounted_input_count": 19,
+          "input_count": 712,
+          "physical_outputs": 631,
+          "denominator": 696,
+          "physical_publication_coverage": 0.8951149425287356,
+          "target_outputs": 110,
+          "full_physical_outputs": 630,
+          "full_source_coverage": 0.8936781609195402,
+          "full_received_rate_hz": 261.0861461817832,
+          "full_publication_latency_ms": {
+            "minimum": 0.533723,
+            "p50": 0.904415,
+            "p95": 1.982751,
+            "p99": 2.84278,
+            "maximum": 3.596928
+          },
+          "full_receipt_latency_ms": {
+            "minimum": 2.123773,
+            "p50": 4.648909,
+            "p95": 15.175026,
+            "p99": 56.160044,
+            "maximum": 134.87177
+          },
+          "generation_latency_ms": {
+            "minimum": 0.460583,
+            "p50": 0.797709,
+            "p95": 1.913667,
+            "p99": 2.758453,
+            "maximum": 3.520833
+          },
+          "publication_latency_ms": {
+            "minimum": 0.503798,
+            "p50": 0.862301,
+            "p95": 1.965825,
+            "p99": 2.809149,
+            "maximum": 3.569997
+          },
+          "latency_ms": {
+            "minimum": 0.971221,
+            "p50": 2.366809,
+            "p95": 8.179797,
+            "p99": 14.722374,
+            "maximum": 127.993834
+          },
+          "superseded": 26,
+          "queue_bound": {
+            "running": 1,
+            "pending": 1
+          },
+          "resources": {
+            "rss_kib": 32644,
+            "peak_rss_kib": 32644,
+            "node_cpu_s": 0.84
+          },
+          "boundary_ack_ms": [
+            0.391448,
+            0.145669,
+            0.241548,
+            0.36903,
+            0.330097
+          ],
+          "lifecycle_reasons": {
+            "semantic_context_superseded": 5,
+            "qualified_boundary": 8,
+            "contact_or_crossing_confirmed": 12,
+            "forecast_expired": 3,
+            "history_qualification_changed": 2
+          },
+          "generations": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "payload": {
+            "compact_mean_cdr_bytes": 8203.434782608696,
+            "full_mean_cdr_bytes": 67245.5,
+            "full_sampled_cdr_bytes_per_s": 17598023.35231665,
+            "size_measurement": "sampled CDR; excludes DDS/network headers"
+          },
+          "first_physical_fixture_lead_ms": [
+            489.853689,
+            489.705991,
+            489.852192,
+            489.987239
+          ],
+          "first_target_fixture_lead_ms": [
+            379.896172
+          ]
+        }
+      }
+    ],
+    "interpretation": "50 Hz retained as the conservative full-output default. Optional profiles are measured, not universally qualified. Compact source-stamp availability >=95% and <=30 ms publication freshness remain unchanged. CDR rates exclude wire headers."
+  },
+  "delayed_worker": {
+    "status": "PASS",
+    "streams": [
+      {
+        "rate_hz": 150,
+        "requested_full_rate_hz": 50.0,
+        "worker_delay_ms": 12,
+        "source_span_s": 2.4236564190000003,
+        "published_input_rate_hz": 144.82250753381226,
+        "observed_input_rate_hz": 144.82250753381226,
+        "observed_input_count": 352,
+        "unaccounted_input_count": 0,
+        "input_count": 352,
+        "physical_outputs": 341,
+        "denominator": 336,
+        "physical_publication_coverage": 0.9910714285714286,
+        "target_outputs": 210,
+        "full_physical_outputs": 118,
+        "full_source_coverage": 0.34226190476190477,
+        "full_received_rate_hz": 49.89599641394752,
+        "full_publication_latency_ms": {
+          "minimum": 0.526521,
+          "p50": 0.9041675,
+          "p95": 1.261461,
+          "p99": 13.292302,
+          "maximum": 13.442626
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.322983,
+          "p50": 3.642767,
+          "p95": 5.596535,
+          "p99": 17.333011,
+          "maximum": 19.003382
+        },
+        "generation_latency_ms": {
+          "minimum": 0.450938,
+          "p50": 0.760339,
+          "p95": 1.17357,
+          "p99": 2.449298,
+          "maximum": 13.50565
+        },
+        "publication_latency_ms": {
+          "minimum": 0.494313,
+          "p50": 0.822341,
+          "p95": 1.255122,
+          "p99": 2.547615,
+          "maximum": 13.573502
+        },
+        "latency_ms": {
+          "minimum": 0.960404,
+          "p50": 1.348758,
+          "p95": 2.027294,
+          "p99": 4.56878,
+          "maximum": 14.278216
+        },
+        "superseded": 3,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32520,
+          "peak_rss_kib": 32520,
+          "node_cpu_s": 0.48
+        },
+        "boundary_ack_ms": [
+          0.406316,
+          0.175419,
+          0.287072,
+          0.301804,
+          0.328795
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 1
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 6907.923076923077,
+          "full_mean_cdr_bytes": 54602.28571428572,
+          "full_sampled_cdr_bytes_per_s": 2748524.421580919,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          482.910343,
+          483.197455,
+          483.400401,
+          483.121412
+        ],
+        "first_target_fixture_lead_ms": [
+          370.119359,
+          370.021613,
+          370.092424,
+          370.101759
+        ]
+      },
+      {
+        "rate_hz": 300,
+        "requested_full_rate_hz": 50.0,
+        "worker_delay_ms": 12,
+        "source_span_s": 2.4382326340000002,
+        "published_input_rate_hz": 291.60466072246,
+        "observed_input_rate_hz": 287.5033293480231,
+        "observed_input_count": 702,
+        "unaccounted_input_count": 10,
+        "input_count": 712,
+        "physical_outputs": 675,
+        "denominator": 696,
+        "physical_publication_coverage": 0.9583333333333334,
+        "target_outputs": 331,
+        "full_physical_outputs": 117,
+        "full_source_coverage": 0.16666666666666666,
+        "full_received_rate_hz": 49.500116432936366,
+        "full_publication_latency_ms": {
+          "minimum": 0.503687,
+          "p50": 0.882787,
+          "p95": 2.96611,
+          "p99": 3.876995,
+          "maximum": 13.227823
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.260719,
+          "p50": 3.679743,
+          "p95": 7.015418,
+          "p99": 16.422877,
+          "maximum": 30.153244
+        },
+        "generation_latency_ms": {
+          "minimum": 0.428174,
+          "p50": 0.791956,
+          "p95": 1.577622,
+          "p99": 4.38288,
+          "maximum": 13.117317
+        },
+        "publication_latency_ms": {
+          "minimum": 0.469035,
+          "p50": 0.856803,
+          "p95": 1.673602,
+          "p99": 4.497732,
+          "maximum": 13.196536
+        },
+        "latency_ms": {
+          "minimum": 0.922247,
+          "p50": 1.34326,
+          "p95": 2.723014,
+          "p99": 5.667882,
+          "maximum": 13.93757
+        },
+        "superseded": 19,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 33176,
+          "peak_rss_kib": 33176,
+          "node_cpu_s": 0.83
+        },
+        "boundary_ack_ms": [
+          6.036501,
+          0.471739,
+          0.250687,
+          0.853984,
+          0.287322
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 2,
+          "history_qualification_changed": 2
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 8469.375,
+          "full_mean_cdr_bytes": 47995.42857142857,
+          "full_sampled_cdr_bytes_per_s": 2381826.4000574676,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          488.828151,
+          489.708174,
+          489.96757,
+          489.650984
+        ],
+        "first_target_fixture_lead_ms": [
+          379.679589,
+          376.727255,
+          378.339584,
+          380.134152
+        ]
+      }
+    ]
+  },
+  "optional_experiments": [
+    {
+      "full_rate_hz": 100,
+      "input_rate_hz": 150,
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "full_rate_hz": 100,
+      "input_rate_hz": 300,
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "full_rate_hz": 150,
+      "input_rate_hz": 150,
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "full_rate_hz": 150,
+      "input_rate_hz": 300,
+      "status": "FAIL",
+      "exit_code": 1
+    },
+    {
+      "full_rate_hz": 0,
+      "input_rate_hz": 150,
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "full_rate_hz": 0,
+      "input_rate_hz": 300,
+      "status": "FAIL",
+      "exit_code": 1
+    }
+  ],
+  "numerical": {
+    "status": "PASS",
+    "reference": "independent scipy DOP853 rtol=2e-12 atol=2e-14",
+    "events": 42,
+    "max_position_error_m": 7.22413413829901e-14,
+    "max_time_error_s": 5.0182080713057076e-14,
+    "cases": [
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 1.7766363044081366e-14,
+        "time_error_s": 5.800915303666443e-15
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 1.3690254791064303e-15,
+        "time_error_s": 2.1649348980190553e-15
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 4.9651373999819285e-15,
+        "time_error_s": 3.3306690738754696e-16
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 5.924893115540873e-15,
+        "time_error_s": 4.996003610813204e-16
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 8.43769784031432e-15,
+        "time_error_s": 3.1363800445660672e-15
+      },
+      {
+        "direction": -1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 9.326536811727558e-15,
+        "time_error_s": 1.304512053934559e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 1.166581610674993e-14,
+        "time_error_s": 5.551115123125783e-16
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 9.994175390735497e-16,
+        "time_error_s": 3.0808688933348094e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 1.7236553253073421e-15,
+        "time_error_s": 1.2490009027033011e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 2.145576712517151e-14,
+        "time_error_s": 6.716849298982197e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 7.22413413829901e-14,
+        "time_error_s": 4.085620730620576e-14
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 2.3102895897353904e-15,
+        "time_error_s": 3.0808688933348094e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 1.2494465025891017e-14,
+        "time_error_s": 2.4313884239290928e-14
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 2.914254897795278e-15,
+        "time_error_s": 1.2490009027033011e-15
+      },
+      {
+        "direction": -1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 9.950771239850864e-15,
+        "time_error_s": 5.0182080713057076e-14
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 1.139210222078213e-14,
+        "time_error_s": 5.2735593669694936e-15
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 4.930195208140448e-15,
+        "time_error_s": 1.6375789613221059e-15
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 4.0214048173840135e-15,
+        "time_error_s": 1.6653345369377348e-16
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 1.6245579305279718e-14,
+        "time_error_s": 2.6367796834847468e-15
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 3.2645855071135213e-15,
+        "time_error_s": 9.992007221626409e-16
+      },
+      {
+        "direction": -1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 2.6381305957120764e-15,
+        "time_error_s": 8.049116928532385e-16
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 2.0597047635191334e-14,
+        "time_error_s": 5.800915303666443e-15
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 4.669613963800136e-15,
+        "time_error_s": 2.1649348980190553e-15
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 4.9365061038031246e-15,
+        "time_error_s": 3.3306690738754696e-16
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 7.88493172075571e-15,
+        "time_error_s": 4.996003610813204e-16
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 8.770764639353934e-15,
+        "time_error_s": 3.1363800445660672e-15
+      },
+      {
+        "direction": 1,
+        "spin": 0.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 4.886247689467686e-15,
+        "time_error_s": 1.304512053934559e-15
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 2.7567589742366884e-14,
+        "time_error_s": 1.1129985821867194e-14
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 4.578092683617719e-16,
+        "time_error_s": 2.220446049250313e-16
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 2.542032316406828e-15,
+        "time_error_s": 2.0539125955565396e-15
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 4.111537697113098e-14,
+        "time_error_s": 1.1352030426792226e-14
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 2.4987726746751933e-15,
+        "time_error_s": 4.440892098500626e-16
+      },
+      {
+        "direction": 1,
+        "spin": -30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 3.622395049839141e-15,
+        "time_error_s": 1.3600232051658168e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.001,
+        "position_error_m": 2.2694494531511526e-14,
+        "time_error_s": 7.93809462606987e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.0005,
+        "position_error_m": 3.828282787073539e-15,
+        "time_error_s": 2.9698465908722937e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 1.5,
+        "step_s": 0.00025,
+        "position_error_m": 1.6883627900091697e-15,
+        "time_error_s": 1.1379786002407855e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 2.3041876077135976e-14,
+        "time_error_s": 6.494804694057166e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.001,
+        "position_error_m": 5.506217283948543e-14,
+        "time_error_s": 2.90878432451791e-14
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 8.216401231176521e-15,
+        "time_error_s": 2.858824288409778e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.0005,
+        "position_error_m": 2.1365178848848642e-14,
+        "time_error_s": 2.7200464103316335e-14
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 4.4464411020684575e-15,
+        "time_error_s": 1.0547118733938987e-15
+      },
+      {
+        "direction": 1,
+        "spin": 30.0,
+        "speed": 3.0,
+        "step_s": 0.00025,
+        "position_error_m": 7.381368861868612e-15,
+        "time_error_s": 4.574118861455645e-14
+      }
+    ]
+  },
+  "production_parity": {
+    "status": "PASS",
+    "fixture_counts": {
+      "racket": 18,
+      "receiving_flight": 3,
+      "all_spin_modes": 540,
+      "spin_and_batch": 140
+    },
+    "max_abs_difference": 0,
+    "artifact": "docs/flight_prediction_production_parity.json"
+  },
+  "installed_binary_scope": {
+    "status": "PASS",
+    "inspected": [
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/hope_planner_cpp/hope_flight_prediction_v2_node",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/libhope_v2_forecast_core.a",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/libhope_v2_forward_physics.a",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/libhope_v2_transport.a",
+      "/workspace/.cloud-setup/v2-evidence/fixed-final/install/hope_planner_cpp/lib/hope_planner_cpp/hope_ball_flight_baseline_replay"
+    ],
+    "inverse_and_command_symbols_absent": true
+  },
+  "native_assertion_counts": {
+    "test_flight_prediction_v2": 36,
+    "test_flight_transport_v2": 8
+  },
+  "sanitizers": {
+    "status": "PASS",
+    "groups": 13,
+    "group_names": [
+      "flight_prediction_v2",
+      "spin_physics",
+      "future_contact_predictor",
+      "batch_physics_estimator",
+      "trajectory_and_stage3",
+      "target_turn_guard",
+      "prediction_event_order",
+      "schema2",
+      "spin_estimator",
+      "audit_logger",
+      "post_net_one_shot",
+      "incoming_trajectory",
+      "adaptive_flight_commit"
+    ],
+    "flags": "-O1 -g1 -fsanitize=address,undefined -fno-omit-frame-pointer; ASAN_OPTIONS=detect_leaks=1",
+    "runtime_build_commit": "4a495ec1e1ba407c6c19bfd95afd8ad04e5859b5",
+    "applies_to_validation_head": "38e31927373d90c538984f6174b6ff3525edf35e",
+    "scope": "Native V2 and original production math/acquisition/scheduling subset; ROS executable/transport not ASan-instrumented",
+    "raw_evidence": "/workspace/.cloud-setup/v2-evidence/sanitize-fixed.log"
+  },
+  "config": {
+    "physics_profile": "thin-shell-forward-v3-receipt-20261010",
+    "model_config_id": "flight-model-v3:sha256:824cb7ac358b163a26df34b73ec05d424b6955bcf7e5135aed547d051120a024"
+  },
+  "defect_register": [
+    {
+      "id": "F01",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "B04",
+        "B05",
+        "T01"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established",
+      "legacy_limit": "Legacy PoseArray/production fallback unchanged; fix applies to separate typed V2 path"
+    },
+    {
+      "id": "F02",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "B01",
+        "B07",
+        "B08"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    },
+    {
+      "id": "F03",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "B03"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    },
+    {
+      "id": "F04",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "B02",
+        "B06",
+        "B11"
+      ],
+      "physical_qualification": "NOT_RUN",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    },
+    {
+      "id": "F05",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "A07",
+        "B09"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    },
+    {
+      "id": "F06",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "A07",
+        "B09",
+        "A14"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    },
+    {
+      "id": "F07",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "A06",
+        "A14",
+        "B10",
+        "X09"
+      ],
+      "physical_qualification": "NOT_RUN",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established",
+      "legacy_limit": "Common forward model within V2; production Stage 2 and inverse adoption deferred"
+    },
+    {
+      "id": "F08",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "B09"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    },
+    {
+      "id": "F09",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "B10",
+        "X08"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    },
+    {
+      "id": "F10",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "A12",
+        "B05",
+        "B12",
+        "T03"
+      ],
+      "physical_qualification": "NOT_RUN",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established",
+      "legacy_limit": "Retired Python planner migration and command receiver adoption deferred"
+    },
+    {
+      "id": "F11",
+      "disposition": "V2_SOFTWARE_PASS",
+      "cases": [
+        "B10"
+      ],
+      "physical_qualification": "not claimed",
+      "evidence": "docs/flight_prediction_evidence/test-summary.json",
+      "qualification_limit": "Independent physical accuracy not established"
+    }
+  ],
+  "publication": {
+    "pr_created": false,
+    "merged": false,
+    "robot_motion": false,
+    "github_actions": "NOT_RUN",
+    "tested_code_commit": "38e31927373d90c538984f6174b6ff3525edf35e",
+    "note": "Review branch is published only after final diff/scope checks; test evidence distinguishes code commit from following documentation commits."
+  },
+  "executed_exit_codes": {
+    "clean_build": 0,
+    "colcon_test": 0,
+    "test_result": 1,
+    "inherited_failed_groups": [
+      "flake8",
+      "pep257"
+    ],
+    "cadence_selected_profile": 0,
+    "optional_150_full_at_300_input": 1,
+    "optional_unrestricted_at_300_input": 1,
+    "final_extras": 0,
+    "sanitizers": 0
+  },
+  "runtime_build_commit": "4a495ec1e1ba407c6c19bfd95afd8ad04e5859b5",
+  "local_ros_profile": "ROS_LOCALHOST_ONLY=1; ROS_DOMAIN_ID=184",
+  "build_attribution": "Fresh HOPE-only build at 4a495ec; only subsequent executable-validation changes are in the synthetic ROS fixture. Runtime sources/headers/messages/CMake are byte-identical on final validation head. All package groups rerun on that head.",
+  "gap_regression": {
+    "status": "PASS",
+    "assertion": "FlightV2Motion.A07_A13_C04_X03_SourceGapAcrossUnobservedBounceIsNotSmoothAcceleration",
+    "before": "FAIL at incoming/150 Hz/t=.44; qualified_non_ballistic_motion",
+    "before_log": "gap-regression-before.log",
+    "after": "PASS for both directions at 150/300 Hz; missing contact stays unobserved/history incomplete; fresh contiguous non-ballistic motion still rejects",
+    "after_log": "gap-regression-after.log",
+    "diagnostic": "A captured 128 ms source gap hid the table contact; a smooth secant-acceleration test across that gap is unsupported. The configured gap warning now gates that test; held checks remain active. No coefficient changed."
+  },
+  "fixture_contract": {
+    "independent_source_process": true,
+    "raw_scenarios": 8,
+    "nominal_source_rates_hz": [
+      150,
+      300
+    ],
+    "plane_policies": [
+      "FOLLOW_POSE",
+      "ON_REFRESH"
+    ],
+    "full_output_rate_hz": 50,
+    "context": "Synthetic independent trace supplies match/prehistory evidence; gaps withdraw qualification and require renewed evidence. Both contacts are still observed/confirmed automatically.",
+    "startup": "Load harness awaits START acknowledgement before eligible input; thresholds and initial four-sample allowance unchanged.",
+    "source_pacing": "Independent ROS producer process; actual source rates and gaps recorded in all eight cases. Receiver packet decoding cannot pace camera measurements."
+  }
+}

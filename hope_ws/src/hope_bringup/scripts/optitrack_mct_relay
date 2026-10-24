@@ -41,6 +41,7 @@ The mct node itself must be launched with its ``poses`` topic remapped to
 
 from __future__ import annotations
 
+from collections import deque
 import csv
 import json
 import math
@@ -48,7 +49,9 @@ import time
 from pathlib import Path
 
 import rclpy
+from hope_msgs.msg import BallObservationV2
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from tf2_ros import TransformBroadcaster
@@ -85,7 +88,13 @@ class OptitrackMctRelay(Node):
         # node config (config/optitrack_mct.yaml). STANDARDIZED like the VRPN
         # side 2026-07-03: ball object is named 'Ball' (robots: UCB_P1/UCB_P2).
         self.declare_parameter("ball_object", "Ball")
+        # NamedPose has no per-frame orientation-quality bit. Enable only for
+        # a qualified source that measures ball orientation (not marker identity).
+        self.declare_parameter("ball_orientation_authoritative", False)
         self.declare_parameter("world_frame", "world")
+        # Correlates the surveyed table transform with the planner. Empty is
+        # intentionally unqualified; naming a frame does not register it.
+        self.declare_parameter("ball_calibration_id", "")
         self.declare_parameter("table_pose_topic", "/table/pose")
         self.declare_parameter("p1_pose_topic", "/UCB_P1/pose")
         self.declare_parameter("p2_pose_topic", "/UCB_P2/pose")
@@ -122,6 +131,9 @@ class OptitrackMctRelay(Node):
         self._p1_object = str(self.get_parameter("p1_object").value)
         self._p2_object = str(self.get_parameter("p2_object").value)
         self._ball_object = str(self.get_parameter("ball_object").value)
+        self._ball_orientation_authoritative = bool(
+            self.get_parameter("ball_orientation_authoritative").value
+        )
         self._world_frame = str(self.get_parameter("world_frame").value)
         self._publish_tf = bool(self.get_parameter("publish_tf").value)
         self._publish_pose_array = bool(self.get_parameter("publish_pose_array").value)
@@ -150,6 +162,9 @@ class OptitrackMctRelay(Node):
         self._debug_csv = None
         self._debug_rows_since_flush = 0
         self._debug_frame_seq = 0
+        self._stage_path = self.declare_parameter('test.stage_trace_path', '').value
+        self._stage_rows = deque(maxlen=32768)
+        self._stage_total = 0
         self._debug_flush_rows = max(
             1, int(self.get_parameter("debug_flush_rows").value)
         )
@@ -188,6 +203,18 @@ class OptitrackMctRelay(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
+        # V2 uses a short, explicitly bounded ingress history so a brief
+        # callback pause does not erase an intervening physical observation.
+        # Legacy launches retain their existing depth-one default.
+        input_history_depth = self.declare_parameter('input_history_depth', 1).value
+        if not 1 <= input_history_depth <= 8:
+            raise ValueError('input_history_depth must be between 1 and 8')
+        input_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=input_history_depth,
+        )
 
         self._latest: dict[str, PoseStamped] = {}
         self._ball_seen = False
@@ -206,6 +233,9 @@ class OptitrackMctRelay(Node):
         self._planner_pose_array_pub = (
             self.create_publisher(PoseArray, planner_topic, sensor_qos)
             if planner_topic else None
+        )
+        self._ball_observation_v2_pub = self.create_publisher(
+            BallObservationV2, "/hope/ball/observation_v2", sensor_qos
         )
         self._ball_pub = self.create_publisher(
             PointStamped, str(self.get_parameter("ball_point_topic").value), sensor_qos
@@ -227,7 +257,7 @@ class OptitrackMctRelay(Node):
 
         input_topic = str(self.get_parameter("input_poses_topic").value)
         self._sub = self.create_subscription(
-            named_pose_array_type, input_topic, self._on_frame, sensor_qos
+            named_pose_array_type, input_topic, self._on_frame, input_qos
         )
         self.get_logger().info(
             f"relaying {input_topic} (NamedPoseArrayV2) -> HOPE topics; objects: "
@@ -244,6 +274,8 @@ class OptitrackMctRelay(Node):
 
     def _on_frame(self, msg) -> None:
         self._debug_frame_seq += 1
+        if self._stage_path:
+            self._record_stage('relay_receipt', msg.header.stamp)
         receipt_wall_ns = time.time_ns()
         receipt_monotonic_ns = time.monotonic_ns()
         ros_stamp_ns = int(msg.header.stamp.sec) * 1_000_000_000 + int(msg.header.stamp.nanosec)
@@ -310,6 +342,32 @@ class OptitrackMctRelay(Node):
                 self.get_logger().info(f"ball '{self._ball_object}' acquired")
             self._ball_seen = True
             self._last_ball_rx = self._now()
+            # Preserve acquisition time and validity before publishing compatibility placeholders.
+            ball = self._latest["ball"]
+            observation = BallObservationV2()
+            observation.source_time_ns = ros_stamp_ns
+            observation.source_time_valid = True
+            observation.clock_domain = "ros_system"
+            observation.clock_mapping_id = "natnet_exposure_unix_v1"
+            observation.clock_mapping_valid = natnet_clock_uncertainty_us >= 0
+            observation.clock_uncertainty_s = max(0, natnet_clock_uncertainty_us) * 1e-6
+            observation.sequence = self._debug_frame_seq
+            observation.receipt_wall_ns = receipt_wall_ns
+            observation.frame_id = ball.header.frame_id
+            observation.calibration_id = str(
+                self.get_parameter("ball_calibration_id").value
+            )
+            observation.ball_id = self._ball_object
+            observation.position = ball.pose.position
+            observation.position_valid = True
+            observation.orientation = ball.pose.orientation
+            observation.orientation_authoritative = self._ball_orientation_authoritative
+            observation.orientation_valid = (
+                self._ball_orientation_authoritative and ball_pose_orientation_valid
+            )
+            self._ball_observation_v2_pub.publish(observation)
+            if self._stage_path:
+                self._record_stage('typed_published', msg.header.stamp)
             if self._planner_pose_array_pub is not None:
                 self._publish_poses(
                     self._latest["ball"].header.stamp,
@@ -510,7 +568,23 @@ class OptitrackMctRelay(Node):
         ]
         (publisher if publisher is not None else self._pose_array_pub).publish(msg)
 
+    def _record_stage(self, stage, stamp):
+        self._stage_total += 1
+        self._stage_rows.append((
+            stage, int(stamp.sec) * 10**9 + int(stamp.nanosec),
+            time.time_ns(), time.monotonic_ns(), self._debug_frame_seq,
+        ))
+
     def destroy_node(self):
+        if self._stage_path:
+            with open(self._stage_path, 'w') as stream:
+                stream.write(json.dumps({
+                    'capacity': self._stage_rows.maxlen,
+                    'total': self._stage_total,
+                    'overwritten': self._stage_total - len(self._stage_rows),
+                }) + '\n')
+                for row in self._stage_rows:
+                    stream.write(json.dumps(row) + '\n')
         if self._debug_file is not None:
             self._debug_file.flush()
             self._debug_file.close()
@@ -534,8 +608,12 @@ def main(args=None) -> None:
     node = OptitrackMctRelay(NamedPoseArrayV2)
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # ROS signals can invalidate the context between executor wait and take.
+        if node.context.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

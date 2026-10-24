@@ -1,0 +1,865 @@
+{
+  "executable_sha256": "5ae6f016458feb991a84e7212046ae56ed081d2b2516dbcc2e86bc809475be36",
+  "selected_full_rate_hz": 50,
+  "selected_profile_pass": true,
+  "profiles": [
+    {
+      "full_rate_hz": 50,
+      "input_rate_hz": 150,
+      "exit_code": 0,
+      "status": "PASS",
+      "metrics": {
+        "rate_hz": 150,
+        "requested_full_rate_hz": 50.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.422563899,
+        "published_input_rate_hz": 144.88781911795508,
+        "observed_input_rate_hz": 144.88781911795508,
+        "observed_input_count": 352,
+        "unaccounted_input_count": 0,
+        "input_count": 352,
+        "physical_outputs": 344,
+        "denominator": 336,
+        "physical_publication_coverage": 1.0,
+        "target_outputs": 176,
+        "full_physical_outputs": 118,
+        "full_source_coverage": 0.34523809523809523,
+        "full_received_rate_hz": 49.911464672138756,
+        "full_publication_latency_ms": {
+          "minimum": 0.610403,
+          "p50": 0.922015,
+          "p95": 1.3318,
+          "p99": 1.793239,
+          "maximum": 2.747961
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.386672,
+          "p50": 3.9052685,
+          "p95": 6.489147,
+          "p99": 6.967062,
+          "maximum": 26.564523
+        },
+        "generation_latency_ms": {
+          "minimum": 0.494478,
+          "p50": 0.7936289999999999,
+          "p95": 1.115232,
+          "p99": 2.119965,
+          "maximum": 2.584204
+        },
+        "publication_latency_ms": {
+          "minimum": 0.539256,
+          "p50": 0.8600745000000001,
+          "p95": 1.188643,
+          "p99": 2.174988,
+          "maximum": 2.693198
+        },
+        "latency_ms": {
+          "minimum": 1.034998,
+          "p50": 1.405398,
+          "p95": 1.93343,
+          "p99": 3.088974,
+          "maximum": 4.251929
+        },
+        "superseded": 0,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32464,
+          "peak_rss_kib": 32464,
+          "node_cpu_s": 0.49
+        },
+        "boundary_ack_ms": [
+          0.403427,
+          0.170001,
+          0.225764,
+          0.263807,
+          0.223517
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "history_qualification_changed": 1,
+          "forecast_expired": 1
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 7243.538461538462,
+          "full_mean_cdr_bytes": 54531.42857142857,
+          "full_sampled_cdr_bytes_per_s": 2746195.585784334,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          483.066509,
+          483.381174,
+          483.2429,
+          482.990739
+        ],
+        "first_target_fixture_lead_ms": [
+          370.021048,
+          369.935279,
+          370.063692,
+          369.903194
+        ]
+      }
+    },
+    {
+      "full_rate_hz": 50,
+      "input_rate_hz": 300,
+      "exit_code": 0,
+      "status": "PASS",
+      "metrics": {
+        "rate_hz": 300,
+        "requested_full_rate_hz": 50.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.438731306,
+        "published_input_rate_hz": 291.54503337482475,
+        "observed_input_rate_hz": 289.4947870079132,
+        "observed_input_count": 707,
+        "unaccounted_input_count": 5,
+        "input_count": 712,
+        "physical_outputs": 690,
+        "denominator": 696,
+        "physical_publication_coverage": 0.9798850574712644,
+        "target_outputs": 328,
+        "full_physical_outputs": 118,
+        "full_source_coverage": 0.16810344827586207,
+        "full_received_rate_hz": 49.941008813644544,
+        "full_publication_latency_ms": {
+          "minimum": 0.565346,
+          "p50": 0.9472205,
+          "p95": 1.673552,
+          "p99": 2.66199,
+          "maximum": 4.010513
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.3927,
+          "p50": 4.0196125,
+          "p95": 7.29814,
+          "p99": 8.540088,
+          "maximum": 26.298086
+        },
+        "generation_latency_ms": {
+          "minimum": 0.456171,
+          "p50": 0.8118515,
+          "p95": 1.641645,
+          "p99": 2.728907,
+          "maximum": 4.151015
+        },
+        "publication_latency_ms": {
+          "minimum": 0.499927,
+          "p50": 0.875284,
+          "p95": 1.743949,
+          "p99": 2.78818,
+          "maximum": 4.272879
+        },
+        "latency_ms": {
+          "minimum": 0.99027,
+          "p50": 1.4393655,
+          "p95": 3.206084,
+          "p99": 5.918014,
+          "maximum": 23.303661
+        },
+        "superseded": 9,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32384,
+          "peak_rss_kib": 32384,
+          "node_cpu_s": 0.91
+        },
+        "boundary_ack_ms": [
+          0.577243,
+          0.184573,
+          0.25529,
+          0.539586,
+          0.35489
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 1
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 8016.875,
+          "full_mean_cdr_bytes": 55921.142857142855,
+          "full_sampled_cdr_bytes_per_s": 2797511.727424156,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          489.646815,
+          489.893024,
+          488.688362,
+          489.919966
+        ],
+        "first_target_fixture_lead_ms": [
+          380.159089,
+          379.738606,
+          379.035234
+        ]
+      }
+    },
+    {
+      "full_rate_hz": 100,
+      "input_rate_hz": 150,
+      "exit_code": 0,
+      "status": "PASS",
+      "metrics": {
+        "rate_hz": 150,
+        "requested_full_rate_hz": 100.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.423453158,
+        "published_input_rate_hz": 144.83465415509383,
+        "observed_input_rate_hz": 144.42201981277162,
+        "observed_input_count": 351,
+        "unaccounted_input_count": 1,
+        "input_count": 352,
+        "physical_outputs": 332,
+        "denominator": 336,
+        "physical_publication_coverage": 0.9642857142857143,
+        "target_outputs": 121,
+        "full_physical_outputs": 223,
+        "full_source_coverage": 0.6428571428571429,
+        "full_received_rate_hz": 93.61562410223337,
+        "full_publication_latency_ms": {
+          "minimum": 0.587543,
+          "p50": 0.959705,
+          "p95": 1.559701,
+          "p99": 3.547883,
+          "maximum": 6.507661
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.346099,
+          "p50": 3.679216,
+          "p95": 5.653036,
+          "p99": 19.123187,
+          "maximum": 60.357218
+        },
+        "generation_latency_ms": {
+          "minimum": 0.503757,
+          "p50": 0.831268,
+          "p95": 1.433711,
+          "p99": 2.615255,
+          "maximum": 5.302247
+        },
+        "publication_latency_ms": {
+          "minimum": 0.550457,
+          "p50": 0.8943785,
+          "p95": 1.505606,
+          "p99": 2.688245,
+          "maximum": 5.531372
+        },
+        "latency_ms": {
+          "minimum": 0.975758,
+          "p50": 1.416245,
+          "p95": 2.560012,
+          "p99": 6.196533,
+          "maximum": 7.775247
+        },
+        "superseded": 11,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32172,
+          "peak_rss_kib": 32172,
+          "node_cpu_s": 0.5
+        },
+        "boundary_ack_ms": [
+          0.51873,
+          0.175254,
+          0.297313,
+          0.282414,
+          0.272796
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 4,
+          "history_qualification_changed": 2
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 7429.615384615385,
+          "full_mean_cdr_bytes": 65554.66666666667,
+          "full_sampled_cdr_bytes_per_s": 6167424.34268251,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          478.793626,
+          480.94711,
+          483.251998,
+          483.26329
+        ],
+        "first_target_fixture_lead_ms": [
+          369.532616,
+          370.115448,
+          369.868666
+        ]
+      }
+    },
+    {
+      "full_rate_hz": 100,
+      "input_rate_hz": 300,
+      "exit_code": 0,
+      "status": "PASS",
+      "metrics": {
+        "rate_hz": 300,
+        "requested_full_rate_hz": 100.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.436818062,
+        "published_input_rate_hz": 291.7739371221059,
+        "observed_input_rate_hz": 290.9531946829439,
+        "observed_input_count": 710,
+        "unaccounted_input_count": 2,
+        "input_count": 712,
+        "physical_outputs": 690,
+        "denominator": 696,
+        "physical_publication_coverage": 0.9798850574712644,
+        "target_outputs": 412,
+        "full_physical_outputs": 231,
+        "full_source_coverage": 0.3290229885057471,
+        "full_received_rate_hz": 96.58089958518268,
+        "full_publication_latency_ms": {
+          "minimum": 0.557733,
+          "p50": 0.869247,
+          "p95": 1.131246,
+          "p99": 1.595438,
+          "maximum": 1.893442
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.183012,
+          "p50": 3.481375,
+          "p95": 4.725375,
+          "p99": 5.523825,
+          "maximum": 57.563897
+        },
+        "generation_latency_ms": {
+          "minimum": 0.43889,
+          "p50": 0.7628525,
+          "p95": 1.037309,
+          "p99": 1.288363,
+          "maximum": 3.363768
+        },
+        "publication_latency_ms": {
+          "minimum": 0.481374,
+          "p50": 0.8267914999999999,
+          "p95": 1.126474,
+          "p99": 1.36016,
+          "maximum": 3.462336
+        },
+        "latency_ms": {
+          "minimum": 0.91122,
+          "p50": 1.2782665,
+          "p95": 1.696522,
+          "p99": 2.826981,
+          "maximum": 3.981246
+        },
+        "superseded": 12,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32736,
+          "peak_rss_kib": 32736,
+          "node_cpu_s": 0.79
+        },
+        "boundary_ack_ms": [
+          0.378904,
+          0.162539,
+          0.238257,
+          0.273541,
+          0.339461
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "history_qualification_changed": 2,
+          "forecast_expired": 2
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 7963.083333333333,
+          "full_mean_cdr_bytes": 62806,
+          "full_sampled_cdr_bytes_per_s": 6082610.856813323,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          489.420887,
+          489.977017,
+          489.980141,
+          489.833907
+        ],
+        "first_target_fixture_lead_ms": [
+          379.949217,
+          379.958435,
+          379.695489,
+          380.190024
+        ]
+      }
+    },
+    {
+      "full_rate_hz": 150,
+      "input_rate_hz": 150,
+      "exit_code": 0,
+      "status": "PASS",
+      "metrics": {
+        "rate_hz": 150,
+        "requested_full_rate_hz": 150.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.425546743,
+        "published_input_rate_hz": 144.7096416562441,
+        "observed_input_rate_hz": 144.7096416562441,
+        "observed_input_count": 352,
+        "unaccounted_input_count": 0,
+        "input_count": 352,
+        "physical_outputs": 341,
+        "denominator": 336,
+        "physical_publication_coverage": 0.9910714285714286,
+        "target_outputs": 179,
+        "full_physical_outputs": 324,
+        "full_source_coverage": 0.9404761904761905,
+        "full_received_rate_hz": 135.9698060010002,
+        "full_publication_latency_ms": {
+          "minimum": 0.598701,
+          "p50": 0.92191,
+          "p95": 1.242124,
+          "p99": 1.563643,
+          "maximum": 2.357837
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.237951,
+          "p50": 3.5223240000000002,
+          "p95": 4.980113,
+          "p99": 6.459334,
+          "maximum": 56.306883
+        },
+        "generation_latency_ms": {
+          "minimum": 0.502852,
+          "p50": 0.801309,
+          "p95": 1.118424,
+          "p99": 1.46849,
+          "maximum": 2.34468
+        },
+        "publication_latency_ms": {
+          "minimum": 0.54804,
+          "p50": 0.876162,
+          "p95": 1.187688,
+          "p99": 1.72723,
+          "maximum": 2.447484
+        },
+        "latency_ms": {
+          "minimum": 0.981627,
+          "p50": 1.367748,
+          "p95": 2.087601,
+          "p99": 5.439104,
+          "maximum": 53.437787
+        },
+        "superseded": 3,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32316,
+          "peak_rss_kib": 32316,
+          "node_cpu_s": 0.47
+        },
+        "boundary_ack_ms": [
+          0.490848,
+          0.157126,
+          0.221023,
+          0.457819,
+          0.226589
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 2,
+          "history_qualification_changed": 1
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 6832.2307692307695,
+          "full_mean_cdr_bytes": 64010.58823529412,
+          "full_sampled_cdr_bytes_per_s": 8735145.90763026,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          482.176203,
+          483.288996,
+          483.248085,
+          483.158229
+        ],
+        "first_target_fixture_lead_ms": [
+          370.128672,
+          370.005656,
+          370.171902,
+          369.919719
+        ]
+      }
+    },
+    {
+      "full_rate_hz": 150,
+      "input_rate_hz": 300,
+      "exit_code": 1,
+      "status": "FAIL",
+      "metrics": {
+        "rate_hz": 300,
+        "requested_full_rate_hz": 150.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.438612425,
+        "published_input_rate_hz": 291.55924603312064,
+        "observed_input_rate_hz": 286.6384148764435,
+        "observed_input_count": 700,
+        "unaccounted_input_count": 12,
+        "input_count": 712,
+        "physical_outputs": 658,
+        "denominator": 696,
+        "physical_publication_coverage": 0.9339080459770115,
+        "target_outputs": 312,
+        "full_physical_outputs": 328,
+        "full_source_coverage": 0.46264367816091956,
+        "full_received_rate_hz": 136.21871565177898,
+        "full_publication_latency_ms": {
+          "minimum": 0.53536,
+          "p50": 0.9415389999999999,
+          "p95": 1.912087,
+          "p99": 3.317314,
+          "maximum": 7.218108
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.51932,
+          "p50": 4.258706,
+          "p95": 8.583867,
+          "p99": 15.148728,
+          "maximum": 106.822117
+        },
+        "generation_latency_ms": {
+          "minimum": 0.42502,
+          "p50": 0.8388869999999999,
+          "p95": 2.154451,
+          "p99": 3.718088,
+          "maximum": 7.055253
+        },
+        "publication_latency_ms": {
+          "minimum": 0.463648,
+          "p50": 0.9014835,
+          "p95": 2.307141,
+          "p99": 3.773712,
+          "maximum": 7.165188
+        },
+        "latency_ms": {
+          "minimum": 1.001246,
+          "p50": 1.509696,
+          "p95": 5.459142,
+          "p99": 7.79103,
+          "maximum": 64.282517
+        },
+        "superseded": 28,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32816,
+          "peak_rss_kib": 32816,
+          "node_cpu_s": 0.9
+        },
+        "boundary_ack_ms": [
+          0.339679,
+          0.219821,
+          0.333498,
+          0.541368,
+          0.364332
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 11,
+          "forecast_expired": 3,
+          "history_qualification_changed": 2
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 8051.565217391304,
+          "full_mean_cdr_bytes": 69018.35294117648,
+          "full_sampled_cdr_bytes_per_s": 9424667.607609589,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          489.737653,
+          488.41562,
+          489.661803,
+          489.341747
+        ],
+        "first_target_fixture_lead_ms": [
+          378.062975,
+          380.105785,
+          378.641413
+        ]
+      }
+    },
+    {
+      "full_rate_hz": 0,
+      "input_rate_hz": 150,
+      "exit_code": 0,
+      "status": "PASS",
+      "metrics": {
+        "rate_hz": 150,
+        "requested_full_rate_hz": 0.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.424606461,
+        "published_input_rate_hz": 144.76576122594105,
+        "observed_input_rate_hz": 144.76576122594105,
+        "observed_input_count": 352,
+        "unaccounted_input_count": 0,
+        "input_count": 352,
+        "physical_outputs": 339,
+        "denominator": 336,
+        "physical_publication_coverage": 0.9851190476190477,
+        "target_outputs": 168,
+        "full_physical_outputs": 339,
+        "full_source_coverage": 0.9851190476190477,
+        "full_received_rate_hz": 142.65136378861698,
+        "full_publication_latency_ms": {
+          "minimum": 0.59947,
+          "p50": 1.020521,
+          "p95": 1.875293,
+          "p99": 2.942213,
+          "maximum": 3.443695
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.198858,
+          "p50": 3.949444,
+          "p95": 6.700199,
+          "p99": 11.916583,
+          "maximum": 72.974239
+        },
+        "generation_latency_ms": {
+          "minimum": 0.513411,
+          "p50": 0.885263,
+          "p95": 1.754336,
+          "p99": 2.766399,
+          "maximum": 3.299869
+        },
+        "publication_latency_ms": {
+          "minimum": 0.560091,
+          "p50": 0.958327,
+          "p95": 1.828513,
+          "p99": 2.863866,
+          "maximum": 3.379799
+        },
+        "latency_ms": {
+          "minimum": 1.041903,
+          "p50": 1.565315,
+          "p95": 3.562568,
+          "p99": 5.297145,
+          "maximum": 7.090675
+        },
+        "superseded": 5,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32432,
+          "peak_rss_kib": 32432,
+          "node_cpu_s": 0.54
+        },
+        "boundary_ack_ms": [
+          0.424253,
+          0.175298,
+          0.565178,
+          0.284988,
+          0.355718
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 2,
+          "history_qualification_changed": 1
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 6420.923076923077,
+          "full_mean_cdr_bytes": 62157.11111111111,
+          "full_sampled_cdr_bytes_per_s": 8895677.670783686,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          482.989792,
+          483.289197,
+          481.011746,
+          483.027905
+        ],
+        "first_target_fixture_lead_ms": [
+          370.186094,
+          370.099932,
+          369.576372,
+          370.079365
+        ]
+      }
+    },
+    {
+      "full_rate_hz": 0,
+      "input_rate_hz": 300,
+      "exit_code": 1,
+      "status": "FAIL",
+      "metrics": {
+        "rate_hz": 300,
+        "requested_full_rate_hz": 0.0,
+        "worker_delay_ms": 0,
+        "source_span_s": 2.437923177,
+        "published_input_rate_hz": 291.6416754669542,
+        "observed_input_rate_hz": 283.8481567132663,
+        "observed_input_count": 693,
+        "unaccounted_input_count": 19,
+        "input_count": 712,
+        "physical_outputs": 631,
+        "denominator": 696,
+        "physical_publication_coverage": 0.8951149425287356,
+        "target_outputs": 110,
+        "full_physical_outputs": 630,
+        "full_source_coverage": 0.8936781609195402,
+        "full_received_rate_hz": 261.0861461817832,
+        "full_publication_latency_ms": {
+          "minimum": 0.533723,
+          "p50": 0.904415,
+          "p95": 1.982751,
+          "p99": 2.84278,
+          "maximum": 3.596928
+        },
+        "full_receipt_latency_ms": {
+          "minimum": 2.123773,
+          "p50": 4.648909,
+          "p95": 15.175026,
+          "p99": 56.160044,
+          "maximum": 134.87177
+        },
+        "generation_latency_ms": {
+          "minimum": 0.460583,
+          "p50": 0.797709,
+          "p95": 1.913667,
+          "p99": 2.758453,
+          "maximum": 3.520833
+        },
+        "publication_latency_ms": {
+          "minimum": 0.503798,
+          "p50": 0.862301,
+          "p95": 1.965825,
+          "p99": 2.809149,
+          "maximum": 3.569997
+        },
+        "latency_ms": {
+          "minimum": 0.971221,
+          "p50": 2.366809,
+          "p95": 8.179797,
+          "p99": 14.722374,
+          "maximum": 127.993834
+        },
+        "superseded": 26,
+        "queue_bound": {
+          "running": 1,
+          "pending": 1
+        },
+        "resources": {
+          "rss_kib": 32644,
+          "peak_rss_kib": 32644,
+          "node_cpu_s": 0.84
+        },
+        "boundary_ack_ms": [
+          0.391448,
+          0.145669,
+          0.241548,
+          0.36903,
+          0.330097
+        ],
+        "lifecycle_reasons": {
+          "semantic_context_superseded": 5,
+          "qualified_boundary": 8,
+          "contact_or_crossing_confirmed": 12,
+          "forecast_expired": 3,
+          "history_qualification_changed": 2
+        },
+        "generations": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "payload": {
+          "compact_mean_cdr_bytes": 8203.434782608696,
+          "full_mean_cdr_bytes": 67245.5,
+          "full_sampled_cdr_bytes_per_s": 17598023.35231665,
+          "size_measurement": "sampled CDR; excludes DDS/network headers"
+        },
+        "first_physical_fixture_lead_ms": [
+          489.853689,
+          489.705991,
+          489.852192,
+          489.987239
+        ],
+        "first_target_fixture_lead_ms": [
+          379.896172
+        ]
+      }
+    }
+  ],
+  "interpretation": "50 Hz retained as the conservative full-output default. Optional profiles are measured, not universally qualified. Compact source-stamp availability >=95% and <=30 ms publication freshness remain unchanged. CDR rates exclude wire headers."
+}

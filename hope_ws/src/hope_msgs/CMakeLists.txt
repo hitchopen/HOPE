@@ -12,6 +12,13 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/BallObservationV2.msg"
+  "msg/FlightContextV2.msg"
+  "msg/FlightEventV2.msg"
+  "msg/FlightWaypointV2.msg"
+  "msg/FlightPredictionV2.msg"
+  "msg/FlightPacketV2.msg"
+
   "msg/BallFlightSample.msg"
   "msg/BallFlightPacket.msg"
   "msg/RacketCommand.msg"

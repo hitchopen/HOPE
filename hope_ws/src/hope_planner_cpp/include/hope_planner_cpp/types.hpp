@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 
 namespace hope_planner_cpp {
@@ -111,6 +112,27 @@ struct BallSample {
   std::int64_t receipt_steady_ns = 0;
   std::int64_t receipt_wall_ns = 0;
   std::uint64_t sequence = 0;
+  // V2-only provenance; legacy consumers retain all original defaults.
+  bool source_time_valid = true; // explicit: zero is a valid simulation epoch
+  bool position_valid = true;
+  std::string clock_domain = "source", clock_mapping_id, frame_id, calibration_id, ball_id;
+  bool clock_mapping_valid = true;
+  double clock_uncertainty_s = 0.0;
+  bool orientation_authoritative = false;
+  Vec3 producer_omega_rad_s = Vec3::Zero();
+  bool producer_omega_valid = false;
+  std::string producer_omega_provenance;
+  std::uint64_t shot_generation = 0;
+};
+
+enum class EffectiveSpinMode { MEASURED, HELD, CONTACT_PROPAGATED, POSITION_ONLY };
+struct EffectiveSpin {
+  std::optional<Vec3> omega;
+  EffectiveSpinMode mode = EffectiveSpinMode::POSITION_ONLY;
+  std::int64_t measurement_time_ns = 0;
+  std::uint64_t last_contact_id = 0;
+  std::string provenance = "unavailable;position_only_effective_model";
+  bool usable() const noexcept { return omega && omega->allFinite(); }
 };
 
 struct SpinEstimate {
