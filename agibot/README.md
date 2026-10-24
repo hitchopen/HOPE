@@ -18,7 +18,7 @@ are documented in [A3_ASSETS.md](../A3_ASSETS.md), not built in this folder.
 | [code_deployment/](code_deployment/) | Vendor C++ deployment example, body-drive I/O, runtime configuration and packaging. Start with the [deployment README](code_deployment/a3_deploy_example/README.md) and [RobotIOBackend guide](code_deployment/a3_deploy_example/README_robot_io_backend.md). |
 | [A3_MuJoCo_Sim/](A3_MuJoCo_Sim/README.md) | Vendor AimRT/MuJoCo simulation reference; implementation under `aimrt_mujoco_sim/`. |
 | [ntp_sync/](ntp_sync/README.md) | A3 HDU Chrony and supervised HDU-to-MDU PTP clock synchronization; includes installation, verification and recovery procedures. |
-| [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables and geometry validation. |
+| [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables, geometry validation, and OptiTrack/ChingMu asset definitions. |
 | [right_wrist_paddle_flange/](right_wrist_paddle_flange/README.md) | Current 45-degree right wrist paddle flange: hollow connector cavity, smooth exterior reinforcement, printable STL and printing/fit notes. |
 | [agibot_left_gripper_serve_addon.STL](agibot_left_gripper_serve_addon.STL) | Developer-supplied left-gripper serving fixture. **Metre-scale coordinates; see the printing scale warning below.** |
 
@@ -102,6 +102,33 @@ orientation is not a robot-frame registration. Use the v3
 and its metre-valued transform tables; rotating a part for printing does not
 change those tables. Mesh validation does not certify physical fit or crash
 survival.
+
+### ChingMu / VRPN shell-v3 asset
+
+For the 17-sticker shell, import the single CMTracker definition
+[A3_v3_17_stickers.json](mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json).
+Its filename stem and internal `UCB_P1` body name match the Motive asset.
+It is byte-identical to the existing **V4 P1 runtime profile**; existing P1/P2
+runtime profiles remain unchanged for compatibility and share this geometry.
+Configure the site body name (`UCB_P1` or `UCB_P2`) and unique IDs in CMTracker
+as needed; a separate P2 release asset is not required.
+
+The **v3 CAD folder and V4 runtime/dropdown label name the same 17-sticker
+hardware**, not the retired ten-ball V3 layout. Its `markerPose` values are
+the nominal sticker optical centres in `pelvis_link`, expressed in
+millimetres with **X forward, Y left, Z up**. Do not subtract the centroid,
+add a second marker-to-pelvis offset, or apply Motive's Y-up conversion.
+For either table side, retain the same pelvis-local geometry, not a mirrored shell.
+
+Importing the JSON configures the CMTracker server; VRPN subsequently sends
+poses and supplies no ModelDef for an automatic geometry check. Verify
+CMTracker import/re-export, installed markers, pivot and axes, then separately
+commission the server's global world/table coordinates. This nominal asset
+does not certify physical calibration or replace the optional measured
+Motive/NatNet workflow below. Follow the
+[asset package README](mocap_sticker_shell_v3/vrpn_asset/README.md)
+and [VRPN operation guide](../docs/operations/vrpn_pants_profiles.md) for the
+V4 selection, unit settings and confirmation gates.
 
 ### V3 sticker P1-to-pelvis calibration
 

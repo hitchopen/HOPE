@@ -29,7 +29,8 @@ readonly HDU_WS="${HOPE_HDU_WS:-$HOME/hope_ws}"
 readonly LAPTOP_SESSION=hope-optitrack
 readonly HDU_BASE_SESSION=hope-base
 readonly HDU_PLANNER_SESSION=hope-planner
-readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport
+readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport # legacy cleanup only
+readonly HDU_TRANSPORT_GATEWAY_SESSION=hope-transport-gateway
 readonly MDU_ELINK_SESSION=hope-elink
 readonly MDU_HAL_SESSION=hope-hal
 readonly MDU_RUNNER_SESSION=hope-runner
@@ -549,10 +550,14 @@ preflight_hdu() {
   require_user "$ROBOT_USER" PREFLIGHT
   python3 "$(dirname "$SELF")/hope_wifi_policy.py" check || \
     die PREFLIGHT WIFI_POLICY_NOT_READY
+  tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" && \
+    die PREFLIGHT MANAGED_TRANSPORT_GATEWAY_PRESENT
   tmux_exists "$HDU_BASE_SESSION" && die PREFLIGHT MANAGED_BASE_PRESENT
   tmux_exists "$HDU_PLANNER_SESSION" && die PREFLIGHT MANAGED_PLANNER_PRESENT
   tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
     die PREFLIGHT MANAGED_RUNNER_TRANSPORT_PRESENT
+  pgrep -u "$ROBOT_USER" -f '[h]ope-transport-gateway' >/dev/null && \
+    die PREFLIGHT UNMANAGED_TRANSPORT_GATEWAY_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope_world.launch.py' >/dev/null && die PREFLIGHT UNMANAGED_BASE_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope-base-pose-transport-relay' >/dev/null && \
     die PREFLIGHT UNMANAGED_BASE_RELAY_PRESENT
@@ -564,8 +569,8 @@ preflight_hdu() {
     --receipt "/tmp/hope_background_${SESSION_ID}.json" || \
     die PREFLIGHT UNRELATED_BACKGROUND_NOT_STOPPED
   if [[ "$FIELD_MODE" == KERNEL ]]; then
-    [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
-      die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+    [[ -x /usr/local/libexec/hope-transport-gateway ]] || \
+      die PREFLIGHT TRANSPORT_GATEWAY_MISSING
     [[ -r /opt/ros/jazzy/setup.bash ]] || die PREFLIGHT ROS_MISSING
     [[ -x "$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh" ]] || \
       die PREFLIGHT DDS_WRAPPER_MISSING
@@ -582,8 +587,8 @@ preflight_hdu() {
     die PREFLIGHT HDU_OVERLAY_MISSING
   [[ -x /usr/local/libexec/hope-base-pose-transport-relay ]] || \
     die PREFLIGHT BASE_TRANSPORT_RELAY_MISSING
-  [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
-    die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+  [[ -x /usr/local/libexec/hope-transport-gateway ]] || \
+    die PREFLIGHT TRANSPORT_GATEWAY_MISSING
   static_peers="$(network_static_peers)" || \
     die PREFLIGHT HDU_DDS_PEERS_INVALID
   static_peer_list_contains "$static_peers" "$LAPTOP_WIFI_IP" || \
@@ -767,8 +772,38 @@ preflight_mdu() {
     die PREFLIGHT RUNTIME_CONFIG_MISSING
   [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
     die PREFLIGHT AIMRT_CONFIG_MISSING
-  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_smooth_center_v14.csv" ]] || \
+  [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv" ]] || \
     die PREFLIGHT SERVE025_TIMELINE_MISSING
+  # Validate the exact selected bytes with the installed Runner before HAL starts.
+  # Normal and Kernel resolve the same file; only the destination segment differs.
+  local validation_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+  if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
+    validation_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    [[ -r "$validation_csv" ]] || die PREFLIGHT SELECTED_CSV_MISSING
+    [[ "$(sha256sum "$validation_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
+      die PREFLIGHT SELECTED_CSV_CHANGED
+  fi
+  local -a validation_args=(--validate-serve-timeline "$validation_csv"
+    --validate-serve-stand --policy-dir "$MDU_DEPLOY/policy")
+  [[ "$FIELD_MODE" != KERNEL ]] || validation_args+=(--kernel-mode)
+  local validation_output
+  validation_output="$(
+    set +u
+    source /opt/ros/jazzy/setup.bash
+    set -u
+    export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
+  )" || {
+    printf "%s\n" "$validation_output" >&2
+    die PREFLIGHT SERVE_TIMELINE_INVALID
+  }
+  [[ "$validation_output" == *SERVE_STAND_VALID* &&
+     "$validation_output" == *SERVE_TIMELINE_VALID* ]] || \
+    die PREFLIGHT SERVE_VALIDATOR_UPDATE_REQUIRED
+  if grep -q '^#HOPE_SERVE_SEGMENTS_V1,' "$validation_csv"; then
+    [[ "$validation_output" == *SERVE_SEGMENTS_VALID* ]] || \
+      die PREFLIGHT SERVE_SEGMENT_RUNNER_UPDATE_REQUIRED
+  fi
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
   command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
@@ -815,13 +850,42 @@ validate_laptop_mocap() {
   done
 }
 
+reconnect_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
+  mkdir -p "$(dirname "$runtime_env")"
+  local connection_lock
+  exec {connection_lock}>"${runtime_env}.connection.lock"
+  flock -n "$connection_lock" || die MOCAP CONNECTION_BUSY
+  local preserved_pelvis=false preserved_world=false
+  read -r preserved_pelvis preserved_world < <(
+    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" --confirmations "$runtime_env" \
+      "$HDU_WIFI_IP" "$MOCAP_SOURCE" "$MOTIVE_IP" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" "$TABLE_SIDE"
+  )
+  export HOPE_VRPN_PELVIS_ASSET_CONFIRMED="$preserved_pelvis"
+  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="$preserved_world"
+  if tmux_exists "$LAPTOP_SESSION"; then
+    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" \
+      "$runtime_env" "$HDU_WIFI_IP" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
+    stop_laptop
+  fi
+  if [[ "$MOCAP_SOURCE" == none ]]; then
+    emit MOCAP COMPLETE DISABLED
+  else
+    start_laptop
+  fi
+}
+
 start_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
   validate_laptop_mocap
   if pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py|[a]vatar_pro_hope_bridge.launch.py|[o]ptitrack_mct_relay|[a]vatar_pro_vrpn_relay|[v]rpn_mocap/.*/client_node|[v]rpn_mocap/client_node' >/dev/null; then
     die MOCAP UNMANAGED_BRIDGE_PRESENT
   fi
-  start_tmux "$LAPTOP_SESSION" "$SELF" _run-laptop \
+  start_tmux "$LAPTOP_SESSION" /usr/bin/env \
+    "HOPE_VRPN_PELVIS_ASSET_CONFIRMED=${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" \
+    "HOPE_VRPN_WORLD_FRAME_CONFIRMED=${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
+    "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" \
     "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" || \
@@ -847,7 +911,7 @@ run_base() {
   } > "$hdu_dir/artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
-    python3 /usr/local/libexec/hope-base-pose-transport-relay \
+    /usr/local/libexec/hope-base-pose-transport-relay \
     > >(tee -a "$hdu_dir/base_relay.log") 2>&1
 }
 
@@ -865,7 +929,7 @@ start_base() {
   for attempt in {1..20}; do
     if tmux_exists "$HDU_BASE_SESSION" && \
        pgrep -u "$ROBOT_USER" -f \
-         '^python3 /usr/local/libexec/hope-base-pose-transport-relay([[:space:]]|$)' \
+         '^/usr/local/libexec/hope-base-pose-transport-relay([[:space:]]|$)' \
          >/dev/null; then
       emit BASE_RELAY COMPLETE HDU_TRANSPORT_RELAY_RUNNING
       return 0
@@ -877,8 +941,8 @@ start_base() {
   die BASE_RELAY HDU_TRANSPORT_RELAY_START_FAILED
 }
 
-run_runner_transport() {
-  require_user "$ROBOT_USER" RUNNER_TRANSPORT
+run_transport_gateway() {
+  require_user "$ROBOT_USER" TRANSPORT_GATEWAY
   set +u
   source /opt/ros/jazzy/setup.bash
   if [[ "$FIELD_MODE" != KERNEL ]]; then
@@ -890,41 +954,44 @@ run_runner_transport() {
   {
     date -u --iso-8601=seconds
     uname -a
-    sha256sum /usr/local/libexec/hope-runner-transport-relay
-  } > "$hdu_dir/runner_transport_artifact_sha256.txt"
+    sha256sum /usr/local/libexec/hope-transport-gateway
+  } > "$hdu_dir/transport_gateway_artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+  # One dual-homed participant retains the existing Fast DDS peer/interface
+  # selection. Lifecycle starts it only after the field Runner exists.
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
-    /usr/local/libexec/hope-runner-transport-relay \
-    > >(tee -a "$hdu_dir/runner_transport_relay.log") 2>&1
+    /usr/local/libexec/hope-transport-gateway \
+    > >(tee -a "$hdu_dir/transport_gateway.log") 2>&1
 }
 
-start_runner_transport() {
-  require_user "$ROBOT_USER" RUNNER_TRANSPORT
-  tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
-    die RUNNER_TRANSPORT ALREADY_RUNNING
+start_transport_gateway() {
+  require_user "$ROBOT_USER" TRANSPORT_GATEWAY
+  tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" && \
+    die TRANSPORT_GATEWAY ALREADY_RUNNING
   local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
-  local relay_log="$hdu_dir/runner_transport_relay.log"
+  local relay_log="$hdu_dir/transport_gateway.log"
   local attempt log_start=1
-  # The log is append-only across relay restarts in the same Runner session.
+  # Base packets are not an admission requirement. Health is fresh Runner
+  # transport plus endpoints. The log is append-only across gateway restarts.
   # Only this attempt's output can establish readiness.
   if [[ -f "$relay_log" ]]; then
     log_start=$(( $(stat -c %s -- "$relay_log") + 1 ))
   fi
-  start_tmux "$HDU_RUNNER_TRANSPORT_SESSION" "$SELF" _run-runner-transport \
+  start_tmux "$HDU_TRANSPORT_GATEWAY_SESSION" "$SELF" _run-transport-gateway \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" || \
-    die RUNNER_TRANSPORT ALREADY_RUNNING
+    die TRANSPORT_GATEWAY ALREADY_RUNNING
   for ((attempt = 0; attempt < 60; attempt++)); do
     if [[ -r "$relay_log" ]] && \
-       tail -c "+$log_start" -- "$relay_log" | grep -F -- "RUNNER TRANSPORT HEALTHY" >/dev/null; then
-      emit RUNNER_TRANSPORT COMPLETE BIDIRECTIONAL_DDS_HEALTHY
+       tail -c "+$log_start" -- "$relay_log" | grep -F -- "TRANSPORT GATEWAY HEALTHY" >/dev/null; then
+      emit TRANSPORT_GATEWAY COMPLETE BIDIRECTIONAL_DDS_HEALTHY
       return 0
     fi
-    tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" || break
+    tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" || break
     sleep 0.25
   done
-  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
-  die RUNNER_TRANSPORT BIDIRECTIONAL_DDS_NOT_HEALTHY
+  stop_tmux "$HDU_TRANSPORT_GATEWAY_SESSION"
+  die TRANSPORT_GATEWAY BIDIRECTIONAL_DDS_NOT_HEALTHY
 }
 
 run_planner() {
@@ -973,6 +1040,12 @@ run_planner() {
       "$HDU_WS/src/hope_planner_cpp/src/post_net_one_shot.cpp" \
       "$HDU_WS/src/hope_planner_cpp/src/trajectory_predictor.cpp"
   } > "$attempt_dir/artifact_sha256.txt"
+  local -a ball_physics_args=()
+  if [[ -f /var/lib/hope-lifecycle/ball_physics.json ]]; then
+    cp /var/lib/hope-lifecycle/ball_physics.json "$attempt_dir/ball_physics.json"
+    ball_physics_args=(--params-file "$attempt_dir/ball_physics.json")
+    sha256sum "$attempt_dir/ball_physics.json" >> "$attempt_dir/artifact_sha256.txt"
+  fi
   dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   set +e
   # Ctrl-C reaches tee too. Keep its pipe open until the Planner has finished
@@ -984,6 +1057,7 @@ run_planner() {
       hope_planner_launcher "$attempt_dir/pid.txt" \
       "$executable" --ros-args \
         --params-file "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
+        "${ball_physics_args[@]}" \
         -p "x_hit_calibration_request_file:=$request_file" \
         -p "x_hit_calibration_status_file:=$status_file" \
         -p "debug_csv_path:=$attempt_dir/planner_audit.csv" \
@@ -1128,16 +1202,20 @@ run_runner() {
       /etc/systemd/system/agibot-mdu-phc2sys.service \
       /etc/systemd/system/agibot_pm.service
   } > "$session_dir/artifact_sha256.txt"
-  local -a field_runner_args=(--planner)
+  local -a field_runner_args=(--planner --shared-session-home)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
-    if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
-      local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
-      [[ -r "$selected_csv" ]] || die RUNNER SELECTED_CSV_MISSING
-      [[ "$(sha256sum "$selected_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
-        die RUNNER SELECTED_CSV_CHANGED
-      field_runner_args+=(--serve-timeline "$selected_csv")
-    fi
+  fi
+  # One selected trajectory for both modes; mode only changes post-serve ownership.
+  if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
+    local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    [[ -r "$selected_csv" ]] || die RUNNER SELECTED_CSV_MISSING
+    [[ "$(sha256sum "$selected_csv" | cut -d ' ' -f 1)" == "$SERVE_CSV_SHA" ]] || \
+      die RUNNER SELECTED_CSV_CHANGED
+    field_runner_args+=(--serve-timeline "$selected_csv")
+  else
+    # Pass the built-in choice explicitly; do not depend on wrapper fallback.
+    field_runner_args+=(--serve-timeline "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv")
   fi
   if [[ -d "$PWD/teleop_humanlike" ]]; then
     local teleop_asset
@@ -1148,6 +1226,11 @@ run_runner() {
     field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
   fi
   printf 'mode=%s\ncsv_sha256=%s\ngripper_profile=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" > "$session_dir/field_selection.txt"
+  local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+  [[ "$SERVE_CSV_SHA" == DEFAULT ]] || effective_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+  sha256sum "$effective_csv" >> "$session_dir/artifact_sha256.txt"
+  printf 'effective_csv=%s\neffective_csv_sha256=%s\n' "$effective_csv" \
+    "$(sha256sum "$effective_csv" | cut -d ' ' -f 1)" >> "$session_dir/field_selection.txt"
   set +e
   # Keep the log reader alive through Ctrl-C so Runner can drain its CSVs.
   python3 "$CAPTURE_HELPER" --controlled --role mdu --root "$MDU_DEPLOY" \
@@ -1245,8 +1328,13 @@ stop_mdu() {
 
 stop_hdu() {
   require_user "$ROBOT_USER" PLANNER_BASE
-  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
-  emit RUNNER_TRANSPORT COMPLETE RUNNER_TRANSPORT_STOPPED
+  stop_tmux "$HDU_TRANSPORT_GATEWAY_SESSION"
+  emit TRANSPORT_GATEWAY COMPLETE TRANSPORT_GATEWAY_STOPPED
+  # Clean up sessions left by an older installation too.
+  if tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION"; then
+    stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
+    emit RUNNER_TRANSPORT COMPLETE RUNNER_TRANSPORT_STOPPED
+  fi
   stop_tmux "$HDU_PLANNER_SESSION"
   emit PLANNER COMPLETE PLANNER_STOPPED
   stop_tmux "$HDU_BASE_SESSION"
@@ -1343,6 +1431,25 @@ main() {
   local action="$1"
   shift
   case "$action" in
+    ball-model-hdu)
+      require_user "$ROBOT_USER" BALL_MODEL
+      set +u
+      source /opt/ros/jazzy/setup.bash
+      set -u
+      exec python3 /usr/local/bin/hope_ball_models.py --role hdu \
+        --config-dir "$HDU_WS/src/hope_planner_cpp/config"
+      ;;
+    ball-model-laptop)
+      require_user "$LAPTOP_USER" BALL_MODEL
+      local -a ball_command=(/bin/bash)
+      case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
+        distrobox) ball_command=(/usr/bin/distrobox enter hope -- /bin/bash) ;;
+        direct) ;;
+        *) die BALL_MODEL INVALID_LAPTOP_RUNTIME ;;
+      esac
+      exec "${ball_command[@]}" \
+        "$HOPE_ROOT/foxglove/helpers/hope-laptop-ball-model" "$HOPE_ROOT"
+      ;;
     record-control)
       exec python3 "$(dirname "$SELF")/hope_sim2real_control.py"
       ;;
@@ -1392,8 +1499,9 @@ main() {
     prepare-hdu) prepare_hdu ;;
     prepare-mdu) prepare_mdu ;;
     start-laptop) start_laptop ;;
+    reconnect-laptop) reconnect_laptop ;;
     start-base) start_base ;;
-    start-runner-transport) start_runner_transport ;;
+    start-transport-gateway) start_transport_gateway ;;
     start-planner) start_planner ;;
     start-hal) start_hal ;;
     start-runner) start_runner ;;
@@ -1404,7 +1512,7 @@ main() {
     collect) collect_logs ;;
     _run-laptop) run_laptop ;;
     _run-base) run_base ;;
-    _run-runner-transport) run_runner_transport ;;
+    _run-transport-gateway) run_transport_gateway ;;
     _run-planner) run_planner ;;
     _run-elink) run_elink ;;
     _run-hal) run_hal ;;

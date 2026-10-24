@@ -847,11 +847,19 @@ if unitree_policy_mode:
 # another file that satisfies the runtime named-schema and safety checks.
 serve_timeline = (
     gear_root / "assets" / "a3_runtime" / "serve" / "motions"
-    / "a3p_op3_serve025_smooth_center_v14.csv"
+    / "a3p_op3_serve025_v23_branch110_model14600.csv"
 )
 if not serve_timeline.is_file():
     raise SystemExit(f"required serve025 CSV is missing: {serve_timeline}")
 copy_into(serve_timeline, "motions")
+# Keep the reproducible recipe beside the selected three-segment default.
+copy_into(serve_timeline.with_suffix(".recipe.json"), "motions")
+serve_previous = serve_timeline.parent / "a3p_op3_serve025_v22_branch90_model14600.csv"
+copy_into(serve_previous, "motions")
+copy_into(serve_previous.with_suffix(".recipe.json"), "motions")
+# Regeneration input is kept outside the active motion directory.
+copy_into(serve_timeline.parent.parent / "archive" /
+          "a3p_op3_serve025_edge_center_v20.csv", "archive")
 
 serve_grip = gear_root / "scripts" / "serve_gripper_presets.py"
 if not serve_grip.is_file():
@@ -1488,7 +1496,7 @@ if [[ -n "${SERVE_UNSUPPORTED_OVERRIDE}" ]]; then
   exit 64
 fi
 for _required in \
-  "${SCRIPT_DIR}/motions/a3p_op3_serve025_smooth_center_v14.csv"; do
+  "${SCRIPT_DIR}/motions/a3p_op3_serve025_v23_branch110_model14600.csv"; do
   if [[ ! -f "${_required}" ]]; then
     echo "packaged --serve file is missing: ${_required}" >&2
     exit 66
@@ -1519,7 +1527,7 @@ SERVE_TIMELINE_ARGS=()
 if [[ "${SERVE_TIMELINE_OVERRIDE}" == "0" ]]; then
   SERVE_TIMELINE_ARGS=(
     --serve-timeline
-    "${SCRIPT_DIR}/motions/a3p_op3_serve025_smooth_center_v14.csv"
+    "${SCRIPT_DIR}/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
   )
 else
   echo "[a3_pingpong] using operator --serve-timeline override"
@@ -1805,7 +1813,7 @@ verify_package() {
     exit 1
   fi
   local serve_required=(
-    "motions/a3p_op3_serve025_smooth_center_v14.csv"
+    "motions/a3p_op3_serve025_v23_branch110_model14600.csv"
     "tools/a3p_gripper_bridge.py"
     "tools/grip.py"
     "tools/gripper_profiles.json"

@@ -957,3 +957,23 @@ button:disabled {
   padding: 0.5rem;
   font: 0.75rem "IBM Plex Mono", monospace;
 }
+
+.hit-speed-scale-controls input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #71819688; border-radius: 5px; padding: 7px; color: #e7edf3; background: #0d1725; font-family: "IBM Plex Mono", monospace; }
+.hit-speed-scale-controls button { border: 1px solid #f1b44d88; border-radius: 5px; padding: 6px 10px; color: #f5d395; background: #efad391a; cursor: pointer; }
+.hit-speed-scale-controls button:disabled, .hit-speed-scale-controls input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.hope-console .robot-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.hope-console .robot-connection { padding: 12px; border-bottom: 1px solid #516173; }
+.hope-console .robot-connection input { margin: 0 8px; }
+
+.plane-mode-controls {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  font-size: 12px;
+  border: 1px solid var(--border, #59616d);
+  border-radius: 6px;
+}
+.plane-mode-controls label { display: grid; gap: 6px; }
+.plane-mode-controls select { width: 100%; min-width: 0; padding: 6px; }
+.plane-mode-controls [role="alert"] { color: #ff968d; }

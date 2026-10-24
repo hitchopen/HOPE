@@ -1,0 +1,5 @@
+# Explicit local field choice. Apply after the base Planner parameters.
+# Do not overwrite Berkeley's base configuration or couple this to ball physics.
+hope_planner:
+  ros__parameters:
+    target_turn_reject_stale_pose: false

@@ -242,6 +242,40 @@ TEST(PpServeController, LoadingTrajectoryVelocityMatchesPositionAndHasQuietEndpo
   EXPECT_TRUE(command.dq_des.isZero(1e-14));
 }
 
+TEST(PpServeController, PrepareClearsGripperAndLiftsRacketBeforeRotatingIt) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto ready = timeline.ready().q_sdk;
+  PpServeController controller(std::move(timeline), stand,
+      PositiveGains(90), PositiveGains(3), nullptr);
+  const auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  controller.Start();
+  for (std::size_t tick = 0; tick <= 200; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    for (const int sdk : {12, 13, 14, 15, 16, 17, 18}) {
+      EXPECT_NEAR(command.q_des[sdk], stand[sdk], 1e-12);
+      EXPECT_NEAR(command.dq_des[sdk], 0., 1e-12);
+    }
+  }
+  EXPECT_GT(std::abs(command.q_des[8] - stand[8]), .1);
+  // Rotation must remain at Stand until the shoulder/elbow lift has started.
+  for (std::size_t tick = 201; tick <= 260; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    for (const int sdk : {14, 16, 17, 18}) {
+      EXPECT_NEAR(command.q_des[sdk], stand[sdk], 1e-12);
+      EXPECT_NEAR(command.dq_des[sdk], 0., 1e-12);
+    }
+  }
+  EXPECT_GT(std::abs(command.q_des[12] - stand[12]), .05);
+  EXPECT_GT(std::abs(command.q_des[15] - stand[15]), .05);
+  for (std::size_t tick = 261;
+       tick < a3_pingpong::kServe025FullbodyTransitionTicks; ++tick)
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+  EXPECT_TRUE(command.q_des.isApprox(ready, 1e-14));
+  EXPECT_TRUE(command.dq_des.isZero(1e-14));
+}
+
 TEST(PpServeController, SelectedCsvCanOnlyChangeSymmetricLateralStand) {
   const auto stand = LoadTimeline().complete().q_sdk;
   auto wide = stand;
@@ -366,7 +400,7 @@ TEST(PpServeController, MissingGripperNeverBlocksBodyTimeline) {
 }
 
 TEST(PpServeController, ReleaseAcceptsAnyReceiptInsideFivePublishBurst) {
-  for (std::size_t lead : {0U, 1U, 2U, 3U}) {
+  for (std::size_t lead : {0U, 1U, 2U, 3U, 4U}) {
     struct Shared {
       std::mutex mutex;
       std::vector<PpGripperCommand> commands;
@@ -588,9 +622,9 @@ TEST(PpServeController, ReleaseLeadIsBoundedAndCannotChangeDuringAction) {
   const auto stand = timeline.complete().q_sdk;
   PpServeController controller(std::move(timeline), stand, PositiveGains(80), PositiveGains(2), nullptr);
   EXPECT_EQ(controller.release_frame(), 48U);
-  EXPECT_THROW(controller.SetReleaseLeadFrames(4), std::invalid_argument);
-  controller.SetReleaseLeadFrames(2);
-  EXPECT_EQ(controller.release_frame(), 46U);
+  EXPECT_THROW(controller.SetReleaseLeadFrames(5), std::invalid_argument);
+  controller.SetReleaseLeadFrames(4);
+  EXPECT_EQ(controller.release_frame(), 44U);
   robot_io::RobotCommand command;
   controller.Start();
   ASSERT_TRUE(controller.ComputeCommand(0, StateAt(stand), command));

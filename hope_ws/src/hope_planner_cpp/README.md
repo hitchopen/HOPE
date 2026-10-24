@@ -46,9 +46,18 @@ deadlines are rejected. The horizontal angle is measured from the robot's
 current heading to the strike point. The shared production profile now uses
 `max_target_turn_deg: 180.0`, disabling angular rejection at the operator's
 request. The earlier 40 degree limit can be restored explicitly in the profile;
-the C++ default remains 40 degrees. Unavailable or stale base poses are still
-rejected. This parameter is read at startup, so changing the YAML requires a
-controlled Planner restart.
+the C++ default remains 40 degrees. Unavailable/invalid base poses are still
+rejected. Pose age is a separate site option: `target_turn_reject_stale_pose`
+defaults to `true`, preserving the Berkeley/main receipt and source age checks.
+The local PPQ field setup uses `false`: measured ages remain in the audit CSV,
+and exceeded ages emit a warning but do not veto a shot. Do not infer this option
+from the ball model, operating system, or robot model. Use
+`config/field_body_timing_audit.yaml` after the base parameter file, or retain
+its single parameter in the installed site's `model21800_hardware.yaml` when
+using the lifecycle helper. Both policies retain invalid-pose, strike-deadline,
+and configured turn-angle checks. Parameters are read at startup; changing them
+requires a controlled Planner restart. A source push does not change a running
+Planner or a robot's installed site configuration.
 There is no additional confidence, stability-frame, READY, or balance gate.
 
 Audit CSV creation is exclusive and refuses to truncate an existing attempt.
@@ -228,3 +237,23 @@ correctness, or physical robot behavior. The field runbook documents how to
 build, run, and collect evidence for this candidate; that documentation is not
 a qualification claim. Treat the candidate as unqualified until the planned
 HDU ARM replay and supported-robot field test have passed.
+
+### Runtime hit speed scale
+
+`hit_speed_scale` defaults to `1.0` at startup. The dedicated
+`/hope/planner/set_hit_speed_scale` (`rcl_interfaces/srv/SetParametersAtomically`)
+accepts exactly one `scale` double, finite and nonnegative, while Planner is running.
+It scales all three components of the planned racket velocity before command
+admission, flat/typed publication, and CSV logging. Position, normal, deadline,
+flight identity, and the original Stage 3 landing solution are unchanged.
+The outgoing-ball/net/landing predictions still describe the unscaled solution.
+Already published one-shot flights and their retransmissions remain immutable.
+Exact question-bank fixtures lock the scale to 1 and ignore saved settings. When
+`hit_speed_scale_state_file` is configured, updates are saved atomically before
+acknowledgement and restored on restart. An invalid saved file fails startup;
+a failed write leaves the live value unchanged. Without a saved file, the startup
+parameter (default 1) applies. Hardware config uses
+`/var/lib/hope-lifecycle/planner_hit_speed_scale.state`. Diagnostics report
+`hit_speed_scale_persistent`, `hit_speed_scale`,
+`hit_speed_scale_configurable`, and `hit_speed_scale_last_command`; the last value
+is NaN until a valid target is published. CSV rows include their applied scale.

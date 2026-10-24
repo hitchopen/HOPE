@@ -30,7 +30,7 @@ if [[ "$mocap_source" == vrpn ]]; then
   } > "$laptop_dir/artifact_sha256.txt"
   ros2 daemon stop || true
   exec "$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh" \
-    --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" -- \
+    --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" --peer 127.0.0.1 -- \
     ros2 launch hope_bringup avatar_pro_hope_bridge.launch.py \
       server:="$HOPE_LIFECYCLE_VRPN_IP" port:="$HOPE_LIFECYCLE_VRPN_PORT" \
       position_scale:="$position_scale" pants_profile:="$HOPE_LIFECYCLE_PANTS_PROFILE" \
@@ -75,7 +75,7 @@ cp src/hope_bringup/config/hope_world_frame.yaml "$laptop_dir/world_frame_config
 
 ros2 daemon stop || true
 readonly dds_wrap="$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
-exec "$dds_wrap" --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" -- \
+exec "$dds_wrap" --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" --peer 127.0.0.1 -- \
   bash -c '
     set -euo pipefail
     marker_root="$1"

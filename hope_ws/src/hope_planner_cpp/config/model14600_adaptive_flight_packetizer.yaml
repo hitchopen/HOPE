@@ -10,7 +10,7 @@ hope_ball_flight_packetizer:
     future_contact_spin_tangential_gain: 0.38744443855065164
     future_contact_spin_omega_scale: 1.0
     future_contact_spin_min_coherence: 0.4
-    input_pose_topic: "/poses"
+    input_pose_topic: "/poses/planner_full"
     flight_packet_topic: "/ball/flight_packet"
     ball_pose_index: 0
     input_qos_depth: 64
@@ -21,9 +21,9 @@ hope_ball_flight_packetizer:
     incoming_opponent_side_margin_m: 0.05
     incoming_speed_threshold_mps: 0.25
     outgoing_speed_threshold_mps: 0.25
-    incoming_direction_fit_samples: 4
+    incoming_direction_fit_samples: 16
     incoming_direction_confirmations: 2
-    incoming_pre_roll_samples: 24
+    incoming_pre_roll_samples: 48
     incoming_source_gap_reset_s: 0.25
 
     retransmit_delays_ms: [0, 5, 15]
@@ -33,10 +33,7 @@ hope_ball_flight_packetizer:
 
     adaptive_commit_enabled: true
     adaptive_policy_lead_s: 0.35
-    adaptive_transport_budget_s: 0.10
-    adaptive_max_post_net_wait_s: 0.50
-    adaptive_post_bounce_span_s: 0.08
-    adaptive_contact_exclusion_s: 0.008
+    adaptive_transport_budget_s: 0.03
     adaptive_evaluation_period_s: 0.01
     adaptive_scheduling_x_hit: 0.15
     adaptive_hit_plane_topic: "/hope/planner/hit_plane"
@@ -47,3 +44,12 @@ hope_ball_flight_packetizer:
     table_tangential_gain: 0.38744443855065164
     post_net_future_bounce_tangential_gain: 0.38744443855065164
     post_net_future_bounce_restitution_v: 0.9313775047019153
+    batch_single_flight_only: true
+    adaptive_solve_budget_s: 0.005
+    batch_estimator_min_span_s: 0.08
+    batch_post_bounce_min_span_s: 0.08
+    adaptive_policy_tick_s: 0.02
+    batch_post_bounce_exclusion_s: 0.008
+    adaptive_max_sample_age_s: 0.1
+    batch_estimator_min_samples: 24
+    batch_max_sample_gap_s: 0.02

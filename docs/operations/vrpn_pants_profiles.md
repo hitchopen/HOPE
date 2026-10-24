@@ -5,8 +5,17 @@ V4 是用户确认的 17 点贴纸裤子（前 7、后 10），原始 CAD 目录
 
 ## 文件与原点
 
-可导入的 CMTracker JSON 放在
-`hope_ws/src/hope_bringup/config/pants_profiles/`：
+17 点贴纸壳只发布一份 CMTracker 导入文件：
+[`A3_v3_17_stickers.json`](../../agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json)。
+它与 Motive 的 `A3_v3_17_stickers.motive` 同名主干，内部刚体名称同为
+`UCB_P1`，内容与现有 V4 P1 运行时文件逐字节一致。文件名中的 v3 与运行时
+选项中的 V4 指同一套硬件；现场按需在 CMTracker 配置 `UCB_P1` / `UCB_P2`
+名称和唯一 ID，保留相同骨盆局部几何，不需要另一份 P2 发布文件。
+[`vrpn_asset/README.md`](../../agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
+提供导入、骨盆原点、轴向和单位检查步骤；不要导入 `asset_manifest.json`。
+
+现有运行时配置保留在 `hope_ws/src/hope_bringup/config/pants_profiles/`，
+以下文件不改动，以保持兼容；V4 的 P1/P2 文件具有相同的局部标记点几何：
 
 | 裤子 | P1 侧机器人 | P2 侧机器人 |
 | --- | --- | --- |
@@ -27,7 +36,8 @@ V4 使用贴纸外表面的光学中心（厚度 0.20 mm），不是安装座或
 
 大小写必须一致：本方机器人 `UCB_P1` 或 `UCB_P2`，球 `Ball`。
 单机器人不需要同时建两个机器人刚体。`PPT` 是可选球桌刚体；球拍没有必需名称。
-导入文件内已经使用 `UCB_P1` / `UCB_P2`。不要同时导入同侧的 V2 和 V4。
+单一发布文件内部名称是 `UCB_P1`；P2 现场将导入的刚体改名为 `UCB_P2`，
+并确认刚体 ID 唯一，不要重新居中、旋转或镜像标记点。不要同时导入同侧的 V2 和 V4。
 
 ## Foxglove 切换
 

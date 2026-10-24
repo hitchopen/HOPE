@@ -1,3 +1,6 @@
+# Field serve025: event frame 48 -> release command frame 45.
+serve_release_lead_frames: 3
+
 # Transport/localization config shared by MuJoCo and hardware. Policy-owned
 # values (model, step_dt, joint map, default q, action scale/clip, Kp/Kd and
 # ordered observations) live in a Unitree-style policy directory supplied via

@@ -11,9 +11,10 @@ struct AdaptiveCommitConfig {
   // physical deadline, reject a short-lead ball, or modify an active swing.
   double policy_lead_s = 0.35;
   double transport_budget_s = 0.10;
-  double max_post_net_wait_s = 0.50;
-  double post_bounce_span_s = 0.08;
-  double contact_exclusion_s = 0.008;
+  double solve_budget_s = 0.005;
+  double policy_tick_s = 0.02;
+  // A stalled source cannot turn an arbitrarily old fit into a final target.
+  double max_sample_age_s = 0.05;
   double evaluation_period_s = 0.01;
 };
 

@@ -48,11 +48,12 @@ HDU_VENDOR_STOP_UNITS = tuple(reversed(HDU_VENDOR_UNITS))
 HDU_FOXGLOVE_UNITS = (
     "hope-monitor.service",
     "hope-foxglove-bridge.service",
-    "hope-observer.service",
-    "hope-command-proxy.service",
     "hope-foxglove-control-bridge.service",
     "hope-lifecycle-supervisor.service",
 )
+# Historical receipts remain readable, but recovery never launches the retired
+# standalone observer/proxy processes on a consolidated installation.
+LEGACY_OPERATION_UNITS = ("hope-observer.service", "hope-command-proxy.service")
 PTP_PROCESSES = ("ptp4l", "phc2sys")
 
 SYSTEMCTL = "/usr/bin/systemctl"
@@ -194,7 +195,7 @@ def status_from_document(document: Mapping[str, object]) -> CalibrationStatus:
         ),
         active_hdu_foxglove=_unit_list(
             document.get("active_hdu_foxglove"),
-            allowed=HDU_FOXGLOVE_UNITS,
+            allowed=HDU_FOXGLOVE_UNITS + LEGACY_OPERATION_UNITS,
             field="active_hdu_foxglove",
         ),
     )
@@ -436,8 +437,13 @@ class TimeCalibrationBackend:
             "(^|/)hope_planner_cpp_node([[:space:]]|$)"
         ):
             raise CalibrationRejected("HDU_PLANNER_IS_RUNNING")
-        if self._runtime_process_present("[h]ope_base_pose_transport_relay"):
+        if (self._runtime_process_present("[h]ope_base_pose_transport_relay")
+                or self._runtime_process_present("(^|/)hope-base-pose-transport-relay([[:space:]]|$)")):
             raise CalibrationRejected("HDU_BASE_RELAY_IS_RUNNING")
+        if self._runtime_process_present(
+            "(^|/)hope-transport-gateway([[:space:]]|$)"
+        ):
+            raise CalibrationRejected("HDU_TRANSPORT_GATEWAY_IS_RUNNING")
         missing_ptp = [
             process
             for process in PTP_PROCESSES
@@ -463,6 +469,12 @@ class TimeCalibrationBackend:
         )
 
     def _restore_control_plane(self, units: Sequence[str]) -> None:
+        units = tuple(dict.fromkeys(
+            "hope-lifecycle-supervisor.service" if unit in LEGACY_OPERATION_UNITS else unit
+            for unit in _unit_list(list(units),
+                                   allowed=HDU_FOXGLOVE_UNITS + LEGACY_OPERATION_UNITS,
+                                   field="active_hdu_foxglove")
+        ))
         self._checked(
             [SYSTEMCTL, "reset-failed", *HDU_FOXGLOVE_UNITS],
             timeout_s=20.0,

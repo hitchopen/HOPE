@@ -62,6 +62,13 @@ run_gate outgoing-reference python3 "$repo/hope_ws/src/hope_planner_cpp/scripts/
 if [[ -e "$repo/.git" ]]; then
   run_gate legacy-parity python3 "$repo/hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/production_parity.py" \
     --repo "$repo" --output "$evidence/legacy-parity.json"
+  run_gate historical-legacy-parity python3 "$repo/hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/production_parity.py" \
+    --repo "$repo" --base 8d599e7d21e196275cf426488555e2648e8fd789 \
+    --candidate-ref 47296db5653c6dda7d397d7a82153f69fa4ed4fb \
+    --output "$evidence/historical-legacy-parity.json"
+  run_gate premerge-v2-parity python3 "$repo/hope_ws/src/hope_planner_cpp/test/pr85_cutoff_parity.py" \
+    --repo "$repo" --replay "$evidence/native/hope_flight_prediction_v2_replay" \
+    --output "$evidence/premerge-v2-parity.json"
 fi
 cd "$repo/hope_ws"
 run_gate ros-build env MAKEFLAGS=-j2 colcon --log-base "$evidence/log" build \

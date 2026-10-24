@@ -10,7 +10,13 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import { BallModelStatus, ballModelDisplay } from "./ballModelStatus";
+
+import { HitSpeedScaleControls } from "./HitSpeedScaleControls";
+import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
+import { robotConnectionUrl, switchRobot } from "./robotConnection";
+import { mergeConfirmedConfig } from "./lifecycleConfig";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
 import "@fontsource/ibm-plex-mono/400.css";
@@ -20,9 +26,13 @@ import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
+import { PlaneModeControls } from "./PlaneModeControls";
+import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
+
 import "./styles.css";
 
 const TOPICS = {
+  plannerDiagnostics: "/planner/diagnostics",
   fieldStatus: "/hope/field/status",
   ntpOffset: "/hope/ntp/offset_ms",
   ntpSkew: "/hope/ntp/skew_ppm",
@@ -69,8 +79,6 @@ const TOPICS = {
   lastAction: "/hope/runner/last_action",
   lastResult: "/hope/runner/last_action_result",
   lastReason: "/hope/runner/last_action_reason",
-  xHitSuccess: "/hope/x_hit/success",
-  xHitStatus: "/hope/x_hit/status",
   lifecycleState: "/hope/lifecycle/state",
   lifecycleStep: "/hope/lifecycle/step",
   lifecycleSession: "/hope/lifecycle/session_id",
@@ -102,7 +110,6 @@ const SERVICES = {
   setServer: "/hope/runner/set_server",
   setReceiver: "/hope/runner/set_receiver",
   stand: "/hope/runner/enter_pd_stand",
-  refreshXHit: "/hope/refresh_x_hit",
   ready: "/hope/runner/enter_motion",
   teleop: "/hope/runner/enter_teleop",
   prepareServe: "/hope/runner/prepare_serve",
@@ -120,10 +127,15 @@ type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
+  ball_model_status?: BallModelStatus;
+  ball_model?: "berkeley" | "ppq002" | "ppq004" | null;
+  ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
   calibration?: { name: string; sha256: string; profile: string; table_side: string } | null;
   calibration_sync: string;
-  csv?: { name: string; sha256: string; frames: number; hz: number } | null;
+  csv?: { name: string; sha256: string; frames: number; hz: number;
+    segments?: { version: number; branch_frame: number; policy_ready_s: number; policy_blend_s: number;
+      policy_sha256: string; clips: Record<string, { frames: number; duration_s: number }> } } | null;
   recording: { state: string; output: string; error: string };
   busy?: boolean;
   error?: string;
@@ -210,6 +222,7 @@ function xboxPreviewValue(message: unknown): XboxPreview | undefined {
 }
 
 type Snapshot = {
+  hitSpeedScale?: HitSpeedScaleState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
   ntpOffsetMs?: number;
@@ -256,8 +269,7 @@ type Snapshot = {
   lastAction?: string;
   lastResult?: string;
   lastReason?: string;
-  xHitSuccess?: boolean;
-  xHitStatus?: string;
+  planeMode?: PlaneModeState;
   field?: FieldStatus;
   lifecycleState?: string;
   lifecycleStep?: string;
@@ -317,6 +329,10 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
+    case TOPICS.plannerDiagnostics:
+      next.planeMode = decodePlaneMode(event.message);
+      next.hitSpeedScale = decodeHitSpeedScale(event.message);
+      break;
     case TOPICS.fieldStatus:
       try {
         next.field = JSON.parse(stringValue(event.message) ?? "null") as FieldStatus;
@@ -467,12 +483,6 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.lastReason:
       next.lastReason = stringValue(event.message);
-      break;
-    case TOPICS.xHitSuccess:
-      next.xHitSuccess = boolValue(event.message);
-      break;
-    case TOPICS.xHitStatus:
-      next.xHitStatus = stringValue(event.message);
       break;
     case TOPICS.lifecycleState:
       next.lifecycleState = stringValue(event.message);
@@ -670,6 +680,35 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [notice, setNotice] = useState("Waiting for authoritative Runner state");
   const [configDraft, setConfigDraft] = useState<LifecycleConfigDraft>(EMPTY_CONFIG);
   const [configTouched, setConfigTouched] = useState(false);
+  const savedPanel = useRef((context.initialState ?? {}) as Record<string, unknown>);
+  const [robotTarget, setRobotTarget] = useState(typeof savedPanel.current.robotTarget === "string" ? savedPanel.current.robotTarget : "");
+  const [targetEdited, setTargetEdited] = useState(false);
+  const [pendingTarget, setPendingTarget] = useState<string>(typeof savedPanel.current.robotTarget === "string" ? savedPanel.current.robotTarget : "");
+  const configHost = snapshot.lifecycleConfig.hdu_wifi_ip;
+  const previousHost = useRef<string>();
+  useEffect(() => {
+    if (!configHost) { return; }
+    if (previousHost.current && previousHost.current !== configHost) {
+      setConfigTouched(false);
+      setConfigDraft({ ...EMPTY_CONFIG, ...snapshot.lifecycleConfig });
+    }
+    previousHost.current = configHost;
+    if (!targetEdited && !pendingTarget) { setRobotTarget(configHost); }
+    if (pendingTarget === configHost) { setPendingTarget(""); setTargetEdited(false); }
+  }, [configHost, pendingTarget, targetEdited, snapshot.lifecycleConfig]);
+  const connectRobot = () => {
+    try {
+      switchRobot(robotTarget.trim(), (ip) => {
+        setPendingTarget(ip);
+        savedPanel.current = { ...savedPanel.current, robotTarget: ip };
+        context.saveState(savedPanel.current);
+        setNotice(`正在打开 ${ip}:8766；等待新机器人回读，旧面板已锁定。`);
+      }, (url) => { window.open(url, "_blank", "noopener,noreferrer"); });
+    } catch (error) { setNotice(String(error)); }
+  };
+  let validRobotTarget = false;
+  try { robotConnectionUrl(robotTarget.trim()); validRobotTarget = true; } catch { /* incomplete input */ }
+
   const [fieldBusy, setFieldBusy] = useState(false);
   const [recordBusy, setRecordBusy] = useState(false);
   const csvInput = useRef<HTMLInputElement>(null);
@@ -677,6 +716,14 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   useLayoutEffect(() => {
     context.onRender = (renderState, done) => {
       const receivedAt = Date.now();
+      const hostMessage = renderState.currentFrame?.find((event) => event.topic === TOPICS.hduWifiIp);
+      const incomingHost = hostMessage ? stringValue(hostMessage.message) : undefined;
+      if (renderState.didSeek || (incomingHost && latest.current.lifecycleConfig.hdu_wifi_ip &&
+          incomingHost !== latest.current.lifecycleConfig.hdu_wifi_ip)) {
+        latest.current = INITIAL_SNAPSHOT;
+        setConfigTouched(false);
+        setConfigDraft(EMPTY_CONFIG);
+      }
       const next: Snapshot = {
         ...latest.current,
         cpuSamples: [...latest.current.cpuSamples],
@@ -694,6 +741,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       setSnapshot(next);
       setRenderDone(() => done);
     };
+    context.watch("didSeek");
     context.watch("topics");
     context.watch("currentFrame");
     context.subscribe(Object.values(TOPICS).map((topic) => ({ topic })));
@@ -717,15 +765,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   }, []);
 
   useEffect(() => {
-    if (configTouched) {
-      return;
-    }
-    const complete = (Object.keys(CONFIG_FIELDS) as ConfigField[]).every(
-      (name) => snapshot.lifecycleConfig[name] != undefined,
-    );
-    if (complete) {
-      setConfigDraft(snapshot.lifecycleConfig as LifecycleConfigDraft);
-    }
+    setConfigDraft((current) => mergeConfirmedConfig(current, snapshot.lifecycleConfig, configTouched));
   }, [configTouched, snapshot.lifecycleConfig]);
 
   const invoke = useCallback(
@@ -740,11 +780,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         const timeoutMs =
           key === "estop"
             ? 5_000
-            : key === "refreshXHit"
-                ? 7_000
-                : key === "timeCalibration"
-                  ? 10_000
-                  : 3_000;
+            : key === "timeCalibration"
+              ? 10_000
+              : 3_000;
         const raw = await Promise.race([
           context.callService(SERVICES[key], {}),
           timeoutAfter(timeoutMs),
@@ -759,6 +797,46 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     },
     [busy, context],
   );
+
+  const applyHitSpeedScale = useCallback(async (scale: number) => {
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(HIT_SPEED_SCALE_SERVICE, hitSpeedScaleRequest(scale)), timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.hitSpeedScale?.scale === scale) {
+        setNotice(`击球力度已确认：${scale}；从后续新目标生效。`);
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("请求已接受，状态回读超时；请核对当前击球力度。");
+  }, [context]);
+
+  const applyPlaneMode = useCallback(async (mode: PlaneMode) => {
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(PLANE_MODE_SERVICE, planeModeRequest(mode)), timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.planeMode?.requested === mode) {
+        setNotice("已确认下一球平面模式；本球目标保持不变。");
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("请求已接受，状态回读超时；请核对下一球模式。");
+  }, [context]);
 
   const fieldCommand = useCallback(async (payload: Record<string, unknown>) => {
     const recording = payload.op === "record_on" || payload.op === "record_off";
@@ -808,6 +886,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   );
 
   const confirmLifecycleConfig = useCallback(async () => {
+    // A robot address is a connection target, never an edit to the old robot.
+    if (configDraft.hdu_wifi_ip !== latest.current.lifecycleConfig.hdu_wifi_ip) {
+      setNotice("机器人 IP 已变化，请使用顶部机器人连接 CONFIRM；未写入当前机器人。");
+      return;
+    }
     const key: ServiceKey = "applyLifecycleConfig";
     if (context.callService == undefined || busy[key] === true) {
       setNotice("Current data source does not expose lifecycle configuration");
@@ -815,7 +898,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     }
     setBusy((current) => ({ ...current, [key]: true }));
     setNotice("Validating and confirming lifecycle configuration…");
-    const parameters = (Object.keys(CONFIG_FIELDS) as ConfigField[]).map((name) => ({
+    const parameters = (Object.keys(CONFIG_FIELDS) as ConfigField[])
+      .filter((name) => name !== "operator_profile" || snapshot.lifecycleConfig.operator_profile != undefined)
+      .map((name) => ({
       name,
       value: {
         type: 4,
@@ -833,18 +918,18 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     try {
       const raw = (await Promise.race([
         context.callService(SERVICES.applyLifecycleConfig, { parameters }),
-        timeoutAfter(3_000),
+        timeoutAfter(60_000),
       ])) as SetParametersResponse;
       const results = Array.isArray(raw.results) ? raw.results : [];
       const rejected = results.find((result) => result.successful !== true);
-      if (results.length !== Object.keys(CONFIG_FIELDS).length || rejected != undefined) {
+      if (results.length !== parameters.length || rejected != undefined) {
         const reason =
           typeof rejected?.reason === "string" ? rejected.reason : "invalid service response";
         setNotice(`CONFIG REJECTED · ${reason}`);
       } else {
         setConfigTouched(false);
         setNotice(
-          `CONFIG CONFIRMED · ${configDraft.operator_profile.toUpperCase()} operator · ${configDraft.table_side} · these addresses`,
+          `CONFIG CONFIRMED · ${configDraft.operator_profile ? `${configDraft.operator_profile.toUpperCase()} operator · ` : ""}${MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN"} · ${configDraft.table_side} · ${configDraft.gripper_profile} · ${configDraft.pants_profile.toUpperCase()}`,
         );
       }
     } catch (error) {
@@ -852,18 +937,20 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     } finally {
       setBusy((current) => ({ ...current, [key]: false }));
     }
-  }, [busy, configDraft, context]);
+  }, [busy, configDraft, context, snapshot.lifecycleConfig.operator_profile]);
 
   const startSystem = useCallback(async () => {
     const accepted = window.confirm(
-      snapshot.field?.mode === "KERNEL"
-        ? "Start Kernel Mode with the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE; X/Ready and serve completion run the receive policy with local stance-foot odometry. No OptiTrack or Planner will be started."
+      snapshot.lifecycleState === "FAILED"
+        ? "清理上次失败会话并重新 START？系统会先停止残留进程、恢复厂商服务并收集日志，再启动到 PASSIVE。请确认机器人有物理支撑，硬件急停可触及。"
+        : snapshot.field?.mode === "KERNEL"
+        ? "Start Kernel Mode with the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE; X/Ready runs the receive policy with local stance-foot odometry. Serve completion returns to Stand. No mocap or Planner will be started."
         : "Start STEP 0/1/2A/2B/4/5 now? Confirm the robot is physically supported and the hardware E-stop is reachable. The Runner will start in PASSIVE.",
     );
     if (accepted) {
       await invoke("startLifecycle");
     }
-  }, [invoke, snapshot.field?.mode]);
+  }, [invoke, snapshot.field?.mode, snapshot.lifecycleState]);
 
   const killAllAndCollect = useCallback(async () => {
     const accepted = window.confirm(
@@ -939,6 +1026,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const fieldFresh = isFresh(snapshot, TOPICS.fieldStatus, now, 2_000);
   const field = snapshot.field;
   const kernelMode = field?.mode === "KERNEL";
+  const ballDisplay = ballModelDisplay(field?.ball_model_status, fieldFresh);
   const assetEditable = fieldFresh && lifecycleState === "STOPPED" && !lifecycleBusy &&
     !fieldBusy && field?.busy !== true && !configTouched && (snapshot.lifecycleConfigRevision ?? 0) > 0;
   const recordingState = fieldFresh ? (field?.recording.state ?? "UNKNOWN") : "UNKNOWN";
@@ -949,7 +1037,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const configComplete =
     RUNNER_NETWORK_CONFIG_FIELDS.every((name) => configDraft[name].trim().length > 0) &&
     ["P1", "P2"].includes(configDraft.table_side) &&
-    ["linux", "mac"].includes(configDraft.operator_profile) &&
+    (snapshot.lifecycleConfig.operator_profile == undefined || ["linux", "mac"].includes(configDraft.operator_profile)) &&
     ["legacy", "new_20261015"].includes(configDraft.gripper_profile) &&
     ["v2", "v4"].includes(configDraft.pants_profile) &&
     ["none", "motive", "vrpn"].includes(configDraft.mocap_source) &&
@@ -1051,6 +1139,18 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
   return (
     <div className="hope-console">
+      <div className="robot-connection">
+        <label>机器人 IP <input aria-label="Robot connection IP" value={robotTarget}
+          onChange={(event) => { setRobotTarget(event.target.value); setTargetEdited(true); }} /></label>
+        <button type="button" disabled={!validRobotTarget || Object.values(busy).some(Boolean) || fieldBusy || recordBusy}
+          onClick={connectRobot}>CONFIRM 连接</button>
+        <div role="status">{pendingTarget ? `正在切换到 ${pendingTarget}:8766；此旧面板的操作已锁定，请查看新连接。` :
+          lifecycleFresh && configHost ? `当前机器人回读：${configHost} · ${snapshot.lifecycleState}` : "未收到机器人实时状态"}</div>
+        {pendingTarget && <button type="button" onClick={() => { setPendingTarget(""); setRobotTarget(configHost ?? ""); setTargetEdited(false); savedPanel.current = { ...savedPanel.current, robotTarget: configHost }; context.saveState(savedPanel.current); }}>
+          取消切换，继续操作当前机器人 {configHost}
+        </button>}
+      </div>
+      <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
           <div className="eyebrow">A3 SOURCE · 1.8.15</div>
@@ -1060,7 +1160,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               className={`source-dot ${hduFresh && snapshot.hduActive === true ? "source-live" : ""}`}
             />
           </div>
-          <div className="helper">change the host through the Foxglove connection dialog</div>
+          <div className="helper">使用顶部机器人 IP 和 CONFIRM 连接；连接后读取该机器人的已保存配置</div>
         </div>
         <button
           className={`estop-button ${estopAsserted ? "estop-asserted" : ""}`}
@@ -1165,8 +1265,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         </section>
         <section className="field-card">
           <span className="eyebrow">SERVE CSV</span>
-          <strong>{field?.csv?.name ?? "serve025 · forwardhit_v4.csv (default)"}</strong>
+          <strong>{field?.csv?.name ?? "a3p_op3_serve025_v23_branch110_model14600.csv (default)"}</strong>
           <span className="helper">{field?.csv ? `Validated · ${field.csv.frames} frames · ${field.csv.hz} Hz · SHA ${field.csv.sha256.slice(0, 12)}` : "468 frames · 100 Hz · SDK 31-joint format"}</span>
+          {field?.csv?.segments && <span className="helper">
+            3 segments · branch {(field.csv.segments.branch_frame / field.csv.hz).toFixed(2)} s ·
+            Normal: Serve → Policy ready ({field.csv.segments.clips.SERVE_TO_POLICY?.duration_s.toFixed(2)} s) · Kernel: Serve → Stand
+          </span>}
           <div className="field-buttons">
             <button type="button" disabled={!assetEditable} onClick={() => csvInput.current?.click()}>Upload CSV</button>
             <button type="button" disabled={!assetEditable || field?.csv == undefined}
@@ -1175,7 +1279,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <input ref={csvInput} type="file" accept=".csv,text/csv" hidden
             onChange={(event) => { void uploadAsset(event.target.files?.[0]); event.target.value = ""; }} />
           <p className="helper">Select Kernel Mode, upload while stopped, then Run → SERVER → Stand → Start to Serve → load ball and clear hands → Serve → slowly lower arms → Stand → Start to Serve again.</p>
-          <span className="helper">Uploads use the Runner CSV validator and never start motion. Normal play retains its built-in serve CSV.</span>
+          <span className="helper">Uploads use the Runner CSV validator and never start motion. Normal Play and Kernel use the same selected CSV version. Annotated CSV: both modes use Stand → Serve; Kernel returns to Stand, Normal goes directly to the bound policy’s ready pose. Legacy CSV keeps its original handoff behavior.</span>
         </section>
       </div>
       {field?.error && <div className="operator-notice">{field.error}</div>}
@@ -1213,7 +1317,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <option value="new_20261015">New · close 850 / open 1500 · force 1 / speed 100</option>
           </select>
         </label>
-        <div className="table-side-selector" role="group" aria-label="Operator computer">
+        {snapshot.lifecycleConfig.operator_profile != undefined && <div className="table-side-selector" role="group" aria-label="Operator computer">
           <div>
             <div className="eyebrow">OPERATOR COMPUTER</div>
             <div className="helper">Choose the computer for this session, then confirm its current Laptop IP below.</div>
@@ -1230,7 +1334,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               {profile === "mac" ? "Mac" : "Linux"}
             </button>
           ))}
-        </div>
+        </div>}
         <label className="table-side-selector">
           <div>
             <div className="eyebrow">MOCAP SYSTEM · 动捕系统</div>
@@ -1247,7 +1351,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           </select>
         </label>
         <div className="config-grid">
-          {NETWORK_CONFIG_FIELDS.filter((name) =>
+          {NETWORK_CONFIG_FIELDS.filter((name) => name !== "hdu_wifi_ip").filter((name) =>
             name === "motive_ip" ? configDraft.mocap_source === "motive" :
             name === "vrpn_ip" ? vrpnSelected : true).map((name) => (
             <label className="config-field" key={name}>
@@ -1282,6 +1386,22 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </label>
           </>}
         </div>
+        <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">BALL PHYSICS · 球物理模型</div>
+            <div className="topic-path">停止后选择；保存到 Planner 和球包器，下次启动生效</div>
+          </div>
+          <select aria-label="Ball physics model" value={ballDisplay.value}
+            disabled={!assetEditable || fieldBusy || kernelMode || field?.ball_model_status == undefined}
+            onChange={(event) => void fieldCommand({ op: "set_ball_model", model: event.target.value })}>
+            <option value="" disabled>两端未确认同一模型</option>
+            <option value="berkeley">伯克利球 · 原模型 2026-10-10</option>
+            <option value="ppq002">我们的一星球 · PPQ002</option>
+            <option value="ppq004">我们的三星球 · PPQ004 · 统一模型 2026-10-20</option>
+          </select>
+        </label>
+        <p className="helper" role="status">{ballDisplay.text}</p>
+        <p className="helper">切换后请重启 Laptop 动捕／球包器，再 START SYSTEM；启动会检查实际物理参数，混用旧模型时拒绝启动。已保存的选择不代表当前进程已切换。</p>
         <div className="mocap-setup">
           {configDraft.mocap_source === "motive" && <p className="helper">Motive setup：导入 pelvis 对齐的 .motive 资产，刚体名 UCB_P1 / UCB_P2，球名 Ball；设置 Streaming Up Axis = Z，开启 NatNet Rigid Bodies 和 Labeled Markers。</p>}
           {vrpnSelected && <>
@@ -1289,9 +1409,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <p className="helper">默认启动只验收位姿；发布有效 base 还需在 Laptop 确认资产原点和场地坐标。选择不会修改 CMTracker；操作说明：docs/operations/foxglove_mocap_setup.md。</p>
           </>}
           {configDraft.mocap_source === "none" && <p className="helper">无动捕：用于 Runner-only 测试，不提供实时球和 pelvis 数据。</p>}
-          <p className="helper">START SYSTEM 启动 Runner。动捕单独在所选 Laptop 环境（Linux HOST / Mac operator container）的仓库根目录执行以下已确认配置命令；更换系统、地址、单位或球台侧后先停止原动捕，再重启。</p>
-          <p className="helper">停止该命令启动的动捕：tmux send-keys -t hope-optitrack C-c（两套系统沿用同一会话名）。</p>
-          {configTouched ? <p className="helper">配置已修改，请先 CONFIRM CONFIG。</p> : lifecycleFresh && setupCommand && (snapshot.lifecycleConfigRevision ?? 0) > 0 && <textarea aria-label="Confirmed mocap startup command" readOnly rows={5} value={setupCommand} />}
+          <p className="helper">CONFIRM CONFIG 保存设置并重新连接所选动捕；当前机器人须处于 STOPPED。若电脑上的接收器属于另一台机器人，会拒绝抢占。</p>
+          <p className="helper">连接是否成功以实时数据为准：收到数据后显示“动捕数据已连接”；没有数据时不会显示已连接。</p>
+          <p className="helper" role="status">{busy.applyLifecycleConfig ? "正在保存并连接动捕…" : snapshot.lifecycleResult?.includes("MOCAP_FAILED") ? "动捕连接失败 · 配置已保存，请检查地址或接收器归属" : configTouched ? "配置已修改，尚未应用。" : snapshot.lifecycleConfig.mocap_source === "none" ? "动捕已禁用" :
+            baseFresh && (snapshot.lifecycleConfig.mocap_source === "vrpn" || markerFresh) ? "动捕数据已连接 · 已收到实时数据" : "动捕未确认连接 · 等待实时数据"}</p>
+          {lifecycleFresh && setupCommand && <details><summary>手动启动命令（备用）</summary><textarea aria-label="Confirmed mocap startup command" readOnly rows={5} value={setupCommand} /></details>}
         </div>
         {vrpnSelected && <label className="table-side-selector">
           <div>
@@ -1351,19 +1473,21 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             className="system-start"
             type="button"
             disabled={
-              !lifecycleStopped ||
+              !(lifecycleStopped || lifecycleState === "FAILED") ||
               lifecycleBusy ||
               timeCalibrationBlocksStart ||
               (snapshot.lifecycleConfigRevision ?? 0) < 1 ||
               configTouched ||
               fieldBusy || field?.busy === true || !fieldFresh ||
+              (!kernelMode && lifecycleState !== "FAILED" && !ballDisplay.ready) ||
               busy.startLifecycle === true
             }
             onClick={() => void startSystem()}
           >
             {busy.startLifecycle === true || (lifecycleBusy && lifecycleState === "STARTING")
               ? "STARTING…"
-              : "START SYSTEM"}
+              : lifecycleBusy && lifecycleState === "KILLING" ? "CLEANING…"
+              : lifecycleState === "FAILED" ? "RETRY START · 自动清理后重试" : "START SYSTEM"}
           </button>
           <button
             className="system-stop"
@@ -1554,6 +1678,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </button>
           </div>
         </div>
+          <PlaneModeControls
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.planeMode : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.planeMode?.configurable === true}
+            onApply={applyPlaneMode}
+          />
         <div className="action-grid">
           <ActionButton
             label="Stand"
@@ -1572,21 +1702,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "stand"}
             onClick={() => void invoke("stand")}
           />
-          {!kernelMode && <ActionButton
-            label="Refresh x_hit"
-            detail={
-              snapshot.xHitSuccess === true
-                ? (snapshot.xHitStatus ?? "DONE · Planner acknowledged")
-                : runnerStanding
-                  ? (snapshot.xHitStatus ?? "refresh Planner x_hit only")
-                  : "LOCKED · stand first"
-            }
-            disabled={!runnerUsable || !runnerStanding}
-            busy={busy.refreshXHit === true}
-            completed={snapshot.xHitSuccess === true}
-            next={false}
-            onClick={() => void invoke("refreshXHit")}
-          />}
           <ActionButton
             label="Ready"
             detail={
@@ -1611,6 +1726,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             completed={runnerReady}
             next={nextStep === "ready"}
             onClick={() => void invoke("ready")}
+          />
+          <HitSpeedScaleControls key={snapshot.lifecycleConfig.hdu_wifi_ip}
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.hitSpeedScale : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.hitSpeedScale?.configurable === true}
+            kernelMode={kernelMode} onApply={applyHitSpeedScale}
           />
           <ActionButton
             label="Start to Serve · Raise hand"
@@ -1694,7 +1815,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           />
         </div>
         <div className="sequence-footer">
-          <span title={snapshot.xHitStatus}>{lastAction}</span>
+          <span>{lastAction}</span>
           <ActionButton
             label="Runner Passive"
             detail="ZERO GAINS · robot loses support"
@@ -1705,6 +1826,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           />
         </div>
       </div>
+      </fieldset>
     </div>
   );
 }

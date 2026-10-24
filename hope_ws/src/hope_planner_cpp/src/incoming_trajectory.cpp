@@ -57,6 +57,7 @@ IncomingTrajectory::IncomingTrajectory(IncomingTrajectoryConfig config,
       kMaxEstimatorSamples);
   if (config_.adaptive.enabled) {
     prediction.estimator.window_s = config_.estimator_window_s;
+    prediction.estimator.max_sample_gap_s = config_.estimator_max_sample_gap_s;
     adaptive_commit_ = std::make_unique<AdaptiveFlightCommit>(config_.adaptive, prediction);
   }
 }
@@ -102,6 +103,11 @@ void IncomingTrajectory::append_pre_roll(const BallSample& sample) noexcept {
 }
 
 void IncomingTrajectory::append_history(const BallSample& sample) noexcept {
+  if (history_count_ > 0 && config_.estimator_max_sample_gap_s > 0.0 &&
+      sample.source_time_s - history_[history_count_ - 1].source_time_s >
+          config_.estimator_max_sample_gap_s) {
+    history_count_ = 0;
+  }
   append_bounded(history_, history_count_, kMaxEstimatorSamples, sample);
   trim_history();
 }
@@ -239,7 +245,7 @@ void IncomingTrajectory::collect_sample(
     const double now_s = sample.receipt_wall_ns > 0
         ? std::max(sample.source_time_s, static_cast<double>(sample.receipt_wall_ns) * 1e-9)
         : sample.source_time_s;
-    if (adaptive_commit_->consider(candidate_snapshot(), commit_source_time_s_, now_s, selected))
+    if (adaptive_commit_->consider(candidate_snapshot(), now_s, selected))
       finish_snapshot(std::move(selected), update);
     return;
   }

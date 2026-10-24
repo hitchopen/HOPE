@@ -16,6 +16,14 @@ body's current NatNet ModelDef without binding to a file SHA-256, marker count
 or reference layout. A fresh calibration JSON is not required by that mode.
 The marker monitor derives its expected count from the current definition.
 
+For **ChingMu / CMTracker over VRPN**, the single matching 17-sticker import file
+[A3_v3_17_stickers.json](vrpn_asset/A3_v3_17_stickers.json) is packaged in
+[vrpn_asset/](vrpn_asset/README.md). It uses the same
+nominal `pelvis_link` origin and ROS axes, without Motive's native Y-up mapping.
+The existing Foxglove/VRPN profile calls this design **V4**; the CAD folder
+name remains v3. VRPN has no live ModelDef, so its setup/verification workflow
+is separate from `motive_live`.
+
 ## What changed
 
 - All ten obsolete external marker bosses **and their screw bores** are removed,
@@ -236,6 +244,33 @@ in CAD station order, not copies of the measured aligned asset. Their proposed
 member IDs differ from that asset's order. Resolve the actual MODELDEF by verified
 names or geometric matching.
 See [asset correspondence report](documents/optitrack_asset_correspondence.json).
+
+## Supplied ChingMu / VRPN asset
+
+- [A3_v3_17_stickers.json](vrpn_asset/A3_v3_17_stickers.json), body `UCB_P1`.
+- [Import, origin/axis checks and runtime selection](vrpn_asset/README.md).
+
+This single release asset uses the same filename stem and internal `UCB_P1`
+body name as `A3_v3_17_stickers.motive`. It follows the supplied CMTracker JSON
+format and matches the existing runtime **V4 P1** profile byte-for-byte.
+Existing runtime P1/P2 profiles remain unchanged for compatibility; both use
+the same pelvis-local geometry. Configure the site body name (`UCB_P1` or
+`UCB_P2`) and unique IDs in CMTracker as needed, without requiring a separate
+P2 release file or changing the marker coordinates.
+
+The asset has 17 nominal sticker centres in
+`pelvis_link` millimetres, **X forward / Y left / Z up**, with identity `Rbc`.
+No centroid subtraction, old pivot offset or P2-local rotation is applied.
+It intentionally uses the nominal CAD table rather than the mixed
+measured/nominal Motive constellation above. Both modes target the same
+pelvis datum; their point coordinates are not interchangeable native formats.
+
+Import this definition into CMTracker, not into the ROS VRPN client. Confirm
+the importer preserves the local pivot/axes and separately verify the server's
+world frame and stream units before enabling localization. Native import/
+re-export and physical calibration are not established by these offline files.
+Use `pants_profile:=v4` for this hardware; the legacy ten-ball `v3` calibration
+layout is different. No existing runtime profile or Motive asset is changed.
 
 ## Source records and engineering archive
 

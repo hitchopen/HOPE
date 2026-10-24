@@ -1,5 +1,5 @@
 [Unit]
-Description=HOPE Runner fixed Laptop-HDU-MDU lifecycle supervisor
+Description=HOPE operations (lifecycle, command proxy and observer)
 After=network-online.target
 Wants=network-online.target
 
@@ -21,10 +21,50 @@ Environment=ROS_LOG_DIR=/var/lib/hope-lifecycle/ros-log
 ExecStartPre=/usr/bin/install -d -m 0700 /var/lib/hope-lifecycle/ros-log
 ExecStartPre=/usr/bin/touch /var/lib/hope-lifecycle/hardware-operation.lock
 ExecStartPre=/usr/bin/chmod 0600 /var/lib/hope-lifecycle/hardware-operation.lock
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/bin/hope_lifecycle_supervisor.py'
+# Retain this unit name and state directory so venue-specific drop-ins and the
+# privileged time-calibration interlock keep their existing ownership boundary.
+# Bash, not systemd, must expand the semicolon-separated static peer list.
+# Jazzy callback-exception propagation is part of the reconnect contract;
+# verify test_operations_reconnect_ros.py against the deployed rclpy package.
+ExecStart=:/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
+  IFS=";" read -r -a hope_static_peers <<< "${ROS_STATIC_PEERS:-}" && \
+  hope_peer_args=() && \
+  for hope_peer in "${hope_static_peers[@]}"; do \
+    if [[ -n "$hope_peer" ]]; then hope_peer_args+=(--peer "$hope_peer"); fi; \
+  done && \
+  hope_dds_prefix=() && \
+  if (( ${#hope_peer_args[@]} )); then \
+    hope_dds_prefix=(/home/agi/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh \
+      --domain-id "$ROS_DOMAIN_ID" "${hope_peer_args[@]}" --); \
+  else \
+    echo "HOPE operations: ROS_STATIC_PEERS is empty; using the address-agnostic DDS profile for configuration and diagnostics. Configure network.env before START." >&2; \
+  fi && \
+  exec "${hope_dds_prefix[@]}" \
+  python3 /usr/local/bin/hope_operations.py \
+    --ros-args \
+    -p session_id_path:=/tmp/hope_model21800_session_id \
+    -p runtime_root:=/tmp/hope_real \
+    -p planner_process_fragment:=hope_planner_cpp_node \
+    -p base_stale_after_s:=0.5 \
+    -p ball_stale_after_s:=0.1 \
+    -p publish_period_s:=0.2 \
+    -p runtime_snapshot_max_age_s:=2.0 \
+    -p ball_marker_rate_hz:=30.0 \
+    -p x_hit_timeout_s:=5.0 \
+    -p runner_action_timeout_s:=2.0 \
+    -p calibration_service_v2:=/a3/calibration/recompute_ucb_robot_v2 \
+    -p calibration_service_v3:=/a3/calibration/recompute_ucb_robot_v3 \
+    -p calibration_service_discovery_timeout_s:=20.0 \
+    -p calibration_timeout_s:=45.0 \
+    -p base_pose_timeout_s:=10.0 \
+    -p runner_state_stale_after_s:=1.5'
 Restart=on-failure
 RestartSec=2
-TimeoutStopSec=45
+# Drain accepted work while retaining the hardware interlock. A recovery can
+# collect logs (30 min) before retrying START; do not SIGKILL its owner at 45 s.
+# Suspended RPC responses get a separate 5 s budget after worker cleanup.
+# An idle, stopped operations process still shuts down immediately.
+TimeoutStopSec=45min
 KillMode=control-group
 NoNewPrivileges=true
 PrivateTmp=false

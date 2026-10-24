@@ -1,0 +1,127 @@
+{
+  "base": "91aecabfd44cb258ac998158e724be9017d883a7",
+  "historical_base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "sources": {
+    "src/trajectory_predictor.cpp": "adc299467296ff6924a3bf3de2349d750fe7f4999dab42710f3571beaa9c3590",
+    "src/racket_target_planner.cpp": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+    "src/adaptive_flight_commit.cpp": "e37727c8a95510bc043948b13c2b2b68d31c11e5cc92835ab09e380f785d68f5",
+    "src/batch_physics_estimator.cpp": "87cdb5397a3c9c85d67a2d56ad655b65aa6fea5aa43a86cbf0eece6e9a471242",
+    "src/spin_estimator.cpp": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+    "src/planner_node.cpp": "e28093191531126cc3d4e3b003da890595113b265099f14275cf7c8d6215fab8",
+    "src/flight_packetizer_node.cpp": "25ff592a833196dab50cfe1f3f27f1959bcea6c40dbaede93d6260ebd3f7cb67",
+    "src/replay_main.cpp": "890e552c29634f46663713370004ae3090e206238217f96af89637fb6c733bc3",
+    "src/incoming_trajectory.cpp": "ad3267ec92de77cd7bfe946f4e2bebe56aed2cdd42eff61e4f2976655f28a29a",
+    "src/schema2_packer.cpp": "8efd06c5af17ce8a640dac9f913c0d4d00b60e923ec56d0c4baa35739ddef997",
+    "src/schema3_packer.cpp": "a475779d99e2c1c5f72ed9a44bba7b5ef1af839b1451b3dbd8ae734e01aa3f14",
+    "include/hope_planner_cpp/trajectory_predictor.hpp": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+    "include/hope_planner_cpp/future_contact_predictor.hpp": "6b6b8d7230b2e56f4861341b240959bdf5cb1e7a02dc35b263a76190c2f7a30e",
+    "include/hope_planner_cpp/racket_target_planner.hpp": "702810cc94ca033ce5200f0579e166424fb7d0194ef021e9767362f5fbca57fa",
+    "include/hope_planner_cpp/adaptive_flight_commit.hpp": "75381f42f4a48b514be7ae7863369572504cec66e453829e6d27af0cd70f3946",
+    "include/hope_planner_cpp/batch_physics_estimator.hpp": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+    "include/hope_planner_cpp/spin_estimator.hpp": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9"
+  },
+  "mapping": [
+    {
+      "path": "src/trajectory_predictor.cpp",
+      "historical_sha256": "adc299467296ff6924a3bf3de2349d750fe7f4999dab42710f3571beaa9c3590",
+      "upstream_sha256": "adc299467296ff6924a3bf3de2349d750fe7f4999dab42710f3571beaa9c3590",
+      "changed": false
+    },
+    {
+      "path": "src/racket_target_planner.cpp",
+      "historical_sha256": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+      "upstream_sha256": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+      "changed": false
+    },
+    {
+      "path": "src/adaptive_flight_commit.cpp",
+      "historical_sha256": "a38800cb2796c0b99de106f970027083acac9d711f864a1261916e451e7a7846",
+      "upstream_sha256": "e37727c8a95510bc043948b13c2b2b68d31c11e5cc92835ab09e380f785d68f5",
+      "changed": true
+    },
+    {
+      "path": "src/batch_physics_estimator.cpp",
+      "historical_sha256": "03ebd64aaca3cfadfab46a918e07a38a6e2ec5d932b1627a7557bc30cb79d3fe",
+      "upstream_sha256": "87cdb5397a3c9c85d67a2d56ad655b65aa6fea5aa43a86cbf0eece6e9a471242",
+      "changed": true
+    },
+    {
+      "path": "src/spin_estimator.cpp",
+      "historical_sha256": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+      "upstream_sha256": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+      "changed": false
+    },
+    {
+      "path": "src/planner_node.cpp",
+      "historical_sha256": "6aa31e4d13fbcbee61e70fef16309b887591cf656d905999db6be10618f8b468",
+      "upstream_sha256": "e28093191531126cc3d4e3b003da890595113b265099f14275cf7c8d6215fab8",
+      "changed": true
+    },
+    {
+      "path": "src/flight_packetizer_node.cpp",
+      "historical_sha256": "b56863d6e52a3173fec938e8f973859c4b28e45ab096664c883aa93af7da0cab",
+      "upstream_sha256": "25ff592a833196dab50cfe1f3f27f1959bcea6c40dbaede93d6260ebd3f7cb67",
+      "changed": true
+    },
+    {
+      "path": "src/replay_main.cpp",
+      "historical_sha256": "890e552c29634f46663713370004ae3090e206238217f96af89637fb6c733bc3",
+      "upstream_sha256": "890e552c29634f46663713370004ae3090e206238217f96af89637fb6c733bc3",
+      "changed": false
+    },
+    {
+      "path": "src/incoming_trajectory.cpp",
+      "historical_sha256": "d7f2193814fb0feb3579a151cb077ded99a16319334437de5ba6e33f4644aef7",
+      "upstream_sha256": "ad3267ec92de77cd7bfe946f4e2bebe56aed2cdd42eff61e4f2976655f28a29a",
+      "changed": true
+    },
+    {
+      "path": "src/schema2_packer.cpp",
+      "historical_sha256": "c629b598103a27f1dde80a93fe2d34119e4913b2185314650ddc4b1d17decbfa",
+      "upstream_sha256": "8efd06c5af17ce8a640dac9f913c0d4d00b60e923ec56d0c4baa35739ddef997",
+      "changed": true
+    },
+    {
+      "path": "src/schema3_packer.cpp",
+      "historical_sha256": "a475779d99e2c1c5f72ed9a44bba7b5ef1af839b1451b3dbd8ae734e01aa3f14",
+      "upstream_sha256": "a475779d99e2c1c5f72ed9a44bba7b5ef1af839b1451b3dbd8ae734e01aa3f14",
+      "changed": false
+    },
+    {
+      "path": "include/hope_planner_cpp/trajectory_predictor.hpp",
+      "historical_sha256": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+      "upstream_sha256": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+      "changed": false
+    },
+    {
+      "path": "include/hope_planner_cpp/future_contact_predictor.hpp",
+      "historical_sha256": "6b6b8d7230b2e56f4861341b240959bdf5cb1e7a02dc35b263a76190c2f7a30e",
+      "upstream_sha256": "6b6b8d7230b2e56f4861341b240959bdf5cb1e7a02dc35b263a76190c2f7a30e",
+      "changed": false
+    },
+    {
+      "path": "include/hope_planner_cpp/racket_target_planner.hpp",
+      "historical_sha256": "702810cc94ca033ce5200f0579e166424fb7d0194ef021e9767362f5fbca57fa",
+      "upstream_sha256": "702810cc94ca033ce5200f0579e166424fb7d0194ef021e9767362f5fbca57fa",
+      "changed": false
+    },
+    {
+      "path": "include/hope_planner_cpp/adaptive_flight_commit.hpp",
+      "historical_sha256": "55056f3873d1a38c93a0c91bd2399f2cf185d60f8e1bca94a38d40523542a4ed",
+      "upstream_sha256": "75381f42f4a48b514be7ae7863369572504cec66e453829e6d27af0cd70f3946",
+      "changed": true
+    },
+    {
+      "path": "include/hope_planner_cpp/batch_physics_estimator.hpp",
+      "historical_sha256": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+      "upstream_sha256": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+      "changed": false
+    },
+    {
+      "path": "include/hope_planner_cpp/spin_estimator.hpp",
+      "historical_sha256": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9",
+      "upstream_sha256": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9",
+      "changed": false
+    }
+  ]
+}

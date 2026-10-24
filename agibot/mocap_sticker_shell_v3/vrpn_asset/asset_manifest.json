@@ -1,0 +1,80 @@
+{
+  "format": "HOPE_CMTRACKER_ASSET_RELEASE",
+  "schema_version": 1,
+  "shell_design": "mocap_sticker_shell_v3",
+  "runtime_profile": "v4",
+  "body_frame": "pelvis_link",
+  "units": "millimetres",
+  "axes": {
+    "x": "forward",
+    "y": "left",
+    "z": "up",
+    "handedness": "right"
+  },
+  "pivot_m": [
+    0,
+    0,
+    0
+  ],
+  "body_to_pelvis_quaternion_xyzw": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "centroid_subtracted": false,
+  "marker_count": 17,
+  "marker_order": [
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "S08",
+    "S11",
+    "S12",
+    "S13",
+    "S14",
+    "S15",
+    "S16",
+    "S17",
+    "S18",
+    "S19",
+    "S20",
+    "S21",
+    "S22"
+  ],
+  "marker_mode": "12mm_round_reflective_stickers",
+  "sticker_total_thickness_mm": 0.2,
+  "geometry_status": "CAD_NOMINAL_NOT_PHYSICAL_CALIBRATION",
+  "import_validation": "PENDING_CMTRACKER_ROUNDTRIP",
+  "live_geometry_verifiable_over_vrpn": false,
+  "source_table": {
+    "path": "../documents/marker_transforms_pelvis_link_stickers.csv",
+    "sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0"
+  },
+  "runtime_catalog": {
+    "path": "../../../hope_ws/src/hope_bringup/config/pants_profiles/profiles.json",
+    "profile": "v4"
+  },
+  "supplied_format_reference": {
+    "filename": "UCB_P1(1).json",
+    "sha256": "60bfe6fd97fb8dd3656315de06b01cfcb7d255cb37d043576dfa6a0f3c408c47",
+    "marker_count": 10,
+    "use": "Format reference only; its older ten-marker geometry is not copied.",
+    "differences": "markerPose is replaced by the 17-sticker CAD layout; id and bodyColor follow the existing runtime V4 P1 definition. The single release asset retains UCB_P1 as its internal body name, matching the Motive asset."
+  },
+  "asset": {
+    "file": "A3_v3_17_stickers.json",
+    "body_name": "UCB_P1",
+    "id": 1,
+    "sha256": "d08bb6d6444dd8a4c1aa155acfe29c10f0433b09d8b34a297a49eaf826da710d",
+    "runtime_file": "../../../hope_ws/src/hope_bringup/config/pants_profiles/a3_v4_P1_ground_truth.json"
+  },
+  "warnings": [
+    "Import A3_v3_17_stickers.json, not this manifest. No separate P1/P2 release variations are supplied.",
+    "No centroid subtraction, Motive Y-up conversion, old pivot offset or P2-local rotation.",
+    "The internal body name UCB_P1 matches the Motive asset. Configure the required body name and a unique ID in CMTracker for the site; preserve the geometry, pivot and axes. Asset ID 1 does not specify a VRPN sensor index.",
+    "The local body-to-pelvis identity is nominal; the streamed world-to-body pose changes as the robot moves.",
+    "Confirm imported pivot/axes, server world axes and stream units before enabling localization. The JSON unit does not prove the server's VRPN output unit."
+  ]
+}

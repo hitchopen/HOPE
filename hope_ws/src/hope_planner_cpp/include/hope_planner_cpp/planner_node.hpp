@@ -2,6 +2,7 @@
 #include "hope_planner_cpp/integrated_planner_runtime.hpp"
 
 #include "hope_planner_cpp/audit_logger.hpp"
+#include "a3_deploy/session_home_contract.hpp"
 #include "hope_planner_cpp/batch_physics_estimator.hpp"
 #include "hope_planner_cpp/flight_packet.hpp"
 #include "hope_planner_cpp/incoming_trajectory.hpp"
@@ -10,6 +11,7 @@
 #include "hope_planner_cpp/racket_target_planner.hpp"
 #include "hope_planner_cpp/reach_permission.hpp"
 #include "hope_planner_cpp/session_home_reference.hpp"
+#include "hope_planner_cpp/runtime_plane_reference.hpp"
 #include "hope_planner_cpp/schema2_packer.hpp"
 #include "hope_planner_cpp/schema3_packer.hpp"
 #include "hope_planner_cpp/spin_estimator.hpp"
@@ -51,6 +53,7 @@ class PlannerNode final : public rclcpp::Node {
   struct BaseSnapshot {
     Vec3 position = Vec3::Zero();
     Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
+    std::uint64_t calibration_id = 0, world_id = 0;
     bool orientation_valid = false;
     bool valid = false;
     std::int64_t receipt_steady_ns = 0;
@@ -124,6 +127,22 @@ class PlannerNode final : public rclcpp::Node {
 
   mutable std::mutex base_mutex_;
   BaseSnapshot base_;
+  a3_deploy::SessionHomeMailbox shared_home_; // guarded by base_mutex_
+  a3_deploy::SessionHomeReceipt solve_home_; // solver thread only
+  bool solve_home_valid_ = false;
+  bool solve_posture_stable_ = false;
+  std::mutex hit_speed_scale_publish_mutex_;
+  std::atomic<double> hit_speed_scale_{1.0};
+  std::string hit_speed_scale_state_file_;
+  std::atomic<double> last_command_hit_speed_scale_{NAN};
+  rclcpp::Service<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr hit_speed_scale_service_;
+  RuntimePlaneReference runtime_plane_;
+  PlaneSelection solve_plane_; // solver thread only
+  std::uint64_t plane_flight_counter_ = 0;
+  bool runtime_plane_configurable_ = false;
+  rclcpp::Service<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr plane_mode_service_;
+  double session_home_max_age_s_ = 0.5;
+  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr home_subscription_;
   std::mutex calibration_mutex_;
   std::deque<CalibrationSample> calibration_samples_;
 
@@ -173,6 +192,7 @@ class PlannerNode final : public rclcpp::Node {
   bool post_net_one_shot_enabled_ = true;
   double max_target_turn_deg_ = 40.0;
   double target_turn_max_pose_age_s_ = 0.2;
+  bool target_turn_reject_stale_pose_ = true;
   bool flight_packet_input_enabled_ = false;
   std::string flight_packet_topic_ = "/ball/flight_packet";
   double post_net_commit_delay_s_ = 0.05;

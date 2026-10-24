@@ -7,7 +7,7 @@ import subprocess
 
 ROOT = Path(__file__).parents[1]
 REPO = ROOT.parents[2]
-BASE = '8d599e7d21e196275cf426488555e2648e8fd789'
+BASE = '91aecabfd44cb258ac998158e724be9017d883a7'
 FORBIDDEN_PATH = re.compile(
     r'ckf_strike_shadow|strike_target_selector|strike_flight_detector|'
     r'shadow_runner_input|hybrid_trajectory|ball_flight_state_machine|BallForecast|HybridTrajectory')
@@ -37,7 +37,7 @@ def test_v2_cannot_construct_commands_or_publish_control_topics():
 
 
 def test_production_sources_and_headers_remain_pinned_upstream():
-    for file, digest in json.loads((ROOT / 'test/fixtures/scoped_production_sources.json').read_text()).items():
+    for file, digest in json.loads((ROOT / 'test/fixtures/pr85_upstream_sources.json').read_text())['sources'].items():
         data = (ROOT / file).read_bytes()
         if file == 'src/planner_node.cpp':
             # Only the explicit application dispatch/destruction hooks may
@@ -65,7 +65,7 @@ def test_entire_upstream_diff_has_no_historical_pipeline_and_complete_inventory(
         return subprocess.check_output(['git', '-C', str(REPO), *args], text=True).splitlines()
     paths = set(git('diff', '--name-only', BASE)) | set(git('ls-files', '--others', '--exclude-standard'))
     assert not [p for p in paths if FORBIDDEN_PATH.search(p)]
-    manifest = ROOT / 'docs/integrated_planner_reacquisition_scope_manifest.json'
+    manifest = ROOT / 'docs/integrated_planner_pr85_scope_manifest.json'
     if not manifest.exists():
         manifest = ROOT / 'docs/integrated_planner_review_scope_manifest.json'
     if not manifest.exists():

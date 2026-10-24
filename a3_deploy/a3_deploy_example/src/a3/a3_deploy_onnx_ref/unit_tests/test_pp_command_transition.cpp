@@ -148,26 +148,26 @@ TEST(PpCommandTransition, RejectsNonFiniteOrMalformedInputs) {
   EXPECT_THROW(t.Apply(std::numeric_limits<double>::quiet_NaN(), target), std::invalid_argument);
 }
 
-TEST(PpCommandTransition, PassiveToStandRampsPoseAndGainsOverFiveSeconds) {
+TEST(PpCommandTransition, FieldStandRestoresHalfSecondPoseAndGainRamp) {
   const auto source = Command(1.2, 0., 0.);
   auto destination = Command(.2, 0., 2000.);
   destination.kd.setConstant(8.);
   destination.tau_ff.setZero();
   a3_pingpong::PpCommandTransition transition;
-  transition.Begin(source, destination, 5., .25);
+  transition.Begin(source, destination, .5);
   auto previous = source;
-  for (int tick = 0; tick <= 250; ++tick) {
+  for (int tick = 0; tick <= 25; ++tick) {
     auto command = destination;
     transition.Apply(tick * .02, command);
     EXPECT_GE(command.q_des[0], .2 - 1e-12);
     EXPECT_LE(command.q_des[0], previous.q_des[0] + 1e-12);
     EXPECT_GE(command.kp[0], previous.kp[0] - 1e-12);
-    EXPECT_LE(std::abs(command.q_des[0] - previous.q_des[0]), .0075 + 1e-12);
-    EXPECT_LE(std::abs(command.dq_des[0]), .375 + 1e-12);
+    EXPECT_LE(std::abs(command.q_des[0] - previous.q_des[0]), .075 + 1e-12);
+    EXPECT_LE(std::abs(command.dq_des[0]), 3.75 + 1e-12);
     if (tick == 25) {
-      EXPECT_TRUE(transition.active());  // old 0.5 s entry already ended here
-      EXPECT_GT(command.q_des[0], 1.19);
-      EXPECT_LT(command.kp[0], 18.);
+      EXPECT_FALSE(transition.active());
+      EXPECT_DOUBLE_EQ(command.q_des[0], destination.q_des[0]);
+      EXPECT_DOUBLE_EQ(command.kp[0], destination.kp[0]);
     }
     previous = command;
   }

@@ -13,12 +13,13 @@ import subprocess
 import threading
 import time
 
-import rclpy
 from rcl_interfaces.msg import ParameterType, SetParametersResult
 from rcl_interfaces.srv import SetParameters
 from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from hope_operations_core import BoundedWorker, CachedCall, RosComponent, WorkerAdmission, telemetry_callback
+from hope_operations_runtime import run_node
+from hope_runner_control_core import runner_session_fingerprint
 from std_msgs.msg import Bool, String, UInt32
 from std_srvs.srv import Trigger
 
@@ -130,8 +131,9 @@ class LifecycleBackend:
         return completed.stdout
 
     def start(self, config: LifecycleConfig, session_id: str, event_callback,
-              mode: str = "OPTITRACK", csv_sha: str = "DEFAULT") -> None:
+              mode: str = "OPTITRACK", csv_sha: str = "DEFAULT", ball_model: str | None = None) -> None:
         validate_session_id(session_id)
+        self.ball_model_verification = None
         laptop, laptop_helper = self._laptop(config)
         mdu = f"{ROBOT_USER}@{config.mdu_internal_ip}"
         motive_arg = config.motive_ip or "NONE"
@@ -160,7 +162,8 @@ class LifecycleBackend:
             # The operator may run the Laptop bridge separately when ball/base
             # telemetry is needed, but an absent Motive stream must not block
             # starting HAL and the authoritative Runner in PASSIVE.
-            ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 20.0),
+            # Keep placement telemetry independent of slow/failed Runner bring-up.
+            ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 10.0),
             ("PLANNER", [LIFECYCLE_HELPER, "start-planner", *common], 20.0),
             # agibot_pm has a 90 s systemd stop timeout on the MDU. Field
             # shutdown commonly takes 40-60 s, so do not orphan a successful
@@ -170,10 +173,11 @@ class LifecycleBackend:
             # The MDU AimRT participant must exist before this explicit-peer
             # HDU participant.  Reversing these two steps reproduces the field
             # failure where Runner DATA reaches the HDU UDP socket but the old
-            # reader callback never matches.
+            # reader callback never matches. Base has its own early participant
+            # and remains available if this Runner gateway fails.
             (
-                "RUNNER_TRANSPORT",
-                [LIFECYCLE_HELPER, "start-runner-transport", *common],
+                "TRANSPORT_GATEWAY",
+                [LIFECYCLE_HELPER, "start-transport-gateway", *common],
                 20.0,
             ),
         )
@@ -186,6 +190,12 @@ class LifecycleBackend:
             self._invoke(
                 list(argv), timeout_s=timeout_s, event_callback=event_callback
             )
+            if step == "PLANNER":
+                planner = self.exchange_assets("hdu", config, {"op": "verify_ball_model", "model": ball_model,
+                                                               "require_running": True})
+                packetizer = self.exchange_assets("laptop", config, {"op": "verify_ball_model", "model": ball_model})
+                self.ball_model_verification = {"model": planner["configured_model"], "planner": planner["runtime"],
+                                                "packetizer": packetizer["runtime"]}
 
     def kill_all_and_collect(
         self, config: LifecycleConfig, session_id: str, event_callback,
@@ -241,6 +251,16 @@ class LifecycleBackend:
         return collection_reason
 
 
+    def reconnect_mocap(self, config: LifecycleConfig) -> None:
+        target, helper = self._laptop(config)
+        session_id = datetime.now(timezone.utc).strftime("model21800_%Y%m%dT%H%M%SZ")
+        common = [session_id, config.laptop_wifi_ip, config.hdu_wifi_ip,
+                  config.mdu_internal_ip, config.motive_ip or "NONE", config.table_side,
+                  "OPTITRACK", "DEFAULT", config.gripper_profile, config.mocap_source,
+                  config.vrpn_ip or "NONE", config.vrpn_port, config.vrpn_units, config.pants_profile]
+        self._invoke(self._ssh(target, helper, "reconnect-laptop", *common),
+                     timeout_s=25.0, event_callback=lambda _event: None)
+
     def exchange_recording(self, host: str, config: LifecycleConfig, request: dict) -> dict:
         if config.revision < 1:
             raise ValueError("confirm network configuration first")
@@ -261,7 +281,15 @@ class LifecycleBackend:
             raise ValueError("confirm network configuration first")
         target, helper = (self._laptop(config) if host == "laptop"
                           else (f"{ROBOT_USER}@{config.mdu_internal_ip}", LIFECYCLE_HELPER))
-        result = self._run(self._ssh(target, helper, f"field-assets-{host}"),
+        if request.get("op") in {"read_ball_model", "select_ball_model", "verify_ball_model", "inspect_ball_model"}:
+            if host not in {"hdu", "laptop"}:
+                raise ValueError("ball physics is only configured on HDU and Laptop")
+            request = {**request, "_peer": config.laptop_wifi_ip if host == "hdu" else config.hdu_wifi_ip}
+            command = ([LIFECYCLE_HELPER, "ball-model-hdu"] if host == "hdu" else
+                       self._ssh(target, helper, "ball-model-laptop"))
+        else:
+            command = self._ssh(target, helper, f"field-assets-{host}")
+        result = self._run(command,
                            input=json.dumps(request, ensure_ascii=False), capture_output=True,
                            text=True, timeout=30, check=False)
         if result.returncode:
@@ -269,12 +297,15 @@ class LifecycleBackend:
         return json.loads(result.stdout)
 
 
-class HopeLifecycleSupervisor(Node):
-    def __init__(self):
-        super().__init__(
-            "hope_lifecycle_supervisor",
-            start_parameter_services=False,
-        )
+class LifecycleModule(RosComponent):
+    def __init__(self, node, *, shared_state=None):
+        RosComponent.__init__(self, node)
+        self._shared_state = shared_state
+        self._admission = shared_state.admission if shared_state is not None else WorkerAdmission()
+        self._rpc_workers = BoundedWorker("hope-lifecycle-rpc", capacity=2, admission=self._admission)
+        self._record_workers = BoundedWorker("hope-record-rpc", capacity=2, admission=self._admission)
+        self._closed = False
+        self._stopping = False
         self._callback_group = ReentrantCallbackGroup()
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hope-lifecycle")
@@ -325,42 +356,47 @@ class HopeLifecycleSupervisor(Node):
         self.create_service(
             SetParameters,
             "/hope/lifecycle/apply_config",
-            self._apply_config,
+            self._worker_callback(self._apply_config, self._rpc_workers),
             callback_group=self._callback_group,
         )
         self.create_service(
             Trigger,
             "/hope/lifecycle/start",
-            self._start,
+            self._worker_callback(self._start, self._rpc_workers),
             callback_group=self._callback_group,
         )
         self.create_service(
             Trigger,
             "/hope/lifecycle/kill_all_and_collect",
-            self._kill_all_and_collect,
+            self._worker_callback(self._kill_all_and_collect, self._rpc_workers),
             callback_group=self._callback_group,
         )
-        self.create_subscription(
-            String,
-            "/hope/runner/mode",
-            self._on_runner_mode,
-            10,
-            callback_group=self._callback_group,
-        )
-        self.create_subscription(
-            Bool,
-            "/hope/runner/session_matches",
-            self._on_runner_session_matches,
-            10,
-            callback_group=self._callback_group,
-        )
+        if shared_state is None:
+            self.create_subscription(
+                String,
+                "/hope/runner/mode",
+                self._on_runner_mode,
+                10,
+                callback_group=self._callback_group,
+            )
+            self.create_subscription(
+                Bool,
+                "/hope/runner/session_matches",
+                self._on_runner_session_matches,
+                10,
+                callback_group=self._callback_group,
+            )
         self._field_publisher = self.create_publisher(String, "/hope/field/status", 10)
-        self.create_service(SetParameters, "/hope/field/command", self._field_command,
+        self.create_service(SetParameters, "/hope/field/command",
+                            self._worker_callback(self._field_command, self._field_worker),
                             callback_group=self._callback_group)
         # The pelvis-aligned Motive asset replaces the venue JSON workflow.
         # Legacy JSON import/export remains an explicit maintenance API; do not
         # poll or adopt an old file into the default asset-based session.
-        self.create_timer(0.5, self._publish)
+        self._field_snapshot = CachedCall("hope-field-status", self._field.status,
+                                          {"error": "field status pending"})
+        self._publish_timer = self.create_timer(0.5, self._publish)
+        self._refresh_timer = self.create_timer(15.0, self._refresh_ball_models)
         if self._config.revision > 0:
             self._field.recorder.stop(wait=False)  # default OFF after supervisor restart
 
@@ -370,6 +406,7 @@ class HopeLifecycleSupervisor(Node):
         message.data = value
         return message
 
+    @telemetry_callback
     def _publish(self) -> None:
         with self._lock:
             config = self._config
@@ -378,16 +415,25 @@ class HopeLifecycleSupervisor(Node):
             session_id = self._session_id
             busy = self._busy
             result = self._last_result
-        field_status = self._field.status()
+            draining = self._stopping
+        field_status = dict(self._field_snapshot.poll())
+        if self._field_snapshot.error:
+            field_status["error"] = self._field_snapshot.error
         field_status["busy"] = self._field_busy
-        self._field_publisher.publish(self._string(json.dumps(field_status, ensure_ascii=False)))
+        field_status["draining"] = draining
+        field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
+                                                     if state == "RUNNING" else None)
+        field_wire = json.dumps(field_status, ensure_ascii=False)
+        if self._shared_state is not None:
+            self._shared_state.set_field_status(field_wire, field_status)
+        self._field_publisher.publish(self._string(field_wire))
         self._lifecycle_publishers["state"].publish(self._string(state))
         self._lifecycle_publishers["step"].publish(self._string(step))
         self._lifecycle_publishers["session"].publish(self._string(session_id))
         self._lifecycle_publishers["result"].publish(self._string(result))
         self._lifecycle_publishers["summary"].publish(
             self._string(
-                f"state={state} step={step} session={session_id or 'NONE'} "
+                f"state={state} step={step} session={session_id or 'NONE'} draining={int(draining)} "
                 f"config_revision={config.revision} table_side={config.table_side} "
                 f"result={result}"
             )
@@ -409,9 +455,32 @@ class HopeLifecycleSupervisor(Node):
             "vrpn_units": config.vrpn_units,
         }, sort_keys=True)))
 
+    def _refresh_ball_models(self) -> None:
+        with self._lock:
+            if self._stopping or self._closed or self._busy or self._field_busy or self._field_refresh_running or self._config.revision < 1:
+                return
+            self._field_refresh_running = True
+            config = self._config
+        def refresh():
+            try:
+                self._field.refresh_ball_models(config)
+            finally:
+                with self._lock:
+                    self._field_refresh_running = False
+        # Admission and submit share the close lock; no refresh can land
+        # after close has started shutting down the asset worker.
+        with self._lock:
+            if self._stopping or self._closed:
+                self._field_refresh_running = False
+                return
+            try:
+                self._field_pool.submit(refresh)
+            except RuntimeError:
+                self._field_refresh_running = False
+
     def _refresh_field(self) -> None:
         with self._lock:
-            if self._field_busy or self._field_refresh_running or self._config.revision < 1:
+            if self._stopping or self._closed or self._field_busy or self._field_refresh_running or self._config.revision < 1:
                 return
             self._field_refresh_running = True
             config = self._config
@@ -421,7 +490,27 @@ class HopeLifecycleSupervisor(Node):
             finally:
                 with self._lock:
                     self._field_refresh_running = False
-        self._field_pool.submit(refresh)
+        with self._lock:
+            if self._stopping or self._closed:
+                self._field_refresh_running = False
+                return
+            try:
+                self._field_pool.submit(refresh)
+            except RuntimeError:
+                self._field_refresh_running = False
+
+    def _field_worker(self, request):
+        # Recording must not wait behind laptop SSH, configuration reconnects,
+        # or CSV uploads. Parsing/validation still happens in _field_command.
+        try:
+            raw = request.parameters[0].value.string_value if len(request.parameters) == 1 else ""
+            if len(raw) <= 4096:
+                payload = json.loads(raw)
+                if payload.get("op") in {"record_on", "record_off"}:
+                    return self._record_workers
+        except (ValueError, AttributeError, TypeError, RecursionError):
+            pass
+        return self._rpc_workers
 
     def _field_command(self, request, response):
         try:
@@ -482,30 +571,47 @@ class HopeLifecycleSupervisor(Node):
                 ]
                 return response
             updates.append((parameter.name, parameter.value.string_value))
+        operation_lock = None
+        saved = False
+        claimed = False
         try:
             updated = apply_config_updates(current, updates)
+            if current.hdu_wifi_ip and updated.hdu_wifi_ip != current.hdu_wifi_ip:
+                raise ValueError("Robot IP selects a new Foxglove connection; current robot configuration is unchanged")
+            with self._lock:
+                if self._config is not current or self._busy or self._field_busy or self._state not in {"STOPPED", "CONFIG_ERROR"}:
+                    raise ValueError("state changed while confirming configuration; retry")
+                operation_lock = try_acquire_hardware_operation_lock()
+                if operation_lock is None:
+                    raise ValueError("another hardware operation is in progress")
+                self._field_busy = True
+                claimed = True
+                reconnect = any(getattr(current, name) != getattr(updated, name) for name in (
+                    "operator_profile", "laptop_wifi_ip", "motive_ip", "vrpn_ip", "mocap_source", "vrpn_port",
+                    "vrpn_units", "pants_profile", "table_side")) or "MOCAP_FAILED" in self._last_result
             save_config_atomic(CONFIG_PATH, updated)
-        except (OSError, ValueError) as exc:
-            response.results = [
-                SetParametersResult(successful=False, reason=str(exc))
-                for _parameter in request.parameters
-            ]
-            return response
-        with self._lock:
-            self._config = updated
-            self._state = "STOPPED"
-            self._last_result = f"CONFIG_CONFIRMED_REVISION_{updated.revision}"
-        response.results = [
-            SetParametersResult(
-                successful=True,
-                reason=(
-                    "confirmed lifecycle configuration revision "
-                    f"{updated.revision} table_side={updated.table_side} "
-                    f"operator_profile={updated.operator_profile}"
-                ),
-            )
-            for _parameter in request.parameters
-        ]
+            saved = True
+            with self._lock:
+                self._config = updated
+                self._state = "STOPPED"
+                self._last_result = f"CONFIG_SAVED_REVISION_{updated.revision}"
+            if reconnect:
+                self._field_pool.submit(self._backend.reconnect_mocap, updated).result()
+            with self._lock:
+                self._last_result = f"CONFIG_CONFIRMED_REVISION_{updated.revision}"
+            reason = "Saved configuration; mocap receiver reconnected, check fresh pose data" if reconnect else "Saved configuration"
+            response.results = [SetParametersResult(successful=True, reason=reason) for _ in request.parameters]
+        except (OSError, ValueError, LifecycleFailure, subprocess.SubprocessError) as exc:
+            reason = f"Configuration saved; mocap connection failed: {exc}" if saved else str(exc)
+            if saved:
+                with self._lock:
+                    self._last_result = f"CONFIG_SAVED_MOCAP_FAILED: {exc}"
+            response.results = [SetParametersResult(successful=False, reason=reason) for _ in request.parameters]
+        finally:
+            if claimed:
+                with self._lock:
+                    self._field_busy = False
+            release_hardware_operation_lock(operation_lock)
         return response
 
     def _on_event(self, event) -> None:
@@ -531,19 +637,26 @@ class HopeLifecycleSupervisor(Node):
             self._last_result = "WAITING_FOR_AUTHORITATIVE_RUNNER_PASSIVE"
         while time.monotonic() < deadline:
             now = time.monotonic()
-            with self._lock:
-                mode = self._runner_mode
-                mode_fresh = (
-                    self._runner_mode_received > 0.0
-                    and now - self._runner_mode_received
-                    <= RUNNER_STATE_FRESHNESS_S
-                )
-                session_matches = self._runner_session_matches
-                session_matches_fresh = (
-                    self._runner_session_matches_received > 0.0
-                    and now - self._runner_session_matches_received
-                    <= RUNNER_STATE_FRESHNESS_S
-                )
+            if self._shared_state is not None:
+                snapshot = self._shared_state.runner.snapshot()
+                runner = snapshot.value
+                mode = runner.run_mode if runner is not None else "UNKNOWN"
+                mode_fresh = (snapshot.received_ns > 0 and
+                              now - snapshot.received_ns * 1e-9 <= RUNNER_STATE_FRESHNESS_S)
+                with self._lock:
+                    session_id = self._session_id
+                session_matches = bool(runner is not None and session_id and
+                                       runner.session_fingerprint == runner_session_fingerprint(session_id))
+                session_matches_fresh = mode_fresh
+            else:
+                with self._lock:
+                    mode = self._runner_mode
+                    mode_fresh = (self._runner_mode_received > 0.0 and
+                                  now - self._runner_mode_received <= RUNNER_STATE_FRESHNESS_S)
+                    session_matches = self._runner_session_matches
+                    session_matches_fresh = (
+                        self._runner_session_matches_received > 0.0 and
+                        now - self._runner_session_matches_received <= RUNNER_STATE_FRESHNESS_S)
             if (
                 mode_fresh
                 and mode == "PASSIVE"
@@ -559,7 +672,7 @@ class HopeLifecycleSupervisor(Node):
 
     def _start(self, _request, response):
         with self._lock:
-            if self._busy or self._field_busy or self._state != "STOPPED":
+            if self._busy or self._field_busy or self._state not in {"STOPPED", "FAILED"}:
                 response.success = False
                 response.message = f"lifecycle start rejected in state {self._state}"
                 return response
@@ -569,8 +682,19 @@ class HopeLifecycleSupervisor(Node):
                     "confirm the three Runner IPv4 fields and table side before starting"
                 )
                 return response
+            previous_state = self._state
+            previous_session = self._session_id
+            previous_mode = self._session_mode
+            cleanup_session = previous_session if previous_state == "FAILED" else None
+            if previous_state == "FAILED" and not cleanup_session:
+                response.success = False
+                response.message = "failed session identity is missing; cannot safely clean up"
+                return response
             try:
-                operation_lock = try_acquire_hardware_operation_lock()
+                # A failed managed START retains this lock until cleanup succeeds.
+                operation_lock = self._hardware_operation_lock
+                if operation_lock is None:
+                    operation_lock = try_acquire_hardware_operation_lock()
             except OSError as exc:
                 response.success = False
                 response.message = f"hardware-operation interlock unavailable: {exc}"
@@ -584,24 +708,23 @@ class HopeLifecycleSupervisor(Node):
             config = self._config
             session_id = datetime.now(timezone.utc).strftime("model21800_%Y%m%dT%H%M%SZ")
             self._busy = True
-            self._state = "STARTING"
-            self._step = "SESSION"
-            self._session_id = session_id
-            self._last_result = "START_ACCEPTED"
+            self._state = "KILLING" if cleanup_session else "STARTING"
+            self._step = "RECOVERY_CLEANUP" if cleanup_session else "SESSION"
+            self._session_id = cleanup_session or session_id
+            self._last_result = "START_RECOVERY_ACCEPTED" if cleanup_session else "START_ACCEPTED"
             self._hardware_operation_lock = operation_lock
         try:
-            self._pool.submit(self._run_start, config, session_id)
+            self._pool.submit(self._run_start, config, session_id, cleanup_session, previous_mode)
         except Exception as exc:  # noqa: BLE001 - hardware has not changed yet
             with self._lock:
                 self._busy = False
-                self._state = "STOPPED"
-                self._step = "IDLE"
-                self._session_id = ""
+                self._state = previous_state
+                self._step = "RECOVERY_CLEANUP" if cleanup_session else "IDLE"
+                self._session_id = previous_session
                 self._last_result = f"START_SUBMIT_FAILED: {type(exc).__name__}"
-                release_hardware_operation_lock(
-                    self._hardware_operation_lock
-                )
-                self._hardware_operation_lock = None
+                if not cleanup_session:
+                    release_hardware_operation_lock(self._hardware_operation_lock)
+                    self._hardware_operation_lock = None
             response.success = False
             response.message = f"cannot start lifecycle worker: {exc}"
             return response
@@ -609,13 +732,24 @@ class HopeLifecycleSupervisor(Node):
         response.message = f"start accepted for {session_id}; follow lifecycle state topics"
         return response
 
-    def _run_start(self, config: LifecycleConfig, session_id: str) -> None:
+    def _run_start(self, config: LifecycleConfig, session_id: str,
+                   cleanup_session: str | None = None, cleanup_mode: str = "OPTITRACK") -> None:
+        recovering = cleanup_session is not None
         try:
+            if recovering:
+                self._field.recorder.stop(wait=False)
+                self._backend.kill_all_and_collect(
+                    config, cleanup_session, self._on_event, cleanup_mode)
+                # Never release the operation lock between cleanup and retry.
+                recovering = False
             with self._lock:
+                self._state = "STARTING"
+                self._session_id = session_id
                 self._step = "PREFLIGHT"
             mode, csv_sha = self._field.runner_selection(config)
             self._session_mode = mode
-            self._backend.start(config, session_id, self._on_event, mode, csv_sha)
+            self._backend.start(config, session_id, self._on_event, mode, csv_sha,
+                                ball_model=self._field.status().get("ball_model"))
             self._wait_for_authoritative_runner()
         except (LifecycleFailure, OSError, ValueError, subprocess.TimeoutExpired) as exc:
             self.get_logger().error(
@@ -623,17 +757,17 @@ class HopeLifecycleSupervisor(Node):
             )
             with self._lock:
                 managed_recovery = "MANAGED_" in str(exc)
-                if self._step == "PREFLIGHT" and not managed_recovery:
+                if self._step == "PREFLIGHT" and not managed_recovery and not recovering:
                     self._state = "STOPPED"
                     self._session_id = ""
-                    self._last_result = f"PREFLIGHT_REJECTED: {str(exc)[:300]}"
+                    self._last_result = f"PREFLIGHT_REJECTED: {(str(exc).strip().splitlines() or [type(exc).__name__])[-1][-300:]}"
                     release_hardware_operation_lock(
                         self._hardware_operation_lock
                     )
                     self._hardware_operation_lock = None
                 else:
                     self._state = "FAILED"
-                    prefix = "MANAGED_RECOVERY_REQUIRED" if managed_recovery else "START_FAILED"
+                    prefix = "START_CLEANUP_FAILED" if recovering else "MANAGED_RECOVERY_REQUIRED" if managed_recovery else "START_FAILED"
                     if managed_recovery:
                         try:
                             previous_session = validate_session_id(
@@ -645,7 +779,7 @@ class HopeLifecycleSupervisor(Node):
                             pass
                         else:
                             self._session_id = previous_session
-                    self._last_result = f"{prefix}: {str(exc)[:280]}"
+                    self._last_result = f"{prefix}: {(str(exc).strip().splitlines() or [type(exc).__name__])[-1][-280:]}"
                 self._busy = False
             return
         except Exception as exc:  # noqa: BLE001 - never leave hardware lifecycle busy
@@ -735,30 +869,69 @@ class HopeLifecycleSupervisor(Node):
             release_hardware_operation_lock(self._hardware_operation_lock)
             self._hardware_operation_lock = None
 
+    def stop_accepting(self):
+        self._admission.seal()
+        with self._lock:
+            self._stopping = True
+        self._rpc_workers.stop_accepting()
+        self._record_workers.stop_accepting()
+        self._field_snapshot.stop_refreshing()
+        self._refresh_timer.cancel()
+
     def close(self) -> None:
         with self._lock:
-            release_hardware_operation_lock(self._hardware_operation_lock)
-            self._hardware_operation_lock = None
-        self._field_pool.shutdown(wait=True, cancel_futures=True)
-        self._field.recorder.stop()
-        self._pool.shutdown(wait=False, cancel_futures=True)
+            if self._closed:
+                return
+            self._closed = True
+        errors = []
+        def finish(callback):
+            try:
+                callback()
+                return True
+            except Exception as exc:
+                errors.append(exc)
+                return False
+        finish(self.stop_accepting)
+        finish(self._rpc_workers.close)
+        finish(self._record_workers.close)
+        # Never release the hardware interlock while an accepted START/KILL
+        # worker can still mutate the managed session.
+        lifecycle_joined = finish(lambda: self._pool.shutdown(wait=True, cancel_futures=True))
+        finish(lambda: self._field_pool.shutdown(wait=True, cancel_futures=True))
+        finish(self._field_snapshot.close)
+        finish(self._field.recorder.stop)
+        if lifecycle_joined:
+            with self._lock:
+                release_hardware_operation_lock(self._hardware_operation_lock)
+                self._hardware_operation_lock = None
+        if errors:
+            raise RuntimeError("lifecycle cleanup failed: " + "; ".join(str(exc) for exc in errors)) from errors[0]
+
+    def quiescent(self):
+        with self._lock:
+            return (self._state in {"STOPPED", "CONFIG_ERROR"} and not self._busy
+                    and not self._field_busy and not self._field_refresh_running
+                    and self._hardware_operation_lock is None
+                    and not self._rpc_workers.busy and not self._record_workers.busy)
+
+
+class HopeLifecycleSupervisor(Node, LifecycleModule):
+    """Compatibility entry point; the composed runtime uses LifecycleModule."""
+    def __init__(self):
+        Node.__init__(self, "hope_lifecycle_supervisor", start_parameter_services=False)
+        LifecycleModule.__init__(self, self)
+
+    def destroy_node(self):
+        try:
+            self.close()
+        finally:
+            self._admission.close()
+            result = Node.destroy_node(self)
+        return result
 
 
 def main() -> None:
-    rclpy.init()
-    node = HopeLifecycleSupervisor()
-    executor = MultiThreadedExecutor(num_threads=4)
-    executor.add_node(node)
-    try:
-        executor.spin()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        executor.shutdown()
-        node.close()
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(HopeLifecycleSupervisor)
 
 
 if __name__ == "__main__":

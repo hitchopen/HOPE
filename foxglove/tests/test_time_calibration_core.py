@@ -201,6 +201,39 @@ class TimeCalibrationStatusTests(unittest.TestCase):
 
 
 class TimeCalibrationOrderingTests(unittest.TestCase):
+    def test_legacy_receipt_restores_only_one_operations_service(self):
+        old_units = ("hope-observer.service", "hope-command-proxy.service",
+                     *HDU_FOXGLOVE_UNITS)
+        saved = CalibrationStatus(boot_id="same-boot", active_hdu_foxglove=old_units)
+        restored = status_from_document(status_to_document(saved))
+        self.assertEqual(restored.active_hdu_foxglove, old_units)
+        machine = FakeMachine()
+        backend = TimeCalibrationBackend("agi", robot_home="/home/agi", run=machine)
+        backend._restore_control_plane(restored.active_hdu_foxglove)
+        starts = [c for c in machine.calls if c[:2] == (SYSTEMCTL, "start")]
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(starts[0].count("hope-lifecycle-supervisor.service"), 1)
+        self.assertNotIn("hope-observer.service", starts[0])
+        self.assertNotIn("hope-command-proxy.service", starts[0])
+
+    def test_active_transport_rejects_clock_step_before_mutation(self):
+        for process, reason in (("hope-transport-gateway", "HDU_TRANSPORT_GATEWAY_IS_RUNNING"),
+                                ("hope-base-pose-transport-relay", "HDU_BASE_RELAY_IS_RUNNING")):
+            with self.subTest(process=process):
+                machine = FakeMachine()
+
+                def run(argv, **kwargs):
+                    if argv[:2] == ["/usr/bin/pgrep", "-f"] and process in argv[-1]:
+                        machine.calls.append(tuple(argv))
+                        return subprocess.CompletedProcess(argv, 0, "123\n", "")
+                    return machine(argv, **kwargs)
+
+                backend = TimeCalibrationBackend("agi", robot_home="/home/agi", run=run)
+                with self.assertRaisesRegex(CalibrationRejected, reason):
+                    backend.preflight(self.config())
+                self.assertFalse(any(c[:2] in ((SYSTEMCTL, "stop"), (SYSTEMCTL, "start"),
+                                              (SYSTEMCTL, "restart")) for c in machine.calls))
+
     @staticmethod
     def config():
         return LifecycleConfig(

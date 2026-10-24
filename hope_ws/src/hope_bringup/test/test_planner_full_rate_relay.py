@@ -19,10 +19,12 @@ loader.exec_module(module)
 
 @pytest.fixture(params=["P1", "P2"])
 def relay(request):
-    rclpy.init(args=["--ros-args", "-p", "publish_tf:=false", "-p",
-                    "planner_poses_topic:=/poses/planner_full", "-p",
-                    "table_side:=" + request.param, '-p',
-                     'ball_orientation_authoritative:=true'])
+    rclpy.init(args=[
+        '--ros-args', '-p', 'publish_tf:=false', '-p',
+        'planner_poses_topic:=/poses/planner_full', '-p',
+        'table_side:=' + request.param, '-p',
+        'ball_orientation_authoritative:=true',
+    ])
     node = module.OptitrackMctRelay(messages.NamedPoseArrayV2)
     node.full, node.limited, node.observations = [], [], []
     node._ball_observation_v2_pub.publish = node.observations.append

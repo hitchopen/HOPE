@@ -18,7 +18,7 @@ hope_planner:
     incoming_opponent_side_margin_m: 0.05
     incoming_speed_threshold_mps: 0.25
     outgoing_speed_threshold_mps: 0.25
-    incoming_direction_fit_samples: 4
+    incoming_direction_fit_samples: 16
     incoming_direction_confirmations: 2
     incoming_pre_roll_samples: 24
     incoming_source_gap_reset_s: 0.25
@@ -28,12 +28,13 @@ hope_planner:
 
     batch_estimator_window_s: 0.18
     batch_estimator_min_span_s: 0.08
-    batch_estimator_min_samples: 12
+    batch_estimator_min_samples: 24
     batch_estimator_huber_delta_m: 0.003
     batch_estimator_recency_half_life_s: 0.0
     batch_estimator_iterations: 3
 
     ball_pose_index: 0
+    # Legacy fallback only: schema 4 uses Runner HOME.x + ONNX plane_x.
     x_hit: 0.15
     x_hit_follow_robot: false
     require_x_hit_calibration: false
@@ -83,16 +84,26 @@ hope_planner:
     publish_base_flat: false
     publish_flat_cmd: true
     publish_typed_command: true
-    racket_flat_schema: 2
+    # Managed normal-play Runner uses --shared-session-home. Install both together.
+    racket_flat_schema: 4
+    session_home_input_topic: "/hope/runner/session_home_hdu_flat"
+    session_home_max_age_s: 0.5
+    plane_reference_mode: "fixed"
     racket_flat_topic: "/racket/command_flat"
     publish_serve_ball_flat: true
     serve_ball_flat_topic: "/serve/ball_state_flat"
     policy_z_offset: 0.76
     max_target_turn_deg: 180.0
     target_turn_max_pose_age_s: 0.2
+    # Preserve the Berkeley/main policy. Local field setups explicitly set false.
+    target_turn_reject_stale_pose: true
     table_y_max: 0.0
 
     x_hit_calibration_request_file: ""
     x_hit_calibration_status_file: ""
     debug_csv_path: ""
     debug_session_id: ""
+    batch_single_flight_only: true
+    batch_post_bounce_min_span_s: 0.08
+    batch_post_bounce_exclusion_s: 0.008
+    batch_max_sample_gap_s: 0.02

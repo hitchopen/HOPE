@@ -1,3 +1,6 @@
+# Field serve025: event frame 48 -> release command frame 45.
+serve_release_lead_frames: 3
+
 # Rockchip MDU: explicit assignment to isolated CPU cores 4, 5, 6.
 # Transport/localization config shared by MuJoCo and hardware. Policy-owned
 # values (model, step_dt, joint map, default q, action scale/clip, Kp/Kd and
@@ -6,7 +9,6 @@
 # only the staged relative path "policy", never a checkpoint-specific source
 # path.
 
-serve_release_lead_frames: 1
 
 background_cpu: 4
 driver_cpu: 6

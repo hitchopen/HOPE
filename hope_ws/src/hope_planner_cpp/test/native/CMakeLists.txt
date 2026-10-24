@@ -64,3 +64,15 @@ target_link_libraries(test_base_pose_contract PRIVATE hope_native_core GTest::gt
 add_test(NAME base_pose_contract COMMAND test_base_pose_contract)
 add_executable(hope_base_pose_contract_probe ${PLANNER}/test/base_pose_contract_probe.cpp)
 target_link_libraries(hope_base_pose_contract_probe PRIVATE hope_native_core)
+
+# Compile the selected upstream receiver tests directly against its own headers.
+get_filename_component(RUNNER ${PLANNER}/../../../a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref ABSOLUTE)
+add_executable(test_upstream_receiver
+  ${RUNNER}/unit_tests/test_pp_racket_target_input.cpp
+  ${RUNNER}/unit_tests/test_pp_base_pose_input.cpp
+  ${RUNNER}/unit_tests/test_pp_planner_lifecycle.cpp
+  ${RUNNER}/unit_tests/test_session_home_contract.cpp)
+set_target_properties(test_upstream_receiver PROPERTIES CXX_STANDARD 20)
+target_include_directories(test_upstream_receiver PRIVATE ${RUNNER}/include)
+target_link_libraries(test_upstream_receiver PRIVATE Eigen3::Eigen GTest::gtest_main)
+add_test(NAME upstream_receiver COMMAND test_upstream_receiver)

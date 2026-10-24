@@ -1,0 +1,2726 @@
+{
+  "base": "91aecabfd44cb258ac998158e724be9017d883a7",
+  "premerge": "47296db5653c6dda7d397d7a82153f69fa4ed4fb",
+  "files": [
+    {
+      "path": "README.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Review contract, source pins and current validation evidence",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/CMakeLists.txt",
+      "category": "IN_SCOPE_OBSERVATION",
+      "owner": "perception",
+      "why_needed": "Add authoritative V2 observations while preserving legacy pose stream",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "planner_full_rate_relay_test"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/package.xml",
+      "category": "IN_SCOPE_OBSERVATION",
+      "owner": "perception",
+      "why_needed": "Add authoritative V2 observations while preserving legacy pose stream",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "planner_full_rate_relay_test"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/scripts/optitrack_mct_relay",
+      "category": "IN_SCOPE_OBSERVATION",
+      "owner": "perception",
+      "why_needed": "Add authoritative V2 observations while preserving legacy pose stream",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "planner_full_rate_relay_test"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Retain the configured surveyed ball calibration identity at the real typed producer boundary.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "planner_full_rate_relay_test"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_msgs/CMakeLists.txt",
+      "category": "CONDITIONAL_SHARED_HELPER",
+      "owner": "integration",
+      "why_needed": "Register six V2 messages or independently build/export/test V2 runtime graph",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "test_flight_prediction_v2",
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_msgs/msg/BallObservationV2.msg",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2",
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_msgs/msg/FlightContextV2.msg",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2",
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_msgs/msg/FlightEventV2.msg",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2",
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_msgs/msg/FlightPacketV2.msg",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2",
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_msgs/msg/FlightPredictionV2.msg",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2",
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_msgs/msg/FlightWaypointV2.msg",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Versioned causal observation/event/trajectory/checkpoint wire contract",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2",
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/CMakeLists.txt",
+      "category": "CONDITIONAL_SHARED_HELPER",
+      "owner": "integration",
+      "why_needed": "Register six V2 messages or independently build/export/test V2 runtime graph",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "test_flight_prediction_v2",
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Link the integrated application separately from the command-free forecast graph and register required checks.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/README.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/config/flight_prediction_v2_shadow.yaml",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/config/integrated_planner.shadow.yaml",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide a separate opt-in one-node shadow profile using existing physical input producers.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Preserve all 50 scoped requirement IDs with exact new execution evidence and separate physical/downstream outcomes",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Preserve all 50 scoped requirement IDs with exact new execution evidence and separate physical/downstream outcomes",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_accuracy/NOT_RUN.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Prevent physical-accuracy/adoption claims without independent held-out annotated data and clock/frame/plane receipts",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_accuracy/README.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Review contract, source pins and current validation evidence",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_engineering_report.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Replace stale scaffold reports with current architecture, measured results and remaining qualification steps",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_engineering_report.pdf",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Replace stale scaffold reports with current architecture, measured results and remaining qualification steps",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/binary-scope.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run binary-scope.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/cadence.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run cadence.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/delayed-worker.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run delayed-worker.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/effective-profile.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run effective-profile.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/installed-binary-scope.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run installed-binary-scope.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/matched-tooling.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run matched-tooling.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/numerical.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run numerical.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/production-config-pins.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run production-config-pins.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/raw-scenarios.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run raw-scenarios.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/sanitizers.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run sanitizers.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/selected-ros.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run selected-ros.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_evidence/test-summary.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "validation",
+      "why_needed": "Archive current-run test-summary.json metrics, test statuses or diagnostic limitations; not historical PASS claims",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_excluded_pr49_files.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Enumerate exactly 24 omitted historical paths and explain absence of hybrid/selector targets and messages",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_implementation.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Explain isolated link graph, physical interfaces, lifecycle and observational quality/ownership",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_minimal_scope.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Record production preservation, ownership limits and public-struct rebuild requirement",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_minimal_scope_manifest.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Make every changed file and all 113 source-diff decisions independently auditable",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_physics_and_config.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "State unchanged V2 assumptions and distinct effective historical replay/default production models",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_port_manifest.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Pin GitHub upstream/source/other-fork histories and preserve source-branch provenance",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_pr_description.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Provide review-ready title/body for the new diff without opening or merging a PR",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_production_parity.json",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Archive strict independently compiled original/final mode and Stage 3 fixture equality",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/flight_prediction_validation.md",
+      "category": "IN_SCOPE_DOCUMENTATION",
+      "owner": "review",
+      "why_needed": "Document tested clean build, solver, scope, parity, load and sanitizer reproduction and inherited failures",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G0-G8"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_acceptance.json",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_acceptance.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_contract.json",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_contract.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_migration.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr64_publication_options.md",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr64_review_corrections.json",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr64_review_corrections.md",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr85_integration.json",
+      "owner": "PR85 integration verification",
+      "why_needed": "Document and verify reconciliation with the selected upstream target.",
+      "tests": [
+        "flight_v2_scope",
+        "integration checkpoint"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr85_integration.md",
+      "owner": "PR85 integration verification",
+      "why_needed": "Document and verify reconciliation with the selected upstream target.",
+      "tests": [
+        "flight_v2_scope",
+        "integration checkpoint"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr85_scope_manifest.json",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_pr_description.md",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Record contracts, input migration, real executed evidence, source inventory and explicit remaining requirements.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_draft_pr.md",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_scope_manifest.json",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_spin_qualification.json",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_reacquisition_spin_qualification.md",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_review_remaining_qualification.md",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_review_scope_manifest.json",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/base_pose_orientation.hpp",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/common_ball_physics.hpp",
+      "category": "IN_SCOPE_FORWARD_PHYSICS",
+      "owner": "physics",
+      "why_needed": "Expose reusable forward-only gravity/drag/Magnus/contact/event integration with caller-supplied explicit spin availability",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_numerical",
+        "test_flight_prediction_v2",
+        "flight_v2_installed_api"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/fixed_lag_types.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Transfer/validate causal posterior checkpoints and measurement-nuisance moments with physical model fingerprints",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_replay_input.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Parse shared replay acquisition ns exactly while preserving rejected angular data for V2 qualification",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_baseline_epochs",
+        "flight_v2_causal_replay"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_spin_estimator.hpp",
+      "category": "IN_SCOPE_FORWARD_PHYSICS",
+      "owner": "physics",
+      "why_needed": "Isolate stricter V2 angular gap/alias evidence without modifying the production SpinEstimator",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "origin_path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/spin_estimator.hpp",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_state_v2.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Own five-state shot lifecycle, observed/predicted route separation, bounded latest work and selected physical targets",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Explicit application-only advisory game legality; default standalone semantics remain unchanged.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/flight_transport_v2.hpp",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Encode/decode exact-time versioned physical observations, events, forecast waypoints and causal packets",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/forecast_noise_config.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Validate and version conditional forecast-noise assumptions shared by event propagation and configuration identity",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/hit_plane_manager.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Maintain registered table-frame +X plane under FOLLOW_POSE/ON_REFRESH and source-pose freshness constraints",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/integrated_command_lifecycle.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Semantic physical-shot wire identity, exact deadlines, source age, producer freeze and overflow fences.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/integrated_planner_runtime.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/nominal_event_forecast.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Propagate full nominal ball path, physical event-time/target moments and branch-conditioning labels",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/planner_node.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_ball_tracker.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Estimate six-state physical posterior and conditional covariance from causal XYZ without inverse/control dependencies",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_physics.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Step the CKF through the same V2 forward contact/free-flight model as nominal forecasts",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/probabilistic_types.hpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Provide CKF belief/configuration types required by forecast, checkpoint and event covariance code",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/return_eligibility.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Select local receiver bounce-to-plane opportunities without a game-history veto.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/return_region.hpp",
+      "category": "CONDITIONAL_SHARED_HELPER",
+      "owner": "integration",
+      "why_needed": "Retain required physical contact-side/history names and stable canonical SHA256/config fingerprints; no selector runtime",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "test_flight_prediction_v2",
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trusted_spin.hpp",
+      "category": "IN_SCOPE_FORWARD_PHYSICS",
+      "owner": "physics",
+      "why_needed": "Own measured/held/once-only-contact-propagated/position-only spin and source provenance per physical shot",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_numerical"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/types.hpp",
+      "category": "CONDITIONAL_SHARED_HELPER",
+      "owner": "integration",
+      "why_needed": "Append V2 provenance and separate optional-spin value; preserve existing field order/defaults and command definitions",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "test_flight_prediction_v2",
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Append sample provenance and separate EffectiveSpin without changing any original default or command struct. Rebuild all C++ dependents; old-object ABI compatibility is not claimed.",
+      "owning_requirement": "G2"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/validated_return_planner.hpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Converged shared-engine inverse solve, actual paddle-action reconstruction and first-landing validation.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/launch/flight_prediction_v2_shadow.launch.py",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Shot lifecycle, CKF, nominal physical events, registered plane or explicit shadow runtime",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/launch/integrated_planner.launch.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide a separate opt-in one-node shadow profile using existing physical input producers.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/package.xml",
+      "category": "CONDITIONAL_SHARED_HELPER",
+      "owner": "integration",
+      "why_needed": "Declare direct observation or validation dependencies",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "test_flight_prediction_v2",
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Link the integrated application separately from the command-free forecast graph and register required checks.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/accuracy.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_accuracy_tooling",
+        "flight_v2_matched_replay_tooling"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/benchmark_cadence.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/causal_replay_gate.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_causal_replay"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/compare_recordings.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_matched_replay_tooling",
+        "flight_v2_accuracy_tooling"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/evaluate_recordings.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scoring"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/integrated_numerical_gate.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/numerical_gate.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_numerical"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/production_parity.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "production_parity.py"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G2"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/scoring.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scoring"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify.sh",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "flight_v2_accuracy_tooling"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_integrated.sh",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide reproducible integrated verification or read-only source readiness inspection.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_pr64_review.sh",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/integrated_preflight.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Provide reproducible integrated verification or read-only source readiness inspection.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/ball_flight_baseline_replay.cpp",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Evaluate original upstream Stage 1/2 at actual one-shot/progressive epochs without inventing unavailable event outputs",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_baseline_epochs",
+        "flight_v2_matched_replay_tooling"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/common_ball_physics.cpp",
+      "category": "IN_SCOPE_FORWARD_PHYSICS",
+      "owner": "physics",
+      "why_needed": "Expose reusable forward-only gravity/drag/Magnus/contact/event integration with caller-supplied explicit spin availability",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_numerical",
+        "test_flight_prediction_v2",
+        "flight_v2_installed_api"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/fixed_lag_types.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Transfer/validate causal posterior checkpoints and measurement-nuisance moments with physical model fingerprints",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_node.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Publish only exact shadow physical channels with one-running/one-pending worker, revocation and freshness fencing",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_ros_transport",
+        "flight_v2_raw_scenarios",
+        "flight_v2_binary_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Revoke only on accepted semantic/plane changes, preventing ignored-context revocation.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Exercise the actual V2 pipeline/profile in exact-source-time offline numerical and causal replays",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_numerical",
+        "flight_v2_causal_replay"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/flight_spin_estimator.cpp",
+      "category": "IN_SCOPE_FORWARD_PHYSICS",
+      "owner": "physics",
+      "why_needed": "Isolate stricter V2 angular gap/alias evidence without modifying the production SpinEstimator",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "origin_path": "hope_ws/src/hope_planner_cpp/src/spin_estimator.cpp",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/flight_state_v2.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Own five-state shot lifecycle, observed/predicted route separation, bounded latest work and selected physical targets",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "V2-only revalidation fix: source gaps cannot prove smooth acceleration. History remains incomplete; no contact is fabricated. Production source remains unchanged.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Explicit application-only advisory game legality; default standalone semantics remain unchanged.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/flight_transport_v2.cpp",
+      "category": "IN_SCOPE_TRANSPORT",
+      "owner": "transport",
+      "why_needed": "Encode/decode exact-time versioned physical observations, events, forecast waypoints and causal packets",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/hit_plane_manager.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Maintain registered table-frame +X plane under FOLLOW_POSE/ON_REFRESH and source-pose freshness constraints",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/integrated_planner_runtime.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Propagate full nominal ball path, physical event-time/target moments and branch-conditioning labels",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/planner_node.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Own streaming V2 inputs and bounded worker in the existing node; preserve exact legacy body.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/probabilistic_ball_tracker.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Estimate six-state physical posterior and conditional covariance from causal XYZ without inverse/control dependencies",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/probabilistic_physics.cpp",
+      "category": "IN_SCOPE_FORECAST",
+      "owner": "forecast",
+      "why_needed": "Step the CKF through the same V2 forward contact/free-flight model as nominal forecasts",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2",
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/return_eligibility.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Select local receiver bounce-to-plane opportunities without a game-history veto.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/return_region.cpp",
+      "category": "CONDITIONAL_SHARED_HELPER",
+      "owner": "integration",
+      "why_needed": "Retain required physical contact-side/history names and stable canonical SHA256/config fingerprints; no selector runtime",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "test_flight_prediction_v2",
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/validated_return_planner.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Converged shared-engine inverse solve, actual paddle-action reconstruction and first-landing validation.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/base_pose_contract_probe.cpp",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/base_pose_producer_contract.py",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/baseline_replay_gate.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_baseline_epochs"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/manifest.json",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/reacquisition_source_cutoff_parity-150-False.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/reacquisition_source_cutoff_parity-150-True.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/reacquisition_source_cutoff_parity-300-False.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/reacquisition_source_cutoff_parity-300-True.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/review_source_cutoff_parity-150-False.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/review_source_cutoff_parity-150-True-producer-zero.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/review_source_cutoff_parity-150-True.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/review_source_cutoff_parity-300-False.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/review_source_cutoff_parity-300-True-producer-zero.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/review_source_cutoff_parity-300-True.csv",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_upstream_sources.json",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/fixtures/scoped_production_sources.json",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G2"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_scenarios.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Independently pace synthetic observations and verify both rates/directions/plane policies, automatic contacts, causal spin, renewed history evidence and reset fences",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_raw_scenarios"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/flight_prediction_v2_smoke.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_ros_transport"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/forecast_binary_scope.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_binary_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/installed_forward_api.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "new minimal integration",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_installed_api"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_context_noop.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical returns, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_chain_*"
+      ],
+      "review_note": "Opt-in shadow application; original numerical behavior retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_producer_chain.py",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_return_sweep.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/integrated_runner_probe.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/matched_replay_gate.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_matched_replay_tooling"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/native/CMakeLists.txt",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope",
+        "flight_v2_accuracy_tooling"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/pr85_cutoff_parity.py",
+      "owner": "PR85 integration verification",
+      "why_needed": "Pin target and compare preserved legacy/V2 contracts across upstream reconciliation.",
+      "tests": [
+        "flight_v2_scope",
+        "pr85_cutoff_parity",
+        "legacy-parity"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/production_parity_probe.cpp",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "production_parity.py"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G2"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/reacquisition_baseline_probe.py",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/reacquisition_counterexamples.cpp",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/reacquisition_cutoff_parity.py",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/reacquisition_producer_chain.py",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/review_cutoff_parity.py",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/review_policy_contract.py",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/review_startup_guards.py",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_base_pose_contract.cpp",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_flight_prediction_v2.cpp",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_prediction_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_flight_scoring.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scoring"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_flight_transport_v2.cpp",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_flight_transport_v2"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_forecast_scope.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_scope"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G1-G4",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      },
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_integrated_return.cpp",
+      "category": "INTEGRATED_APPLICATION",
+      "owner": "integrated planner",
+      "why_needed": "Single-node physical return, runner interface, input migration and verification",
+      "origin_commit": "integration branch from 4dc0959348f2aa777330d177d16eb70f778a79e6",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_integrated_return",
+        "integrated_outgoing_reference",
+        "integrated_chain_*"
+      ],
+      "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
+      "owning_requirement": "V3 G0-G8",
+      "integration_change": {
+        "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
+        "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_reacquisition_spin.cpp",
+      "owner": "integrated planner continuation",
+      "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
+      "tests": [
+        "reacquisition_counterexamples",
+        "reacquisition_spin",
+        "base_pose_contract",
+        "reacquisition_chain_*",
+        "reacquisition_source_cutoff_parity",
+        "flight_v2_scope"
+      ],
+      "continuation_change": {
+        "owner": "integrated planner continuation",
+        "base": "e9bf01579123eca35ce315b0f605814f8c952255",
+        "why_needed": "Reacquisition, source-causal spin, explicit measured zero, base contract, diagnostic verification or truthful qualification evidence.",
+        "tests": [
+          "reacquisition_spin",
+          "base_pose_contract",
+          "test_flight_transport_v2",
+          "reacquisition_chain_*",
+          "review_source_cutoff_parity",
+          "flight_v2_scope"
+        ]
+      }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_scoped_accuracy.py",
+      "category": "IN_SCOPE_TEST",
+      "owner": "validation",
+      "why_needed": "Executable forecast, causal comparison, regression or validation gate",
+      "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
+      "production_behavior_affected": false,
+      "tests": [
+        "flight_v2_accuracy_tooling"
+      ],
+      "review_note": "Default production behavior remains upstream; no command generation added.",
+      "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp",
+      "owner": "PR64 integrated review corrections",
+      "why_needed": "Review regression tests, causal state/physics correction or distinct correction receipt; original historical receipts preserved.",
+      "tests": [
+        "v2_pr64_review_regressions",
+        "review_source_cutoff_parity",
+        "installed review chain matrix",
+        "flight_v2_scope"
+      ]
+    }
+  ]
+}

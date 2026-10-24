@@ -1,0 +1,1035 @@
+{
+  "status": "INTEGRATION_CHECKPOINT_TESTED_NOT_TIMING_QUALIFIED",
+  "pins": {
+    "head": "47296db5653c6dda7d397d7a82153f69fa4ed4fb",
+    "base": "91aecabfd44cb258ac998158e724be9017d883a7",
+    "common": "0f9f41e9e3bb822ca7f262860ba3a4e13db84e26"
+  },
+  "conflicts": [
+    {
+      "path": "docs/operations/foxglove_lifecycle.md",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "docs/operations/foxglove_lifecycle.md",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "0d296582bacc73752bf27592f6e5833fc6f6ad7f"
+        },
+        {
+          "path": "docs/operations/foxglove_lifecycle.md",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "2607d3359b48cbd671893788569c9b1d09421396"
+        },
+        {
+          "path": "docs/operations/foxglove_lifecycle.md",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "851e8937d428ede3e94d506769b3d46c965c3702"
+        }
+      ],
+      "upstream_intent": "Consolidated operations node, stopped migration, early base relay and late Runner gateway.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "docs/operations/vrpn_pants_profiles.md",
+      "type": "add/add",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "docs/operations/vrpn_pants_profiles.md",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "59131e5ab20218eeec8148bb64d82515dd8caef9"
+        },
+        {
+          "path": "docs/operations/vrpn_pants_profiles.md",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "0dae8fbeacd8fa37fcdc2e70a39da35fdd55b8a7"
+        }
+      ],
+      "upstream_intent": "One shell-v3 CMTracker import asset, preserving runtime V4 profile aliases.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/README.md",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/README.md",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "2f96ada50f3e2bac9306bde35ae3e8d499e1594b"
+        },
+        {
+          "path": "foxglove/README.md",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "b2814c85b450d5891089e3eff319fd061d3e3fee"
+        },
+        {
+          "path": "foxglove/README.md",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "7d3f35a0259c7e7843d9a0303dcf52464c270857"
+        }
+      ],
+      "upstream_intent": "Current operations ownership, native gateway and stopped deployment instructions.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/a3/hope_lifecycle_supervisor.py",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/a3/hope_lifecycle_supervisor.py",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "c79f649615cfaf24221f57932eb97702a568e12b"
+        },
+        {
+          "path": "foxglove/a3/hope_lifecycle_supervisor.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "60361c4914d45d803e8981aca7ec3fda2547efec"
+        },
+        {
+          "path": "foxglove/a3/hope_lifecycle_supervisor.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "5895dda97600c0f35aabf00fa684cb4f72b8b954"
+        }
+      ],
+      "upstream_intent": "LifecycleModule under operations, bounded work, draining and ball-model verification.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/src/HopeA3Console.tsx",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/extensions/hope-a3-console/src/HopeA3Console.tsx",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "3333c601badd740e7341cc2fdbaf0aaf04e063de"
+        },
+        {
+          "path": "foxglove/extensions/hope-a3-console/src/HopeA3Console.tsx",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "7e798369f0518d6200950565551062bce1784269"
+        },
+        {
+          "path": "foxglove/extensions/hope-a3-console/src/HopeA3Console.tsx",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "a3869292b2fa64bb56294362ebe1debe33620d84"
+        }
+      ],
+      "upstream_intent": "Current HOME, hit-speed/plane controls, connection and stopped ball-model selection.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/src/styles.css",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/extensions/hope-a3-console/src/styles.css",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "a7cae56798666b1197a75b5aa32fa3c07193f093"
+        },
+        {
+          "path": "foxglove/extensions/hope-a3-console/src/styles.css",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "6b4aede4f9c2f42f112d91154fdaf10309742400"
+        },
+        {
+          "path": "foxglove/extensions/hope-a3-console/src/styles.css",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "2bb3417dafca92f617243b836210cca369864b8d"
+        }
+      ],
+      "upstream_intent": "Current Console control styles.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/tests/operatorProfile.test.cjs",
+      "type": "add/add",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/extensions/hope-a3-console/tests/operatorProfile.test.cjs",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "a5a0035fe5a447a9351c80fd49ee7b127b0808d3"
+        },
+        {
+          "path": "foxglove/extensions/hope-a3-console/tests/operatorProfile.test.cjs",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "013e0791d13073505d6a9ddac566d05b33771c97"
+        }
+      ],
+      "upstream_intent": "Updated Console operator-profile contract assertions.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/helpers/hope-laptop-container-runtime",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/helpers/hope-laptop-container-runtime",
+          "stage": 1,
+          "mode": "100755",
+          "blob": "b92a2cd6646dca151c786ce1c3335788c1fbbd36"
+        },
+        {
+          "path": "foxglove/helpers/hope-laptop-container-runtime",
+          "stage": 2,
+          "mode": "100755",
+          "blob": "85a744e4d3d5d271e973dcf797c38a3a99351d85"
+        },
+        {
+          "path": "foxglove/helpers/hope-laptop-container-runtime",
+          "stage": 3,
+          "mode": "100755",
+          "blob": "e663063031b0d0b475063fd9406dbb1bf0a97705"
+        }
+      ],
+      "upstream_intent": "Preserve current peer list and capture launch behavior.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/helpers/hope-lifecycle",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/helpers/hope-lifecycle",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "9af028fbc1b8f2708133a34f0cfaea9a1ec44e73"
+        },
+        {
+          "path": "foxglove/helpers/hope-lifecycle",
+          "stage": 2,
+          "mode": "100755",
+          "blob": "12c6d861244fc3c17b8420648763754637cf7570"
+        },
+        {
+          "path": "foxglove/helpers/hope-lifecycle",
+          "stage": 3,
+          "mode": "100755",
+          "blob": "b60aaf29b9c11fedcc05a3cdd89f0b6799636823"
+        }
+      ],
+      "upstream_intent": "Independent native base relay, late gateway, ball-model verification and selected serve CSV.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/tests/test_field_operations.py",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/tests/test_field_operations.py",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "d1c8f34ceb6a2fbe558d01b0e3cb13c16f75d4af"
+        },
+        {
+          "path": "foxglove/tests/test_field_operations.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "23c7525339438436e9545ad209f168ae0f84a67a"
+        },
+        {
+          "path": "foxglove/tests/test_field_operations.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "56af5a4656ba28eb9a52ef5621a2d97167f80d16"
+        }
+      ],
+      "upstream_intent": "Current field/CSV/ball-model and lifecycle ordering regressions.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/tests/test_mocap_setup.py",
+      "type": "add/add",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/tests/test_mocap_setup.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "84c8025cdd874309e5ccd5f3b352607157b55fc3"
+        },
+        {
+          "path": "foxglove/tests/test_mocap_setup.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "0eec11610e69cec3251cfc225ff668d57c0c89a1"
+        }
+      ],
+      "upstream_intent": "Variable peer list and gateway lifecycle test compatibility.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/tests/test_operator_profiles.py",
+      "type": "add/add",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/tests/test_operator_profiles.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "6ed2536c4de0cb18406d8d6320dcc34f92531ee0"
+        },
+        {
+          "path": "foxglove/tests/test_operator_profiles.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "fd2c0127e225f3123f1ac2dfec01fcc7d2aa916a"
+        }
+      ],
+      "upstream_intent": "LifecycleModule, ball-model verification and Mac/Linux dispatch.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "foxglove/tests/test_runner_transport_start.py",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "foxglove/tests/test_runner_transport_start.py",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "e3d11eb6d819277c5c13f1b05fc9649fb89a795a"
+        },
+        {
+          "path": "foxglove/tests/test_runner_transport_start.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "e6875985ca113a3c068bb919d72415abf72f5f19"
+        },
+        {
+          "path": "foxglove/tests/test_runner_transport_start.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "677c5516916bec6c95577e4e42d80840972e0957"
+        }
+      ],
+      "upstream_intent": "Gateway startup health and exact legacy-session cleanup.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/CMakeLists.txt",
+      "type": "content",
+      "resolution": "Retain upstream asset tests plus V2 full-rate relay registration.",
+      "stages": [
+        {
+          "path": "hope_ws/src/hope_bringup/CMakeLists.txt",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "fefb27020d3a5a6e4ae321b82bc08b3c1de09799"
+        },
+        {
+          "path": "hope_ws/src/hope_bringup/CMakeLists.txt",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "c2f4f887c7f8d9f16622c1a1c09272b611839dd1"
+        },
+        {
+          "path": "hope_ws/src/hope_bringup/CMakeLists.txt",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "6bb21c7767591d0c1be6f5a4bf408da8519db7a9"
+        }
+      ],
+      "upstream_intent": "Upstream VRPN shell-v3 asset regression registration.",
+      "feature_intent": "Add full-rate V2 observation/provenance regression.",
+      "compatibility_risk": "Source-time/provenance and test registration",
+      "verification": "Merged bringup regressions, installed raw producer chain and exact source contract guards"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/launch/avatar_pro_hope_bridge.launch.py",
+      "type": "content",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "hope_ws/src/hope_bringup/launch/avatar_pro_hope_bridge.launch.py",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "abd26b7a2653c8b05e39d5f50e2987ba5d9119c2"
+        },
+        {
+          "path": "hope_ws/src/hope_bringup/launch/avatar_pro_hope_bridge.launch.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "07334c2bdb68838dc7082ea357f570a54336c221"
+        },
+        {
+          "path": "hope_ws/src/hope_bringup/launch/avatar_pro_hope_bridge.launch.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "3cf273602b0eaa2aa93a267ee17d3f0784db54f4"
+        }
+      ],
+      "upstream_intent": "Stopped-only ball-physics override for legacy packetizer; V2 shadow launch remains separate.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Source-time/provenance and test registration",
+      "verification": "Merged bringup regressions, installed raw producer chain and exact source contract guards"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
+      "type": "content",
+      "resolution": "Keep feature superset: upstream 300/360 Hz preservation plus 150 Hz, source stamps, orientation authority, V2 observation validity.",
+      "stages": [
+        {
+          "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
+          "stage": 1,
+          "mode": "100644",
+          "blob": "b0b06404ec9b7de90bc17df2cd147da0a9a8b3dd"
+        },
+        {
+          "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "e71e62682ba47292f85b28e18ba7799c62141c65"
+        },
+        {
+          "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "eb70fa89aea4115e8247b66bb3d0b3399ed8c28b"
+        }
+      ],
+      "upstream_intent": "Preserve 300/360 Hz original exposures and side transforms.",
+      "feature_intent": "Add full-rate V2 observation/provenance regression.",
+      "compatibility_risk": "Source-time/provenance and test registration",
+      "verification": "Merged bringup regressions, installed raw producer chain and exact source contract guards"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/test/test_vrpn_pants_relay.py",
+      "type": "add/add",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "hope_ws/src/hope_bringup/test/test_vrpn_pants_relay.py",
+          "stage": 2,
+          "mode": "100644",
+          "blob": "fb25a5ee23261795d0b3f42b3ff40113a4545c3e"
+        },
+        {
+          "path": "hope_ws/src/hope_bringup/test/test_vrpn_pants_relay.py",
+          "stage": 3,
+          "mode": "100644",
+          "blob": "351692a5370a55077469d393e95811ce2eb43cdc"
+        }
+      ],
+      "upstream_intent": "Actual 300 Hz VRPN stream and no cached ball republishing on body callbacks.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Source-time/provenance and test registration",
+      "verification": "Merged bringup regressions, installed raw producer chain and exact source contract guards"
+    },
+    {
+      "path": "scripts/macos/operator-dispatch.py",
+      "type": "add/add",
+      "resolution": "Retain current upstream: this path has no V2-era change; earlier inherited implementation is superseded.",
+      "stages": [
+        {
+          "path": "scripts/macos/operator-dispatch.py",
+          "stage": 2,
+          "mode": "100755",
+          "blob": "a0bb46d522a6bcd0c4c8ede6556fe8f92301a83e"
+        },
+        {
+          "path": "scripts/macos/operator-dispatch.py",
+          "stage": 3,
+          "mode": "100755",
+          "blob": "99166988a99fe0c2dbd346099b3667212c293d01"
+        }
+      ],
+      "upstream_intent": "Retain reconnect-laptop and ball-model-laptop allowlisted actions.",
+      "feature_intent": "Inherited pre-V2 deployment history; no V2-era delta (8d599e7..47296db).",
+      "compatibility_risk": "Reviving obsolete deployment behavior or stale tests/docs",
+      "verification": "Selected upstream bytes exact; upstream + merged ROS regressions and full target-relative scope audit"
+    }
+  ],
+  "auto_merged_shared": [
+    {
+      "path": "NatNet2ROS2/src/motion_capture_tracking/CMakeLists.txt",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "README.md",
+      "upstream_exact": false,
+      "verification": "Minimal V2 additions reviewed; source scope, clean build, legacy parity and V2 cutoff/receiver regressions"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/scripts/a3p_gripper_bridge.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/scripts/build_a3_deploy_pkg.sh",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/scripts/gripper_profiles.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include/a3_io/serve_release_message.hpp",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/include/robot_io/a3_aimrt_backend.hpp",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/src/a3_deploy/a3_pingpong_main.cpp",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/src/a3/a3_deploy_onnx_ref/src/robot_io/a3_aimrt_backend.cpp",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "a3_deploy/a3_deploy_example/tests/test_a3p_gripper_bridge.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "docs/operations/foxglove_mocap_setup.md",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "docs/operations/macos_deployment.md",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "docs/operations/pr54_deployment_verification.md",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "docs/operations/runtime_xbox.md",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/a3/hope-mocap-config-transport.service",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/a3/hope_lifecycle_core.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/a3/hope_mocap_config_transport.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/a3/network.env.example",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/.gitignore",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/CHANGELOG.md",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/README.md",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.14.foxe",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.15.foxe",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/package-lock.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/package.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/src/mocapSetup.ts",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/extensions/hope-a3-console/tests/mocapSetup.test.cjs",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/tests/test_laptop_runtime_selection.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/tests/test_lifecycle_core.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/tests/test_macos_build_entry.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/tests/test_macos_operator_contract.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/tests/test_macos_operator_dispatch.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/tests/test_macos_source_layout.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "foxglove/tests/test_mocap_config_transport_ros.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/config/pants_profiles/a3_v2_P1_ground_truth.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/config/pants_profiles/a3_v2_P2_ground_truth.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/config/pants_profiles/a3_v4_P1_ground_truth.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/config/pants_profiles/a3_v4_P2_ground_truth.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/config/pants_profiles/profiles.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/scripts/avatar_pro_vrpn_relay",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/scripts/hope_base_pose_flat_relay",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/scripts/vrpn_pants_contract.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_bringup/test/test_vrpn_pants_contract.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/CMakeLists.txt",
+      "upstream_exact": false,
+      "verification": "Minimal V2 additions reviewed; source scope, clean build, legacy parity and V2 cutoff/receiver regressions"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/README.md",
+      "upstream_exact": false,
+      "verification": "Minimal V2 additions reviewed; source scope, clean build, legacy parity and V2 cutoff/receiver regressions"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/planner_node.hpp",
+      "upstream_exact": false,
+      "verification": "Minimal V2 additions reviewed; source scope, clean build, legacy parity and V2 cutoff/receiver regressions"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/types.hpp",
+      "upstream_exact": false,
+      "verification": "Minimal V2 additions reviewed; source scope, clean build, legacy parity and V2 cutoff/receiver regressions"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/package.xml",
+      "upstream_exact": false,
+      "verification": "Minimal V2 additions reviewed; source scope, clean build, legacy parity and V2 cutoff/receiver regressions"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/planner_node.cpp",
+      "upstream_exact": false,
+      "verification": "Minimal V2 additions reviewed; source scope, clean build, legacy parity and V2 cutoff/receiver regressions"
+    },
+    {
+      "path": "scripts/macos/Dockerfile.operator",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "scripts/macos/Dockerfile.ros",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "scripts/macos/hope.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "scripts/macos/inside.sh",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "scripts/macos/open_foxglove.command",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "scripts/macos/operator-entrypoint.sh",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "scripts/macos/operator.example.json",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    },
+    {
+      "path": "scripts/macos/operator.py",
+      "upstream_exact": true,
+      "verification": "Exact target bytes"
+    }
+  ],
+  "build": {
+    "upstream_exit": 0,
+    "merged_exit": 0
+  },
+  "native_groups": {
+    "passed": 19,
+    "total": 19
+  },
+  "upstream_ros": {
+    "messages": "2/2",
+    "planner": "19/19",
+    "bringup": "24/26; inherited flake8 and pep257 failures"
+  },
+  "merged_ros": {
+    "messages": "2/2",
+    "selected_functional_planner": "44/44",
+    "installed_profiles": "6/6",
+    "bringup": "25/27; inherited flake8 and pep257 failures"
+  },
+  "actual_aggregate": {
+    "upstream_test_result_exit": 1,
+    "merged_test_result_exit": 1
+  },
+  "lint": {
+    "flake8": {
+      "upstream": 3232,
+      "merged": 3222,
+      "added": [],
+      "removed": [
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n    rclpy.init(args=[\"--ros-args\", \"-p\", \"publish_tf:=false\", \"-p\",\n",
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n    rclpy.init(args=[\"--ros-args\", \"-p\", \"publish_tf:=false\", \"-p\",\n",
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n    rclpy.init(args=[\"--ros-args\", \"-p\", \"publish_tf:=false\", \"-p\",\n",
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n    rclpy.init(args=[\"--ros-args\", \"-p\", \"publish_tf:=false\", \"-p\",\n",
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n                    \"planner_poses_topic:=/poses/planner_full\", \"-p\",\n",
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n                    \"planner_poses_topic:=/poses/planner_full\", \"-p\",\n",
+        "E128 (./test/test_planner_full_rate_relay.py) continuation line under-indented for visual indent:\n                    \"planner_poses_topic:=/poses/planner_full\", \"-p\",\n",
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n                    \"table_side:=\" + request.param])\n",
+        "E128 (./test/test_planner_full_rate_relay.py) continuation line under-indented for visual indent:\n                    \"table_side:=\" + request.param])\n",
+        "Q000 (./test/test_planner_full_rate_relay.py) Double quotes found but single quotes preferred:\n@pytest.mark.parametrize(\"hz\", [300, 360])\n"
+      ]
+    },
+    "pep257": {
+      "upstream": 37,
+      "merged": 37,
+      "added": [],
+      "removed": []
+    }
+  },
+  "deployment_tests": {
+    "passed": 83,
+    "subtests": 148
+  },
+  "legacy_parity": {
+    "status": "PASS",
+    "base": "91aecabfd44cb258ac998158e724be9017d883a7",
+    "candidate_ref": null,
+    "production_source_sha256": {
+      "hope_ws/src/hope_planner_cpp/src/racket_target_planner.cpp": "dfd28c25ca42fd20c882384314d383f1a58238a006f2a356939748bd5b4939f4",
+      "hope_ws/src/hope_planner_cpp/src/adaptive_flight_commit.cpp": "e37727c8a95510bc043948b13c2b2b68d31c11e5cc92835ab09e380f785d68f5",
+      "hope_ws/src/hope_planner_cpp/src/trajectory_predictor.cpp": "adc299467296ff6924a3bf3de2349d750fe7f4999dab42710f3571beaa9c3590",
+      "hope_ws/src/hope_planner_cpp/src/batch_physics_estimator.cpp": "87cdb5397a3c9c85d67a2d56ad655b65aa6fea5aa43a86cbf0eece6e9a471242",
+      "hope_ws/src/hope_planner_cpp/src/spin_estimator.cpp": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/racket_target_planner.hpp": "702810cc94ca033ce5200f0579e166424fb7d0194ef021e9767362f5fbca57fa",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/adaptive_flight_commit.hpp": "75381f42f4a48b514be7ae7863369572504cec66e453829e6d27af0cd70f3946",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trajectory_predictor.hpp": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/batch_physics_estimator.hpp": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/spin_estimator.hpp": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9",
+      "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/future_contact_predictor.hpp": "6b6b8d7230b2e56f4861341b240959bdf5cb1e7a02dc35b263a76190c2f7a30e"
+    },
+    "exact_fixture_parity": true,
+    "exceptions": [],
+    "fixture_counts": {
+      "racket": 18,
+      "receiving_flight": 3,
+      "all_spin_modes": 540,
+      "spin_and_batch": 140
+    },
+    "max_abs_difference": 0,
+    "all_five_spin_modes": true,
+    "nakashima_and_venue_remain_distinct": true,
+    "note": "Each side compiled from its own complete source/header tree; no updated goldens."
+  },
+  "v2_cutoff_parity": {
+    "status": "PASS",
+    "premerge": "47296db5653c6dda7d397d7a82153f69fa4ed4fb",
+    "excluded_fields": [
+      "compute_ms"
+    ],
+    "cases": [
+      {
+        "fixture": "reacquisition_source_cutoff_parity-150-False.csv",
+        "cutoffs": 63,
+        "physical_cutoffs": 50,
+        "exact_match": true
+      },
+      {
+        "fixture": "reacquisition_source_cutoff_parity-150-True.csv",
+        "cutoffs": 63,
+        "physical_cutoffs": 49,
+        "exact_match": true
+      },
+      {
+        "fixture": "reacquisition_source_cutoff_parity-300-False.csv",
+        "cutoffs": 126,
+        "physical_cutoffs": 104,
+        "exact_match": true
+      },
+      {
+        "fixture": "reacquisition_source_cutoff_parity-300-True.csv",
+        "cutoffs": 126,
+        "physical_cutoffs": 104,
+        "exact_match": true
+      },
+      {
+        "fixture": "review_source_cutoff_parity-150-False.csv",
+        "cutoffs": 42,
+        "physical_cutoffs": 37,
+        "exact_match": true
+      },
+      {
+        "fixture": "review_source_cutoff_parity-150-True-producer-zero.csv",
+        "cutoffs": 45,
+        "physical_cutoffs": 40,
+        "exact_match": true
+      },
+      {
+        "fixture": "review_source_cutoff_parity-150-True.csv",
+        "cutoffs": 45,
+        "physical_cutoffs": 40,
+        "exact_match": true
+      },
+      {
+        "fixture": "review_source_cutoff_parity-300-False.csv",
+        "cutoffs": 93,
+        "physical_cutoffs": 85,
+        "exact_match": true
+      },
+      {
+        "fixture": "review_source_cutoff_parity-300-True-producer-zero.csv",
+        "cutoffs": 93,
+        "physical_cutoffs": 85,
+        "exact_match": true
+      },
+      {
+        "fixture": "review_source_cutoff_parity-300-True.csv",
+        "cutoffs": 93,
+        "physical_cutoffs": 85,
+        "exact_match": true
+      }
+    ]
+  },
+  "v2_command_parity": {
+    "status": "PASS",
+    "cases": 144,
+    "exact_match": true,
+    "old_binary_sha256": "816986ad1ba752e65614497012e46b1c99b7e1eeaf46834b8059b833bfb42426",
+    "new_binary_sha256": "816986ad1ba752e65614497012e46b1c99b7e1eeaf46834b8059b833bfb42426",
+    "csv_sha256": "c14330fc775092352d56cae5b4f547fe8841610ecd61ea9d09543cba67750a06",
+    "note": "Prior qualified V2 source matches PR85_HEAD_BEFORE for these physics/return sources."
+  },
+  "installed_profiles": {
+    "integrated_chain_300_ON_REFRESH.raw": {},
+    "reacquisition_chain_300_FOLLOW_POSE_unknown.raw": {},
+    "integrated_chain_300_ON_REFRESH": {
+      "status": "PASS",
+      "command_coverage": 0.9878048780487805,
+      "command_denominator": 82,
+      "covered_command_epochs": 81,
+      "actual_decoder_ms": {
+        "p50": 1.891226,
+        "p95": 3.371861599999999,
+        "p99": 4.3221954799999995,
+        "max": 4.446998
+      }
+    },
+    "integrated_chain_300_FOLLOW_POSE": {
+      "status": "PASS",
+      "command_coverage": 0.975609756097561,
+      "command_denominator": 82,
+      "covered_command_epochs": 80,
+      "actual_decoder_ms": {
+        "p50": 1.830011,
+        "p95": 2.7237932999999996,
+        "p99": 4.567201739999999,
+        "max": 5.238153
+      }
+    },
+    "integrated_chain_300_FOLLOW_POSE.raw": {},
+    "integrated_chain_150_FOLLOW_POSE.raw": {},
+    "reacquisition_chain_300_FOLLOW_POSE_unknown": {
+      "status": "PASS",
+      "command_coverage": 1.0,
+      "command_denominator": 160,
+      "covered_command_epochs": 160
+    },
+    "review_chain_300_10_zero.raw": {},
+    "integrated_chain_150_FOLLOW_POSE": {
+      "status": "PASS",
+      "command_coverage": 0.975609756097561,
+      "command_denominator": 41,
+      "covered_command_epochs": 40,
+      "actual_decoder_ms": {
+        "p50": 1.9737425000000002,
+        "p95": 2.50860265,
+        "p99": 2.93802479,
+        "max": 3.155405
+      }
+    },
+    "integrated_chain_150_ON_REFRESH": {
+      "status": "PASS",
+      "command_coverage": 0.975609756097561,
+      "command_denominator": 41,
+      "covered_command_epochs": 40,
+      "actual_decoder_ms": {
+        "p50": 1.938818,
+        "p95": 2.4903114,
+        "p99": 5.471564040000005,
+        "max": 6.580408
+      }
+    },
+    "review_chain_300_10_zero": {
+      "status": "PASS",
+      "command_coverage": 0.98125,
+      "command_denominator": 160,
+      "covered_command_epochs": 157,
+      "actual_decoder_ms": {
+        "p50": 1.949699,
+        "p95": 3.441996399999998,
+        "p99": 6.2977157000000075,
+        "max": 15.191528
+      }
+    },
+    "integrated_chain_150_ON_REFRESH.raw": {}
+  },
+  "github": {
+    "api": "Blocked by environment proxy (403), including escalated read; public page and fetched PR ref agree with pins",
+    "public_state": "OPEN",
+    "reviews": "No reviews on retrieved public page",
+    "draft": false,
+    "required_checks": "Unavailable via blocked API; not assumed passing",
+    "push": "PENDING"
+  },
+  "historical_evidence": {
+    "path": "/workspace/.cloud-setup/reacquisition-spin/reacquisition-spin-evidence.tar.gz",
+    "bytes": 15579488,
+    "sha256": "fb23fd72ccdff4bb38e5c9820937ad1ee22421f53c15421cbeecb067c42ea3c8"
+  },
+  "planner_timing_qualified": false,
+  "planner_software_qualified": false,
+  "simulation_qualified": false,
+  "physically_qualified": false,
+  "deployment_authorized": false
+}

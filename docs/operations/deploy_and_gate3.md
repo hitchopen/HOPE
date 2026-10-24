@@ -266,8 +266,26 @@ manual recording steps are not the default current workflow.
 | 位置 | 必须包含 | 验证依据 |
 | --- | --- | --- |
 | Laptop | `hope` ROS 环境、动捕/坐标桥、球包器、相应消息定义、Foxglove Console 与布局、可选 Xbox 输入服务 | 实际安装目录/程序 SHA、动捕与球包 ROS 数据、手柄预览 |
-| HDU | ARM C++ Planner、匹配消息/配置、base 与 Runner transport relay、lifecycle/field/recording 服务、8766 控制桥 | 实际进程与参数、Planner 审计、Runner 状态回传 |
+| HDU | ARM C++ Planner、匹配消息/配置、独立 native base relay、五路 Runner transport gateway、一个 hope_operations（lifecycle/field/recording/command/observer）节点、8766 控制桥 | 实际进程与参数、Planner 审计、Runner 状态回传 |
 | MDU | 完整 Rockchip Runner 包、策略及元数据、运行配置/库、HAL/夹爪配套、需要时的 `teleop_humanlike` 和原始记录组件 | 本机加载检查、启动日志、实际 Runner tick/状态、策略/二进制 SHA |
+
+当前节点结构以 `main` 的 `1534c2c2` 为基线，保留 PR #71 的失败 START 恢复、
+PR #76 的 HOME/击球速度/连接控制和 PR #74 的 handoff 容差。完整 OPTITRACK
+session 从 12 个减到 10 个 HOPE ROS 节点（9 HDU + 1 MDU）；可选 mocap config
+transport 加到 11 个。详见[节点结构与 STOPPED 迁移](node_architecture.md)。
+
+HDU 常驻 operations 仍使用 `hope-lifecycle-supervisor.service`，保留现场 drop-in；
+旧 observer/proxy unit 是不创建 ROS 进程的兼容 shim，正常不启用。升级必须在
+STOPPED 状态先停用旧 unit，再同时部署 Python 模块/依赖、native base relay、gateway、
+IMU binary 和 matching helper。新 base relay 是 native binary，不启动 Python 3；
+它在 Planner/HAL 前独立启动，Runner 缺失/失败或 gateway 崩溃不切断 base。
+KERNEL 跳过 base relay 和 Planner。五路 gateway 必须在 Runner 后启动，HOME 也由
+Runner 产生。保留原来的 Fast DDS interface/peer 选择；base 数据缺失不阻止启动。
+旧 shim 的 stop 不会停止 operations；停用/重启应操作 canonical service，不能独立关闭 observer。
+`ROS_STATIC_PEERS` 为空时 canonical service 会警告并回退到 address-agnostic profile，
+只用于配置/诊断；配置现场 `network.env` 后在 STOPPED 状态重启，helper 在 START 前仍要求 peers。
+不要用示例网络文件覆盖现场配置。源码合并和隔离
+测试不等于现场部署，也不证明 CPU/延迟更低，仍需实际负载 profiling。
 
 只上传 ONNX、只安装 `.foxe` 或只替换 Laptop Planner，都不算三机部署完成。
 HDU Planner 与 MDU Runner 是两个独立产物；x86 ELF 不能复制去冒充 ARM 程序。
