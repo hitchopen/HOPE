@@ -124,6 +124,12 @@ def main():
             traces = raw['traces']
             observed = {int(t['source_time_ns']) for t in traces}
             assert expected and traces
+            published_count = max(int(status.get('commands', 0)) for status in raw['statuses'])
+            traced_sequences = {int(t['command_sequence']) for t in traces}
+            wire_sequences = {int(wire[14]) for wire in raw['wire'] if wire[1] == 1.}
+            assert published_count == len(traced_sequences), ('incomplete publication trace',
+                                                              published_count, len(traced_sequences))
+            assert wire_sequences == traced_sequences, 'valid command/trace ledger mismatch'
             coverage = len(expected & observed) / len(expected)
             assert coverage >= contract['gates']['coverage_min'], ('coverage', coverage)
             assert len(expected) == result['command_denominator'] == accounting['independent_denominator']
@@ -136,6 +142,7 @@ def main():
                           for d in raw['decoded'] if d[10] == 0 and int(d[0]) in by_seq]
             assert decoder_ms and np.percentile(decoder_ms, 95) <= contract['gates']['decoder_latency_p95_max_ms']
             metrics = dict(coverage=coverage, denominator=len(expected),
+                           complete_valid_publication_count=published_count,
                            publication_ms=dict(zip(('p50', 'p95', 'p99', 'max'),
                                                    map(float, np.percentile(publication_ms, [50, 95, 99, 100])))),
                            decoder_ms=dict(zip(('p50', 'p95', 'p99', 'max'),
