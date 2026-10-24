@@ -1,4 +1,4 @@
-"""Keep train, play and the direct Gym runner on the single retained recipe."""
+"""Keep the baseline defaults and single A3 Gym registration with opt-in training recipes."""
 
 import ast
 import os
@@ -11,12 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "source/whole_body_tracking/whole_body_tracking"
 
 
-def test_train_and_play_select_the_only_task_and_algorithm():
+def test_train_and_play_preserve_the_baseline_defaults():
     hydra = pytest.importorskip("hydra")
     from omegaconf import OmegaConf
 
-    assert {p.stem for p in (ROOT / "cfg/task").glob("*.yaml")} == {"HOPEPingPong"}
-    assert {p.stem for p in (ROOT / "cfg/algo").glob("*.yaml")} == {"ppo"}
     with hydra.initialize_config_dir(config_dir=str(ROOT / "cfg"), version_base=None):
         train = hydra.compose(config_name="train")
         play = hydra.compose(config_name="play")
@@ -48,3 +46,20 @@ def test_only_selected_gym_task_is_registered():
                     and node.func.value.id == "gym" and node.func.attr == "register"):
                 task_ids.extend(ast.literal_eval(kw.value) for kw in node.keywords if kw.arg == "id")
     assert task_ids == ["HOPE-HitterPingPong-AgibotA3-v0"]
+
+
+def test_improved_recipes_compose_with_balanced_ppo():
+    hydra = pytest.importorskip("hydra")
+    from omegaconf import OmegaConf
+
+    with hydra.initialize_config_dir(config_dir=str(ROOT / "cfg"), version_base=None):
+        for task in ("HOPEPingPongCompleteHold", "HOPEPingPongStationaryRally"):
+            cfg = hydra.compose(config_name="train", overrides=[f"task={task}", "algo=ppo_balanced_hold"])
+            assert cfg.task.gym_task == "HOPE-HitterPingPong-AgibotA3-v0"
+            assert cfg.task.build_contract.actor_observation_dim == 110
+            assert cfg.task.build_contract.action_dim == 31
+            assert cfg.algo.algorithm.settled_aux_enabled is False
+            assert cfg.algo.runner.num_steps_per_env == 64
+            assert cfg.task.build_contract.training_distribution_revision in {
+                "complete_hold_robust_v1", "stationary_reach_v1"}
+            assert OmegaConf.to_container(cfg.task, resolve=True)

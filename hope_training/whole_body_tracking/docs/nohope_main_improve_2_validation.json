@@ -1,0 +1,260 @@
+{
+  "source_repository": "dongc1/nohope",
+  "source_branch": "main_improve_2",
+  "source_commit": "54952d0f11252cbef7b156c1d46d49389b75dc95",
+  "integration_base": "hitchopen/HOPE:nightly_built",
+  "base_commit": "91aecabfd44cb258ac998158e724be9017d883a7",
+  "validation_scope": "CPU regression and numerical at-strike bank retargeting; not policy evaluation",
+  "policy_evidence": "User reports MuJoCo firm-standing test; no matching checkpoint/run report supplied; no real-world evaluation.",
+  "regression": {
+    "passed": 415,
+    "skipped": 11,
+    "skip_reason": "Isaac Lab or CUDA unavailable",
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 NUMBA_NUM_THREADS=6 python -m pytest -q -rs -p no:cacheprovider tests",
+    "runtime": {
+      "python": "3.11",
+      "torch": "2.14.1",
+      "rsl_rl": "3.1.2",
+      "numpy": "2.4.6",
+      "numba": "0.68.0",
+      "hydra_core": "1.3.7"
+    },
+    "isaac_training_run": false
+  },
+  "recipe_parity": "CompleteHold/ppo_balanced_hold and StationaryRally/ppo_balanced_hold fully resolved task and algo settings match the source fork.",
+  "physics_profile": "configs/ball_physics_ppq004_training.yaml",
+  "physics_sha256": "df55e82102e0d5624732ea7ea03f6d98053f45d7f036367e3df3551a1c88a6f9",
+  "refitter_sha256": "7e7a7141a96c11385b5233572783c816d2638be469677703389f34094bffaa2c",
+  "checks": [
+    "PPQ004 flight/table coefficients match existing upstream planner profiles",
+    "Paddle law intentionally unchanged from venue model",
+    "Numba contact/RK4/landing equations agree numerically with Torch training implementation",
+    "All retained rows pass original bounds at 5 ms and 1 ms",
+    "All stations remain zero",
+    "Parent IDs are disjoint across train/dev/test",
+    "At least 50000 training rows on each side",
+    "Verified launcher dry-run accepted generated manifest",
+    "Production training bank loader accepted the refitted train bank: forehand 89612, backhand 93662"
+  ],
+  "splits": {
+    "train": {
+      "source_bank_sha256": "489a4d809a5948f582c820e2658c91e2a04d7c59a93e9cb068799b9710b81e3a",
+      "refitted_bank_sha256": "86295b92c1a7526e4df4f7ab87392c7dcd533224f33d579d94b9ac3485fea9da",
+      "source_rows": 183315,
+      "retained_rows": 183274,
+      "rejected_rows": 41,
+      "failure_counts_overlapping": {
+        "landing": 0,
+        "net": 27,
+        "incoming_bounce": 11,
+        "speed": 0,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 0
+      },
+      "fine_failure_counts_overlapping": {
+        "landing": 2,
+        "net": 27,
+        "incoming_bounce": 12,
+        "speed": 0,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 0
+      },
+      "before_landing_error_m_p50_p95_max": [
+        0.005789201426309055,
+        0.012608183568650152,
+        0.02909516556400863
+      ],
+      "after_landing_error_m_p50_p95_max": [
+        2.3993918758171193e-06,
+        1.6133193194963533e-05,
+        0.0008647618900608754
+      ],
+      "fine_landing_error_m_p50_p95_max": [
+        1.957167954960419e-05,
+        3.7596040637879384e-05,
+        0.0009000232867713029
+      ],
+      "racket_velocity_change_mps_p50_p95_max": [
+        0.004872207562132403,
+        0.010389159042885168,
+        0.020549503390637498
+      ],
+      "sides": {
+        "0": {
+          "rows": 89612,
+          "core_rows": 32862,
+          "wide_rows": 56750,
+          "wide_lateral_histogram": [
+            11965,
+            12516,
+            17133,
+            15136
+          ]
+        },
+        "1": {
+          "rows": 93662,
+          "core_rows": 37225,
+          "wide_rows": 56437,
+          "wide_lateral_histogram": [
+            13585,
+            14097,
+            16395,
+            12360
+          ]
+        }
+      }
+    },
+    "dev": {
+      "source_bank_sha256": "7dd2870111b011997ff076c9ac0a6e1d23a9cb51b953ed52f0ded18fde8b3ec3",
+      "refitted_bank_sha256": "12c9f5033ccf4aa794145e290efe4373292b76af15ffcde1f0e47b0f53c4965c",
+      "source_rows": 21859,
+      "retained_rows": 21852,
+      "rejected_rows": 7,
+      "failure_counts_overlapping": {
+        "landing": 0,
+        "net": 6,
+        "incoming_bounce": 1,
+        "speed": 0,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 0
+      },
+      "fine_failure_counts_overlapping": {
+        "landing": 0,
+        "net": 6,
+        "incoming_bounce": 1,
+        "speed": 0,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 0
+      },
+      "before_landing_error_m_p50_p95_max": [
+        0.005879604215117265,
+        0.012842001576846993,
+        0.025052906107986092
+      ],
+      "after_landing_error_m_p50_p95_max": [
+        2.2808547393697886e-06,
+        1.623095451135606e-05,
+        2.002181051756294e-05
+      ],
+      "fine_landing_error_m_p50_p95_max": [
+        1.9283037596309107e-05,
+        3.781162878725938e-05,
+        6.756909137120818e-05
+      ],
+      "racket_velocity_change_mps_p50_p95_max": [
+        0.004916983922703349,
+        0.010533421457037314,
+        0.020340603027105702
+      ],
+      "sides": {
+        "0": {
+          "rows": 10351,
+          "core_rows": 4048,
+          "wide_rows": 6303,
+          "wide_lateral_histogram": [
+            1433,
+            1560,
+            1762,
+            1548
+          ]
+        },
+        "1": {
+          "rows": 11501,
+          "core_rows": 4771,
+          "wide_rows": 6730,
+          "wide_lateral_histogram": [
+            1615,
+            1736,
+            1759,
+            1620
+          ]
+        }
+      }
+    },
+    "test": {
+      "source_bank_sha256": "b1c5b219297be371994619b67b8e64b371351df708ccd55ea40eff0bc5316f9e",
+      "refitted_bank_sha256": "b2e06aa0da358cdda341468d0b4d711f125ca84360cce676bd0e5a9810c8e282",
+      "source_rows": 22457,
+      "retained_rows": 22452,
+      "rejected_rows": 5,
+      "failure_counts_overlapping": {
+        "landing": 0,
+        "net": 4,
+        "incoming_bounce": 1,
+        "speed": 0,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 0
+      },
+      "fine_failure_counts_overlapping": {
+        "landing": 0,
+        "net": 4,
+        "incoming_bounce": 1,
+        "speed": 0,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 0
+      },
+      "before_landing_error_m_p50_p95_max": [
+        0.005874792053271704,
+        0.012580865230681398,
+        0.026481703574866077
+      ],
+      "after_landing_error_m_p50_p95_max": [
+        2.3388828199061993e-06,
+        1.5958540570455232e-05,
+        0.00047891020809000723
+      ],
+      "fine_landing_error_m_p50_p95_max": [
+        1.9264562475489346e-05,
+        3.7642905545167195e-05,
+        0.000503173915137282
+      ],
+      "racket_velocity_change_mps_p50_p95_max": [
+        0.004912528001426416,
+        0.0103679760522121,
+        0.019066419438633946
+      ],
+      "sides": {
+        "0": {
+          "rows": 11066,
+          "core_rows": 4151,
+          "wide_rows": 6915,
+          "wide_lateral_histogram": [
+            1588,
+            1507,
+            1842,
+            1978
+          ]
+        },
+        "1": {
+          "rows": 11386,
+          "core_rows": 4574,
+          "wide_rows": 6812,
+          "wide_lateral_histogram": [
+            1625,
+            1733,
+            1990,
+            1464
+          ]
+        }
+      }
+    }
+  }
+}

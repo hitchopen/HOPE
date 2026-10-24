@@ -22,6 +22,7 @@ def collect_exact_strike_statistics(
     clip_keys: tuple[int, ...] = (),
     venue_selected: torch.Tensor | None = None,
     cohort_names: tuple[str, ...] = (),
+    reach_wide_selected: torch.Tensor | None = None,
 ) -> dict[tuple, float]:
     """Return global/clip/cohort scalar increments, without mutating any accumulator.
 
@@ -65,6 +66,16 @@ def collect_exact_strike_statistics(
                     ("cohort", cohort, clip, "vel"): (pass_velocity & cohort_selected).sum(),
                     ("cohort", cohort, clip, "comp"): (pass_composite & cohort_selected).sum(),
                 })
+            if reach_wide_selected is not None:
+                # Bank membership is independent of geometry: a 100% tuple
+                # mixture still contains both source_kind=0 and source_kind=1.
+                for name, mask in (("core", ~reach_wide_selected), ("wide", reach_wide_selected)):
+                    subset = selected & mask & venue_selected
+                    reductions.update({
+                        ("reach", name, clip, "n"): subset.sum(),
+                        ("reach", name, clip, "pos"): (pass_position & subset).sum(),
+                        ("reach", name, clip, "pos_err"): (position_error * subset).sum(),
+                    })
 
     # Group before conversion, avoiding one cast kernel per scalar and preserving integer
     # counts when an error tensor is float32. All signals belong to this command's device.

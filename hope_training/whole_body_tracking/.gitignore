@@ -60,3 +60,13 @@ artifacts/
 # Keep the selected model_14600 baseline export at the requested stable path.
 !checkpoints/
 !checkpoints/policy.onnx
+
+# Qualified training inputs; generated runs and refits remain ignored.
+!assets/
+assets/*
+!assets/complete_hold_robust/
+!assets/complete_hold_robust/*.npz
+!assets/complete_hold_robust/*.json
+!assets/stationary_reach_v4/
+!assets/stationary_reach_v4/*.npz
+!assets/stationary_reach_v4/*.json

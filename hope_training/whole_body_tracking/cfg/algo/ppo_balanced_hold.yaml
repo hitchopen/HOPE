@@ -1,0 +1,12 @@
+defaults:
+  - ppo_full_body
+  - _self_
+
+algorithm:
+  # Adjacent states require different commands to correct tilt/velocity.
+  # Keep physical smoothness costs in PPO returns, with no direct temporal
+  # mean-policy gradient (including upper-body/shared-network gradients).
+  settled_aux_enabled: false
+  settled_aux_smooth_coef: 0.0
+  settled_aux_tracking_coef: 0.0
+  settled_aux_gradient_ratio_max: 0.0

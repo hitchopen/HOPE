@@ -1,0 +1,80 @@
+# v11: joint physical readiness, preserving the incoming-ball and action ABI.
+defaults:
+  - HOPEPingPongHoldReference
+  - _self_
+
+env:
+  # Keep the baseline horizon; longer episodes do not fix loaded-foot skating.
+  episode_length_s: 12.0
+
+racket:
+  # Preserve the runtime station inverse and both original motion clips.
+  # Wider WORLD-space contacts come from wider commanded stations; the fixed
+  # station-relative reach centers remain (0.58, -0.44) / (0.58, -0.09).
+  base_target_x_range: [-0.10, 0.10]
+  base_target_y_range: [-0.50, 0.50]
+  # Final/export envelope contains both the qualified bank and inherited
+  # core/planner curriculum boxes (FH planner z >= 0.41; BH core z >= 0.0).
+  vel_range_per_clip:
+    forehand: {x: [1.10, 2.60], y: [-0.60, 1.12], z: [0.41, 1.90]}
+    backhand: {x: [1.25, 2.60], y: [-0.90, 0.80], z: [0.00, 1.60]}
+  venue_tuple_mix_mode: per_swing_bank_v2
+  venue_tuple_final_mix_prob: 1.0
+  venue_tuple_bank_path: assets/complete_hold_robust/train.npz
+  venue_tuple_bank_receipt_path: assets/complete_hold_robust/train.receipt.json
+  venue_tuple_bank_recipe_revision: 18
+  venue_tuple_bank_sha256: a662f64b9cf6e46ff30ab58278f0c0b14679beb955780d0462e891fd26278e16
+  venue_tuple_bank_receipt_sha256: 4db7bd75906656f78c60d539881a5dede8ae534ad070fe02ed3710ce2015c49e
+  venue_tuple_bank_min_rows_per_side: 50000
+  venue_tuple_limit_reset_travel: true
+  venue_tuple_robust_sampling: true
+  # Keep half the requested samples on the original geometry at full strength.
+  # 2500 -> 6500 updates; all timing fields below assume PPO's 64 steps/update.
+  venue_tuple_wide_start_steps: 160000
+  venue_tuple_wide_ramp_steps: 256000
+  venue_tuple_wide_final_probability: 0.5
+  # Wi-Fi pressure test, pending measured logs. 7% is time in a stall, NOT
+  # measured per-packet delay. 1% of stalls last 1 s; other stalls last 200 ms.
+  # Keep the existing nominal sensor corruption; add this only after 7000.
+  base_mocap_stress_enabled: true
+  base_mocap_stress_active_fraction: 0.07
+  base_mocap_stress_duration_s: [0.20, 0.20]
+  base_mocap_stress_long_prob: 0.01
+  base_mocap_stress_long_duration_s: [1.0, 1.0]
+  base_mocap_stress_start_steps: 448000
+  base_mocap_stress_ramp_steps: 128000
+  # Validity stays at 50 ms. Allow TRAINING to observe recovery after a stall;
+  # this does not alter the deployed runner's stale-data handling.
+  base_mocap_episode_timeout_s: 1.20
+
+rewards:
+  # The pure 15-cm Gaussian is almost silent at the observed early FH errors
+  # (0.4-0.6 m), while velocity/normal still pay for a swing below the ball.
+  # Keep its peak, width and total +14 budget; add a bounded positive tail.
+  racket_position_tail_blend: 0.20
+  # Score the actual contact point on the same 20-ms exact-strike frame used
+  # by success metrics. No debt inside the existing 7.5-cm acceptance sphere.
+  # Both sides share this objective; do not hide FH misses by relaxing targets.
+  racket_exact_position_debt_weight: -2.0
+  racket_exact_position_debt_margin: 0.075
+  racket_exact_position_debt_huber_scale: 0.025
+  racket_exact_position_debt_window_s: 0.01
+  # Loaded-foot translation/twist costs apply during approach, strike and recovery.
+  # Airborne feet remain free. These are initial shaping parameters, not measured
+  # hardware slip limits; retain the existing -0.1 reward weight.
+  settle_foot_slip_all_phases: true
+  settle_foot_slip_twist_weight: 0.25
+  settle_foot_slip_twist_std: 0.50
+  settle_foot_slip_twist_margin: 0.15
+  # Keep the same total +1 pose reward budget. Half remains dense pose shaping;
+  # half scores the worst readiness constraint and contiguous physical dwell.
+  full_body_hold_completion_blend: 0.5
+  full_body_hold_completion_dwell_s: 0.3
+  # Introduce the actual pose/station objective at 6000, full at 8000 updates.
+  full_body_hold_start_steps: 384000
+  station_recovery_start_steps: 384000
+
+build_contract:
+  reward_revision: actual_complete_hold_v11_strike_position_v2
+  hold_pose_contract: actual_full_body_B32_5_K20_complete_v2
+  training_distribution_revision: complete_hold_robust_v1

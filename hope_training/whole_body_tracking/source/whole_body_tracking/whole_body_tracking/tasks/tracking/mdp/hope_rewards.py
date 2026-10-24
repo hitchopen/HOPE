@@ -80,18 +80,19 @@ def _position_guidance_gate(cmd: RacketTargetCommand) -> torch.Tensor:
 
 
 def _moving_position_kernel(
-    cmd: RacketTargetCommand, std: float
+    cmd: RacketTargetCommand, std: float, tail_blend: float = 0.0
 ) -> torch.Tensor:
-    """Moving-target Gaussian without a time gate or temporal scale."""
+    """Moving-target kernel without a time gate or temporal scale."""
     target_pos_now = (
         cmd.racket_target_pos_w
         - cmd.racket_target_vel_w * cmd.time_to_strike.unsqueeze(-1)
     )
     error = torch.sum(torch.square(cmd.racket_pos_w - target_pos_now), dim=-1)
-    return torch.exp(-error / std**2)
+    from whole_body_tracking.utils.task_tracking import tracking_kernel
+    return tracking_kernel(error, std, tail_blend)
 
 
-def racket_position_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+def racket_position_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std: float, tail_blend: float = 0.0) -> torch.Tensor:
     """Track the local moving strike trajectory with task-configured timing and scale.
 
     The moving-target sign remains ``p_strike - v_target * tts``. RallyV15 narrows only this
@@ -99,7 +100,7 @@ def racket_position_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std:
     those command keys retain their full strike window and unit scale.
     """
     cmd = _cmd(env, command_name)
-    raw = _moving_position_kernel(cmd, std)
+    raw = _moving_position_kernel(cmd, std, tail_blend)
     gate = _position_guidance_gate(cmd)
     temporal_scale = float(
         getattr(cmd.cfg, "position_guidance_temporal_scale", 1.0)
@@ -108,7 +109,7 @@ def racket_position_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std:
     return temporal_scale * raw * gate.float()
 
 
-def racket_position_tracking_static_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+def racket_position_tracking_static_exp(env: ManagerBasedRLEnv, command_name: str, std: float, tail_blend: float = 0.0) -> torch.Tensor:
     """Ablation B: track the strike POINT itself (no swing-through), decoupling position from timing/velocity.
 
     Identical gating to ``racket_position_tracking_exp`` but compares against the bare ``racket_target_pos_w``
@@ -119,16 +120,18 @@ def racket_position_tracking_static_exp(env: ManagerBasedRLEnv, command_name: st
     """
     cmd = _cmd(env, command_name)
     error = torch.sum(torch.square(cmd.racket_pos_w - cmd.racket_target_pos_w), dim=-1)
-    raw = torch.exp(-error / std**2)
+    from whole_body_tracking.utils.task_tracking import tracking_kernel
+    raw = tracking_kernel(error, std, tail_blend)
     _dbg_log(cmd, "racket_pos", raw, cmd.strike_window)
     return raw * cmd.strike_window.float()
 
 
-def racket_velocity_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+def racket_velocity_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std: float, tail_blend: float = 0.0) -> torch.Tensor:
     """Track racket linear velocity near the strike time (FK actual vs desired, world frame)."""
     cmd = _cmd(env, command_name)
     error = torch.sum(torch.square(cmd.racket_lin_vel_w - cmd.racket_target_vel_w), dim=-1)
-    raw = torch.exp(-error / std**2)
+    from whole_body_tracking.utils.task_tracking import tracking_kernel
+    raw = tracking_kernel(error, std, tail_blend)
     _dbg_log(cmd, "racket_vel", raw, cmd.strike_window)
     return raw * cmd.strike_window.float()
 
@@ -209,7 +212,9 @@ def racket_normal_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std: f
 def base_position_tracking_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
     """Track desired base XY position before the strike (encourages repositioning footwork)."""
     cmd = _cmd(env, command_name)
-    error = torch.sum(torch.square(cmd.base_pos_w[:, :2] - cmd.base_target_pos_w), dim=-1)
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, _ = base_reference(env, cmd)
+    error = torch.sum(torch.square(cmd.base_pos_w[:, :2] - target), dim=-1)
     raw = torch.exp(-error / std**2)
     _dbg_log(cmd, "base", raw, cmd.pre_strike)
     return raw * cmd.pre_strike.float()
@@ -1004,7 +1009,9 @@ def post_strike_x_settle(
     gradient against a ~0.2 m follow-through excursion. Weight POSITIVE; default 0.0 = OFF. See the
     section header for the GAE precision caveat + gate protocol."""
     cmd = _cmd(env, command_name)
-    x_err = cmd.base_pos_w[:, 0] - cmd.base_target_pos_w[:, 0]           # world base_x − station_x
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, reference_velocity = base_reference(env, cmd)
+    x_err = cmd.base_pos_w[:, 0] - target[:, 0]           # world base_x − station_x
     raw = torch.exp(-torch.square(x_err) / std**2)
     gate = _post_strike_window(cmd, t_hi, t_lo)
     _dbg_log(cmd, "post_strike_x_settle", raw, gate)
@@ -1028,7 +1035,9 @@ def post_strike_vx_quiet(
     base in x. Active ONLY in the follow-through window. std 0.15 m/s; weight POSITIVE; default 0.0 = OFF.
     ⚠ This is the most brake-like of the three (rewards low speed) — the first to lower if G1 drops."""
     cmd = _cmd(env, command_name)
-    vx = cmd.robot.data.root_lin_vel_w[:, 0]                            # world-x base velocity
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, reference_velocity = base_reference(env, cmd)
+    vx = cmd.robot.data.root_lin_vel_w[:, 0] - reference_velocity[:, 0]                            # world-x base velocity
     raw = torch.exp(-torch.square(vx) / std**2)
     gate = _post_strike_window(cmd, t_hi, t_lo)
     _dbg_log(cmd, "post_strike_vx_quiet", raw, gate)
@@ -1131,11 +1140,13 @@ def windup_x_recovery_debt(
             f"windup x recovery position_blend must be in [0,1], got {position_blend}"
         )
     cmd = _cmd(env, command_name)
-    signed_x_error = cmd.base_pos_w[:, 0] - cmd.base_target_pos_w[:, 0]
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, reference_velocity = base_reference(env, cmd)
+    signed_x_error = cmd.base_pos_w[:, 0] - target[:, 0]
     x_error = torch.abs(signed_x_error)
     position_debt = _deadband_huber(x_error, x_margin, x_std)
 
-    vx = cmd.robot.data.root_lin_vel_w[:, 0]
+    vx = cmd.robot.data.root_lin_vel_w[:, 0] - reference_velocity[:, 0]
     outward_vx = torch.sign(signed_x_error) * vx
     charged_vx = torch.where(x_error > x_margin, outward_vx, torch.abs(vx))
     velocity_debt = _deadband_huber(charged_vx, vx_margin, vx_std)
@@ -1194,7 +1205,9 @@ def rally_strike_x_margin_debt(
             f"got {margin}/{std}/{half_window_s}"
         )
     cmd = _cmd(env, command_name)
-    x_error = torch.abs(cmd.base_pos_w[:, 0] - cmd.base_target_pos_w[:, 0])
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, reference_velocity = base_reference(env, cmd)
+    x_error = torch.abs(cmd.base_pos_w[:, 0] - target[:, 0])
     debt = _deadband_huber(x_error, float(margin), float(std))
     gate = torch.abs(cmd.time_to_strike) <= float(half_window_s)
     side_scale = torch.where(
@@ -1236,7 +1249,9 @@ def rally_post_swing_xlock_debt(
             f"side={forehand_scale}/{backhand_scale}"
         )
     cmd = _cmd(env, command_name)
-    x_error = torch.abs(cmd.base_pos_w[:, 0] - cmd.base_target_pos_w[:, 0])
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, reference_velocity = base_reference(env, cmd)
+    x_error = torch.abs(cmd.base_pos_w[:, 0] - target[:, 0])
     debt = _deadband_huber(x_error, float(margin), float(std))
     side_scale = torch.where(
         cmd.swing_sign > 0.0,
@@ -1280,10 +1295,12 @@ def pre_strike_station_settle(
     ``strike_window_s < tts < t_max`` and therefore never damps the actual strike window.
     """
     cmd = _cmd(env, command_name)
-    delta = cmd.base_target_pos_w - cmd.base_pos_w[:, :2]
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, feedforward = base_reference(env, cmd)
+    delta = target - cmd.base_pos_w[:, :2]
     dist = torch.linalg.norm(delta, dim=-1)
     speed = (v_gain * dist).clamp(0.0, v_max)
-    desired = delta / dist.clamp_min(1e-6).unsqueeze(-1) * speed.unsqueeze(-1)
+    desired = feedforward + delta / dist.clamp_min(1e-6).unsqueeze(-1) * speed.unsqueeze(-1)
     err = torch.linalg.norm(cmd.robot.data.root_lin_vel_w[:, :2] - desired, dim=-1)
     if debt_huber:
         raw = _deadband_huber(err, velocity_margin, std)
@@ -1302,7 +1319,9 @@ def post_swing_base_quiet(
 ) -> torch.Tensor:
     """Bounded penalty on full planar base speed after a 0.20 s follow-through grace period."""
     cmd = _cmd(env, command_name)
-    speed = torch.linalg.norm(cmd.robot.data.root_lin_vel_w[:, :2], dim=-1)
+    from whole_body_tracking.utils.reference_recovery import base_reference
+    target, reference_velocity = base_reference(env, cmd)
+    speed = torch.linalg.norm(cmd.robot.data.root_lin_vel_w[:, :2] - reference_velocity, dim=-1)
     raw = (_deadband_huber(speed, margin, std) if huber_tail else
            1.0 - torch.exp(-torch.square(speed) / std**2))
     gate = (cmd.time_to_strike < -t_lo) & (cmd.time_to_strike > -t_hi)
@@ -1332,15 +1351,24 @@ def settle_foot_slip_penalty(
     pre_t_max: float = 0.45, strike_t_post: float = 0.10,
     post_t_lo: float = 0.20, post_t_hi: float = 1.00,
     margin: float = 0.0, huber_tail: bool = False,
+    all_phases: bool = False, twist_weight: float = 0.0,
+    twist_std: float = 0.50, twist_margin: float = 0.15,
 ) -> torch.Tensor:
-    """Moderate contact-slip penalty only after arrival or during post-swing recovery.
+    """Contact-motion cost with an opt-in all-phase translation/twist branch.
 
-    Early lateral footwork is free: the arrival branch opens only when the base is within
+    Legacy mode leaves early lateral footwork free: the arrival branch opens when the base is within
     ``station_reach``. It intentionally covers contact and the first ``strike_t_post`` seconds after
     contact so the task cannot solve the hit by sliding a loaded foot; the small bounded weight still
     permits legitimate weight transfer. The later post branch reopens after the follow-through grace
     period. Airborne swing-foot velocity is never penalized because the source metric contains only
     horizontal velocity of contacting feet.
+
+    CompleteHold's all-phase branch uses upward load and sums per-foot costs, so
+    distance, phase and a stationary second foot cannot hide a sliding foot. World
+    vertical angular speed also detects twisting without COM translation. COM
+    speed is a slip proxy, not an exact sole/contact-point velocity; deadbands
+    tolerate small support adjustments. Roll/pitch angular motion is not charged
+    as twist. A lifted swing foot is free, and no fixed foot position is imposed.
     """
     cmd = _cmd(env, command_name)
     # Do not consume RacketTargetCommand's lazy stability cache here.  On the first env.step Isaac Lab
@@ -1357,6 +1385,19 @@ def settle_foot_slip_penalty(
         )
     asset = env.scene[asset_cfg.name]
     sensor = env.scene.sensors[sensor_cfg.name]
+    if all_phases:
+        if std <= 0 or margin < 0 or force_threshold <= 0 or twist_std <= 0 or twist_margin < 0 or twist_weight < 0:
+            raise ValueError("loaded-foot cost requires positive scales and nonnegative margins/weight")
+        loaded = sensor.data.net_forces_w[:, foot_ids_contact, 2] > force_threshold
+        speed = torch.linalg.norm(asset.data.body_lin_vel_w[:, foot_ids_robot, :2], dim=-1)
+        twist = asset.data.body_ang_vel_w[:, foot_ids_robot, 2].abs()
+        translation_debt = _deadband_huber(speed, margin, std)
+        twist_debt = _deadband_huber(twist, twist_margin, twist_std)
+        debt = ((translation_debt + twist_weight * twist_debt) * loaded).sum(dim=-1)
+        _record_metric_snapshot(cmd.metrics, "loaded_foot_slip_speed", (speed * loaded).sum(dim=-1))
+        _record_metric_snapshot(cmd.metrics, "loaded_foot_twist_rate", (twist * loaded).sum(dim=-1))
+        _record_metric_snapshot(cmd.metrics, "loaded_foot_motion_debt", debt)
+        return debt
     foot_force = torch.linalg.norm(sensor.data.net_forces_w[:, foot_ids_contact, :], dim=-1)
     in_contact = (foot_force > force_threshold).float()
     foot_speed_xy = torch.linalg.norm(asset.data.body_lin_vel_w[:, foot_ids_robot, :2], dim=-1)
@@ -1372,6 +1413,72 @@ def settle_foot_slip_penalty(
     )
     post = (cmd.time_to_strike < -post_t_lo) & (cmd.time_to_strike > -post_t_hi)
     return raw * (arrived_strike | post).float()
+
+
+def foot_friction_cone_debt(
+    env: ManagerBasedRLEnv, command_name: str, asset_cfg, sensor_cfg,
+    ratio_margin: float = 0.30, std: float = 0.15, force_threshold: float = 10.0,
+    gravity: float = 9.81,
+) -> torch.Tensor:
+    """Required ground-shear ratio (slippery-floor prior), from whole-body COM acceleration.
+
+    Isaac Lab's contact sensor reports only NORMAL contact forces, so the shear demand is
+    taken from dynamics instead: with the feet as the only support, the horizontal ground
+    reaction equals m*a_com_xy and the vertical one m*(g + a_com_z). Their ratio is the
+    friction coefficient the floor must supply. Beyond ``ratio_margin`` the excess is
+    charged with a bounded Huber tail whenever at least one foot carries load, in every
+    phase: a shear spike at contact or a lunging recovery is exactly what slides on tile.
+    The sampled sole friction only bounds what PhysX allows; this asks the policy to prefer
+    solutions that need little friction. Flight and the first post-reset step are free.
+    """
+    if std <= 0.0 or ratio_margin < 0.0 or force_threshold <= 0.0 or gravity <= 0.0:
+        raise ValueError("friction-cone cost requires positive std/force threshold/gravity and a nonnegative margin")
+    if len(sensor_cfg.body_ids) != 2:
+        raise RuntimeError("friction-cone cost requires exactly two resolved foot contact bodies")
+    cmd = _cmd(env, command_name)
+    asset = env.scene[asset_cfg.name]
+    sensor = env.scene.sensors[sensor_cfg.name]
+    com_vel = asset.data.body_com_lin_vel_w
+    mass_weights = getattr(cmd, "_dynamic_support_mass_weights", None)
+    if mass_weights is None:
+        masses = asset.root_physx_view.get_masses().to(device=com_vel.device, dtype=com_vel.dtype)
+        if masses.shape != com_vel.shape[:-1] or not bool(torch.isfinite(masses).all()) or bool((masses <= 0).any()):
+            raise RuntimeError("friction-cone cost requires finite positive live body masses")
+        mass_weights = (masses / masses.sum(dim=-1, keepdim=True)).unsqueeze(-1)
+        cmd._dynamic_support_mass_weights = mass_weights
+    velocity = (com_vel * mass_weights).sum(dim=-2)
+    previous = getattr(cmd, "_friction_cone_previous_com_vel", None)
+    if previous is None or previous.shape != velocity.shape:
+        previous = velocity.detach().clone()
+    acceleration = (velocity - previous) / float(env.step_dt)
+    cmd._friction_cone_previous_com_vel = velocity.detach().clone()
+    loaded = (sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > float(force_threshold)).any(dim=-1)
+    # A reset teleports the COM: the first step after it has no physical acceleration.
+    fresh = env.episode_length_buf <= 1
+    supported = loaded & ~fresh
+    vertical = (float(gravity) + acceleration[:, 2]).clamp_min(0.5 * float(gravity))
+    ratio = torch.linalg.norm(acceleration[:, :2], dim=-1) / vertical
+    ratio = torch.where(supported, ratio, torch.zeros_like(ratio))
+    debt = _deadband_huber(ratio, ratio_margin, std)
+    _record_metric_snapshot(cmd.metrics, "foot_friction_ratio", ratio)
+    _record_metric_snapshot(cmd.metrics, "foot_friction_cone_debt", debt)
+    return debt
+
+
+def base_ang_vel_xy_rally(env: ManagerBasedRLEnv, command_name: str, strike_exclusion_s: float = 0.12) -> torch.Tensor:
+    """Roll/pitch rate of the base outside the strike window (swing momentum must be absorbed).
+
+    The probe of the v2 recipe fell mostly 0.6-0.8 s after contact, when the next ball was
+    announced before the follow-through momentum was gone. ``ang_vel_xy_l2`` already exists at a
+    token weight for every step; this copy exempts |time_to_strike| <= ``strike_exclusion_s`` so a
+    heavier weight does not tax the swing itself.
+    """
+    if strike_exclusion_s < 0.0:
+        raise ValueError("strike exclusion must be nonnegative")
+    cmd = _cmd(env, command_name)
+    rate = torch.sum(torch.square(cmd.robot.data.root_ang_vel_b[:, :2]), dim=-1)
+    outside = cmd.time_to_strike.abs() > float(strike_exclusion_s)
+    return rate * outside.float()
 
 
 def backhand_left_arm_clearance(
@@ -3510,6 +3617,9 @@ from whole_body_tracking.utils.ready_recovery import (
     actual_ready_legs, station_recovery, loaded_ankle_quiet,
 )
 from whole_body_tracking.utils.full_body_hold import full_body_hold, full_body_quiet
+from whole_body_tracking.utils.full_body_imitation import full_body_imitation
+from whole_body_tracking.utils.fixed_station import fixed_station_feet
+from whole_body_tracking.utils.stroke_tracking import full_stroke_tracking
 
 
 def actual_joint_limit_debt(env, margin_rad=0.0872664626, waist_margin_rad=0.1396263402,

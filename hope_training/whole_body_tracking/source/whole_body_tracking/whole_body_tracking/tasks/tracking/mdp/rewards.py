@@ -23,10 +23,18 @@ def motion_global_anchor_position_error_exp(env: ManagerBasedRLEnv, command_name
     return torch.exp(-error / std**2)
 
 
-def motion_global_anchor_orientation_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+def motion_global_anchor_orientation_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float,
+                                              exclude_recovery: bool = False) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     error = quat_error_magnitude(command.anchor_quat_w, command.robot_anchor_quat_w) ** 2
-    return torch.exp(-error / std**2)
+    reward = torch.exp(-error / std**2)
+    if exclude_recovery:
+        # HOLD/late recovery has a fixed actual task pose.  Keep the existing
+        # swing teacher, but never reward a second pose in those same states.
+        racket = env.command_manager.get_term("racket_target")
+        owned = command.in_hold | (racket.time_to_strike < -.5)
+        reward = torch.where(owned, torch.zeros_like(reward), reward)
+    return reward
 
 
 def motion_relative_body_position_error_exp(

@@ -1,0 +1,30 @@
+# v6: actual task posture; motor PD offsets are diagnostic, not tracking error.
+defaults:
+  - HOPEPingPongQuiet
+  - _self_
+
+rewards:
+  # Actual plant hard-stop clearance, active from step 0 (no late curriculum).
+  actual_joint_limit_weight: -1.0
+  actual_joint_limit_margin_rad: 0.0872664626  # 5 degrees; capped at 20% of joint span
+  actual_joint_limit_waist_margin_rad: 0.1396263402  # 8 degrees
+  actual_joint_limit_hold_recover_multiplier: 3.0
+  # One selected actual upper-body reference for both forehand and backhand.
+  hold_upper_pose_imitation_fixed_task_reference: true
+  # Remove both residual q_des-q costs, including the inherited hip-roll term.
+  settled_waist_pitch_tracking_weight: 0.0
+  hip_tracking_weight: 0.0
+  # Replace v5's lateral-only term within the same maximum reward budget.
+  ready_torso_posture_weight: 0.0
+  actual_task_pose_weight: -0.4
+  actual_task_pose_margin: 0.0523598776  # 3 degrees
+  actual_task_pose_std: 0.15
+  actual_task_pose_ready_free_s: 0.45
+  actual_task_pose_ready_full_s: 0.85
+  actual_task_pose_followthrough_free_s: 0.50
+  actual_task_pose_recovery_full_s: 0.80
+  actual_task_pose_start_steps: 448000
+  actual_task_pose_ramp_steps: 128000
+
+build_contract:
+  reward_revision: actual_task_pose_v6_1_hard_stop_clearance

@@ -1,0 +1,10 @@
+# Single-change ablation: fixed task pose owns HOLD and late recovery.
+defaults:
+  - HOPEPingPongBalancedHold
+  - _self_
+
+rewards:
+  motion_anchor_exclude_recovery: true
+
+build_contract:
+  reward_revision: actual_hold_reference_v11

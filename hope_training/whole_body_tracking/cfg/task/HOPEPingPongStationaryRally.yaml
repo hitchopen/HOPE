@@ -1,0 +1,141 @@
+# v12 stationary rally: one immutable station, wide forehand/backhand reach,
+# B_32_5_K20 ready pose, slippery-floor priors. Same 110-D / 31-D ABI and both
+# original clips, so the CompleteHold actor can be warm-started.
+#
+# Why: the 2026-10-18 Gate3 stress run (model_11100) fell at ball 39 while being
+# commanded to walk 0.30-0.45 m sideways between balls; training itself ended
+# 17% of episodes in a fall because half of all questions demanded a station
+# step. The deployed robot does not need to move, so no question here moves the
+# station. Ball variety is answered by arm/torso reach inside the boxes below.
+defaults:
+  - HOPEPingPongCompleteHold
+  - _self_
+
+motion:
+  # v3: B_32_5_K20 is the stand/reset pose AND the affine action zero. "Do
+  # nothing" now means "hold the reference"; the hold-phase smoothing costs pull
+  # toward it instead of toward whatever pose the follow-through ended in.
+  hold_reference_path: cfg/references/hold_pose_B_32_5_K20.json
+  hold_reference_sha256: c17d7ef1371fc2bbf3e922946b5254d17c7ed0bd5ead053d472edfc1c2580e5f
+  hold_reference_sets_action_default: true
+  # Deploy announces balls 0.42-0.68 s ahead; keep the hard 0.35 s floor but
+  # spend more samples on the realistic range.
+  rally_pre_strike_s_range: [0.35, 0.95]
+
+racket:
+  # Immutable station: every question is answered from the session anchor.
+  base_target_x_range: [0.0, 0.0]
+  base_target_y_range: [0.0, 0.0]
+  station_y_step_range: null
+  station_y_same_prob: 1.0
+  station_y_small_step_prob: 0.0
+  # Station-relative contact boxes. FH ends before BH starts so the planner's
+  # side split (-0.28 m) is unambiguous. x is depth, z is height above ground.
+  # v3: contiguous bands (no dead zone between FH and BH; the v2 Gate3 run
+  # refused 13/26 balls that fell in the [-0.32,-0.24] gap or above +0.12).
+  # Once the swing imitation released the racket arm, the v2 probe hit 0.82/0.91
+  # of wide rows uniformly across its box, so the box is now the whole span the
+  # deploy scenes use. Planner split = -0.24.
+  # v4: z up to 1.45 (deploy commanded 1.43); the bank adds flat strokes,
+  # centre-aimed lateral racket velocity, faster incoming balls and planner-trace parents.
+  pos_range_per_clip:
+    forehand: {x: [0.44, 0.70], y: [-0.68, -0.24], z: [0.80, 1.45]}
+    backhand: {x: [0.44, 0.70], y: [-0.24, 0.28], z: [0.80, 1.45]}
+  # Export envelope; contains every v3 bank row and the inherited start/planner boxes.
+  vel_range_per_clip:
+    forehand: {x: [1.00, 2.90], y: [-0.80, 1.20], z: [0.30, 2.00]}
+    backhand: {x: [1.10, 2.90], y: [-1.00, 0.90], z: [0.00, 1.80]}
+  venue_tuple_fixed_station: true
+  venue_tuple_limit_reset_travel: false
+  venue_tuple_robust_sampling: true
+  venue_tuple_bank_path: assets/stationary_reach_v4/train.npz
+  venue_tuple_bank_receipt_path: assets/stationary_reach_v4/train.receipt.json
+  venue_tuple_bank_recipe_revision: 19
+  venue_tuple_bank_sha256: 489a4d809a5948f582c820e2658c91e2a04d7c59a93e9cb068799b9710b81e3a
+  venue_tuple_bank_receipt_sha256: 3115b827db8864f1bab5ecf5fe1b12fe6e22527859f6f3d387ab2d37d81a1ece
+  venue_tuple_bank_min_rows_per_side: 50000
+  # Wide-reach questions: 500 -> 3500 updates (64 steps/update) up to 70%.
+  # The other 30% keep the original reach centers the warm-started actor knows.
+  venue_tuple_wide_start_steps: 32000
+  venue_tuple_wide_ramp_steps: 192000
+  venue_tuple_wide_final_probability: 0.85
+  # Wi-Fi stall pressure (still an assumption, not measured): 3000 -> 5000.
+  base_mocap_stress_start_steps: 192000
+  base_mocap_stress_ramp_steps: 128000
+
+rewards:
+  # v2: the swing imitation no longer tracks the racket arm. With targets up to
+  # 25 cm from the clip's reach the four motion_* terms (+1 each) pulled the wrist
+  # back to the reference and the policy settled ~30% of the way to the target
+  # (probe of model_3900: 0% hits at the band edges, error proportional to the
+  # offset). Torso and left-arm style are still imitated; the strike rewards own
+  # the contact point.
+  swing_imitation_body_names: [torso_Link, left_shoulder_roll_Link, left_elbow_Link, left_wrist_yaw_Link]
+  # Stronger pull at 10-25 cm errors: wider Gaussian, heavier rational tail, and a
+  # debt that keeps growing outside the 7.5 cm acceptance sphere.
+  racket_position_std: 0.22
+  racket_position_tail_blend: 0.5
+  racket_exact_position_debt_weight: -4.0
+  racket_exact_position_debt_huber_scale: 0.05
+  # B_32_5_K20 pressure. The 11k CompleteHold run never reached the complete
+  # ready pose at the old +1 budget (complete_hold_ready stayed 0; right-arm RMS
+  # error ~0.34 rad in the v1 scratch run before its curriculum even started).
+  # Double the pose budget, add the bounded linear tail for 30-60 deg errors, and
+  # halve the coarse station/stillness bonus that competed for the same window.
+  full_body_hold_weight: 1.7
+  full_body_hold_pose_tail_weight: 0.15
+  hold_ready_weight: 0.5
+  # Ready pose / station recovery / quieting start at 1000, full by 3000 updates:
+  # the warm-started actor already rallies, so the posture goal need not wait.
+  full_body_hold_start_steps: 64000
+  full_body_hold_ramp_steps: 128000
+  station_recovery_start_steps: 64000
+  station_recovery_ramp_steps: 128000
+  full_body_quiet_start_steps: 64000
+  full_body_quiet_ramp_steps: 128000
+  settled_leg_command_start_steps: 192000
+  settled_leg_command_ramp_steps: 128000
+  # Post-swing lean: the old 0.10 deadband (~5.7 deg) let the policy settle at
+  # ~7 deg after contact. Align the deadband with the 3 deg hold tolerance and
+  # weight it harder; the first 0.1 s of follow-through stays free.
+  post_swing_tilt_debt_weight: -1.0
+  post_swing_tilt_debt_margin: 0.05
+  # Balance. The v2 probe (model_9700) fell on 4% of questions, 77% of them in
+  # the first 0.3 s after a new ball was announced while still recovering from
+  # the previous swing. Charge capture-point excursion and body lean harder in
+  # every phase; add a bounded pre-strike lean debt so the lunge toward a far
+  # target is paid for before it tips the robot.
+  dynamic_support_weight: -2.5
+  upright_weight: -1.5
+  pre_strike_tilt_weight: -0.5
+  # v4: absorb the swing momentum. Base velocity after contact (margin 0.08 m/s)
+  # and base roll/pitch rate outside the +-0.12 s strike window.
+  post_swing_base_quiet_weight: -0.5
+  base_ang_vel_xy_rally_weight: -0.3
+  base_ang_vel_xy_rally_strike_exclusion_s: 0.12
+  # Slippery-floor prior: tangential/normal ground force above 0.30 on a loaded
+  # foot is charged in every phase. Weight is small; swings still need shear.
+  foot_friction_cone_weight: -0.15
+  foot_friction_cone_std: 0.15
+  foot_friction_cone_ratio_margin: 0.30
+  foot_friction_cone_force_threshold: 10.0
+
+friction_contract:
+  # Extend the sole friction floor toward smooth tile; ground stays 1.0 (multiply).
+  robot_static_friction_range: [0.25, 1.6]
+  robot_dynamic_friction_range: [0.25, 1.2]
+
+domain_rand:
+  push:
+    interval_s: [5.0, 8.0]
+    max_delta_v_xy: 0.15
+    cohort_fraction: 0.5
+    ramp_steps: 96000
+    strike_exclusion_s: 0.15
+
+build_contract:
+  reward_revision: actual_complete_hold_v11_stationary_reach_v4
+  hold_pose_contract: actual_full_body_B32_5_K20_complete_v2
+  training_distribution_revision: stationary_reach_v1
+  station_command_contract: fixed_session_anchor_v1
+  recovery_target_contract: fixed_session_anchor_v1

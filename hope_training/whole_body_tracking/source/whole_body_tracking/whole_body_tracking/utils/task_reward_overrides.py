@@ -55,6 +55,7 @@ _WEIGHT_AND_STD_PREFIXES: tuple[tuple[str, str], ...] = (
     ("rally_ready_root_height_debt", "rally_ready_root_height_debt"),
     ("post_swing_tilt_debt", "post_swing_tilt_debt"),
     ("dynamic_support", "dynamic_support"),
+    ("foot_friction_cone", "foot_friction_cone"),
     ("foot_placement", "foot_placement"),
     ("waist_command_quiet", "waist_command_quiet"),
     ("settled_leg_command", "settled_leg_command"),
@@ -70,7 +71,16 @@ WEIGHT_SPECS: dict[str, str] = {
 WEIGHT_SPECS.update(
     {
         "actual_joint_limit_weight": "actual_joint_limit",
+        "racket_exact_position_debt_weight": "racket_exact_position_debt",
         "full_body_hold_weight": "full_body_hold",
+        "full_body_imitation_weight": "full_body_imitation",
+        "full_stroke_tracking_weight": "full_stroke_tracking",
+        "fixed_station_feet_weight": "fixed_station_feet",
+        "motion_body_pos_weight": "motion_body_pos",
+        "motion_body_ori_weight": "motion_body_ori",
+        "motion_body_lin_vel_weight": "motion_body_lin_vel",
+        "motion_body_ang_vel_weight": "motion_body_ang_vel",
+        "motion_global_anchor_ori_weight": "motion_global_anchor_ori",
         "full_body_quiet_weight": "full_body_quiet",
         "actual_ready_legs_weight": "actual_ready_legs",
         "station_recovery_weight": "station_recovery",
@@ -89,6 +99,9 @@ WEIGHT_SPECS.update(
         "ready_deadline_weight": "ready_deadline",
         "idle_left_wrist_debt_weight": "idle_left_wrist_debt",
         "all_joint_qdes_barrier_weight": "rally_joint_qdes_saturation",
+        "upright_weight": "upright",
+        "pre_strike_tilt_weight": "pre_strike_tilt",
+        "base_ang_vel_xy_rally_weight": "base_ang_vel_xy_rally",
     }
 )
 
@@ -120,6 +133,11 @@ _add_float_params(
     "hold_ready",
     {"reach": "reach", "heading_gate_rad": "heading_gate"},
 )
+_add_float_params("racket_position", "racket_position", {"tail_blend": "tail_blend"})
+_add_float_params("racket_exact_position_debt", "racket_exact_position_debt", {
+    "margin": "margin", "huber_scale": "huber_scale", "window_s": "window_s",
+})
+_add_float_params("racket_velocity", "racket_velocity", {"tail_blend": "tail_blend"})
 _add_bool_params("hold_ready", "hold_ready", {"include_ang_vel": "include_ang_vel"})
 _add_bool_params("hold_upper_pose_imitation", "hold_upper_pose_imitation", {"fixed_task_reference": "fixed_task_reference"})
 _add_bool_params("foot_orientation", "foot_orientation", {"hold_gate": "hold_gate"})
@@ -147,8 +165,9 @@ _add_float_params("actual_task_pose", "actual_task_pose", {
     key: key for key in ("ready_free_s", "ready_full_s", "followthrough_free_s", "recovery_full_s", "torso_margin", "torso_std")
 })
 for _term, _params in {
-    "full_body_hold": ("cost_scale",),
+    "full_body_hold": ("cost_scale", "completion_blend", "completion_dwell_s", "pose_tail_weight"),
     "full_body_quiet": (),
+    "fixed_station_feet": ("clearance_std", "yaw_std", "position_fraction"),
     "actual_ready_legs": ("knee_margin", "knee_std", "height_margin", "height_std"),
     "station_recovery": ("position_margin", "position_std", "velocity_margin", "velocity_std"),
     "loaded_ankle_quiet": ("margin", "std"),
@@ -157,6 +176,10 @@ for _term, _params in {
     for _schedule in ("start_steps", "ramp_steps"):
         INT_PARAM_SPECS[f"{_term}_{_schedule}"] = (_term, _schedule)
 _add_bool_params("full_body_hold", "full_body_hold", {"positive_kernel": "positive_kernel"})
+_add_bool_params("fixed_station_feet", "fixed_station_feet", {"persistent_home": "persistent_home"})
+_add_float_params("full_stroke_tracking", "full_stroke_tracking", {
+    "worst_group_blend": "worst_group_blend", "foot_blend": "foot_blend"})
+_add_bool_params("motion_global_anchor_ori", "motion_anchor", {"exclude_recovery": "exclude_recovery"})
 _add_bool_params("full_body_quiet", "full_body_quiet", {
     "state_independent": "state_independent", "pose_independent": "pose_independent",
 })
@@ -165,6 +188,9 @@ _add_float_params("foot_placement", "foot_placement", {
     "yaw_std": "yaw_std", "yaw_weight": "yaw_weight",
 })
 _add_float_params("dynamic_support", "dynamic_support", {"margin": "margin", "foot_radius": "foot_radius"})
+_add_float_params("base_ang_vel_xy_rally", "base_ang_vel_xy_rally", {"strike_exclusion_s": "strike_exclusion_s"})
+_add_float_params("foot_friction_cone", "foot_friction_cone", {
+    "ratio_margin": "ratio_margin", "force_threshold": "force_threshold"})
 _add_float_params(
     "racket_normal_alignment_debt",
     "racket_normal_alignment_debt",
@@ -337,9 +363,12 @@ _add_float_params(
         "strike_t_post": "strike_t_post",
         "post_t_lo": "post_t_lo",
         "post_t_hi": "post_t_hi",
+        "twist_weight": "twist_weight",
+        "twist_std": "twist_std",
+        "twist_margin": "twist_margin",
     },
 )
-_add_bool_params("settle_foot_slip", "settle_foot_slip", {"huber_tail": "huber_tail"})
+_add_bool_params("settle_foot_slip", "settle_foot_slip", {"huber_tail": "huber_tail", "all_phases": "all_phases"})
 _add_float_params(
     "rally_ready_root_height_debt",
     "rally_ready_root_height_debt",
@@ -400,6 +429,15 @@ NULLABLE_PREDECESSOR_KEYS = frozenset(
     }
 )
 
+# Which bodies the swing imitation terms track. Dropping the racket arm lets the
+# strike rewards own the contact point while torso/left-arm style is still imitated.
+STRING_LIST_PARAM_SPECS: dict[str, tuple[tuple[str, str], ...]] = {
+    "swing_imitation_body_names": tuple(
+        (term, "body_names")
+        for term in ("motion_body_pos", "motion_body_ori", "motion_body_lin_vel", "motion_body_ang_vel")
+    ),
+}
+
 SUPPORTED_REWARD_KEYS = frozenset(
     set(WEIGHT_SPECS)
     | set(STD_SPECS)
@@ -409,6 +447,7 @@ SUPPORTED_REWARD_KEYS = frozenset(
     | set(MULTI_FLOAT_PARAM_SPECS)
     | set(STRING_PARAM_SPECS)
     | set(TUPLE_INT_PARAM_SPECS)
+    | set(STRING_LIST_PARAM_SPECS)
     | set(NULLABLE_PREDECESSOR_KEYS)
 )
 
@@ -572,5 +611,16 @@ def apply_reward_overrides(
                 lambda item: item,
                 applied,
             )
+
+    for key, targets in STRING_LIST_PARAM_SPECS.items():
+        value = values.get(key)
+        if value is not None:
+            if isinstance(value, str) or not hasattr(value, "__iter__"):
+                raise ValueError(f"task.rewards.{key} must be a list of body names")
+            converted = [str(item) for item in value]
+            if not converted or len(set(converted)) != len(converted):
+                raise ValueError(f"task.rewards.{key} must be a non-empty list of distinct body names")
+            for term_name, param_name in targets:
+                _set_param(rewards, term_name, param_name, list(converted), lambda item: item, applied)
 
     _apply_nullable_predecessors(rewards, values, applied)

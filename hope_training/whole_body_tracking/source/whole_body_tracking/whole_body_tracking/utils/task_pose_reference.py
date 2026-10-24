@@ -15,20 +15,30 @@ REFERENCE_SHA256 = "c17d7ef1371fc2bbf3e922946b5254d17c7ed0bd5ead053d472edfc1c258
 PHASE_NAMES = ("hold", "strike", "ready_recover")
 
 
-@lru_cache(maxsize=1)
-def load_reference():
-    path = Path(__file__).resolve().parents[4] / "cfg/references/hold_pose_B_32_5_K20.json"
+@lru_cache(maxsize=8)
+def load_reference(path=None, sha256=None):
+    custom = path is not None
+    path = Path(path) if custom else Path("cfg/references/hold_pose_B_32_5_K20.json")
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parents[4] / path
     raw = path.read_bytes()
-    if hashlib.sha256(raw).hexdigest() != REFERENCE_SHA256:
+    expected = sha256 if custom else REFERENCE_SHA256
+    if not expected or hashlib.sha256(raw).hexdigest() != expected:
         raise ValueError("selected HOLD reference changed; review and version its contract")
     pose = json.loads(raw)
-    if pose["candidate_key"] != REFERENCE_NAME:
+    if not custom and pose["candidate_key"] != REFERENCE_NAME:
         raise ValueError("unexpected HOLD reference")
     return pose
 
 
-def reference_joints(names, like):
-    pose = load_reference()
+def env_reference(env):
+    cfg = getattr(getattr(getattr(env, "cfg", None), "commands", None), "motion", None)
+    return load_reference(getattr(cfg, "hold_reference_path", None),
+                          getattr(cfg, "hold_reference_sha256", None))
+
+
+def reference_joints(names, like, pose=None):
+    pose = load_reference() if pose is None else pose
     by_name = dict(zip(pose["joint_order"], pose["actual_q_reference_rad"]))
     return like.new_tensor([by_name[name] for name in names])
 
@@ -71,15 +81,20 @@ def actual_pose_debt(waist_pitch, torso_rp, waist_ref, torso_ref, *, margin=.052
 
 class PoseChainTrace:
     """Synchronized 50-Hz bursts, four environments, before reset can erase state."""
-    def __init__(self, directory, reference_scope="waist/torso HOLD and ready_recover; inapplicable during STRIKE"):
+    def __init__(self, directory, reference_scope="waist/torso HOLD and ready_recover; inapplicable during STRIKE", pose=None, source_sha256=None):
+        if pose is None:
+            source_sha256 = REFERENCE_SHA256
+        pose = load_reference() if pose is None else pose
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         self.path = directory / "task_pose_chain.csv"
         self.last_step = None
         self.pending = []
-        (directory / "task_pose_reference.json").write_text(json.dumps(load_reference(), indent=2)+"\n")
+        (directory / "task_pose_reference.json").write_text(json.dumps(pose, indent=2)+"\n")
         (directory / "task_pose_chain_contract.json").write_text(json.dumps({
-            "reference": REFERENCE_NAME, "source_sha256": REFERENCE_SHA256,
+            "reference": pose["candidate_key"],
+            "source_sha256": source_sha256,
+            "snapshot_sha256": hashlib.sha256((json.dumps(pose, indent=2)+"\n").encode()).hexdigest(),
             "phases": dict(enumerate(PHASE_NAMES)),
             "sampling": "first 4 envs, first 512 steps of each 64000-control-step period, before reset",
             "reference_scope": reference_scope,

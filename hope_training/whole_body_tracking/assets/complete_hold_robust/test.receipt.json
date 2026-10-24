@@ -1,0 +1,163 @@
+{
+  "schema_version": 2,
+  "split": "test",
+  "seed": 20261016,
+  "source": {
+    "legacy_bank_sha256": "bc202d6335473f15c2233de7ceece42795dd18b12acf557a21bd611969fc5d03",
+    "generator_sha256": "93e6d4599fb4fce6602cbb09e2699d196684e55f14f68c29a2704856a5891f7d",
+    "physics_source_sha256": "a7465a2a2f935dd1a27d6d6224366924294509039b950e4e99055ed9dc411c99",
+    "physics_yaml_sha256": "69ae86353308aacfc009172cd26d2fee62ecc78f542a747bc46a93b9b6c2dfca"
+  },
+  "bank_sha256": "6b69a0940139f53df11a2ec4ae9f1f9e90984b81c5b8aef836630767e3f96142",
+  "contract": {
+    "recipe_revision": 18,
+    "distribution": "complete_hold_robust_v1",
+    "qualification": "training_contact_flight_and_incoming_bounce_v1",
+    "station_inverse": "contact_xy-minus-fixed-reach",
+    "physics_integration_s": 0.005,
+    "min_net_center_z": 0.9675,
+    "incoming_bounce_x": [
+      0.52,
+      1.85
+    ],
+    "incoming_bounce_y": [
+      -0.7425,
+      0.7425
+    ],
+    "landing_x": [
+      2.2,
+      3.1
+    ],
+    "landing_y": [
+      -0.65,
+      0.65
+    ]
+  },
+  "rows": 15388,
+  "unique_parents": 9433,
+  "core_input_rows": 100000,
+  "core_rows_requalified": 92798,
+  "summary": {
+    "0": {
+      "count": 7564,
+      "station_xy": {
+        "min": [
+          -0.09998099505901337,
+          -0.49855268001556396
+        ],
+        "max": [
+          0.09998979419469833,
+          0.49985283613204956
+        ]
+      },
+      "target_position_offset": {
+        "min": [
+          0.5799999833106995,
+          -0.4399999976158142,
+          0.8637186884880066
+        ],
+        "max": [
+          0.5799999833106995,
+          -0.4399999976158142,
+          1.2999999523162842
+        ]
+      },
+      "target_velocity": {
+        "min": [
+          1.1340432167053223,
+          -0.48088666796684265,
+          0.5429683923721313
+        ],
+        "max": [
+          2.410937786102295,
+          0.9662914276123047,
+          1.7161701917648315
+        ]
+      },
+      "incoming_velocity": {
+        "min": [
+          -3.2668707370758057,
+          -0.8669167160987854,
+          -2.3094120025634766
+        ],
+        "max": [
+          -0.6553456783294678,
+          0.6448087096214294,
+          0.5562034249305725
+        ]
+      },
+      "wide_rows": 3096,
+      "station_y_histogram": [
+        749,
+        766,
+        772,
+        809
+      ]
+    },
+    "1": {
+      "count": 7824,
+      "station_xy": {
+        "min": [
+          -0.09996417164802551,
+          -0.4991128742694855
+        ],
+        "max": [
+          0.09996873885393143,
+          0.49942833185195923
+        ]
+      },
+      "target_position_offset": {
+        "min": [
+          0.5799999833106995,
+          -0.09000000357627869,
+          0.8666678071022034
+        ],
+        "max": [
+          0.5799999833106995,
+          -0.09000000357627869,
+          1.2999999523162842
+        ]
+      },
+      "target_velocity": {
+        "min": [
+          1.278705358505249,
+          -0.7263879179954529,
+          0.6086927056312561
+        ],
+        "max": [
+          2.46329402923584,
+          0.6715385913848877,
+          1.5121502876281738
+        ]
+      },
+      "incoming_velocity": {
+        "min": [
+          -3.2409937381744385,
+          -0.9026967883110046,
+          -2.2797625064849854
+        ],
+        "max": [
+          -0.7295772433280945,
+          0.7636633515357971,
+          0.557098925113678
+        ]
+      },
+      "wide_rows": 3056,
+      "station_y_histogram": [
+        763,
+        759,
+        779,
+        755
+      ]
+    }
+  },
+  "proposal_counts": {
+    "0": 163840,
+    "1": 65536
+  },
+  "limitations": [
+    "core and augmented rows both pass the same ball-law qualification",
+    "new-run parent-disjoint splits; legacy model11700 saw the original bank",
+    "ball-law qualification only; dynamic A3 balance and real generalization NOT_PROVEN"
+  ]
+}
