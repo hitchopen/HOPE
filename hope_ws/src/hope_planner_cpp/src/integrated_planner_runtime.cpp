@@ -306,16 +306,20 @@ struct IntegratedPlannerRuntime::Impl {
             result.command.position.z()<.05 || result.command.position.z()>1.2) {
           invalidate_locked(turn.allowed?"REACH_UNSUPPORTED":turn.reason);stage("worker_reject",0,reason);continue;
         }
-        auto identity=lifecycle.admit(input,result,pipeline->shot().generation(),now,min_lead);
+        const auto admission_ns=node.now().nanoseconds();
+        auto identity=lifecycle.admit(input,result,pipeline->shot().generation(),admission_ns,min_lead);
         if (!identity) {
           if (!lifecycle.committed()) invalidate_locked("TIMING_OR_REVISION_REJECTED");
           stage("worker_reject",0,"TIMING_OR_REVISION_REJECTED");continue;
         }
         const double swing=lifecycle.latch_swing(result.command.position.y()-base.position.y()>=split_y?1.:-1.);
         auto packet=Schema2Packer::pack(&result.command,swing,static_cast<double>(input.arrival_ns)*1e-9,
-            policy_z,now,*identity,input.observation_count,input.observation_span_s);
+            policy_z,admission_ns,*identity,input.observation_count,input.observation_span_s);
         if (!packet.valid) { invalidate_locked("ENCODING_FAILED");stage("worker_reject",0,"ENCODING_FAILED");continue; }
-        std_msgs::msg::Float64MultiArray wire;wire.data.assign(packet.values.begin(),packet.values.end());flat->publish(wire);
+        std_msgs::msg::Float64MultiArray wire;wire.data.assign(packet.values.begin(),packet.values.end());
+        const auto publication_begin_ns=node.now().nanoseconds();
+        stage("publication_begin");
+        flat->publish(wire);
         const auto published_ns=node.now().nanoseconds();
         last_source_age_ms=(static_cast<long double>(published_ns)-input.source.source_time_ns)*1e-6L;
         // Command sequence joins the actual receiver; source_ns joins ingress.
@@ -334,7 +338,8 @@ struct IntegratedPlannerRuntime::Impl {
           diagnostic_msgs::msg::KeyValue kv;kv.key=key;kv.value=value;detail.values.push_back(kv);
         };
         record("source_time_ns",std::to_string(input.source.source_time_ns));
-        record("producer_time_ns",std::to_string(now));record("arrival_ns",std::to_string(input.arrival_ns));
+        record("producer_time_ns",std::to_string(admission_ns));record("arrival_ns",std::to_string(input.arrival_ns));
+        record("publication_begin_ns",std::to_string(publication_begin_ns));
         record("publication_time_ns",std::to_string(published_ns));
         record("command_sequence",std::to_string(identity->command_sequence));
         record("physical_shot",std::to_string(input.token.generation));record("wire_flight",std::to_string(identity->flight_id));
@@ -388,6 +393,7 @@ struct IntegratedPlannerRuntime::Impl {
     add("source_frame",frame);add("registration_id",registration);add("runner_contract",profile);
     add("observation_topic",observation->get_topic_name());add("base_pose_topic",base_sub->get_topic_name());
     add("observation_history_depth",std::to_string(observation->get_actual_qos().get_rmw_qos_profile().depth));
+    add("publication_reserve_ns",std::to_string(IntegratedCommandLifecycle::publication_reserve_ns));
     add("observation_publishers",std::to_string(node.count_publishers(observation->get_topic_name())));
     add("base_publishers",std::to_string(node.count_publishers(base_sub->get_topic_name())));
     add("game_context",game);add("game_context_required","false");

@@ -9,13 +9,18 @@ namespace hope_planner_cpp {
 class IntegratedCommandLifecycle {
 public:
   static constexpr std::uint64_t max_wire_integer = (1ULL << 52);
+  // Reserve time for packing and DDS publication before the source expires.
+  // The measured post-admission interval reached 4.432 ms; completion still
+  // has to meet the original 30 ms gate, with every rejected epoch counted.
+  static constexpr std::int64_t publication_reserve_ns = 5000000;
   explicit IntegratedCommandLifecycle(std::uint64_t sequence = 0) : sequence_(sequence) {}
   std::optional<WireIdentity> admit(const ContactPlanningInput &input,
       const ValidatedReturn &result, std::uint64_t current_generation,
       std::int64_t now_ns, double min_lead_s = .08) {
     if (!result.command.valid || !result.solve_ok || !result.impact_ok || !result.return_ok ||
         input.token.generation != current_generation || input.token.generation < generation_ ||
-        now_ns > input.expires_ns || static_cast<long double>(now_ns) <
+        static_cast<long double>(input.expires_ns)-now_ns < publication_reserve_ns ||
+        static_cast<long double>(now_ns) <
             static_cast<long double>(input.source.source_time_ns)-1000000.L ||
         (static_cast<long double>(input.arrival_ns)-now_ns)*1e-9L < min_lead_s ||
         !std::isfinite(min_lead_s) || min_lead_s < 0)

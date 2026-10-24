@@ -162,6 +162,22 @@ TEST(IntegratedLifecycle,L05_L06_CommitAndExactIntegerOverflow) {
   IntegratedCommandLifecycle overflow(IntegratedCommandLifecycle::max_wire_integer);
   EXPECT_THROW(overflow.admit(i,r,1,epoch_ns),std::overflow_error);
 }
+TEST(IntegratedLifecycle,ReservesTimeForPublicationWithoutConsumingRejectedIdentity) {
+  auto i=contact();auto r=ValidatedReturnPlanner({}).solve(i);ASSERT_TRUE(r.command.valid);
+  IntegratedCommandLifecycle life;
+  // Recorded failing run: admission at 28.093384 ms, then another
+  // 4.431818 ms before publication completed (32.525202 ms source age).
+  EXPECT_FALSE(life.admit(i,r,1,epoch_ns+28093384));
+  i.source.source_time_ns+=33000000;i.expires_ns+=33000000;
+  auto fresh=life.admit(i,r,1,epoch_ns+34000000);ASSERT_TRUE(fresh);
+  EXPECT_EQ(fresh->command_sequence,1u);
+  EXPECT_EQ(fresh->flight_id,1u);
+  EXPECT_EQ(fresh->revision_id,1u);
+  IntegratedCommandLifecycle boundary;
+  EXPECT_TRUE(boundary.admit(i,r,1,i.expires_ns-5000000));
+  IntegratedCommandLifecycle too_late;
+  EXPECT_FALSE(too_late.admit(i,r,1,i.expires_ns-4999999));
+}
 TEST(RunnerRoundTrip,W01_W02_W03_W05_ActualSchema2Decoder) {
   auto i=contact();auto r=ValidatedReturnPlanner({}).solve(i);ASSERT_TRUE(r.command.valid);
   // Real Unix epoch, decoded by the unchanged receiver (no fixture decoder).

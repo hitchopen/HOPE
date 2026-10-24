@@ -173,3 +173,9 @@ and the unchanged 110-D observation builder apply that offset exactly once.
 Explicit producer `omega_valid=true` with a finite zero vector represents measured
 zero through the ROS decoder as well as the native engine. `omega_valid=false`
 and nonfinite vectors remain unavailable; no zero is inferred from missing data.
+
+### Qualified executor and publication budget
+
+The V2 entry point uses one executor for its mutually exclusive input/service/diagnostic callbacks and retains one running solve plus one latest pending job. The legacy backend keeps its upstream three-thread executor. Paired localhost measurements reduced planner CPU by 23–28%; this does not establish a universal scheduler latency bound.
+
+Command admission reserves 5 ms before the existing source expiry for encoding and DDS publication. This addresses an observed command admitted at 28.093384 ms source age whose publication completed 4.431818 ms later. The completion-age requirement remains 30 ms, and rejected opportunities still count in the independent 95% coverage denominator. Fresh admission time, publication-begin time and publication-completion time are retained separately. The reserve is an empirical budget, not a hard-real-time guarantee against arbitrary process suspension.

@@ -1223,14 +1223,16 @@
       "tests": [
         "test_integrated_return",
         "integrated_outgoing_reference",
-        "integrated_chain_*"
+        "integrated_chain_*",
+        "IntegratedLifecycle.ReservesTimeForPublicationWithoutConsumingRejectedIdentity"
       ],
       "review_note": "Explicit opt-in application; forward-only graph and legacy defaults retained",
       "owning_requirement": "V3 G0-G8",
       "integration_change": {
         "why_needed": "Semantic physical-shot wire identity, exact deadlines, source age, producer freeze and overflow fences.",
         "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
-      }
+      },
+      "publication_budget_correction": "Keep 5 ms before the existing expiry for packing and completed publication, covering the measured 4.432 ms post-admission gap; reject without consuming identity. Coverage still counts rejected source opportunities."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/integrated_planner_runtime.hpp",
@@ -1962,6 +1964,21 @@
         ]
       },
       "qualification_change": "Bounded depth-eight V2 ingress preserves short physical-event bursts; actual queue depth is observable; source freshness, worker bounds and physics unchanged."
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/src/main.cpp",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "planner",
+      "why_needed": "Use one executor for the mutually-exclusive V2 callbacks plus its existing bounded solve worker; paired measurements show 23-28% less CPU and reduced callback handoff delays. Preserve the exact three-thread legacy executor branch.",
+      "tests": [
+        "reacquisition_chain_300_FOLLOW_POSE_quaternion_only",
+        "review_chain_300_10_zero",
+        "test_planner_runtime_plane",
+        "flight_v2_scope"
+      ],
+      "owning_requirement": "CL03,CL06,CL09,CL16",
+      "production_behavior_affected": true,
+      "origin_commit": "PR85 Step 2 follow-up to failed candidate 4065cb5"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp",

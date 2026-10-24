@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scope": "Qualified observations and registered pose through CKF6/deterministic physics, model-validated schema-2 shadow commands and actual receiver decoding",
   "upstream_base": "91aecabfd44cb258ac998158e724be9017d883a7",
   "integration_checkpoint": "e7947b9486f1b49b70a560318eaf12bc7de9979a",
@@ -84,7 +84,8 @@
   "diagnostic_comparison_profiles": [
     "reacquisition_chain_300_FOLLOW_POSE_unknown",
     "review_chain_300_10_zero",
-    "reacquisition_chain_150_ON_REFRESH_zero"
+    "reacquisition_chain_150_ON_REFRESH_zero",
+    "reacquisition_chain_300_FOLLOW_POSE_quaternion_only"
   ],
   "environment": {
     "ros": "jazzy",
@@ -103,5 +104,12 @@
     "deployment_authorized": false
   },
   "superseded_candidate": "63790a3a8005b1742c2b96e10331498f8b27912a: failed complete ROS suite; repeated campaign not started",
-  "superseded_campaign": "3f0f7fcbe256c485c237c4ea3b56816906913e63: full native/sanitizer/ROS gates passed except inherited lint; repeated campaign stopped after actual base-relay shutdown failure, with 63 recorded outcomes (62 pass, one fail), one additional completed raw trial and 96 NOT_RUN trials; all retained. No retries credited."
+  "superseded_campaign": "3f0f7fcbe256c485c237c4ea3b56816906913e63: full native/sanitizer/ROS gates passed except inherited lint; repeated campaign stopped after actual base-relay shutdown failure, with 63 recorded outcomes (62 pass, one fail), one additional completed raw trial and 96 NOT_RUN trials; all retained. No retries credited.",
+  "runtime_execution": {
+    "v2_executor_threads": 1,
+    "legacy_executor_threads": 3,
+    "publication_reserve_ns": 5000000,
+    "publication_gate": "Every completed valid publication still <=30 ms; reserve rejects at admission when less than 5 ms remains, and rejected opportunities remain in the independent denominator"
+  },
+  "superseded_release": "4065cb57fe3a9256ebb635912d7a1e62d3fbf806: full ladder ran; planner 105/107, with quaternion-only 300 Hz coverage 138/150 and review_chain_300_10_zero publication age 32.525202 ms. Repeated campaign NOT_RUN because the ROS delta audit failed; all evidence retained."
 }
