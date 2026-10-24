@@ -130,7 +130,7 @@ struct IntegratedPlannerRuntime::Impl {
     status=node.create_publisher<diagnostic_msgs::msg::DiagnosticArray>(std::string(prefix)+"status",rclcpp::QoS(1).reliable());
     trace=node.create_publisher<diagnostic_msgs::msg::DiagnosticArray>(std::string(prefix)+"trace",rclcpp::QoS(10).best_effort());
     observation=node.create_subscription<hope_msgs::msg::BallObservationV2>(
-        string("observation_topic","/hope/ball/observation_v2"),rclcpp::QoS(1).best_effort(),
+        string("observation_topic","/hope/ball/observation_v2"),rclcpp::QoS(8).best_effort(),
         [this](hope_msgs::msg::BallObservationV2::ConstSharedPtr msg) { on_observation(*msg); });
     base_sub=node.create_subscription<std_msgs::msg::Float64MultiArray>(
         string("base_pose_topic","/a3/base_pose_flat"),rclcpp::QoS(10).best_effort(),
@@ -387,6 +387,7 @@ struct IntegratedPlannerRuntime::Impl {
     add("prediction_backend","v2");add("return_backend","shared_physics");add("output_mode","shadow");
     add("source_frame",frame);add("registration_id",registration);add("runner_contract",profile);
     add("observation_topic",observation->get_topic_name());add("base_pose_topic",base_sub->get_topic_name());
+    add("observation_history_depth",std::to_string(observation->get_actual_qos().get_rmw_qos_profile().depth));
     add("observation_publishers",std::to_string(node.count_publishers(observation->get_topic_name())));
     add("base_publishers",std::to_string(node.count_publishers(base_sub->get_topic_name())));
     add("game_context",game);add("game_context_required","false");

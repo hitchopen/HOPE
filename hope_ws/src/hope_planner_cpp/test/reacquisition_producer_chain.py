@@ -222,6 +222,7 @@ def run(args):
             args.bringup / "optitrack_mct_relay",
             [
                 ("publish_tf", "false"),
+                ("input_history_depth", 8),
                 ("ball_calibration_id", registration),
                 ("ball_orientation_authoritative", str(args.spin != "unknown").lower()),
             ],
@@ -455,6 +456,7 @@ def run(args):
         assert node.get_node_names().count("hope_planner") == 1
         assert node.count_publishers("/hope/ball/observation_v2") == 1
         assert statuses and max(int(s["candidate_samples"]) for s in statuses) <= 32
+        assert all(s['observation_history_depth'] == '8' for s in statuses)
         assert max(int(s["retained_samples"]) for s in statuses) <= 192
         if args.first_worker_delay_ms:
             assert any(

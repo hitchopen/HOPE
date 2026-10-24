@@ -9,6 +9,8 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import signal
+import sys
 import time
 
 import numpy as np
@@ -17,6 +19,8 @@ from rclpy.qos import qos_profile_sensor_data
 from diagnostic_msgs.msg import DiagnosticArray
 from hope_msgs.msg import BallObservationV2, FlightPredictionV2
 from integrated_producer_chain import flight
+from qualification_accounting import read_stages
+from rosidl_runtime_py.convert import message_to_ordereddict
 
 
 def vector(v):
@@ -25,6 +29,9 @@ def vector(v):
 
 def run(args, rate, known):
     before, after, bounce = flight(10.0, "known" if known else "unknown")
+    stem = args.output.parent / f"{args.output.stem}-{rate}-{known}"
+    stages = stem.with_suffix('.stages')
+    node_log = stem.with_suffix('.node.log').open('w')
     process = subprocess.Popen(
         [
             str(args.node),
@@ -37,9 +44,11 @@ def run(args, rate, known):
             "automatic_rearm_enabled:=true",
             "-p",
             "session_id:=continuation_cutoff",
+            "-p",
+            "test.stage_trace_path:=" + str(stages),
         ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=node_log,
+        stderr=subprocess.STDOUT,
     )
     node = rclpy.create_node("review_cutoff_observer")
     pub = node.create_publisher(
@@ -84,10 +93,12 @@ def run(args, rate, known):
         pub.publish(warm)
         spin(0.1)
         start = time.monotonic()
+        source_origin = time.time_ns()
         for i in range(int(0.92 * rate)):
             deadline = start + i / rate
             spin(max(0.0, deadline - time.monotonic()))
-            t = time.monotonic() - start
+            stamp = time.time_ns()
+            t = (stamp - source_origin) * 1e-9
             local = t if t < 0.08 else t - 0.6
             if 0.08 <= t < 0.10:
                 state = np.array([1.0, -0.7, -0.2, 0.0, 0.0, 0.0, 0.0])
@@ -95,7 +106,6 @@ def run(args, rate, known):
                 continue
             else:
                 state = before.sol(local) if local < bounce else after.sol(local)
-            stamp = time.time_ns()
             omega = (
                 (
                     30.0
@@ -139,8 +149,22 @@ def run(args, rate, known):
                 ]
             )
         spin(0.03)
+        # This is a same-consumed-prefix check. The raw producer chain separately
+        # measures coverage over every offered eligible source opportunity.
+        process.send_signal(signal.SIGINT)
+        process.wait(timeout=5)
+        assert process.returncode == 0
+        metadata, receipts = read_stages(stages)
+        assert int(metadata.get('overwritten', -1)) == 0, metadata
+        offered_rows = rows
+        by_source = {row[0]: row for row in offered_rows}
+        consumed = [int(row['source_ns']) for row in receipts if row['stage'] == 'pipeline_observed']
+        assert consumed and len(consumed) == len(set(consumed))
+        assert set(consumed) <= by_source.keys()
+        rows = [by_source[stamp] for stamp in consumed]
+        stem.with_name(stem.name + '-published.csv').write_text(
+            '\n'.join(','.join(map(str, row)) for row in offered_rows) + '\n')
         csv = "\n".join(",".join(map(str, row)) for row in rows) + "\n"
-        stem = args.output.parent / f"{args.output.stem}-{rate}-{known}"
         stem.with_suffix(".csv").write_text(csv)
         replay = subprocess.run(
             [str(args.replay), "--set", "automatic_rearm_enabled=1", "--observations"],
@@ -269,12 +293,26 @@ def run(args, rate, known):
             "max_state_error": max_state,
             "max_covariance_error": max_cov,
             "max_event_state_error": max_event,
-            "all_source_rows": len(rows),
+            "all_source_rows": len(offered_rows),
+            "consumed_source_rows": len(rows),
+            "unconsumed_source_rows": sorted(set(by_source) - set(consumed)),
+            "actual_consumption_ledger": str(stages),
             "fixture": str(stem.with_suffix(".csv")),
         }
     finally:
-        process.terminate()
-        process.wait(timeout=5)
+        failure = sys.exc_info()[1]
+        stem.with_name(stem.name + '-received.json').write_text(json.dumps({
+            'exception': None if failure is None else str(failure),
+            'command': process.args,
+            'offered_rows': locals().get('offered_rows', rows),
+            'consumed_rows': rows if 'consumed' in locals() else None,
+            'diagnostics': diagnostics,
+            'predictions': [message_to_ordereddict(message) for message in received],
+        }, default=list, indent=2) + '\n')
+        if process.poll() is None:
+            process.send_signal(signal.SIGINT)
+            process.wait(timeout=5)
+        node_log.close()
         node.destroy_node()
 
 

@@ -9,11 +9,17 @@ libraries. `hope_flight_prediction_v2_node` still has no command dependencies.
 
 | Input | Producer / boundary | Topic, type, QoS | Required semantics |
 | --- | --- | --- | --- |
-| Ball | `motion_capture_tracking` -> installed `optitrack_mct_relay` | `/hope/ball/observation_v2`, `hope_msgs/BallObservationV2` v2; best effort, volatile, depth 1 | Original acquisition Unix ns; registered frame and calibration; configured ball ID and mapping ID; finite XYZ; source age <=30 ms; clock uncertainty <=1 ms. |
+| Ball | `motion_capture_tracking` -> installed `optitrack_mct_relay` | `/hope/ball/observation_v2`, `hope_msgs/BallObservationV2` v2; best effort, volatile; writer depth 1, integrated reader depth 8 | Original acquisition Unix ns; registered frame and calibration; configured ball ID and mapping ID; finite XYZ; source age <=30 ms; clock uncertainty <=1 ms. |
 | Base | Installed `hope_base_pose_flat_relay`, from `/UCB_P1/pose` | `/a3/base_pose_flat`, `std_msgs/Float64MultiArray` schema 2, 16 doubles; producer reliable depth 10, consumer best effort depth 10 | Flags include 47, finite unit-compatible quaternion, positive exact calibration/world IDs, monotonic source and sequence, age <=200 ms. Tested `input_header` timestamp mode. |
 | Game context | Optional existing referee/operator process, when available | `/hope/integrated_planner/game_context`, `FlightContextV2`; reliable depth 4 | Only current-generation `CONTEXT` from configured authority, monotonic time no later than latest measurement. Diagnostic only. No START, CONTACT, RESET, or history upgrade is accepted here. |
 
-The raw MCT topic is `/optitrack/poses` (`NamedPoseArrayV2`, best effort depth 1).
+The raw MCT topic is `/optitrack/poses` (`NamedPoseArrayV2`, best effort). The
+qualified integrated profile sets the installed relay's `input_history_depth`
+parameter to **8**, for example with `--ros-args -p input_history_depth:=8`.
+Its supported range is 1..8; existing legacy launches retain their depth-one
+default. Both ingress histories are bounded and retain acquisition stamps.
+The existing 30 ms source-age admission and one-running/one-pending worker
+bounds still apply: a buffered old observation cannot authorize a stale command.
 `NatNetClockUncertainty` must be present and qualified for usable ball mapping.
 `ball_calibration_id` is an added relay parameter, empty by default. Set it to
 the registered survey identity expected by the planner. This parameter does

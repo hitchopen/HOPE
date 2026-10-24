@@ -4,6 +4,11 @@ set -eo pipefail
 default_repo=$(cd "$(dirname "$0")/../../../../.." && pwd)
 repo=${HOPE_VERIFICATION_SOURCE_ROOT:-$default_repo}
 evidence=${1:?Usage: verify_integrated.sh /new/absolute/evidence-directory}
+build_jobs=${HOPE_VERIFICATION_BUILD_JOBS:-2}
+if [[ ! "$build_jobs" =~ ^[1-9][0-9]*$ ]]; then
+  echo 'HOPE_VERIFICATION_BUILD_JOBS must be a positive integer' >&2
+  exit 2
+fi
 if [[ "$evidence" != /* || -e "$evidence" ]]; then
   echo "Evidence must be a new absolute directory" >&2
   exit 2
@@ -59,7 +64,7 @@ if [[ -e "$repo/.git" && -f "$repo/hope_ws/src/hope_planner_cpp/test/reacquisiti
     --repo "$repo" --output "$evidence/failing-before"
 fi
 run_gate native-configure cmake -S "$repo/hope_ws/src/hope_planner_cpp/test/native" -B "$evidence/native" -DCMAKE_BUILD_TYPE=Release
-run_after native-build native-configure cmake --build "$evidence/native" -j2
+run_after native-build native-configure cmake --build "$evidence/native" -j"$build_jobs"
 run_after native-test native-build ctest --test-dir "$evidence/native" --output-on-failure
 run_after review-cases native-build "$evidence/native/test_v2_pr64_review_regressions" \
   --gtest_output="xml:$evidence/review-cases.xml"
@@ -78,7 +83,7 @@ if [[ -f "$repo/hope_ws/src/hope_planner_cpp/test/test_reacquisition_spin.cpp" ]
 fi
 run_gate sanitized-configure cmake -S "$repo/hope_ws/src/hope_planner_cpp/test/native" -B "$evidence/sanitized" \
   -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g1'
-run_after sanitized-build sanitized-configure cmake --build "$evidence/sanitized" -j2
+run_after sanitized-build sanitized-configure cmake --build "$evidence/sanitized" -j"$build_jobs"
 run_after sanitized-test sanitized-build env ASAN_OPTIONS=detect_leaks=1 ctest --test-dir "$evidence/sanitized" --output-on-failure
 run_after outgoing-reference native-build python3 "$repo/hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/integrated_numerical_gate.py" \
   --executable "$evidence/native/hope_integrated_return_sweep" --output "$evidence/outgoing-reference.json"
@@ -94,7 +99,7 @@ if [[ -e "$repo/.git" ]]; then
     --output "$evidence/premerge-v2-parity.json"
 fi
 cd "$repo/hope_ws"
-run_gate ros-build env MAKEFLAGS=-j2 colcon --log-base "$evidence/log" build \
+run_gate ros-build env MAKEFLAGS=-j"$build_jobs" colcon --log-base "$evidence/log" build \
   --base-paths src ../NatNet2ROS2/src/motion_capture_tracking_interfaces \
   --build-base "$evidence/build" --install-base "$evidence/install" \
   --packages-select hope_msgs hope_planner_cpp hope_bringup motion_capture_tracking_interfaces \
@@ -113,7 +118,7 @@ run_after diagnostic-comparison ros-build python3 \
   "$repo/hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/qualification_campaign.py" \
   --repo "$repo" --build "$evidence/build/hope_planner_cpp" --output "$evidence/diagnostic-comparison" \
   --diagnostic-comparison
-run_after repeated-campaign ros-build python3 \
+run_after repeated-campaign ros-build,ros-result-audit python3 \
   "$repo/hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/qualification_campaign.py" \
   --repo "$repo" --build "$evidence/build/hope_planner_cpp" --output "$evidence/repeated-campaign"
 if [[ -e "$repo/.git" ]]; then

@@ -30,7 +30,25 @@ def main():
     for name, resource in receipt['resources'].items():
         cmdline = Path(f"/proc/{resource['pid']}/cmdline")
         assert not cmdline.exists() or name.encode() not in cmdline.read_bytes(), (name, resource)
+    # A launch failure after other nodes started must also enter cleanup.
+    startup_output = args.output.with_name(args.output.stem + '-expected-startup-failure.json')
+    startup = command.copy()
+    startup.remove('--test-fail-after-collection')
+    startup[startup.index('--output') + 1] = str(startup_output)
+    startup[startup.index('--decoder') + 1] = str(args.output.with_suffix('.missing-decoder'))
+    setup = subprocess.run(startup, capture_output=True, text=True, timeout=20)
+    startup_output.with_suffix('.log').write_text(setup.stdout + setup.stderr)
+    assert setup.returncode != 0
+    setup_receipt = json.loads(startup_output.read_text())
+    assert setup_receipt['status'] == 'FAIL'
+    assert setup_receipt['exception'].startswith('FileNotFoundError:')
+    assert len(setup_receipt['resources']) == 3
+    assert startup_output.with_suffix('.raw.json').exists()
+    for name, resource in setup_receipt['resources'].items():
+        cmdline = Path(f"/proc/{resource['pid']}/cmdline")
+        assert not cmdline.exists() or name.encode() not in cmdline.read_bytes(), (name, resource)
     args.output.write_text(json.dumps({'status': 'PASS', 'injected_failure_retained': True,
+                                      'partial_startup_failure_retained': True,
                                       'independent_denominator': receipt['independent_denominator'],
                                       'children_reaped': True, 'accounting_complete': True}, indent=2) + '\n')
 

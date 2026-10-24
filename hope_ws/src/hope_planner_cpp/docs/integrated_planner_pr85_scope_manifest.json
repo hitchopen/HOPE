@@ -57,7 +57,7 @@
         "why_needed": "Retain the configured surveyed ball calibration identity at the real typed producer boundary.",
         "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
       },
-      "qualification_change": "Default-off bounded local receipt/publication ledger; legacy rates, source stamps, authority and QoS unchanged."
+      "qualification_change": "Default-off stage accounting plus a bounded opt-in input_history_depth=8 for integrated qualification; legacy default remains 1 and output QoS/legacy rates are unchanged."
     },
     {
       "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
@@ -708,7 +708,8 @@
           "review_source_cutoff_parity",
           "flight_v2_scope"
         ]
-      }
+      },
+      "qualification_change": "Declare bounded depth-eight qualified V2 ingress profile and explicit relay parameter while legacy defaults stay depth one."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_input_migration.md",
@@ -1785,7 +1786,8 @@
           "review_source_cutoff_parity",
           "flight_v2_scope"
         ]
-      }
+      },
+      "qualification_change": "Default-off bounded actual pipeline-consumption receipt makes rejection/rearm cutoff equivalence independent of offered-but-dropped inputs."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/flight_prediction_v2_replay.cpp",
@@ -1943,7 +1945,7 @@
           "flight_v2_scope"
         ]
       },
-      "qualification_change": "Bounded stage measurements, publication-completion freshness measurement and measured ROS shutdown exception fix; numerical and lifecycle admission unchanged."
+      "qualification_change": "Bounded depth-eight V2 ingress preserves short physical-event bursts; actual queue depth is observable; source freshness, worker bounds and physics unchanged."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp",
@@ -2599,7 +2601,8 @@
           "review_source_cutoff_parity",
           "flight_v2_scope"
         ]
-      }
+      },
+      "qualification_change": "Replay the actual ordered consumed prefix, including rejected inputs, and retain offered rows, lost rows, received states and failures separately."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/reacquisition_producer_chain.py",
@@ -2839,6 +2842,18 @@
           "flight_v2_scope"
         ]
       }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_relay_ingress_backlog.py",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Controlled actual-DDS callback pause reproduces erased physical observations at depth one and retention at bounded depth eight, at both rates; unsupported depths fail.",
+      "tests": [
+        "qualification_relay_backlog"
+      ],
+      "owning_requirement": "CL03-CL06,CL11,CL14",
+      "production_behavior_affected": false,
+      "origin_commit": "PR85 Step 2 follow-up to failed candidate 63790a3"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_ros_context_guard.cpp",

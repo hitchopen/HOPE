@@ -202,6 +202,18 @@ class OptitrackMctRelay(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
+        # V2 uses a short, explicitly bounded ingress history so a brief
+        # callback pause does not erase an intervening physical observation.
+        # Legacy launches retain their existing depth-one default.
+        input_history_depth = self.declare_parameter('input_history_depth', 1).value
+        if not 1 <= input_history_depth <= 8:
+            raise ValueError('input_history_depth must be between 1 and 8')
+        input_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=input_history_depth,
+        )
 
         self._latest: dict[str, PoseStamped] = {}
         self._ball_seen = False
@@ -244,7 +256,7 @@ class OptitrackMctRelay(Node):
 
         input_topic = str(self.get_parameter("input_poses_topic").value)
         self._sub = self.create_subscription(
-            named_pose_array_type, input_topic, self._on_frame, sensor_qos
+            named_pose_array_type, input_topic, self._on_frame, input_qos
         )
         self.get_logger().info(
             f"relaying {input_topic} (NamedPoseArrayV2) -> HOPE topics; objects: "

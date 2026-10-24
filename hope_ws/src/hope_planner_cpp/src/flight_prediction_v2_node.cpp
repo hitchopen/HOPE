@@ -1,5 +1,6 @@
 #include "hope_msgs/msg/flight_context_v2.hpp"
 #include "hope_planner_cpp/flight_transport_v2.hpp"
+#include "hope_planner_cpp/bounded_stage_trace.hpp"
 #include <chrono>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <iomanip>
@@ -26,6 +27,7 @@ template <class T> void put(T &out, const Vec3 &v) {
 class FlightPredictionV2Node : public rclcpp::Node {
 public:
   FlightPredictionV2Node() : Node("hope_flight_prediction_v2") {
+    consumed_trace_.configure(declare_parameter<std::string>("test.stage_trace_path", ""));
     if (!declare_parameter("shadow_only", true))
       throw std::invalid_argument("v2 is shadow-only pending qualification");
     frame_ = declare_parameter<std::string>("frame_id", "table");
@@ -163,6 +165,8 @@ public:
           const auto previous_revision = pipeline_->shot().revision(),
                      previous_generation = pipeline_->shot().generation();
           pipeline_->observe(sample);
+          consumed_trace_.record("pipeline_observed", sample.source_time_ns, sample.sequence,
+              pipeline_->shot().generation(), now().nanoseconds(), steady_ns());
           if (previous_generation != pipeline_->shot().generation() ||
               previous_revision != pipeline_->shot().revision())
             revoke_locked(pipeline_->shot().reason());
@@ -391,6 +395,8 @@ public:
     work_.close();
     if (worker_.joinable())
       worker_.join();
+    try { consumed_trace_.flush(); }
+    catch (const std::exception &e) { RCLCPP_ERROR(get_logger(), "%s", e.what()); }
   }
 
 private:
@@ -445,6 +451,7 @@ private:
   std::unique_ptr<FlightPipeline> pipeline_;
   std::unique_ptr<HitPlaneManager> plane_;
   LatestWork<Job> work_;
+  BoundedStageTrace consumed_trace_;
   std::thread worker_;
   std::optional<std::int64_t> last_expiry_, next_full_source_,
       next_packet_source_, last_boundary_source_;

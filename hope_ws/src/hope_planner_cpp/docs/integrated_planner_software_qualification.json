@@ -8,5 +8,12 @@
   "planner_software_qualified": false,
   "simulation_qualified": false,
   "physically_qualified": false,
-  "deployment_authorized": false
+  "deployment_authorized": false,
+  "superseded_candidate": {
+    "source": "63790a3a8005b1742c2b96e10331498f8b27912a",
+    "planner_ros": "101/105 passed; 4 failures retained",
+    "messages_ros": "2/2 passed",
+    "bringup_ros": "25/27 passed; exact inherited lint only",
+    "campaign": "NOT_RUN after full ROS functional failures"
+  }
 }

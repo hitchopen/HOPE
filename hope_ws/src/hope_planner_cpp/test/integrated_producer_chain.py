@@ -192,38 +192,40 @@ def run(args, rate, policy):
     base_params = [('extrinsic_calibrated', 'true'), ('world_frame_calibrated', 'true'),
                    ('calibration_sha256', base_sha), ('world_frame_sha256', world_sha),
                    ('source_stamp_mode', 'input_header'), ('policy_z_offset', '0.76')]
-    relay = launch(args.bringup/'optitrack_mct_relay', [('publish_tf', 'false'),
-        ('ball_calibration_id', registration), ('ball_orientation_authoritative', str(args.spin != 'unknown').lower()), ('planner_poses_topic', '/poses/planner_full')])
-    base = launch(args.bringup/'hope_base_pose_flat_relay', base_params)
-    planner = launch(args.planner, [('prediction_backend', 'v2'), ('registration_id', registration),
-        ('world_frame_id', int(world_sha[:13], 16)), ('plane_policy', policy),
-        ('test.worker_delay_ms', args.worker_delay_ms),
-        ('physics.drag_k', 0. if args.scenario in ['net_clear', 'net_collision'] else .12861635416914574)])
-    launch(args.decoder)
-    node = rclpy.create_node(f'integrated_chain_observer_{rate}_{policy.lower()}')
+    node = camera = None
     decoded, wire, traces, statuses, observations, legacy, bases = [], [], [], [], [], [], []
-    # Observation callbacks may pause briefly under Python GC. Preserve the
-    # diagnostic evidence rather than dropping a 5-deep best-effort reader's
-    # rows; this does not alter the planner's one-running/one-pending bound.
-    trace_qos = QoSProfile(depth=128, reliability=ReliabilityPolicy.BEST_EFFORT)
-    node.create_subscription(Float64MultiArray, '/a3/base_pose_flat', lambda m: bases.append(list(m.data)), qos_profile_sensor_data)
-    node.create_subscription(Float64MultiArray, '/hope/test/integrated_runner/decoded',
-                             lambda m: decoded.append(list(m.data)), 128)
-    node.create_subscription(Float64MultiArray, '/hope/shadow/integrated_planner/racket_target',
-                             lambda m: wire.append(list(m.data)), 128)
-    def trace(m):
-        for d in m.status:
-            row = {kv.key: kv.value for kv in d.values}
-            row['receipt_time_ns'] = time.time_ns()
-            traces.append(row)
-    node.create_subscription(DiagnosticArray, '/hope/shadow/integrated_planner/trace', trace, trace_qos)
-    node.create_subscription(DiagnosticArray, '/hope/shadow/integrated_planner/status',
-        lambda m: statuses.extend([{**{kv.key: kv.value for kv in d.values}, 'reason': d.message} for d in m.status]), 10)
-    node.create_subscription(BallObservationV2, '/hope/ball/observation_v2', observations.append, qos_profile_sensor_data)
-    node.create_subscription(PoseArray, '/poses/planner_full', legacy.append, qos_profile_sensor_data)
     stop, ready, queue = mp.Event(), mp.Event(), mp.Queue()
-    camera = mp.Process(target=source, args=(rate, stop, ready, queue, args.speed, args.spin, args.scenario, scored_flights, args.base_yaw))
     try:
+        relay = launch(args.bringup/'optitrack_mct_relay', [('publish_tf', 'false'), ('input_history_depth', 8),
+            ('ball_calibration_id', registration), ('ball_orientation_authoritative', str(args.spin != 'unknown').lower()), ('planner_poses_topic', '/poses/planner_full')])
+        base = launch(args.bringup/'hope_base_pose_flat_relay', base_params)
+        planner = launch(args.planner, [('prediction_backend', 'v2'), ('registration_id', registration),
+            ('world_frame_id', int(world_sha[:13], 16)), ('plane_policy', policy),
+            ('test.worker_delay_ms', args.worker_delay_ms),
+            ('physics.drag_k', 0. if args.scenario in ['net_clear', 'net_collision'] else .12861635416914574)])
+        launch(args.decoder)
+        node = rclpy.create_node(f'integrated_chain_observer_{rate}_{policy.lower()}')
+        decoded, wire, traces, statuses, observations, legacy, bases = [], [], [], [], [], [], []
+        # Observation callbacks may pause briefly under Python GC. Preserve the
+        # diagnostic evidence rather than dropping a 5-deep best-effort reader's
+        # rows; this does not alter the planner's one-running/one-pending bound.
+        trace_qos = QoSProfile(depth=128, reliability=ReliabilityPolicy.BEST_EFFORT)
+        node.create_subscription(Float64MultiArray, '/a3/base_pose_flat', lambda m: bases.append(list(m.data)), qos_profile_sensor_data)
+        node.create_subscription(Float64MultiArray, '/hope/test/integrated_runner/decoded',
+                                 lambda m: decoded.append(list(m.data)), 128)
+        node.create_subscription(Float64MultiArray, '/hope/shadow/integrated_planner/racket_target',
+                                 lambda m: wire.append(list(m.data)), 128)
+        def trace(m):
+            for d in m.status:
+                row = {kv.key: kv.value for kv in d.values}
+                row['receipt_time_ns'] = time.time_ns()
+                traces.append(row)
+        node.create_subscription(DiagnosticArray, '/hope/shadow/integrated_planner/trace', trace, trace_qos)
+        node.create_subscription(DiagnosticArray, '/hope/shadow/integrated_planner/status',
+            lambda m: statuses.extend([{**{kv.key: kv.value for kv in d.values}, 'reason': d.message} for d in m.status]), 10)
+        node.create_subscription(BallObservationV2, '/hope/ball/observation_v2', observations.append, qos_profile_sensor_data)
+        node.create_subscription(PoseArray, '/poses/planner_full', legacy.append, qos_profile_sensor_data)
+        camera = mp.Process(target=source, args=(rate, stop, ready, queue, args.speed, args.spin, args.scenario, scored_flights, args.base_yaw))
         until = time.monotonic()+1.
         while time.monotonic() < until:
             rclpy.spin_once(node, timeout_sec=.01)
@@ -240,7 +242,7 @@ def run(args, rate, policy):
             rclpy.spin_once(node, timeout_sec=.002)
             # Missing mandatory pose producer must become observable after TTL.
             if time.monotonic()-start > scored_flights+.5 and not base_stopped:
-                base.terminate()
+                base.send_signal(signal.SIGINT)
                 base.wait(timeout=5)
                 base_stopped = True
         stop.set()
@@ -364,7 +366,7 @@ def run(args, rate, policy):
         failure = None if failure is None else f'{type(failure).__name__}: {failure}'
         resource_receipt = capture_resources(processes)
         stop.set()
-        if camera.pid:
+        if camera is not None and camera.pid:
             if not locals().get('source_stats'):
                 try:
                     source_stats = queue.get(timeout=5)
@@ -375,7 +377,8 @@ def run(args, rate, policy):
                 camera.terminate()
                 camera.join(timeout=5)
                 failure = (failure or '') + ' SOURCE_SHUTDOWN_TIMEOUT'
-        node.destroy_node()
+        if node is not None:
+            node.destroy_node()
         for p in reversed(processes):
             if p.poll() is None:
                 p.send_signal(signal.SIGINT)
