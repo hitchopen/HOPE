@@ -42,6 +42,20 @@
       "owning_requirement": "G1-G4"
     },
     {
+      "path": "hope_ws/src/hope_bringup/scripts/hope_base_pose_flat_relay",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "localization",
+      "why_needed": "Actual scored trial failed at ROS context shutdown inside subscription take; preserve live runtime errors and cleanly exit only after context closure.",
+      "tests": [
+        "qualification_relay_shutdown",
+        "base_pose_contract",
+        "review_refresh_300_10_unknown"
+      ],
+      "owning_requirement": "CL05,CL11,CL16",
+      "production_behavior_affected": true,
+      "origin_commit": "PR85 Step 2 follow-up to failed frozen candidate 3f0f7fc"
+    },
+    {
       "path": "hope_ws/src/hope_bringup/scripts/optitrack_mct_relay",
       "category": "IN_SCOPE_OBSERVATION",
       "owner": "perception",
@@ -49,7 +63,8 @@
       "origin_commit": "9118a491df658fa7e68f042581af48890ec8b0b8",
       "production_behavior_affected": false,
       "tests": [
-        "planner_full_rate_relay_test"
+        "planner_full_rate_relay_test",
+        "qualification_relay_shutdown"
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4",
@@ -57,7 +72,8 @@
         "why_needed": "Retain the configured surveyed ball calibration identity at the real typed producer boundary.",
         "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
       },
-      "qualification_change": "Default-off stage accounting plus a bounded opt-in input_history_depth=8 for integrated qualification; legacy default remains 1 and output QoS/legacy rates are unchanged."
+      "qualification_change": "Default-off stage accounting plus a bounded opt-in input_history_depth=8 for integrated qualification; legacy default remains 1 and output QoS/legacy rates are unchanged.",
+      "shutdown_correction": "Guard the same reproducible executor shutdown race; live errors still propagate; ExternalShutdownException is an ordinary shutdown."
     },
     {
       "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
@@ -2854,6 +2870,18 @@
       "owning_requirement": "CL03-CL06,CL11,CL14",
       "production_behavior_affected": false,
       "origin_commit": "PR85 Step 2 follow-up to failed candidate 63790a3"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_relay_shutdown.py",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Deterministic real ROS context shutdown order for both Python relays, including control cases proving active-context errors still propagate.",
+      "tests": [
+        "qualification_relay_shutdown"
+      ],
+      "owning_requirement": "CL05,CL11,CL16",
+      "production_behavior_affected": false,
+      "origin_commit": "PR85 Step 2 follow-up to failed frozen candidate 3f0f7fc"
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_ros_context_guard.cpp",

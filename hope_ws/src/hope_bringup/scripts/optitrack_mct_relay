@@ -51,6 +51,7 @@ from pathlib import Path
 import rclpy
 from hope_msgs.msg import BallObservationV2
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from tf2_ros import TransformBroadcaster
@@ -607,8 +608,12 @@ def main(args=None) -> None:
     node = OptitrackMctRelay(NamedPoseArrayV2)
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # ROS signals can invalidate the context between executor wait and take.
+        if node.context.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

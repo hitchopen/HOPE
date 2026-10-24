@@ -102,5 +102,6 @@
     "physically_qualified": false,
     "deployment_authorized": false
   },
-  "superseded_candidate": "63790a3a8005b1742c2b96e10331498f8b27912a: failed complete ROS suite; repeated campaign not started"
+  "superseded_candidate": "63790a3a8005b1742c2b96e10331498f8b27912a: failed complete ROS suite; repeated campaign not started",
+  "superseded_campaign": "3f0f7fcbe256c485c237c4ea3b56816906913e63: full native/sanitizer/ROS gates passed except inherited lint; repeated campaign stopped after actual base-relay shutdown failure, with 63 recorded outcomes (62 pass, one fail), one additional completed raw trial and 96 NOT_RUN trials; all retained. No retries credited."
 }

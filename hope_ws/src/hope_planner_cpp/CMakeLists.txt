@@ -418,6 +418,9 @@ if(BUILD_TESTING)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(qualification_accounting test/test_qualification_accounting.py)
+  ament_add_pytest_test(qualification_relay_shutdown test/test_relay_shutdown.py)
+  set_tests_properties(qualification_relay_shutdown PROPERTIES RUN_SERIAL TRUE
+    ENVIRONMENT "ROS_DOMAIN_ID=194;ROS_LOCALHOST_ONLY=1")
   ament_add_pytest_test(qualification_relay_backlog test/test_relay_ingress_backlog.py TIMEOUT 45)
   set_tests_properties(qualification_relay_backlog PROPERTIES RUN_SERIAL TRUE
     ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
