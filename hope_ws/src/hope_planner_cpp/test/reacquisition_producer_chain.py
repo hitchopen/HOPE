@@ -15,6 +15,10 @@ import multiprocessing as mp
 import os
 from pathlib import Path
 import subprocess
+import signal
+import sys
+from queue import Empty
+from qualification_accounting import stage_parameters, resources as capture_resources, validate_source_epoch, write_receipt
 import time
 import numpy as np
 from scipy.optimize import brentq
@@ -48,6 +52,7 @@ def camera(rate, spin, base_x, base_y, yaw, stop, ready, queue):
     assert pub.get_subscription_count()
     gc.disable()
     start = time.monotonic()
+    clock_origin_ns = time.time_ns()
     ready.set()
     index = 0
     rows = []
@@ -57,10 +62,13 @@ def camera(rate, spin, base_x, base_y, yaw, stop, ready, queue):
         delay = start + index / rate - time.monotonic()
         if delay > 0:
             time.sleep(delay)
-        elapsed = time.monotonic() - start
+        # One qualified acquisition epoch drives both plant state and message.
+        stamp_mono_ns = time.monotonic_ns()
+        stamp = time.time_ns()
+        elapsed = (stamp - clock_origin_ns) * 1e-9
+        state_mono_ns = stamp_mono_ns
         round_id = int((elapsed - 0.8) // 1.8)
         phase = (elapsed - 0.8) % 1.8
-        stamp = time.time_ns()
         msg = NamedPoseArrayV2()
         msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(stamp, 10**9)
         msg.header.frame_id = "world"
@@ -120,10 +128,27 @@ def camera(rate, spin, base_x, base_y, yaw, stop, ready, queue):
             fault = "duplicate_or_reorder"
             bad = previous_stamp - (1000000 if index % 2 else 0)
             msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(bad, 10**9)
+        publish_wall_ns = time.time_ns()
+        publish_mono_ns = time.monotonic_ns()
         pub.publish(msg)
+        published_mono_ns = time.monotonic_ns()
         rows.append(
             {
                 "stamp_ns": stamp,
+                "state_elapsed_s": elapsed,
+                "index": index,
+                "intended_mono_ns": round((start + index / rate) * 1e9),
+                "state_mono_ns": state_mono_ns,
+                "stamp_mono_ns": stamp_mono_ns,
+                "publish_wall_ns": publish_wall_ns,
+                "publish_mono_ns": publish_mono_ns,
+                "published_mono_ns": published_mono_ns,
+                "wire_stamp_ns": int(msg.header.stamp.sec) * 10**9 + int(msg.header.stamp.nanosec),
+                "poses": [{"name": pose.name,
+                           "position": [pose.pose.position.x, pose.pose.position.y, pose.pose.position.z],
+                           "quaternion_wxyz": [pose.pose.orientation.w, pose.pose.orientation.x,
+                                              pose.pose.orientation.y, pose.pose.orientation.z]}
+                          for pose in msg.poses],
                 "round": round_id,
                 "phase": phase,
                 "opportunity": label,
@@ -136,6 +161,7 @@ def camera(rate, spin, base_x, base_y, yaw, stop, ready, queue):
         index += 1
     queue.put(
         {
+            "clock_origin_ns": clock_origin_ns,
             "rows": rows,
             "eligible_stamps": eligible,
             "plane_time_s": plane_time,
@@ -178,7 +204,7 @@ def run(args):
 
     def launch(exe, params=()):
         cmd = [str(exe), "--ros-args"]
-        for k, v in params:
+        for k, v in [*params, *stage_parameters(args, Path(exe))]:
             cmd += ["-p", f"{k}:={v}"]
         log = args.output.with_name(
             args.output.stem + "-" + Path(exe).name + ".log"
@@ -286,6 +312,7 @@ def run(args):
             rclpy.spin_once(node, timeout_sec=0.001)
         stop.set()
         source_stats = queue.get(timeout=8)
+        validate_source_epoch(source_stats)
         source.join(timeout=5)
         assert not source.is_alive()
         rows = source_stats["rows"]
@@ -480,36 +507,44 @@ def run(args):
         args.output.write_text(json.dumps(result, indent=2) + "\n")
         return result
     finally:
-        args.output.with_suffix(".raw.json").write_text(
-            json.dumps(
-                {
-                    "wire": wire,
-                    "decoded": decoded,
-                    "traces": traces,
-                    "statuses": statuses,
-                    "observations": observations,
-                    "source": source_stats,
-                },
-                indent=2,
-            )
-            + "\n"
-        )
+        original_failure = sys.exc_info()[1]
+        failure = sys.exc_info()[1]
+        failure = None if failure is None else f'{type(failure).__name__}: {failure}'
+        resource_receipt = capture_resources(processes)
         stop.set()
         if source.pid:
+            if not source_stats:
+                try:
+                    source_stats = queue.get(timeout=5)
+                except Empty:
+                    source_stats = {}
             source.join(timeout=3)
             if source.is_alive():
                 source.terminate()
+                source.join(timeout=5)
+                failure = (failure or '') + ' SOURCE_SHUTDOWN_TIMEOUT'
         if node is not None:
             node.destroy_node()
         for p in reversed(processes):
             if p.poll() is None:
-                p.terminate()
+                p.send_signal(signal.SIGINT)
                 try:
                     p.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     p.kill()
+                    p.wait(timeout=5)
+                    failure = (failure or '') + ' CHILD_SHUTDOWN_TIMEOUT:' + Path(p.args[0]).name
+            resource_receipt[Path(p.args[0]).name]['final_exit'] = p.returncode
+            if p.returncode != 0:
+                failure = (failure or '') + f' CHILD_EXIT:{Path(p.args[0]).name}:{p.returncode}'
         for log in logs:
             log.close()
+        write_receipt(args, {
+            'wire': wire, 'decoded': decoded, 'traces': traces, 'statuses': statuses,
+            'observations': observations, 'source': source_stats,
+        }, resource_receipt, failure)
+        if failure and original_failure is None:
+            raise RuntimeError(failure)
 
 
 def main():
@@ -524,6 +559,7 @@ def main():
     p.add_argument("--yaw", type=float, default=30)
     p.add_argument("--worker-delay-ms", type=int, default=0)
     p.add_argument("--first-worker-delay-ms", type=int, default=0)
+    p.add_argument("--stage-accounting", action="store_true")
     args = p.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     rclpy.init()

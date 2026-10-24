@@ -56,7 +56,8 @@
       "integration_change": {
         "why_needed": "Retain the configured surveyed ball calibration identity at the real typed producer boundary.",
         "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
-      }
+      },
+      "qualification_change": "Default-off bounded local receipt/publication ledger; legacy rates, source stamps, authority and QoS unchanged."
     },
     {
       "path": "hope_ws/src/hope_bringup/test/test_planner_full_rate_relay.py",
@@ -960,6 +961,47 @@
       ]
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_software_contract.json",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "review",
+      "why_needed": "Freeze positive profiles, independent denominator, unchanged numerical/timing gates and supported environment before scoring.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "repeated-campaign"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_software_qualification.json",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "review",
+      "why_needed": "Machine-readable scoped qualification receipt, independent of historical wider-scope receipts.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "ros-result-audit",
+        "repeated-campaign"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/docs/integrated_planner_software_qualification.md",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "review",
+      "why_needed": "Reviewable diagnosis, retained failures, exact final verification and software-only claim.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "ros-result-audit",
+        "repeated-campaign"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/base_pose_orientation.hpp",
       "owner": "integrated planner continuation",
       "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
@@ -984,6 +1026,20 @@
           "flight_v2_scope"
         ]
       }
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/bounded_stage_trace.hpp",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "planner",
+      "why_needed": "Fixed-capacity default-off local stage ledger to attribute real pipeline losses.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": true,
+      "tests": [
+        "stage_trace",
+        "diagnostic-comparison"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/common_ball_physics.hpp",
@@ -1288,6 +1344,20 @@
       "owning_requirement": "G1-G4"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/ros_context_guard.hpp",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "planner",
+      "why_needed": "Handle ROS context shutdown racing a diagnostic graph query without suppressing live-context failures.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": true,
+      "tests": [
+        "test_ros_context_guard",
+        "qualification_failure_receipts"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/trusted_spin.hpp",
       "category": "IN_SCOPE_FORWARD_PHYSICS",
       "owner": "physics",
@@ -1526,6 +1596,33 @@
       "owning_requirement": "G2"
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/qualification_campaign.py",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Predeclare and retain five fresh-process trials per positive profile with source/binary freeze and independent raw-receipt gate audit.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "repeated-campaign",
+        "diagnostic-comparison"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/qualification_result_audit.py",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Discover every ROS test, reject missing results, compare exact inherited lint findings while retaining nonzero raw aggregate.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "ros-result-audit"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/scoring.py",
       "category": "IN_SCOPE_TEST",
       "owner": "validation",
@@ -1582,7 +1679,8 @@
           "review_source_cutoff_parity",
           "flight_v2_scope"
         ]
-      }
+      },
+      "qualification_change": "Extend the complete clean ladder with prerequisite-safe gates, exact lint delta audit, diagnostic comparison and 160 fresh-process trials."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/scripts/flight_prediction_validation/verify_pr64_review.sh",
@@ -1844,7 +1942,8 @@
           "review_source_cutoff_parity",
           "flight_v2_scope"
         ]
-      }
+      },
+      "qualification_change": "Bounded stage measurements, publication-completion freshness measurement and measured ROS shutdown exception fix; numerical and lifecycle admission unchanged."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/src/nominal_event_forecast.cpp",
@@ -2024,6 +2123,19 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G1-G4"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/failure_receipt_gate.py",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Deliberate assertion must retain source/stage/resource data and reap all child processes.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "qualification_failure_receipts"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/fixtures/pr85_cutoffs/manifest.json",
@@ -2288,7 +2400,8 @@
           "review_source_cutoff_parity",
           "flight_v2_scope"
         ]
-      }
+      },
+      "qualification_change": "Correct acquisition epoch; retain all raw source/failure/resource receipts and require child cleanup."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/integrated_return_sweep.cpp",
@@ -2326,7 +2439,8 @@
       "integration_change": {
         "why_needed": "Verify physical eligibility, independent physics, actual producers/receiver, scope or fixture correctness.",
         "scope": "explicit opt-in application / tests; original deployed numerical defaults retained"
-      }
+      },
+      "qualification_change": "Measure actual receiver ingress and retained/ignored state with optional local bounded records."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/matched_replay_gate.py",
@@ -2394,6 +2508,20 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G2"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/qualification_accounting.py",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Join source to actual producer/worker/receiver stages without changing the independent denominator; retain failures.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "qualification_accounting",
+        "qualification_failure_receipts"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/reacquisition_baseline_probe.py",
@@ -2497,7 +2625,8 @@
           "review_source_cutoff_parity",
           "flight_v2_scope"
         ]
-      }
+      },
+      "qualification_change": "Correct acquisition epoch; retain all raw source/failure/resource receipts and require child cleanup."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/review_cutoff_parity.py",
@@ -2673,6 +2802,19 @@
       }
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_qualification_accounting.py",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Regress the measured state/stamp mismatch and distinguish missing observer records from actual publication.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "qualification_accounting"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/test/test_reacquisition_spin.cpp",
       "owner": "integrated planner continuation",
       "why_needed": "Rejection recovery, causal angular readiness, actual base contract or reproducible continuation evidence.",
@@ -2699,6 +2841,19 @@
       }
     },
     {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_ros_context_guard.cpp",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Reproduce the actual ROS graph exception after context shutdown and ensure ordinary errors still fail.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "test_ros_context_guard"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
+    },
+    {
       "path": "hope_ws/src/hope_planner_cpp/test/test_scoped_accuracy.py",
       "category": "IN_SCOPE_TEST",
       "owner": "validation",
@@ -2710,6 +2865,19 @@
       ],
       "review_note": "Default production behavior remains upstream; no command generation added.",
       "owning_requirement": "G6"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/test/test_stage_trace.cpp",
+      "category": "IN_SCOPE_QUALIFICATION",
+      "owner": "validation",
+      "why_needed": "Verify bounded ring wrap, exact integer timestamps, field escaping and invalid configuration rejection.",
+      "origin_commit": "PR85 Step 2; after e7947b9486f1b49b70a560318eaf12bc7de9979a",
+      "production_behavior_affected": false,
+      "tests": [
+        "stage_trace"
+      ],
+      "owning_requirement": "CL03-CL19",
+      "review_note": "Planner software scope; shadow output only."
     },
     {
       "path": "hope_ws/src/hope_planner_cpp/test/test_v2_pr64_review_regressions.cpp",

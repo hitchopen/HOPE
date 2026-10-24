@@ -3,6 +3,8 @@
 #include "hope_planner_cpp/flight_transport_v2.hpp"
 #include "hope_planner_cpp/target_turn_guard.hpp"
 #include "hope_planner_cpp/base_pose_orientation.hpp"
+#include "hope_planner_cpp/bounded_stage_trace.hpp"
+#include "hope_planner_cpp/ros_context_guard.hpp"
 #include "hope_msgs/msg/flight_context_v2.hpp"
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <hope_msgs/msg/racket_command.hpp>
@@ -37,6 +39,7 @@ struct IntegratedPlannerRuntime::Impl {
   std::unique_ptr<ValidatedReturnPlanner> planner;
   IntegratedCommandLifecycle lifecycle;
   LatestWork<Job> work;
+  BoundedStageTrace accounting;
   std::mutex mutex;
   std::thread worker;
   Base base;
@@ -65,6 +68,7 @@ struct IntegratedPlannerRuntime::Impl {
 
   explicit Impl(rclcpp::Node &n):node(n) {
     auto string=[&](const char *key,const char *value) { return node.declare_parameter<std::string>(key,value); };
+    accounting.configure(string("test.stage_trace_path",""));
     if (string("return_backend","shared_physics")!="shared_physics")
       throw std::invalid_argument("V2 requires shared_physics; legacy ablations use offline evaluation");
     if (string("output_mode","shadow")!="shadow")
@@ -170,10 +174,16 @@ struct IntegratedPlannerRuntime::Impl {
               !pending_valid && lifecycle.refresh_idle(node.now().nanoseconds()));
           res->message=plane->reason(); if (res->success) { ++epoch; invalidate_locked("PLANE_REFRESHED"); }
         });
-    timer=node.create_wall_timer(std::chrono::milliseconds(20),[this] { report(); });
+    timer=node.create_wall_timer(std::chrono::milliseconds(20),[this] {
+      with_active_ros_context(node.get_node_base_interface()->get_context(), [this] { report(); });
+    });
     worker=std::thread([this] { run(); });
   }
-  ~Impl() { timer.reset(); work.close(); if (worker.joinable()) worker.join(); }
+  ~Impl() {
+    timer.reset(); work.close(); if (worker.joinable()) worker.join();
+    try { accounting.flush(); }
+    catch (const std::exception &e) { RCLCPP_ERROR(node.get_logger(), "%s", e.what()); }
+  }
   bool base_fresh(std::int64_t now,std::int64_t steady) const {
     const long double age=static_cast<long double>(now)-base.source_ns;
     return base.valid && age>=-1000000.L && age<=200000000.L &&
@@ -188,9 +198,19 @@ struct IntegratedPlannerRuntime::Impl {
     pending_valid=false;
   }
   void on_observation(const hope_msgs::msg::BallObservationV2 &message) {
+    const auto receipt=monotonic_ns();
+    accounting.record("planner_receipt",message.source_time_ns,message.sequence,0,
+                      node.now().nanoseconds(),receipt);
     auto sample=decode_observation(message);sample.receipt_steady_ns=monotonic_ns();
+    const auto waiting=monotonic_ns();
     std::lock_guard<std::mutex> lock(mutex); ++inputs;
     const auto now=node.now().nanoseconds();
+    accounting.record("planner_lock",sample.source_time_ns,sample.sequence,pipeline->shot().generation(),
+                      now,monotonic_ns(),monotonic_ns()-waiting);
+    auto rejected_stage=[&](const std::string &why) {
+      accounting.record("planner_reject",sample.source_time_ns,sample.sequence,pipeline->shot().generation(),
+                        node.now().nanoseconds(),monotonic_ns(),0,why);
+    };
     if (!sample.position_valid || !sample.source_time_valid || !sample.position.allFinite() ||
         sample.frame_id!=frame || sample.clock_domain!=clock || sample.ball_id!=ball_id ||
         sample.calibration_id!=registration || sample.clock_mapping_id!=clock_mapping ||
@@ -201,14 +221,18 @@ struct IntegratedPlannerRuntime::Impl {
       ++rejected; ++epoch;source_fault=true;return_eligible=false;outgoing_valid=false;
       physical_available=false;physical_reason="SOURCE_UNQUALIFIED";
       pipeline->shot().revoke_outputs("SOURCE_UNQUALIFIED");
-      invalidate_locked("SOURCE_UNQUALIFIED"); return;
+      invalidate_locked("SOURCE_UNQUALIFIED"); rejected_stage("SOURCE_UNQUALIFIED"); return;
     }
-    if (last_observation_ns && sample.source_time_ns<=last_observation_ns) { ++rejected;return; }
+    if (last_observation_ns && sample.source_time_ns<=last_observation_ns) {
+      ++rejected;rejected_stage("SOURCE_REORDERED");return;
+    }
     source_fault=false;
     last_observation_ns=sample.source_time_ns;
     const auto generation=pipeline->shot().generation();
     const auto revision=pipeline->shot().revision();
     pipeline->observe(sample);
+    accounting.record("pipeline_observed",sample.source_time_ns,sample.sequence,pipeline->shot().generation(),
+                      node.now().nanoseconds(),monotonic_ns(),monotonic_ns()-waiting,pipeline->shot().reason());
     if (generation!=pipeline->shot().generation()) {
       physical_available=false;
       ++epoch; invalidate_locked("PHYSICAL_SHOT_CHANGED"); game="UNKNOWN";
@@ -217,31 +241,49 @@ struct IntegratedPlannerRuntime::Impl {
       ++epoch;invalidate_locked("PHYSICAL_CONTEXT_CHANGED");
     }
     if (!pipeline->shot().active() || pipeline->shot().samples().empty() ||
-        pipeline->shot().samples().back().source_time_ns!=sample.source_time_ns) return;
+        pipeline->shot().samples().back().source_time_ns!=sample.source_time_ns) {
+      rejected_stage(pipeline->shot().reason());return;
+    }
     ++accepted;
-    if (!base_fresh(now,sample.receipt_steady_ns)) { invalidate_locked("BASE_UNAVAILABLE"); return; }
+    if (!base_fresh(now,sample.receipt_steady_ns)) {
+      invalidate_locked("BASE_UNAVAILABLE");rejected_stage("BASE_UNAVAILABLE");return;
+    }
+    const auto copying=monotonic_ns();
     work.push(Job{*pipeline,plane->for_solve(sample.receipt_steady_ns,now),base,epoch});
+    accounting.record("queued",sample.source_time_ns,sample.sequence,pipeline->shot().generation(),
+                      node.now().nanoseconds(),monotonic_ns(),monotonic_ns()-copying);
   }
   void run() {
     bool first_solve=true;
     while (auto job=work.take()) {
+      const auto &source=job->pipeline.shot().samples().back();
+      auto stage=[&](std::string_view label,std::int64_t duration=0,std::string_view why={}) {
+        accounting.record(label,source.source_time_ns,source.sequence,job->pipeline.shot().generation(),
+                          node.now().nanoseconds(),monotonic_ns(),duration,why);
+      };
       try {
         const auto started=monotonic_ns();
+        stage("worker_start");
         auto forecast=job->pipeline.forecast(job->plane,node.now().nanoseconds());
+        stage("forecast_end",monotonic_ns()-started,forecast.reason);
         auto eligibility=select_physical_return(forecast,job->pipeline.shot().export_snapshot(),config,node.now().nanoseconds());
+        const auto solving=monotonic_ns();
         ValidatedReturn result;
         if (eligibility.input) result=planner->solve(*eligibility.input);
+        stage("solve_end",monotonic_ns()-solving,result.reason);
         const int delay=first_solve && first_worker_delay_ms ? first_worker_delay_ms : worker_delay_ms;
         first_solve=false;
         if (delay) std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+        const auto locking=monotonic_ns();
         std::lock_guard<std::mutex> lock(mutex);
+        stage("worker_lock",monotonic_ns()-locking);
         const auto now=node.now().nanoseconds(),steady=monotonic_ns();
         last_solver_ms=(steady-started)*1e-6;
         last_source_age_ms=(static_cast<long double>(now)-forecast.reference_ns)*1e-6L;
         if (job->epoch!=epoch || forecast.token.generation!=pipeline->shot().generation() ||
             forecast.token.context_revision!=pipeline->shot().revision()) {
           ++stale_work_discarded;last_discarded_generation=forecast.token.generation;
-          generation_at_discard=pipeline->shot().generation();continue;
+          generation_at_discard=pipeline->shot().generation();stage("worker_reject",0,"RETIRED_EPOCH");continue;
         }
         physical_available=forecast.physical_available;
         physical_source_ns=forecast.reference_ns;
@@ -249,28 +291,36 @@ struct IntegratedPlannerRuntime::Impl {
         return_reason=eligibility.reason;
         return_eligible=eligibility.eligible;
         outgoing_valid=result.return_ok;
-        if (!eligibility.input) { invalidate_locked(eligibility.reason);continue; }
-        if (!result.command.valid) { invalidate_locked(result.reason);continue; }
+        if (!eligibility.input) { invalidate_locked(eligibility.reason);stage("worker_reject",0,eligibility.reason);continue; }
+        if (!result.command.valid) { invalidate_locked(result.reason);stage("worker_reject",0,result.reason);continue; }
         auto current_plane=plane->for_solve(steady,now);
         if (!base_fresh(now,steady) || !current_plane.calibrated ||
             current_plane.calibration_id!=job->plane.calibration_id ||
             std::abs(current_plane.x_hit_m-job->plane.x_hit_m)>.001) {
-          invalidate_locked("BASE_OR_PLANE_SUPERSEDED");continue;
+          invalidate_locked("BASE_OR_PLANE_SUPERSEDED");stage("worker_reject",0,"BASE_OR_PLANE_SUPERSEDED");continue;
         }
         const auto &input=*eligibility.input;
         const auto turn=check_target_turn(result.command.position,base.position,base.orientation,true,max_turn);
         const Vec3 reach=result.command.position-base.position;
         if (!turn.allowed || reach.head<2>().norm()>max_reach ||
             result.command.position.z()<.05 || result.command.position.z()>1.2) {
-          invalidate_locked(turn.allowed?"REACH_UNSUPPORTED":turn.reason);continue;
+          invalidate_locked(turn.allowed?"REACH_UNSUPPORTED":turn.reason);stage("worker_reject",0,reason);continue;
         }
         auto identity=lifecycle.admit(input,result,pipeline->shot().generation(),now,min_lead);
-        if (!identity) { if (!lifecycle.committed()) invalidate_locked("TIMING_OR_REVISION_REJECTED");continue; }
+        if (!identity) {
+          if (!lifecycle.committed()) invalidate_locked("TIMING_OR_REVISION_REJECTED");
+          stage("worker_reject",0,"TIMING_OR_REVISION_REJECTED");continue;
+        }
         const double swing=lifecycle.latch_swing(result.command.position.y()-base.position.y()>=split_y?1.:-1.);
         auto packet=Schema2Packer::pack(&result.command,swing,static_cast<double>(input.arrival_ns)*1e-9,
             policy_z,now,*identity,input.observation_count,input.observation_span_s);
-        if (!packet.valid) { invalidate_locked("ENCODING_FAILED");continue; }
+        if (!packet.valid) { invalidate_locked("ENCODING_FAILED");stage("worker_reject",0,"ENCODING_FAILED");continue; }
         std_msgs::msg::Float64MultiArray wire;wire.data.assign(packet.values.begin(),packet.values.end());flat->publish(wire);
+        const auto published_ns=node.now().nanoseconds();
+        last_source_age_ms=(static_cast<long double>(published_ns)-input.source.source_time_ns)*1e-6L;
+        // Command sequence joins the actual receiver; source_ns joins ingress.
+        accounting.record("published",input.source.source_time_ns,identity->command_sequence,input.token.generation,
+                          published_ns,monotonic_ns(),0,std::to_string(input.arrival_ns));
         hope_msgs::msg::RacketCommand view;view.header.stamp=node.now();view.header.frame_id=frame;
         xyz(view.position,result.command.position);xyz(view.velocity,result.command.velocity);
         xyz(view.normal,result.command.normal);xyz(view.ball_velocity_outgoing,result.reconstructed.velocity);
@@ -285,6 +335,7 @@ struct IntegratedPlannerRuntime::Impl {
         };
         record("source_time_ns",std::to_string(input.source.source_time_ns));
         record("producer_time_ns",std::to_string(now));record("arrival_ns",std::to_string(input.arrival_ns));
+        record("publication_time_ns",std::to_string(published_ns));
         record("command_sequence",std::to_string(identity->command_sequence));
         record("physical_shot",std::to_string(input.token.generation));record("wire_flight",std::to_string(identity->flight_id));
         record("plane_generation",std::to_string(input.plane.generation));record("model_config_id",result.model_config_id);
@@ -308,7 +359,10 @@ struct IntegratedPlannerRuntime::Impl {
         record("outgoing_duration_s",std::to_string(result.selected_duration_s));
         record("net_clearance_m",std::to_string(result.net_clearance_m));record("outgoing_spin","POSITION_ONLY");
         receipt.status.push_back(detail);trace->publish(receipt);
+        stage("diagnostics_end",monotonic_ns()-steady);
       } catch (const std::exception &e) {
+        stage("worker_exception",0,e.what());
+        if (!node.get_node_base_interface()->get_context()->is_valid()) break;
         std::lock_guard<std::mutex> lock(mutex);++epoch;invalidate_locked(std::string("WORKER_FAILURE:")+e.what());
       }
     }

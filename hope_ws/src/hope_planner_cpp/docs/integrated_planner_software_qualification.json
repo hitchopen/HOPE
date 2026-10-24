@@ -1,0 +1,12 @@
+{
+  "status": "NOT_YET_SCORED",
+  "integration_checkpoint": "e7947b9486f1b49b70a560318eaf12bc7de9979a",
+  "merge_conflicts_resolved": true,
+  "planner_functional_qualified": false,
+  "planner_timing_qualified": false,
+  "planner_final_candidate_verified": false,
+  "planner_software_qualified": false,
+  "simulation_qualified": false,
+  "physically_qualified": false,
+  "deployment_authorized": false
+}

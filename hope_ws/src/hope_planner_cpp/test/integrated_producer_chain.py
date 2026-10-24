@@ -12,6 +12,10 @@ import multiprocessing as mp
 from pathlib import Path
 import os
 import subprocess
+import signal
+import sys
+from queue import Empty
+from qualification_accounting import stage_parameters, resources as capture_resources, validate_source_epoch, write_receipt
 import time
 
 import numpy as np
@@ -92,19 +96,25 @@ def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standar
     # of catch-up exposures. All launched source rows remain in the receipt.
     gc.disable()
     start = time.monotonic()
+    clock_origin_ns = time.time_ns()
     ready.set()
     index = 0
     sent = []
+    source_rows = []
     eligible_stamps = []
     while not stop.is_set():
         deadline = start + index/rate
         remaining = deadline-time.monotonic()
         if remaining > 0:
             time.sleep(remaining)
-        elapsed = time.monotonic()-start
+        # The synthetic state and acquisition stamp describe the same instant.
+        # Message construction/publish delays are measured after acquisition.
+        stamp_mono_ns = time.monotonic_ns()
+        stamp = time.time_ns()
+        elapsed = (stamp - clock_origin_ns) * 1e-9
+        state_mono_ns = stamp_mono_ns
         phase = (elapsed-.8) % 1.0
         msg = NamedPoseArrayV2()
-        stamp = time.time_ns()
         msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(stamp, 10**9)
         # A physical frame fault at the end must revoke pending work.
         msg.header.frame_id = 'wrong_frame' if 1.0 < elapsed < 1.08 or elapsed > scored_flights+2.0 else 'world'
@@ -128,7 +138,22 @@ def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standar
                 ball.pose.orientation.y = float(np.sin(state[6]/2))
                 ball.pose.orientation.w = float(np.cos(state[6]/2))
             msg.poses.append(ball)
+        publish_wall_ns = time.time_ns()
+        publish_mono_ns = time.monotonic_ns()
         pub.publish(msg)
+        published_mono_ns = time.monotonic_ns()
+        source_rows.append({
+            'index': index, 'stamp_ns': stamp, 'state_elapsed_s': elapsed, 'intended_mono_ns': round(deadline * 1e9),
+            'state_mono_ns': state_mono_ns, 'stamp_mono_ns': stamp_mono_ns,
+            'publish_wall_ns': publish_wall_ns, 'publish_mono_ns': publish_mono_ns,
+            'published_mono_ns': published_mono_ns, 'phase': phase,
+            'frame': msg.header.frame_id,
+            'poses': [{'name': pose.name,
+                       'position': [pose.pose.position.x, pose.pose.position.y, pose.pose.position.z],
+                       'quaternion_wxyz': [pose.pose.orientation.w, pose.pose.orientation.x,
+                                          pose.pose.orientation.y, pose.pose.orientation.z]}
+                      for pose in msg.poses],
+        })
         sent.append(stamp)
         # Frozen before this scored run: normal first-two-flight epochs after
         # 100 ms acquisition and before 130 ms lead, excluding the deliberate
@@ -138,7 +163,7 @@ def source(rate, stop, ready, stats, speed=5., spin='unknown', scenario='standar
                 not (1.0 < elapsed < 1.08)):
             eligible_stamps.append(stamp)
         index += 1
-    stats.put({'sent': index, 'synthetic_source_cyclic_gc': 'disabled_during_pacing', 'source_intervals_ns': np.diff(sent).tolist(), 'bounce_s': bounce,
+    stats.put({'clock_origin_ns': clock_origin_ns, 'rows': source_rows, 'sent': index, 'synthetic_source_cyclic_gc': 'disabled_during_pacing', 'source_intervals_ns': np.diff(sent).tolist(), 'bounce_s': bounce,
                'plane_s': plane_time, 'eligible_stamps': eligible_stamps,
                'command_epoch_contract': f'first_{scored_flights}_flights; phase>0.100; lead>0.130; physical_frame_fault_excluded; unknown_game_history_included'})
     node.destroy_node()
@@ -155,7 +180,7 @@ def run(args, rate, policy):
     args.output.parent.mkdir(parents=True, exist_ok=True)
     def launch(exe, params=()):
         cmd = [str(exe), '--ros-args']
-        for key, value in params:
+        for key, value in [*params, *stage_parameters(args, Path(exe))]:
             cmd += ['-p', f'{key}:={value}']
         log = (args.output.parent/(args.output.stem+'-'+Path(exe).name+'.log')).open('w')
         logs.append(log)
@@ -220,8 +245,11 @@ def run(args, rate, policy):
                 base_stopped = True
         stop.set()
         source_stats = queue.get(timeout=5)
+        validate_source_epoch(source_stats)
         camera.join(timeout=5)
         assert not camera.is_alive()
+        if args.test_fail_after_collection:
+            raise AssertionError('injected failure after source collection')
         valid = [w for w in wire if w[1] == 1.]
         if args.worker_delay_ms >= 30:
             assert not valid and not decoded and not traces, 'expired solve published a command'
@@ -331,27 +359,45 @@ def run(args, rate, policy):
                 'camera_driver_included': False, 'synthetic_registration': True,
                 'context_publisher': False, 'base_yaw_deg': args.base_yaw}
     finally:
-        # Preserve failed and rejected epochs too; threshold failures must be
-        # reviewable rather than disappearing before the success-only receipt.
-        args.output.with_suffix('.raw.json').write_text(json.dumps({
-            'rate_hz': rate, 'speed_mps': args.speed, 'spin': args.spin,
-            'statuses': statuses, 'traces': traces, 'wire': wire, 'decoded': decoded,
-            'source': locals().get('source_stats', {})}, indent=2)+'\n')
+        original_failure = sys.exc_info()[1]
+        failure = sys.exc_info()[1]
+        failure = None if failure is None else f'{type(failure).__name__}: {failure}'
+        resource_receipt = capture_resources(processes)
         stop.set()
         if camera.pid:
+            if not locals().get('source_stats'):
+                try:
+                    source_stats = queue.get(timeout=5)
+                except Empty:
+                    source_stats = {}
             camera.join(timeout=5)
             if camera.is_alive():
                 camera.terminate()
+                camera.join(timeout=5)
+                failure = (failure or '') + ' SOURCE_SHUTDOWN_TIMEOUT'
         node.destroy_node()
         for p in reversed(processes):
             if p.poll() is None:
-                p.terminate()
+                p.send_signal(signal.SIGINT)
                 try:
                     p.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     p.kill()
+                    p.wait(timeout=5)
+                    failure = (failure or '') + ' CHILD_SHUTDOWN_TIMEOUT:' + Path(p.args[0]).name
+            resource_receipt[Path(p.args[0]).name]['final_exit'] = p.returncode
+            if p.returncode != 0:
+                failure = (failure or '') + f' CHILD_EXIT:{Path(p.args[0]).name}:{p.returncode}'
         for log in logs:
             log.close()
+        write_receipt(args, {
+            'rate_hz': rate, 'speed_mps': args.speed, 'spin': args.spin,
+            'statuses': statuses, 'traces': traces, 'wire': wire, 'decoded': decoded,
+            'source': locals().get('source_stats', {}),
+            'observer_source_ns': [int(o.source_time_ns) for o in observations],
+        }, resource_receipt, failure)
+        if failure and original_failure is None:
+            raise RuntimeError(failure)
 
 
 def main():
@@ -367,6 +413,8 @@ def main():
     p.add_argument('--spin', choices=['unknown', 'zero', 'known'], default='unknown')
     p.add_argument('--base-yaw', type=float, default=0.)
     p.add_argument('--worker-delay-ms', type=int, default=0)
+    p.add_argument('--stage-accounting', action='store_true')
+    p.add_argument('--test-fail-after-collection', action='store_true')
     args = p.parse_args()
     os.environ.setdefault('ROS_LOCALHOST_ONLY', '1')
     rclpy.init()

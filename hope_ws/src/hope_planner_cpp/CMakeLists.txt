@@ -87,7 +87,7 @@ install(TARGETS hope_integrated_return hope_integrated_runtime
   ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 add_executable(hope_integrated_runner_probe test/integrated_runner_probe.cpp)
 set_target_properties(hope_integrated_runner_probe PROPERTIES CXX_STANDARD 20)
-target_include_directories(hope_integrated_runner_probe PRIVATE "${HOPE_RECORDING_INCLUDE_DIR}")
+target_include_directories(hope_integrated_runner_probe PRIVATE include "${HOPE_RECORDING_INCLUDE_DIR}")
 target_link_libraries(hope_integrated_runner_probe PRIVATE Eigen3::Eigen rclcpp::rclcpp ${std_msgs_TARGETS})
 install(TARGETS hope_integrated_runner_probe RUNTIME DESTINATION lib/${PROJECT_NAME})
 add_executable(hope_integrated_return_sweep test/integrated_return_sweep.cpp)
@@ -417,6 +417,18 @@ install(DIRECTORY scripts/flight_prediction_validation DESTINATION lib/${PROJECT
 if(BUILD_TESTING)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(qualification_accounting test/test_qualification_accounting.py)
+  ament_add_gtest(test_ros_context_guard test/test_ros_context_guard.cpp)
+  target_include_directories(test_ros_context_guard PRIVATE include)
+  ament_target_dependencies(test_ros_context_guard rclcpp)
+  add_test(NAME qualification_failure_receipts COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/failure_receipt_gate.py
+    --planner $<TARGET_FILE:hope_planner_cpp_node>
+    --decoder $<TARGET_FILE:hope_integrated_runner_probe>
+    --bringup ${CMAKE_INSTALL_PREFIX}/../hope_bringup/lib/hope_bringup
+    --output ${CMAKE_CURRENT_BINARY_DIR}/qualification_failure_receipts.json)
+  set_tests_properties(qualification_failure_receipts PROPERTIES RUN_SERIAL TRUE TIMEOUT 50
+    ENVIRONMENT "ROS_DOMAIN_ID=193;ROS_LOCALHOST_ONLY=1")
   add_test(NAME integrated_context_noop COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/integrated_context_noop.py
     --executable $<TARGET_FILE:hope_flight_prediction_v2_node>)

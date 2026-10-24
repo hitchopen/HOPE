@@ -41,6 +41,7 @@ The mct node itself must be launched with its ``poses`` topic remapped to
 
 from __future__ import annotations
 
+from collections import deque
 import csv
 import json
 import math
@@ -160,6 +161,9 @@ class OptitrackMctRelay(Node):
         self._debug_csv = None
         self._debug_rows_since_flush = 0
         self._debug_frame_seq = 0
+        self._stage_path = self.declare_parameter('test.stage_trace_path', '').value
+        self._stage_rows = deque(maxlen=32768)
+        self._stage_total = 0
         self._debug_flush_rows = max(
             1, int(self.get_parameter("debug_flush_rows").value)
         )
@@ -257,6 +261,8 @@ class OptitrackMctRelay(Node):
 
     def _on_frame(self, msg) -> None:
         self._debug_frame_seq += 1
+        if self._stage_path:
+            self._record_stage('relay_receipt', msg.header.stamp)
         receipt_wall_ns = time.time_ns()
         receipt_monotonic_ns = time.monotonic_ns()
         ros_stamp_ns = int(msg.header.stamp.sec) * 1_000_000_000 + int(msg.header.stamp.nanosec)
@@ -347,6 +353,8 @@ class OptitrackMctRelay(Node):
                 self._ball_orientation_authoritative and ball_pose_orientation_valid
             )
             self._ball_observation_v2_pub.publish(observation)
+            if self._stage_path:
+                self._record_stage('typed_published', msg.header.stamp)
             if self._planner_pose_array_pub is not None:
                 self._publish_poses(
                     self._latest["ball"].header.stamp,
@@ -547,7 +555,23 @@ class OptitrackMctRelay(Node):
         ]
         (publisher if publisher is not None else self._pose_array_pub).publish(msg)
 
+    def _record_stage(self, stage, stamp):
+        self._stage_total += 1
+        self._stage_rows.append((
+            stage, int(stamp.sec) * 10**9 + int(stamp.nanosec),
+            time.time_ns(), time.monotonic_ns(), self._debug_frame_seq,
+        ))
+
     def destroy_node(self):
+        if self._stage_path:
+            with open(self._stage_path, 'w') as stream:
+                stream.write(json.dumps({
+                    'capacity': self._stage_rows.maxlen,
+                    'total': self._stage_total,
+                    'overwritten': self._stage_total - len(self._stage_rows),
+                }) + '\n')
+                for row in self._stage_rows:
+                    stream.write(json.dumps(row) + '\n')
         if self._debug_file is not None:
             self._debug_file.flush()
             self._debug_file.close()

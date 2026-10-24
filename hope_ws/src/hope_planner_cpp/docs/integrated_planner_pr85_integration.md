@@ -1,6 +1,6 @@
 # PR85 integration checkpoint
 
-PR85 is integrated locally against upstream `nightly_built` at `91aecabfd44cb258ac998158e724be9017d883a7`. This checkpoint preserves legacy and V2 functionality; timing qualification remains open. The merge is an ordinary two-parent merge, with no history rewrite or upstream merge.
+PR85 was updated with ordinary merge `e7947b9` against upstream `nightly_built` at `91aecabfd44cb258ac998158e724be9017d883a7`. This checkpoint preserves legacy and V2 functionality; timing qualification remains open. The merge is an ordinary two-parent merge, with no history rewrite or upstream merge.
 
 ## Pins and conflict resolution
 
@@ -49,4 +49,4 @@ PR85 is integrated locally against upstream `nightly_built` at `91aecabfd44cb258
 
 The two prior failing profiles were run once on the integrated build before performance changes. Both passed; recovery coverage was 160/160 and the direct producer profile was 157/160. This does not close the historical 92.5% and 91.25% failures or replace the five-repetition campaign. Full software qualification remains false.
 
-GitHub API requests are blocked by the environment proxy; the public PR page and fetched PR ref confirm the recorded target/head and open status. Push and GitHub test-merge verification are recorded after this checkpoint. No PR draft-state change, upstream merge, live output, simulation or robot actuation is requested or performed.
+GitHub API requests are blocked by the environment proxy; the public PR page and fetched PR ref confirm the recorded target/head and open status. GitHub generated test merge `e79ca44b8b93529439affbf314c02f48d1af9f23`, with the pinned upstream and checkpoint as parents and exactly the checkpoint tree. This independently demonstrates textual mergeability; API check/policy status remains unavailable. No PR draft-state change, upstream merge, live output, simulation or robot actuation is requested or performed.

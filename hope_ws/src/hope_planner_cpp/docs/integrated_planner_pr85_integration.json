@@ -1020,7 +1020,15 @@
     "reviews": "No reviews on retrieved public page",
     "draft": false,
     "required_checks": "Unavailable via blocked API; not assumed passing",
-    "push": "PENDING"
+    "push": "PASS; ordinary fast-forward update of existing PR85 head",
+    "test_merge": "e79ca44b8b93529439affbf314c02f48d1af9f23",
+    "test_merge_parents": [
+      "91aecabfd44cb258ac998158e724be9017d883a7",
+      "e7947b9486f1b49b70a560318eaf12bc7de9979a"
+    ],
+    "test_merge_tree_matches_checkpoint": true,
+    "mergeable_api": null,
+    "mergeable_state_api": null
   },
   "historical_evidence": {
     "path": "/workspace/.cloud-setup/reacquisition-spin/reacquisition-spin-evidence.tar.gz",
@@ -1031,5 +1039,6 @@
   "planner_software_qualified": false,
   "simulation_qualified": false,
   "physically_qualified": false,
-  "deployment_authorized": false
+  "deployment_authorized": false,
+  "integration_checkpoint": "e7947b9486f1b49b70a560318eaf12bc7de9979a"
 }
