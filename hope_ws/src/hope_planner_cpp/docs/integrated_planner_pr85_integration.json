@@ -1040,5 +1040,29 @@
   "simulation_qualified": false,
   "physically_qualified": false,
   "deployment_authorized": false,
-  "integration_checkpoint": "e7947b9486f1b49b70a560318eaf12bc7de9979a"
+  "integration_checkpoint": "e7947b9486f1b49b70a560318eaf12bc7de9979a",
+  "github_after_api_access_enabled": {
+    "status": "API reads became accessible after user enabled host access",
+    "observed_head": "4065cb57fe3a9256ebb635912d7a1e62d3fbf806",
+    "observed_base": "91aecabfd44cb258ac998158e724be9017d883a7",
+    "mergeable": true,
+    "mergeable_state": "clean",
+    "final_state": "See final-delivery.json on evidence branch for the latest submitted head, target, checks and test-merge tree",
+    "pr_body_updated": false,
+    "pr_body_write_result": {
+      "updated": false,
+      "command_exit": 1,
+      "message": "Resource not accessible by integration",
+      "status": "403",
+      "stderr": "gh: Resource not accessible by integration (HTTP 403)\n",
+      "request": "PR85_BODY.md on evidence branch",
+      "endpoint": "PATCH /repos/hitchopen/HOPE/pulls/85",
+      "wall_ns": 1792843163298566691
+    }
+  },
+  "portable_evidence": {
+    "location": "https://github.com/timothyypark/HOPE/tree/evidence/pr85-software-qualification-20261024",
+    "archive_commit": "048882c26624ab101f21351c9df257bbf7121020",
+    "verification": "PASS"
+  }
 }
