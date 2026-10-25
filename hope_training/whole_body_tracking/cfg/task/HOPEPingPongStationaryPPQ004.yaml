@@ -1,0 +1,21 @@
+# Default training recipe: stationary standing with the available PPQ004 refit.
+# Recipe 20 is reproducible from this checkout. The separately reported recipe
+# 21 bank is not published and is not substituted or claimed by this task.
+defaults:
+  - HOPEPingPongStationaryRally
+  - _self_
+
+ppq004_refit_manifest: outputs/stationary_ppq004/training_overrides.yaml
+# Filled by the shared prelaunch validator before Isaac and config snapshots.
+ppq004_physics_yaml: null
+ppq004_physics_sha256: null
+
+racket:
+  venue_tuple_bank_path: null
+  venue_tuple_bank_receipt_path: null
+  venue_tuple_bank_sha256: null
+  venue_tuple_bank_receipt_sha256: null
+  venue_tuple_bank_recipe_revision: 20
+
+build_contract:
+  training_distribution_revision: stationary_reach_ppq004_v1

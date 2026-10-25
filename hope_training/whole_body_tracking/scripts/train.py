@@ -1,19 +1,20 @@
 """Hydra training entry for the HOPE Agibot A3 policy.
 
-Single task, single algo. Build the ``HOPE-HitterPingPong-AgibotA3-v0`` environment (110-D
+The default PPQ004 stationary recipe builds the ``HOPE-HitterPingPong-AgibotA3-v0`` environment (110-D
 ``hitter_pure`` actor observation, privileged critic, 50 Hz control, ``wrap_teleport: false``), a
 rsl_rl PPO runner, and train. Checkpoints are written locally (periodic every ``save_interval`` and
 a final one). The PPO runner config selects TensorBoard or W&B logging; credentials
 and the team destination are configured outside the repository.
 
 Usage:
-    python scripts/train.py task=HOPEPingPong algo=ppo headless=true
+    python scripts/train.py headless=true
 
 Override any field on the CLI, e.g.:
-    python scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1 \
+    python scripts/train.py num_envs=2048 max_iterations=20000 seed=1 \
         motion_file=/abs/hope_forehand.npz motion_file_2=/abs/hope_backhand.npz
 
-Tune training by editing cfg/task/HOPEPingPong.yaml and cfg/algo/ppo.yaml.
+The PPQ004 refit manifest is verified before Isaac starts. Explicit legacy task/algo
+recipes remain available.
 """
 
 import os
@@ -440,6 +441,8 @@ def _run(cfg):
 
 @hydra.main(version_base=None, config_path="../cfg", config_name="train")
 def main(cfg):
+    from ppq004_training import configure_refitted_task
+    configure_refitted_task(cfg)
     OmegaConf.resolve(cfg)
     OmegaConf.set_struct(cfg, False)
 

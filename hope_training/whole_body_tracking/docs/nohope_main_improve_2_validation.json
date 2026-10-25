@@ -7,7 +7,7 @@
   "validation_scope": "CPU regression and numerical at-strike bank retargeting; not policy evaluation",
   "policy_evidence": "User reports MuJoCo firm-standing test; no matching checkpoint/run report supplied; no real-world evaluation.",
   "regression": {
-    "passed": 415,
+    "passed": 430,
     "skipped": 11,
     "skip_reason": "Isaac Lab or CUDA unavailable",
     "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 NUMBA_NUM_THREADS=6 python -m pytest -q -rs -p no:cacheprovider tests",
@@ -34,7 +34,11 @@
     "Parent IDs are disjoint across train/dev/test",
     "At least 50000 training rows on each side",
     "Verified launcher dry-run accepted generated manifest",
-    "Production training bank loader accepted the refitted train bank: forehand 89612, backhand 93662"
+    "Production training bank loader accepted the refitted train bank: forehand 89612, backhand 93662",
+    "Default PPQ004 composition and prelaunch accepted the full generated recipe-20 bundle with scratch defaults and HOLD 1.7",
+    "Default prelaunch replaces a stale physics environment value and records the verified profile/bank identity",
+    "Missing manifest fails before Isaac import with a recipe-20 preparation command; recipe 21 is rejected by the manifest validator",
+    "Six training README shell examples pass bash syntax validation"
   ],
   "splits": {
     "train": {
@@ -256,5 +260,21 @@
         }
       }
     }
+  },
+  "default_training": {
+    "task": "HOPEPingPongStationaryPPQ004",
+    "algo": "ppo_balanced_hold",
+    "bank_recipe_revision": 20,
+    "training_distribution_revision": "stationary_reach_ppq004_v1",
+    "full_body_hold_weight": 1.7,
+    "num_envs": 6144,
+    "max_iterations": 30000,
+    "seed": 0,
+    "checkpoint_path": null,
+    "warm_start_actor_checkpoint": null,
+    "manifest": "outputs/stationary_ppq004/training_overrides.yaml",
+    "preparation_required": true,
+    "revision_21_status": "User confirms developer has not uploaded the screenshot generalization bank or receipt; not selected or validated.",
+    "playback_default": "Legacy HOPEPingPong/ppo retained; PPQ004 task and algo selected explicitly for new checkpoints."
   }
 }

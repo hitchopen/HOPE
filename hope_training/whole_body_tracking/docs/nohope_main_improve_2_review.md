@@ -10,8 +10,11 @@ Integration base: `hitchopen/HOPE:nightly_built` at
 This is a selective Isaac Lab RL training port. HOPE already contained the
 flattened model_14600 recipe from the fork's `2b14b76d1`; the source integration
 applies the subsequent training changes without restoring retired Gym tasks.
-The CompleteHold and StationaryRally task/algorithm pairs resolve identically
-to the source fork. `HOPEPingPong` / `ppo` remain the default train/play pair.
+The original CompleteHold and StationaryRally task/algorithm pairs resolve
+identically to the source fork. New training defaults to
+`HOPEPingPongStationaryPPQ004` / `ppo_balanced_hold`, using the available
+revision-20 PPQ004 refit. `HOPEPingPong` / `ppo` remain available explicitly and
+remain the playback defaults for existing checkpoints.
 
 The port includes the active recipe inheritance, actual-pose and balance
 rewards, fixed-station sampling, interruption-aware recovery, PPO diagnostics,
@@ -61,8 +64,21 @@ The source branch includes a PPQ004 profile and offline bank refitter, but its
 StationaryRally YAML still pins the original recipe-19 bank. The virtual-ball
 loader also defaults to `ball_physics_venue.yaml` unless
 `HOPE_BALL_PHYSICS_YAML` is set. Merely selecting StationaryRally does not select
-the 3-star profile. No PPQ004-refitted bank or newly qualified policy is silently
-substituted for the existing defaults in this PR.
+the 3-star profile in the source branch.
+
+The integration now adds a separate PPQ004 task as the training default. Its
+pre-launch validation requires the generated revision-20 manifest, verifies the
+physics/bank/receipt hashes, sets the matching physics environment, and records
+the resolved bank and PPQ004 distribution in the task. Missing preparation fails
+before Isaac starts. HOLD remains 1.7; defaults are 6144 environments, 30000
+iterations, seed 0 and no resume or actor warm-start.
+
+The developer's later command uses a revision-21 generalization bank with SHA-256
+`02619e747333980a6f1d48aa3a9c7896e15727cf95cd3f51eb387d7687c4b419`.
+The user confirms the developer has not uploaded this bank. The current default
+is therefore the reproducible revision-20 PPQ004 refit, not that newer curriculum.
+Adopting revision 21 requires the bank, receipt and contract inspection; renaming
+a revision-20 bank or changing its expected revision is not equivalent.
 
 The PPQ004 profile updates the fitted flight coefficients and provides the
 updated table coefficients. Refitting retains at-strike incoming velocity/spin,
@@ -74,39 +90,41 @@ incoming table-bounce parity. Bank geometry checks do not evaluate robot balance
 
 ## Reproduce the selected recipes
 
-Inside the supported Isaac environment, from `hope_training/whole_body_tracking`:
+Follow the [training README](../README.md) for the default PPQ004 preparation,
+receipt check and scratch-training command. The offline refitter generates
+revision-20 train/dev/test banks under `outputs/stationary_ppq004`; the default
+training task reads the resulting `training_overrides.yaml`. Its matching
+profile is `configs/ball_physics_ppq004_training.yaml`.
+
+For comparison with the original venue-physics recipes, inside the supported
+Isaac environment and from `hope_training/whole_body_tracking`:
 
 ```bash
 source setup_train_env.sh
+unset HOPE_BALL_PHYSICS_YAML
 hope_isaac_py scripts/train.py task=HOPEPingPongCompleteHold algo=ppo_balanced_hold \
   headless=true max_iterations=30000 seed=1
 hope_isaac_py scripts/train.py task=HOPEPingPongStationaryRally algo=ppo_balanced_hold \
   headless=true max_iterations=30000 seed=1
 ```
 
-Both commands above use the checked-in venue-physics banks. To explicitly use
-the PPQ004/3-star at-strike refit, install Numba in the offline preparation
-interpreter if needed, then run:
+The explicit PPQ004 launcher remains available for a generated bundle at a
+custom location:
 
 ```bash
-hope_isaac_py scripts/refit_stationary_reach_bank.py \
-  --source assets/stationary_reach_v4 \
-  --output outputs/stationary_ppq004 \
-  --physics ../../configs/ball_physics_ppq004_training.yaml --threads 6
 hope_isaac_py scripts/train_refitted_stationary.py \
-  --overrides outputs/stationary_ppq004/training_overrides.yaml --dry-run \
-  max_iterations=30000 seed=1
-hope_isaac_py scripts/train_refitted_stationary.py \
-  --overrides outputs/stationary_ppq004/training_overrides.yaml \
-  max_iterations=30000 seed=1
+  --overrides /absolute/path/to/training_overrides.yaml --dry-run \
+  max_iterations=30000 seed=0 \
+  checkpoint_path=null warm_start_actor_checkpoint=null
 ```
 
-Use a new output directory for each refit. The launcher binds the physics profile,
-bank and receipt hashes, the stationary task, balanced PPO, and a distinct PPQ004
-training-distribution identity. Old-physics optimizer resumes are rejected;
-explicit actor warm-start remains available through
-`warm_start_actor_checkpoint=/absolute/path/model.pt`. The launcher does not
-turn a geometry-qualified bank into a qualified policy.
+Remove `--dry-run` to start. Both entrypoints use the same manifest validation.
+They bind the physics profile, bank and receipt hashes, stationary task,
+balanced PPO, and a distinct PPQ004 training-distribution identity. Old-physics
+optimizer resumes are rejected. Explicit actor warm-start remains available
+through `warm_start_actor_checkpoint=/absolute/path/model.pt`; it is not the
+default scratch-training recipe. A geometry-qualified bank is not a qualified
+policy.
 
 For learned-policy confirmation, retain the checkpoint hash, resolved task and
 physics/bank hashes, seed, evaluation duration, fall count, ready-pose/dwell
@@ -115,7 +133,7 @@ from this simulation-training contribution.
 
 ## Integration validation
 
-CPU suite: **415 passed, 11 skipped**. Skips require Isaac Lab or CUDA; no
+CPU suite: **430 passed, 11 skipped**. Skips require Isaac Lab or CUDA; no
 Isaac rollout ran on this macOS host. The suite includes real RSL-RL PPO
 updates, fixed-station/pose and dataset contracts, and numerical Torch/Numba
 physics parity. A diagnostics-variable collision in the fork's PPO update was
@@ -126,7 +144,10 @@ A full offline PPQ004 refit retained 183,274/183,315 training rows,
 50,000 training rows per side and disjoint parent IDs. The 1 ms recheck gave
 a training landing-fit error of 0.0376 mm P95 and 0.900 mm maximum. These are
 numerical fitting errors, not measured policy returns or robot stability.
-The generated bundle passed the verified launcher's dry run.
+The generated bundle passed the verified launcher's dry run and the new default
+pre-launch configuration, including the HOLD weight, scratch settings and
+replacement of a stale physics environment variable. All six README shell
+examples passed syntax checks.
 
 See [the validation record](nohope_main_improve_2_validation.json) for commands,
 runtime versions, source/output hashes and per-split results. Refitted datasets

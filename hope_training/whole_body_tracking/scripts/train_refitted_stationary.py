@@ -10,7 +10,6 @@ the bank fields to Hydra arguments. It does not establish policy performance.
 """
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,17 +17,9 @@ import shlex
 import subprocess
 import sys
 
-import yaml
+from ppq004_training import (DISTRIBUTION, QUALIFICATION, TRAINING_ROOT, load_refit_bundle)
 
 
-TRAINING_ROOT = Path(__file__).resolve().parents[1]
-DISTRIBUTION = "stationary_reach_ppq004_v1"
-QUALIFICATION = "ppq004_at_strike_retarget_and_fine_requalification_v1"
-BANK_KEYS = {
-    "venue_tuple_bank_path", "venue_tuple_bank_receipt_path",
-    "venue_tuple_bank_sha256", "venue_tuple_bank_receipt_sha256",
-    "venue_tuple_bank_recipe_revision",
-}
 # Keep the verified recipe intact while allowing normal run/resume controls.
 RUN_KEYS = {
     "headless", "device", "seed", "num_envs", "max_iterations", "run_name",
@@ -37,57 +28,9 @@ RUN_KEYS = {
 }
 
 
-def sha256(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def _mapping(value, label):
-    if not isinstance(value, dict):
-        raise ValueError(f"{label} must be a mapping")
-    return value
-
-
-def _path(value, base):
-    if not isinstance(value, str) or not value:
-        raise ValueError("refit paths must be nonempty strings")
-    path = Path(value).expanduser()
-    return (path if path.is_absolute() else base / path).resolve(strict=True)
-
-
 def prepare_launch(overrides_path, run_overrides=()):
     """Return argv and environment; importing this module never starts Isaac."""
-    manifest = Path(overrides_path).expanduser().resolve(strict=True)
-    bundle = _mapping(yaml.safe_load(manifest.read_text()), "refit bundle")
-    environment = _mapping(bundle.get("environment"), "environment")
-    task = _mapping(bundle.get("task"), "task")
-    bank = _mapping(task.get("racket"), "task.racket")
-    if (set(bundle) != {"environment", "task"}
-            or set(environment) != {"HOPE_BALL_PHYSICS_YAML"}
-            or set(task) != {"racket"} or set(bank) != BANK_KEYS):
-        raise ValueError("expected the unmodified refitter training_overrides.yaml fields")
-
-    physics = _path(environment["HOPE_BALL_PHYSICS_YAML"], manifest.parent)
-    bank_path = _path(bank["venue_tuple_bank_path"], manifest.parent)
-    receipt_path = _path(bank["venue_tuple_bank_receipt_path"], manifest.parent)
-    profile = _mapping(yaml.safe_load(physics.read_text()), "physics profile")
-    if _mapping(profile.get("provenance"), "physics provenance").get("model") != "PPQ004_UNIFIED":
-        raise ValueError("physics profile must identify PPQ004_UNIFIED")
-    receipt = _mapping(json.loads(receipt_path.read_text()), "bank receipt")
-    contract = _mapping(receipt.get("contract"), "receipt contract")
-    source = _mapping(receipt.get("source"), "receipt source")
-    if (receipt.get("schema_version") != 2 or receipt.get("split") != "train"
-            or contract.get("distribution") != "stationary_reach_v1"
-            or contract.get("recipe_revision") != 20
-            or bank["venue_tuple_bank_recipe_revision"] != 20
-            or contract.get("qualification") != QUALIFICATION):
-        raise ValueError("expected a qualified recipe-20 stationary train split")
-    if sha256(physics) != source.get("physics_yaml_sha256"):
-        raise ValueError("physics profile checksum differs from the bank's refit receipt")
-    bank_digest = sha256(bank_path)
-    if bank_digest != bank["venue_tuple_bank_sha256"] or bank_digest != receipt.get("bank_sha256"):
-        raise ValueError("bank checksum differs from the refit bundle or receipt")
-    if sha256(receipt_path) != bank["venue_tuple_bank_receipt_sha256"]:
-        raise ValueError("bank receipt checksum differs from the refit bundle")
+    _, physics, manifest = load_refit_bundle(overrides_path)
 
     # Reject config-group selection, deletion/addition syntax, sweeps and
     # environment overrides. subprocess receives argv directly, never a shell.
@@ -103,12 +46,9 @@ def prepare_launch(overrides_path, run_overrides=()):
                 or parsed.is_sweep_override()):
             raise ValueError(f"only ordinary run options may override the refit launch: {argument}")
 
-    resolved = dict(bank, venue_tuple_bank_path=str(bank_path),
-                    venue_tuple_bank_receipt_path=str(receipt_path))
     command = [sys.executable, str(TRAINING_ROOT / "scripts/train.py"),
-               "task=HOPEPingPongStationaryRally", "algo=ppo_balanced_hold",
-               f"task.build_contract.training_distribution_revision={DISTRIBUTION}"]
-    command.extend(f"task.racket.{key}={json.dumps(value)}" for key, value in sorted(resolved.items()))
+               "task=HOPEPingPongStationaryPPQ004", "algo=ppo_balanced_hold",
+               f"task.ppq004_refit_manifest={json.dumps(str(manifest))}"]
     command.extend(run_overrides)
     env = os.environ.copy()
     env["HOPE_BALL_PHYSICS_YAML"] = str(physics)

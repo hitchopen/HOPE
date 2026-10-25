@@ -4,6 +4,7 @@ import ast
 import hashlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +14,8 @@ from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import ppq004_training as prelaunch
 spec = importlib.util.spec_from_file_location(
     "refitted_stationary_launcher", ROOT / "scripts/train_refitted_stationary.py")
 launcher = importlib.util.module_from_spec(spec)
@@ -54,7 +57,9 @@ def bundle(tmp_path):
 
 def compose_launch(command):
     with initialize_config_dir(config_dir=str(ROOT / "cfg"), version_base=None):
-        return OmegaConf.to_container(compose(config_name="train", overrides=command[2:]), resolve=True)
+        cfg = compose(config_name="train", overrides=command[2:])
+    prelaunch.configure_refitted_task(cfg, environ={})
+    return OmegaConf.to_container(cfg, resolve=True)
 
 
 def test_verified_bundle_composes_matching_physics_bank_and_resume_identity(bundle, monkeypatch):
@@ -84,6 +89,7 @@ def test_changed_artifact_is_rejected(bundle, field):
     (None, "split", "test"),
     (None, "schema_version", 1),
     ("contract", "recipe_revision", 19),
+    ("contract", "recipe_revision", 21),
     ("contract", "qualification", "unqualified"),
     ("contract", "distribution", "complete_hold_robust_v1"),
     ("source", "physics_yaml_sha256", "0" * 64),

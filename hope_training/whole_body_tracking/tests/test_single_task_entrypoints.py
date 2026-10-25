@@ -1,4 +1,4 @@
-"""Keep the baseline defaults and single A3 Gym registration with opt-in training recipes."""
+"""Keep PPQ004 training, baseline playback and one A3 Gym registration explicit."""
 
 import ast
 import os
@@ -11,15 +11,18 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "source/whole_body_tracking/whole_body_tracking"
 
 
-def test_train_and_play_preserve_the_baseline_defaults():
+def test_train_defaults_to_ppq004_and_play_preserves_baseline():
     hydra = pytest.importorskip("hydra")
     from omegaconf import OmegaConf
 
     with hydra.initialize_config_dir(config_dir=str(ROOT / "cfg"), version_base=None):
         train = hydra.compose(config_name="train")
         play = hydra.compose(config_name="play")
-    assert OmegaConf.to_container(train.task) == OmegaConf.to_container(play.task)
-    assert OmegaConf.to_container(train.algo) == OmegaConf.to_container(play.algo)
+        legacy = hydra.compose(config_name="train", overrides=["task=HOPEPingPong", "algo=ppo"])
+    assert train.task.build_contract.training_distribution_revision == "stationary_reach_ppq004_v1"
+    assert train.algo.algorithm.settled_aux_enabled is False
+    assert OmegaConf.to_container(legacy.task) == OmegaConf.to_container(play.task)
+    assert OmegaConf.to_container(legacy.algo) == OmegaConf.to_container(play.algo)
     assert train.task.gym_task == "HOPE-HitterPingPong-AgibotA3-v0"
 
 
