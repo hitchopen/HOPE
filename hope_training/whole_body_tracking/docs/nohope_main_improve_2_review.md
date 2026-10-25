@@ -161,6 +161,30 @@ physics/bank hashes, seed, evaluation duration, fall count, ready-pose/dwell
 metrics and per-side contact/return rates. A later hardware evaluation is separate
 from this simulation-training contribution.
 
+## Comparison with PR 87
+
+[PR 87](https://github.com/hitchopen/HOPE/pull/87) at
+`3a19636a0dadc79cd985a45d0890007c8d0d2222` packages the stationary strategy for
+`main`; this PR targets `nightly_built`. Its patch was compared against this
+integration without merging unrelated base-branch changes.
+
+All nine published revision-21 asset files are byte-identical. Its flattened
+balanced PPO configuration resolves identically to this PR's inherited version.
+The resolved StationaryRally strategy also matches after excluding only its
+physics-profile binding and five bank path/revision/hash fields. There are no
+additional reward, curriculum or PPO dynamics to import.
+
+The selective update adopts PR 87's explicit `-filter` attribute for the published
+NPZ files, ensuring they remain ordinary Git blobs even when global attributes
+configure LFS. It adapts PR 87's pinned recipe-parity check to protect the shared
+training strategy while allowing this PR's separate full-model bank binding.
+
+The integration retains the full PPQ004 contact/spin/Magnus first-bounce model,
+revision-22 qualification, YAML dependency and model hashes, checkpoint guards,
+sampler frame/convergence/net checks, and PPO diagnostics fix. PR 87's direct
+revision-21 default and single-profile hash check do not replace these checks.
+Explicit legacy task selections remain available.
+
 ## Integration validation
 
 The focused refit/default/launcher regression checks pass, including rejection of
@@ -171,7 +195,7 @@ nonconvergence, fallback timing and net/post handling. Independent analytic drag
 and Magnus cases are included so agreement between two implementations is not
 the only numerical check.
 
-The complete CPU suite passed **477 tests**, with 11 skipped for unavailable
+The complete CPU suite passed **479 tests**, with 11 skipped for unavailable
 Isaac/CUDA or a second GPU. The native C++ suite passed 84 tests. Real MuJoCo
 scene smoke checks verified YAML shell inertia, drag/Magnus force and three
 physical control ticks; these checks did not run a policy.

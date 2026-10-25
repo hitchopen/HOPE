@@ -7,7 +7,7 @@
 # Override any field on the CLI, e.g.:
 #   python scripts/train.py num_envs=2048 max_iterations=20000 seed=1
 #
-# The default selects PPQ004 stationary training with a validated local recipe-20 bank.
+# The default selects PPQ004 stationary training with a validated local recipe-22 bank.
 # Missing or mismatched refit bundles fail before Isaac starts. Explicit legacy task/algo
 # selections remain available; the published baseline checkpoint is still used by play.yaml.
 # =============================================================================

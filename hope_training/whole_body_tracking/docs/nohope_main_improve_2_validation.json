@@ -9,9 +9,9 @@
   "validation_scope": "CPU regression, native Python/C++ full-model numerical parity, full-bank first-bounce qualification and simulator plumbing; not learned-policy evaluation",
   "policy_evidence": "User reports MuJoCo firm-standing test; no matching checkpoint/run report supplied; no independent learned-policy evaluation or real-world evaluation.",
   "regression": {
-    "passed": 477,
+    "passed": 479,
     "skipped": 11,
-    "elapsed_seconds": 72.6,
+    "elapsed_seconds": 64.76,
     "skip_reason": "Isaac Lab, CUDA or second GPU unavailable",
     "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 NUMBA_NUM_THREADS=4 python -m pytest -q -rs -p no:cacheprovider tests --tb=short",
     "runtime": {
@@ -349,5 +349,40 @@
     "At-strike incoming states are preserved; the source bank does not provide an observed pre-bounce state to reconstruct.",
     "Full-bank geometry qualification and simulator smoke checks do not establish balance, long-horizon success or hardware stability.",
     "The published revision-21 bank remains immutable source input; its old surface-plane labels are recomputed and requalified in recipe 22."
-  ]
+  ],
+  "pr87_comparison": {
+    "pull_request": "https://github.com/hitchopen/HOPE/pull/87",
+    "head_commit": "3a19636a0dadc79cd985a45d0890007c8d0d2222",
+    "base_branch": "main",
+    "integration_head_before_sync": "deccdb12f8b5f0272ff51e51b0c75c6c6031ce41",
+    "strategy_result": "No new reward, curriculum or PPO dynamics; resolved inherited strategy matches the standalone recipe.",
+    "published_bank_files_byte_identical": 9,
+    "canonical_strategy_sha256": "d38c18391cc859e1a41203f8a6f6f85b30b92b804393956792e8221db5d0e50b",
+    "canonical_algorithm_sha256": "1fa13da751dfafa2d00be10776d0e0733a1e254db8778a48a6f4a6b16e15d9a7",
+    "strategy_hash_exclusions": [
+      "task.ball_physics",
+      "task.racket.venue_tuple_bank_path",
+      "task.racket.venue_tuple_bank_receipt_path",
+      "task.racket.venue_tuple_bank_sha256",
+      "task.racket.venue_tuple_bank_receipt_sha256",
+      "task.racket.venue_tuple_bank_recipe_revision"
+    ],
+    "adopted": [
+      "Explicit -filter Git attribute for the three published bank NPZ files; verified against an injected global LFS rule.",
+      "Adapted upstream recipe fingerprint checks to preserve shared strategy while retaining separate full-model bank binding."
+    ],
+    "preserved": [
+      "Full PPQ004 Python/C++ first-bounce physics and YAML coefficient selection.",
+      "Default full-model recipe-22 manifest, six YAML dependency hashes and model/loader hashes.",
+      "Checkpoint/distribution guards, environment-local sampler frame, model convergence and net-clearance checks.",
+      "PPO diagnostics collision fix, explicit legacy task selections and existing playback defaults."
+    ],
+    "focused_parity_default_entrypoint_tests_passed": 24,
+    "physics_and_bank_outputs_changed": false,
+    "full_cpu_suite": {
+      "passed": 479,
+      "skipped": 11,
+      "elapsed_seconds": 64.76
+    }
+  }
 }
