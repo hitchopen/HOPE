@@ -1,9 +1,9 @@
-"""Retarget an existing stationary bank under an explicitly selected ball profile.
+"""Regenerate a stationary bank with the YAML-selected full PPQ004 first-bounce model.
 
-Keeps at-strike incoming states, positions, intended landings, parent IDs and
-split membership. Fits a minimum-norm three-axis racket adjustment, then
-rechecks physical bounds.
-This does not identify pre-bounce states, change a policy, or start training.
+At-strike incoming states, contact points, intended landings, parent IDs and
+split membership are retained. Recipe 22 recomputes labels with shared paddle
+spin transfer, drag/gravity/Magnus flight, and the physical first-bounce plane.
+Both outgoing first-bounce and incoming reverse-flight checks use the physical center contact plane.
 """
 import argparse
 import hashlib
@@ -14,230 +14,224 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-# Isaac's optional coverage package is incompatible with its Numba release.
-# Coverage instrumentation is not used by this offline numeric executable.
+# This offline executable does not use coverage instrumentation. Some Isaac
+# environments bundle incompatible optional coverage and Numba versions.
 sys.modules['coverage'] = None
 from numba import njit, prange, set_num_threads
 
+from ball_physics_profile import load_profile, profile_source_hashes
+from full_ball_model import (DT, FLIGHT_TIME, RADIUS, full_contact, first_bounce,
+                             params_from_profile, plan, rk4_step)
 
-@njit
-def accel(v, w, p):
-    a = -p[0] * np.linalg.norm(v) * v + p[1] * np.cross(w, v)
-    a[2] -= p[2]
-    return a
-
-
-@njit
-def step(x, v, w, h, p):
-    a = accel(v, w, p)
-    b = accel(v + .5*h*a, w, p)
-    c = accel(v + .5*h*b, w, p)
-    d = accel(v + h*c, w, p)
-    return x+h*(v+2*(v+.5*h*a)+2*(v+.5*h*b)+(v+h*c))/6, v+h*(a+2*b+2*c+d)/6
-
-
-@njit
-def landing(x, v, w, p, h=.005, horizon=1.2):
-    x = x.copy()
-    v = v.copy()
-    net = -1e9
-    for _ in range(int(round(horizon/abs(h)))):
-        y, u = step(x, v, w, h, p)
-        if x[0] < 1.87 <= y[0] and net == -1e9:
-            f = (1.87-x[0])/(y[0]-x[0])
-            net = x[2]+f*(y[2]-x[2])
-        if x[2] > .76 >= y[2]:
-            f = (x[2]-.76)/(x[2]-y[2])
-            return x[:2]+f*(y[:2]-x[:2]), net, True
-        x, v = y, u
-    return np.zeros(2), net, False
-
-
-@njit
-def paddle(incoming, racket, spin, p):
-    normal = racket / (np.linalg.norm(racket)+1e-9)
-    if np.dot(incoming-racket, normal)>0:
-        normal = -normal
-    r = -p[3]*normal
-    u = incoming+np.cross(spin, r)-racket
-    un = np.dot(u, normal)
-    ut = u-un*normal
-    speed = np.linalg.norm(ut)
-    e = min(.95, max(.05, p[8]*np.exp(p[9]*abs(un))))
-    raw = (p[5]+p[6]*abs(un)/(np.hypot(speed, un)+1e-9))*speed
-    impulse = min(max(0.,raw), p[7]*(1+e)*abs(un))
-    dv = -impulse*ut/(speed+1e-9)
-    out = incoming-(1+e)*un*normal+dv
-    omega = spin-np.cross(normal,dv)/(p[4]*p[3])
-    return out, omega
-
-
-@njit
-def evaluate(x, incoming, spin, racket, p, h=.005):
-    out, omega = paddle(incoming, racket, spin, p)
-    xy, net, valid = landing(x, out, omega, p, h)
-    return xy, net, valid, out
-
-
-@njit(parallel=True)
-def refit(x, incoming, spin, racket, target, clip, p, vboxes):
-    fitted = racket.copy()
-    n = len(x)
-    for i in prange(n):
-        v = racket[i].copy()
-        side = int(clip[i])
-        for _ in range(8):
-            xy, net, valid, out = evaluate(x[i], incoming[i], spin[i], v, p)
-            if not valid:
-                break
-            residual = xy-target[i]
-            if np.linalg.norm(residual)<2e-5:
-                break
-            jac = np.empty((2,3))
-            for axis in range(3):
-                perturbed=v.copy()
-                perturbed[axis] += 1e-4
-                y, _, ok, _ = evaluate(x[i], incoming[i], spin[i], perturbed, p)
-                jac[:,axis]=(y-xy)/1e-4
-            # Minimum-norm solution of J delta = residual. Damping avoids
-            # magnifying near-singular geometry into an unrelated stroke.
-            gram=jac@jac.T
-            gram[0,0]+=1e-8
-            gram[1,1]+=1e-8
-            determinant=gram[0,0]*gram[1,1]-gram[0,1]*gram[1,0]
-            if abs(determinant)<1e-10:
-                break
-            dual=np.array([(gram[1,1]*residual[0]-gram[0,1]*residual[1])/determinant,
-                           (-gram[1,0]*residual[0]+gram[0,0]*residual[1])/determinant])
-            delta=jac.T@dual
-            for axis in range(3):
-                v[axis] -= min(.1,max(-.1,delta[axis]))
-                v[axis] = min(vboxes[side,axis,1],max(vboxes[side,axis,0],v[axis]))
-        fitted[i]=v
-    return fitted
-
-
-@njit(parallel=True)
-def check(x, incoming, spin, racket, target, p, h):
-    result=np.empty((len(x),9))
-    for i in prange(len(x)):
-        xy, net, valid, out=evaluate(x[i],incoming[i],spin[i],racket[i],p,h)
-        bounce, _, bounce_valid=landing(x[i],incoming[i],spin[i],p,-h,.8)
-        result[i,:2]=xy
-        result[i,2]=net
-        result[i,3]=valid
-        result[i,4:6]=bounce
-        result[i,6]=bounce_valid
-        result[i,7]=np.linalg.norm(out)
-        result[i,8]=np.linalg.norm(xy-target[i])
-    return result
-
-
-def mask_valid(a, result, receipt, fit_tolerance=.002):
-    pos=a['target_position_offset']; v=a['target_velocity']
-    n=v/np.linalg.norm(v,axis=1,keepdims=True)
-    speed=np.abs(np.sum((a['incoming_velocity']-v)*n,axis=1))
-    criteria={
-        'landing':(result[:,3]>0)&(result[:,0]>2.20)&(result[:,0]<3.10)&(np.abs(result[:,1])<.65),
-        'net':result[:,2]>.9675,
-        'incoming_bounce':(result[:,6]>0)&(result[:,4]>.52)&(result[:,4]<1.85)&(np.abs(result[:,5])<.7425),
-        'speed':(np.linalg.norm(a['incoming_velocity'],axis=1)<=7)&(result[:,7]<=7)&(np.linalg.norm(v,axis=1)<=3.5),
-        'spin':np.linalg.norm(a['incoming_spin'],axis=1)<=15*2*np.pi,
-        'paddle_approach':(speed>=1.4)&(speed<=7.2),
-        'landing_fit':result[:,8]<=fit_tolerance,
-        'finite':np.isfinite(result).all(1)&np.isfinite(v).all(1),
-        'reach':np.ones(len(v),dtype=bool),
-    }
-    for side in (0,1):
-        ids=a['clip']==side
-        for key,values in [('reach_boxes',pos),('velocity_boxes',v)]:
-            box=np.array([receipt['contract'][key][str(side)][axis] for axis in 'xyz'])
-            criteria['reach'][ids] &= ((values[ids]>=box[:,0]-1e-6)&(values[ids]<=box[:,1]+1e-6)).all(1)
-    return np.logical_and.reduce(list(criteria.values())), {k:int((~v).sum()) for k,v in criteria.items()}
+RECIPE_REVISION = 22
+QUALIFICATION = 'full_ppq004_first_bounce_v1'
+DISTRIBUTION = 'stationary_reach_ppq004_full_v1'
 
 
 def params_from_yaml(path):
-    raw=yaml.safe_load(Path(path).read_text()); pad=raw['contact']['paddle']
-    return np.array([raw['flight']['k_d'],raw['flight']['k_m'],raw['flight']['g'],raw['ball']['radius'],
-                     raw['ball']['inertia_coeff'],pad['a_t'],pad['b_t'],pad['mu_safety'],pad['e_exp_g1'],pad['e_exp_g2']],dtype=np.float64)
+    """Return coefficients only through the shared YAML expansion and solver."""
+    return params_from_profile(load_profile(path))
 
+
+def table_offset_from_yaml(path):
+    profile = load_profile(path)
+    frame = profile['training_frame']
+    return np.asarray([frame['near_x'], frame['y_center'] + profile['table']['width'] / 2,
+                       frame['surface_z']], dtype=np.float64)
+
+
+@njit
+def incoming_bounce(x, v, w, params):
+    """Reverse the same free-flight law to the previous center contact plane."""
+    x, v = x.copy(), v.copy()
+    for _ in range(int(round(.8 / params[DT]))):
+        y, u = rk4_step(x, v, w, -params[DT], params)
+        if x[2] > params[RADIUS] >= y[2]:
+            f = (x[2]-params[RADIUS])/(x[2]-y[2])
+            return x[:2]+f*(y[:2]-x[:2]), True
+        x, v = y, u
+    return np.zeros(2), False
+
+
+@njit(parallel=True)
+def retarget(x, incoming, spin, target, params, offset):
+    """Run the shared full-physics inverse without clipping its command."""
+    velocities, normals = np.zeros_like(x), np.zeros_like(x)
+    outgoing, outgoing_spin = np.zeros_like(x), np.zeros_like(x)
+    valid = np.zeros(len(x), dtype=np.bool_)
+    for i in prange(len(x)):
+        racket, normal, out, omega, bounce, time, ok, clears, bypasses = plan(
+            x[i]-offset, incoming[i], spin[i], target[i]-offset[:2], params[FLIGHT_TIME], params)
+        velocities[i], normals[i], outgoing[i], outgoing_spin[i] = racket, normal, out, omega
+        valid[i] = ok and clears and not bypasses
+    return velocities, normals, outgoing, outgoing_spin, valid
+
+
+@njit(parallel=True)
+def check(x, incoming, spin, racket, normals, target, params, offset):
+    """Requalify stored float32 contact/flight through its physical first bounce."""
+    result = np.empty((len(x), 9))
+    outgoing, outgoing_spin = np.empty_like(x), np.empty_like(x)
+    for i in prange(len(x)):
+        out, omega = full_contact(incoming[i], racket[i], normals[i], spin[i], params)
+        bounce, bounce_velocity, time, net, net_valid, valid = first_bounce(x[i]-offset, out, omega, params)
+        xy = bounce[:2] + offset[:2]
+        prior_bounce, prior_valid = incoming_bounce(x[i]-offset, incoming[i], spin[i], params)
+        result[i,:2] = xy
+        result[i,2] = net[2] + offset[2] if net_valid else -1e9
+        result[i,3] = valid
+        result[i,4:6] = prior_bounce + offset[:2]
+        result[i,6] = prior_valid
+        result[i,7] = np.linalg.norm(out)
+        result[i,8] = np.linalg.norm(xy-target[i])
+        outgoing[i], outgoing_spin[i] = out, omega
+    return result, outgoing, outgoing_spin
+
+
+def mask_valid(a, result, receipt, planner_valid=None, fit_tolerance=.003):
+    pos, v, normal = a['target_position_offset'], a['target_velocity'], a['target_normal']
+    speed = np.abs(np.sum((a['incoming_velocity']-v)*normal, axis=1))
+    contract = receipt['contract']
+    def inside(values, bounds):
+        return (values > bounds[0]) & (values < bounds[1])
+    criteria = {
+        'landing': (result[:,3]>0) & inside(result[:,0], contract['landing_x']) & inside(result[:,1], contract['landing_y']),
+        'net': result[:,2] > contract['min_net_center_z'],
+        'incoming_bounce': (result[:,6]>0) & inside(result[:,4], contract['incoming_bounce_x']) & inside(result[:,5], contract['incoming_bounce_y']),
+        'speed': (np.linalg.norm(a['incoming_velocity'],axis=1)<=7) & (result[:,7]<=7) & (np.linalg.norm(v,axis=1)<=3.5),
+        'spin': np.linalg.norm(a['incoming_spin'],axis=1)<=15*2*np.pi,
+        'paddle_approach': (speed>=1.4) & (speed<=7.2),
+        'landing_fit': result[:,8]<=fit_tolerance,
+        'finite': np.isfinite(result).all(1) & np.isfinite(v).all(1) & np.isfinite(normal).all(1),
+        'reach': np.ones(len(v),dtype=bool),
+        'planner': np.ones(len(v),dtype=bool) if planner_valid is None else planner_valid,
+    }
+    for side in (0,1):
+        ids = a['clip']==side
+        for key, values in [('reach_boxes',pos), ('velocity_boxes',v)]:
+            box = np.array([contract[key][str(side)][axis] for axis in 'xyz'])
+            criteria['reach'][ids] &= ((values[ids]>=box[:,0]-1e-6)&(values[ids]<=box[:,1]+1e-6)).all(1)
+    return np.logical_and.reduce(list(criteria.values())), {key:int((~value).sum()) for key,value in criteria.items()}
+
+
+
+def retained_rows(arrays, accepted):
+    """Preserve source-row provenance while adding the mapping into this input bank."""
+    rows = dict(arrays)
+    if 'source_row_index' in rows:
+        if 'input_source_row_index' in rows:
+            raise ValueError('Input already contains a refit source-index chain')
+        rows['input_source_row_index'] = rows['source_row_index'].copy()
+    rows['source_row_index'] = np.arange(len(accepted), dtype=np.int64)
+    return {key: value[accepted] if value.ndim else value for key, value in rows.items()}
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def _percentiles(values):
+    return np.percentile(values, [50,95,100]).tolist() if len(values) else None
+
+
 def main():
-    parser=argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--physics',type=Path,required=True)
     parser.add_argument('--threads',type=int,default=12)
-    args=parser.parse_args(); set_num_threads(args.threads)
+    args = parser.parse_args()
+    set_num_threads(args.threads)
     if args.output.exists():
         raise FileExistsError(args.output)
+    profile = load_profile(args.physics)
+    params = params_from_profile(profile)
+    offset = table_offset_from_yaml(args.physics)
+    source_hashes = profile_source_hashes(args.physics)
+    refitter_hash = sha(__file__)
+    profile_loader_hash = sha(Path(__file__).with_name("ball_physics_profile.py"))
+    return_model_hash = sha(Path(__file__).with_name("full_ball_model.py"))
     args.output.mkdir(parents=True)
-    p=params_from_yaml(args.physics)
-    summaries={}; parent_sets=[]
+    summaries, parent_sets = {}, []
     for split in ('train','dev','test'):
-        source=args.source/f'{split}.npz'; old_receipt=json.loads(source.with_suffix('.receipt.json').read_text())
-        assert sha(source)==old_receipt['bank_sha256']
-        a=dict(np.load(source,allow_pickle=False)); n=len(a['clip'])
-        x=a['target_position_offset'].astype(np.float64); x[:,:2]+=a['station_xy']
-        incoming=a['incoming_velocity'].astype(np.float64); spin=a['incoming_spin'].astype(np.float64)
-        velocity=a['target_velocity'].astype(np.float64); target=a['intended_landing_xy'].astype(np.float64)
-        boxes=np.array([[old_receipt['contract']['velocity_boxes'][str(s)][axis] for axis in 'xyz'] for s in (0,1)])
-        print(f'{split}: refitting {n} rows',flush=True)
-        before=check(x,incoming,spin,velocity,target,p,.005)
-        v=refit(x,incoming,spin,velocity,target,a['clip'],p,boxes).astype(np.float32)
-        a['target_velocity']=v; a['target_normal']=(v/np.linalg.norm(v,axis=1,keepdims=True)).astype(np.float32)
-        after=check(x,incoming,spin,v.astype(np.float64),target,p,.005)
-        # Every row is independently re-integrated at 1 ms, with original margins.
-        fine=check(x,incoming,spin,v.astype(np.float64),target,p,.001)
-        good,reasons=mask_valid(a,after,old_receipt)
-        fine_good,fine_reasons=mask_valid(a,fine,old_receipt,fit_tolerance=.003)
-        good &= fine_good
-        delta=np.linalg.norm(v-velocity,axis=1)
-        a['outgoing_velocity']=np.array([paddle(incoming[i],v[i].astype(np.float64),spin[i],p)[0] for i in range(n)],dtype=np.float32)
-        a['predicted_landing_xy']=after[:,:2].astype(np.float32)
-        a['source_row_index']=np.arange(n,dtype=np.int64)
-        retained={k:val[good] if val.ndim else val for k,val in a.items()}
-        assert np.all(retained['station_xy']==0)
-        summary={'source_rows':n,'retained_rows':int(good.sum()),'rejected_rows':int((~good).sum()),
-                 'failure_counts_overlapping':reasons,'fine_failure_counts_overlapping':fine_reasons,
-                 'before_landing_error_m_p50_p95_max':np.percentile(before[:,8],[50,95,100]).tolist(),
-                 'after_landing_error_m_p50_p95_max':np.percentile(after[good,8],[50,95,100]).tolist(),
-                 'fine_landing_error_m_p50_p95_max':np.percentile(fine[good,8],[50,95,100]).tolist(),
-                 'racket_velocity_change_mps_p50_p95_max':np.percentile(delta[good],[50,95,100]).tolist(),
-                 'sides':{}}
+        source = args.source/f'{split}.npz'
+        old_receipt = json.loads(source.with_suffix('.receipt.json').read_text())
+        if sha(source) != old_receipt['bank_sha256']:
+            raise ValueError(f'Source bank checksum differs: {source}')
+        with np.load(source,allow_pickle=False) as bank:
+            a = {key:bank[key] for key in bank.files}
+        n = len(a['clip'])
+        x = a['target_position_offset'].astype(np.float64)
+        x[:,:2] += a['station_xy']
+        incoming, spin = a['incoming_velocity'].astype(np.float64), a['incoming_spin'].astype(np.float64)
+        old_velocity = a['target_velocity'].astype(np.float64)
+        target = a['intended_landing_xy'].astype(np.float64)
+        print(f'{split}: replanning {n} rows with full PPQ004 first-bounce physics',flush=True)
+        velocity, normals, planned_outgoing, planned_spin, planner_valid = retarget(x,incoming,spin,target,params,offset)
+        a['target_velocity'], a['target_normal'] = velocity.astype(np.float32), normals.astype(np.float32)
+        # Validate the stored float32 command, as that is what training consumes.
+        result, outgoing, outgoing_spin = check(x,incoming,spin,a['target_velocity'].astype(np.float64),
+                                 a['target_normal'].astype(np.float64),target,params,offset)
+        good, reasons = mask_valid(a,result,old_receipt,planner_valid)
+        a['outgoing_velocity'] = outgoing.astype(np.float32)
+        a['outgoing_spin'] = outgoing_spin.astype(np.float32)
+        a['predicted_landing_xy'] = result[:,:2].astype(np.float32)
+        retained = retained_rows(a, good)
+        if not np.all(retained['station_xy']==0):
+            raise ValueError('Source bank is not fixed-station')
+        delta = np.linalg.norm(velocity-old_velocity,axis=1)
+        summary = {'source_rows':n, 'retained_rows':int(good.sum()), 'rejected_rows':int((~good).sum()),
+                   'failure_counts_overlapping':reasons,
+                   'landing_error_m_p50_p95_max':_percentiles(result[good,8]),
+                   'racket_velocity_change_mps_p50_p95_max':_percentiles(delta[good]),
+                   'forward_vs_planned_velocity_mps_p50_p95_max':_percentiles(np.linalg.norm(outgoing[good]-planned_outgoing[good],axis=1)),
+                   'sides':{}}
         for side in (0,1):
-            ids=retained['clip']==side; wide=ids&(retained['source_kind']==1)
-            bounds=old_receipt['contract']['reach_boxes'][str(side)]['y']
-            summary['sides'][str(side)]={'rows':int(ids.sum()),'core_rows':int((ids&~wide).sum()),'wide_rows':int(wide.sum()),
-                'wide_lateral_histogram':np.histogram(retained['target_position_offset'][wide,1],np.linspace(*bounds,5))[0].tolist()}
-            if split=='train' and ids.sum()<50000:
-                raise RuntimeError('Refit does not meet original minimum 50000 train rows per side')
-        path=args.output/f'{split}.npz'; np.savez_compressed(path,**retained)
-        np.savez_compressed(args.output/f'{split}.refit_audit.npz',accepted=good,source_row_index=np.arange(n),
-                            before=before,after=after,fine=fine,velocity_delta=delta)
-        receipt={'schema_version':2,'split':split,'rows':int(good.sum()),'bank_sha256':sha(path),
-                 'source':{'bank':str(source.resolve()),'bank_sha256':sha(source),'receipt_sha256':sha(source.with_suffix('.receipt.json')),
-                           'physics_yaml':str(args.physics.resolve()),'physics_yaml_sha256':sha(args.physics),'refitter_sha256':sha(__file__)},
-                 'contract':dict(old_receipt['contract'],recipe_revision=20,qualification='ppq004_at_strike_retarget_and_fine_requalification_v1'),
-                 'summary':summary,'limitations':['At-strike incoming velocity/spin held fixed; no observed pre-bounce state is available.',
-                   'PPQ004 table coefficients are supplied in the profile but do not change fixed post-bounce at-strike inputs.',
-                   'Paddle model retained from venue fit; PPQ004 did not re-identify it.',
-                   'Original bank table-plane convention (surface_z=0.76) retained; no claim of complete C++ Planner parity.',
-                   'Ball geometry only: policy performance, long-horizon balance and hardware qualification NOT_PROVEN.']}
-        path.with_suffix('.receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
-        parent_sets.append(set(retained['parent_id'].tolist())); summaries[split]=summary
+            ids = retained['clip']==side
+            wide = ids & (retained['source_kind']==1)
+            bounds = old_receipt['contract']['reach_boxes'][str(side)]['y']
+            summary['sides'][str(side)] = {'rows':int(ids.sum()), 'core_rows':int((ids&~wide).sum()),
+                'wide_rows':int(wide.sum()), 'wide_lateral_histogram':np.histogram(retained['target_position_offset'][wide,1],np.linspace(*bounds,5))[0].tolist()}
+        summaries[split] = summary
+        (args.output/'coverage.json').write_text(json.dumps(summaries,indent=2)+'\n')
         print(json.dumps(summary),flush=True)
-    assert not(parent_sets[0]&parent_sets[1] or parent_sets[0]&parent_sets[2] or parent_sets[1]&parent_sets[2])
-    (args.output/'coverage.json').write_text(json.dumps(summaries,indent=2)+'\n')
-    train=args.output/'train.npz'; receipt=train.with_suffix('.receipt.json')
-    overrides={'environment':{'HOPE_BALL_PHYSICS_YAML':str(args.physics.resolve())},'task':{'racket':{
-        'venue_tuple_bank_path':str(train.resolve()),'venue_tuple_bank_receipt_path':str(receipt.resolve()),
-        'venue_tuple_bank_sha256':sha(train),'venue_tuple_bank_receipt_sha256':sha(receipt),
-        'venue_tuple_bank_recipe_revision':20}}}
+        if split=='train' and any(summary['sides'][str(side)]['rows']<50000 for side in (0,1)):
+            raise RuntimeError('Full PPQ004 qualification does not meet the original minimum 50000 train rows per side; bounds were not relaxed. See coverage.json.')
+        if (profile_source_hashes(args.physics) != source_hashes
+                or sha(__file__) != refitter_hash
+                or sha(Path(__file__).with_name("ball_physics_profile.py")) != profile_loader_hash
+                or sha(Path(__file__).with_name("full_ball_model.py")) != return_model_hash):
+            raise RuntimeError("Physics or refitter sources changed during bank generation; regenerate from stable inputs")
+        path = args.output/f'{split}.npz'
+        np.savez_compressed(path,**retained)
+        np.savez_compressed(args.output/f'{split}.refit_audit.npz',accepted=good,source_row_index=np.arange(n),
+                            result=result,planner_valid=planner_valid,velocity_delta=delta)
+        receipt = {'schema_version':2, 'split':split, 'rows':int(good.sum()), 'bank_sha256':sha(path),
+            'source':{'bank':str(source.resolve()), 'bank_sha256':sha(source), 'receipt_sha256':sha(source.with_suffix('.receipt.json')),
+                      'bank_recipe_revision':old_receipt['contract']['recipe_revision'],
+                      'bank_qualification':old_receipt['contract'].get('qualification'),
+                      'physics_yaml':str(args.physics.resolve()), 'physics_yaml_sha256':sha(args.physics),
+                      'physics_source_hashes':source_hashes, 'refitter_sha256':refitter_hash,
+                      'profile_loader_sha256':profile_loader_hash,
+                      'return_model_sha256':return_model_hash},
+            'contract':dict(old_receipt['contract'], recipe_revision=RECIPE_REVISION, qualification=QUALIFICATION,
+                            return_model=profile['return_model']['id'], physics_integration_s=float(params[DT]),
+                            first_bounce_center_height_m=float(params[RADIUS]), training_frame=profile['training_frame']),
+            'summary':summary, 'limitations':[
+                'At-strike incoming velocity/spin held fixed; no observed pre-bounce state is available.',
+                'Both directions use PPQ004 drag, gravity and Magnus; paddle contact transfers tangential impulse and spin.',
+                'First bounce is descending center contact at table surface plus ball radius; no post-bounce trajectory is used.',
+                'Original reach, speed, approach, landing, net and incoming-bounce bounds retained.',
+                'Ball geometry only: policy performance, long-horizon balance and hardware qualification NOT_PROVEN.']}
+        path.with_suffix('.receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+        parent_sets.append(set(retained['parent_id'].tolist()))
+    if parent_sets[0]&parent_sets[1] or parent_sets[0]&parent_sets[2] or parent_sets[1]&parent_sets[2]:
+        raise ValueError('Source split parent IDs overlap')
+    train = args.output/'train.npz'
+    receipt = train.with_suffix('.receipt.json')
+    overrides = {'environment':{'HOPE_BALL_PHYSICS_YAML':str(args.physics.resolve())},'task':{'racket':{
+        'venue_tuple_bank_path':str(train.resolve()), 'venue_tuple_bank_receipt_path':str(receipt.resolve()),
+        'venue_tuple_bank_sha256':sha(train), 'venue_tuple_bank_receipt_sha256':sha(receipt),
+        'venue_tuple_bank_recipe_revision':RECIPE_REVISION}}}
     (args.output/'training_overrides.yaml').write_text(yaml.safe_dump(overrides,sort_keys=False))
 
 

@@ -93,6 +93,29 @@ colcon test --packages-select hope_planner_cpp
 colcon test-result --verbose
 ```
 
+After sourcing the workspace, the supported Planner launch loads the hardware
+settings, full return-contact settings, and selected PPQ004 ball profile:
+
+```bash
+source install/setup.bash
+ros2 launch hope_planner_cpp model21800_hardware.xml
+```
+
+For a direct node invocation, supply all three files in that order:
+
+```bash
+PLANNER_CONFIG="$(ros2 pkg prefix --share hope_planner_cpp)/config"
+ros2 run hope_planner_cpp hope_planner_cpp_node --ros-args \
+  --params-file "$PLANNER_CONFIG/model21800_hardware.yaml" \
+  --params-file "$PLANNER_CONFIG/return_physics.yaml" \
+  --params-file "$PLANNER_CONFIG/ball_physics_ppq004_20261020.yaml"
+```
+
+`return_physics.yaml` supplies the ball radius, gravity, inertia, paddle contact
+coefficients, and return solver settings. A base hardware file alone does not
+configure the full return model. Select another measured ball profile explicitly
+with the launch argument `ball_profile:=/absolute/path/to/profile.yaml`.
+
 The shared hardware configuration is `config/model21800_hardware.yaml`; it
 deliberately remains Schema 2 with optional reach disabled so legacy
 model21800/V17 consumers are not silently upgraded. A Schema27 112-D artifact
@@ -102,23 +125,42 @@ trajectory, deployment, HDU ARM, or field qualification evidence. The current
 profile values alone do not establish which parameters a deployed process uses
 or qualify its prediction accuracy.
 
-The shared deployment profiles now contain the 2026-10-10 multi-batch real-ball
-fit: `drag_k=0.12861635416914574`, `magnus_k=0.00379260504480258`,
-`restitution_v=0.9313775047019153`, `table_tangential_gain=0.38744443855065164`
-and `table_friction_cap_mu=0.16706204822993975`. Estimation and future prediction
-use Magnus plus the same capped slip/angular-impulse table model. Both Laptop
-packetizer and HDU Planner configurations must be deployed; Gate3 resolves the
-Planner YAML and selected overlay for its nodes and MuJoCo plant.
+The default selected ball profile is
+`config/ball_physics_ppq004_20261020.yaml`; its YAML values supply the drag,
+Magnus, and table-contact coefficients. The base hardware file retains the
+earlier venue values for explicit historical comparisons. Estimation and future
+prediction use Magnus plus the same capped slip/angular-impulse table model.
+Both Laptop packetizer and HDU Planner configurations must be deployed; Gate3
+resolves the Planner YAML and selected overlay for its nodes and MuJoCo plant.
 `config/ball_physics_real_20261010.receipt.json` records the historical adoption,
 not a live status check. The older C3D receipt remains historical provenance.
 
 See [ball-physics calibration](../../../docs/operations/ball_physics_calibration.md)
 for required measurements, spin validity, fixed/unidentified parameters and
-consumer verification. Stage 3 outgoing-flight optimization still omits outgoing
-Magnus; paddle parameters were not refitted. Adoption does not establish improved
-real hit rate or a passing Gate3 certification.
+consumer verification. Stage 3 now carries the predicted strike spin through
+the full paddle contact law, including exponential normal restitution, capped
+tangential impulse, and angular impulse. It integrates drag, Magnus, and gravity
+with RK4 to the first descending ball-center crossing at one radius above the
+table surface. The solve must converge in both landing XY and flight duration;
+configured alternative flight times are checked against the same model and the
+net height plus ball radius and clearance margin. Paddle coefficients remain the
+existing venue fit, loaded from `return_physics.yaml`. Adoption does not establish
+improved real hit rate or a passing Gate3 certification.
+
+A local optimized native benchmark of 500 seeded source-bank cases converged
+and cleared the net in all 500 cases, with solve latency p50 0.969 ms,
+p95 1.357 ms, and maximum 1.884 ms on the available Apple ARM64 host. This
+measures the Stage 3 call only; it does not establish HDU timing or a worst-case
+bound.
 
 ## Offline replay
+
+Replay defaults load the installed PPQ004 profile, `return_physics.yaml`, and
+`model21800_hardware.yaml`. Override their locations with
+`--ball-physics-yaml`, `--return-physics-yaml`, and `--planner-settings-yaml`.
+Without explicit contact overrides, both observed and predicted incoming table
+contacts use the selected ball profile. Missing orientation uses a zero-spin
+prior; available spin and subsequent contact-generated spin reach Stage 3.
 
 ```bash
 hope_planner_cpp_replay \
@@ -150,8 +192,9 @@ hope_planner_cpp_replay \
 ```
 
 This CLI example deliberately retains the **historical** fixed-50-ms, zero-spin
-comparison coefficients; it is not the current Magnus/capped-contact deployment
-replay. The adaptive deployment
+comparison coefficients for incoming prediction. Stage 3 still uses the full
+return solver, so this command does not reproduce the historical Stage 3
+numerics. The adaptive deployment
 validation, including recorded callback arrival times and timer polling, is
 retained in `artifacts/adaptive_commit_model14600_20261010/run_replay.py` at the
 repository root.
@@ -172,9 +215,13 @@ also used the adaptive Stage-2 horizon, capped at `3.0 s`. The current profiles
 instead use the unified fitted table law described above; do not copy these
 historical overrides into a current physics qualification run.
 
-`scripts/compare_cpp_python_planner.py` checks the migrated Stage 2 and Stage 3
-numerics against the retained Python implementation. Python is an offline
-oracle only and is not part of the C++ ROS runtime.
+`scripts/compare_cpp_python_planner.py` retains the historical simplified Python
+Stage 3 oracle and does not qualify the full return model. Current forward and
+inverse parity tests compile the production C++ solver and compare it with
+`hope_training/whole_body_tracking/scripts/full_ball_model.py`; run
+`pytest hope_training/whole_body_tracking/tests/test_full_ball_model.py` from the
+repository root with NumPy, Numba, pytest, a C++17 compiler, and Eigen available.
+Python is an offline oracle and is not part of the C++ ROS runtime.
 
 `scripts/audit_model21800_replay.py` associates causal revisions with measured
 crossings and scores fixed prefix candidates. Its pass/fail result is an

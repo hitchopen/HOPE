@@ -494,7 +494,7 @@ echo "      backhand x_hit delta=$PP_XHIT_BH_DELTA (V10--V15 require 0.0 for y-o
 echo "      gate profile=$PP_GATE3_PROFILE (versioned wrapper; bare launch is rejected)"
 echo "      landing x=${PP_LAND_X:-2.055} y(fh/bh)=${PP_LAND_Y_FH:--0.7625}/${PP_LAND_Y_BH:--0.7625}"
 echo "      dtf(fh/bh)=${PP_DTF_FH:-0.50}/${PP_DTF_BH:-0.50}; versioned wrapper values are authoritative."
-PLANNER_PROFILE_ARG=""
+PLANNER_PROFILE_ARG="--params-file $PP_SELECTED_BALL_PROFILE"
 if [ -n "${PP_PLANNER_PROFILE:-}" ]; then
   if [ ! -f "$PP_PLANNER_PROFILE" ]; then
     echo "[g3r] ENV FAIL: planner profile missing: $PP_PLANNER_PROFILE"
@@ -539,6 +539,7 @@ fi
 setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install/local_setup.bash 2>/dev/null; \
   exec '$PLANNER_CPP_EXE' --ros-args \
   --params-file '$PLANNER_CPP_CONFIG' \
+  --params-file '$WS/src/hope_planner_cpp/config/return_physics.yaml' \
   $PLANNER_PROFILE_ARG \
   -p flight_packet_input_enabled:=true -p flight_packet_topic:=/ball/flight_packet \
   -p base_pose_flat_input_topic:=/a3/base_pose_flat -p publish_base_flat:=false \

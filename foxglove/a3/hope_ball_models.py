@@ -121,8 +121,8 @@ def inspect_model(path: Path, config_dir: Path, role: str, *, base_config: Path 
     configured = yaml.safe_load(base_config.read_text())[node_name]["ros__parameters"]
     configured = {key: configured.get(key) for key in keys}
     selection = selected(path, config_dir)
-    if selection is not None:
-        configured.update(profile(config_dir, selection)[node_name]["ros__parameters"])
+    # Absence means the shipped PPQ004 default; keep the raw override state for rollback.
+    configured.update(profile(config_dir, selection or "ppq004")[node_name]["ros__parameters"])
     actual = read_live(node_name, keys)
     mismatch = compare_parameters(configured, actual) if actual is not None else []
     return {"model": selection, "configured_model": identify_parameters(config_dir, configured),

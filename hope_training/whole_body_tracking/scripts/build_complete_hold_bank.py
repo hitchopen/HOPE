@@ -33,6 +33,11 @@ def load_physics():
     return module, path
 
 
+def legacy_physics_params(vb):
+    """Keep recipe-19/20 provenance tied to its original venue contact/flight law."""
+    return vb.load_venue_params(str(ROOT.parents[1] / 'configs/ball_physics_venue.yaml'))
+
+
 def split_ids(ids):
     # All mutations of the same legacy source row remain in the same split.
     # The legacy deployed model has seen this original bank: these splits are
@@ -87,7 +92,7 @@ def build(output, count=30000, seed=20261016, device='cpu'):
     source = ROOT/'assets/venue_tuple/v17_r12_physical_tuple_bank.npz'
     core = dict(np.load(source, allow_pickle=False))
     vb, physics_source = load_physics()
-    params = vb.load_venue_params()
+    params = legacy_physics_params(vb)
     rng = np.random.default_rng(seed)
     torch.manual_seed(seed)
     device = torch.device(device)

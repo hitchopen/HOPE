@@ -43,6 +43,8 @@ TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   auto packetizer = std::make_shared<FlightPacketizerNode>(packetizer_options);
 
   rclcpp::NodeOptions planner_options;
+  planner_options.arguments({"--ros-args", "--params-file",
+                             std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml"});
   planner_options.append_parameter_override("flight_packet_input_enabled", true);
   planner_options.append_parameter_override("post_net_one_shot_enabled", true);
   planner_options.append_parameter_override("spin_shadow_enabled", false);

@@ -16,6 +16,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
+find_package(yaml-cpp REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -74,7 +76,8 @@ target_link_libraries(hope_planner_cpp_node PRIVATE
 
 add_executable(hope_planner_cpp_replay src/replay_main.cpp)
 target_include_directories(hope_planner_cpp_replay PRIVATE include)
-target_link_libraries(hope_planner_cpp_replay PRIVATE hope_planner_core Eigen3::Eigen)
+target_link_libraries(hope_planner_cpp_replay PRIVATE hope_planner_core Eigen3::Eigen yaml-cpp)
+ament_target_dependencies(hope_planner_cpp_replay PUBLIC ament_index_cpp)
 
 add_executable(hope_ball_flight_packetizer
   src/flight_packetizer_node.cpp
@@ -121,7 +124,9 @@ if(BUILD_TESTING)
   target_include_directories(test_batch_physics_estimator PRIVATE include)
 
   ament_add_gtest(test_trajectory_and_stage3 test/test_trajectory_and_stage3.cpp)
-  target_link_libraries(test_trajectory_and_stage3 hope_planner_core Eigen3::Eigen)
+  target_link_libraries(test_trajectory_and_stage3 hope_planner_core Eigen3::Eigen yaml-cpp)
+  target_compile_definitions(test_trajectory_and_stage3 PRIVATE
+    HOPE_PLANNER_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
   target_include_directories(test_trajectory_and_stage3 PRIVATE include)
 
   ament_add_gtest(test_target_turn_guard test/test_target_turn_guard.cpp)
@@ -222,6 +227,11 @@ if(BUILD_TESTING)
     ${std_srvs_TARGETS}
     ${rcl_interfaces_TARGETS}
   )
+  foreach(test_target test_planner_runtime_plane test_planner_node_one_shot
+                      test_planner_node_turn_guard test_flight_packet_pipeline)
+    target_compile_definitions(${test_target} PRIVATE
+      HOPE_PLANNER_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+  endforeach()
 endif()
 
 ament_export_include_directories(include)

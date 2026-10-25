@@ -19,11 +19,11 @@ def config(overrides=(), name="train"):
         return compose(config_name=name, overrides=list(overrides))
 
 
-def test_default_training_selects_available_recipe20_and_scratch_run():
+def test_default_training_selects_available_recipe22_and_scratch_run():
     cfg = config()
     assert cfg.task.build_contract.training_distribution_revision == prelaunch.DISTRIBUTION
-    assert cfg.task.racket.venue_tuple_bank_recipe_revision == 20
-    assert cfg.task.ppq004_refit_manifest == "outputs/stationary_ppq004/training_overrides.yaml"
+    assert cfg.task.racket.venue_tuple_bank_recipe_revision == 22
+    assert cfg.task.ppq004_refit_manifest == "outputs/stationary_ppq004_full/training_overrides.yaml"
     assert cfg.task.racket.venue_tuple_bank_path is None
     assert cfg.algo.algorithm.settled_aux_enabled is False
     assert (cfg.num_envs, cfg.max_iterations, cfg.seed) == (6144, 30000, 0)
@@ -42,8 +42,12 @@ def test_effective_default_records_matching_bank_and_physics_in_saved_configurat
     assert restored.task.racket.venue_tuple_bank_path == str(bank)
     assert restored.task.racket.venue_tuple_bank_sha256 == digest(bank)
     assert restored.task.racket.venue_tuple_bank_receipt_sha256 == digest(receipt)
+    profile = prelaunch.load_profile(physics)
+    assert restored.task.racket.vb_table_near_x == profile["training_frame"]["near_x"]
+    assert restored.task.racket.vb_table_surface_z == profile["training_frame"]["surface_z"]
     assert restored.task.ppq004_physics_yaml == str(physics)
     assert restored.task.ppq004_physics_sha256 == digest(physics)
+    assert dict(restored.task.ppq004_physics_source_hashes) == prelaunch.profile_source_hashes(physics)
     assert restored.task.build_contract.training_distribution_revision == prelaunch.DISTRIBUTION
 
 
@@ -103,7 +107,8 @@ def test_missing_bundle_fails_before_isaac_import_with_regeneration_command(file
     monkeypatch.setattr(builtins, "__import__", guarded_import)
     with pytest.raises(FileNotFoundError, match="refit_stationary_reach_bank.py") as exc:
         entrypoint_main(filename)(cfg)
-    assert "recipe-20" in str(exc.value)
+    assert "recipe-22" in str(exc.value)
+    assert "assets/stationary_reach_v4_ppq004_generalization_20261022" in str(exc.value)
     assert str(missing.parent) in str(exc.value)
 
 
@@ -135,3 +140,21 @@ def test_play_defaults_still_use_baseline_without_manifest():
     assert "ppq004_refit_manifest" not in cfg.task
     assert cfg.algo.algorithm.settled_aux_enabled is True
     assert prelaunch.configure_refitted_task(cfg, environ={}) is False
+
+
+@pytest.mark.parametrize("task,algo", [
+    ("HOPEPingPong", "ppo"), ("HOPEPingPongCompleteHold", "ppo_balanced_hold"),
+    ("HOPEPingPongStationaryRally", "ppo_balanced_hold"),
+])
+def test_legacy_recipe_without_explicit_profile_binds_its_venue_physics(task, algo):
+    cfg = config([f"task={task}", f"algo={algo}"])
+    environment = {}
+    assert prelaunch.configure_refitted_task(cfg, environ=environment) is False
+    assert environment["HOPE_BALL_PHYSICS_YAML"] == str(ROOT.parents[1] / "configs/ball_physics_venue.yaml")
+
+
+def test_legacy_recipe_preserves_explicit_old_config_environment():
+    cfg = config(["task=HOPEPingPong", "algo=ppo"])
+    environment = {"HOPE_BALL_PHYSICS_CONFIG": "/explicit/profile.yaml"}
+    assert prelaunch.configure_refitted_task(cfg, environ=environment) is False
+    assert environment == {"HOPE_BALL_PHYSICS_CONFIG": "/explicit/profile.yaml"}

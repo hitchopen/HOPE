@@ -707,15 +707,27 @@ class RacketTargetCommand(CommandTerm):
         self._venue_tuple_bank_receipt_path: str | None = None
         if self._venue_tuple_mix_mode in {"fixed_balanced_bank_v1", "per_swing_bank_v2"}:
             self._load_venue_tuple_bank()
-        self._vb_params = None  # lazy venue-yaml load on first evaluation
-        # Derived table landmarks (env frame), from geometry.py ITTF constants.
+        from whole_body_tracking.tasks.tracking.mdp import virtual_ball as _vb
+        self._vb_params = _vb.load_venue_params()
+        # Full-model landmarks use the selected YAML geometry in each environment.
         from whole_body_tracking.tasks.table_tennis import geometry as _tt_geom
-
-        self._vb_net_x = float(cfg.vb_table_near_x) + _tt_geom.NET_X
-        self._vb_far_x = float(cfg.vb_table_near_x) + _tt_geom.TABLE_LENGTH
-        self._vb_half_w = _tt_geom.TABLE_WIDTH / 2.0
-        self._vb_net_top_z = float(cfg.vb_table_surface_z) + _tt_geom.NET_HEIGHT
-        self._vb_ball_r = _tt_geom.BALL_RADIUS
+        if self._vb_params.return_model == "full_ppq004_first_bounce_v1":
+            profile = _vb._profile.load_profile(self._vb_params.source_path)
+            self._vb_net_x = float(cfg.vb_table_near_x) + profile['net']['x_position']
+            self._vb_far_x = float(cfg.vb_table_near_x) + profile['table']['length']
+            self._vb_half_w = profile['table']['width'] / 2.0
+            self._vb_y_center = profile['training_frame']['y_center']
+            self._vb_net_overhang = profile['net']['overhang']
+            self._vb_net_top_z = float(cfg.vb_table_surface_z) + profile['net']['height']
+            self._vb_ball_r = self._vb_params.ball_radius
+        else:
+            self._vb_net_x = float(cfg.vb_table_near_x) + _tt_geom.NET_X
+            self._vb_far_x = float(cfg.vb_table_near_x) + _tt_geom.TABLE_LENGTH
+            self._vb_half_w = _tt_geom.TABLE_WIDTH / 2.0
+            self._vb_y_center = 0.0
+            self._vb_net_overhang = 0.0
+            self._vb_net_top_z = float(cfg.vb_table_surface_z) + _tt_geom.NET_HEIGHT
+            self._vb_ball_r = _tt_geom.BALL_RADIUS
         self._vb_target_xy = torch.tensor(
             [float(cfg.vb_target_x), float(cfg.vb_target_y)], device=self.device
         )
@@ -4241,11 +4253,14 @@ class RacketTargetCommand(CommandTerm):
             pending_box = position_box[pending_local]
             reach_x = pending_box[:, 0].mean(dim=-1)
             reach_y = pending_box[:, 1].mean(dim=-1)
-            contact_x = origins[pending_local, 0] + reach_x
+            # Solve entirely in the environment frame; a world-grid translation
+            # must not change the ball's distance to its local table/landing target.
+            contact_x = reach_x
             sample = sample_correlated_venue_tuple(
                 pending_clip,
                 contact_x,
                 table_surface_z=float(self.cfg.vb_table_surface_z),
+                table_near_x=float(self.cfg.vb_table_near_x),
                 landing_x_range=tuple(
                     self.cfg.venue_tuple_landing_x_range
                 ),
@@ -4253,10 +4268,7 @@ class RacketTargetCommand(CommandTerm):
                     self.cfg.venue_tuple_landing_y_range
                 ),
             )
-            contact = sample["contact_pos_w"].clone()
-            # The sampler's y/z are env-local venue coordinates; x was supplied in world frame.
-            contact[:, 1] += origins[pending_local, 1]
-            contact[:, 2] += origins[pending_local, 2]
+            contact = sample["contact_pos_w"] + origins[pending_local]
             station = origins[pending_local, :2].clone()
             station[:, 0] = contact[:, 0] - reach_x
             station[:, 1] = contact[:, 1] - reach_y
@@ -4275,7 +4287,9 @@ class RacketTargetCommand(CommandTerm):
                 dim=-1,
             )
             valid = (
-                (station_local[:, 0] >= float(self.cfg.base_target_x_range[0]))
+                sample["model_valid"]
+                & sample["model_net_clear"]
+                & (station_local[:, 0] >= float(self.cfg.base_target_x_range[0]))
                 & (station_local[:, 0] <= float(self.cfg.base_target_x_range[1]))
                 & (station_local[:, 1] >= float(self.cfg.base_target_y_range[0]))
                 & (station_local[:, 1] <= float(self.cfg.base_target_y_range[1]))
@@ -7760,6 +7774,12 @@ class RacketTargetCommand(CommandTerm):
         if predictor is None:
             predictor = _vb.CoarseLandingPredictor()
             self._vb_landing_predictor = predictor
+        rollout_h = float(self.cfg.vb_rollout_h)
+        full_model = prm.return_model == "full_ppq004_first_bounce_v1"
+        # Keep the reward's 10-ms RK4 grid economical on thousands of environments,
+        # but cover the full YAML horizon. Bank/runtime qualification uses 0.5 ms.
+        rollout_steps = (int(math.ceil(prm.max_predict_time_s / rollout_h))
+                         if full_model else int(self.cfg.vb_rollout_steps))
         land = predictor(
             self.racket_pos_w - self._env.scene.env_origins,
             v_plus,
@@ -7767,15 +7787,20 @@ class RacketTargetCommand(CommandTerm):
             prm,
             surface_z=float(self.cfg.vb_table_surface_z),
             net_x=self._vb_net_x,
-            h=float(self.cfg.vb_rollout_h),
-            n_steps=int(self.cfg.vb_rollout_steps),
+            h=rollout_h,
+            n_steps=rollout_steps,
         )
         lx, ly = land["land_xy"][:, 0], land["land_xy"][:, 1]
         on_opp = (
-            land["land_valid"] & (lx > self._vb_net_x) & (lx <= self._vb_far_x) & (ly.abs() <= self._vb_half_w)
+            land["land_valid"] & (lx > self._vb_net_x) & (lx <= self._vb_far_x)
+            & ((ly - self._vb_y_center).abs() <= self._vb_half_w)
         )
         depth_ok = lx > (self._vb_net_x + float(self.cfg.vb_min_landing_depth))
-        net_clear = land["net_valid"] & (land["net_z"] > self._vb_net_top_z + self._vb_ball_r)
+        net_clear = land["net_valid"] & (land["net_z"] > self._vb_net_top_z + self._vb_ball_r
+                                         + prm.net_clearance_margin)
+        if full_model:
+            net_clear &= ((land['net_y'] - self._vb_y_center).abs()
+                          <= self._vb_half_w + self._vb_net_overhang)
         # Outgoing topspin component about t_hat = z_hat x d_hat of the outgoing horizontal
         # direction (Ace-style): omega . t_hat = -w_x*d_y + w_y*d_x.
         d_xy = v_plus[:, :2]

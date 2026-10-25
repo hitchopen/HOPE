@@ -45,6 +45,8 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
 
   const auto csv_path = temporary_path(".csv");
   rclcpp::NodeOptions options;
+  options.arguments({"--ros-args", "--params-file",
+                     std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml"});
   options.append_parameter_override("target_turn_reject_stale_pose", c.reject_stale);
   options.append_parameter_override("input_qos_depth", 64);
   options.append_parameter_override("post_net_one_shot_enabled", true);

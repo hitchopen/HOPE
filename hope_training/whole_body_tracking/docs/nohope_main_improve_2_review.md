@@ -1,19 +1,24 @@
 # CompleteHold and StationaryRally training review
 
 Source: `dongc1/nohope`, branch `main_improve_2`, commit
-`54952d0f11252cbef7b156c1d46d49389b75dc95` (verified against the remote).
+`9c4d6366ab7bd58b73baf98c06159e1ac51688d2`, including the newly published
+revision-21 generalization bank. Training strategy changes were reviewed from
+`54952d0f11252cbef7b156c1d46d49389b75dc95` before that asset publication.
 Integration base: `hitchopen/HOPE:nightly_built` at
 `91aecabfd44cb258ac998158e724be9017d883a7`.
 
 ## Scope and compatibility
 
-This is a selective Isaac Lab RL training port. HOPE already contained the
+This is a selective Isaac Lab RL training port with a shared full-PPQ004
+first-bounce model in Python and the C++ simulation/runtime planner. HOPE already contained the
 flattened model_14600 recipe from the fork's `2b14b76d1`; the source integration
 applies the subsequent training changes without restoring retired Gym tasks.
-The original CompleteHold and StationaryRally task/algorithm pairs resolve
-identically to the source fork. New training defaults to
+The original CompleteHold and StationaryRally task/algorithm pairs preserve
+the source strategy at `54952d0f1`; the later fork publication changes the
+StationaryRally bank/physics binding, which is integrated through the separate
+full-model PPQ004 task here. New training defaults to
 `HOPEPingPongStationaryPPQ004` / `ppo_balanced_hold`, using the available
-revision-20 PPQ004 refit. `HOPEPingPong` / `ppo` remain available explicitly and
+revision-22 full-PPQ004 first-bounce refit. `HOPEPingPong` / `ppo` remain available explicitly and
 remain the playback defaults for existing checkpoints.
 
 The port includes the active recipe inheritance, actual-pose and balance
@@ -26,9 +31,10 @@ where the imported command implementation references them.
 The actor/action dimensions remain 110/31 at 50 Hz. StationaryRally explicitly
 changes the reset pose and affine action zero to `B_32_5_K20`; equal dimensions
 do not make its action offsets interchangeable with older exports. Use the
-resolved training/export metadata for any later deployment work. This port
-changes no native Runner, planner, ROS, mocap, hardware configuration, published
-checkpoint, ONNX model or deployment asset.
+resolved training/export metadata for any later deployment work. The full-physics follow-up updates C++ return planning, its YAML parameter loading,
+and the PPQ004 launch/profile defaults alongside the training paths. Native
+Runner control code, published checkpoints and ONNX assets remain unchanged.
+No hardware deployment or hardware evaluation was performed.
 
 ## What improves
 
@@ -60,39 +66,62 @@ report was supplied with that statement. This review therefore records the
 MuJoCo result as user-reported and does not claim independent reproduction,
 Isaac training convergence, hardware stability or measured success improvement.
 
-The source branch includes a PPQ004 profile and offline bank refitter, but its
-StationaryRally YAML still pins the original recipe-19 bank. The virtual-ball
-loader also defaults to `ball_physics_venue.yaml` unless
-`HOPE_BALL_PHYSICS_YAML` is set. Merely selecting StationaryRally does not select
-the 3-star profile in the source branch.
+The initial source snapshot included a PPQ004 profile and offline refitter,
+but still pinned the recipe-19 venue bank. The later published commit
+`9c4d6366a` changes its StationaryRally task to the PPQ004 revision-21 bank and
+pins the physics profile before Isaac starts. This integration's pre-launch
+validation additionally requires the generated revision-22 full-model manifest,
+verifies the bank/receipt, model/loader code and six referenced YAML hashes, binds
+the matching table placement and physics environment, and records the resolved
+bank and PPQ004 distribution. Missing preparation fails before Isaac starts.
+HOLD remains 1.7; defaults are 6144 environments, 30000 iterations, seed 0 and no
+resume or actor warm-start.
 
-The integration now adds a separate PPQ004 task as the training default. Its
-pre-launch validation requires the generated revision-20 manifest, verifies the
-physics/bank/receipt hashes, sets the matching physics environment, and records
-the resolved bank and PPQ004 distribution in the task. Missing preparation fails
-before Isaac starts. HOLD remains 1.7; defaults are 6144 environments, 30000
-iterations, seed 0 and no resume or actor warm-start.
-
-The developer's later command uses a revision-21 generalization bank with SHA-256
+The developer's screenshot bank is now available: its training SHA-256 is
 `02619e747333980a6f1d48aa3a9c7896e15727cf95cd3f51eb387d7687c4b419`.
-The user confirms the developer has not uploaded this bank. The current default
-is therefore the reproducible revision-20 PPQ004 refit, not that newer curriculum.
-Adopting revision 21 requires the bank, receipt and contract inspection; renaming
-a revision-20 bank or changing its expected revision is not equivalent.
+The immutable revision-21 source includes 502,053 train, 61,815 dev and 62,103
+test rows, with disjoint parent identities and zero stations. Training includes
+183,274 retained questions and 318,779 new synthetic questions. All NPZ hashes
+match their published receipts. The full trajectory diagnostic sidecars were
+not published; the payload supplies at-strike states and source provenance.
 
-The PPQ004 profile updates the fitted flight coefficients and provides the
-updated table coefficients. Refitting retains at-strike incoming velocity/spin,
-contact position, intended landing, parent identity and split membership, and
-adjusts racket velocity before coarse/fine qualification. It cannot identify
-pre-bounce states from this bank. The paddle fit remains the older venue fit;
-the table surface convention remains 0.76 m. This is not full C++ planner or
-incoming table-bounce parity. Bank geometry checks do not evaluate robot balance.
+Its receipt uses a 5 ms integration step and an outgoing table-surface plane,
+so those labels cannot be used directly under the corrected first-bounce model.
+The default therefore refits this published revision-21 source into its own
+revision-22 bank. Its qualification is `full_ppq004_first_bounce_v1` and training
+distribution is `stationary_reach_ppq004_full_v1`. Old recipe20, unrefitted21 and
+the superseded simplified-return experiment are rejected by model identity
+checks. The published source assets remain unchanged in the PR.
+
+The selected model includes fitted exponential racket restitution, capped
+frictional/tangential impulse and spin transfer, followed by RK4 quadratic drag,
+gravity and Magnus flight. Free-flight spin stays constant under the selected
+fit. Its first bounce is the first descending ball-center crossing of the table
+surface plus radius. The inverse solves that actual first-bounce position and
+flight time, then the stored float32 command is evaluated through full contact
+and flight again. C++ and Python share the parameter YAML and have native
+numerical parity tests. Refitting/runtime/fine evaluation use the selected
+0.5 ms step; the vectorized reward retains its 10 ms, 200-step integration,
+with less than 1 mm landing/net discrepancy in nine tested cases against the
+fine model. No GPU throughput result is claimed. Incoming reverse qualification uses the same flight law
+and contact-center plane; table coefficients remain available for runtime
+incoming bounce prediction.
+
+Refitting retains at-strike incoming velocity/spin, contact position, intended
+landing, parent identity, split membership and `generation_kind`. The original
+source-row index is retained as `input_source_row_index`; `source_row_index`
+maps each output row into the newly published input bank. It does not infer an observed
+pre-bounce state. The PPQ004 data did not identify a new paddle fit; the shared
+paddle YAML retains the venue coefficients. Existing reach/velocity boxes,
+speed/spin/approach limits, incoming-bounce areas and net/landing margins remain
+mandatory. A row is rejected when it fails them; commands are not clipped to
+pretend they were qualified. Bank geometry checks do not evaluate robot balance.
 
 ## Reproduce the selected recipes
 
 Follow the [training README](../README.md) for the default PPQ004 preparation,
 receipt check and scratch-training command. The offline refitter generates
-revision-20 train/dev/test banks under `outputs/stationary_ppq004`; the default
+revision-22 train/dev/test banks under `outputs/stationary_ppq004_full`; the default
 training task reads the resulting `training_overrides.yaml`. Its matching
 profile is `configs/ball_physics_ppq004_training.yaml`.
 
@@ -101,7 +130,7 @@ Isaac environment and from `hope_training/whole_body_tracking`:
 
 ```bash
 source setup_train_env.sh
-unset HOPE_BALL_PHYSICS_YAML
+unset HOPE_BALL_PHYSICS_YAML HOPE_BALL_PHYSICS_CONFIG
 hope_isaac_py scripts/train.py task=HOPEPingPongCompleteHold algo=ppo_balanced_hold \
   headless=true max_iterations=30000 seed=1
 hope_isaac_py scripts/train.py task=HOPEPingPongStationaryRally algo=ppo_balanced_hold \
@@ -119,8 +148,9 @@ hope_isaac_py scripts/train_refitted_stationary.py \
 ```
 
 Remove `--dry-run` to start. Both entrypoints use the same manifest validation.
-They bind the physics profile, bank and receipt hashes, stationary task,
-balanced PPO, and a distinct PPQ004 training-distribution identity. Old-physics
+They bind the physics profile and all referenced YAML, model/loader code, bank
+and receipt hashes, stationary task, balanced PPO, and the full-physics
+training-distribution identity. Old-physics
 optimizer resumes are rejected. Explicit actor warm-start remains available
 through `warm_start_actor_checkpoint=/absolute/path/model.pt`; it is not the
 default scratch-training recipe. A geometry-qualified bank is not a qualified
@@ -133,22 +163,46 @@ from this simulation-training contribution.
 
 ## Integration validation
 
-CPU suite: **430 passed, 11 skipped**. Skips require Isaac Lab or CUDA; no
-Isaac rollout ran on this macOS host. The suite includes real RSL-RL PPO
-updates, fixed-station/pose and dataset contracts, and numerical Torch/Numba
-physics parity. A diagnostics-variable collision in the fork's PPO update was
-fixed and tested with diagnostics both enabled and disabled.
+The focused refit/default/launcher regression checks pass, including rejection of
+old and simplified-model banks, dependency-hash changes, missing manifests before
+Isaac import, and incompatible optimizer resumes. Native C++ parity tests cover
+full contact/spin, drag/Magnus integration, the radius-height first bounce,
+nonconvergence, fallback timing and net/post handling. Independent analytic drag
+and Magnus cases are included so agreement between two implementations is not
+the only numerical check.
 
-A full offline PPQ004 refit retained 183,274/183,315 training rows,
-21,852/21,859 development rows and 22,452/22,457 test rows, with at least
-50,000 training rows per side and disjoint parent IDs. The 1 ms recheck gave
-a training landing-fit error of 0.0376 mm P95 and 0.900 mm maximum. These are
-numerical fitting errors, not measured policy returns or robot stability.
-The generated bundle passed the verified launcher's dry run and the new default
-pre-launch configuration, including the HOLD weight, scratch settings and
-replacement of a stale physics environment variable. All six README shell
-examples passed syntax checks.
+The complete CPU suite passed **477 tests**, with 11 skipped for unavailable
+Isaac/CUDA or a second GPU. The native C++ suite passed 84 tests. Real MuJoCo
+scene smoke checks verified YAML shell inertia, drag/Magnus force and three
+physical control ticks; these checks did not run a policy.
 
-See [the validation record](nohope_main_improve_2_validation.json) for commands,
-runtime versions, source/output hashes and per-split results. Refitted datasets
-remain reproducible local outputs; the PR includes the original source banks.
+The full-model refit of the published revision-21 source retained:
+
+| Split | Source rows | Full-model qualified rows |
+| --- | ---: | ---: |
+| Train | 502,053 | 384,767 |
+| Dev | 61,815 | 47,174 |
+| Test | 62,103 | 47,443 |
+
+Training retains 151,591 forehand and 233,176 backhand questions, exceeding the
+50,000-per-side requirement. The unchanged reach/velocity boxes account for
+117,215 overlapping train-row failures; no boxes or other bounds were relaxed.
+The retained train first-bounce position error is 0.04819 mm at the 95th
+percentile and 0.10003 mm maximum after float32 command storage. All source
+input fields and synthetic provenance were verified against their mapped source
+rows, all stations remain zero, and split parents remain disjoint. The generated
+manifest passed the standalone dry-run, default prelaunch, task contract and
+production training-bank loader.
+
+A local arm64 C++ solver benchmark used 500 sampled source-bank cases: all
+converged with net clearance, with median 0.969 ms, 95th percentile 1.357 ms and
+maximum 1.884 ms. This measures the local solver, not hardware latency or policy
+performance. The source bank for that timing sample was the original recipe-19
+bank; the full qualification counts above use the newly published recipe 21.
+
+Exact retained-row errors, commands, source/output hashes and complete test
+outcomes are recorded in the
+[validation record](nohope_main_improve_2_validation.json). No Isaac training run
+or learned-policy evaluation ran on this macOS host. Refitted datasets remain
+reproducible local outputs; the PR includes the original source banks. The
+user-reported MuJoCo standing result is separate from these numerical checks.

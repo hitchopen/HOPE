@@ -1,61 +1,21 @@
-ball:
-  mass: 0.0034
-  mass_clean: 0.0027
-  radius: 0.02
-  inertia_coeff: 0.6666666666666666
-air:
-  rho: 1.2
-flight:
-  k_d: 0.12453915600992894
-  k_d_clean_scaled: 0.1588
-  k_m: 0.00399279130564425
-  k_m_clean_scaled: 0.00559
-  g: 9.81
-  rk4_h: 0.0005
-  magnus_saturating_form: C_L(SR) = cl_slope*SR / (1 + cl_slope*SR/cl_max)
-  cl_slope: 0.87
-  cl_max: 0.55
-contact:
-  table:
-    e_eff: 0.9373319241133231
-    a_t: 0.41642144985036184
-    b_t: 0.0
-    mu_safety: 0.218520906499864
-  paddle:
-    e_eff: 0.654
-    a_t: 0.52
-    b_t: 0.0
-    mu_safety: 0.5
-    e_lin_a: 0.749
-    e_lin_b: 0.0258
-    e_exp_g1: 0.759
-    e_exp_g2: -0.0441
-capture:
-  rate_hz: 300.0
-  e2e_latency_bound_ms: 20
-  position_noise:
-    white_mm: 1.9
-    ar1_marginal_mm: 5.2
-    ar1_rho: 0.946
-    ar1_tau_ms: 60
-    long_arc_rms_mm: 9.1
-    center_offset_mm: 1.9
-  spin_noise:
-    floor_rev_s: 2.0
-    bounce_dw_scale: 0.65
-    strike_dw_scale: 0.22
-  timing:
-    same_clock: true
-    frame_quantization_ms: 1.67
-    gap_p50_ms: 10
-    racket_occlusion_ms: 30
-    contact_dwell_ms: 2
+# PPQ004 is the default for full-physics first-bounce return prediction.
+# Fitted parameters live in the referenced YAML files, never in Python/C++ code.
+extends: ball_physics_venue.yaml
+geometry_yaml: ball_physics.yaml
+planner_profile_yaml: ../hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml
+planner_settings_yaml: ../hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml
+return_physics_yaml: ../hope_ws/src/hope_planner_cpp/config/return_physics.yaml
+return_model:
+  id: full_ppq004_first_bounce_v1
+training_frame:
+  near_x: 0.5
+  y_center: 0.0
+  # surface_z is resolved from geometry_yaml table.height.
 provenance:
   model: PPQ004_UNIFIED
-  repository: https://github.com/hitchopen/HOPE
-  commit: 8d24642474205f6cfb48263cd22896306feeac47
   planner_profile: hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml
-  paddle: Unchanged venue model; PPQ004 did not identify racket contact.
-  table_law: capped_slip_impulse_shell_inertia_2_over_3
-  bank_scope: at-strike conditions held fixed; pre-bounce states not identifiable
-    from this bank
+  return_model: full_ppq004_first_bounce_v1
+  flight: RK4 with quadratic drag, gravity and Magnus from the selected ball profile.
+  paddle: Venue exponential restitution, capped tangential impulse and spin transfer; PPQ004 did not refit the paddle.
+  landing: First descending ball-center contact at table surface plus ball radius.
+  bank_scope: At-strike incoming states retained; recipe-22 full-physics bank required.

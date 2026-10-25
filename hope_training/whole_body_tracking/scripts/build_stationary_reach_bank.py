@@ -127,7 +127,7 @@ def build(output, count=40000, seed=20261018, device='cpu', boxes=DEFAULT_BOXES,
     source = ROOT / 'assets/venue_tuple/v17_r12_physical_tuple_bank.npz'
     core = dict(np.load(source, allow_pickle=False))
     vb, physics_source = legacy.load_physics()
-    params = vb.load_venue_params()
+    params = legacy.legacy_physics_params(vb)
     rng = np.random.default_rng(seed)
     torch.manual_seed(seed)
     device = torch.device(device)

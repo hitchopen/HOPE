@@ -20,7 +20,10 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # Written by the stopped-only Foxglove ball selector; late override wins.
     ball_profile = Path.home() / ".config/hope-foxglove/ball_physics.json"
-    ball_overrides = [str(ball_profile)] if ball_profile.exists() else []
+    ball_overrides = [str(ball_profile)] if ball_profile.exists() else [
+        PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
+                              "ball_physics_ppq004_20261020.yaml"])
+    ]
     config = Path(__file__).resolve().parent.parent / "config/avatar_pro_vrpn.yaml"
     arg = LaunchConfiguration
     typed = lambda name, kind: ParameterValue(arg(name), value_type=kind)

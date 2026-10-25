@@ -8,7 +8,7 @@ This module assembles a single MuJoCo model that contains
     the robot model lives here), and
   * a static **table top**, **net** and **floor** contact surface, plus a dynamic
     **ball** (free joint, sphere), all sized/placed and given contact restitution +
-    friction from ``configs/ball_physics.yaml``.
+    friction from the expanded YAML-selected PPQ004 profile.
 
 The point of the scene is that ``success_rate`` can be measured from an ACTUAL
 simulated ball that really bounces off the racket, table and net -- not from an
@@ -39,9 +39,11 @@ soft constraint. Each ball<->surface contact is added as an explicit ``<pair>`` 
 the linear spring-damper log-decrement ``zeta = -ln(e) / sqrt(pi^2 + ln(e)^2)``.
 Near-elastic surfaces use a slightly softer time constant for numerical stability.
 This is an approximation of the measured restitution; the FIRST-bounce landing that
-``success_rate`` depends on is set by the outgoing flight (gravity + drag + the real
+``success_rate`` depends on is set by the outgoing flight (gravity + drag + Magnus + the real
 racket contact) before any table-bounce restitution matters, so the metric is robust
-to the approximation.
+to the approximation. This independent physical-collider evaluator uses MuJoCo's
+soft-contact solver; its contact response is not claimed to be numerically identical
+to the analytic PPQ004 impulse law used by training rewards and return planning.
 """
 
 from __future__ import annotations
@@ -115,23 +117,24 @@ class PingPongRealPhysicsScene:
         self.num_joints = len(self.joint_names)
 
         # --- geometry from the shared ball-physics config -----------------------
-        g = float(ball_cfg.get("gravity", 9.81))
-        table = ball_cfg.get("table", {})
-        net = ball_cfg.get("net", {})
-        ball = ball_cfg.get("ball", {})
-        drag = ball_cfg.get("drag", {})
-        self.length = float(table.get("length", 2.74))
-        self.width = float(table.get("width", 1.525))
-        self.table_height = float(table.get("height", 0.76))
-        self.table_thickness = float(table.get("thickness", 0.05))
-        self.net_height = float(net.get("height", 0.1525))
-        self.net_x_table = float(net.get("x_position", self.length / 2.0))
-        self.net_overhang = float(net.get("overhang", 0.15))
-        self.net_thickness = float(net.get("thickness", 0.01))
-        self.ball_radius = float(ball.get("radius", 0.020))
-        self.ball_mass = float(ball.get("mass", 0.0027))
-        self.drag_k = float(drag.get("k", 0.1261))
-        self.velocity_clip = float(drag.get("velocity_clip", 50.0))
+        g = float(ball_cfg["flight"]["g"])
+        table = ball_cfg["table"]
+        net = ball_cfg["net"]
+        ball = ball_cfg["ball"]
+        drag = ball_cfg["drag"]
+        self.length = float(table["length"])
+        self.width = float(table["width"])
+        self.table_height = float(table["height"])
+        self.table_thickness = float(table["thickness"])
+        self.net_height = float(net["height"])
+        self.net_x_table = float(net["x_position"])
+        self.net_overhang = float(net["overhang"])
+        self.net_thickness = float(net["thickness"])
+        self.ball_radius = float(ball["radius"])
+        self.ball_mass = float(ball["mass"])
+        self.ball_inertia_coeff = float(ball["inertia_coeff"])
+        self.drag_k = float(ball_cfg["flight"]["k_d"])
+        self.magnus_k = float(ball_cfg["flight"]["k_m"])
         self.gravity = g
 
         self.near_edge_x = float(near_edge_x)
@@ -151,6 +154,9 @@ class PingPongRealPhysicsScene:
         self._ball_qadr = int(m.jnt_qposadr[self._joint_id("ball_free_joint")])
         self._ball_vadr = int(m.jnt_dofadr[self._joint_id("ball_free_joint")])
         self._ball_bid = self._body_id("ball")
+        # The selected fit uses the configured shell inertia, not the sphere-geom default.
+        m.body_inertia[self._ball_bid, :] = self.ball_inertia_coeff * self.ball_mass * self.ball_radius**2
+        self._mj.mj_setConst(m, self.data)
         self._racket_sid = self._site_id("right_racket")
         self._ball_gid = self._geom_id("ball_geom")
         self._racket_gid = self._geom_id("right_racket_collision")
@@ -223,13 +229,13 @@ class PingPongRealPhysicsScene:
         )
 
         # Contact pairs: restitution + friction from the config (see module docstring).
-        contact = ball_cfg.get("contact", {})
+        contact = ball_cfg["contact"]
 
-        def _friction(surface_key: str, default: float) -> float:
-            return float(contact.get(surface_key, {}).get("dynamic_friction", default))
+        def _friction(surface_key: str) -> float:
+            return float(contact[surface_key]["dynamic_friction"])
 
-        def _restitution(surface_key: str, default: float) -> float:
-            return float(contact.get(surface_key, {}).get("restitution", default))
+        def _restitution(surface_key: str) -> float:
+            return float(contact[surface_key]["restitution"])
 
         def _add_pair(g1: str, g2: str, e: float, fr: float) -> None:
             pair = spec.add_pair(geomname1=g1, geomname2=g2)
@@ -238,10 +244,10 @@ class PingPongRealPhysicsScene:
             pair.friction = [fr, fr, 0.005, 1e-4, 1e-4]
             pair.condim = 3
 
-        _add_pair("ball_geom", "table_geom", _restitution("table", 0.9215), _friction("table", 0.40))
-        _add_pair("ball_geom", "net_geom", _restitution("net", 0.10), _friction("net", 0.50))
-        _add_pair("ball_geom", "right_racket_collision", _restitution("paddle", 0.654), _friction("paddle", 0.60))
-        _add_pair("ball_geom", "floor", _restitution("floor", 0.40), _friction("floor", 0.80))
+        _add_pair("ball_geom", "table_geom", _restitution("table"), _friction("table"))
+        _add_pair("ball_geom", "net_geom", _restitution("net"), _friction("net"))
+        _add_pair("ball_geom", "right_racket_collision", _restitution("paddle"), _friction("paddle"))
+        _add_pair("ball_geom", "floor", _restitution("floor"), _friction("floor"))
 
         # Extend the model's stand keyframe with a resting ball pose so the combined
         # nq matches (the ball's 7 qpos are overwritten per serve anyway).
@@ -361,13 +367,20 @@ class PingPongRealPhysicsScene:
         tau = np.where(self._ctrl_limited, np.clip(tau, self._ctrl_lo, self._ctrl_hi), tau)
         d.ctrl[self._act_idx] = tau
 
+    def ball_spin(self):
+        """World angular velocity, including spin produced by MuJoCo contact."""
+        velocity = np.zeros(6)
+        self._mj.mj_objectVelocity(self.model, self.data, self._mj.mjtObj.mjOBJ_BODY,
+                                  self._ball_bid, velocity, 0)
+        return velocity[:3].copy()
+
     def _apply_ball_drag(self) -> None:
-        """No-spin aerodynamic drag as a Cartesian force F = -m*k*|v|*v (world frame)."""
+        """PPQ004 drag plus Magnus; gravity is supplied by MuJoCo."""
         d = self.data
         v = d.qvel[self._ball_vadr:self._ball_vadr + 3]
-        speed = float(np.linalg.norm(v))
-        speed = min(speed, self.velocity_clip)
-        d.xfrc_applied[self._ball_bid, :3] = -self.ball_mass * self.drag_k * speed * v
+        acceleration = (-self.drag_k * np.linalg.norm(v) * v
+                        + self.magnus_k * np.cross(self.ball_spin(), v))
+        d.xfrc_applied[self._ball_bid, :3] = self.ball_mass * acceleration
 
     def step(self) -> StepResult:
         """Advance one 50 Hz control tick; report physical ball events sub-step wise."""

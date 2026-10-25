@@ -4,6 +4,8 @@ pp_load_ball_physics() {
   local params_file="$1" profile="${2:-}" receipt="${3:-}" exports
   local helper_dir
   helper_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+  profile="${profile:-$(dirname -- "$params_file")/ball_physics_ppq004_20261020.yaml}"
+  export PP_SELECTED_BALL_PROFILE="$profile"
   local -a args=(--params-file "$params_file" --shell)
   [[ -z "$profile" ]] || args+=(--params-file "$profile")
   [[ -z "$receipt" ]] || args+=(--receipt "$receipt")

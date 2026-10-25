@@ -13,7 +13,7 @@ def curriculum_scale(step, start, ramp):
     return min(1.0, max(0.0, (float(step) - start) / ramp))
 
 
-DISTRIBUTIONS = ('complete_hold_robust_v1', 'stationary_reach_v1', 'stationary_reach_ppq004_v1')
+DISTRIBUTIONS = ('complete_hold_robust_v1', 'stationary_reach_v1', 'stationary_reach_ppq004_full_v1')
 
 
 def validate_training_contract(task, algo):
@@ -26,7 +26,7 @@ def validate_training_contract(task, algo):
     racket = task['racket']
     if racket['base_mocap_episode_timeout_s'] <= max(racket['base_mocap_stress_long_duration_s']):
         raise ValueError('mocap training timeout must allow the longest stress stall to recover')
-    if revision in ('stationary_reach_v1', 'stationary_reach_ppq004_v1'):
+    if revision in ('stationary_reach_v1', 'stationary_reach_ppq004_full_v1'):
         # The robot never walks: every question is answered from the session
         # anchor, so the exported runner must also hold that anchor.
         if not (racket.get('venue_tuple_fixed_station') and racket.get('venue_tuple_robust_sampling')

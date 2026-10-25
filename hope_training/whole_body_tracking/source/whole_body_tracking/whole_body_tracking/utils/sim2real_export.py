@@ -89,7 +89,7 @@ def sim2real_metadata(env, task):
             and racket.venue_tuple_final_mix_prob == 1.0
             and racket.venue_tuple_robust_sampling
             and not racket.venue_tuple_limit_reset_travel
-            and build.get("training_distribution_revision") in ("stationary_reach_v1", "stationary_reach_ppq004_v1")
+            and build.get("training_distribution_revision") in ("stationary_reach_v1", "stationary_reach_ppq004_full_v1")
             and racket.racket_pos_range_per_clip[0][1][1] <= racket.racket_pos_range_per_clip[1][1][0])
     if getattr(motion, "step_reference_mode", "") == "discrete_four_stroke":
         checks["four complete teachers and causal first-frame HOLD"] = (

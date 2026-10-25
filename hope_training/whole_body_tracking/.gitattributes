@@ -16,3 +16,6 @@
 *.hdr filter=lfs diff=lfs merge=lfs -text
 *.pt filter=lfs diff=lfs merge=lfs -text
 *.jit filter=lfs diff=lfs merge=lfs -text
+
+# Published question-bank inputs are ordinary binary Git assets.
+assets/stationary_reach_v4_ppq004_generalization_20261022/*.npz binary

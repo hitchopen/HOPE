@@ -1,4 +1,4 @@
-"""Launch StationaryRally with a verified PPQ004 refit and matching physics.
+"""Launch stationary recipe 22 with verified PPQ004 full first-bounce physics.
 
 Run with the Isaac interpreter, from any directory:
   hope_isaac_py scripts/train_refitted_stationary.py --overrides \

@@ -1,30 +1,30 @@
-"""Offline PPQ004 bank retargeting must use the Isaac training ball equations."""
-import importlib.util
+"""Recipe 22 binds shared full PPQ004 physics to physical first-bounce labels."""
+import hashlib
 import json
 from pathlib import Path
 import sys
 
 import numpy as np
 import pytest
-import torch
 import yaml
-
-from test_virtual_ball_cuda_graph import vb
 
 pytest.importorskip('numba')
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
-spec = importlib.util.spec_from_file_location('ppq004_bank_refitter', ROOT / 'scripts/refit_stationary_reach_bank.py')
-refitter = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = refitter
-spec.loader.exec_module(refitter)
+sys.path.insert(0, str(ROOT / 'scripts'))
+import refit_stationary_reach_bank as refitter
+from ball_physics_profile import load_profile, profile_source_hashes
+from full_ball_model import (DT, FLIGHT_TIME, G, KD, KM, RADIUS,
+                             first_bounce, full_contact, plan)
 PROFILE = REPO / 'configs/ball_physics_ppq004_training.yaml'
 
 
-def test_training_profile_matches_ppq004_flight_and_table_and_retains_venue_paddle():
-    profile = yaml.safe_load(PROFILE.read_text())
-    venue = yaml.safe_load((REPO / 'configs/ball_physics_venue.yaml').read_text())
+def test_training_profile_selects_shared_ppq004_and_full_contact_yaml():
+    wrapper = yaml.safe_load(PROFILE.read_text())
+    assert 'flight' not in wrapper  # fitted coefficients remain references
+    profile = load_profile(PROFILE)
     deployed = yaml.safe_load((REPO / 'hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml').read_text())
+    contact = yaml.safe_load((REPO / 'hope_ws/src/hope_planner_cpp/config/return_physics.yaml').read_text())['hope_planner']['ros__parameters']
     for node in ('hope_planner', 'hope_ball_flight_packetizer'):
         params = deployed[node]['ros__parameters']
         assert profile['flight']['k_d'] == params['drag_k']
@@ -32,83 +32,125 @@ def test_training_profile_matches_ppq004_flight_and_table_and_retains_venue_padd
         for training, planner in (('e_eff', 'restitution_v'), ('a_t', 'table_tangential_gain'),
                                   ('mu_safety', 'table_friction_cap_mu')):
             assert profile['contact']['table'][training] == params[planner]
-    assert profile['contact']['paddle'] == venue['contact']['paddle']
-    assert profile['ball']['inertia_coeff'] == pytest.approx(2 / 3)
+    for training, shared in (('e_exp_g1', 'restitution_exp_g1'), ('e_exp_g2', 'restitution_exp_g2'),
+                             ('a_t', 'paddle_tangential_gain'), ('b_t', 'paddle_angle_gain'),
+                             ('mu_safety', 'paddle_friction_cap_mu')):
+        assert profile['contact']['paddle'][training] == contact[shared]
+    assert profile['return_model']['id'] == 'full_ppq004_first_bounce_v1'
     assert profile['provenance']['model'] == 'PPQ004_UNIFIED'
+    assert len(profile_source_hashes(PROFILE)) == 6
 
 
-@pytest.mark.parametrize('h', [.005, .001, -.005])
-def test_refitter_rk4_matches_training_forward_and_backward(h):
-    rng = np.random.default_rng(20261025)
-    x = rng.uniform([.44, -.68, .8], [.7, .28, 1.45], (17, 3))
-    velocity = rng.uniform(-4, 4, (17, 3))
-    spin = rng.uniform(-40, 40, (17, 3))
+def test_reverse_and_outgoing_checks_use_center_contact_plane_not_surface():
     params = refitter.params_from_yaml(PROFILE)
-    actual = np.array([refitter.step(a, b, c, h, params) for a, b, c in zip(x, velocity, spin)])
-    expected = vb.rk4_step(*(torch.from_numpy(v) for v in (x, velocity, spin)), h,
-                           vb.load_venue_params(str(PROFILE)))
-    np.testing.assert_allclose(actual[:, 0], expected[0].numpy(), rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(actual[:, 1], expected[1].numpy(), rtol=1e-12, atol=1e-12)
+    # Exact straight flight isolates contact-plane selection from model accuracy.
+    params[G] = params[KD] = params[KM] = 0.
+    x = np.array([.7, -.75, .2])
+    up = np.array([-2., 0., 1.])
+    xy, valid = refitter.incoming_bounce(x, up, np.zeros(3), params)
+    t = (x[2]-params[RADIUS])/up[2]
+    assert valid
+    np.testing.assert_allclose(xy, x[:2]-up[:2]*t, rtol=0, atol=1e-12)
+    down = -up
+    bounce, _, time, _, _, valid = first_bounce(x, down, np.zeros(3), params)
+    assert valid
+    assert bounce[2] == pytest.approx(params[RADIUS], abs=1e-12)
+    assert time == pytest.approx(t, abs=1e-12)
+    np.testing.assert_allclose(bounce[:2], xy, rtol=0, atol=1e-12)
+    profile = load_profile(PROFILE)
+    frame = profile['training_frame']
+    np.testing.assert_array_equal(refitter.table_offset_from_yaml(PROFILE),
+        [frame['near_x'], frame['y_center']+profile['table']['width']/2, frame['surface_z']])
 
 
-def test_refitter_paddle_matches_training_including_approach_orientation():
-    rng = np.random.default_rng(5)
-    incoming = rng.uniform(-3, 3, (64, 3))
-    racket = rng.uniform([1, -.8, .3], [2.9, 1.2, 2], (64, 3))
-    incoming[::2, 0] = 5  # Exercise face flipping as well as normal approach.
-    spin = rng.uniform(-50, 50, (64, 3))
-    params = refitter.params_from_yaml(PROFILE)
-    actual = np.array([refitter.paddle(a, b, c, params) for a, b, c in zip(incoming, racket, spin)])
-    expected = vb.predict_paddle_contact(torch.from_numpy(incoming), torch.from_numpy(racket),
-                                         torch.from_numpy(racket), torch.from_numpy(spin),
-                                         vb.load_venue_params(str(PROFILE)))
-    np.testing.assert_allclose(actual[:, 0], expected[0].numpy(), rtol=1e-11, atol=1e-11)
-    np.testing.assert_allclose(actual[:, 1], expected[1].numpy(), rtol=1e-11, atol=1e-11)
-
-
-def test_refit_reduces_landing_error_without_relaxing_physical_bounds():
-    source = ROOT / 'assets/stationary_reach_v4/train.npz'
+def source_sample(count=128):
+    source = ROOT / 'assets/stationary_reach_v4_ppq004_generalization_20261022/train.npz'
     receipt = json.loads(source.with_suffix('.receipt.json').read_text())
     with np.load(source, allow_pickle=False) as bank:
-        ids = np.linspace(0, len(bank['clip']) - 1, 64, dtype=int)
-        a = {k: bank[k][ids] if bank[k].ndim else bank[k] for k in bank.files}
+        ids = np.linspace(0, len(bank['clip']) - 1, count, dtype=int)
+        a = {key: bank[key][ids] if bank[key].ndim else bank[key] for key in bank.files}
     x = a['target_position_offset'].astype(np.float64)
     x[:, :2] += a['station_xy']
-    incoming = a['incoming_velocity'].astype(np.float64)
-    spin = a['incoming_spin'].astype(np.float64)
-    velocity = a['target_velocity'].astype(np.float64)
+    return a, x, receipt
+
+
+def test_refitter_uses_full_spin_inverse_and_requalifies_commands_without_relaxing_bounds():
+    a, x, receipt = source_sample()
+    incoming, spin = a['incoming_velocity'].astype(np.float64), a['incoming_spin'].astype(np.float64)
     target = a['intended_landing_xy'].astype(np.float64)
     params = refitter.params_from_yaml(PROFILE)
-    boxes = np.array([[receipt['contract']['velocity_boxes'][str(side)][axis] for axis in 'xyz']
-                      for side in (0, 1)])
-    before = refitter.check(x, incoming, spin, velocity, target, params, .005)
-    fitted = refitter.refit(x, incoming, spin, velocity, target, a['clip'], params, boxes).astype(np.float32)
-    a['target_velocity'] = fitted
-    coarse = refitter.check(x, incoming, spin, fitted.astype(np.float64), target, params, .005)
-    fine = refitter.check(x, incoming, spin, fitted.astype(np.float64), target, params, .001)
-    coarse_good, _ = refitter.mask_valid(a, coarse, receipt)
-    fine_good, _ = refitter.mask_valid(a, fine, receipt, fit_tolerance=.003)
-    good = coarse_good & fine_good
-    assert good.sum() >= 48
-    assert np.quantile(fine[good, 8], .95) < np.quantile(before[good, 8], .95) / 10
-    assert fine[good, 8].max() <= .003
+    offset = refitter.table_offset_from_yaml(PROFILE)
+    velocity, normals, planned, planned_spin, valid = refitter.retarget(x, incoming, spin, target, params, offset)
+    for i in (0, 21, 127):
+        expected = plan(x[i]-offset, incoming[i], spin[i], target[i]-offset[:2], params[FLIGHT_TIME], params)
+        for actual, wanted in zip((velocity[i], normals[i], planned[i], planned_spin[i]), expected[:4]):
+            np.testing.assert_allclose(actual, wanted, rtol=1e-10, atol=1e-10)
+    a['target_velocity'], a['target_normal'] = velocity.astype(np.float32), normals.astype(np.float32)
+    result, outgoing, out_spin = refitter.check(x, incoming, spin, a['target_velocity'].astype(np.float64),
+        a['target_normal'].astype(np.float64), target, params, offset)
+    good, reasons = refitter.mask_valid(a, result, receipt, valid)
+    assert good.sum() >= 75
+    assert result[good, 8].max() <= .003
     assert np.all(a['station_xy'] == 0)
-    for side in (0, 1):
-        selected = a['clip'] == side
-        assert np.all(fitted[selected] >= boxes[side, :, 0] - 1e-6)
-        assert np.all(fitted[selected] <= boxes[side, :, 1] + 1e-6)
-    contact = np.array([refitter.paddle(i, r, s, params)
-                        for i, r, s in zip(incoming, fitted.astype(np.float64), spin)])
-    out, omega = torch.from_numpy(contact[:, 0]), torch.from_numpy(contact[:, 1])
-    training = vb.coarse_landing(torch.from_numpy(x), out, omega, vb.load_venue_params(str(PROFILE)),
-                                 surface_z=.76, net_x=1.87, h=.005, n_steps=240)
-    np.testing.assert_allclose(training['land_xy'].numpy()[good], coarse[good, :2], rtol=1e-10, atol=1e-10)
-    np.testing.assert_allclose(training['net_z'].numpy()[good], coarse[good, 2], rtol=1e-10, atol=1e-10)
-    # Each exclusion is enforced even for an otherwise qualified row.
+    # The stored command's actual full contact is re-evaluated, including spin.
+    for i in (0, 21, 127):
+        expected = full_contact(incoming[i], a['target_velocity'][i].astype(float),
+                                a['target_normal'][i].astype(float), spin[i], params)
+        np.testing.assert_allclose(outgoing[i], expected[0], rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(out_spin[i], expected[1], rtol=1e-12, atol=1e-12)
+    assert not np.allclose(outgoing, velocity)
+    changed, changed_out, changed_spin = refitter.check(x, incoming, -spin, a['target_velocity'].astype(np.float64),
+        a['target_normal'].astype(np.float64), target, params, offset)
+    assert np.max(np.abs(changed_out-outgoing)) > .1
+    assert np.max(np.abs(changed_spin-out_spin)) > 1.
+    assert np.max(np.abs(changed[:,:2]-result[:,:2])) > .01
+    # Every original bound remains mandatory even on an otherwise accepted row.
     index = np.flatnonzero(good)[0]
     for column, value in ((0, 3.11), (1, .66), (2, .96), (3, 0), (4, .50),
                           (5, .75), (6, 0), (7, 7.01), (8, .004), (0, np.nan)):
-        invalid = fine.copy()
+        invalid = result.copy()
         invalid[index, column] = value
-        mask, _ = refitter.mask_valid(a, invalid, receipt, fit_tolerance=.003)
-        assert not mask[index]
+        assert not refitter.mask_valid(a, invalid, receipt, valid)[0][index]
+    outside = {key:value.copy() for key,value in a.items()}
+    outside['target_velocity'][index, 0] = 3.0
+    assert not refitter.mask_valid(outside, result, receipt, valid)[0][index]
+    invalid_plan = valid.copy()
+    invalid_plan[index] = False
+    assert not refitter.mask_valid(a, result, receipt, invalid_plan)[0][index]
+
+
+def test_refit_preserves_published_input_provenance_and_split_rows():
+    arrays, _, receipt = source_sample()
+    assert receipt['contract']['recipe_revision'] == 21
+    assert set(np.unique(arrays['generation_kind'])) == {0, 1}
+    original = {key: value.copy() for key, value in arrays.items()}
+    accepted = np.arange(len(arrays['clip'])) % 3 != 0
+    output = refitter.retained_rows(arrays, accepted)
+    np.testing.assert_array_equal(output['source_row_index'], np.flatnonzero(accepted))
+    np.testing.assert_array_equal(output['input_source_row_index'], original['source_row_index'][accepted])
+    for key, value in original.items():
+        np.testing.assert_array_equal(arrays[key], value)
+        if key != 'source_row_index':
+            np.testing.assert_array_equal(output[key], value[accepted] if value.ndim else value)
+
+
+def test_published_revision21_source_banks_match_receipts_and_disjoint_parents():
+    base = ROOT / 'assets/stationary_reach_v4_ppq004_generalization_20261022'
+    expected = {'train': 502053, 'dev': 61815, 'test': 62103}
+    parents = []
+    for split, count in expected.items():
+        path = base / f'{split}.npz'
+        receipt = json.loads(path.with_suffix('.receipt.json').read_text())
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == receipt['bank_sha256']
+        assert receipt['rows'] == count
+        assert receipt['contract']['recipe_revision'] == 21
+        assert receipt['augmentation']['outgoing_landing_plane_z'] == .76
+        with np.load(path, allow_pickle=False) as bank:
+            assert len(bank['clip']) == count
+            assert np.all(bank['station_xy'] == 0)
+            parents.append(set(bank['parent_id'].tolist()))
+            if split == 'train':
+                assert receipt['bank_sha256'] == '02619e747333980a6f1d48aa3a9c7896e15727cf95cd3f51eb387d7687c4b419'
+                assert int((bank['generation_kind'] == 0).sum()) == 183274
+                assert int((bank['generation_kind'] == 1).sum()) == 318779
+    assert not (parents[0] & parents[1] or parents[0] & parents[2] or parents[1] & parents[2])

@@ -70,3 +70,14 @@ assets/*
 !assets/stationary_reach_v4/
 !assets/stationary_reach_v4/*.npz
 !assets/stationary_reach_v4/*.json
+
+# Immutable developer-published revision-21 source; local refits stay ignored.
+!assets/stationary_reach_v4_ppq004_generalization_20261022/
+assets/stationary_reach_v4_ppq004_generalization_20261022/*
+!assets/stationary_reach_v4_ppq004_generalization_20261022/train.npz
+!assets/stationary_reach_v4_ppq004_generalization_20261022/dev.npz
+!assets/stationary_reach_v4_ppq004_generalization_20261022/test.npz
+!assets/stationary_reach_v4_ppq004_generalization_20261022/*.receipt.json
+!assets/stationary_reach_v4_ppq004_generalization_20261022/coverage.json
+!assets/stationary_reach_v4_ppq004_generalization_20261022/generation_report.json
+!assets/stationary_reach_v4_ppq004_generalization_20261022/README.md

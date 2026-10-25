@@ -39,7 +39,7 @@ def fixture(device, unconditional):
                  vb_vel_in_w=incoming, vb_spin_in_w=torch.zeros_like(pos),
                  _env=NS(scene=NS(env_origins=torch.zeros_like(pos))),
                  _vb_net_x=1.87, _vb_far_x=3.24, _vb_half_w=.7625,
-                 _vb_net_top_z=.9125, _vb_ball_r=.02,
+                 _vb_net_top_z=.9125, _vb_ball_r=.02, _vb_y_center=0., _vb_net_overhang=.1525,
                  _vb_target_xy=torch.tensor([2.7, 0.], device=device),
                  _venue_tuple_selected=(torch.arange(n, device=device) % 3 != 0),
                  _venue_intended_landing_xy=torch.tensor([2.6, .1],device=device).expand(n, 2),

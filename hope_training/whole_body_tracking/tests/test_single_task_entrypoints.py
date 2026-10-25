@@ -19,7 +19,7 @@ def test_train_defaults_to_ppq004_and_play_preserves_baseline():
         train = hydra.compose(config_name="train")
         play = hydra.compose(config_name="play")
         legacy = hydra.compose(config_name="train", overrides=["task=HOPEPingPong", "algo=ppo"])
-    assert train.task.build_contract.training_distribution_revision == "stationary_reach_ppq004_v1"
+    assert train.task.build_contract.training_distribution_revision == "stationary_reach_ppq004_full_v1"
     assert train.algo.algorithm.settled_aux_enabled is False
     assert OmegaConf.to_container(legacy.task) == OmegaConf.to_container(play.task)
     assert OmegaConf.to_container(legacy.algo) == OmegaConf.to_container(play.algo)

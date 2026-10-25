@@ -10,7 +10,7 @@ the deploy contract rather than a second, divergent implementation.
 
 ``success_rate`` is measured from an ACTUAL simulated ball. A real ball (free joint,
 sphere) is served from the opponent side toward the robot; it flies under gravity +
-no-spin aerodynamic drag and really bounces off the racket, table and net inside
+PPQ004 drag and Magnus forces and really bounces off the racket, table and net inside
 MuJoCo. A return succeeds when ALL of the following are observed on the real
 trajectory:
 
@@ -136,57 +136,55 @@ def _sample_serve(rng, side, scene, physics, args):
     return strike_pt, origin, serve_vel
 
 
-def _predict_command(ball_pos, ball_vel, side, scene, physics, args, task_id, revision, RacketCommand):
-    """Lightweight inline no-spin intercept predictor -> a RacketCommand.
-
-    Forward-integrates the true ball with the shared no-spin model (gravity +
-    quadratic drag) until it crosses the fixed strike plane, producing the racket
-    target position (where the ball will be), the time-to-strike, and a target racket
-    velocity aimed at the fixed opponent-half landing point. ``swing_sign`` is the
-    side locked for this task (harness-internal target semantics only — the policy
-    never observes it). This mirrors the planner's job but reads the ball directly
-    (the evaluator is the ground truth, so no mocap emulation is needed).
-    """
+def _predict_command(ball_pos, ball_vel, side, scene, physics, args, task_id, revision,
+                     RacketCommand, *, ball_spin):
+    """Full PPQ004 incoming prediction and paddle-to-first-bounce inverse."""
+    from full_ball_model import (DT, HORIZON, RADIUS, rk4_step, table_contact, plan)
+    params = physics.return_parameters
     strike_x = scene.near_edge_x + args.strike_plane_x
     p = np.asarray(ball_pos, dtype=np.float64).copy()
     v = np.asarray(ball_vel, dtype=np.float64).copy()
-    dt = 0.002
+    spin = np.asarray(ball_spin, dtype=np.float64).copy()
+    dt = params[DT]
     t = 0.0
-    y_cross, z_cross, tts = float(p[1]), float(p[2]), 0.0
-    for _ in range(int(2.0 / dt)):
-        a = physics.acceleration(v)
-        p_new = p + v * dt + 0.5 * a * dt * dt
-        v_new = v + a * dt
-        if p[0] >= strike_x > p_new[0]:  # ball moving -x through the strike plane
-            dx = p_new[0] - p[0]
-            frac = (strike_x - p[0]) / dx if abs(dx) > 1e-12 else 0.5
-            y_cross = float(p[1] + frac * (p_new[1] - p[1]))
-            z_cross = float(p[2] + frac * (p_new[2] - p[2]))
-            tts = t + frac * dt
+    intercepted = False
+    while params[HORIZON] - t > 1e-12:
+        h = min(dt, params[HORIZON] - t)
+        p_new, v_new = rk4_step(p, v, spin, h, params)
+        strike_fraction = ((strike_x - p[0]) / (p_new[0] - p[0])
+                           if p[0] >= strike_x > p_new[0] else np.inf)
+        plane = scene.table_height + params[RADIUS]
+        bounce_fraction = np.inf
+        if p[2] > plane >= p_new[2]:
+            f = (p[2] - plane) / (p[2] - p_new[2])
+            at = p + f * (p_new - p)
+            local = at - scene.offset
+            if 0 <= local[0] <= scene.length and -scene.width <= local[1] <= 0:
+                bounce_fraction = f
+        # Resolve the earliest event. A later bounce must not change strike spin.
+        if np.isfinite(strike_fraction) and strike_fraction <= bounce_fraction:
+            p = p + strike_fraction * (p_new - p)
+            v = v + strike_fraction * (v_new - v)
+            t += strike_fraction * h
+            intercepted = True
             break
+        if np.isfinite(bounce_fraction):
+            p = p + bounce_fraction * (p_new - p)
+            v = v + bounce_fraction * (v_new - v)
+            v, spin = table_contact(v, spin, params)
+            t += bounce_fraction * h
+            continue
         p, v = p_new, v_new
-        t += dt
-
-    target_pos = np.array([strike_x, y_cross, z_cross], dtype=np.float64)
-
-    # Target racket velocity: the ballistic velocity that would send the ball from the
-    # strike point to the fixed opponent-half landing target in a fixed time.
-    landing_table = np.array(
-        [(scene.net_x_table + scene.length) / 2.0, -scene.width / 2.0, 0.0], dtype=np.float64
-    )
-    landing_mujoco = landing_table + scene.offset
-    t_out = 0.6
-    accel = np.array([0.0, 0.0, -physics.gravity])
-    target_vel = (landing_mujoco - target_pos) / t_out - 0.5 * accel * t_out
-
-    return RacketCommand(
-        task_id=task_id,
-        task_revision=revision,
-        swing_sign=side,
-        position=target_pos,
-        velocity=target_vel,
-        time_to_strike=float(tts),
-    )
+        t += h
+    if not intercepted:
+        return None
+    target = np.asarray(physics.profile['return_model']['target_land'], dtype=np.float64)
+    result = plan(p - scene.offset, v, spin, target,
+                  float(physics.profile['return_model']['flight_time_s']), params)
+    if not result[6] or not result[7]:
+        return None
+    return RacketCommand(task_id=task_id, task_revision=revision, swing_sign=side,
+                         position=p, velocity=result[0], time_to_strike=float(t))
 
 
 def run_eval(args) -> dict:
@@ -244,7 +242,8 @@ def run_eval(args) -> dict:
     default_q = runtime_cfg.action_adapter.default_q.copy()
     kp, kd = runtime_cfg.sim_kp.copy(), runtime_cfg.sim_kd.copy()
     head_idx = list(HEAD_INDICES)
-    net_clear_z = table.net_height + physics.ball_radius
+    net_clear_z = (table.net_height + physics.ball_radius
+                   + physics.profile["return_model"]["net_clearance_margin"])
     contact_radius = args.contact_radius
     dt = runtime_cfg.control_dt
     max_ticks = max(1, int(round(args.max_trial_seconds / dt)))
@@ -336,10 +335,12 @@ def run_eval(args) -> dict:
         for _tick in range(max_ticks):
             ball_pos, ball_vel = scene.ball_state()
             cmd = _predict_command(
-                ball_pos, ball_vel, side, scene, physics, args, task_id, revision, RacketCommand
+                ball_pos, ball_vel, side, scene, physics, args, task_id, revision, RacketCommand,
+                ball_spin=scene.ball_spin()
             )
             revision += 1
-            source.submit(cmd)
+            if cmd is not None:
+                source.submit(cmd)
 
             events, last_action = _policy_tick(lifecycle, source, last_action, base_target_xy)
 
