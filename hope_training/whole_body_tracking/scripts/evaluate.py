@@ -1,4 +1,4 @@
-"""Evaluate a trained HOPE policy in-sim and report ``success_rate`` (the only metric).
+"""Evaluate a trained HOPE policy in-sim and report return success and optional sweet-spot placement metrics.
 
 Runs the policy across many parallel environments, detects each strike (the reference clock reaching
 the strike frame), and rolls out the full PPQ004 paddle impulse and spinning ball to decide whether the return succeeded
@@ -24,7 +24,8 @@ legacy task recipes; scoring always measures the full PPQ004 return model, inclu
 when evaluating an older policy. MuJoCo offers a separate physical-solver evaluation.
 Emits a machine-readable
 ``{"success_rate": <float>}`` to stdout (and optionally to --json-out). No thresholds, no exit-code
-changes, no other metrics.
+changes. Sweet-spot recipes additionally emit a separate ``sweet_spot`` summary;
+its rates include misses and pre-strike interruptions, without redefining success_rate.
 
 Usage:
     python scripts/evaluate.py --checkpoint logs/rsl_rl/agibot_a3_hitter_pingpong/<run>/model_<iter>.pt \
@@ -57,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-steps", type=int, default=4000, help="Policy steps to roll out.")
     parser.add_argument("--device", default="cuda:0", help="Compute device.")
     parser.add_argument("--contact-radius", type=float, default=0.10, help="Racket-to-target contact gate (m).")
-    parser.add_argument("--json-out", default=None, help="Also write {'success_rate': ...} to this file.")
+    parser.add_argument("--json-out", default=None, help="Also write the return/placement metrics JSON to this file.")
     parser.add_argument("--experiment-name", default=None, help="Override the saved rsl_rl experiment name.")
     parser.add_argument(
         "--motion-file", default=None, help="Override the saved forehand clip."
@@ -112,6 +113,15 @@ def _bind_saved_physics(cfg, *, environ=None):
         if _source_identities(saved.get("ppq004_physics_source_hashes")) != _source_identities(
                 OmegaConf.to_container(verified.task.ppq004_physics_source_hashes)):
             raise ValueError("Saved checkpoint referenced physics differs from refit manifest")
+        expected_objective = OmegaConf.to_container(verified.task.get("landing_objective"), resolve=True) if verified.task.get("landing_objective") else None
+        saved_objective = saved.get("landing_objective")
+        if expected_objective is not None:
+            if (not isinstance(saved_objective, dict)
+                    or any(saved_objective.get(key) != expected_objective[key]
+                           for key in ("sha256", "descriptor"))):
+                raise ValueError("Saved checkpoint landing objective differs from refit manifest")
+        elif saved_objective is not None:
+            raise ValueError("Saved checkpoint has an unexpected landing objective")
         # Canonicalize only paths after preserving all saved content identities.
         cfg.task = verified.task
     target["HOPE_BALL_PHYSICS_YAML"] = selected["HOPE_BALL_PHYSICS_YAML"]
@@ -131,6 +141,13 @@ def _apply_evaluation_recipe(env_cfg, cfg, *, motion_file=None, motion_file_2=No
     if cfg.get("seed") is not None:
         env_cfg.seed = int(cfg.seed)
     return applied
+
+
+def _verify_placement_checkpoint(loaded, expected):
+    """Reward-on/off evaluation must restore the actual checkpoint objective."""
+    actual = loaded.get("hope_exact_resume_state", {}).get("placement_reward_identity")
+    if actual != expected:
+        raise ValueError("Checkpoint placement reward/objective identity differs from the saved evaluation recipe")
 
 
 def _first_attr(obj, names):
@@ -188,6 +205,11 @@ def main() -> int:
         agent_cfg = RslRlOnPolicyRunnerCfg(**runner_kwargs(algo, experiment))
         agent_cfg.device = args.device
         runner = HOPEOnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=args.device)
+        from whole_body_tracking.utils.sim2real_export import placement_reward_identity
+        _verify_placement_checkpoint(
+            torch.load(checkpoint, map_location="cpu", weights_only=False),
+            placement_reward_identity(OmegaConf.to_container(cfg.task, resolve=True)),
+        )
         runner.load(checkpoint, load_optimizer=False, map_location=args.device)
         policy = runner.get_inference_policy(device=base_env.device)
 
@@ -197,6 +219,14 @@ def main() -> int:
         physics = BallPhysics.from_config(scoring_profile)
         table = TableGeometry.from_config(scoring_profile)
         accumulator = SuccessRate()
+        placement = None
+        objective = cfg.task.get("landing_objective")
+        if objective:
+            from whole_body_tracking.utils.landing_placement_metrics import (
+                LandingPlacementMetrics, PlacementAttemptTracker,
+            )
+            descriptor = objective["descriptor"]
+            placement = LandingPlacementMetrics(descriptor["x_range"], descriptor["y_range"])
 
         # The racket-target command term exposes the per-strike quantities we score. Attribute names
         # are read defensively (see COUPLING NOTES in the report): the command must expose the racket
@@ -245,31 +275,74 @@ def main() -> int:
 
         obs = env.get_observations().to(args.device)
         prev_tts = read_state()[3].clone()
+        def placement_sides():
+            # Use motion clip identity rather than assuming a sign convention for the paddle.
+            return ["forehand" if int(i) == 0 else "backhand"
+                    for i in cmd._motion().clip_id.detach().cpu().tolist()]
+        if placement is not None:
+            placement_tracker = PlacementAttemptTracker(
+                placement, cmd._sweet_spot_strike_time().detach().cpu().numpy(), placement_sides())
         for _ in range(args.num_steps):
+            if placement is not None:
+                # Match reward-phase timing: latch the commanded strike inputs
+                # before the physics step; score achieved FK afterwards. The
+                # command manager advances the reference only after rewards.
+                before = dict(target=read_state()[0].clone(),
+                    incoming=cmd.vb_vel_in_w.clone(), spin=cmd.vb_spin_in_w.clone(),
+                    tts=cmd._sweet_spot_strike_time().clone(), sides=placement_sides())
+                pre_fk = cmd._racket_fk()
+                before["normal_sign"] = (pre_fk[3] * pre_fk[4]).sum(dim=-1)
             with torch.inference_mode():
                 actions = policy(obs)
                 obs, _, dones, _ = env.step(actions)
             target_pos, racket_pos, racket_vel, tts, swing = read_state()
-            # A strike happens when the reference clock crosses the strike frame (tts: >0 -> <=0).
-            # Environments that RESET this step are excluded: a time-out/fall reset re-seeds the
-            # clock, and counting it would contaminate the denominator with non-swings.
+            # Legacy scoring uses the post-command clock crossing. Placement scoring below
+            # uses the latched reward-phase clock and its own one-shot attempt tracker.
+            # Reset poses never produce a strike; placement counts an interrupted
+            # pre-strike attempt separately as a failure.
             reset_now = dones.reshape(-1).to(dtype=torch.bool, device=tts.device)
             struck = (prev_tts > 0.0) & (tts <= 0.0) & (~reset_now)
             idx = struck.nonzero(as_tuple=False).flatten().tolist()
+            if placement is not None:
+                sides_after = placement_sides()
+                sides = [sides_after[i] if bool(reset_now[i]) else before["sides"][i]
+                         for i in range(len(sides_after))]
+                # A reset supplies the newly armed clock/side, but remains a
+                # failed old attempt. Ordinary steps use the latched strike clock.
+                event_clock = torch.where(reset_now, cmd._sweet_spot_strike_time(), before["tts"])
+                placement_events = placement_tracker.advance(
+                    event_clock.detach().cpu().numpy(), sides, reset_now.detach().cpu().numpy(),
+                    base_env.reset_terminated.reshape(-1).detach().cpu().numpy())
+                idx = placement_events.nonzero()[0].tolist()
+                achieved_fk = cmd._racket_fk()
             for e in idx:
-                tp = to_table_frame(target_pos[e], e)
-                rp = to_table_frame(racket_pos[e], e)
-                rv = racket_vel[e].cpu().numpy().astype(float)  # achieved racket velocity at strike
+                if placement is not None:
+                    tp = to_table_frame(before["target"][e], e)
+                    rp = to_table_frame(achieved_fk[0][e], e)
+                    rv = achieved_fk[2][e].cpu().numpy().astype(float)
+                    incoming, spin = before["incoming"][e], before["spin"][e]
+                    normal = achieved_fk[3][e] * before["normal_sign"][e]
+                else:
+                    tp = to_table_frame(target_pos[e], e)
+                    rp = to_table_frame(racket_pos[e], e)
+                    rv = racket_vel[e].cpu().numpy().astype(float)
+                    incoming, spin, normal = cmd.vb_vel_in_w[e], cmd.vb_spin_in_w[e], cmd.racket_normal_w[e]
                 outcome = evaluate_return(
                     tp, rp, rv, physics, table, contact_radius=args.contact_radius,
-                    incoming_ball_velocity=cmd.vb_vel_in_w[e].cpu().numpy().astype(float),
-                    incoming_ball_spin=cmd.vb_spin_in_w[e].cpu().numpy().astype(float),
-                    racket_normal=cmd.racket_normal_w[e].cpu().numpy().astype(float),
+                    incoming_ball_velocity=incoming.cpu().numpy().astype(float),
+                    incoming_ball_spin=spin.cpu().numpy().astype(float),
+                    racket_normal=normal.cpu().numpy().astype(float),
                 )
                 accumulator.add(outcome)
+                if placement is not None and placement_events[e]:
+                    placement.add(outcome, sides[e])
             prev_tts = tts.clone()
 
         result = accumulator.as_dict()
+        if placement is not None:
+            result["sweet_spot"] = placement.as_dict()
+            result["sweet_spot"]["objective_sha256"] = cfg.task.landing_objective.sha256
+            result["sweet_spot"]["reward_enabled"] = bool(cfg.task.sweet_spot.reward_enabled)
         print(json.dumps(result))
         if args.json_out:
             with open(args.json_out, "w", encoding="utf-8") as f:

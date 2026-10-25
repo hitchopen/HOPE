@@ -13,7 +13,33 @@ def curriculum_scale(step, start, ramp):
     return min(1.0, max(0.0, (float(step) - start) / ramp))
 
 
-DISTRIBUTIONS = ('complete_hold_robust_v1', 'stationary_reach_v1', 'stationary_reach_ppq004_full_v1')
+DISTRIBUTIONS = ('complete_hold_robust_v1', 'stationary_reach_v1', 'stationary_reach_ppq004_full_v1',
+                 'stationary_reach_ppq004_sweet_spot_v1')
+
+
+def validate_sweet_spot_bank(arrays, receipt, x_range, y_range):
+    """Do not accept broad-return rows merely relabeled as a recipe-23 bank."""
+    import numpy as np
+    contract = receipt.get('contract', {})
+    if (contract.get('recipe_revision') != 23
+            or contract.get('training_distribution_revision') != 'stationary_reach_ppq004_sweet_spot_v1'
+            or contract.get('qualification') != 'full_ppq004_first_bounce_v1'):
+        raise RuntimeError('sweet-spot bank requires recipe-23 full-physics qualification')
+    bounds = np.asarray([x_range, y_range], dtype=np.float64)
+    if bounds.shape != (2, 2) or not np.isfinite(bounds).all() or not (bounds[:, 0] < bounds[:, 1]).all():
+        raise RuntimeError('sweet-spot bank requires finite increasing region bounds')
+    target = bounds.mean(axis=1)
+    intended = np.asarray(arrays['intended_landing_xy'])
+    predicted = np.asarray(arrays['predicted_landing_xy'])
+    if (intended.ndim != 2 or intended.shape[1] != 2 or predicted.shape != intended.shape
+            or not np.isfinite(intended).all() or not np.isfinite(predicted).all()):
+        raise RuntimeError('sweet-spot bank landing arrays must be finite matching [N,2] arrays')
+    # Storage is float32; permit rounding only, never the broad qualification box.
+    tolerance = 8 * np.finfo(np.float32).eps * np.maximum(1.0, np.abs(bounds).max(axis=1))
+    if not (np.abs(intended - target) <= tolerance).all():
+        raise RuntimeError('sweet-spot bank intended landings must equal the canonical region centre')
+    if not ((predicted >= bounds[:, 0] - tolerance) & (predicted <= bounds[:, 1] + tolerance)).all():
+        raise RuntimeError('sweet-spot bank predicted landings must lie inside the inclusive region')
 
 
 def validate_training_contract(task, algo):
@@ -26,7 +52,7 @@ def validate_training_contract(task, algo):
     racket = task['racket']
     if racket['base_mocap_episode_timeout_s'] <= max(racket['base_mocap_stress_long_duration_s']):
         raise ValueError('mocap training timeout must allow the longest stress stall to recover')
-    if revision in ('stationary_reach_v1', 'stationary_reach_ppq004_full_v1'):
+    if revision in ('stationary_reach_v1', 'stationary_reach_ppq004_full_v1', 'stationary_reach_ppq004_sweet_spot_v1'):
         # The robot never walks: every question is answered from the session
         # anchor, so the exported runner must also hold that anchor.
         if not (racket.get('venue_tuple_fixed_station') and racket.get('venue_tuple_robust_sampling')
@@ -40,6 +66,16 @@ def validate_training_contract(task, algo):
         fh, bh = racket['pos_range_per_clip']['forehand'], racket['pos_range_per_clip']['backhand']
         if not fh['y'][1] <= bh['y'][0]:
             raise ValueError('stationary reach bands must keep forehand strictly on the negative side of backhand')
+    if revision == 'stationary_reach_ppq004_sweet_spot_v1':
+        settings, objective = task.get('sweet_spot', {}), task.get('landing_objective', {})
+        enabled = settings.get('reward_enabled')
+        if (type(enabled) is not bool or racket.get('venue_tuple_bank_recipe_revision') != 23
+                or not objective or not objective.get('sha256')
+                or build.get('reward_revision') != 'actual_complete_hold_v11_stationary_sweet_spot_v1'
+                or racket.get('sweet_spot_reward_enabled') is not enabled
+                or task.get('rewards', {}).get('sweet_spot_landing_weight') != (
+                    settings.get('reward_weight') if enabled else 0.0)):
+            raise ValueError('sweet-spot training requires the validated recipe-23 objective and canonical reward switch')
 
 
 def sample_rows(bank, previous_xy, remaining_s, *, speed, brake_s, wide_probability,

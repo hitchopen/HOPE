@@ -77,7 +77,7 @@ def test_missing_or_incomplete_metadata_never_falls_back_to_baseline(tmp_path, m
 
 
 def test_full_checkpoint_cannot_silently_take_a_different_bank(bundle, tmp_path):
-    cfg = config([f'task.ppq004_refit_manifest={json.dumps(str(bundle[0]))}'])
+    cfg = config(['task=HOPEPingPongStationaryPPQ004General', f'task.ppq004_refit_manifest={json.dumps(str(bundle[0]))}'])
     prelaunch.configure_refitted_task(cfg, environ={})
     checkpoint = save_run(tmp_path, cfg)
     restored = evaluate._load_evaluation_config(checkpoint)
@@ -142,3 +142,15 @@ def test_legacy_bank_builders_ignore_new_global_ppq004_default(monkeypatch):
     inherited, _ = stationary.load_legacy_builder()
     other = inherited.legacy_physics_params(vb)
     assert other == params
+
+
+def test_evaluation_rejects_changed_reward_or_objective_checkpoint_identity():
+    expected = {'objective_sha256': 'a' * 64, 'reward': {'reward_enabled': True}}
+    evaluate._verify_placement_checkpoint({'hope_exact_resume_state': {
+        'placement_reward_identity': expected}}, expected)
+    evaluate._verify_placement_checkpoint({}, None)  # historical, non-placement policy
+    with pytest.raises(ValueError, match='placement reward/objective'):
+        evaluate._verify_placement_checkpoint({}, expected)
+    with pytest.raises(ValueError, match='placement reward/objective'):
+        evaluate._verify_placement_checkpoint({'hope_exact_resume_state': {
+            'placement_reward_identity': dict(expected, reward={'reward_enabled': False})}}, expected)

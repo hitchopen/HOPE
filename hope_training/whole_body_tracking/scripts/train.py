@@ -92,13 +92,16 @@ def _set_dotted(obj, dotted: str, value, applied: list, where: str) -> None:
     applied.append(f"{dotted} = {value}")
 
 
-def _validate_training_checkpoint(loaded, policy, recipe_revision, reward_revision=None, distribution_revision=None):
+def _validate_training_checkpoint(loaded, policy, recipe_revision, reward_revision=None, distribution_revision=None,
+                                  placement_reward_identity=None):
     """Do not silently resume a legacy optimizer into a different training MDP."""
     state = loaded.get("hope_exact_resume_state", {})
     if state.get("training_distribution_revision") != distribution_revision:
         raise ValueError("checkpoint_path training distribution differs; use explicit actor warm-start")
     if state.get("reward_revision") != reward_revision:
         raise ValueError("checkpoint_path reward revision differs; use explicit actor warm-start")
+    if state.get("placement_reward_identity") != placement_reward_identity:
+        raise ValueError("checkpoint_path landing objective or sweet-spot reward differs; use explicit actor warm-start")
     expected = getattr(policy, "exploration_contract", None)
     if state.get("policy_exploration_contract") != expected:
         raise ValueError(
@@ -371,8 +374,11 @@ def _run(cfg):
     recipe_revision = cfg.task.get("build_contract", {}).get("training_recipe_revision")
     reward_revision = cfg.task.get("build_contract", {}).get("reward_revision")
     distribution_revision = cfg.task.get("build_contract", {}).get("training_distribution_revision")
+    from whole_body_tracking.utils.sim2real_export import placement_reward_identity
+    placement_identity = placement_reward_identity(OmegaConf.to_container(cfg.task, resolve=True))
     runner.checkpoint_resume_context = {"training_recipe_revision": recipe_revision, "reward_revision": reward_revision,
-                                        "training_distribution_revision": distribution_revision}
+                                        "training_distribution_revision": distribution_revision,
+                                        "placement_reward_identity": placement_identity}
     ckpt = getattr(cfg, "checkpoint_path", None)
     warm_start = getattr(cfg, "warm_start_actor_checkpoint", None)
     if ckpt is not None and warm_start is not None:
@@ -382,7 +388,8 @@ def _run(cfg):
         if not os.path.isfile(ckpt):
             raise FileNotFoundError(f"[train.py] checkpoint_path does not exist: {ckpt}")
         loaded = torch.load(ckpt, map_location="cpu", weights_only=False)
-        _validate_training_checkpoint(loaded, runner.alg.policy, recipe_revision, reward_revision, distribution_revision)
+        _validate_training_checkpoint(loaded, runner.alg.policy, recipe_revision, reward_revision, distribution_revision,
+                                      placement_identity)
         warm_guard = loaded.get("hope_exact_resume_state", {}).get("actor_warm_start")
         del loaded
         runner.load(ckpt)

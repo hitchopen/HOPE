@@ -11,6 +11,19 @@ RECIPE = "continuous_rally_sim2real_v3"
 RECIPES = ("continuous_rally_sim2real_v2", RECIPE)
 
 
+def placement_reward_identity(task):
+    """Portable identity of the sweet-spot data and reward, including an OFF run."""
+    if task.get("build_contract", {}).get("training_distribution_revision") != "stationary_reach_ppq004_sweet_spot_v1":
+        return None
+    objective = task["landing_objective"]
+    identity = {"objective_sha256": objective["sha256"], "objective_descriptor": objective["descriptor"],
+                "reward": task["sweet_spot"],
+                "effective_reward_weight": task["rewards"]["sweet_spot_landing_weight"],
+                "training_bank_sha256": task["racket"]["venue_tuple_bank_sha256"]}
+    # Also reject non-serializable/nonfinite settings before saving or exporting.
+    return json.loads(json.dumps(identity, sort_keys=True, allow_nan=False))
+
+
 def sim2real_metadata(env, task):
     build = task.get("build_contract", {})
     recipe = build.get("training_recipe_revision")
@@ -53,6 +66,7 @@ def sim2real_metadata(env, task):
         "actual_complete_hold_v11_stationary_reach_v2",
         "actual_complete_hold_v11_stationary_reach_v3",
         "actual_complete_hold_v11_stationary_reach_v4",
+        "actual_complete_hold_v11_stationary_sweet_spot_v1",
         "four_clip_full_body_v12", "fixed_home_four_clip_v13", "joint_clock_four_clip_v14", "discrete_four_stroke_v15",
         "compatible_four_stroke_recovery_v16",
         "four_stroke_motion_quality_v17",
@@ -89,7 +103,7 @@ def sim2real_metadata(env, task):
             and racket.venue_tuple_final_mix_prob == 1.0
             and racket.venue_tuple_robust_sampling
             and not racket.venue_tuple_limit_reset_travel
-            and build.get("training_distribution_revision") in ("stationary_reach_v1", "stationary_reach_ppq004_full_v1")
+            and build.get("training_distribution_revision") in ("stationary_reach_v1", "stationary_reach_ppq004_full_v1", "stationary_reach_ppq004_sweet_spot_v1")
             and racket.racket_pos_range_per_clip[0][1][1] <= racket.racket_pos_range_per_clip[1][1][0])
     if getattr(motion, "step_reference_mode", "") == "discrete_four_stroke":
         checks["four complete teachers and causal first-frame HOLD"] = (
@@ -104,6 +118,18 @@ def sim2real_metadata(env, task):
             and racket.venue_tuple_final_mix_prob == 1.0
             and not racket.venue_tuple_limit_reset_travel
             and build.get("recovery_reference_contract") == "old_ball_tail_until_arrival_v1")
+    placement = placement_reward_identity(task)
+    if placement is not None:
+        settings = placement["reward"]
+        checks["sweet-spot reward switch and parameters"] = (
+            type(settings["reward_enabled"]) is bool
+            and racket.sweet_spot_reward_enabled is settings["reward_enabled"]
+            and racket.sweet_spot_distance_scale_m == settings["distance_scale_m"]
+            and racket.sweet_spot_inside_bonus == settings["inside_bonus"]
+            and list(racket.sweet_spot_x_range) == list(task["racket"]["sweet_spot_x_range"])
+            and list(racket.sweet_spot_y_range) == list(task["racket"]["sweet_spot_y_range"])
+            and placement["effective_reward_weight"] == (
+                settings["reward_weight"] if settings["reward_enabled"] else 0.0))
     failed = [name for name, ok in checks.items() if not ok]
     if failed:
         raise RuntimeError(f"Refusing {RECIPE} export: {', '.join(failed)}")
@@ -119,6 +145,10 @@ def sim2real_metadata(env, task):
         "hitter_pure_resolved_task_json": task_json,
         "hitter_pingpong_build_contract": recipe,
         "hitter_pure_training_distribution_revision": build.get("training_distribution_revision", "legacy"),
+        **({"hitter_pure_placement_reward_identity_json": json.dumps(placement, sort_keys=True, separators=(",", ":")),
+            "hitter_pure_sweet_spot_reward_enabled": str(placement["reward"]["reward_enabled"]).lower(),
+            "hitter_pure_landing_objective_sha256": placement["objective_sha256"]}
+           if placement is not None else {}),
         "hitter_pingpong_rally_end_contract": "ball_clock_followthrough_v1",
         "hitter_pingpong_rally_post_strike_s": "0.5000",
         **({"hitter_pingpong_recovery_reference_contract": "old_ball_tail_until_arrival_v1"} if natural_tail else {}),

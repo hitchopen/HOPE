@@ -1,4 +1,4 @@
-"""Launch stationary recipe 22 with verified PPQ004 full first-bounce physics.
+"""Launch verified PPQ004 recipe 23 (sweet spot) or explicit recipe 22 (general).
 
 Run with the Isaac interpreter, from any directory:
   hope_isaac_py scripts/train_refitted_stationary.py --overrides \
@@ -17,7 +17,8 @@ import shlex
 import subprocess
 import sys
 
-from ppq004_training import (DISTRIBUTION, QUALIFICATION, TRAINING_ROOT, load_refit_bundle)
+from ppq004_training import (DISTRIBUTION, SWEET_SPOT_DISTRIBUTION, QUALIFICATION,
+                            TRAINING_ROOT, load_refit_bundle)
 
 
 # Keep the verified recipe intact while allowing normal run/resume controls.
@@ -30,7 +31,8 @@ RUN_KEYS = {
 
 def prepare_launch(overrides_path, run_overrides=()):
     """Return argv and environment; importing this module never starts Isaac."""
-    _, physics, manifest = load_refit_bundle(overrides_path)
+    bank, physics, manifest = load_refit_bundle(overrides_path)
+    sweet_spot = bank["venue_tuple_bank_recipe_revision"] == 23
 
     # Reject config-group selection, deletion/addition syntax, sweeps and
     # environment overrides. subprocess receives argv directly, never a shell.
@@ -41,13 +43,17 @@ def prepare_launch(overrides_path, run_overrides=()):
             parsed = parser.parse_override(argument)
         except Exception as exc:
             raise ValueError(f"invalid Hydra run option: {argument}") from exc
-        if (parsed.key_or_group not in RUN_KEYS or parsed.package is not None
+        reward_switch = parsed.key_or_group == "task.sweet_spot.reward_enabled"
+        if ((parsed.key_or_group not in RUN_KEYS and not (sweet_spot and reward_switch)) or parsed.package is not None
                 or parsed.is_add() or parsed.is_force_add() or parsed.is_delete()
                 or parsed.is_sweep_override()):
             raise ValueError(f"only ordinary run options may override the refit launch: {argument}")
+        if reward_switch and type(parsed.value()) is not bool:
+            raise ValueError("task.sweet_spot.reward_enabled must be an ordinary boolean")
 
+    task = "HOPEPingPongStationaryPPQ004" if sweet_spot else "HOPEPingPongStationaryPPQ004General"
     command = [sys.executable, str(TRAINING_ROOT / "scripts/train.py"),
-               "task=HOPEPingPongStationaryPPQ004", "algo=ppo_balanced_hold",
+               f"task={task}", "algo=ppo_balanced_hold",
                f"task.ppq004_refit_manifest={json.dumps(str(manifest))}"]
     command.extend(run_overrides)
     env = os.environ.copy()

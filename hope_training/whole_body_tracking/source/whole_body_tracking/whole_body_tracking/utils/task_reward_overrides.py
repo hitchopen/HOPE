@@ -71,6 +71,7 @@ WEIGHT_SPECS: dict[str, str] = {
 WEIGHT_SPECS.update(
     {
         "actual_joint_limit_weight": "actual_joint_limit",
+        "sweet_spot_landing_weight": "sweet_spot_landing",
         "racket_exact_position_debt_weight": "racket_exact_position_debt",
         "full_body_hold_weight": "full_body_hold",
         "full_body_imitation_weight": "full_body_imitation",

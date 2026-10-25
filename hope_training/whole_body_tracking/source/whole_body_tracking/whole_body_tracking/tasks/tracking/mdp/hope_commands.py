@@ -731,6 +731,25 @@ class RacketTargetCommand(CommandTerm):
         self._vb_target_xy = torch.tensor(
             [float(cfg.vb_target_x), float(cfg.vb_target_y)], device=self.device
         )
+        from whole_body_tracking.utils.sweet_spot import validate_region
+        if cfg.sweet_spot_reward_enabled:
+            validate_region(cfg.sweet_spot_x_range, cfg.sweet_spot_y_range,
+                            cfg.sweet_spot_distance_scale_m, cfg.sweet_spot_inside_bonus)
+            if not cfg.virtual_ball or self._vb_params.return_model != "full_ppq004_first_bounce_v1":
+                raise ValueError("sweet-spot reward requires virtual_ball and full PPQ004 physics")
+        self._sweet_spot_pending = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._sweet_spot_attempt_clip = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self._sweet_spot_generation = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self._sweet_spot_counts = torch.zeros(2, 4, dtype=torch.float64, device=self.device)
+        self._sweet_spot_last_reward_step = -1
+        self._sweet_spot_event = None
+        if cfg.sweet_spot_reward_enabled:
+            for name in ("reward_raw_event", "reward_event_return", "region_hit_event",
+                         "capture_event", "legal_event", "distance_m", "landing_valid_event"):
+                self.metrics[f"sweet_spot_{name}"] = torch.zeros(self.num_envs, device=self.device)
+            for side in ("forehand", "backhand"):
+                for name in ("attempt_count", "capture_rate", "legal_rate", "region_hit_rate"):
+                    self.metrics[f"sweet_spot_{name}_{side}"] = torch.zeros(self.num_envs, device=self.device)
         # Sample-weighted EMA accumulators (same decay/min-count discipline as the exact-strike block).
         self._vb_exact_acc = 0.0
         self._vb_hit_acc = 0.0
@@ -3828,6 +3847,11 @@ class RacketTargetCommand(CommandTerm):
                 )
             if name != "clip" and not bool(np.isfinite(value).all()):
                 raise RuntimeError(f"tuple bank array {name} contains NaN/Inf")
+        if int(self.cfg.venue_tuple_bank_recipe_revision) == 23:
+            from whole_body_tracking.utils.robust_ball_distribution import validate_sweet_spot_bank
+            # The targeted question bank is identical for reward ON and OFF.
+            validate_sweet_spot_bank(arrays, receipt, self.cfg.sweet_spot_x_range,
+                                     self.cfg.sweet_spot_y_range)
         if not bool(np.isin(clip, (0, 1)).all()):
             raise RuntimeError("tuple bank clip array must contain only 0=FH and 1=BH")
         minimum_per_side = int(self.cfg.venue_tuple_bank_min_rows_per_side)
@@ -4540,6 +4564,10 @@ class RacketTargetCommand(CommandTerm):
         env_ids = env_ids.to(device=self.device, dtype=torch.long)
         state: dict[str, torch.Tensor] = {}
         fields = self._markov_replay_tensor_fields()
+        if getattr(getattr(self, "cfg", None), "sweet_spot_reward_enabled", False):
+            # Recovery replay resumes this swing's consumed status. Global
+            # statistics and the new physical session's generation stay live.
+            fields += ("_sweet_spot_pending", "_sweet_spot_attempt_clip")
         if (hasattr(self, "_motion")
                 and getattr(self._motion().cfg, "step_reference_mode", "") == "discrete_four_stroke"):
             fields += ("_stroke_step", "_stroke_initial_tts")
@@ -4598,6 +4626,8 @@ class RacketTargetCommand(CommandTerm):
 
         env_ids = env_ids.to(device=self.device, dtype=torch.long)
         required = set(self._markov_replay_tensor_fields())
+        if getattr(self.cfg, "sweet_spot_reward_enabled", False):
+            required.update(("_sweet_spot_pending", "_sweet_spot_attempt_clip"))
         if (hasattr(self, "_motion")
                 and getattr(self._motion().cfg, "step_reference_mode", "") == "discrete_four_stroke"):
             required.update(("_stroke_step", "_stroke_initial_tts"))
@@ -4674,6 +4704,8 @@ class RacketTargetCommand(CommandTerm):
         ids = torch.as_tensor(
             env_ids, dtype=torch.long, device=self.device
         )
+        if getattr(self.cfg, "sweet_spot_reward_enabled", False):
+            self._reset_sweet_spot_attempts(ids)
         if self._base_mocap_enabled and not self._resample_is_wrap:
             # This must precede the replay branch's early return: a restored
             # physical state starts a NEW localization session too. Never mix
@@ -7724,18 +7756,164 @@ class RacketTargetCommand(CommandTerm):
                 self.pre_strike, self.waist_twist, torch.zeros(self.num_envs, device=self.device)
             )
 
+    def _publish_sweet_spot_counts(self):
+        for side, name in enumerate(("forehand", "backhand")):
+            counts = self._sweet_spot_counts[side]
+            self.metrics[f"sweet_spot_attempt_count_{name}"][:] = counts[0]
+            for index, metric in enumerate(("capture_rate", "legal_rate", "region_hit_rate"), 1):
+                self.metrics[f"sweet_spot_{metric}_{name}"][:] = counts[index] / counts[0].clamp_min(1.0)
+
+    def _reset_sweet_spot_attempts(self, ids):
+        """Resolve an unfinished attempt as a miss before arming a new swing."""
+        if not self.cfg.sweet_spot_reward_enabled:
+            return
+        pending = self._sweet_spot_pending[ids]
+        for side in range(2):
+            self._sweet_spot_counts[side, 0] += (
+                pending & (self._sweet_spot_attempt_clip[ids] == side)).sum()
+        self._sweet_spot_generation[ids] += 1
+        self._sweet_spot_pending[ids] = True
+        motion = self._motion()
+        self._sweet_spot_attempt_clip[ids] = motion.clip_id[ids] if motion._multiseg else 0
+        self._publish_sweet_spot_counts()
+
+    def _sweet_spot_strike_time(self):
+        """Read the current reference clock without advancing baseline reward buffers."""
+        motion = self._motion()
+        ml = motion.motion
+        if motion._multiseg:
+            phases = self._strike_phase_per_clip_t
+            if phases is None:
+                configured = tuple(self.cfg.strike_phase_per_clip)
+                phases = torch.tensor(configured if len(configured) == ml.num_segments else
+                                      [self.cfg.strike_phase] * ml.num_segments, device=self.device)
+            clip = motion.clip_id
+            strike = ml.seg_start[clip] + (phases[clip] * (ml.seg_len[clip] - 1).float()).round().long()
+        else:
+            strike = round(self.cfg.strike_phase * (max(int(ml.time_step_total), 1) - 1))
+        tts = (strike - motion.time_steps).float() * self._env.step_dt
+        if getattr(motion.cfg, "causal_idle", False):
+            from whole_body_tracking.utils.four_stroke import idle_clock
+            tts = idle_clock(self, tts)
+        return tts
+
+    def sweet_spot_landing_reward(self, weight: float):
+        """Fresh reward-phase evaluation, once per swing, before command advancement.
+
+        Only new sweet-spot state is written here. The existing command-phase
+        telemetry consumes the identified prediction later; it never recomputes
+        that flight. RewardManager applies ``weight * step_dt`` to the raw return.
+        """
+        zero = torch.zeros(self.num_envs, device=self.device)
+        if not self.cfg.sweet_spot_reward_enabled:
+            return zero
+        step = int(self._env.common_step_counter)
+        if self._sweet_spot_last_reward_step == step:
+            return zero
+        self._sweet_spot_last_reward_step = step
+        self._sweet_spot_event = None
+        for name in ("reward_raw_event", "reward_event_return", "region_hit_event",
+                     "capture_event", "legal_event", "landing_valid_event", "distance_m"):
+            self.metrics[f"sweet_spot_{name}"].zero_()
+        self._publish_sweet_spot_counts()
+        motion = self._motion()
+        exact = self._sweet_spot_strike_time().abs() <= (0.5 * self._env.step_dt + 1e-6)
+        # Terminations precede rewards. A fall/reset at the strike is a failure,
+        # resolved by the resample hook, never a hit from the new reset pose.
+        exact &= self._sweet_spot_pending & ~self._env.reset_buf.bool()
+        if not bool(exact.any()):
+            return zero
+        from whole_body_tracking.tasks.tracking.mdp import virtual_ball as vb
+        from whole_body_tracking.utils.sweet_spot import rectangle_reward
+        position, _, velocity, _, normal = self._racket_fk()
+        prm = self._vb_params
+        incoming, spin = self.vb_vel_in_w, self.vb_spin_in_w
+        finite = (torch.isfinite(position).all(-1) & torch.isfinite(velocity).all(-1)
+                  & torch.isfinite(normal).all(-1) & torch.isfinite(incoming).all(-1)
+                  & torch.isfinite(spin).all(-1) & torch.isfinite(self.racket_target_pos_w).all(-1))
+        approach = (velocity * vb.orient_normal(normal, incoming, velocity)).sum(-1)
+        captured = (exact & finite & (normal.norm(dim=-1) > prm.numeric_epsilon)
+                    & ((position - self.racket_target_pos_w).norm(dim=-1) < self.cfg.vb_capture_radius)
+                    & (approach > self.cfg.vb_min_approach_speed))
+        # A masked NaN still contaminates tensor arithmetic (NaN * 0). Keep
+        # invalid environments out of both physics and cached diagnostics.
+        incoming, velocity, normal, spin, position = (
+            torch.where(finite[:, None], value, torch.zeros_like(value))
+            for value in (incoming, velocity, normal, spin, position))
+        approach = torch.where(finite, approach, torch.zeros_like(approach))
+        outgoing, outgoing_spin = vb.predict_paddle_contact(incoming, velocity, normal, spin, prm)
+        contact_finite = torch.isfinite(outgoing).all(-1) & torch.isfinite(outgoing_spin).all(-1)
+        captured &= contact_finite
+        outgoing, outgoing_spin = (torch.where(contact_finite[:, None], value, torch.zeros_like(value))
+                                   for value in (outgoing, outgoing_spin))
+        predictor = getattr(self, "_sweet_spot_landing_predictor", None)
+        if predictor is None:
+            predictor = vb.CoarseLandingPredictor()
+            self._sweet_spot_landing_predictor = predictor
+        h = float(self.cfg.vb_rollout_h)
+        land = predictor(position - self._env.scene.env_origins, outgoing, outgoing_spin, prm,
+                         surface_z=float(self.cfg.vb_table_surface_z), net_x=self._vb_net_x,
+                         h=h, n_steps=int(math.ceil(prm.max_predict_time_s / h)))
+        # A failed/overflowed flight must not leak NaNs through telemetry even
+        # though its legal-return mask is false. Preserve explicit validity.
+        land = dict(land)
+        land["land_valid"] = land["land_valid"] & torch.isfinite(land["land_xy"]).all(-1)
+        land["net_valid"] = land["net_valid"] & torch.isfinite(land["net_z"]) & torch.isfinite(land["net_y"])
+        for key in ("land_xy", "net_z", "net_y"):
+            land[key] = torch.where(torch.isfinite(land[key]), land[key], torch.zeros_like(land[key]))
+        lx, ly = land["land_xy"].unbind(-1)
+        on_opponent = (land["land_valid"] & (lx > self._vb_net_x) & (lx <= self._vb_far_x)
+                       & ((ly - self._vb_y_center).abs() <= self._vb_half_w))
+        net_clear = (land["net_valid"] & torch.isfinite(land["net_z"])
+                     & (land["net_z"] > self._vb_net_top_z + self._vb_ball_r + prm.net_clearance_margin)
+                     & ((land["net_y"] - self._vb_y_center).abs() <= self._vb_half_w + self._vb_net_overhang))
+        legal = captured & on_opponent & net_clear & torch.isfinite(land["land_xy"]).all(-1)
+        raw, distance, inside = rectangle_reward(land["land_xy"], legal,
+            self.cfg.sweet_spot_x_range, self.cfg.sweet_spot_y_range,
+            self.cfg.sweet_spot_distance_scale_m, self.cfg.sweet_spot_inside_bonus)
+        self._sweet_spot_pending[exact] = False
+        clip = self._sweet_spot_attempt_clip
+        for side in range(2):
+            selected = exact & (clip == side)
+            self._sweet_spot_counts[side] += torch.stack((selected.sum(),
+                (selected & captured).sum(), (selected & legal).sum(),
+                (selected & legal & inside).sum()))
+        self._publish_sweet_spot_counts()
+        for name, value in (("reward_raw_event", raw), ("reward_event_return", raw * weight * self._env.step_dt),
+                            ("region_hit_event", legal & inside), ("capture_event", captured),
+                            ("legal_event", legal), ("landing_valid_event", exact & land["land_valid"])):
+            self.metrics[f"sweet_spot_{name}"].copy_(value)
+        self.metrics["sweet_spot_distance_m"].copy_(torch.where(exact & land["land_valid"],
+            distance, self.metrics["sweet_spot_distance_m"]))
+        self._sweet_spot_event = dict(step=step, exact=exact.clone(), captured=captured,
+            generation=self._sweet_spot_generation.clone(), clip=clip.clone(),
+            frame=motion.time_steps.clone(), land=land, outgoing=outgoing, spin=outgoing_spin,
+            approach=approach, on_opponent=on_opponent, net_clear=net_clear)
+        return raw
+
     def _vb_evaluate(self, exact_strike: torch.Tensor, pos_err: torch.Tensor):
         """Tier-1 at-strike virtual-ball evaluation (rewardDesign.md).
 
-        Runs once per control step from ``_update_metrics`` (rewards/obs read the same fresh
-        buffers after ``command_manager.compute()``). Whenever ANY env sits at its exact-strike
-        frame, the FULL batch goes through contact + coarse rollout — the cost is kernel-launch
-        bound and batch-size independent, so gathering the ~30 striking envs saves nothing
-        (verify_tier1 (b)); ``vb_fired`` masks consumption. On strike-free steps the one-shot
-        mask is cleared and nothing is computed.
+        Runs from command-phase ``_update_metrics``. With the sweet-spot reward
+        enabled it consumes that reward phase's identified fresh prediction;
+        otherwise the existing command-clock diagnostic path is retained.
+        The FULL batch goes through contact + coarse rollout when a strike is
+        present; ``vb_fired`` masks consumption. Strike-free steps clear it.
         """
         from whole_body_tracking.tasks.tracking.mdp import virtual_ball as _vb
 
+        sweet_event = None
+        if getattr(self.cfg, "sweet_spot_reward_enabled", False):
+            from whole_body_tracking.utils.sweet_spot import matching_command_event
+            sweet_event = self._sweet_spot_event
+            if sweet_event is None or sweet_event["step"] != int(self._env.common_step_counter):
+                self.vb_fired.zero_()
+                return
+            motion = self._motion()
+            clip = motion.clip_id if motion._multiseg else torch.zeros_like(motion.time_steps)
+            identity = matching_command_event(sweet_event["generation"], self._sweet_spot_generation,
+                sweet_event["clip"], clip, sweet_event["frame"], motion.time_steps)
+            exact_strike = sweet_event["exact"] & identity
         if not bool(exact_strike.any()):
             self.vb_fired.zero_()
             return
@@ -7750,57 +7928,68 @@ class RacketTargetCommand(CommandTerm):
             )
         prm = self._vb_params
 
-        v_in, w_in = self.vb_vel_in_w, self.vb_spin_in_w
-        v_r, n_face = self.racket_lin_vel_w, self.racket_normal_w
-        # CAPTURE GATE: close enough at the strike frame AND paddle moving INTO the ball along the
-        # oriented contact normal (a stationary/retreating wall-block scores nothing — verify (c)3).
-        n_or = _vb.orient_normal(n_face, v_in, v_r)
-        approach = torch.sum(v_r * n_or, dim=-1)
-        gate = (
-            exact_strike
-            & (pos_err < float(self.cfg.vb_capture_radius))
-            & (approach > float(self.cfg.vb_min_approach_speed))
-        )
+        if sweet_event is None:
+            v_in, w_in = self.vb_vel_in_w, self.vb_spin_in_w
+            v_r, n_face = self.racket_lin_vel_w, self.racket_normal_w
+            # CAPTURE GATE: close enough at the strike frame AND paddle moving INTO the ball along the
+            # oriented contact normal (a stationary/retreating wall-block scores nothing — verify (c)3).
+            n_or = _vb.orient_normal(n_face, v_in, v_r)
+            approach = torch.sum(v_r * n_or, dim=-1)
+            gate = (
+                exact_strike
+                & (pos_err < float(self.cfg.vb_capture_radius))
+                & (approach > float(self.cfg.vb_min_approach_speed))
+            )
 
-        # Achieved-state contact (venue paddle model, e(u_n)) + coarse landing rollout.
-        # The rollout must start in the ENV-LOCAL frame: the virtual table landmarks
-        # (vb_table_near_x / net / far end) and vb_target_xy are per-env offsets from the env
-        # origin, while racket_pos_w is TRUE world frame (env grids span tens of meters at 4096
-        # envs — using it raw put every landing ~|env_origin| away from the target; caught in the
-        # first vb_warmE14k run: virtual_land_err_m ~62 m). Env grids are pure translations, so
-        # velocities, normals, and spins need no correction.
-        v_plus, w_plus = _vb.predict_paddle_contact(v_in, v_r, n_face, w_in, prm)
-        predictor = getattr(self, "_vb_landing_predictor", None)
-        if predictor is None:
-            predictor = _vb.CoarseLandingPredictor()
-            self._vb_landing_predictor = predictor
-        rollout_h = float(self.cfg.vb_rollout_h)
-        full_model = prm.return_model == "full_ppq004_first_bounce_v1"
-        # Keep the reward's 10-ms RK4 grid economical on thousands of environments,
-        # but cover the full YAML horizon. Bank/runtime qualification uses 0.5 ms.
-        rollout_steps = (int(math.ceil(prm.max_predict_time_s / rollout_h))
-                         if full_model else int(self.cfg.vb_rollout_steps))
-        land = predictor(
-            self.racket_pos_w - self._env.scene.env_origins,
-            v_plus,
-            w_plus,
-            prm,
-            surface_z=float(self.cfg.vb_table_surface_z),
-            net_x=self._vb_net_x,
-            h=rollout_h,
-            n_steps=rollout_steps,
-        )
-        lx, ly = land["land_xy"][:, 0], land["land_xy"][:, 1]
-        on_opp = (
-            land["land_valid"] & (lx > self._vb_net_x) & (lx <= self._vb_far_x)
-            & ((ly - self._vb_y_center).abs() <= self._vb_half_w)
-        )
-        depth_ok = lx > (self._vb_net_x + float(self.cfg.vb_min_landing_depth))
-        net_clear = land["net_valid"] & (land["net_z"] > self._vb_net_top_z + self._vb_ball_r
-                                         + prm.net_clearance_margin)
-        if full_model:
-            net_clear &= ((land['net_y'] - self._vb_y_center).abs()
-                          <= self._vb_half_w + self._vb_net_overhang)
+            # Achieved-state contact (venue paddle model, e(u_n)) + coarse landing rollout.
+            # The rollout must start in the ENV-LOCAL frame: the virtual table landmarks
+            # (vb_table_near_x / net / far end) and vb_target_xy are per-env offsets from the env
+            # origin, while racket_pos_w is TRUE world frame (env grids span tens of meters at 4096
+            # envs — using it raw put every landing ~|env_origin| away from the target; caught in the
+            # first vb_warmE14k run: virtual_land_err_m ~62 m). Env grids are pure translations, so
+            # velocities, normals, and spins need no correction.
+            v_plus, w_plus = _vb.predict_paddle_contact(v_in, v_r, n_face, w_in, prm)
+            predictor = getattr(self, "_vb_landing_predictor", None)
+            if predictor is None:
+                predictor = _vb.CoarseLandingPredictor()
+                self._vb_landing_predictor = predictor
+            rollout_h = float(self.cfg.vb_rollout_h)
+            full_model = prm.return_model == "full_ppq004_first_bounce_v1"
+            # Keep the reward's 10-ms RK4 grid economical on thousands of environments,
+            # but cover the full YAML horizon. Bank/runtime qualification uses 0.5 ms.
+            rollout_steps = (int(math.ceil(prm.max_predict_time_s / rollout_h))
+                             if full_model else int(self.cfg.vb_rollout_steps))
+            land = predictor(
+                self.racket_pos_w - self._env.scene.env_origins,
+                v_plus,
+                w_plus,
+                prm,
+                surface_z=float(self.cfg.vb_table_surface_z),
+                net_x=self._vb_net_x,
+                h=rollout_h,
+                n_steps=rollout_steps,
+            )
+            lx, ly = land["land_xy"][:, 0], land["land_xy"][:, 1]
+            on_opp = (
+                land["land_valid"] & (lx > self._vb_net_x) & (lx <= self._vb_far_x)
+                & ((ly - self._vb_y_center).abs() <= self._vb_half_w)
+            )
+            depth_ok = lx > (self._vb_net_x + float(self.cfg.vb_min_landing_depth))
+            net_clear = land["net_valid"] & (land["net_z"] > self._vb_net_top_z + self._vb_ball_r
+                                             + prm.net_clearance_margin)
+            if full_model:
+                net_clear &= ((land['net_y'] - self._vb_y_center).abs()
+                              <= self._vb_half_w + self._vb_net_overhang)
+        else:
+            # Consume only this episode/swing's reward-phase flight. Do not run
+            # the same full trajectory again or publish it on a new command.
+            land = sweet_event["land"]
+            v_plus, w_plus = sweet_event["outgoing"], sweet_event["spin"]
+            gate = exact_strike & sweet_event["captured"]
+            approach = sweet_event["approach"]
+            on_opp, net_clear = sweet_event["on_opponent"], sweet_event["net_clear"]
+            depth_ok = land["land_xy"][:, 0] > self._vb_net_x + float(self.cfg.vb_min_landing_depth)
+            self._sweet_spot_event = None
         # Outgoing topspin component about t_hat = z_hat x d_hat of the outgoing horizontal
         # direction (Ace-style): omega . t_hat = -w_x*d_y + w_y*d_x.
         d_xy = v_plus[:, :2]
@@ -11662,6 +11851,12 @@ class RacketTargetCommandCfg(CommandTermCfg):
     # contact, e(u_n) restitution) and a coarse RK4 landing rollout; the cached outcome buffers feed
     # the one-shot virtual_* reward terms in hope_rewards.py. No obs change; 175-D contract untouched.
     virtual_ball: bool = False
+    # New reward only. Target-bank selection is independent of this switch.
+    sweet_spot_reward_enabled: bool = False
+    sweet_spot_x_range: tuple[float, float] = (0.0, 0.0)
+    sweet_spot_y_range: tuple[float, float] = (0.0, 0.0)
+    sweet_spot_distance_scale_m: float = 2.5
+    sweet_spot_inside_bonus: float = 1.0
     # Real PhysX ball/table truth instrument.  It is strictly telemetry-only: no observation,
     # reward or question-bank term reads its state.  Phase-B impulse uses the same fitted venue
     # contact model; substep=1 means no extra aero integration subdivision.

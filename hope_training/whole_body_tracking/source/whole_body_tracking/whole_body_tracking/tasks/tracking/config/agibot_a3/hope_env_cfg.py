@@ -1962,6 +1962,11 @@ class HitterPingPongRewardsCfg(
 ):
     """V14 reward surface plus Unitree's standard actual-joint acceleration cost."""
 
+    sweet_spot_landing = RewTerm(
+        func=mdp.sweet_spot_landing, weight=0.0,
+        params={"command_name": "racket_target"},
+    )
+
     motion_global_anchor_ori = RewTerm(
         func=mdp.motion_global_anchor_orientation_error_exp, weight=0.5,
         params={"command_name": "motion", "std": 0.4, "exclude_recovery": False},

@@ -200,6 +200,15 @@ _HITTER_RACKET_METRICS = {
     "virtual_landing_error_m_backhand",
 }
 
+# One-shot placement reward events and unconditional resolved-attempt rates.
+_HITTER_RACKET_METRICS.update({"sweet_spot_" + name for name in (
+    "reward_raw_event", "reward_event_return", "region_hit_event", "capture_event",
+    "legal_event", "landing_valid_event", "distance_m",
+)})
+_HITTER_RACKET_METRICS.update({f"sweet_spot_{metric}_{side}"
+    for side in ("forehand", "backhand")
+    for metric in ("attempt_count", "capture_rate", "legal_rate", "region_hit_rate")})
+
 _HITTER_QDES_INSTRUMENTATION = {
     "qdes_isfinite",
     "q_isfinite",

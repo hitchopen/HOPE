@@ -1,8 +1,10 @@
 """Regenerate a stationary bank with the YAML-selected full PPQ004 first-bounce model.
 
-At-strike incoming states, contact points, intended landings, parent IDs and
-split membership are retained. Recipe 22 recomputes labels with shared paddle
-spin transfer, drag/gravity/Magnus flight, and the physical first-bounce plane.
+At-strike incoming states, contact points, parent IDs and split membership are
+retained. Recipe 22 retains intended landings; optional --landing-objective
+creates recipe 23 with fixed-centre targets and preserves the input landings.
+Both recompute labels with shared paddle spin transfer, drag/gravity/Magnus
+flight, and the physical first-bounce plane.
 Both outgoing first-bounce and incoming reverse-flight checks use the physical center contact plane.
 """
 import argparse
@@ -20,12 +22,15 @@ sys.modules['coverage'] = None
 from numba import njit, prange, set_num_threads
 
 from ball_physics_profile import load_profile, profile_source_hashes
+from sweet_spot_profile import load_objective, objective_sha256, objective_in_training_frame
 from full_ball_model import (DT, FLIGHT_TIME, RADIUS, full_contact, first_bounce,
                              params_from_profile, plan, rk4_step)
 
 RECIPE_REVISION = 22
 QUALIFICATION = 'full_ppq004_first_bounce_v1'
 DISTRIBUTION = 'stationary_reach_ppq004_full_v1'
+SWEET_SPOT_RECIPE_REVISION = 23
+SWEET_SPOT_DISTRIBUTION = 'stationary_reach_ppq004_sweet_spot_v1'
 
 
 def params_from_yaml(path):
@@ -88,7 +93,7 @@ def check(x, incoming, spin, racket, normals, target, params, offset):
     return result, outgoing, outgoing_spin
 
 
-def mask_valid(a, result, receipt, planner_valid=None, fit_tolerance=.003):
+def mask_valid(a, result, receipt, planner_valid=None, fit_tolerance=.003, landing_objective=None):
     pos, v, normal = a['target_position_offset'], a['target_velocity'], a['target_normal']
     speed = np.abs(np.sum((a['incoming_velocity']-v)*normal, axis=1))
     contract = receipt['contract']
@@ -106,6 +111,12 @@ def mask_valid(a, result, receipt, planner_valid=None, fit_tolerance=.003):
         'reach': np.ones(len(v),dtype=bool),
         'planner': np.ones(len(v),dtype=bool) if planner_valid is None else planner_valid,
     }
+    if landing_objective is not None:
+        xr, yr = landing_objective['x_range'], landing_objective['y_range']
+        # Inclusive rectangle qualification applies to the actual stored-command
+        # first bounce, independently of distance from the commanded centre.
+        criteria['landing_objective'] = ((result[:,0] >= xr[0]) & (result[:,0] <= xr[1])
+                                         & (result[:,1] >= yr[0]) & (result[:,1] <= yr[1]))
     for side in (0,1):
         ids = a['clip']==side
         for key, values in [('reach_boxes',pos), ('velocity_boxes',v)]:
@@ -113,6 +124,22 @@ def mask_valid(a, result, receipt, planner_valid=None, fit_tolerance=.003):
             criteria['reach'][ids] &= ((values[ids]>=box[:,0]-1e-6)&(values[ids]<=box[:,1]+1e-6)).all(1)
     return np.logical_and.reduce(list(criteria.values())), {key:int((~value).sum()) for key,value in criteria.items()}
 
+
+
+def apply_landing_objective(arrays, objective):
+    """Replace only target labels, retaining their original input provenance."""
+    if objective is None:
+        return arrays
+    if 'input_intended_landing_xy' in arrays:
+        raise ValueError('Input already contains a refit landing-target chain')
+    original = arrays['intended_landing_xy']
+    if original.ndim != 2 or original.shape[1] != 2 or original.dtype.kind != 'f':
+        raise ValueError('Input intended_landing_xy must be an Nx2 floating-point array')
+    result = dict(arrays)
+    result['input_intended_landing_xy'] = original.copy()
+    result['intended_landing_xy'] = np.broadcast_to(
+        np.asarray(objective['target_xy'], dtype=original.dtype), original.shape).copy()
+    return result
 
 
 def retained_rows(arrays, accepted):
@@ -139,6 +166,8 @@ def main():
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--physics',type=Path,required=True)
     parser.add_argument('--threads',type=int,default=12)
+    parser.add_argument('--landing-objective', type=Path,
+                        help='Optional fixed-centre table region YAML; selects sweet-spot recipe 23')
     args = parser.parse_args()
     set_num_threads(args.threads)
     if args.output.exists():
@@ -147,6 +176,10 @@ def main():
     params = params_from_profile(profile)
     offset = table_offset_from_yaml(args.physics)
     source_hashes = profile_source_hashes(args.physics)
+    objective = load_objective(args.landing_objective) if args.landing_objective else None
+    objective_hash = objective_sha256(args.landing_objective) if objective is not None else None
+    objective_frame = objective_in_training_frame(objective, profile) if objective is not None else None
+    recipe_revision = SWEET_SPOT_RECIPE_REVISION if objective is not None else RECIPE_REVISION
     refitter_hash = sha(__file__)
     profile_loader_hash = sha(Path(__file__).with_name("ball_physics_profile.py"))
     return_model_hash = sha(Path(__file__).with_name("full_ball_model.py"))
@@ -159,6 +192,7 @@ def main():
             raise ValueError(f'Source bank checksum differs: {source}')
         with np.load(source,allow_pickle=False) as bank:
             a = {key:bank[key] for key in bank.files}
+        a = apply_landing_objective(a, objective_frame)
         n = len(a['clip'])
         x = a['target_position_offset'].astype(np.float64)
         x[:,:2] += a['station_xy']
@@ -171,7 +205,7 @@ def main():
         # Validate the stored float32 command, as that is what training consumes.
         result, outgoing, outgoing_spin = check(x,incoming,spin,a['target_velocity'].astype(np.float64),
                                  a['target_normal'].astype(np.float64),target,params,offset)
-        good, reasons = mask_valid(a,result,old_receipt,planner_valid)
+        good, reasons = mask_valid(a,result,old_receipt,planner_valid,landing_objective=objective_frame)
         a['outgoing_velocity'] = outgoing.astype(np.float32)
         a['outgoing_spin'] = outgoing_spin.astype(np.float32)
         a['predicted_landing_xy'] = result[:,:2].astype(np.float32)
@@ -199,8 +233,9 @@ def main():
         if (profile_source_hashes(args.physics) != source_hashes
                 or sha(__file__) != refitter_hash
                 or sha(Path(__file__).with_name("ball_physics_profile.py")) != profile_loader_hash
-                or sha(Path(__file__).with_name("full_ball_model.py")) != return_model_hash):
-            raise RuntimeError("Physics or refitter sources changed during bank generation; regenerate from stable inputs")
+                or sha(Path(__file__).with_name("full_ball_model.py")) != return_model_hash
+                or (objective is not None and objective_sha256(args.landing_objective) != objective_hash)):
+            raise RuntimeError("Physics, refitter or objective sources changed during bank generation; regenerate from stable inputs")
         path = args.output/f'{split}.npz'
         np.savez_compressed(path,**retained)
         np.savez_compressed(args.output/f'{split}.refit_audit.npz',accepted=good,source_row_index=np.arange(n),
@@ -213,7 +248,7 @@ def main():
                       'physics_source_hashes':source_hashes, 'refitter_sha256':refitter_hash,
                       'profile_loader_sha256':profile_loader_hash,
                       'return_model_sha256':return_model_hash},
-            'contract':dict(old_receipt['contract'], recipe_revision=RECIPE_REVISION, qualification=QUALIFICATION,
+            'contract':dict(old_receipt['contract'], recipe_revision=recipe_revision, qualification=QUALIFICATION,
                             return_model=profile['return_model']['id'], physics_integration_s=float(params[DT]),
                             first_bounce_center_height_m=float(params[RADIUS]), training_frame=profile['training_frame']),
             'summary':summary, 'limitations':[
@@ -222,6 +257,11 @@ def main():
                 'First bounce is descending center contact at table surface plus ball radius; no post-bounce trajectory is used.',
                 'Original reach, speed, approach, landing, net and incoming-bounce bounds retained.',
                 'Ball geometry only: policy performance, long-horizon balance and hardware qualification NOT_PROVEN.']}
+        if objective is not None:
+            receipt['source'].update(landing_objective_yaml=str(args.landing_objective.resolve()),
+                                     landing_objective_yaml_sha256=objective_hash)
+            receipt['contract'].update(landing_objective=objective, landing_objective_sha256=objective_hash,
+                                       training_distribution_revision=SWEET_SPOT_DISTRIBUTION)
         path.with_suffix('.receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
         parent_sets.append(set(retained['parent_id'].tolist()))
     if parent_sets[0]&parent_sets[1] or parent_sets[0]&parent_sets[2] or parent_sets[1]&parent_sets[2]:
@@ -231,7 +271,10 @@ def main():
     overrides = {'environment':{'HOPE_BALL_PHYSICS_YAML':str(args.physics.resolve())},'task':{'racket':{
         'venue_tuple_bank_path':str(train.resolve()), 'venue_tuple_bank_receipt_path':str(receipt.resolve()),
         'venue_tuple_bank_sha256':sha(train), 'venue_tuple_bank_receipt_sha256':sha(receipt),
-        'venue_tuple_bank_recipe_revision':RECIPE_REVISION}}}
+        'venue_tuple_bank_recipe_revision':recipe_revision}}}
+    if objective is not None:
+        overrides['task']['landing_objective'] = {
+            'path':str(args.landing_objective.resolve()), 'sha256':objective_hash, 'descriptor':objective}
     (args.output/'training_overrides.yaml').write_text(yaml.safe_dump(overrides,sort_keys=False))
 
 

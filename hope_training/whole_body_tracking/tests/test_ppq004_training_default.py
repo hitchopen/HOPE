@@ -19,11 +19,12 @@ def config(overrides=(), name="train"):
         return compose(config_name=name, overrides=list(overrides))
 
 
-def test_default_training_selects_available_recipe22_and_scratch_run():
+def test_default_training_selects_recipe23_sweet_spot_and_scratch_run():
     cfg = config()
-    assert cfg.task.build_contract.training_distribution_revision == prelaunch.DISTRIBUTION
-    assert cfg.task.racket.venue_tuple_bank_recipe_revision == 22
-    assert cfg.task.ppq004_refit_manifest == "outputs/stationary_ppq004_full/training_overrides.yaml"
+    assert cfg.task.build_contract.training_distribution_revision == prelaunch.SWEET_SPOT_DISTRIBUTION
+    assert cfg.task.racket.venue_tuple_bank_recipe_revision == 23
+    assert cfg.task.ppq004_refit_manifest == "outputs/stationary_ppq004_sweet_spot/training_overrides.yaml"
+    assert cfg.task.sweet_spot.reward_enabled is True
     assert cfg.task.racket.venue_tuple_bank_path is None
     assert cfg.algo.algorithm.settled_aux_enabled is False
     assert (cfg.num_envs, cfg.max_iterations, cfg.seed) == (6144, 30000, 0)
@@ -32,7 +33,7 @@ def test_default_training_selects_available_recipe22_and_scratch_run():
 
 def test_effective_default_records_matching_bank_and_physics_in_saved_configuration(bundle, tmp_path):
     manifest, bank, physics, receipt = bundle
-    cfg = config([f"task.ppq004_refit_manifest={json.dumps(str(manifest))}"])
+    cfg = config(["task=HOPEPingPongStationaryPPQ004General", f"task.ppq004_refit_manifest={json.dumps(str(manifest))}"])
     environment = {"HOPE_BALL_PHYSICS_YAML": "/old/venue.yaml"}
     assert prelaunch.configure_refitted_task(cfg, environ=environment)
     assert environment["HOPE_BALL_PHYSICS_YAML"] == str(physics)
@@ -56,7 +57,7 @@ def test_manifest_path_is_training_package_relative_independent_of_cwd(bundle, m
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    cfg = config(["task.ppq004_refit_manifest=training_overrides.yaml"])
+    cfg = config(["task=HOPEPingPongStationaryPPQ004General", "task.ppq004_refit_manifest=training_overrides.yaml"])
     assert prelaunch.configure_refitted_task(cfg, environ={})
     assert cfg.task.ppq004_refit_manifest == str(bundle[0])
 
@@ -107,14 +108,15 @@ def test_missing_bundle_fails_before_isaac_import_with_regeneration_command(file
     monkeypatch.setattr(builtins, "__import__", guarded_import)
     with pytest.raises(FileNotFoundError, match="refit_stationary_reach_bank.py") as exc:
         entrypoint_main(filename)(cfg)
-    assert "recipe-22" in str(exc.value)
+    assert "recipe-23" in str(exc.value)
+    assert "--landing-objective" in str(exc.value)
     assert "assets/stationary_reach_v4_ppq004_generalization_20261022" in str(exc.value)
     assert str(missing.parent) in str(exc.value)
 
 
 @pytest.mark.parametrize("filename", ["train.py", "play.py"])
 def test_matching_physics_is_set_before_app_launcher(filename, bundle, monkeypatch):
-    cfg = config([f"task.ppq004_refit_manifest={json.dumps(str(bundle[0]))}"])
+    cfg = config(["task=HOPEPingPongStationaryPPQ004General", f"task.ppq004_refit_manifest={json.dumps(str(bundle[0]))}"])
     original_import = builtins.__import__
     monkeypatch.setenv("HOPE_BALL_PHYSICS_YAML", "/old/venue.yaml")
 
