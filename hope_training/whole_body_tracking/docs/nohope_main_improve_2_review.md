@@ -288,7 +288,7 @@ and 48,555 test rows, including 152,409 forehand and 241,521 backhand training
 questions. All stored targets equal the canonical centre and all stored
 landings lie inside the rectangle; unchanged physical constraints and split
 provenance were checked. Both reward settings passed prelaunch, standalone
-dry-run and the production bank loader. The CPU suite passed **543 tests**,
+dry-run and the production bank loader. The CPU suite passed **546 tests**,
 with 11 skipped for unavailable Isaac/CUDA or a second GPU. Exact hashes,
 commands and audit limits are recorded in the
 [sweet-spot validation record](sweet_spot_reward_validation.json).
