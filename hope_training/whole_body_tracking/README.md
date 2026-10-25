@@ -51,3 +51,42 @@ The required forehand/backhand motion files are included under
 prepare it from this checkout's vendor package, run
 `hope_isaac_py scripts/prepare_a3_isaac_asset.py`, then pass `--check` to verify.
 Existing local training logs and outputs are retained separately from source.
+
+## PPQ004 / 3star stationary rally
+
+Select `HOPEPingPongStationaryRally` with `ppo_balanced_hold` to train the
+fixed-station, wide-reach recipe from scratch. The standalone task and algorithm
+configs preserve the resolved values from `main_improve_2@9c4d6366a`; the default
+`HOPEPingPong` / `ppo` recipe remains available.
+
+From `hope_training/whole_body_tracking` inside the Isaac environment:
+
+```bash
+if [[ -n "${CONDA_PREFIX:-}" ]]; then
+  conda deactivate
+fi
+source setup_train_env.sh
+
+hope_isaac_py scripts/train.py \
+  task=HOPEPingPongStationaryRally \
+  algo=ppo_balanced_hold \
+  headless=true \
+  device=cuda:0 \
+  num_envs=6144 \
+  max_iterations=30000 \
+  seed=0 \
+  checkpoint_path=null \
+  warm_start_actor_checkpoint=null \
+  run_name=stationary_reach_ppq004_generalization_scratch
+```
+
+The task automatically selects the revision-21 question bank and its pinned
+PPQ004 physics profile. All three bank splits ship as ordinary Git blobs; see
+[the bank receipt and coverage notes](assets/stationary_reach_v4_ppq004_generalization_20261022/README.md).
+A stale `HOPE_BALL_PHYSICS_YAML` does not override this task's profile.
+
+The actor/action dimensions remain 110/31. HOLD uses the supplied B_32_5_K20
+reference as its action default; direct temporal actor refinement is disabled,
+while physical command-smoothing costs remain in PPO rewards. Training and
+export support here do not qualify a checkpoint for hardware or change Planner,
+Runner, Foxglove, HOME handling, or deployment model selection.

@@ -201,11 +201,20 @@ def racket_target_vel_w_live(env: ManagerBasedRLEnv, command_name: str) -> torch
     """TRUE live desired racket velocity (world). CRITIC/privileged term: the asymmetric critic
     keeps the undegraded target even when the actor's view is delayed/jittered (A1). Identical to
     :func:`racket_target_vel_w` when the A1 knobs are off."""
-    return _cmd(env, command_name).racket_target_vel_w
+    from whole_body_tracking.utils.four_stroke import idle_target
+    cmd = _cmd(env, command_name)
+    return idle_target(cmd, cmd.racket_target_vel_w, velocity=True)
 
 
 def racket_target_normal_w(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    return _cmd(env, command_name).racket_target_normal_w
+    from whole_body_tracking.utils.four_stroke import idle_target, waiting_for_first_ball
+    cmd = _cmd(env, command_name)
+    waiting = waiting_for_first_ball(cmd)
+    if waiting is None:
+        return cmd.racket_target_normal_w
+    velocity = idle_target(cmd, cmd.racket_target_vel_w, velocity=True)
+    normal = velocity / velocity.norm(dim=-1, keepdim=True).clamp_min(1e-6)
+    return torch.where(waiting[:, None], normal, cmd.racket_target_normal_w)
 
 
 def racket_pos_b(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:

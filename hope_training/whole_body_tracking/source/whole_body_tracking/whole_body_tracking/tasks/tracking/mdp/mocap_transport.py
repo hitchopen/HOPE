@@ -5,6 +5,21 @@ import math
 import torch
 
 
+def outage_start_probability(active_fraction, short_range_s, long_probability, long_range_s, dt):
+    """Convert a target time-in-outage fraction to an idle-tick start probability.
+
+    This is a stress-test distribution, not a measured per-packet percentile.
+    For mean duration L ticks, occupancy = p*L / (1+p*(L-1)).
+    """
+    validate_outage_config(active_fraction, short_range_s, long_probability, long_range_s)
+    if not math.isfinite(dt) or dt <= 0 or active_fraction >= 1:
+        raise ValueError("outage fraction must be <1 and control dt positive")
+    def mean_ticks(bounds):
+        return sum(max(1, math.ceil(x / dt - 1e-9)) for x in bounds) / 2
+    length = (1-long_probability)*mean_ticks(short_range_s) + long_probability*mean_ticks(long_range_s)
+    return active_fraction / (length*(1-active_fraction)+active_fraction)
+
+
 def validate_outage_config(start_probability, short_range_s, long_probability, long_range_s):
     for probability in (start_probability, long_probability):
         if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
