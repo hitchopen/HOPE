@@ -92,6 +92,11 @@ class RunnerControlWireTests(unittest.TestCase):
         self.assertEqual(state.last_action_id, 99)
         self.assertEqual(state.last_action_result, "APPLIED")
 
+    def test_reports_serve_recovery_pending(self):
+        values = valid_state()
+        values[19] = 34.0
+        self.assertEqual(decode_runner_state(values).last_action_reason, "SERVE_RECOVERY_PENDING")
+
     def test_rejects_wrong_size_schema_flags_and_unknown_codes(self):
         for mutation in (
             valid_state()[:-1],

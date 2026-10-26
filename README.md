@@ -9,6 +9,14 @@ mocap workspaces, uses the `hope` container group, and preserves schema-5 venue
 settings through the combined schema-6 backend. It does not deploy to the robot
 or change robot motions or scheduling.
 
+A3 operations: [ELink startup checks and runtime diagnostics](docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics)
+detect startup process/IPC and log failures without adding telemetry, battery or
+clock-based motion gates. Normal Stand, Serve and Rally retain the existing
+Runner/vendor protections. Clock correction uses the explicit, stopped
+[Time Calibration workflow](docs/operations/foxglove_lifecycle.md#pre-operation-clock-correction).
+Follow the matched-component installation and hardware validation requirements
+in those guides before deployment.
+
 Runtime updates from October 11–13: [deployment and Gate 3](docs/operations/deploy_and_gate3.md),
 [shared ball physics](docs/operations/ball_physics_calibration.md),
 [Foxglove recording and live Motive localization](foxglove/extensions/hope-a3-console/README.md),
@@ -295,6 +303,7 @@ matches and the exhibition match (§2(8)).
 | `VRPN2ROS2/` | Independent ROS 2 workspace for the ChingMu/VRPN client, strict server-time/NTP validation, and raw per-tracker `PoseStamped` topics. |
 | `hope_ws/` | ROS 2 workspace: `hope_planner_cpp` (the supported C++ packetizer/Planner runtime), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (wire messages), and `calibration_receipts/` (venue calibration evidence). The retired Python Planner source is excluded from colcon and retained only for offline comparison. Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
 | `a3_deploy/` | The native C++ deploy runner, gate/rehearsal script suite, parity harness, and deploy runbooks (`a3_deploy_example/`); the MuJoCo/AimRT simulation fork with the real ball plant (`A3_MuJoCo_Sim/`); and the optional user-supplied URDF override location (`URDF/`). |
+| [foxglove/](foxglove/README.md) | Operator console, managed lifecycle, startup checks, runtime diagnostics and stopped clock calibration. Deployment assets live under `a3/`, `helpers/` and `laptop/`; `tests/` is regression coverage, not robot installation content. |
 | [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
 | [agibot/](agibot/README.md) | A3 source robot models, vendor deploy/simulation references, clock synchronization and mounting hardware: the [v3 marker shell](agibot/mocap_sticker_shell_v3/README.md), [right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md) and serving gripper STL. See the folder README for the complete map, printing units and hardware-specific guidance. |
 | `mocap/` | Motion-capture frame/topic contract ([mocap/README.md](mocap/README.md)) and the preserved mocap reference documents (EN/ZH). |

@@ -54,6 +54,7 @@
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_reference_playback.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
+#include "a3_pingpong/pp_serve_recovery.hpp"
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "robot_io/a3_aimrt_backend.hpp"
 
@@ -1666,6 +1667,7 @@ int main(int argc, char** argv) {
   bool authoritative_mocap_stale_warned = false;  // driver-thread only (no race)
   Mode prev_mode_for_blend = Mode::kPassive;       // driver-thread only (no race)
   a3_pingpong::PpCommandTransition mode_transition;
+  a3_pingpong::ServeTerminalRecoveryEvents serve_terminal_events;
   robot_io::RobotCommand last_delivered_command;
   robot_io::RobotState command_state;
   bool last_delivered_valid = false;
@@ -1717,7 +1719,7 @@ int main(int argc, char** argv) {
                      &prev_mode_for_blend, &motion_enter_tick,
                      &prev_level_for_blend, &prev_swing_dir_for_blend,
                      &trace_previous_shot_seq, &trace_previous_q_des,
-                     &mode_transition, &last_delivered_command, &last_delivered_valid,
+                     &mode_transition, &serve_terminal_events, &last_delivered_command, &last_delivered_valid,
                      &last_delivered_mode, &computed_mode, &transition_elapsed_s, &command_state,
                      fall_guard, fall_guard_gz, &fall_guard_ticks,
                      v17_command_safety, &command_safety,
@@ -1880,36 +1882,39 @@ int main(int argc, char** argv) {
       }
       const bool prepare_requested = runner_control.ConsumeServePrepare();
       if (serve_just_entered || prepare_requested) {
+        serve_terminal_events.Reset();
         if (last_delivered_valid) servep->SetEntryCommand(last_delivered_command);
         // Start on the command thread before consuming the old COMPLETE state.
         // Publishing SERVE from the action worker and calling Start afterwards
         // races this callback on every repeat of the serve -> ready -> serve loop.
         servep->Start();
       }
-      if (!servep->ComputeCommand(tick, st, cmd)) return false;
+      const bool serve_command_valid = servep->ComputeCommand(tick, st, cmd);
+      if (!serve_command_valid) return false;
       if (servep->state() ==
-                 a3_pingpong::ServeControllerState::kAborted) {
-        runner_control.SetRuntimeMode(Mode::kPdStand);
-        std::fprintf(stderr,
-                     "[serve] abort recovery complete -> PD_STAND"
-                     " (cleanup_required=%d)\n",
-                     servep->cleanup_required() ? 1 : 0);
-      } else if (servep->state() ==
                  a3_pingpong::ServeControllerState::kComplete) {
-        runner_control.CompleteServe(kernel_mode);
-        std::fprintf(stderr, runner_control.serve_only()
+        if (runner_control.CompleteServe(kernel_mode))
+          std::fprintf(stderr, runner_control.serve_only()
             ? "[serve] CSV complete -> PD_STAND (Pure Serve)\n"
             : kernel_mode ? "[serve] measured stand recovery complete -> PD_STAND (Kernel; arms lowered)\n"
             : "[serve] selected return complete -> MOTION; entering P1/P2 "
               "receive policy through continuous handoff\n");
-      } else if (servep->state() ==
-                 a3_pingpong::ServeControllerState::kFault) {
-        runner_control.SetRuntimeMode(Mode::kPdStand);
-        const std::string serve_fault = servep->fault_reason();
-        std::fprintf(stderr,
-                     "[serve] controller fault -> PD_STAND; reason=%s; "
-                     "restart/inspect before retry\n",
-                     serve_fault.empty() ? "unknown" : serve_fault.c_str());
+      } else if (servep->state() == a3_pingpong::ServeControllerState::kFault ||
+                 servep->state() == a3_pingpong::ServeControllerState::kAborted) {
+        const auto terminal = servep->state();
+        const bool recovered = runner_control.RecoverTerminalServeToStand(
+            static_cast<int>(terminal), serve_command_valid);
+        if (serve_terminal_events.Observe(static_cast<int>(terminal), recovered)) {
+          const std::string reason = servep->fault_reason();
+          std::fprintf(stderr,
+              "[serve] %s: %s; mode=%s; reason=%s; cleanup_required=%d; "
+              "inspect before retry\n",
+              terminal == a3_pingpong::ServeControllerState::kFault ? "controller fault" : "abort",
+              recovered ? "PD_STAND recovery accepted" : "terminal recovery not applied",
+              a3_pingpong::RunnerModeName(runner_control.mode()),
+              reason.empty() ? "none" : reason.c_str(),
+              servep->cleanup_required() ? 1 : 0);
+        }
       }
     } else {  // SHADOW or MOTION: run the policy
       const bool run_hope_this_tick =
