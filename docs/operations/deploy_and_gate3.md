@@ -418,3 +418,41 @@ not carry a new build, Gate 3 or hardware verdict. The 2026-10-13 extension
 additionally checked ball-physics consumers, lifecycle/recording behavior and
 Xbox source mappings; its examples remain operator instructions, not actions
 performed by the documentation update.
+
+## Model17400 PR87 runtime alignment
+
+The runtime extension accepts the original model17400 two-file export without
+editing its ONNX metadata or deploy configuration. Its 110-D observation uses
+an immutable session HOME, zero station movement, passive head slots, and the
+exported forehand/backhand support. The common interception plane is 0.57 m
+relative to HOME; side selection uses the exported -0.24 m boundary. Empty
+support parameters preserve the existing Planner selector. Manual PD_STAND uses
+the robot's official pose, independently of a policy's action offset.
+
+Use `scripts/prepare_model17400_bundle.py` inside the deployment project to stage
+an existing complete Runner distribution. Required arguments are `--package`,
+`--runner-dist`, and a new `--output` directory. Cross staging additionally takes
+`--inspection-runner-dist` for a native build of the same source. The helper pins
+policy/deploy hashes, validates the native inspection, rejects mixed ELF
+architectures, includes the HOME transport configuration, and produces immutable
+HDU/MDU catalog entries. It does not install or start anything. The Console
+installation requirements are in
+[model17400 receive policy](../../foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy).
+
+Validation on 2026-10-26 used HOPE main `3ad7bae9` plus this adaptation: x86 and
+ARM64 Runner builds passed; the native HOME/drift probe and model12600 loading
+regression passed; six invalid new-contract mutations were rejected. All 20
+Planner test targets and 69 focused Foxglove tests passed. The wider Foxglove
+suite had two VRPN dispatch-fixture failures also reproduced using unchanged
+main files; 29 ROS-dependent tests were skipped in the host environment.
+
+The 100-ball MuJoCo run completed 100 swings, measured 100 contacts and 99 legal
+landings, with zero conductor falls. **Formal Gate3 remained FAIL.** Final HOME
+Y drift was about 0.12 m; late station error and idle wrist range exceeded the
+existing limits. The legacy report also still expects a 0.58 m plane and Build1
+HOLD, which do not describe this export. Those report assumptions need a separate
+contract-aware update; thresholds and ball count were not weakened. PPQ004's
+full outgoing Magnus/first-bounce solver parity remains outside this change.
+No ARM executable was run on a robot, and no deployment, restart, serve or robot
+motion was performed. Build success and these simulation results are not
+hardware qualification.

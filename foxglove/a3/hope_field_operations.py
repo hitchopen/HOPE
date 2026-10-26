@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 
+from hope_policy_models import MODELS, MOCAP_MODELS
 from hope_field_assets import atomic_write, asset_name, calibration_metadata
 from hope_ball_models import PROFILES
 
@@ -105,7 +106,7 @@ class FieldOperations:
         self.exchange = exchange
         self.recorder = recorder or ManagedRecorder(Path("/agibot/data/bag/hope_pingpong_telemetry"))
         self._lock = threading.RLock()
-        self._data = {"mode": "OPTITRACK", "csv": None, "calibration": None, "ball_model": None}
+        self._data = {"mode": "OPTITRACK", "csv": None, "calibration": None, "ball_model": None, "policy_model": None}
         self.ball_model_status = {"state": "CHECKING", "configured_model": None, "endpoints": {}}
         self._ball_checked_at = None
         self.calibration_sync = "NOT_CHECKED"
@@ -118,6 +119,8 @@ class FieldOperations:
                 raise ValueError("invalid saved operating mode")
             if saved.get("ball_model") is not None and saved["ball_model"] not in PROFILES:
                 raise ValueError("invalid saved ball model")
+            if saved.get("policy_model") not in (MODELS | {None}):
+                raise ValueError("invalid saved policy model")
             self._data.update({key: saved.get(key) for key in self._data})
         except FileNotFoundError:
             pass
@@ -184,9 +187,43 @@ class FieldOperations:
 
     def command(self, request: dict, config, *, stopped: bool) -> dict:
         operation = request.get("op")
-        if operation in {"set_mode", "upload_csv", "use_default_csv", "load_calibration", "set_ball_model"} and not stopped:
+        if operation in {"set_mode", "upload_csv", "use_default_csv", "load_calibration", "set_ball_model", "set_policy_model"} and not stopped:
             raise ValueError("stop the Runner lifecycle before changing mode, CSV or calibration")
-        if operation == "set_ball_model":
+        if operation == "set_policy_model":
+            model = request.get("model")
+            if model not in MODELS:
+                raise ValueError("choose an installed policy model")
+            if model in MOCAP_MODELS and self._data["mode"] == "KERNEL":
+                raise ValueError("this policy requires OptiTrack receive mode")
+            previous = {host: self.exchange(host, config, {"op":"read_policy_model"})["model"]
+                        for host in ("hdu", "mdu")}
+            attempted = []
+            old_model = self._data["policy_model"]
+            old_csv = self._data["csv"]
+            try:
+                for host in ("hdu", "mdu"):
+                    attempted.append(host)
+                    result = self.exchange(host, config, {"op":"select_policy_model", "model":model})
+                    if result.get("model") != model: raise ValueError("policy selection unconfirmed")
+                with self._lock:
+                    self._data["policy_model"] = model
+                    if result.get("receive_only"):
+                        self._data["csv"] = None
+                    elif result.get("serve_csv"):
+                        self._data["csv"] = result["serve_csv"]
+                    self._save()
+            except Exception as exc:
+                self._data["policy_model"] = old_model
+                self._data["csv"] = old_csv
+                failed = []
+                for host in reversed(attempted):
+                    try:
+                        result = self.exchange(host, config, {"op":"select_policy_model", "model":previous[host]})
+                        if result.get("model") != previous[host]: raise ValueError("rollback unconfirmed")
+                    except Exception: failed.append(host)
+                if failed: raise ValueError(f"policy rollback unconfirmed on {failed}: {exc}") from exc
+                raise
+        elif operation == "set_ball_model":
             model = request.get("model")
             if model not in PROFILES:
                 raise ValueError("ball model must be berkeley, ppq002 or ppq004")
@@ -223,6 +260,8 @@ class FieldOperations:
             request = {**request, "mode": "KERNEL" if request.get("mode") == "PURE_SERVE" else request.get("mode")}
             if request.get("mode") not in MODES:
                 raise ValueError("mode must be OPTITRACK or KERNEL")
+            if request["mode"] == "KERNEL" and self._data["policy_model"] in MOCAP_MODELS:
+                raise ValueError("this policy requires OptiTrack receive mode")
             with self._lock:
                 self._data["mode"] = request["mode"]
                 self._save()
@@ -233,8 +272,14 @@ class FieldOperations:
                 self._data["csv"] = {**result, "name": name}
                 self._save()
         elif operation == "use_default_csv":
+            default_csv = None
+            if self._data["policy_model"]:
+                selected = self.exchange("mdu", config, {"op": "read_policy_model"})
+                if selected["model"] != self._data["policy_model"]:
+                    raise ValueError("selected policy differs across endpoints")
+                default_csv = selected.get("serve_csv")
             with self._lock:
-                self._data["csv"] = None
+                self._data["csv"] = default_csv
                 self._save()
         elif operation == "load_calibration":
             calibration_metadata(request["content"], request["name"], config.table_side)
@@ -266,6 +311,19 @@ class FieldOperations:
         with self._lock:
             mode = self._data["mode"]
             csv = self._data["csv"]
+        model = self._data["policy_model"]
+        if model:
+            if model in MOCAP_MODELS and mode == "KERNEL":
+                raise ValueError("this policy requires OptiTrack receive mode")
+            verified = [self.exchange(host, config, {"op":"verify_policy_model", "model":model})
+                        for host in ("hdu", "mdu")]
+            for key in ("model", "policy_sha256", "deploy_sha256"):
+                if verified[0][key] != verified[1][key]: raise ValueError("Runner and Planner policy bundles differ")
+        required_ball_model = None
+        if model == "model17400":
+            if any(v.get("receive_only") is not True or v.get("required_ball_model") != "ppq004" for v in verified):
+                raise ValueError("model17400 bundle capabilities differ across endpoints")
+            required_ball_model = "ppq004"
         if mode != "KERNEL":
             # Also verify an absent selection: an interrupted/uncertain write
             # must not leave an unnoticed one-sided physics override.
@@ -274,6 +332,8 @@ class FieldOperations:
             models = [result.get("configured_model") for result in verified]
             if models[0] is None or models[0] != models[1]:
                 raise ValueError("Planner and packetizer configured ball models do not match")
+            if required_ball_model and models[0] != required_ball_model:
+                raise ValueError("model17400 requires PPQ004 on Planner and packetizer")
         digest = "DEFAULT"
         if csv:
             # Recheck existence and bytes before changing any hardware state.

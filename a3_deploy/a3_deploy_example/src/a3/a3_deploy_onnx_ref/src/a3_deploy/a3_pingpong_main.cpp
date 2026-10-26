@@ -448,8 +448,24 @@ int main(int argc, char** argv) {
           << YAML::Key << "step_dt" << YAML::Value << deploy.step_dt
           << YAML::Key << "runtime_contract" << YAML::Value << policy.runtime_contract()
           << YAML::Key << "training_recipe" << YAML::Value << policy.training_recipe()
-          << YAML::Key << "training_recipe_version" << YAML::Value << policy.training_recipe_version()
-          << YAML::EndMap;
+          << YAML::Key << "training_recipe_version" << YAML::Value << policy.training_recipe_version();
+      if (policy.is_fixed_home_contract()) {
+        out << YAML::Key << "station_contract" << YAML::Value << "fixed_session_anchor_v1"
+            << YAML::Key << "position_support" << YAML::Value << YAML::BeginSeq;
+        for (const auto& box : policy.hp_pos_boxes()) {
+          out << YAML::Flow << YAML::BeginSeq;
+          for (double v : box) out << v;
+          out << YAML::EndSeq;
+        }
+        out << YAML::EndSeq << YAML::Key << "velocity_support" << YAML::Value << YAML::BeginSeq;
+        for (const auto& box : policy.hp_vel_boxes()) {
+          out << YAML::Flow << YAML::BeginSeq;
+          for (double v : box) out << v;
+          out << YAML::EndSeq;
+        }
+        out << YAML::EndSeq;
+      }
+      out << YAML::EndMap;
       std::cout << out.c_str() << '\n';
       return 0;
     } catch (const std::exception& e) {
