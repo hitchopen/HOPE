@@ -352,6 +352,9 @@ class PpOnnxPolicy {
     const std::string hp_step_s = LookupMetaOptional(md, alloc, "hitter_pure_station_y_step_range");
     const std::string hp_mix_s = LookupMetaOptional(md, alloc, "hitter_pure_station_y_mixture");
     const std::string hp_side_s = LookupMetaOptional(md, alloc, "hitter_pure_station_side_explicit");
+    station_contract_ = LookupMetaOptional(md, alloc, "hitter_pure_station_contract");
+    if (!station_contract_.empty() && station_contract_ != "fixed_session_anchor_v1")
+      throw std::runtime_error("unknown hitter_pure_station_contract");
     runtime_contract_ = LookupMetaOptional(md, alloc, "hitter_pure_runtime_contract");
     training_recipe_ = LookupMetaOptional(md, alloc, "hitter_pure_training_recipe");
     training_recipe_version_ =
@@ -1781,10 +1784,29 @@ class PpOnnxPolicy {
          clip_seg_lengths_.size() != 2 ||
          clip_strike_phases_.size() != 2 || hp_pos_boxes_.size() != 2 ||
          hp_vel_boxes_.size() != 2 || !has_hp_base_range_ ||
-         (!build2_fixed_home && !small_station_ && !has_hp_station_y_step_range_)))
+         (!build2_fixed_home && !small_station_ && !is_fixed_home_contract() && !has_hp_station_y_step_range_)))
       throw std::runtime_error(
           "ONNX RallyFinal runtime requires its exact 110-D/112-D/127-D actor, exactly two clip clocks/pos/vel boxes, "
           "and complete base metadata; schema23/24 fixed HOME omits station-step metadata");
+    if (is_fixed_home_contract()) {
+      if (!runtime_v2 || training_recipe_ != "continuous_rally_sim2real_v3" ||
+          training_recipe_version_ != "3" || obs_dim_ != kObsDim110 ||
+          actor_obs_contract_ != "hitter_pure" ||
+          qdes_action_contract_ != "v11_affine_safe_qdes_v1" ||
+          has_hp_station_y_step_range_ || !hp_mix_s.empty() || !has_hp_base_range_ ||
+          std::any_of(hp_base_range_.begin(), hp_base_range_.end(),
+                      [](double x) { return !std::isfinite(x) || x != 0.; }) ||
+          LookupMetaOptional(md, alloc, "hitter_pure_target_sample_contract") != "four_clip_ball_clock_v1" ||
+          LookupMetaOptional(md, alloc, "hitter_pure_recovery_target_contract") != "fixed_session_anchor_v1" ||
+          LookupMetaOptional(md, alloc, "hitter_pingpong_deploy_delay_contract") != "direct_no_added_delay_v1" ||
+          LookupMetaOptional(md, alloc, "hitter_pure_passive_head") != "head_yaw_joint,head_pitch_joint" ||
+          last_action_head_mode_ != "zero" || !uses_authoritative_mocap_pose() ||
+          LookupMetaOptional(md, alloc, "hitter_pingpong_rally_end_contract") != "ball_clock_followthrough_v1" ||
+          LookupMetaOptional(md, alloc, "hitter_pure_hold_pose_contract") != "actual_full_body_B32_5_K20_complete_v2" ||
+          LookupMetaOptional(md, alloc, "hitter_pure_hold_reference_sha256").size() != 64)
+        throw std::runtime_error("fixed session HOME requires continuous v3/rally_final_v2, "
+            "zero XY station range, original HOLD and direct ball-clock contracts");
+    }
     if (uses_build2_schema22_rapid_preempt_contract() &&
         (!has_hp_base_range_ || !has_hp_station_y_step_range_ ||
          std::fabs(hp_base_range_[0]) > 1.0e-12 ||
@@ -2691,6 +2713,7 @@ class PpOnnxPolicy {
            small_station_ ? "small_station_112_v1" :
            uses_ball_clock_followthrough() ? "ball_clock_110_v1" : "legacy";
   }
+  bool is_fixed_home_contract() const { return station_contract_ == "fixed_session_anchor_v1"; }
   bool uses_ball_clock_followthrough() const { return ball_clock_followthrough_s_ > 0.0; }
   double ball_clock_followthrough_s() const { return ball_clock_followthrough_s_; }
   int obs_dim() const { return obs_dim_; }
@@ -2723,7 +2746,7 @@ class PpOnnxPolicy {
            runtime_contract_ == "rally_v17_fixed_station_ball_clock_v1";
   }
   bool requires_component_velocity_gate() const {
-    if (small_station_) return false;  // one hash-bound SmallStation bank
+    if (small_station_ || is_fixed_home_contract()) return false;  // bank samples use the exported final envelope
     return runtime_contract_ == "rally_final_v2" ||
            runtime_contract_ == "rally_v15" ||
            runtime_contract_ == "rally_v17_fixed_station_ball_clock_v1";
@@ -3611,6 +3634,7 @@ class PpOnnxPolicy {
   std::array<double, 2> hp_station_y_step_range_ = {0.0, 0.0};
   bool has_hp_station_y_step_range_ = false;
   double ball_clock_followthrough_s_ = 0.0;
+  std::string station_contract_;
   std::string runtime_contract_;
   std::string training_recipe_;
   std::string training_recipe_version_;

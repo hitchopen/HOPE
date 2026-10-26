@@ -175,6 +175,8 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_runtime_plane_reference test/test_runtime_plane_reference.cpp)
   target_link_libraries(test_runtime_plane_reference hope_planner_core Eigen3::Eigen)
+  ament_add_gtest(test_swing_side_support test/test_swing_side_support.cpp)
+  target_link_libraries(test_swing_side_support hope_planner_core Eigen3::Eigen)
   ament_add_gtest(test_planner_runtime_plane test/test_planner_runtime_plane.cpp src/planner_node.cpp)
   target_link_libraries(test_planner_runtime_plane hope_planner_core Eigen3::Eigen rclcpp::rclcpp
     ${diagnostic_msgs_TARGETS} ${geometry_msgs_TARGETS} ${hope_msgs_TARGETS}

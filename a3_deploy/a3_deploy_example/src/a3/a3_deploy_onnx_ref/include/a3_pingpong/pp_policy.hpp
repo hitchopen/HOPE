@@ -65,6 +65,7 @@
 #include "a3_pingpong/pp_reference_clock.hpp"
 #include "a3_pingpong/pp_velocity_gate.hpp"
 #include "a3_pingpong/pp_static_handoff.hpp"
+#include "a3_pingpong/pp_stand_pose.hpp"
 #include "a3_policy_parameters.hpp"      // ::a3_pd_stand_kps / kds (official robust-stand gains)
 #include "robot_io/a3_layout_extra.hpp"  // robot_io::kA3PolicyToSdkIdx (29->31 scatter)
 #include "robot_io/robot_io_backend.hpp"
@@ -766,7 +767,7 @@ class PpPolicy {
           }
           hp_vel_box_set_ = true;
         }
-        if (onnx_.hp_vel_core_boxes().size() >= 2 &&
+        if (!onnx_.is_fixed_home_contract() && onnx_.hp_vel_core_boxes().size() >= 2 &&
             onnx_.hp_vel_planner_boxes().size() >= 2) {
           for (int c = 0; c < 2; ++c) {
             hp_vel_core_box_[c] = onnx_.hp_vel_core_boxes()[c];
@@ -859,7 +860,7 @@ class PpPolicy {
               "pos/vel/base metadata; refusing an ambiguous deploy contract");
         hp_base_target_range_ = onnx_.hp_base_range();
         rally_final_station_control_ = true;
-        if (onnx_.is_v17_r10_p0_gate3() ||
+        if (onnx_.is_v17_r10_p0_gate3() || onnx_.is_fixed_home_contract() ||
             onnx_.uses_build2_fixed_home_contract()) {
           if (onnx_.has_hitter_pure_station_y_step_range())
             throw std::runtime_error(
@@ -925,8 +926,11 @@ class PpPolicy {
           onnx_.uses_build2_rapid_preempt_contract() || cfg_.fixed_station_replay ||
           cfg_.moving_station_replay || !onnx_.uses_authoritative_mocap_pose() ||
           onnx_.hp_pos_boxes().size() != 2 ||
-          onnx_.hp_pos_boxes()[0][0] != onnx_.hp_pos_boxes()[0][1] ||
-          onnx_.hp_pos_boxes()[1][0] != onnx_.hp_pos_boxes()[1][1] ||
+          (!onnx_.is_fixed_home_contract() &&
+           (onnx_.hp_pos_boxes()[0][0] != onnx_.hp_pos_boxes()[0][1] ||
+            onnx_.hp_pos_boxes()[1][0] != onnx_.hp_pos_boxes()[1][1])) ||
+          reach_offset_clip_[0][0] < std::max(onnx_.hp_pos_boxes()[0][0], onnx_.hp_pos_boxes()[1][0]) ||
+          reach_offset_clip_[0][0] > std::min(onnx_.hp_pos_boxes()[0][1], onnx_.hp_pos_boxes()[1][1]) ||
           reach_offset_clip_[0][0] != reach_offset_clip_[1][0] ||
           hp_base_target_range_[0] != 0.0 || hp_base_target_range_[1] != 0.0)
         throw std::invalid_argument("shared HOME requires calibrated ball-clock 110-D policy with a common fixed station-relative X plane");
@@ -975,7 +979,7 @@ class PpPolicy {
           "pingpong: --station-only requires a 110-D RallyFinal runtime contract; "
           "refusing a mode that could fall through to swing engage");
     nominal_q_sdk_ = to_sdk_order(onnx_.default_q(), isaac_to_sdk_);  // nominal pose in SDK order
-    official_stand_q_sdk_ = nominal_q_sdk_;
+    official_stand_q_sdk_ = official_stand_q_sdk();
     qdes_projected_isaac_ = onnx_.default_q();
     leg_qdes_smooth_ = nominal_q_sdk_;  // seed the leg q_des EMA at nominal (no jump on first release)
     // Official robust-stand PD gains (a3_pd_stand_*, 29-DOF policy view) scattered
@@ -1226,7 +1230,7 @@ class PpPolicy {
   void SetStandLateralOffset(double radians) {
     if (!std::isfinite(radians) || radians < 0.0 || radians > .06)
       throw std::invalid_argument("stand lateral offset must be in [0, 0.06] rad");
-    official_stand_q_sdk_ = nominal_q_sdk_;
+    official_stand_q_sdk_ = official_stand_q_sdk();
     official_stand_q_sdk_[20] += radians;
     official_stand_q_sdk_[24] -= radians;
     official_stand_q_sdk_[26] -= radians;
@@ -1961,12 +1965,16 @@ class PpPolicy {
         localized_base && !station_session_origin_set_) {
       station_session_origin_w_ = Vec2(st.base_pos_w[0], st.base_pos_w[1]);
       station_session_origin_set_ = true;
+      if (onnx_.is_fixed_home_contract()) {
+        hold_station_w_ = station_session_origin_w_;
+        hold_station_set_ = true;
+      }
       if (cfg_.shared_session_home) {
         const auto wall_us = static_cast<std::uint64_t>(PpNowWallSec() * 1e6);
         shared_home_epoch_counter_ = std::max(shared_home_epoch_counter_ + 1, wall_us);
         shared_home_receipt_ = {shared_home_epoch_counter_, st.base_pos_w[0],
             st.base_pos_w[1], reach_offset_clip_[0][0],
-            localized_calibration_id, localized_world_id, true};
+            localized_calibration_id, localized_world_id, !onnx_.is_fixed_home_contract()};
       }
 
       std::fprintf(stderr,
@@ -2280,7 +2288,12 @@ class PpPolicy {
       const bool base_tracks_translation =
           (cfg_.loc_mode == LocMode::kOracle && oracle_fresh_) ||
           (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_) || cfg_.kernel_mode;
-      if (!base_tracks_translation) {
+      if (onnx_.is_fixed_home_contract() && station_session_origin_set_) {
+        // Immutable HOME survives new balls, recovery and transient mocap loss.
+        tg.base_target_xy = station_session_origin_w_;
+        hold_station_w_ = station_session_origin_w_;
+        hold_station_set_ = true;
+      } else if (!base_tracks_translation) {
         if (onnx_.is_hitter_pingpong_recovery_tts_recipe()) {
           tg.base_target_xy = Vec2(
               planner_stale_station_coordinate(
@@ -4903,7 +4916,7 @@ class PpPolicy {
     if (onnx_.uses_build2_rapid_preempt_contract()) {
       station = ProjectSchema22StationToHome_(requested_station);
     }
-    if (onnx_.is_v17_r10_p0_gate3()) {
+    if (onnx_.is_v17_r10_p0_gate3() || onnx_.is_fixed_home_contract()) {
       if (!station_session_origin_set_) {
         ClearPendingStation_(tick_idx, "origin_unset");
         set_planner_status_("origin_unset");
@@ -4912,19 +4925,19 @@ class PpPolicy {
       const Vec2 relative_target =
           Vec2(pos_w[0], pos_w[1]) - station_session_origin_w_;
       constexpr double kFixedTargetToleranceM = 0.030;
-      const bool x_supported =
-          std::fabs(relative_target[0] - reach_offset_clip_[eng_clip][0]) <=
-          kFixedTargetToleranceM;
+      const auto& pos_box = onnx_.hp_pos_boxes()[eng_clip];
+      const bool x_supported = onnx_.is_fixed_home_contract()
+          ? (relative_target[0] >= pos_box[0] && relative_target[0] <= pos_box[1])
+          : std::fabs(relative_target[0] - reach_offset_clip_[eng_clip][0]) <= kFixedTargetToleranceM;
+      const double y_margin = onnx_.is_fixed_home_contract() ? 0. : kFixedTargetToleranceM;
       const bool y_supported =
-          relative_target[1] >=
-              hp_y_band_[eng_clip][0] - kFixedTargetToleranceM &&
-          relative_target[1] <=
-              hp_y_band_[eng_clip][1] + kFixedTargetToleranceM;
+          relative_target[1] >= hp_y_band_[eng_clip][0] - y_margin &&
+          relative_target[1] <= hp_y_band_[eng_clip][1] + y_margin;
       if (!x_supported || !y_supported) {
         if ((gate_warn_tick_++ % 25) == 0) {
           std::fprintf(
               stderr,
-              "[pp gate] V17-r10 target outside immutable-station %s "
+              "[pp gate] target outside immutable-station %s "
               "support: relative=(%+.3f,%+.3f), expected x=%+.3f y=[%+.3f,%+.3f]\n",
               sign > 0 ? "FH" : "BH", relative_target[0],
               relative_target[1], reach_offset_clip_[eng_clip][0],
@@ -5631,6 +5644,7 @@ class PpPolicy {
   }
 
   Vec2 station_from_target_(const Vec2& tgt_xy, int clip) const {
+    if (onnx_.is_fixed_home_contract()) return station_session_origin_w_;
     return station_from_target_with_anchor_(
         tgt_xy, clip, hold_station_w_, hold_station_set_);
   }

@@ -33,6 +33,8 @@ class FieldAssetsTest(unittest.TestCase):
 
     def exchange(self, host, config, request):
         self.calls.append((host, request["op"]))
+        if request["op"] == "read_policy_model":
+            return {"catalog_installed": False, "model": None}
         if request["op"] == "verify_ball_model":
             return {"configured_model": "ppq004", "runtime": "VERIFIED"}
         if host == "laptop":
@@ -171,7 +173,7 @@ class FieldAssetsTest(unittest.TestCase):
         digest = hashlib.sha256(b"qualified CSV").hexdigest()
         path = self.root / (digest + ".csv")
         script = ('set -euo pipefail\ndie() { echo "$2" >&2; exit 1; }\n'
-                  'probe() {\n' + block + '\nprintf "%s\\n" "${field_runner_args[@]}";\n}\n'
+                  'probe() {\nlocal -a serve_runner_args=(--serve)\n' + block + '\nprintf "%s\\n" "${field_runner_args[@]}";\n}\n'
                   'FIELD_MODE="$1"; SERVE_CSV_SHA="$2"; MDU_DEPLOY=/fixed/package; probe')
         for mode in ("KERNEL", "OPTITRACK"):
             for state in ("valid", "tampered", "missing", "default"):

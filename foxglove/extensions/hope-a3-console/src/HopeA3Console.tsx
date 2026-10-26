@@ -131,6 +131,7 @@ type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
   ball_model_status?: BallModelStatus;
+  policy_model?: "model14600" | "model11999" | "model12600" | "model17400" | null;
   ball_model?: "berkeley" | "ppq002" | "ppq004" | null;
   ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
@@ -1292,6 +1293,26 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       </div>
 
       <div className="field-assets">
+        <section className="field-card">
+          <span className="eyebrow">RECEIVE POLICY</span>
+          <strong>{field?.policy_model === "model17400" ? "17400 · PPQ004 · Receive only" : field?.policy_model === "model12600" ? "12600 · v23-12600 serve + receive" : field?.policy_model === "model11999" ? "11999 · v23 fixed Home" : field?.policy_model === "model14600" ? "14600 · serve + receive" : "No policy selected"}</strong>
+          <div className="field-buttons">
+            <button type="button" disabled={!assetEditable}
+              aria-pressed={field?.policy_model === "model14600"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model14600"})}>14600</button>
+            <button type="button" disabled={!assetEditable || kernelMode}
+              aria-pressed={field?.policy_model === "model11999"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model11999"})}>11999 · Receive only</button>
+            <button type="button" disabled={!assetEditable || kernelMode}
+              aria-pressed={field?.policy_model === "model12600"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model12600"})}>12600 · Serve + receive</button>
+            <button type="button" disabled={!assetEditable || kernelMode}
+              aria-pressed={field?.policy_model === "model17400"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model17400"})}>17400 · Receive only</button>
+          </div>
+          <p className="helper">Selected bundle · switch while STOPPED, then START to load. 17400 requires PPQ004 and calibrated mocap; receive only, no serve CSV. 11999 remains receive only. 12600 uses v23-12600 for serve + receive; its matched CSV is selected with the policy. 11999 / 12600: Home 0.20 m left of the centre line.</p>
+        </section>
+
         <section className="field-card">
           <span className="eyebrow">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "VRPN · POSE ONLY" : "MOTIVE · LIVE ASSET"}</span>
           <strong>{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "GEOMETRY NOT VERIFIED" : assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>

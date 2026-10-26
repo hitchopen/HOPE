@@ -316,7 +316,11 @@ class LifecycleBackend:
             raise ValueError("confirm network configuration first")
         target, helper = (self._laptop(config) if host == "laptop"
                           else (f"{ROBOT_USER}@{config.mdu_internal_ip}", LIFECYCLE_HELPER))
-        if request.get("op") in {"read_ball_model", "select_ball_model", "verify_ball_model", "inspect_ball_model"}:
+        if request.get("op") in {"read_policy_model", "select_policy_model", "verify_policy_model"}:
+            if host not in {"hdu", "mdu"}: raise ValueError("policy selection belongs to HDU and MDU")
+            command = ([LIFECYCLE_HELPER, "policy-model-hdu"] if host == "hdu" else
+                       self._ssh(target, helper, "policy-model-mdu"))
+        elif request.get("op") in {"read_ball_model", "select_ball_model", "verify_ball_model", "inspect_ball_model"}:
             if host not in {"hdu", "laptop"}:
                 raise ValueError("ball physics is only configured on HDU and Laptop")
             request = {**request, "_peer": config.laptop_wifi_ip if host == "hdu" else config.hdu_wifi_ip}

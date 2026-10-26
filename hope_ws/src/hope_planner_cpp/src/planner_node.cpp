@@ -1,3 +1,4 @@
+#include "hope_planner_cpp/swing_side_support.hpp"
 #include "hope_planner_cpp/planner_node.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
 #include "hope_planner_cpp/hit_speed_scale_state.hpp"
@@ -117,6 +118,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   swing_side_split_y_ = declare_parameter<double>("swing_side_split_y", -0.25);
   swing_side_hysteresis_y_ =
       std::max(0.0, declare_parameter<double>("swing_side_hysteresis_y", 0.04));
+  swing_side_fh_y_range_ = declare_parameter<std::vector<double>>("swing_side_fh_y_range", std::vector<double>{});
+  swing_side_bh_y_range_ = declare_parameter<std::vector<double>>("swing_side_bh_y_range", std::vector<double>{});
+  if (!valid_swing_side_support_ranges(swing_side_fh_y_range_, swing_side_bh_y_range_))
+    throw std::invalid_argument("swing side support requires two ordered finite ranges or both empty");
   swing_side_reference_mode_ = declare_parameter<std::string>(
       "swing_side_reference_mode", "live_base_v1");
   if (swing_side_reference_mode_ != "live_base_v1" &&
@@ -1272,9 +1277,9 @@ double PlannerNode::select_swing_sign(
         session_home_reference_.resolve_xy_on_solve(base_x, base_y).second;
   }
   last_swing_side_reference_y_.store(reference_y, std::memory_order_relaxed);
-  const double selected = select_swing_sign_with_hysteresis(
+  const double selected = select_swing_sign_with_support(
       intercept_y, reference_y, swing_side_split_y_,
-      swing_side_hysteresis_y_, last_swing_sign_);
+      swing_side_hysteresis_y_, last_swing_sign_, swing_side_fh_y_range_, swing_side_bh_y_range_);
   if (selected == -1.0 || selected == 1.0) {
     last_swing_sign_ = selected;
   }
@@ -1444,6 +1449,10 @@ void PlannerNode::solver_loop() noexcept {
                          : (swing_side_reference_mode_ == "session_home_v1"
                                 ? std::numeric_limits<double>::quiet_NaN()
                                 : 0.0));
+          if (!std::isfinite(swing_sign)) {
+            strike.valid = false;
+            strike.reason = "swing_side_target_unsupported";
+          }
           if (swing_sign < 0.0 && x_hit_bh_delta_ != 0.0) {
             strike = post_net_one_shot_enabled_
                 ? future_contact_predictor_->predict(

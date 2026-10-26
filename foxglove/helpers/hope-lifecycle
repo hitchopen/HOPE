@@ -33,7 +33,7 @@ readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport
 readonly MDU_ELINK_SESSION=hope-elink
 readonly MDU_HAL_SESSION=hope-hal
 readonly MDU_RUNNER_SESSION=hope-runner
-readonly MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
+MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
 readonly MDU_ROS_PREFIX=/opt/ros/jazzy
 readonly MDU_ROS_PYTHON_SITE="${MDU_ROS_PREFIX}/lib/python3.11/site-packages"
 readonly MDU_VENDOR_ROS_PREFIX=/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package
@@ -138,6 +138,25 @@ parse_common() {
   valid_ipv4 "$MDU_INTERNAL_IP" || return 1
   [[ "$MOTIVE_IP" == NONE ]] || valid_ipv4 "$MOTIVE_IP" motive || return 1
   [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
+}
+
+# Only startup depends on the selected bundle. STOP uses existing process/session
+# identities and reports bundle damage separately after shutdown has completed.
+resolve_mdu_deployment() {
+  if [[ -e /agibot/hope-policy-models || -L /agibot/hope-policy-models ]]; then
+    local deployment
+    local -a policy_command=(python3)
+    [[ "${1:-}" != audit ]] || policy_command=(timeout 5 python3)
+    deployment="$("${policy_command[@]}" /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models --field deployment)" || return 1
+    [[ "$deployment" == NONE ]] || MDU_DEPLOY="$deployment"
+  fi
+}
+
+audit_stopped_policy() {
+  if ! resolve_mdu_deployment audit; then
+    printf '%s\n' 'Selected policy integrity check failed; managed shutdown completed independently.' >&2
+    emit POLICY WARNING POLICY_BUNDLE_INVALID
+  fi
 }
 
 require_user() {
@@ -899,6 +918,12 @@ preflight_mdu() {
     die PREFLIGHT RUNTIME_CONFIG_MISSING
   [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
     die PREFLIGHT AIMRT_CONFIG_MISSING
+  if [[ -r "$MDU_DEPLOY/receive_only.policy_sha256" && "$FIELD_MODE" != KERNEL &&
+        "$(<"$MDU_DEPLOY/receive_only.policy_sha256")" == "$(sha256sum "$MDU_DEPLOY/policy/exported/policy.onnx" | cut -d ' ' -f 1)" ]]; then
+    (set +u; source /opt/ros/jazzy/setup.bash; set -u;
+     export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}";
+     timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" --inspect-policy --policy-dir "$MDU_DEPLOY/policy") || die PREFLIGHT POLICY_INSPECTION_FAILED
+  else
   [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv" ]] || \
     die PREFLIGHT SERVE025_TIMELINE_MISSING
   # Validate the exact selected bytes with the installed Runner before HAL starts.
@@ -921,7 +946,7 @@ preflight_mdu() {
     export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
   )" || {
-    printf "%s\n" "$validation_output" >&2
+    printf '%s\n' "$validation_output" >&2
     die PREFLIGHT SERVE_TIMELINE_INVALID
   }
   [[ "$validation_output" == *SERVE_STAND_VALID* &&
@@ -930,6 +955,7 @@ preflight_mdu() {
   if grep -q '^#HOPE_SERVE_SEGMENTS_V1,' "$validation_csv"; then
     [[ "$validation_output" == *SERVE_SEGMENTS_VALID* ]] || \
       die PREFLIGHT SERVE_SEGMENT_RUNNER_UPDATE_REQUIRED
+  fi
   fi
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
@@ -1164,6 +1190,14 @@ run_planner() {
       "$HDU_WS/src/hope_planner_cpp/src/post_net_one_shot.cpp" \
       "$HDU_WS/src/hope_planner_cpp/src/trajectory_predictor.cpp"
   } > "$attempt_dir/artifact_sha256.txt"
+  local -a policy_profile_args=()
+  if [[ -f /var/lib/hope-lifecycle/policy-models/catalog.json ]]; then
+    local policy_profile
+    policy_profile="$(python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /var/lib/hope-lifecycle/policy-models --field planner_profile)" || die PLANNER POLICY_PROFILE_INVALID
+    cp "$policy_profile" "$attempt_dir/policy_profile.json"
+    policy_profile_args=(--params-file "$attempt_dir/policy_profile.json")
+    sha256sum "$attempt_dir/policy_profile.json" >> "$attempt_dir/artifact_sha256.txt"
+  fi
   local -a ball_physics_args=()
   if [[ -f /var/lib/hope-lifecycle/ball_physics.json ]]; then
     cp /var/lib/hope-lifecycle/ball_physics.json "$attempt_dir/ball_physics.json"
@@ -1181,7 +1215,7 @@ run_planner() {
       hope_planner_launcher "$attempt_dir/pid.txt" \
       "$executable" --ros-args \
         --params-file "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
-        "${ball_physics_args[@]}" \
+        "${ball_physics_args[@]}" "${policy_profile_args[@]}" \
         -p "x_hit_calibration_request_file:=$request_file" \
         -p "x_hit_calibration_status_file:=$status_file" \
         -p "debug_csv_path:=$attempt_dir/planner_audit.csv" \
@@ -1327,10 +1361,19 @@ run_runner() {
       /etc/systemd/system/agibot-mdu-phc2sys.service \
       /etc/systemd/system/agibot_pm.service
   } > "$session_dir/artifact_sha256.txt"
+  local -a serve_runner_args=(--serve)
+  # Receive-only is an explicit package selection bound to exact policy bytes.
+  local receive_only_receipt="$MDU_DEPLOY/receive_only.policy_sha256"
+  if [[ "$FIELD_MODE" != KERNEL && -r "$receive_only_receipt" &&
+        "$(<"$receive_only_receipt")" == "$(sha256sum "$PWD/policy/exported/policy.onnx" | cut -d ' ' -f 1)" ]]; then
+    serve_runner_args=()
+    printf 'receive_only=true\n' > "$session_dir/receive_only.txt"
+  fi
   local -a field_runner_args=(--planner --shared-session-home)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
   fi
+  if [[ "${#serve_runner_args[@]}" -gt 0 ]]; then
   # One selected trajectory for both modes; mode only changes post-serve ownership.
   if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
     local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
@@ -1342,6 +1385,7 @@ run_runner() {
     # Pass the built-in choice explicitly; do not depend on wrapper fallback.
     field_runner_args+=(--serve-timeline "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv")
   fi
+  fi
   if [[ -d "$PWD/teleop_humanlike" ]]; then
     local teleop_asset
     for teleop_asset in humanlike.yaml policy.onnx lin_vel_encoder.onnx; do
@@ -1351,17 +1395,22 @@ run_runner() {
     field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
   fi
   printf 'mode=%s\ncsv_sha256=%s\ngripper_profile=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" > "$session_dir/field_selection.txt"
-  local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
-  [[ "$SERVE_CSV_SHA" == DEFAULT ]] || effective_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
-  sha256sum "$effective_csv" >> "$session_dir/artifact_sha256.txt"
-  printf 'effective_csv=%s\neffective_csv_sha256=%s\n' "$effective_csv" \
-    "$(sha256sum "$effective_csv" | cut -d ' ' -f 1)" >> "$session_dir/field_selection.txt"
+  if [[ "${#serve_runner_args[@]}" -gt 0 ]]; then
+    local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+    [[ "$SERVE_CSV_SHA" == DEFAULT ]] || effective_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    sha256sum "$effective_csv" >> "$session_dir/artifact_sha256.txt"
+    printf 'effective_csv=%s\neffective_csv_sha256=%s\n' "$effective_csv" \
+      "$(sha256sum "$effective_csv" | cut -d ' ' -f 1)" >> "$session_dir/field_selection.txt"
+  else
+    # Receive-only exports have no serve CSV; record the actual unused asset.
+    printf 'effective_csv=NONE\neffective_csv_sha256=NONE\n' >> "$session_dir/field_selection.txt"
+  fi
   set +e
   # Keep the log reader alive through Ctrl-C so Runner can drain its CSVs.
   python3 "$CAPTURE_HELPER" --controlled --role mdu --root "$MDU_DEPLOY" \
     --session-id "$SESSION_ID" --output "$session_dir/sim2real" -- \
     taskset -c 4-7 ./run_a3_pingpong.sh \
-    --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native --serve \
+    --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}" \
     --gripper-profile "$GRIPPER_PROFILE" \
     --no-fall-guard \
     --trace-csv "$session_dir/sim2real/runner_trace.csv" \
@@ -1381,7 +1430,7 @@ runner_inputs_ready() {
   # the separately streamed channel name and ready flag. Remove those records,
   # then require all six explicit ready=yes pairs; never infer readiness from
   # a running process or from the other five channels.
-  python3 - "$1" <<'PY_READY'
+  python3 - "$1" "${2:-serve}" <<'PY_READY'
 from pathlib import Path
 import re
 import sys
@@ -1392,7 +1441,7 @@ required = ("waist", "leg", "arm", "neck", "pelvis_imu", "torso_imu")
 ready = all(re.search(r"(?:^|\s)" + name + r"\s+ready=yes(?![A-Za-z_])", clean)
             for name in required)
 bridge = "serve025 bridge ready; startup sent no gripper command" in text
-sys.exit(0 if ready and bridge else 1)
+sys.exit(0 if ready and (bridge or sys.argv[2] == "receive_only") else 1)
 PY_READY
 }
 
@@ -1426,7 +1475,12 @@ start_runner() {
             die RUNNER GRIPPER_BRIDGE_UNAVAILABLE
           grep -Fq -- "serve gripper bridge unavailable" "$runner_log" && \
             die RUNNER GRIPPER_BRIDGE_UNAVAILABLE
-          if runner_inputs_ready "$runner_log"; then
+          local readiness_mode=serve
+          if [[ -r "$real_root/$attempt_id/receive_only.txt" ]] &&
+             grep -qx 'receive_only=true' "$real_root/$attempt_id/receive_only.txt"; then
+            readiness_mode=receive_only
+          fi
+          if runner_inputs_ready "$runner_log" "$readiness_mode"; then
             emit RUNNER COMPLETE RUNNER_PASSIVE
             return 0
           fi
@@ -1576,6 +1630,12 @@ main() {
     record-control)
       exec python3 "$(dirname "$SELF")/hope_sim2real_control.py"
       ;;
+    policy-model-hdu)
+      exec python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /var/lib/hope-lifecycle/policy-models
+      ;;
+    policy-model-mdu)
+      exec python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models
+      ;;
     field-assets-laptop)
       require_user "$LAPTOP_USER" FIELD_ASSETS
       export PYTHONPATH="$HOPE_ROOT/hope_ws/src/hope_bringup/scripts${PYTHONPATH:+:$PYTHONPATH}"
@@ -1619,6 +1679,11 @@ main() {
     exit 64
   }
   case "$action" in
+    preflight-mdu|prepare-mdu|start-hal|start-runner|_run-elink|_run-hal|_run-runner)
+      resolve_mdu_deployment || die PREFLIGHT POLICY_BUNDLE_INVALID
+      ;;
+  esac
+  case "$action" in
     preflight-laptop) preflight_laptop ;;
     preflight-hdu) preflight_hdu ;;
     preflight-mdu) preflight_mdu ;;
@@ -1633,7 +1698,7 @@ main() {
     start-planner) start_planner ;;
     start-hal) start_hal ;;
     start-runner) start_runner ;;
-    stop-mdu) stop_mdu ;;
+    stop-mdu) stop_mdu; audit_stopped_policy ;;
     stop-hdu) stop_hdu ;;
     stop-laptop) stop_laptop ;;
     stop-capture-laptop) stop_laptop_capture ;;

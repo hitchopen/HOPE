@@ -196,6 +196,38 @@ supervisor and confirm the operator profile before starting a session.
 See [current Runner/serve behavior](../../../docs/operations/runtime_xbox.md)
 for Kernel completion, v12 timing and release limitations.
 
+## Model17400 receive policy
+
+Console 1.8.17 adds model17400 alongside model14600, model11999 and model12600.
+Selection is allowed only while stopped. It verifies the installed HDU Planner
+profile and MDU policy/deploy hashes, persists the choice, and restores both
+endpoints after a failed or uncertain write. The displayed choice is the saved
+bundle; START SYSTEM loads it. Existing catalogs containing the three older
+models remain valid; model17400 is optional until its bundle is installed.
+
+Model17400 requires PPQ004 on both the Planner and packetizer, shared session
+HOME, and mocap receive mode. Kernel and serve are not qualified for this model.
+Selecting its receive-only bundle clears a previously selected serve CSV. Other
+models retain their matched serve CSV and runtime packages.
+
+Install `a3/hope_policy_models.py` with `hope_field_assets.py` in
+`/usr/local/lib/hope-foxglove` on HDU and MDU, together with the updated lifecycle
+helper, HDU supervisor and field-operations module. Prepare the bundle using
+`a3_deploy/a3_deploy_example/scripts/prepare_model17400_bundle.py` from HOPE main.
+It pins the downloaded policy and deploy hashes, rejects incomplete or mixed
+architecture distributions, and includes the HOME publication configuration.
+Its x86 inspection option validates the matching source build when cross staging
+ARM64; the receipt explicitly records that the ARM executable was not run.
+
+Install the generated deployment at `/agibot/a3_deploy_model17400` and the
+generated `model17400.json` profile at
+`/var/lib/hope-lifecycle/policy-models/model17400.json`. Add `hdu_entry.json` and
+`mdu_entry.json` under the `model17400` key in the respective version-1 catalogs;
+preserve all existing model entries and `selected.json`. Both catalog entries
+bind the complete installed files by SHA256. Package preparation never installs,
+selects, restarts or moves a robot. Hardware installation and PASSIVE verification
+remain a separate managed operation.
+
 ## Reviewed ball models
 
 The STOPPED-only selector offers Berkeley, local one-star PPQ002 and local

@@ -222,6 +222,7 @@ class PlannerNode final : public rclcpp::Node {
   double question_fixture_max_velocity_error_mps_ = 0.10;
   double question_fixture_max_tts_error_s_ = 0.03;
 
+  std::vector<double> swing_side_fh_y_range_, swing_side_bh_y_range_;
   double swing_side_split_y_ = -0.25;
   double swing_side_hysteresis_y_ = 0.04;
   std::string swing_side_reference_mode_ = "live_base_v1";

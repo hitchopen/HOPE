@@ -700,7 +700,8 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertNotIn("killall", script)
         # Fall Guard is a deployment-profile choice, not a browser/lifecycle invariant.
         self.assertIn('field_runner_args=(--planner --shared-session-home)', helper)
-        self.assertIn('"${field_runner_args[@]}" --policy-native', helper)
+        self.assertIn('local -a serve_runner_args=(--serve)', helper)
+        self.assertIn('"${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}"', helper)
         self.assertIn('--trace-csv "$session_dir/sim2real/runner_trace.csv"', helper)
         self.assertIn('--obs-csv "$session_dir/sim2real/policy_obs_actions.csv"', helper)
         runner_block = helper.split("run_runner()", 1)[1].split(
