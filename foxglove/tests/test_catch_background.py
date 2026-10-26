@@ -73,7 +73,7 @@ pgrep() { return 1; }
 python3() { [[ "$1" == */hope_wifi_policy.py ]] && return 0; return 1; }
 SESSION_ID=model21800_20261016T105100Z
 FIELD_MODE="$2"
-preflight_hdu
+prepare_background_hdu
 printf 'UNSAFE_CONTINUATION\n'
 '''
     result = subprocess.run(["bash", "-c", script, "test", str(helper), mode],
@@ -81,6 +81,34 @@ printf 'UNSAFE_CONTINUATION\n'
     assert result.returncode != 0
     assert "UNRELATED_BACKGROUND_NOT_STOPPED" in result.stdout
     assert "UNSAFE_CONTINUATION" not in result.stdout
+
+
+def test_readonly_preflight_does_not_contain_background_mutations():
+    helper = Path(__file__).resolve().parents[1] / "helpers/hope-lifecycle"
+    text = helper.read_text()
+    preflight = text.split("preflight_hdu() {", 1)[1].split("\n}\n", 1)[0]
+    assert "hope_catch_background.py" not in preflight
+    background = text.split("prepare_background_hdu() {", 1)[1].split("\n}\n", 1)[0]
+    assert "hope_catch_background.py" in background
+
+
+def test_restored_vendor_children_must_be_observed_before_kill_completion():
+    import subprocess
+    helper = Path(__file__).resolve().parents[1] / "helpers/hope-lifecycle"
+    script = r'''source "$1"
+require_user() { :; }
+stop_tmux() { :; }
+sudo() { :; }
+systemctl() { return 0; }
+check_elink_process_presence() {
+  [[ "$1" == RUNNER_HAL && "$2" == 8 ]] || exit 98
+  die RUNNER_HAL ELINK_VENDOR_STACK_NOT_READY
+}
+stop_mdu
+'''
+    result = subprocess.run(["bash", "-c", script, "test", str(helper)], capture_output=True, text=True)
+    assert result.returncode == 1 and "ELINK_VENDOR_STACK_NOT_READY" in result.stdout
+    assert "AGIBOT_PM_RESTORED" not in result.stdout
 
 
 @pytest.mark.parametrize("code,state,expected", [(0, "active", True), (3, "activating", True),

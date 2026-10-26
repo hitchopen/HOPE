@@ -2,6 +2,7 @@
 
 > Current build, policy staging and Gate 3 commands: [deployment guide](../../docs/operations/deploy_and_gate3.md).
 > For the shared real-ball coefficients, see [ball physics](../../docs/operations/ball_physics_calibration.md).
+> Runner mode transitions and terminal serve recovery: [control contract](../../docs/operations/foxglove_runner_control_contract.md).
 > Staging a package does not activate the robot.
 
 **`a3_deploy/` is a revised fork of the official AgiBot A3 deploy code.** This
@@ -35,6 +36,13 @@ two roles**:
   deploy ONNX plus its Unitree-style `deploy.yaml`.
 - Launch scripts (`scripts/`) for the sim harness and a documented real-hardware
   template.
+
+Native regression tests in `src/a3/a3_deploy_onnx_ref/unit_tests/` are maintained
+source, not robot runtime dependencies. Build the `run_tests` CMake target and
+execute that binary directly; this target is not registered with CTest. Keep the
+source checkout and checked-in CSV fixtures available when running it. Tests
+cover normal mode transitions, terminal serve recovery and emergency precedence;
+passing unit tests does not replace the hardware deployment checks above.
 
 **Not shipped (you supply):**
 

@@ -480,3 +480,11 @@ Planner build and all 22 Planner test targets with the ROS/hope_msgs environment
 loaded. It also passed 35 model/lifecycle tests, 26 profile/assets tests, 38
 frontend tests and production Console packaging. The simulation results above predate this main synchronization; they are not an
 acceptance result for the merged revision.
+
+After incorporating main `d9797ff3` (PR88), the merged lifecycle/ELink/time
+regression selection passed 427 tests on the host (59 ROS-dependent skips),
+and the ROS regression group passed 113 tests. The x86 Runner was recompiled
+and linked, and 40 native operability/serve-controller tests passed. The only
+textual merge conflict was a helper source assertion; both main's behavior and
+the receive-only argument check are retained. No robot deployment or Gate3
+rerun accompanied these source review fixes.

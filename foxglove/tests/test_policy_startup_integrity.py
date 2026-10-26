@@ -65,6 +65,7 @@ require_user() { :; }
 stop_tmux() { printf 'STOP %s\\n' "$1"; }
 sudo() { :; }
 systemctl() { :; }
+check_elink_process_presence() { :; }
 start_runner() { echo START_REACHED; }
 main "$2" model21800_20261026T120000Z 192.168.8.194 192.168.8.182 10.42.10.12 NONE P1
 '''

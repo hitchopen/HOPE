@@ -260,7 +260,7 @@ class LifecycleModeTest(unittest.TestCase):
         backend = self.backend(calls)
         session = "model21800_20260912T010203Z"
         backend.start(config, session, lambda event: None, "KERNEL", "a" * 64)
-        self.assertEqual(len(calls), 7)
+        self.assertEqual(len(calls), 8)  # explicit mutating background phase
         for argv in calls:
             self.assertNotIn("operator@10.0.0.2", argv)
             self.assertNotIn("start-base", argv)

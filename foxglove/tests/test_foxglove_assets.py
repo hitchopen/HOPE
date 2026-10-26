@@ -419,9 +419,9 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         for retired in ("VENUE CALIBRATION", "Load JSON", "Export JSON", "Recalibrate",
                         "/hope/calibrate_v2", "/hope/calibrate_v3"):
             self.assertNotIn(retired, extension)
-        for required in ("MOTIVE · LIVE ASSET", "/hope/mocap/asset_match",
+        for required in ("/hope/mocap/asset_match",
                          "/hope/mocap/asset_text", "/hope/mocap/marker_expected_count",
-                         "WAITING FOR MOTIVE", "/hope/lifecycle/time_calibration"):
+                         "/hope/lifecycle/time_calibration"):
             self.assertIn(required, extension)
         self.assertIn('isFresh(snapshot, TOPICS.assetMatched, now, 1_000)', extension)
         self.assertIn('snapshot.markerCount === snapshot.markerExpectedCount', extension)
@@ -461,6 +461,8 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("Loading zone clear", extension)
         self.assertIn('label="Start to Serve · Raise hand"', extension)
         self.assertIn('label="Ready"', extension)
+        self.assertNotIn("serveContinuation", extension)
+        self.assertNotIn("Continue receive", extension)
         self.assertNotIn("/hope/lifecycle/stop_and_collect", extension)
         self.assertNotIn("/hope/control/enter_", extension)
         self.assertNotIn("context.publish", extension)
@@ -520,6 +522,28 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("/joint_states", json.dumps(scene))
         self.assertTrue(scene["topics"]["/hope/pelvis/marker"]["visible"])
         self.assertTrue(scene["topics"]["/hope/ball/marker"]["visible"])
+
+    def test_plane_mode_control_requires_confirmed_fresh_readback(self):
+        console = FOXGLOVE_DIR / "extensions/hope-a3-console/src"
+        extension = (console / "HopeA3Console.tsx").read_text()
+        plane_mode = (console / "planeMode.ts").read_text()
+        bridge = (FOXGLOVE_DIR / "a3/bridge_params_control.yaml").read_text()
+        planner = (REPO_DIR / "hope_ws/src/hope_planner_cpp/src/planner_node.cpp").read_text()
+        endpoint = "/hope/planner/set_plane_mode"
+        self.assertIn(f'PLANE_MODE_SERVICE = "{endpoint}"', plane_mode)
+        self.assertIn(f'"^{endpoint}$"', bridge)
+        self.assertIn(f'"{endpoint}"', planner)
+        self.assertNotIn("/hope/refresh_x_hit", extension)
+        apply = extension.split("const applyPlaneMode =", 1)[1].split("}, [context]);", 1)[0]
+        self.assertIn("context.callService(PLANE_MODE_SERVICE, planeModeRequest(mode))", apply)
+        self.assertIn("raw.result?.successful !== true", apply)
+        self.assertIn("current.lastReceived[TOPICS.plannerDiagnostics]", apply)
+        self.assertIn(">= requestedAt", apply)
+        self.assertIn("isFresh(current, TOPICS.plannerDiagnostics", apply)
+        self.assertIn("current.planeMode?.requested === mode", apply)
+        self.assertIn("throw new Error", apply.split("while (Date.now() < deadline)", 1)[1])
+        self.assertIn("onApply={applyPlaneMode}", extension)
+        self.assertIn("snapshot.planeMode?.configurable === true", extension)
 
     def test_time_calibration_is_fixed_attended_and_fail_closed(self):
         coordinator = (
@@ -674,7 +698,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertNotIn("sshpass", script)
             self.assertNotIn("pkill", script)
             self.assertNotIn("killall", script)
-        self.assertIn("--no-fall-guard", helper)
+        # Fall Guard is a deployment-profile choice, not a browser/lifecycle invariant.
         self.assertIn('field_runner_args=(--planner --shared-session-home)', helper)
         self.assertIn('local -a serve_runner_args=(--serve)', helper)
         self.assertIn('"${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}"', helper)
@@ -957,6 +981,17 @@ cgroup_path_in_systemd_unit \
                       "ELINK_HAND_ROS2_SUBSCRIBER_NOT_REGISTERED"):
             self.assertIn(field, helper)
 
+        start = helper.split("start_hal() {", 1)[1].split("\n}\n", 1)[0]
+        self.assertLess(start.index("check_t3_hardware_config HAL"),
+                        start.index("systemctl stop agibot_pm.service"))
+        self.assertIn('render_t3_elink_config > "$elink_config"', start)
+        self.assertIn("check_t3_elink_ready HAL", start)
+        ready = helper.split("check_t3_elink_ready() {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("ELINK_FAILURE_AFTER_READY", ready)
+        self.assertIn("ELINK_HAND_TOPIC_BACKEND_NOT_REGISTERED", ready)
+        run = helper.split("run_elink() {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn('start_hal_elink.sh -c "$elink_config"', run)
+
     def test_lifecycle_base_start_is_process_based_not_a_data_gate(self):
         helper = (FOXGLOVE_DIR / "helpers/hope-lifecycle").read_text()
         start_base = helper.split("start_base() {", 1)[1].split("\n}\n", 1)[0]
@@ -995,6 +1030,10 @@ cgroup_path_in_systemd_unit \
         runbook = (
             REPO_DIR / "docs/operations/foxglove_first_hardware_test.md"
         ).read_text()
+        example = (FOXGLOVE_DIR / "a3/network.env.example").read_text()
+        self.assertIn("\nROS_STATIC_PEERS=\n", example)
+        self.assertIn("foxglove/a3/network.env.example", runbook)
+        self.assertIn("/etc/hope-foxglove/network.env", runbook)
 
     def test_runner_transport_is_late_started_bidirectional_and_loop_free(self):
         relay = (FOXGLOVE_DIR / "a3/hope_runner_transport_relay.py").read_text()
