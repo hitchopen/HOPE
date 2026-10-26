@@ -1843,10 +1843,30 @@ journalctl -u hope-monitor.service -n 100 --no-pager
 本仓库的单元测试、shell 解析、systemd 校验和 UI 打包只能证明接口、配置限制和
 固定命令构造。
 
-本次校时修订的实机核对仅为只读检查：已确认现场是 `hope_operations.py`
+最初的校时修订实机核对仅为只读检查：已确认现场是 `hope_operations.py`
 合并式控制面，observer/proxy 为 loaded-inactive 兼容占位；时钟偏差约 1.6 ms，
 已满足资格，因此没有执行真实 step、服务停止或恢复。隔离测试覆盖拓扑和顺序，
 不等于完成实机 hard-step 恢复验收。
+
+2026-10-26 后续现场验证：PR #88 合入保留现场修改的本地分支，完成 ARM64
+Runner 构建及受控部署。现场为 P1 硬件、合并式 operations 服务和 receive-only
+model17400；安装时保留 P1 helper，并带入原部署已有的 fixed HOME 兼容修改。
+因此这份记录是本地集成验证，不是未经修改的上游 T3 配置验收。
+经现场确认可靠支撑后，managed START 返回 `START_COMPLETE_RUNNER_PASSIVE`；
+实际进程的二进制、模型、配置和 catalog 哈希核对通过，Runner 约 50 Hz，
+未观察到 command fault 或 sync miss；NTP 门禁及身体定位数据新鲜度通过。
+未执行 Stand、Serve、接球、夹爪或实体急停动作。
+
+现场 health 尚未全项通过：ELink 仅为 `OBSERVED`，没有经过核验的遥测契约，
+所需通道未进入诊断监视器，`functional_ready=false`；厂商日志还有
+`upper recv channel stream failed` 超时。厂商日志出现 BMS 数据不等于端到端
+遥测验收通过。现场球输入为零，也没有完成实物击球验收。不得修改健康结果或
+放宽契约来消除这些未验证项；按实际硬件、消息 schema 和来源继续核对。
+
+本地保留的旧资产测试曾因旧界面文案、已移除的 `refresh_x_hit` 按钮、
+旧 Ultra/Build4 配置及固定地址断言失败。同步当前接口后，本地资产测试
+25 项通过；PR 分支 23 项通过。新增检查覆盖平面模式服务、桥接白名单、
+请求后的新鲜回读以及 T3 启动前配置验证。单测结果不改变上述现场验收边界。
 
 第一次三机部署仍必须完成一次有人值守 rehearsal，重点检查：
 
