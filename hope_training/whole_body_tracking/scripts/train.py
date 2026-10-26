@@ -33,6 +33,34 @@ def _repo_root() -> pathlib.Path:
     return here.parents[2]
 
 
+def _configure_ball_physics(cfg) -> pathlib.Path | None:
+    """Select a task-pinned ball profile before constructing the environment.
+
+    Tasks without a profile retain the legacy environment-variable behavior.
+    A task-pinned profile owns the selection, so an old shell export cannot
+    silently pair this task's question bank with a different physical model.
+    """
+    profile = cfg.task.get("ball_physics")
+    if profile is None:
+        return None
+    import hashlib
+
+    path = pathlib.Path(str(profile["path"]))
+    if not path.is_absolute():
+        path = _repo_root() / path
+    path = path.resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"task ball physics profile not found: {path}")
+    expected = str(profile["sha256"])
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected:
+        raise ValueError(f"task ball physics checksum mismatch: {path}; expected {expected}, got {actual}")
+    if os.environ.get("HOPE_BALL_PHYSICS_YAML") != str(path):
+        print(f"[train.py] task ball physics: {path} (sha256={actual})", flush=True)
+    os.environ["HOPE_BALL_PHYSICS_YAML"] = str(path)
+    return path
+
+
 def _resolve_motion_path(value: str) -> str:
     """Resolve a clip path: absolute / cwd-relative first, then repo-root-relative."""
     p = pathlib.Path(str(value))
@@ -91,9 +119,11 @@ def _set_dotted(obj, dotted: str, value, applied: list, where: str) -> None:
     applied.append(f"{dotted} = {value}")
 
 
-def _validate_training_checkpoint(loaded, policy, recipe_revision, reward_revision=None):
+def _validate_training_checkpoint(loaded, policy, recipe_revision, reward_revision=None, distribution_revision=None):
     """Do not silently resume a legacy optimizer into a different training MDP."""
     state = loaded.get("hope_exact_resume_state", {})
+    if state.get("training_distribution_revision") != distribution_revision:
+        raise ValueError("checkpoint_path training distribution differs; use explicit actor warm-start")
     if state.get("reward_revision") != reward_revision:
         raise ValueError("checkpoint_path reward revision differs; use explicit actor warm-start")
     expected = getattr(policy, "exploration_contract", None)
@@ -210,6 +240,7 @@ def _apply_domain_rand(env_cfg, dr, applied: list) -> None:
 
 def _apply_task_overrides(env_cfg, cfg, applied: list) -> None:
     """Apply the launcher-level knobs + generic dotted-path overrides from the task cfg."""
+    _configure_ball_physics(cfg)
     from whole_body_tracking.utils.task_reward_overrides import apply_reward_overrides
     from whole_body_tracking.utils.task_command_overrides import apply_command_overrides
     from whole_body_tracking.utils.task_sim2real_overrides import apply_sim2real_overrides
@@ -279,8 +310,37 @@ def _run(cfg):
 
     # 3) PPO runner cfg from cfg/algo/ppo.yaml.
     algo = OmegaConf.to_container(cfg.algo, resolve=True)
-    if not bool(algo["algorithm"].get("settled_aux_enabled", False)):
-        raise ValueError("HOPEPingPong requires algo=ppo")
+    from whole_body_tracking.utils.balanced_hold_contract import validate_balanced_hold_algorithm
+    from whole_body_tracking.utils.robust_ball_distribution import validate_training_contract
+    validate_training_contract(OmegaConf.to_container(cfg.task, resolve=True), algo)
+    validate_balanced_hold_algorithm(
+        cfg.task.get("build_contract", {}).get("reward_revision"), algo["algorithm"]
+    )
+    quiet_task = cfg.task.get("build_contract", {}).get("reward_revision") in {
+        "deterministic_settled_v4", "deterministic_settled_posture_v5",
+        "actual_task_pose_v6_B32_5_K20",
+        "actual_task_pose_v6_1_hard_stop_clearance",
+        "actual_ready_recovery_v7",
+        "actual_full_body_hold_v8",
+        "actual_stable_hold_v9",
+    }
+    quiet_algo = bool(algo["algorithm"].get("settled_aux_enabled", False))
+    if cfg.task.get("build_contract", {}).get("reward_revision") == "actual_ready_recovery_v7":
+        if not algo["algorithm"].get("settled_aux_include_upper", False):
+            raise ValueError("HOPEPingPongReadyRecovery requires algo=ppo_ready")
+    if cfg.task.get("build_contract", {}).get("reward_revision") == "actual_full_body_hold_v8":
+        if not (algo["algorithm"].get("settled_aux_include_upper", False)
+                and algo["algorithm"].get("settled_aux_ready_only", False)
+                and algo["algorithm"].get("settled_aux_worst_joint_blend", 0) > 0):
+            raise ValueError("HOPEPingPongFullBodyHold requires algo=ppo_full_body")
+    if cfg.task.get("build_contract", {}).get("reward_revision") == "actual_stable_hold_v9":
+        if not (algo["algorithm"].get("settled_aux_include_upper", False)
+                and not algo["algorithm"].get("settled_aux_ready_only", False)
+                and not algo["algorithm"].get("settled_aux_bounded_smooth", True)
+                and algo["algorithm"].get("settled_aux_worst_joint_blend", 0) > 0):
+            raise ValueError("HOPEPingPongStableHold requires algo=ppo_stable_hold")
+    if quiet_task != quiet_algo:
+        raise ValueError("Quiet/pose task revisions require their matching settled-refinement PPO recipe")
     agent_cfg = RslRlOnPolicyRunnerCfg(**runner_kwargs(algo, str(cfg.task.experiment_name)))
     agent_cfg.seed = int(cfg.seed)
     agent_cfg.device = str(cfg.device)
@@ -332,12 +392,15 @@ def _run(cfg):
     runner = HOPEOnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
     # W&B logging must not implicitly enable the legacy automatic ONNX export path.
     runner.checkpoint_export_onnx = bool(cfg.task.get("checkpoint_export_onnx", False))
+    runner.checkpoint_task_identity = OmegaConf.to_container(cfg.task, resolve=True)
     runner.add_git_repo_to_log(__file__)
 
     # 6) optional resume from a local checkpoint (strict: weights + optimizer + iteration counter).
     recipe_revision = cfg.task.get("build_contract", {}).get("training_recipe_revision")
     reward_revision = cfg.task.get("build_contract", {}).get("reward_revision")
-    runner.checkpoint_resume_context = {"training_recipe_revision": recipe_revision, "reward_revision": reward_revision}
+    distribution_revision = cfg.task.get("build_contract", {}).get("training_distribution_revision")
+    runner.checkpoint_resume_context = {"training_recipe_revision": recipe_revision, "reward_revision": reward_revision,
+                                        "training_distribution_revision": distribution_revision}
     ckpt = getattr(cfg, "checkpoint_path", None)
     warm_start = getattr(cfg, "warm_start_actor_checkpoint", None)
     if ckpt is not None and warm_start is not None:
@@ -347,7 +410,7 @@ def _run(cfg):
         if not os.path.isfile(ckpt):
             raise FileNotFoundError(f"[train.py] checkpoint_path does not exist: {ckpt}")
         loaded = torch.load(ckpt, map_location="cpu", weights_only=False)
-        _validate_training_checkpoint(loaded, runner.alg.policy, recipe_revision, reward_revision)
+        _validate_training_checkpoint(loaded, runner.alg.policy, recipe_revision, reward_revision, distribution_revision)
         warm_guard = loaded.get("hope_exact_resume_state", {}).get("actor_warm_start")
         del loaded
         runner.load(ckpt)
@@ -408,6 +471,7 @@ def _run(cfg):
 def main(cfg):
     OmegaConf.resolve(cfg)
     OmegaConf.set_struct(cfg, False)
+    _configure_ball_physics(cfg)
 
     # Launch Isaac Sim BEFORE importing isaaclab modules. Clear argv so Kit does not try to parse
     # Hydra's task=.../algo=... overrides.

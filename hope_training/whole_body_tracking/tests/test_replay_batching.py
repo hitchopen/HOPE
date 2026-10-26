@@ -165,3 +165,32 @@ def test_first_ready_capture_starts_ability_ramp_on_the_same_control_tick():
     assert m._post_swing_replay_ready_step == 123
     m._env.common_step_counter = 223
     assert m._ability_gated_post_probability() == (0.35, 1)
+
+
+@pytest.mark.parametrize("device", ["cpu", pytest.param("cuda:1", marks=pytest.mark.skipif(
+    not torch.cuda.is_available() or torch.cuda.device_count()<2, reason="second GPU unavailable"))])
+def test_multi_phase_capture_matches_sequential_writes_and_capacity_admission(device):
+    sequential, _, _ = fixture(n=120,capacity=3,device=device,target_fields=103)
+    batched, _, _ = fixture(n=120,capacity=3,device=device,target_fields=103)
+    ids=torch.arange(120,device=device)
+    before=torch.random.get_rng_state()
+    for turn in range(4):
+        chunks=[];phases=[]
+        for phase in range(4):
+            selected=ids[(ids+turn+phase)%3!=0]
+            sequential._capture_post_swing_states(selected,phase_bin=phase)
+            chunks.append(selected);phases.append(torch.full_like(selected,phase))
+        batched._capture_post_swing_states(torch.cat(chunks),phase_bin=torch.cat(phases))
+        for name,value in vars(sequential).items():
+            if name.startswith('_v17_replay') and not callable(value):
+                actual=getattr(batched,name)
+                if torch.is_tensor(value):
+                    torch.testing.assert_close(actual,value,rtol=0,atol=0,equal_nan=True)
+                elif isinstance(value,dict):
+                    for key in value:
+                        torch.testing.assert_close(actual[key],value[key],rtol=0,atol=0,equal_nan=True)
+                else:
+                    assert actual==value,name
+    assert torch.equal(before,torch.random.get_rng_state())
+    assert sequential.target_calls==sequential.action_calls==16
+    assert batched.target_calls==batched.action_calls==4

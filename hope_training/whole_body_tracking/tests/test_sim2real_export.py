@@ -50,7 +50,7 @@ def test_training_latency_is_recorded_without_adding_deploy_latency():
     assert md["hitter_pingpong_rally_post_strike_s"] == "0.5000"
 
 
-@pytest.mark.parametrize("revision", ["actual_ready_recovery_v7", "actual_full_body_hold_v8", "actual_stable_hold_v9", "actual_balanced_hold_v10"])
+@pytest.mark.parametrize("revision", ["actual_ready_recovery_v7", "actual_full_body_hold_v8", "actual_stable_hold_v9", "actual_balanced_hold_v10", "actual_hold_reference_v11", "actual_complete_hold_v11", "actual_complete_hold_v11_loaded_feet_v1", "four_stroke_motion_quality_v17"])
 def test_v7_records_inter_ball_training_hold_without_changing_runtime_tail(revision):
     env, task, _, motion, racket = fixture()
     task["build_contract"].update(reward_revision=revision,
@@ -65,6 +65,7 @@ def test_v7_records_inter_ball_training_hold_without_changing_runtime_tail(revis
     racket.hold_until_settled = racket.ready_release_enabled = False
     motion.wrap_teleport = motion.hold_long_on_wrap = False
     md = module.sim2real_metadata(env, task)
+    assert md["hitter_pure_reward_revision"] == revision
     assert md["hitter_pure_training_post_wrap_hold_steps"] == "0,0"
     assert md["hitter_pure_training_inter_ball_contract"] == "interruptible_recovery_next_ball_v1"
     assert md["hitter_pingpong_rally_post_strike_s"] == "0.5000"

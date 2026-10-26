@@ -7,6 +7,7 @@ import random
 import signal
 import time
 from collections import deque
+from contextlib import nullcontext
 from dataclasses import asdict
 
 import numpy as np
@@ -110,11 +111,12 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         self.registry_name = registry_name
         full_body = "full_body_hold" in env.unwrapped.reward_manager.active_terms
         if log_dir is not None and (full_body or "actual_task_pose" in env.unwrapped.reward_manager.active_terms):
-            from whole_body_tracking.utils.task_pose_reference import PoseChainTrace, load_reference
-            load_reference()  # fail before a rollout if the selected asset changed
+            from whole_body_tracking.utils.task_pose_reference import PoseChainTrace, env_reference, REFERENCE_SHA256
+            pose = env_reference(env.unwrapped)
             scope = ("29 active joints and body geometry in HOLD/RECOVER; STRIKE is free"
                      if full_body else "waist/torso HOLD and ready_recover; inapplicable during STRIKE")
-            env.unwrapped._task_pose_chain_trace = PoseChainTrace(log_dir, reference_scope=scope)
+            sha = getattr(env.unwrapped.cfg.commands.motion, "hold_reference_sha256", None) or REFERENCE_SHA256
+            env.unwrapped._task_pose_chain_trace = PoseChainTrace(log_dir, reference_scope=scope, pose=pose, source_sha256=sha)
 
     def _prepare_logging_writer(self) -> None:
         """Create a bounded W&B writer and preserve exact-resume configuration."""
@@ -139,6 +141,11 @@ class MotionOnPolicyRunner(OnPolicyRunner):
 
         self.logger_type = "wandb"
         raw_writer = WandbSummaryWriter(log_dir=self.log_dir, flush_secs=10, cfg=self.cfg)
+        from whole_body_tracking.utils.training_performance import BatchedScalarWriter
+        import wandb
+        raw_writer = BatchedScalarWriter(
+            raw_writer, super(WandbSummaryWriter, raw_writer).add_scalar, wandb.log
+        )
         self.writer = WandbScalarUploadLimiter(
             raw_writer,
             profile=str(getattr(self, "wandb_metric_profile", "core_v1")),
@@ -770,6 +777,8 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             "reset_terminated",
             "reset_time_outs",
             "reward_buf",
+            # v16 sampling difficulty depends on all four tracking EMAs.
+            "_stroke_family_quality",
         ):
             if hasattr(env, name):
                 supported, value = self._clone_resume_tree(getattr(env, name))
@@ -1426,7 +1435,8 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                     filename=filename,
                 )
                 attach_onnx_metadata(
-                    self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename
+                    self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename,
+                    checkpoint_path=path, task_identity=getattr(self, "checkpoint_task_identity", None),
                 )
                 if bool(getattr(self, "wandb_upload_onnx", False)):
                     wandb.save(
@@ -1642,12 +1652,16 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         # ``save`` runs immediately after ``log`` (and the interrupt path saves from inside it),
         # so snapshot rsl_rl's otherwise-local episode accumulators before either path writes PT.
         self._capture_rollout_bookkeeping(locs)
-        super().log(locs, width=width, pad=pad)
-        if not self.disable_logs and self.writer is not None:
-            self._log_live_metrics(
-                locs["it"],
-                executed_entropy=locs.get("loss_dict", {}).get("entropy"),
-            )
+        from whole_body_tracking.utils.training_performance import aggregate_episode_infos
+        logging_locs = dict(locs, ep_infos=aggregate_episode_infos(locs['ep_infos'], self.device))
+        batch = getattr(self.writer, 'scalar_batch', None)
+        with batch(locs['it']) if callable(batch) else nullcontext():
+            super().log(logging_locs, width=width, pad=pad)
+            if not self.disable_logs and self.writer is not None:
+                self._log_live_metrics(
+                    locs["it"],
+                    executed_entropy=locs.get("loss_dict", {}).get("entropy"),
+                )
         stop_requested = getattr(self, "_boundary_stop_requested", None)
         if callable(stop_requested) and stop_requested():
             checkpoint = pathlib.Path(self.log_dir) / f"model_{self.current_learning_iteration}.pt"
