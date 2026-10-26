@@ -722,7 +722,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     context.layout.addPanel({ position: "sibling", type: "3D", updateIfExists: true,
       getState: (existing) => withBallYPreview(existing, draft, options) });
     savedPanel.current = { ...savedPanel.current,
-      ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited };
+      ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited,
+      ballYFilterRobot: latest.current.lifecycleConfig.hdu_wifi_ip };
     context.saveState(savedPanel.current);
   }, [context]);
 
@@ -1776,7 +1777,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             available={!kernelMode && context.callService != undefined &&
               isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.ballYFilter?.configurable === true}
             kernelMode={kernelMode} onApply={applyBallYFilter}
-            initialState={context.initialState} onPreview={previewBallYFilter}
+            key={configHost}
+            initialState={configHost && savedPanel.current.ballYFilterRobot === configHost ? savedPanel.current : undefined} onPreview={previewBallYFilter}
           />
           </div>
           <ActionButton
