@@ -2257,7 +2257,8 @@ int main(int argc, char** argv) {
         a3_io::ServeHalSnapshot receipt;
         const bool fresh = serve_hal_clock.Read(receipt) && receipt.Ready(command_now_ns);
         if (fresh && !serve_hal_pid) serve_hal_pid = receipt.pid;
-        const bool valid = fresh && receipt.pid == serve_hal_pid && receipt.left == 2000;
+        const bool valid = a3_io::IsServeHalRelease(
+            receipt, command_now_ns, serve_hal_pid, gripper_release_pos);
         const auto result = serve_cadence.ObserveHalSelection(command_now_ns,
             valid ? receipt.release_edge_ns : 0);
         if (result == a3_pingpong::PpServeCadence::Receipt::kSelected) {
