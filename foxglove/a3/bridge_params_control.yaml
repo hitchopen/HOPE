@@ -24,10 +24,11 @@
     service_whitelist:
       - "^/hope/planner/set_plane_mode$"
       - "^/hope/planner/set_hit_speed_scale$"
+      - "^/hope/planner/set_ball_y_filter$"
       - "^/hope/safety/trigger_estop$"
       - "^/hope/safety/reset_software_estop$"
       - "^/hope/calibrate_stickers_v3$"
-    - "^/hope/calibrate_v2$"
+      - "^/hope/calibrate_v2$"
       - "^/hope/calibrate_v3$"
       - "^/hope/refresh_x_hit$"
       - "^/hope/runner/set_server$"

@@ -249,3 +249,44 @@ parameter (default 1) applies. Hardware config uses
 `hit_speed_scale_persistent`, `hit_speed_scale`,
 `hit_speed_scale_configurable`, and `hit_speed_scale_last_command`; the last value
 is NaN until a valid target is published. CSV rows include their applied scale.
+
+## Optional ball Y admission and live diagnostics
+
+Public defaults leave `ball_y_filter_enabled: false`. The initial editable range
+is the table width `[-1.525, 0]` metres in the selected-side Planner frame; no
+field PPP3/PPP4 range is enabled for Berkeley. Foxglove previews a draft locally;
+only Apply sends one atomic enabled/min/max request. A fresh Planner diagnostic
+readback must match before the UI reports success. Kernel mode does not use it.
+
+When enabled, both the latest observed ball Y and predicted contact Y must lie
+inside the inclusive bounds. Out-of-range commands are rejected on both typed
+and flat outputs; an already active swing is unchanged. The dedicated service
+is `/hope/planner/set_ball_y_filter`, not the generic parameter service. Updates
+apply to subsequent solves. Deploy the matching control-bridge allowlist.
+
+Managed hardware stores accepted changes in
+`/var/lib/hope-lifecycle/planner_y_filter.state`; an existing operator selection
+survives restart and takes precedence over YAML defaults. Failed saves leave the
+live filter unchanged. Standalone nodes default to session-only storage; set a
+writable `ball_y_filter_state_file` to opt into persistence.
+
+Body receive/source age, gaps, counts and rejection counters are published even
+without recording or ball arrivals. This adds diagnostics without changing the
+existing `target_turn_reject_stale_pose` selection: main keeps true and the field
+`field_body_timing_audit.yaml` overlay keeps false. Physics, ELink scheduling and
+policy assets are unchanged.
+
+### P1 field range, 2026-10-22
+
+`config/field_p1_y_filter_20261022.yaml` is an explicit field overlay for
+`[-1.30, -0.5543593239924284]` m. The right/min boundary was widened from
+-1.25 to -1.30 m by the operator; the left/max boundary retains its existing
+PPP3 source value. The adjacent receipt records the persisted HDU readback and
+its six-decimal Console precision. This is an operator adjustment, not a new
+marker survey. Reassess this range after moving the table or markers.
+
+Load the overlay after the base Planner parameters only for that P1 setup.
+Public defaults remain disabled with the full-table editable range. Existing
+`ball_y_filter_state_file` content takes precedence over startup YAML; on a
+configured robot use the Console's atomic Apply and verify fresh diagnostics.
+Loading this file does not overwrite an existing operator selection.

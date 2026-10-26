@@ -508,9 +508,9 @@ class HOPEHitterPureRewardsCfg(RewardsCfg):
 
     # --- goal (sparse; strike-window / pre-strike gating lives inside the reward fns) ---
     racket_position = RewTerm(func=mdp.racket_position_tracking_exp, weight=14.0,
-        params={"command_name": "racket_target", "std": 0.15})
+        params={"command_name": "racket_target", "std": 0.15, "tail_blend": 0.0})
     racket_velocity = RewTerm(func=mdp.racket_velocity_tracking_exp, weight=14.0,
-        params={"command_name": "racket_target", "std": 0.6})
+        params={"command_name": "racket_target", "std": 0.6, "tail_blend": 0.0})
     racket_normal = RewTerm(func=mdp.racket_normal_tracking_exp, weight=5.0,
         params={"command_name": "racket_target", "std": 0.30})
     base_position = RewTerm(func=mdp.base_position_tracking_exp, weight=2.0,
@@ -1831,6 +1831,10 @@ class HOPEPingPongHitterPureRallyV13RewardsCfg(
             "post_t_lo": 0.20,
             "post_t_hi": 1.55,
             "huber_tail": True,
+            "all_phases": False,
+            "twist_weight": 0.0,
+            "twist_std": 0.50,
+            "twist_margin": 0.15,
         },
     )
 
@@ -1958,11 +1962,30 @@ class HitterPingPongRewardsCfg(
 ):
     """V14 reward surface plus Unitree's standard actual-joint acceleration cost."""
 
+    motion_global_anchor_ori = RewTerm(
+        func=mdp.motion_global_anchor_orientation_error_exp, weight=0.5,
+        params={"command_name": "motion", "std": 0.4, "exclude_recovery": False},
+    )
     joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
+    # Opt-in exact-contact position supervision; the task YAML owns activation.
+    # Older tasks retain their original reward surface with this zero default.
+    racket_exact_position_debt = RewTerm(
+        func=mdp.racket_exact_position_debt, weight=0.0,
+        params={"command_name": "racket_target", "margin": 0.075,
+                "huber_scale": 0.025, "window_s": 0.01},
+    )
+    full_body_imitation = RewTerm(func=mdp.full_body_imitation, weight=0.0)
+    full_stroke_tracking = RewTerm(func=mdp.full_stroke_tracking, weight=0.0,
+                                  params={"worst_group_blend": 0.0, "foot_blend": 0.0})
+    fixed_station_feet = RewTerm(func=mdp.fixed_station_feet, weight=0.0,
+                                params={"start_steps": 0, "ramp_steps": 64000,
+                                        "clearance_std": 0., "yaw_std": 0.,
+                                        "persistent_home": False, "position_fraction": .60})
     full_body_hold = RewTerm(
         func=mdp.full_body_hold, weight=0.0,
         params={"start_steps": 448000, "ramp_steps": 128000, "cost_scale": 1.8,
-                "positive_kernel": False},
+                "positive_kernel": False, "completion_blend": 0., "completion_dwell_s": .3,
+                "pose_tail_weight": 0.},
     )
     full_body_quiet = RewTerm(
         func=mdp.full_body_quiet, weight=0.0,
@@ -2062,6 +2085,29 @@ class HitterPingPongRewardsCfg(
             "std": 0.10,
             "margin": 0.02,
             "foot_radius": 0.06,
+        },
+    )
+    # Opt-in base roll/pitch rate outside the strike window; the task YAML owns its weight.
+    base_ang_vel_xy_rally = RewTerm(
+        func=mdp.base_ang_vel_xy_rally, weight=0.0,
+        params={"command_name": "racket_target", "strike_exclusion_s": 0.12},
+    )
+    # Opt-in pre-strike lean debt (||projected_gravity_xy|| while time_to_strike > 0).
+    # Zero here; the stationary task YAML owns its weight.
+    pre_strike_tilt = RewTerm(
+        func=mdp.prestrike_proj_grav_xy, weight=0.0, params={"command_name": "racket_target"},
+    )
+    # Opt-in slippery-floor prior; the task YAML owns its weight (zero keeps old recipes intact).
+    foot_friction_cone = RewTerm(
+        func=mdp.foot_friction_cone_debt,
+        weight=0.0,
+        params={
+            "command_name": "racket_target",
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=A3_FEET_BODIES, preserve_order=True),
+            "ratio_margin": 0.30,
+            "std": 0.15,
+            "force_threshold": 10.0,
         },
     )
 

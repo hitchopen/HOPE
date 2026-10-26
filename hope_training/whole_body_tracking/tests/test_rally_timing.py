@@ -148,7 +148,7 @@ def test_short_ball_bank_sampling_preserves_correlated_tuple_fields():
     target._normal_from_target_velocity = lambda velocity: velocity
     target.metrics = {name: torch.zeros(64) for name in
                       ("venue_tuple_mix_effective", "station_y_step_command", "station_y_step_signed_command",
-                       "station_y_step_class", "venue_tuple_selected")}
+                       "station_y_step_class", "venue_tuple_selected", "venue_tuple_accept_rate")}
     fields = {"base_target_pos_w": 2, "racket_target_pos_w": 3, "racket_target_vel_w": 3,
               "racket_target_normal_w": 3, "_venue_planner_contact_normal_w": 3,
               "vb_vel_in_w": 3, "vb_spin_in_w": 3, "_venue_intended_landing_xy": 2,

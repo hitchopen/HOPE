@@ -313,6 +313,58 @@ class MotionCommand(CommandTerm):
             device=self.device,
             articulation_body_count=len(self.robot.body_names),
         )
+        self.step_motion = None
+        self._explicit_hold_q = None
+        if cfg.step_motion_files:
+            from pathlib import Path
+            import json
+            import hashlib
+            from whole_body_tracking.utils import task_pose_reference
+            root = Path(task_pose_reference.__file__).resolve().parents[4]
+            manifest_path = root / cfg.reference_manifest_path
+            manifest_raw = manifest_path.read_bytes()
+            if hashlib.sha256(manifest_raw).hexdigest() != cfg.reference_manifest_sha256:
+                raise ValueError("four-clip manifest checksum mismatch")
+            manifest = json.loads(manifest_raw)
+            if manifest["joint_order"] != list(self.robot.joint_names):
+                raise ValueError("four-clip joint order differs from the live articulation")
+            files = list(cfg.motion_file) + [str(root / p) for p in cfg.step_motion_files]
+            if len(files) != 4:
+                raise ValueError("four-clip reference requires exactly four motion sources")
+            for file, entry in zip(files, manifest["clips"]):
+                if hashlib.sha256(Path(file).read_bytes()).hexdigest() != entry["sha256"]:
+                    raise ValueError(f"four-clip asset checksum mismatch: {file}")
+            self.step_motion = MotionLoader(
+                [str(root / p) for p in cfg.step_motion_files], self.body_indexes,
+                device=self.device, articulation_body_count=len(self.robot.body_names))
+            if self.motion.num_segments != 2 or not torch.equal(self.motion.seg_len, self.step_motion.seg_len):
+                raise ValueError("stand/step references require two aligned FH/BH clocks")
+            if cfg.hold_from_backhand_first_frame:
+                # The selected pose is independent of which ball was drawn.
+                first = self.motion.joint_pos[int(self.motion.seg_start[1])]
+                for loader in (self.motion, self.step_motion):
+                    for start, length in zip(loader.seg_start, loader.seg_len):
+                        for frame in (int(start), int(start+length-1)):
+                            if not torch.equal(first, loader.joint_pos[frame]):
+                                raise ValueError("four strokes must share the requested first-frame HOLD")
+                pose = task_pose_reference.load_reference(cfg.hold_reference_path, cfg.hold_reference_sha256)
+                declared = first.new_tensor(pose["actual_q_reference_rad"])
+                if not torch.equal(first, declared):
+                    raise ValueError("HOLD asset differs from stand_backhand first frame")
+                self._explicit_hold_q = first
+            if cfg.step_reference_mode == "discrete_four_stroke":
+                if not cfg.continue_recovery_reference or not cfg.causal_idle:
+                    raise ValueError("discrete strokes require the causal natural recovery clock")
+                if not 0 < cfg.step_sampling_probability < 1:
+                    raise ValueError("both stand and step must have nonzero sampling probability")
+                if not 0 < cfg.urgent_sampling_probability < 1:
+                    raise ValueError("keep both complete demonstrations and genuine short-time challenges")
+                if not 1 <= cfg.reference_max_compression <= 1.5:
+                    raise ValueError("four-stroke preparation compression must be within [1, 1.5]")
+                if any(a+1e-6 < b/cfg.reference_max_compression for a, b in
+                       zip((*cfg.step_minimum_lead_s, *cfg.stand_minimum_lead_s),
+                           (*cfg.step_complete_lead_s, *cfg.stand_complete_lead_s))):
+                    raise ValueError("stroke clock exceeds the bounded preparation compression")
         # GROUNDING preflight (2026-07-03): the actor obs consumes the RAW clip-world anchor quat,
         # and the racket-target boxes are planned in the +X-grounded frame — a clip that was never
         # re-grounded (frame-0 anchor yaw far from 0, e.g. registry v4 at ~+84 deg) trains a
@@ -582,7 +634,89 @@ class MotionCommand(CommandTerm):
     @property
     def in_hold(self) -> torch.Tensor:
         """Bool mask: env is in the pre-swing hold (reference frozen at the swing's first frame)."""
-        return self.hold_counter > 0
+        held = self.hold_counter > 0
+        if getattr(self.cfg, "continue_recovery_reference", False):
+            end = self.motion.seg_start[self.clip_id] + self.motion.seg_len[self.clip_id] - 1
+            held = held | (self.time_steps >= end)
+        return held
+
+    def step_reference_weight(self):
+        """Choose a continuous style from the task's visible command.
+
+        Fixed-home tasks use contact reach; legacy moving-station tasks use
+        signed station error. All four demonstrations share a clock and
+        terminal pose. No hidden random style label is required.
+        """
+        if self.step_motion is None:
+            return torch.zeros(self.num_envs, device=self.device)
+        from whole_body_tracking.utils.training_performance import reference_cache
+        cache = reference_cache(self)
+        if cache is not None and 'style_weight' in cache:
+            return cache['style_weight']
+        try:
+            target = self._env.command_manager.get_term("racket_target")
+        except (KeyError, AttributeError):
+            # CommandManager constructs motion before racket_target.
+            return torch.zeros(self.num_envs, device=self.device)
+        if getattr(self.cfg, "step_reference_mode", "station_error") == "discrete_four_stroke":
+            # Latched when the announced position AND deadline are sampled;
+            # replay restores the latch with the corresponding physical state.
+            return target._stroke_step.float()
+        if getattr(self.cfg, "step_reference_mode", "station_error") == "target_reach":
+            # The station stays at home. Choose the demonstrated stroke from
+            # its requested contact point, never from accumulated body drift.
+            from whole_body_tracking.utils.fixed_station import reach_style_weight
+            contact = target.racket_target_pos_w - self._env.scene.env_origins
+            contact[:, :2] = target.racket_target_pos_w[:, :2] - target.base_target_pos_w
+            weight = reach_style_weight(contact, self.clip_id,
+                                        self.cfg.stand_contact_xyz, self.cfg.step_contact_xyz)
+            if cache is not None:
+                cache['style_weight'] = weight
+            return weight
+        dy = target.base_target_pos_w[:, 1] - target.base_pos_w[:, 1]
+        direction = torch.where(self.clip_id == 0, -1.0, 1.0)
+        u = ((dy*direction - .04)/.16).clamp(0, 1)
+        return u.square()*(3-2*u)
+
+    def reference_at(self, name):
+        from whole_body_tracking.utils.training_performance import reference_cache
+        cache = reference_cache(self)
+        if cache is not None and name in cache:
+            return cache[name]
+        times = self.time_steps
+        discrete = getattr(self.cfg, "step_reference_mode", "") == "discrete_four_stroke"
+        if discrete:
+            from whole_body_tracking.utils.four_stroke import reference_clock
+            target = self._env.command_manager.get_term("racket_target")
+            clock = cache.get('clock') if cache is not None else None
+            if clock is None:
+                clock = reference_clock(self, target)
+                if cache is not None:
+                    cache['clock'] = clock
+            times, rate, _ = clock
+            # During startup HOLD, even the privileged teacher sees only the
+            # common first frame, never the hidden question's RSI entry frame.
+            times = torch.where(self.hold_counter > 0, torch.zeros_like(times), times)
+        first = getattr(self.motion, name)[times]
+        if self.step_motion is None:
+            return first
+        second = getattr(self.step_motion, name)[times]
+        weight = self.step_reference_weight().reshape((-1,)+(1,)*(first.ndim-1))
+        if discrete:
+            # Selecting complete q/body/root trajectories preserves FK. Linear
+            # interpolation of separate q and body tensors did not preserve it.
+            result = torch.where(weight.bool(), second, first)
+            if name in ("joint_vel", "body_lin_vel_w", "body_ang_vel_w"):
+                result = result*rate.reshape((-1,)+(1,)*(result.ndim-1))
+        elif name == "body_quat_w":
+            second = second*torch.where((first*second).sum(-1, keepdim=True) < 0, -1., 1.)
+            blended = torch.lerp(first, second, weight)
+            result = blended / blended.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+        else:
+            result = torch.lerp(first, second, weight)
+        if cache is not None:
+            cache[name] = result
+        return result
 
     @property
     def joint_pos(self) -> torch.Tensor:
@@ -593,8 +727,10 @@ class MotionCommand(CommandTerm):
         # default stand pose; the release (stand -> windup) is exactly the trained
         # stand_start transition. C++ mirrors this (pp_policy: refs.joint_pos =
         # default_q at level 0) — keep them in lockstep.
-        jp = self.motion.joint_pos[self.time_steps]
-        dq = self.robot.data.default_joint_pos
+        jp = self.reference_at("joint_pos")
+        dq = getattr(self, "_explicit_hold_q", None)
+        if dq is None:
+            dq = self.robot.data.default_joint_pos
         return torch.where(self.in_hold[:, None], dq, jp)
 
     @property
@@ -606,44 +742,44 @@ class MotionCommand(CommandTerm):
         # AGI-sim / hardware bare-hold fall (Gate 2.5 P2, 3-5 s tip). A frozen reference
         # is not moving: zero its velocities on held envs. The C++ runner mirrors this
         # (pp_policy zeroes refs.joint_vel in its hold states) — keep them in lockstep.
-        jv = self.motion.joint_vel[self.time_steps]
+        jv = self.reference_at("joint_vel")
         return torch.where(self.in_hold[:, None], torch.zeros_like(jv), jv)
 
     @property
     def body_pos_w(self) -> torch.Tensor:
-        return self.motion.body_pos_w[self.time_steps] + self._env.scene.env_origins[:, None, :]
+        return self.reference_at("body_pos_w") + self._env.scene.env_origins[:, None, :]
 
     @property
     def body_quat_w(self) -> torch.Tensor:
-        return self.motion.body_quat_w[self.time_steps]
+        return self.reference_at("body_quat_w")
 
     @property
     def body_lin_vel_w(self) -> torch.Tensor:
         # Zeroed during hold — see joint_vel. Un-gated motion_body_lin_vel otherwise
         # pays for tracking frame-0's -1.11 m/s DOWNWARD torso velocity all hold long.
-        v = self.motion.body_lin_vel_w[self.time_steps]
+        v = self.reference_at("body_lin_vel_w")
         return torch.where(self.in_hold[:, None, None], torch.zeros_like(v), v)
 
     @property
     def body_ang_vel_w(self) -> torch.Tensor:
-        v = self.motion.body_ang_vel_w[self.time_steps]
+        v = self.reference_at("body_ang_vel_w")
         return torch.where(self.in_hold[:, None, None], torch.zeros_like(v), v)
 
     @property
     def anchor_pos_w(self) -> torch.Tensor:
-        return self.motion.body_pos_w[self.time_steps, self.motion_anchor_body_index] + self._env.scene.env_origins
+        return self.reference_at("body_pos_w")[:, self.motion_anchor_body_index] + self._env.scene.env_origins
 
     @property
     def anchor_quat_w(self) -> torch.Tensor:
-        return self.motion.body_quat_w[self.time_steps, self.motion_anchor_body_index]
+        return self.reference_at("body_quat_w")[:, self.motion_anchor_body_index]
 
     @property
     def anchor_lin_vel_w(self) -> torch.Tensor:
-        return self.motion.body_lin_vel_w[self.time_steps, self.motion_anchor_body_index]
+        return self.reference_at("body_lin_vel_w")[:, self.motion_anchor_body_index]
 
     @property
     def anchor_ang_vel_w(self) -> torch.Tensor:
-        return self.motion.body_ang_vel_w[self.time_steps, self.motion_anchor_body_index]
+        return self.reference_at("body_ang_vel_w")[:, self.motion_anchor_body_index]
 
     @property
     def robot_joint_pos(self) -> torch.Tensor:
@@ -1548,7 +1684,7 @@ class MotionCommand(CommandTerm):
         self,
         env_ids: torch.Tensor,
         *,
-        phase_bin: int | None = None,
+        phase_bin: int | torch.Tensor | None = None,
         source_clip_ids: torch.Tensor | None = None,
     ):
         """A8: snapshot follow-through robot states into the ring buffer.
@@ -1560,6 +1696,9 @@ class MotionCommand(CommandTerm):
         recovery curriculum).  Root position is stored origin-relative; write pairs
         root_state_w <-> write_root_state_to_sim (com-frame velocities) to match the stand/RSI
         branches.
+
+        A phase tensor batches captures from the same physical boundary. Each bucket keeps
+        its original row order, capacity admission, ring pointer and snapshot fields.
         """
         if not self.post_swing_capture_enabled():
             return
@@ -1572,10 +1711,18 @@ class MotionCommand(CommandTerm):
         }:
             self._ensure_v17_replay_storage()
             phase_bins = int(self.cfg.post_swing_capture_phase_bins)
-            if phase_bin is None or not 0 <= int(phase_bin) < phase_bins:
+            if torch.is_tensor(phase_bin):
+                phase_ids = phase_bin.to(device=self.device, dtype=torch.long)
+                if tuple(phase_ids.shape) != (n,) or bool(
+                    ((phase_ids < 0) | (phase_ids >= phase_bins)).any()
+                ):
+                    raise ValueError("replay phase tensor must contain one valid phase per environment")
+            elif phase_bin is None or not 0 <= int(phase_bin) < phase_bins:
                 raise ValueError(
                     f"V17 replay phase_bin must be in [0, {phase_bins}), got {phase_bin}"
                 )
+            else:
+                phase_ids = torch.full((n,), int(phase_bin), dtype=torch.long, device=self.device)
             env_ids = env_ids.to(device=self.device, dtype=torch.long)
             if source_clip_ids is None:
                 source_clip_ids = self.clip_id[env_ids]
@@ -1610,6 +1757,7 @@ class MotionCommand(CommandTerm):
                 )
                 env_ids = env_ids[legal]
                 source_clip_ids = source_clip_ids[legal]
+                phase_ids = phase_ids[legal]
                 severity = severity[legal]
                 if len(env_ids) == 0:
                     return
@@ -1618,11 +1766,10 @@ class MotionCommand(CommandTerm):
                     len(env_ids), dtype=torch.long, device=self.device
                 )
             bucket_ids = (
-                (source_clip_ids * phase_bins + int(phase_bin))
+                (source_clip_ids * phase_bins + phase_ids)
                 * severity_bins
                 + severity
             )
-            phase_ids = torch.full_like(source_clip_ids, int(phase_bin))
             state_clip_ids = source_clip_ids
             capacity = int(self._v17_replay_bucket_capacity)
             capture_limit = capacity
@@ -1717,7 +1864,9 @@ class MotionCommand(CommandTerm):
 
             if self.cfg.rally_timing_enabled:
                 stored_motion_time_steps = torch.minimum(
-                    stored_motion_time_steps, self.rally_wrap_step[selected] - 1
+                    stored_motion_time_steps,
+                    (self.motion.seg_start[self.clip_id[selected]] + self.motion.seg_len[self.clip_id[selected]] - 1)
+                    if getattr(self.cfg, "continue_recovery_reference", False) else self.rally_wrap_step[selected] - 1
                 )
 
             # Clear overwritten per-environment latest pointers in one cross-bucket operation.
@@ -2115,7 +2264,9 @@ class MotionCommand(CommandTerm):
             self.time_steps[env_ids] = restored_time_steps
             if self.cfg.rally_timing_enabled:
                 restored_deadline = self._v17_replay_rally_wrap_step[chosen_bucket, chosen_slot]
-                if bool(((restored_deadline <= restored_time_steps) | (restored_deadline > restored_segment_end)).any()):
+                if bool((((restored_deadline <= restored_time_steps)
+                           & (not getattr(self.cfg, "continue_recovery_reference", False)))
+                         | (restored_deadline > restored_segment_end)).any()):
                     raise RuntimeError("V17 replay rally deadline is outside the restored clip or already expired")
                 self.rally_wrap_step[env_ids] = restored_deadline
                 self.rally_shortened[env_ids] = self._v17_replay_rally_shortened[chosen_bucket, chosen_slot]
@@ -2181,10 +2332,24 @@ class MotionCommand(CommandTerm):
         )
 
     def _validate_rally_timing(self):
+        if getattr(self.cfg, "continue_recovery_reference", False):
+            if not (self.cfg.rally_timing_enabled and self.cfg.interruptible_recovery_enabled
+                    and self.cfg.rally_timing_probability == 1.0
+                    and self.cfg.rally_timing_ramp_steps == 0
+                    and tuple(self.cfg.rally_post_strike_s_range) == (.5, .5)
+                    and not self.cfg.wrap_teleport and self.cfg.clip_switch_prob == 0):
+                raise ValueError("natural recovery requires the interruptible .5 s release clock without teleport or random abort")
         if not self.cfg.rally_timing_enabled:
             return
         if not 0.0 <= float(self.cfg.rally_timing_probability) <= 1.0:
             raise ValueError("rally_timing_probability must be in [0, 1]")
+        short_prob = float(getattr(self.cfg, "rally_short_pre_probability", 0.0))
+        if not 0.0 <= short_prob <= 1.0:
+            raise ValueError("rally_short_pre_probability must be in [0, 1]")
+        if short_prob:
+            lo, hi = self.cfg.rally_short_pre_s_range
+            if not (math.isfinite(lo) and math.isfinite(hi) and 0 < lo <= hi <= self.cfg.rally_pre_strike_s_range[0]):
+                raise ValueError("short pre-strike range must be positive and end before the normal range")
         for name in ("rally_pre_strike_s_range", "rally_post_strike_s_range"):
             lo, hi = (float(value) for value in getattr(self.cfg, name))
             if not (math.isfinite(lo) and math.isfinite(hi) and 0.0 < lo <= hi):
@@ -2226,6 +2391,14 @@ class MotionCommand(CommandTerm):
         self.rally_shortened[env_ids] = shortened & (scale > 0.0)
         dt = float(self._env.step_dt)
         pre = sample_uniform(*self.cfg.rally_pre_strike_s_range, (len(env_ids),), self.device)
+        short_prob = float(getattr(self.cfg, "rally_short_pre_probability", 0.0))
+        if short_prob:
+            fast = torch.rand(len(env_ids), device=self.device) < short_prob
+            fast_pre = sample_uniform(*self.cfg.rally_short_pre_s_range, (len(env_ids),), self.device)
+            pre = torch.where(fast, fast_pre, pre)
+        if getattr(self.cfg, "continue_recovery_reference", False):
+            target = self._env.command_manager.get_term("racket_target")
+            pre = target.sample_joint_tuple_rows(env_ids, self.clip_id[env_ids])
         post = sample_uniform(*self.cfg.rally_post_strike_s_range, (len(env_ids),), self.device)
         desired_start = torch.maximum(start, strike - torch.ceil(pre / dt).long())
         # Never wrap before the strike reward's complete contact window has elapsed.
@@ -2319,6 +2492,9 @@ class MotionCommand(CommandTerm):
         # targets are anchor-relative, so the new reference re-anchors to the robot where it is.
         # Teleporting at a wrap (legacy RSI behavior) requires wrap_teleport=True.
         if self._resampling_from_wrap and not self.cfg.wrap_teleport:
+            if getattr(self.cfg, "continue_recovery_reference", False):
+                self.hold_counter[env_ids_t] = 0
+                return
             if self.inter_ball_recovery is not None:
                 from whole_body_tracking.utils.interruptible_recovery import sample_arrivals
                 budget, arrival = sample_arrivals(
@@ -2603,11 +2779,14 @@ class MotionCommand(CommandTerm):
         self.inter_ball_recovery.notify(env_ids)
 
     def _update_command(self):
+        tail = bool(getattr(self.cfg, "continue_recovery_reference", False))
+        arrived = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         if self.inter_ball_recovery is not None:
             owned, arrived, interrupted = self.inter_ball_recovery.advance()
-            self.hold_counter[owned] = torch.where(
-                self.inter_ball_recovery.waiting[owned],
-                self.inter_ball_recovery.arrival_ticks[owned] + 1, 0)
+            if not tail:
+                self.hold_counter[owned] = torch.where(
+                    self.inter_ball_recovery.waiting[owned],
+                    self.inter_ball_recovery.arrival_ticks[owned] + 1, 0)
             self.metrics["recovery_waiting_for_ball"] = self.inter_ball_recovery.waiting.float()
             self.metrics["recovery_ball_arrived"] = arrived.float()
             self.metrics["recovery_interrupted_by_ball"] = interrupted.float()
@@ -2617,7 +2796,10 @@ class MotionCommand(CommandTerm):
         held = self.hold_counter > 0
         self.post_swing_replay_active &= held
         self.runtime_handoff_active &= held
-        self.hold_counter = torch.clamp(self.hold_counter - 1, min=0)
+        # Keep a normal tensor with a version counter during inference rollouts.
+        # Replacing it with an inference tensor disabled reference_cache, causing
+        # the same four-stroke clock to be recomputed for every reference read.
+        self.hold_counter.copy_(torch.clamp(self.hold_counter - 1, min=0))
         self.metrics["in_hold"] = held.float()
         self.metrics["runtime_handoff_active"] = (
             self.runtime_handoff_active.float()
@@ -2625,7 +2807,10 @@ class MotionCommand(CommandTerm):
         if "clip_switch_count" not in self.metrics:
             self.metrics["clip_switch_count"] = torch.zeros(self.num_envs, device=self.device)
         self.time_steps += (~held).long()
-        if self._multiseg:
+        if tail:
+            from whole_body_tracking.utils.reference_recovery import advance_tail
+            env_ids = wrap_ids = advance_tail(self, arrived)
+        elif self._multiseg:
             # Wrap at the END of the env's current clip/segment, not the global concatenated end.
             seg_end = self.motion.seg_start[self.clip_id] + self.motion.seg_len[self.clip_id]
             if self.cfg.rally_timing_enabled:
@@ -2676,6 +2861,8 @@ class MotionCommand(CommandTerm):
         finally:
             self._resampling_from_wrap = False
 
+        if tail:
+            self.metrics["in_hold"] = self.in_hold.float()
         anchor_pos_w_repeat = self.anchor_pos_w[:, None, :].repeat(1, len(self.cfg.body_names), 1)
         anchor_quat_w_repeat = self.anchor_quat_w[:, None, :].repeat(1, len(self.cfg.body_names), 1)
         robot_anchor_pos_w_repeat = self.robot_anchor_pos_w[:, None, :].repeat(1, len(self.cfg.body_names), 1)
@@ -2753,6 +2940,38 @@ class MotionCommandCfg(CommandTermCfg):
     asset_name: str = MISSING
 
     motion_file: str = MISSING
+    # Opt-in v12: same FH/BH semantic IDs and clock, four whole-body sources.
+    step_motion_files: tuple[str, ...] = ()
+    step_reference_mode: str = "station_error"
+    # v15 opt-ins. Legacy tasks retain their existing reset, reference and ABI.
+    step_minimum_lead_s: tuple[float, float] = (0.86, 0.96)
+    stand_complete_lead_s: tuple[float, float] = (0.58, 0.72)
+    stand_minimum_lead_s: tuple[float, float] = (0.58, 0.72)
+    step_complete_lead_s: tuple[float, float] = (0.86, 0.96)
+    reference_max_compression: float = 1.0
+    step_sampling_probability: float = 0.5
+    urgent_sampling_probability: float = 0.15
+    causal_idle: bool = False
+    hold_from_backhand_first_frame: bool = False
+    hold_reference_sets_action_default: bool = True
+    # v16 uses an immutable per-question arm adapter; old tasks remain inert.
+    stroke_adapter_path: str | None = None
+    stroke_adapter_sha256: str | None = None
+    stroke_adapter_receipt_path: str | None = None
+    stroke_adapter_receipt_sha256: str | None = None
+    stroke_core_start_probability: float = 0.85
+    stroke_core_final_probability: float = 0.25
+    stroke_core_ramp_steps: int = 192000
+    recovery_dwell_probability: float = 0.0
+    recovery_dwell_delay_steps_range: tuple[int, int] = (125, 275)
+    stand_contact_xyz: tuple = ()
+    step_contact_xyz: tuple = ()
+    hold_reference_path: str | None = None
+    hold_reference_sha256: str | None = None
+    reference_manifest_path: str | None = None
+    reference_manifest_sha256: str | None = None
+    rally_short_pre_probability: float = 0.0
+    rally_short_pre_s_range: tuple[float, float] = (.35, .65)
     anchor_body_name: str = MISSING
     body_names: list[str] = MISSING
 
@@ -2786,6 +3005,7 @@ class MotionCommandCfg(CommandTermCfg):
     # Long idle is useful at episode entry but need not delay every rally ball.
     hold_long_on_wrap: bool = True
     # Opt-in deadline curriculum. Default preserves legacy full-clip timing and RNG.
+    continue_recovery_reference: bool = False
     rally_timing_enabled: bool = False
     rally_timing_probability: float = 0.75
     rally_pre_strike_s_range: tuple[float, float] = (0.35, 0.85)

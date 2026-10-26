@@ -55,8 +55,9 @@ from isaaclab.utils.math import (
 from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
 from whole_body_tracking.tasks.tracking.mdp.strike_statistics import collect_exact_strike_statistics
 from whole_body_tracking.tasks.tracking.mdp.mocap_transport import (
-    advance_packet_outage, validate_outage_config,
+    advance_packet_outage, validate_outage_config, outage_start_probability,
 )
+from whole_body_tracking.utils.robust_ball_distribution import curriculum_scale, sample_rows as sample_robust_rows
 from whole_body_tracking.tasks.tracking.mdp.one_step_contract import (
     advance_one_step_bout,
 )
@@ -219,12 +220,13 @@ class RacketTargetCommand(CommandTerm):
         if self._venue_tuple_mix_mode not in {
             "recovery_scaled_online_v1",
             "fixed_balanced_bank_v1",
+            "per_swing_bank_v2",
         }:
             raise ValueError(
-                "venue_tuple_mix_mode must be recovery_scaled_online_v1 or "
-                f"fixed_balanced_bank_v1; got {self._venue_tuple_mix_mode!r}"
+                "venue_tuple_mix_mode must be recovery_scaled_online_v1, fixed_balanced_bank_v1 "
+                f"or per_swing_bank_v2; got {self._venue_tuple_mix_mode!r}"
             )
-        if self._venue_tuple_mix_mode == "fixed_balanced_bank_v1":
+        if self._venue_tuple_mix_mode in {"fixed_balanced_bank_v1", "per_swing_bank_v2"}:
             if not bool(cfg.venue_tuple_enabled):
                 raise ValueError(
                     "fixed_balanced_bank_v1 requires venue_tuple_enabled=True"
@@ -532,13 +534,14 @@ class RacketTargetCommand(CommandTerm):
         if self._ability_curriculum_mode not in {
             "disabled",
             "one_way_strike_gate_v1",
+            "four_stroke_quality_v1",
         }:
             raise ValueError(
                 "ability_curriculum_mode must be disabled or "
-                f"one_way_strike_gate_v1, got {self._ability_curriculum_mode!r}"
+                f"one_way_strike_gate_v1 or four_stroke_quality_v1, got {self._ability_curriculum_mode!r}"
             )
         self._ability_curriculum_enabled = (
-            self._ability_curriculum_mode == "one_way_strike_gate_v1"
+            self._ability_curriculum_mode != "disabled"
         )
         for name in (
             "ability_min_exact_samples_per_side",
@@ -575,6 +578,10 @@ class RacketTargetCommand(CommandTerm):
         self._base_mocap_robustness_scale = (
             0.0 if self._ability_curriculum_enabled else 1.0
         )
+        if self._ability_curriculum_mode == "four_stroke_quality_v1":
+            from whole_body_tracking.utils.motion_quality_curriculum import initialize, validate
+            validate(cfg)
+            initialize(self)
 
         self.robot: Articulation = env.scene[cfg.asset_name]
 
@@ -614,6 +621,8 @@ class RacketTargetCommand(CommandTerm):
 
         # Desired (sampled) targets, world frame.
         self.racket_target_pos_w = torch.zeros(self.num_envs, 3, device=self.device)
+        self._stroke_step = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._stroke_initial_tts = torch.full((self.num_envs,), 1.2, device=self.device)
         self.racket_target_vel_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.racket_target_normal_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.racket_target_normal_w[:, 2] = 1.0
@@ -696,7 +705,7 @@ class RacketTargetCommand(CommandTerm):
         ] = {}
         self._venue_tuple_bank_path: str | None = None
         self._venue_tuple_bank_receipt_path: str | None = None
-        if self._venue_tuple_mix_mode == "fixed_balanced_bank_v1":
+        if self._venue_tuple_mix_mode in {"fixed_balanced_bank_v1", "per_swing_bank_v2"}:
             self._load_venue_tuple_bank()
         self._vb_params = None  # lazy venue-yaml load on first evaluation
         # Derived table landmarks (env frame), from geometry.py ITTF constants.
@@ -1002,6 +1011,13 @@ class RacketTargetCommand(CommandTerm):
         self._cohort_pos_acc = dict.fromkeys(self._cohort_exact_acc, 0.0)
         self._cohort_vel_acc = dict.fromkeys(self._cohort_exact_acc, 0.0)
         self._cohort_comp_acc = dict.fromkeys(self._cohort_exact_acc, 0.0)
+        # Persistent question identity; metrics are zeroed by CommandTerm.reset.
+        self._question_wide_selected = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._reach_accuracy_acc = {
+            (cohort, clip, channel): 0.0
+            for cohort in ("core", "wide") for clip in self._clip_names
+            for channel in ("n", "pos", "pos_err")
+        }
         self._venue_swing_starts_acc_c = {
             clip: 0.0 for clip in self._clip_names
         }
@@ -1628,6 +1644,14 @@ class RacketTargetCommand(CommandTerm):
         self.metrics["base_mocap_stale"] = torch.zeros(self.num_envs, device=self.device)
         for name in ("base_mocap_burst_active", "base_mocap_burst_started", "base_mocap_packet_received"):
             self.metrics[name] = torch.zeros(self.num_envs, device=self.device)
+        self._base_mocap_stress_remaining = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        if getattr(cfg, "base_mocap_stress_enabled", False):
+            self._base_mocap_stress_start_probability = outage_start_probability(
+                cfg.base_mocap_stress_active_fraction, cfg.base_mocap_stress_duration_s,
+                cfg.base_mocap_stress_long_prob, cfg.base_mocap_stress_long_duration_s, self._env.step_dt)
+            curriculum_scale(0, cfg.base_mocap_stress_start_steps, cfg.base_mocap_stress_ramp_steps)
+            for name in ("base_mocap_stress_scale", "base_mocap_stress_active", "base_mocap_stress_started"):
+                self.metrics[name] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["base_mocap_orientation_error_rad"] = torch.zeros(
             self.num_envs, device=self.device
         )
@@ -3247,6 +3271,14 @@ class RacketTargetCommand(CommandTerm):
         # forehand/backhand clip that training did.
         env_ids_t = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
         previous_station_y = self.base_target_pos_w[env_ids_t, 1].clone()
+        if getattr(self.cfg, "venue_tuple_robust_sampling", False):
+            self._robust_previous_station_x = self.base_target_pos_w[:, 0].clone()
+        if bool(getattr(self.cfg, "venue_tuple_limit_reset_travel", False)):
+            # True resets run before _update_metrics: the previous swing's TTS
+            # is stale (zero on first reset). Budget the newly sampled clock.
+            self._compute_strike_timing()
+        if not self._resample_is_wrap and bool(getattr(self.cfg, "venue_tuple_limit_reset_travel", False)):
+            previous_station_y = motion.last_reset_root_pos_w[env_ids_t, 1].clone()
         if motion._multiseg:
             clip = motion.clip_id[env_ids]
         else:
@@ -3699,11 +3731,18 @@ class RacketTargetCommand(CommandTerm):
         if (
             int(receipt.get("schema_version", -1))
             != int(self.cfg.venue_tuple_bank_schema_version)
-            or int(receipt.get("contract", {}).get("recipe_revision", -1)) != 12
+            or int(receipt.get("contract", {}).get("recipe_revision", -1)) != int(self.cfg.venue_tuple_bank_recipe_revision)
         ):
             raise RuntimeError(
-                "V17 physical tuple receipt does not describe this r12 bank"
+                "physical tuple receipt does not match the configured recipe revision"
             )
+        if int(self.cfg.venue_tuple_bank_recipe_revision) >= 13:
+            import hashlib
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest != receipt.get("bank_sha256") or digest != self.cfg.venue_tuple_bank_sha256:
+                raise RuntimeError("physical tuple bank checksum mismatch")
+            if hashlib.sha256(receipt_path.read_bytes()).hexdigest() != self.cfg.venue_tuple_bank_receipt_sha256:
+                raise RuntimeError("physical tuple receipt checksum mismatch")
         required = {
             "schema_version": (),
             "clip": (None,),
@@ -3717,6 +3756,32 @@ class RacketTargetCommand(CommandTerm):
             "predicted_landing_xy": (None, 2),
             "outgoing_velocity": (None, 3),
         }
+        joint_clock = bool(getattr(self.cfg, "venue_tuple_joint_clock", False))
+        robust_bank = bool(getattr(self.cfg, "venue_tuple_robust_sampling", False))
+        if robust_bank:
+            if joint_clock or self._venue_tuple_mix_mode != "per_swing_bank_v2":
+                raise ValueError("CompleteHold robust bank requires per-swing sampling without a joint-clock teacher")
+            distribution = receipt.get("contract", {}).get("distribution")
+            # Mirrors robust_ball_distribution.DISTRIBUTIONS; kept literal so the
+            # loader stays executable without the package (offline tests).
+            if receipt.get("split") != "train" or distribution not in ("complete_hold_robust_v1", "stationary_reach_v1"):
+                raise RuntimeError("CompleteHold training requires the train split of its robust question bank")
+            if bool(getattr(self.cfg, "venue_tuple_fixed_station", False)) != (distribution == "stationary_reach_v1"):
+                raise RuntimeError("venue_tuple_fixed_station must match the question bank's station contract")
+            required.update(source_kind=(None,))
+        if joint_clock:
+            if not (self._env.cfg.commands.motion.continue_recovery_reference
+                    and self.cfg.venue_tuple_bank_curriculum_steps == 0
+                    and self.cfg.venue_tuple_final_mix_prob == 1.0
+                    and not self.cfg.venue_tuple_limit_reset_travel
+                    and 0.0 < self.cfg.venue_tuple_stress_probability < 1.0):
+                raise ValueError("joint tuple clock requires natural recovery and intact nominal/stress rows")
+            required.update(time_to_strike=(None,), cohort=(None,))
+            original_probability = float(getattr(self.cfg, "venue_tuple_original_nominal_probability", 0.0))
+            if not 0.0 <= original_probability < 1.0:
+                raise ValueError("original nominal probability must be in [0, 1)")
+            if original_probability > 0.0:
+                required.update(source_kind=(None,))
         with np.load(path, allow_pickle=False) as archive:
             missing = sorted(set(required) - set(archive.files))
             if missing:
@@ -3732,6 +3797,10 @@ class RacketTargetCommand(CommandTerm):
             )
         clip = np.asarray(arrays["clip"], dtype=np.int64)
         row_count = int(clip.shape[0])
+        if joint_clock:
+            qualification = receipt.get("kinematic_qualification", {})
+            if qualification.get("rows_after") != row_count:
+                raise RuntimeError("joint bank must complete contact-velocity path qualification before training")
         for name, shape in required.items():
             value = arrays[name]
             if name == "schema_version":
@@ -3774,6 +3843,58 @@ class RacketTargetCommand(CommandTerm):
             "predicted_landing_xy",
             "outgoing_velocity",
         )
+        if robust_bank:
+            if not np.isin(arrays['source_kind'], (0, 1)).all():
+                raise RuntimeError("robust bank source_kind must be core=0 or augmented=1")
+            for side in (0, 1):
+                if any(not np.any((clip == side) & (arrays['source_kind'] == kind)) for kind in (0, 1)):
+                    raise RuntimeError("robust question bank needs core and wide cases on both sides")
+            tensor_fields += ("source_kind",)
+            if bool(getattr(self.cfg, "venue_tuple_fixed_station", False)):
+                if not bool(np.all(arrays["station_xy"] == 0)):
+                    raise RuntimeError("fixed-station question bank must command the session anchor (station_xy == 0)")
+                box = np.asarray(self.cfg.racket_pos_range_per_clip, dtype=np.float64)
+                if box.shape != (2, 3, 2):
+                    raise RuntimeError("fixed-station training requires two per-clip reach boxes")
+                offsets = np.asarray(arrays["target_position_offset"], dtype=np.float64)
+                for side in (0, 1):
+                    rows = offsets[clip == side]
+                    if not (np.all(rows >= box[side, :, 0] - 1e-6) and np.all(rows <= box[side, :, 1] + 1e-6)):
+                        raise RuntimeError("fixed-station question offsets must lie inside pos_range_per_clip")
+        if joint_clock:
+            if not bool(((arrays["time_to_strike"] >= .18) & (arrays["time_to_strike"] <= 1.2)).all()):
+                raise RuntimeError("joint tuple deadlines must lie inside the demonstrated clock")
+            if not bool(np.isin(arrays["cohort"], (0, 1)).all()):
+                raise RuntimeError("joint tuple cohort must be nominal=0 or stress=1")
+            tensor_fields += ("time_to_strike", "cohort")
+            if original_probability > 0.0:
+                source = arrays["source_kind"]
+                if not (np.isin(source, (0, 1, 2)).all()
+                        and np.array_equal(source == 2, arrays["cohort"] == 1)):
+                    raise RuntimeError("joint bank provenance and stress cohort disagree")
+                for side in (0, 1):
+                    if any(not np.any((clip == side) & (source == kind)) for kind in (0, 1)):
+                        raise RuntimeError("joint bank requires original and augmented nominal rows on both sides")
+                tensor_fields += ("source_kind",)
+            self._venue_joint_row = torch.full((self.num_envs,), -1, dtype=torch.long, device=self.device)
+        # Loader runs inside CommandManager construction: env.command_manager
+        # is not assigned yet. Use resolved config, not a live command lookup.
+        mcfg = getattr(getattr(getattr(getattr(self, "_env", None), "cfg", None),
+                               "commands", None), "motion", None)
+        if getattr(mcfg, "step_reference_mode", "") == "discrete_four_stroke":
+            from whole_body_tracking.utils.four_stroke import observable_clip
+            routed = observable_clip(torch.as_tensor(arrays["target_position_offset"]),
+                torch.as_tensor(clip, dtype=torch.long), self.cfg.racket_pos_range_per_clip,
+                mcfg.stand_contact_xyz, mcfg.step_contact_xyz).numpy()
+            rerouted = int((routed != clip).sum())
+            clip = routed
+            # The file and all physical question fields remain unchanged. Only
+            # the in-memory view owns this deterministic overlap assignment.
+            counts = [int((clip == side).sum()) for side in (0, 1)]
+            print(f"[four-stroke] observable overlap routing: changed_side={rerouted}, counts={counts}", flush=True)
+        if getattr(mcfg, "stroke_adapter_path", None):
+            from whole_body_tracking.utils.stroke_tracking import load_adapter
+            tensor_fields += load_adapter(self, mcfg, arrays, clip)
         for side in (0, 1):
             mask = clip == side
             self._venue_tuple_bank_by_clip[side] = {
@@ -3783,6 +3904,13 @@ class RacketTargetCommand(CommandTerm):
                 for name in tensor_fields
             }
         self._venue_tuple_bank_path = str(path)
+        # The loaded bank is immutable. Build row membership once, not on every
+        # resample of a half-million-row question bank.
+        self._venue_tuple_cohort_rows_by_clip = {
+            side: tuple(torch.where(bank['source_kind'] == cohort)[0] for cohort in (0, 1))
+            for side, bank in self._venue_tuple_bank_by_clip.items()
+            if 'source_kind' in bank
+        }
         self._venue_tuple_bank_receipt_path = str(receipt_path)
         print(
             "[RacketTargetCommand] physical tuple bank ON: "
@@ -3791,13 +3919,85 @@ class RacketTargetCommand(CommandTerm):
             flush=True,
         )
 
+    def sample_joint_tuple_rows(self, env_ids, clip):
+        """Choose the entire question BEFORE reset/RSI chooses a physical state."""
+        if not bool(self.cfg.venue_tuple_joint_clock):
+            raise RuntimeError("natural recovery task requires joint target/deadline rows")
+        tts = torch.empty(len(env_ids), device=self.device)
+        discrete = (hasattr(self, "_motion")
+                    and getattr(self._motion().cfg, "step_reference_mode", "") == "discrete_four_stroke")
+        for side in (0, 1):
+            local = torch.where(clip == side)[0]
+            if not len(local):
+                continue
+            bank = self._venue_tuple_bank_by_clip[side]
+            if not hasattr(self, "_joint_cohort_ids"):
+                self._joint_cohort_ids = {}
+            for cohort in (0, 1):
+                key = side, cohort
+                if key not in self._joint_cohort_ids:
+                    self._joint_cohort_ids[key] = torch.where(bank["cohort"] == cohort)[0]
+                if not len(self._joint_cohort_ids[key]):
+                    raise RuntimeError(f"joint bank is missing side/cohort {key}")
+            stress = torch.rand(len(local), device=self.device) < self.cfg.venue_tuple_stress_probability
+            row = torch.empty(len(local), dtype=torch.long, device=self.device)
+            original_probability = float(getattr(self.cfg, "venue_tuple_original_nominal_probability", 0.0))
+            for cohort in (0, 1):
+                mask = stress == bool(cohort)
+                if cohort == 0 and original_probability > 0.0:
+                    original = torch.rand(len(local), device=self.device) < original_probability
+                    for kind in (0, 1):
+                        key = side, "source", kind
+                        if key not in self._joint_cohort_ids:
+                            self._joint_cohort_ids[key] = torch.where(bank["source_kind"] == kind)[0]
+                        pool = self._joint_cohort_ids[key]
+                        selected = mask & (original == (kind == 0))
+                        if discrete:
+                            from whole_body_tracking.utils.four_stroke import sample_style_pool
+                            row[selected] = sample_style_pool(self, bank, pool, int(selected.sum()), key)
+                        else:
+                            row[selected] = pool[torch.randint(len(pool), (int(selected.sum()),), device=self.device)]
+                    continue
+                pool = self._joint_cohort_ids[side, cohort]
+                if discrete:
+                    from whole_body_tracking.utils.four_stroke import sample_style_pool
+                    row[mask] = sample_style_pool(self, bank, pool, int(mask.sum()), (side, cohort))
+                else:
+                    row[mask] = pool[torch.randint(len(pool), (int(mask.sum()),), device=self.device)]
+            ids = env_ids[local]
+            self._venue_joint_row[ids] = row
+            tts[local] = bank["time_to_strike"][row]
+            # Motion/RSI reads the style immediately after scheduling, before
+            # RacketTargetCommand's later reset. Install its contact now so a
+            # new side cannot initialize from the previous ball's step style.
+            origin = self._env.scene.env_origins[ids]
+            self.racket_target_pos_w[ids] = origin + bank["target_position_offset"][row]
+            self.base_target_pos_w[ids] = origin[:, :2]
+            if discrete:
+                from whole_body_tracking.utils.four_stroke import geometric_step
+                cfg = self._motion().cfg
+                # Same ceil-to-control-tick rule as MotionCommand's public clock.
+                self._stroke_initial_tts[ids] = torch.ceil(tts[local]/self._env.step_dt)*self._env.step_dt
+                self._stroke_step[ids] = geometric_step(
+                    bank["target_position_offset"][row], clip[local],
+                    cfg.stand_contact_xyz, cfg.step_contact_xyz)
+                if getattr(cfg, "stroke_adapter_path", None):
+                    self._stroke_adapter_delta_q[ids] = bank["adapter_delta_q"][row]
+                    self._stroke_adapter_delta_dq[ids] = bank["adapter_delta_dq"][row]
+                    self._stroke_adapter_valid[ids] = bank["adapter_qualified"][row] > .5
+
+        return tts
+
     def _fixed_balanced_tuple_selection(
         self,
         clip: torch.Tensor,
         probability: float,
         env_ids: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Return the permanent global-id cohort, never a reset-local random draw."""
+        """Select the configured bank cohort; v2 draws independently per new swing."""
+
+        if self._venue_tuple_mix_mode == "per_swing_bank_v2":
+            return torch.rand(len(clip), device=self.device) < probability
 
         if env_ids is None:
             if len(clip) != self.num_envs:
@@ -3841,6 +4041,9 @@ class RacketTargetCommand(CommandTerm):
         selected_local = self._fixed_balanced_tuple_selection(
             clip, probability, env_ids
         )
+        if getattr(self, "_venue_tuple_mix_mode", "") == "per_swing_bank_v2":
+            self._venue_tuple_selected[env_ids] = selected_local
+            self.metrics["venue_tuple_accept_rate"][env_ids] = selected_local.float()
         for side in (0, 1):
             local = torch.where(selected_local & (clip == side))[0]
             if len(local) == 0:
@@ -3853,9 +4056,54 @@ class RacketTargetCommand(CommandTerm):
                 bank_count, (len(local),), device=self.device
             )
             accepted_env = env_ids[local]
+            if getattr(self.cfg, "venue_tuple_joint_clock", False):
+                row = self._venue_joint_row[accepted_env]
+                if bool((row < 0).any()):
+                    raise RuntimeError("joint tuple row must be chosen before motion scheduling")
             accepted_origins = origins[local]
             motion = self._motion()
-            if self._resample_is_wrap and bool(getattr(motion.cfg, "rally_timing_enabled", False)):
+            core_order = None
+            robust_bank = bool(getattr(self.cfg, "venue_tuple_robust_sampling", False))
+            if robust_bank:
+                scale = curriculum_scale(self._env.common_step_counter,
+                    self.cfg.venue_tuple_wide_start_steps, self.cfg.venue_tuple_wide_ramp_steps)
+                previous_xy = self.base_target_pos_w[accepted_env].clone() - accepted_origins[:, :2]
+                # _sample_targets_hitter_pure has already installed the next
+                # provisional station. Use the saved previous command instead.
+                previous_xy[:, 1] = previous_station_y[local] - accepted_origins[:, 1]
+                previous_xy[:, 0] = self._robust_previous_station_x[accepted_env] - accepted_origins[:, 0]
+                if not self._resample_is_wrap:
+                    previous_xy[:] = motion.last_reset_root_pos_w[accepted_env, :2] - accepted_origins[:, :2]
+                row, requested_wide, fallback = sample_robust_rows(bank, previous_xy,
+                    self.time_to_strike[accepted_env], speed=motion.cfg.rally_station_speed_mps,
+                    brake_s=motion.cfg.rally_station_brake_s,
+                    wide_probability=self.cfg.venue_tuple_wide_final_probability*scale,
+                    unbounded=bool(getattr(self.cfg, "venue_tuple_fixed_station", False)),
+                    cohort_rows=getattr(self, '_venue_tuple_cohort_rows_by_clip', {}).get(side))
+                self._question_wide_selected[accepted_env] = bank['source_kind'][row] == 1
+                for key, value in (("question_wide_scale", torch.full_like(fallback, scale, dtype=torch.float)),
+                                   ("question_wide_requested", requested_wide.float()),
+                                   ("question_wide_selected", bank['source_kind'][row]),
+                                   ("question_budget_fallback", fallback.float())):
+                    if key not in self.metrics:
+                        self.metrics[key] = torch.zeros(self.num_envs, device=self.device)
+                    self.metrics[key][accepted_env] = value
+            steps = int(getattr(self.cfg, "venue_tuple_bank_curriculum_steps", 0))
+            if steps and not getattr(self.cfg, "venue_tuple_joint_clock", False):
+                if not hasattr(self, "_bank_core_order"):
+                    self._bank_core_order = {}
+                if side not in self._bank_core_order:
+                    ids = torch.where((bank["target_velocity"].norm(dim=-1) <= 1.6)
+                                      & (bank["station_xy"][:, 1].abs() < .35))[0]
+                    if len(ids) < 256:
+                        raise RuntimeError("physical tuple bank lacks a qualified core curriculum")
+                    self._bank_core_order[side] = ids[torch.argsort(bank["station_xy"][ids, 1])]
+                core_order = self._bank_core_order[side]
+                wide_prob = .15+.85*min(1., max(0., self._env.common_step_counter/steps))
+                use_core = torch.rand(len(local), device=self.device) >= wide_prob
+                row[use_core] = core_order[torch.randint(len(core_order), (int(use_core.sum()),), device=self.device)]
+            limit_reset = bool(getattr(self.cfg, "venue_tuple_limit_reset_travel", False))
+            if (self._resample_is_wrap or limit_reset) and bool(getattr(motion.cfg, "rally_timing_enabled", False)) and not getattr(self.cfg, "venue_tuple_joint_clock", False) and not robust_bank:
                 short = motion.rally_shortened[accepted_env]
                 if bool(short.any()):
                     # Select intact physical tuples inside the station travel budget;
@@ -3869,13 +4117,27 @@ class RacketTargetCommand(CommandTerm):
                     budget = self._limit_rally_station_step(
                         accepted_env[short], torch.full((int(short.sum()),), float("inf"), device=self.device)
                     )
+                    if getattr(self, "_venue_tuple_mix_mode", "") == "per_swing_bank_v2" and self.cfg.station_y_step_range:
+                        budget = budget.clamp_max(float(self.cfg.station_y_step_range[1]))
                     previous_local_y = previous_station_y[local][short] - accepted_origins[short, 1]
                     lower = torch.searchsorted(sorted_y, previous_local_y - budget)
                     upper = torch.searchsorted(sorted_y, previous_local_y + budget, right=True)
                     if bool((upper <= lower).any()):
-                        raise RuntimeError("physical tuple bank has no station inside the short-ball travel budget")
+                        bad = upper <= lower
+                        raise RuntimeError("physical tuple bank has no station inside the short-ball travel budget: "
+                                           f"side={side}, previous_y={previous_local_y[bad][:4].tolist()}, "
+                                           f"budget={budget[bad][:4].tolist()}")
                     pick = lower + (torch.rand(len(lower), device=self.device) * (upper - lower)).long()
                     row[short] = order[pick]
+                    if core_order is not None:
+                        core_y = bank["station_xy"][core_order, 1].contiguous()
+                        clo = torch.searchsorted(core_y, previous_local_y-budget)
+                        chi = torch.searchsorted(core_y, previous_local_y+budget, right=True)
+                        eligible = use_core[short] & (chi > clo)
+                        pick = clo + (torch.rand(len(clo), device=self.device)*(chi-clo).clamp_min(1)).long()
+                        subset = row[short]
+                        subset[eligible] = core_order[pick[eligible]]
+                        row[short] = subset
             station_local = bank["station_xy"][row]
             position_offset = bank["target_position_offset"][row]
             station = accepted_origins[:, :2] + station_local
@@ -3885,6 +4147,12 @@ class RacketTargetCommand(CommandTerm):
             self.racket_target_pos_w[accepted_env] = contact
             target_velocity = bank["target_velocity"][row]
             self.racket_target_vel_w[accepted_env] = target_velocity
+            if getattr(self.cfg, "venue_tuple_joint_clock", False):
+                for key, value in (("question_stress_cohort", bank["cohort"][row]),
+                                   ("question_initial_tts_s", bank["time_to_strike"][row])):
+                    if key not in self.metrics:
+                        self.metrics[key] = torch.zeros(self.num_envs, device=self.device)
+                    self.metrics[key][accepted_env] = value.float()
             self.racket_target_normal_w[accepted_env] = (
                 self._normal_from_target_velocity(target_velocity)
             )
@@ -3936,7 +4204,7 @@ class RacketTargetCommand(CommandTerm):
     ) -> None:
         """Replace a configured subset with one coherent planner/venue tuple."""
 
-        if self._venue_tuple_mix_mode == "fixed_balanced_bank_v1":
+        if self._venue_tuple_mix_mode in {"fixed_balanced_bank_v1", "per_swing_bank_v2"}:
             self._apply_precomputed_venue_tuple(
                 env_ids, origins, clip, previous_station_y
             )
@@ -4257,7 +4525,14 @@ class RacketTargetCommand(CommandTerm):
 
         env_ids = env_ids.to(device=self.device, dtype=torch.long)
         state: dict[str, torch.Tensor] = {}
-        for name in self._markov_replay_tensor_fields():
+        fields = self._markov_replay_tensor_fields()
+        if (hasattr(self, "_motion")
+                and getattr(self._motion().cfg, "step_reference_mode", "") == "discrete_four_stroke"):
+            fields += ("_stroke_step", "_stroke_initial_tts")
+            if getattr(self._motion().cfg, "stroke_adapter_path", None):
+                from whole_body_tracking.utils.stroke_tracking import ADAPTER_FIELDS
+                fields += ADAPTER_FIELDS
+        for name in fields:
             value = getattr(self, name, None)
             if not (
                 torch.is_tensor(value)
@@ -4268,7 +4543,8 @@ class RacketTargetCommand(CommandTerm):
                     f"V17 target Markov field {name!r} is missing or not "
                     "per-environment"
                 )
-            state[name] = value[env_ids].clone()
+            # Long-tensor indexing already allocates an independent snapshot.
+            state[name] = value[env_ids]
 
         for name in (
             "_mnoise_ar1_state",
@@ -4280,7 +4556,7 @@ class RacketTargetCommand(CommandTerm):
         ):
             value = getattr(self, name, None)
             if torch.is_tensor(value):
-                state[name] = value[env_ids].clone()
+                state[name] = value[env_ids]
 
         if self._delay_steps > 0:
             length = self._delay_steps + 1
@@ -4290,13 +4566,13 @@ class RacketTargetCommand(CommandTerm):
             ]
             state["delay_history_pos"] = self._delay_buf_pos[
                 order
-            ][:, env_ids].permute(1, 0, 2).clone()
+            ][:, env_ids].permute(1, 0, 2)
             state["delay_history_vel"] = self._delay_buf_vel[
                 order
-            ][:, env_ids].permute(1, 0, 2).clone()
+            ][:, env_ids].permute(1, 0, 2)
             state["delay_history_sign"] = self._delay_buf_sign[
                 order
-            ][:, env_ids].permute(1, 0).clone()
+            ][:, env_ids].permute(1, 0)
         return state
 
     def restore_markov_replay_state(
@@ -4308,6 +4584,12 @@ class RacketTargetCommand(CommandTerm):
 
         env_ids = env_ids.to(device=self.device, dtype=torch.long)
         required = set(self._markov_replay_tensor_fields())
+        if (hasattr(self, "_motion")
+                and getattr(self._motion().cfg, "step_reference_mode", "") == "discrete_four_stroke"):
+            required.update(("_stroke_step", "_stroke_initial_tts"))
+            if getattr(self._motion().cfg, "stroke_adapter_path", None):
+                from whole_body_tracking.utils.stroke_tracking import ADAPTER_FIELDS
+                required.update(ADAPTER_FIELDS)
         missing = sorted(required - set(state))
         if missing:
             raise RuntimeError(
@@ -4378,6 +4660,15 @@ class RacketTargetCommand(CommandTerm):
         ids = torch.as_tensor(
             env_ids, dtype=torch.long, device=self.device
         )
+        if self._base_mocap_enabled and not self._resample_is_wrap:
+            # This must precede the replay branch's early return: a restored
+            # physical state starts a NEW localization session too. Never mix
+            # its pose with the previous episode's delayed packets or outage.
+            ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
+            self._base_mocap_reset_pending[ids] = True
+            self._base_mocap_residual_needs_sample[ids] = True
+            self._base_mocap_position_bias_pending[ids] = True
+            self._base_mocap_delay_pending[ids] = True
         self._resolve_pending_venue_outcomes_as_failures(ids)
         self._venue_planner_contact_normal_w[ids] = 0.0
         if self._venue_tuple_mix_mode == "fixed_balanced_bank_v1":
@@ -4733,13 +5024,6 @@ class RacketTargetCommand(CommandTerm):
                 self._delay_buf_pos[:, ids] = self.racket_target_pos_w[ids].unsqueeze(0)
                 self._delay_buf_vel[:, ids] = self.racket_target_vel_w[ids].unsqueeze(0)
                 self._delay_buf_sign[:, ids] = self.swing_sign[ids].unsqueeze(0)
-        if self._base_mocap_enabled and not self._resample_is_wrap:
-            ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-            self._base_mocap_reset_pending[ids] = True
-            self._base_mocap_residual_needs_sample[ids] = True
-            self._base_mocap_position_bias_pending[ids] = True
-            self._base_mocap_delay_pending[ids] = True
-
         # The truth instrument is armed only after every field of the new question has been
         # sampled.  This hook is telemetry-only and cannot mutate the command buffers.
         if self._physical is not None:
@@ -5138,9 +5422,9 @@ class RacketTargetCommand(CommandTerm):
             & (~self._step_bout_complete)
         )
         extend = countdown_done & needs_settle
-        motion.hold_counter = torch.where(
+        motion.hold_counter.copy_(torch.where(
             extend, torch.ones_like(hold_counter), hold_counter
-        )
+        ))
 
     def _assign_foundation_context(
         self, ids: torch.Tensor, motion: MotionCommand
@@ -5889,6 +6173,9 @@ class RacketTargetCommand(CommandTerm):
             total = max(int(ml.time_step_total), 1)
             strike_step = round(self.cfg.strike_phase * (total - 1))
             self.time_to_strike = (strike_step - motion.time_steps).float() * self._env.step_dt
+        if getattr(motion.cfg, "causal_idle", False):
+            from whole_body_tracking.utils.four_stroke import idle_clock
+            self.time_to_strike = idle_clock(self, self.time_to_strike)
         self.pre_strike = self.time_to_strike > 0.0
         self.strike_window = self.time_to_strike.abs() <= self.cfg.strike_window_s
 
@@ -6195,6 +6482,19 @@ class RacketTargetCommand(CommandTerm):
         receive &= ~blocked
         self.metrics["base_mocap_burst_active"].copy_(blocked.float())
         self.metrics["base_mocap_burst_started"].copy_(started.float())
+        if getattr(self.cfg, "base_mocap_stress_enabled", False):
+            stress_scale = curriculum_scale(self._env.common_step_counter,
+                self.cfg.base_mocap_stress_start_steps, self.cfg.base_mocap_stress_ramp_steps)
+            self._base_mocap_stress_remaining, stress_blocked, stress_started = advance_packet_outage(
+                self._base_mocap_stress_remaining, reset_rows, dt=dt, scale=stress_scale,
+                start_probability=self._base_mocap_stress_start_probability,
+                short_range_s=tuple(self.cfg.base_mocap_stress_duration_s),
+                long_probability=self.cfg.base_mocap_stress_long_prob,
+                long_range_s=tuple(self.cfg.base_mocap_stress_long_duration_s))
+            receive &= ~stress_blocked
+            self.metrics["base_mocap_stress_scale"][:] = stress_scale
+            self.metrics["base_mocap_stress_active"].copy_(stress_blocked.float())
+            self.metrics["base_mocap_stress_started"].copy_(stress_started.float())
         # Reset initialization is not a transport packet and must not be dropped or deferred.  It
         # establishes the new episode's localization origin and makes the first returned actor
         # observation current with zero differentiated velocity.
@@ -6314,7 +6614,7 @@ class RacketTargetCommand(CommandTerm):
         countdown_done = was_holding & (hc == 0)
         extend = countdown_done & (~settled) & (self._hold_extra_steps < int(self.cfg.hold_settle_max_extra_steps))
         # Re-floor the counter to 1 for extending envs so in_hold stays True next step (phase stays frozen).
-        motion.hold_counter = torch.where(extend, torch.ones_like(hc), hc)
+        motion.hold_counter.copy_(torch.where(extend, torch.ones_like(hc), hc))
         # Count extension steps while extending; reset to 0 once the env leaves the hold entirely.
         self._hold_extra_steps = torch.where(
             was_holding,
@@ -7506,11 +7806,6 @@ class RacketTargetCommand(CommandTerm):
         # hits). NOTE: accumulators only decay on strike-carrying steps — exact at 4096 envs (a
         # strike happens ~every step), slightly stale at small env counts (diagnostics only).
         decay = float(self.cfg.exact_success_decay)
-        self._vb_exact_acc = decay * self._vb_exact_acc + float(exact_strike.sum())
-        self._vb_hit_acc = decay * self._vb_hit_acc + float(gate.sum())
-        self._vb_net_acc = decay * self._vb_net_acc + float((gate & net_clear).sum())
-        self._vb_land_valid_acc = decay * self._vb_land_valid_acc + float((gate & land["land_valid"]).sum())
-        self._vb_inb_acc = decay * self._vb_inb_acc + float((gate & net_clear & on_opp).sum())
         # Physical-bank outcomes are UNCONDITIONAL over resolved selected
         # questions and stay separate per side. A miss/fall therefore cannot
         # vanish from the denominator or hide behind an FH/BH average.
@@ -7520,54 +7815,63 @@ class RacketTargetCommand(CommandTerm):
             & self._venue_tuple_selected
             & self._venue_tuple_outcome_pending
         )
-        for clip_id, clip_name in self._clip_names.items():
+        # Keep every reduction and Python accumulator unchanged, but transfer
+        # their scalar results together. float(cuda_tensor) serializes the CPU
+        # with the GPU; doing that once per counter stalls every strike step.
+        reductions = [exact_strike.sum(), gate.sum(), (gate & net_clear).sum(),
+                      (gate & land['land_valid']).sum(), (gate & net_clear & on_opp).sum()]
+        for clip_id in self._clip_names:
             side_exact = venue_exact & (motion.clip_id == clip_id)
+            side_landed = side_exact & gate & land['land_valid']
+            reductions.extend([side_exact.sum(), (side_exact & gate).sum(),
+                               (side_exact & gate & net_clear).sum(),
+                               (side_exact & gate & net_clear & on_opp).sum(),
+                               (landing_error * side_landed).sum(), side_landed.sum()])
+        values = torch.stack(reductions).to(dtype=torch.float64).cpu().tolist()
+        self._vb_exact_acc = decay * self._vb_exact_acc + values[0]
+        self._vb_hit_acc = decay * self._vb_hit_acc + values[1]
+        self._vb_net_acc = decay * self._vb_net_acc + values[2]
+        self._vb_land_valid_acc = decay * self._vb_land_valid_acc + values[3]
+        self._vb_inb_acc = decay * self._vb_inb_acc + values[4]
+        side_values = iter(values[5:])
+        for clip_id, clip_name in self._clip_names.items():
+            exact_n, hit_n, net_n, legal_n, error_sum, landed_n = (next(side_values) for _ in range(6))
             if bool(self.cfg.venue_tuple_unconditional_outcomes):
                 # Denominator and results are committed on the same step. A
                 # tuple that reset before this frame was committed as a
                 # zero-result failure by _resample_command.
-                self._venue_swing_starts_acc_c[clip_id] += float(
-                    side_exact.sum()
-                )
-                self._vb_exact_acc_c[clip_id] += float(side_exact.sum())
-                self._vb_hit_acc_c[clip_id] += float((side_exact & gate).sum())
-                self._vb_net_acc_c[clip_id] += float(
-                    (side_exact & gate & net_clear).sum()
-                )
-                self._vb_legal_acc_c[clip_id] += float(
-                    (side_exact & gate & net_clear & on_opp).sum()
-                )
-                side_landed = side_exact & gate & land["land_valid"]
-                self._vb_land_err_sum_c[clip_id] += float(
-                    (landing_error * side_landed).sum()
-                )
-                self._vb_land_err_n_c[clip_id] += float(side_landed.sum())
+                self._venue_swing_starts_acc_c[clip_id] += exact_n
+                self._vb_exact_acc_c[clip_id] += exact_n
+                self._vb_hit_acc_c[clip_id] += hit_n
+                self._vb_net_acc_c[clip_id] += net_n
+                self._vb_legal_acc_c[clip_id] += legal_n
+                self._vb_land_err_sum_c[clip_id] += error_sum
+                self._vb_land_err_n_c[clip_id] += landed_n
                 denominator_value = self._venue_swing_starts_acc_c[clip_id]
             else:
                 self._vb_exact_acc_c[clip_id] = (
                     decay * self._vb_exact_acc_c[clip_id]
-                    + float(side_exact.sum())
+                    + exact_n
                 )
                 self._vb_hit_acc_c[clip_id] = (
                     decay * self._vb_hit_acc_c[clip_id]
-                    + float((side_exact & gate).sum())
+                    + hit_n
                 )
                 self._vb_net_acc_c[clip_id] = (
                     decay * self._vb_net_acc_c[clip_id]
-                    + float((side_exact & gate & net_clear).sum())
+                    + net_n
                 )
                 self._vb_legal_acc_c[clip_id] = (
                     decay * self._vb_legal_acc_c[clip_id]
-                    + float((side_exact & gate & net_clear & on_opp).sum())
+                    + legal_n
                 )
-                side_landed = side_exact & gate & land["land_valid"]
                 self._vb_land_err_sum_c[clip_id] = (
                     decay * self._vb_land_err_sum_c[clip_id]
-                    + float((landing_error * side_landed).sum())
+                    + error_sum
                 )
                 self._vb_land_err_n_c[clip_id] = (
                     decay * self._vb_land_err_n_c[clip_id]
-                    + float(side_landed.sum())
+                    + landed_n
                 )
                 denominator_value = self._vb_exact_acc_c[clip_id]
             side_denominator = max(denominator_value, 1.0e-6)
@@ -8563,8 +8867,6 @@ class RacketTargetCommand(CommandTerm):
         position_window_s = float(
             getattr(self.cfg, "position_guidance_window_s", 0.0)
         )
-        if position_window_s <= 0.0:
-            return
         try:
             reward_manager = self._env.reward_manager
             position_term = reward_manager.get_term_cfg("racket_position")
@@ -8573,6 +8875,13 @@ class RacketTargetCommand(CommandTerm):
             )
         except ValueError:
             return
+        explicit_position_window = position_window_s > 0.0
+        if not explicit_position_window:
+            # CompleteHold uses the original strike gate plus exact-contact debt.
+            # Previously this early return silently left its debt telemetry zero.
+            if float(debt_term.weight) == 0.0:
+                return
+            position_window_s = float(self.cfg.strike_window_s)
 
         temporal_scale = float(self.cfg.position_guidance_temporal_scale)
         position_std = float(position_term.params["std"])
@@ -8596,12 +8905,13 @@ class RacketTargetCommand(CommandTerm):
         )
         position_active = (
             self.time_to_strike.abs() <= position_window_s + 1.0e-6
-        )
+        ) if explicit_position_window else self.strike_window
         debt_active = (
             self.time_to_strike.abs() <= debt_window_s + 1.0e-6
         )
-        position_kernel = torch.exp(
-            -moving_error_sq / position_std**2
+        from whole_body_tracking.utils.task_tracking import tracking_kernel
+        position_kernel = tracking_kernel(
+            moving_error_sq, position_std, float(position_term.params.get("tail_blend", 0.0))
         )
         position_contribution = (
             position_weight
@@ -8702,19 +9012,27 @@ class RacketTargetCommand(CommandTerm):
             ).to(sums.dtype)
 
         # Live marginal aliases complement the full cross-stratified Instrumentation matrix.
-        flat_index = torch.arange(
-            self._strike_audit_size, device=self.device
-        )
-        categories = {
-            "forehand": (flat_index // 24) == 0,
-            "backhand": (flat_index // 24) == 1,
-            "core": ((flat_index // 12) % 2) == 0,
-            "planner": ((flat_index // 12) % 2) == 1,
-            "q1": ((flat_index // 3) % 4) == 0,
-            "q2": ((flat_index // 3) % 4) == 1,
-            "q3": ((flat_index // 3) % 4) == 2,
-            "q4": ((flat_index // 3) % 4) == 3,
-        }
+        category_key = (self._strike_audit_size, str(self.device))
+        if getattr(self, '_strike_local_category_key', None) != category_key:
+            # Fixed integer indices preserve the same reduction order while
+            # avoiding a CUDA nonzero/host synchronization for every boolean
+            # gather below (eight categories, ten reductions, every step).
+            flat_index = torch.arange(self._strike_audit_size)
+            masks = {
+                "forehand": (flat_index // 24) == 0,
+                "backhand": (flat_index // 24) == 1,
+                "core": ((flat_index // 12) % 2) == 0,
+                "planner": ((flat_index // 12) % 2) == 1,
+                "q1": ((flat_index // 3) % 4) == 0,
+                "q2": ((flat_index // 3) % 4) == 1,
+                "q3": ((flat_index // 3) % 4) == 2,
+                "q4": ((flat_index // 3) % 4) == 3,
+            }
+            self._strike_local_category_indices = {
+                name: torch.where(mask)[0].to(self.device) for name, mask in masks.items()
+            }
+            self._strike_local_category_key = category_key
+        categories = self._strike_local_category_indices
         valid_context = context >= 0
         valid_indices = context[valid_context]
         context_count = torch.bincount(
@@ -9061,18 +9379,17 @@ class RacketTargetCommand(CommandTerm):
         self._post_strike_risk_capture_mask[
             selected, selected_phase, selected_severity
         ] = True
+        # All phases see the same physical boundary and consumed edge mask.
+        # Gather the full action/target snapshot once; ring admission and the
+        # order within each (side, phase, severity) bucket remain unchanged.
+        motion._capture_post_swing_states(
+            selected, phase_bin=selected_phase,
+            source_clip_ids=motion.clip_id[selected].clone(),
+        )
         for phase_index in range(phase_count):
             phase_ids = selected[
                 selected_phase == phase_index
             ]
-            if len(phase_ids) > 0:
-                motion._capture_post_swing_states(
-                    phase_ids,
-                    phase_bin=phase_index,
-                    source_clip_ids=motion.clip_id[
-                        phase_ids
-                    ].clone(),
-                )
             self.metrics[
                 f"post_strike_risk_capture_phase_{phase_index}"
             ][phase_ids] = 1.0
@@ -9151,12 +9468,52 @@ class RacketTargetCommand(CommandTerm):
                     self._qdes_phase_telemetry_last[metric_name] = mean
                 self.metrics[metric_name][:] = self._qdes_phase_telemetry_last[metric_name]
 
-    def _update_build_ability_curriculum(self) -> None:
-        """Latch only mocap corruption after the unchanged V14 strike task is learned.
+    def _update_reach_accuracy(self, statistics, decay) -> None:
+        """Report exact-contact precision independently of the moving mixture.
 
-        Post-swing capture/replay is deliberately independent and follows V14 from fresh
-        startup. This gate has one admission condition, no exit condition, and no path that
-        can lower an already-reached mocap-corruption scale.
+        These counters never control questions or rewards. A fixed 50/50 score
+        removes cohort-weight changes only while both cohorts have evidence;
+        other curricula still require a frozen-distribution evaluation.
+        """
+        minimum = float(self.cfg.exact_success_min_count)
+        for clip, side in self._clip_names.items():
+            rates, valid = [], []
+            for cohort in ("core", "wide"):
+                for channel in ("n", "pos", "pos_err"):
+                    key = (cohort, clip, channel)
+                    self._reach_accuracy_acc[key] = (
+                        decay * self._reach_accuracy_acc[key]
+                        + statistics[("reach", *key)]
+                    )
+                count = self._reach_accuracy_acc[(cohort, clip, "n")]
+                enough = count >= minimum
+                denom = max(count, 1e-6)
+                rate = self._reach_accuracy_acc[(cohort, clip, "pos")] / denom
+                values = {
+                    "sample_count": count, "valid": float(enough),
+                    "pos_pass": rate if enough else 0.,
+                    "pos_error_m": self._reach_accuracy_acc[(cohort, clip, "pos_err")] / denom if enough else 0.,
+                }
+                for name, value in values.items():
+                    key = f"reach_{cohort}_{name}_{side}"
+                    if key not in self.metrics:
+                        self.metrics[key] = torch.zeros(self.num_envs, device=self.device)
+                    self.metrics[key][:] = value
+                rates.append(rate)
+                valid.append(enough)
+            for name, value in (("pos_pass", sum(rates) / 2 if all(valid) else 0.),
+                                ("valid", float(all(valid)))):
+                key = f"reach_balanced_{name}_{side}"
+                if key not in self.metrics:
+                    self.metrics[key] = torch.zeros(self.num_envs, device=self.device)
+                self.metrics[key][:] = value
+
+    def _update_build_ability_curriculum(self) -> None:
+        """Admit mocap corruption without changing swing release or replay.
+
+        Legacy mode latches the two-side strike gate. Four-stroke quality mode
+        also requires fresh physical motion/HOLD/Home evidence throughout the
+        ramp; failed evidence pauses qualified time even after first admission.
         """
 
         if not self._ability_curriculum_enabled:
@@ -9207,7 +9564,11 @@ class RacketTargetCommand(CommandTerm):
             and post_fall <= float(self.cfg.ability_max_post_fall)
         )
 
-        if not self._ability_unlocked:
+        quality_mode = self._ability_curriculum_mode == "four_stroke_quality_v1"
+        if quality_mode:
+            from whole_body_tracking.utils.motion_quality_curriculum import advance
+            gate_condition = advance(self, gate_condition)
+        elif not self._ability_unlocked:
             self._ability_gate_dwell = (
                 self._ability_gate_dwell + 1 if gate_condition else 0
             )
@@ -9220,7 +9581,9 @@ class RacketTargetCommand(CommandTerm):
                 )
                 self._base_mocap_residual_needs_sample.fill_(True)
 
-        if self._ability_unlocked:
+        if quality_mode:
+            pass  # advance() owns qualified time, including pauses after unlock.
+        elif self._ability_unlocked:
             if self._ability_unlock_step < 0:
                 self._ability_unlock_step = int(
                     getattr(self._env, "common_step_counter", 0)
@@ -9902,6 +10265,8 @@ class RacketTargetCommand(CommandTerm):
             clip_keys=tuple(self._clip_names),
             venue_selected=self._venue_tuple_selected,
             cohort_names=tuple(self._cohort_names),
+            reach_wide_selected=(self._question_wide_selected
+                if getattr(self.cfg, "venue_tuple_robust_sampling", False) else None),
         )
         self._exact_n_acc = decay * self._exact_n_acc + _statistics[("global", "n")]
         self._exact_pass_comp_acc = decay * self._exact_pass_comp_acc + _statistics[("global", "comp")]
@@ -10149,6 +10514,8 @@ class RacketTargetCommand(CommandTerm):
                     self._ach_fill[_c] = min(self._ach_fill[_c] + _m, _size)
             for _c, _cn in self._clip_names.items():
                 self.metrics[f"achieved_buffer_fill_{_cn}"][:] = float(self._ach_fill[_c])
+        if getattr(self.cfg, "venue_tuple_robust_sampling", False):
+            self._update_reach_accuracy(_statistics, decay)
         # Per-axis position error AT the exact strike frame (which axis is the miss?). The position-only
         # strike_success_exact was dropped — strike_pos_pass_exact above is the same signal, undiluted.
         _axis_err_exact = torch.abs(self.racket_pos_w - self.racket_target_pos_w)
@@ -10216,7 +10583,11 @@ class RacketTargetCommand(CommandTerm):
             self.metrics["adaptive_sigma_pos"][:] = self._adaptive_sigma_pos
             self.metrics["adaptive_sigma_vel"][:] = self._adaptive_sigma_vel
             self.metrics["adaptive_sigma_normal"][:] = self._adaptive_sigma_normal
-        self.metrics["position_sigma_current"][:] = self._adaptive_sigma_pos
+        # With adaptation disabled the YAML can override the live std (e.g.
+        # stationary v4 uses .22), while the unused adaptive state stays .20.
+        self.metrics["position_sigma_current"][:] = float(
+            self._env.reward_manager.get_term_cfg("racket_position").params["std"]
+        )
         # REVERSIBLE PRECISION/STABILITY CURRICULUM (2026-07-24): a normal-only one-way latch
         # enabled velocity weight 24 at iteration 147, long before position or recovery was learned.
         # Require BOTH clips to clear normal + exact-position gates, and require aggregate post-fall
@@ -10511,6 +10882,8 @@ class RacketTargetCommand(CommandTerm):
                 max_tilt = float(
                     getattr(self.cfg, "post_strike_capture_max_tilt", 1.0)
                 )
+                capture_ids = []
+                capture_phases = []
                 for phase_index, delay in enumerate(capture_delays):
                     crossed = (
                         (self.time_to_strike <= -delay)
@@ -10519,15 +10892,18 @@ class RacketTargetCommand(CommandTerm):
                     eligible = crossed & (self.proj_grav_xy <= max_tilt)
                     ids = torch.where(eligible)[0]
                     if len(ids) > 0:
-                        motion._capture_post_swing_states(
-                            ids,
-                            phase_bin=phase_index,
-                            source_clip_ids=motion.clip_id[ids].clone(),
-                        )
+                        capture_ids.append(ids)
+                        capture_phases.append(torch.full_like(ids, phase_index))
                     self.metrics[
                         f"post_strike_hot_capture_phase_{phase_index}"
                     ] = eligible.float()
                     any_eligible |= eligible
+                if capture_ids:
+                    ids = torch.cat(capture_ids)
+                    motion._capture_post_swing_states(
+                        ids, phase_bin=torch.cat(capture_phases),
+                        source_clip_ids=motion.clip_id[ids].clone(),
+                    )
                 self.metrics["post_strike_hot_capture"] = any_eligible.float()
             self._capture_post_strike_risk_edges(motion)
         elif capture_delay > 0.0:
@@ -10630,7 +11006,8 @@ class RacketTargetCommand(CommandTerm):
         the deploy-parity mode (legacy task name: `real_sensor_only`) replaces it with
         :meth:`racket_target_pos_b_rel`.
         """
-        return quat_rotate_inverse(yaw_quat(self.base_quat_w), self.racket_target_pos_w - self.base_pos_w)
+        from whole_body_tracking.utils.four_stroke import idle_target
+        return quat_rotate_inverse(yaw_quat(self.base_quat_w), idle_target(self, self.racket_target_pos_w) - self.base_pos_w)
 
     def racket_target_pos_b_rel(self) -> torch.Tensor:
         """Desired racket position relative to the CURRENT racket (FK), in the yaw-heading frame.
@@ -10656,16 +11033,20 @@ class RacketTargetCommand(CommandTerm):
         """ACTOR-visible desired racket position (world): the A1 delayed/jittered view when target
         latency/jitter is enabled, else the live tensor itself (zero-overhead alias). Rewards,
         metrics, and the privileged critic keep reading the TRUE live ``racket_target_pos_w``."""
-        return self.delayed_racket_target_pos_w
+        from whole_body_tracking.utils.four_stroke import idle_target
+        return idle_target(self, self.delayed_racket_target_pos_w)
 
     def actor_racket_target_vel_w(self) -> torch.Tensor:
         """ACTOR-visible desired racket velocity (world). See :meth:`actor_racket_target_pos_w`."""
-        return self.delayed_racket_target_vel_w
+        from whole_body_tracking.utils.four_stroke import idle_target
+        return idle_target(self, self.delayed_racket_target_vel_w, velocity=True)
 
     def actor_swing_sign(self) -> torch.Tensor:
         """ACTOR-visible swing sign (forehand +1 / backhand -1), delayed with the target when A1
         latency is on (the swing-type flag rides the same planner->runner message as the target)."""
-        return self.delayed_swing_sign
+        from whole_body_tracking.utils.four_stroke import waiting_for_first_ball
+        waiting = waiting_for_first_ball(self)
+        return self.delayed_swing_sign if waiting is None else torch.where(waiting, 1., self.delayed_swing_sign)
 
     def base_target_pos_b(self) -> torch.Tensor:
         """Desired base XY position relative to the current base (yaw-heading frame). HITTER actor obs."""
@@ -11166,9 +11547,21 @@ class RacketTargetCommandCfg(CommandTermCfg):
     base_mocap_burst_long_duration_s: tuple[float, float] = (0.10, 0.30)
     base_mocap_velocity_ema_alpha: float = 0.25
     base_mocap_max_age_s: float = 0.20
+    # Separate sensor validity from artificial episode termination. None keeps
+    # the legacy max-age termination; finite grace allows outage recovery.
+    base_mocap_episode_timeout_s: float | None = None
+    # Correlated Wi-Fi stalls, separate from nominal sensor noise/latency.
+    # Active fraction is a pressure-test assumption, not a packet percentile.
+    base_mocap_stress_enabled: bool = False
+    base_mocap_stress_active_fraction: float = 0.07
+    base_mocap_stress_duration_s: tuple[float, float] = (0.20, 0.20)
+    base_mocap_stress_long_prob: float = 0.01
+    base_mocap_stress_long_duration_s: tuple[float, float] = (1.0, 1.0)
+    base_mocap_stress_start_steps: int = 448000
+    base_mocap_stress_ramp_steps: int = 128000
     base_mocap_max_propagation_s: float = 0.0
-    # Build-only one-way mocap-corruption gate. It does not alter V14 rewards, swing release,
-    # post-swing capture, or replay sampling.
+    # Mocap progression only: legacy latch or continuously qualified four-stroke
+    # evidence. Neither mode changes swing release, capture or replay sampling.
     ability_curriculum_mode: str = "disabled"
     ability_min_exact_samples_per_side: float = 50.0
     ability_min_completion_per_side: float = 0.55
@@ -11176,6 +11569,11 @@ class RacketTargetCommandCfg(CommandTermCfg):
     ability_min_composite: float = 0.03
     ability_max_post_fall: float = 0.10
     ability_gate_dwell_steps: int = 250
+    ability_min_family_quality: float = 0.50
+    ability_min_hold_quality: float = 0.25
+    ability_min_home_quality: float = 0.50
+    ability_quality_min_samples: int = 4096
+    ability_quality_max_age_steps: int = 250
     base_mocap_robustness_ramp_steps: int = 8000
 
     # --- V15 HUGWBC lower-body command -------------------------------------------------------
@@ -11432,11 +11830,25 @@ class RacketTargetCommandCfg(CommandTermCfg):
     # probability, independent of every performance/curriculum signal. Private recipes may pin
     # its digest; the public recipe relies on the schema and numerical checks above.
     venue_tuple_mix_mode: str = "recovery_scaled_online_v1"
+    venue_tuple_joint_clock: bool = False
+    venue_tuple_stress_probability: float = 0.25
+    # Within nominal draws only. Zero keeps the original sampler unchanged.
+    venue_tuple_original_nominal_probability: float = 0.0
     venue_tuple_bank_path: str = ""
     venue_tuple_bank_sha256: str = ""
     venue_tuple_bank_receipt_path: str = ""
     venue_tuple_bank_receipt_sha256: str = ""
     venue_tuple_bank_schema_version: int = 0
+    venue_tuple_bank_recipe_revision: int = 12
+    venue_tuple_limit_reset_travel: bool = False
+    venue_tuple_bank_curriculum_steps: int = 0
+    venue_tuple_robust_sampling: bool = False
+    # Stationary rally: every bank row commands the session anchor (station_xy == 0)
+    # and the lateral ball variety is absorbed by arm/torso reach, never by a step.
+    venue_tuple_fixed_station: bool = False
+    venue_tuple_wide_start_steps: int = 160000
+    venue_tuple_wide_ramp_steps: int = 256000
+    venue_tuple_wide_final_probability: float = 0.5
     venue_tuple_bank_min_rows_per_side: int = 0
     venue_tuple_unconditional_outcomes: bool = False
     venue_tuple_speed_limit_mps: float = 3.5

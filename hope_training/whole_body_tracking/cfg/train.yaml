@@ -7,8 +7,8 @@
 # Override any field on the CLI, e.g.:
 #   python scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1
 #
-# There is a single task config (HOPEPingPong) and a single algo (ppo). Tune training by editing
-# cfg/task/HOPEPingPong.yaml (env / reward / racket / DR) and cfg/algo/ppo.yaml (PPO).
+# Defaults retain HOPEPingPong + ppo. For the PPQ004 stationary recipe select
+# task=HOPEPingPongStationaryRally algo=ppo_balanced_hold.
 # =============================================================================
 
 defaults:

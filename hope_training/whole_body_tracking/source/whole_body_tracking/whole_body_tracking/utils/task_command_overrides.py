@@ -59,3 +59,14 @@ def apply_command_overrides(env_cfg, task, applied):
                 value = _tuple_value(value)
             setattr(destination, attr, value)
             applied.append(f"{block}.{attr} = {value}")
+    # A task-specific actual HOLD pose also owns stand resets and affine action
+    # zero. Exporter records this new offset; legacy tasks keep their defaults.
+    motion = env_cfg.commands.motion
+    if (getattr(motion, "hold_reference_path", None)
+            and getattr(motion, "hold_reference_sets_action_default", True)):
+        from .task_pose_reference import load_reference
+        pose = load_reference(motion.hold_reference_path, motion.hold_reference_sha256)
+        env_cfg.scene.robot.init_state.joint_pos = dict(zip(pose["joint_order"], pose["actual_q_reference_rad"]))
+        env_cfg.scene.robot.init_state.pos = tuple(pose["base_reference_qpos"][:3])
+        env_cfg.scene.robot.init_state.rot = tuple(pose["base_reference_qpos"][3:7])
+        applied.append(f"stand/action zero = {pose['candidate_key']}")

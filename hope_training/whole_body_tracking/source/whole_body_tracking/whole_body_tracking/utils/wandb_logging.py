@@ -27,7 +27,7 @@ _HITTER_STANDARD_PREFIXES = (
 )
 
 _HITTER_EPISODE_REWARDS = {
-    "full_body_hold", "full_body_quiet",
+    "full_body_hold", "full_body_quiet", "full_body_imitation",
     "actual_joint_limit",
     "actual_task_pose",
     "actual_ready_legs", "station_recovery", "loaded_ankle_quiet",
@@ -56,6 +56,11 @@ _HITTER_EPISODE_REWARDS = {
     "post_swing_base_quiet",
     "post_swing_leg_quiet",
     "settle_foot_slip",
+    "foot_friction_cone",
+    "pre_strike_tilt",
+    "base_ang_vel_xy_rally",
+    "upright",
+    "dynamic_support",
     "rally_ready_root_height_debt",
     "post_swing_tilt_debt",
 }
@@ -92,6 +97,9 @@ _HITTER_MOTION_METRICS = {
 }
 
 _HITTER_RACKET_METRICS = {
+    "loaded_foot_slip_speed", "loaded_foot_twist_rate", "loaded_foot_motion_debt",
+    "foot_friction_ratio", "foot_friction_cone_debt",
+    "question_stress_cohort", "question_initial_tts_s",
     "ready_posture_active",
     "ready_posture_scale",
     "ready_posture_torso_roll_abs_deg",
@@ -132,6 +140,13 @@ _HITTER_RACKET_METRICS = {
     "base_mocap_delay_steps_in_effect",
     "base_mocap_orientation_error_rad",
     "base_mocap_velocity_error",
+    "base_mocap_stress_scale",
+    "base_mocap_stress_active",
+    "base_mocap_stress_started",
+    "question_wide_scale",
+    "question_wide_requested",
+    "question_wide_selected",
+    "question_budget_fallback",
     # Fixed startup plant cohort, republished after resets.
     "pd_nominal_env",
     "pd_kp_multiplier_mean",
@@ -206,7 +221,23 @@ _HITTER_QDES_INSTRUMENTATION = {
 _HITTER_RACKET_METRICS.update({f"ready_state_{name}" for name in (
     "gate", "curriculum_scale", "knee_error_rad", "height_error_m", "legs_debt",
     "station_error_m", "station_debt", "ankle_velocity_rms_rad_s", "ankle_quiet_gate", "ankle_quiet_debt")})
+_HITTER_RACKET_METRICS.update({f"reach_{cohort}_{metric}_{side}"
+    for cohort in ("core", "wide") for side in ("forehand", "backhand")
+    for metric in ("sample_count", "valid", "pos_pass", "pos_error_m")})
+_HITTER_RACKET_METRICS.update({f"reach_balanced_{metric}_{side}"
+    for side in ("forehand", "backhand") for metric in ("pos_pass", "valid")})
 _HITTER_RACKET_METRICS.update({"task_pose_curriculum_scale", "task_pose_debt", "task_pose_phase_gate"})
+_HITTER_RACKET_METRICS.update({"imitation_step_weight", "imitation_torso_rp_error_rad", "imitation_score"})
+_HITTER_RACKET_METRICS.update({"four_stroke_id", "four_stroke_active", "four_stroke_complete", "four_stroke_foot_height_error_m",
+                                "four_stroke_foot_yaw_error_rad"})
+_HITTER_RACKET_METRICS.update({f"stroke_{family}_{metric}"
+    for family in ("stand_forehand", "stand_backhand", "step_forehand", "step_backhand")
+    for metric in ("fraction", "fixed_station_foot_reference_error_m", "four_stroke_foot_height_error_m",
+                   "four_stroke_foot_yaw_error_rad", "imitation_left_leg_rms_rad",
+                   "imitation_right_leg_rms_rad", "imitation_torso_rp_error_rad")})
+_HITTER_RACKET_METRICS.update({f"imitation_{group}_{metric}"
+    for group in ("left_leg", "right_leg", "waist", "left_arm", "right_arm")
+    for metric in ("rms_rad", "score")})
 _HITTER_RACKET_METRICS.update({"full_body_"+name for name in (
     "gate", "phase", "reference_applicable", "curriculum", "cost", "max_joint_error_rad", "width_error_m", "height_error_m",
     "hand_height_error_max_m", "foot_angle_error_max_rad", "torso_error_max_rad", "quiet_gate",
@@ -219,6 +250,14 @@ for _phase in ("hold", "strike", "recover"):
     if _phase != "strike":
         _HITTER_RACKET_METRICS.update({f"full_body_{_phase}_{group}_error_rms_rad"
             for group in ("left_leg", "right_leg", "waist", "left_arm", "right_arm")})
+_HITTER_RACKET_METRICS.update({"complete_hold_"+name for name in (
+    "applicable", "ready", "dwell_s", "settled", "worst_ratio", "score",
+    "ready_fraction", "settled_fraction",
+)})
+_HITTER_RACKET_METRICS.update({"complete_hold_"+name+"_ratio" for name in (
+    "joints", "waist_pitch", "torso", "feet", "width", "height", "hands",
+    "station", "speed", "heading", "tilt", "joint_speed", "support",
+)})
 _HITTER_RACKET_METRICS.update({f"actual_limit_{name}" for name in (
     "debt", "phase_multiplier", "min_clearance_rad", "near_joint_count", "hard_exceedance_rad",
     "waist_min_clearance_rad", "waist_near", "waist_pitch_lower_clearance_rad",
