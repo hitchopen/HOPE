@@ -11,6 +11,18 @@ LEGACY_MODELS = {'model14600', 'model11999', 'model12600'}
 MODELS = LEGACY_MODELS | {'model17400'}
 MOCAP_MODELS = MODELS - {'model14600'}
 
+def catalog_installed(root):
+    try:
+        (root / 'catalog.json').stat()
+    except FileNotFoundError:
+        # A surviving selection (including a broken symlink) means a damaged
+        # installation, not an explicit legacy installation without a catalog.
+        if (root.is_symlink() or (root / 'catalog.json').is_symlink()
+                or (root / 'selected.json').exists() or (root / 'selected.json').is_symlink()):
+            raise ValueError('policy catalog missing; restore the catalog before START')
+        return False
+    return True
+
 def inspect(root, model=None):
     catalog = json.loads((root / 'catalog.json').read_text())
     if catalog.get('version') != 1 or not LEGACY_MODELS <= set(catalog['models']) <= MODELS:
@@ -40,7 +52,8 @@ def require_stopped():
 
 def handle(root, request):
     op = request.get('op')
-    if op == 'read_policy_model': return inspect(root)
+    if op == 'read_policy_model':
+        return inspect(root) if catalog_installed(root) else {'catalog_installed': False, 'model': None}
     if op == 'verify_policy_model':
         result = inspect(root)
         if result['model'] != request.get('model'): raise ValueError('selected policy differs across endpoints')
@@ -56,6 +69,9 @@ def handle(root, request):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True);p.add_argument('--field',choices=['deployment','planner_profile']);a=p.parse_args()
     try:
+        if a.field == 'deployment' and not catalog_installed(a.root):
+            print('NONE')
+            return 0
         result = inspect(a.root) if a.field else handle(a.root,json.load(sys.stdin))
         print(result[a.field] if a.field else json.dumps(result))
     except (OSError,ValueError,KeyError,TypeError) as e:

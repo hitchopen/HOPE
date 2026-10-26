@@ -461,8 +461,18 @@ operator START failed before Runner launch: the helper tried to hash a missing
 legacy serve CSV even though the receive-only receipt disabled serve arguments.
 The fix audits that CSV only when serve arguments are active; five regression
 cases cover receive-only launch and unchanged serve validation. The installed
-helper was checked without starting Runner. A complete managed START after this
-fix and physical qualification remain unverified.
+helper was initially checked without starting Runner. The operator subsequently
+confirmed the START fix was tested successfully on 2026-10-26. Gate3 PASS is not
+an acceptance prerequisite for this PR; the recorded simulation result remains
+unchanged. This startup confirmation is not full physical hitting qualification.
+
+Review fixes keep managed shutdown independent of policy bundle integrity:
+MDU startup validates the selected deployment, while STOP retains its existing
+session/process handling and reports integrity errors after stopping. Every START
+reads and verifies the installed HDU/MDU policy identities and capabilities even
+without a saved UI selection. Legacy startup is retained only when both endpoints
+explicitly report no catalog. Native serve-validator failures retain stderr and
+the structured `SERVE_TIMELINE_INVALID` event.
 
 The PR branch also incorporates HOPE main `b41fffc7`, including merged PR87,
 PR78 and PR80. The combined source passed x86 Runner recompilation/link,

@@ -311,32 +311,66 @@ class FieldOperations:
         with self._lock:
             mode = self._data["mode"]
             csv = self._data["csv"]
-        model = self._data["policy_model"]
-        if model:
-            if model in MOCAP_MODELS and mode == "KERNEL":
-                raise ValueError("this policy requires OptiTrack receive mode")
-            verified = [self.exchange(host, config, {"op":"verify_policy_model", "model":model})
+            saved_model = self._data["policy_model"]
+            ball_model = self._data["ball_model"]
+        installed = []
+        for host in ("hdu", "mdu"):
+            try:
+                selection = self.exchange(host, config, {"op": "read_policy_model"})
+                if not isinstance(selection, dict):
+                    raise ValueError("invalid policy endpoint response")
+                installed.append(selection)
+            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+                raise ValueError(f"{host} policy selection cannot be read; restore the policy catalog/bundle: {exc}") from exc
+        absent = [v.get("catalog_installed") is False and v.get("model") is None for v in installed]
+        model = None
+        receive_only = False
+        required_ball_model = None
+        if any(absent):
+            if not all(absent) or saved_model is not None:
+                raise ValueError("policy catalog missing on an endpoint; restore both catalogs or the legacy selection")
+        else:
+            model = installed[0].get("model")
+            if model not in MODELS or installed[1].get("model") != model:
+                raise ValueError("selected policy differs across HDU and MDU; select the same installed model")
+            if saved_model is not None and saved_model != model:
+                raise ValueError("saved policy differs from installed selections; select the intended model again")
+            verified = [self.exchange(host, config, {"op": "verify_policy_model", "model": model})
                         for host in ("hdu", "mdu")]
             for key in ("model", "policy_sha256", "deploy_sha256"):
-                if verified[0][key] != verified[1][key]: raise ValueError("Runner and Planner policy bundles differ")
-        required_ball_model = None
-        if model == "model17400":
-            if any(v.get("receive_only") is not True or v.get("required_ball_model") != "ppq004" for v in verified):
-                raise ValueError("model17400 bundle capabilities differ across endpoints")
-            required_ball_model = "ppq004"
+                if not verified[0].get(key) or verified[0].get(key) != verified[1].get(key):
+                    raise ValueError("Runner and Planner policy bundles differ")
+            for key in ("receive_only", "required_ball_model"):
+                if verified[0].get(key) != verified[1].get(key):
+                    raise ValueError("policy bundle capabilities differ across endpoints")
+            receive_only = verified[0].get("receive_only") is True
+            required_ball_model = verified[0].get("required_ball_model")
+            if model == "model17400" and (not receive_only or required_ball_model != "ppq004"):
+                raise ValueError("model17400 requires PPQ004 and receive-only bundle capabilities")
+            if required_ball_model is not None and required_ball_model not in PROFILES:
+                raise ValueError("policy bundle requires an unsupported ball model")
+            if mode == "KERNEL" and (model in MOCAP_MODELS or receive_only):
+                raise ValueError("this policy requires OptiTrack receive mode")
+            if receive_only:
+                csv = None  # the installed receive-only bundle never consumes a serve CSV
         if mode != "KERNEL":
             # Also verify an absent selection: an interrupted/uncertain write
             # must not leave an unnoticed one-sided physics override.
-            verified = [self.exchange(host, config, {"op": "verify_ball_model", "model": self._data["ball_model"]})
+            verified = [self.exchange(host, config, {"op": "verify_ball_model", "model": ball_model})
                         for host in ("laptop", "hdu")]
             models = [result.get("configured_model") for result in verified]
             if models[0] is None or models[0] != models[1]:
                 raise ValueError("Planner and packetizer configured ball models do not match")
             if required_ball_model and models[0] != required_ball_model:
-                raise ValueError("model17400 requires PPQ004 on Planner and packetizer")
+                raise ValueError(f"{model} requires {required_ball_model.upper()} on Planner and packetizer")
         digest = "DEFAULT"
         if csv:
             # Recheck existence and bytes before changing any hardware state.
             result = self.exchange("mdu", config, {"op": "verify_csv", "sha256": csv["sha256"]})
             digest = result["sha256"]
+        if model is not None:
+            with self._lock:
+                # Show the verified installed selection even after a state-file migration.
+                self._data["policy_model"] = model
+                self._data["csv"] = csv
         return mode, digest

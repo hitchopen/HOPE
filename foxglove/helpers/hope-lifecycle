@@ -115,9 +115,6 @@ parse_common() {
   MDU_INTERNAL_IP="$4"
   MOTIVE_IP="$5"
   TABLE_SIDE="$6"
-  if [[ -f /agibot/hope-policy-models/catalog.json ]]; then
-    MDU_DEPLOY="$(python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models --field deployment)" || return 1
-  fi
   FIELD_MODE="${7:-OPTITRACK}"
   SERVE_CSV_SHA="${8:-DEFAULT}"
   GRIPPER_PROFILE="${9:-legacy}"
@@ -141,6 +138,25 @@ parse_common() {
   valid_ipv4 "$MDU_INTERNAL_IP" || return 1
   [[ "$MOTIVE_IP" == NONE ]] || valid_ipv4 "$MOTIVE_IP" motive || return 1
   [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
+}
+
+# Only startup depends on the selected bundle. STOP uses existing process/session
+# identities and reports bundle damage separately after shutdown has completed.
+resolve_mdu_deployment() {
+  if [[ -e /agibot/hope-policy-models || -L /agibot/hope-policy-models ]]; then
+    local deployment
+    local -a policy_command=(python3)
+    [[ "${1:-}" != audit ]] || policy_command=(timeout 5 python3)
+    deployment="$("${policy_command[@]}" /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models --field deployment)" || return 1
+    [[ "$deployment" == NONE ]] || MDU_DEPLOY="$deployment"
+  fi
+}
+
+audit_stopped_policy() {
+  if ! resolve_mdu_deployment audit; then
+    printf '%s\n' 'Selected policy integrity check failed; managed shutdown completed independently.' >&2
+    emit POLICY WARNING POLICY_BUNDLE_INVALID
+  fi
 }
 
 require_user() {
@@ -797,8 +813,10 @@ preflight_mdu() {
     set -u
     export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
-  )" || \
-    die PREFLIGHT "SERVE_TIMELINE_INVALID: $validation_output"
+  )" || {
+    printf '%s\n' "$validation_output" >&2
+    die PREFLIGHT SERVE_TIMELINE_INVALID
+  }
   [[ "$validation_output" == *SERVE_STAND_VALID* &&
      "$validation_output" == *SERVE_TIMELINE_VALID* ]] || \
     die PREFLIGHT SERVE_VALIDATOR_UPDATE_REQUIRED
@@ -1521,6 +1539,11 @@ main() {
     exit 64
   }
   case "$action" in
+    preflight-mdu|prepare-mdu|start-hal|start-runner|_run-elink|_run-hal|_run-runner)
+      resolve_mdu_deployment || die PREFLIGHT POLICY_BUNDLE_INVALID
+      ;;
+  esac
+  case "$action" in
     preflight-laptop) preflight_laptop ;;
     preflight-hdu) preflight_hdu ;;
     preflight-mdu) preflight_mdu ;;
@@ -1534,7 +1557,7 @@ main() {
     start-planner) start_planner ;;
     start-hal) start_hal ;;
     start-runner) start_runner ;;
-    stop-mdu) stop_mdu ;;
+    stop-mdu) stop_mdu; audit_stopped_policy ;;
     stop-hdu) stop_hdu ;;
     stop-laptop) stop_laptop ;;
     stop-capture-laptop) stop_laptop_capture ;;
