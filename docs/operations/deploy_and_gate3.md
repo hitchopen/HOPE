@@ -439,20 +439,34 @@ HDU/MDU catalog entries. It does not install or start anything. The Console
 installation requirements are in
 [model17400 receive policy](../../foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy).
 
-Validation on 2026-10-26 used HOPE main `3ad7bae9` plus this adaptation: x86 and
+Initial validation on 2026-10-26 used HOPE main `3ad7bae9` plus this adaptation: x86 and
 ARM64 Runner builds passed; the native HOME/drift probe and model12600 loading
 regression passed; six invalid new-contract mutations were rejected. All 20
 Planner test targets and 69 focused Foxglove tests passed. The wider Foxglove
 suite had two VRPN dispatch-fixture failures also reproduced using unchanged
 main files; 29 ROS-dependent tests were skipped in the host environment.
 
-The 100-ball MuJoCo run completed 100 swings, measured 100 contacts and 99 legal
-landings, with zero conductor falls. **Formal Gate3 remained FAIL.** Final HOME
-Y drift was about 0.12 m; late station error and idle wrist range exceeded the
+The latest independent 100-ball MuJoCo rerun completed 100 swings, measured
+98 raw racket contacts, 97 qualified contacts and 97 legal landings, with zero
+conductor falls. Two trajectories were incomplete across 87 ms telemetry gaps.
+**Formal Gate3 remained FAIL.** Final HOME
+Y drift was about 0.125 m; late station error and idle wrist range exceeded the
 existing limits. The legacy report also still expects a 0.58 m plane and Build1
 HOLD, which do not describe this export. Those report assumptions need a separate
 contract-aware update; thresholds and ball count were not weakened. PPQ004's
 full outgoing Magnus/first-bounce solver parity remains outside this change.
-No ARM executable was run on a robot, and no deployment, restart, serve or robot
-motion was performed. Build success and these simulation results are not
-hardware qualification.
+The ARM Runner passed read-only policy inspection on MDU, and the receive-only
+bundle and Foxglove model option were installed for attended testing. A subsequent
+operator START failed before Runner launch: the helper tried to hash a missing
+legacy serve CSV even though the receive-only receipt disabled serve arguments.
+The fix audits that CSV only when serve arguments are active; five regression
+cases cover receive-only launch and unchanged serve validation. The installed
+helper was checked without starting Runner. A complete managed START after this
+fix and physical qualification remain unverified.
+
+The PR branch also incorporates HOPE main `b41fffc7`, including merged PR87,
+PR78 and PR80. The combined source passed x86 Runner recompilation/link,
+Planner build and all 22 Planner test targets with the ROS/hope_msgs environment
+loaded. It also passed 35 model/lifecycle tests, 26 profile/assets tests, 38
+frontend tests and production Console packaging. The simulation results above predate this main synchronization; they are not an
+acceptance result for the merged revision.
