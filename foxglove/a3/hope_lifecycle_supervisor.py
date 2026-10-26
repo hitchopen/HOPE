@@ -12,6 +12,7 @@ import re
 import subprocess
 import threading
 import time
+import uuid
 
 import rclpy
 from rcl_interfaces.msg import ParameterType, SetParametersResult
@@ -24,6 +25,11 @@ from std_srvs.srv import Trigger
 
 from hope_field_operations import FieldOperations
 from hope_distributed_recording import DistributedRecorder
+from hope_elink_health import ElinkHealthLatch, ProbeError, run_passive_probe
+from hope_elink_fault import PersistentElinkFault
+from hope_elink_clock import ClockQualificationGuard
+from hope_elink_telemetry import ElinkTelemetryTracker, load_telemetry_contract
+from hope_elink_telemetry_ros import ElinkTelemetrySubscriptions
 
 from hope_lifecycle_core import (
     CONFIG_FIELDS,
@@ -79,11 +85,37 @@ class LifecycleFailure(RuntimeError):
     pass
 
 
+def _suspend_elink_telemetry(node):
+    """Suspend diagnostic sampling before an intentional HAL transition."""
+    tracker = getattr(node, "_elink_telemetry", None)
+    if tracker is not None:
+        tracker.unbind_generation()
+
+
 class LifecycleBackend:
     """Execute only checked-in helpers with a validated fixed argument layout."""
 
     def __init__(self, *, run=subprocess.run):
         self._run = run
+
+    def observe_elink(self, config: LifecycleConfig):
+        return run_passive_probe(
+            self._ssh(f"{ROBOT_USER}@{config.mdu_internal_ip}", "python3", "-"),
+            timeout_s=2.0, run=self._run)
+
+    def audit_elink(self, config: LifecycleConfig) -> dict:
+        """Read-only once per START; never hash binaries in a control callback."""
+        result = self._run(self._ssh(
+            f"{ROBOT_USER}@{config.mdu_internal_ip}",
+            "/usr/local/libexec/hope_elink_scheduler.py", "check-hardware",
+            "--lifecycle", LIFECYCLE_HELPER),
+            capture_output=True, text=True, timeout=5, check=False)
+        if result.returncode:
+            raise ValueError("ELINK_TELEMETRY_HARDWARE_AUDIT_UNAVAILABLE")
+        value = json.loads(result.stdout)
+        if not isinstance(value, dict):
+            raise ValueError("ELINK_TELEMETRY_HARDWARE_AUDIT_MALFORMED")
+        return value
 
     @staticmethod
     def _ssh(host: str, *remote: str) -> list[str]:
@@ -130,7 +162,8 @@ class LifecycleBackend:
         return completed.stdout
 
     def start(self, config: LifecycleConfig, session_id: str, event_callback,
-              mode: str = "OPTITRACK", csv_sha: str = "DEFAULT", ball_model: str | None = None) -> None:
+              mode: str = "OPTITRACK", csv_sha: str = "DEFAULT", ball_model: str | None = None,
+              before_mutation=None) -> None:
         validate_session_id(session_id)
         self.ball_model_verification = None
         laptop, laptop_helper = self._laptop(config)
@@ -149,11 +182,11 @@ class LifecycleBackend:
         ]
         commands = (
             ("PREFLIGHT", self._ssh(laptop, laptop_helper, "preflight-laptop", *common), 15.0),
-            # Three vendor StopApp calls may take 35 s each, UI stop 30 s,
-            # followed by a bounded quiet-state check. Keep START blocked
-            # until cleanup completes, before launching Planner/HAL/Runner.
-            ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 180.0),
+            ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 15.0),
             ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common), 15.0),
+            # Explicit mutating boundary: vendor StopApp/UI cleanup is NOT a
+            # read-only preflight. Track it so failures retain cleanup context.
+            ("BACKGROUND", [LIFECYCLE_HELPER, "prepare-background-hdu", *common], 180.0),
             ("SESSION", self._ssh(laptop, laptop_helper, "prepare-laptop", *common), 45.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
             ("SESSION", self._ssh(mdu, LIFECYCLE_HELPER, "prepare-mdu", *common), 15.0),
@@ -182,7 +215,12 @@ class LifecycleBackend:
             commands = tuple(item for item in commands
                              if not (item[1][0] == "/usr/bin/ssh" and laptop in item[1])
                              and item[0] not in {"BASE_RELAY", "PLANNER"})
+        mutation_started = False
         for step, argv, timeout_s in commands:
+            if step != "PREFLIGHT" and not mutation_started:
+                if before_mutation is not None:
+                    before_mutation()
+                mutation_started = True
             event_callback(HelperEvent(step=step, state="STARTING", reason="REQUESTED"))
             self._invoke(
                 list(argv), timeout_s=timeout_s, event_callback=event_callback
@@ -327,6 +365,37 @@ class HopeLifecycleSupervisor(Node):
         self._runner_session_matches = False
         self._runner_session_matches_received = 0.0
         self._hardware_operation_lock = None
+        # Read legacy candidate records for operator evidence only. Never arm,
+        # latch, clear or delete them: they have no lifecycle authority.
+        self._elink_fault = PersistentElinkFault(CONFIG_PATH.parent / "elink_fault.json")
+        self._elink_health = ElinkHealthLatch(stale_after_s=3.0)
+        self._elink_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hope-elink-observe")
+        self._elink_observing = False
+        self._elink_monitor_id = uuid.uuid4().hex
+        self._elink_sequence = 0
+        self._elink_observed_at = None
+        try:
+            self._elink_clock_boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+        except OSError:
+            self._elink_clock_boot_id = ""
+        self._elink_publisher = self.create_publisher(String, "/hope/elink/health", 10)
+        # Trusted local audit configuration, not a browser-editable parameter.
+        # Missing/unreviewed configuration reports diagnostics but never grants
+        # functional readiness. Header progress is not MCU acquisition proof.
+        try:
+            telemetry_contract = load_telemetry_contract(
+                Path("/etc/hope-foxglove/elink_telemetry.json"))
+        except (OSError, ValueError) as exc:
+            telemetry_contract = None
+            self.get_logger().warning(f"ELink telemetry diagnostics unconfigured: {exc}")
+        self._elink_telemetry = ElinkTelemetryTracker(telemetry_contract)
+        self._elink_audit = {}
+        self._elink_clock_qualified = False
+        self._elink_clock_received = None
+        self._elink_clock_guard = ClockQualificationGuard(self._elink_clock_boot_id)
+        self._elink_telemetry_subscriptions = ElinkTelemetrySubscriptions(
+            self, self._elink_telemetry, self._lock)
+        self.create_subscription(String, "/hope/ntp/qualification", self._on_elink_clock, 1)
 
         self._lifecycle_publishers = {
             "state": self.create_publisher(String, "/hope/lifecycle/state", 10),
@@ -386,6 +455,7 @@ class HopeLifecycleSupervisor(Node):
         # Legacy JSON import/export remains an explicit maintenance API; do not
         # poll or adopt an old file into the default asset-based session.
         self.create_timer(0.5, self._publish)
+        self.create_timer(1.0, self._observe_elink)
         self.create_timer(15.0, self._refresh_ball_models)
         if self._config.revision > 0:
             self._field.recorder.stop(wait=False)  # default OFF after supervisor restart
@@ -404,8 +474,12 @@ class HopeLifecycleSupervisor(Node):
             session_id = self._session_id
             busy = self._busy
             result = self._last_result
+            self._elink_sequence += 1
+            elink = self._elink_status_locked(time.monotonic())
+        self._elink_publisher.publish(self._string(json.dumps(elink, sort_keys=True)))
         field_status = self._field.status()
         field_status["busy"] = self._field_busy
+        field_status["elink_observation"] = elink
         field_status["auto_record_on_start"] = os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1"
         field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
                                                      if state == "RUNNING" else None)
@@ -437,6 +511,108 @@ class HopeLifecycleSupervisor(Node):
             "vrpn_ip": config.vrpn_ip, "vrpn_port": config.vrpn_port,
             "vrpn_units": config.vrpn_units,
         }, sort_keys=True)))
+
+    def _elink_status_locked(self, now: float) -> dict:
+        status = self._elink_health.status(now)
+        if self._state != "RUNNING":
+            status.update(state="UNKNOWN", reason="ELINK_SESSION_NOT_RUNNING")
+        telemetry = {"message_fresh": False, "functional_ready": False,
+                     "reason": "ELINK_TELEMETRY_UNAVAILABLE", "valid_until_monotonic_s": None}
+        tracker = getattr(self, "_elink_telemetry", None)
+        if tracker is not None:
+            qualified_at = self._elink_clock_received
+            qualified = (self._elink_clock_qualified and qualified_at is not None
+                         and 0 <= now - qualified_at < 3.0)
+            telemetry = tracker.status(now, time.time_ns(), qualified)
+            expiry = telemetry["valid_until_monotonic_s"]
+            if expiry is not None and qualified_at is not None:
+                # This expiry is diagnostic only. Publication cannot renew
+                # source evidence, and no motion admission consumes it.
+                telemetry = dict(telemetry, valid_until_monotonic_s=min(expiry, qualified_at + 3.0))
+        status["functional_ready"] = bool(status["state"] == "OBSERVED"
+                                          and telemetry["functional_ready"])
+        return dict(status, schema_version=2, session_id=self._session_id,
+                    admission_enforced=False,
+                    historical_fault_reason=getattr(getattr(self, "_elink_fault", None), "reason", ""),
+                    monitor_id=self._elink_monitor_id, sequence=self._elink_sequence,
+                    observed_monotonic_s=self._elink_observed_at,
+                    clock_boot_id=self._elink_clock_boot_id,
+                    message_fresh=telemetry["message_fresh"],
+                    telemetry_reason=telemetry["reason"],
+                    telemetry_valid_until_s=telemetry["valid_until_monotonic_s"],
+                    telemetry=telemetry)
+
+    def _bind_elink_telemetry_locked(self, snapshot, now: float) -> None:
+        tracker = getattr(self, "_elink_telemetry", None)
+        if tracker is None or len(snapshot.transfer) != 1 or len(snapshot.hal) != 1:
+            return
+        audit = self._elink_audit
+        if not isinstance(audit, dict):
+            audit = {}
+        hashes = audit.get("binary_sha256", {})
+        if not isinstance(hashes, dict):
+            hashes = {}
+        profile = audit.get("hardware_profile", "")
+        library_hash = hashes.get("/opt/agibot/bin/libhal_elink_pkg.so", "")
+        try:
+            tracker.bind_generation(
+                self._session_id, snapshot.transfer[0], snapshot.hal[0], now=now,
+                wall_ns=time.time_ns(), hardware_profile=profile if isinstance(profile, str) else "",
+                hal_library_sha256=library_hash if isinstance(library_hash, str) else "")
+        except (ValueError, TypeError, OSError) as exc:
+            # Invalid optional identity/time evidence cannot veto START or
+            # terminate the runtime observer. Keep readiness unavailable.
+            tracker.unbind_generation()
+            self.get_logger().warning(f"ELink telemetry binding unavailable; diagnostics only: {exc}")
+
+    def _on_elink_clock(self, message: String) -> None:
+        with self._lock:
+            now = time.monotonic()
+            self._elink_clock_guard.update(message.data, now)
+            self._elink_clock_qualified, self._elink_clock_received = self._elink_clock_guard.status(now)
+
+    def _observe_elink(self) -> None:
+        with self._lock:
+            if self._state != "RUNNING" or self._busy or self._elink_observing:
+                return
+            self._elink_observing = True
+            config, session_id = self._config, self._session_id
+        try:
+            self._elink_pool.submit(self._run_elink_observation, config, session_id)
+        except RuntimeError:
+            with self._lock:
+                self._elink_observing = False
+                self._elink_health.unavailable("ELINK_OBSERVER_UNAVAILABLE", time.monotonic())
+
+    def _run_elink_observation(self, config: LifecycleConfig, session_id: str) -> None:
+        started = time.monotonic()
+        snapshot, error = None, None
+        try:
+            snapshot = self._backend.observe_elink(config)
+        except (ProbeError, OSError, ValueError) as exc:
+            error = str(exc) or "ELINK_OBSERVATION_UNAVAILABLE"
+        finally:
+            with self._lock:
+                self._elink_observing = False
+                # A delayed worker from a prior session or STOP cannot revive it.
+                if self._state != "RUNNING" or self._session_id != session_id:
+                    return
+                self._elink_sequence += 1
+                self._elink_observed_at = started
+                # Runtime monitoring is observational. Re-evaluate the latest
+                # snapshot instead of retaining a process-lifetime fault after
+                # recovery. Identity changes are exposed by the generation ID,
+                # not treated as proof that ELink is still broken.
+                self._elink_health = ElinkHealthLatch(stale_after_s=3.0)
+                if snapshot is None:
+                    self._elink_health.unavailable(error or "ELINK_OBSERVATION_FAILED", started)
+                else:
+                    self._elink_health.observe(snapshot, started)
+                status = self._elink_health.status(time.monotonic())
+                if status["state"] == "OBSERVED":
+                    self._bind_elink_telemetry_locked(snapshot, started)
+                # Never stop, restart, latch an admission fault, or alter the
+                # lifecycle mode from this diagnostic callback.
 
     def _refresh_ball_models(self) -> None:
         with self._lock:
@@ -682,8 +858,17 @@ class HopeLifecycleSupervisor(Node):
     def _run_start(self, config: LifecycleConfig, session_id: str,
                    cleanup_session: str | None = None, cleanup_mode: str = "OPTITRACK") -> None:
         recovering = cleanup_session is not None
+        mutation_started = False
+
+        def before_mutation():
+            nonlocal mutation_started
+            with self._lock:
+                _suspend_elink_telemetry(self)
+                mutation_started = True
+
         try:
             if recovering:
+                before_mutation()
                 self._field.recorder.stop(wait=False)
                 self._backend.kill_all_and_collect(
                     config, cleanup_session, self._on_event, cleanup_mode)
@@ -693,18 +878,54 @@ class HopeLifecycleSupervisor(Node):
                 self._state = "STARTING"
                 self._session_id = session_id
                 self._step = "PREFLIGHT"
+                self._elink_audit = {}
             mode, csv_sha = self._field.runner_selection(config)
             self._session_mode = mode
             self._backend.start(config, session_id, self._on_event, mode, csv_sha,
-                                ball_model=self._field.status().get("ball_model"))
+                                ball_model=self._field.status().get("ball_model"),
+                                before_mutation=before_mutation)
             self._wait_for_authoritative_runner()
+            if hasattr(self, "_elink_health"):
+                # Every probe has its own 2 s deadline; three attempts plus
+                # two 250 ms gaps bound initial UNKNOWN settling to <=6.5 s.
+                # A definite observed fault is never retried away.
+                for attempt in range(3):
+                    started = time.monotonic()
+                    candidate = ElinkHealthLatch(stale_after_s=3.0)
+                    try:
+                        snapshot = self._backend.observe_elink(config)
+                        candidate.observe(snapshot, started)
+                    except (ProbeError, OSError, ValueError) as exc:
+                        candidate.unavailable(str(exc) or "ELINK_OBSERVATION_UNAVAILABLE", started)
+                    status = candidate.status(time.monotonic())
+                    if status["state"] == "FAULT":
+                        raise LifecycleFailure("ELINK_START_PROCESS_FAULT: " + status["reason"])
+                    if status["state"] == "OBSERVED":
+                        break
+                    if attempt < 2:
+                        time.sleep(0.25)
+                else:
+                    raise LifecycleFailure("ELINK_START_OBSERVATION_UNAVAILABLE: " + status["reason"])
+                try:
+                    audit = self._backend.audit_elink(config)
+                    if not isinstance(audit, dict):
+                        audit = {}
+                except (OSError, ValueError, subprocess.SubprocessError) as exc:
+                    audit = {}
+                    self.get_logger().warning(f"ELink telemetry audit unavailable; diagnostics only: {exc}")
+                with self._lock:
+                    self._elink_audit = audit
+                    self._elink_health = candidate
+                    self._elink_observed_at = started
+                    self._elink_sequence += 1
+                    self._bind_elink_telemetry_locked(snapshot, time.monotonic())
         except (LifecycleFailure, OSError, ValueError, subprocess.TimeoutExpired) as exc:
             self.get_logger().error(
                 f"Lifecycle start failed for {session_id}: {exc}"
             )
             with self._lock:
                 managed_recovery = "MANAGED_" in str(exc)
-                if self._step == "PREFLIGHT" and not managed_recovery and not recovering:
+                if not mutation_started and not managed_recovery and not recovering:
                     self._state = "STOPPED"
                     self._session_id = ""
                     self._last_result = f"PREFLIGHT_REJECTED: {(str(exc).strip().splitlines() or [type(exc).__name__])[-1][-300:]}"
@@ -787,8 +1008,10 @@ class HopeLifecycleSupervisor(Node):
         return response
 
     def _run_kill(self, config: LifecycleConfig, session_id: str) -> None:
-        self._field.recorder.stop(wait=False)
         try:
+            with self._lock:
+                _suspend_elink_telemetry(self)
+            self._field.recorder.stop(wait=False)
             collection_reason = self._backend.kill_all_and_collect(
                 config, session_id, self._on_event, self._session_mode
             )
@@ -828,6 +1051,8 @@ class HopeLifecycleSupervisor(Node):
             release_hardware_operation_lock(self._hardware_operation_lock)
             self._hardware_operation_lock = None
         self._field_pool.shutdown(wait=True, cancel_futures=True)
+        self._elink_pool.shutdown(wait=True, cancel_futures=True)
+        self._elink_telemetry_subscriptions.close()
         self._field.recorder.stop()
         self._pool.shutdown(wait=False, cancel_futures=True)
 

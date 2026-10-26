@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "contract_id": "UNVERIFIED-DIAGNOSTIC-EXAMPLE",
+  "audited": false,
+  "hardware_profile": "",
+  "hal_library_sha256": "",
+  "channels": {
+    "left_hand": {
+      "required": true,
+      "topic": "/body_drive/hand_joint_state/pb_3Aaimdk_2Eprotocol_2EHandStateChannel",
+      "publisher_node": "",
+      "stale_after_s": 1.0,
+      "max_source_age_s": 1.0,
+      "future_tolerance_s": 0.05,
+      "expected_variant": "",
+      "acquisition_evidence": "",
+      "fault_semantics_evidence": "",
+      "not_required_reason": ""
+    },
+    "right_hand": {
+      "required": true,
+      "topic": "/body_drive/hand_joint_state/pb_3Aaimdk_2Eprotocol_2EHandStateChannel",
+      "publisher_node": "",
+      "stale_after_s": 1.0,
+      "max_source_age_s": 1.0,
+      "future_tolerance_s": 0.05,
+      "expected_variant": "",
+      "acquisition_evidence": "",
+      "fault_semantics_evidence": "",
+      "not_required_reason": ""
+    },
+    "bms": {
+      "required": true,
+      "topic": "/aima/bms/data/pb_3Aaimdk_2Eprotocol_2EBmsStateChannel",
+      "publisher_node": "",
+      "stale_after_s": 1.0,
+      "max_source_age_s": 1.0,
+      "future_tolerance_s": 0.05,
+      "expected_variant": "",
+      "acquisition_evidence": "",
+      "fault_semantics_evidence": "",
+      "not_required_reason": ""
+    },
+    "emergency": {
+      "required": true,
+      "topic": "/hal_state/emergency/pb_3Aaimdk_2Eprotocol_2EEmergencyStateChannel",
+      "publisher_node": "",
+      "stale_after_s": 1.0,
+      "max_source_age_s": 1.0,
+      "future_tolerance_s": 0.05,
+      "expected_variant": "",
+      "acquisition_evidence": "",
+      "fault_semantics_evidence": "",
+      "not_required_reason": ""
+    }
+  }
+}

@@ -1,6 +1,8 @@
 # Foxglove Runner local Runner control contract
 
-Status: implementation contract for the first single-robot control slice.
+This document defines the robot-local Runner schema-2 control contract.
+Startup ELink checks are separate from diagnostic-only runtime observations.
+Local tests do not constitute production deployment or hardware safety acceptance.
 
 This interface controls only the Runner on our robot. It neither connects to
 nor controls the opponent robot. The Runner remains the sole authority for its
@@ -21,6 +23,33 @@ The derivation is `SERVER -> RECEIVER`, `RECEIVER -> SERVER`, and
 `UNASSIGNED -> UNKNOWN`. No claim about the opponent Runner's real state is
 made.
 
+## ELink observations and terminal serve recovery
+
+ELink runtime health is diagnostic-only. The command proxy, keyboard, native
+Runner and Planner do not require telemetry contracts, clock qualification or
+an ELink lease to execute normal actions. Existing Runner role, mode,
+command-fault, joint-limit and phase-aware recovery checks remain authoritative.
+Standalone, simulation, periodic swings and same-flight target streaming retain
+their existing behavior. Managed startup still uses its existing PASSIVE mode.
+
+Managed startup separately checks passive process/listener state and known
+current-session failure logs; a failed startup check is retryable. Runtime
+diagnostic failures do not change modes or create permanent motion lockouts.
+See [ELink startup checks and runtime diagnostics](foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics)
+for commissioning, BMS diagnostics and the limits of this mitigation.
+
+Terminal serve FAULT/ABORTED recovery is separate from normal COMPLETE handoff.
+An operator Stand request in a terminal serve state reports
+`SERVE_RECOVERY_PENDING` (reason 34); it does not bypass sample validation on
+the action worker. The command thread accepts PD_STAND recovery only after the
+serve controller validates the current sample, preserving the existing entry
+blend (default 0.5 seconds) and the controller's fault record. Persistent invalid
+samples cannot advance recovery, a concurrent PASSIVE request is not undone,
+and recovery never resumes MOTION. Transition results are checked and terminal
+events are edge-reported rather than logged on every control tick. This does
+not add an ELink or command-fault veto to the existing Stand recovery action.
+Command continuity tests are not hardware qualification of the recovery posture.
+
 ## Internal transport
 
 The browser cannot publish either internal topic. The HDU command proxy and
@@ -30,14 +59,14 @@ existing AimRT ROS 2 backend:
 - request: `/hope/runner/control_request_flat`;
 - state: `/hope/runner/state_flat`.
 
-Request schema 1 contains exactly four doubles:
+Request schema 2 contains exactly four doubles:
 
 ```text
-[schema=1, request_id, action_code, reserved=0]
+[schema=2, request_id, action_code, reserved=0]
 ```
 
-The seven externally accepted action codes are (wire code 6 remains the
-keyboard-only `ENTER_SHADOW` and is rejected on remote requests):
+The current proxy action codes are (wire code 6 remains keyboard-only
+`ENTER_SHADOW`; code 11 is a retired loading-zone confirmation):
 
 | Code | Action |
 |---:|---|
@@ -46,17 +75,21 @@ keyboard-only `ENTER_SHADOW` and is rejected on remote requests):
 | 3 | `ENTER_PD_STAND` |
 | 4 | `ENTER_MOTION` |
 | 5 | `EMERGENCY_PASSIVE` |
-| 7 | `READY_TO_SERVE` |
-| 8 | `SERVE` |
+| 7 | `PREPARE_SERVE` |
+| 8 | `CONFIRM_BALL_LOADED` (compatibility action; current gripper workflow may reject it) |
+| 9 | `READY_TO_SERVE` |
+| 10 | `OPEN_GRIPPER` |
+| 12 | `CONFIRM_GRIP_SECURE` |
+| 13 | `ENTER_TELEOP` |
 
-State schema 1 contains exactly 19 doubles:
+State schema 2 contains exactly 21 doubles:
 
 ```text
 schema, boot_id, state_sequence, run_mode,
 command_publishing, policy_native, command_fault_latched,
 local_role, role_epoch, role_change_allowed,
 role_last_result, role_last_reason,
-serve_capability, serve_state,
+serve_capability, serve_state, gripper_state, serve_cleanup_required,
 last_action_id, last_action, last_action_result, last_action_reason,
 session_fingerprint
 ```
@@ -71,7 +104,8 @@ serve phases.
 
 ## Browser-facing services
 
-The separate bridge on port 8766 allowlists only:
+The separate bridge on port 8766 allowlists fixed services; its Runner-related
+actions include:
 
 ```text
 /hope/runner/set_server
@@ -79,9 +113,12 @@ The separate bridge on port 8766 allowlists only:
 /hope/runner/enter_pd_stand
 /hope/runner/enter_motion
 /hope/runner/emergency_passive
+/hope/runner/enter_teleop
+/hope/runner/prepare_serve
+/hope/runner/confirm_ball_loaded
+/hope/runner/confirm_grip_secure
 /hope/runner/ready_to_serve
-/hope/runner/serve
-/hope/calibrate
+/hope/runner/open_gripper
 /hope/refresh_x_hit
 /hope/safety/trigger_estop
 ```
@@ -103,20 +140,21 @@ Planner/HAL, start SERVE, or alter `q_des`.
 
 `ENTER_PD_STAND`, `ENTER_MOTION`, and `EMERGENCY_PASSIVE` share the same Runner
 transition logic as keyboard `s`, `m`, and `p`. If SERVE owns `q_des`, stand
-requests reuse the existing phase-aware abort and return `ACCEPTED_PENDING`;
-motion requests are rejected; emergency passive remains the zero-gain escape.
+requests use only a qualified phase-aware abort and may return
+`ACCEPTED_PENDING`; they are not a blanket stand override. During active serve
+phases motion requests are rejected. Successful serve completion retains the
+existing automatic handoff to MOTION; no extra Continue Receive action is required.
+Emergency passive remains the explicit zero-gain escape, not an automatic
+health-loss response or a safe weight-bearing stop.
 
-`ENTER_MOTION` deliberately retains the current `m` semantics. It adds no role,
-x_hit, Planner READY, localization, or clock gate.
+`ENTER_MOTION` retains the existing role/mode/controller checks, without a new
+ELink gate. It does not itself recompute x_hit or validate a
+future ball prediction.
 
-`READY_TO_SERVE` and `SERVE` reuse the existing two-stage keyboard `v`
-contract. `READY_TO_SERVE` calls `PpServeController::Start()` only when a serve
-controller is loaded, the Runner command fault is clear, no serve is active,
-and arm/leg/ankle gain scales resolve to exactly 1.0. It changes the Runner to
-`SERVE` and begins the existing pre-position sequence. `SERVE` calls
-`ConfirmBallOnPalm()` only when the authoritative controller state is exactly
-`AWAIT_BALL_ON_PALM`; all other phases are rejected. No new trajectory or
-serve state machine is introduced.
+The current gripper workflow uses `PREPARE_SERVE`, `CONFIRM_GRIP_SECURE` and
+`READY_TO_SERVE`; each is checked against authoritative serve/gripper state,
+role, cleanup and gain constraints in `PpRunnerControl`. ELink diagnostics do
+not replace those checks, invent gripper feedback or alter the serve trajectory.
 
 ## Operator workflows
 
@@ -132,9 +170,9 @@ set_receiver -> enter_pd_stand -> operator confirms stable stand
 Server:
 
 ```text
-set_server -> local_role=SERVER -> enter_pd_stand
--> ready_to_serve -> wait until serve_state=AWAIT_BALL_ON_PALM
--> operator places ball on rigid palm -> serve
+set_server -> enter_pd_stand -> prepare_serve
+-> follow authoritative loading/gripper state -> confirm_grip_secure
+-> ready_to_serve
 ```
 
 The role assignment alone does not start a serve and still does not control the
@@ -149,23 +187,16 @@ Emergency paths:
 Runner/HAL process exit remains a lifecycle-supervisor or attended runbook
 operation; there is no remote `quit_runner` service.
 
-## `nightly_built` verification boundary (2026-08-11)
+## Deployment acceptance boundary
 
-- `python3 -m unittest discover -s foxglove/tests -p 'test_*.py'`: 54 tests
-  passed.
-- The x86 Runner and test binary built successfully; all 11
-  `PpRunnerControl` tests passed.
-- The Rockchip build with AimRT and ROS 2 enabled succeeded. The AArch64
-  Runner SHA-256 is
-  `b6d0cb132e97656aad8fcb4e5179cb0b95ab34afca072c42267f368739400418`.
-- On the MDU, that binary started in `--dry-run --start shadow`, registered
-  both fixed Runner topics, received all six body-state inputs, and kept
-  command publishing disabled. The HDU read the authoritative 19-double
-  state over ROS domain 232 and observed SHADOW, `command_publishing=false`,
-  `policy_native=true`, and no command fault.
-- No powered mode/action was tested. A repeated HDU reboot interrupted the
-  earlier five-action request/ack field test, and the two new serve services
-  have only offline state-machine coverage. All seven services still require
-  an attended end-to-end action test. The previous Rockchip binary/hash and
-  MDU dry-run evidence predate the two serve actions and are not evidence for
-  this expanded binary.
+Schema-1/19-double dry-run observations and hashes from earlier binaries do not
+qualify this schema-2/21-double contract. Offline state-machine and command
+continuity tests establish software behavior, not powered recovery safety.
+
+Before accepting a deployed package, verify its exact hash and schema, all
+published action/reason codes, request/ack matching, managed PASSIVE startup,
+and the intended Stand/Serve/Ready workflows. Terminal FAULT/ABORTED recovery
+needs a separately approved attended hardware test with physical support and
+an operator at the E-stop; do not use an unqualified fault-injection test during
+normal competition operation. Do not infer full hardware acceptance from an
+installation smoke test or from this document.

@@ -22,6 +22,16 @@ chrony -> HDU CLOCK_REALTIME
 
 ## 0. Choose the clock-correction mode
 
+For an existing HOPE/Foxglove deployment, use the attended
+[Time Calibration workflow](../../docs/operations/foxglove_lifecycle.md#pre-operation-clock-correction)
+for a pre-operation correction. It coordinates both boards under one hardware
+operation lock, checks stopped consumers again before stepping, and restores
+the detected PTP topology. The `rc.local`-owned ELink transfer remains running;
+calibration neither requires its absence nor restarts its UART/IPC. Runner,
+HAL and managed PTP consumers must still be stopped. Installation and PTP
+ownership changes below are a separate supported/stopped maintenance operation,
+not part of routine START or a fallback for a rejected calibration.
+
 Both modes install and use the same supervised HDU and MDU PTP services. The
 only difference is how chrony initially corrects HDU `CLOCK_REALTIME`.
 

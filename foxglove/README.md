@@ -1,5 +1,11 @@
 # Current Runner workflow
 
+ELink startup checks detect known process/IPC and startup-log failures; runtime
+health observations are diagnostic-only. Missing telemetry audit/decoders, clock
+qualification, or observer updates do not add motion gates. Existing vendor and
+Runner protections remain unchanged. See the
+[operational scope and validation limits](../docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics).
+
 For direct installation, use the committed
 [Console 1.8.15 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.15.foxe).
 Node.js is needed
@@ -157,6 +163,7 @@ foxglove/
 |-- laptop/                          Laptop marker and local-asset services
 |-- helpers/
 |   `-- hope-lifecycle               fixed three-machine lifecycle helper
+|-- tests/                           maintained regressions; not installed on robots
 `-- a3/                              staged robot-side assets (NOT installed)
     |-- build_foxglove_bridge.sh     pinned ROS 2 bridge build vs /opt/ros/jazzy
     |-- bridge_params.yaml           read-only fleet endpoint on 8765
@@ -167,6 +174,11 @@ foxglove/
     |-- hope_observer.py             normalized Runner/operator state publisher
     |-- hope_command_proxy.py        fixed Runner and calibration service proxy
     |-- hope_lifecycle_supervisor.py fixed process lifecycle authority
+    |-- hope_elink_health.py         passive ELink process/listener observation
+    |-- hope_elink_fault.py          startup-log checks and legacy fault diagnostics
+    |-- hope_elink_telemetry.py      source-progress/freshness contract and tracker
+    |-- hope_elink_telemetry_ros.py  passive vendor telemetry subscriptions
+    |-- hope_elink_clock.py          boot-bound original chrony-probe freshness
     |-- hope-foxglove-bridge.service read-only fleet bridge
     |-- hope-foxglove-control-bridge.service
     |-- hope-monitor.service
@@ -176,10 +188,38 @@ foxglove/
     `-- patches/                     pinned A3 ament-index compatibility patches
 ```
 
+## ELink startup checks and diagnostics
+
+Managed startup performs passive process/listener checks,
+rejects known failure signatures in current-session startup logs, and verifies
+vendor restoration after cleanup. A failed check rejects that attempt with a
+retryable error; it does not create a permanent motion lockout or veto KILL.
+Runtime observations are diagnostic-only: missing, stale or faulty observations
+do not change Runner modes, cancel swings, require an extra serve-continuation
+action, or block normal commands. There is no ELink permit transport.
+`OBSERVED` is **not** proof of fresh hand/BMS/E-stop telemetry or safe native HAL
+recovery. An optional audited telemetry contract improves diagnostic evidence;
+an absent/unaudited contract or unavailable decoder does not block START.
+See [ELink operational scope](../docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics)
+for matching diagnostic modules, commissioning and validation limits.
+
+Battery health remains A3's responsibility: BMS voltage, pack-presence and
+reported battery faults are diagnostic only, not HOPE motion vetoes or durable
+ELink faults. Freshness and source progression remain diagnostic checks, with
+strictly advancing source timestamps supported for the vendor's unset BMS
+sequence (`seq=0`). This policy does not override vendor emergency protection
+or existing Runner command-fault handling. Legacy fault records are read-only
+diagnostics, not admission authority, and are not automatically erased.
+
+Only the documented runtime modules and helpers are installed on HDU/MDU;
+the regression tests stay in the source checkout. Generated review reports,
+live captures and scratch build outputs are not deployment assets.
+
 ## Startup background cleanup
 
-Every managed START (including KERNEL mode) runs an HDU preflight guard before
-launching Planner, HAL or Runner. It stops only vendor `agent`, `hal_audio`,
+Every managed START (including KERNEL mode) completes read-only preflight, then
+runs the mutating HDU `BACKGROUND` step before launching Planner, HAL or Runner.
+It stops only vendor `agent`, `hal_audio`,
 `hal_hdu_camera`, their explicitly matched voice/audio watchdogs, and
 `agibot_ui.service`. These camera, voice and UI processes consumed substantial
 CPU during field operation and detached watchdogs could restart them after a
@@ -190,7 +230,7 @@ process manager's StopApp API. It sends SIGTERM to exact command/config matches
 left outside the manager, checking process identity with pidfds. It requires a
 continuous two-second quiet window; RPC errors, failed stops, respawning
 processes or insufficient UI-stop privileges reject START with
-`UNRELATED_BACKGROUND_NOT_STOPPED`. The HDU preflight timeout is 180 seconds to
+`UNRELATED_BACKGROUND_NOT_STOPPED`. The HDU background-step timeout is 180 seconds to
 cover the bounded vendor calls. Drive HAL, process manager, emergency-stop,
 local networking, clock and recording processes are outside the cleanup allowlist.
 The optional Wi-Fi-only profile additionally stops the cellular watchdog; see
@@ -211,7 +251,7 @@ install its service/configuration together with the updated lifecycle helper.
 Each attempt writes `/tmp/hope_background_<session_id>.json`, including failure
 details. Successful session preparation copies it to
 `/tmp/hope_real/<session_id>/hdu/background_cleanup.json` alongside the normal
-session evidence. Failed preflight receipts remain at their original path.
+session evidence. Failed background-cleanup receipts remain at their original path.
 The cleanup runs again on the next START so vendor defaults can remain intact.
 
 Local validation (all process/RPC operations mocked):
@@ -222,6 +262,17 @@ bash -n foxglove/helpers/hope-lifecycle
 ```
 
 ## Per-robot installation (operator action; changes that robot)
+
+**Preserve the installed control-plane layout.** These service/module examples
+are not a migration recipe for an existing consolidated field installation.
+Inspect the supervisor, observer and command-proxy units and their actual
+processes first. If `hope-lifecycle-supervisor.service` owns the Python
+`/usr/local/bin/hope_operations.py` process, update its matching field bundle;
+do not replace it with split sample units/modules. Loaded-inactive
+observer/proxy compatibility stubs may be intentional and must not be enabled
+just to satisfy a split-layout checklist. See the
+[deployment-layout boundary](../docs/operations/foxglove_lifecycle.md#install-the-hdu-supervisor)
+and [topology-aware clock workflow](../docs/operations/foxglove_lifecycle.md#pre-operation-clock-correction).
 
 Set the target once per session; every command below uses it:
 
@@ -711,12 +762,22 @@ Foxglove.
   PD_STAND and consumes the resulting `/a3/base_pose_flat`, not marker samples
   or JSON. Do not route the Motive network through A3.
 - **Battery:** the BMS topic is protobuf-wrapped
-  (`ros2_plugin_proto/msg/RosMsgWrapper`) and needs a decoder before
-  Foxglove can display fields — planned extension, not in this layout.
+  (`ros2_plugin_proto/msg/RosMsgWrapper`). The ELink decoder exposes
+  bounded battery diagnostics in the lifecycle ELink status; the dedicated
+  battery display is not implemented in this layout. Battery readings/status
+  do not independently stop or inhibit HOPE. Source freshness is still checked
+  for ELink monitoring, and A3's own battery/emergency protections are unchanged.
 - **Clock context:** `/hope/ntp/utc_qualified` uses the same Leap Normal plus
   selected-source rule as `timesync.sh --preflight`.
   `/hope/ntp/gate_pass` additionally applies the documented offset and skew
   limits (see
-  [agibot/ntp_sync/README.md](../agibot/ntp_sync/README.md)). The monitor never
+  [agibot/ntp_sync/README.md](../agibot/ntp_sync/README.md)). ELink diagnostics use
+  `/hope/ntp/qualification`, a boot/monitor-bound snapshot of the original
+  chrony probe start and completed-probe sequence, not the Bool's receipt age.
+  Delayed or replayed qualification cannot refresh diagnostic evidence; install
+  the matching monitor and `hope_elink_clock.py` together. Clock qualification
+  does not add a runtime motion veto. An attended, stopped Time Calibration is
+  the explicit clock-correction workflow, not an automatic step during motion.
+  The monitor never
   modifies clock state. Robot-state mutations occur only through the explicitly
   allowlisted Trigger services on their respective endpoints.

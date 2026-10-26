@@ -461,6 +461,8 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn("Loading zone clear", extension)
         self.assertIn('label="Start to Serve · Raise hand"', extension)
         self.assertIn('label="Ready"', extension)
+        self.assertNotIn("serveContinuation", extension)
+        self.assertNotIn("Continue receive", extension)
         self.assertNotIn("/hope/lifecycle/stop_and_collect", extension)
         self.assertNotIn("/hope/control/enter_", extension)
         self.assertNotIn("context.publish", extension)

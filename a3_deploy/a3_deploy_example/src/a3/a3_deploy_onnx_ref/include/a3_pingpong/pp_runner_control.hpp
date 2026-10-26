@@ -184,6 +184,7 @@ enum class RunnerActionReason : int {
   kTeleopUnavailable = 29,
   kTeleopInputNotReady = 30,
   kTeleopStopRequested = 31,
+  kServeRecoveryPending = 34,
 };
 
 inline const char* RunnerActionReasonName(RunnerActionReason reason) {
@@ -244,6 +245,7 @@ inline const char* RunnerActionReasonName(RunnerActionReason reason) {
     case RunnerActionReason::kTeleopUnavailable: return "TELEOP_UNAVAILABLE";
     case RunnerActionReason::kTeleopInputNotReady: return "TELEOP_INPUT_NOT_READY";
     case RunnerActionReason::kTeleopStopRequested: return "TELEOP_STOP_REQUESTED";
+    case RunnerActionReason::kServeRecoveryPending: return "SERVE_RECOVERY_PENDING";
   }
   return "UNKNOWN";
 }
@@ -350,10 +352,29 @@ class PpRunnerControl {
   // from mode edges: COMPLETE -> MOTION -> SERVE can occur between callbacks.
   bool ConsumeServePrepare() noexcept { return serve_prepare_pending_.exchange(false); }
 
-  void CompleteServe(bool kernel_mode = false) noexcept {
+  bool CompleteServe(bool kernel_mode = false) noexcept {
     // Kernel serving finishes in Stand after the controller lowers the arms.
-    // Normal play retains its automatic receive-policy entry.
-    SetRuntimeMode((serve_only_ || kernel_mode) ? RunnerMode::kPdStand : RunnerMode::kMotion);
+    // Normal play retains automatic receive-policy entry without a telemetry
+    // permit. A late completion must not undo an explicit emergency mode.
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    if (mode() != RunnerMode::kServe) return false;
+    mode_.store((serve_only_ || kernel_mode) ? RunnerMode::kPdStand : RunnerMode::kMotion,
+                std::memory_order_release);
+    Touch_();
+    return true;
+  }
+
+  // Command-thread recovery after ComputeCommand validates the current sample.
+  // Keep the authored command this tick; normal mode blending enters Stand on
+  // the next tick. A concurrent emergency PASSIVE request remains authoritative.
+  bool RecoverTerminalServeToStand(int serve_state, bool current_sample_valid) noexcept {
+    if (!current_sample_valid ||
+        (serve_state != kServeFault && serve_state != kServeAborted)) return false;
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    if (mode() != RunnerMode::kServe) return false;
+    mode_.store(RunnerMode::kPdStand, std::memory_order_release);
+    Touch_();
+    return true;
   }
 
   void SetRuntimeMode(RunnerMode next) noexcept {
@@ -640,7 +661,14 @@ class PpRunnerControl {
       }
 
       case RunnerAction::kEnterPdStand:
-        if (current_mode == RunnerMode::kTeleop) {
+        if (current_mode == RunnerMode::kServe &&
+            (serve_state == kServeFault || serve_state == kServeAborted)) {
+          // The action worker cannot certify the current control sample.
+          // Keep Stand available as a recovery action; the command thread
+          // retains the existing validated recovery path.
+          decision.result = RunnerActionResult::kAcceptedPending;
+          decision.reason = RunnerActionReason::kServeRecoveryPending;
+        } else if (current_mode == RunnerMode::kTeleop) {
           teleop_stop_requested_.store(true);
           decision.result = RunnerActionResult::kAcceptedPending;
           decision.reason = RunnerActionReason::kTeleopStopRequested;
