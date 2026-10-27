@@ -39,3 +39,22 @@ test('invalid frames, positions, orientation and timestamps fail closed', () => 
     const p=pose(-.5); edit(p); assert.equal(api.decodePlayerPosition(p,100),undefined);
   }
 });
+
+test('Foxglove nsec and ROS 2 nanosec timestamps both admit live poses without renewing replays', () => {
+  for (const field of ['nsec', 'nanosec']) {
+    const message = pose(3);
+    message.header.stamp = {sec: 1, [field]: 123};
+    let p = api.decodePlayerPosition(message, 100);
+    assert.ok(p, field);
+    assert.equal(api.playerSideAvailable('P2', [p], 100), true);
+    p = api.decodePlayerPosition(message, 400, p);
+    assert.equal(api.playerSideAvailable('P2', [p], 400), false);
+    message.header.stamp[field] = 124;
+    p = api.decodePlayerPosition(message, 401, p);
+    assert.equal(api.playerSideAvailable('P2', [p], 401), true);
+    for (const bad of [-1, 1e9, 0.5, NaN, '123', null]) {
+      message.header.stamp[field] = bad;
+      assert.equal(api.decodePlayerPosition(message, 402, p), undefined);
+    }
+  }
+});

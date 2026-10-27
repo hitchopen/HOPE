@@ -187,6 +187,25 @@ test('START requires the HDU verdict as well as raw UI evidence; side buttons st
   }
 });
 
+test('Foxglove-normalized pose messages enable physical sides and START through the real decoder', () => {
+  const decoder = panelHarness().api;
+  const snapshot = { lifecycleConfig:{}, lastReceived:{} };
+  const now = Date.now();
+  for (const [topic, x] of [[decoder.TOPICS.playerP1, -.5], [decoder.TOPICS.playerP2, 3.2]]) {
+    decoder.applyMessage(snapshot, {topic, message: {
+      header: {frame_id: 'hope_table_global', stamp: {sec: 1793113809, nsec: 720394517}},
+      pose: {position: {x, y: 0, z: 1}, orientation: {x: 0, y: 0, z: 0, w: 1}},
+    }}, now);
+  }
+  const field = {mode:'OPTITRACK', player_positions:{P1:true, P2:true},
+    ball_model_status:{state:'CONFIGURED', configured_model:'ppq004', age_s:0, endpoints:{}}};
+  const tree = panelHarness('linux', 'STOPPED', false, field, 0,
+    [snapshot.playerP1, snapshot.playerP2], {lifecycleConfigRevision:51}).render();
+  assert.equal(button(tree, 'UCB_P1 · DIRECT').props.disabled, false);
+  assert.equal(button(tree, 'UCB_P2 · ROTATE 180°').props.disabled, false);
+  assert.equal(button(tree, 'START SYSTEM').props.disabled, false);
+});
+
 test('automatic stop reason is displayed independently and expires with its Runner boot', () => {
   for (const [boot, age, expected] of [[42,0,true], [43,0,false], [42,1001,false]]) {
     const now=Date.now();

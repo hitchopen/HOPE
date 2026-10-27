@@ -3,6 +3,7 @@
 ## 1.8.18
 
 - Verify P1/P2 availability directly from fresh raw player poses before rotation.
+- Accept Foxglove-normalized `sec/nsec` timestamps as well as raw ROS 2 `sec/nanosec`, so valid player poses enable side selection and START while stale/replayed poses remain blocked.
 - Gray out unavailable ends and lock the assigned side until deployment stops.
 - Repeat the position check in the HDU START path; preserve offline Kernel serving.
 - Pair with the native 100 ms mocap-loss Stand/serve-abort protection and retain model17400 selection.
