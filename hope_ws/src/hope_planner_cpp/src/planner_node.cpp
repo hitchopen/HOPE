@@ -160,7 +160,9 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
         return declare_parameter<double>(key, std::numeric_limits<double>::quiet_NaN());
       },
       [this](const char* key) { return declare_parameter<int>(key, 0); },
-      [this](const char* key) { return declare_parameter<std::vector<double>>(key, {}); });
+      [this](const char* key) {
+        return declare_parameter<std::vector<double>>(key, std::vector<double>{});
+      });
   planner_config_.x_hit = x_hit_fh_.load();
   planner_config_.target_land = Vec3(
       declare_parameter<double>("target_land_x", 2.055),
