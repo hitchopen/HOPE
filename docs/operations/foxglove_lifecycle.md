@@ -1,9 +1,9 @@
 # Foxglove Runner three-machine lifecycle
 
-> Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for
-> current Kernel Mode, Xbox, Serve-to-Ready, calibration-layout and package
-> instructions. The public checkpoint remains model_21800. The foundational
-> host/SSH setup below still applies; older UI labels are superseded by that guide.
+> Current deployment: **model17400 + PPQ004**, receive-only, using the
+> [matching bundle and Console](../../foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy).
+> The host/SSH setup below applies to this managed lifecycle. Model17400 does
+> not enable serving or Kernel mode; retain the bundle's declared capabilities.
 
 > Deployment commands reviewed 2026-10-11: the current package build,
 > native Gate 3 and immutable-slot staging entry is
@@ -24,6 +24,133 @@ remote shell. Foxglove can only:
 The native MDU Runner remains the authority for PASSIVE, PD_STAND, MOTION,
 role, serve state, action admission and action acknowledgements. The lifecycle
 supervisor owns process state only.
+
+## Player assignment and mocap loss
+
+Normal play requires a fresh unrotated player pose at START. Console 1.8.18
+reads `/hope/mocap/players/UCB_P1` and `/hope/mocap/players/UCB_P2` directly:
+P1 requires any tracked player at `x < 0 m`; P2 requires one at `x > 2.74 m`.
+Both relays convert units to metres and publish these poses in
+`hope_table_global` before the selected P2 rotation. Evidence expires after
+250 ms; duplicate source timestamps do not renew it. The raw-player topics are
+capped separately at 30 Hz; policy/base/ball streams are unchanged. Any player
+body remains eligible by venue policy; this verifies end occupancy, not robot
+identity or that the selected runtime body name is present. The HDU checks the same
+observations before hardware startup. START also shows/requires the HDU verdict
+from `/hope/field/status`, so a Laptop/HDU discovery mismatch is visible rather
+than a deceptively enabled START. Side selection stays locked until STOPPED;
+crossing a boundary during play does not change the assignment.
+
+The native Runner monitors its base-pose mailbox with a 100 ms monotonic timeout
+in normal SERVE/RALLY, independent of sampling rate (150 Hz or higher). On loss,
+RALLY enters the existing PD_STAND blend. SERVE first aborts through its existing
+validated controller recovery. Late serve completion cannot restart receive
+after a dropout. Fresh data does not resume play automatically: the operator
+must request play again. PASSIVE, manual Stand, cleanup and offline Kernel/Pure
+Serve retain their behavior. Ball occlusion alone is not base-stream loss.
+
+After **20 ms** without a real pelvis update, the next model tick reuses the last
+applied pelvis position and orientation as an explicitly **HELD** input. It
+does not continue gyro propagation, create a sensor packet, change sequence or
+timestamps, advance differentiated-velocity history, confirm HOME/posture, or
+authorize a new shot. Live joint/IMU inputs remain live. The original real-sample
+age continues increasing; reuse cannot postpone the 100 ms rescue deadline or
+override a stricter exported observation-age bound. Explicit invalid packets
+still trigger recovery immediately. This continuity measure is not proof of
+physical stability and cannot repair loss of local feedback or motor transport.
+HELD telemetry is not a separate 20 ms mode-admission gate: entering play and
+normal serve completion use the real observation/rescue deadline. An expired
+completion records the safety reason even if the monitor has not yet recorded
+it; a 20–99 ms held sample alone creates no stop event. L3 recovery-envelope
+expiry clears a pending flight before the new-flight held-pose check.
+
+Holding attitude without gyro propagation and retaining the prior velocity
+estimate changes actor inputs during jitter. The new-flight guard defers a
+commit for retry, not a flight drop, but this does not establish correct strike
+timing. Replay real 150/300 Hz sessions with 5/25/60/99 ms gaps and compare target
+commit time, retained velocity, strike time/contact error and recovery commands
+with the prior policy-input path. Then qualify on supported hardware with an
+attending E-stop operator; software regressions are not policy/hardware approval.
+
+Normal managed play also enables `--operator-watchdog`. The Runner issues a
+challenge every 20 ms. The current Console echoes role 1, and the operator
+computer's Motive/VRPN relay echoes role 2, bound to its managed launch session
+(`debug_session_id`). Both must be live before normal play entry. Loss of either
+echo requests controlled PD_STAND recovery: **1 s for the Console**, **100 ms for
+the operator-computer relay**. A normal
+serve uses its existing abort/recovery path. Held pelvis data cannot refresh
+either heartbeat. Stand/PASSIVE, Teleop and offline Kernel/Pure Serve are exempt;
+standalone tools do not opt into the UI watchdog unless explicitly requested.
+
+Challenge `[1, boot, session_fingerprint, nonce]` travels on
+`/hope/runner/operator_challenge_flat` → `operator_challenge_hdu_flat`.
+Echo `[1, boot, session_fingerprint, nonce, role]` travels back on
+`/hope/runner/operator_echo_hdu_flat` → `operator_echo_flat`. Runner validates its
+own monotonic challenge-issue age, not a remote clock or new echo receipt time.
+Duplicate, wrong-session/boot and late echoes cannot renew liveness; no cached
+heartbeat is timer-replayed. This is a trusted-LAN liveness protocol, not an
+authentication boundary against malicious publishers.
+
+These timeout values are watchdog triggers, not the time to finish the standing
+pose. Detection runs on the command callback and is subject to its scheduling;
+the existing stand blend/validated serve recovery determines motion duration.
+A slow/frozen/minimized Console or a switch to another layout/tab can miss its
+1 s deadline just like a disconnected one. Echoes come only from `onRender`;
+this is not a background app-liveness service. The longer UI deadline tolerates
+short rendering/network delays, not a Console absent for more than 1 s.
+Qualify actual foreground/background rendering, Wi-Fi jitter and CPU load
+on the deployed system before competition; do not claim hard real-time timing
+or hardware stability from unit tests.
+
+Runner publishes `/hope/runner/mocap_safety_flat` at 50 Hz, forwarded unchanged to
+`/hope/runner/mocap_safety_hdu_flat`. Its schema is
+`[1, boot_id, session_fingerprint, state_seq, required, fresh, stop_count, interrupted,
+held, real_age_ms, operator_required, ui_fresh, computer_fresh, operator_stop_reason, operator_stop_count]`.
+An unavailable age is -1. The Console also accepts the original eight-value prefix.
+The Console checks its age and current Runner boot, and displays **Stopped: mocap
+lost**, **Stopped: Foxglove UI lost**, **Stopped: operator computer lost**, or the
+held-pose age independently of the last operator-action result. `interrupted` stays set
+after data returns until explicit play entry succeeds. The original 21-value
+schema-2 Runner state and action codes stay unchanged. Refused play transitions
+return `MOCAP_UNAVAILABLE`, `OPERATOR_UI_UNAVAILABLE` or
+`OPERATOR_COMPUTER_UNAVAILABLE`, never `APPLIED`, and never leave a pending serve prepare.
+
+The supervisor service uses the same explicit-peer wrapper as the control bridge
+when `ROS_STATIC_PEERS` is configured in `/etc/hope-foxglove/network.env`. Include
+the operator computer and MDU peers, then restart the updated service while
+stopped. With no peers configured it retains the previous discovery setup so
+configuration/cleanup remain available; normal play still needs verified player
+reception. Verify both raw poses and the HDU `player_positions` verdict before START.
+After a FAILED-session cleanup succeeds, a player/preflight rejection returns
+STOPPED and releases the hardware-operation lock. A failed cleanup still retains
+FAILED, the old session identity and the lock for explicit retry.
+
+Install `hope_player_positions.py` with the HDU modules, update the supervisor
+service, control decoder, mocap and Runner transport relays, rebuild the MDU Runner
+with its matching AimRT config and install the matching Console. Rebuild
+`hope_bringup` on the operator computer to install `operator_heartbeat.py`, update
+the VRPN launch file and lifecycle helper, and deploy the control-bridge config
+that permits **only** `/hope/runner/operator_echo_hdu_flat` client publishing.
+All command/request topics and generic parameter operations remain denied.
+Normal-play preflight rejects an old Runner or AimRT config that lacks the
+operator-watchdog protocol, rather than silently running without this protection.
+
+Before deployment approval, verify both ends and failed-start cleanup, then:
+
+1. Bench-check 150/300 Hz input and 20–99 ms gaps: HELD pose is constant, real
+   timestamps/sequence age normally, no synthetic velocity samples or new shots;
+   mode entry and serve completion remain allowed until the actual deadline.
+   Validate the actor-input/strike-timing replay described above before hardware.
+2. With the robot supported and an operator at E-stop, interrupt the mocap
+   stream and the Laptop–HDU/HDU–MDU transport separately. Record watchdog trigger
+   time, actual joint-command continuity and the full PD_STAND recovery.
+3. Independently close/disconnect/freeze the Console and stop/disconnect the
+   managed operator relay/computer. Verify the Console's 1 s and computer's
+   100 ms triggers despite the other channel remaining live. Exercise tab/layout
+   switches and minimize/background behavior, including brief interruptions that
+   should not stop play. Delayed/replayed challenges must not postpone expiry.
+4. Restore each link: no automatic play resumption. Check explicit re-entry,
+   manual Stand/PASSIVE and unchanged offline Kernel/Pure Serve/Teleop behavior.
 
 ## Pre-operation clock correction
 
@@ -215,7 +342,7 @@ Update the matching lifecycle implementation for the HDU's existing
 only while STOPPED. The split layout uses `hope_lifecycle_core.py` and
 `hope_lifecycle_supervisor.py`; do not replace a consolidated field bundle with
 these standalone samples without a separate deployment migration. Install the bundled
-Console 1.8.15, which includes the **Operator computer**, gripper and mocap selectors. Confirm the
+Console 1.8.18, which includes the **Operator computer**, gripper and mocap selectors. Confirm the
 profile and current Laptop IP together, either there or with `select-mac` /
 `select-linux`. Combined schema 6 preserves field schema-5 gripper, pants and
 VRPN settings while adding the operator profile; main's older profile-aware
@@ -617,6 +744,7 @@ sudo install -D -o root -g root -m 0755 \
 sudo install -D -o root -g root -m 0644 \
   ~/foxglove_a3/hope_lifecycle_core.py \
   /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_player_positions.py /usr/local/lib/hope-foxglove/hope_player_positions.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_health.py /usr/local/lib/hope-foxglove/hope_elink_health.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_fault.py /usr/local/lib/hope-foxglove/hope_elink_fault.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_telemetry.py /usr/local/lib/hope-foxglove/hope_elink_telemetry.py
@@ -714,13 +842,11 @@ rather than part of a normal one-click start.
 Ready or the Server flow. The Console removes Refresh x_hit; shared HOME is
 captured on policy entry.
 
-The helper intentionally preserves the current fixed3 Runner argv. The checked
-in model_21800 policy metadata is `training_recipe=rally_v14`, while the native
-`--serve` controller rejects anything other than its qualified `rally_v17`
-artifact. Local `SERVER/RECEIVER` role state is available, but this lifecycle
-does not add `--serve` or bypass that artifact check. `Ready to Serve` and
-`Serve` remain disabled until a separately qualified compatible Runner package
-reports `serve_capability=AVAILABLE`.
+Model17400's receive-only bundle does not enable `--serve` or consume a serve
+CSV. Local `SERVER/RECEIVER` role state does not override bundle capabilities;
+serve controls remain unavailable for this deployment. The selected policy,
+deploy parameters and generated Planner profile must come from the same
+verified bundle, with PPQ004 on Planner and packetizer.
 
 ## Kill behavior
 
@@ -904,11 +1030,6 @@ simulation results, not field success rates. Wider 0–180 ms sweeps introduced
 misses at 10–50 ms. Actual physical detachment latency is not identified; the
 rigid gripper CAD, ball release position and contact materials remain model
 assumptions. Keep these limitations when comparing future field results.
-
-The deployment receipt recorded session `model21800_20261018T125856Z`, successful
-managed PASSIVE startup, exact loaded asset hash, ELink scheduling readback, and
-499.8–501.0 Hz with no additional halts over 30 seconds. Foxglove commands then
-changed the mode to SERVE, so the observation is not a sustained-PASSIVE test.
 
 ## Verification boundary
 

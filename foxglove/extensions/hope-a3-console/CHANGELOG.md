@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.8.18
+
+- Verify P1/P2 availability directly from fresh raw player poses before rotation.
+- Gray out unavailable ends and lock the assigned side until deployment stops.
+- Repeat the position check in the HDU START path; preserve offline Kernel serving.
+- Pair with the native 100 ms mocap-loss Stand/serve-abort protection and retain model17400 selection.
+- Display the persistent mocap-stop reason separately from action results; refused transitions cannot report APPLIED.
+- Match HDU START evidence, explicit-peer supervisor discovery and clean retry rejection; cap raw end-position telemetry at 30 Hz.
+- Mark 20 ms pelvis holds without inventing sensor freshness or delaying the 100 ms rescue.
+- Add independent, session-bound challenge echoes: 1 s Console / 100 ms operator-relay recovery in normal play; preserve offline serve and Teleop.
+- Keep 20 ms HELD telemetry separate from mode admission/serve completion, expose refused completion reasons, and run L3 pending expiry before the held-pose guard.
+- Decode UInt64 boot/flight IDs from numbers or exact bigints; test decoded safety status and swing labels end to end.
+- Requires matching updated mocap relays, HDU modules and rebuilt MDU Runner.
+
 ## 1.8.15
 
 - Add field gripper presets, independent NatNet/VRPN selection and V2/V4 pants settings.

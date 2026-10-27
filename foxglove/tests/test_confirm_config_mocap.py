@@ -49,8 +49,9 @@ def test_failed_connection_remains_saved_and_retry_reconnects(node):
     assert confirm(node).results[0].successful
     assert node._backend.reconnect_mocap.call_count==2
 
-def test_running_robot_never_reconfigured(node):
-    node._state='RUNNING'
-    assert not confirm(node,vrpn_ip='192.168.100.100').results[0].successful
+@pytest.mark.parametrize('state', ['RUNNING', 'STARTING', 'FAILED', 'KILLING'])
+def test_running_robot_never_reconfigured(node, state):
+    node._state=state
+    assert not confirm(node,table_side='P2').results[0].successful
     node._backend.reconnect_mocap.assert_not_called()
     assert not module.CONFIG_PATH.exists()

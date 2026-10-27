@@ -15,11 +15,13 @@ import time
 import uuid
 
 import rclpy
+from geometry_msgs.msg import PoseStamped
 from rcl_interfaces.msg import ParameterType, SetParametersResult
 from rcl_interfaces.srv import SetParameters
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Bool, String, UInt32
 from std_srvs.srv import Trigger
 
@@ -30,6 +32,7 @@ from hope_elink_fault import PersistentElinkFault
 from hope_elink_clock import ClockQualificationGuard
 from hope_elink_telemetry import ElinkTelemetryTracker, load_telemetry_contract
 from hope_elink_telemetry_ros import ElinkTelemetrySubscriptions
+from hope_player_positions import PlayerPositions
 
 from hope_lifecycle_core import (
     CONFIG_FIELDS,
@@ -369,6 +372,14 @@ class HopeLifecycleSupervisor(Node):
         self._runner_session_matches = False
         self._runner_session_matches_received = 0.0
         self._hardware_operation_lock = None
+        self._player_positions = PlayerPositions()
+        self._player_position_subscriptions = [
+            self.create_subscription(
+                PoseStamped, f"/hope/mocap/players/{player}",
+                lambda msg, name=player: self._on_player_position(name, msg),
+                qos_profile_sensor_data, callback_group=self._callback_group)
+            for player in ("UCB_P1", "UCB_P2")
+        ]
         # Read legacy candidate records for operator evidence only. Never arm,
         # latch, clear or delete them: they have no lifecycle authority.
         self._elink_fault = PersistentElinkFault(CONFIG_PATH.parent / "elink_fault.json")
@@ -483,6 +494,8 @@ class HopeLifecycleSupervisor(Node):
         self._elink_publisher.publish(self._string(json.dumps(elink, sort_keys=True)))
         field_status = self._field.status()
         field_status["busy"] = self._field_busy
+        with self._lock:
+            field_status["player_positions"] = self._player_positions.status(time.monotonic())
         field_status["elink_observation"] = elink
         field_status["auto_record_on_start"] = os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1"
         field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
@@ -758,6 +771,14 @@ class HopeLifecycleSupervisor(Node):
             self._runner_mode = str(message.data)
             self._runner_mode_received = time.monotonic()
 
+    def _on_player_position(self, player, message):
+        p, q, stamp = message.pose.position, message.pose.orientation, message.header.stamp
+        with self._lock:
+            self._player_positions.update(
+                player, (p.x, p.y, p.z), (q.x, q.y, q.z, q.w),
+                int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec),
+                message.header.frame_id, time.monotonic())
+
     def _on_runner_session_matches(self, message: Bool) -> None:
         with self._lock:
             self._runner_session_matches = bool(message.data)
@@ -878,11 +899,19 @@ class HopeLifecycleSupervisor(Node):
                     config, cleanup_session, self._on_event, cleanup_mode)
                 # Never release the operation lock between cleanup and retry.
                 recovering = False
+                # Cleanup has confirmed the old hardware session is stopped.
+                # A new preflight rejection is not a failed hardware startup.
+                mutation_started = False
             with self._lock:
                 self._state = "STARTING"
                 self._session_id = session_id
                 self._step = "PREFLIGHT"
                 self._elink_audit = {}
+            # Check only during START; moving players during a rally cannot
+            # change the session's side. Recovery cleanup above stays available.
+            if self._field.status().get("mode") != "KERNEL":
+                with self._lock:
+                    self._player_positions.require(config.table_side, time.monotonic())
             mode, csv_sha = self._field.runner_selection(config)
             self._session_mode = mode
             self._backend.start(config, session_id, self._on_event, mode, csv_sha,

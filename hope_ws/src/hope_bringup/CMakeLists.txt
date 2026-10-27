@@ -42,6 +42,7 @@ install(FILES
   scripts/motive_asset_contract.py
   scripts/p1_marker_cad_registration_impl.py
   scripts/source_time_rate_gate.py
+  scripts/operator_heartbeat.py
   scripts/table_side_transform.py
   scripts/p1_pelvis_calibration_impl.py
   DESTINATION lib/${PROJECT_NAME}
@@ -67,6 +68,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(vrpn_pants_relay_test test/test_vrpn_pants_relay.py)
   ament_add_pytest_test(table_side_transform_test test/test_table_side_transform.py)
   ament_add_pytest_test(source_time_rate_gate_test test/test_source_time_rate_gate.py)
+  ament_add_pytest_test(operator_heartbeat_test test/test_operator_heartbeat.py)
   ament_add_pytest_test(natnet_preflight_test test/test_natnet_preflight.py)
   ament_add_pytest_test(rally_mocap_interface_test test/test_rally_mocap_interface.py)
   ament_add_pytest_test(natnet_launch_interfaces_test test/test_natnet_launch_interfaces.py)

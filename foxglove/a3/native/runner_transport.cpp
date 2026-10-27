@@ -19,22 +19,28 @@ class RunnerTransport final : public rclcpp::Node {
       : Node("hope_runner_transport_relay",
              rclcpp::NodeOptions().start_parameter_services(false)
                                   .start_parameter_event_publisher(false)) {
-    const std::array<std::string, 8> names = {
+    const std::array<std::string, 14> names = {
         "remote_state_topic", "local_state_topic", "local_control_topic",
         "remote_control_topic", "local_teleop_input_topic", "remote_teleop_input_topic",
-        "remote_teleop_state_topic", "local_teleop_state_topic"};
-    const std::array<std::string, 8> defaults = {
+        "remote_teleop_state_topic", "local_teleop_state_topic",
+        "remote_mocap_safety_topic", "local_mocap_safety_topic",
+        "remote_operator_challenge_topic", "local_operator_challenge_topic",
+        "local_operator_echo_topic", "remote_operator_echo_topic"};
+    const std::array<std::string, 14> defaults = {
         "/hope/runner/state_flat", "/hope/runner/state_hdu_flat",
         "/hope/runner/control_request_hdu_flat", "/hope/runner/control_request_flat",
         "/hope/runner/teleop_input_hdu_flat", "/hope/runner/teleop_input_flat",
-        "/hope/runner/teleop_state_flat", "/hope/runner/teleop_state_hdu_flat"};
+        "/hope/runner/teleop_state_flat", "/hope/runner/teleop_state_hdu_flat",
+        "/hope/runner/mocap_safety_flat", "/hope/runner/mocap_safety_hdu_flat",
+        "/hope/runner/operator_challenge_flat", "/hope/runner/operator_challenge_hdu_flat",
+        "/hope/runner/operator_echo_hdu_flat", "/hope/runner/operator_echo_flat"};
     std::set<std::string> unique;
     for (size_t i = 0; i < names.size(); ++i) {
       topics_[i] = declare_parameter(names[i], defaults[i]);
       if (topics_[i].empty() || topics_[i][0] != '/' || !unique.insert(topics_[i]).second)
-        throw std::invalid_argument("Relay requires eight distinct absolute topics");
+        throw std::invalid_argument("Relay requires fourteen distinct absolute topics");
     }
-    for (size_t route = 0; route < 4; ++route) {
+    for (size_t route = 0; route < publishers_.size(); ++route) {
       auto qos = rclcpp::QoS(rclcpp::KeepLast(route < 2 ? 10 : 1)).reliable().durability_volatile();
       publishers_[route] = create_publisher<Array>(topics_[2 * route + 1], qos);
       subscriptions_[route] = create_subscription<Array>(
@@ -77,10 +83,10 @@ class RunnerTransport final : public rclcpp::Node {
       last_report_ = now;
     }
   }
-  std::array<std::string, 8> topics_;
-  std::array<rclcpp::Publisher<Array>::SharedPtr, 4> publishers_;
-  std::array<rclcpp::Subscription<Array>::SharedPtr, 4> subscriptions_;
-  std::array<uint64_t, 4> counts_{};
+  std::array<std::string, 14> topics_;
+  std::array<rclcpp::Publisher<Array>::SharedPtr, 7> publishers_;
+  std::array<rclcpp::Subscription<Array>::SharedPtr, 7> subscriptions_;
+  std::array<uint64_t, 7> counts_{};
   rclcpp::TimerBase::SharedPtr timer_;
   Steady::time_point last_state_ = Steady::now(), last_report_ = Steady::now();
   bool reported_ = false, previous_healthy_ = false;

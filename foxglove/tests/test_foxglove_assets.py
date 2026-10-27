@@ -1,4 +1,7 @@
 import json
+import shlex
+import re
+import yaml
 from pathlib import Path
 import subprocess
 import tempfile
@@ -10,6 +13,47 @@ REPO_DIR = FOXGLOVE_DIR.parent
 
 
 class FoxgloveAssetInvariantTests(unittest.TestCase):
+    def test_browser_publish_permission_is_liveness_only(self):
+        params = yaml.safe_load((FOXGLOVE_DIR / 'a3/bridge_params_control.yaml').read_text())['/**']['ros__parameters']
+        rules = params['client_topic_whitelist']
+        self.assertIn('clientPublish', params['capabilities'])
+        self.assertTrue(any(re.fullmatch(rule, '/hope/runner/operator_echo_hdu_flat') for rule in rules))
+        for topic in ('/racket/command_flat', '/body_drive/arm_joint_command',
+                      '/hope/runner/control_request_flat', '/hope/runner/control_request_hdu_flat'):
+            self.assertFalse(any(re.fullmatch(rule, topic) for rule in rules), topic)
+
+    def test_root_deployment_summary_describes_only_current_model(self):
+        readme = (REPO_DIR / 'README.md').read_text()
+        self.assertIn('## A3 deployment: model17400 + PPQ004', readme)
+        self.assertIn('**receive-only**', readme)
+        for name in ('model_21800', 'model21800', 'model14600', 'model11999', 'model12600'):
+            self.assertNotIn(name, readme)
+
+    def test_supervisor_explicit_peers_match_bridge_without_breaking_empty_setup(self):
+        unit = (FOXGLOVE_DIR / 'a3/hope-lifecycle-supervisor.service').read_text()
+        self.assertIn('EnvironmentFile=-/etc/hope-foxglove/network.env', unit)
+        line = next(line for line in unit.splitlines() if line.startswith('ExecStart='))
+        script = shlex.split(line.removeprefix('ExecStart=:'))[2]
+        # Execute the actual peer parsing/branching, replacing only external
+        # entrypoints. No ROS setup, service mutation, network or robot commands.
+        script = script.replace('source /opt/ros/jazzy/setup.bash && ', '')
+        script = script.replace('exec /home/agi/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh',
+                                "exec /usr/bin/printf 'WRAPPER <%s>\\n'")
+        script = script.replace('exec python3 /usr/local/bin/hope_lifecycle_supervisor.py',
+                                "exec /usr/bin/printf 'LEGACY\\n'")
+        for peers in ('192.0.2.10;;192.0.2.20;', ''):
+            result = subprocess.run(['bash', '-c', script], text=True, capture_output=True,
+                                    env={'ROS_STATIC_PEERS':peers, 'ROS_DOMAIN_ID':'218'})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            if peers:
+                self.assertIn('WRAPPER <--domain-id>', result.stdout)
+                self.assertIn('<218>', result.stdout)
+                self.assertIn('<192.0.2.10>', result.stdout)
+                self.assertIn('<192.0.2.20>', result.stdout)
+                self.assertNotIn('<>', result.stdout)
+            else:
+                self.assertEqual(result.stdout, 'LEGACY\n')
+
     def test_formal_names_are_shared_by_runner_and_foxglove(self):
         legacy_version = "v" + str(17)
         aimrt_config = (
@@ -154,7 +198,8 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn('"^/tf$"', params)
         self.assertNotIn('"^/tf_static$"', params)
         self.assertIn('param_whitelist: ["(?!)"]', params)
-        self.assertIn('client_topic_whitelist: ["(?!)"]', params)
+        self.assertIn('client_topic_whitelist: ["^/hope/runner/operator_echo_hdu_flat$"]', params)
+        self.assertIn('- clientPublish', params)
 
         fleet_params = (FOXGLOVE_DIR / "a3/bridge_params.yaml").read_text()
         self.assertNotIn("refresh_x_hit", fleet_params)
@@ -699,7 +744,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertNotIn("pkill", script)
             self.assertNotIn("killall", script)
         # Fall Guard is a deployment-profile choice, not a browser/lifecycle invariant.
-        self.assertIn('field_runner_args=(--planner --shared-session-home)', helper)
+        self.assertIn('field_runner_args=(--planner --shared-session-home --operator-watchdog)', helper)
         self.assertIn('local -a serve_runner_args=(--serve)', helper)
         self.assertIn('"${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}"', helper)
         self.assertIn('--trace-csv "$session_dir/sim2real/runner_trace.csv"', helper)

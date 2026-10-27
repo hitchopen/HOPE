@@ -46,7 +46,7 @@ def node(tmp_path, monkeypatch):
         _elink_clock_received=None, _elink_clock_qualified=False, _elink_audit={},
         _backend=Mock(), _pool=Mock(), _elink_pool=Mock(), _on_event=Mock(),
         _run_start=Mock(), _run_kill=Mock(), _run_elink_observation=Mock(),
-        _field=SimpleNamespace(recorder=Mock(), runner_selection=Mock(return_value=("KERNEL", "")), status=lambda: {}),
+        _field=SimpleNamespace(recorder=Mock(), runner_selection=Mock(return_value=("KERNEL", "")), status=lambda: {"mode": "KERNEL"}),
         _wait_for_authoritative_runner=Mock(), _hardware_operation_lock=None,
         get_logger=Mock(return_value=Mock()))
     n._elink_health.observe(snapshot(), n._elink_observed_at)

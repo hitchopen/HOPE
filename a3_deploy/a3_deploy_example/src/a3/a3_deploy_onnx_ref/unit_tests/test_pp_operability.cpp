@@ -147,7 +147,7 @@ TEST(PpOperability, TerminalRecoveryLoggingIsEdgeBounded) {
   EXPECT_TRUE(events.Observe(15, true));
 }
 
-TEST(PpOperability, NativeStartupAndActionsHaveNoNewTelemetryAdmission) {
+TEST(PpOperability, ElinkDiagnosticsDoNotAddMotionAdmission) {
   const auto main = Source("src/a3_deploy/a3_pingpong_main.cpp");
   const auto control = Source("include/a3_pingpong/pp_runner_control.hpp");
   const auto serve = Source("include/a3_pingpong/pp_serve_controller.hpp");
@@ -157,7 +157,7 @@ TEST(PpOperability, NativeStartupAndActionsHaveNoNewTelemetryAdmission) {
       EXPECT_EQ(source->find(removed), std::string::npos) << removed;
   }
   EXPECT_NE(main.find("warmup_sec > 0 ? Mode::kPdStand : default_mode"), std::string::npos);
-  EXPECT_NE(main.find("runner_control.SetRuntimeMode(target_mode)"), std::string::npos);
+  EXPECT_NE(main.find("runner_control.SetRuntimeMode(target_mode, false, &refused)"), std::string::npos);
   EXPECT_NE(main.find("runner_control.SetRuntimeMode(Mode::kReferencePlayback)"), std::string::npos);
 }
 
@@ -167,9 +167,22 @@ TEST(PpOperability, PolicyRetainsSameFlightStreamingAndPeriodicRearm) {
   EXPECT_EQ(policy.find("SetAdmissionCheck"), std::string::npos);
   const auto rapid = Between(policy, "bool PlannerRapidPreemptStep_", "// One driver tick owns the complete edge");
   EXPECT_NE(rapid.find("if (cfg_.stream_target) StreamTargetStep_(tick_idx)"), std::string::npos);
+  EXPECT_LT(rapid.find("StreamTargetStep_(tick_idx)"), rapid.find("NewFlightNeedsRealBase_()"));
   const auto rest = Between(policy, "// Auto re-arm after the rest", "// MIN-side OBS clamp");
   EXPECT_NE(rest.find("tick_idx >= rest_rearm_tick_"), std::string::npos);
   EXPECT_NE(rest.find("level_.store(1)"), std::string::npos);
+}
+
+TEST(PpOperability, L3PendingExpiryPrecedesHeldPoseNewFlightAdmission) {
+  const auto policy = Source("include/a3_pingpong/pp_policy.hpp");
+  const auto idle = Between(policy, "void PlannerEngageStep_", "if (!racket_in_)");
+  const auto expiry = idle.find("if (envelope_gate.expire_pending)");
+  const auto hold = idle.find("if (NewFlightNeedsRealBase_())");
+  ASSERT_NE(expiry, std::string::npos);
+  ASSERT_NE(hold, std::string::npos);
+  EXPECT_LT(expiry, hold);
+  EXPECT_LT(idle.find("ClearPendingStation_(tick_idx, envelope_gate.reason)"), hold);
+  EXPECT_LT(idle.find("if (level_.load() == 1)"), expiry);
 }
 
 TEST(PpOperability, TerminalRecoveryFollowsValidationAndKeepsExistingBlend) {

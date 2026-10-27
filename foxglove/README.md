@@ -3,16 +3,27 @@
 ELink startup checks detect known process/IPC and startup-log failures; runtime
 health observations are diagnostic-only. Missing telemetry audit/decoders, clock
 qualification, or observer updates do not add motion gates. Existing vendor and
-Runner protections remain unchanged. See the
+Runner protections remain in force. See the
 [operational scope and validation limits](../docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics).
 
 For direct installation, use the committed
-[Console 1.8.15 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.15.foxe).
+[Console 1.8.18 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.18.foxe).
 Node.js is needed
 only to rebuild the extension, not to install this package.
 
-See [Runner, Xbox and field operation](../docs/operations/runtime_xbox.md) for
-the current public model_21800 workflow, installation and mode semantics.
+Normal play verifies P1/P2 from raw mocap positions at START and locks the side
+until STOP. A 100 ms loss of the live base stream requests controlled PD_STAND
+recovery in native Runner. A marked 20 ms last-pose hold cannot renew real input
+freshness or shorten mode admission to 20 ms. Separate challenge echoes expire
+after 1 s for the Console and 100 ms for the operator relay in normal play.
+Offline Kernel/Pure Serve and Teleop remain exempt. Install
+the matching Laptop relays, HDU modules and rebuilt MDU Runner with the panel;
+see [deployment safety](../docs/operations/foxglove_lifecycle.md#player-assignment-and-mocap-loss).
+
+The current deployment uses **model17400 + PPQ004** in receive-only mode. See
+[current model installation](extensions/hope-a3-console/README.md#model17400-receive-policy)
+and the [managed lifecycle](../docs/operations/foxglove_lifecycle.md).
+Model17400 does not enable serving or Kernel mode.
 
 Current 17-sticker trousers use a pelvis-aligned Motive import and automatic
 asset matching. Console 1.8.13 replaces Venue Calibration with live asset status;
@@ -21,14 +32,14 @@ The V2/V3 capture descriptions below apply only to legacy calibration mode.
 
 Current Runner/serve behavior, v12 assets, PR status and validation limits:
 [Runner, Xbox and serving](../docs/operations/runtime_xbox.md).
-The public [Console 1.8.15 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.15.foxe)
+The public [Console 1.8.18 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.18.foxe)
 includes Mac/Linux, gripper and NatNet/VRPN selectors and matches the checked-in source.
 Combined lifecycle schema 6 preserves existing field schema-5 settings; source
 and image builds do not overwrite or restart the live HDU backend.
 
 # HOPE A3 Foxglove Operator Interface
 
-> **Formal model_21800 operator stack.** This directory combines monitoring,
+> **Model17400 + PPQ004 operator stack.** This directory combines monitoring,
 > OptiTrack/marker, pelvis TF and E-stop support with the native Runner contract.
 > The obsolete 8-double TTY adapter and
 > `/hope/control/*` process-control path have been removed; they must not be
@@ -174,6 +185,7 @@ foxglove/
     |-- hope_observer.py             normalized Runner/operator state publisher
     |-- hope_command_proxy.py        fixed Runner and calibration service proxy
     |-- hope_lifecycle_supervisor.py fixed process lifecycle authority
+    |-- hope_player_positions.py    raw player-end evidence for managed START
     |-- hope_elink_health.py         passive ELink process/listener observation
     |-- hope_elink_fault.py          startup-log checks and legacy fault diagnostics
     |-- hope_elink_telemetry.py      source-progress/freshness contract and tracker
@@ -614,7 +626,7 @@ validity bit because ROS topics retain the last pose a subscriber received.
 The default freshness limit is 0.5 seconds and is configurable as
 `tf_stale_after_s`.
 
-During the managed model21800 session the authoritative root pose is
+During the managed session the authoritative root pose is
 `/a3/mocap/pelvis_pose`, composed on the Laptop from the approved marker
 calibration. The monitor validates its `world` frame and timestamp, republishes
 it as `/hope/pelvis/pose`, and broadcasts `world -> pelvis_link`. Existing live

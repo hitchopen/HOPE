@@ -1499,20 +1499,21 @@ inline void validate_hitter_pingpong_continuous_v4_metadata(
   }
 }
 
-// V4 makes mocap v_xy actor-visible, so a held/stale pose or invalid differentiated velocity can
-// no longer be treated as advisory or replaced with zero. Historical recipes intentionally keep
-// their existing outage behavior.
+// V4 makes mocap v_xy actor-visible: require a real age-bounded pose (or its
+// explicitly marked, bounded policy-only hold) and the retained finite velocity.
+// The caller's LatestForPolicy bounds holds to the rescue deadline; it must not
+// differentiate reused poses into fictitious zero velocity or fresh evidence.
 inline void validate_hitter_pingpong_continuous_v4_mocap_observation(
     bool continuous_v4,
-    bool mocap_fresh,
+    bool mocap_observation_usable,
     bool velocity_valid,
     const std::array<double, 2>& velocity_xy_w) {
   if (!continuous_v4) return;
-  if (!mocap_fresh || !velocity_valid ||
+  if (!mocap_observation_usable || !velocity_valid ||
       !std::isfinite(velocity_xy_w[0]) ||
       !std::isfinite(velocity_xy_w[1])) {
     throw std::runtime_error(
-        "continuous-rally-v4 requires a fresh authoritative mocap pose and finite filtered v_xy");
+        "continuous-rally-v4 requires an age-bounded authoritative mocap pose and finite filtered v_xy");
   }
 }
 

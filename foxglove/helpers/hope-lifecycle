@@ -909,6 +909,12 @@ preflight_mdu() {
       die PREFLIGHT KERNEL_RUNNER_UPDATE_REQUIRED
     grep -Fq -- '--kernel-mode' "$MDU_DEPLOY/run_a3_pingpong.sh" || \
       die PREFLIGHT KERNEL_WRAPPER_UPDATE_REQUIRED
+  else
+    grep -aFq -- '--operator-watchdog' "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" || \
+      die PREFLIGHT OPERATOR_WATCHDOG_RUNNER_UPDATE_REQUIRED
+    grep -Fq -- '/hope/runner/operator_echo_flat' \
+      "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_ros2body.yaml" || \
+      die PREFLIGHT OPERATOR_WATCHDOG_CONFIG_UPDATE_REQUIRED
   fi
   [[ -s "$MDU_DEPLOY/policy/exported/policy.onnx" ]] || \
     die PREFLIGHT POLICY_FILE_MISSING
@@ -1369,7 +1375,7 @@ run_runner() {
     serve_runner_args=()
     printf 'receive_only=true\n' > "$session_dir/receive_only.txt"
   fi
-  local -a field_runner_args=(--planner --shared-session-home)
+  local -a field_runner_args=(--planner --shared-session-home --operator-watchdog)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
   fi

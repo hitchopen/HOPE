@@ -1832,6 +1832,7 @@ class PpPolicy {
     // --- localization-dependent world pose (3 modes; obs LAYOUT unchanged) ---
     oracle_fresh_ = false;
     oracle_age_s_ = -1.0;
+    base_pose_held_ = false;
     std::uint64_t localization_seq = 0;
     std::uint64_t localized_calibration_id = 0, localized_world_id = 0;
     switch (cfg_.loc_mode) {
@@ -1883,7 +1884,7 @@ class PpPolicy {
       case LocMode::kExternalBase: {  // ===== HARDWARE planner: calibrated mocap base POSE =====
         PpBaseSample s;
         if (base_in_ &&
-            base_in_->Latest(
+            base_in_->LatestForPolicy(
                 s, cfg_.external_base_max_age_s,
                 /*require_authoritative=*/mocap_authoritative)) {
           st.base_pos_w = s.pos;
@@ -1896,13 +1897,16 @@ class PpPolicy {
             const double propagation_s =
                 std::clamp(s.age_s, 0.0,
                            cfg_.external_base_gyro_propagation_max_s);
-            st.base_quat_w = quat_integrate_body_rate(
-                s.quat, st.base_ang_vel_b, propagation_s);
+            const auto applied = base_pose_hold_.Apply(s, quat_integrate_body_rate(
+                s.quat, st.base_ang_vel_b, propagation_s));
+            st.base_pos_w = applied.pos;
+            st.base_quat_w = applied.quat;
           }
           if (mocap_authoritative)
             st.torso_quat_w = st.base_quat_w;  // torso IMU is non-load-bearing in 110-D
           st.torso_pos_w = torso_pos_from_base(st.base_pos_w, st.base_quat_w, st.q);
-          base_fresh_ = true;
+          base_pose_held_ = s.held_for_policy;
+          base_fresh_ = !base_pose_held_;
           have_last_external_base_ = true;
           last_external_base_pos_w_ = s.pos;
           last_external_base_quat_w_ = st.base_quat_w;
@@ -1946,15 +1950,19 @@ class PpPolicy {
     const bool localized_base =
         (cfg_.loc_mode == LocMode::kOracle && oracle_fresh_) ||
         (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_) || cfg_.kernel_mode;
-    UpdateBaseMotion_(tick_idx, st.base_pos_w, localized_base, localization_seq);
+    // A held pose is an actor input only: do not differentiate it into a fake
+    // zero velocity, reset the filter, or advance the last-real-sample history.
+    if (!base_pose_held_)
+      UpdateBaseMotion_(tick_idx, st.base_pos_w, localized_base, localization_seq);
     validate_hitter_pingpong_continuous_v4_mocap_observation(
-        onnx_.uses_hitter_pure_headslots_vxy_obs() && !cfg_.kernel_mode, base_fresh_,
+        onnx_.uses_hitter_pure_headslots_vxy_obs() && !cfg_.kernel_mode,
+        base_fresh_ || base_pose_held_,
         base_velocity_xy_valid_,
         {base_velocity_xy_est_[0], base_velocity_xy_est_[1]});
     st.base_velocity_xy_w = base_velocity_xy_valid_ ? base_velocity_xy_est_ : Vec2::Zero();
     if (onnx_.uses_position_mocap_obs()) {
       const double max_age = onnx_.base_localization_max_age_s();
-      st.localization_age = (localized_base && oracle_age_s_ >= 0.0 && max_age > 0.0)
+      st.localization_age = ((localized_base || base_pose_held_) && oracle_age_s_ >= 0.0 && max_age > 0.0)
           ? std::clamp(oracle_age_s_ / max_age, 0.0, 1.0)
           : 1.0;
     }
@@ -2764,6 +2772,9 @@ class PpPolicy {
   bool authoritative_mocap_required() const {
     return onnx_.uses_authoritative_mocap_pose() && !cfg_.kernel_mode;
   }
+  double mocap_rescue_deadline_s() const {
+    return std::min(cfg_.external_base_max_age_s, kBasePoseRescueAfterS);
+  }
   bool authoritative_mocap_fresh() const {
     return !authoritative_mocap_required() || base_fresh_;
   }
@@ -2781,7 +2792,7 @@ class PpPolicy {
         cfg_.loc_mode == LocMode::kExternalBase) {
       PpBaseSample sample;
       base_fresh_ = base_in_ &&
-          base_in_->Latest(sample, cfg_.external_base_max_age_s, true);
+          base_in_->Latest(sample, std::min(cfg_.external_base_max_age_s, kBasePoseHoldAfterS), true);
       if (base_fresh_) {
         last_proj_grav_ = projected_gravity_body(sample.quat);
       } else if (state.imu_quat_wxyz.size() == 4 &&
@@ -4165,6 +4176,10 @@ class PpPolicy {
     // This tick replaces the frozen actor tuple. First emit the authoritative
     // completion edge for the old (epoch, flight); failing that ledger check
     // leaves the old native tail and every policy state variable untouched.
+    if (NewFlightNeedsRealBase_()) {
+      set_planner_status_("mocap_pose_held");
+      return false;  // no new-flight commit from synthetic observation reuse
+    }
     if (!CompleteSchema22FrozenFlight_(
             PlannerFlightCompletionKind::kRapidPreempt)) {
       RecordPlannerLifecycle_(
@@ -4362,6 +4377,11 @@ class PpPolicy {
       envelope_block_reason_ = envelope_gate.reason;
       set_planner_status_(envelope_gate.reason);
       return;
+    }
+
+    if (NewFlightNeedsRealBase_()) {
+      set_planner_status_("mocap_pose_held");
+      return;  // active same-flight streaming above remains unchanged
     }
 
     // The learned clip already contains its recovery.  The additional legacy
@@ -6088,7 +6108,15 @@ class PpPolicy {
   // --- LIVE PLANNER inputs + engage state (Path B; driver-thread only unless noted) ---
   std::shared_ptr<PpRacketTargetInput> racket_in_;  // written by AimRT subscriber thread
   std::shared_ptr<PpBasePoseInput> base_in_;        // written by AimRT subscriber thread
+  bool NewFlightNeedsRealBase_() const {
+    if (cfg_.loc_mode != LocMode::kExternalBase) return false;
+    PpBaseSample sample;
+    return !base_in_ || !base_in_->LatestForPolicy(sample, cfg_.external_base_max_age_s,
+               onnx_.uses_authoritative_mocap_pose()) || sample.held_for_policy;
+  }
   bool base_fresh_ = false;             // a fresh external-base sample was used this tick
+  bool base_pose_held_ = false;         // inference-only reuse; never fresh sensor evidence
+  PpBasePoseHold base_pose_hold_;
   bool have_last_external_base_ = false;
   Vec3 last_external_base_pos_w_ = Vec3(0.0, 0.0, 0.95);
   Vec4 last_external_base_quat_w_ = Vec4(1.0, 0.0, 0.0, 0.0);

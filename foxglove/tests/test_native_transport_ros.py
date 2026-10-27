@@ -63,7 +63,7 @@ class NativeTransportTests(unittest.TestCase):
         self.assertTrue(all(p.get_subscription_count() for p in pubs))
         self.spin(.3)
 
-    def test_four_routes_preserve_wire_and_never_replay(self):
+    def test_seven_routes_preserve_wire_and_never_replay(self):
         from std_msgs.msg import Float64MultiArray, MultiArrayDimension
         def payload_fields(msg):
             # CDR alignment padding is not initialized consistently by the
@@ -73,12 +73,14 @@ class NativeTransportTests(unittest.TestCase):
                     struct.pack('<' + 'd' * len(msg.data), *msg.data))
         parameters = {}
         input_names = ['remote_state_topic', 'local_control_topic',
-                       'local_teleop_input_topic', 'remote_teleop_state_topic']
+                       'local_teleop_input_topic', 'remote_teleop_state_topic', 'remote_mocap_safety_topic',
+                       'remote_operator_challenge_topic', 'local_operator_echo_topic']
         output_names = ['local_state_topic', 'remote_control_topic',
-                        'remote_teleop_input_topic', 'local_teleop_state_topic']
-        received = [[] for _ in range(4)]
+                        'remote_teleop_input_topic', 'local_teleop_state_topic', 'local_mocap_safety_topic',
+                        'local_operator_challenge_topic', 'remote_operator_echo_topic']
+        received = [[] for _ in input_names]
         pubs, subs = [], []
-        for route in range(4):
+        for route in range(len(input_names)):
             source, target = f'/cpu_native_test/in{route}', f'/cpu_native_test/out{route}'
             parameters[input_names[route]] = source
             parameters[output_names[route]] = target
@@ -87,7 +89,7 @@ class NativeTransportTests(unittest.TestCase):
                 lambda msg, i=route: received[i].append(payload_fields(msg)), 10))
         proc = self.start('hope-runner-transport-relay-native', parameters)
         self.discover(pubs, proc)
-        self.assertEqual(received, [[], [], [], []], 'startup must not generate a command')
+        self.assertEqual(received, [[] for _ in input_names], 'startup must not generate a command')
         expected = []
         for route, pub in enumerate(pubs):
             # Includes an old source timestamp, disabled input, signed zero,

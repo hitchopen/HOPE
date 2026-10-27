@@ -48,7 +48,9 @@ def pose(node,x=2100):
 def test_switch_flows_from_snapshot_through_vrpn_into_guarded_base(ros):
     relay=load('avatar_pro_vrpn_relay').AvatarProVrpnRelay()
     base=load('hope_base_pose_flat_relay').BasePoseFlatRelay()
-    outputs=[]; pelvis=[]; observations=[]; balls=[]
+    outputs=[]; pelvis=[]; observations=[]; balls=[]; raw_players=[]
+    for pub in relay._player_position_publishers.values():
+        pub.publish=raw_players.append
     base._pub.publish=outputs.append
     base._pelvis_pub.publish=pelvis.append
     relay._observation_pub.publish=lambda msg:(observations.append(msg),base._vrpn_pose_cb(msg))
@@ -59,6 +61,8 @@ def test_switch_flows_from_snapshot_through_vrpn_into_guarded_base(ros):
         relay._config_cb(String(data=json.dumps(dict(revision=revision,pants_profile=profile,table_side=side,state='STOPPED',busy=False,
             mocap_source='vrpn',vrpn_ip='192.168.100.99',vrpn_port='3883',vrpn_units='mm'))))
         relay._on_pose('/vrpn_mocap/UCB_'+side+'/pose','UCB_'+side,pose(relay))
+        assert raw_players[-1].pose.position.x == pytest.approx(2.1)
+        assert raw_players[-1].header.frame_id == 'hope_table_global'
         assert outputs[-1].data[1]==1
         assert base._vrpn_selection==Selection(profile,side,revision)
         assert outputs[-1].data[5:8]==pytest.approx([2.1,-1.1,.96] if side=='P1' else [.64,-.425,.96])
@@ -91,6 +95,27 @@ def test_unconfirmed_import_bad_timestamp_and_jump_do_not_produce_valid_base(ros
     send(stamp);assert output[-1].data[1]==0
     send(stamp+1_000_000,(1.,0.,0.));assert output[-1].data[1]==0
     base.destroy_node()
+
+
+@pytest.mark.parametrize('hz', [150, 300])
+def test_player_start_evidence_is_30hz_while_base_observations_remain_full_rate(ros, hz):
+    relay = load('avatar_pro_vrpn_relay').AvatarProVrpnRelay()
+    raw, observations = [], []
+    relay._player_position_publishers['UCB_P1'].publish = raw.append
+    relay._observation_pub.publish = observations.append
+    relay._config_cb(String(data=json.dumps(dict(revision=1, pants_profile='v2', table_side='P1',
+        state='STOPPED', busy=False, mocap_source='vrpn', vrpn_ip='192.168.100.99',
+        vrpn_port='3883', vrpn_units='mm'))))
+    try:
+        for i in range(hz):
+            msg = pose(relay)
+            ns = 100_000_000_000 + round(i*1e9/hz)
+            msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(ns, 10**9)
+            relay._on_pose('/vrpn_mocap/UCB_P1/pose', 'UCB_P1', msg)
+        assert len(raw) == 30
+        assert len(observations) == hz
+    finally:
+        relay.destroy_node()
 
 
 def test_rigid_ball_orientation_reaches_pose_array_and_invalid_spin_stays_invalid(ros):

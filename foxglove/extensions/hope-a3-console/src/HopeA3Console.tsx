@@ -20,6 +20,9 @@ import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { robotConnectionUrl, switchRobot } from "./robotConnection";
 import { mergeConfirmedConfig } from "./lifecycleConfig";
+import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
+import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
+import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
 import "@fontsource/ibm-plex-mono/400.css";
@@ -37,6 +40,8 @@ import "./styles.css";
 const TOPICS = {
   plannerDiagnostics: "/planner/diagnostics",
   fieldStatus: "/hope/field/status",
+  playerP1: "/hope/mocap/players/UCB_P1",
+  playerP2: "/hope/mocap/players/UCB_P2",
   ntpOffset: "/hope/ntp/offset_ms",
   ntpSkew: "/hope/ntp/skew_ppm",
   ntpDispersion: "/hope/ntp/root_dispersion_ms",
@@ -65,6 +70,9 @@ const TOPICS = {
   commandFlight: "/hope/command/flight_id",
   commandSummary: "/hope/command/summary",
   runnerAlive: "/hope/runner/alive",
+  runnerBoot: "/hope/runner/boot_id",
+  mocapSafety: "/hope/runner/mocap_safety_hdu_flat",
+  operatorChallenge: OPERATOR_CHALLENGE,
   runnerMode: "/hope/runner/mode",
   xboxPreview: "/hope/runner/xbox_preview",
   teleopState: "/hope/runner/teleop_state_hdu_flat",
@@ -130,6 +138,7 @@ type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
+  player_positions?: { P1: boolean; P2: boolean };
   ball_model_status?: BallModelStatus;
   policy_model?: "model14600" | "model11999" | "model12600" | "model17400" | null;
   ball_model?: "berkeley" | "ppq002" | "ppq004" | null;
@@ -226,6 +235,10 @@ function xboxPreviewValue(message: unknown): XboxPreview | undefined {
 }
 
 type Snapshot = {
+  mocapSafety?: MocapSafety;
+  runnerBoot?: number;
+  playerP1?: PlayerPosition;
+  playerP2?: PlayerPosition;
   hitSpeedScale?: HitSpeedScaleState;
   ballYFilter?: BallYFilterState;
   xboxPreview?: XboxPreview;
@@ -314,6 +327,11 @@ function scalar(message: unknown): unknown {
 
 function numberValue(message: unknown): number | undefined {
   const value = scalar(message);
+  if (typeof value === "bigint") {
+    // ROS 2 Int64/UInt64 may decode as bigint. Never round an identity to Number.
+    const decoded = Number(value);
+    return Number.isSafeInteger(decoded) ? decoded : undefined;
+  }
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
@@ -334,6 +352,21 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
+    case TOPICS.mocapSafety:
+      next.mocapSafety = decodeMocapSafety(scalar(event.message));
+      break;
+    case TOPICS.runnerBoot: {
+      const value = numberValue(event.message);
+      next.runnerBoot = value != undefined && Number.isSafeInteger(value) &&
+        value > 0 && value <= 2**52 ? value : undefined;
+      break;
+    }
+    case TOPICS.playerP1:
+      next.playerP1 = decodePlayerPosition(event.message, receivedAt, next.playerP1);
+      break;
+    case TOPICS.playerP2:
+      next.playerP2 = decodePlayerPosition(event.message, receivedAt, next.playerP2);
+      break;
     case TOPICS.plannerDiagnostics:
       next.planeMode = decodePlaneMode(event.message);
       next.hitSpeedScale = decodeHitSpeedScale(event.message);
@@ -729,6 +762,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   }, [context]);
 
   useLayoutEffect(() => {
+    const heartbeat = new OperatorHeartbeat(context);
     context.onRender = (renderState, done) => {
       const receivedAt = Date.now();
       const hostMessage = renderState.currentFrame?.find((event) => event.topic === TOPICS.hduWifiIp);
@@ -752,6 +786,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       for (const event of renderState.currentFrame ?? []) {
         applyMessage(next, event, receivedAt);
       }
+      for (const event of renderState.currentFrame ?? []) {
+        if (event.topic === OPERATOR_CHALLENGE && !renderState.didSeek) {
+          heartbeat.echo(scalar(event.message), next.runnerBoot, next.lifecycleSession);
+        }
+      }
       latest.current = next;
       setSnapshot(next);
       setRenderDone(() => done);
@@ -761,6 +800,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     context.watch("currentFrame");
     context.subscribe(Object.values(TOPICS).map((topic) => ({ topic })));
     return () => {
+      heartbeat.close();
       context.onRender = undefined;
       context.unsubscribeAll();
     };
@@ -1192,7 +1232,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">A3 SOURCE · 1.8.15</div>
+          <div className="eyebrow">A3 SOURCE · 1.8.18</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? "ROS 2"} · CONTROL :8766</span>
             <span
@@ -1494,8 +1534,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <div>
             <div className="eyebrow">OUR TABLE SIDE · LOCKED INTO NEXT START</div>
             <div className="topic-path">
-              START SYSTEM does not contact Motive · when optional OptiTrack is running, UCB_P1
-              uses Motive world directly and UCB_P2 poses rotate 180° about the table centre
+              Fresh player position required at START: P1 x &lt; 0 m; P2 x &gt; 2.74 m.
+              Side stays locked until STOP. Offline Kernel serving is exempt.
+              {!kernelMode && fieldFresh && field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true &&
+                " HDU has not verified this end; check explicit-peer DDS discovery."}
             </div>
           </div>
           {(["P1", "P2"] as const).map((side) => (
@@ -1503,7 +1545,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               key={side}
               className={configDraft.table_side === side ? "side-selected" : ""}
               type="button"
-              disabled={!lifecycleStopped || lifecycleBusy}
+              disabled={!lifecycleStopped || lifecycleBusy || (!kernelMode &&
+                !playerSideAvailable(side, [snapshot.playerP1, snapshot.playerP2], now))}
               onClick={() => {
                 setConfigTouched(true);
                 setConfigDraft((current) => ({ ...current, table_side: side }));
@@ -1539,6 +1582,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               configTouched ||
               fieldBusy || field?.busy === true || !fieldFresh ||
               (!kernelMode && lifecycleState !== "FAILED" && !ballDisplay.ready) ||
+              (!kernelMode && lifecycleState !== "FAILED" &&
+                (!playerSideAvailable(configDraft.table_side as "P1" | "P2",
+                  [snapshot.playerP1, snapshot.playerP2], now) ||
+                  field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true)) ||
               busy.startLifecycle === true
             }
             onClick={() => void startSystem()}
@@ -1885,6 +1932,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         </div>
         <div className="sequence-footer">
           <span>{lastAction}</span>
+          <span>{mocapSafetyText(
+            snapshot.runnerAlive === true && isFresh(snapshot, TOPICS.runnerAlive, now, 1_000) &&
+            isFresh(snapshot, TOPICS.runnerBoot, now, 1_000) &&
+            isFresh(snapshot, TOPICS.mocapSafety, now, 1_000) &&
+            snapshot.mocapSafety?.boot === snapshot.runnerBoot
+              ? snapshot.mocapSafety : undefined)}</span>
           <ActionButton
             label="Runner Passive"
             detail="ZERO GAINS · robot loses support"
