@@ -369,7 +369,7 @@ and `/hope/operations/status` publishing while accepted jobs and their service
 responses drain. Requests received during shutdown are rejected as `DRAINING`,
 distinct from a busy worker. The hardware lock remains owned until accepted
 cleanup finishes. Once cleanup completes, suspended service responses have a
-separate eight-second drain budget. Expiry logs pending callback names and counts
+separate five-second drain budget. Expiry logs pending callback names and counts
 and abandons those responses before teardown; a client must not infer action
 failure or success from a missing response. This deadline does not interrupt
 worker cleanup or a callback blocked synchronously on an executor thread.
