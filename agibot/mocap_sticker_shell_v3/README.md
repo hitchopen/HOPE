@@ -1,28 +1,30 @@
 # A3 dual-mode marker shell v3
 
-**17-station v3 revision, 2026-10-11: seven front + ten rear. Printable mesh geometry checked;
-physical fit, hardware retention and crash testing remain required.**
+**2026-10-27: one unchanged 17-station v3 shell, two distinct 12-sticker
+installations for ChingMu and OptiTrack P1/P2. Seven front + ten rear mounting stations remain.**
+Printable mesh geometry is checked; physical fit, retention, tracking and crash
+testing remain required.
 The v3 model name and printable filenames are unchanged.
 
 Imported from [HOPE commit 10b1bd710c074cf9851a3ca2f63494dc23a39e06](https://github.com/hitchopen/HOPE/commit/10b1bd710c074cf9851a3ca2f63494dc23a39e06).
-Meshes, coordinate tables, workbook and PDF retain that commit's bytes. This
-checkout keeps the tested rigid-body name **`UCB_P1`** in the Motive asset and
-its companion authoring files; marker geometry, IDs and pivot are unchanged.
-On 2026-10-13 the operator reported this asset usable after testing. The
-upstream reports below retain their original offline evidence scope.
+Meshes, coordinate tables and workbook retain that commit's bytes. The PDF now
+documents the two player installations and both vendors' import steps.
+The new all-nominal asset pair has distinct identities; original measured
+exports remain unchanged as historical evidence, not current imports.
 
 The default localization mode remains **`motive_live`**: it uses the selected
 body's current NatNet ModelDef without binding to a file SHA-256, marker count
 or reference layout. A fresh calibration JSON is not required by that mode.
 The marker monitor derives its expected count from the current definition.
 
-For **ChingMu / CMTracker over VRPN**, the single matching 17-sticker import file
-[A3_v3_17_stickers.json](vrpn_asset/A3_v3_17_stickers.json) is packaged in
-[vrpn_asset/](vrpn_asset/README.md). It uses the same
-nominal `pelvis_link` origin and ROS axes, without Motive's native Y-up mapping.
-The existing Foxglove/VRPN profile calls this design **V4**; the CAD folder
-name remains v3. VRPN has no live ModelDef, so its setup/verification workflow
-is separate from `motive_live`.
+For **ChingMu / CMTracker over VRPN**, use [P1.json](vrpn_asset/P1.json) or
+[P2.json](vrpn_asset/P2.json) with the corresponding installation below.
+Both preserve nominal `pelvis_link` and ROS axes; neither uses Motive's Y-up
+mapping. Their internal names are `UCB_P1` and `UCB_P2` for HOPE routing.
+The updated **V4** runtime profile carries the two different 12-marker definitions;
+the CAD folder remains v3. VRPN has no live ModelDef. Matching
+[OptiTrack P1/P2 assets](motive_asset/README.md) now use the same selected points
+with Motive's native unit/axis encoding.
 
 ## What changed
 
@@ -72,6 +74,35 @@ These are fused STL manufacturing masters, not the earlier overlapping STEP
 assembly or partial previews. A repaired analytic STEP is not supplied.
 
 ## Marker installation
+
+### P1 / P2: one print, two optical patterns
+
+| Installation | Apply 12 reflective stickers | Leave these five nonreflective |
+|---|---|---|
+| P1, user-specified order | S19, S20, S11, S12, S22, S21, S13, S14, S04, S05, S16, S18 | S06, S07, S08, S15, S17 |
+| P2, calculated selection | S04, S05, S06, S07, S08, S11, S12, S15, S17, S18, S20, S22 | S13, S14, S16, S19, S21 |
+
+P1 has seven front and five rear stickers; P2 has four front and eight rear.
+No mounting station, bore, STL, OpenSCAD geometry or CAD transform changed.
+Use the [updated illustrated instructions](output/pdf/A3_marker_shell_v3_instructions.pdf)
+for front/rear views, a 360-degree installation map and per-asset point indices.
+Keep unused sites nonreflective under the actual cameras' IR illumination.
+
+The shared stations are **S04, S05, S11, S12, S18, S20, S22**. Seven is the
+minimum possible overlap: 12 + 12 - 17 = 7. Thus **no such pair can guarantee
+distinct identity from every partial view**. In particular all five P2-only
+sites are rear sites; a front-only P2 observation is a subset of P1. Six or
+seven visible shared points can still be ambiguous despite `minMarker: 6`.
+
+P2 is the optimum of the documented CAD screening criterion over all 792
+maximum-separation candidates: minimize nonshared four-point, then three-point
+distance-signature similarities at 2 mm, followed by angular coverage criteria.
+The selected pattern has zero additional four-point candidates at that tolerance,
+but the shared subsets remain exactly identical. This is not a measured vendor
+recognition threshold or an all-view guarantee. See the
+[analysis and assumptions](documents/player_pattern_analysis.json) and
+[asset guide](vrpn_asset/README.md). Verify both bodies together under actual
+occlusion and reacquisition before relying on player identity.
 
 For sticker mode, install the **3.45 mm diameter x 1.30 mm long** central pin
 flush, then centre a **12 mm reflective sticker, 0.20 mm total thickness**,
@@ -150,127 +181,73 @@ does not require this table or receipt; see the
 
 ## Supplied OptiTrack asset and station evidence
 
-- [Original A3.motive](motive_asset/source/A3.motive) and
-  [A3.csv](motive_asset/source/A3.csv) are byte-for-byte copies of the user's
-  16-point export, retained for traceability. **Do not use the unfiltered
-  16-point asset for the revised 17-station shell.**
-- [A3_v3_17_stickers.motive](motive_asset/A3_v3_17_stickers.motive) and its
-  [CSV](motive_asset/A3_v3_17_stickers.csv) define the **pelvis-aligned `UCB_P1`**
-  offline candidate. The CSV is its coordinate companion.
-  Original Points **3, 9, 13** (removed S23, S03, S02) and unmatched **Point 15**
-  are excluded. The measured constellation is rigidly reframed to the nominal
-  CAD `pelvis_link` origin and axes; **measured pair distances are preserved**,
-  rather than replacing the observations with ideal CAD points. Diameters,
-  constraint UUIDs and streaming ID `9` are unchanged for those 12 points.
-  Member IDs **1-12** retain their existing order. Restored **S06, S07, S08,
-  S15, S17** are appended as members **13-17** using nominal CAD sticker
-  coordinates and nominal 12 mm diameters. **They have no observations in
-  the supplied A3 export; visibility is not yet confirmed.**
-- The old learned `constraint_graph` is omitted: its undocumented statistics
-  cannot be extended honestly from unmeasured points. The 136 visualization
-  stick pairs are complete, but **native import without that cache is unverified**.
-  Test-import in an isolated Motive project and save a fresh export. If rejected,
-  create the asset with Motive's API from the supplied pivot-relative
-  [authoring data](motive_asset/P1_stickers_definition.json) /
-  [header](motive_asset/P1_stickers_marker_data.h), then export it natively.
-  That alternative uses ideal CAD for all 17 points, not the mixed measured
-  candidate; record the resulting mapping and verify it live. Do not fabricate
-  graph weights or operate from this candidate without validation.
-- [Station mapping](documents/optitrack_station_mapping.csv) records the
-  original Point number, filtered member ID and physical Sxx identity.
-  The 12 previously retained stations have geometric matches in both source files:
-  rigid-fit RMS **1.395 mm**, maximum **1.853 mm**. This confirms presence in
-  the source asset, **not continuous visibility or an approved runtime calibration**.
-  These accuracy statistics exclude the five nominal additions.
-- The filtered native file passes XML/reference/coordinate checks but has
-  **not been imported and re-exported in Motive**. Import into an isolated
-  project first; the candidate preserves the source body UUID and can replace
-  that body if imported into the same project. Confirm body name `UCB_P1`, 17
-  markers and a unique streaming ID, save a fresh native export, restart
-  NatNet and perform the live verification described below.
+Use [P1.motive](motive_asset/P1.motive) and [P2.motive](motive_asset/P2.motive):
+12 markers each, internally named **UCB_P1 / UCB_P2**, streaming IDs **9 / 10**,
+with distinct body and marker UUIDs. They use the same station selections and
+nominal CAD optical centres as the ChingMu pair. See the
+[import guide](motive_asset/README.md) and [coordinate/hash manifest](motive_asset/asset_manifest.json).
 
-This checkout already supplies `UCB_P1` for table side P1. For table side P2,
-use `UCB_P2`. Preserve the aligned geometry and pivot. Default `motive_live`
-accepts the selected body's current definition; `motive_asset` is an optional
-pinned check against this 17-marker file. Only explicit `calibration` mode
-requires a measured `calibration/ucb_robot_to_pelvis.json` receipt.
+These native XML candidates pass offline checks; **Motive import/re-export and
+live tracking are not verified**. Resolve existing name/streaming-ID collisions
+in a backed-up project. The undocumented learned graph is omitted rather than
+invented. Do not use the historical all-17 import for either 12-sticker installation.
 
 ### Pelvis origin and ROS axes: no extra default correction
 
-The aligned asset targets **`pelvis_link` at its origin, X forward / Y left /
-Z up in the ROS stream**. The default `UCB_P1 → pelvis_link` is therefore:
+Both new bodies target nominal **pelvis_link**, X forward / Y left / Z up.
+The intended fixed correction is translation **[0,0,0] m**, quaternion
+**[0,0,0,1] xyzw**, not a measured physical-calibration result.
 
-```text
-translation (m):    [0, 0, 0]
-quaternion (xyzw):  [0, 0, 0, 1]
-```
+Native offsets store `[pelvis_x, pelvis_z, -pelvis_y]` in metres. Set Motive
+Streaming **Up Axis = Z Up** and retain
+`topics.rigid_body_markers.modeldef_y_up_to_z_up: true`. Do not convert twice,
+subtract either subset's centroid, reset pivot/orientation or rotate P2 locally.
+The moving world-to-body pose and world/table calibration remain separate.
 
-See [identity default](motive_asset/P1_to_pelvis_link_default.json). It is an
-explicit offline expectation, **not an approved runtime receipt**.
+Default `motive_live` accepts the selected live definition without a file pin.
+Optional `motive_asset` now pins the selected player's **12-marker** geometry.
+Rebuild/install the contract, relay and both assets together. The older measured
+`stickers_v3` calibration tool requires all 17 sites and does not support this
+pair; do not reuse its receipts or manually approve identity defaults.
 
-Motive's native asset storage and the ROS streaming convention are different:
-the file stores `[pelvis_x, pelvis_z, -pelvis_y]` (X forward, Y up, Z right).
-Set **Motive Streaming → Up Axis = Z Up**, and retain the bridge's
-`topics.rigid_body_markers.modeldef_y_up_to_z_up: true`. Its existing
-`(x,y,z) → (x,-z,y)` MODELDEF conversion then yields the aligned ROS frame.
-**Do not add another 90-degree pose rotation or reapply the old pivot offset.**
-Simply placing raw ROS xyz values in this native file would apply the basis
-change twice in the configured pipeline. The frame convention is covered by
-the [Motive streaming settings](https://docs.optitrack.com/motive/data-streaming#up-axis)
-and the repository's recorded MODELDEF field verification; this particular
-Motive 3.5 asset still needs an import and stream check.
+### Historical measurement evidence (not current imports)
 
-The production CAD solver recovers identity from the serialized, converted
-asset to numerical precision (translation below 1e-10 m; quaternion-vector
-components below 1e-9). That is an offline consistency test, not physical
-accuracy: the original measured subset remains 1.395 mm RMS / 1.853 mm maximum.
-The five nominal additions are not new calibration evidence.
-The robot/world pose still rotates as the robot moves; only the **fixed local
-UCB_P1-to-pelvis correction** is intended to be identity. World/table calibration
-is unaffected.
+Original user exports and correspondence evidence are preserved under
+[documents/source_evidence/optitrack/](documents/source_evidence/optitrack/README.md),
+outside both import folders. The old generated 17-point asset/CSV and unapproved
+identity reference are maintained regression fixtures, not deployable imports.
+Obsolete all-17 authoring helpers and their stale validation summary were removed;
+Git history retains them.
 
-After importing, do not use Motive **Reset Location / Reset Orientation**:
-those reset the pivot to the marker centroid or re-align it to the world axes,
-undoing this registration. See [Motive pivot controls](https://docs.optitrack.com/motive/rigid-body-tracking#adjusting-a-rigid-body-pivot-point).
-Optional measured calibration can verify the installation; expect an approximately
-identity result. A significant correction is a setup discrepancy to investigate,
-not a reason to force the saved values to identity. Receipts from the earlier
-12-point layout (including the pelvis-aligned revision) are rejected by the new
-table hash, station list and asset-frame revision. Never manually mark the default approved.
-
-The untouched `source/A3.motive` retains its old arbitrary frame. The separate
-`P1_stickers_definition.json` and header remain **ideal CAD** authoring references
-in CAD station order, not copies of the measured aligned asset. Their proposed
-member IDs differ from that asset's order. Resolve the actual MODELDEF by verified
-names or geometric matching.
-See [asset correspondence report](documents/optitrack_asset_correspondence.json).
+The original measured subset fit was **1.395 mm RMS / 1.853 mm maximum**;
+five restored rear sites had no original observations. This does not validate
+the current all-nominal P1/P2 installations or continuous visibility. Use the
+current [manifest](motive_asset/asset_manifest.json) for player coordinates.
+The operator's 2026-10-13 report concerned the historical asset, not this pair.
 
 ## Supplied ChingMu / VRPN asset
 
-- [A3_v3_17_stickers.json](vrpn_asset/A3_v3_17_stickers.json), body `UCB_P1`.
+- [P1.json](vrpn_asset/P1.json), 12 stickers, body `UCB_P1`, numeric ID 1.
+- [P2.json](vrpn_asset/P2.json), 12 stickers, body `UCB_P2`, numeric ID 2.
 - [Import, origin/axis checks and runtime selection](vrpn_asset/README.md).
 
-This single release asset uses the same filename stem and internal `UCB_P1`
-body name as `A3_v3_17_stickers.motive`. It follows the supplied CMTracker JSON
-format and matches the existing runtime **V4 P1** profile byte-for-byte.
-Existing runtime P1/P2 profiles remain unchanged for compatibility; both use
-the same pelvis-local geometry. Configure the site body name (`UCB_P1` or
-`UCB_P2`) and unique IDs in CMTracker as needed, without requiring a separate
-P2 release file or changing the marker coordinates.
-
-The asset has 17 nominal sticker centres in
-`pelvis_link` millimetres, **X forward / Y left / Z up**, with identity `Rbc`.
-No centroid subtraction, old pivot offset or P2-local rotation is applied.
-It intentionally uses the nominal CAD table rather than the mixed
-measured/nominal Motive constellation above. Both modes target the same
-pelvis datum; their point coordinates are not interchangeable native formats.
+These replace the former single 17-point ChingMu import. Each release file is
+byte-identical to its updated V4 runtime counterpart; deploy the matching
+catalog and profile reader together. They follow the supplied CMTracker schema,
+retaining `minMarker: 6` and other tracking settings. Each contains 12 nominal
+sticker centres in `pelvis_link` millimetres, **X forward / Y left / Z up**,
+with identity `Rbc`. No centroid subtraction, old offset or P2-local rotation
+is applied. Both use selected rows of the same unchanged CAD table, not the
+historical mixed measured/nominal constellation. The new Motive P1/P2 pair uses
+these same CAD points after basis/unit conversion.
 
 Import this definition into CMTracker, not into the ROS VRPN client. Confirm
 the importer preserves the local pivot/axes and separately verify the server's
 world frame and stream units before enabling localization. Native import/
 re-export and physical calibration are not established by these offline files.
-Use `pants_profile:=v4` for this hardware; the legacy ten-ball `v3` calibration
-layout is different. No existing runtime profile or Motive asset is changed.
+Use `pants_profile:=v4` for these installations; the legacy ten-ball `v3`
+calibration layout is different. V2 remains unchanged.
+Do not use the 17-marker Motive definition with a 12-sticker installation.
 
 ## Source records and engineering archive
 

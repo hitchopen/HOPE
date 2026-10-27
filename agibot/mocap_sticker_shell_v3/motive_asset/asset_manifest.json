@@ -1,0 +1,483 @@
+{
+  "format": "HOPE_MOTIVE_PLAYER_PATTERN_RELEASE",
+  "schema_version": 1,
+  "revision": "pelvis_link_nominal_player12_20261027",
+  "date": "2026-10-27",
+  "body_frame": "pelvis_link",
+  "axes": {
+    "x": "forward",
+    "y": "left",
+    "z": "up"
+  },
+  "native_units": "metres",
+  "native_from_ros": "[x, z, -y]",
+  "ros_from_native": "[x, -z, y]",
+  "required_streaming_up_axis": "Z",
+  "modeldef_y_up_to_z_up": true,
+  "centroid_subtracted": false,
+  "body_to_pelvis_xyz_m": [
+    0,
+    0,
+    0
+  ],
+  "body_to_pelvis_quaternion_xyzw": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "station_count": 17,
+  "marker_count_per_player": 12,
+  "marker_mode": "12mm_round_reflective_stickers",
+  "sticker_total_thickness_mm": 0.2,
+  "geometry_status": "ALL_CAD_NOMINAL_NOT_PHYSICAL_CALIBRATION",
+  "motive_import_reexport": "NOT_PERFORMED",
+  "live_tracking": "NOT_PERFORMED",
+  "source_table": {
+    "path": "../documents/marker_transforms_pelvis_link_stickers.csv",
+    "sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0"
+  },
+  "unchanged_printable_sha256": {
+    "a3_marker_shell_v3_flush_pin.stl": "f57259bcf324e2b41aae8441b94ff6d50de911d98a023801ff1b90d9d5b35792",
+    "a3_marker_shell_v3_half_a.stl": "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935",
+    "a3_marker_shell_v3_half_b.stl": "5bf8bf09862e22431e35d023a467c17fb298eaa71dec8f7f31ac97fe169cb9f4"
+  },
+  "historical_reference_sha256": {
+    "../documents/source_evidence/optitrack/A3.motive": "7e5423ae1943761380eb834653011dfbf1a52cd6961bdac45504c0741ba7840a",
+    "../documents/source_evidence/optitrack/A3.csv": "5c0f478c12f93e212fdda6478e3ee1413e7f6de5323d464a97e2816cbcc6c7ab"
+  },
+  "assets": {
+    "P1": {
+      "file": "P1.motive",
+      "body_name": "UCB_P1",
+      "uuid": "c57d5165bf1e5e92:a3bd86bc435ec414",
+      "streaming_id": 9,
+      "sha256": "26bd10809e5d8a2cf6ea17257e842e15d6792a33b5439dce833e94cb72304b78",
+      "marker_count": 12,
+      "marker_order": [
+        "S19",
+        "S20",
+        "S11",
+        "S12",
+        "S22",
+        "S21",
+        "S13",
+        "S14",
+        "S04",
+        "S05",
+        "S16",
+        "S18"
+      ],
+      "unmarked_stations": [
+        "S06",
+        "S07",
+        "S08",
+        "S15",
+        "S17"
+      ],
+      "matching_chingmu_file": "../vrpn_asset/P1.json",
+      "markers": [
+        {
+          "station": "S19",
+          "member_id": 1,
+          "uuid": "57b200f7ad3859e5:90b71a107a62c7e5",
+          "position_pelvis_link_m": [
+            0.034664172,
+            -0.079647159,
+            -0.092671819
+          ],
+          "position_motive_native_y_up_m": [
+            0.034664172,
+            -0.092671819,
+            0.079647159
+          ]
+        },
+        {
+          "station": "S20",
+          "member_id": 2,
+          "uuid": "2681b47521b15244:9bf2205a83d97dc7",
+          "position_pelvis_link_m": [
+            0.066487736,
+            -0.030621789,
+            -0.093037623
+          ],
+          "position_motive_native_y_up_m": [
+            0.066487736,
+            -0.093037623,
+            0.030621789
+          ]
+        },
+        {
+          "station": "S11",
+          "member_id": 3,
+          "uuid": "f7b52e2405815857:859d1192b423ad95",
+          "position_pelvis_link_m": [
+            0.068681054,
+            0.013752572,
+            -0.093371537
+          ],
+          "position_motive_native_y_up_m": [
+            0.068681054,
+            -0.093371537,
+            -0.013752572
+          ]
+        },
+        {
+          "station": "S12",
+          "member_id": 4,
+          "uuid": "b3a9b59d6c5d5bb1:a666d67d7789381e",
+          "position_pelvis_link_m": [
+            0.055717983,
+            0.068987617,
+            -0.102705623
+          ],
+          "position_motive_native_y_up_m": [
+            0.055717983,
+            -0.102705623,
+            -0.068987617
+          ]
+        },
+        {
+          "station": "S22",
+          "member_id": 5,
+          "uuid": "476b586ee9095a45:9c8b88b2fdacda3d",
+          "position_pelvis_link_m": [
+            0.079112904,
+            -0.03487123,
+            -0.156402891
+          ],
+          "position_motive_native_y_up_m": [
+            0.079112904,
+            -0.156402891,
+            0.03487123
+          ]
+        },
+        {
+          "station": "S21",
+          "member_id": 6,
+          "uuid": "d63d92450a355301:8db32094975d4c4d",
+          "position_pelvis_link_m": [
+            0.079131593,
+            0.034880717,
+            -0.156415262
+          ],
+          "position_motive_native_y_up_m": [
+            0.079131593,
+            -0.156415262,
+            -0.034880717
+          ]
+        },
+        {
+          "station": "S13",
+          "member_id": 7,
+          "uuid": "9e5b6f7269885e82:9e6bd05902b8b4bf",
+          "position_pelvis_link_m": [
+            0.024198043,
+            0.082665663,
+            -0.090053739
+          ],
+          "position_motive_native_y_up_m": [
+            0.024198043,
+            -0.090053739,
+            -0.082665663
+          ]
+        },
+        {
+          "station": "S14",
+          "member_id": 8,
+          "uuid": "25a2e344a43b5b29:81abe776d26a7ba4",
+          "position_pelvis_link_m": [
+            -0.0355257,
+            0.082456235,
+            -0.094529074
+          ],
+          "position_motive_native_y_up_m": [
+            -0.0355257,
+            -0.094529074,
+            -0.082456235
+          ]
+        },
+        {
+          "station": "S04",
+          "member_id": 9,
+          "uuid": "e2a31e825d6656c4:8d9cc5210da7399d",
+          "position_pelvis_link_m": [
+            -0.02368099,
+            0.07205309,
+            -0.061630517
+          ],
+          "position_motive_native_y_up_m": [
+            -0.02368099,
+            -0.061630517,
+            -0.07205309
+          ]
+        },
+        {
+          "station": "S05",
+          "member_id": 10,
+          "uuid": "f7a82b74ee535326:aa624688750747c2",
+          "position_pelvis_link_m": [
+            -0.067166397,
+            0.047266147,
+            -0.054581659
+          ],
+          "position_motive_native_y_up_m": [
+            -0.067166397,
+            -0.054581659,
+            -0.047266147
+          ]
+        },
+        {
+          "station": "S16",
+          "member_id": 11,
+          "uuid": "c98ed2405ec254a1:86d4e393764103c3",
+          "position_pelvis_link_m": [
+            -0.086615966,
+            -0.018974166,
+            -0.113903749
+          ],
+          "position_motive_native_y_up_m": [
+            -0.086615966,
+            -0.113903749,
+            0.018974166
+          ]
+        },
+        {
+          "station": "S18",
+          "member_id": 12,
+          "uuid": "f1a6cd7d3f515276:a4fb9c9060cd1c5a",
+          "position_pelvis_link_m": [
+            -0.022709647,
+            -0.083579602,
+            -0.089897553
+          ],
+          "position_motive_native_y_up_m": [
+            -0.022709647,
+            -0.089897553,
+            0.083579602
+          ]
+        }
+      ]
+    },
+    "P2": {
+      "file": "P2.motive",
+      "body_name": "UCB_P2",
+      "uuid": "f3c0f5443b115d2e:82089ba298fe58d8",
+      "streaming_id": 10,
+      "sha256": "c263ad41264a8a4728f6633b9033ba520a874489e082158871e3d10899fc16a0",
+      "marker_count": 12,
+      "marker_order": [
+        "S04",
+        "S05",
+        "S06",
+        "S07",
+        "S08",
+        "S11",
+        "S12",
+        "S15",
+        "S17",
+        "S18",
+        "S20",
+        "S22"
+      ],
+      "unmarked_stations": [
+        "S13",
+        "S14",
+        "S16",
+        "S19",
+        "S21"
+      ],
+      "matching_chingmu_file": "../vrpn_asset/P2.json",
+      "markers": [
+        {
+          "station": "S04",
+          "member_id": 1,
+          "uuid": "346541d826c8500e:835d41e1bf5b56da",
+          "position_pelvis_link_m": [
+            -0.02368099,
+            0.07205309,
+            -0.061630517
+          ],
+          "position_motive_native_y_up_m": [
+            -0.02368099,
+            -0.061630517,
+            -0.07205309
+          ]
+        },
+        {
+          "station": "S05",
+          "member_id": 2,
+          "uuid": "68905620da795b3e:acac69fb5ce783ef",
+          "position_pelvis_link_m": [
+            -0.067166397,
+            0.047266147,
+            -0.054581659
+          ],
+          "position_motive_native_y_up_m": [
+            -0.067166397,
+            -0.054581659,
+            -0.047266147
+          ]
+        },
+        {
+          "station": "S06",
+          "member_id": 3,
+          "uuid": "f93795d1d09056f6:859fe5964f579b3f",
+          "position_pelvis_link_m": [
+            -0.079001398,
+            -0.001320496,
+            -0.05760387
+          ],
+          "position_motive_native_y_up_m": [
+            -0.079001398,
+            -0.05760387,
+            0.001320496
+          ]
+        },
+        {
+          "station": "S07",
+          "member_id": 4,
+          "uuid": "1b3350d7ac365d16:9171f6ecd1a849ff",
+          "position_pelvis_link_m": [
+            -0.063805908,
+            -0.052205169,
+            -0.060498038
+          ],
+          "position_motive_native_y_up_m": [
+            -0.063805908,
+            -0.060498038,
+            0.052205169
+          ]
+        },
+        {
+          "station": "S08",
+          "member_id": 5,
+          "uuid": "b1532df9b5f05bfa:af431ba9b30ef7f2",
+          "position_pelvis_link_m": [
+            -0.019874543,
+            -0.072035522,
+            -0.054669064
+          ],
+          "position_motive_native_y_up_m": [
+            -0.019874543,
+            -0.054669064,
+            0.072035522
+          ]
+        },
+        {
+          "station": "S11",
+          "member_id": 6,
+          "uuid": "a41c3de4ecb75533:a474876c6a9ce723",
+          "position_pelvis_link_m": [
+            0.068681054,
+            0.013752572,
+            -0.093371537
+          ],
+          "position_motive_native_y_up_m": [
+            0.068681054,
+            -0.093371537,
+            -0.013752572
+          ]
+        },
+        {
+          "station": "S12",
+          "member_id": 7,
+          "uuid": "09d20f6861d45c43:9c3191f0d58c5967",
+          "position_pelvis_link_m": [
+            0.055717983,
+            0.068987617,
+            -0.102705623
+          ],
+          "position_motive_native_y_up_m": [
+            0.055717983,
+            -0.102705623,
+            -0.068987617
+          ]
+        },
+        {
+          "station": "S15",
+          "member_id": 8,
+          "uuid": "60c037282fc15869:865af1307ed5ba81",
+          "position_pelvis_link_m": [
+            -0.077885198,
+            0.04404497,
+            -0.097023108
+          ],
+          "position_motive_native_y_up_m": [
+            -0.077885198,
+            -0.097023108,
+            -0.04404497
+          ]
+        },
+        {
+          "station": "S17",
+          "member_id": 9,
+          "uuid": "4db36fb989cc5b30:8adceb86d9508019",
+          "position_pelvis_link_m": [
+            -0.065029671,
+            -0.065130802,
+            -0.099352277
+          ],
+          "position_motive_native_y_up_m": [
+            -0.065029671,
+            -0.099352277,
+            0.065130802
+          ]
+        },
+        {
+          "station": "S18",
+          "member_id": 10,
+          "uuid": "0472634815735b12:a1865158a725b583",
+          "position_pelvis_link_m": [
+            -0.022709647,
+            -0.083579602,
+            -0.089897553
+          ],
+          "position_motive_native_y_up_m": [
+            -0.022709647,
+            -0.089897553,
+            0.083579602
+          ]
+        },
+        {
+          "station": "S20",
+          "member_id": 11,
+          "uuid": "78e97b1de2055623:8ff27e0b54389ac0",
+          "position_pelvis_link_m": [
+            0.066487736,
+            -0.030621789,
+            -0.093037623
+          ],
+          "position_motive_native_y_up_m": [
+            0.066487736,
+            -0.093037623,
+            0.030621789
+          ]
+        },
+        {
+          "station": "S22",
+          "member_id": 12,
+          "uuid": "9c205b81280458d8:832fd5c6f5d52d79",
+          "position_pelvis_link_m": [
+            0.079112904,
+            -0.03487123,
+            -0.156402891
+          ],
+          "position_motive_native_y_up_m": [
+            0.079112904,
+            -0.156402891,
+            0.03487123
+          ]
+        }
+      ]
+    }
+  },
+  "warnings": [
+    "Import P1.motive and P2.motive, not this manifest or old all-17 files.",
+    "Native XML candidates: test import and re-export in Motive before deployment; no learned constraint_graph is fabricated.",
+    "Distinct names/UUIDs/streaming IDs do not resolve shared-only optical ambiguity. Test both robots together under occlusion.",
+    "Resolve existing UCB_P1/UCB_P2 names and streaming ID 9/10 collisions in a backed-up project.",
+    "No centroid reset, extra P2 local rotation or second sticker-thickness offset.",
+    "The legacy measured stickers_v3 calibration tool still requires all 17 sites; it cannot issue a receipt for this pair."
+  ]
+}

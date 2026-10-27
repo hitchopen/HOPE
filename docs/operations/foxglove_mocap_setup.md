@@ -39,7 +39,7 @@ Lifecycle schema 6 提供三个选项：无动捕、Motive（NatNet）、
 
 ## 青瞳 / CMTracker / VRPN
 
-- 按实物选择 V2（10 点）或 V4（17 点贴纸），导入
+- 按实物选择 V2（10 点）或 V4（17 孔壳体、P1/P2 各 12 点不同贴纸布局），导入
   `hope_ws/src/hope_bringup/config/pants_profiles/a3_<v2或v4>_<P1或P2>_ground_truth.json`。
   详细坐标约定见 [裤子与 CMTracker 设置](vrpn_pants_profiles.md)。
 - 名称仍为 `UCB_P1` / `UCB_P2` 与 `Ball`。保留 pelvis_link 原点及

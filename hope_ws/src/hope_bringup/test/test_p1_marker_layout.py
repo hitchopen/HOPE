@@ -24,14 +24,19 @@ def test_optical_centres_are_used_without_a_second_conversion():
     )
     assert layout.layout_metadata()["axes"] == {"x": "forward", "y": "left", "z": "up"}
     # The authoring asset must describe the same centres, not a centroid-shifted body.
-    asset = layout.table_path().parents[1] / "motive_asset/P1_stickers_definition.json"
+    asset = layout.table_path().parents[1] / "motive_asset/asset_manifest.json"
     document = json.loads(asset.read_text())
-    assert document["source"]["sha256"] == layout.SOURCE_SHA256
-    assert document["physical_calibration_status"] == "NOT_PERFORMED"
-    for marker in document["markers"]:
-        assert marker["position_pelvis_link_m"] == pytest.approx(
-            transforms[marker["station"]]["translation_m"], abs=1e-12
-        )
+    assert document["source_table"]["sha256"] == layout.SOURCE_SHA256
+    assert document["geometry_status"] == "ALL_CAD_NOMINAL_NOT_PHYSICAL_CALIBRATION"
+    used = set()
+    for player in document["assets"].values():
+        assert len(player["markers"]) == 12
+        for marker in player["markers"]:
+            used.add(marker["station"])
+            assert marker["position_pelvis_link_m"] == pytest.approx(
+                transforms[marker["station"]]["translation_m"], abs=1e-12
+            )
+    assert used == set(transforms)
 
 
 def test_old_24_station_receipt_is_rejected_even_with_same_v3_name():

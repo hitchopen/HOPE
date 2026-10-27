@@ -68,18 +68,20 @@ the panel starts no processes.
 | Control | State | Effect |
 | --- | --- | --- |
 | Motive Live Asset | ASSET ACCEPTED / CHECK MOTIVE ASSET / WAITING FOR MOTIVE; separate live pelvis state | Read-only current body status |
-| Marker audit | Visible / defined markers, e.g. 15/17 | Definition count follows the streamed ModelDef |
+| Marker audit | Visible / defined markers, e.g. 10/12 | Definition count follows the streamed ModelDef |
 | Serve CSV | Select/upload while stopped | Existing Runner CSV validation and serve controls |
 | OptiTrack / Normal play | Select while stopped; start OptiTrack separately | Uses the imported asset's nominal pelvis frame |
 | Recording | OFF / STARTING / ON / STOPPING | Explicit MCAP start/stop |
 
-For the 17-sticker shell, import
-[A3_v3_17_stickers.motive](../../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive).
-Its internal NodeName, AssetName, JointName and all constraint joint references
-are `UCB_P1`. Keep its pivot/axes unchanged. Disable any old body with the same
-canonical name, select P1 in the Console, set Motive Streaming Up Axis to Z,
-and enable Rigid Bodies. Enable Labeled Markers for the physical visibility
-audit. Then use the existing OptiTrack start control.
+For the current 12-sticker-per-player installations on the unchanged 17-station
+shell, use the matching [P1/P2 Motive pair](../../../agibot/mocap_sticker_shell_v3/motive_asset/README.md),
+named `UCB_P1` / `UCB_P2` with IDs 9 / 10. They match the ChingMu selections
+and nominal CAD geometry. Confirm import/re-export, installed pattern and
+pelvis pivot/axes; resolve existing name/ID collisions in a backed-up project.
+Select the matching table side, set Motive Streaming Up Axis to Z, and enable
+Rigid Bodies. Enable Labeled Markers for the physical visibility audit.
+Then use the existing OptiTrack start control. Shared-only occluded views can
+still confuse these patterns; validate both bodies together before play.
 
 The default launch and Laptop lifecycle helper use `localization_source:=motive_live`.
 This mode reads no local Motive file and imposes no fixed SHA-256, marker count
@@ -101,19 +103,17 @@ or verify the Motive table origin. Set the table/world origin in Motive as befor
 `Refresh x_hit`; shared HOME is captured when entering policy mode. No
 `calibration/ucb_robot_to_pelvis.json` is read, created or overwritten.
 
-The pinned 17-marker check is opt-in via `localization_source:=motive_asset`;
-legacy measured V2/V3 calibration is opt-in via
-`localization_source:=calibration start_calibration:=true`.
+The side-specific 12-marker check is opt-in via `localization_source:=motive_asset`;
+rebuild/install both reference files and the updated relay/contract together.
+Legacy measured calibration is opt-in via
+`localization_source:=calibration start_calibration:=true`; its `stickers_v3`
+profile still requires all 17 sites and cannot calibrate these new subsets.
 
-The 17-sticker file was copied from the user-supplied USB file, byte-identical
-before renaming to the asset at upstream commit
-[`10b1bd710`](https://github.com/hitchopen/HOPE/commit/10b1bd710c074cf9851a3ca2f63494dc23a39e06).
-Only the 21 exact body-name/reference attributes were renamed from `P1` to
-`UCB_P1`; marker coordinates, pivot, axes, IDs and other settings are unchanged.
-The USB original is backed up as `A3_v3_17_stickers.motive.original-P1.bak`.
-The older 17-sticker asset and original exports under `motive_asset/source/`
-remain available. These offline preparation checks do not establish successful
-Motive import or live NatNet tracking.
+Original measurement exports are preserved in the
+[shell's source-evidence folder](../../../agibot/mocap_sticker_shell_v3/documents/source_evidence/optitrack/README.md).
+Obsolete all-17 imports are no longer in the player release folders; historical
+regression fixtures are not installed. Native import and live tracking of the
+new pair still require deployment validation.
 
 
 Pure Serve uploads accept the existing full31 serve025 CSV schema: 468 frames,

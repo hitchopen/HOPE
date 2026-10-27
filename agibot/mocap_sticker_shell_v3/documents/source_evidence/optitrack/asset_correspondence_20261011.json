@@ -1,5 +1,6 @@
 {
-  "status": "MIXED_MEASURED_AND_NOMINAL_PELVIS_ALIGNED_CANDIDATE_IMPORT_AND_LIVE_VALIDATION_PENDING",
+  "status": "HISTORICAL_17_MARKER_CORRESPONDENCE_NOT_CURRENT_PLAYER_IMPORT",
+  "path_base": "REPOSITORY_ROOT",
   "date": "2026-10-11",
   "retained_station_ids": [
     "S04",
@@ -29,24 +30,24 @@
   "removed_point_15_reason": "No corresponding v3 shell station; excluded as unmatched.",
   "source_assets": [
     {
-      "path": "source/A3.motive",
+      "path": "agibot/mocap_sticker_shell_v3/documents/source_evidence/optitrack/A3.motive",
       "sha256": "7e5423ae1943761380eb834653011dfbf1a52cd6961bdac45504c0741ba7840a",
       "point_count": 16
     },
     {
-      "path": "source/A3.csv",
+      "path": "agibot/mocap_sticker_shell_v3/documents/source_evidence/optitrack/A3.csv",
       "sha256": "5c0f478c12f93e212fdda6478e3ee1413e7f6de5323d464a97e2816cbcc6c7ab",
       "point_count": 16
     }
   ],
   "filtered_assets": [
     {
-      "path": "A3_v3_17_stickers.motive",
+      "path": "hope_ws/src/hope_bringup/test/fixtures/motive_legacy_17/A3_v3_17_stickers.motive",
       "sha256": "3f9f7feb6f4613108a2e38eb151556a8c07ed54d5e36520c3883d9ab05dca0b4",
       "point_count": 17
     },
     {
-      "path": "A3_v3_17_stickers.csv",
+      "path": "hope_ws/src/hope_bringup/test/fixtures/motive_legacy_17/A3_v3_17_stickers.csv",
       "sha256": "e1eb819997cde0e09eb6de2f96f172047eaf41933bf85337ccef2aca21c66bb2",
       "point_count": 17
     }
