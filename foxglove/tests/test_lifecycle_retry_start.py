@@ -18,7 +18,8 @@ def node(monkeypatch):
     monkeypatch.setattr(module, "release_hardware_operation_lock", Mock())
     n = SimpleNamespace(
         _lock=threading.Lock(), _state="FAILED", _busy=False, _field_busy=False,
-        _config=SimpleNamespace(revision=1), _session_id="model21800_20261021T090033Z",
+        _config=SimpleNamespace(revision=1, table_side="P1"), _session_id="model21800_20261021T090033Z",
+        _player_positions=Mock(),
         _session_mode="OPTITRACK", _hardware_operation_lock=object(),
         _backend=Mock(), _pool=Mock(), _run_start=Mock(), _on_event=Mock(),
         _field=SimpleNamespace(recorder=Mock(), runner_selection=Mock(return_value=("OPTITRACK", "")), status=lambda: {}),
@@ -65,6 +66,24 @@ def test_failed_cleanup_keeps_old_identity_and_never_starts(node):
     module.release_hardware_operation_lock.assert_not_called()
     # Another START can retry the cleanup without a manual KILL.
     assert accept(node).success
+
+
+def test_player_rejection_after_confirmed_cleanup_returns_stopped_and_unlocks(node):
+    lock = node._hardware_operation_lock
+    node._player_positions.require.side_effect = ValueError("PLAYER_POSITION_UNVERIFIED")
+    assert accept(node).success
+    execute(node)
+    node._backend.kill_all_and_collect.assert_called_once()
+    node._backend.start.assert_not_called()
+    assert node._state == "STOPPED" and not node._busy
+    assert node._session_id == "" and node._hardware_operation_lock is None
+    assert node._last_result.startswith("PREFLIGHT_REJECTED:")
+    module.release_hardware_operation_lock.assert_called_once_with(lock)
+    # The next click is a regular preflight attempt, never another cleanup.
+    assert accept(node).success
+    execute(node)
+    node._backend.kill_all_and_collect.assert_called_once()
+    assert node._state == "STOPPED"
 
 
 def test_worker_submit_failure_keeps_failed_session_and_lock(node):

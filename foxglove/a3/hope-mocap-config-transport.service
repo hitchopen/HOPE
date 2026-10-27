@@ -11,7 +11,7 @@ Environment=ROS_LOCALHOST_ONLY=0
 Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
 EnvironmentFile=-/etc/hope-foxglove/network.env
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec /usr/local/libexec/hope-mocap-config-transport'
+ExecStart=:/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && IFS=";" read -r -a hope_static_peers <<< "${ROS_STATIC_PEERS:-}" && hope_peer_args=() && for hope_peer in "${hope_static_peers[@]}"; do if [[ -n "$hope_peer" ]]; then hope_peer_args+=(--peer "$hope_peer"); fi; done && exec /home/agi/hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh --domain-id 232 "${hope_peer_args[@]}" -- /usr/local/libexec/hope-mocap-config-transport'
 Restart=on-failure
 RestartSec=2
 

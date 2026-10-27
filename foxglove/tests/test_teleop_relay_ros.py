@@ -32,13 +32,16 @@ class TeleopRelayTest(unittest.TestCase):
         executor = SingleThreadedExecutor()
         executor.add_node(relay)
         executor.add_node(client)
-        received_input, received_state = [], []
+        received_input, received_state, received_safety, received_challenge, received_echo = [], [], [], [], []
         qos = module._reliable_qos()
         pubs = [
             client.create_publisher(Float64MultiArray, topic, qos)
             for topic in (
                 "/hope/runner/teleop_input_hdu_flat",
                 "/hope/runner/teleop_state_flat",
+                "/hope/runner/mocap_safety_flat",
+                "/hope/runner/operator_challenge_flat",
+                "/hope/runner/operator_echo_hdu_flat",
             )
         ]
         [
@@ -51,6 +54,9 @@ class TeleopRelayTest(unittest.TestCase):
             for topic, dst in (
                 ("/hope/runner/teleop_input_flat", received_input),
                 ("/hope/runner/teleop_state_hdu_flat", received_state),
+                ("/hope/runner/mocap_safety_hdu_flat", received_safety),
+                ("/hope/runner/operator_challenge_hdu_flat", received_challenge),
+                ("/hope/runner/operator_echo_flat", received_echo),
             )
         ]
 
@@ -65,15 +71,24 @@ class TeleopRelayTest(unittest.TestCase):
             payloads = [
                 [1.0, 42.0, 7.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
                 [1.0, 42.0, 1.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [1.0, 42.0, 7.0, 9.0, 1.0, 0.0, 1.0, 1.0],
+                [1., 42., 7., 9.],
+                [1., 42., 7., 9., 1.],
             ]
             for pub, payload in zip(pubs, payloads):
                 pub.publish(Float64MultiArray(data=payload))
             spin(0.5)
             self.assertEqual(received_input, [payloads[0]])
             self.assertEqual(received_state, [payloads[1]])
+            self.assertEqual(received_safety, [payloads[2]])
+            self.assertEqual(received_challenge, [payloads[3]])
+            self.assertEqual(received_echo, [payloads[4]])
             spin(0.5)
             self.assertEqual(len(received_input), 1)
             self.assertEqual(len(received_state), 1)
+            self.assertEqual(len(received_safety), 1)
+            self.assertEqual(len(received_challenge), 1)
+            self.assertEqual(len(received_echo), 1)
         finally:
             executor.shutdown()
             client.destroy_node()

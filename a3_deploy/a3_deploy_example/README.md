@@ -1,6 +1,6 @@
 # a3_deploy / a3_deploy_example
 
-> Current build, policy staging and Gate 3 commands: [deployment guide](../../docs/operations/deploy_and_gate3.md).
+> Current deployment: **model17400 + PPQ004**, receive-only. See [bundle staging](../../docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment).
 > For the shared real-ball coefficients, see [ball physics](../../docs/operations/ball_physics_calibration.md).
 > Runner mode transitions and terminal serve recovery: [control contract](../../docs/operations/foxglove_runner_control_contract.md).
 > Staging a package does not activate the robot.
@@ -32,8 +32,6 @@ two roles**:
   Python harness (`config/`), the tracked runtime assets (`assets/a3_runtime/` —
   reference serve clip + manifest), and the `joint_msgs` message sources the
   build depends on (`thirdparty/joint_msgs/`).
-- The published **model_21800** bundle (`models/model_21800/policy/`): the exact
-  deploy ONNX plus its Unitree-style `deploy.yaml`.
 - Launch scripts (`scripts/`) for the sim harness and a documented real-hardware
   template.
 
@@ -56,7 +54,7 @@ passing unit tests does not replace the hardware deployment checks above.
 | --- | --- |
 | Observation | **110-D `hitter_pure`**, single layout, no normalization (raw). See `reference/.../observation.py` and `../../docs/POLICY_INTERFACE.md`. |
 | Action | **31-D** `raw_action` → `q_des = default_q + raw_action * action_scale`, clamped to the official A3 joint limits. The two head columns (idx 3, 4) are passive: the runtime holds the neck at nominal. |
-| ONNX | Compact exports use `observation[1,110] -> raw_action[1,31]`; model_21800 uses `obs[1,110]` plus a reference `time_step[1,1]` and exposes `actions[1,31]` plus debug outputs. The wrapper consumes only the actor output and maps training/SDK joint order. |
+| ONNX | Use the exact model17400 policy/deploy pair, checked by native `--inspect-policy` during staging. The loader validates exported metadata and maps training/SDK joint order. |
 | Joint order | 31-DOF Agibot A3, fixed. See `reference/.../joint_order.py`. |
 | Command wire | `/racket/command_flat` (`std_msgs/Float64MultiArray`, schema 1 or 2: valid, swing_sign, position, velocity, timing, flight/revision identity) plus `/a3/base_pose_flat` for mocap base pose. Rich `hope_msgs/RacketCommand` remains for tooling. See `../../docs/PLANNER_INTERFACE.md`. |
 | Lifecycle | `ready -> swing -> follow-through -> recovery -> ready`, one swing per flight, no state reset between balls. |
@@ -71,27 +69,29 @@ The 110-D observation, in order:
 There is no swing-side observation — the side travels on the wire as
 `swing_sign` and is consumed by the runner's engage logic, never by the actor.
 
-## Quickstart (MuJoCo sim, Python harness)
+## Current deployment bundle
 
-This is the host-Python path from
-[`docs/DISTROBOX_SETUP.md`](../../docs/DISTROBOX_SETUP.md), not an Isaac or ROS
-shell. On a new workstation, create an isolated virtual environment first:
+Build a complete target-matched Runner distribution, then stage the model17400
+export without editing its metadata or deploy parameters:
 
 ```bash
-cd "$HOME/workspace/HOPE/a3_deploy/a3_deploy_example"
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r reference/requirements.txt
-scripts/run_pingpong_sim.sh --view --realtime      # windowed, wall-clock 50 Hz
-scripts/run_pingpong_sim.sh --duration 20          # headless, 20 s
+python3 scripts/prepare_model17400_bundle.py \
+  --package /path/to/model17400 \
+  --runner-dist /path/to/target-runner-dist \
+  --output /path/to/new-staging-directory
 ```
 
-The reference runner loads the same `a3_pingpong` MJCF that the AimRT MuJoCo sim
-wraps (`../A3_MuJoCo_Sim`) and steps MuJoCo in-process, so you can watch the
-policy drive the robot without the AimRT/iceoryx stack. With the ROS 2 planner
-running (`hope_ws`), `python -m a3_deploy_onnx_ref_pingpong --planner` consumes
-the live `/racket/command_flat` stream. See `reference/README.md` for the module
-layout and integration seams.
+For cross staging, add `--inspection-runner-dist /path/to/native-runner-dist`
+from the same source. The helper checks policy/deploy identities, inspects the
+native contract, rejects mixed ELF architectures and emits the deployment,
+Planner profile and HDU/MDU catalog entries. It does not install or start hardware.
+See [the installation procedure](../../foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy).
+
+Deploy model17400 with PPQ004 on both Planner and packetizer and a live mocap
+base stream. Its immutable session HOME and exported support parameters must
+match the generated Planner profile. This bundle is receive-only; serving and
+Kernel mode are not qualified. Source-tree simulation and regression fixtures
+are not copied into the runtime distribution.
 
 ## PD Stand transition
 
@@ -103,6 +103,26 @@ instead of being extrapolated across the full transition.
 Set `--pd-stand-blend-sec S` to change this duration (finite and positive).
 This setting is independent of `--motion-blend-sec` and
 `--policy-entry-blend-sec`; the policy entry duration remains unchanged.
+
+Normal `--planner` play stops after 100 ms without a fresh base pose, measured
+on the MDU monotonic clock. RALLY uses the existing PD_STAND blend; SERVE requests
+the existing abort/validated stand recovery. Fresh data does not restart play.
+Manual Stand, emergency PASSIVE and offline `--kernel-mode` / `--serve-only`
+operation remain available.
+
+After 20 ms, normal-play model inputs explicitly hold the last applied pelvis
+pose, without further gyro propagation or fake sensor/velocity updates. Original
+timestamps and sequence remain unchanged; the hold ends at the rescue deadline.
+HELD is separate from loss: mode entry and normal serve completion remain
+available while the real sample is within its observation/rescue deadline.
+New-flight commits still wait for a real, non-held pose. Qualify the hold's
+effect on strike timing with replay and attended hardware tests.
+The managed launch also enables `--operator-watchdog`: the Console heartbeat
+expires after 1 s; the operator-computer relay expires after 100 ms. Either
+requests controlled recovery. These are trigger times, not physical stand
+transition durations. Offline
+Kernel/Pure Serve and Teleop are not covered by this operator-link watchdog.
+See [deployment checks](../../docs/operations/foxglove_lifecycle.md#player-assignment-and-mocap-loss).
 
 ## Building the C++ runner
 
@@ -129,21 +149,20 @@ AimRT MuJoCo sim) over the vendor body-drive interface — operational guidance 
 
 ## Configuration
 
-- `models/model_21800/policy/params/deploy.yaml` — the published model's action
-  offsets/scales/clips, joint ordering, timing and PD arrays. The neutral
-  `config/action_adapter.yaml` remains available for custom examples.
-- `config/hope_pingpong_runtime.yaml` — the 110-D runtime config for the Python
-  harness. It selects model_21800 by default and uses the exported PD arrays only
-  to realize its targets in simulation; it never configures a robot backend.
+- The staged deployment's `policy/params/deploy.yaml` and `policy/exported/policy.onnx`
+  are the verified model17400 pair; never substitute parameters from another export.
+- The generated `model17400.json` configures the HDU Planner from the same native
+  inspection. Install the generated catalog entries on HDU and MDU together.
+- Include the matching `config/a3_aimrt_config.pingpong_ros2body.yaml` for Runner
+  state, HOME and mocap-safety telemetry over ROS 2.
 
 ## Running on real hardware
 
 Complete simulation, bench, tether, e-stop, and low-gain verification before any
 free-standing run. The vendor backend's gains, limits, and e-stop stay
 authoritative; the public code never sets, probes, or bypasses them.
-`scripts/run_pingpong_real.sh` documents the Python-harness handoff template;
-the hardware path is the C++ runner plus your licensed AgiBot vendor payload —
-see `../../docs/RUN_ON_AGIBOT.md`.
+The hardware path is the C++ runner plus the licensed AgiBot vendor payload,
+started through the [managed lifecycle](../../docs/operations/foxglove_lifecycle.md).
 
 ## License
 

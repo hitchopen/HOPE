@@ -16,6 +16,7 @@ def supervisor():
     recorder = Mock()
     node = SimpleNamespace(
         _lock=threading.Lock(), _backend=Mock(),
+        _player_positions=Mock(),
         _field=SimpleNamespace(recorder=recorder, runner_selection=Mock(return_value=("OPTITRACK", "")), status=lambda: {}),
         _wait_for_authoritative_runner=Mock(), _on_event=Mock(),
         _state="STARTING", _busy=True, _hardware_operation_lock=None,
@@ -31,7 +32,7 @@ def test_recording_starts_only_after_authoritative_runner_ready(monkeypatch):
     node._backend.start.side_effect = lambda *args, **kwargs: order.append("backend")
     node._wait_for_authoritative_runner.side_effect = lambda: order.append("ready")
     recorder.start.side_effect = lambda: order.append("record")
-    HopeLifecycleSupervisor._run_start(node, object(), "test")
+    HopeLifecycleSupervisor._run_start(node, SimpleNamespace(table_side="P1"), "test")
     assert order == ["backend", "ready", "record"]
     assert node._state == "RUNNING" and not node._busy
     assert node._last_result == "START_COMPLETE_RUNNER_PASSIVE"
@@ -41,7 +42,7 @@ def test_failed_start_does_not_record(monkeypatch):
     monkeypatch.setenv("HOPE_AUTO_RECORD_ON_START", "1")
     node, recorder = supervisor()
     node._backend.start.side_effect = LifecycleFailure("preflight failure")
-    HopeLifecycleSupervisor._run_start(node, object(), "test")
+    HopeLifecycleSupervisor._run_start(node, SimpleNamespace(table_side="P1"), "test")
     recorder.start.assert_not_called()
     assert node._state == "STOPPED" and not node._busy
 
@@ -49,7 +50,7 @@ def test_failed_start_does_not_record(monkeypatch):
 def test_manual_recording_override(monkeypatch):
     monkeypatch.setenv("HOPE_AUTO_RECORD_ON_START", "0")
     node, recorder = supervisor()
-    HopeLifecycleSupervisor._run_start(node, object(), "test")
+    HopeLifecycleSupervisor._run_start(node, SimpleNamespace(table_side="P1"), "test")
     recorder.start.assert_not_called()
     assert node._state == "RUNNING"
 
@@ -58,7 +59,7 @@ def test_capture_failure_preserves_controller_state(monkeypatch):
     monkeypatch.setenv("HOPE_AUTO_RECORD_ON_START", "1")
     node, recorder = supervisor()
     recorder.start.side_effect = OSError("capture unavailable")
-    HopeLifecycleSupervisor._run_start(node, object(), "test")
+    HopeLifecycleSupervisor._run_start(node, SimpleNamespace(table_side="P1"), "test")
     assert node._state == "RUNNING" and not node._busy
     node.get_logger().error.assert_called_once()
 
@@ -66,6 +67,6 @@ def test_capture_failure_preserves_controller_state(monkeypatch):
 def test_public_default_keeps_manual_recording(monkeypatch):
     monkeypatch.delenv("HOPE_AUTO_RECORD_ON_START", raising=False)
     node, recorder = supervisor()
-    HopeLifecycleSupervisor._run_start(node, object(), "test")
+    HopeLifecycleSupervisor._run_start(node, SimpleNamespace(table_side="P1"), "test")
     recorder.start.assert_not_called()
     assert node._state == "RUNNING"

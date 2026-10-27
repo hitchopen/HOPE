@@ -20,7 +20,7 @@
       - "^/hope/pelvis/(pose|text|marker|tf)$"
     # Exact local-Runner actions, world-to-pelvis calibration, a separate x_hit
     # refresh, and the assert-only emergency path. No wildcard service,
-    # parameters, or client publishing. Internal topics are not browser-writable.
+    # parameters, or command-topic publishing. Only liveness echoes are writable.
     service_whitelist:
       - "^/hope/planner/set_plane_mode$"
       - "^/hope/planner/set_hit_speed_scale$"
@@ -55,12 +55,14 @@
       # and permits at most one hard-step attempt per maintenance cycle.
       - "^/hope/lifecycle/time_calibration$"
     param_whitelist: ["(?!)"]
-    client_topic_whitelist: ["(?!)"]
+    # Only read-only liveness echoes; motor commands and requests stay denied.
+    client_topic_whitelist: ["^/hope/runner/operator_echo_hdu_flat$"]
     send_buffer_limit: 12000000
     # Bounded executor budget on the eight-core HDU. Service callbacks remain
     # independent of subscription work; the bridge is already native C++.
     num_threads: 2
     use_compression: false
     capabilities:
+      - clientPublish
       - services
       - connectionGraph

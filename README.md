@@ -3,11 +3,19 @@
 Mac users: see [macOS development and operator setup](docs/operations/macos_deployment.md).
 The operator backend supports any normal Mac login, with explicit Mac/Linux
 profiles and separate configurable container/robot accounts; no personal Mac
-username or local administrator account is hardcoded. Console 1.8.15 includes
+username or local administrator account is hardcoded. Console 1.8.18 includes
 operator, gripper and NatNet/VRPN selectors. The final Mac build includes both
 mocap workspaces, uses the `hope` container group, and preserves schema-5 venue
 settings through the combined schema-6 backend. It does not deploy to the robot
 or change robot motions or scheduling.
+
+Normal play now verifies the P1/P2 table end from raw mocap at START and returns
+to PD_STAND on base-stream or operator-link loss. A gap over 20 ms uses a marked
+last-pose hold without shortening mode admission or resetting the 1 s rescue
+deadline. Separate Console (1 s) and operator-computer (1 s) heartbeats
+protect normal mocap play only.
+Offline Kernel/Pure Serve and Teleop retain their existing behavior;
+see [deployment safety](docs/operations/foxglove_lifecycle.md#player-assignment-and-mocap-loss).
 
 A3 operations: [ELink startup checks and runtime diagnostics](docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics)
 detect startup process/IPC and log failures without adding telemetry, battery or
@@ -28,13 +36,14 @@ qualified during HOPE play, credit only a verified wired E-stop in HOPE sessions
 Follow the matched-component installation and hardware validation requirements
 in those guides before deployment.
 
-Runtime updates from October 11–13: [deployment and Gate 3](docs/operations/deploy_and_gate3.md),
+Current deployment: [build and deployment](docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment),
 [shared ball physics](docs/operations/ball_physics_calibration.md),
 [Foxglove recording and live Motive localization](foxglove/extensions/hope-a3-console/README.md),
 and the [v3 shell with P1/P2 12-sticker patterns](agibot/mocap_sticker_shell_v3/README.md).
-Training now retains the model_14600 recipe as `task=HOPEPingPong algo=ppo` and
+Training retains the model_14600 recipe as `task=HOPEPingPong algo=ppo` and
 its ONNX/deploy baseline under `hope_training/whole_body_tracking/checkpoints/`.
 See the [30-ball Gate3 run and video](docs/gates/model14600_gate3_30balls_20261013.md).
+Deployment uses the verified model17400 bundle described below.
 
 HOPE is an open platform for humanoid robot table tennis, developed by [Hitch Interactive](https://hitchinteractive.com) (Intelligent Racing Inc.) in collaboration with the [ROAR Platform](https://roar.berkeley.edu) at UC Berkeley. The challenge invites teams to deploy whole-body humanoid controllers that can rally a ping-pong ball against human opponents or other robots, using off-the-shelf humanoid hardware and an open-source perception and planning stack.
 
@@ -49,9 +58,10 @@ transforms to `pelvis_link`.
 ## How To Read This Repository
 
 Start with the verified new-machine setup in
-[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md), run the published model via
-[docs/MODEL_21800.md](docs/MODEL_21800.md), then follow
-[QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) to train or export your own.
+[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md), then use the
+[managed A3 deployment workflow](docs/operations/foxglove_lifecycle.md) and
+[current deployment](#a3-deployment-model17400--ppq004) below.
+Follow [QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) to train or export your own.
 The rest of the repository is organized into four layers:
 
 | Layer | What to read or run | Purpose |
@@ -61,12 +71,11 @@ The rest of the repository is organized into four layers:
 | Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/`, `docs/RUN_ON_AGIBOT.md` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app; the native C++ deploy runner with its gate/rehearsal scripts (`a3_deploy/a3_deploy_example/`) and the MuJoCo/AimRT simulation fork with the real ball plant (`a3_deploy/A3_MuJoCo_Sim/`); and Agibot-provided A3 materials. |
 | Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace (Python + C++ planners) for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
-A fresh clone includes the model_14600 ONNX/deploy baseline, the existing
-model_21800 runtime export, reference motions, and a 30-ball model_14600 MuJoCo
-video as ordinary tracked files. The training baseline does not include a
-resumable `.pt` checkpoint. Other generated Isaac assets, training logs,
-checkpoints, exported `.onnx` files, and ROS build artifacts remain git-ignored;
-Agibot-provided materials under `agibot/` are tracked.
+A fresh clone includes the source, reference motions and tracked robot assets.
+The current model17400 deployment requires its verified trained-policy bundle;
+do not infer that it is installed from the presence of repository source alone.
+Generated Isaac assets, training logs, checkpoints and ROS build artifacts are
+not deployment inputs unless explicitly included in the staged bundle.
 
 ## Reproduce the working environment on a new machine
 
@@ -83,24 +92,36 @@ Do not replace individual packages with their latest releases during initial
 setup. First reproduce the pinned environment and pass its CUDA/import/asset
 smoke; treat a later Isaac or PyTorch upgrade as a separate migration.
 
-## Run `model_21800`
+## A3 deployment: model17400 + PPQ004
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
-a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
-```
+Current robot deployment uses **model17400 with PPQ004** through the
+Foxglove-managed Laptop/Mac → HDU → MDU lifecycle. It is a **receive-only**
+policy: normal mocap receive play is supported; serving and Kernel mode are not
+qualified for this bundle.
 
-The default runtime selects the deployed 110-D `hitter_pure` actor. See the
-[complete model guide](docs/MODEL_21800.md). The
-[latest Gate3 video](docs/assets/model_21800_gate3_mujoco.mp4) now shows
-**model_14600, 30 balls**; its legacy filename is retained for existing links.
-See the [run report](docs/gates/model14600_gate3_30balls_20261013.md) for the verdict.
-The guide also contains the reproducible native Runner/Planner build,
-host-only contract tests, isolated racket-contact A/B test, process-free Gate
-3 preflight, the default repeated-good-ball cherry-pick run, and the explicit
-`--qualification` 12-serve lateral sweep.
+Stage the exact policy/deploy export with
+[`prepare_model17400_bundle.py`](a3_deploy/a3_deploy_example/scripts/prepare_model17400_bundle.py)
+and a complete target-matched Runner distribution. Install its generated MDU
+deployment and HDU Planner profile/catalog entries. While STOPPED, select
+**17400 · Receive only** and **PPQ004**, configure the gripper, mocap source and
+table side, then confirm configuration and START. HDU/MDU policy and deploy
+hashes must agree; PPQ004 must match on the Planner and operator packetizer.
+These installed selections are verified again before hardware startup.
+
+START leaves the Runner in PASSIVE. Use the attended Stand/Ready workflow to
+enter receive play. P1/P2 occupancy is verified from unrotated mocap at START;
+the side is then locked until STOP. During play, loss of the base-pose stream
+requests controlled PD_STAND recovery and does not automatically resume play.
+Foxglove and the managed operator relay must each return genuine challenge
+echoes; loss triggers recovery after 1 s for the Console or 1 s for the
+operator-computer relay. Switching away from the Console for over 1 s can
+therefore stop play; qualify deployed UI timing before operation.
+See the [lifecycle installation and operation guide](docs/operations/foxglove_lifecycle.md),
+[Console model controls](foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy)
+and [model17400 runtime alignment](docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment).
+Use the verified installed bundle and current runbook, not a model number inferred
+from a layout, service, session-prefix or file name. Local regression checks do
+not establish a fresh live-hardware qualification.
 
 The HDU Foxglove health/safety monitor (`hope-monitor`) and optional read-only
 mocap configuration relay (`hope-mocap-config-transport`) run in C++.
@@ -428,7 +449,7 @@ the real A3 ([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)).
 
 **Implementation scope.** The preserved reference documents include robot-specific integration examples; the code currently shipped in this repository implements the Agibot A3 (31 actuated DOF) path end to end: Isaac Lab training of one unified forehand/backhand policy on the 110-D `hitter_pure` contract (the `HitterPingPong` task, gym id `HOPE-HitterPingPong-AgibotA3-v0` — the recipe validated on real hardware), Isaac evaluation, MuJoCo sim-to-sim and closed-loop evaluation with a real ball plant, and the native C++ deploy runner — alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
 
-**Training stack.** The WBC training code builds on open-source [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, plus [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. This repository also publishes the complete validated forehand/backhand reference motions, the model_14600 training baseline, and the `model_21800` deploy artifacts; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the per-asset documentation for applicable terms.
+**Training stack.** The WBC training code builds on open-source [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, plus [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. This repository also publishes the complete validated forehand/backhand reference motions; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the per-asset documentation for applicable terms.
 
 ## Supported Robots
 
@@ -513,9 +534,11 @@ Some starter materials are derived from or interoperate with third-party softwar
 
 ## Runner and Xbox update
 
-The public model remains **model_21800**. The runtime now supports Xbox LT
-locomotion, A/B/X/Y mode requests, LB+RB software stop, Kernel Mode, continuous
-serve/receive transitions, and saved field calibration/serve files. See the
+The current model17400 deployment is described in
+[A3 deployment: model17400 + PPQ004](#a3-deployment-model17400--ppq004).
+The runtime includes Xbox LT locomotion, A/B/X/Y mode requests and LB+RB software
+stop. Bundle capabilities remain authoritative: model17400 is receive-only.
+See the
 [operator guide](docs/operations/runtime_xbox.md) and
 [validation limits](docs/operations/runtime_public_validation.md). This checkout
 includes the ready-to-install Foxglove `.foxe`, HumanLike locomotion bundle and

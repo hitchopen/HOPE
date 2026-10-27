@@ -21,7 +21,7 @@ Environment=ROS_LOG_DIR=/var/lib/hope-lifecycle/ros-log
 ExecStartPre=/usr/bin/install -d -m 0700 /var/lib/hope-lifecycle/ros-log
 ExecStartPre=/usr/bin/touch /var/lib/hope-lifecycle/hardware-operation.lock
 ExecStartPre=/usr/bin/chmod 0600 /var/lib/hope-lifecycle/hardware-operation.lock
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/bin/hope_lifecycle_supervisor.py'
+ExecStart=:/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && IFS=";" read -r -a hope_static_peers <<< "${ROS_STATIC_PEERS:-}" && hope_peer_args=() && for hope_peer in "${hope_static_peers[@]}"; do if [[ -n "$hope_peer" ]]; then hope_peer_args+=(--peer "$hope_peer"); fi; done && if [[ ${#hope_peer_args[@]} -gt 0 ]]; then exec /home/agi/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh --domain-id "$ROS_DOMAIN_ID" "${hope_peer_args[@]}" -- python3 /usr/local/bin/hope_lifecycle_supervisor.py; fi; exec python3 /usr/local/bin/hope_lifecycle_supervisor.py'
 Restart=on-failure
 RestartSec=2
 TimeoutStopSec=45

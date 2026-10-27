@@ -24,6 +24,9 @@ def relay(request):
                     "table_side:=" + request.param])
     node = module.OptitrackMctRelay(messages.NamedPoseArrayV2)
     node.full, node.limited = [], []
+    node.raw_players = []
+    for pub in node._player_position_publishers.values():
+        pub.publish = node.raw_players.append
     node._planner_pose_array_pub.publish = node.full.append
     node._pose_array_pub.publish = node.limited.append
     node._ball_pub.publish = lambda message: None
@@ -77,3 +80,33 @@ def test_position_only_ball_remains_available_to_planner(relay):
     bad.poses[0].pose.position.x = float("nan")
     relay._on_frame(bad)
     assert len(relay.full) == 1
+
+
+def test_player_assignment_observation_stays_global_before_p2_rotation(relay):
+    msg = frame(0, ball=False)
+    player = messages.NamedPose()
+    player.name = 'UCB_P2'
+    player.pose.position.x = 3.0
+    player.pose.position.z = 1.0
+    player.pose.orientation.w = 1.0
+    msg.poses.append(player)
+    relay._on_frame(msg)
+    assert relay.raw_players[-1].header.frame_id == 'hope_table_global'
+    assert relay.raw_players[-1].pose.position.x == pytest.approx(3.0)
+    assert relay._latest['UCB_P2'].pose.position.x == pytest.approx(
+        3.0 if relay._table_side == 'P1' else -.26)
+
+
+@pytest.mark.parametrize('hz', [150, 300])
+def test_player_admission_is_capped_at_30hz_without_throttling_base(relay, hz):
+    base = []
+    relay._pose_publishers['UCB_P1'].publish = base.append
+    for i in range(hz):
+        msg = frame(i, ball=False, hz=hz)
+        player = messages.NamedPose(name='UCB_P1')
+        player.pose.position.x = -.5
+        player.pose.orientation.w = 1.
+        msg.poses.append(player)
+        relay._on_frame(msg)
+    assert len(relay.raw_players) == 30
+    assert len(base) == hz

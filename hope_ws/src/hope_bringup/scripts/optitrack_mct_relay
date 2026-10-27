@@ -54,6 +54,7 @@ from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPo
 from tf2_ros import TransformBroadcaster
 
 from source_time_rate_gate import SourceTimeRateGate
+from operator_heartbeat import OperatorHeartbeat
 from table_side_transform import (
     normalize_table_side,
     transform_pose_xyzw,
@@ -224,6 +225,13 @@ class OptitrackMctRelay(Node):
                 PoseStamped, str(self.get_parameter("p2_pose_topic").value), sensor_qos
             ),
         }
+        self._player_position_publishers = {
+            name: self.create_publisher(PoseStamped, f"/hope/mocap/players/{name}", sensor_qos)
+            for name in ("UCB_P1", "UCB_P2")
+        }
+        self._player_position_gates = {name: SourceTimeRateGate(30.0)
+                                       for name in self._player_position_publishers}
+        self._operator_heartbeat = OperatorHeartbeat(self, self._debug_session_id)
 
         input_topic = str(self.get_parameter("input_poses_topic").value)
         self._sub = self.create_subscription(
@@ -289,6 +297,22 @@ class OptitrackMctRelay(Node):
             if stamped is None:
                 self._latest.pop(key, None)
                 continue
+            source_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+            if key in self._player_position_publishers and self._player_position_gates[key].accept(source_ns):
+                # Side admission must see the physical table ends before the
+                # selected P2 view rotates x -> table_length - x.
+                raw_player = PoseStamped()
+                raw_player.header.stamp = msg.header.stamp
+                raw_player.header.frame_id = "hope_table_global"
+                raw_player.pose.position.x = named.pose.position.x * self._position_scale
+                raw_player.pose.position.y = named.pose.position.y * self._position_scale
+                raw_player.pose.position.z = named.pose.position.z * self._position_scale
+                q = named.pose.orientation
+                norm = math.sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w)
+                (raw_player.pose.orientation.x, raw_player.pose.orientation.y,
+                 raw_player.pose.orientation.z, raw_player.pose.orientation.w) = (
+                    q.x/norm, q.y/norm, q.z/norm, q.w/norm)
+                self._player_position_publishers[key].publish(raw_player)
             self._latest[key] = stamped
             if key == "ball":
                 ball_in_frame = True

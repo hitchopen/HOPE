@@ -214,6 +214,7 @@ def test_supervisor_rejects_before_starting_hardware(tmp_path, catalogs, monkeyp
     (catalogs['mdu'] / 'selected.json').write_text(json.dumps({'model': other}))
     manager, _ = field(tmp_path, catalogs, physics)
     node = SimpleNamespace(_lock=threading.Lock(), _field=manager, _backend=Mock(),
+                           _player_positions=Mock(),
                            _on_event=Mock(), _hardware_operation_lock=object(),
                            get_logger=Mock(return_value=Mock()))
     supervisor.HopeLifecycleSupervisor._run_start(
