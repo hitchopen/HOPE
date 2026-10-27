@@ -1,9 +1,9 @@
 # Foxglove Runner three-machine lifecycle
 
-> Runtime update: use [Runner, Xbox and field operation](runtime_xbox.md) for
-> current Kernel Mode, Xbox, Serve-to-Ready, calibration-layout and package
-> instructions. The public checkpoint remains model_21800. The foundational
-> host/SSH setup below still applies; older UI labels are superseded by that guide.
+> Current deployment: **model17400 + PPQ004**, receive-only, using the
+> [matching bundle and Console](../../foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy).
+> The host/SSH setup below applies to this managed lifecycle. Model17400 does
+> not enable serving or Kernel mode; retain the bundle's declared capabilities.
 
 > Deployment commands reviewed 2026-10-11: the current package build,
 > native Gate 3 and immutable-slot staging entry is
@@ -24,6 +24,210 @@ remote shell. Foxglove can only:
 The native MDU Runner remains the authority for PASSIVE, PD_STAND, MOTION,
 role, serve state, action admission and action acknowledgements. The lifecycle
 supervisor owns process state only.
+
+## Player assignment and mocap loss
+
+Normal play requires a fresh unrotated player pose at START. Console 1.8.18
+reads `/hope/mocap/players/UCB_P1` and `/hope/mocap/players/UCB_P2` directly:
+P1 requires any tracked player at `x < 0 m`; P2 requires one at `x > 2.74 m`.
+Both relays convert units to metres and publish these poses in
+`hope_table_global` before the selected P2 rotation. Evidence expires after
+250 ms; duplicate source timestamps do not renew it. The raw-player topics are
+capped separately at 30 Hz; policy/base/ball streams are unchanged. Any player
+body remains eligible by venue policy; this verifies end occupancy, not robot
+identity or that the selected runtime body name is present. The HDU checks the same
+observations before hardware startup. START also shows/requires the HDU verdict
+from `/hope/field/status`, so a Laptop/HDU discovery mismatch is visible rather
+than a deceptively enabled START. Side selection stays locked until STOPPED;
+crossing a boundary during play does not change the assignment.
+
+The native Runner monitors its base-pose mailbox with a 1 s monotonic timeout
+in normal SERVE/RALLY, independent of sampling rate (150 Hz or higher). On loss,
+RALLY enters the existing PD_STAND blend. SERVE first aborts through its existing
+validated controller recovery. Late serve completion cannot restart receive
+after a dropout. Fresh data does not resume play automatically: the operator
+must request play again. PASSIVE, manual Stand, cleanup and offline Kernel/Pure
+Serve retain their behavior. Ball occlusion alone is not base-stream loss.
+
+After **20 ms** without a real pelvis update, the next model tick reuses the last
+applied pelvis position and orientation as an explicitly **HELD** input. It
+does not continue gyro propagation, create a sensor packet, change sequence or
+timestamps, advance differentiated-velocity history, confirm HOME/posture, or
+authorize a new shot. Live joint/IMU inputs remain live. The original real-sample
+age continues increasing; reuse cannot postpone the 1 s rescue deadline.
+This runtime held-pose rescue window is independent of exported observation-age
+normalization; the policy metadata and real-sample timestamp remain unchanged. Explicit invalid packets
+still trigger recovery immediately. This continuity measure is not proof of
+physical stability and cannot repair loss of local feedback or motor transport.
+HELD telemetry is not a separate 20 ms mode-admission gate: entering play and
+normal serve completion use the real observation/rescue deadline. An expired
+completion records the safety reason even if the monitor has not yet recorded
+it; a 20–999 ms held sample alone creates no stop event. L3 recovery-envelope
+expiry clears a pending flight before the new-flight held-pose check.
+
+Holding attitude without gyro propagation and retaining the prior velocity
+estimate changes actor inputs during jitter. The new-flight guard defers a
+commit for retry, not a flight drop, but this does not establish correct strike
+timing. Replay real 150/300 Hz sessions with 5/25/60/99/250/999 ms gaps and compare target
+commit time, retained velocity, strike time/contact error and recovery commands
+with the prior policy-input path. Then qualify on supported hardware with an
+attending E-stop operator; software regressions are not policy/hardware approval.
+
+Normal managed play also enables `--operator-watchdog`. The Runner issues a
+challenge every 20 ms. The current Console echoes role 1, and the operator
+computer's Motive/VRPN relay echoes role 2, bound to its managed launch session
+(`debug_session_id`). Both must be live before normal play entry. Loss of either
+echo requests controlled PD_STAND recovery: **1 s for the Console**, **1 s for
+the operator-computer relay**. A normal
+serve uses its existing abort/recovery path. Held pelvis data cannot refresh
+either heartbeat. Stand/PASSIVE, Teleop and offline Kernel/Pure Serve are exempt;
+standalone tools do not opt into the UI watchdog unless explicitly requested.
+
+Managed START reconnects the Laptop receiver with the new session ID before
+starting HAL/Runner. This replaces any independently started debug session so
+role-2 echoes match the Runner; a failed reconnect stops START before HAL.
+Offline Kernel startup does not reconnect the receiver. These external-link
+windows do not change the internal HAL/joint-state safe-halt deadline.
+
+Challenge `[1, boot, session_fingerprint, nonce]` travels on
+`/hope/runner/operator_challenge_flat` → `operator_challenge_hdu_flat`.
+Echo `[1, boot, session_fingerprint, nonce, role]` travels back on
+`/hope/runner/operator_echo_hdu_flat` → `operator_echo_flat`. Runner validates its
+own monotonic challenge-issue age, not a remote clock or new echo receipt time.
+Duplicate, wrong-session/boot and late echoes cannot renew liveness; no cached
+heartbeat is timer-replayed. This is a trusted-LAN liveness protocol, not an
+authentication boundary against malicious publishers.
+
+These timeout values are watchdog triggers, not the time to finish the standing
+pose. Detection runs on the command callback and is subject to its scheduling;
+the existing stand blend/validated serve recovery determines motion duration.
+A slow/frozen/minimized Console or a switch to another layout/tab can miss its
+1 s deadline just like a disconnected one. Echoes come only from `onRender`;
+this is not a background app-liveness service. The one-second UI window tolerates
+short rendering/network delays, not a Console absent for more than 1 s.
+Qualify actual foreground/background rendering, Wi-Fi jitter and CPU load
+on the deployed system before competition; do not claim hard real-time timing
+or hardware stability from unit tests.
+
+Runner publishes `/hope/runner/mocap_safety_flat` at 50 Hz, forwarded unchanged to
+`/hope/runner/mocap_safety_hdu_flat`. Its schema is
+`[1, boot_id, session_fingerprint, state_seq, required, fresh, stop_count, interrupted,
+held, real_age_ms, operator_required, ui_fresh, computer_fresh, operator_stop_reason, operator_stop_count]`.
+An unavailable age is -1. The Console also accepts the original eight-value prefix.
+The Console checks its age and current Runner boot, and displays **Stopped: mocap
+lost**, **Stopped: Foxglove UI lost**, **Stopped: operator computer lost**, or the
+held-pose age independently of the last operator-action result. `interrupted` stays set
+after data returns until explicit play entry succeeds. The original 21-value
+schema-2 Runner state and action codes stay unchanged. Refused play transitions
+return `MOCAP_UNAVAILABLE`, `OPERATOR_UI_UNAVAILABLE` or
+`OPERATOR_COMPUTER_UNAVAILABLE`, never `APPLIED`, and never leave a pending serve prepare.
+
+The supervisor service uses the same explicit-peer wrapper as the control bridge
+when `ROS_STATIC_PEERS` is configured in `/etc/hope-foxglove/network.env`. Include
+the operator computer and MDU peers, then restart the updated service while
+stopped. With no peers configured it retains the previous discovery setup so
+configuration/cleanup remain available; normal play still needs verified player
+reception. Verify both raw poses and the HDU `player_positions` verdict before START.
+After a FAILED-session cleanup succeeds, a player/preflight rejection returns
+STOPPED and releases the hardware-operation lock. A failed cleanup still retains
+FAILED, the old session identity and the lock for explicit retry.
+
+Install `hope_player_positions.py` with the HDU modules, update the supervisor
+service, control decoder, mocap and Runner transport relays, rebuild the MDU Runner
+with its matching AimRT config and install the matching Console. Rebuild
+`hope_bringup` on the operator computer to install `operator_heartbeat.py`, update
+the VRPN launch file and lifecycle helper, and deploy the control-bridge config
+that permits **only** `/hope/runner/operator_echo_hdu_flat` client publishing.
+All command/request topics and generic parameter operations remain denied.
+Normal-play preflight rejects an old Runner or AimRT config that lacks the
+operator-watchdog protocol, rather than silently running without this protection.
+
+Before deployment approval, verify both ends and failed-start cleanup, then:
+
+1. Bench-check 150/300 Hz input and 20–999 ms gaps: HELD pose is constant, real
+   timestamps/sequence age normally, no synthetic velocity samples or new shots;
+   mode entry and serve completion remain allowed until the actual deadline.
+   Validate the actor-input/strike-timing replay described above before hardware.
+2. With the robot supported and an operator at E-stop, interrupt the mocap
+   stream and the Laptop–HDU/HDU–MDU transport separately. Record watchdog trigger
+   time, actual joint-command continuity and the full PD_STAND recovery.
+3. Independently close/disconnect/freeze the Console and stop/disconnect the
+   managed operator relay/computer. Verify the Console's 1 s and computer's
+   1 s triggers despite the other channel remaining live. Exercise tab/layout
+   switches and minimize/background behavior, including brief interruptions that
+   should not stop play. Delayed/replayed challenges must not postpone expiry.
+4. Restore each link: no automatic play resumption. Check explicit re-entry,
+   manual Stand/PASSIVE and unchanged offline Kernel/Pure Serve/Teleop behavior.
+
+## Pre-operation clock correction
+
+For a large HDU clock offset, use the attended **Time Calibration** action
+**before START**, not a long wait for runtime slewing. At `maxslewrate 100`,
+reducing 168 ms to the 10 ms gate takes at least about 26 minutes. Chrony
+[recommends stepping before time-sensitive applications start](https://chrony-project.org/doc/4.5/chrony.conf.html#makestep).
+The continuous runtime configuration remains slew-only; this does not enable
+unconditional `makestep` on a chrony service restart.
+
+1. Physically support the robot, keep the E-stop reachable, stop all Runner
+   sessions and external motion publishers, and verify lifecycle **STOPPED**
+   and idle. PASSIVE is still a running Runner, not a stopped system.
+2. With a fresh failing NTP gate and confirmed network configuration, select
+   **Time Calibration** and accept the support/stopped-system confirmation.
+   The coordinator rechecks fresh STOPPED/idle evidence after acquiring the
+   shared hardware-operation lock. It never automatically steps from START,
+   PD_STAND, SERVE or RALLY/MOTION.
+3. The backend snapshots the verified, currently active control-plane units,
+   stops downstream MDU consumers, then HDU control/vendor consumers and the
+   independently supervised HDU PTP services. Immediately
+   before the one-shot bootstrap, it rechecks the MDU's same-boot stopped
+   receipt and both boards' service/process state. Unknown/error observations,
+   remaining processes or restarting units prevent the step.
+4. It runs the approved bootstrap once, verifies the 10 ms clock gate, restores
+   HDU PTP before vendor services, then MDU PTP/vendor services and the
+   previously active Foxglove units.
+   Port 8766 temporarily disconnects. Only after **COMPLETE** and fresh clock
+   qualification should the operator explicitly START. Failure after stopping
+   consumers retains the maintenance interlock; there is no automatic step retry
+   or motion restart. Clock qualification remains diagnostic during ordinary
+   operation; the existing startup checks still apply.
+
+The HDU control plane may use either the split services or a consolidated
+`hope_operations.py` process. Both require the monitor, data bridge, control
+bridge and lifecycle-supervisor units to be active. Split deployments also
+require active `hope-observer.service` and `hope-command-proxy.service`.
+Consolidated deployments instead require the actual Python
+`/usr/local/bin/hope_operations.py` process owned by the lifecycle-supervisor
+service; its process ownership is checked, not just its unit name or wrapper
+command. The observer/proxy units may be absent or loaded but inactive
+compatibility stubs (for example, `ExecStart=/usr/bin/true`). Those stubs are not
+missing workloads and must not be started to satisfy a six-service checklist.
+
+Only the snapshotted active units are stopped, reset and restored. Inactive
+optional units stay inactive. Before stepping, the coordinator still rejects
+any known control/time consumer that remains active, unknown service/process
+state, or an unexpected observer/proxy/operations process. Optional absence or
+loaded-inactive status is harmless only with a verified deployment layout;
+it is not permission to ignore an unowned process.
+
+Normal and fail-safe restoration wait up to 30 seconds for the actual owned
+`hope_operations.py` Python child to return in a consolidated layout; an active
+shell wrapper and listening port alone do not prove recovery. If a previously
+active unit has disappeared or cannot be verified, restoration still attempts
+the remaining captured units, but reports failure rather than `COMPLETE`.
+It never substitutes or starts previously inactive compatibility stubs.
+
+Older field installations with vendor-owned HDU PTP remain supported only when
+both dedicated PTP units are explicitly absent, PM is active and both workers
+are present. Their workers must actually exit after PM stops, and PM is restored
+before checking that PTP returns. Mixed/unknown topology, orphan workers and
+topology changes during maintenance deny stepping; no packages are silently
+installed and no running service is treated as absent because a probe failed.
+
+Install the matching HDU coordinator/core, MDU helper and exact clock-action
+sudo permissions together; see the [hardware installation/runbook](foxglove_first_hardware_test.md).
+The final stopped-state check is not protection against an administrator or
+unmanaged external publisher starting motion concurrently: exclusive attended
+maintenance remains required. Local regression tests are not hardware approval.
 
 ## macOS operator
 
@@ -140,9 +344,12 @@ successful configuration change is not evidence of live mocap/recording data.
 
 ### Upgrade the supervisor, Console and container together
 
-Install the matching `hope_lifecycle_core.py` and `hope_lifecycle_supervisor.py`
-on the HDU and restart its supervisor only while STOPPED. Install the bundled
-Console 1.8.15, which includes the **Operator computer**, gripper and mocap selectors. Confirm the
+Update the matching lifecycle implementation for the HDU's existing
+[deployment layout](#install-the-hdu-supervisor), and restart its owning service
+only while STOPPED. The split layout uses `hope_lifecycle_core.py` and
+`hope_lifecycle_supervisor.py`; do not replace a consolidated field bundle with
+these standalone samples without a separate deployment migration. Install the bundled
+Console 1.8.18, which includes the **Operator computer**, gripper and mocap selectors. Confirm the
 profile and current Laptop IP together, either there or with `select-mac` /
 `select-linux`. Combined schema 6 preserves field schema-5 gripper, pants and
 VRPN settings while adding the operator profile; main's older profile-aware
@@ -390,9 +597,10 @@ scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/helpers/"
 scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/a3/install_mdu_elink_scheduler.sh \
+  foxglove/a3/hope_elink_health.py foxglove/a3/hope_elink_fault.py \
   "${ROBOT_USER}@${MDU_IP}:/tmp/hope-elink-install/a3/"
 ssh -J "${ROBOT_USER}@${HDU_IP}" "${ROBOT_USER}@${MDU_IP}" \
-  'cd /tmp/hope-elink-install && python3 helpers/hope_elink_scheduler.py check-hardware --lifecycle helpers/hope-lifecycle && sudo install -o root -g root -m 0755 helpers/hope-lifecycle helpers/hope_sim2real_capture.py helpers/hope_sim2real_control.py /usr/local/libexec/ && sudo bash a3/install_mdu_elink_scheduler.sh --robot-user "$(id -un)"'
+  'cd /tmp/hope-elink-install && python3 helpers/hope_elink_scheduler.py check-hardware --lifecycle helpers/hope-lifecycle && sudo install -o root -g root -m 0755 helpers/hope-lifecycle helpers/hope_sim2real_capture.py helpers/hope_sim2real_control.py /usr/local/libexec/ && sudo install -D -o root -g root -m 0644 a3/hope_elink_health.py /usr/local/lib/hope-foxglove/hope_elink_health.py && sudo install -D -o root -g root -m 0644 a3/hope_elink_fault.py /usr/local/lib/hope-foxglove/hope_elink_fault.py && sudo bash a3/install_mdu_elink_scheduler.sh --robot-user "$(id -un)"'
 ```
 
 The MDU active package also needs the logging-enabled Runner,
@@ -415,7 +623,122 @@ environment flag only affects worker-thread logging. The shared header is
 `a3_deploy/recording_file.hpp`; isolated Planner builds can set
 `HOPE_RECORDING_INCLUDE_DIR` to the staged include directory.
 
+## ELink startup checks and runtime diagnostics
+
+HOPE uses **startup checks and runtime diagnostics**, not runtime ELink
+motion-admission gates. The startup checks address the recorded dead-management-IPC
+and post-readiness HAL reset/crash sequence without treating unknown monitoring
+state as a proven ELink failure. It does not repair the vendor's native
+reinitialization race or certify active-motion fault recovery.
+
+### Operational contract
+
+- Before managed HAL/Runner startup, passively verify the transfer process, HAL
+  process and IPC listener. Do not connect to the vulnerable management socket.
+  Unavailable/incomplete inspection rejects that startup attempt without a
+  permanent lockout; a later explicit retry repeats the checks.
+- Reject current-session logs containing the recorded failure chain after
+  readiness. An earlier readiness marker cannot hide a later reset/crash.
+- KILL always executes the existing cleanup/restoration sequence when permitted
+  by the baseline lifecycle state and hardware-operation lock. It then verifies
+  vendor process/listener restoration for up to eight seconds. A failed
+  restoration is reported, not silently called successful, and remains retryable.
+- Runtime process, telemetry, battery and clock observations are diagnostic.
+  Missing/unaudited contracts, absent decoders, stale data, observer timeouts,
+  publisher changes and failed clock qualification do not add START, Stand,
+  Serve, Rally, gripper, role-change or KILL vetoes.
+- Native simulation, standalone startup, automatic serve-to-receive transition
+  and periodic swing rearming retain their existing behavior. Runtime ELink
+  diagnostics do not participate in keyboard or remote action admission.
+  Managed startup retains its existing PASSIVE requirement.
+- Existing command-fault, joint-limit, serve-phase, role and vendor emergency
+  protections are unchanged. Diagnostics never issue motor commands, limp,
+  restart services, clear a vendor emergency, or automatically recover ELink.
+
+The supervisor publishes `/hope/elink/health` with
+`admission_enforced=false`. Its health/telemetry fields describe evidence, not
+permission to move. A lost observer or reported fault does not change lifecycle
+RUNNING to FAILED or create a durable admission latch. A new supervisor may
+read legacy fault/session records for diagnostics, but does not
+arm, write, clear or use them to deny operation. Preserve those records
+for incident review; their existence alone no longer requires a lockout.
+
+### Telemetry and battery diagnostics
+
+Passive vendor subscriptions check publisher identity, generation, source and
+receipt timestamps. BMS `header.seq=0` is accepted using strictly advancing
+source timestamps; local receipt alone is not source progress. Two progressing
+samples establish the diagnostic freshness result. Other channel assumptions,
+sample-age thresholds and acquisition semantics still need matched-publisher
+qualification; an unqualified result is **not an operational gate**.
+
+Battery protection belongs to A3. Startup zero/absent packs, undervoltage,
+reported battery communication/health statuses and invalid battery measurements
+are bounded advisories in `telemetry.channels.bms.warnings`, not HOPE faults.
+Missing/malformed message envelopes remain diagnostic errors. Existing vendor
+emergency behavior is not overridden.
+
+`foxglove/a3/elink_telemetry.example.json` remains deliberately unaudited.
+Do not manufacture evidence by setting `audited=true`. For useful acquisition
+qualification, capture an approved baseline HOPE session using the actual T3
+factory-derived configuration with hand publishing enabled, not the unrelated
+default Ultra publisher. Preserve the generated
+`/tmp/hope_real/<session_id>/mdu/system/hal_elink_a3_gripper.yaml`,
+`gripper_config_receipt.txt`, hashes, publisher identity and timestamped samples.
+Resolve P1D0/Ultra versus `A3_T3D0` against the actual inventory; do not rename
+hardware or bypass the pre-existing model/hash checks.
+
+The original chrony probe time/boot/sequence is published on
+`/hope/ntp/qualification` for diagnostics. Neither a missing update nor the
+10 ms display threshold is a new runtime motion gate. For slow boot correction,
+use the explicit [stopped Time Calibration flow](#pre-operation-clock-correction).
+The boot-owned `elink.core` transfer is not stopped or required to disappear;
+managed Runner/HAL/PTP consumers must still be stopped before stepping.
+
+### Deployment and verification boundary
+
+Update the matching supervisor/helper and these Python modules during an
+approved stopped maintenance window, preserving the installed control-plane
+layout and its module ownership: `hope_elink_health.py`,
+`hope_elink_fault.py` (startup-log/legacy-record diagnostics),
+`hope_elink_telemetry.py`, `hope_elink_telemetry_ros.py` and
+`hope_elink_clock.py`. Both boards need the passive inspection and startup-log
+helpers where called; vendor protobuf/ROS decoder packages are needed only for
+the optional passive telemetry diagnostics. Runtime diagnostics require no
+changes to the existing Runner/AimRT transport configuration.
+
+Retained A3 evidence supports the dead IPC/HAL failure sequence, real BMS
+zero-sequence/zero-pack layouts and slow clock correction. It does not establish
+universal motion-veto deadlines or safety of restarting the native ELink stack.
+Local isolated regressions verify code paths, not physical recovery, competition
+latency or a successful full robot deployment. Validate those separately before
+field release. These ELink checks do not patch vendor binaries, restart the
+transport daemon, or reinitialize UART/IPC. The explicit lifecycle and clock
+maintenance workflows retain their documented service stop/restore actions.
+
+Read-only inspection of the current A3 confirmed a consolidated
+`hope_operations.py` control plane and loaded-inactive observer/proxy
+compatibility stubs. The candidate topology detector passed three read-only
+runs, each capturing exactly the four common active units and verifying the
+owned consolidated process in the supervisor's cgroup. The observed clock
+offset was approximately 1.6 ms and
+already qualified, so no live clock step or service stop/restore was performed.
+Isolated topology/ordering regressions and that read-only inspection do not
+constitute a live hard-step recovery test.
+
 ## Install the HDU supervisor
+
+**Deployment-layout boundary:** the commands below are installation examples
+for the **split** control plane, not an in-place migration recipe for every
+field robot. First inspect `systemctl cat`/`systemctl status` for the supervisor,
+observer and command-proxy units, including their actual processes. An existing
+`hope-lifecycle-supervisor.service` running `/usr/local/bin/hope_operations.py`
+owns the combined lifecycle, observer and proxy implementation. Preserve its
+unit, field bundle, module versions and venue configuration; do not overwrite
+them with the split sample units/modules or enable its inactive compatibility
+stubs. Update that bundle through its matching deployment procedure. Changing
+between layouts requires a separately reviewed stopped migration, not a clock
+calibration prerequisite.
 
 Stage `foxglove/a3/` as described in `foxglove/README.md` and refresh
 `~/foxglove_a3/fastdds_bridge_profile.xml` from this branch, then run on the
@@ -428,6 +751,18 @@ sudo install -D -o root -g root -m 0755 \
 sudo install -D -o root -g root -m 0644 \
   ~/foxglove_a3/hope_lifecycle_core.py \
   /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_player_positions.py /usr/local/lib/hope-foxglove/hope_player_positions.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_health.py /usr/local/lib/hope-foxglove/hope_elink_health.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_fault.py /usr/local/lib/hope-foxglove/hope_elink_fault.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_telemetry.py /usr/local/lib/hope-foxglove/hope_elink_telemetry.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_telemetry_ros.py /usr/local/lib/hope-foxglove/hope_elink_telemetry_ros.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_clock.py /usr/local/lib/hope-foxglove/hope_elink_clock.py
+# Build/qualify the native monitor as described in foxglove/README.md first.
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-monitor /usr/local/libexec/hope-monitor
+sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_time_calibration.py /usr/local/bin/hope_time_calibration.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_time_calibration_core.py /usr/local/lib/hope-foxglove/hope_time_calibration_core.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-time-calibration.service /etc/systemd/system/hope-time-calibration.service
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-chrony-burst.service /etc/systemd/system/hope-chrony-burst.service
 sudo install -D -o root -g root -m 0644 \
   ~/foxglove_a3/hope-lifecycle-supervisor.service \
   /etc/systemd/system/hope-lifecycle-supervisor.service
@@ -443,22 +778,38 @@ sudo systemctl enable --now \
   hope-observer.service \
   hope-command-proxy.service \
   hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service
+  hope-lifecycle-supervisor.service \
+  hope-time-calibration.service
 ```
 
-These four units form the always-available, fixed-action control plane needed
+In the split layout, these units form the always-available, fixed-action control plane needed
 to start a stopped robot from Foxglove. They do not start HAL, Planner or
 Runner, and they do not stop `agibot_pm`. In lifecycle mode, leave them running
 after `KILL ALL & COLLECT` so the next session can be started without a terminal.
+The time-calibration coordinator is idle until an explicit attended request;
+enabling it does not step a clock. `hope-chrony-burst.service` is a fixed oneshot
+dependency, not an enabled boot task. Clock calibration also requires the
+approved bootstrap/PTP installation and the MDU helper's exact sudo rules in
+the [hardware runbook](foxglove_first_hardware_test.md#72-进入-mdu-并配置最小-sudo-权限).
+
+For an upgrade, `enable --now` does not reload an already-running Python
+process. During the approved, supported/stopped maintenance window, restart the
+updated monitor and the control-plane services that actually own the installed
+layout after staging the entire matching
+set; confirm that `/hope/ntp/qualification` is published by the updated monitor.
+Do not restart these services during active robot motion. A legacy monitor's
+display Bool lacks the original probe timestamp needed for these diagnostics;
+neither it nor the new qualification snapshot adds a motion-admission gate.
 
 Read-only verification:
 
 ```bash
-systemctl status hope-lifecycle-supervisor.service --no-pager
+systemctl status hope-lifecycle-supervisor.service hope-time-calibration.service --no-pager
 ros2 topic echo /hope/lifecycle/summary --once
 ros2 service type /hope/lifecycle/apply_config
 ros2 service type /hope/lifecycle/start
 ros2 service type /hope/lifecycle/kill_all_and_collect
+ros2 service type /hope/lifecycle/time_calibration
 ```
 
 Do not use Start as an installation smoke test on hardware.
@@ -484,7 +835,8 @@ runs before creating the session. An unmanaged bridge, base relay, Planner,
 HAL or Runner makes preflight return to `STOPPED` instead of killing it or
 offering cleanup for a process it does not own. A leftover fixed tmux session
 is distinguishable as managed state: the supervisor enters `FAILED` and offers
-`KILL ALL & COLLECT` recovery. STEP 4 retains the documented stop of `agibot_pm`.
+`KILL ALL & COLLECT` recovery. Runtime ELink observations and legacy fault/session
+records do not block cleanup or retry. STEP 4 retains the documented stop of `agibot_pm`.
 An `aimrt_main_hal` inside the `/system.slice/agibot_pm.service` cgroup is the
 expected vendor HAL and is accepted by preflight. STEP 4 stops the unit first,
 verifies that this HAL has exited, and only then launches the fixed `hope-hal`
@@ -498,19 +850,19 @@ rather than part of a normal one-click start.
 Ready or the Server flow. The Console removes Refresh x_hit; shared HOME is
 captured on policy entry.
 
-The helper intentionally preserves the current fixed3 Runner argv. The checked
-in model_21800 policy metadata is `training_recipe=rally_v14`, while the native
-`--serve` controller rejects anything other than its qualified `rally_v17`
-artifact. Local `SERVER/RECEIVER` role state is available, but this lifecycle
-does not add `--serve` or bypass that artifact check. `Ready to Serve` and
-`Serve` remain disabled until a separately qualified compatible Runner package
-reports `serve_capability=AVAILABLE`.
+Model17400's receive-only bundle does not enable `--serve` or consume a serve
+CSV. Local `SERVER/RECEIVER` role state does not override bundle capabilities;
+serve controls remain unavailable for this deployment. The selected policy,
+deploy parameters and generated Planner profile must come from the same
+verified bundle, with PPQ004 on Planner and packetizer.
 
 ## Kill behavior
 
 `KILL ALL & COLLECT` is intentionally separate from E-stop. It is accepted for
 a managed `RUNNING` or `FAILED` session without requiring a fresh Runner mode
-or first transitioning to PASSIVE/PD_STAND. Before confirming it:
+or first transitioning to PASSIVE/PD_STAND. ELink diagnostic failures and old
+fault/session records do not add a teardown veto.
+Before confirming a kill:
 
 1. physically support the robot because active support may disappear immediately;
 2. confirm the physical E-stop remains reachable;
@@ -686,11 +1038,6 @@ simulation results, not field success rates. Wider 0–180 ms sweeps introduced
 misses at 10–50 ms. Actual physical detachment latency is not identified; the
 rigid gripper CAD, ball release position and contact materials remain model
 assumptions. Keep these limitations when comparing future field results.
-
-The deployment receipt recorded session `model21800_20261018T125856Z`, successful
-managed PASSIVE startup, exact loaded asset hash, ELink scheduling readback, and
-499.8–501.0 Hz with no additional halts over 30 seconds. Foxglove commands then
-changed the mode to SERVE, so the observation is not a sustained-PASSIVE test.
 
 ## Verification boundary
 

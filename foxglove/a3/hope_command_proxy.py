@@ -316,6 +316,9 @@ class HopeCommandProxy(Node):
             request_id = self._next_runner_request_id()
             message = Float64MultiArray()
             message.data = encode_runner_request(request_id, action_name)
+            # ELink/clock/telemetry observations are diagnostic only. Preserve
+            # the existing native state-machine and vendor safety decisions;
+            # an unaudited observer must not become a new action prerequisite.
             self._runner_request_publisher.publish(message)
 
             deadline = time.monotonic() + self._runner_action_timeout_s

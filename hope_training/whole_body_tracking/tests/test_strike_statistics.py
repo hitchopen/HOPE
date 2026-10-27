@@ -136,3 +136,86 @@ def test_production_block_keeps_ema_gate_and_virtual_physical_order():
     torch.testing.assert_close(command.metrics["strike_pos_pass_exact_fh"], torch.ones(6))
     assert type(command._exact_n_acc) is float
     torch.testing.assert_close(torch.get_rng_state(), rng)
+
+
+def test_bank_core_and_wide_remain_separate_when_every_question_is_a_tuple():
+    data = _inputs()
+    data['venue_selected'] = torch.ones(6, dtype=torch.bool)
+    data['cohort_names'] = ('core', 'tuple')
+    data['reach_wide_selected'] = torch.tensor([0, 0, 1, 0, 1, 1], dtype=torch.bool)
+    result = stats.collect_exact_strike_statistics(**data)
+    for clip in data['clip_keys']:
+        assert result[('cohort', 'core', clip, 'n')] == 0
+        assert sum(result[('reach', c, clip, 'n')] for c in ('core', 'wide')) == result[('clip', clip, 'n')]
+        for cohort, wide in (('core', False), ('wide', True)):
+            mask = data['exact_strike'] & (data['clip_ids'] == clip) & (data['reach_wide_selected'] == wide)
+            assert result[('reach', cohort, clip, 'n')] == float(mask.sum())
+            assert result[('reach', cohort, clip, 'pos')] == float((data['pass_position'] & mask).sum())
+            assert result[('reach', cohort, clip, 'pos_err')] == float((data['position_error'] * mask).sum())
+
+
+def _reach_update():
+    tree = ast.parse((_ROOT / 'hope_commands.py').read_text())
+    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'RacketTargetCommand')
+    method = next(n for n in cls.body if getattr(n, 'name', None) == '_update_reach_accuracy')
+    scope = {'torch': torch}
+    exec(compile(ast.Module(body=[method], type_ignores=[]), str(_ROOT / 'hope_commands.py'), 'exec'), scope)
+    return scope['_update_reach_accuracy']
+
+
+def test_fixed_mixture_score_does_not_decay_when_question_mix_changes():
+    update = _reach_update()
+    for core_n, wide_n in ((90, 10), (10, 90)):
+        cmd = SimpleNamespace(cfg=SimpleNamespace(exact_success_min_count=1),
+                              num_envs=3, device='cpu', _clip_names={0: 'forehand'},
+                              metrics={}, _reach_accuracy_acc=defaultdict(float))
+        result = {}
+        for cohort, n, passes in (('core', core_n, core_n), ('wide', wide_n, 0)):
+            for channel, value in (('n', n), ('pos', passes), ('pos_err', n * .05)):
+                result[('reach', cohort, 0, channel)] = float(value)
+        rng = torch.get_rng_state()
+        update(cmd, result, .9)
+        torch.testing.assert_close(cmd.metrics['reach_balanced_pos_pass_forehand'], torch.full((3,), .5))
+        assert cmd.metrics['reach_balanced_valid_forehand'].eq(1).all()
+        # Log buffers can be reset without erasing the source counters.
+        for value in cmd.metrics.values(): value.zero_()
+        update(cmd, dict.fromkeys(result, 0.), .9)
+        assert cmd.metrics['reach_core_pos_pass_forehand'].eq(1).all()
+        torch.testing.assert_close(torch.get_rng_state(), rng)
+
+
+def test_fixed_mixture_score_marks_absent_wide_evidence_invalid():
+    cmd = SimpleNamespace(cfg=SimpleNamespace(exact_success_min_count=1),
+                          num_envs=1, device='cpu', _clip_names={0: 'backhand'},
+                          metrics={}, _reach_accuracy_acc=defaultdict(float))
+    result = {('reach', c, 0, k): 0. for c in ('core', 'wide') for k in ('n', 'pos', 'pos_err')}
+    result[('reach', 'core', 0, 'n')] = result[('reach', 'core', 0, 'pos')] = 10.
+    _reach_update()(cmd, result, .9)
+    assert cmd.metrics['reach_core_pos_pass_backhand'].item() == 1
+    assert cmd.metrics['reach_wide_valid_backhand'].item() == 0
+    assert cmd.metrics['reach_balanced_valid_backhand'].item() == 0
+
+
+@pytest.mark.parametrize('std', [.075, .15, .22])
+def test_position_sigma_telemetry_reports_the_live_reward_width(std):
+    tree = ast.parse((_ROOT / 'hope_commands.py').read_text())
+    node = next(n for n in ast.walk(tree) if isinstance(n, ast.Assign)
+                and any(isinstance(t, ast.Subscript) and 'position_sigma_current' in ast.unparse(t)
+                        for t in n.targets))
+    cmd = SimpleNamespace(metrics={'position_sigma_current': torch.zeros(2)},
+                          _adaptive_sigma_pos=.20,
+                          _env=SimpleNamespace(reward_manager=SimpleNamespace(
+                              get_term_cfg=lambda _: SimpleNamespace(params={'std': std}))))
+    exec(compile(ast.Module(body=[node], type_ignores=[]), 'sigma_telemetry', 'exec'), {'self': cmd})
+    torch.testing.assert_close(cmd.metrics['position_sigma_current'], torch.full((2,), std))
+
+
+def test_reach_accuracy_metrics_are_uploaded_under_the_active_wandb_profile():
+    path = _ROOT.parents[2] / 'utils/wandb_logging.py'
+    spec = importlib.util.spec_from_file_location('reach_wandb_logging', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for side in ('forehand', 'backhand'):
+        for cohort in ('core', 'wide', 'balanced'):
+            for metric in ('valid', 'pos_pass'):
+                assert module.wandb_metric_allowed(f'Live/racket_target/reach_{cohort}_{metric}_{side}', 'hitter_pingpong_v1')

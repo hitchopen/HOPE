@@ -13,7 +13,10 @@ def bounded_debt(error, margin, std):
     return h / (1 + h)
 
 
-def recovery_gate(in_hold, tts):
+def recovery_gate(in_hold, tts, motion=None):
+    if motion is not None and getattr(getattr(motion, "cfg", None), "continue_recovery_reference", False):
+        from .reference_recovery import static_gate
+        return static_gate(motion, tts)
     # Protect strike follow-through; wait-only recovery ends immediately on arrival.
     return torch.where(in_hold, torch.ones_like(tts), ((-tts - .5) / .3).clamp(0, 1))
 
@@ -41,7 +44,7 @@ def _context(env, start_steps, ramp_steps):
         raise ValueError("invalid ready-state curriculum")
     cmd = env.command_manager.get_term("racket_target")
     motion = env.command_manager.get_term("motion")
-    gate = recovery_gate(motion.in_hold, cmd.time_to_strike)
+    gate = recovery_gate(motion.in_hold, cmd.time_to_strike, motion)
     scale = min(1., max(0., (env.common_step_counter - start_steps) / ramp_steps))
     return cmd, gate, scale
 

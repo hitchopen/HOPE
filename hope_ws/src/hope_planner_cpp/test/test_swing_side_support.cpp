@@ -28,6 +28,18 @@ TEST(SwingSideSupport, OverridesWrongSideInBothHysteresisDirections) {
   EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.261, 0, -.25, .04, -1, {}, {}), -1);
 }
 
+TEST(SwingSideSupport, Model14600FieldProfileDoesNotLatchPreviousSide) {
+  // Exported arm bands plus the immutable-HOME station range [-0.35, 0.35].
+  const std::vector<double> fh{-.83, -.05}, bh{-.48, .30};
+  for (double previous : {-1., 0., 1.}) {
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.261, 0., -.25, 0., previous, fh, bh), 1.);
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.230, 0., -.25, 0., previous, fh, bh), -1.);
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.25, 0., -.25, 0., previous, fh, bh), -1.);
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.80, 0., -.25, 0., previous, fh, bh), 1.);
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(.29, 0., -.25, 0., previous, fh, bh), -1.);
+  }
+}
+
 TEST(SwingSideSupport, KeepsHysteresisOnlyInsideOverlappingSupport) {
   const std::vector<double> fh{-.68, -.20}, bh{-.30, .28};
   EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.26, 0, -.25, .04, 1, fh, bh), 1);
@@ -48,6 +60,14 @@ TEST(SwingSideSupport, FailsClosedOutsideBothBandsOrOnBadContract) {
   EXPECT_TRUE(std::isnan(select_swing_sign_with_support(-.25, 0, -.25, .04, 1, {-.68, -.30}, {-.20, .28})));
 }
 
+TEST(SwingSideSupport, EmptySupportPreservesLegacyIncludingExactBoundaries) {
+  for (double previous : {-1., 0., 1.})
+    for (double hysteresis : {0., .04})
+      for (double y : {-.70, -.29, -.25, -.21, .28})
+        EXPECT_DOUBLE_EQ(
+            select_swing_sign_with_support(y, 0., -.25, hysteresis, previous, {}, {}),
+            select_swing_sign_with_hysteresis(y, 0., -.25, hysteresis, previous));
+}
 TEST(SwingSideSupport, UsesRunnerHomeInsteadOfDriftedFirstSolve) {
   const std::vector<double> fh{-.9002, -.275}, bh{-.275, .4598};
   const double home = runner_home_y_from_flat({1., 1., -.494, -.562});

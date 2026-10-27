@@ -20,6 +20,7 @@ import time
 import yaml
 
 from pp_gate3_drain_flights import finalize_report
+from pp_fixed_home_profile import planner_profile
 
 GEAR = Path(__file__).resolve().parents[1]
 ROOT = GEAR.parents[1]
@@ -284,6 +285,23 @@ def execute(args):
     if inspection["policy_abi"] not in ABI_MODES:
         raise ValueError("unified scene requires SmallStation 112, compact324 or ball-clock 110 ABI; "
                          "use the historical Gate3 entry for this legacy ABI")
+    if inspection.get("station_contract") == "fixed_session_anchor_v1":
+        support, plane = planner_profile(inspection, "/hope/runner/session_home_flat")
+        physics_path = Path(cfg["hope_ws"]) / "src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml"
+        physics = yaml.safe_load(physics_path.read_text())
+        physics["hope_planner"]["ros__parameters"].update(support["hope_planner"]["ros__parameters"])
+        profile_path = out / "fixed_home_ppq004.yaml"
+        profile_path.write_text(yaml.safe_dump(physics))
+        scene_env.update({
+            "PP_GATE3_PROFILE": "stationary_fixed_home_v1",
+            "PP_FIXED_HOME_INSPECTION": str(out / "policy_inspection.json"),
+            "PP_PLANNER_PROFILE": str(profile_path),
+            "PP_FIXED_PLANE_X": str(plane), "PP_XHIT": str(-0.5 + plane),
+            "PP_SPLIT_Y": str(support["hope_planner"]["ros__parameters"]["swing_side_split_y"]),
+            "PP_SPLIT_HYST": "0.04", "PP_XHIT_FREEZE_SESSION_HOME": "false",
+            "PP_SWING_SIDE_REFERENCE_MODE": "session_home_v1",
+            "PP_EXTRA_ARGS": "--gate3-qdes-audit-only --gate3-force-every-flight --shared-session-home",
+        })
     exports = out / "scene.env.sh"
     exports.write_text("\n".join(f"export {k}={shlex.quote(v)}" for k, v in scene_env.items()) + "\n")
     # Clear historical per-run knobs; every experiment below is reproducible

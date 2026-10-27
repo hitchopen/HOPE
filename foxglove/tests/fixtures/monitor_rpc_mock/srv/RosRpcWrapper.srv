@@ -1,0 +1,8 @@
+# TEST ONLY. Matches the installed A3 wrapper's wire schema, not its backend.
+string serialization_type
+string[] context
+byte[] data
+---
+int64 code
+string serialization_type
+byte[] data

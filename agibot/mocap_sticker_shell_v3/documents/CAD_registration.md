@@ -1,9 +1,15 @@
 # A3 v3 marker registration to pelvis_link
 
 Status: **nominal CAD calculation verified; physical calibration not performed**.
-Updated: 2026-10-11. This note accompanies the 17-station sticker and mount-seat
+Updated: 2026-10-27. This note accompanies the 17-station sticker and mount-seat
 tables. The fused STL geometry is now checked; this note does not certify
 physical fit or installed calibration.
+
+The current P1/P2 release selects **12 stations per player** from those
+unchanged tables. Both vendors use the same nominal CAD optical centres;
+the all-17 measured reconstruction below is historical evidence, not a player
+definition. Current imports and coordinates are in
+[the P1/P2 manifest](../motive_asset/asset_manifest.json).
 
 ## Rear-restored v3 stations, 2026-10-11
 
@@ -25,13 +31,13 @@ The twelve previously retained stations match points in the supplied measured `A
 RMS 1.395 mm, maximum 1.853 mm). The fit now also rebases the measured asset to
 the nominal `pelvis_link` origin and ROS axes; it is not an approved runtime
 TF, a physical pelvis datum measurement, or proof of continuous visibility.
-Only `motive_asset/source/A3.motive` keeps the original arbitrary frame.
+The original [A3.motive](source_evidence/optitrack/A3.motive) keeps its arbitrary frame.
 The five restored rear points have no observations in that source and are
 appended from CAD. Their nominal positions are not measured calibration or
 visibility evidence. The candidate omits the undocumented learned graph cache;
 Motive import/re-export is unverified (see the shell README for the API fallback).
 
-### Measured asset alignment
+### Historical measured asset alignment (not the current player pair)
 
 Let `p` be a nominal CAD sticker point in `pelvis_link` metres and `a` its
 measured point in the original A3 asset. An unscaled, proper least-squares
@@ -46,7 +52,7 @@ native_asset_offset = [p_aligned_measured.x, p_aligned_measured.z, -p_aligned_me
 The source pivot displacement `t_original_from_pelvis` is
 `[-0.018451862405386356, 0.09746122703986582, -0.0039261387405065025] m`.
 Full matrices, source/output hashes and per-point coordinates are recorded in
-`optitrack_asset_correspondence.json`. The original measured constellation is
+[asset_correspondence_20261011.json](source_evidence/optitrack/asset_correspondence_20261011.json). The original measured constellation is
 rigidly transformed, not replaced by ideal CAD values: all 66 pair distances
 change by less than `8e-13 m` after 12-decimal serialization. No scale,
 reflection or centroid-origin reset is used. All mechanical/CAD tables remain
@@ -57,16 +63,16 @@ mixed-data RMS is not a new measurement-accuracy claim.
 
 The native offsets use Motive's Y-up basis so the existing bridge conversion
 `(x,y,z) → (x,-z,y)` yields ROS X forward, Y left, Z up with **Motive Streaming
-Up Axis = Z Up**. This checkout names the exported asset `UCB_P1`, with streaming ID 9.
+Up Axis = Z Up**. That historical exported asset uses `UCB_P1`, with streaming ID 9.
 Offline production-solver registration then recovers `UCB_P1 → pelvis_link` as
 zero translation and identity quaternion to numerical precision. This is the
 intended default correction, not an assertion that live `world → UCB_P1` is identity.
 
 Default `motive_live` localization uses the imported body's current definition
-without a pinned asset or calibration receipt. An optional measured-calibration
-workflow must obtain a fresh installed live receipt. Do not apply an additional 90-degree rotation, the old pivot
-correction, or a hand-approved identity receipt. All earlier 12-station receipts are
-invalidated by the asset-frame revision. The nominal CAD origin and stored
+without a pinned asset or calibration receipt. The optional measured
+`stickers_v3` workflow still requires all 17 sites and does not support the
+current 12-point player subsets. Do not apply an additional 90-degree rotation,
+the old pivot correction or a hand-approved identity receipt. The nominal CAD origin and stored
 coordinate convention still require physical and live-stream validation.
 
 ## Coordinate mapping

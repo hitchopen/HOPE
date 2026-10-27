@@ -6,6 +6,7 @@ Neither mode measures the physical shell installation or the table origin.
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 import json
 import math
 from pathlib import Path
@@ -13,10 +14,12 @@ import xml.etree.ElementTree as ET
 
 from base_pose_contract import receipt_id_u52
 
-ASSET_FILENAME = "A3_v3_17_stickers.motive"
-ASSET_SHA256 = "3f9f7feb6f4613108a2e38eb151556a8c07ed54d5e36520c3883d9ab05dca0b4"
-ASSET_REVISION = "pelvis_link_aligned_native_y_up_rear17_20261011"
-EXPECTED_MARKERS = 17
+ASSETS = {
+    "UCB_P1": ("P1.motive", "26bd10809e5d8a2cf6ea17257e842e15d6792a33b5439dce833e94cb72304b78"),
+    "UCB_P2": ("P2.motive", "c263ad41264a8a4728f6633b9033ba520a874489e082158871e3d10899fc16a0"),
+}
+ASSET_REVISION = "pelvis_link_nominal_player12_20261027"
+EXPECTED_MARKERS = 12
 # This compares serialized asset coordinates, not camera measurements.
 MODELDEF_TOLERANCE_M = 0.00005
 
@@ -52,21 +55,29 @@ def accept_live_modeldef(message, expected_name: str) -> tuple[str, int]:
     return digest, receipt_id_u52(digest)
 
 
-def asset_path() -> Path:
+def asset_spec(expected_name: str) -> tuple[str, str]:
+    if expected_name not in ASSETS:
+        raise ValueError("unsupported selected robot asset")
+    return ASSETS[expected_name]
+
+
+def asset_path(expected_name: str = "UCB_P1") -> Path:
+    filename, _ = asset_spec(expected_name)
     here = Path(__file__).resolve()
     for parent in here.parents:
-        candidate = parent / "agibot/mocap_sticker_shell_v3/motive_asset" / ASSET_FILENAME
+        candidate = parent / "agibot/mocap_sticker_shell_v3/motive_asset" / filename
         if candidate.is_file():
             return candidate
-    installed = here.parents[2] / "share/hope_bringup/config/motive_assets" / ASSET_FILENAME
+    installed = here.parents[2] / "share/hope_bringup/config/motive_assets" / filename
     if installed.is_file():
         return installed
-    raise FileNotFoundError(f"missing {ASSET_FILENAME}; rebuild hope_bringup")
+    raise FileNotFoundError(f"missing {filename}; rebuild hope_bringup")
 
 
-def load_asset_points(path: Path | None = None) -> tuple[tuple[float, float, float], ...]:
-    encoded = (path or asset_path()).read_bytes()
-    if hashlib.sha256(encoded).hexdigest() != ASSET_SHA256:
+def load_asset_points(path: Path | None = None, *, expected_name: str = "UCB_P1") -> tuple[tuple[float, float, float], ...]:
+    _, digest = asset_spec(expected_name)
+    encoded = (path or asset_path(expected_name)).read_bytes()
+    if hashlib.sha256(encoded).hexdigest() != digest:
         raise ValueError("pelvis-aligned Motive asset SHA-256 mismatch")
     body = ET.fromstring(encoded).find("./node_assets/rigid_body")
     points = []
@@ -79,10 +90,18 @@ def load_asset_points(path: Path | None = None) -> tuple[tuple[float, float, flo
     return tuple(points)
 
 
+@lru_cache(maxsize=2)
+def _reference_points(expected_name):
+    # MODELDEF callbacks need no repeated disk reads. Each selected reference
+    # is SHA-checked once; only an explicit asset release changes this contract.
+    return load_asset_points(expected_name=expected_name)
+
+
 def verify_modeldef(message, expected_name: str, points) -> tuple[str, int]:
     """Accept only this asset's local origin/axes, regardless of member order."""
-    if expected_name not in {"UCB_P1", "UCB_P2"}:
-        raise ValueError("unsupported selected robot asset")
+    filename, asset_sha256 = asset_spec(expected_name)
+    if tuple(tuple(p) for p in points) != _reference_points(expected_name):
+        raise ValueError("reference points do not match the selected player's asset")
     if message.rigid_body_name != expected_name:
         raise ValueError(f"waiting for {expected_name}")
     body_id = int(message.rigid_body_id)
@@ -90,10 +109,9 @@ def verify_modeldef(message, expected_name: str, points) -> tuple[str, int]:
         raise ValueError("invalid Motive rigid-body ID")
     markers = list(message.markers)
     if len(markers) != EXPECTED_MARKERS:
-        raise ValueError(f"asset defines {len(markers)} markers; import {ASSET_FILENAME}")
+        raise ValueError(f"asset defines {len(markers)} markers; import {filename}")
     members = [int(marker.member_id) for marker in markers]
-    # The vendored NatNet parser exposes zero-based ModelDef indices. They
-    # differ from the native .motive constraint member IDs (usually one-based).
+    # Match geometry bijectively; do not assume native export/member ordering.
     if len(set(members)) != EXPECTED_MARKERS or min(members) < 0:
         raise ValueError("duplicate or invalid ModelDef member IDs")
     unmatched = set(range(EXPECTED_MARKERS))
@@ -107,7 +125,7 @@ def verify_modeldef(message, expected_name: str, points) -> tuple[str, int]:
         unmatched.remove(matches[0])
     # Distinct provenance from a legacy measured calibration receipt. Preserve
     # the schema-2 ABI while binding nominal extrinsics to this live asset ID.
-    provenance = dict(source="motive_asset_modeldef", asset_sha256=ASSET_SHA256,
+    provenance = dict(source="motive_asset_modeldef", asset_sha256=asset_sha256,
                       revision=ASSET_REVISION, parent=expected_name, rigid_body_id=body_id,
                       child="pelvis_link", xyz_m=[0, 0, 0], quaternion_xyzw=[0, 0, 0, 1])
     digest = hashlib.sha256(json.dumps(provenance, sort_keys=True).encode()).hexdigest()

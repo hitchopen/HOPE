@@ -7,7 +7,7 @@ All calculations are vectorized; cached references are mapped by joint name.
 import math
 import torch
 
-from .task_pose_reference import load_reference, reference_joints
+from .task_pose_reference import env_reference, load_reference, reference_joints
 from .ready_recovery import bounded_debt, recovery_gate, _log
 
 GROUPS = {
@@ -80,6 +80,16 @@ def phase_summaries(metrics):
             result[f"full_body_{phase}_{group}_error_rms_rad"] = torch.where(
                 count > 0, ((value.square()*mask).sum()/count.clamp_min(1)).sqrt(),
                 value.new_tensor(float("nan")))
+    if "complete_hold_applicable" in metrics:
+        mask = metrics["complete_hold_applicable"] > 0
+        count = mask.sum()
+        for name in ("ready", "settled"):
+            value = metrics["complete_hold_"+name]
+            result["complete_hold_"+name+"_fraction"] = torch.where(
+                count > 0, (value*mask).sum()/count.clamp_min(1),
+                value.new_tensor(float("nan")))
+    from .four_stroke import family_summaries
+    result.update(family_summaries(metrics))
     return result
 
 
@@ -94,8 +104,8 @@ def _state(env):
         bodies = [cmd._resolve_body_index(n) for n in BODY_NAMES]
         if min(bodies) < 0:
             raise ValueError("full-body HOLD requires torso, feet and wrist bodies")
-        pose = load_reference()
-        ref = reference_joints(names, robot.data.joint_pos)
+        pose = env_reference(env)
+        ref = reference_joints(names, robot.data.joint_pos, pose)
         limits = getattr(robot.data, "joint_pos_limits", None)
         if limits is not None:
             bounds = limits[0, ids]
@@ -120,14 +130,19 @@ def _loaded_feet(env):
 
 
 def full_body_hold(env, start_steps=448000, ramp_steps=128000, cost_scale=1.8,
-                   positive_kernel=False):
+                   positive_kernel=False, completion_blend=0., completion_dwell_s=.3,
+                   pose_tail_weight=0.):
     if start_steps < 0 or ramp_steps <= 0:
         raise ValueError("invalid full-body HOLD curriculum")
     if not math.isfinite(cost_scale) or cost_scale <= 0:
         raise ValueError("full-body pose cost_scale must be finite and positive")
+    if not 0 <= completion_blend <= 1 or not math.isfinite(completion_dwell_s) or completion_dwell_s <= 0:
+        raise ValueError("invalid complete HOLD reward blend or dwell")
+    if completion_blend and not positive_kernel:
+        raise ValueError("complete HOLD requires a positive pose kernel")
     cmd, robot, ids, bodies, ref, pose = _state(env)
     motion = env.command_manager.get_term("motion")
-    gate = recovery_gate(motion.in_hold, cmd.time_to_strike)
+    gate = recovery_gate(motion.in_hold, cmd.time_to_strike, motion)
     scale = min(1., max(0., (env.common_step_counter-start_steps)/ramp_steps))
     q = robot.data.joint_pos[:, ids]
     error = q-ref
@@ -169,10 +184,59 @@ def full_body_hold(env, start_steps=448000, ramp_steps=128000, cost_scale=1.8,
     # recovery a persistent negative score. Unlike clamping a linear reward,
     # the exponential remains strictly monotone even on large pose errors.
     pose_score = torch.exp(-cost_scale*cost) if positive_kernel else 1-cost_scale*cost
-    reward = (1-scale)*legacy + scale*gate*pose_score
     qd = robot.data.joint_vel[:, ids]
     speed = robot.data.root_lin_vel_w[:, :2].norm(dim=-1)
-    eligible = gate*_loaded_feet(env)*quiet_gate(distance, error.abs().amax(-1), speed)
+    loaded = _loaded_feet(env)
+    eligible = gate*loaded*quiet_gate(distance, error.abs().amax(-1), speed)
+    if completion_blend:
+        from .complete_hold import CRITERIA, HoldDwell, readiness_ratios, weakest_score
+        ratios = readiness_ratios(error, torso_error, foot_error, width_error, height_error,
+            hand_error, distance, speed, rpy(robot.data.root_quat_w), qd, loaded,
+            ACTIVE_NAMES.index("waist_pitch_joint"))
+        applicable = gate > 0
+        ready = applicable & (ratios.amax(-1) <= 1)
+        tracker = getattr(env, "_complete_hold_dwell", None)
+        if tracker is None:
+            tracker = HoldDwell(speed)
+            env._complete_hold_dwell = tracker
+        elapsed = tracker.update(env.common_step_counter, env.episode_length_buf,
+                                 cmd.base_target_pos_w, ready, env.step_dt)
+        dwell = (elapsed/completion_dwell_s).clamp(0, 1)*ready
+        complete_score = .8*weakest_score(ratios) + .2*dwell
+        # Reallocate the existing +1 budget, rather than stacking another
+        # negative debt or strengthening the temporal smoothing auxiliary.
+        pose_score = (1-completion_blend)*pose_score + completion_blend*complete_score
+        _log(cmd, "complete_hold_applicable", applicable.float())
+        _log(cmd, "complete_hold_ready", ready.float())
+        _log(cmd, "complete_hold_dwell_s", elapsed)
+        _log(cmd, "complete_hold_settled", (ready & (elapsed >= completion_dwell_s-1e-6)).float())
+        _log(cmd, "complete_hold_worst_ratio", ratios.amax(-1))
+        _log(cmd, "complete_hold_score", complete_score*applicable)
+        for i, name in enumerate(CRITERIA):
+            _log(cmd, "complete_hold_"+name+"_ratio", ratios[:, i])
+        from .motion_quality_curriculum import enabled, observe, recovery_evidence_mask
+        if enabled(cmd):
+            # Interrupted recovery supplies no failed HOLD evidence. Only a
+            # genuine terminal-reference window can admit more mocap corruption.
+            selected = recovery_evidence_mask(motion,gate,env.episode_length_buf,env.step_dt)
+            observe(cmd,4,selected,ready & (elapsed >= completion_dwell_s-1e-6))
+            foot_ids=[motion.cfg.body_names.index(n) for n in BODY_NAMES[1:3]]
+            home=motion.motion.body_pos_w[0,foot_ids]+env.scene.env_origins[:,None,:]
+            foot_distance=(robot.data.body_pos_w[:,bodies[1:3]]-home).norm(dim=-1).amax(-1)
+            root_distance=(robot.data.root_pos_w[:,:2]-env.scene.env_origins[:,:2]).norm(dim=-1)
+            home_ready=(foot_distance<.05)&(root_distance<.05)&(speed<.12)&loaded
+            home_ready &= rpy(robot.data.root_quat_w)[:,2].abs()<math.radians(5)
+            observe(cmd,5,selected,home_ready)
+    reward = (1-scale)*legacy + scale*gate*pose_score
+    if pose_tail_weight:
+        if not 0 < pose_tail_weight <= .2:
+            raise ValueError("HOLD linear tail must be a small explicit correction")
+        # Retain a state-score slope at the 45--60 degree wrist/elbow errors
+        # found in Gate3. This is actual-pose PPO reward, never a q_des-to-q loss.
+        x=((error.abs()-math.radians(3)).clamp_min(0)/math.radians(15))
+        raw=mean_and_worst(torch.sqrt(1+x.square())-1)
+        reward=reward-scale*gate*pose_tail_weight*raw
+        _log(cmd,"full_body_hold_linear_tail",raw*gate)
     phase = torch.where(motion.in_hold, 0, torch.where(gate > 0, 2, 1))
     values = {"gate": gate, "phase": phase.float(), "reference_applicable": (gate > 0).float(),
               "curriculum": torch.full_like(gate, scale), "cost": cost,
@@ -223,7 +287,7 @@ def full_body_quiet(env, start_steps=448000, ramp_steps=128000, state_independen
         raise ValueError("invalid full-body quiet curriculum")
     cmd, robot, ids, _, ref, _ = _state(env)
     motion = env.command_manager.get_term("motion")
-    gate = recovery_gate(motion.in_hold, cmd.time_to_strike)
+    gate = recovery_gate(motion.in_hold, cmd.time_to_strike, motion)
     distance = (cmd.base_target_pos_w-cmd.base_pos_w[:, :2]).norm(dim=-1)
     error = (robot.data.joint_pos[:, ids]-ref).abs().amax(-1)
     speed = robot.data.root_lin_vel_w[:, :2].norm(dim=-1)

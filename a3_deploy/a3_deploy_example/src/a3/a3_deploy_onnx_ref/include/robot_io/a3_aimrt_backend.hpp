@@ -118,6 +118,9 @@ class A3AimrtBackend : public RobotIOBackend {
   void SetRunnerStateTopic(std::string topic);
   bool PublishSessionHome(const std::vector<double>& values);
   bool PublishRunnerState(const std::vector<double>& values);
+  bool PublishMocapSafety(const std::vector<double>& values);
+  void SetOperatorHeartbeatCallback(FlatArrayCallback cb);
+  bool PublishOperatorChallenge(const std::vector<double>& values);
   void SetLocomotionInputCallback(FlatArrayCallback cb);
   bool PublishLocomotionState(const std::vector<double>& values);
 
@@ -189,6 +192,9 @@ class A3AimrtBackend : public RobotIOBackend {
   std::string runner_state_topic_{"/hope/runner/state_flat"};
   std::mutex runner_state_publish_mutex_;
   std::function<void(const std::vector<double>&)> runner_state_publish_fn_{};
+  std::function<void(const std::vector<double>&)> mocap_safety_publish_fn_{};
+  FlatArrayCallback operator_heartbeat_cb_{};
+  std::function<void(const std::vector<double>&)> operator_challenge_publish_fn_{};
 
 #ifdef ENABLE_A3_AIMRT_BACKEND
   aimrt::runtime::core::AimRTCore          aimrt_core_;

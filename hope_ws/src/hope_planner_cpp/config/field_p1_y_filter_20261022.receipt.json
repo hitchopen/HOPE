@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-22",
+  "frame": "P1 selected-side Planner table frame",
+  "units": "m",
+  "change": "Operator widened the right/min Y boundary from -1.25 to -1.30 m",
+  "source": "HDU persisted planner_y_filter.state readback after operator test",
+  "persisted_state": "1 1 -1.3 -0.55435900000000005",
+  "enabled": true,
+  "right_min_m": -1.3,
+  "left_max_m": -0.5543593239924284,
+  "left_bound_note": "Preserves the existing measured PPP3 source value; Console persistence rounds to six decimals.",
+  "validation_scope": "Operator reported testing complete. No new marker survey, ball-contact measurements or landing statistics are asserted.",
+  "runtime_precedence": "A valid existing saved filter state overrides startup YAML; Apply updates the persisted state."
+}

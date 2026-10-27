@@ -49,10 +49,12 @@ class ProjectionPPO(PPO):
         settled_aux_worst_joint_blend: float = 0.0,
         settled_aux_ready_only: bool = False,
         settled_aux_bounded_smooth: bool = True,
+        update_diagnostics: bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.projection_aux_enabled = bool(projection_aux_enabled)
+        self.update_diagnostics = bool(update_diagnostics)
         self.settled_aux_enabled = bool(settled_aux_enabled)
         self.settled_aux_start_steps = int(settled_aux_start_steps)
         self.settled_aux_ramp_steps = int(settled_aux_ramp_steps)
@@ -286,6 +288,15 @@ class ProjectionPPO(PPO):
                                            "gradient_multiplier"), 0.0)
 
         storage = self.storage
+        diagnostics = {}
+        gradient_rows = []
+        diagnostic_kl = []
+        minibatch_statistics = []
+        if self.update_diagnostics:
+            from .ppo_diagnostics import value_statistics, gradient_statistics
+            diagnostics = value_statistics(storage.values, storage.returns)
+            diagnostic_critic = list(self.policy.critic.parameters())
+            diagnostic_all = list(self.policy.parameters())
         batch_size = storage.num_envs * storage.num_transitions_per_env
         mini_batch_size = batch_size // self.num_mini_batches
         if mini_batch_size * self.num_mini_batches != batch_size:
@@ -485,7 +496,8 @@ class ProjectionPPO(PPO):
                 ppo_loss.backward(retain_graph=actor_updates_enabled)
                 if actor_updates_enabled:
                     base_actor_grad_norm = self._grad_norm(actor_parameters)
-                    base_mean_grad_norm = self._grad_norm(mean_parameters)
+                    if settled_loss is not None:
+                        base_mean_grad_norm = self._grad_norm(mean_parameters)
                     projection_gradients = list(
                         torch.autograd.grad(
                             projection_loss,
@@ -501,23 +513,26 @@ class ProjectionPPO(PPO):
                         self.projection_aux_lambda,
                         self.projection_aux_lambda_max,
                     )
-                    if float(raw_projection_grad_norm.detach()) <= 1.0e-20:
+                    base_norm_value, raw_norm_value = torch.stack((
+                        base_actor_grad_norm.detach(), raw_projection_grad_norm.detach()
+                    )).cpu().tolist()
+                    if raw_norm_value <= 1.0e-20:
                         effective_lambda = requested_lambda
                         gradient_ratio = 0.0
-                    elif float(base_actor_grad_norm.detach()) <= 1.0e-20:
+                    elif base_norm_value <= 1.0e-20:
                         effective_lambda = 0.0
                         gradient_ratio = 0.0
                     else:
                         cap = (
                             self.projection_aux_gradient_ratio_max
-                            * float(base_actor_grad_norm.detach())
-                            / float(raw_projection_grad_norm.detach())
+                            * base_norm_value
+                            / raw_norm_value
                         )
                         effective_lambda = min(requested_lambda, cap)
                         gradient_ratio = (
                             effective_lambda
-                            * float(raw_projection_grad_norm.detach())
-                            / float(base_actor_grad_norm.detach())
+                            * raw_norm_value
+                            / base_norm_value
                         )
                     for parameter, projection_gradient in zip(
                         actor_parameters, projection_gradients
@@ -567,6 +582,13 @@ class ProjectionPPO(PPO):
 
                 if self.is_multi_gpu:
                     self.reduce_parameters()
+                if self.update_diagnostics:
+                    gradient_rows.append(gradient_statistics(
+                        mean_parameters, diagnostic_critic, diagnostic_all, self.max_grad_norm))
+                    with torch.no_grad():
+                        diagnostic_kl.append((torch.log(sigma_batch.detach()/old_sigma_batch)
+                            +(old_sigma_batch.square()+(old_mu_batch-mu_batch.detach()).square())
+                            /(2*sigma_batch.detach().square())-.5).sum(-1).mean())
                 nn.utils.clip_grad_norm_(
                     self.policy.parameters(), self.max_grad_norm
                 )
@@ -574,38 +596,50 @@ class ProjectionPPO(PPO):
                 for key, value in settled_stats.items():
                     settled_totals[key] = settled_totals.get(key, 0.0) + value
 
-                mean_value_loss += value_loss.item()
-                mean_surrogate_loss += surrogate_loss.item()
-                mean_entropy += entropy_batch.mean().item()
-                mean_projection_loss += projection_loss.item()
-                mean_projection_distance += projection_distance.item()
-                mean_projection_outside += projection_outside.item()
+                # Diagnostics do not feed the next minibatch. Retain only
+                # detached scalars, then transfer once after all updates instead
+                # of synchronizing CUDA for each of 14 .item() calls per batch.
+                with torch.no_grad():
+                    minibatch_statistics.append(torch.stack((
+                        value_loss.detach(), surrogate_loss.detach(), entropy_batch.mean(),
+                        projection_loss.detach(), projection_distance, projection_outside,
+                        sample_projection_distance, sample_projection_outside,
+                        actor_abs_ge_one, sample_abs_ge_one, active_sigma.mean(),
+                        torch.abs(active_mean).max(), torch.abs(active_samples).max(),
+                        active_sigma.max(),
+                    )))
                 mean_projection_lambda += effective_lambda
                 mean_projection_gradient_ratio += gradient_ratio
-                mean_projection_sample_distance += (
-                    sample_projection_distance.item()
-                )
-                mean_projection_sample_outside += (
-                    sample_projection_outside.item()
-                )
-                mean_actor_abs_ge_one += actor_abs_ge_one.item()
-                mean_sample_abs_ge_one += sample_abs_ge_one.item()
-                mean_policy_std += active_sigma.mean().item()
-                max_actor_mean_abs = max(
-                    max_actor_mean_abs,
-                    torch.abs(active_mean).max().item(),
-                )
-                max_sample_abs = max(
-                    max_sample_abs,
-                    torch.abs(active_samples).max().item(),
-                )
-                max_policy_std = max(
-                    max_policy_std, active_sigma.max().item()
-                )
+
+        # Python sums/maxima in the original minibatch order retain the old
+        # double-precision accumulation semantics exactly.
+        for row in torch.stack(minibatch_statistics).cpu().tolist():
+            mean_value_loss += row[0]
+            mean_surrogate_loss += row[1]
+            mean_entropy += row[2]
+            mean_projection_loss += row[3]
+            mean_projection_distance += row[4]
+            mean_projection_outside += row[5]
+            mean_projection_sample_distance += row[6]
+            mean_projection_sample_outside += row[7]
+            mean_actor_abs_ge_one += row[8]
+            mean_sample_abs_ge_one += row[9]
+            mean_policy_std += row[10]
+            max_actor_mean_abs = max(max_actor_mean_abs, row[11])
+            max_sample_abs = max(max_sample_abs, row[12])
+            max_policy_std = max(max_policy_std, row[13])
 
         num_updates = self.num_learning_epochs * self.num_mini_batches
+        if self.update_diagnostics:
+            for key, value in zip(("actor_grad_norm", "critic_grad_norm", "total_grad_norm", "grad_clip_multiplier"),
+                                  torch.stack(gradient_rows).mean(0)):
+                diagnostics[key] = value
+            diagnostics["policy_kl"] = torch.stack(diagnostic_kl).mean()
+            values = torch.stack(list(diagnostics.values())).cpu().tolist()
+            diagnostics = dict(zip(diagnostics, values))
         storage.clear()
         return {
+            **diagnostics,
             **{f"settled_mean_{k}": v / num_updates for k, v in settled_totals.items()},
             "settled_aux_enabled": float(self.settled_aux_enabled),
             "value_function": mean_value_loss / num_updates,
@@ -660,6 +694,7 @@ class RslRlProjectionPpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     settled_aux_worst_joint_blend: float = 0.0
     settled_aux_ready_only: bool = False
     settled_aux_bounded_smooth: bool = True
+    update_diagnostics: bool = False
 
 
 def register_with_rsl_rl_runner() -> None:

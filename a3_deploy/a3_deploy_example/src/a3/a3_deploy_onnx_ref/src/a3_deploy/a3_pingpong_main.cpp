@@ -54,6 +54,8 @@
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_reference_playback.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
+#include "a3_pingpong/pp_operator_heartbeat.hpp"
+#include "a3_pingpong/pp_serve_recovery.hpp"
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "robot_io/a3_aimrt_backend.hpp"
 
@@ -448,8 +450,24 @@ int main(int argc, char** argv) {
           << YAML::Key << "step_dt" << YAML::Value << deploy.step_dt
           << YAML::Key << "runtime_contract" << YAML::Value << policy.runtime_contract()
           << YAML::Key << "training_recipe" << YAML::Value << policy.training_recipe()
-          << YAML::Key << "training_recipe_version" << YAML::Value << policy.training_recipe_version()
-          << YAML::EndMap;
+          << YAML::Key << "training_recipe_version" << YAML::Value << policy.training_recipe_version();
+      if (policy.is_fixed_home_contract()) {
+        out << YAML::Key << "station_contract" << YAML::Value << "fixed_session_anchor_v1"
+            << YAML::Key << "position_support" << YAML::Value << YAML::BeginSeq;
+        for (const auto& box : policy.hp_pos_boxes()) {
+          out << YAML::Flow << YAML::BeginSeq;
+          for (double v : box) out << v;
+          out << YAML::EndSeq;
+        }
+        out << YAML::EndSeq << YAML::Key << "velocity_support" << YAML::Value << YAML::BeginSeq;
+        for (const auto& box : policy.hp_vel_boxes()) {
+          out << YAML::Flow << YAML::BeginSeq;
+          for (double v : box) out << v;
+          out << YAML::EndSeq;
+        }
+        out << YAML::EndSeq;
+      }
+      out << YAML::EndMap;
       std::cout << out.c_str() << '\n';
       return 0;
     } catch (const std::exception& e) {
@@ -508,7 +526,7 @@ int main(int argc, char** argv) {
                  " [--gain-scale F] [--swing-speed F] [--stand-kp K --stand-kd D]\n"
                  "       [--reference-playback|--mode reference-playback]"
                  " [--no-publish|--dry-run] [--warmup-sec S]\n"
-                 "       [--planner] [--shared-session-home] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
+                 "       [--planner] [--shared-session-home] [--operator-watchdog] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
                  " [--engage-min-tts S] [--cmd-timeout S] [--invalid-grace S] [--vel-gate-margin M]"
                  " [--pending-expire-after-strike S]"
                  " [--demo] [--policy-native]"
@@ -1251,6 +1269,19 @@ int main(int argc, char** argv) {
   // thread-safe holders that PpPolicy reads on the 50 Hz driver thread. The racket topic
   // feeds the engage machine; the base topic feeds LocMode::kExternalBase.
   std::shared_ptr<a3_pingpong::PpBasePoseInput> base_in;
+  const bool mocap_loss_protection = planner_mode && !kernel_mode && !serve_only;
+  runner_control.RequireMocap(mocap_loss_protection);
+  const bool operator_loss_protection = mocap_loss_protection && Has(argc, argv, "--operator-watchdog");
+  if (operator_loss_protection && session_id.empty()) {
+    std::cerr << "[pingpong] --operator-watchdog requires a nonempty --session-id\n";
+    return 1;  // backend has not started; no hardware command can have been issued
+  }
+  runner_control.RequireOperatorHeartbeat(operator_loss_protection);
+  auto operator_heartbeat = std::make_shared<a3_pingpong::PpOperatorHeartbeat>(runner_boot_id, session_id);
+  if (operator_loss_protection) backend->SetOperatorHeartbeatCallback(
+      [operator_heartbeat](const std::vector<double>& values) {
+        operator_heartbeat->Echo(values, a3_pingpong::PpNowSteadySec());
+      });
   if (planner_mode) {
     auto racket_in = std::make_shared<a3_pingpong::PpRacketTargetInput>(
         pp->expected_planner_wire_schema());
@@ -1545,7 +1576,7 @@ int main(int argc, char** argv) {
       std::cerr << "[pingpong] WARN: cannot open trace csv " << trace_path << "\n";
     }
   }
-  std::ostream* trace_ptr = trace.is_open() ? &trace : nullptr;
+  a3_deploy::AsyncCsvFile* trace_ptr = trace.is_open() ? &trace : nullptr;
 
   // --- optional per-tick OBS CSV (the full 180-D obs) for A/B/C comparison ---
   a3_deploy::AsyncCsvFile obscsv;
@@ -1565,7 +1596,7 @@ int main(int argc, char** argv) {
       std::cerr << "[pingpong] WARN: cannot open obs csv " << obs_csv_path << "\n";
     }
   }
-  std::ostream* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
+  a3_deploy::AsyncCsvFile* obscsv_ptr = obscsv.is_open() ? &obscsv : nullptr;
   const int loc_mode_int = static_cast<int>(loc_mode);
 
   // SHADOW free-running clock. The driver's `tick` is PUBLISH-GATED: in SHADOW
@@ -1663,9 +1694,9 @@ int main(int argc, char** argv) {
   double active_policy_blend_sec = policy_motion_blend_sec;
   const bool v17_command_safety = pp->onnx().is_rally_v17_recipe();
   a3_pingpong::PpCommandSafetyMonitor command_safety;
-  bool authoritative_mocap_stale_warned = false;  // driver-thread only (no race)
   Mode prev_mode_for_blend = Mode::kPassive;       // driver-thread only (no race)
   a3_pingpong::PpCommandTransition mode_transition;
+  a3_pingpong::ServeTerminalRecoveryEvents serve_terminal_events;
   robot_io::RobotCommand last_delivered_command;
   robot_io::RobotState command_state;
   bool last_delivered_valid = false;
@@ -1717,11 +1748,10 @@ int main(int argc, char** argv) {
                      &prev_mode_for_blend, &motion_enter_tick,
                      &prev_level_for_blend, &prev_swing_dir_for_blend,
                      &trace_previous_shot_seq, &trace_previous_q_des,
-                     &mode_transition, &last_delivered_command, &last_delivered_valid,
+                     &mode_transition, &serve_terminal_events, &last_delivered_command, &last_delivered_valid,
                      &last_delivered_mode, &computed_mode, &transition_elapsed_s, &command_state,
                      fall_guard, fall_guard_gz, &fall_guard_ticks,
                      v17_command_safety, &command_safety,
-                     &authoritative_mocap_stale_warned,
                      &hybrid_hope_command_cache,
                      &hybrid_hope_command_valid,
                      &hybrid_run_hope_next,
@@ -1752,19 +1782,6 @@ int main(int argc, char** argv) {
     // sets it) does not run in PASSIVE/PD_STAND, so without this the ground checks read a frozen
     // [0,0,-1].
     ppp->observe_imu(st);
-    const bool authoritative_mocap_stale =
-        m == Mode::kMotion && ppp->authoritative_mocap_required() &&
-        !ppp->authoritative_mocap_fresh();
-    if (authoritative_mocap_stale && !authoritative_mocap_stale_warned) {
-      std::fprintf(stderr,
-          "[pp telemetry] authoritative mocap stale; MOTION remains active and the last "
-          "mocap pose is retained\n");
-      authoritative_mocap_stale_warned = true;
-    } else if (!authoritative_mocap_stale && authoritative_mocap_stale_warned) {
-      if (m == Mode::kMotion)
-        std::fprintf(stderr, "[pp telemetry] authoritative mocap recovered\n");
-      authoritative_mocap_stale_warned = false;
-    }
     // ALWAYS-ON FALL GUARD (see flag above): fallen -> PASSIVE, independent of --auto-leg-hold.
     if (fall_guard && (m == Mode::kMotion || m == Mode::kPdStand)) {
       const auto gfg = ppp->last_proj_grav();
@@ -1880,36 +1897,42 @@ int main(int argc, char** argv) {
       }
       const bool prepare_requested = runner_control.ConsumeServePrepare();
       if (serve_just_entered || prepare_requested) {
+        serve_terminal_events.Reset();
         if (last_delivered_valid) servep->SetEntryCommand(last_delivered_command);
         // Start on the command thread before consuming the old COMPLETE state.
         // Publishing SERVE from the action worker and calling Start afterwards
         // races this callback on every repeat of the serve -> ready -> serve loop.
         servep->Start();
       }
-      if (!servep->ComputeCommand(tick, st, cmd)) return false;
+      // Apply after Start(), which resets the abort request. Keep the recovery
+      // request through brief stream recovery; never resume a half-finished serve.
+      if (runner_control.PlayStopRequested()) servep->RequestAbort();
+      const bool serve_command_valid = servep->ComputeCommand(tick, st, cmd);
+      if (!serve_command_valid) return false;
       if (servep->state() ==
-                 a3_pingpong::ServeControllerState::kAborted) {
-        runner_control.SetRuntimeMode(Mode::kPdStand);
-        std::fprintf(stderr,
-                     "[serve] abort recovery complete -> PD_STAND"
-                     " (cleanup_required=%d)\n",
-                     servep->cleanup_required() ? 1 : 0);
-      } else if (servep->state() ==
                  a3_pingpong::ServeControllerState::kComplete) {
-        runner_control.CompleteServe(kernel_mode);
-        std::fprintf(stderr, runner_control.serve_only()
+        if (runner_control.CompleteServe(kernel_mode))
+          std::fprintf(stderr, runner_control.serve_only()
             ? "[serve] CSV complete -> PD_STAND (Pure Serve)\n"
             : kernel_mode ? "[serve] measured stand recovery complete -> PD_STAND (Kernel; arms lowered)\n"
             : "[serve] selected return complete -> MOTION; entering P1/P2 "
               "receive policy through continuous handoff\n");
-      } else if (servep->state() ==
-                 a3_pingpong::ServeControllerState::kFault) {
-        runner_control.SetRuntimeMode(Mode::kPdStand);
-        const std::string serve_fault = servep->fault_reason();
-        std::fprintf(stderr,
-                     "[serve] controller fault -> PD_STAND; reason=%s; "
-                     "restart/inspect before retry\n",
-                     serve_fault.empty() ? "unknown" : serve_fault.c_str());
+      } else if (servep->state() == a3_pingpong::ServeControllerState::kFault ||
+                 servep->state() == a3_pingpong::ServeControllerState::kAborted) {
+        const auto terminal = servep->state();
+        const bool recovered = runner_control.RecoverTerminalServeToStand(
+            static_cast<int>(terminal), serve_command_valid);
+        if (serve_terminal_events.Observe(static_cast<int>(terminal), recovered)) {
+          const std::string reason = servep->fault_reason();
+          std::fprintf(stderr,
+              "[serve] %s: %s; mode=%s; reason=%s; cleanup_required=%d; "
+              "inspect before retry\n",
+              terminal == a3_pingpong::ServeControllerState::kFault ? "controller fault" : "abort",
+              recovered ? "PD_STAND recovery accepted" : "terminal recovery not applied",
+              a3_pingpong::RunnerModeName(runner_control.mode()),
+              reason.empty() ? "none" : reason.c_str(),
+              servep->cleanup_required() ? 1 : 0);
+        }
       }
     } else {  // SHADOW or MOTION: run the policy
       const bool run_hope_this_tick =
@@ -2046,7 +2069,7 @@ int main(int argc, char** argv) {
         hybrid_run_hope_next = !run_hope_this_tick;
       publish = (m == Mode::kMotion);  // SHADOW computes but does not publish
       // --- OBS CSV row (only when the policy ran, so obs is current) ---
-      if (obscsv_ptr) {
+      if (obscsv_ptr && obscsv_ptr->is_recording()) {
         const auto d = ppp->take_obs_debug();
         if (d.valid) {
           auto& o = *obscsv_ptr;
@@ -2105,7 +2128,7 @@ int main(int argc, char** argv) {
     }
 
     // --- CSV trace row (all modes; final post-gain command + measured state) ---
-    if (trace_ptr) {
+    if (trace_ptr && trace_ptr->is_recording()) {
       auto& o = *trace_ptr;
       const auto g = ppp->last_proj_grav();
       const auto planner = ppp->planner_trace_snapshot(tick);
@@ -2223,6 +2246,10 @@ int main(int argc, char** argv) {
         trace_previous_shot_seq = planner.shot_seq;
       }
       o.flush();  // enqueue the complete row; disk I/O stays on the worker
+    } else {
+      // Never compare a resumed row with an arbitrarily old command.
+      trace_previous_q_des.resize(0);
+      trace_previous_shot_seq = 0;
     }
     return publish;
   };
@@ -2239,6 +2266,22 @@ int main(int argc, char** argv) {
   auto command_fn = [&, command_fn_50hz = std::move(command_fn_50hz)](std::uint64_t driver_tick,
                                                                       const robot_io::RobotState& state,
                                                                       robot_io::RobotCommand& command) mutable -> bool {
+    if (mocap_loss_protection) {
+      a3_pingpong::PpBaseSample sample;
+      // One second without real pelvis progress. Mailbox age
+      // uses the MDU monotonic clock, independently of wall-clock corrections.
+      const bool usable = base_in && base_in->LatestForPolicy(
+          sample, ppp->mocap_rescue_deadline_s(), ppp->authoritative_mocap_required());
+      if (runner_control.ObserveMocap(usable, usable && sample.held_for_policy,
+                                     usable ? sample.receipt_age_s : -1.))
+        std::fprintf(stderr, "[pp SAFETY] MOCAP_UNAVAILABLE -> controlled PD_STAND recovery\n");
+    }
+    if (operator_loss_protection) {
+      const auto live = operator_heartbeat->Fresh(a3_pingpong::PpNowSteadySec());
+      if (runner_control.ObserveOperatorHeartbeat(live[0], live[1]))
+        std::fprintf(stderr, "[pp SAFETY] OPERATOR_%s_UNAVAILABLE -> controlled PD_STAND recovery\n",
+                     live[0] ? "COMPUTER" : "UI");
+    }
     const auto command_now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
     const auto scheduled_ns = command_clock ? command_clock->CurrentWakeDeadlineNs() : 0;
@@ -2253,7 +2296,8 @@ int main(int argc, char** argv) {
         a3_io::ServeHalSnapshot receipt;
         const bool fresh = serve_hal_clock.Read(receipt) && receipt.Ready(command_now_ns);
         if (fresh && !serve_hal_pid) serve_hal_pid = receipt.pid;
-        const bool valid = fresh && receipt.pid == serve_hal_pid && receipt.left == 2000;
+        const bool valid = a3_io::IsServeHalRelease(
+            receipt, command_now_ns, serve_hal_pid, gripper_release_pos);
         const auto result = serve_cadence.ObserveHalSelection(command_now_ns,
             valid ? receipt.release_edge_ns : 0);
         if (result == a3_pingpong::PpServeCadence::Receipt::kSelected) {
@@ -2744,7 +2788,15 @@ int main(int argc, char** argv) {
   // Authoritative Runner heartbeat.  It carries actual local role/mode and
   // the real PpServeController enum; the HDU observer only decodes it.
   std::thread runner_state_publisher([&]() {
+    unsigned heartbeat_tick = 0;
     while (!g_stop.load()) {
+      if (operator_loss_protection)
+        backend->PublishOperatorChallenge(operator_heartbeat->Issue(a3_pingpong::PpNowSteadySec()));
+      backend->PublishMocapSafety(runner_control.EncodeMocapSafety());
+      if (heartbeat_tick++ % 10 != 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        continue;
+      }
       const Mode current = runner_control.mode();
       const bool command_publishing =
           !no_publish && current != Mode::kShadow && driver.HasSentCommand();
@@ -2764,7 +2816,7 @@ int main(int argc, char** argv) {
           teleop_input.Age(steady_seconds()),teleop_progress.load(),
           teleop_velocity[0].load(),teleop_velocity[1].load(),teleop_velocity[2].load(),
           teleop_input.armed()?1.:0.});
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
   });
 
@@ -2791,9 +2843,11 @@ int main(int argc, char** argv) {
     if (warming && runner_control.mode() == Mode::kTeleop) warming = false;
     if (warming &&
         std::chrono::duration<double>(now - t_start).count() >= warmup_sec) {
-      runner_control.SetRuntimeMode(target_mode);
+      a3_pingpong::RunnerActionReason refused = a3_pingpong::RunnerActionReason::kNone;
+      const bool applied = runner_control.SetRuntimeMode(target_mode, false, &refused);
       warming = false;
-      std::printf("[pingpong] warmup done -> %s\n", ModeName(target_mode));
+      std::printf("[pingpong] warmup done -> %s (requested entry: %s)\n",
+                  ModeName(runner_control.mode()), applied ? "APPLIED" : a3_pingpong::RunnerActionReasonName(refused));
     }
     double dt = std::chrono::duration<double>(now - t_prev).count();
     double hz = dt > 0 ? (ticks - last_ticks) / dt : 0;

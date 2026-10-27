@@ -94,6 +94,21 @@ class HopeRunnerTransportRelay(Node):
         self._home_subscription = self.create_subscription(
             Float64MultiArray, '/hope/runner/session_home_flat',
             self._home_publisher.publish, stream_qos)
+        self._mocap_safety_publisher = self.create_publisher(
+            Float64MultiArray, '/hope/runner/mocap_safety_hdu_flat', stream_qos)
+        self._mocap_safety_subscription = self.create_subscription(
+            Float64MultiArray, '/hope/runner/mocap_safety_flat',
+            self._mocap_safety_publisher.publish, stream_qos)
+        self._operator_challenge_publisher = self.create_publisher(
+            Float64MultiArray, '/hope/runner/operator_challenge_hdu_flat', stream_qos)
+        self._operator_challenge_subscription = self.create_subscription(
+            Float64MultiArray, '/hope/runner/operator_challenge_flat',
+            self._operator_challenge_publisher.publish, stream_qos)
+        self._operator_echo_publisher = self.create_publisher(
+            Float64MultiArray, '/hope/runner/operator_echo_flat', stream_qos)
+        self._operator_echo_subscription = self.create_subscription(
+            Float64MultiArray, '/hope/runner/operator_echo_hdu_flat',
+            self._operator_echo_publisher.publish, stream_qos)
         # Preserve original source timestamp/session/sequence. No timer replay
         # and no relay receipt time that could make an old input look fresh.
 

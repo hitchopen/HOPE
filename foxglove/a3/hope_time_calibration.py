@@ -237,59 +237,61 @@ class HopeTimeCalibration(Node):
             self._ntp_gate = bool(message.data)
             self._ntp_gate_received = time.monotonic()
 
-    def _request_calibration(
-        self, _request: Trigger.Request, response: Trigger.Response
-    ) -> Trigger.Response:
-        now = time.monotonic()
-        with self._lock:
-            status = self._status
-            lifecycle_state = self._lifecycle_state
-            lifecycle_state_fresh = (
-                self._lifecycle_state_received > 0.0
-                and now - self._lifecycle_state_received <= LIFECYCLE_FRESHNESS_S
-            )
-            lifecycle_busy = self._lifecycle_busy
-            lifecycle_busy_fresh = (
-                self._lifecycle_busy_received > 0.0
-                and now - self._lifecycle_busy_received <= LIFECYCLE_FRESHNESS_S
-            )
-            ntp_gate = self._ntp_gate
-            ntp_gate_fresh = (
-                self._ntp_gate_received > 0.0
-                and now - self._ntp_gate_received <= NTP_FRESHNESS_S
-            )
+    def _request_rejection_locked(self, now: float) -> str | None:
+        """Check current evidence while holding the callback-state lock.
+
+        Repeat after acquiring the shared hardware-operation lock: loading
+        configuration or waiting for that lock must not turn a stale STOPPED
+        snapshot into authorization to step a clock. This is only admission;
+        the backend still verifies real consumers are stopped before stepping.
+        """
+        status = self._status
+        lifecycle_state = self._lifecycle_state
+        lifecycle_state_fresh = (
+            self._lifecycle_state_received > 0.0
+            and 0.0 <= now - self._lifecycle_state_received <= LIFECYCLE_FRESHNESS_S
+        )
+        lifecycle_busy = self._lifecycle_busy
+        lifecycle_busy_fresh = (
+            self._lifecycle_busy_received > 0.0
+            and 0.0 <= now - self._lifecycle_busy_received <= LIFECYCLE_FRESHNESS_S
+        )
+        ntp_gate = self._ntp_gate
+        ntp_gate_fresh = (
+            self._ntp_gate_received > 0.0
+            and 0.0 <= now - self._ntp_gate_received <= NTP_FRESHNESS_S
+        )
 
         if status.state in {"RUNNING", "INTERRUPTED"}:
-            response.success = False
-            response.message = "time calibration is already running"
-            return response
-        if status.state == "FAILED_SAFE_STOP" and status.boot_id == self._boot_id:
-            response.success = False
-            response.message = (
+            return "time calibration is already running"
+        if status.state == "FAILED_SAFE_STOP":
+            return (
                 "previous calibration failed this boot; keep robot services stopped "
                 "and follow the documented manual recovery"
             )
-            return response
         if status.hard_step_attempted and status.boot_id == self._boot_id:
-            response.success = False
-            response.message = (
+            return (
                 "one hard-step was already attempted in this maintenance cycle"
             )
-            return response
         if not lifecycle_state_fresh or not lifecycle_busy_fresh:
-            response.success = False
-            response.message = "fresh lifecycle STOPPED state is unavailable"
-            return response
+            return "fresh lifecycle STOPPED state is unavailable"
         if lifecycle_state != "STOPPED" or lifecycle_busy:
-            response.success = False
-            response.message = (
+            return (
                 "time calibration requires idle STOPPED lifecycle; "
                 f"current state={lifecycle_state}"
             )
-            return response
         if not ntp_gate_fresh or ntp_gate:
+            return "time calibration requires a fresh failing NTP gate"
+        return None
+
+    def _request_calibration(
+        self, _request: Trigger.Request, response: Trigger.Response
+    ) -> Trigger.Response:
+        with self._lock:
+            rejection = self._request_rejection_locked(time.monotonic())
+        if rejection is not None:
             response.success = False
-            response.message = "time calibration requires a fresh failing NTP gate"
+            response.message = rejection
             return response
         try:
             config = load_config(CONFIG_PATH)
@@ -314,34 +316,38 @@ class HopeTimeCalibration(Node):
                 "another lifecycle or time-calibration operation owns the interlock"
             )
             return response
-        with self._lock:
-            if (
-                self._hardware_operation_lock is not None
-                or self._status.state
-                in {"RUNNING", "INTERRUPTED", "FAILED_SAFE_STOP"}
-            ):
-                release_hardware_operation_lock(operation_lock)
-                response.success = False
-                response.message = "time calibration state changed; request again"
-                return response
-            self._hardware_operation_lock = operation_lock
-
         operation_id = datetime.now(timezone.utc).strftime("timecal_%Y%m%dT%H%M%SZ")
         try:
-            self._replace_status(
-                state="RUNNING",
-                step="HANDOFF",
-                result="REQUEST_ACCEPTED_CONTROL_CONNECTION_WILL_RESTART",
-                operation_id=operation_id,
-                boot_id=self._boot_id,
-                hard_step_attempted=False,
-                active_hdu_vendor=(),
-                active_hdu_foxglove=(),
-            )
+            with self._lock:
+                rejection = self._request_rejection_locked(time.monotonic())
+                if self._hardware_operation_lock is not None:
+                    rejection = "time calibration state changed; request again"
+                if rejection is None:
+                    # Persist admission atomically with the final evidence
+                    # check; callbacks cannot change it between check and save.
+                    status = replace(
+                        self._status,
+                        state="RUNNING",
+                        step="HANDOFF",
+                        result="REQUEST_ACCEPTED_CONTROL_CONNECTION_WILL_RESTART",
+                        operation_id=operation_id,
+                        boot_id=self._boot_id,
+                        hard_step_attempted=False,
+                        active_hdu_vendor=(),
+                        active_hdu_foxglove=(),
+                    )
+                    save_status_atomic(STATUS_PATH, status)
+                    self._status = status
+                    self._hardware_operation_lock = operation_lock
         except Exception as exc:
-            self._release_operation_lock()
+            release_hardware_operation_lock(operation_lock)
             response.success = False
             response.message = f"cannot persist calibration request: {exc}"
+            return response
+        if rejection is not None:
+            release_hardware_operation_lock(operation_lock)
+            response.success = False
+            response.message = rejection
             return response
         try:
             self._pool.submit(self._run_calibration, config)

@@ -107,11 +107,12 @@ def base_x_drift_from_station(env: ManagerBasedRLEnv, command_name: str, thresho
 
 
 def base_mocap_stale(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Fail closed once the actor's full-pose mocap sample exceeds its configured age.
+    """End an episode at its localization timeout, separate from sample validity.
 
     Short dropouts are already handled inside ``RacketTargetCommand`` by bounded propagation.
-    This termination prevents the policy from continuing indefinitely on the last position and
-    quaternion after that bounded window expires.
+    Legacy tasks terminate at the validity age. Outage-training tasks can set
+    a longer finite episode timeout while leaving stale telemetry, last-pose
+    observations, bounded gyro propagation and physical fall checks intact.
     """
 
     command = env.command_manager.get_term(command_name)
@@ -123,7 +124,11 @@ def base_mocap_stale(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
         raise RuntimeError(
             "base_mocap_stale requires a positive full-pose mocap age contract"
         )
-    return age >= max_age
+    timeout = getattr(command.cfg, "base_mocap_episode_timeout_s", None)
+    timeout = max_age if timeout is None else float(timeout)
+    if not max_age <= timeout < float("inf"):
+        raise ValueError("mocap episode timeout must be finite and >= sample max age")
+    return age >= timeout
 
 
 def _arm_deadline_step(

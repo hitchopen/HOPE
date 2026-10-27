@@ -184,6 +184,10 @@ enum class RunnerActionReason : int {
   kTeleopUnavailable = 29,
   kTeleopInputNotReady = 30,
   kTeleopStopRequested = 31,
+  kServeRecoveryPending = 34,
+  kMocapUnavailable = 35,
+  kOperatorUiUnavailable = 36,
+  kOperatorComputerUnavailable = 37,
 };
 
 inline const char* RunnerActionReasonName(RunnerActionReason reason) {
@@ -244,6 +248,10 @@ inline const char* RunnerActionReasonName(RunnerActionReason reason) {
     case RunnerActionReason::kTeleopUnavailable: return "TELEOP_UNAVAILABLE";
     case RunnerActionReason::kTeleopInputNotReady: return "TELEOP_INPUT_NOT_READY";
     case RunnerActionReason::kTeleopStopRequested: return "TELEOP_STOP_REQUESTED";
+    case RunnerActionReason::kServeRecoveryPending: return "SERVE_RECOVERY_PENDING";
+    case RunnerActionReason::kMocapUnavailable: return "MOCAP_UNAVAILABLE";
+    case RunnerActionReason::kOperatorUiUnavailable: return "OPERATOR_UI_UNAVAILABLE";
+    case RunnerActionReason::kOperatorComputerUnavailable: return "OPERATOR_COMPUTER_UNAVAILABLE";
   }
   return "UNKNOWN";
 }
@@ -345,26 +353,142 @@ class PpRunnerControl {
   }
 
   bool serve_only() const noexcept { return serve_only_; }
+  void RequireMocap(bool required) noexcept {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    mocap_required_.store(required);
+    mocap_fresh_.store(!required);
+    mocap_within_deadline_ = !required;
+  }
+  bool MocapStopRequested() const noexcept { return mocap_stop_requested_.load(); }
+  bool PlayStopRequested() const noexcept {
+    return mocap_stop_requested_.load() || operator_stop_requested_.load();
+  }
+  void RequireOperatorHeartbeat(bool required) noexcept {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    operator_required_ = required;
+    operator_ui_fresh_ = operator_computer_fresh_ = !required;
+  }
+  bool ObserveOperatorHeartbeat(bool ui_fresh, bool computer_fresh) noexcept {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    if (operator_ui_fresh_ != ui_fresh || operator_computer_fresh_ != computer_fresh) Touch_();
+    operator_ui_fresh_ = ui_fresh;
+    operator_computer_fresh_ = computer_fresh;
+    const auto current = mode();
+    if (current != RunnerMode::kServe) operator_stop_requested_.store(false);
+    if (!operator_required_ || (ui_fresh && computer_fresh)) return false;
+    if (current != RunnerMode::kMotion && current != RunnerMode::kServe) return false;
+    if (current == RunnerMode::kServe && operator_stop_requested_.exchange(true)) return false;
+    if (current == RunnerMode::kMotion) mode_.store(RunnerMode::kPdStand, std::memory_order_release);
+    operator_interrupted_ = ui_fresh ? RunnerActionReason::kOperatorComputerUnavailable
+                                    : RunnerActionReason::kOperatorUiUnavailable;
+    ++operator_stop_count_;
+    Touch_();
+    return true;
+  }
+  // Called on the command thread with monotonic mailbox freshness. SERVE uses
+  // its authored abort/recovery path; MOTION enters the existing Stand blend.
+  bool ObserveMocap(bool within_deadline, bool held = false, double age_s = -1.) noexcept {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    const bool fresh = within_deadline && !held;
+    const bool deadline_changed = mocap_within_deadline_ != within_deadline;
+    mocap_within_deadline_ = within_deadline;
+    mocap_held_ = within_deadline && held;
+    mocap_age_ms_ = std::isfinite(age_s) && age_s >= 0. ? age_s * 1000. : -1.;
+    if (mocap_fresh_.exchange(fresh) != fresh || deadline_changed) Touch_();
+    if (!mocap_required_.load()) return false;
+    const auto current = mode();
+    if (current != RunnerMode::kServe) mocap_stop_requested_.store(false);
+    if (within_deadline) return false;
+    if (current == RunnerMode::kMotion) {
+      mode_.store(RunnerMode::kPdStand, std::memory_order_release);
+      mocap_interrupted_ = true;
+      ++mocap_stop_count_;
+      Touch_();
+      return true;
+    }
+    if (current == RunnerMode::kServe && !mocap_stop_requested_.exchange(true)) {
+      mocap_interrupted_ = true;
+      ++mocap_stop_count_;
+      Touch_();
+      return true;
+    }
+    return false;
+  }
   bool TeleopStopRequested() const noexcept { return teleop_stop_requested_.load(); }
   // Consumed by the command thread, after observing SERVE. Keep this separate
   // from mode edges: COMPLETE -> MOTION -> SERVE can occur between callbacks.
   bool ConsumeServePrepare() noexcept { return serve_prepare_pending_.exchange(false); }
 
-  void CompleteServe(bool kernel_mode = false) noexcept {
+  bool CompleteServe(bool kernel_mode = false) noexcept {
     // Kernel serving finishes in Stand after the controller lowers the arms.
-    // Normal play retains its automatic receive-policy entry.
-    SetRuntimeMode((serve_only_ || kernel_mode) ? RunnerMode::kPdStand : RunnerMode::kMotion);
+    // Normal play retains automatic receive-policy entry without a telemetry
+    // permit. A late completion must not undo an explicit emergency mode.
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    if (mode() != RunnerMode::kServe) return false;
+    const auto reason = PlayAdmissionReasonLocked_();
+    // The completion edge can precede the monitor's next observation. If it
+    // cannot resume normal play, expose that safety event, not a silent Stand.
+    // Do not count a deliberate offline/serve-only completion as a link fault.
+    if (!serve_only_ && !kernel_mode) {
+      if (reason == RunnerActionReason::kMocapUnavailable && !mocap_interrupted_) {
+        mocap_interrupted_ = true;
+        ++mocap_stop_count_;
+      } else if ((reason == RunnerActionReason::kOperatorUiUnavailable ||
+                  reason == RunnerActionReason::kOperatorComputerUnavailable) &&
+                 operator_interrupted_ == RunnerActionReason::kNone) {
+        operator_interrupted_ = reason;
+        ++operator_stop_count_;
+      }
+    }
+    mode_.store((serve_only_ || kernel_mode || PlayStopRequested() ||
+                 reason != RunnerActionReason::kNone)
+                    ? RunnerMode::kPdStand : RunnerMode::kMotion,
+                std::memory_order_release);
+    Touch_();
+    return true;
   }
 
-  void SetRuntimeMode(RunnerMode next) noexcept {
+  // Command-thread recovery after ComputeCommand validates the current sample.
+  // Keep the authored command this tick; normal mode blending enters Stand on
+  // the next tick. A concurrent emergency PASSIVE request remains authoritative.
+  bool RecoverTerminalServeToStand(int serve_state, bool current_sample_valid) noexcept {
+    if (!current_sample_valid ||
+        (serve_state != kServeFault && serve_state != kServeAborted)) return false;
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    if (mode() != RunnerMode::kServe) return false;
+    mode_.store(RunnerMode::kPdStand, std::memory_order_release);
+    Touch_();
+    return true;
+  }
+
+  bool SetRuntimeMode(RunnerMode next, bool prepare_serve = false,
+                      RunnerActionReason* refused = nullptr) noexcept {
     // Also covers local keyboard/reference-playback/warmup paths.
     if (serve_only_ && (next == RunnerMode::kMotion ||
                         next == RunnerMode::kShadow ||
-                        next == RunnerMode::kReferencePlayback)) return;
+                        next == RunnerMode::kReferencePlayback)) {
+      if (refused) *refused = RunnerActionReason::kPureServeOnly;
+      return false;
+    }
     std::lock_guard<std::mutex> lock(state_mutex_);
+    if (next == RunnerMode::kMotion || next == RunnerMode::kServe) {
+      const auto reason = PlayAdmissionReasonLocked_();
+      if (reason != RunnerActionReason::kNone) {
+        if (refused) *refused = reason;
+        return false;
+      }
+    }
+    // Publish the prepare edge only after admission, before exposing SERVE to
+    // the command thread. A refused request must not leave a pending prepare.
+    if (prepare_serve && next == RunnerMode::kServe) serve_prepare_pending_.store(true);
+    if (next == RunnerMode::kMotion || next == RunnerMode::kServe) {
+      mocap_interrupted_ = false;
+      operator_interrupted_ = RunnerActionReason::kNone;
+    }
     if (next == RunnerMode::kTeleop && mode() != next)
       teleop_stop_requested_.store(false);
     if (mode_.exchange(next, std::memory_order_acq_rel) != next) Touch_();
+    return true;
   }
 
   // Wire request: [schema=2, request_id, action_code, reserved=0].
@@ -521,7 +645,34 @@ class PpRunnerControl {
     };
   }
 
+  // Separate read-only telemetry preserves the frozen 21-value schema-2 state.
+  // Prefix: schema, boot, session, seq, mocap required/fresh/stops/interrupted.
+  // Tail: held, real age ms, operator required/UI/computer, stop reason/count.
+  std::vector<double> EncodeMocapSafety() const {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    return {1., static_cast<double>(boot_id_), static_cast<double>(session_fingerprint_),
+            static_cast<double>(state_sequence()), mocap_required_.load() ? 1. : 0.,
+            mocap_fresh_.load() ? 1. : 0., static_cast<double>(mocap_stop_count_),
+            mocap_interrupted_ ? 1. : 0., mocap_held_ ? 1. : 0., mocap_age_ms_,
+            operator_required_ ? 1. : 0., operator_ui_fresh_ ? 1. : 0.,
+            operator_computer_fresh_ ? 1. : 0., static_cast<double>(operator_interrupted_),
+            static_cast<double>(operator_stop_count_)};
+  }
+
  private:
+  RunnerActionReason PlayAdmissionReasonLocked_() const noexcept {
+    // HELD is a model-input annotation, not the 100 ms loss criterion. Preserve
+    // real-fresh telemetry while admitting mode entry/completion until expiry.
+    if (mocap_required_.load() && (!mocap_within_deadline_ || mocap_stop_requested_.load()))
+      return RunnerActionReason::kMocapUnavailable;
+    if (operator_required_ && operator_stop_requested_.load() &&
+        operator_interrupted_ != RunnerActionReason::kNone) return operator_interrupted_;
+    if (operator_required_ && !operator_ui_fresh_)
+      return RunnerActionReason::kOperatorUiUnavailable;
+    if (operator_required_ && !operator_computer_fresh_)
+      return RunnerActionReason::kOperatorComputerUnavailable;
+    return RunnerActionReason::kNone;
+  }
   static constexpr int kServeIdle = 0;
   static constexpr int kServeWaitBallLoad = 3;
   static constexpr int kServeWaitReady = 5;
@@ -596,6 +747,21 @@ class PpRunnerControl {
       return false;
     };
 
+    RunnerActionReason play_reason;
+    {
+      std::lock_guard<std::mutex> lock(state_mutex_);
+      play_reason = PlayAdmissionReasonLocked_();
+    }
+    if (play_reason != RunnerActionReason::kNone &&
+        (request.action == RunnerAction::kEnterMotion ||
+         request.action == RunnerAction::kPrepareServe ||
+         request.action == RunnerAction::kReadyToServe)) {
+      decision.result = RunnerActionResult::kRejectedWrongMode;
+      decision.reason = play_reason;
+      RecordResult_(request, decision.result, decision.reason);
+      return decision;
+    }
+
     if (serve_only_ && (request.action == RunnerAction::kSetReceiver ||
                         request.action == RunnerAction::kEnterMotion ||
                         request.action == RunnerAction::kEnterShadow)) {
@@ -640,7 +806,14 @@ class PpRunnerControl {
       }
 
       case RunnerAction::kEnterPdStand:
-        if (current_mode == RunnerMode::kTeleop) {
+        if (current_mode == RunnerMode::kServe &&
+            (serve_state == kServeFault || serve_state == kServeAborted)) {
+          // The action worker cannot certify the current control sample.
+          // Keep Stand available as a recovery action; the command thread
+          // retains the existing validated recovery path.
+          decision.result = RunnerActionResult::kAcceptedPending;
+          decision.reason = RunnerActionReason::kServeRecoveryPending;
+        } else if (current_mode == RunnerMode::kTeleop) {
           teleop_stop_requested_.store(true);
           decision.result = RunnerActionResult::kAcceptedPending;
           decision.reason = RunnerActionReason::kTeleopStopRequested;
@@ -697,9 +870,12 @@ class PpRunnerControl {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
         } else {
-          SetRuntimeMode(RunnerMode::kMotion);
-          decision.result = RunnerActionResult::kApplied;
-          decision.reason = RunnerActionReason::kModeChanged;
+          if (SetRuntimeMode(RunnerMode::kMotion, false, &decision.reason)) {
+            decision.result = RunnerActionResult::kApplied;
+            decision.reason = RunnerActionReason::kModeChanged;
+          } else {
+            decision.result = RunnerActionResult::kRejectedWrongMode;
+          }
         }
         break;
 
@@ -756,12 +932,13 @@ class PpRunnerControl {
               RunnerActionResult::kRejectedServeNotReady;
           decision.reason = RunnerActionReason::kServePhaseMismatch;
         } else {
-          serve_prepare_pending_.store(true);
-          SetRuntimeMode(RunnerMode::kServe);
-          decision.result = RunnerActionResult::kApplied;
-          decision.reason =
-              RunnerActionReason::kServePrepareRequested;
-          decision.request_prepare_serve = true;
+          if (SetRuntimeMode(RunnerMode::kServe, true, &decision.reason)) {
+            decision.result = RunnerActionResult::kApplied;
+            decision.reason = RunnerActionReason::kServePrepareRequested;
+            decision.request_prepare_serve = true;
+          } else {
+            decision.result = RunnerActionResult::kRejectedWrongMode;
+          }
         }
         break;
 
@@ -860,6 +1037,19 @@ class PpRunnerControl {
   }
 
   std::atomic<RunnerMode> mode_;
+  std::atomic<bool> mocap_required_{false};
+  std::atomic<bool> mocap_fresh_{true};
+  bool mocap_within_deadline_ = true;  // state_mutex_; distinct from non-held telemetry
+  std::atomic<bool> mocap_stop_requested_{false};
+  std::atomic<bool> operator_stop_requested_{false};
+  bool operator_required_ = false, operator_ui_fresh_ = true, operator_computer_fresh_ = true;
+  RunnerActionReason operator_interrupted_ = RunnerActionReason::kNone;
+  std::uint64_t operator_stop_count_ = 0;
+  bool mocap_held_ = false;
+  double mocap_age_ms_ = -1.;
+  // Guarded by state_mutex_; not operator action results.
+  bool mocap_interrupted_{false};
+  std::uint64_t mocap_stop_count_{0};
   std::atomic<bool> teleop_stop_requested_{false};
   std::atomic<bool> serve_prepare_pending_{false};
   const std::uint64_t boot_id_;

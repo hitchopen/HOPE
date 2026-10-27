@@ -65,6 +65,7 @@
 #include "a3_pingpong/pp_reference_clock.hpp"
 #include "a3_pingpong/pp_velocity_gate.hpp"
 #include "a3_pingpong/pp_static_handoff.hpp"
+#include "a3_pingpong/pp_stand_pose.hpp"
 #include "a3_policy_parameters.hpp"      // ::a3_pd_stand_kps / kds (official robust-stand gains)
 #include "robot_io/a3_layout_extra.hpp"  // robot_io::kA3PolicyToSdkIdx (29->31 scatter)
 #include "robot_io/robot_io_backend.hpp"
@@ -766,7 +767,7 @@ class PpPolicy {
           }
           hp_vel_box_set_ = true;
         }
-        if (onnx_.hp_vel_core_boxes().size() >= 2 &&
+        if (!onnx_.is_fixed_home_contract() && onnx_.hp_vel_core_boxes().size() >= 2 &&
             onnx_.hp_vel_planner_boxes().size() >= 2) {
           for (int c = 0; c < 2; ++c) {
             hp_vel_core_box_[c] = onnx_.hp_vel_core_boxes()[c];
@@ -859,7 +860,7 @@ class PpPolicy {
               "pos/vel/base metadata; refusing an ambiguous deploy contract");
         hp_base_target_range_ = onnx_.hp_base_range();
         rally_final_station_control_ = true;
-        if (onnx_.is_v17_r10_p0_gate3() ||
+        if (onnx_.is_v17_r10_p0_gate3() || onnx_.is_fixed_home_contract() ||
             onnx_.uses_build2_fixed_home_contract()) {
           if (onnx_.has_hitter_pure_station_y_step_range())
             throw std::runtime_error(
@@ -925,8 +926,11 @@ class PpPolicy {
           onnx_.uses_build2_rapid_preempt_contract() || cfg_.fixed_station_replay ||
           cfg_.moving_station_replay || !onnx_.uses_authoritative_mocap_pose() ||
           onnx_.hp_pos_boxes().size() != 2 ||
-          onnx_.hp_pos_boxes()[0][0] != onnx_.hp_pos_boxes()[0][1] ||
-          onnx_.hp_pos_boxes()[1][0] != onnx_.hp_pos_boxes()[1][1] ||
+          (!onnx_.is_fixed_home_contract() &&
+           (onnx_.hp_pos_boxes()[0][0] != onnx_.hp_pos_boxes()[0][1] ||
+            onnx_.hp_pos_boxes()[1][0] != onnx_.hp_pos_boxes()[1][1])) ||
+          reach_offset_clip_[0][0] < std::max(onnx_.hp_pos_boxes()[0][0], onnx_.hp_pos_boxes()[1][0]) ||
+          reach_offset_clip_[0][0] > std::min(onnx_.hp_pos_boxes()[0][1], onnx_.hp_pos_boxes()[1][1]) ||
           reach_offset_clip_[0][0] != reach_offset_clip_[1][0] ||
           hp_base_target_range_[0] != 0.0 || hp_base_target_range_[1] != 0.0)
         throw std::invalid_argument("shared HOME requires calibrated ball-clock 110-D policy with a common fixed station-relative X plane");
@@ -975,7 +979,7 @@ class PpPolicy {
           "pingpong: --station-only requires a 110-D RallyFinal runtime contract; "
           "refusing a mode that could fall through to swing engage");
     nominal_q_sdk_ = to_sdk_order(onnx_.default_q(), isaac_to_sdk_);  // nominal pose in SDK order
-    official_stand_q_sdk_ = nominal_q_sdk_;
+    official_stand_q_sdk_ = official_stand_q_sdk();
     qdes_projected_isaac_ = onnx_.default_q();
     leg_qdes_smooth_ = nominal_q_sdk_;  // seed the leg q_des EMA at nominal (no jump on first release)
     // Official robust-stand PD gains (a3_pd_stand_*, 29-DOF policy view) scattered
@@ -1226,7 +1230,7 @@ class PpPolicy {
   void SetStandLateralOffset(double radians) {
     if (!std::isfinite(radians) || radians < 0.0 || radians > .06)
       throw std::invalid_argument("stand lateral offset must be in [0, 0.06] rad");
-    official_stand_q_sdk_ = nominal_q_sdk_;
+    official_stand_q_sdk_ = official_stand_q_sdk();
     official_stand_q_sdk_[20] += radians;
     official_stand_q_sdk_[24] -= radians;
     official_stand_q_sdk_[26] -= radians;
@@ -1828,6 +1832,7 @@ class PpPolicy {
     // --- localization-dependent world pose (3 modes; obs LAYOUT unchanged) ---
     oracle_fresh_ = false;
     oracle_age_s_ = -1.0;
+    base_pose_held_ = false;
     std::uint64_t localization_seq = 0;
     std::uint64_t localized_calibration_id = 0, localized_world_id = 0;
     switch (cfg_.loc_mode) {
@@ -1879,8 +1884,8 @@ class PpPolicy {
       case LocMode::kExternalBase: {  // ===== HARDWARE planner: calibrated mocap base POSE =====
         PpBaseSample s;
         if (base_in_ &&
-            base_in_->Latest(
-                s, cfg_.external_base_max_age_s,
+            base_in_->LatestForPolicy(
+                s, mocap_rescue_deadline_s(),
                 /*require_authoritative=*/mocap_authoritative)) {
           st.base_pos_w = s.pos;
           localized_calibration_id = s.calibration_id;
@@ -1892,13 +1897,16 @@ class PpPolicy {
             const double propagation_s =
                 std::clamp(s.age_s, 0.0,
                            cfg_.external_base_gyro_propagation_max_s);
-            st.base_quat_w = quat_integrate_body_rate(
-                s.quat, st.base_ang_vel_b, propagation_s);
+            const auto applied = base_pose_hold_.Apply(s, quat_integrate_body_rate(
+                s.quat, st.base_ang_vel_b, propagation_s));
+            st.base_pos_w = applied.pos;
+            st.base_quat_w = applied.quat;
           }
           if (mocap_authoritative)
             st.torso_quat_w = st.base_quat_w;  // torso IMU is non-load-bearing in 110-D
           st.torso_pos_w = torso_pos_from_base(st.base_pos_w, st.base_quat_w, st.q);
-          base_fresh_ = true;
+          base_pose_held_ = s.held_for_policy;
+          base_fresh_ = !base_pose_held_;
           have_last_external_base_ = true;
           last_external_base_pos_w_ = s.pos;
           last_external_base_quat_w_ = st.base_quat_w;
@@ -1942,15 +1950,19 @@ class PpPolicy {
     const bool localized_base =
         (cfg_.loc_mode == LocMode::kOracle && oracle_fresh_) ||
         (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_) || cfg_.kernel_mode;
-    UpdateBaseMotion_(tick_idx, st.base_pos_w, localized_base, localization_seq);
+    // A held pose is an actor input only: do not differentiate it into a fake
+    // zero velocity, reset the filter, or advance the last-real-sample history.
+    if (!base_pose_held_)
+      UpdateBaseMotion_(tick_idx, st.base_pos_w, localized_base, localization_seq);
     validate_hitter_pingpong_continuous_v4_mocap_observation(
-        onnx_.uses_hitter_pure_headslots_vxy_obs() && !cfg_.kernel_mode, base_fresh_,
+        onnx_.uses_hitter_pure_headslots_vxy_obs() && !cfg_.kernel_mode,
+        base_fresh_ || base_pose_held_,
         base_velocity_xy_valid_,
         {base_velocity_xy_est_[0], base_velocity_xy_est_[1]});
     st.base_velocity_xy_w = base_velocity_xy_valid_ ? base_velocity_xy_est_ : Vec2::Zero();
     if (onnx_.uses_position_mocap_obs()) {
       const double max_age = onnx_.base_localization_max_age_s();
-      st.localization_age = (localized_base && oracle_age_s_ >= 0.0 && max_age > 0.0)
+      st.localization_age = ((localized_base || base_pose_held_) && oracle_age_s_ >= 0.0 && max_age > 0.0)
           ? std::clamp(oracle_age_s_ / max_age, 0.0, 1.0)
           : 1.0;
     }
@@ -1961,12 +1973,16 @@ class PpPolicy {
         localized_base && !station_session_origin_set_) {
       station_session_origin_w_ = Vec2(st.base_pos_w[0], st.base_pos_w[1]);
       station_session_origin_set_ = true;
+      if (onnx_.is_fixed_home_contract()) {
+        hold_station_w_ = station_session_origin_w_;
+        hold_station_set_ = true;
+      }
       if (cfg_.shared_session_home) {
         const auto wall_us = static_cast<std::uint64_t>(PpNowWallSec() * 1e6);
         shared_home_epoch_counter_ = std::max(shared_home_epoch_counter_ + 1, wall_us);
         shared_home_receipt_ = {shared_home_epoch_counter_, st.base_pos_w[0],
             st.base_pos_w[1], reach_offset_clip_[0][0],
-            localized_calibration_id, localized_world_id, true};
+            localized_calibration_id, localized_world_id, !onnx_.is_fixed_home_contract()};
       }
 
       std::fprintf(stderr,
@@ -2280,7 +2296,12 @@ class PpPolicy {
       const bool base_tracks_translation =
           (cfg_.loc_mode == LocMode::kOracle && oracle_fresh_) ||
           (cfg_.loc_mode == LocMode::kExternalBase && base_fresh_) || cfg_.kernel_mode;
-      if (!base_tracks_translation) {
+      if (onnx_.is_fixed_home_contract() && station_session_origin_set_) {
+        // Immutable HOME survives new balls, recovery and transient mocap loss.
+        tg.base_target_xy = station_session_origin_w_;
+        hold_station_w_ = station_session_origin_w_;
+        hold_station_set_ = true;
+      } else if (!base_tracks_translation) {
         if (onnx_.is_hitter_pingpong_recovery_tts_recipe()) {
           tg.base_target_xy = Vec2(
               planner_stale_station_coordinate(
@@ -2751,6 +2772,11 @@ class PpPolicy {
   bool authoritative_mocap_required() const {
     return onnx_.uses_authoritative_mocap_pose() && !cfg_.kernel_mode;
   }
+  double mocap_rescue_deadline_s() const {
+    // The runtime held-pose rescue window is independent of the exported
+    // real-observation age bound. Held inputs never authorize a new flight.
+    return kBasePoseRescueAfterS;
+  }
   bool authoritative_mocap_fresh() const {
     return !authoritative_mocap_required() || base_fresh_;
   }
@@ -2768,7 +2794,7 @@ class PpPolicy {
         cfg_.loc_mode == LocMode::kExternalBase) {
       PpBaseSample sample;
       base_fresh_ = base_in_ &&
-          base_in_->Latest(sample, cfg_.external_base_max_age_s, true);
+          base_in_->Latest(sample, std::min(cfg_.external_base_max_age_s, kBasePoseHoldAfterS), true);
       if (base_fresh_) {
         last_proj_grav_ = projected_gravity_body(sample.quat);
       } else if (state.imu_quat_wxyz.size() == 4 &&
@@ -4152,6 +4178,10 @@ class PpPolicy {
     // This tick replaces the frozen actor tuple. First emit the authoritative
     // completion edge for the old (epoch, flight); failing that ledger check
     // leaves the old native tail and every policy state variable untouched.
+    if (NewFlightNeedsRealBase_()) {
+      set_planner_status_("mocap_pose_held");
+      return false;  // no new-flight commit from synthetic observation reuse
+    }
     if (!CompleteSchema22FrozenFlight_(
             PlannerFlightCompletionKind::kRapidPreempt)) {
       RecordPlannerLifecycle_(
@@ -4349,6 +4379,11 @@ class PpPolicy {
       envelope_block_reason_ = envelope_gate.reason;
       set_planner_status_(envelope_gate.reason);
       return;
+    }
+
+    if (NewFlightNeedsRealBase_()) {
+      set_planner_status_("mocap_pose_held");
+      return;  // active same-flight streaming above remains unchanged
     }
 
     // The learned clip already contains its recovery.  The additional legacy
@@ -4903,7 +4938,7 @@ class PpPolicy {
     if (onnx_.uses_build2_rapid_preempt_contract()) {
       station = ProjectSchema22StationToHome_(requested_station);
     }
-    if (onnx_.is_v17_r10_p0_gate3()) {
+    if (onnx_.is_v17_r10_p0_gate3() || onnx_.is_fixed_home_contract()) {
       if (!station_session_origin_set_) {
         ClearPendingStation_(tick_idx, "origin_unset");
         set_planner_status_("origin_unset");
@@ -4912,19 +4947,19 @@ class PpPolicy {
       const Vec2 relative_target =
           Vec2(pos_w[0], pos_w[1]) - station_session_origin_w_;
       constexpr double kFixedTargetToleranceM = 0.030;
-      const bool x_supported =
-          std::fabs(relative_target[0] - reach_offset_clip_[eng_clip][0]) <=
-          kFixedTargetToleranceM;
+      const auto& pos_box = onnx_.hp_pos_boxes()[eng_clip];
+      const bool x_supported = onnx_.is_fixed_home_contract()
+          ? (relative_target[0] >= pos_box[0] && relative_target[0] <= pos_box[1])
+          : std::fabs(relative_target[0] - reach_offset_clip_[eng_clip][0]) <= kFixedTargetToleranceM;
+      const double y_margin = onnx_.is_fixed_home_contract() ? 0. : kFixedTargetToleranceM;
       const bool y_supported =
-          relative_target[1] >=
-              hp_y_band_[eng_clip][0] - kFixedTargetToleranceM &&
-          relative_target[1] <=
-              hp_y_band_[eng_clip][1] + kFixedTargetToleranceM;
+          relative_target[1] >= hp_y_band_[eng_clip][0] - y_margin &&
+          relative_target[1] <= hp_y_band_[eng_clip][1] + y_margin;
       if (!x_supported || !y_supported) {
         if ((gate_warn_tick_++ % 25) == 0) {
           std::fprintf(
               stderr,
-              "[pp gate] V17-r10 target outside immutable-station %s "
+              "[pp gate] target outside immutable-station %s "
               "support: relative=(%+.3f,%+.3f), expected x=%+.3f y=[%+.3f,%+.3f]\n",
               sign > 0 ? "FH" : "BH", relative_target[0],
               relative_target[1], reach_offset_clip_[eng_clip][0],
@@ -5631,6 +5666,7 @@ class PpPolicy {
   }
 
   Vec2 station_from_target_(const Vec2& tgt_xy, int clip) const {
+    if (onnx_.is_fixed_home_contract()) return station_session_origin_w_;
     return station_from_target_with_anchor_(
         tgt_xy, clip, hold_station_w_, hold_station_set_);
   }
@@ -6074,7 +6110,15 @@ class PpPolicy {
   // --- LIVE PLANNER inputs + engage state (Path B; driver-thread only unless noted) ---
   std::shared_ptr<PpRacketTargetInput> racket_in_;  // written by AimRT subscriber thread
   std::shared_ptr<PpBasePoseInput> base_in_;        // written by AimRT subscriber thread
+  bool NewFlightNeedsRealBase_() const {
+    if (cfg_.loc_mode != LocMode::kExternalBase) return false;
+    PpBaseSample sample;
+    return !base_in_ || !base_in_->LatestForPolicy(sample, mocap_rescue_deadline_s(),
+               onnx_.uses_authoritative_mocap_pose()) || sample.held_for_policy;
+  }
   bool base_fresh_ = false;             // a fresh external-base sample was used this tick
+  bool base_pose_held_ = false;         // inference-only reuse; never fresh sensor evidence
+  PpBasePoseHold base_pose_hold_;
   bool have_last_external_base_ = false;
   Vec3 last_external_base_pos_w_ = Vec3(0.0, 0.0, 0.95);
   Vec4 last_external_base_quat_w_ = Vec4(1.0, 0.0, 0.0, 0.0);

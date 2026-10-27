@@ -1,32 +1,38 @@
-# V2 / V4 裤子与 CMTracker VRPN（2026-10-15）
+# V2 / V4 裤子与 CMTracker VRPN（2026-10-27）
 
-V4 是用户确认的 17 点贴纸裤子（前 7、后 10），原始 CAD 目录仍叫
-`agibot/mocap_sticker_shell_v3`。它不同于旧的十球 V3 标记布局。
+V4 对应同一个 17 孔 v3 壳体（前 7、后 10 个安装位），现在 P1/P2 各安装
+12 张贴纸，使用不同布局。CAD 目录仍叫 `agibot/mocap_sticker_shell_v3`，
+打印件不变；它不同于旧的十球 V3 标记布局。
 
 ## 文件与原点
 
-17 点贴纸壳只发布一份 CMTracker 导入文件：
-[`A3_v3_17_stickers.json`](../../agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json)。
-它与 Motive 的 `A3_v3_17_stickers.motive` 同名主干，内部刚体名称同为
-`UCB_P1`，内容与现有 V4 P1 运行时文件逐字节一致。文件名中的 v3 与运行时
-选项中的 V4 指同一套硬件；现场按需在 CMTracker 配置 `UCB_P1` / `UCB_P2`
-名称和唯一 ID，保留相同骨盆局部几何，不需要另一份 P2 发布文件。
+导入 [`P1.json`](../../agibot/mocap_sticker_shell_v3/vrpn_asset/P1.json)
+和 [`P2.json`](../../agibot/mocap_sticker_shell_v3/vrpn_asset/P2.json)，内部名称为
+`UCB_P1` / `UCB_P2`，ID 为 1 / 2。每份文件与其更新后的 V4 运行时文件
+逐字节一致。请按[安装 PDF](../../agibot/mocap_sticker_shell_v3/output/pdf/A3_marker_shell_v3_instructions.pdf)
+贴满所选 12 点，另五点保持不反光。P1 是指定点位；P2 通过 CAD 筛选计算。
+两种布局必然共用至少 7 点，因此仅剩共用点可见时仍可能混淆，不能保证任意
+视角或遮挡下正确识别。P2 独有点都在背面，必须实测背面覆盖和双机器人重新捕获。
 [`vrpn_asset/README.md`](../../agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
 提供导入、骨盆原点、轴向和单位检查步骤；不要导入 `asset_manifest.json`。
 
-现有运行时配置保留在 `hope_ws/src/hope_bringup/config/pants_profiles/`，
-以下文件不改动，以保持兼容；V4 的 P1/P2 文件具有相同的局部标记点几何：
+运行时配置位于 `hope_ws/src/hope_bringup/config/pants_profiles/`。
+V4 的目录、两份文件及读取代码必须一同更新；V2 保持原样：
 
 | 裤子 | P1 侧机器人 | P2 侧机器人 |
 | --- | --- | --- |
 | V2，10 点 | `a3_v2_P1_ground_truth.json` | `a3_v2_P2_ground_truth.json` |
-| V4，17 点贴纸 | `a3_v4_P1_ground_truth.json` | `a3_v4_P2_ground_truth.json` |
+| V4，17 孔壳体、每侧 12 点 | `a3_v4_P1_ground_truth.json` | `a3_v4_P2_ground_truth.json` |
 
 这些文件沿用桌面 `a3.json` 的 CMTracker JSON 结构，`markerPose` 单位为
 **毫米**，数值直接来自 pelvis_link 下的 CAD ground truth：不减点集中心，
 不添加旧刚体偏移。原点是 URDF 的 `pelvis_link`，X 向前、Y 向左、Z 向上。
 V4 使用贴纸外表面的光学中心（厚度 0.20 mm），不是安装座或反光球球心。
-`profiles.json` 记录点序、来源、数量和每份导入文件的 SHA-256。
+`profiles.json` 按 P1/P2 分别记录 V4 点序、坐标及 SHA-256。旧的相同 17 点
+V4 配置不再匹配这两种安装。对应的
+[Motive P1/P2 文件](../../agibot/mocap_sticker_shell_v3/motive_asset/README.md)
+使用相同的 12 点子集和 CAD 坐标，但存储为 Motive 原生 Y-up、米单位。
+旧 17 点 Motive 文件仅保留为历史证据，不能用于这两种安装。
 
 新文件的数据检查已通过；尚未做 CMTracker 导入再导出的回读验证。
 导入后须确认软件没有自动重新居中或旋转刚体，且实际贴纸安装对应这套 CAD。
@@ -36,8 +42,8 @@ V4 使用贴纸外表面的光学中心（厚度 0.20 mm），不是安装座或
 
 大小写必须一致：本方机器人 `UCB_P1` 或 `UCB_P2`，球 `Ball`。
 单机器人不需要同时建两个机器人刚体。`PPT` 是可选球桌刚体；球拍没有必需名称。
-单一发布文件内部名称是 `UCB_P1`；P2 现场将导入的刚体改名为 `UCB_P2`，
-并确认刚体 ID 唯一，不要重新居中、旋转或镜像标记点。不要同时导入同侧的 V2 和 V4。
+两份发布文件已分别命名 `UCB_P1` / `UCB_P2`，确认 ID 与项目其他刚体不冲突。
+不要重新居中、旋转或镜像标记点。不要同时导入同侧的 V2 和 V4。
 
 ## Foxglove 切换
 

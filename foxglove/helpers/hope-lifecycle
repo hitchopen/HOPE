@@ -4,7 +4,7 @@
 # Fixed, role-specific process helper for the Runner Laptop/HDU/MDU lifecycle.
 # The HDU ROS supervisors are the only intended callers. No command, path,
 # user, environment-variable name, or arbitrary argument is accepted from
-# Foxglove. The two root-only MDU clock actions accept no data arguments.
+# Foxglove. The root-only MDU clock actions accept no data arguments.
 
 set -euo pipefail
 umask 077
@@ -33,7 +33,7 @@ readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport
 readonly MDU_ELINK_SESSION=hope-elink
 readonly MDU_HAL_SESSION=hope-hal
 readonly MDU_RUNNER_SESSION=hope-runner
-readonly MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
+MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
 readonly MDU_ROS_PREFIX=/opt/ros/jazzy
 readonly MDU_ROS_PYTHON_SITE="${MDU_ROS_PREFIX}/lib/python3.11/site-packages"
 readonly MDU_VENDOR_ROS_PREFIX=/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package
@@ -140,6 +140,25 @@ parse_common() {
   [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
 }
 
+# Only startup depends on the selected bundle. STOP uses existing process/session
+# identities and reports bundle damage separately after shutdown has completed.
+resolve_mdu_deployment() {
+  if [[ -e /agibot/hope-policy-models || -L /agibot/hope-policy-models ]]; then
+    local deployment
+    local -a policy_command=(python3)
+    [[ "${1:-}" != audit ]] || policy_command=(timeout 5 python3)
+    deployment="$("${policy_command[@]}" /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models --field deployment)" || return 1
+    [[ "$deployment" == NONE ]] || MDU_DEPLOY="$deployment"
+  fi
+}
+
+audit_stopped_policy() {
+  if ! resolve_mdu_deployment audit; then
+    printf '%s\n' 'Selected policy integrity check failed; managed shutdown completed independently.' >&2
+    emit POLICY WARNING POLICY_BUNDLE_INVALID
+  fi
+}
+
 require_user() {
   [[ "$(id -un)" == "$1" ]] || die "$2" WRONG_USER
 }
@@ -239,12 +258,107 @@ time_calibration_require_root() {
     die TIME_CALIBRATION INVALID_SUDO_USER
 }
 
+time_calibration_require_no_process() {
+  local pattern="$1" present_reason="$2" result=0
+  /usr/bin/pgrep -f -- "$pattern" >/dev/null || result=$?
+  case "$result" in
+    0) die TIME_CALIBRATION "$present_reason" ;;
+    1) return ;;
+    *) die TIME_CALIBRATION MDU_PROCESS_OBSERVATION_UNKNOWN ;;
+  esac
+}
+
+time_calibration_require_unit_stopped() {
+  local unit="$1" properties key value load_state="" active_state=""
+  local load_count=0 active_count=0
+  properties="$(/usr/bin/systemctl show --property=LoadState --property=ActiveState "$unit")" || \
+    die TIME_CALIBRATION MDU_UNIT_OBSERVATION_UNKNOWN
+  while IFS='=' read -r key value; do
+    case "$key" in
+      LoadState) load_state="$value"; ((load_count += 1)) ;;
+      ActiveState) active_state="$value"; ((active_count += 1)) ;;
+      *) die TIME_CALIBRATION MDU_UNIT_OBSERVATION_UNKNOWN ;;
+    esac
+  done <<< "$properties"
+  [[ "$load_count" == 1 && "$active_count" == 1 ]] || \
+    die TIME_CALIBRATION MDU_UNIT_OBSERVATION_UNKNOWN
+  # Some MDU images omit these vendor UI/transport units. An explicit
+  # not-found/inactive result is acceptable for only these known optional
+  # names; missing PM/PTP units or an unreadable query are never "stopped".
+  if [[ "$load_state" == not-found && "$active_state" == inactive ]]; then
+    case "$unit" in
+      agibot_ui.service|agibot_top.service|agibot_roudi.service) return ;;
+    esac
+  fi
+  [[ "$load_state" == loaded ]] || die TIME_CALIBRATION MDU_UNIT_OBSERVATION_UNKNOWN
+  case "$active_state" in
+    inactive|failed) ;;
+    active|activating|deactivating|reloading|refreshing)
+      die TIME_CALIBRATION MDU_CLOCK_CONSUMER_UNIT_NOT_STOPPED ;;
+    *) die TIME_CALIBRATION MDU_UNIT_OBSERVATION_UNKNOWN ;;
+  esac
+}
+
+time_calibration_require_vendor_processes() {
+  local pattern="$1" unmanaged_reason="$2" matches result=0 pid
+  matches="$(/usr/bin/pgrep -f -- "$pattern")" || result=$?
+  case "$result" in
+    0) [[ -n "$matches" ]] || die TIME_CALIBRATION MDU_PROCESS_OBSERVATION_UNKNOWN ;;
+    1) return ;;
+    *) die TIME_CALIBRATION MDU_PROCESS_OBSERVATION_UNKNOWN ;;
+  esac
+  while IFS= read -r pid; do
+    pid_in_systemd_unit "$pid" agibot_pm.service || \
+      die TIME_CALIBRATION "$unmanaged_reason"
+  done <<< "$matches"
+}
+
+time_calibration_require_idle_mdu() {
+  time_calibration_require_no_process '[a]3_deploy_onnx_ref_pingpong' RUNNER_PRESENT
+  time_calibration_require_vendor_processes '[a]imrt_main_hal' NON_VENDOR_HAL_PRESENT
+  time_calibration_require_vendor_processes '[a]imrt_main .*hal_elink_a3(_ultra)?_(cfg|gripper)[.]yaml' NON_VENDOR_ELINK_PRESENT
+}
+
+time_calibration_assert_mdu_consumers_stopped() {
+  # A stopped service alone is not proof its children exited. Conversely,
+  # missing process output is only trustworthy when pgrep returned exactly 1.
+  time_calibration_require_no_process '[a]3_deploy_onnx_ref_pingpong' RUNNER_REMAINS
+  time_calibration_require_no_process '[a]imrt_main_hal' HAL_REMAINS
+  time_calibration_require_no_process '[a]imrt_main .*hal_elink_a3(_ultra)?_(cfg|gripper)[.]yaml' ELINK_REMAINS
+  # A3's transfer is owned by rc.local, not PM, and legitimately survives the
+  # managed stop sequence. Requiring its absence would strand this operation
+  # in STOPPING. Keep HAL/PTP stopped, but do not restart transfer/UART/IPC here.
+  time_calibration_require_no_process '(^|/)[p]tp4l([[:space:]]|$)' MDU_PTP4L_REMAINS
+  time_calibration_require_no_process '(^|/)[p]hc2sys([[:space:]]|$)' MDU_PHC2SYS_REMAINS
+  local service
+  for service in \
+    agibot_pm.service agibot_ui.service agibot_top.service agibot_roudi.service \
+    agibot-mdu-phc2sys.service agibot-mdu-ptp4l.service; do
+    time_calibration_require_unit_stopped "$service"
+  done
+}
+
+time_calibration_verify_stopped_mdu() {
+  time_calibration_require_root "$@"
+  local run_dir=/run/hope-time-calibration current_boot
+  [[ -d "$run_dir" && -r "$run_dir/mdu-active-services" &&
+     -r "$run_dir/mdu-state" && -r "$run_dir/mdu-boot-id" ]] || \
+    die TIME_CALIBRATION MDU_STOPPED_RECEIPT_MISSING
+  current_boot="$(< /proc/sys/kernel/random/boot_id)"
+  [[ -n "$current_boot" && "$(< "$run_dir/mdu-boot-id")" == "$current_boot" ]] || \
+    die TIME_CALIBRATION MDU_STOPPED_BOOT_CHANGED
+  [[ "$(< "$run_dir/mdu-state")" == STOPPED ]] || \
+    die TIME_CALIBRATION MDU_NOT_IN_STOPPED_STATE
+  # Deliberately read-only: no recovery, cleanup, service start/stop or receipt
+  # mutation. The HDU holds the shared hardware-operation lock during this
+  # final pre-step check; arbitrary external/manual starts remain prohibited.
+  time_calibration_assert_mdu_consumers_stopped
+  emit TIME_CALIBRATION COMPLETE MDU_STOPPED_STATE_VERIFIED
+}
+
 time_calibration_check_mdu() {
   time_calibration_require_root "$@"
-  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
-    die TIME_CALIBRATION RUNNER_PRESENT
-  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
-  has_unmanaged_elink && die TIME_CALIBRATION NON_VENDOR_ELINK_PRESENT
+  time_calibration_require_idle_mdu
   /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
     die TIME_CALIBRATION MDU_PTP4L_NOT_ACTIVE
   /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
@@ -256,10 +370,7 @@ time_calibration_check_mdu() {
 
 time_calibration_recover_mdu() {
   time_calibration_require_root "$@"
-  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
-    die TIME_CALIBRATION RUNNER_PRESENT
-  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
-  has_unmanaged_elink && die TIME_CALIBRATION NON_VENDOR_ELINK_PRESENT
+  time_calibration_require_idle_mdu
 
   if /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service &&
      /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service &&
@@ -298,9 +409,7 @@ time_calibration_stop_mdu() {
   exec 9>"$run_dir/mdu.lock"
   /usr/bin/flock -n 9 || die TIME_CALIBRATION ALREADY_RUNNING
 
-  pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null && \
-    die TIME_CALIBRATION RUNNER_PRESENT
-  has_unmanaged_hal && die TIME_CALIBRATION NON_VENDOR_HAL_PRESENT
+  time_calibration_require_idle_mdu
 
   [[ -r "$state_file" ]] && state="$(< "$state_file")"
   if [[ "$state" != STOPPING && "$state" != STOPPED ]] ||
@@ -342,14 +451,7 @@ time_calibration_stop_mdu() {
     agibot-mdu-phc2sys.service \
     agibot-mdu-ptp4l.service || die TIME_CALIBRATION MDU_PTP_STOP_FAILED
 
-  ! pgrep -f '[a]3_deploy_onnx_ref_pingpong' >/dev/null || \
-    die TIME_CALIBRATION RUNNER_REMAINS
-  ! pgrep -f '[a]imrt_main_hal' >/dev/null || \
-    die TIME_CALIBRATION HAL_REMAINS
-  ! /usr/bin/systemctl is-active --quiet agibot-mdu-ptp4l.service || \
-    die TIME_CALIBRATION MDU_PTP4L_REMAINS
-  ! /usr/bin/systemctl is-active --quiet agibot-mdu-phc2sys.service || \
-    die TIME_CALIBRATION MDU_PHC2SYS_REMAINS
+  time_calibration_assert_mdu_consumers_stopped
   printf 'STOPPED\n' > "$state_file"
   emit TIME_CALIBRATION COMPLETE MDU_CLOCK_CONSUMERS_STOPPED
 }
@@ -560,9 +662,6 @@ preflight_hdu() {
     die PREFLIGHT UNMANAGED_RUNNER_TRANSPORT_PRESENT
   pgrep -u "$ROBOT_USER" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)' >/dev/null && \
     die PREFLIGHT UNMANAGED_PLANNER_PRESENT
-  python3 "$(dirname "$SELF")/hope_catch_background.py" \
-    --receipt "/tmp/hope_background_${SESSION_ID}.json" || \
-    die PREFLIGHT UNRELATED_BACKGROUND_NOT_STOPPED
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
       die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
@@ -609,6 +708,16 @@ preflight_hdu() {
     die PREFLIGHT PLANNER_EXECUTABLE_MISSING
   command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
   emit PREFLIGHT COMPLETE HDU_READY
+}
+
+prepare_background_hdu() {
+  # This changes vendor application/service state. The supervisor records the
+  # mutation boundary in its operation state; keep read-only PREFLIGHT separate.
+  require_user "$ROBOT_USER" BACKGROUND
+  python3 "$(dirname "$SELF")/hope_catch_background.py" \
+    --receipt "/tmp/hope_background_${SESSION_ID}.json" || \
+    die BACKGROUND UNRELATED_BACKGROUND_NOT_STOPPED
+  emit BACKGROUND COMPLETE UNRELATED_BACKGROUND_STOPPED
 }
 
 prepare_mdu() {
@@ -712,6 +821,26 @@ check_t3_elink_ready() {
   local step="$1" system_dir="/tmp/hope_real/$SESSION_ID/mdu/system"
   local elink_log="$system_dir/hal_elink.log"
   local elink_config="$system_dir/hal_elink_a3_gripper.yaml"
+  # Passive process/listener evidence is necessary, but cannot establish
+  # channel freshness. Never connect to the unhardened vendor IPC listener.
+  check_elink_process_presence "$step"
+  local log_result=0
+  timeout 3 python3 -I - "$elink_log" <<'PY_ELINK_LOG' || log_result=$?
+import sys
+from pathlib import Path
+sys.path.insert(0, "/usr/local/lib/hope-foxglove")
+from hope_elink_fault import startup_log_fault
+with Path(sys.argv[1]).open(errors="replace") as stream:
+    text = stream.read(8 * 1024 * 1024 + 1)
+if len(text) > 8 * 1024 * 1024:
+    sys.exit(12)  # Inspection unavailable, not evidence of a hardware failure.
+sys.exit(11 if startup_log_fault(text) else 0)
+PY_ELINK_LOG
+  case "$log_result" in
+    0) ;;
+    11) die "$step" ELINK_FAILURE_AFTER_READY ;;
+    *) die "$step" ELINK_LOG_INSPECTION_UNAVAILABLE ;;
+  esac
   grep -Fq -- "Enter ElinkKeepAliveLoop" "$elink_log" || die "$step" ELINK_NOT_READY
   grep -Fq -- "load config file: $elink_config" "$elink_log" || \
     die "$step" ELINK_CONFIG_NOT_LOADED
@@ -719,6 +848,27 @@ check_t3_elink_ready() {
     die "$step" ELINK_HAND_ROS2_SUBSCRIBER_NOT_REGISTERED
   grep -Eq -- '/body_drive/hand_joint_command[[:space:]]+\|[[:space:]]+pb:aimdk[.]protocol[.]HandCommandChannel[[:space:]]+\|[[:space:]]+ElinkModule[[:space:]]+\|[^|]*ros2' \
     "$elink_log" || die "$step" ELINK_HAND_TOPIC_BACKEND_NOT_REGISTERED
+}
+
+check_elink_process_presence() {
+  local step="$1" wait_seconds="${2:-1}" result=0
+  # Keep the bounded JSON observation in the helper log. Exit codes preserve
+  # UNKNOWN versus confirmed FAULT versus missing/broken inspection tooling.
+  timeout "$((wait_seconds + 3))" python3 -I /usr/local/lib/hope-foxglove/hope_elink_health.py \
+    --require-observed --structured-exit --wait-observed-seconds "$wait_seconds" || result=$?
+  case "$result" in
+    0) return ;;
+    10) die "$step" ELINK_OBSERVATION_UNKNOWN ;;
+    11)
+      # Vendor startup/readiness before HOPE takes ownership (or after its
+      # intentional restore) is not an observed failure of a running session.
+      if [[ "$step" == PREFLIGHT || "$step" == RUNNER_HAL ]]; then
+        die "$step" ELINK_VENDOR_STACK_NOT_READY
+      fi
+      die "$step" ELINK_PROCESS_FAULT
+      ;;
+    *) die "$step" ELINK_OBSERVATION_TOOL_UNAVAILABLE ;;
+  esac
 }
 
 check_t3_hal_ready() {
@@ -747,6 +897,7 @@ preflight_mdu() {
   has_unmanaged_hal && die PREFLIGHT UNMANAGED_HAL_PRESENT
   has_unmanaged_elink && die PREFLIGHT UNMANAGED_ELINK_PRESENT
   check_t3_hardware_config PREFLIGHT
+  check_elink_process_presence PREFLIGHT
   check_serve_hal_clock_package PREFLIGHT
   command -v python3 >/dev/null || die PREFLIGHT PYTHON3_MISSING
   [[ -x "$MDU_DEPLOY/run_a3_pingpong.sh" ]] || die PREFLIGHT RUNNER_PACKAGE_MISSING
@@ -758,6 +909,12 @@ preflight_mdu() {
       die PREFLIGHT KERNEL_RUNNER_UPDATE_REQUIRED
     grep -Fq -- '--kernel-mode' "$MDU_DEPLOY/run_a3_pingpong.sh" || \
       die PREFLIGHT KERNEL_WRAPPER_UPDATE_REQUIRED
+  else
+    grep -aFq -- '--operator-watchdog' "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" || \
+      die PREFLIGHT OPERATOR_WATCHDOG_RUNNER_UPDATE_REQUIRED
+    grep -Fq -- '/hope/runner/operator_echo_flat' \
+      "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_ros2body.yaml" || \
+      die PREFLIGHT OPERATOR_WATCHDOG_CONFIG_UPDATE_REQUIRED
   fi
   [[ -s "$MDU_DEPLOY/policy/exported/policy.onnx" ]] || \
     die PREFLIGHT POLICY_FILE_MISSING
@@ -767,6 +924,12 @@ preflight_mdu() {
     die PREFLIGHT RUNTIME_CONFIG_MISSING
   [[ -s "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_iceoryx.yaml" ]] || \
     die PREFLIGHT AIMRT_CONFIG_MISSING
+  if [[ -r "$MDU_DEPLOY/receive_only.policy_sha256" && "$FIELD_MODE" != KERNEL &&
+        "$(<"$MDU_DEPLOY/receive_only.policy_sha256")" == "$(sha256sum "$MDU_DEPLOY/policy/exported/policy.onnx" | cut -d ' ' -f 1)" ]]; then
+    (set +u; source /opt/ros/jazzy/setup.bash; set -u;
+     export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}";
+     timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" --inspect-policy --policy-dir "$MDU_DEPLOY/policy") || die PREFLIGHT POLICY_INSPECTION_FAILED
+  else
   [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv" ]] || \
     die PREFLIGHT SERVE025_TIMELINE_MISSING
   # Validate the exact selected bytes with the installed Runner before HAL starts.
@@ -789,7 +952,7 @@ preflight_mdu() {
     export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
   )" || {
-    printf "%s\n" "$validation_output" >&2
+    printf '%s\n' "$validation_output" >&2
     die PREFLIGHT SERVE_TIMELINE_INVALID
   }
   [[ "$validation_output" == *SERVE_STAND_VALID* &&
@@ -798,6 +961,7 @@ preflight_mdu() {
   if grep -q '^#HOPE_SERVE_SEGMENTS_V1,' "$validation_csv"; then
     [[ "$validation_output" == *SERVE_SEGMENTS_VALID* ]] || \
       die PREFLIGHT SERVE_SEGMENT_RUNNER_UPDATE_REQUIRED
+  fi
   fi
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
@@ -1032,6 +1196,14 @@ run_planner() {
       "$HDU_WS/src/hope_planner_cpp/src/post_net_one_shot.cpp" \
       "$HDU_WS/src/hope_planner_cpp/src/trajectory_predictor.cpp"
   } > "$attempt_dir/artifact_sha256.txt"
+  local -a policy_profile_args=()
+  if [[ -f /var/lib/hope-lifecycle/policy-models/catalog.json ]]; then
+    local policy_profile
+    policy_profile="$(python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /var/lib/hope-lifecycle/policy-models --field planner_profile)" || die PLANNER POLICY_PROFILE_INVALID
+    cp "$policy_profile" "$attempt_dir/policy_profile.json"
+    policy_profile_args=(--params-file "$attempt_dir/policy_profile.json")
+    sha256sum "$attempt_dir/policy_profile.json" >> "$attempt_dir/artifact_sha256.txt"
+  fi
   local -a ball_physics_args=()
   if [[ -f /var/lib/hope-lifecycle/ball_physics.json ]]; then
     cp /var/lib/hope-lifecycle/ball_physics.json "$attempt_dir/ball_physics.json"
@@ -1049,7 +1221,7 @@ run_planner() {
       hope_planner_launcher "$attempt_dir/pid.txt" \
       "$executable" --ros-args \
         --params-file "$HDU_WS/src/hope_planner_cpp/config/model21800_hardware.yaml" \
-        "${ball_physics_args[@]}" \
+        "${ball_physics_args[@]}" "${policy_profile_args[@]}" \
         -p "x_hit_calibration_request_file:=$request_file" \
         -p "x_hit_calibration_status_file:=$status_file" \
         -p "debug_csv_path:=$attempt_dir/planner_audit.csv" \
@@ -1125,6 +1297,7 @@ start_hal() {
   has_unmanaged_hal && die HAL UNMANAGED_HAL_PRESENT
   mkdir -p "$system_dir"
   check_t3_hardware_config HAL
+  check_elink_process_presence HAL
   local elink_config="$system_dir/hal_elink_a3_gripper.yaml"
   render_t3_elink_config > "$elink_config" || die HAL T3_ELINK_GRIPPER_CONFIG_INVALID
   printf 'HOPE_GRIPPER_CONFIG_T3_V2 transport=hand_command_topic_pb owner=hal_elink_t3d0 elink_factory_path=%s elink_factory_sha256=%s ethercat_path=%s ethercat_sha256=%s session_path=%s session_sha256=%s\n' \
@@ -1194,10 +1367,19 @@ run_runner() {
       /etc/systemd/system/agibot-mdu-phc2sys.service \
       /etc/systemd/system/agibot_pm.service
   } > "$session_dir/artifact_sha256.txt"
-  local -a field_runner_args=(--planner --shared-session-home)
+  local -a serve_runner_args=(--serve)
+  # Receive-only is an explicit package selection bound to exact policy bytes.
+  local receive_only_receipt="$MDU_DEPLOY/receive_only.policy_sha256"
+  if [[ "$FIELD_MODE" != KERNEL && -r "$receive_only_receipt" &&
+        "$(<"$receive_only_receipt")" == "$(sha256sum "$PWD/policy/exported/policy.onnx" | cut -d ' ' -f 1)" ]]; then
+    serve_runner_args=()
+    printf 'receive_only=true\n' > "$session_dir/receive_only.txt"
+  fi
+  local -a field_runner_args=(--planner --shared-session-home --operator-watchdog)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
   fi
+  if [[ "${#serve_runner_args[@]}" -gt 0 ]]; then
   # One selected trajectory for both modes; mode only changes post-serve ownership.
   if [[ "$SERVE_CSV_SHA" != DEFAULT ]]; then
     local selected_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
@@ -1209,6 +1391,7 @@ run_runner() {
     # Pass the built-in choice explicitly; do not depend on wrapper fallback.
     field_runner_args+=(--serve-timeline "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv")
   fi
+  fi
   if [[ -d "$PWD/teleop_humanlike" ]]; then
     local teleop_asset
     for teleop_asset in humanlike.yaml policy.onnx lin_vel_encoder.onnx; do
@@ -1218,17 +1401,22 @@ run_runner() {
     field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
   fi
   printf 'mode=%s\ncsv_sha256=%s\ngripper_profile=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" > "$session_dir/field_selection.txt"
-  local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
-  [[ "$SERVE_CSV_SHA" == DEFAULT ]] || effective_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
-  sha256sum "$effective_csv" >> "$session_dir/artifact_sha256.txt"
-  printf 'effective_csv=%s\neffective_csv_sha256=%s\n' "$effective_csv" \
-    "$(sha256sum "$effective_csv" | cut -d ' ' -f 1)" >> "$session_dir/field_selection.txt"
+  if [[ "${#serve_runner_args[@]}" -gt 0 ]]; then
+    local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+    [[ "$SERVE_CSV_SHA" == DEFAULT ]] || effective_csv="/agibot/hope-field-assets/$SERVE_CSV_SHA.csv"
+    sha256sum "$effective_csv" >> "$session_dir/artifact_sha256.txt"
+    printf 'effective_csv=%s\neffective_csv_sha256=%s\n' "$effective_csv" \
+      "$(sha256sum "$effective_csv" | cut -d ' ' -f 1)" >> "$session_dir/field_selection.txt"
+  else
+    # Receive-only exports have no serve CSV; record the actual unused asset.
+    printf 'effective_csv=NONE\neffective_csv_sha256=NONE\n' >> "$session_dir/field_selection.txt"
+  fi
   set +e
   # Keep the log reader alive through Ctrl-C so Runner can drain its CSVs.
   python3 "$CAPTURE_HELPER" --controlled --role mdu --root "$MDU_DEPLOY" \
     --session-id "$SESSION_ID" --output "$session_dir/sim2real" -- \
     taskset -c 4-7 ./run_a3_pingpong.sh \
-    --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native --serve \
+    --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}" \
     --gripper-profile "$GRIPPER_PROFILE" \
     --no-fall-guard \
     --trace-csv "$session_dir/sim2real/runner_trace.csv" \
@@ -1248,7 +1436,7 @@ runner_inputs_ready() {
   # the separately streamed channel name and ready flag. Remove those records,
   # then require all six explicit ready=yes pairs; never infer readiness from
   # a running process or from the other five channels.
-  python3 - "$1" <<'PY_READY'
+  python3 - "$1" "${2:-serve}" <<'PY_READY'
 from pathlib import Path
 import re
 import sys
@@ -1259,7 +1447,7 @@ required = ("waist", "leg", "arm", "neck", "pelvis_imu", "torso_imu")
 ready = all(re.search(r"(?:^|\s)" + name + r"\s+ready=yes(?![A-Za-z_])", clean)
             for name in required)
 bridge = "serve025 bridge ready; startup sent no gripper command" in text
-sys.exit(0 if ready and bridge else 1)
+sys.exit(0 if ready and (bridge or sys.argv[2] == "receive_only") else 1)
 PY_READY
 }
 
@@ -1293,7 +1481,12 @@ start_runner() {
             die RUNNER GRIPPER_BRIDGE_UNAVAILABLE
           grep -Fq -- "serve gripper bridge unavailable" "$runner_log" && \
             die RUNNER GRIPPER_BRIDGE_UNAVAILABLE
-          if runner_inputs_ready "$runner_log"; then
+          local readiness_mode=serve
+          if [[ -r "$real_root/$attempt_id/receive_only.txt" ]] &&
+             grep -qx 'receive_only=true' "$real_root/$attempt_id/receive_only.txt"; then
+            readiness_mode=receive_only
+          fi
+          if runner_inputs_ready "$runner_log" "$readiness_mode"; then
             emit RUNNER COMPLETE RUNNER_PASSIVE
             return 0
           fi
@@ -1315,6 +1508,9 @@ stop_mdu() {
   stop_tmux "$MDU_ELINK_SESSION"
   sudo -n systemctl start agibot_pm.service || die RUNNER_HAL AGIBOT_PM_RESTORE_FAILED
   systemctl is-active --quiet agibot_pm.service || die RUNNER_HAL AGIBOT_PM_NOT_ACTIVE
+  # systemd active alone does not mean its ELink child/listener has appeared.
+  # This is a bounded passive proc check, not a vendor IPC connection/reset.
+  check_elink_process_presence RUNNER_HAL 8
   emit RUNNER_HAL COMPLETE AGIBOT_PM_RESTORED
 }
 
@@ -1440,6 +1636,12 @@ main() {
     record-control)
       exec python3 "$(dirname "$SELF")/hope_sim2real_control.py"
       ;;
+    policy-model-hdu)
+      exec python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /var/lib/hope-lifecycle/policy-models
+      ;;
+    policy-model-mdu)
+      exec python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models
+      ;;
     field-assets-laptop)
       require_user "$LAPTOP_USER" FIELD_ASSETS
       export PYTHONPATH="$HOPE_ROOT/hope_ws/src/hope_bringup/scripts${PYTHONPATH:+:$PYTHONPATH}"
@@ -1469,6 +1671,10 @@ main() {
       time_calibration_stop_mdu "$@"
       return
       ;;
+    time-calibration-verify-stopped-mdu)
+      time_calibration_verify_stopped_mdu "$@"
+      return
+      ;;
     time-calibration-restore-mdu)
       time_calibration_restore_mdu "$@"
       return
@@ -1479,9 +1685,15 @@ main() {
     exit 64
   }
   case "$action" in
+    preflight-mdu|prepare-mdu|start-hal|start-runner|_run-elink|_run-hal|_run-runner)
+      resolve_mdu_deployment || die PREFLIGHT POLICY_BUNDLE_INVALID
+      ;;
+  esac
+  case "$action" in
     preflight-laptop) preflight_laptop ;;
     preflight-hdu) preflight_hdu ;;
     preflight-mdu) preflight_mdu ;;
+    prepare-background-hdu) prepare_background_hdu ;;
     prepare-laptop) prepare_laptop ;;
     prepare-hdu) prepare_hdu ;;
     prepare-mdu) prepare_mdu ;;
@@ -1492,7 +1704,7 @@ main() {
     start-planner) start_planner ;;
     start-hal) start_hal ;;
     start-runner) start_runner ;;
-    stop-mdu) stop_mdu ;;
+    stop-mdu) stop_mdu; audit_stopped_policy ;;
     stop-hdu) stop_hdu ;;
     stop-laptop) stop_laptop ;;
     stop-capture-laptop) stop_laptop_capture ;;

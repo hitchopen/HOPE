@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include "hope_planner_cpp/session_home_reference.hpp"
 
 namespace hope_planner_cpp {
 
@@ -52,6 +53,9 @@ inline double select_swing_sign_with_support(
   if (!std::isfinite(intercept_y) || !std::isfinite(reference_y) ||
       !std::isfinite(split_y) || !std::isfinite(hysteresis_y) || hysteresis_y < 0.0 ||
       !valid_swing_side_support_ranges(forehand, backhand)) return invalid;
+  if (forehand.empty() && backhand.empty())
+    return select_swing_sign_with_hysteresis(
+        intercept_y, reference_y, split_y, hysteresis_y, previous_sign);
   const double relative_y = intercept_y - reference_y;
   if (!forehand.empty()) {
     const bool fh = relative_y >= forehand[0] && relative_y <= forehand[1];

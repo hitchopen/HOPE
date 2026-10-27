@@ -60,3 +60,14 @@ artifacts/
 # Keep the selected model_14600 baseline export at the requested stable path.
 !checkpoints/
 !checkpoints/policy.onnx
+
+# Published PPQ004 / 3star question bank used by HOPEPingPongStationaryRally.
+!/assets/
+/assets/*
+!/assets/stationary_reach_v4_ppq004_generalization_20261022/
+/assets/stationary_reach_v4_ppq004_generalization_20261022/*
+!/assets/stationary_reach_v4_ppq004_generalization_20261022/*.npz
+!/assets/stationary_reach_v4_ppq004_generalization_20261022/*.receipt.json
+!/assets/stationary_reach_v4_ppq004_generalization_20261022/README.md
+!/assets/stationary_reach_v4_ppq004_generalization_20261022/coverage.json
+!/assets/stationary_reach_v4_ppq004_generalization_20261022/generation_report.json

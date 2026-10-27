@@ -11,7 +11,7 @@ The driver first applies motive_to_world from hope_world_frame.yaml to every
 published world pose and point (body-local ModelDef coordinates stay local).
 The default accepts the current named Motive body without a file hash or
 marker-layout pin and assumes its identity marker-to-pelvis transform.
-Use localization_source:=motive_asset for the optional pinned 17-marker check. Legacy
+Use localization_source:=motive_asset for the optional side-specific 12-marker check. Legacy
 V2/V3 capture services are opt-in with localization_source:=calibration and
 start_calibration:=true. It publishes the same schema-2 base-pose contract. In P2 table-side mode the relay rotates all
 world poses 180 degrees about the table centre before Planner/base consumers.
@@ -145,7 +145,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "localization_source", default_value="motive_live",
             description="motive_live: current named body, nominal pelvis frame, no file/layout pin; "
-                        "motive_asset: pinned 17-marker verification; calibration: measured JSON.",
+                        "motive_asset: selected P1/P2 12-marker verification; calibration: measured JSON.",
         ),
         DeclareLaunchArgument("start_flight_packetizer", default_value="true"),
         DeclareLaunchArgument(

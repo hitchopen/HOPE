@@ -141,12 +141,16 @@ receipt lifecycle are maintained in
 [agibot/README.md](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
 This optional measured procedure uses Motive/NatNet ModelDef; the ChingMu
 pose-only route uses the separately checked import assets described below.
-The current profile is the **17-station v3 sticker shell** (front seven unchanged,
+The legacy measured profile is the **17-station v3 sticker shell** (front seven unchanged,
 two rear rows of five), using its optical-centre
 TF table in ROS `pelvis_link` and the supplied pelvis-aligned native **P1** asset.
 The intended fixed local correction is identity, subject to a fresh installed
 live verification; all earlier 12-point, old 24-station and ten-marker receipts
 cannot be reused. See [receipt lifecycle](../calibration/README.md).
+The current [OptiTrack P1/P2 assets](../agibot/mocap_sticker_shell_v3/motive_asset/README.md)
+instead use 12 markers each, matching ChingMu. Default `motive_live` accepts
+their live definitions; optional `motive_asset` checks the selected subset.
+The all-17 measured procedure does not support these new subsets.
 Whether capture is automated depends on the selected operator integration;
 do not assume every PREPARE/Ready action runs it. The independent pose-pair
 method below is an audit route, not a runtime receipt generator.
@@ -198,17 +202,20 @@ CMTracker/MCServer VRPN → /vrpn_mocap/<sender>/pose_id_<sensor_id> (PoseStampe
                          → pose_to_posearray → /poses (PoseArray, Ball at index 0)
 ```
 
-For A3's current 17-sticker shell, the
+For A3's current 17-station shell, the
 [shell-v3 VRPN asset package](../agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
-contains one CMTracker import file,
-[A3_v3_17_stickers.json](../agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json),
-with the same filename stem and internal `UCB_P1` body name as the Motive asset.
-It matches the existing **V4 P1** runtime file byte-for-byte; P1/P2 runtime
-profiles remain unchanged for compatibility and share its geometry.
+contains [P1.json](../agibot/mocap_sticker_shell_v3/vrpn_asset/P1.json) and
+[P2.json](../agibot/mocap_sticker_shell_v3/vrpn_asset/P2.json), internally named
+`UCB_P1` and `UCB_P2`. Each selects 12 stations and matches its updated V4
+runtime file byte-for-byte. Seven stations are necessarily shared, so identity
+is not guaranteed under arbitrary occlusion. See the installation PDF and
+partial-pattern analysis in that package.
 `mocap_sticker_shell_v3` is the CAD folder name, while **V4** is the
-runtime/dropdown selection for that same hardware. Configure site body names
-(`UCB_P1`/`UCB_P2`) and unique IDs in CMTracker as needed, preserving the
-pelvis-local geometry. The JSON defines the rigid body in the server; VRPN
+runtime/dropdown selection for that same hardware. Preserve the selected
+points and pelvis-local frame. The matching
+[OptiTrack pair](../agibot/mocap_sticker_shell_v3/motive_asset/README.md) now uses
+the same 12-point subsets with native Y-up encoding; do not import the old
+all-17 file. The JSON defines the rigid body in the server; VRPN
 transports its pose, not the definition.
 
 The asset's millimetre-valued marker coordinates target nominal `pelvis_link`
@@ -260,6 +267,165 @@ single-sensor rigid bodies use index 0.
 For testing without a physical rig, `hope_ws/src/hope_bringup/scripts/fake_ball_publisher`
 publishes synthetic `/poses` trajectories (`fake_optitrack_publisher` does the same at the
 OptiTrack driver level).
+
+## ChingMu 18-sticker ping-pong ball template and asset
+
+The [ChingMu Ping Pong Ball Marker Template.stl](<ChingMu Ping Pong Ball Marker Template.stl>)
+is a **placement jig for eighteen flat, circular 6 mm reflective stickers on a
+40 mm ball**. Remove the jig before tracking or play. The asymmetric layout is
+optimized for sticker clearance, partial-marker correspondence and coverage
+across viewing directions.
+
+**Use the matching 18-marker jig and asset together.** Print this jig, position
+all eighteen stickers, and import the matching asset. The OptiTrack files
+remain a separate design.
+
+- [Native CMTracker import asset: Ball](<ChingMu Ping Pong Ball Marker Asset.json>)
+  contains 18 points / 54 XYZ numbers in millimetres. It is the coordinate
+  source of truth for the generated jig.
+- [Print and marker-layout preview](<ChingMu Ping Pong Ball Marker Template.png>).
+
+This operator release contains the STL, native import JSON, preview and this
+guide. Development scripts, tests, baseline data and detailed verification
+reports are excluded. The measurements below record pre-release checks;
+the full audit cannot be independently rerun from this operator package alone.
+
+Use these SHA-256 fingerprints to verify the matching release files:
+
+| Release file | SHA-256 |
+|---|---|
+| STL | `737a697c93e3eea35b7024b9b378d87f79764ccdb0e3b39c292ae117c8723d04` |
+| Native asset JSON | `addbd8cd607a554cf59c1fd8c8fd24b4ba4054b0168fe3012ed44c04f7a59da9` |
+
+### Spacing and view ambiguity
+
+The search maximizes minimum center separation while constraining incorrect
+four-/five-marker rigid fits, triangle asymmetry, seam/pole clearance and
+view coverage. For equal-size stickers on the same sphere, maximizing minimum
+center separation also maximizes minimum nominal surface edge clearance.
+The frozen result is a finite constrained search, **not a proven global optimum**.
+
+| Nominal measure | 18-marker layout |
+|---|---:|
+| Minimum center-to-center chord | **13.568 mm** |
+| Minimum surface edge-to-edge gap | **7.843 mm** |
+| Four-marker competing-fit RMS | **0.260009 mm** |
+| Five-marker competing-fit RMS | **0.690009 mm** |
+| Minimum centers in the 75.52° incidence proxy | **5** |
+
+These measurements describe nominal geometry, not hardware tracking accuracy.
+
+Surface clearance assumes nominal 6 mm footprints conforming to a radius-20-mm
+sphere: `40 * asin(center_chord / 40) - 6` mm. It is not the projected image gap
+or simply the chord minus 6 mm. Foreshortening, placement error, sticker
+conformation, blur and reflections affect the installed result.
+
+At `normal · view > 0.25` (incidence below 75.52 degrees), all **4,096**
+sampled directions contain at least **five** marker centers; **95.68%** contain
+six or more. All **1,144** cap-boundary sector samples also contain at least
+five. For the stricter 60-degree incidence proxy, the minimum is **two**,
+with at least five in **49.44%** of directions. Coverage therefore depends on
+the incidence angle accepted by the actual cameras and reflective stickers.
+
+These are finite single-direction geometric checks. They do not model camera
+positions, triangulation, occlusion by other objects, image merging or exposure.
+The stricter 60-degree-incidence results above show the effect of
+requiring markers to face a camera more directly. Five reconstructed markers
+still require adequate multi-camera coverage and a live tracking test.
+
+### Printing and applying the stickers
+
+The STL contains **two watertight pieces, with nine apertures per half**, laid
+out open side upward. It has a 40.50 mm spherical cavity, nominal
+2.025 mm radial wall and 6.20 mm inner aperture diameter. Three unequally
+spaced, differently sized keys register the halves in one nominal orientation.
+The cavity gives 0.25 mm radial clearance around a nominal 40 mm ball.
+STL has no embedded units: import as **millimetres at 100% scale**.
+
+Inspect the slice and print a fit check first. Pole flats provide bed contact;
+a brim and external supports may be needed. Deburr without changing the hole
+centers. Do not force the jig onto a thin-walled ball.
+
+Close the keyed halves around the ball and keep **both the ball and halves
+fixed throughout all eighteen placements**. Use removable soft shims or
+low-tack contact points in unperforated regions if necessary. Center each
+sticker with tweezers or a suitable applicator. Applying halves independently
+or allowing the ball to rotate invalidates the constellation. Remove the jig
+and all temporary contact material before capture.
+
+### Importing the ChingMu asset
+
+Import **`ChingMu Ping Pong Ball Marker Asset.json`** into CMTracker/MCServer.
+The native schema follows the repository's
+[existing runtime asset](../hope_ws/src/hope_bringup/config/pants_profiles/a3_v4_P1_ground_truth.json),
+which follows the supplied vendor-exported `UCB_P1(1).json`. VRPN transports
+the resulting pose; it does not import this definition.
+
+| Native field | This ball asset | Commissioning requirement |
+|---|---|---|
+| Top-level body name | `Ball` | Case-sensitive; match the HOPE topic configuration. |
+| `id` | `3` | Provisional project-unique body ID; check collisions. This is not the VRPN sensor index. |
+| `markerPose` | 54 numbers, XYZ in mm | 18 nominal surface centers, in M01–M18 authoring order; live labels need not use this order. |
+| `Rbc` | Identity 3×3 | Preserve authored right-handed ball-local axes; verify the installed vendor version. |
+| `minMarker` | `5` | Proposed minimum reconstructed-marker setting; not the total count or a validated dropout rule. |
+| `filterEnable` | `false` | Proposed fast-ball setting; verify actual server delay and noise. |
+
+The native field **`beta: 15`** is an opaque vendor parameter, not the marker
+count; do not change it to 18. The field semantics and proposed tracking
+settings still require verification in the installed CMTracker version.
+
+1. Back up the CMTracker project and import into an isolated test project.
+   Confirm exactly **18 markers**, the name `Ball`, and an unused body ID.
+2. Confirm the origin is the **physical sphere center `[0,0,0]`**, not the
+   marker centroid. Import/re-export and inspect the geometry, pivot and axes.
+   Rotation about the center must not create an orbit of the reported position.
+3. Measure/refine the installed sticker centers without moving that center
+   datum. Nominal coordinates have radius 20 mm; sticker thickness, printing,
+   hand placement and optical-centroid errors are not modeled. Do not apply
+   the pelvis asset's sticker-thickness correction.
+4. Test full rotations, high spin, partial occlusion, loss/reacquisition and
+   stopped/stale output. Verify `minMarker` and filter behavior. Revalidate
+   correspondence separation if measured geometry or matching settings change.
+5. Verify the server world/table axes and VRPN stream units independently, then
+   check the named `Ball` pose through the ROS path above. Native-file
+   millimetres do not establish stream units or the world frame.
+
+### Limits of partial-marker matching
+
+The pre-release offline audit compared every three-, four- and five-marker
+subset with every alternative correspondence, including nonidentity
+permutations **within the same subset**. It fitted proper rotations and free
+translation, using a conservative distance lower bound only to prune
+competitors that could not win. Small brute-force regressions checked the
+pruning and reflection handling.
+
+| Reconstructed subset | Smallest competing-fit RMS | Half-gap, strictly below |
+|---|---:|---:|
+| 3 markers | 0.000559 mm | 0.000279 mm |
+| 4 markers | 0.260009 mm | 0.130005 mm |
+| 5 markers | 0.690009 mm | 0.345005 mm |
+
+All 816 nominal triangles are noncollinear, scalene and mutually distinct
+above a 0.000001 mm distance tolerance. Exact correspondence uniqueness does
+not imply robustness under noise. The three-marker competing-fit gap is too
+small for a practical noise margin. The spacing search constrains the
+four-/five-marker margins and excludes exact triangle symmetries.
+
+The half-gap is a sufficient two-fit error budget: total point error plus the
+alternative-fit acceptance threshold must be below the competing-fit gap.
+It is neither measured sensor accuracy nor a recommended CMTracker tolerance.
+Placement and calibration errors consume the budget too. Three-marker margins
+are too small for a practical robustness claim; one or two points cannot
+resolve full pose. Use **at least five correctly reconstructed markers where
+possible**, and reject ambiguous orientations during commissioning instead of
+accepting a flip. These are acceptance criteria, not newly implemented HOPE
+runtime gates or evidence of CMTracker's proprietary matching behavior.
+
+The geometric objectives follow OptiTrack's general
+[marker-placement guidance](https://docs.optitrack.com/v3.0/motive/rigid-body-tracking)
+on spacing and asymmetry. This does not establish ChingMu thresholds. Offline
+geometry and mesh checks have passed; physical print fit, CMTracker
+import/re-export and live tracking remain installation acceptance checks.
 
 ## What is intentionally not here
 

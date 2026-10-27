@@ -149,6 +149,7 @@ def runner_kwargs(params: dict, experiment_name: str) -> dict:
             projection_aux_lambda_max=float(a["projection_aux_lambda_max"]),
             projection_aux_gradient_ratio_max=float(a["projection_aux_gradient_ratio_max"]),
             projection_aux_gaussian_tails=bool(a.get("projection_aux_gaussian_tails", False)),
+            update_diagnostics=bool(a.get("update_diagnostics", False)),
             **{key: value for key, value in a.items() if key.startswith("settled_aux_")},
             **algorithm_kwargs,
         )

@@ -1,4 +1,4 @@
-"""Keep train, play and the direct Gym runner on the single retained recipe."""
+"""Keep train, play and the direct Gym runner on the baseline and stationary recipes."""
 
 import ast
 import os
@@ -11,12 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "source/whole_body_tracking/whole_body_tracking"
 
 
-def test_train_and_play_select_the_only_task_and_algorithm():
+def test_train_and_play_preserve_the_baseline_task_and_algorithm():
     hydra = pytest.importorskip("hydra")
     from omegaconf import OmegaConf
 
-    assert {p.stem for p in (ROOT / "cfg/task").glob("*.yaml")} == {"HOPEPingPong"}
-    assert {p.stem for p in (ROOT / "cfg/algo").glob("*.yaml")} == {"ppo"}
+    assert {p.stem for p in (ROOT / "cfg/task").glob("*.yaml")} == {"HOPEPingPong", "HOPEPingPongStationaryRally"}
+    assert {p.stem for p in (ROOT / "cfg/algo").glob("*.yaml")} == {"ppo", "ppo_balanced_hold"}
     with hydra.initialize_config_dir(config_dir=str(ROOT / "cfg"), version_base=None):
         train = hydra.compose(config_name="train")
         play = hydra.compose(config_name="play")
