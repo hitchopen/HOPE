@@ -12,6 +12,8 @@ inline FutureContactConfig declare_future_contact_config(rclcpp::Node& node) {
   c.tangential_gain = node.declare_parameter<double>("future_contact_spin_tangential_gain", c.tangential_gain);
   c.omega_scale = node.declare_parameter<double>("future_contact_spin_omega_scale", c.omega_scale);
   c.min_coherence = node.declare_parameter<double>("future_contact_spin_min_coherence", c.min_coherence);
+  c.require_spin_for_future_contact = node.declare_parameter<bool>(
+      "future_contact_require_spin", c.require_spin_for_future_contact);
   return c;
 }
 
