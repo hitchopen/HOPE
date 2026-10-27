@@ -22,15 +22,28 @@ detect startup process/IPC and log failures without adding telemetry, battery or
 clock-based motion gates. Normal Stand, Serve and Rally retain the existing
 Runner/vendor protections. Clock correction uses the explicit, stopped
 [Time Calibration workflow](docs/operations/foxglove_lifecycle.md#pre-operation-clock-correction).
+The START background-cleanup step stops only the selected HDU camera app,
+preserving vendor startup/audio, handheld-related services and the status/IP
+display. Earlier HOPE shutdown of those dependencies was application-side
+policy, not a vendor crash. See [handheld preservation and existing-robot
+recovery](docs/operations/robot_runtime_policy.md#vendor-handheld-and-status-display)
+for deployment checks and the remaining E-stop-continuity limitations during
+HAL handover and clock maintenance.
+The [required live qualification](docs/operations/robot_runtime_policy.md#required-live-validation-before-deployment)
+includes a supported START → STOP cycle and clock-service restore, checking for
+automatic vendor `Manual`/joint-control activation. Until handheld E-stop is
+qualified during HOPE play, credit only a verified wired E-stop in HOPE sessions.
 Follow the matched-component installation and hardware validation requirements
 in those guides before deployment.
 
 Current deployment: [build and deployment](docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment),
 [shared ball physics](docs/operations/ball_physics_calibration.md),
 [Foxglove recording and live Motive localization](foxglove/extensions/hope-a3-console/README.md),
-and the [17-marker shell](agibot/mocap_sticker_shell_v3/README.md).
-The training recipe remains `task=HOPEPingPong algo=ppo`; deployment uses the
-verified model17400 bundle described below.
+and the [v3 shell with P1/P2 12-sticker patterns](agibot/mocap_sticker_shell_v3/README.md).
+Training retains the model_14600 recipe as `task=HOPEPingPong algo=ppo` and
+its ONNX/deploy baseline under `hope_training/whole_body_tracking/checkpoints/`.
+See the [30-ball Gate3 run and video](docs/gates/model14600_gate3_30balls_20261013.md).
+Deployment uses the verified model17400 bundle described below.
 
 HOPE is an open platform for humanoid robot table tennis, developed by [Hitch Interactive](https://hitchinteractive.com) (Intelligent Racing Inc.) in collaboration with the [ROAR Platform](https://roar.berkeley.edu) at UC Berkeley. The challenge invites teams to deploy whole-body humanoid controllers that can rally a ping-pong ball against human opponents or other robots, using off-the-shelf humanoid hardware and an open-source perception and planning stack.
 
@@ -109,6 +122,12 @@ and [model17400 runtime alignment](docs/operations/deploy_and_gate3.md#model1740
 Use the verified installed bundle and current runbook, not a model number inferred
 from a layout, service, session-prefix or file name. Local regression checks do
 not establish a fresh live-hardware qualification.
+
+The HDU Foxglove health/safety monitor (`hope-monitor`) and optional read-only
+mocap configuration relay (`hope-mocap-config-transport`) run in C++.
+Build, stopped-state migration, rollback and qualification requirements are in
+the [monitor deployment guide](foxglove/README.md#native-monitor-migration-and-verification)
+and [configuration relay guide](foxglove/README.md#native-mocap-configuration-transport).
 
 ## Train and export your own
 
@@ -219,47 +238,57 @@ and A3 clock-health gates pass. Clock drift or mixed domains can corrupt state
 estimation, latency measurement, recording, calibration, and strike timing
 even while ROS 2 topics appear healthy.
 
-## Optional marker-CAD alignment: P1 to A3 `pelvis_link`
+## A3 shell v3: P1/P2 sticker installation and pelvis alignment
 
-The current sticker profile uses the **17-station v3 sticker shell: seven unchanged
-front markers and two rear rows of five (original IDs)**, with the supplied
-[A3_v3_17_stickers.motive](agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
-asset, internally named **`UCB_P1`**. Its origin targets the nominal CAD `pelvis_link`
-origin and ROS axes **X forward, Y left, Z up**. With Motive Streaming **Up Axis
-= Z Up** and the existing MODELDEF axis conversion, the intended fixed
-`UCB_P1 → pelvis_link` correction is zero translation and identity rotation.
-This is an offline-checked candidate, not a verified live calibration: the five
-restored rear points are CAD-nominal, not observed in the source export. Validate
-Motive import/re-export, then generate a fresh installed-layout receipt.
-For the current runtime, keep `UCB_P1` for table side P1 or rename it to `UCB_P2`
-for table side P2, use the `stickers_v3` profile, and save the fresh
-receipt to `calibration/ucb_robot_to_pelvis.json`. All earlier 12-point,
-old 24-station and ten-marker receipts cannot be reused for this sticker profile.
+Use **one unchanged 17-station v3 printable design** for both players, but
+apply **12 round 12 mm reflective stickers per robot** in two different
+patterns. The shell halves, mounting holes and CAD transform tables are
+unchanged; this update changes which stations are reflective, not the hardware.
 
-Hardware, frame-table links and the setup procedure are maintained in
-[agibot/README.md](agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
-Receipt storage and migration rules are in [calibration/README.md](calibration/README.md).
-The shared mocap contract remains in [mocap/README.md](mocap/README.md).
+| Player | Install reflective stickers at these 12 stations | Leave these five stations nonreflective | Front / rear |
+|---|---|---|---|
+| P1 | S19, S20, S11, S12, S22, S21, S13, S14, S04, S05, S16, S18 | S06, S07, S08, S15, S17 | 7 / 5 |
+| P2 | S04, S05, S06, S07, S08, S11, S12, S15, S17, S18, S20, S22 | S13, S14, S16, S19, S21 | 4 / 8 |
 
-### ChingMu / VRPN asset for the same shell
+Use the original Sxx station labels; do not renumber the shell. Centre each
+sticker on its flat seat, with **0.20 mm total film-plus-adhesive thickness**.
+Keep unused stations nonreflective under the cameras' IR illumination.
+These assets describe sticker surfaces, not marker-ball centres.
 
-The [shell-v3 VRPN asset package](agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
-provides one CMTracker import file,
-[A3_v3_17_stickers.json](agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json),
-using the same filename stem and internal **`UCB_P1`** body name as the Motive
-asset. It is byte-identical to the existing **V4 P1** runtime profile; existing
-runtime profiles remain unchanged for compatibility. The **v3 CAD folder and
-V4 runtime selector refer to the same 17-sticker shell**. Configure the site
-body name (`UCB_P1` or `UCB_P2`) and unique IDs in CMTracker as needed, without
-changing the shared pelvis-local geometry. VRPN then transports poses, not
-the asset definition.
-The uncentered marker coordinates target nominal `pelvis_link`, with ROS
-**X forward, Y left, Z up**; do not subtract the centroid or apply Motive's
-Y-up conversion. Server world/table alignment is a separate commissioning
-step. CMTracker import/re-export and live installation checks are still
-required: pose-only VRPN has no ModelDef to verify geometry, and this asset
-is not a physical-calibration receipt. The optional measured NatNet procedure
-above is unchanged. See the [VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
+Import the matching player file for the selected mocap vendor. **P1 and P2
+each define 12 markers in both formats; neither is the full 17-marker set.**
+
+| Player | OptiTrack / Motive | ChingMu / CMTracker |
+|---|---|---|
+| P1 / `UCB_P1` | [P1.motive](agibot/mocap_sticker_shell_v3/motive_asset/P1.motive) | [P1.json](agibot/mocap_sticker_shell_v3/vrpn_asset/P1.json) |
+| P2 / `UCB_P2` | [P2.motive](agibot/mocap_sticker_shell_v3/motive_asset/P2.motive) | [P2.json](agibot/mocap_sticker_shell_v3/vrpn_asset/P2.json) |
+
+Both pairs use the same nominal CAD sticker centres and **pelvis_link** origin,
+with ROS **X forward, Y left, Z up**. The intended fixed body-to-pelvis transform
+is identity; do not recenter or rotate the P2 local pattern. Motive stores native
+Y-up metres and requires Streaming **Up Axis = Z Up** plus the existing
+MODELDEF basis conversion. ChingMu stores ROS-axis millimetres directly.
+See the [Motive import guide](agibot/mocap_sticker_shell_v3/motive_asset/README.md)
+and [ChingMu import guide](agibot/mocap_sticker_shell_v3/vrpn_asset/README.md).
+
+The [installation PDF](agibot/mocap_sticker_shell_v3/output/pdf/A3_marker_shell_v3_instructions.pdf)
+shows front/rear placement and a walk-around map. The seven shared stations are
+**S04, S05, S11, S12, S18, S20, S22**; shared-only views can still be ambiguous,
+and all five P2-only stations are on the rear. The CAD folder is v3; ChingMu's runtime selector is **V4**
+with side-specific profiles. Native import/re-export, physical pelvis alignment,
+world/table registration and simultaneous two-body occlusion tests remain required.
+
+The two vendor import folders contain only the current P1/P2 pair, manifest
+and README. Obsolete all-17 player helpers have been removed; original
+measurements and historical regression fixtures are kept outside these folders
+and must not be imported for the current installation.
+
+Default `motive_live` still accepts the selected live definition without a file
+pin or calibration JSON. Optional `motive_asset` now checks the correct player's
+12-marker reference. The older measured `stickers_v3` calibration tool requires
+all 17 markers and **does not support these 12-marker installations**; do not
+reuse its receipts. See [calibration limits](calibration/README.md) and the
+[VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
 
 ### ChingMu 18-marker ping-pong ball
 

@@ -54,7 +54,8 @@ install(FILES
   DESTINATION share/${PROJECT_NAME}/config/marker_layouts
 )
 install(FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../agibot/mocap_sticker_shell_v3/motive_asset/P1.motive
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../agibot/mocap_sticker_shell_v3/motive_asset/P2.motive
   DESTINATION share/${PROJECT_NAME}/config/motive_assets
 )
 

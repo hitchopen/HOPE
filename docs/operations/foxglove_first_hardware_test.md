@@ -626,9 +626,10 @@ sudo install -D -o root -g root -m 0644 \
   /tmp/hope-foxglove-network.env \
   /etc/hope-foxglove/network.env
 
+# 先按 foxglove/README.md 使用真实厂商 SDK 构建并通过 native monitor 测试。
 sudo install -D -o root -g root -m 0755 \
-  $HOME/foxglove_a3/hope_monitor.py \
-  /usr/local/bin/hope_monitor.py
+  $HOME/hope_field_native_build/hope-monitor \
+  /usr/local/libexec/hope-monitor
 sudo install -D -o root -g root -m 0644 \
   $HOME/foxglove_a3/hope_monitor_core.py \
   /usr/local/lib/hope-foxglove/hope_monitor_core.py
@@ -1469,8 +1470,17 @@ START_COMPLETE_RUNNER_PASSIVE
 
 ### 11.3 Runner 按钮顺序
 
-当前使用 **17 个站位的 v3 贴纸壳（前方 7 点不变，后方上/中两排各 5 点）**和
-[`A3_v3_17_stickers.motive`](../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
+**本小节下文保留的是历史 17 点实测标定流程，不适用于当前 P1/P2 各 12 点安装。**
+当前安装使用匹配 ChingMu 的
+[P1/P2 Motive 资产](../../agibot/mocap_sticker_shell_v3/motive_asset/README.md)，
+内部名为 `UCB_P1` / `UCB_P2`。默认 `motive_live` 不需要标定 JSON；可选
+`motive_asset` 校验对应一侧的 12 点参考。旧 `stickers_v3` 标定仍要求 17 点，
+不可用于这两个子集。当前 Console 操作以
+[Console README](../../foxglove/extensions/hope-a3-console/README.md) 为准，
+不要依照下列历史 Calibration / Refresh x_hit 按钮操作。
+
+历史流程使用 **17 个站位的 v3 贴纸壳（前方 7 点不变，后方上/中两排各 5 点）**和
+历史 17 点 Motive 资产（现仅保留为回归测试夹具，不是当前导入文件）
 （内部刚体名为 `P1`）。先按
 [v3 安装与标定流程](../../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
 完成隔离项目导入检查，设置 Motive Streaming **Up Axis = Z Up**，保留现有
@@ -1482,7 +1492,7 @@ MODELDEF 坐标转换，并重启 NatNet。该资产的局部原点/轴向按 CA
 恢复的 S06/S07/S08/S15/S17 仅使用 CAD 名义坐标，原始资产没有其真实观测；
 不可宣称已确认可见。候选文件省略了无法由名义点推导的 learned graph 缓存，
 须先验证 Motive 导入并重新导出；若导入失败，按壳体 README 的 Motive API 路径建模。
-当前 main 运行链按球台侧将内部 P1 改名为 `UCB_P1` 或 `UCB_P2`，选择 `stickers_v3`，
+该历史运行链按球台侧将内部 P1 改名为 `UCB_P1` 或 `UCB_P2`，选择 `stickers_v3`，
 实时标定生成 `calibration/ucb_robot_to_pelvis.json`。
 
 Runner 到达 `PASSIVE` 后再操作：

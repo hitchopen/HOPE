@@ -9,6 +9,18 @@ For the supported HOPE policy runner, use [a3_deploy/](../a3_deploy/) and
 [RUN_ON_AGIBOT](../docs/RUN_ON_AGIBOT.md). Training and generated Isaac assets
 are documented in [A3_ASSETS.md](../A3_ASSETS.md), not built in this folder.
 
+## Critical vendor services
+
+HOPE's background cleanup deliberately stops the selected HDU camera app, not
+vendor startup/audio (`agent`, `hal_audio` and their watchdogs), the configured
+remote bridge (`hal_remote`) or status/IP display (`agibot_ui.service`). Earlier
+HOPE shutdowns of these dependencies were application-side policy, not vendor
+crashes. Preserve the vendor control/emergency chain and automatic-mode policy;
+do not disable them to save CPU. See the [service preservation and existing-robot
+recovery guide](../docs/operations/robot_runtime_policy.md#vendor-handheld-and-status-display),
+including the unverified E-stop continuity through HAL handover/maintenance.
+Process presence is not a substitute for physical safety verification.
+
 ## Folder map
 
 | Path | Contents and entry point |
@@ -105,32 +117,41 @@ survival.
 
 ### ChingMu / VRPN shell-v3 asset
 
-For the 17-sticker shell, import the single CMTracker definition
-[A3_v3_17_stickers.json](mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json).
-Its filename stem and internal `UCB_P1` body name match the Motive asset.
-It is byte-identical to the existing **V4 P1 runtime profile**; existing P1/P2
-runtime profiles remain unchanged for compatibility and share this geometry.
-Configure the site body name (`UCB_P1` or `UCB_P2`) and unique IDs in CMTracker
-as needed; a separate P2 release asset is not required.
+The unchanged 17-station print now has two distinct 12-sticker installations:
+[P1.json](mocap_sticker_shell_v3/vrpn_asset/P1.json) and
+[P2.json](mocap_sticker_shell_v3/vrpn_asset/P2.json), internally named
+`UCB_P1` / `UCB_P2`. Each matches its updated **V4 runtime profile** byte-for-byte.
+Use the matching [installation map](mocap_sticker_shell_v3/output/pdf/A3_marker_shell_v3_instructions.pdf).
+Seven stations are shared; shared-only observations remain ambiguous. The
+matching [OptiTrack P1/P2 pair](mocap_sticker_shell_v3/motive_asset/README.md)
+uses the same CAD centres in native Y-up metres. Historical all-17 imports do
+not match these 12-sticker installations.
 
-The **v3 CAD folder and V4 runtime/dropdown label name the same 17-sticker
+The **v3 CAD folder and V4 runtime/dropdown label name the same 17-station
 hardware**, not the retired ten-ball V3 layout. Its `markerPose` values are
 the nominal sticker optical centres in `pelvis_link`, expressed in
 millimetres with **X forward, Y left, Z up**. Do not subtract the centroid,
 add a second marker-to-pelvis offset, or apply Motive's Y-up conversion.
-For either table side, retain the same pelvis-local geometry, not a mirrored shell.
+For either table side, retain the same pelvis-local frame; select the correct
+subset without mirroring or rotating the shell's coordinates.
 
 Importing the JSON configures the CMTracker server; VRPN subsequently sends
 poses and supplies no ModelDef for an automatic geometry check. Verify
 CMTracker import/re-export, installed markers, pivot and axes, then separately
 commission the server's global world/table coordinates. This nominal asset
-does not certify physical calibration or replace the optional measured
-Motive/NatNet workflow below. Follow the
+does not certify physical calibration. The legacy measured Motive/NatNet
+workflow below still requires all 17 sites and cannot calibrate this pair. Follow the
 [asset package README](mocap_sticker_shell_v3/vrpn_asset/README.md)
 and [VRPN operation guide](../docs/operations/vrpn_pants_profiles.md) for the
 V4 selection, unit settings and confirmation gates.
 
 ### V3 sticker P1-to-pelvis calibration
+
+**Legacy all-17 measured procedure:** this section is not applicable to the
+current 12-marker P1/P2 installations. Use the new
+[Motive pair and import checks](mocap_sticker_shell_v3/motive_asset/README.md)
+for those. Optional `motive_asset` now checks the selected 12-marker pattern;
+`stickers_v3` measured receipts have not been extended to these subsets.
 
 This is the optional measured-calibration workflow. Default `motive_live`
 localization uses the current named ModelDef without a file/hash/layout pin
@@ -140,7 +161,7 @@ or saved calibration JSON. The supplied asset is already `UCB_P1`; use
 See the [current shell/runtime notes](mocap_sticker_shell_v3/README.md).
 
 
-The current sticker profile uses **17 round 12 mm stickers**, with station IDs
+This legacy measured profile uses **17 round 12 mm stickers**, with station IDs
 **S04-S08, S11-S22** (original IDs, not renumbered), and the canonical
 [sticker optical-centre table](mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv).
 Both calibration tools read this single table; `colcon` installs it with
@@ -160,28 +181,14 @@ Migration prerequisites:
 
 1. Fit and inspect the v3 shell and all 17 stickers. Use sticker mode
    only; 12 mm balls require a separately measured ball-centre table/profile.
-2. Test-import [A3_v3_17_stickers.motive](mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
-   into an isolated Motive project first. This native candidate already contains
-   all 17 stations, is named `UCB_P1` internally, and targets the CAD
-   `pelvis_link` origin. Confirm the marker count and unique streaming ID `9`;
-   the retained source UUID can replace an existing body on import.
-   Rename the imported body to `UCB_P1` or `UCB_P2` for the selected table side;
-   keep its aligned geometry and choose the `stickers_v3` calibration profile.
-   Set Motive Streaming Up Axis to **Z Up**, keep the bridge's MODELDEF
-   Y-up-to-Z-up conversion enabled, and do not add a second pose rotation.
-   The original 12 measured points are unchanged; restored S06/S07/S08/S15/S17
-   are CAD-nominal and have no source observations. The learned graph cache is
-   omitted rather than fabricated; native acceptance must be checked. If rejected,
-   use the documented Motive API authoring path in the shell README.
-   Import/re-export and live validation are still required. Enable rigid bodies
-   and labeled markers; do not reset the aligned pivot or orientation.
-   The companion CSV is not the import file. The separate
-   [ideal CAD authoring definition](mocap_sticker_shell_v3/motive_asset/P1_stickers_definition.json)
-   and [identity default](mocap_sticker_shell_v3/motive_asset/P1_to_pelvis_link_default.json)
-   are references, not approved receipts. Do not import the unfiltered
-   `motive_asset/source/A3.motive` export. See the
-   [shell asset section](mocap_sticker_shell_v3/README.md#supplied-optitrack-asset-and-station-evidence)
-   for provenance and the measured-point correspondence.
+2. This legacy measured procedure requires a separately validated native body
+   matching **all 17 installed stickers** and the canonical table. Current
+   P1/P2 imports intentionally contain only 12 markers and cannot be used here.
+   Historical 17-point exports are regression fixtures, not deployment files.
+   Set Motive Streaming Up Axis to **Z Up**, retain the MODELDEF Y-up-to-Z-up
+   conversion and confirm the selected `UCB_P1` / `UCB_P2` name and unique
+   streaming ID. Validate the pivot, orientation and live marker correspondence;
+   do not hand-approve an identity reference or import a historical test fixture.
 3. Restart the NatNet adapter after changing the asset so MODELDEF is fresh.
    Use verified retained Sxx names when available; otherwise the calibrator matches
    geometry with ambiguity/residual gates. Stream order and numeric member

@@ -1,0 +1,176 @@
+<?xml version='1.0' encoding='utf-8'?>
+<profile version="1">
+  <node_assets>
+    <rigid_body version="1001" id="f3c0f5443b115d2e:82089ba298fe58d8">
+      <properties>
+        <property name="NodeName" value="UCB_P2" default_value="UCB_P2" />
+        <property name="AssetName" value="UCB_P2" />
+        <property name="JointName" value="UCB_P2" />
+        <property name="ParentInfo" value="None" />
+        <property name="ChildInfo" value="S04" />
+        <property name="DegreesOfFreedom" value="T:XYZ + R:XYZ" />
+        <property name="SyntheticLabelGraphScale" value="1.000000" default_value="1.000000" />
+        <property name="Color" value="4294934766" />
+        <property name="ShowBones" value="true" default_value="true" />
+        <property name="BoneColor" value="65793" />
+        <property name="ShowAxis" value="true" default_value="true" />
+        <property name="ShowMarkerLines" value="true" default_value="true" />
+        <property name="UserData" value="10" default_value="10" />
+      </properties>
+      <constraints>
+        <constraint name="S04" id="346541d826c8500e:835d41e1bf5b56da" member_id="1" joint_name="UCB_P2">
+          <offset>-0.023680990,-0.061630517,-0.072053090</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S05" id="68905620da795b3e:acac69fb5ce783ef" member_id="2" joint_name="UCB_P2">
+          <offset>-0.067166397,-0.054581659,-0.047266147</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S06" id="f93795d1d09056f6:859fe5964f579b3f" member_id="3" joint_name="UCB_P2">
+          <offset>-0.079001398,-0.057603870,0.001320496</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S07" id="1b3350d7ac365d16:9171f6ecd1a849ff" member_id="4" joint_name="UCB_P2">
+          <offset>-0.063805908,-0.060498038,0.052205169</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S08" id="b1532df9b5f05bfa:af431ba9b30ef7f2" member_id="5" joint_name="UCB_P2">
+          <offset>-0.019874543,-0.054669064,0.072035522</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S11" id="a41c3de4ecb75533:a474876c6a9ce723" member_id="6" joint_name="UCB_P2">
+          <offset>0.068681054,-0.093371537,-0.013752572</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S12" id="09d20f6861d45c43:9c3191f0d58c5967" member_id="7" joint_name="UCB_P2">
+          <offset>0.055717983,-0.102705623,-0.068987617</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S15" id="60c037282fc15869:865af1307ed5ba81" member_id="8" joint_name="UCB_P2">
+          <offset>-0.077885198,-0.097023108,-0.044044970</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S17" id="4db36fb989cc5b30:8adceb86d9508019" member_id="9" joint_name="UCB_P2">
+          <offset>-0.065029671,-0.099352277,0.065130802</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S18" id="0472634815735b12:a1865158a725b583" member_id="10" joint_name="UCB_P2">
+          <offset>-0.022709647,-0.089897553,0.083579602</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S20" id="78e97b1de2055623:8ff27e0b54389ac0" member_id="11" joint_name="UCB_P2">
+          <offset>0.066487736,-0.093037623,0.030621789</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="S22" id="9c205b81280458d8:832fd5c6f5d52d79" member_id="12" joint_name="UCB_P2">
+          <offset>0.079112904,-0.156402891,0.034871230</offset>
+          <active_id>0</active_id>
+          <diameter>0.012</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+      </constraints>
+      <marker_sticks>
+        <marker_stick origin="S04" end="S05" color="1 1 1" />
+        <marker_stick origin="S04" end="S06" color="1 1 1" />
+        <marker_stick origin="S04" end="S07" color="1 1 1" />
+        <marker_stick origin="S04" end="S08" color="1 1 1" />
+        <marker_stick origin="S04" end="S11" color="1 1 1" />
+        <marker_stick origin="S04" end="S12" color="1 1 1" />
+        <marker_stick origin="S04" end="S15" color="1 1 1" />
+        <marker_stick origin="S04" end="S17" color="1 1 1" />
+        <marker_stick origin="S04" end="S18" color="1 1 1" />
+        <marker_stick origin="S04" end="S20" color="1 1 1" />
+        <marker_stick origin="S04" end="S22" color="1 1 1" />
+        <marker_stick origin="S05" end="S06" color="1 1 1" />
+        <marker_stick origin="S05" end="S07" color="1 1 1" />
+        <marker_stick origin="S05" end="S08" color="1 1 1" />
+        <marker_stick origin="S05" end="S11" color="1 1 1" />
+        <marker_stick origin="S05" end="S12" color="1 1 1" />
+        <marker_stick origin="S05" end="S15" color="1 1 1" />
+        <marker_stick origin="S05" end="S17" color="1 1 1" />
+        <marker_stick origin="S05" end="S18" color="1 1 1" />
+        <marker_stick origin="S05" end="S20" color="1 1 1" />
+        <marker_stick origin="S05" end="S22" color="1 1 1" />
+        <marker_stick origin="S06" end="S07" color="1 1 1" />
+        <marker_stick origin="S06" end="S08" color="1 1 1" />
+        <marker_stick origin="S06" end="S11" color="1 1 1" />
+        <marker_stick origin="S06" end="S12" color="1 1 1" />
+        <marker_stick origin="S06" end="S15" color="1 1 1" />
+        <marker_stick origin="S06" end="S17" color="1 1 1" />
+        <marker_stick origin="S06" end="S18" color="1 1 1" />
+        <marker_stick origin="S06" end="S20" color="1 1 1" />
+        <marker_stick origin="S06" end="S22" color="1 1 1" />
+        <marker_stick origin="S07" end="S08" color="1 1 1" />
+        <marker_stick origin="S07" end="S11" color="1 1 1" />
+        <marker_stick origin="S07" end="S12" color="1 1 1" />
+        <marker_stick origin="S07" end="S15" color="1 1 1" />
+        <marker_stick origin="S07" end="S17" color="1 1 1" />
+        <marker_stick origin="S07" end="S18" color="1 1 1" />
+        <marker_stick origin="S07" end="S20" color="1 1 1" />
+        <marker_stick origin="S07" end="S22" color="1 1 1" />
+        <marker_stick origin="S08" end="S11" color="1 1 1" />
+        <marker_stick origin="S08" end="S12" color="1 1 1" />
+        <marker_stick origin="S08" end="S15" color="1 1 1" />
+        <marker_stick origin="S08" end="S17" color="1 1 1" />
+        <marker_stick origin="S08" end="S18" color="1 1 1" />
+        <marker_stick origin="S08" end="S20" color="1 1 1" />
+        <marker_stick origin="S08" end="S22" color="1 1 1" />
+        <marker_stick origin="S11" end="S12" color="1 1 1" />
+        <marker_stick origin="S11" end="S15" color="1 1 1" />
+        <marker_stick origin="S11" end="S17" color="1 1 1" />
+        <marker_stick origin="S11" end="S18" color="1 1 1" />
+        <marker_stick origin="S11" end="S20" color="1 1 1" />
+        <marker_stick origin="S11" end="S22" color="1 1 1" />
+        <marker_stick origin="S12" end="S15" color="1 1 1" />
+        <marker_stick origin="S12" end="S17" color="1 1 1" />
+        <marker_stick origin="S12" end="S18" color="1 1 1" />
+        <marker_stick origin="S12" end="S20" color="1 1 1" />
+        <marker_stick origin="S12" end="S22" color="1 1 1" />
+        <marker_stick origin="S15" end="S17" color="1 1 1" />
+        <marker_stick origin="S15" end="S18" color="1 1 1" />
+        <marker_stick origin="S15" end="S20" color="1 1 1" />
+        <marker_stick origin="S15" end="S22" color="1 1 1" />
+        <marker_stick origin="S17" end="S18" color="1 1 1" />
+        <marker_stick origin="S17" end="S20" color="1 1 1" />
+        <marker_stick origin="S17" end="S22" color="1 1 1" />
+        <marker_stick origin="S18" end="S20" color="1 1 1" />
+        <marker_stick origin="S18" end="S22" color="1 1 1" />
+        <marker_stick origin="S20" end="S22" color="1 1 1" />
+      </marker_sticks>
+    </rigid_body>
+  </node_assets>
+</profile>

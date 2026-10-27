@@ -154,7 +154,7 @@ distinct Wi-Fi addresses whenever the robot, Laptop, or venue changes:
 A3 unit                                          External computer
   AimRT apps ⇄ iceoryx (local SHM)
             ⇄ ROS2/FastDDS domain 232  ──┐
-  hope_monitor.py (health, E-stop, scene) ──┤
+  hope-monitor C++ (health, E-stop, scene) ┤
   fleet foxglove_bridge ─────────────────┴── ws://<robot-ip>:8765 ──► monitoring / E-stop
   Runner observer + command proxy ◄──► native Runner request/state
   attended control bridge ─────────────── ws://<robot-ip>:8766 ──► A3 Console
@@ -181,7 +181,8 @@ foxglove/
     |-- bridge_params_control.yaml   attended control endpoint on 8766
     |-- fastdds_bridge_profile.xml   UDPv4-only, address-agnostic host profile
     |-- network.env.example          one-place Laptop static-peer configuration
-    |-- hope_monitor.py              health, scene and assert-only E-stop monitor
+    |-- native/monitor.cpp           native health, scene and assert-only E-stop monitor
+    |-- native/mocap_config_transport.cpp read-only native configuration snapshot relay
     |-- hope_observer.py             normalized Runner/operator state publisher
     |-- hope_command_proxy.py        fixed Runner and calibration service proxy
     |-- hope_lifecycle_supervisor.py fixed process lifecycle authority
@@ -231,17 +232,19 @@ live captures and scratch build outputs are not deployment assets.
 
 Every managed START (including KERNEL mode) completes read-only preflight, then
 runs the mutating HDU `BACKGROUND` step before launching Planner, HAL or Runner.
-It stops only vendor `agent`, `hal_audio`,
-`hal_hdu_camera`, their explicitly matched voice/audio watchdogs, and
-`agibot_ui.service`. These camera, voice and UI processes consumed substantial
-CPU during field operation and detached watchdogs could restart them after a
-vendor StopApp call.
+HOPE deliberately stops only `hal_hdu_camera` and exact matched camera-process
+leftovers. These are application-side shutdowns, not proof of vendor crashes.
+`agent`, `hal_audio`, their watchdogs, `hal_remote` and `agibot_ui.service` are
+not cleanup targets, and their presence does not reject START. Earlier cleanup
+stopped startup/audio/UI dependencies; a missing `agent` was reproduced as a
+vendor startup rollback. Preserve the control/emergency dependencies and vendor
+automatic-mode policy rather than disabling them as a CPU optimization.
 
-The guard first terminates the matched watchdogs, then calls the local vendor
-process manager's StopApp API. It sends SIGTERM to exact command/config matches
+The guard calls the local vendor process manager's StopApp API for the camera
+only. It sends SIGTERM to exact camera command/config matches
 left outside the manager, checking process identity with pidfds. It requires a
-continuous two-second quiet window; RPC errors, failed stops, respawning
-processes or insufficient UI-stop privileges reject START with
+continuous two-second quiet window; RPC errors, failed stops or respawning
+allowlisted processes reject START with
 `UNRELATED_BACKGROUND_NOT_STOPPED`. The HDU background-step timeout is 180 seconds to
 cover the bounded vendor calls. Drive HAL, process manager, emergency-stop,
 local networking, clock and recording processes are outside the cleanup allowlist.
@@ -253,9 +256,22 @@ Deploy `helpers/hope_catch_background.py` beside the HDU's installed
 `a3/hope_lifecycle_supervisor.py`. Preserve each robot's existing hardware,
 path and network configuration when updating the helper. The guard requires
 Linux/Python pidfd support and access to the existing localhost vendor process
-manager on port 50081. If the UI service is active, the lifecycle account must
-already be allowed to run `sudo -n systemctl stop agibot_ui.service`; otherwise
-START fails rather than continuing with the UI running. The base cleanup does not install sudo rules or change vendor launch defaults.
+manager on port 50081. An active vendor UI does not reject START, and normal
+cleanup neither probes nor stops it. The base cleanup does not install sudo
+rules or change vendor launch defaults. Existing disabled UI units, HOPE
+boot-blocking conditions and missing vendor app registrations require a
+separate, backed-up repair; installing this helper does not repair them.
+See [handheld preservation and upgrade checks](../docs/operations/robot_runtime_policy.md#vendor-handheld-and-status-display).
+The former UI-stop-only `70-upstream-startup-sudo.conf` override is no longer
+needed; follow [supervisor hardening recovery](../docs/operations/robot_runtime_policy.md#restoring-supervisor-hardening)
+to remove only that backed-up override and verify effective/running
+`NoNewPrivileges` protection. The optional cellular stop already supports it.
+Physical E-stop continuity during managed HAL handover and clock maintenance
+is not established by this fix. Until qualified during HOPE play, credit only
+the verified wired E-stop. The [required live START/STOP and clock-restore test](../docs/operations/robot_runtime_policy.md#required-live-validation-before-deployment)
+must also check whether restoring vendor services automatically activates
+`Manual`/native `mc` or joint control after STOP; HOPE `STOPPED` is not proof
+that the drives are disabled.
 The optional Wi-Fi-only installer permanently disables cellular and adds a narrow
 polkit stop rule. HDU preflight also requires the installed Wi-Fi policy helper;
 install its service/configuration together with the updated lifecycle helper.
@@ -389,15 +405,24 @@ robot.
 
 ```bash
 ssh "agi@$A3_HOST"
-# Build the small native data-plane tools (or copy a target-matched cross-build).
+# Build native telemetry, transport and monitor (or use a target-matched build).
 # This step does not start a process or issue a robot command.
 source /opt/ros/jazzy/setup.bash
-cmake -S ~/foxglove_a3/native -B ~/hope_field_native_build -DCMAKE_BUILD_TYPE=Release
+# Use the real installed vendor SDK, never the isolated-test mock package.
+export CMAKE_PREFIX_PATH="/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package:${CMAKE_PREFIX_PATH}"
+cmake -S ~/foxglove_a3/native -B ~/hope_field_native_build \
+  -DCMAKE_BUILD_TYPE=Release -DHOPE_MONITOR_REQUIRE_VENDOR_RPC=ON -DBUILD_TESTING=OFF
 cmake --build ~/hope_field_native_build -j2
+# Qualify from a full checkout using the isolated test instructions below.
+# This deployment build contains only runtime executables, not test tools.
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-monitor \
+  /usr/local/libexec/hope-monitor
 sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-imu-telemetry \
   /usr/local/libexec/hope-imu-telemetry
 sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-runner-transport-relay-native \
   /usr/local/libexec/hope-runner-transport-relay
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-mocap-config-transport \
+  /usr/local/libexec/hope-mocap-config-transport
 # The matching lifecycle helper executes the relay directly (without python3).
 # Deploy that helper together with the native relay; preserve venue configuration.
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/bridge_params.yaml \
@@ -409,8 +434,8 @@ sudo install -D -o root -g root -m 0644 ~/foxglove_a3/network.env.example \
 # Edit this one file and set ROS_STATIC_PEERS to the Laptop Wi-Fi address.
 # Re-check it after every venue or network change.
 sudoedit /etc/hope-foxglove/network.env
-sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_monitor.py \
-  /usr/local/bin/hope_monitor.py
+# Other Python services still import the pure shared helpers. Keep this module;
+# hope_monitor.py itself is a regression/reference implementation, not launched.
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_monitor_core.py \
   /usr/local/lib/hope-foxglove/hope_monitor_core.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-foxglove-bridge.service \
@@ -432,14 +457,243 @@ systemctl status hope-monitor hope-foxglove-bridge --no-pager
 High-rate IMU reception, clock display publication, and Runner/teleop transport
 run in C++. A fixed native wait set receives IMU data independently of the 20 Hz
 display timer. Original HDU `CLOCK_MONOTONIC` receipt time determines freshness;
-the three `/hope/clock` display topics have one native publisher. The Python
-node retains the independent safety endpoints and slower health checks. A lost
+the three `/hope/clock` display topics have one native publisher. The native
+`hope-monitor` service owns the independent safety endpoints and slower health checks. A lost
 IMU makes freshness false after 0.5 s; a lost native process makes the Console's
 latency stream stale after its existing 0.5 s receipt timeout. The relay starts after Runner, retains
 the original payload, and never replays commands on a timer. Both bridges use two
 executor threads. The laptop samples Xbox input at 50 Hz; TELEOP, enabled input,
 and mode transitions retain that rate, while inactive heartbeats and GUI preview
 use 10 Hz with immediate state edges. Runner's 200 ms watchdog is unchanged.
+
+### Native monitor migration and verification
+
+`hope-monitor.service` launches `/usr/local/libexec/hope-monitor`, built from
+`a3/native/monitor.cpp`. Its ROS node name, topic types, six Trigger services,
+configured frames, publication periods and `/hope/ntp/qualification` schema are
+preserved, with the explicit configuration/status differences below.
+Chrony/systemd/CPU probes run on four persistent, single-job workers outside ROS
+callbacks with bounded timeouts; probe exceptions (including failure to create a
+worker thread) report unavailable health rather than restarting the safety service.
+The independent emergency callback can still request both the vendor
+assert-only RPC and Runner emergency-PASSIVE, including when another probe is
+slow. No startup motion, service-manager handover, or automatic E-stop reset is
+introduced. `native_clock_topics=true` still leaves the clock topics exclusively
+with `hope-imu-telemetry`.
+
+An accepted E-stop immediately inhibits normal mode publication. A separate
+atomic assertion flag refuses duplicate triggers, **not** triggers arriving during
+reset: those wait for the running reset and then assert both available stop paths.
+Pending assertions keep mode publication inhibited even as the preceding reset
+clears its old latch. Reset during an assertion (including one waiting for reset)
+is refused. Assertion/reset stay serialized through persistence and RPC completion.
+An already-running reset/unlink can delay the new assertion; this is not a bounded
+physical-stop latency guarantee.
+
+After any preceding reset finishes, the monitor attempts the available stop send
+calls **before its own** shared-state cleanup, status/log publication or latch
+file/directory sync. A separate short dispatch lock orders an already-started mode
+**send call** before stop **send calls**; no health probe, filesystem operation or
+RPC wait holds that lock. Topic and service requests use separate DDS writers,
+so this does **not** guarantee their arrival/execution order at the Runner. The
+Runner's own emergency inhibit remains necessary; these legacy `/hope/control/*`
+services are not exposed by either bridge. Vendor discovery grace never delays an
+available Runner request. Slow assertion-latch sync can delay the Trigger response
+but not the preceding stop send calls. Persistence failure retains the in-memory
+inhibit. No software response independently proves actuator stop.
+
+The HDU status dot defaults to `hope-lifecycle-supervisor.service`, matching the
+consolidated field deployment. A split installation should explicitly set
+`hdu_runtime_unit:=hope-observer.service`; this differs from the repository Python
+reference default, not the backed-up field configuration. Network-change
+detection retains Python's **global-scope IPv4** behavior (kernel scope, not an
+address-prefix guess); link-scope-only changes do not restart the monitor.
+The monitor and mocap-config relay now use one bounded reader in
+`native/network_addresses.hpp`: the monitor projects global-scope
+index/name/address identity; the relay projects all-scope name/address pairs.
+A disappearing interface name makes a dump incomplete instead of fabricating an
+address removal: the monitor's periodic poll warns/retries, while the relay keeps
+its existing clean-exit/restart-on-probe-failure behavior. Both projections have
+comparison tests against `ip -j -4 address show`; scope filtering also has native
+regression coverage.
+Backend full/partial/unavailable transitions, assert/reassert outcomes and
+calibration start/success-SHA/failure are journalled. Malformed inputs and failed
+chrony/CPU probes produce throttled warnings. Error codes and missing-detail
+fallbacks are retained; descriptive labels do not name obsolete models or marker
+layouts.
+
+Runtime edits of clock limits, freshness/calibration timeouts, frames and monitored
+systemd unit names take effect on subsequent observations. Topics/client names,
+latch path, native-clock ownership, TF-fallback choice and timer periods/rates are
+startup-only **read-only ROS parameters**: changing them requires a stopped-state
+monitor restart, rather than an acknowledged but ignored parameter update.
+
+For an existing robot, first build against its **real** vendor SDK with
+`HOPE_MONITOR_REQUIRE_VENDOR_RPC=ON` and `BUILD_TESTING=OFF` (the defaults).
+Back up the installed monitor unit, its drop-ins,
+old executable/source and hashes. Do not replace venue configuration or the
+consolidated operations supervisor with sample units. Preserve every installed
+monitor parameter/environment setting; replace only the old Python invocation
+with `exec /usr/local/libexec/hope-monitor` and install the matching binary.
+Keep the old unit/source as a rollback copy rather than deleting it first.
+
+Switch only during an attended, stopped maintenance interval: fresh lifecycle
+`STOPPED`, lifecycle/time-calibration not busy, no HOPE Runner, and a mechanically
+supported/stopped robot with an operator at an independently verified wired
+E-stop. Recheck immediately before the monitor-only restart. This briefly removes
+the monitor's software endpoint; do not perform it during play or while an
+emergency request is outstanding. Do not restart vendor PM, HAL, operations,
+controller, or clock services as part of this change. Never clear
+`/var/lib/hope-monitor/estop-latched` to make a performance test pass. Run only
+one production monitor; any side-by-side candidate must isolate **all** outputs,
+control services and command clients from the robot graph.
+
+After the switch, verify the live executable, zero unexpected restarts, exactly
+one publisher per monitor topic, qualified clock evidence with advancing original
+observation times, correct stale/future-pose rejection, persistent latch state and
+the advertised partial/full backend distinction. Compare CPU over matched
+intervals, not while building. If compatibility or backend readiness regresses,
+restore only the backed-up monitor unit/executable and restart that unit while
+still stopped. Process presence/RPC readiness does not prove physical E-stop
+operation; this port does not resolve or qualify the existing handheld path
+through the MDU PM handover.
+
+Maintained offline checks (no robot access): CTest exercises native parsing,
+assert-only protobuf bytes, malformed replies, bounded probes, persistence and
+persistent-worker reuse/error recovery/bounded admission.
+`tests/test_native_monitor_ros.py` checks the ROS graph, high-rate pose input,
+source timestamps/staleness, legacy calibration sequencing, mock dual stop paths,
+reassertion, persistence/restart, explicit reset, Runner-only handover, vendor and
+Runner timeouts/rejections, concurrent assertions/reset, runtime parameters and
+health continuity under busy callbacks and deliberately slow storage. A test-only
+preload library injects slow `fsync`, paused reset/unlink and CPU-read failure; it is never installed
+or linked into the runtime. These ROS tests refuse to run unless localhost-only
+domain **219** is explicitly selected. The unit-file test is separate and runs
+without ROS. Native core tests live under `tests/native`; all test drivers,
+fault injection and mock RPC sources stay under `tests`, outside the deployment
+sources. `BUILD_TESTING=ON` explicitly opts into these tools and requires the full
+matching checkout. To test in an isolated ROS development environment:
+
+```bash
+task_dir="$(mktemp -d /tmp/hope-monitor-test.XXXXXX)"
+source /opt/ros/jazzy/setup.bash
+colcon --log-base "$task_dir/log" build \
+  --base-paths foxglove/tests/fixtures/monitor_rpc_mock \
+  --build-base "$task_dir/mock-build" --install-base "$task_dir/mock-install"
+source "$task_dir/mock-install/setup.bash"
+cmake -S foxglove/a3/native -B "$task_dir/native" \
+  -DCMAKE_BUILD_TYPE=Release -DHOPE_MONITOR_REQUIRE_VENDOR_RPC=ON -DBUILD_TESTING=ON
+cmake --build "$task_dir/native" -j2
+ctest --test-dir "$task_dir/native" --output-on-failure
+env -u FASTRTPS_DEFAULT_PROFILES_FILE -u FASTDDS_DEFAULT_PROFILES_FILE \
+  ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=219 HOPE_NATIVE_BIN_DIR="$task_dir/native" \
+  python3 -m pytest -c /dev/null -p no:cacheprovider \
+  foxglove/tests/test_native_monitor_ros.py foxglove/tests/test_native_transport_ros.py
+env -u FASTRTPS_DEFAULT_PROFILES_FILE -u FASTDDS_DEFAULT_PROFILES_FILE \
+  ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=229 HOPE_NATIVE_BIN_DIR="$task_dir/native" \
+  python3 -m pytest -c /dev/null -p no:cacheprovider \
+  foxglove/tests/test_mocap_config_transport_ros.py
+```
+
+The mock package is **test-only**: never install it or its linked test binaries
+or the fault-injection library on A3. Production must use the actual vendor SDK.
+An explicit `-DHOPE_MONITOR_REQUIRE_VENDOR_RPC=OFF` allows a degraded development
+build without that SDK; it must not replace a production monitor.
+`hope_monitor.py` remains a non-launched compatibility/reference fixture;
+`hope_monitor_core.py` is still
+imported by other Python services and must remain installed. Port shared parsing,
+wire-schema and health-rule fixes to the C++ and Python helpers with matching
+regression tests in the same change.
+
+**Latest stopped-state verification, 2026-10-27:** validation passed 21 local
+native monitor/transport tests, seven config
+relay tests and 225 selected compatibility regressions; A3's real-SDK build passed
+19 isolated monitor tests, seven relay tests and ten consecutive core-test runs.
+After explicit deployment/support/stopped/operator confirmation, only the two
+binaries were replaced and those two services restarted. Their units, peer
+drop-in and venue settings were byte-identical to the backups. Latest installed
+SHA-256 values are:
+
+- `hope-monitor`: `375f27503878e6f3caf59a3648a8a69c62e7b531091869d36571d61a7dabc60f`
+- `hope-mocap-config-transport`: `f15f7dd30d3f64a540f2216cc8158716c63ea4ecc80b84fd6b279763a2a5f84e`
+
+The preceding binaries/units are recoverable under
+`/var/backups/hope-native-review-followup.w209qK` on HDU. Read-only post-switch
+checks confirmed STOPPED/idle, zero unexpected service restarts, unique
+publishers, advancing qualified NTP evidence and unchanged readiness/latch
+verdicts. The config relay forwarded 31/31 original snapshots in 15 seconds with
+the same payload hash as before. Operations, IMU, both vendor PMs and handheld
+service PIDs were unchanged; the Python transport remains absent from deployment.
+No live E-stop assertion/reset, motion or START/STOP qualification was performed.
+Send-call ordering is not a cross-writer DDS receive-order or physical-stop proof.
+The reset/trigger regression was reproduced against the old binary in isolation
+and verified fixed, including five focused repetitions. Both network projections
+were compared with `ip -j -4` on Linux and A3. Physical network disconnect,
+long-duration operation and active-play qualification remain separate.
+Short monitor CPU samples were 12.7% of one core for Python and approximately
+8–10% for C++; differing workloads and short windows do not establish an endurance
+or active-play speedup.
+
+### Native mocap configuration transport
+
+The optional `hope-mocap-config-transport.service` now launches
+`/usr/local/libexec/hope-mocap-config-transport`, built with the other native tools
+above. It remains a **read-only** late-started HDU DDS participant, not a new
+lifecycle/configuration authority. It forwards each `std_msgs/String` from
+`/hope/lifecycle/config/mocap` to `/hope/lifecycle/config/mocap_transport` unchanged,
+with reliable/volatile depth-10 QoS. JSON, timestamps, revisions, whitespace and
+even malformed input are not decoded or rewritten. There is no startup snapshot,
+timer replay, retained config, or parameter/control service. A framework-only ROS
+type-description query may be present.
+
+Every second it compares sorted non-loopback `(interface name, IPv4 address)`
+pairs, including all address scopes, matching the replaced implementation.
+The native implementation uses a bounded kernel address dump, not an `ip`
+subprocess per poll. An address change or failed probe exits cleanly with status
+1; the existing `Restart=on-failure` / `RestartSec=2` recreates **only this relay**.
+It never restarts the supervisor or changes its hardware lock/session. Input loss
+still expires the Laptop receiver's existing three-second configuration freshness
+check; the relay must never manufacture freshness. Input/output remapping to the
+same topic is rejected to prevent a self-loop.
+
+This service remains optional: do not enable it automatically on installations
+that do not use it. For an existing deployment, back up its unit, **all drop-ins**,
+old script/binary and hashes. Preserve the installed environment, peer wrapper,
+ROS domain and network configuration. Replace only the Python invocation in the
+effective ExecStart (including any drop-in override) with the native executable;
+do not overwrite venue peer settings with the example unit. Switch only with
+fresh lifecycle STOPPED/idle, no Runner, and supported/stopped A3 with an operator
+at a verified wired E-stop. Run `daemon-reload` and restart only this transport
+unit. Other monitoring, operations, vendor and controller services must remain
+untouched.
+
+Verify exactly one native relay child (the unit's MainPID may be its waiting
+network wrapper), unique source/output publishers and byte-identical snapshots
+at the original rate. Do not confirm a new config or publish synthetic snapshots
+into the production domain as a migration test. After successful verification,
+move `/usr/local/libexec/hope_mocap_config_transport.py` out of the deployment path
+into the rollback backup; no active unit/drop-in should still reference it. The
+obsolete implementation is removed from the repository. To roll back while still
+stopped, restore the saved script and matching unit/drop-ins, reload systemd and
+restart only this relay.
+
+`tests/test_mocap_config_transport_ros.py` exercises the production executable's
+payload/order/QoS behavior, silence/late-subscriber/restart non-replay, loop
+rejection and kernel address parity with the old `ip -j -4` projection. A
+**non-installed** test driver links the same node/timer implementation and injects
+address changes/probe errors without changing real networking. Run with
+`ROS_DOMAIN_ID=229 ROS_LOCALHOST_ONLY=1 HOPE_NATIVE_BIN_DIR=<native build>`;
+the unit-file test also runs without ROS. Mac `test-ros` builds the relay and its
+test driver before running this suite. Neither the driver nor test fixtures are
+installed on robots.
+
+Final build identities and stopped-state results are recorded in the monitor
+verification section above. The Python transport script/unit/drop-ins remain
+recoverable under `/var/backups/hope-mocap-config-native.Wlds6a` on HDU; the script
+is no longer deployed. Short relay-child CPU samples were 3.7% for Python and
+3.6% for C++ (one core): no meaningful reduction was established. Measure the
+actual child, not its waiting network wrapper. Laptop end-to-end recovery,
+physical network interruption and active play still need separate qualification.
 
 The read-only observer still evaluates every source and freshness gate at 5 Hz.
 Its 34 non-liveness Bool/String display statuses publish on every changed value;
@@ -480,8 +734,7 @@ before this procedure:
 sudo systemctl disable --now hope-foxglove-bridge hope-monitor
 sudo rm -f /etc/systemd/system/hope-foxglove-bridge.service \
   /etc/systemd/system/hope-monitor.service \
-  /usr/local/bin/hope_monitor.py \
-  /usr/local/lib/hope-foxglove/hope_monitor_core.py
+  /usr/local/libexec/hope-monitor
 sudo rmdir --ignore-fail-on-non-empty /usr/local/lib/hope-foxglove
 sudo rm -rf /etc/hope-foxglove
 sudo systemctl daemon-reload
@@ -581,7 +834,7 @@ The operator layouts contain no URDF and do not expose
 through the Foxglove bridges. `/hope/pelvis/tf` contains exactly one sanitized
 `world -> pelvis_link` transform. The 3D panel shows only a `world` grid, that
 Pelvis link and marker, and the ball marker.
-`hope_monitor.py` validates the configured `world -> pelvis_link` pose, publishes
+The native `hope-monitor` validates the configured `world -> pelvis_link` pose, publishes
 the structured/text status and standard visualization markers, and broadcasts
 only the root transform needed to place the pelvis status in the HOPE world.
 The Pelvis point and text markers expire after 0.5 seconds without a fresh
@@ -609,7 +862,7 @@ pose or TF provides a connected, fresh `world -> pelvis_link` path. Until then,
 grid without a Pelvis label. Do not add an identity transform unless calibration
 actually establishes that identity.
 
-**Pelvis position and rotation in text:** `hope_monitor.py` looks up the
+**Pelvis position and rotation in text:** the native `hope-monitor` looks up the
 transform `reference_frame -> pelvis_frame` (layout defaults `world ->
 pelvis_link`, both settable in `hope-monitor.service`) and publishes:
 
@@ -694,9 +947,9 @@ Runner `emergency_passive` service when available, and independently adds a
 fresh timestamp and trace ID, encodes the vendor
 `aimdk.protocol.EmergencyCommandReq`, and calls the live A3
 `HalEmergencyService/SetEmergencyCommand` endpoint with only
-`software_emergency_stop=true`. The HOPE proxy is dynamically advertised while
-either that vendor endpoint or the native Runner emergency-PASSIVE endpoint is
-matched and the local latch is clear. `/hope/safety/estop_ready` means at least
+`software_emergency_stop=true`. The assert-only HOPE proxy remains callable even
+when neither backend is matched, so an assertion can still establish the local
+inhibit and report unavailable backends. `/hope/safety/estop_ready` means at least
 one explicit stop path is callable; `/hope/safety/estop_full_ready` is true only
 when both independent paths are callable. A one-path state is always shown as
 `PARTIAL ONLY` and requires the physical E-stop.
@@ -704,21 +957,31 @@ The independent managed Runner emergency service is attempted whenever it is
 available, but its absence never suppresses the primary vendor stop; that case
 returns an explicit `PARTIAL E-STOP` result.
 
-Success requires both independent paths: the managed runner must be confirmed
+Full dual-path acceptance requires both independent paths: the managed runner must be confirmed
 stopped, AimRT's `RosRpcWrapper.code` must be zero, and the protobuf
 `EmergencyCommandRsp.header.code` inside the returned `data` must decode to
-zero. A nonzero application code, unexpected serialization,
-missing header, or malformed payload is reported as failure; the vendor
+zero. `Trigger.success` can also be true for one accepted path, with an explicit
+`PARTIAL E-STOP` result; it must not be interpreted as full-path or physical-stop
+proof. A nonzero application code, unexpected serialization,
+missing header, or malformed payload fails that backend; the vendor
 message is included when present. The service callback does not hold the
 readiness lock while waiting up to 2 seconds for the vendor RPC, so NTP, CPU,
 TF, and other monitor timers continue publishing during the call. A concurrent
-second E-stop request is rejected while the first remains in progress. The
+second E-stop request is rejected while the first remains in progress. An E-stop
+arriving during a reset is inhibited immediately, waits for that reset, then
+asserts; reset during an assertion is refused. The
 Runner emergency action bypasses the ordinary operator-action lock, so a long
 calibration cannot prevent the independent command-source removal request.
-Before either backend call completes, the monitor stores an assert-only latch
-at `/var/lib/hope-monitor/estop-latched`; `/hope/safety/estop_latched` remains
-true across monitor restarts and the console follows this authoritative state
-instead of a browser-local flag. Even when both requests succeed, this
+The in-memory inhibit is set before dispatch. The monitor attempts both available
+stop send calls, then durably stores the assert-only latch at
+`/var/lib/hope-monitor/estop-latched`, without waiting for RPC responses first.
+A backend may already have completed by the time storage finishes. A storage
+failure retains the in-memory inhibit, forces a failed Trigger response and
+requires physical E-stop/recovery; persistence across a monitor crash cannot then
+be assumed. When persistence succeeds, `/hope/safety/estop_latched` remains true
+across monitor restarts, and the Console follows this authoritative state rather
+than a browser-local flag. Local dispatch order does not guarantee receive order
+across the separate DDS topic/service writers. Even when both requests succeed, this
 repository has no independent actuator-state
 feedback, so the response explicitly requires checking the physical E-stop.
 
@@ -726,10 +989,11 @@ feedback, so the response explicitly requires checking the physical E-stop.
 - The fleet bridge allowlists only the assert-only E-stop service; the attended
   bridge has a separate fixed Runner allowlist. Arbitrary services, parameters,
   and client-published topics remain blocked.
-- There is deliberately no remote reset/release button. Inspect the robot and
-  use Agibot's approved local recovery procedure after an E-stop. Only after
-  the physical and vendor emergency state has been safely reset may an HDU
-  operator remove the fixed latch file and restart `hope-monitor.service`.
+- The attended bridge exposes **software-inhibit reset**, not vendor or hardware
+  E-stop release. It never sends a false vendor emergency bit or starts motion.
+  Inspect the supported/stopped robot and follow Agibot's approved physical/vendor
+  recovery procedure before explicitly resetting the HOPE software inhibit.
+  Do not delete the latch file to bypass a fault or a pending assertion.
 - If the vendor wrapper package or emergency service is absent, the proxy is
   removed and the Foxglove control is unavailable. If the vendor endpoint drops
   during a call or its response cannot be validated, the callback fails closed

@@ -39,7 +39,7 @@ Lifecycle schema 6 提供三个选项：无动捕、Motive（NatNet）、
 
 ## 青瞳 / CMTracker / VRPN
 
-- 按实物选择 V2（10 点）或 V4（17 点贴纸），导入
+- 按实物选择 V2（10 点）或 V4（17 孔壳体、P1/P2 各 12 点不同贴纸布局），导入
   `hope_ws/src/hope_bringup/config/pants_profiles/a3_<v2或v4>_<P1或P2>_ground_truth.json`。
   详细坐标约定见 [裤子与 CMTracker 设置](vrpn_pants_profiles.md)。
 - 名称仍为 `UCB_P1` / `UCB_P2` 与 `Ball`。保留 pelvis_link 原点及
@@ -76,4 +76,11 @@ revision。只替换扩展而未更新 supervisor 会导致新配置请求被旧
 
 主线 schema 3/4 依靠 operator_profile 区分于现场 schema 3/4，保留 Mac/Linux 与夹爪；现场 schema 4/5 保留裤子和已有动捕选项。旧五、六、七字段客户端更新网络时保留新选项。不会自动安装、启用或重启服务。
 
-可选的只读 mocap-config-transport 服务用于 HDU 网卡更换后重建 DDS participant；它沿用 /etc/hope-foxglove/network.env 和 fastdds_bridge_profile.xml，不固定现场 IP。它只转发原始配置消息，不伪造新鲜心跳。按需安装，正常网络不需要此服务。
+可选的只读 `hope-mocap-config-transport.service` 已改为 C++ 可执行文件
+`/usr/local/libexec/hope-mocap-config-transport`，用于 HDU 网卡更换后重建
+DDS participant。它沿用现场 `network.env`、DDS profile 和已有 peer wrapper，
+不固定现场 IP，不改变配置，只转发原始消息，不伪造新鲜心跳。
+仅在 STOPPED、有人看护时切换这一项服务；旧 Python 脚本在验证成功后移入
+回滚备份，不再部署或启动。按需安装，正常网络不需要启用此服务。
+构建、现场 drop-in 保留、隔离测试和回滚步骤见
+[原生配置传输部署说明](../../foxglove/README.md#native-mocap-configuration-transport)。

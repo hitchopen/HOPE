@@ -111,6 +111,14 @@ of a specific privilege change, not a request to disable service hardening on
 another robot. Use the current reviewed installation procedure and narrowly
 scoped permissions instead of copying a historical workaround blindly.
 
+**Superseded by the handheld-preservation cleanup:** the updated helper no
+longer runs the sudo-based UI stop. The override above is unnecessary for that
+purpose; back up and remove only that drop-in, then restore and verify
+`NoNewPrivileges=true` at an approved stopped-state restart/reboot. Preserve
+other robot-specific overrides. See [restoring supervisor hardening](robot_runtime_policy.md#restoring-supervisor-hardening)
+for the effective-unit and running-process checks; do not copy this historical
+privilege relaxation into a new deployment.
+
 Reported verification was limited to 27 cleanup/lifecycle tests, Bash syntax,
 the exact sudo command executed as `agi` in the service mount namespace, and
 KERNEL/OPTITRACK preflights returning COMPLETE with PASS cleanup receipts.

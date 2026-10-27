@@ -16,10 +16,17 @@ def test_assets_preserve_ground_truth_pelvis_origin():
     repo = Path(__file__).resolve().parents[4]
     csv_path = repo / 'agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv'
     rows = list(csv.DictReader(csv_path.open()))
-    assert profiles['v4']['marker_positions_m'] == [[float(r[k]) for k in ('x_m','y_m','z_m')] for r in rows]
-    for spec in profiles.values():
+    by_name = {r['marker_id']: [float(r[k]) for k in ('x_m','y_m','z_m')] for r in rows}
+    assert profiles['v4']['marker_count'] == 12
+    assert profiles['v4']['station_count'] == 17
+    assert profiles['v4']['assets']['P1']['marker_names'] != profiles['v4']['assets']['P2']['marker_names']
+    for asset in profiles['v4']['assets'].values():
+        assert asset['marker_positions_m'] == [by_name[n] for n in asset['marker_names']]
+    for profile, spec in profiles.items():
         # A nonzero centroid proves we did not recenter a pelvis-frame model.
-        assert abs(sum(p[2] for p in spec['marker_positions_m']) / spec['marker_count']) > .05
+        geometries = spec['assets'].values() if profile == 'v4' else [spec]
+        for geometry in geometries:
+            assert abs(sum(p[2] for p in geometry['marker_positions_m']) / spec['marker_count']) > .05
         assert spec['marker_to_pelvis_xyz_m'] == [0, 0, 0]
 
 
