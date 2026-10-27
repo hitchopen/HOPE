@@ -857,6 +857,10 @@ copy_into(serve_timeline.with_suffix(".recipe.json"), "motions")
 serve_previous = serve_timeline.parent / "a3p_op3_serve025_v22_branch90_model14600.csv"
 copy_into(serve_previous, "motions")
 copy_into(serve_previous.with_suffix(".recipe.json"), "motions")
+# Optional model12600 bundle retains its own exact policy/deploy binding.
+serve_12600 = serve_timeline.parent / "v23-12600.csv"
+copy_into(serve_12600, "motions")
+copy_into(serve_12600.with_suffix(".recipe.json"), "motions")
 # Regeneration input is kept outside the active motion directory.
 copy_into(serve_timeline.parent.parent / "archive" /
           "a3p_op3_serve025_edge_center_v20.csv", "archive")
