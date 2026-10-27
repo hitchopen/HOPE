@@ -97,6 +97,7 @@ class RacketPacket:
     estimator_sample_count: int
     estimator_span_s: float
     reason: str
+    home_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -107,7 +108,7 @@ class XHitStatus:
     x_hit_m: float | None
 
 
-def _finite_values(values: Sequence[float], expected_size: int, label: str) -> tuple[float, ...]:
+def _finite_values(values: Sequence[float], expected_size: int, label: str, schema: int = 2) -> tuple[float, ...]:
     try:
         decoded = tuple(float(value) for value in values)
     except (TypeError, ValueError) as exc:
@@ -118,8 +119,8 @@ def _finite_values(values: Sequence[float], expected_size: int, label: str) -> t
         )
     if not all(math.isfinite(value) for value in decoded):
         raise DecodeError(f"{label} contains a non-finite value")
-    if decoded[0] != 2.0:
-        raise DecodeError(f"{label} schema is {decoded[0]!r}; expected 2")
+    if decoded[0] != float(schema):
+        raise DecodeError(f"{label} schema is {decoded[0]!r}; expected {schema}")
     if decoded[1] not in (0.0, 1.0):
         raise DecodeError(f"{label} validity field is not 0 or 1")
     return decoded
@@ -203,9 +204,15 @@ def decode_base_packet(values: Sequence[float]) -> BasePacket:
 
 
 def decode_racket_packet(values: Sequence[float]) -> RacketPacket:
-    """Decode the frozen 19-double model_21800 racket-command schema."""
-
-    value = _finite_values(values, RACKET_SCHEMA_V2_SIZE, "racket schema-2 packet")
+    """Decode legacy, shared-HOME, and per-ball plane command packets."""
+    schema = {20: 4, 22: 5}.get(len(values), 2)
+    expected_size = {2: RACKET_SCHEMA_V2_SIZE, 4: 20, 5: 22}[schema]
+    value = _finite_values(values, expected_size, "racket packet", schema)
+    home_epoch = _exact_integer(value[19], "HOME epoch", minimum=int(value[1])) if schema in (4, 5) else 0
+    if schema in (4, 5) and value[11] != 0.0:
+        raise DecodeError("shared-HOME target must use world frame")
+    if schema == 5 and value[21] not in (1.0, 2.0):
+        raise DecodeError("dynamic plane mode must be current or posture-stable")
     command_sequence = _exact_integer(value[14], "command sequence")
     if value[1] == 0.0:
         return RacketPacket(
@@ -222,6 +229,7 @@ def decode_racket_packet(values: Sequence[float]) -> RacketPacket:
             estimator_sample_count=0,
             estimator_span_s=0.0,
             reason="producer marked racket packet invalid",
+            home_epoch=home_epoch,
         )
 
     if value[9] <= 0.0:
@@ -248,6 +256,7 @@ def decode_racket_packet(values: Sequence[float]) -> RacketPacket:
         estimator_sample_count=sample_count,
         estimator_span_s=value[18],
         reason="valid",
+        home_epoch=home_epoch,
     )
 
 

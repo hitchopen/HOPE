@@ -22,7 +22,7 @@ from hope_runner_control_core import action_succeeded, encode_runner_request
 def load_methods():
     tree = ast.parse((ROOT / "a3/hope_command_proxy.py").read_text())
     cls = next(item for item in tree.body if isinstance(item, ast.ClassDef)
-               and item.name == "HopeCommandProxy")
+               and item.name == "CommandProxyModule")
     names = {"_run_runner_action", "_runner_action_callback"}
     functions = [item for item in cls.body if isinstance(item, ast.FunctionDef)
                  and item.name in names]
@@ -57,6 +57,8 @@ class ProxyObserveOnlyTests(unittest.TestCase):
                 last_action_reason="OK", boot_id=1, state_sequence=2,
                 run_mode="PD_STAND", local_role="SERVER")
 
+        self.node._shared_state = SimpleNamespace(runner=SimpleNamespace(
+            snapshot=lambda: SimpleNamespace(value=self.node._runner_state, error=self.node._runner_state_error)))
         self.node._runner_request_publisher = SimpleNamespace(publish=publish)
         self.node._run_runner_action = lambda *a, **kw: METHODS["_run_runner_action"](self.node, *a, **kw)
 
