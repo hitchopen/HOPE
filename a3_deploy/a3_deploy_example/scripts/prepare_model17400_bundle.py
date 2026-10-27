@@ -16,6 +16,17 @@ DEPLOY_SHA = '1e2be028e503c19954d9b0414075a6698dc1e9db93adca73e5d9ea6026baea40'
 def digest(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def write(p,v):p.write_text(json.dumps(v,indent=2)+'\n')
 
+def restore_hardware_runtime(deployment):
+    """Restore MDU settings that generic Runner distributions may omit."""
+    source = Path(__file__).resolve().parents[1]/'src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.pingpong.hitter_pingpong.rockchip.yaml'
+    hardware = yaml.safe_load(source.read_text())
+    runtime = deployment/'config/a3_runtime_config.pingpong.hitter_pingpong.yaml'
+    config = yaml.safe_load(runtime.read_text())
+    for key in ('background_cpu', 'driver_cpu', 'serve_release_lead_frames'):
+        config[key] = hardware[key]
+    config['backend']['sync_cpu'] = hardware['backend']['sync_cpu']
+    runtime.write_text(yaml.safe_dump(config, sort_keys=False))
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--package',type=Path,required=True)
@@ -58,6 +69,10 @@ def main():
     # HOME publication was absent from some older distributions. Use this source's config.
     source_config = Path(__file__).resolve().parents[1]/'src/a3/a3_deploy_onnx_ref/config/a3_aimrt_config.pingpong_ros2body.yaml'
     shutil.copy2(source_config, out/'deployment/config'/source_config.name)
+    # ARM bundles target the Rockchip MDU. Do not inherit an unbound simulation
+    # runtime from runner-dist; restore hardware defaults before hashing files.
+    if machine == 183:
+        restore_hardware_runtime(out/'deployment')
     (out/'deployment/receive_only.policy_sha256').write_text(POLICY_SHA+'\n')
     write(out/'model17400.json',profile)
     identity={'policy_sha256':POLICY_SHA,'deploy_sha256':DEPLOY_SHA,'receive_only':True,'required_ball_model':'ppq004'}
