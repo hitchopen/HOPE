@@ -12,7 +12,7 @@ import motive_asset_contract as asset
 
 
 def message(points=None, name="UCB_P1", body_id=17):
-    points = asset.load_asset_points() if points is None else points
+    points = asset.load_asset_points(expected_name=name) if points is None else points
     return NS(rigid_body_name=name, rigid_body_id=body_id, markers=[
         NS(member_id=index, model_position=NS(x=x, y=y, z=z), has_live_sample=False)
         for index, (x, y, z) in enumerate(points)
@@ -27,7 +27,20 @@ def test_imported_asset_needs_no_live_fit_or_marker_visibility():
     assert len(digest) == 64 and 0 < identity < 2**52
     # A rigid-body ID/table-side change must produce different provenance.
     assert asset.verify_modeldef(message(body_id=18), "UCB_P1", points)[0] != digest
-    assert asset.verify_modeldef(message(name="UCB_P2"), "UCB_P2", points)[0] != digest
+    p2 = asset.load_asset_points(expected_name="UCB_P2")
+    assert asset.verify_modeldef(message(name="UCB_P2"), "UCB_P2", p2)[0] != digest
+
+
+def test_wrong_pattern_cannot_be_accepted_by_renaming_the_body():
+    p1 = asset.load_asset_points()
+    p2 = asset.load_asset_points(expected_name="UCB_P2")
+    with pytest.raises(ValueError, match="geometry"):
+        asset.verify_modeldef(message(points=p1, name="UCB_P2"), "UCB_P2", p2)
+    # Also catch a caller loading the wrong side's reference at startup.
+    with pytest.raises(ValueError, match="reference points"):
+        asset.verify_modeldef(message(points=p1, name="UCB_P2"), "UCB_P2", p1)
+    with pytest.raises(ValueError, match="geometry"):
+        asset.verify_modeldef(message(points=p2), "UCB_P1", p1)
 
 
 @pytest.mark.parametrize("kind", ["old_body", "missing", "duplicate", "translated", "rotated", "nan", "wrong_side"])
@@ -60,17 +73,21 @@ def test_standard_install_resolves_asset_without_source_tree(tmp_path, monkeypat
     module_path = prefix / "lib/hope_bringup/motive_asset_contract.py"
     module_path.parent.mkdir(parents=True)
     shutil.copyfile(SCRIPTS / "motive_asset_contract.py", module_path)
-    target = prefix / "share/hope_bringup/config/motive_assets" / asset.ASSET_FILENAME
-    target.parent.mkdir(parents=True)
-    shutil.copyfile(asset.asset_path(), target)
+    targets = {}
+    for name, (filename, _) in asset.ASSETS.items():
+        target = prefix / "share/hope_bringup/config/motive_assets" / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(asset.asset_path(name), target)
+        targets[name] = target
     spec = importlib.util.spec_from_file_location("installed_asset_contract", module_path)
     installed = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(installed)
     monkeypatch.chdir(tmp_path)
-    assert installed.load_asset_points() == asset.load_asset_points()
-    target.write_bytes(target.read_bytes() + b"\n")
-    with pytest.raises(ValueError, match="SHA-256"):
-        installed.load_asset_points()
+    for name, target in targets.items():
+        assert installed.load_asset_points(expected_name=name) == asset.load_asset_points(expected_name=name)
+        target.write_bytes(target.read_bytes() + b"\n")
+        with pytest.raises(ValueError, match="SHA-256"):
+            installed.load_asset_points(expected_name=name)
 
 
 def test_default_launch_selects_asset_without_legacy_capture():

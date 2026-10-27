@@ -28,13 +28,15 @@ loader.exec_module(module)
 def relay(tmp_path, request, monkeypatch):
     old = tmp_path / "old.json"
     old.write_text('{"approved": true, "old": "must not be used or replaced"}')
-    source = getattr(request, "param", "motive_asset")
+    option = getattr(request, "param", "motive_asset")
+    source, name = option if isinstance(option, tuple) else (option, "UCB_P1")
     if source == "motive_live":
         import motive_asset_contract
-        def forbid_file_load(*args):
+        def forbid_file_load(*args, **kwargs):
             pytest.fail("live relay must not load the pinned Motive asset")
         monkeypatch.setattr(motive_asset_contract, "load_asset_points", forbid_file_load)
     rclpy.init(args=["--ros-args", "-p", "localization_source:=" + source,
+                    "-p", "expected_marker_frame:=" + name,
                     "-p", "world_frame_calibrated:=true", "-p", "world_frame_sha256:=" + "a" * 64,
                     "-p", "calibration_file:=" + str(old)])
     node = module.BasePoseFlatRelay()
@@ -50,9 +52,9 @@ def observations(node, points=None):
     markers = RigidBodyMarkerArray()
     markers.header.frame_id = "world"
     markers.header.stamp = node.get_clock().now().to_msg()
-    markers.rigid_body_name = "UCB_P1"
+    markers.rigid_body_name = node._expected_marker_frame
     markers.rigid_body_id = 17
-    for i, xyz in enumerate(load_asset_points() if points is None else points):
+    for i, xyz in enumerate(load_asset_points(expected_name=node._expected_marker_frame) if points is None else points):
         marker = RigidBodyMarker(member_id=i)
         marker.model_position.x, marker.model_position.y, marker.model_position.z = xyz
         markers.markers.append(marker)
@@ -66,6 +68,7 @@ def observations(node, points=None):
     return markers, pose
 
 
+@pytest.mark.parametrize("relay", [("motive_asset", "UCB_P1"), ("motive_asset", "UCB_P2")], indirect=True)
 def test_asset_frame_is_used_once_and_stale_definition_invalidates(relay):
     markers, pose = observations(relay)
     relay._pose_cb(pose)
@@ -95,8 +98,8 @@ def test_changed_pivot_revokes_previous_match(relay):
 
 
 @pytest.mark.parametrize("relay", ["motive_live"], indirect=True)
-def test_new_17_marker_file_is_accepted_without_pin_and_stale_data_is_rejected(relay):
-    path = SCRIPTS.parents[3] / "agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive"
+def test_historical_17_marker_file_is_accepted_without_pin_and_stale_data_is_rejected(relay):
+    path = Path(__file__).parent / "fixtures/motive_legacy_17/A3_v3_17_stickers.motive"
     body = ET.parse(path).find("./node_assets/rigid_body")
     assert body.find('./properties/property[@name="NodeName"]').get("value") == "UCB_P1"
     points = []
@@ -129,3 +132,33 @@ def test_new_17_marker_file_is_accepted_without_pin_and_stale_data_is_rejected(r
     markers.markers[0].model_position.x = float("nan")
     relay._marker_identity_cb(markers)
     assert not relay._extrinsic_calibrated and relay._calibration_id == 0
+
+
+@pytest.mark.parametrize("relay", [("motive_asset", "UCB_P2")], indirect=True)
+def test_p2_rejects_p1_pattern_renamed_as_p2(relay):
+    markers, pose = observations(relay)
+    relay._marker_identity_cb(markers)
+    relay._pose_cb(pose)
+    assert relay.output[-1].data[1] == 1
+    wrong, pose = observations(relay, load_asset_points(expected_name="UCB_P1"))
+    assert wrong.rigid_body_name == "UCB_P2"
+    relay._marker_identity_cb(wrong)
+    relay._pose_cb(pose)
+    assert relay.output[-1].data[1] == 0
+    assert relay._calibration_id == 0
+
+
+@pytest.mark.parametrize("relay", [("motive_live", "UCB_P1"), ("motive_live", "UCB_P2")], indirect=True)
+def test_default_live_mode_accepts_current_patterns_without_loading_reference(relay):
+    # Read fixture XML directly: the live callback's file loader is forbidden.
+    path = SCRIPTS.parents[3] / "agibot/mocap_sticker_shell_v3/motive_asset" / (relay._expected_marker_frame[4:] + ".motive")
+    constraints = ET.parse(path).find("./node_assets/rigid_body/constraints")
+    points = []
+    for marker in constraints:
+        x, y, z = map(float, marker.findtext("offset").split(","))
+        points.append((x, -z, y))
+    markers, pose = observations(relay, points)
+    relay._marker_identity_cb(markers)
+    relay._pose_cb(pose)
+    assert relay.output[-1].data[1] == 1
+    assert relay._asset_marker_count == 12

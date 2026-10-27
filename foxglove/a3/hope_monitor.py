@@ -18,6 +18,7 @@ Publishes:
   /hope/ntp/root_dispersion_ms  std_msgs/Float64
   /hope/ntp/utc_qualified       std_msgs/Bool     Leap Normal + selected source
   /hope/ntp/gate_pass           std_msgs/Bool     qualified + wall-offset gate
+  /hope/ntp/qualification       std_msgs/String   boot-bound original probe age
   /hope/ntp/text                std_msgs/String   human-readable offset in ms
   /hope/clock/message_latency_ms std_msgs/Float64 A3 ROS time - message stamp
   /hope/clock/message_fresh      std_msgs/Bool
@@ -43,7 +44,7 @@ Services:
 """
 
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
+import json
 import math
 import os
 from pathlib import Path
@@ -59,6 +60,7 @@ from rclpy.callback_groups import (
 )
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
+from hope_display_publishers import display_publisher
 from rclpy.qos import qos_profile_sensor_data, qos_profile_system_default
 from rclpy.time import Time
 from sensor_msgs.msg import Imu
@@ -117,14 +119,6 @@ MODE_COMMAND_PASSIVE = 0
 MODE_COMMAND_PD_STAND = 1
 MODE_COMMAND_MOTION = 2
 
-
-@dataclass(frozen=True)
-class CpuProbeResult:
-    load: float | None = None
-    top_text: str = "TOP CPU PROCESS WARMING UP"
-    error: str = ""
-
-
 class HopeMonitor(Node):
     def __init__(self):
         super().__init__("hope_monitor")
@@ -146,7 +140,7 @@ class HopeMonitor(Node):
         self._native_clock_topics = bool(self.get_parameter("native_clock_topics").value)
         self.declare_parameter("message_latency_stale_after_s", 0.5)
         self.declare_parameter("agibot_pm_unit", "agibot_pm.service")
-        self.declare_parameter("hdu_runtime_unit", "hope-lifecycle-supervisor.service")
+        self.declare_parameter("hdu_runtime_unit", "hope-observer.service")
         self.declare_parameter("cpu_publish_period_s", 1.0)
         self.declare_parameter("tf_stale_after_s", 0.5)
         self.declare_parameter("enable_tf_fallback", True)
@@ -171,75 +165,80 @@ class HopeMonitor(Node):
             "estop_latch_path", "/var/lib/hope-monitor/estop-latched"
         )
 
-        self.pub_offset = self.create_publisher(Float64, "/hope/ntp/offset_ms", 10)
-        self.pub_skew = self.create_publisher(Float64, "/hope/ntp/skew_ppm", 10)
-        self.pub_disp = self.create_publisher(
+        self.pub_offset = display_publisher(self, Float64, "/hope/ntp/offset_ms", 10)
+        self.pub_skew = display_publisher(self, Float64, "/hope/ntp/skew_ppm", 10)
+        self.pub_disp = display_publisher(self,
             Float64, "/hope/ntp/root_dispersion_ms", 10
         )
-        self.pub_qualified = self.create_publisher(Bool, "/hope/ntp/utc_qualified", 10)
-        self.pub_ntp_gate = self.create_publisher(Bool, "/hope/ntp/gate_pass", 10)
-        self.pub_ntp_text = self.create_publisher(String, "/hope/ntp/text", 10)
+        self.pub_qualified = display_publisher(self, Bool, "/hope/ntp/utc_qualified", 10)
+        self.pub_ntp_gate = display_publisher(self, Bool, "/hope/ntp/gate_pass", 10)
+        # Source-age diagnostics are not passed through the display decimator.
+        # Default ROS QoS is reliable/volatile; retain only the latest probe.
+        self.pub_ntp_qualification = self.create_publisher(
+            String, "/hope/ntp/qualification", 1
+        )
+        self.pub_ntp_text = display_publisher(self, String, "/hope/ntp/text", 10)
         if not self._native_clock_topics:
-            self.pub_message_latency = self.create_publisher(
+            self.pub_message_latency = display_publisher(self,
                 Float64, "/hope/clock/message_latency_ms", 10
             )
-            self.pub_message_fresh = self.create_publisher(
+            self.pub_message_fresh = display_publisher(self,
                 Bool, "/hope/clock/message_fresh", 10
             )
-            self.pub_message_text = self.create_publisher(
+            self.pub_message_text = display_publisher(self,
                 String, "/hope/clock/message_text", 10
             )
-        self.pub_cpu_load = self.create_publisher(
+        self.pub_cpu_load = display_publisher(self,
             Float64, "/hope/system/cpu_load_percent", 10
         )
-        self.pub_cpu_text = self.create_publisher(
+        self.pub_cpu_text = display_publisher(self,
             String, "/hope/system/cpu_text", 10
         )
-        self.pub_cpu_top_process = self.create_publisher(
+        self.pub_cpu_top_process = display_publisher(self,
             String, "/hope/system/cpu_top_process", 10
         )
-        self.pub_pm_active = self.create_publisher(
+        self.pub_pm_active = display_publisher(self,
             Bool, "/hope/vendor/agibot_pm_active", 10
         )
-        self.pub_pm_text = self.create_publisher(
+        self.pub_pm_text = display_publisher(self,
             String, "/hope/vendor/agibot_pm_text", 10
         )
-        self.pub_hdu_active = self.create_publisher(
+        self.pub_hdu_active = display_publisher(self,
             Bool, "/hope/system/hdu_active", 10
         )
-        self.pub_hdu_text = self.create_publisher(
+        self.pub_hdu_text = display_publisher(self,
             String, "/hope/system/hdu_text", 10
         )
-        self.pub_tf_ready = self.create_publisher(
+        self.pub_tf_ready = display_publisher(self,
             Bool, "/hope/vendor/tf_ready", 10
         )
-        self.pub_estop_ready = self.create_publisher(
+        self.pub_estop_ready = display_publisher(self,
             Bool, "/hope/safety/estop_ready", 10
         )
-        self.pub_estop_full_ready = self.create_publisher(
+        self.pub_estop_full_ready = display_publisher(self,
             Bool, "/hope/safety/estop_full_ready", 10
         )
-        self.pub_estop_text = self.create_publisher(
+        self.pub_estop_text = display_publisher(self,
             String, "/hope/safety/estop_text", 10
         )
-        self.pub_estop_latched = self.create_publisher(
+        self.pub_estop_latched = display_publisher(self,
             Bool, "/hope/safety/estop_latched", 10
         )
-        self.pub_pelvis = self.create_publisher(PoseStamped, "/hope/pelvis/pose", 10)
-        self.pub_pelvis_text = self.create_publisher(String, "/hope/pelvis/text", 10)
-        self.pub_pelvis_marker = self.create_publisher(
+        self.pub_pelvis = display_publisher(self, PoseStamped, "/hope/pelvis/pose", 10)
+        self.pub_pelvis_text = display_publisher(self, String, "/hope/pelvis/text", 10)
+        self.pub_pelvis_marker = display_publisher(self,
             Marker, "/hope/pelvis/marker", 10
         )
-        self.pub_pelvis_tf = self.create_publisher(
+        self.pub_pelvis_tf = display_publisher(self,
             TFMessage, "/hope/pelvis/tf", 10
         )
-        self.pub_runner_ready = self.create_publisher(
+        self.pub_runner_ready = display_publisher(self,
             Bool, "/hope/control/runner_ready", 10
         )
-        self.pub_calibration_ready = self.create_publisher(
+        self.pub_calibration_ready = display_publisher(self,
             Bool, "/hope/control/calibration_ready", 10
         )
-        self.pub_control_text = self.create_publisher(
+        self.pub_control_text = display_publisher(self,
             String, "/hope/control/state_text", 10
         )
         self._mode_command_pub = self.create_publisher(
@@ -400,16 +399,21 @@ class HopeMonitor(Node):
         if float(self.get_parameter("calibration_timeout_s").value) <= 0.0:
             raise ValueError("calibration_timeout_s must be positive")
         self._probe_pool = ThreadPoolExecutor(
-            max_workers=5, thread_name_prefix="hope-monitor-probe"
+            max_workers=3, thread_name_prefix="hope-monitor-probe"
         )
-        # At most one task per source: NTP, PM, HDU, CPU and interface probes.
-        # Slow external reads must not hold the default subscription group.
         self._ntp_future: Future[NtpProbeResult] | None = None
+        self._ntp_probe_started_monotonic: float | None = None
+        self._ntp_probe_sequence = 0
+        self._ntp_monitor_id = uuid.uuid4().hex
+        try:
+            self._ntp_clock_boot_id = Path(
+                "/proc/sys/kernel/random/boot_id"
+            ).read_text(encoding="ascii").strip()
+        except (OSError, UnicodeError):
+            # An empty boot cannot qualify this diagnostic evidence.
+            self._ntp_clock_boot_id = ""
         self._pm_future: Future[ServiceProbeResult] | None = None
         self._hdu_future: Future[ServiceProbeResult] | None = None
-        self._cpu_future: Future[CpuProbeResult] | None = self._probe_pool.submit(self._probe_cpu)
-        self._dds_interfaces = None
-        self._dds_future = self._probe_pool.submit(read_ipv4_interface_signature)
         self.create_timer(period, self._poll_ntp)
         self.create_timer(period, self._poll_pm)
         self.create_timer(period, self._poll_hdu)
@@ -419,24 +423,19 @@ class HopeMonitor(Node):
         self.create_timer(0.2, self._poll_pelvis)
         if not self._native_clock_topics:
             self.create_timer(1.0 / latency_publish_hz, self._publish_message_latency)
+        self._dds_interfaces = read_ipv4_interface_signature()
         self.create_timer(1.0, self._poll_dds_interfaces)
 
     def _poll_dds_interfaces(self):
-        if self._dds_future is None:
-            self._dds_future = self._probe_pool.submit(read_ipv4_interface_signature)
+        current = read_ipv4_interface_signature()
+        if current is None:
             return
-        if not self._dds_future.done():
-            return
-        # Retrieve on the executor: a probe RuntimeError must propagate, and
-        # the deliberate reconnect exception below must never stay in a worker.
-        current = self._dds_future.result()
-        if current is not None and self._dds_interfaces is None:
+        if self._dds_interfaces is None:
             self._dds_interfaces = current
-        elif current is not None and current != self._dds_interfaces:
+        elif current != self._dds_interfaces:
             # systemd recreates DDS on the new addresses. The persistent E-stop
             # latch remains authoritative across this monitor-only restart.
             raise RuntimeError("Network interfaces changed; reconnecting monitor DDS")
-        self._dds_future = self._probe_pool.submit(read_ipv4_interface_signature)
 
     # ---- CPU load ----------------------------------------------------------
     @staticmethod
@@ -454,10 +453,7 @@ class HopeMonitor(Node):
             result[sample.pid] = sample
         return result
 
-    def _probe_cpu(self):
-        # This source has only one pending future. Read both counter sets and
-        # rotate their baselines together in its worker, never in the timer.
-        # The returned value is immutable and the worker never uses ROS objects.
+    def _poll_cpu(self):
         try:
             current = parse_proc_stat_cpu(
                 Path("/proc/stat").read_text(encoding="utf-8")
@@ -468,7 +464,11 @@ class HopeMonitor(Node):
             self._previous_cpu_times = current
             self._previous_process_cpu_times = process_current
             if previous is None:
-                return CpuProbeResult()
+                self.pub_cpu_text.publish(String(data="CPU LOAD WARMING UP"))
+                self.pub_cpu_top_process.publish(
+                    String(data="TOP CPU PROCESS WARMING UP")
+                )
+                return
             load = cpu_load_percent(previous, current)
             top_process = top_process_cpu_load(
                 process_previous,
@@ -477,7 +477,18 @@ class HopeMonitor(Node):
                 cpu_count=os.cpu_count() or 1,
             )
         except (OSError, ValueError) as exc:
-            return CpuProbeResult(error=str(exc), top_text="TOP CPU PROCESS UNAVAILABLE")
+            self.pub_cpu_text.publish(
+                String(data=f"CPU LOAD UNAVAILABLE | {exc}")
+            )
+            self.get_logger().warn(
+                f"CPU load probe unavailable: {exc}", throttle_duration_sec=30
+            )
+            return
+
+        self.pub_cpu_load.publish(Float64(data=load))
+        self.pub_cpu_text.publish(
+            String(data=f"A3 aggregate CPU load = {load:.1f}%")
+        )
         if top_process is None:
             top_text = "TOP CPU PROCESS UNAVAILABLE"
         else:
@@ -486,31 +497,7 @@ class HopeMonitor(Node):
                 f"core={top_process.core_percent:.1f}% "
                 f"system={top_process.system_percent:.1f}%"
             )
-        return CpuProbeResult(load=load, top_text=top_text)
-
-    def _poll_cpu(self):
-        if self._cpu_future is None:
-            self._cpu_future = self._probe_pool.submit(self._probe_cpu)
-            return
-        if not self._cpu_future.done():
-            return
-        completed, self._cpu_future = self._cpu_future, None
-        # Preserve exception propagation, but do not reread a failed future
-        # if a caller recovers and polls again. Avoid scheduling work on the
-        # exception path while the current entry point is about to exit.
-        result = completed.result()
-        self._cpu_future = self._probe_pool.submit(self._probe_cpu)
-        if result.error:
-            self.pub_cpu_text.publish(String(data=f"CPU LOAD UNAVAILABLE | {result.error}"))
-            self.get_logger().warn(
-                f"CPU load probe unavailable: {result.error}", throttle_duration_sec=30
-            )
-        elif result.load is None:
-            self.pub_cpu_text.publish(String(data="CPU LOAD WARMING UP"))
-        else:
-            self.pub_cpu_load.publish(Float64(data=result.load))
-            self.pub_cpu_text.publish(String(data=f"A3 aggregate CPU load = {result.load:.1f}%"))
-        self.pub_cpu_top_process.publish(String(data=result.top_text))
+        self.pub_cpu_top_process.publish(String(data=top_text))
 
     # ---- timestamp latency -------------------------------------------------
     def _on_native_latency_message(self, message):
@@ -579,7 +566,19 @@ class HopeMonitor(Node):
         if not self._ntp_future.done():
             return
 
-        result = self._ntp_future.result()
+        try:
+            result = self._ntp_future.result()
+        except Exception as exc:
+            result = NtpProbeResult(error=f"probe failed: {type(exc).__name__}")
+        self._ntp_probe_sequence += 1
+        self.pub_ntp_qualification.publish(String(data=json.dumps({
+            "schema_version": 1,
+            "clock_boot_id": self._ntp_clock_boot_id,
+            "monitor_id": self._ntp_monitor_id,
+            "sequence": self._ntp_probe_sequence,
+            "observed_monotonic_s": self._ntp_probe_started_monotonic,
+            "gate_pass": result.gate_pass,
+        }, separators=(",", ":"))))
         self.pub_offset.publish(Float64(data=result.offset_ms))
         self.pub_skew.publish(Float64(data=result.skew_ppm))
         self.pub_disp.publish(Float64(data=result.root_dispersion_ms))
@@ -603,6 +602,9 @@ class HopeMonitor(Node):
     def _submit_ntp_probe(self):
         max_offset_ms = float(self.get_parameter("ntp_max_offset_ms").value)
         max_skew_ppm = float(self.get_parameter("ntp_max_skew_ppm").value)
+        # Capture BEFORE enqueueing: pool delay, execution time and delayed
+        # callback/DDS delivery all consume the original qualification lifetime.
+        self._ntp_probe_started_monotonic = time.monotonic()
         return self._probe_pool.submit(
             probe_ntp,
             max_offset_ms=max_offset_ms,
@@ -1493,8 +1495,7 @@ def main():
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        from hope_operations_runtime import shutdown_executor
-        shutdown_executor(executor)
+        executor.shutdown()
         node.stop_workers()
         node.destroy_node()
         rclpy.try_shutdown()

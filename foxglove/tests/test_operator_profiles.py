@@ -34,7 +34,7 @@ class Dispatched(Exception):
 def backend_namespace(environment):
     # Load the actual service constants/backend without requiring ROS on macOS.
     source = SUPERVISOR.read_text()
-    backend = source[source.index('LIFECYCLE_HELPER = '):source.index('\nclass LifecycleModule')]
+    backend = source[source.index('LIFECYCLE_HELPER = '):source.index('\nclass HopeLifecycleSupervisor')]
     namespace = dict(os=os, re=re, Path=Path, subprocess=subprocess, json=json,
                      HelperEvent=HelperEvent, LifecycleConfig=LifecycleConfig,
                      parse_helper_event=parse_helper_event, validate_session_id=validate_session_id)
@@ -44,6 +44,34 @@ def backend_namespace(environment):
 
 
 class OperatorProfileTests(unittest.TestCase):
+    def test_durable_boundary_follows_all_readonly_preflights(self):
+        namespace = backend_namespace({})
+        order = []
+        def run(argv, **kwargs):
+            action = next((word for word in argv if word.startswith(("preflight-", "prepare-"))), "other")
+            order.append(action)
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        backend = namespace["LifecycleBackend"](run=run)
+        config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", mdu_internal_ip="10.42.10.12")
+        backend.start(config, "model21800_20261018T050406Z", lambda _: None, "KERNEL",
+                      before_mutation=lambda: order.append("ARM"))
+        self.assertEqual(order[:4], ["preflight-hdu", "preflight-mdu", "ARM", "prepare-background-hdu"])
+        self.assertEqual(order.count("ARM"), 1)
+
+    def test_readonly_preflight_failure_never_reaches_mutating_boundary(self):
+        namespace = backend_namespace({})
+        calls, armed = [], []
+        def run(argv, **kwargs):
+            calls.append(argv)
+            return SimpleNamespace(returncode=1, stdout="HOPE_LIFECYCLE_V1 step=PREFLIGHT state=FAILED reason=HDU_OVERLAY_MISSING\n", stderr="")
+        backend = namespace["LifecycleBackend"](run=run)
+        config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", mdu_internal_ip="10.42.10.12")
+        with self.assertRaises(namespace["LifecycleFailure"]):
+            backend.start(config, "model21800_20261018T050406Z", lambda _: None, "KERNEL",
+                          before_mutation=lambda: armed.append(True))
+        self.assertEqual(armed, [])
+        self.assertEqual(len(calls), 1)
+
     def exercise(self, backend, config):
         session = "model21800_20261018T050406Z"
         backend.start(config, session, lambda event: None)
@@ -143,7 +171,7 @@ class OperatorProfileTests(unittest.TestCase):
                                      operator_profile=profile)
             backend.start(config, "model21800_20261018T050406Z", lambda event: None, "KERNEL")
             backend.kill_all_and_collect(config, "model21800_20261018T050406Z", lambda event: None, "KERNEL")
-        self.assertEqual(len(calls), 18)
+        self.assertEqual(len(calls), 20)  # explicit mutating background phase
         self.assertFalse(any("preflight-laptop" in argv or "collect" in argv for argv in calls))
 
     def test_invalid_mac_account_and_helper_fail_before_any_connection(self):

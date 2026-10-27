@@ -1,6 +1,8 @@
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "robot_io/a3_layout_extra.hpp"
 #include "a3_pingpong/pp_mode_cadence.hpp"
+#include "a3_pingpong/pp_runner_control.hpp"
+#include "a3_pingpong/pp_serve_recovery.hpp"
 
 #include <gtest/gtest.h>
 
@@ -535,6 +537,64 @@ TEST(PpServeController, InvalidActualStateStillFailsClosed) {
   EXPECT_FALSE(controller.ComputeCommand(0, state, command));
   EXPECT_EQ(controller.state(), ServeControllerState::kFault);
   EXPECT_FALSE(controller.fault_reason().empty());
+}
+
+TEST(PpServeController, FaultRecoversToStandOnlyAfterCurrentSampleIsValid) {
+  for (bool incomplete : {false, true}) {
+    auto timeline = LoadTimeline();
+    const Eigen::VectorXd stand = timeline.complete().q_sdk;
+    PpServeController controller(std::move(timeline), stand, PositiveGains(80.0),
+                                 PositiveGains(2.0), nullptr);
+    a3_pingpong::PpRunnerControl control(a3_pingpong::RunnerMode::kServe, 1, "");
+    auto state = StateAt(stand);
+    robot_io::RobotCommand command;
+    controller.Start();
+    ASSERT_TRUE(controller.ComputeCommand(0, state, command));
+    const auto before_fault = command;
+    if (incomplete) state.sync_complete = false;
+    else state.q[0] = std::numeric_limits<double>::quiet_NaN();
+    const bool invalid_command = controller.ComputeCommand(1, state, command);
+    ASSERT_FALSE(invalid_command);
+    ASSERT_EQ(controller.state(), ServeControllerState::kFault);
+    EXPECT_FALSE(control.RecoverTerminalServeToStand(
+        static_cast<int>(controller.state()), invalid_command));
+    EXPECT_EQ(control.mode(), a3_pingpong::RunnerMode::kServe);
+
+    state = StateAt(stand);
+    const bool valid_command = controller.ComputeCommand(2, state, command);
+    ASSERT_TRUE(valid_command);
+    EXPECT_EQ(controller.state(), ServeControllerState::kFault);
+    ExpectPdCommand(command, before_fault.q_des, before_fault.dq_des,
+                    before_fault.kp, before_fault.kd);
+    EXPECT_TRUE(control.RecoverTerminalServeToStand(
+        static_cast<int>(controller.state()), valid_command));
+    EXPECT_EQ(control.mode(), a3_pingpong::RunnerMode::kPdStand);
+  }
+}
+
+TEST(PpServeController, AbortRecoveryPreservesHeldCommandAndDoesNotLoopLogs) {
+  auto timeline = LoadTimeline();
+  const Eigen::VectorXd stand = timeline.complete().q_sdk;
+  PpServeController controller(std::move(timeline), stand, PositiveGains(80.0),
+                               PositiveGains(2.0), nullptr);
+  a3_pingpong::PpRunnerControl control(a3_pingpong::RunnerMode::kServe, 1, "");
+  a3_pingpong::ServeTerminalRecoveryEvents events;
+  const auto state = StateAt(stand);
+  robot_io::RobotCommand command;
+  controller.Start();
+  ASSERT_TRUE(controller.ComputeCommand(0, state, command));
+  const auto before_abort = command;
+  controller.RequestAbort();
+  ASSERT_TRUE(controller.ComputeCommand(1, state, command));
+  ASSERT_EQ(controller.state(), ServeControllerState::kAborted);
+  ExpectPdCommand(command, before_abort.q_des, before_abort.dq_des,
+                  before_abort.kp, before_abort.kd);
+  const int terminal = static_cast<int>(controller.state());
+  const bool recovered = control.RecoverTerminalServeToStand(terminal, true);
+  ASSERT_TRUE(recovered);
+  EXPECT_TRUE(events.Observe(terminal, recovered));
+  for (int tick = 0; tick < 1000; ++tick) EXPECT_FALSE(events.Observe(terminal, recovered));
+  EXPECT_EQ(control.mode(), a3_pingpong::RunnerMode::kPdStand);
 }
 
 TEST(PpServeController, AbortHoldsLastRunnerOwnedCommand) {

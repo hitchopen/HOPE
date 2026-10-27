@@ -1,0 +1,2 @@
+# Test-only interfaces must never enter a normal workspace/deployment build.
+# The monitor test explicitly selects fixtures/monitor_rpc_mock as its base path.

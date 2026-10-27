@@ -10,8 +10,7 @@
 > host/SSH setup below still applies; older UI labels are superseded by that guide.
 
 本文用于把当前 HOPE checkout 部署到一台 Laptop、一个 HDU 和一个 MDU，
-并完成第一次有人值守测试。当前进程结构见[节点结构与 STOPPED 迁移](node_architecture.md)。
-完成“一次性部署”后，正常
+并完成第一次有人值守测试。完成“一次性部署”后，正常
 session 不再手工执行旧 runbook 的 STEP 0、STEP 1、STEP 2A/2B、STEP 4
 和 STEP 5；这些步骤由 Foxglove 的 `START SYSTEM` 固定执行。
 
@@ -29,11 +28,11 @@ cd "$(git rev-parse --show-toplevel)"
 export HOPE_ROOT="$PWD"
 export LAPTOP_USER="${USER}"
 export ROBOT_USER="${ROBOT_USER:-agi}"
-export LAPTOP_IP="<laptop-wifi-ip>"
-export HDU_IP="<hdu-wifi-ip>"
-export MDU_IP="<mdu-internal-ip>"
-export MOTIVE_IP="<motive-ip>"
-export MOTIVE_INTERFACE_IP="<laptop-motive-nic-ip>"
+export LAPTOP_IP=<laptop-wifi-ip>
+export HDU_IP=<hdu-wifi-ip>
+export MDU_IP=<mdu-internal-ip>
+export MOTIVE_IP=<motive-ip>
+export MOTIVE_INTERFACE_IP=<laptop-motive-nic-ip>
 export ROS_DOMAIN_ID=232
 export DOWNLOAD_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
 
@@ -308,9 +307,9 @@ if [[ ! -f "$HOME/.ssh/id_ed25519" ]]; then
   ssh-keygen -t ed25519 -N '' -f "$HOME/.ssh/id_ed25519"
 fi
 
-ssh-copy-id "<robot-user>@<mdu-internal-ip>"
+ssh-copy-id <robot-user>@<mdu-internal-ip>
 
-ssh -o BatchMode=yes "<robot-user>@<mdu-internal-ip>" true
+ssh -o BatchMode=yes <robot-user>@<mdu-internal-ip> true
 
 exit
 ```
@@ -454,9 +453,7 @@ rsync -azP \
   "${ROBOT_USER}@${HDU_IP}:~/foxglove_a3/"
 
 scp foxglove/helpers/hope-lifecycle \
-  foxglove/helpers/hope_sim2real_capture.py foxglove/helpers/hope_sim2real_control.py \
-  foxglove/helpers/hope_catch_background.py foxglove/helpers/hope_wifi_policy.py \
-  "${ROBOT_USER}@${HDU_IP}:/tmp/"
+  "${ROBOT_USER}@${HDU_IP}:/tmp/hope-lifecycle"
 
 sed \
   -e "s/^HOPE_LAPTOP_USER=.*/HOPE_LAPTOP_USER=$LAPTOP_USER/" \
@@ -487,7 +484,7 @@ rsync -azP \
 
 ---
 
-## 6. HDU：构建 bridge 并安装六个常驻服务
+## 6. HDU：构建 bridge 并安装七个常驻服务（分立部署示例）
 
 ### 6.1 进入 HDU
 
@@ -581,142 +578,180 @@ ros2 pkg executables foxglove_bridge
 
 ### 6.4 安装 fleet monitor、Runner control plane 和 lifecycle supervisor
 
-本节对应[当前节点结构](node_architecture.md)：一个 `hope_operations` ROS 节点
-承载 observer、command proxy、lifecycle，canonical unit 仍叫
-`hope-lifecycle-supervisor.service`，以保留现场配置和 drop-in。完整会话为
-9 个 HDU + 1 个 MDU HOPE 节点，从 12 个减少到 10 个；可选 mocap config transport 加到 11 个。
+**先确认部署布局：** 本节安装 block 面向分立式（split）控制面，不能直接覆盖
+已有合并式（consolidated）现场安装。先只读检查 supervisor、observer 和
+command-proxy 的 `systemctl cat`/`systemctl status` 及实际进程。若
+`hope-lifecycle-supervisor.service` 内的 Python 进程运行
+`/usr/local/bin/hope_operations.py`，则 lifecycle、observer 和 proxy 由同一
+现场程序承载；保留该 unit、配套模块和现场配置，按对应合并式 bundle 的部署流程
+更新。此时 observer/proxy unit 可以是 loaded 但 inactive 的 `/usr/bin/true`
+兼容占位，不能为了凑齐六个 active 服务而启动它们，也不要安装下面的 split
+unit/独立模块来替换现场 bundle。变更布局属于单独审查的停止维护，不是校时前提。
 
-**仅在 lifecycle 为 STOPPED、受管 Runner/HAL/Planner 已按正常流程停止后安装。**
-先保存 `systemctl cat` 输出、`/etc/hope-foxglove` 和现场 `*.service.d`。
-旧 observer/proxy 必须在覆盖 unit 文件之前 stop/disable，防止旧 Python 进程
-与新 operations 节点同时运行。不要删现场 drop-in；将其中旧 `ExecStart` 和
-observer/proxy 参数（包括现场自定义 `calibration_service_v2` / `calibration_service_v3`）
-合并到 canonical service 后再启动。canonical unit 的
-`TimeoutStopSec=45min` 用于排空已接受的 SSH/日志收集和硬件锁；停止后不接收新动作，
-DDS 回调继续处理，状态显示 `DRAINING`，lifecycle state/step/field status 在排空期间
-继续发布，新请求明确返回 draining。空闲 STOPPED 实例立即退出。不要保留旧的较短 stop timeout。
-迁移设置后，将旧 observer/proxy 的 `ExecStart` override 备份到 active
-`.service.d` 目录之外；`systemctl cat` 检查两个兼容 unit 时必须仍只执行
-`/usr/bin/true`，否则手工启动 shim 会重新运行旧节点。
+ELink 检查在 managed START/HAL/Runner 启动时验证被动进程/监听状态及
+当前会话故障日志检查，并在清理后确认 vendor 服务恢复。启动检查失败可重试；
+运行期间的遥测、时钟或观察器缺失只输出诊断，不增加 Stand、Serve、Rally、
+KILL 的门禁，也不创建永久锁定。原有 vendor 和 Runner 安全检查保留。
+正常发球完成仍按原流程自动进入接球运动，无需额外的 Continue Receive 操作。
+本安装说明不是实机验收记录；部署后仍需按维护计划验证。
+范围及验证限制见
+[ELink 启动检查与运行诊断](foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics)。
 
-仍在 **HDU** 执行整段；文件必须来自同一个 checkout：
+可选遥测诊断需要匹配 vendor 版本的 `aimdk.protocol_pb2` 和兼容 ROS 2 Jazzy 的
+`ros2_plugin_proto`。缺少解码器、配置或审计记录不会拒绝 START；未验证的
+`foxglove/a3/elink_telemetry.example.json` 不能作为已验证采集的证据。
+BMS 的 `seq=0` 使用严格递增源时间戳检查进展，电池状态仅供诊断。
+monitor 的 `/hope/ntp/qualification` 保留原始 chrony 探测时间、boot ID
+和序号，但不控制运行权限。校时必须走明确确认、停止状态的 Time Calibration；
+启动时不会自动跳变时钟。该流程不停止 ELink transfer，也不要求由
+`rc.local` 启动的 transfer 消失。
+
+升级时仍须在支撑、停止且获批准的维护窗口内重启配套服务，不能只复制文件或对
+正在运行的服务执行 `enable --now`，也不能在机器人运动中重启。终态发球故障/
+中止的 Stand 恢复保留当前样本验证和原有混合过程，并对日志限次；详见
+[终态发球恢复](foxglove_runner_control_contract.md#elink-observations-and-terminal-serve-recovery)。
+
+仍在 **HDU** 执行整段：
 
 ```bash
-export HOPE_STAGE="$HOME/foxglove_a3"
-for unit in hope-observer hope-command-proxy; do
-  if systemctl cat "$unit.service" >/dev/null 2>&1; then
-    sudo systemctl disable --now "$unit.service"
-  fi
-done
-if systemctl cat hope-lifecycle-supervisor.service >/dev/null 2>&1; then
-  sudo systemctl stop hope-lifecycle-supervisor.service
-fi
+cd $HOME
 
-# 只初始化缺失的文件；保留已有现场地址、DDS 配置和 drop-in。
-for item in bridge_params.yaml fastdds_bridge_profile.xml; do
-  if ! sudo test -e "/etc/hope-foxglove/$item"; then
-    sudo install -D -o root -g root -m 0644 "$HOPE_STAGE/$item" "/etc/hope-foxglove/$item"
-  fi
-done
-if ! sudo test -e /etc/hope-foxglove/control_bridge_params.yaml; then
-  sudo install -D -o root -g root -m 0644 "$HOPE_STAGE/bridge_params_control.yaml" \
-    /etc/hope-foxglove/control_bridge_params.yaml
-fi
-if ! sudo test -e /etc/hope-foxglove/network.env; then
-  sudo install -D -o root -g root -m 0644 /tmp/hope-foxglove-network.env \
-    /etc/hope-foxglove/network.env
-fi
-# 已有配置需要逐项核对/合并，不能用 example 整体覆盖。
-sudoedit /etc/hope-foxglove/network.env
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/bridge_params.yaml \
+  /etc/hope-foxglove/bridge_params.yaml
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/fastdds_bridge_profile.xml \
+  /etc/hope-foxglove/fastdds_bridge_profile.xml
+sudo install -D -o root -g root -m 0644 \
+  /tmp/hope-foxglove-network.env \
+  /etc/hope-foxglove/network.env
 
-# 编译不会启动 ROS 节点；native base relay、gateway、IMU 和 helper 必须一起更新。
-source /opt/ros/jazzy/setup.bash
-cmake -S "$HOPE_STAGE/native" -B "$HOME/hope_field_native_build" -DCMAKE_BUILD_TYPE=Release
-cmake --build "$HOME/hope_field_native_build" -j2
-for binary in hope-base-pose-transport-relay hope-transport-gateway hope-imu-telemetry; do
-  sudo install -D -o root -g root -m 0755 "$HOME/hope_field_native_build/$binary" "/usr/local/libexec/$binary"
-done
+# 先按 foxglove/README.md 使用真实厂商 SDK 构建并通过 native monitor 测试。
+sudo install -D -o root -g root -m 0755 \
+  $HOME/hope_field_native_build/hope-monitor \
+  /usr/local/libexec/hope-monitor
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_monitor_core.py \
+  /usr/local/lib/hope-foxglove/hope_monitor_core.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-monitor.service \
+  /etc/systemd/system/hope-monitor.service
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-foxglove-bridge.service \
+  /etc/systemd/system/hope-foxglove-bridge.service
 
-# 包括 operations/core、旧模块/core、field/assets/ball-model/recording 依赖。
-sudo install -d -o root -g root -m 0755 /usr/local/lib/hope-foxglove
-sudo install -o root -g root -m 0644 "$HOPE_STAGE"/hope_*.py /usr/local/lib/hope-foxglove/
-for entry in hope_operations hope_monitor hope_time_calibration hope_ball_models \
-             hope_observer hope_command_proxy hope_lifecycle_supervisor; do
-  sudo install -D -o root -g root -m 0755 "$HOPE_STAGE/$entry.py" "/usr/local/bin/$entry.py"
-done
-sudo install -D -o root -g root -m 0755 "$HOPE_STAGE/hope_mocap_config_transport.py" \
-  /usr/local/libexec/hope_mocap_config_transport.py
-for unit in hope-monitor hope-imu-telemetry hope-foxglove-bridge \
-            hope-foxglove-control-bridge hope-lifecycle-supervisor \
-            hope-observer hope-command-proxy hope-time-calibration hope-mocap-config-transport; do
-  sudo install -D -o root -g root -m 0644 "$HOPE_STAGE/$unit.service" "/etc/systemd/system/$unit.service"
-done
-sudo install -D -o root -g root -m 0755 /tmp/hope-lifecycle /usr/local/libexec/hope-lifecycle
-for helper in hope_sim2real_capture.py hope_sim2real_control.py hope_catch_background.py hope_wifi_policy.py; do
-  sudo install -D -o root -g root -m 0755 "/tmp/$helper" "/usr/local/libexec/$helper"
-done
+sudo install -D -o root -g root -m 0755 \
+  $HOME/foxglove_a3/hope_observer.py \
+  /usr/local/bin/hope_observer.py
+sudo install -D -o root -g root -m 0755 \
+  $HOME/foxglove_a3/hope_command_proxy.py \
+  /usr/local/bin/hope_command_proxy.py
+sudo install -D -o root -g root -m 0755 \
+  $HOME/foxglove_a3/hope_lifecycle_supervisor.py \
+  /usr/local/bin/hope_lifecycle_supervisor.py
+
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_observer_core.py \
+  /usr/local/lib/hope-foxglove/hope_observer_core.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_command_core.py \
+  /usr/local/lib/hope-foxglove/hope_command_core.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_runner_control_core.py \
+  /usr/local/lib/hope-foxglove/hope_runner_control_core.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_lifecycle_core.py \
+  /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_elink_health.py /usr/local/lib/hope-foxglove/hope_elink_health.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_elink_fault.py /usr/local/lib/hope-foxglove/hope_elink_fault.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_elink_telemetry.py /usr/local/lib/hope-foxglove/hope_elink_telemetry.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_elink_telemetry_ros.py /usr/local/lib/hope-foxglove/hope_elink_telemetry_ros.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_elink_clock.py /usr/local/lib/hope-foxglove/hope_elink_clock.py
+sudo install -D -o root -g root -m 0755 \
+  $HOME/foxglove_a3/hope_time_calibration.py /usr/local/bin/hope_time_calibration.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope_time_calibration_core.py /usr/local/lib/hope-foxglove/hope_time_calibration_core.py
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-time-calibration.service /etc/systemd/system/hope-time-calibration.service
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-chrony-burst.service /etc/systemd/system/hope-chrony-burst.service
+
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/bridge_params_control.yaml \
+  /etc/hope-foxglove/control_bridge_params.yaml
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-observer.service \
+  /etc/systemd/system/hope-observer.service
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-command-proxy.service \
+  /etc/systemd/system/hope-command-proxy.service
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-foxglove-control-bridge.service \
+  /etc/systemd/system/hope-foxglove-control-bridge.service
+sudo install -D -o root -g root -m 0644 \
+  $HOME/foxglove_a3/hope-lifecycle-supervisor.service \
+  /etc/systemd/system/hope-lifecycle-supervisor.service
+
+sudo install -D -o root -g root -m 0755 \
+  /tmp/hope-lifecycle \
+  /usr/local/libexec/hope-lifecycle
+sudo install -D -o root -g root -m 0755 \
+  $HOME/foxglove_a3/hope_base_pose_transport_relay.py \
+  /usr/local/libexec/hope-base-pose-transport-relay
 
 sudo systemctl daemon-reload
-# 检查现场 user/path/ExecStart/recording drop-in 后再继续。
-systemctl cat hope-lifecycle-supervisor.service
-# ExecStart 最终必须为 hope_operations.py；旧 observer/proxy shim 不运行 ROS。
 sudo systemctl enable --now \
-  hope-monitor.service hope-imu-telemetry.service \
-  hope-foxglove-bridge.service hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service hope-time-calibration.service
+  hope-monitor.service \
+  hope-foxglove-bridge.service \
+  hope-observer.service \
+  hope-command-proxy.service \
+  hope-foxglove-control-bridge.service \
+  hope-lifecycle-supervisor.service \
+  hope-time-calibration.service
 ```
 
-`hope-observer.service`、`hope-command-proxy.service` 现在是只执行
-`/usr/bin/true` 并依赖 canonical service 的兼容 shim，正常不启用。
-启动 shim 会启动 canonical service，但停止 shim **不会**停止 operations。
-停用或重启应操作 `hope-lifecycle-supervisor.service`；合并后不能独立禁用 observer。
-可选 `hope-mocap-config-transport.service` 保留独立进程；已有现场需要它时
-保留该选择，新装不因本次合并而自动启用。
+`hope-time-calibration.service` 启用后仅等待明确的校时请求，不会自行 step。
+`hope-chrony-burst.service` 是按需执行的固定 oneshot，不应单独 enable/start。
+实际校时还需要第 7.2 节的 MDU 精确 sudo 权限，以及已批准安装的 clock bootstrap
+和 PTP 服务；缺少依赖时停止维护流程，不在 START 中临时安装或改变时钟拓扑。
 
-`ROS_STATIC_PEERS` 为空时，canonical unit 会在 stderr 输出警告并使用现有
-address-agnostic DDS profile，让配置/诊断仍可启动。配置现场
-`/etc/hope-foxglove/network.env` 后，必须在 lifecycle STOPPED 时重启 canonical service
-使环境生效；helper 在 START 前仍要求 peers。已有 peers 时仍使用显式 peer wrapper。
-
-Laptop 发布 `/a3/base_pose_laptop_flat`；独立 native
-`hope-base-pose-transport-relay` 只改 topic 名并逐包转发到 `/a3/base_pose_flat`。
-它在 Planner/HAL 前启动，不使用 Python 3，Runner 缺失、启动失败或晚启动 gateway
-崩溃不会切断 base。另一个 HDU native gateway 只转发 Runner state/control、teleop
-input/state 和 session HOME 五路；HOME 本身由 Runner 产生。两种 transport 保留
-原始 payload、时间戳和 sequence，不做定时重播。
-`with_fastdds_unicast.sh` 保留 domain 232、UI 确认的 Laptop/MDU peer
-以及 route-derived Wi-Fi/internal interfaces；不能仅以 `ROS_STATIC_PEERS` 替代 XML
-`initialPeersList`。
-
-`TRANSPORT_GATEWAY` 在 MDU Runner participant 已存在后启动。健康 gate 检查新鲜
-Runner 状态与双向端点，单个 operations subscriber 即可；缺少 base、marker 或 mocap
-数据不阻止 lifecycle 完成。KERNEL 跳过独立 base relay 和 Planner。
-operations 的 base/Runner 订阅均为 reliable depth 10，各自使用独立互斥接收组，
-不与 telemetry timer 共组。畸形数据保留命令侧最后有效值及原接收时间，不延长新鲜度；
-显式 invalid base 则使共享值失效，observer 仍显示独立解码诊断。文件缓存错误、超时或
-首次读取未完成时显示 `UNKNOWN`，保留已知 session 身份并停止宣称旧 Planner/x_hit 状态有效。
-本次源码/隔离测试没有执行现场部署或硬件动作，也没有证明 CPU/延迟降低。
+`/etc/hope-foxglove/network.env` 默认不写死旧 Laptop 地址。Lifecycle 启动的
+Laptop bridge、marker publisher、Laptop base relay、HDU base transport relay 和
+HDU Planner 会使用 UI 已确认的地址构造固定 Fast DDS peer 列表。Laptop 发布
+`/a3/base_pose_laptop_flat`；双网口 HDU 只改 topic 名并逐包转发到
+`/a3/base_pose_flat`，让 MDU Runner 收到既有 schema-2 payload。
+`with_fastdds_unicast.sh` 会把这些 peer 同时写入 Fast DDS XML 的
+`initialPeersList`；只设置 `ROS_STATIC_PEERS` 在 HDU/MDU 这套 Fast DDS 上不足以
+完成跨网卡发现。不要换回没有 `initialPeersList` 的旧 wrapper，否则 Ready 以后
+Runner 会再次出现 `NO FRESH authoritative mocap base pose`。
+BASE_RELAY 启动阶段只确认受管 relay 进程已存活，不等待 ROS topic、Calibration
+service、marker 或第一帧 Pelvis 数据，因此这些数据不会把系统启动链卡成 `FAILED`。
+实时 Pelvis 是否新鲜只在面板中显示，并只约束 Foxglove 的 Ready 按钮。
 
 ### 6.5 HDU 只读验证
 
-仍在 **HDU** 执行；本节不会启动 HAL、Planner 或 Runner：
+仍在 **HDU** 执行；本节不会启动 HAL、Planner 或 Runner。共同的四个控制面
+服务和校时服务应 active；observer/proxy 的要求由已核实的部署布局决定：
 
 ```bash
-systemctl is-enabled \
-  hope-monitor.service \
-  hope-imu-telemetry.service \
-  hope-time-calibration.service \
-  hope-foxglove-bridge.service \
-  hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service
-
 systemctl is-active \
   hope-monitor.service \
-  hope-imu-telemetry.service \
-  hope-time-calibration.service \
   hope-foxglove-bridge.service \
   hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service
+  hope-lifecycle-supervisor.service \
+  hope-time-calibration.service
+
+systemctl show \
+  hope-observer.service \
+  hope-command-proxy.service \
+  hope-lifecycle-supervisor.service \
+  --property=Id,LoadState,ActiveState,SubState,MainPID,ControlGroup,ExecStart
+systemctl status hope-lifecycle-supervisor.service --no-pager --full
 
 ss -lnt | grep -E ':(8765|8766)[[:space:]]'
 
@@ -728,9 +763,9 @@ ros2 topic echo /hope/lifecycle/summary --once
 ros2 service type /hope/lifecycle/apply_config
 ros2 service type /hope/lifecycle/start
 ros2 service type /hope/lifecycle/kill_all_and_collect
+ros2 service type /hope/lifecycle/time_calibration
 ros2 service type /hope/calibrate
 ros2 service type /hope/refresh_x_hit
-test -x /usr/local/libexec/hope-transport-gateway
 test -x /usr/local/libexec/hope-base-pose-transport-relay
 timeout 10s ros2 topic echo /hope/system/cpu_top_process --once
 timeout 10s ros2 topic echo /hope/safety/estop_ready --once
@@ -741,11 +776,12 @@ timeout 10s ros2 topic echo /hope/safety/estop_latched --once
 exit
 ```
 
-只应有一个 `hope_operations` ROS node；旧 observer/proxy unit 应为 disabled，
-不要求其 active。Clock 维护的停止/恢复名单同样只使用 canonical operations unit。
-
 预期 lifecycle summary 在第一次确认 UI 配置前显示 `STOPPED` 和
 `config_revision=0`。不要从命令行调用 `start` 服务。
+分立式还要求 observer/proxy 两个 unit 均 active；合并式要求 supervisor 的
+实际 Python 子进程及 cgroup 所有权匹配 `hope_operations.py`，不能只看
+ExecStart 包装脚本。合并式的 absent/loaded-inactive 占位 unit 是正常情况；
+未知状态、游离 observer/proxy 进程或两种布局混用需要先查明。
 
 ---
 
@@ -761,6 +797,9 @@ cd $HOPE_ROOT
 scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
   foxglove/helpers/hope-lifecycle \
   "${ROBOT_USER}@${MDU_IP}:/tmp/hope-lifecycle"
+scp -o "ProxyJump=${ROBOT_USER}@${HDU_IP}" \
+  foxglove/a3/hope_elink_health.py foxglove/a3/hope_elink_fault.py \
+  "${ROBOT_USER}@${MDU_IP}:/tmp/"
 ```
 
 ### 7.2 进入 MDU 并配置最小 sudo 权限
@@ -789,15 +828,30 @@ command -v rsync
 sudo install -D -o root -g root -m 0755 \
   /tmp/hope-lifecycle \
   /usr/local/libexec/hope-lifecycle
+sudo install -D -o root -g root -m 0644 \
+  /tmp/hope_elink_health.py /usr/local/lib/hope-foxglove/hope_elink_health.py
+sudo install -D -o root -g root -m 0644 \
+  /tmp/hope_elink_fault.py /usr/local/lib/hope-foxglove/hope_elink_fault.py
 
 ROBOT_LOGIN="$(id -un)"
 printf '%s ALL=(root) NOPASSWD: %s\n' \
   "$ROBOT_LOGIN" '/usr/bin/systemctl stop agibot_pm.service' \
   "$ROBOT_LOGIN" '/usr/bin/systemctl start agibot_pm.service' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-preflight-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-recover-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-stop-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-verify-stopped-mdu' \
+  "$ROBOT_LOGIN" '/usr/local/libexec/hope-lifecycle time-calibration-restore-mdu' \
   | sudo tee /etc/sudoers.d/hope-lifecycle >/dev/null
 
 sudo chmod 0440 /etc/sudoers.d/hope-lifecycle
 sudo visudo -cf /etc/sudoers.d/hope-lifecycle
+
+# Clock calibration requires matching HDU coordinator/core and this MDU helper.
+# The five fixed helper actions accept no additional arguments. The verify
+# action only checks the same-boot STOPPED receipt and stopped consumers; it
+# cannot stop/start services or step a clock. Keep these exact sudo arguments;
+# do not grant a wildcard helper command or unrestricted chronyc/systemctl.
 
 install -d -m 0700 "$HOME/.config/hope-foxglove"
 printf 'HOPE_ROBOT_USER=%q\n' "$ROBOT_LOGIN" \
@@ -1143,13 +1197,14 @@ ssh ${ROBOT_USER}@${HDU_IP} '
   set -e
   systemctl is-active \
     hope-monitor.service \
-    hope-imu-telemetry.service \
-    hope-time-calibration.service \
     hope-foxglove-bridge.service \
     hope-foxglove-control-bridge.service \
     hope-lifecycle-supervisor.service
+  systemctl show hope-observer.service hope-command-proxy.service \
+    hope-lifecycle-supervisor.service \
+    --property=Id,LoadState,ActiveState,SubState,MainPID,ControlGroup,ExecStart
+  systemctl status hope-lifecycle-supervisor.service --no-pager --full
   test -x /usr/local/libexec/hope-lifecycle
-  test -x /usr/local/libexec/hope-transport-gateway
   test -x /usr/local/libexec/hope-base-pose-transport-relay
   test -d $HOME/hope_ws/install
   test -d $HOME/hope_ws/install_model21800_fix
@@ -1159,12 +1214,22 @@ ssh ${ROBOT_USER}@${HDU_IP} '
   pgrep -a -x ptp4l
   pgrep -a -x phc2sys
   chronyc tracking
+  chronyc -n sources
 '
 ```
 
+按 6.5 核对布局：split 的 observer/proxy 均须 active；consolidated 则验证
+supervisor 拥有实际 `hope_operations.py` Python 进程，允许 observer/proxy
+兼容占位保持 inactive。不能仅凭共同四个 unit active 就跳过实际进程核对，
+也不能因为兼容占位 inactive 而重装或启动 split 服务。
+
 检查 `chronyc tracking`：`Leap status` 必须是 `Normal`，`System time` 的绝对值
-必须不大于 `0.010 seconds`（10 ms），`Skew` 必须不大于 `5 ppm`。三项任一不满足，
-不要继续 10.3 或启动机器人，执行 10.4 的受控校时流程。现场已验证的正常示例为
+必须不大于 `0.010 seconds`（10 ms），并确认 chrony 有有效选中源。当前 monitor
+及校时协调器均把 `Skew` 作为诊断（`ntp_max_skew_ppm=0.0`），不因其超过
+历史文档中的 `5 ppm` 就要求 step。若现场明确设置了其他 monitor 阈值，先核对
+实际配置，不要反复 step 来消除频率不确定度。若时间/源资格确实不合格，暂停
+本次测试准备并按 10.4 检查受控校时前提；普通运行不因此新增运动门禁。
+现场已验证的正常示例为
 `System time 0.000065644 seconds fast`、`Skew 0.904 ppm`。
 
 ### 10.3 MDU 初始状态
@@ -1221,246 +1286,56 @@ HAL 的 cgroup 属于 `/system.slice/agibot_pm.service`，它就是 STEP 4 将�
 恢复顺序必须保持为：先停止下游 MDU，再停止 HDU；校准 HDU UTC 后，先恢复 HDU
 上游时钟，再恢复 MDU PTP，最后恢复 Foxglove 控制面。
 
-#### 10.4.1 先停止 MDU 时间消费者
+**操作入口：** 完成第 7 节的精确 sudo 权限和匹配的 HDU coordinator/core、
+MDU helper 更新后，在 Foxglove 确认 lifecycle `STOPPED`、idle 和新鲜的失败 NTP
+gate，再点击 **Time Calibration**。这不是 START 自动执行的动作，也不能在
+PASSIVE Runner、PD_STAND、SERVE 或 RALLY 中执行。无需为 168 ms 偏差等待约
+26 分钟的慢速校正。详见[受保护的启动前校时流程](foxglove_lifecycle.md#pre-operation-clock-correction)。
+控制器会持有硬件操作锁，在 step 前重新验证两块板的实际停止状态，最多执行一次
+bootstrap，并等待 10 ms gate 合格；失败后保持维护锁，不自动重试或开始运动。
+校时先快照已核实布局中实际 active 的控制面 unit，只停止、reset 和恢复这些
+unit；原先 inactive/不存在的 observer/proxy 兼容占位不会被启动。step 前仍
+检查已知消费者和实际进程是否全部停止；active、未知、异常重启或游离进程会
+阻止 step，不能用“可选 unit”绕过停止检查。
 
-在 **Laptop HOST** 执行。命令只停止 MDU 上“已加载且当前 active”的 vendor unit，
-因此不会再因为这台 MDU 没有 `agibot_ui.service` 或 `agibot_top.service` 而在
-`set -e` 下提前退出：
+#### 10.4.1 观察完成状态
 
-```bash
-ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} '
-  set -e
+校准期间 Foxglove 的 8766 控制连接会暂时断开；等待控制面恢复，不要因此再次点击
+Time Calibration、手工调用 bootstrap 或并行启动 Runner。此流程不停止由
+`rc.local` 启动的 ELink transfer，也不要求它消失；Runner、HAL、PTP 和 chrony
+等受管时间消费者仍必须通过停止状态复核。
 
-  RESTORE=/tmp/hope-clock-active-mdu
-  : > "$RESTORE"
+只有 `/hope/lifecycle/time_calibration/state` 为 `COMPLETE`、结果包含
+`SERVICES_RESTORED` 且新鲜 NTP gate 合格后，才从 10.1 开始重新执行
+10.1、10.2、10.3。START 仍需操作员明确发起，校准不会恢复机器人运动。
 
-  for SERVICE in \
-    agibot_roudi.service \
-    agibot_top.service \
-    agibot_ui.service \
-    agibot_pm.service; do
-    if systemctl cat "$SERVICE" >/dev/null 2>&1 &&
-       systemctl is-active --quiet "$SERVICE"; then
-      echo "$SERVICE" >> "$RESTORE"
-    fi
-  done
+#### 10.4.2 拒绝、失败或中断
 
-  mapfile -t ACTIVE_SERVICES < "$RESTORE"
-  if ((${#ACTIVE_SERVICES[@]})); then
-    sudo systemctl stop "${ACTIVE_SERVICES[@]}"
-  fi
+- `REJECTED` 表示尚未改变机器状态。检查发布的原因，修正已确认的前提条件，
+  重新确认支撑、STOPPED 和 idle 后再明确发起；不要通过删除状态记录绕过检查。
+- `FAILED_SAFE_STOP` 或 `INTERRUPTED` 不是完成。保持物理支撑和停止状态，
+  保留发布的 step/result、operation ID 和两块板的服务/进程状态，交由维护人员处理。
+  后端会尝试保持机器人时间消费者停止并恢复 chrony 与 Foxglove 控制面；如果结果
+  含 fail-safe 错误，不能假定停止或恢复已经成功。
+- 不要重启 ELink transfer、重新初始化 UART/IPC，或为恢复面板而启动机器人服务。
+  同一次维护不重复 hard-step；维护记录与停止回执按本次 boot 验证，不复用旧 boot
+  的手工服务列表。
 
-  sudo systemctl stop \
-    agibot-mdu-phc2sys.service \
-    agibot-mdu-ptp4l.service
-
-  ! pgrep -u agi -f "[a]3_deploy_onnx_ref_pingpong"
-  ! pgrep -f "[a]imrt_main_hal"
-  ! systemctl is-active --quiet agibot-mdu-ptp4l.service
-  ! systemctl is-active --quiet agibot-mdu-phc2sys.service
-
-  echo "MDU clock consumers stopped"
-'
-```
-
-#### 10.4.2 再停止 HDU 控制面、vendor 服务和 chrony
-
-仍在 **Laptop HOST** 执行：
+HDU 可只读收集：
 
 ```bash
-ssh ${ROBOT_USER}@${HDU_IP} '
-  set -e
-
-  VENDOR_RESTORE=/tmp/hope-clock-active-hdu-vendor
-  FOXGLOVE_RESTORE=/tmp/hope-clock-active-hdu-foxglove
-  : > "$VENDOR_RESTORE"
-  : > "$FOXGLOVE_RESTORE"
-
-  for SERVICE in \
-    agibot_roudi.service \
-    agibot_top.service \
-    agibot_ui.service \
-    agibot_pm.service; do
-    if systemctl cat "$SERVICE" >/dev/null 2>&1 &&
-       systemctl is-active --quiet "$SERVICE"; then
-      echo "$SERVICE" >> "$VENDOR_RESTORE"
-    fi
-  done
-
-  for SERVICE in \
-    hope-monitor.service \
-    hope-imu-telemetry.service \
-    hope-time-calibration.service \
-    hope-foxglove-bridge.service \
-    hope-foxglove-control-bridge.service \
-    hope-lifecycle-supervisor.service; do
-    if systemctl cat "$SERVICE" >/dev/null 2>&1 &&
-       systemctl is-active --quiet "$SERVICE"; then
-      echo "$SERVICE" >> "$FOXGLOVE_RESTORE"
-    fi
-  done
-
-  mapfile -t ACTIVE_SERVICES < "$FOXGLOVE_RESTORE"
-  if ((${#ACTIVE_SERVICES[@]})); then
-    sudo systemctl stop "${ACTIVE_SERVICES[@]}"
-  fi
-
-  mapfile -t ACTIVE_SERVICES < "$VENDOR_RESTORE"
-  if ((${#ACTIVE_SERVICES[@]})); then
-    sudo systemctl stop "${ACTIVE_SERVICES[@]}"
-  fi
-
-  for ATTEMPT in {1..20}; do
-    if ! pgrep -x ptp4l >/dev/null &&
-       ! pgrep -x phc2sys >/dev/null; then
-      break
-    fi
-    sleep 0.5
-  done
-
-  if pgrep -a -x ptp4l || pgrep -a -x phc2sys; then
-    echo "STOP: HDU PTP worker did not exit" >&2
-    exit 1
-  fi
-
-  sudo systemctl stop chrony.service
-  echo "HDU clock consumers stopped"
-'
+systemctl status hope-time-calibration.service agibot-clock-bootstrap.service --no-pager
+sudo journalctl -b -u hope-time-calibration.service -u agibot-clock-bootstrap.service --no-pager -n 120
+sudo cat /var/lib/hope-time-calibration/status.json
+chronyc tracking
 ```
 
-#### 10.4.3 对 HDU UTC 执行一次 hard-step
-
-仍在 **Laptop HOST** 执行。`waitsync` 最长等待 20 分钟；多数情况下会更快返回：
-
-```bash
-ssh -tt ${ROBOT_USER}@${HDU_IP} '
-  set -e
-
-  sudo systemctl reset-failed agibot-clock-bootstrap.service
-  sudo systemctl restart agibot-clock-bootstrap.service
-  sudo test -e /run/agibot-time/bootstrap-qualified
-
-  sudo systemctl start chrony.service
-  chronyc waitsync 600 0.010 5 2
-  chronyc tracking
-
-  echo "HDU UTC hard-step complete"
-'
-```
-
-只有输出重新满足 `Leap status Normal`、绝对 `System time <= 0.010 seconds`、
-`Skew <= 5 ppm` 才能继续。如果命令失败，保持机器人服务停止，只启动
-`chrony.service` 并保存 `systemctl status agibot-clock-bootstrap.service` 与
-`chronyc tracking` 输出；不要在服务运行后重试 hard-step。
-
-失败时只恢复 chrony 并收集诊断，随后停止本次机器人启动：
-
-```bash
-ssh ${ROBOT_USER}@${HDU_IP} '
-  sudo systemctl start chrony.service
-  systemctl status agibot-clock-bootstrap.service --no-pager || true
-  chronyc tracking || true
-'
-```
-
-#### 10.4.4 先恢复 HDU vendor 时钟链
-
-当前这台 HDU 的 `ptp4l/phc2sys` 仍由 vendor `agibot_pm.service` 启动，所以先恢复
-维护前 active 的 HDU vendor unit，再等待两个 PTP worker：
-
-```bash
-ssh ${ROBOT_USER}@${HDU_IP} '
-  set -e
-
-  while IFS= read -r SERVICE; do
-    [[ -n "$SERVICE" ]] && sudo systemctl start "$SERVICE"
-  done < /tmp/hope-clock-active-hdu-vendor
-
-  for ATTEMPT in {1..90}; do
-    if pgrep -x ptp4l >/dev/null &&
-       pgrep -x phc2sys >/dev/null; then
-      break
-    fi
-    sleep 1
-  done
-
-  pgrep -a -x ptp4l
-  pgrep -a -x phc2sys
-
-  while IFS= read -r SERVICE; do
-    [[ -n "$SERVICE" ]] && systemctl is-active "$SERVICE"
-  done < /tmp/hope-clock-active-hdu-vendor
-'
-```
-
-仓库中的长期正式方案是由独立 systemd unit 监管 HDU 和 MDU 的四个 PTP worker，
-见 `agibot/ntp_sync/README.md`。在完成那套部署前，不要把其中的安装步骤混入本次
-现场启动；本节按当前机器上已经验证的 vendor-owned HDU PTP 拓扑恢复。
-
-#### 10.4.5 恢复 MDU PTP，再恢复 MDU vendor 服务
-
-在 **Laptop HOST** 执行：
-
-```bash
-ssh -J ${ROBOT_USER}@${HDU_IP} ${ROBOT_USER}@${MDU_IP} '
-  set -e
-
-  sudo systemctl start \
-    agibot-mdu-ptp4l.service \
-    agibot-mdu-phc2sys.service
-
-  systemctl is-active \
-    agibot-mdu-ptp4l.service \
-    agibot-mdu-phc2sys.service
-
-  sleep 5
-
-  while IFS= read -r SERVICE; do
-    [[ -n "$SERVICE" ]] && sudo systemctl start "$SERVICE"
-  done < /tmp/hope-clock-active-mdu
-
-  while IFS= read -r SERVICE; do
-    [[ -n "$SERVICE" ]] && systemctl is-active "$SERVICE"
-  done < /tmp/hope-clock-active-mdu
-'
-```
-
-#### 10.4.6 最后恢复 HDU Foxglove 控制面
-
-在 **Laptop HOST** 执行：
-
-```bash
-ssh ${ROBOT_USER}@${HDU_IP} '
-  set -e
-
-  sudo systemctl reset-failed \
-    hope-monitor.service \
-    hope-imu-telemetry.service \
-    hope-time-calibration.service \
-    hope-foxglove-bridge.service \
-    hope-foxglove-control-bridge.service \
-    hope-lifecycle-supervisor.service
-
-  while IFS= read -r SERVICE; do
-    [[ -n "$SERVICE" ]] && sudo systemctl start "$SERVICE"
-  done < /tmp/hope-clock-active-hdu-foxglove
-
-  systemctl is-active \
-    hope-monitor.service \
-    hope-imu-telemetry.service \
-    hope-time-calibration.service \
-    hope-foxglove-bridge.service \
-    hope-foxglove-control-bridge.service \
-    hope-lifecycle-supervisor.service
-
-  ss -lnt | grep -E ":8766[[:space:]]"
-  chronyc tracking
-'
-```
-
-现在从 10.1 开始重新执行 10.1、10.2、10.3。`/tmp/hope-clock-active-*` 记录的是
-维护开始前的 active 状态；如果任一机器在中途重启，不能继续使用旧记录，必须重新
-确认服务状态。
+当前协调器支持已明确识别的独立 systemd PTP 拓扑，或两个独立 HDU PTP unit
+均不存在、由 vendor PM 管理的旧 HDU 拓扑。混合、未知或中途变化的拓扑会拒绝
+step。不要把“停止 PM 即停止 PTP”当成通用假设，也不要绕过协调器使用零散的
+手工 stop/step/restore 命令。首次安装或变更底层时钟服务属于单独的停止维护，
+参见 [A3 clock package](../../agibot/ntp_sync/README.md)；不要在现场启动过程中
+顺便变更 PTP 所有权。
 
 ### 10.5 Laptop hope Distrobox：ROS 发现与 3D 数据 smoke test
 
@@ -1497,7 +1372,7 @@ DDS=$HOPE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicas
 
 预期 `/hope/pelvis/marker`、`/hope/pelvis/tf` 和 `/hope/ball/marker` 的
 `Publisher count` 至少为 1，这证明
-Laptop 通过固定 Fast DDS unicast 配置发现了 HDU。独立 Laptop base relay 尚未启动时，
+Laptop 通过固定 Fast DDS unicast 配置发现了 HDU。`START SYSTEM` 之前 Laptop base relay 尚未启动时，
 `tf_ready` 为 `false`、pelvis 报 `world` 不存在是允许的；这不能证明 3D TF 已就绪。
 
 完成后退出 distrobox：
@@ -1565,11 +1440,11 @@ START SYSTEM
 ```text
 STARTING · PREFLIGHT
 STARTING · SESSION
+STARTING · OPTITRACK
 STARTING · BASE_RELAY
 STARTING · PLANNER
 STARTING · HAL
 STARTING · RUNNER
-STARTING · TRANSPORT_GATEWAY
 STARTING · RUNNER_VERIFY
 RUNNING · RUNNER
 START_COMPLETE_RUNNER_PASSIVE
@@ -1579,11 +1454,11 @@ START_COMPLETE_RUNNER_PASSIVE
 
 ```text
 创建统一 session
-→ HDU 启动独立 native base relay（KERNEL 跳过）
-→ HDU 启动 C++ Planner（KERNEL 跳过；Laptop 动捕独立管理）
+→ Laptop hope Distrobox 中启动 OptiTrack bridge、marker publisher 和 flight packetizer
+→ 在 Laptop 同一进程树中启动 world frames、校准服务和 authoritative base relay
+→ HDU 启动 C++ Planner
 → MDU 停止 agibot_pm 并启动 EtherCAT HAL
 → MDU 启动同一个 model_21800 Runner，初始为 PASSIVE
-→ HDU 启动五路 Runner native transport gateway，再验证本次 Runner 权威状态
 ```
 
 `RUNNER_VERIFY` 不是策略挥拍 gate，也不是额外人工步骤；它只防止生命周期把未启动
@@ -1595,8 +1470,17 @@ START_COMPLETE_RUNNER_PASSIVE
 
 ### 11.3 Runner 按钮顺序
 
-当前使用 **17 个站位的 v3 贴纸壳（前方 7 点不变，后方上/中两排各 5 点）**和
-[`A3_v3_17_stickers.motive`](../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
+**本小节下文保留的是历史 17 点实测标定流程，不适用于当前 P1/P2 各 12 点安装。**
+当前安装使用匹配 ChingMu 的
+[P1/P2 Motive 资产](../../agibot/mocap_sticker_shell_v3/motive_asset/README.md)，
+内部名为 `UCB_P1` / `UCB_P2`。默认 `motive_live` 不需要标定 JSON；可选
+`motive_asset` 校验对应一侧的 12 点参考。旧 `stickers_v3` 标定仍要求 17 点，
+不可用于这两个子集。当前 Console 操作以
+[Console README](../../foxglove/extensions/hope-a3-console/README.md) 为准，
+不要依照下列历史 Calibration / Refresh x_hit 按钮操作。
+
+历史流程使用 **17 个站位的 v3 贴纸壳（前方 7 点不变，后方上/中两排各 5 点）**和
+历史 17 点 Motive 资产（现仅保留为回归测试夹具，不是当前导入文件）
 （内部刚体名为 `P1`）。先按
 [v3 安装与标定流程](../../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)
 完成隔离项目导入检查，设置 Motive Streaming **Up Axis = Z Up**，保留现有
@@ -1608,7 +1492,7 @@ MODELDEF 坐标转换，并重启 NatNet。该资产的局部原点/轴向按 CA
 恢复的 S06/S07/S08/S15/S17 仅使用 CAD 名义坐标，原始资产没有其真实观测；
 不可宣称已确认可见。候选文件省略了无法由名义点推导的 learned graph 缓存，
 须先验证 Motive 导入并重新导出；若导入失败，按壳体 README 的 Motive API 路径建模。
-当前 main 运行链按球台侧将内部 P1 改名为 `UCB_P1` 或 `UCB_P2`，选择 `stickers_v3`，
+该历史运行链按球台侧将内部 P1 改名为 `UCB_P1` 或 `UCB_P2`，选择 `stickers_v3`，
 实时标定生成 `calibration/ucb_robot_to_pelvis.json`。
 
 Runner 到达 `PASSIVE` 后再操作：
@@ -1707,14 +1591,14 @@ Laptop 会在对应目录写入 `collection_status.txt`。只有 SSH 不可达�
 Runner
 → HAL
 → 恢复 MDU agibot_pm
-→ HDU transport gateway
-→ Planner、独立 native base relay 与旧版本 relay session 清理
-→ 停止 Laptop session capture（独立动捕 bridge 保持运行）
+→ Planner
+→ Laptop world/calibration/base relay
+→ Laptop OptiTrack/marker
 → rsync HDU/MDU 日志到 Laptop
 ```
 
-这里的 `ALL` 指 lifecycle 以固定名称创建的 Runner、HAL、Planner、独立 base relay、transport gateway，
-并兼容清理旧 relay session；不代表停止独立管理的 Laptop 动捕。不会执行
+这里的 `ALL` 只指 lifecycle 以固定名称创建的 Runner、HAL、Planner、base relay、
+world/calibration 和 Laptop OptiTrack/marker/packetizer tmux sessions，不会执行
 `pkill`/`killall`，也不会终止机器上任意其他进程。如果启动后的权威状态验证失败，
 lifecycle 会进入 `FAILED`，此时同一个按钮仍可清理已经创建的受管 session。
 
@@ -1799,6 +1683,7 @@ nc -vz ${HDU_IP} 8766
 
 ssh ${ROBOT_USER}@${HDU_IP} \
   'systemctl status hope-foxglove-control-bridge.service \
+    hope-command-proxy.service \
     hope-lifecycle-supervisor.service --no-pager'
 ```
 
@@ -1966,7 +1851,34 @@ journalctl -u hope-monitor.service -n 100 --no-pager
 ## 14. 当前验证边界
 
 本仓库的单元测试、shell 解析、systemd 校验和 UI 打包只能证明接口、配置限制和
-固定命令构造。第一次三机部署仍必须完成一次有人值守 rehearsal，重点检查：
+固定命令构造。
+
+最初的校时修订实机核对仅为只读检查：已确认现场是 `hope_operations.py`
+合并式控制面，observer/proxy 为 loaded-inactive 兼容占位；时钟偏差约 1.6 ms，
+已满足资格，因此没有执行真实 step、服务停止或恢复。隔离测试覆盖拓扑和顺序，
+不等于完成实机 hard-step 恢复验收。
+
+2026-10-26 后续现场验证：PR #88 合入保留现场修改的本地分支，完成 ARM64
+Runner 构建及受控部署。现场为 P1 硬件、合并式 operations 服务和 receive-only
+model17400；安装时保留 P1 helper，并带入原部署已有的 fixed HOME 兼容修改。
+因此这份记录是本地集成验证，不是未经修改的上游 T3 配置验收。
+经现场确认可靠支撑后，managed START 返回 `START_COMPLETE_RUNNER_PASSIVE`；
+实际进程的二进制、模型、配置和 catalog 哈希核对通过，Runner 约 50 Hz，
+未观察到 command fault 或 sync miss；NTP 门禁及身体定位数据新鲜度通过。
+未执行 Stand、Serve、接球、夹爪或实体急停动作。
+
+现场 health 尚未全项通过：ELink 仅为 `OBSERVED`，没有经过核验的遥测契约，
+所需通道未进入诊断监视器，`functional_ready=false`；厂商日志还有
+`upper recv channel stream failed` 超时。厂商日志出现 BMS 数据不等于端到端
+遥测验收通过。现场球输入为零，也没有完成实物击球验收。不得修改健康结果或
+放宽契约来消除这些未验证项；按实际硬件、消息 schema 和来源继续核对。
+
+本地保留的旧资产测试曾因旧界面文案、已移除的 `refresh_x_hit` 按钮、
+旧 Ultra/Build4 配置及固定地址断言失败。同步当前接口后，本地资产测试
+25 项通过；PR 分支 23 项通过。新增检查覆盖平面模式服务、桥接白名单、
+请求后的新鲜回读以及 T3 启动前配置验证。单测结果不改变上述现场验收边界。
+
+第一次三机部署仍必须完成一次有人值守 rehearsal，重点检查：
 
 - 四方向 SSH key；
 - MDU sudoers；

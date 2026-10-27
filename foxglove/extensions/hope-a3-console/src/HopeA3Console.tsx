@@ -14,9 +14,15 @@ import { BallModelStatus, ballModelDisplay } from "./ballModelStatus";
 
 import { HitSpeedScaleControls } from "./HitSpeedScaleControls";
 import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
+import { BallYFilterControls } from "./BallYFilterControls";
+import { BALL_Y_FILTER_SERVICE, BallYFilterState, ballYFilterRequest, decodeBallYFilter } from "./ballYFilter";
+import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { robotConnectionUrl, switchRobot } from "./robotConnection";
 import { mergeConfirmedConfig } from "./lifecycleConfig";
+import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
+import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
+import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
 import "@fontsource/ibm-plex-mono/400.css";
@@ -34,6 +40,8 @@ import "./styles.css";
 const TOPICS = {
   plannerDiagnostics: "/planner/diagnostics",
   fieldStatus: "/hope/field/status",
+  playerP1: "/hope/mocap/players/UCB_P1",
+  playerP2: "/hope/mocap/players/UCB_P2",
   ntpOffset: "/hope/ntp/offset_ms",
   ntpSkew: "/hope/ntp/skew_ppm",
   ntpDispersion: "/hope/ntp/root_dispersion_ms",
@@ -62,6 +70,9 @@ const TOPICS = {
   commandFlight: "/hope/command/flight_id",
   commandSummary: "/hope/command/summary",
   runnerAlive: "/hope/runner/alive",
+  runnerBoot: "/hope/runner/boot_id",
+  mocapSafety: "/hope/runner/mocap_safety_hdu_flat",
+  operatorChallenge: OPERATOR_CHALLENGE,
   runnerMode: "/hope/runner/mode",
   xboxPreview: "/hope/runner/xbox_preview",
   teleopState: "/hope/runner/teleop_state_hdu_flat",
@@ -127,7 +138,9 @@ type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
 type FieldStatus = {
+  player_positions?: { P1: boolean; P2: boolean };
   ball_model_status?: BallModelStatus;
+  policy_model?: "model14600" | "model11999" | "model12600" | "model17400" | null;
   ball_model?: "berkeley" | "ppq002" | "ppq004" | null;
   ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
@@ -222,7 +235,12 @@ function xboxPreviewValue(message: unknown): XboxPreview | undefined {
 }
 
 type Snapshot = {
+  mocapSafety?: MocapSafety;
+  runnerBoot?: number;
+  playerP1?: PlayerPosition;
+  playerP2?: PlayerPosition;
   hitSpeedScale?: HitSpeedScaleState;
+  ballYFilter?: BallYFilterState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
   ntpOffsetMs?: number;
@@ -309,6 +327,11 @@ function scalar(message: unknown): unknown {
 
 function numberValue(message: unknown): number | undefined {
   const value = scalar(message);
+  if (typeof value === "bigint") {
+    // ROS 2 Int64/UInt64 may decode as bigint. Never round an identity to Number.
+    const decoded = Number(value);
+    return Number.isSafeInteger(decoded) ? decoded : undefined;
+  }
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
@@ -329,9 +352,25 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
+    case TOPICS.mocapSafety:
+      next.mocapSafety = decodeMocapSafety(scalar(event.message));
+      break;
+    case TOPICS.runnerBoot: {
+      const value = numberValue(event.message);
+      next.runnerBoot = value != undefined && Number.isSafeInteger(value) &&
+        value > 0 && value <= 2**52 ? value : undefined;
+      break;
+    }
+    case TOPICS.playerP1:
+      next.playerP1 = decodePlayerPosition(event.message, receivedAt, next.playerP1);
+      break;
+    case TOPICS.playerP2:
+      next.playerP2 = decodePlayerPosition(event.message, receivedAt, next.playerP2);
+      break;
     case TOPICS.plannerDiagnostics:
       next.planeMode = decodePlaneMode(event.message);
       next.hitSpeedScale = decodeHitSpeedScale(event.message);
+      next.ballYFilter = decodeBallYFilter(event.message);
       break;
     case TOPICS.fieldStatus:
       try {
@@ -713,7 +752,17 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [recordBusy, setRecordBusy] = useState(false);
   const csvInput = useRef<HTMLInputElement>(null);
 
+  const previewBallYFilter = useCallback((draft: BallYFilterDraft, options: { kernelMode: boolean; edited: boolean }) => {
+    context.layout.addPanel({ position: "sibling", type: "3D", updateIfExists: true,
+      getState: (existing) => withBallYPreview(existing, draft, options) });
+    savedPanel.current = { ...savedPanel.current,
+      ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited,
+      ballYFilterRobot: latest.current.lifecycleConfig.hdu_wifi_ip };
+    context.saveState(savedPanel.current);
+  }, [context]);
+
   useLayoutEffect(() => {
+    const heartbeat = new OperatorHeartbeat(context);
     context.onRender = (renderState, done) => {
       const receivedAt = Date.now();
       const hostMessage = renderState.currentFrame?.find((event) => event.topic === TOPICS.hduWifiIp);
@@ -737,6 +786,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       for (const event of renderState.currentFrame ?? []) {
         applyMessage(next, event, receivedAt);
       }
+      for (const event of renderState.currentFrame ?? []) {
+        if (event.topic === OPERATOR_CHALLENGE && !renderState.didSeek) {
+          heartbeat.echo(scalar(event.message), next.runnerBoot, next.lifecycleSession);
+        }
+      }
       latest.current = next;
       setSnapshot(next);
       setRenderDone(() => done);
@@ -746,6 +800,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     context.watch("currentFrame");
     context.subscribe(Object.values(TOPICS).map((topic) => ({ topic })));
     return () => {
+      heartbeat.close();
       context.onRender = undefined;
       context.unsubscribeAll();
     };
@@ -859,6 +914,30 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     } finally {
       setPending(false);
     }
+  }, [context]);
+
+  const applyBallYFilter = useCallback(async (config: { enabled: boolean; min: number; max: number }) => {
+    const { enabled, min, max } = config;
+    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(BALL_Y_FILTER_SERVICE, ballYFilterRequest(config)),
+      timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      const state = current.ballYFilter;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) &&
+          state?.enabled === enabled && state.min === min && state.max === max) {
+        setNotice("APPLIED · y filter and table markers updated");
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new Error("已收到确认，但状态回读超时；请查看当前生效范围。");
   }, [context]);
 
   const uploadAsset = useCallback(async (file: File | undefined) => {
@@ -1153,7 +1232,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">A3 SOURCE · 1.8.15</div>
+          <div className="eyebrow">A3 SOURCE · 1.8.18</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? "ROS 2"} · CONTROL :8766</span>
             <span
@@ -1254,6 +1333,26 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       </div>
 
       <div className="field-assets">
+        <section className="field-card">
+          <span className="eyebrow">RECEIVE POLICY</span>
+          <strong>{field?.policy_model === "model17400" ? "17400 · PPQ004 · Receive only" : field?.policy_model === "model12600" ? "12600 · v23-12600 serve + receive" : field?.policy_model === "model11999" ? "11999 · v23 fixed Home" : field?.policy_model === "model14600" ? "14600 · serve + receive" : "No policy selected"}</strong>
+          <div className="field-buttons">
+            <button type="button" disabled={!assetEditable}
+              aria-pressed={field?.policy_model === "model14600"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model14600"})}>14600</button>
+            <button type="button" disabled={!assetEditable || kernelMode}
+              aria-pressed={field?.policy_model === "model11999"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model11999"})}>11999 · Receive only</button>
+            <button type="button" disabled={!assetEditable || kernelMode}
+              aria-pressed={field?.policy_model === "model12600"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model12600"})}>12600 · Serve + receive</button>
+            <button type="button" disabled={!assetEditable || kernelMode}
+              aria-pressed={field?.policy_model === "model17400"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model17400"})}>17400 · Receive only</button>
+          </div>
+          <p className="helper">Selected bundle · switch while STOPPED, then START to load. 17400 requires PPQ004 and calibrated mocap; receive only, no serve CSV. 11999 remains receive only. 12600 uses v23-12600 for serve + receive; its matched CSV is selected with the policy. 11999 / 12600: Home 0.20 m left of the centre line.</p>
+        </section>
+
         <section className="field-card">
           <span className="eyebrow">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "VRPN · POSE ONLY" : "MOTIVE · LIVE ASSET"}</span>
           <strong>{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "GEOMETRY NOT VERIFIED" : assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>
@@ -1428,15 +1527,17 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             }}>
             <option value="" disabled>请选择裤子</option>
             <option value="v2">V2 · 旧裤子 · 10 点</option>
-            <option value="v4">V4 · 新裤子 · 17 点贴纸</option>
+            <option value="v4">V4 · 17 孔裤子 · P1/P2 各 12 点</option>
           </select>
         </label>}
         <div className="table-side-selector">
           <div>
             <div className="eyebrow">OUR TABLE SIDE · LOCKED INTO NEXT START</div>
             <div className="topic-path">
-              START SYSTEM does not contact Motive · when optional OptiTrack is running, UCB_P1
-              uses Motive world directly and UCB_P2 poses rotate 180° about the table centre
+              Fresh player position required at START: P1 x &lt; 0 m; P2 x &gt; 2.74 m.
+              Side stays locked until STOP. Offline Kernel serving is exempt.
+              {!kernelMode && fieldFresh && field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true &&
+                " HDU has not verified this end; check explicit-peer DDS discovery."}
             </div>
           </div>
           {(["P1", "P2"] as const).map((side) => (
@@ -1444,7 +1545,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               key={side}
               className={configDraft.table_side === side ? "side-selected" : ""}
               type="button"
-              disabled={!lifecycleStopped || lifecycleBusy}
+              disabled={!lifecycleStopped || lifecycleBusy || (!kernelMode &&
+                !playerSideAvailable(side, [snapshot.playerP1, snapshot.playerP2], now))}
               onClick={() => {
                 setConfigTouched(true);
                 setConfigDraft((current) => ({ ...current, table_side: side }));
@@ -1480,6 +1582,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               configTouched ||
               fieldBusy || field?.busy === true || !fieldFresh ||
               (!kernelMode && lifecycleState !== "FAILED" && !ballDisplay.ready) ||
+              (!kernelMode && lifecycleState !== "FAILED" &&
+                (!playerSideAvailable(configDraft.table_side as "P1" | "P2",
+                  [snapshot.playerP1, snapshot.playerP2], now) ||
+                  field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true)) ||
               busy.startLifecycle === true
             }
             onClick={() => void startSystem()}
@@ -1702,6 +1808,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "stand"}
             onClick={() => void invoke("stand")}
           />
+          <div className="ready-controls">
           <ActionButton
             label="Ready"
             detail={
@@ -1733,6 +1840,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.hitSpeedScale?.configurable === true}
             kernelMode={kernelMode} onApply={applyHitSpeedScale}
           />
+          <BallYFilterControls
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.ballYFilter : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.ballYFilter?.configurable === true}
+            kernelMode={kernelMode} onApply={applyBallYFilter}
+            key={configHost}
+            initialState={configHost && savedPanel.current.ballYFilterRobot === configHost ? savedPanel.current : undefined} onPreview={previewBallYFilter}
+          />
+          </div>
           <ActionButton
             label="Start to Serve · Raise hand"
             detail={
@@ -1816,6 +1932,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         </div>
         <div className="sequence-footer">
           <span>{lastAction}</span>
+          <span>{mocapSafetyText(
+            snapshot.runnerAlive === true && isFresh(snapshot, TOPICS.runnerAlive, now, 1_000) &&
+            isFresh(snapshot, TOPICS.runnerBoot, now, 1_000) &&
+            isFresh(snapshot, TOPICS.mocapSafety, now, 1_000) &&
+            snapshot.mocapSafety?.boot === snapshot.runnerBoot
+              ? snapshot.mocapSafety : undefined)}</span>
           <ActionButton
             label="Runner Passive"
             detail="ZERO GAINS · robot loses support"

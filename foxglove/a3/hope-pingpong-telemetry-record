@@ -41,6 +41,10 @@ exec /opt/ros/jazzy/bin/ros2 bag record \
   /hope/clock/message_text \
   /hope/runner/state_flat \
   /hope/runner/state_hdu_flat \
+  /hope/runner/mocap_safety_flat \
+  /hope/runner/mocap_safety_hdu_flat \
+  /hope/runner/operator_challenge_hdu_flat \
+  /hope/runner/operator_echo_hdu_flat \
   /hope/runner/summary \
   /hope/runner/control_request_flat \
   /hope/runner/control_request_hdu_flat \

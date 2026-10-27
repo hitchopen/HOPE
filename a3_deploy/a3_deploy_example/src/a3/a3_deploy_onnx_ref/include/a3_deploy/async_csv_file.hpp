@@ -43,6 +43,11 @@ class AsyncCsvFile : public std::ostream {
       return true;
     }
     bool IsOpen() const { return opened_; }
+    // Query before formatting a data row. Header emission still happens once
+    // after open(), even when the recording switch starts OFF.
+    bool IsRecording() const {
+      return opened_ && (!gated_ || generation_.load(std::memory_order_acquire) != 0);
+    }
     void Close() {
       if (!opened_) return;
       sync();
@@ -188,6 +193,7 @@ class AsyncCsvFile : public std::ostream {
   AsyncCsvFile() : std::ostream(nullptr) { rdbuf(&buffer_); }
   void open(const std::string& path) { if (!buffer_.Open(path)) setstate(std::ios::failbit); }
   bool is_open() const { return buffer_.IsOpen(); }
+  bool is_recording() const { return buffer_.IsRecording(); }
   void close() { buffer_.Close(); }
 };
 

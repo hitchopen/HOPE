@@ -1149,7 +1149,7 @@ FetchContent_MakeAvailable(googletest)
 
 find_package(GTest REQUIRED)
 
-file(GLOB_RECURSE TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/*.cpp)
+file(GLOB_RECURSE TEST_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/*.cpp)
 list(APPEND TEST_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/test_a3_manual_control.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/test_a3_encoder_obs_builder.cpp

@@ -54,6 +54,8 @@ def field(tmp_path, fail=None, model="ppq002"):
     calls = []
     def exchange(host, config, request):
         calls.append((host, dict(request)))
+        if request["op"] == "read_policy_model":
+            return {"catalog_installed": False, "model": None}
         if request["op"] == "select_ball_model":
             states[host] = request["model"]
             if fail == host and request["model"] == model:
@@ -135,7 +137,9 @@ def test_legacy_direct_config_is_identified_without_creating_an_override(tmp_pat
 
 def test_status_distinguishes_configuration_loaded_mismatch_and_unavailable(tmp_path):
     endpoints = {h: {"configured_model": "ppq004", "runtime": "NOT_RUNNING"} for h in ("hdu", "laptop")}
-    def exchange(host, *_):
+    def exchange(host, config, request):
+        if request["op"] == "read_policy_model":
+            return {"catalog_installed": False, "model": None}
         if isinstance(endpoints[host], Exception):
             raise endpoints[host]
         return endpoints[host]

@@ -266,26 +266,8 @@ manual recording steps are not the default current workflow.
 | 位置 | 必须包含 | 验证依据 |
 | --- | --- | --- |
 | Laptop | `hope` ROS 环境、动捕/坐标桥、球包器、相应消息定义、Foxglove Console 与布局、可选 Xbox 输入服务 | 实际安装目录/程序 SHA、动捕与球包 ROS 数据、手柄预览 |
-| HDU | ARM C++ Planner、匹配消息/配置、独立 native base relay、五路 Runner transport gateway、一个 hope_operations（lifecycle/field/recording/command/observer）节点、8766 控制桥 | 实际进程与参数、Planner 审计、Runner 状态回传 |
+| HDU | ARM C++ Planner、匹配消息/配置、base 与 Runner transport relay、lifecycle/field/recording 服务、8766 控制桥 | 实际进程与参数、Planner 审计、Runner 状态回传 |
 | MDU | 完整 Rockchip Runner 包、策略及元数据、运行配置/库、HAL/夹爪配套、需要时的 `teleop_humanlike` 和原始记录组件 | 本机加载检查、启动日志、实际 Runner tick/状态、策略/二进制 SHA |
-
-当前节点结构以 `main` 的 `1534c2c2` 为基线，保留 PR #71 的失败 START 恢复、
-PR #76 的 HOME/击球速度/连接控制和 PR #74 的 handoff 容差。完整 OPTITRACK
-session 从 12 个减到 10 个 HOPE ROS 节点（9 HDU + 1 MDU）；可选 mocap config
-transport 加到 11 个。详见[节点结构与 STOPPED 迁移](node_architecture.md)。
-
-HDU 常驻 operations 仍使用 `hope-lifecycle-supervisor.service`，保留现场 drop-in；
-旧 observer/proxy unit 是不创建 ROS 进程的兼容 shim，正常不启用。升级必须在
-STOPPED 状态先停用旧 unit，再同时部署 Python 模块/依赖、native base relay、gateway、
-IMU binary 和 matching helper。新 base relay 是 native binary，不启动 Python 3；
-它在 Planner/HAL 前独立启动，Runner 缺失/失败或 gateway 崩溃不切断 base。
-KERNEL 跳过 base relay 和 Planner。五路 gateway 必须在 Runner 后启动，HOME 也由
-Runner 产生。保留原来的 Fast DDS interface/peer 选择；base 数据缺失不阻止启动。
-旧 shim 的 stop 不会停止 operations；停用/重启应操作 canonical service，不能独立关闭 observer。
-`ROS_STATIC_PEERS` 为空时 canonical service 会警告并回退到 address-agnostic profile，
-只用于配置/诊断；配置现场 `network.env` 后在 STOPPED 状态重启，helper 在 START 前仍要求 peers。
-不要用示例网络文件覆盖现场配置。源码合并和隔离
-测试不等于现场部署，也不证明 CPU/延迟更低，仍需实际负载 profiling。
 
 只上传 ONNX、只安装 `.foxe` 或只替换 Laptop Planner，都不算三机部署完成。
 HDU Planner 与 MDU Runner 是两个独立产物；x86 ELF 不能复制去冒充 ARM 程序。
@@ -436,3 +418,73 @@ not carry a new build, Gate 3 or hardware verdict. The 2026-10-13 extension
 additionally checked ball-physics consumers, lifecycle/recording behavior and
 Xbox source mappings; its examples remain operator instructions, not actions
 performed by the documentation update.
+
+## Model17400 PR87 runtime alignment
+
+The runtime extension accepts the original model17400 two-file export without
+editing its ONNX metadata or deploy configuration. Its 110-D observation uses
+an immutable session HOME, zero station movement, passive head slots, and the
+exported forehand/backhand support. The common interception plane is 0.57 m
+relative to HOME; side selection uses the exported -0.24 m boundary. Empty
+support parameters preserve the existing Planner selector. Manual PD_STAND uses
+the robot's official pose, independently of a policy's action offset.
+
+Use `scripts/prepare_model17400_bundle.py` inside the deployment project to stage
+an existing complete Runner distribution. Required arguments are `--package`,
+`--runner-dist`, and a new `--output` directory. Cross staging additionally takes
+`--inspection-runner-dist` for a native build of the same source. The helper pins
+policy/deploy hashes, validates the native inspection, rejects mixed ELF
+architectures, includes the HOME transport configuration, and produces immutable
+HDU/MDU catalog entries. It does not install or start anything. The Console
+installation requirements are in
+[model17400 receive policy](../../foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy).
+
+Initial validation on 2026-10-26 used HOPE main `3ad7bae9` plus this adaptation: x86 and
+ARM64 Runner builds passed; the native HOME/drift probe and model12600 loading
+regression passed; six invalid new-contract mutations were rejected. All 20
+Planner test targets and 69 focused Foxglove tests passed. The wider Foxglove
+suite had two VRPN dispatch-fixture failures also reproduced using unchanged
+main files; 29 ROS-dependent tests were skipped in the host environment.
+
+The latest independent 100-ball MuJoCo rerun completed 100 swings, measured
+98 raw racket contacts, 97 qualified contacts and 97 legal landings, with zero
+conductor falls. Two trajectories were incomplete across 87 ms telemetry gaps.
+**Formal Gate3 remained FAIL.** Final HOME
+Y drift was about 0.125 m; late station error and idle wrist range exceeded the
+existing limits. The legacy report also still expects a 0.58 m plane and Build1
+HOLD, which do not describe this export. Those report assumptions need a separate
+contract-aware update; thresholds and ball count were not weakened. PPQ004's
+full outgoing Magnus/first-bounce solver parity remains outside this change.
+The ARM Runner passed read-only policy inspection on MDU, and the receive-only
+bundle and Foxglove model option were installed for attended testing. A subsequent
+operator START failed before Runner launch: the helper tried to hash a missing
+legacy serve CSV even though the receive-only receipt disabled serve arguments.
+The fix audits that CSV only when serve arguments are active; five regression
+cases cover receive-only launch and unchanged serve validation. The installed
+helper was initially checked without starting Runner. The operator subsequently
+confirmed the START fix was tested successfully on 2026-10-26. Gate3 PASS is not
+an acceptance prerequisite for this PR; the recorded simulation result remains
+unchanged. This startup confirmation is not full physical hitting qualification.
+
+Review fixes keep managed shutdown independent of policy bundle integrity:
+MDU startup validates the selected deployment, while STOP retains its existing
+session/process handling and reports integrity errors after stopping. Every START
+reads and verifies the installed HDU/MDU policy identities and capabilities even
+without a saved UI selection. Legacy startup is retained only when both endpoints
+explicitly report no catalog. Native serve-validator failures retain stderr and
+the structured `SERVE_TIMELINE_INVALID` event.
+
+The PR branch also incorporates HOPE main `b41fffc7`, including merged PR87,
+PR78 and PR80. The combined source passed x86 Runner recompilation/link,
+Planner build and all 22 Planner test targets with the ROS/hope_msgs environment
+loaded. It also passed 35 model/lifecycle tests, 26 profile/assets tests, 38
+frontend tests and production Console packaging. The simulation results above predate this main synchronization; they are not an
+acceptance result for the merged revision.
+
+After incorporating main `d9797ff3` (PR88), the merged lifecycle/ELink/time
+regression selection passed 427 tests on the host (59 ROS-dependent skips),
+and the ROS regression group passed 113 tests. The x86 Runner was recompiled
+and linked, and 40 native operability/serve-controller tests passed. The only
+textual merge conflict was a helper source assertion; both main's behavior and
+the receive-only argument check are retained. No robot deployment or Gate3
+rerun accompanied these source review fixes.

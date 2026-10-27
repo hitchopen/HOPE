@@ -3,19 +3,47 @@
 Mac users: see [macOS development and operator setup](docs/operations/macos_deployment.md).
 The operator backend supports any normal Mac login, with explicit Mac/Linux
 profiles and separate configurable container/robot accounts; no personal Mac
-username or local administrator account is hardcoded. Console 1.8.15 includes
+username or local administrator account is hardcoded. Console 1.8.18 includes
 operator, gripper and NatNet/VRPN selectors. The final Mac build includes both
 mocap workspaces, uses the `hope` container group, and preserves schema-5 venue
 settings through the combined schema-6 backend. It does not deploy to the robot
 or change robot motions or scheduling.
 
-Runtime updates from October 11–13: [deployment and Gate 3](docs/operations/deploy_and_gate3.md),
+Normal play now verifies the P1/P2 table end from raw mocap at START and returns
+to PD_STAND on base-stream or operator-link loss. A gap over 20 ms uses a marked
+last-pose hold without shortening mode admission or resetting the 1 s rescue
+deadline. Separate Console (1 s) and operator-computer (1 s) heartbeats
+protect normal mocap play only.
+Offline Kernel/Pure Serve and Teleop retain their existing behavior;
+see [deployment safety](docs/operations/foxglove_lifecycle.md#player-assignment-and-mocap-loss).
+
+A3 operations: [ELink startup checks and runtime diagnostics](docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics)
+detect startup process/IPC and log failures without adding telemetry, battery or
+clock-based motion gates. Normal Stand, Serve and Rally retain the existing
+Runner/vendor protections. Clock correction uses the explicit, stopped
+[Time Calibration workflow](docs/operations/foxglove_lifecycle.md#pre-operation-clock-correction).
+The START background-cleanup step stops only the selected HDU camera app,
+preserving vendor startup/audio, handheld-related services and the status/IP
+display. Earlier HOPE shutdown of those dependencies was application-side
+policy, not a vendor crash. See [handheld preservation and existing-robot
+recovery](docs/operations/robot_runtime_policy.md#vendor-handheld-and-status-display)
+for deployment checks and the remaining E-stop-continuity limitations during
+HAL handover and clock maintenance.
+The [required live qualification](docs/operations/robot_runtime_policy.md#required-live-validation-before-deployment)
+includes a supported START → STOP cycle and clock-service restore, checking for
+automatic vendor `Manual`/joint-control activation. Until handheld E-stop is
+qualified during HOPE play, credit only a verified wired E-stop in HOPE sessions.
+Follow the matched-component installation and hardware validation requirements
+in those guides before deployment.
+
+Current deployment: [build and deployment](docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment),
 [shared ball physics](docs/operations/ball_physics_calibration.md),
 [Foxglove recording and live Motive localization](foxglove/extensions/hope-a3-console/README.md),
-and the [17-marker shell](agibot/mocap_sticker_shell_v3/README.md).
-Training now retains the model_14600 recipe as `task=HOPEPingPong algo=ppo` and
+and the [v3 shell with P1/P2 12-sticker patterns](agibot/mocap_sticker_shell_v3/README.md).
+Training retains the model_14600 recipe as `task=HOPEPingPong algo=ppo` and
 its ONNX/deploy baseline under `hope_training/whole_body_tracking/checkpoints/`.
 See the [30-ball Gate3 run and video](docs/gates/model14600_gate3_30balls_20261013.md).
+Deployment uses the verified model17400 bundle described below.
 
 HOPE is an open platform for humanoid robot table tennis, developed by [Hitch Interactive](https://hitchinteractive.com) (Intelligent Racing Inc.) in collaboration with the [ROAR Platform](https://roar.berkeley.edu) at UC Berkeley. The challenge invites teams to deploy whole-body humanoid controllers that can rally a ping-pong ball against human opponents or other robots, using off-the-shelf humanoid hardware and an open-source perception and planning stack.
 
@@ -30,9 +58,10 @@ transforms to `pelvis_link`.
 ## How To Read This Repository
 
 Start with the verified new-machine setup in
-[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md), run the published model via
-[docs/MODEL_21800.md](docs/MODEL_21800.md), then follow
-[QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) to train or export your own.
+[`docs/DISTROBOX_SETUP.md`](docs/DISTROBOX_SETUP.md), then use the
+[managed A3 deployment workflow](docs/operations/foxglove_lifecycle.md) and
+[current deployment](#a3-deployment-model17400--ppq004) below.
+Follow [QUICKSTART_A3_ISAAC.md](QUICKSTART_A3_ISAAC.md) to train or export your own.
 The rest of the repository is organized into four layers:
 
 | Layer | What to read or run | Purpose |
@@ -42,12 +71,11 @@ The rest of the repository is organized into four layers:
 | Deploy and simulation references | `apps/a3_mujoco_serve/`, `a3_deploy/`, `agibot/`, `docs/RUN_ON_AGIBOT.md` | The self-contained deterministic MuJoCo → DLS IK → CSV → high-level A3 serve app; the native C++ deploy runner with its gate/rehearsal scripts (`a3_deploy/a3_deploy_example/`) and the MuJoCo/AimRT simulation fork with the real ball plant (`a3_deploy/A3_MuJoCo_Sim/`); and Agibot-provided A3 materials. |
 | Background material | `NatNet2ROS2/`, `VRPN2ROS2/`, `hope_ws/`, `mocap/`, root `HOPE_*_Reference_Setup.md`, `REFERENCE_DOCS.md`, `ROADMAP.md` | The independent raw-mocap adapters and HOPE ROS 2 planner workspace (Python + C++ planners) for arena integration, the mocap frame/topic docs, the preserved design documents, and current scope/direction. |
 
-A fresh clone includes the model_14600 ONNX/deploy baseline, the existing
-model_21800 runtime export, reference motions, and a 30-ball model_14600 MuJoCo
-video as ordinary tracked files. The training baseline does not include a
-resumable `.pt` checkpoint. Other generated Isaac assets, training logs,
-checkpoints, exported `.onnx` files, and ROS build artifacts remain git-ignored;
-Agibot-provided materials under `agibot/` are tracked.
+A fresh clone includes the source, reference motions and tracked robot assets.
+The current model17400 deployment requires its verified trained-policy bundle;
+do not infer that it is installed from the presence of repository source alone.
+Generated Isaac assets, training logs, checkpoints and ROS build artifacts are
+not deployment inputs unless explicitly included in the staged bundle.
 
 ## Reproduce the working environment on a new machine
 
@@ -64,24 +92,42 @@ Do not replace individual packages with their latest releases during initial
 setup. First reproduce the pinned environment and pass its CUDA/import/asset
 smoke; treat a later Isaac or PyTorch upgrade as a separate migration.
 
-## Run `model_21800`
+## A3 deployment: model17400 + PPQ004
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r a3_deploy/a3_deploy_example/reference/requirements.txt
-a3_deploy/a3_deploy_example/scripts/run_pingpong_sim.sh --view --realtime
-```
+Current robot deployment uses **model17400 with PPQ004** through the
+Foxglove-managed Laptop/Mac → HDU → MDU lifecycle. It is a **receive-only**
+policy: normal mocap receive play is supported; serving and Kernel mode are not
+qualified for this bundle.
 
-The default runtime selects the deployed 110-D `hitter_pure` actor. See the
-[complete model guide](docs/MODEL_21800.md). The
-[latest Gate3 video](docs/assets/model_21800_gate3_mujoco.mp4) now shows
-**model_14600, 30 balls**; its legacy filename is retained for existing links.
-See the [run report](docs/gates/model14600_gate3_30balls_20261013.md) for the verdict.
-The guide also contains the reproducible native Runner/Planner build,
-host-only contract tests, isolated racket-contact A/B test, process-free Gate
-3 preflight, the default repeated-good-ball cherry-pick run, and the explicit
-`--qualification` 12-serve lateral sweep.
+Stage the exact policy/deploy export with
+[`prepare_model17400_bundle.py`](a3_deploy/a3_deploy_example/scripts/prepare_model17400_bundle.py)
+and a complete target-matched Runner distribution. Install its generated MDU
+deployment and HDU Planner profile/catalog entries. While STOPPED, select
+**17400 · Receive only** and **PPQ004**, configure the gripper, mocap source and
+table side, then confirm configuration and START. HDU/MDU policy and deploy
+hashes must agree; PPQ004 must match on the Planner and operator packetizer.
+These installed selections are verified again before hardware startup.
+
+START leaves the Runner in PASSIVE. Use the attended Stand/Ready workflow to
+enter receive play. P1/P2 occupancy is verified from unrotated mocap at START;
+the side is then locked until STOP. During play, loss of the base-pose stream
+requests controlled PD_STAND recovery and does not automatically resume play.
+Foxglove and the managed operator relay must each return genuine challenge
+echoes; loss triggers recovery after 1 s for the Console or 1 s for the
+operator-computer relay. Switching away from the Console for over 1 s can
+therefore stop play; qualify deployed UI timing before operation.
+See the [lifecycle installation and operation guide](docs/operations/foxglove_lifecycle.md),
+[Console model controls](foxglove/extensions/hope-a3-console/README.md#model17400-receive-policy)
+and [model17400 runtime alignment](docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment).
+Use the verified installed bundle and current runbook, not a model number inferred
+from a layout, service, session-prefix or file name. Local regression checks do
+not establish a fresh live-hardware qualification.
+
+The HDU Foxglove health/safety monitor (`hope-monitor`) and optional read-only
+mocap configuration relay (`hope-mocap-config-transport`) run in C++.
+Build, stopped-state migration, rollback and qualification requirements are in
+the [monitor deployment guide](foxglove/README.md#native-monitor-migration-and-verification)
+and [configuration relay guide](foxglove/README.md#native-mocap-configuration-transport).
 
 ## Train and export your own
 
@@ -192,47 +238,67 @@ and A3 clock-health gates pass. Clock drift or mixed domains can corrupt state
 estimation, latency measurement, recording, calibration, and strike timing
 even while ROS 2 topics appear healthy.
 
-## Optional marker-CAD alignment: P1 to A3 `pelvis_link`
+## A3 shell v3: P1/P2 sticker installation and pelvis alignment
 
-The current sticker profile uses the **17-station v3 sticker shell: seven unchanged
-front markers and two rear rows of five (original IDs)**, with the supplied
-[A3_v3_17_stickers.motive](agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive)
-asset, internally named **`UCB_P1`**. Its origin targets the nominal CAD `pelvis_link`
-origin and ROS axes **X forward, Y left, Z up**. With Motive Streaming **Up Axis
-= Z Up** and the existing MODELDEF axis conversion, the intended fixed
-`UCB_P1 → pelvis_link` correction is zero translation and identity rotation.
-This is an offline-checked candidate, not a verified live calibration: the five
-restored rear points are CAD-nominal, not observed in the source export. Validate
-Motive import/re-export, then generate a fresh installed-layout receipt.
-For the current runtime, keep `UCB_P1` for table side P1 or rename it to `UCB_P2`
-for table side P2, use the `stickers_v3` profile, and save the fresh
-receipt to `calibration/ucb_robot_to_pelvis.json`. All earlier 12-point,
-old 24-station and ten-marker receipts cannot be reused for this sticker profile.
+Use **one unchanged 17-station v3 printable design** for both players, but
+apply **12 round 12 mm reflective stickers per robot** in two different
+patterns. The shell halves, mounting holes and CAD transform tables are
+unchanged; this update changes which stations are reflective, not the hardware.
 
-Hardware, frame-table links and the setup procedure are maintained in
-[agibot/README.md](agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
-Receipt storage and migration rules are in [calibration/README.md](calibration/README.md).
-The shared mocap contract remains in [mocap/README.md](mocap/README.md).
+| Player | Install reflective stickers at these 12 stations | Leave these five stations nonreflective | Front / rear |
+|---|---|---|---|
+| P1 | S19, S20, S11, S12, S22, S21, S13, S14, S04, S05, S16, S18 | S06, S07, S08, S15, S17 | 7 / 5 |
+| P2 | S04, S05, S06, S07, S08, S11, S12, S15, S17, S18, S20, S22 | S13, S14, S16, S19, S21 | 4 / 8 |
 
-### ChingMu / VRPN asset for the same shell
+Use the original Sxx station labels; do not renumber the shell. Centre each
+sticker on its flat seat, with **0.20 mm total film-plus-adhesive thickness**.
+Keep unused stations nonreflective under the cameras' IR illumination.
+These assets describe sticker surfaces, not marker-ball centres.
 
-The [shell-v3 VRPN asset package](agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
-provides one CMTracker import file,
-[A3_v3_17_stickers.json](agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json),
-using the same filename stem and internal **`UCB_P1`** body name as the Motive
-asset. It is byte-identical to the existing **V4 P1** runtime profile; existing
-runtime profiles remain unchanged for compatibility. The **v3 CAD folder and
-V4 runtime selector refer to the same 17-sticker shell**. Configure the site
-body name (`UCB_P1` or `UCB_P2`) and unique IDs in CMTracker as needed, without
-changing the shared pelvis-local geometry. VRPN then transports poses, not
-the asset definition.
-The uncentered marker coordinates target nominal `pelvis_link`, with ROS
-**X forward, Y left, Z up**; do not subtract the centroid or apply Motive's
-Y-up conversion. Server world/table alignment is a separate commissioning
-step. CMTracker import/re-export and live installation checks are still
-required: pose-only VRPN has no ModelDef to verify geometry, and this asset
-is not a physical-calibration receipt. The optional measured NatNet procedure
-above is unchanged. See the [VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
+Import the matching player file for the selected mocap vendor. **P1 and P2
+each define 12 markers in both formats; neither is the full 17-marker set.**
+
+| Player | OptiTrack / Motive | ChingMu / CMTracker |
+|---|---|---|
+| P1 / `UCB_P1` | [P1.motive](agibot/mocap_sticker_shell_v3/motive_asset/P1.motive) | [P1.json](agibot/mocap_sticker_shell_v3/vrpn_asset/P1.json) |
+| P2 / `UCB_P2` | [P2.motive](agibot/mocap_sticker_shell_v3/motive_asset/P2.motive) | [P2.json](agibot/mocap_sticker_shell_v3/vrpn_asset/P2.json) |
+
+Both pairs use the same nominal CAD sticker centres and **pelvis_link** origin,
+with ROS **X forward, Y left, Z up**. The intended fixed body-to-pelvis transform
+is identity; do not recenter or rotate the P2 local pattern. Motive stores native
+Y-up metres and requires Streaming **Up Axis = Z Up** plus the existing
+MODELDEF basis conversion. ChingMu stores ROS-axis millimetres directly.
+See the [Motive import guide](agibot/mocap_sticker_shell_v3/motive_asset/README.md)
+and [ChingMu import guide](agibot/mocap_sticker_shell_v3/vrpn_asset/README.md).
+
+The [installation PDF](agibot/mocap_sticker_shell_v3/output/pdf/A3_marker_shell_v3_instructions.pdf)
+shows front/rear placement and a walk-around map. The seven shared stations are
+**S04, S05, S11, S12, S18, S20, S22**; shared-only views can still be ambiguous,
+and all five P2-only stations are on the rear. The CAD folder is v3; ChingMu's runtime selector is **V4**
+with side-specific profiles. Native import/re-export, physical pelvis alignment,
+world/table registration and simultaneous two-body occlusion tests remain required.
+
+The two vendor import folders contain only the current P1/P2 pair, manifest
+and README. Obsolete all-17 player helpers have been removed; original
+measurements and historical regression fixtures are kept outside these folders
+and must not be imported for the current installation.
+
+Default `motive_live` still accepts the selected live definition without a file
+pin or calibration JSON. Optional `motive_asset` now checks the correct player's
+12-marker reference. The older measured `stickers_v3` calibration tool requires
+all 17 markers and **does not support these 12-marker installations**; do not
+reuse its receipts. See [calibration limits](calibration/README.md) and the
+[VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
+
+### ChingMu 18-marker ping-pong ball
+
+The [18-sticker ball jig and CMTracker asset](mocap/README.md#chingmu-18-sticker-ping-pong-ball-template-and-asset)
+use eighteen 6 mm stickers on a 40 mm ball. The asymmetric layout has optimized
+edge clearance and audited partial-match ambiguity and viewing-direction
+coverage. Use the matching jig and `Ball` asset together, and position all
+eighteen stickers with the supplied jig.
+The package includes a two-piece STL, native import JSON, preview and the
+[printing/import guide](mocap/README.md#chingmu-18-sticker-ping-pong-ball-template-and-asset).
 
 ## Database
 
@@ -285,6 +351,7 @@ matches and the exhibition match (§2(8)).
 | `VRPN2ROS2/` | Independent ROS 2 workspace for the ChingMu/VRPN client, strict server-time/NTP validation, and raw per-tracker `PoseStamped` topics. |
 | `hope_ws/` | ROS 2 workspace: `hope_planner_cpp` (the supported C++ packetizer/Planner runtime), `hope_bringup` (relays, world-frame publisher, calibration tools, time-sync configs, fake publishers), `hope_msgs` (wire messages), and `calibration_receipts/` (venue calibration evidence). The retired Python Planner source is excluded from colcon and retained only for offline comparison. Raw acquisition lives in the two sibling adapter workspaces. Bring-up guides: [BRINGUP_TUTORIAL](hope_ws/BRINGUP_TUTORIAL.md), [SMOKE_TEST](hope_ws/SMOKE_TEST.md), [SHADOW_MODE](hope_ws/SHADOW_MODE.md). |
 | `a3_deploy/` | The native C++ deploy runner, gate/rehearsal script suite, parity harness, and deploy runbooks (`a3_deploy_example/`); the MuJoCo/AimRT simulation fork with the real ball plant (`A3_MuJoCo_Sim/`); and the optional user-supplied URDF override location (`URDF/`). |
+| [foxglove/](foxglove/README.md) | Operator console, managed lifecycle, startup checks, runtime diagnostics and stopped clock calibration. Deployment assets live under `a3/`, `helpers/` and `laptop/`; `tests/` is regression coverage, not robot installation content. |
 | [`apps/a3_mujoco_serve/`](apps/a3_mujoco_serve/README.md) | Self-contained deterministic serve contribution: official A3 MuJoCo model/racket contact, legal-serve physics search, DLS IK, all-joint CSV export, replay validation, and the PR #18 high-level A3 runtime. |
 | [agibot/](agibot/README.md) | A3 source robot models, vendor deploy/simulation references, clock synchronization and mounting hardware: the [v3 marker shell](agibot/mocap_sticker_shell_v3/README.md), [right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md) and serving gripper STL. See the folder README for the complete map, printing units and hardware-specific guidance. |
 | `mocap/` | Motion-capture frame/topic contract ([mocap/README.md](mocap/README.md)) and the preserved mocap reference documents (EN/ZH). |
@@ -382,7 +449,7 @@ the real A3 ([docs/RUN_ON_AGIBOT.md](docs/RUN_ON_AGIBOT.md)).
 
 **Implementation scope.** The preserved reference documents include robot-specific integration examples; the code currently shipped in this repository implements the Agibot A3 (31 actuated DOF) path end to end: Isaac Lab training of one unified forehand/backhand policy on the 110-D `hitter_pure` contract (the `HitterPingPong` task, gym id `HOPE-HitterPingPong-AgibotA3-v0` — the recipe validated on real hardware), Isaac evaluation, MuJoCo sim-to-sim and closed-loop evaluation with a real ball plant, and the native C++ deploy runner — alongside Agibot's own deploy example and MuJoCo/AimRT simulation reference.
 
-**Training stack.** The WBC training code builds on open-source [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, plus [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. This repository also publishes the complete validated forehand/backhand reference motions, the model_14600 training baseline, and the `model_21800` deploy artifacts; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the per-asset documentation for applicable terms.
+**Training stack.** The WBC training code builds on open-source [BeyondMimic](https://github.com/HybridRobotics/whole_body_tracking) (MIT license), from which the `hope_training/whole_body_tracking/` extension derives, plus [GMR](https://github.com/YanjieZe/GMR) (MIT license) for SMPL-X to robot retargeting and [GVHMR](https://github.com/zju3dv/GVHMR) for monocular video-to-SMPL-X extraction. This repository also publishes the complete validated forehand/backhand reference motions; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the per-asset documentation for applicable terms.
 
 ## Supported Robots
 
@@ -467,9 +534,11 @@ Some starter materials are derived from or interoperate with third-party softwar
 
 ## Runner and Xbox update
 
-The public model remains **model_21800**. The runtime now supports Xbox LT
-locomotion, A/B/X/Y mode requests, LB+RB software stop, Kernel Mode, continuous
-serve/receive transitions, and saved field calibration/serve files. See the
+The current model17400 deployment is described in
+[A3 deployment: model17400 + PPQ004](#a3-deployment-model17400--ppq004).
+The runtime includes Xbox LT locomotion, A/B/X/Y mode requests and LB+RB software
+stop. Bundle capabilities remain authoritative: model17400 is receive-only.
+See the
 [operator guide](docs/operations/runtime_xbox.md) and
 [validation limits](docs/operations/runtime_public_validation.md). This checkout
 includes the ready-to-install Foxglove `.foxe`, HumanLike locomotion bundle and

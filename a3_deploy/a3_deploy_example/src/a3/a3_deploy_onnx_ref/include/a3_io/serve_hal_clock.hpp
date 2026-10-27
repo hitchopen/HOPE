@@ -21,6 +21,16 @@ struct ServeHalSnapshot {
     return pid && heartbeat_ns && heartbeat_ns <= now_ns && now_ns - heartbeat_ns <= 100'000'000;
   }
 };
+// The observer records selection transitions for every profile. A cached first
+// command and repeated selections cannot establish a new release edge.
+inline bool IsServeHalSelectionEdge(std::uint64_t previous, std::uint64_t selected) {
+  return previous != ~0ULL && selected != previous;
+}
+// The Runner owns the selected gripper profile and pins the HAL process identity.
+inline bool IsServeHalRelease(const ServeHalSnapshot& value, std::uint64_t now_ns,
+                              std::uint64_t expected_pid, std::uint64_t release_pos) {
+  return value.Ready(now_ns) && value.pid == expected_pid && value.left == release_pos;
+}
 inline bool ReadServeHalClock(const ServeHalClock* p, ServeHalSnapshot& out) {
   if (!p) return false;
   // Bounded: a preempted writer must never block the body control thread.

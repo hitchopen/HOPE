@@ -123,7 +123,7 @@ class BasePoseFlatRelay(Node):
         self._asset_marker_count = 0
         if self._pinned_asset:
             from motive_asset_contract import load_asset_points
-            self._asset_points = load_asset_points()
+            self._asset_points = load_asset_points(expected_name=self._expected_marker_frame)
         calibration_file = str(self.get_parameter("calibration_file").value).strip()
         self._calibration_path = Path(calibration_file) if calibration_file and not self._asset_mode and not self._vrpn_mode else None
         self._require_marker_identity = self._asset_mode or bool(

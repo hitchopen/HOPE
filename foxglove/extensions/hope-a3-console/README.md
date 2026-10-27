@@ -1,15 +1,16 @@
 # HOPE A3 Console
 
-Download `hopeopen.hope-a3-console-1.8.15.foxe` from this directory and open it in
+Download `hopeopen.hope-a3-console-1.8.18.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to
 `ws://<HDU-IP>:8766` after installing the matching HDU/Laptop services.
 
-The public console supports Xbox A/B/X/Y mode actions, LT movement, LB+RB software
-E-stop and software reset; Normal Play and Kernel Mode; and the public 24-sticker
-calibration plus separate legacy V2/V3 profiles. It calls the dedicated services
-in `bridge_params_control.yaml`; Runner remains the body-command owner.
+The current deployment is **model17400 + PPQ004**, with mocap-based receive play
+and the pelvis-aligned 17-sticker shell. Model17400 is receive-only: serving and
+Kernel mode are not qualified for this bundle. The console includes Xbox
+A/B/X/Y actions, LT movement and LB+RB software E-stop. It calls the dedicated
+services in `bridge_params_control.yaml`; Runner remains the body-command owner.
 
 Install the matching control-plane helpers, configs and service units from this
 same checkout. See [Runtime operation](../../../docs/operations/runtime_xbox.md)
@@ -28,8 +29,7 @@ fonts, manifest and notices into the `.foxe`. `dist/` and `node_modules/` are
 build inputs/outputs; the ready-to-install `.foxe` is committed as an ordinary
 Git blob. When changing console source, regenerate the installer from that source.
 When changing the release version, update the exact filename allowed by this
-directory's `.gitignore` and the download links. The former 1.8.14 installer is
-retained only for rollback; it does not contain the new gripper/VRPN selectors.
+directory's `.gitignore` and the download links.
 
 This release uses combined lifecycle schema 6, migrating field schema 5 without
 losing gripper/pants/VRPN settings and retaining Mac/Linux operator selection.
@@ -53,13 +53,69 @@ using this release. P2 tracks Motive rigid body UCB_P2 and rotates every ball
 and rigid-body pose about the table centre, so both end robots consume the same
 policy convention. The selection is locked while a lifecycle is active.
 
-The no-OptiTrack receiver test sequence shown by the UI is Stand, then Ready.
-`START SYSTEM` does not launch or wait for the Laptop OptiTrack stack, and
-the optional Motive address may be left empty. `Ready` does not require a fresh
-base packet. The native Runner still owns the
-role/mode transition and all of its fault checks. With OptiTrack absent there
-is no live ball/base stream, so this proves Runner entry and attended motion
-behavior rather than incoming-ball performance.
+Console 1.8.18 verifies the physical table end directly from raw player mocap
+poses before the P2 rotation. P1 is selectable only with a fresh tracked player
+at `x < 0 m`, and P2 only at `x > 2.74 m`. Either player body can establish
+presence; a ball or table pose cannot. The buttons subscribe to
+`/hope/mocap/players/UCB_P1` and `/hope/mocap/players/UCB_P2`
+(`geometry_msgs/PoseStamped`, metres, `hope_table_global`). Both Motive and VRPN
+relays publish these unrotated topics. Missing, invalid or replayed source stamps
+cannot keep a player fresh beyond 250 ms. These START-only observation topics
+are capped at 30 Hz without reducing the base-pose or ball streams. Any-player
+eligibility checks end occupancy, not robot identity or the runtime's body name.
+
+Start the mocap receiver while STOPPED, select the side and confirm configuration.
+The HDU independently repeats the position check at START before hardware startup.
+START also requires the HDU's published `player_positions` verdict; the panel
+explains an HDU discovery mismatch while side selection still uses raw mocap.
+Side changes remain locked through STARTING/RUNNING/FAILED/KILLING until STOPPED.
+Player positions are not used to reassign sides during play.
+
+Normal mocap-based SERVE/RALLY requires a fresh MDU base-pose mailbox. A 1 s
+signal gap or an explicit invalid pose stops RALLY into the existing PD_STAND
+blend; SERVE requests its authored abort and validated recovery first. Fresh
+mocap does not automatically restart play. Stand, emergency PASSIVE, cleanup
+and offline Kernel/Pure Serve remain available. Ball occlusion alone does not
+trigger this watchdog.
+
+At 20 ms without a real pelvis update, the model uses a marked last-pose hold,
+not a new measurement. Its timestamps/sequence and the 1 s rescue timer are
+never renewed. The footer shows the real-sample age and HELD state.
+HELD does not shorten mode admission or serve completion to 20 ms: these use
+the actual observation/rescue deadline. New-flight commits still wait for a
+real pose; replay/field validation must qualify the effect on strike timing.
+
+Normal managed mocap play also requires independent Console and operator-relay
+challenge echoes. The panel replies only to the current boot/session challenges;
+closing/freezing/disconnecting it triggers controlled recovery after **1 s**.
+The managed operator-computer relay retains its separate **1 s** timeout.
+Delayed/replayed echoes cannot extend either deadline. No timer publishes
+cached heartbeats. Recovery motion can take longer; Kernel/Pure Serve and Teleop
+are exempt. Echoes depend on panel rendering: switching away from the Console,
+minimizing/backgrounding or overloading it for more than 1 s may still stop play.
+The one-second UI window tolerates short delays, not an absent Console. Qualify
+actual foreground/background Foxglove/Wi-Fi timing before operation.
+
+The control bridge enables client publishing **only** on
+`/hope/runner/operator_echo_hdu_flat`; no command publisher or generic parameter
+access is enabled. The operator relay's heartbeat is bound to its launch session,
+not inferred from general DDS process presence.
+
+The footer displays fresh Runner mocap health and **Stopped: mocap lost**,
+independently of the last action acknowledgment. The stop reason persists after
+the stream returns until explicit play re-entry succeeds. The read-only
+`/hope/runner/mocap_safety_hdu_flat` telemetry is boot-checked and expires after
+one second. It does not alter the existing schema-2 Runner state/action wire.
+
+Deploy the updated relays on the mocap computer, `hope_player_positions.py`
+alongside the HDU supervisor modules, the updated supervisor service/control decoder,
+Runner transport relay, and a rebuilt MDU Runner with its matching AimRT config
+together with this panel. Also update the control-bridge config and managed
+lifecycle helper, and rebuild the operator workspace to install the heartbeat
+helper and matching VRPN launch file. Configure `/etc/hope-foxglove/network.env` peers as
+described in the lifecycle guide. A panel-only upgrade cannot
+provide the native dropout response. Bench verification precedes attended
+hardware validation.
 
 The Console uses the current pelvis-aligned Motive asset. The former Venue
 Calibration card, Load/Export JSON and Cali V2/V3 buttons are removed. Opening
@@ -68,18 +124,20 @@ the panel starts no processes.
 | Control | State | Effect |
 | --- | --- | --- |
 | Motive Live Asset | ASSET ACCEPTED / CHECK MOTIVE ASSET / WAITING FOR MOTIVE; separate live pelvis state | Read-only current body status |
-| Marker audit | Visible / defined markers, e.g. 15/17 | Definition count follows the streamed ModelDef |
+| Marker audit | Visible / defined markers, e.g. 10/12 | Definition count follows the streamed ModelDef |
 | Serve CSV | Select/upload while stopped | Existing Runner CSV validation and serve controls |
 | OptiTrack / Normal play | Select while stopped; start OptiTrack separately | Uses the imported asset's nominal pelvis frame |
 | Recording | OFF / STARTING / ON / STOPPING | Explicit MCAP start/stop |
 
-For the 17-sticker shell, import
-[A3_v3_17_stickers.motive](../../../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive).
-Its internal NodeName, AssetName, JointName and all constraint joint references
-are `UCB_P1`. Keep its pivot/axes unchanged. Disable any old body with the same
-canonical name, select P1 in the Console, set Motive Streaming Up Axis to Z,
-and enable Rigid Bodies. Enable Labeled Markers for the physical visibility
-audit. Then use the existing OptiTrack start control.
+For the current 12-sticker-per-player installations on the unchanged 17-station
+shell, use the matching [P1/P2 Motive pair](../../../agibot/mocap_sticker_shell_v3/motive_asset/README.md),
+named `UCB_P1` / `UCB_P2` with IDs 9 / 10. They match the ChingMu selections
+and nominal CAD geometry. Confirm import/re-export, installed pattern and
+pelvis pivot/axes; resolve existing name/ID collisions in a backed-up project.
+Select the matching table side, set Motive Streaming Up Axis to Z, and enable
+Rigid Bodies. Enable Labeled Markers for the physical visibility audit.
+Then use the existing OptiTrack start control. Shared-only occluded views can
+still confuse these patterns; validate both bodies together before play.
 
 The default launch and Laptop lifecycle helper use `localization_source:=motive_live`.
 This mode reads no local Motive file and imposes no fixed SHA-256, marker count
@@ -101,19 +159,17 @@ or verify the Motive table origin. Set the table/world origin in Motive as befor
 `Refresh x_hit`; shared HOME is captured when entering policy mode. No
 `calibration/ucb_robot_to_pelvis.json` is read, created or overwritten.
 
-The pinned 17-marker check is opt-in via `localization_source:=motive_asset`;
-legacy measured V2/V3 calibration is opt-in via
-`localization_source:=calibration start_calibration:=true`.
+The side-specific 12-marker check is opt-in via `localization_source:=motive_asset`;
+rebuild/install both reference files and the updated relay/contract together.
+Legacy measured calibration is opt-in via
+`localization_source:=calibration start_calibration:=true`; its `stickers_v3`
+profile still requires all 17 sites and cannot calibrate these new subsets.
 
-The 17-sticker file was copied from the user-supplied USB file, byte-identical
-before renaming to the asset at upstream commit
-[`10b1bd710`](https://github.com/hitchopen/HOPE/commit/10b1bd710c074cf9851a3ca2f63494dc23a39e06).
-Only the 21 exact body-name/reference attributes were renamed from `P1` to
-`UCB_P1`; marker coordinates, pivot, axes, IDs and other settings are unchanged.
-The USB original is backed up as `A3_v3_17_stickers.motive.original-P1.bak`.
-The older 17-sticker asset and original exports under `motive_asset/source/`
-remain available. These offline preparation checks do not establish successful
-Motive import or live NatNet tracking.
+Original measurement exports are preserved in the
+[shell's source-evidence folder](../../../agibot/mocap_sticker_shell_v3/documents/source_evidence/optitrack/README.md).
+Obsolete all-17 imports are no longer in the player release folders; historical
+regression fixtures are not installed. Native import and live tracking of the
+new pair still require deployment validation.
 
 
 Pure Serve uploads accept the existing full31 serve025 CSV schema: 468 frames,
@@ -188,24 +244,51 @@ ROS 2 message-latency card.
 
 ## Public release
 
-The current public installer is
-[Console 1.8.14](hopeopen.hope-a3-console-1.8.14.foxe), built from this directory's
-source. It includes the live marker-count workflow and explicit Linux/Mac
-operator selection described above. Install the matching profile-aware HDU
-supervisor and confirm the operator profile before starting a session.
-See [current Runner/serve behavior](../../../docs/operations/runtime_xbox.md)
-for Kernel completion, v12 timing and release limitations.
+The current installer is
+[Console 1.8.18](hopeopen.hope-a3-console-1.8.18.foxe), built from this directory's
+source. Install its matching HDU/MDU services and relays, then confirm the
+operator profile and model17400/PPQ004 selections before START.
 
-## Reviewed ball models
+## Model17400 receive policy
 
-The STOPPED-only selector offers Berkeley, local one-star PPQ002 and local
-three-star PPQ004. It writes matching 14-parameter overlays to HDU and Laptop,
+The current receive deployment uses model17400. Selection is allowed only while
+stopped. It verifies the installed HDU Planner
+profile and MDU policy/deploy hashes, persists the choice, and restores both
+endpoints after a failed or uncertain write. The displayed choice is the saved
+bundle; START SYSTEM loads it. Install the matching bundle before selecting it.
+
+Model17400 requires PPQ004 on both the Planner and packetizer, shared session
+HOME, and mocap receive mode. Kernel and serve are not qualified for this model.
+Selecting its receive-only bundle clears a previously selected serve CSV.
+
+Install `a3/hope_policy_models.py` with `hope_field_assets.py` in
+`/usr/local/lib/hope-foxglove` on HDU and MDU, together with the updated lifecycle
+helper, HDU supervisor and field-operations module. Prepare the bundle using
+`a3_deploy/a3_deploy_example/scripts/prepare_model17400_bundle.py` from HOPE main.
+It pins the downloaded policy and deploy hashes, rejects incomplete or mixed
+architecture distributions, and includes the HOME publication configuration.
+Its x86 inspection option validates the matching source build when cross staging
+ARM64; the receipt explicitly records that the ARM executable was not run.
+
+Install the generated deployment at `/agibot/a3_deploy_model17400` and the
+generated `model17400.json` profile at
+`/var/lib/hope-lifecycle/policy-models/model17400.json`. Add `hdu_entry.json` and
+`mdu_entry.json` under the `model17400` key in the respective version-1 catalogs;
+preserve all existing model entries and `selected.json`. Both catalog entries
+bind the complete installed files by SHA256. Package preparation never installs,
+selects, restarts or moves a robot. Hardware installation and PASSIVE verification
+remain a separate managed operation.
+
+## PPQ004 ball model
+
+For model17400, select local three-star **PPQ004** while STOPPED. The selector
+writes matching 14-parameter overlays to HDU and Laptop,
 rolls back partial writes, and distinguishes saved/configured/actually loaded
 parameters. Restart the separately managed Laptop mocap/packetizer after a
-selection, then START SYSTEM. Kernel mode bypasses this mocap-dependent gate.
+selection, then START SYSTEM.
 Install `foxglove/a3/hope_ball_models.py` alongside the existing HDU helpers in
 `/usr/local/bin`, update `hope-lifecycle` on both hosts, update the Laptop helper
-and ROS launch files, and install all three profile YAML/receipt pairs. Rebuild
+and ROS launch files, and install the matching PPQ004 YAML/receipt pair. Rebuild
 and install the Console through the existing deployment workflow. Source-only
 changes do not hot-reload an already running supervisor or packetizer.
 

@@ -35,6 +35,8 @@ import time
 
 from std_msgs.msg import Bool, String
 from vrpn_pants_contract import Selection, load_profiles, normalize_pose, observation, update_selection, validate_vrpn_setup
+from source_time_rate_gate import SourceTimeRateGate
+from operator_heartbeat import OperatorHeartbeat
 
 import rclpy
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
@@ -101,6 +103,7 @@ class AvatarProVrpnRelay(Node):
         self.declare_parameter("pants_profile", "v2")
         self.declare_parameter("table_side", "P1")
         self.declare_parameter("follow_lifecycle_config", False)
+        self.declare_parameter("debug_session_id", "")
         self.declare_parameter("server", "")
         self.declare_parameter("port", 3883)
         self._profiles = load_profiles()
@@ -203,6 +206,13 @@ class AvatarProVrpnRelay(Node):
                 PoseStamped, str(self.get_parameter("p2_pose_topic").value), sensor_qos
             ),
         }
+        self._player_position_publishers = {
+            name: self.create_publisher(PoseStamped, f"/hope/mocap/players/{name}", self._sensor_qos)
+            for name in ("UCB_P1", "UCB_P2")
+        }
+        self._player_position_gates = {name: SourceTimeRateGate(30.0)
+                                       for name in self._player_position_publishers}
+        self._operator_heartbeat = OperatorHeartbeat(self, str(self.get_parameter("debug_session_id").value))
 
         # topic -> ("PPT"|"UCB_P1"|"UCB_P2"|"ball"|"ball_candidate")
         self._subs: dict[str, object] = {}
@@ -383,6 +393,20 @@ class AvatarProVrpnRelay(Node):
             self.get_logger().warning(f"invalid VRPN pose: {exc}", throttle_duration_sec=2.0)
             return
         if key in self._pose_publishers:  # PPT / UCB_P1 / UCB_P2
+            source_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+            if key in self._player_position_publishers and self._player_position_gates[key].accept(source_ns):
+                raw_player = PoseStamped()
+                raw_player.header.stamp = msg.header.stamp
+                raw_player.header.frame_id = "hope_table_global"
+                raw_player.pose.position.x = msg.pose.position.x * self._position_scale
+                raw_player.pose.position.y = msg.pose.position.y * self._position_scale
+                raw_player.pose.position.z = msg.pose.position.z * self._position_scale
+                q = msg.pose.orientation
+                norm = math.sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w)
+                (raw_player.pose.orientation.x, raw_player.pose.orientation.y,
+                 raw_player.pose.orientation.z, raw_player.pose.orientation.w) = (
+                    q.x/norm, q.y/norm, q.z/norm, q.w/norm)
+                self._player_position_publishers[key].publish(raw_player)
             self._latest[key] = normalized
             self._pose_publishers[key].publish(normalized)
             if key == self._selection.body:

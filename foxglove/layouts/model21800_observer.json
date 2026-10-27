@@ -6,48 +6,8 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "Runner OBSERVER: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "Runner OBSERVER LIVE"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#c62828",
-          "label": "Runner OBSERVER DOWN"
-        }
-      ]
-    },
-    "RawMessages!session": {
-      "topicPath": "/hope/session/text",
-      "diffEnabled": false,
-      "diffMethod": "custom"
-    },
-    "RawMessages!planner": {
-      "topicPath": "/hope/planner/process_status",
-      "diffEnabled": false,
-      "diffMethod": "custom"
-    },
-    "Indicator!runtimeknown": {
-      "path": "/hope/session/runtime_known.data",
-      "style": "background",
-      "fallbackColor": "#607d8b",
-      "fallbackLabel": "RUNTIME UNKNOWN: IGNORE SESSION / PLANNER",
-      "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "RUNTIME SNAPSHOT CURRENT"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#ef6c00",
-          "label": "RUNTIME UNKNOWN: IGNORE SESSION / PLANNER"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "Runner OBSERVER LIVE"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "Runner OBSERVER DOWN"}
       ]
     },
     "Indicator!session": {
@@ -56,18 +16,8 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "SESSION: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "SESSION ID PRESENT"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#ef6c00",
-          "label": "SESSION NOT CONFIRMED: SEE DIAGNOSTIC"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "SESSION ID PRESENT"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "NO VALID SESSION ID"}
       ]
     },
     "Indicator!planner": {
@@ -76,18 +26,8 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "PLANNER: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "PLANNER PROCESS LIVE"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#ef6c00",
-          "label": "PLANNER NOT CONFIRMED: SEE DIAGNOSTIC"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "PLANNER PROCESS LIVE"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "PLANNER PROCESS NOT SEEN"}
       ]
     },
     "Indicator!basevalid": {
@@ -96,18 +36,8 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "BASE VALIDITY: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "BASE SCHEMA-2 VALID"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#c62828",
-          "label": "BASE SCHEMA-2 INVALID"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "BASE SCHEMA-2 VALID"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "BASE SCHEMA-2 INVALID"}
       ]
     },
     "Indicator!basefresh": {
@@ -116,18 +46,8 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "BASE FRESHNESS: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "BASE RECEIPT FRESH"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#c62828",
-          "label": "BASE RECEIPT STALE"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "BASE RECEIPT FRESH"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "BASE RECEIPT STALE"}
       ]
     },
     "Indicator!ball": {
@@ -136,18 +56,8 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "BALL STREAM: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "BALL /poses LIVE"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#ef6c00",
-          "label": "BALL /poses ABSENT"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "BALL /poses LIVE"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "BALL /poses ABSENT"}
       ]
     },
     "Indicator!xhitstatus": {
@@ -156,18 +66,8 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "X_HIT STATUS: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "X_HIT STATUS PRESENT"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#ef6c00",
-          "label": "NO X_HIT STATUS"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "X_HIT STATUS PRESENT"},
+        {"operator": "=", "rawValue": "false", "color": "#ef6c00", "label": "NO X_HIT STATUS"}
       ]
     },
     "Indicator!xhitsuccess": {
@@ -176,47 +76,17 @@
       "fallbackColor": "#607d8b",
       "fallbackLabel": "X_HIT RESULT: NO DATA",
       "rules": [
-        {
-          "operator": "=",
-          "rawValue": "true",
-          "color": "#2e7d32",
-          "label": "LATEST X_HIT REFRESH SUCCESS"
-        },
-        {
-          "operator": "=",
-          "rawValue": "false",
-          "color": "#c62828",
-          "label": "LATEST X_HIT NOT SUCCESSFUL"
-        }
+        {"operator": "=", "rawValue": "true", "color": "#2e7d32", "label": "LATEST X_HIT REFRESH SUCCESS"},
+        {"operator": "=", "rawValue": "false", "color": "#c62828", "label": "LATEST X_HIT NOT SUCCESSFUL"}
       ]
     },
     "Plot!ages": {
       "title": "HDU observer receipt/source ages",
       "paths": [
-        {
-          "value": "/hope/base/receipt_age_ms.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "base local receipt age (ms)"
-        },
-        {
-          "value": "/hope/base/source_age_ms.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "HDU ROS now - base source stamp (ms)"
-        },
-        {
-          "value": "/hope/ball/receipt_age_ms.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "ball local receipt age (ms)"
-        },
-        {
-          "value": "/hope/command/receipt_age_ms.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "last command local receipt age (ms)"
-        }
+        {"value": "/hope/base/receipt_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "base local receipt age (ms)"},
+        {"value": "/hope/base/source_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "HDU ROS now - base source stamp (ms)"},
+        {"value": "/hope/ball/receipt_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "ball local receipt age (ms)"},
+        {"value": "/hope/command/receipt_age_ms.data", "enabled": true, "timestampMethod": "receiveTime", "label": "last command local receipt age (ms)"}
       ],
       "showXAxisLabels": true,
       "showYAxisLabels": true,
@@ -232,13 +102,7 @@
     "Plot!ballrate": {
       "title": "Ball /poses local receipt rate",
       "paths": [
-        {
-          "value": "/hope/ball/rate_hz.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "local callback rate (Hz)",
-          "color": "#00bcd4"
-        }
+        {"value": "/hope/ball/rate_hz.data", "enabled": true, "timestampMethod": "receiveTime", "label": "local callback rate (Hz)", "color": "#00bcd4"}
       ],
       "showXAxisLabels": true,
       "showYAxisLabels": true,
@@ -254,20 +118,8 @@
     "Plot!geometry": {
       "title": "Base X and latest x_hit audit value",
       "paths": [
-        {
-          "value": "/hope/base/position_x_m.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "calibrated pelvis x (m)",
-          "color": "#4caf50"
-        },
-        {
-          "value": "/hope/x_hit/value_m.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "x_hit status value (m)",
-          "color": "#ff9800"
-        }
+        {"value": "/hope/base/position_x_m.data", "enabled": true, "timestampMethod": "receiveTime", "label": "calibrated pelvis x (m)", "color": "#4caf50"},
+        {"value": "/hope/x_hit/value_m.data", "enabled": true, "timestampMethod": "receiveTime", "label": "x_hit status value (m)", "color": "#ff9800"}
       ],
       "showXAxisLabels": true,
       "showYAxisLabels": true,
@@ -282,13 +134,7 @@
     "Plot!countdown": {
       "title": "Last command deadline on HDU wall-clock domain",
       "paths": [
-        {
-          "value": "/hope/command/hdu_wall_countdown_s.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "absolute deadline - HDU ROS now (s)",
-          "color": "#e91e63"
-        }
+        {"value": "/hope/command/hdu_wall_countdown_s.data", "enabled": true, "timestampMethod": "receiveTime", "label": "absolute deadline - HDU ROS now (s)", "color": "#e91e63"}
       ],
       "showXAxisLabels": true,
       "showYAxisLabels": true,
@@ -299,18 +145,11 @@
       "yAxisLabel": "seconds",
       "sidebarDimension": 260,
       "followingViewWidth": 15
-    },
-    "RawMessages!telemetryfaults": {
-      "topicPath": "/hope/operations/telemetry_fault",
-      "diffEnabled": false,
-      "diffMethod": "custom"
     }
   },
   "globalVariables": {},
   "userNodes": {},
-  "playbackConfig": {
-    "speed": 1
-  },
+  "playbackConfig": {"speed": 1},
   "layout": {
     "direction": "row",
     "first": {
@@ -318,72 +157,52 @@
       "first": {
         "direction": "row",
         "first": "Indicator!observer",
-        "second": "Indicator!runtimeknown",
-        "splitPercentage": 30
+        "second": "Indicator!session",
+        "splitPercentage": 50
       },
       "second": {
         "direction": "column",
         "first": {
           "direction": "row",
-          "first": "Indicator!session",
-          "second": "Indicator!planner",
+          "first": "Indicator!planner",
+          "second": "Indicator!basevalid",
           "splitPercentage": 50
         },
         "second": {
           "direction": "column",
           "first": {
             "direction": "row",
-            "first": "RawMessages!session",
-            "second": "RawMessages!planner",
+            "first": "Indicator!basefresh",
+            "second": "Indicator!ball",
             "splitPercentage": 50
           },
           "second": {
-            "direction": "column",
-            "first": {
-              "direction": "row",
-              "first": "Indicator!basevalid",
-              "second": "Indicator!basefresh",
-              "splitPercentage": 50
-            },
-            "second": {
-              "direction": "column",
-              "first": "Indicator!ball",
-              "second": {
-                "direction": "row",
-                "first": "Indicator!xhitstatus",
-                "second": "Indicator!xhitsuccess",
-                "splitPercentage": 50
-              },
-              "splitPercentage": 50
-            },
-            "splitPercentage": 34
+            "direction": "row",
+            "first": "Indicator!xhitstatus",
+            "second": "Indicator!xhitsuccess",
+            "splitPercentage": 50
           },
-          "splitPercentage": 32
+          "splitPercentage": 50
         },
-        "splitPercentage": 18
+        "splitPercentage": 34
       },
-      "splitPercentage": 16
+      "splitPercentage": 25
     },
     "second": {
       "direction": "column",
-      "first": "RawMessages!telemetryfaults",
+      "first": {
+        "direction": "row",
+        "first": "Plot!ages",
+        "second": "Plot!ballrate",
+        "splitPercentage": 60
+      },
       "second": {
-        "direction": "column",
-        "first": {
-          "direction": "row",
-          "first": "Plot!ages",
-          "second": "Plot!ballrate",
-          "splitPercentage": 60
-        },
-        "second": {
-          "direction": "row",
-          "first": "Plot!geometry",
-          "second": "Plot!countdown",
-          "splitPercentage": 50
-        },
+        "direction": "row",
+        "first": "Plot!geometry",
+        "second": "Plot!countdown",
         "splitPercentage": 50
       },
-      "splitPercentage": 15
+      "splitPercentage": 50
     },
     "splitPercentage": 36
   }

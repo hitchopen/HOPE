@@ -193,7 +193,17 @@ else
   rally_assert_policy_native_runner_args \
     --planner --policy-native --start passive --official-stand
 fi
-if [ "$PP_GATE3_PROFILE" = rally_v17_r10 ]; then
+if [ "$PP_GATE3_PROFILE" = stationary_fixed_home_v1 ]; then
+  python3 - "$PP_FIXED_HOME_INSPECTION" "$PP_FIXED_PLANE_X" "$PP_XHIT" "$PP_SPLIT_Y" "$SCRIPT_DIR" <<'PY_PROFILE'
+import json,sys
+sys.path.insert(0,sys.argv[5])
+from pp_fixed_home_profile import planner_profile
+profile, plane = planner_profile(json.load(open(sys.argv[1])))
+assert abs(float(sys.argv[2])-plane)<1e-9 and abs(float(sys.argv[3])-(-.5+plane))<1e-9
+assert abs(float(sys.argv[4])-profile['hope_planner']['ros__parameters']['swing_side_split_y'])<1e-9
+PY_PROFILE
+  [ "$?" = 0 ] || exit 2
+elif [ "$PP_GATE3_PROFILE" = rally_v17_r10 ]; then
   awk -v split_y="${PP_SPLIT_Y:-}" -v hyst="${PP_SPLIT_HYST:-0.04}" \
       'BEGIN {exit !(split_y == -0.265 && hyst == 0.04)}' || {
     echo "[g3r] PROFILE FAIL: R10 requires exported-box midpoint split=-0.265 hysteresis=0.04"
@@ -219,6 +229,9 @@ awk -v y="$PP_RESET_Y" -v z="$PP_POLICY_Z_OFFSET" -v h="$PP_TABLE_HEIGHT_M" \
   exit 2
 }
 case "$PP_GATE3_PROFILE" in
+  stationary_fixed_home_v1)
+    # Geometry came from the native policy inspection above; scoring is unchanged.
+    ;;
   rally_v8_v13)
     awk -v x="$PP_XHIT" -v d="$PP_XHIT_BH_DELTA" -v p="$PP_FIXED_PLANE_X" \
         -v s="$PP_STATION_X" 'BEGIN {exit !(x==0.15 && d==-0.15 && p==0.65 && s==-0.50)}' || {

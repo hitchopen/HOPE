@@ -62,6 +62,7 @@
 //      [10]=position-fit sample count
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
@@ -674,6 +675,9 @@ class PpBallStateInput {
 };
 
 // -------------------------------- base pose ---------------------------------
+inline constexpr double kBasePoseHoldAfterS = 0.020;
+inline constexpr double kBasePoseRescueAfterS = 1.0;
+
 struct PpBaseSample {
   Vec3 pos = Vec3::Zero();
   Vec4 quat = Vec4(1, 0, 0, 0);  // w,x,y,z
@@ -696,6 +700,45 @@ struct PpBaseSample {
   std::uint64_t world_frame_id = 0;
   int schema = 0;
   bool authoritative = false;
+  // Policy-only zero-order hold, never a new sensor observation. Wire sequence,
+  // source/receipt timestamps and watchdog age always belong to the real sample.
+  bool held_for_policy = false;
+};
+
+// Freeze the complete last applied pose, including its short gyro correction,
+// instead of continuing attitude propagation through a transport gap. A new real
+// receipt/coordinate frame cannot inherit the old cache, even after a seq reset.
+class PpBasePoseHold {
+ public:
+  PpBaseSample Apply(const PpBaseSample& source, const Vec4& fresh_quat) {
+    PpBaseSample used = source;
+    const bool same_receipt = have_pose_ && receipt_steady_s_ == source.receipt_steady_s &&
+        schema_ == source.schema && calibration_id_ == source.calibration_id &&
+        world_frame_id_ == source.world_frame_id;
+    if (source.held_for_policy && same_receipt) {
+      used.pos = pos_;
+      used.quat = quat_;
+    } else {
+      // No prior applied pose: use the real, age-bounded pose, never nominal
+      // geometry or a prediction. Do not gyro-extrapolate an already held pose.
+      used.quat = source.held_for_policy ? source.quat : fresh_quat;
+      pos_ = used.pos;
+      quat_ = used.quat;
+      receipt_steady_s_ = source.receipt_steady_s;
+      calibration_id_ = source.calibration_id;
+      world_frame_id_ = source.world_frame_id;
+      schema_ = source.schema;
+      have_pose_ = true;
+    }
+    return used;
+  }
+ private:
+  bool have_pose_ = false;
+  double receipt_steady_s_ = -1.;
+  std::uint64_t calibration_id_ = 0, world_frame_id_ = 0;
+  int schema_ = 0;
+  Vec3 pos_ = Vec3::Zero();
+  Vec4 quat_ = Vec4(1, 0, 0, 0);
 };
 
 inline constexpr std::uint64_t kBaseFlagTrackingValid = 1ULL << 0;
@@ -781,6 +824,16 @@ class PpBasePoseInput {
     out.world_frame_id = world_frame_id_;
     out.schema = schema_;
     out.authoritative = authoritative_;
+    out.held_for_policy = false;
+    return true;
+  }
+
+  bool LatestForPolicy(PpBaseSample& out, double max_age_s,
+                       bool require_authoritative = false) const {
+    if (!std::isfinite(max_age_s) || max_age_s < 0.) return false;
+    if (!Latest(out, std::min(max_age_s, kBasePoseRescueAfterS), require_authoritative))
+      return false;
+    out.held_for_policy = out.receipt_age_s > kBasePoseHoldAfterS;
     return true;
   }
 

@@ -67,6 +67,7 @@ def generate_launch_description():
                  "ball_tracking_mode": arg("ball_tracking_mode"), "ball_object": arg("ball_object"),
                  "position_scale": typed("position_scale", float), "pants_profile": arg("pants_profile"),
                  "table_side": arg("table_side"), "follow_lifecycle_config": typed("follow_lifecycle_config", bool),
+                 "debug_session_id": arg("debug_session_id"),
              }]),
         Node(package="hope_bringup", executable="hope_base_pose_flat_relay",
              name="hope_base_pose_flat_relay", output="screen", condition=IfCondition(arg("start_base_pose")),

@@ -101,6 +101,7 @@ a3_deploy/a3_deploy_example/assets/a3_runtime/motions/*
 
 # Local evaluation/replay evidence is reproducible output, not source
 /artifacts/
+/output/
 /real_logs/
 /calibration/*.json
 /hope_ws/build_foxglove_verify/
@@ -110,13 +111,6 @@ pw.txt
 
 # Local research notes
 /research/
-
-# Local development notes, review/bug reports and one-off test scripts.
-# Reusable regression tests and public runtime evidence remain tracked.
-/.local-dev/
-# Retired PR bookkeeping paths; use .local-dev/notes/ for local copies.
-/docs/operations/pr_batch_plan_20261021.md
-/docs/operations/today_prs_20261021.md
 
 # Repository-local temporary files
 /tmp/

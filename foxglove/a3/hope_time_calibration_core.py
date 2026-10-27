@@ -45,16 +45,40 @@ HDU_VENDOR_UNITS = (
 # clock installer uses this exact order; stopping RouDi first can strand the
 # process-manager shutdown and leave the transaction in MDU_STOP.
 HDU_VENDOR_STOP_UNITS = tuple(reversed(HDU_VENDOR_UNITS))
+HDU_PTP_UNITS = ("agibot-hdu-ptp4l.service", "agibot-hdu-phc2sys.service")
 HDU_FOXGLOVE_UNITS = (
     "hope-monitor.service",
     "hope-foxglove-bridge.service",
+    "hope-observer.service",
+    "hope-command-proxy.service",
     "hope-foxglove-control-bridge.service",
     "hope-lifecycle-supervisor.service",
 )
-# Historical receipts remain readable, but recovery never launches the retired
-# standalone observer/proxy processes on a consolidated installation.
-LEGACY_OPERATION_UNITS = ("hope-observer.service", "hope-command-proxy.service")
+HDU_SPLIT_CONTROL_UNITS = ("hope-observer.service", "hope-command-proxy.service")
+HDU_REQUIRED_CONTROL_UNITS = tuple(
+    unit for unit in HDU_FOXGLOVE_UNITS if unit not in HDU_SPLIT_CONTROL_UNITS
+)
+HDU_CONSOLIDATED_CONTROL_UNIT = "hope-lifecycle-supervisor.service"
+HDU_CONSOLIDATED_CONTROL_SCRIPT = "/usr/local/bin/hope_operations.py"
+HDU_CONSOLIDATED_CONTROL_GROUP = "/system.slice/hope-lifecycle-supervisor.service"
+HDU_CONTROL_PROCESS_PATTERNS = (
+    ("OBSERVER", "(^|/)[h]ope_observer[.]py([[:space:]]|$)"),
+    ("COMMAND_PROXY", "(^|/)[h]ope_command_proxy[.]py([[:space:]]|$)"),
+    ("OPERATIONS", "(^|/)[h]ope_operations[.]py([[:space:]]|$)"),
+)
 PTP_PROCESSES = ("ptp4l", "phc2sys")
+HDU_RUNTIME_PATTERNS = (
+    ("RUNNER", "[a]3_deploy_onnx_ref_pingpong"),
+    ("PLANNER", "(^|/)hope_planner_cpp_node([[:space:]]|$)"),
+    ("BASE_RELAY", "[h]ope_base_pose_transport_relay"),
+)
+HDU_VENDOR_PATTERNS = (
+    ("HAL", "[a]imrt_main_hal"),
+    ("ELINK_HAL", "[a]imrt_main .*hal_elink"),
+)
+# ELink's rc.local-owned transfer is not part of the clock-consumer stop set.
+# Its continuing presence must not strand an otherwise stopped calibration;
+# this operation never restarts the transfer or reinitializes its UART/IPC.
 
 SYSTEMCTL = "/usr/bin/systemctl"
 PGREP = "/usr/bin/pgrep"
@@ -84,6 +108,14 @@ class CalibrationRejected(RuntimeError):
 
 class CalibrationFailure(RuntimeError):
     """The operation failed after state may have changed."""
+
+
+@dataclass(frozen=True)
+class ControlPlaneSnapshot:
+    """Only the verified pre-operation workload is stopped and restored."""
+
+    active_units: tuple[str, ...]
+    consolidated_group: str = ""
 
 
 @dataclass(frozen=True)
@@ -195,7 +227,7 @@ def status_from_document(document: Mapping[str, object]) -> CalibrationStatus:
         ),
         active_hdu_foxglove=_unit_list(
             document.get("active_hdu_foxglove"),
-            allowed=HDU_FOXGLOVE_UNITS + LEGACY_OPERATION_UNITS,
+            allowed=HDU_FOXGLOVE_UNITS,
             field="active_hdu_foxglove",
         ),
     )
@@ -251,6 +283,7 @@ class TimeCalibrationBackend:
         monotonic: Callable[[], float] = time.monotonic,
         ntp_probe: Callable[..., NtpProbeResult] = probe_ntp,
         audit: Callable[[str], None] | None = None,
+        read_text: Callable[[Path], str] | None = None,
     ):
         if SAFE_ACCOUNT_PATTERN.fullmatch(robot_user) is None:
             raise ValueError("HOPE_ROBOT_USER is not a safe POSIX account name")
@@ -265,6 +298,9 @@ class TimeCalibrationBackend:
         self._monotonic = monotonic
         self._ntp_probe = ntp_probe
         self._audit = audit if audit is not None else lambda _message: None
+        self._read_text = read_text if read_text is not None else (
+            lambda path: path.read_text(encoding="utf-8")
+        )
 
     def _record_command(
         self, label: str, completed: subprocess.CompletedProcess[str]
@@ -299,25 +335,121 @@ class TimeCalibrationBackend:
             raise CalibrationFailure(f"{label}: {reason[:300]}")
         return completed.stdout
 
+    def _unit_state(self, unit: str) -> tuple[str, str]:
+        output = self._checked(
+            [SYSTEMCTL, "show", "--property=LoadState", "--property=ActiveState", unit],
+            timeout_s=5.0, label=f"query unit {unit}",
+        )
+        fields = {}
+        for line in output.splitlines():
+            key, separator, value = line.partition("=")
+            if not separator or key in fields:
+                raise CalibrationFailure(f"HDU_UNIT_STATE_UNKNOWN: {unit}")
+            fields[key] = value
+        if (set(fields) != {"LoadState", "ActiveState"}
+                or fields["LoadState"] not in {"loaded", "not-found"}
+                or fields["ActiveState"] not in {
+                    "active", "inactive", "failed", "activating", "deactivating", "reloading"}):
+            raise CalibrationFailure(f"HDU_UNIT_STATE_UNKNOWN: {unit}")
+        return fields["LoadState"], fields["ActiveState"]
+
     def _is_active(self, unit: str) -> bool:
-        return self._call(
-            [SYSTEMCTL, "is-active", "--quiet", unit], timeout_s=5.0
-        ).returncode == 0
+        return self._unit_state(unit) == ("loaded", "active")
 
     def _active_loaded_units(self, units: Sequence[str]) -> tuple[str, ...]:
         active: list[str] = []
         for unit in units:
-            if self._call([SYSTEMCTL, "cat", unit], timeout_s=5.0).returncode != 0:
-                continue
-            if self._is_active(unit):
+            loaded, state = self._unit_state(unit)
+            if state in {"activating", "deactivating", "reloading"}:
+                raise CalibrationFailure(f"HDU_UNIT_TRANSITIONING: {unit}")
+            if loaded == "loaded" and state == "active":
                 active.append(unit)
         return tuple(active)
+
+    def _consolidated_owner_properties(self) -> dict[str, str]:
+        properties = ("ExecStart", "MainPID", "ControlGroup", "KillMode")
+        output = self._checked(
+            [SYSTEMCTL, "show", *(f"--property={name}" for name in properties),
+             HDU_CONSOLIDATED_CONTROL_UNIT],
+            timeout_s=5.0, label="query consolidated control owner",
+        )
+        fields: dict[str, str] = {}
+        for line in output.splitlines():
+            key, separator, value = line.partition("=")
+            if not separator or key in fields:
+                raise CalibrationRejected("HDU_CONSOLIDATED_OWNER_UNKNOWN")
+            fields[key] = value
+        if (set(fields) != set(properties)
+                or not fields["MainPID"].isdigit() or int(fields["MainPID"]) <= 0
+                or fields["ControlGroup"] != HDU_CONSOLIDATED_CONTROL_GROUP
+                or fields["KillMode"] != "control-group"
+                or re.search(r"(?<![\w./-])" + re.escape(HDU_CONSOLIDATED_CONTROL_SCRIPT)
+                             + r"(?=$|[\s;'\"])", fields["ExecStart"]) is None):
+            raise CalibrationRejected("HDU_CONSOLIDATED_OWNER_UNVERIFIED")
+        return fields
+
+    def _verified_consolidated_group(self) -> str:
+        # On consolidated HDUs the systemd MainPID is the DDS shell wrapper.
+        # Prove the real Python child, not just a description/ExecStart token,
+        # belongs to the one service that will be stopped and restored.
+        before = self._consolidated_owner_properties()
+        group = before["ControlGroup"]
+        root = Path("/sys/fs/cgroup") / group.lstrip("/")
+        try:
+            pids = self._read_text(root / "cgroup.procs").split()
+            if not pids or len(pids) > 256 or any(not pid.isdigit() or int(pid) <= 0 for pid in pids):
+                raise CalibrationRejected("HDU_CONSOLIDATED_OWNER_PIDS_UNKNOWN")
+            for pid in pids:
+                process = Path("/proc") / pid
+                try:
+                    argv = self._read_text(process / "cmdline").rstrip("\0").split("\0")
+                    if (len(argv) < 2 or argv[1] != HDU_CONSOLIDATED_CONTROL_SCRIPT
+                            or re.fullmatch(r"python(?:3(?:\.\d+)?)?", Path(argv[0]).name) is None):
+                        continue
+                    first_stat = self._read_text(process / "stat")
+                    first_start = first_stat.rsplit(")", 1)[1].split()[19]
+                    if (not first_stat.startswith(f"{pid} (") or not first_start.isdigit()
+                            or f"0::{group}" not in self._read_text(process / "cgroup").splitlines()):
+                        continue
+                    second_stat = self._read_text(process / "stat")
+                    if (not second_stat.startswith(f"{pid} (")
+                            or second_stat.rsplit(")", 1)[1].split()[19] != first_start
+                            or self._read_text(process / "cmdline").rstrip("\0").split("\0") != argv
+                            or f"0::{group}" not in self._read_text(process / "cgroup").splitlines()):
+                        continue
+                except (OSError, UnicodeError, IndexError):
+                    continue  # A short-lived child can exit during enumeration.
+                if (self._consolidated_owner_properties() != before
+                        or self._unit_state(HDU_CONSOLIDATED_CONTROL_UNIT) != ("loaded", "active")):
+                    raise CalibrationRejected("HDU_CONSOLIDATED_OWNER_CHANGED")
+                return group
+        except (OSError, UnicodeError) as exc:
+            raise CalibrationRejected(f"HDU_CONSOLIDATED_OWNER_UNREADABLE: {type(exc).__name__}") from exc
+        raise CalibrationRejected("HDU_CONSOLIDATED_OWNER_PROCESS_MISSING")
+
+    def _snapshot_control_plane(self) -> ControlPlaneSnapshot:
+        states = {unit: self._unit_state(unit) for unit in HDU_FOXGLOVE_UNITS}
+        for unit, (loaded, state) in states.items():
+            if state in {"activating", "deactivating", "reloading"}:
+                raise CalibrationRejected(f"HDU_CONTROL_UNIT_TRANSITIONING: {unit}")
+            if loaded == "not-found" and state != "inactive":
+                raise CalibrationRejected(f"HDU_CONTROL_UNIT_STATE_UNKNOWN: {unit}")
+        missing = [unit for unit in HDU_REQUIRED_CONTROL_UNITS if states[unit] != ("loaded", "active")]
+        if missing:
+            raise CalibrationRejected("CONTROL_PLANE_NOT_FULLY_ACTIVE: " + ",".join(missing))
+        active = tuple(unit for unit in HDU_FOXGLOVE_UNITS if states[unit] == ("loaded", "active"))
+        if active == HDU_FOXGLOVE_UNITS:
+            return ControlPlaneSnapshot(active)
+        # An absent/inactive compatibility stub is not a missing role when the
+        # verified operations process owns observer, proxy and lifecycle.
+        return ControlPlaneSnapshot(active, self._verified_consolidated_group())
 
     def _remote_mdu(self, config: LifecycleConfig, action: str, *, timeout_s: float) -> str:
         if action not in {
             "time-calibration-preflight-mdu",
             "time-calibration-recover-mdu",
             "time-calibration-stop-mdu",
+            "time-calibration-verify-stopped-mdu",
             "time-calibration-restore-mdu",
         }:
             raise ValueError("unsupported MDU time-calibration action")
@@ -351,6 +483,7 @@ class TimeCalibrationBackend:
                 pre_mutation_reasons = {
                     "RUNNER_PRESENT",
                     "NON_VENDOR_HAL_PRESENT",
+                    "NON_VENDOR_ELINK_PRESENT",
                     "ALREADY_RUNNING",
                     "ROOT_REQUIRED",
                     "INVALID_SUDO_USER",
@@ -361,7 +494,8 @@ class TimeCalibrationBackend:
                 }
                 if (
                     action == "time-calibration-preflight-mdu"
-                    or reason in pre_mutation_reasons
+                    or (action in {"time-calibration-recover-mdu", "time-calibration-stop-mdu"}
+                        and reason in pre_mutation_reasons)
                 ):
                     normalized = reason if reason.startswith("MDU_") else f"MDU_{reason}"
                     raise CalibrationRejected(normalized)
@@ -387,7 +521,7 @@ class TimeCalibrationBackend:
         deadline = self._monotonic() + timeout_s
         while True:
             matches = tuple(
-                self._call([PGREP, "-x", process], timeout_s=3.0).returncode == 0
+                self._process_present("-x", process)
                 for process in PTP_PROCESSES
             )
             if (all(matches) if present else not any(matches)):
@@ -421,10 +555,59 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure("Foxglove control port 8766 did not return")
             self._sleep(0.5)
 
-    def _runtime_process_present(self, pattern: str) -> bool:
-        return self._call([PGREP, "-f", pattern], timeout_s=3.0).returncode == 0
+    def _process_present(self, mode: str, pattern: str) -> bool:
+        completed = self._call([PGREP, mode, pattern], timeout_s=3.0)
+        if completed.returncode not in (0, 1):
+            raise CalibrationFailure(f"HDU_PROCESS_PROBE_UNKNOWN: {pattern}")
+        return completed.returncode == 0
 
-    def preflight(self, config: LifecycleConfig) -> None:
+    def _preflight_ptp_units(self) -> tuple[str, ...]:
+        states = [self._unit_state(unit) for unit in HDU_PTP_UNITS]
+        if all(state == ("loaded", "active") for state in states):
+            return HDU_PTP_UNITS
+        if all(state == ("not-found", "inactive") for state in states):
+            # Existing field installations can still have vendor-owned PTP.
+            # A failed query or a partially installed service pair is NOT
+            # evidence of that topology and must never select this fallback.
+            if self._is_active("agibot_pm.service"):
+                return ()
+        raise CalibrationRejected("HDU_PTP_UNIT_NOT_ACTIVE: incomplete or unverified PTP topology")
+
+    def _require_hdu_consumers_stopped(
+        self, ptp_units: Sequence[str], control: ControlPlaneSnapshot
+    ) -> None:
+        # A successful stop command alone is not proof that consumers exited.
+        # Check immediately before the single step, after the MDU recheck.
+        for unit in (*HDU_VENDOR_UNITS, *HDU_FOXGLOVE_UNITS, *HDU_PTP_UNITS, "chrony.service"):
+            loaded, state = self._unit_state(unit)
+            if unit in HDU_PTP_UNITS and unit not in ptp_units:
+                if (loaded, state) != ("not-found", "inactive"):
+                    raise CalibrationFailure(f"HDU_PTP_TOPOLOGY_CHANGED: {unit}")
+                continue
+            optional_control = unit in HDU_SPLIT_CONTROL_UNITS and unit not in control.active_units
+            if ((loaded != "loaded" and unit not in HDU_VENDOR_UNITS and not optional_control)
+                    or state not in {"inactive", "failed"}):
+                raise CalibrationFailure(f"HDU_CLOCK_CONSUMER_NOT_STOPPED: {unit}")
+            if loaded == "not-found" and state != "inactive":
+                raise CalibrationFailure(f"HDU_CLOCK_CONSUMER_STATE_UNKNOWN: {unit}")
+        if control.consolidated_group:
+            events_path = Path("/sys/fs/cgroup") / control.consolidated_group.lstrip("/") / "cgroup.events"
+            try:
+                events = dict(line.split() for line in self._read_text(events_path).splitlines())
+            except FileNotFoundError:
+                events = {"populated": "0"}  # systemd removed the stopped service's cgroup.
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise CalibrationFailure("HDU_CONSOLIDATED_GROUP_STATE_UNKNOWN") from exc
+            if events.get("populated") != "0":
+                raise CalibrationFailure("HDU_CONSOLIDATED_GROUP_NOT_EMPTY")
+        for label, pattern in (*HDU_RUNTIME_PATTERNS, *HDU_VENDOR_PATTERNS, *HDU_CONTROL_PROCESS_PATTERNS):
+            if self._process_present("-f", pattern):
+                raise CalibrationFailure(f"HDU_{label}_REMAINS")
+        for process in (*PTP_PROCESSES, "chronyd"):
+            if self._process_present("-x", process):
+                raise CalibrationFailure(f"HDU_CLOCK_PROCESS_REMAINS: {process}")
+
+    def preflight(self, config: LifecycleConfig) -> tuple[str, ...]:
         if config.revision < 1:
             raise CalibrationRejected("CONFIG_NOT_CONFIRMED")
         if not self._is_active("chrony.service"):
@@ -433,21 +616,14 @@ class TimeCalibrationBackend:
             [SYSTEMCTL, "cat", CHRONY_BURST_UNIT], timeout_s=5.0
         ).returncode != 0:
             raise CalibrationRejected("CHRONY_BURST_UNIT_MISSING")
-        if self._runtime_process_present(
-            "(^|/)hope_planner_cpp_node([[:space:]]|$)"
-        ):
-            raise CalibrationRejected("HDU_PLANNER_IS_RUNNING")
-        if (self._runtime_process_present("[h]ope_base_pose_transport_relay")
-                or self._runtime_process_present("(^|/)hope-base-pose-transport-relay([[:space:]]|$)")):
-            raise CalibrationRejected("HDU_BASE_RELAY_IS_RUNNING")
-        if self._runtime_process_present(
-            "(^|/)hope-transport-gateway([[:space:]]|$)"
-        ):
-            raise CalibrationRejected("HDU_TRANSPORT_GATEWAY_IS_RUNNING")
+        for label, pattern in HDU_RUNTIME_PATTERNS:
+            if self._process_present("-f", pattern):
+                raise CalibrationRejected(f"HDU_{label}_IS_RUNNING")
+        ptp_units = self._preflight_ptp_units()
         missing_ptp = [
             process
             for process in PTP_PROCESSES
-            if self._call([PGREP, "-x", process], timeout_s=3.0).returncode != 0
+            if not self._process_present("-x", process)
         ]
         if missing_ptp:
             raise CalibrationRejected(
@@ -467,22 +643,64 @@ class TimeCalibrationBackend:
         self._remote_mdu(
             config, "time-calibration-preflight-mdu", timeout_s=20.0
         )
+        return ptp_units
 
     def _restore_control_plane(self, units: Sequence[str]) -> None:
-        units = tuple(dict.fromkeys(
-            "hope-lifecycle-supervisor.service" if unit in LEGACY_OPERATION_UNITS else unit
-            for unit in _unit_list(list(units),
-                                   allowed=HDU_FOXGLOVE_UNITS + LEGACY_OPERATION_UNITS,
-                                   field="active_hdu_foxglove")
-        ))
-        self._checked(
-            [SYSTEMCTL, "reset-failed", *HDU_FOXGLOVE_UNITS],
-            timeout_s=20.0,
-            label="reset Foxglove control units",
+        available: list[str] = []
+        errors: list[str] = []
+        for unit in units:
+            try:
+                if self._unit_state(unit)[0] != "loaded":
+                    errors.append(f"HDU_CONTROL_RESTORE_UNIT_MISSING: {unit}")
+                else:
+                    available.append(unit)
+            except (CalibrationFailure, OSError, subprocess.SubprocessError) as exc:
+                errors.append(f"HDU_CONTROL_RESTORE_UNIT_UNKNOWN: {unit}: {exc}")
+        # Do not let a disappeared captured unit suppress restoration of the
+        # surviving diagnostics. Still report failure, never COMPLETE, and do
+        # not reset/start any absent or previously inactive compatibility unit.
+        if available:
+            try:
+                self._checked(
+                    [SYSTEMCTL, "reset-failed", *available],
+                    timeout_s=20.0,
+                    label="reset Foxglove control units",
+                )
+            except (CalibrationFailure, OSError, subprocess.SubprocessError) as exc:
+                errors.append(str(exc))
+            try:
+                self._start_units(available, label="restore Foxglove control plane")
+                self._wait_units_active(available, timeout_s=30.0)
+            except (CalibrationFailure, OSError, subprocess.SubprocessError) as exc:
+                errors.append(str(exc))
+        needs_consolidated = (
+            set(HDU_REQUIRED_CONTROL_UNITS).issubset(units)
+            and not set(HDU_SPLIT_CONTROL_UNITS).issubset(units)
         )
-        self._start_units(units, label="restore Foxglove control plane")
-        self._wait_units_active(units, timeout_s=30.0)
-        self._wait_control_port(timeout_s=30.0)
+        if needs_consolidated and HDU_CONSOLIDATED_CONTROL_UNIT in available:
+            try:
+                self._wait_consolidated_owner(timeout_s=30.0)
+            except CalibrationFailure as exc:
+                errors.append(str(exc))
+        try:
+            self._wait_control_port(timeout_s=30.0)
+        except (CalibrationFailure, OSError, subprocess.SubprocessError) as exc:
+            errors.append(str(exc))
+        if errors:
+            raise CalibrationFailure("; ".join(errors))
+
+    def _wait_consolidated_owner(self, *, timeout_s: float) -> None:
+        deadline = self._monotonic() + timeout_s
+        while True:
+            try:
+                self._verified_consolidated_group()
+                return
+            except (CalibrationRejected, CalibrationFailure, OSError, subprocess.SubprocessError) as exc:
+                # Active shell wrappers can precede the actual Python child.
+                # This is readiness after mutation, never an admission rejection.
+                if self._monotonic() >= deadline:
+                    raise CalibrationFailure(f"HDU_CONSOLIDATED_OWNER_NOT_RESTORED: {exc}") from exc
+            self._sleep(0.5)
 
     def fail_safe(
         self,
@@ -504,9 +722,19 @@ class TimeCalibrationBackend:
                 unit for unit in HDU_VENDOR_STOP_UNITS if unit in active_vendor_set
             )
             self._stop_units(stop_order, label="fail-safe stop HDU vendor services")
-            self._wait_processes(present=False, timeout_s=10.0)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"HDU_VENDOR_STOP={exc}")
+        for unit in reversed(HDU_PTP_UNITS):
+            try:
+                if self._unit_state(unit) == ("not-found", "inactive"):
+                    continue  # Explicitly absent on the legacy vendor topology.
+                self._stop_units((unit,), label="fail-safe stop HDU PTP service")
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"HDU_PTP_STOP={unit}:{exc}")
+        try:
+            self._wait_processes(present=False, timeout_s=10.0)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"HDU_PTP_STOP={exc}")
         try:
             self._checked(
                 [SYSTEMCTL, "start", "chrony.service"],
@@ -549,6 +777,8 @@ class TimeCalibrationBackend:
 
         active_vendor: tuple[str, ...] = ()
         active_foxglove: tuple[str, ...] = ()
+        active_ptp: tuple[str, ...] = ()
+        control = ControlPlaneSnapshot(())
         hard_step_attempted = False
         mutated = False
 
@@ -566,14 +796,10 @@ class TimeCalibrationBackend:
         try:
             self._sleep(handoff_delay_s)
             report("PREFLIGHT", "VERIFYING_STOPPED_SYSTEM_AND_BAD_CLOCK")
-            self.preflight(config)
+            active_ptp = self.preflight(config)
             active_vendor = self._active_loaded_units(HDU_VENDOR_UNITS)
-            active_foxglove = self._active_loaded_units(HDU_FOXGLOVE_UNITS)
-            if tuple(active_foxglove) != HDU_FOXGLOVE_UNITS:
-                missing = sorted(set(HDU_FOXGLOVE_UNITS) - set(active_foxglove))
-                raise CalibrationRejected(
-                    "CONTROL_PLANE_NOT_FULLY_ACTIVE: " + ",".join(missing)
-                )
+            control = self._snapshot_control_plane()
+            active_foxglove = control.active_units
             report("PREFLIGHT", "PRECONDITIONS_CONFIRMED")
         except CalibrationRejected:
             raise
@@ -594,6 +820,10 @@ class TimeCalibrationBackend:
                 unit for unit in HDU_VENDOR_STOP_UNITS if unit in active_vendor_set
             )
             self._stop_units(stop_order, label="stop HDU vendor services")
+            # PTP workers are independently supervised; stopping agibot_pm
+            # does not stop them. Otherwise this path waits forever/fails,
+            # or a restarted PTP worker distributes the HDU clock step live.
+            self._stop_units(tuple(reversed(active_ptp)), label="stop HDU PTP services")
             self._wait_processes(present=False, timeout_s=10.0)
             self._checked(
                 [SYSTEMCTL, "stop", "chrony.service"],
@@ -601,13 +831,16 @@ class TimeCalibrationBackend:
                 label="stop chrony",
             )
 
-            hard_step_attempted = True
-            report("HARD_STEP", "STARTING_SINGLE_HDU_UTC_HARD_STEP")
             self._checked(
                 [SYSTEMCTL, "reset-failed", "agibot-clock-bootstrap.service"],
                 timeout_s=20.0,
                 label="reset clock bootstrap",
             )
+            report("VERIFY_STOPPED", "RECHECKING_HDU_AND_MDU_CLOCK_CONSUMERS")
+            self._remote_mdu(config, "time-calibration-verify-stopped-mdu", timeout_s=20.0)
+            self._require_hdu_consumers_stopped(active_ptp, control)
+            hard_step_attempted = True
+            report("HARD_STEP", "STARTING_SINGLE_HDU_UTC_HARD_STEP")
             self._checked(
                 [SYSTEMCTL, "restart", "agibot-clock-bootstrap.service"],
                 timeout_s=120.0,
@@ -643,8 +876,14 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"CLOCK_NOT_QUALIFIED_AFTER_HARD_STEP: {detail}")
 
             report("HDU_RESTORE", "RESTORING_HDU_VENDOR_PTP_CHAIN")
-            self._start_units(active_vendor, label="restore HDU vendor services")
+            if active_ptp:
+                self._start_units(active_ptp, label="restore HDU PTP services")
+                self._wait_units_active(active_ptp, timeout_s=30.0)
+            else:
+                self._start_units(active_vendor, label="restore HDU vendor-owned PTP services")
             self._wait_processes(present=True, timeout_s=90.0)
+            if active_ptp:
+                self._start_units(active_vendor, label="restore HDU vendor services")
 
             report("MDU_RESTORE", "RESTORING_MDU_PTP_AND_VENDOR_SERVICES")
             self._remote_mdu(config, "time-calibration-restore-mdu", timeout_s=180.0)

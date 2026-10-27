@@ -61,6 +61,9 @@ start_iox_roudi_if_needed() {
     nohup "${roudi_cmd}" >"${roudi_log}" 2>&1 </dev/null &
   fi
   echo "[run_sim] iox-roudi log=${roudi_log}"
+  if [[ -n "${A3_IOX_ROUDI_PID_FILE:-}" ]]; then
+    printf '%s\n' "$!" > "$A3_IOX_ROUDI_PID_FILE"
+  fi
   disown "$!" 2>/dev/null || true
   sleep 1
 }

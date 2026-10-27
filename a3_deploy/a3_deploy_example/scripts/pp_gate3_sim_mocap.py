@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Expose MuJoCo through the public raw NamedPoseArrayV2 boundary as OptiTrack."""
+"""Expose MuJoCo through the same raw NamedPoseArrayV2 boundary as OptiTrack."""
 
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
 import rclpy
@@ -14,6 +15,7 @@ from mujoco_sim_msgs.msg import Gate3BallState
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from std_msgs.msg import Float64MultiArray
 
 from pp_gate3_core import (
     TABLE_HEIGHT_M,
@@ -21,6 +23,9 @@ from pp_gate3_core import (
     calibrated_p1_marker_contract,
     world_to_table_position,
 )
+
+
+SIM_AUTHORITATIVE_BASE_FLAGS = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 5)
 
 
 def translated_pose(world_pose: Pose, table_height_m: float) -> Pose:
@@ -43,6 +48,7 @@ class Gate3SimMocap(Node):
         table_height_m: float,
         marker_to_base_xyz: tuple[float, float, float],
         marker_to_base_quaternion_wxyz: tuple[float, float, float, float],
+        publish_base_flat: bool = False,
     ) -> None:
         super().__init__("gate3_sim_mocap")
         self._table_height_m = float(table_height_m)
@@ -68,6 +74,14 @@ class Gate3SimMocap(Node):
         self._pelvis: PoseStamped | None = None
         self._frames = 0
         self._frames_without_pelvis = 0
+        self._base_sequence = 0
+        self._base_pub = (
+            self.create_publisher(
+                Float64MultiArray, "/a3/base_pose_flat", reliable_qos
+            )
+            if publish_base_flat
+            else None
+        )
         self.create_subscription(
             PoseStamped, "/sim/a3/pelvis_pose", self._pelvis_cb, reliable_qos
         )
@@ -81,6 +95,39 @@ class Gate3SimMocap(Node):
 
     def _pelvis_cb(self, msg: PoseStamped) -> None:
         self._pelvis = msg
+        if self._base_pub is None:
+            return
+        p = msg.pose.position
+        q = msg.pose.orientation
+        quaternion = (float(q.w), float(q.x), float(q.y), float(q.z))
+        norm = math.sqrt(sum(value * value for value in quaternion))
+        xyz = (float(p.x), float(p.y), float(p.z))
+        if (
+            not all(math.isfinite(value) for value in (*xyz, *quaternion))
+            or not math.isfinite(norm)
+            or norm < 0.5
+            or norm > 1.5
+        ):
+            return
+        quaternion = tuple(value / norm for value in quaternion)
+        receipt_ns = int(self.get_clock().now().nanoseconds)
+        source_sec, source_nsec = divmod(receipt_ns, 1_000_000_000)
+        self._base_sequence += 1
+        packet = Float64MultiArray()
+        packet.data = [
+            2.0,
+            1.0,
+            float(self._base_sequence),
+            float(source_sec),
+            float(source_nsec),
+            *xyz,
+            *quaternion,
+            1.0,
+            float(SIM_AUTHORITATIVE_BASE_FLAGS),
+            1.0,
+            1.0,
+        ]
+        self._base_pub.publish(packet)
 
     @staticmethod
     def _named(name: str, pose: Pose) -> NamedPose:
@@ -93,10 +140,13 @@ class Gate3SimMocap(Node):
         if self._pelvis is None:
             self._frames_without_pelvis += 1
             return
-        # Match the production relay message type, including its source header.
         frame = NamedPoseArrayV2()
         frame.header = msg.header
         frame.header.frame_id = "world"
+        frame.timestamp = (
+            int(frame.header.stamp.sec) * 1_000_000
+            + int(frame.header.stamp.nanosec) // 1_000
+        )
 
         pelvis_table = translated_pose(self._pelvis.pose, self._table_height_m)
         marker_position, marker_quaternion = base_pose_to_marker_pose(
@@ -146,7 +196,7 @@ class Gate3SimMocap(Node):
     def _health(self) -> None:
         self.get_logger().info(
             "GATE3 RAW MOCAP frames=%d dropped_without_pelvis=%d ball/UCB_P1/PPT "
-            "positions are table-surface-frame; P1 is the calibrated marker "
+            "positions are table-surface-frame; UCB_P1 is the calibrated marker "
             "(not the pelvis)"
             % (self._frames, self._frames_without_pelvis)
         )
@@ -162,6 +212,8 @@ def main() -> int:
         help="calibrated hope_world_frame.yaml used by the production relay",
     )
     parser.add_argument("--calibration", type=Path)
+    parser.add_argument("--allow-uncalibrated-p1-sim", action="store_true",
+                        help="MuJoCo only: publish simulator-truth base pose directly")
     args, ros_args = parser.parse_known_args()
     if args.calibration:
         import sys
@@ -171,6 +223,16 @@ def main() -> int:
         marker_to_base_xyz = receipt.translation_m
         x, y, z, w = receipt.quaternion_xyzw
         marker_to_base_quaternion = (w, x, y, z)
+    elif args.allow_uncalibrated_p1_sim:
+        with args.world_config.open("r", encoding="utf-8") as handle:
+            config = yaml.safe_load(handle)
+        world = config.get("hope_world", config)
+        p1 = world["mocap_to_base_link"]["p1"]
+        marker_to_base_xyz = tuple(float(value) for value in p1["xyz_m"])
+        marker_to_base_quaternion = tuple(float(value) for value in p1["quaternion_wxyz"])
+        if (len(marker_to_base_xyz) != 3 or len(marker_to_base_quaternion) != 4 or
+                not all(math.isfinite(v) for v in (*marker_to_base_xyz, *marker_to_base_quaternion))):
+            raise ValueError("MuJoCo P1 numeric transform is invalid")
     else:
         with args.world_config.open("r", encoding="utf-8") as handle:
             marker_to_base_xyz, marker_to_base_quaternion = calibrated_p1_marker_contract(yaml.safe_load(handle))
@@ -179,6 +241,7 @@ def main() -> int:
         args.table_height_m,
         marker_to_base_xyz,
         marker_to_base_quaternion,
+        publish_base_flat=args.allow_uncalibrated_p1_sim,
     )
     try:
         rclpy.spin(node)

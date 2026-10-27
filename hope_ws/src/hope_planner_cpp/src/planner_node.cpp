@@ -1,6 +1,9 @@
+#include "hope_planner_cpp/swing_side_support.hpp"
 #include "hope_planner_cpp/planner_node.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
 #include "hope_planner_cpp/hit_speed_scale_state.hpp"
+#include "hope_planner_cpp/ball_y_filter_state.hpp"
+#include "hope_planner_cpp/ball_y_filter_markers.hpp"
 #include "hope_planner_cpp/return_physics_parameters.hpp"
 
 #include <Eigen/Geometry>
@@ -116,6 +119,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   swing_side_split_y_ = declare_parameter<double>("swing_side_split_y", -0.25);
   swing_side_hysteresis_y_ =
       std::max(0.0, declare_parameter<double>("swing_side_hysteresis_y", 0.04));
+  swing_side_fh_y_range_ = declare_parameter<std::vector<double>>("swing_side_fh_y_range", std::vector<double>{});
+  swing_side_bh_y_range_ = declare_parameter<std::vector<double>>("swing_side_bh_y_range", std::vector<double>{});
+  if (!valid_swing_side_support_ranges(swing_side_fh_y_range_, swing_side_bh_y_range_))
+    throw std::invalid_argument("swing side support requires two ordered finite ranges or both empty");
   swing_side_reference_mode_ = declare_parameter<std::string>(
       "swing_side_reference_mode", "live_base_v1");
   if (swing_side_reference_mode_ != "live_base_v1" &&
@@ -289,13 +296,62 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   }
 
   policy_z_offset_ = declare_parameter<double>("policy_z_offset", 0.76);
+  rcl_interfaces::msg::ParameterDescriptor filter_defaults;
+  filter_defaults.read_only = true;
+  filter_defaults.description =
+      "Startup configuration; runtime enable uses /hope/planner/set_ball_y_filter";
+  ball_y_filter_.enabled = declare_parameter<bool>(
+      "ball_y_filter_enabled", false, filter_defaults);
+  ball_y_filter_.min_y = declare_parameter<double>(
+      "ball_y_filter_min_m", -1.525, filter_defaults);
+  ball_y_filter_.max_y = declare_parameter<double>(
+      "ball_y_filter_max_m", 0.0, filter_defaults);
+  if (ball_y_filter_.enabled && !ball_y_filter_.valid_bounds()) {
+    throw std::invalid_argument(
+        "ball_y_filter requires finite min_m < max_m in the Planner table frame");
+  }
+  ball_y_filter_state_file_ = declare_parameter<std::string>("ball_y_filter_state_file", "", filter_defaults);
+  ball_y_filter_ = load_ball_y_filter(ball_y_filter_state_file_, ball_y_filter_);
+  ball_y_filter_service_ = create_service<rcl_interfaces::srv::SetParametersAtomically>(
+      "/hope/planner/set_ball_y_filter",
+      [this](const std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Request> request,
+             std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Response> response) {
+        std::lock_guard<std::mutex> lock(ball_y_filter_publish_mutex_);
+        try {
+          BallYFilter candidate;
+          unsigned seen = 0;
+          for (const auto& parameter : request->parameters) {
+            unsigned bit = 0;
+            if (parameter.name == "enabled" && parameter.value.type == 1) {
+              candidate.enabled = parameter.value.bool_value; bit = 1;
+            } else if (parameter.name == "min_m" && parameter.value.type == 3) {
+              candidate.min_y = parameter.value.double_value; bit = 2;
+            } else if (parameter.name == "max_m" && parameter.value.type == 3) {
+              candidate.max_y = parameter.value.double_value; bit = 4;
+            }
+            if (bit == 0 || (seen & bit) != 0)
+              throw std::invalid_argument("Only unique enabled(bool), min_m(double), max_m(double) are accepted");
+            seen |= bit;
+          }
+          if (seen != 7 || !candidate.valid_bounds())
+            throw std::invalid_argument("Supply enabled and finite min_m < max_m");
+          // Persist before committing. Failed writes leave the live lane unchanged.
+          save_ball_y_filter(ball_y_filter_state_file_, candidate);
+          ball_y_filter_ = candidate;
+          response->result.successful = true;
+          response->result.reason = "Applied to subsequent commands; active swings are unchanged";
+        } catch (const std::exception& error) {
+          response->result.successful = false;
+          response->result.reason = error.what();
+        }
+      });
   max_target_turn_deg_ = declare_parameter<double>("max_target_turn_deg", 40.0);
   if (!std::isfinite(max_target_turn_deg_) || max_target_turn_deg_ <= 0.0 ||
       max_target_turn_deg_ > 180.0) {
     throw std::invalid_argument("max_target_turn_deg must be finite and in (0, 180]");
   }
-  target_turn_max_pose_age_s_ = declare_parameter<double>("target_turn_max_pose_age_s", 0.2);
   target_turn_reject_stale_pose_ = declare_parameter<bool>("target_turn_reject_stale_pose", true);
+  target_turn_max_pose_age_s_ = declare_parameter<double>("target_turn_max_pose_age_s", 0.2);
   if (!std::isfinite(target_turn_max_pose_age_s_) || target_turn_max_pose_age_s_ <= 0.0) {
     throw std::invalid_argument("target_turn_max_pose_age_s must be finite and positive");
   }
@@ -566,7 +622,12 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "base_yaw_deg,target_bearing_deg,target_turn_deg,post_net_future_bounce_restitution_v,base_source_age_ms,"
       "future_contact_spin_enabled,future_contact_spin_used,future_contact_spin_tangential_gain,"
       "future_contact_spin_omega_scale,future_contact_spin_min_coherence,"
-      "future_contact_magnus_enabled,physics_drag_k,physics_magnus_k,physics_table_gain,physics_table_mu,physics_spin_reason,session_home_epoch,plane_mode,plane_reference_x,plane_world_x,plane_selection_reason,hit_speed_scale");
+      "future_contact_magnus_enabled,physics_drag_k,physics_magnus_k,physics_table_gain,physics_table_mu,physics_spin_reason,"
+      "ball_y_filter_enabled,ball_y_filter_min_m,ball_y_filter_max_m,ball_y_filter_reason,"
+      "base_source_age_at_receipt_ms,base_receive_gap_ms,base_source_gap_ms,"
+      "base_received_total,base_invalid_total,base_max_receive_gap_ms,pose_age_limit_ms,"
+      "target_turn_evaluations_total,base_receipt_stale_rejections_total,base_source_stale_rejections_total,"
+      "target_turn_reject_stale_pose,base_pose_age_exceeded_commands_total,session_home_epoch,plane_mode,plane_reference_x,plane_world_x,plane_selection_reason,hit_speed_scale");
   std::string flight_packet_audit_path = declare_parameter<std::string>(
       "flight_packet_audit_csv_path", "");
   if (flight_packet_audit_path.empty() && !debug_path.empty()) {
@@ -675,6 +736,8 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       });
   hit_plane_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(
       "/hope/planner/hit_plane", rclcpp::QoS(1).reliable().transient_local());
+  ball_y_filter_markers_publisher_ = create_publisher<visualization_msgs::msg::MarkerArray>(
+      "/hope/planner/y_filter_markers", rclcpp::QoS(1).reliable().transient_local());
   diagnostics_timer_ = create_wall_timer(1s, [this] { publish_diagnostics(); });
   if (!x_hit_request_file_.empty()) {
     calibration_timer_ = create_wall_timer(100ms, [this] { poll_calibration_request(); });
@@ -1057,7 +1120,19 @@ void PlannerNode::set_base_snapshot(const BaseSnapshot& snapshot) noexcept {
   // sample before reset/placement; latching here classified both physical lanes as FH.  HOME is
   // frozen at the first valid solve for legacy wire schemas. Schema 4 uses
   // the Runner policy-entry receipt for both plane and side choice.
-  base_ = snapshot;
+  BaseSnapshot next = snapshot;
+  next.receipt_wall_ns = wall_now_ns();
+  next.received = base_.received + 1;
+  next.invalid = base_.invalid + (!snapshot.valid || !snapshot.orientation_valid ? 1 : 0);
+  if (base_.receipt_steady_ns > 0) {
+    next.receive_gap_ms = (snapshot.receipt_steady_ns - base_.receipt_steady_ns) * 1.0e-6;
+  }
+  if (snapshot.source_stamp_ns > 0 && base_.source_stamp_ns > 0) {
+    next.source_gap_ms = (snapshot.source_stamp_ns - base_.source_stamp_ns) * 1.0e-6;
+  }
+  next.max_receive_gap_ms = std::max(base_.max_receive_gap_ms,
+      std::isfinite(next.receive_gap_ms) ? next.receive_gap_ms : 0.0);
+  base_ = next;
 }
 
 PlannerNode::BaseSnapshot PlannerNode::base_snapshot() const noexcept {
@@ -1203,9 +1278,9 @@ double PlannerNode::select_swing_sign(
         session_home_reference_.resolve_xy_on_solve(base_x, base_y).second;
   }
   last_swing_side_reference_y_.store(reference_y, std::memory_order_relaxed);
-  const double selected = select_swing_sign_with_hysteresis(
+  const double selected = select_swing_sign_with_support(
       intercept_y, reference_y, swing_side_split_y_,
-      swing_side_hysteresis_y_, last_swing_sign_);
+      swing_side_hysteresis_y_, last_swing_sign_, swing_side_fh_y_range_, swing_side_bh_y_range_);
   if (selected == -1.0 || selected == 1.0) {
     last_swing_sign_ = selected;
   }
@@ -1375,6 +1450,10 @@ void PlannerNode::solver_loop() noexcept {
                          : (swing_side_reference_mode_ == "session_home_v1"
                                 ? std::numeric_limits<double>::quiet_NaN()
                                 : 0.0));
+          if (!std::isfinite(swing_sign)) {
+            strike.valid = false;
+            strike.reason = "swing_side_target_unsupported";
+          }
           if (swing_sign < 0.0 && x_hit_bh_delta_ != 0.0) {
             strike = post_net_one_shot_enabled_
                 ? future_contact_predictor_->predict(
@@ -1535,7 +1614,7 @@ void PlannerNode::publish_solve(
     const PostNetOneShotEvent& one_shot_event,
     std::int64_t solve_finished_steady_ns) noexcept {
   try {
-    std::lock_guard<std::mutex> filter_lock(hit_speed_scale_publish_mutex_);
+    std::scoped_lock filter_lock(hit_speed_scale_publish_mutex_, ball_y_filter_publish_mutex_);
     const double hit_speed_scale = hit_speed_scale_.load();
     RacketCommand command = unscaled_command;
     command.velocity *= hit_speed_scale;
@@ -1543,6 +1622,7 @@ void PlannerNode::publish_solve(
       command.valid = false;
       command.reason = "hit_speed_scale_overflow";
     }
+    BallYFilter ball_y_filter = ball_y_filter_;
     // With /poses.header.stamp in the camera-exposure Unix epoch, Stage 2's
     // strike_source_time_s is already the true absolute crossing deadline.
     // Subtract the HDU wall time once at publication. This accounts for the
@@ -1577,42 +1657,72 @@ void PlannerNode::publish_solve(
               base_.calibration_id, base_.world_id);
     }
     const bool timing_valid = wire_valid;
+    const char* ball_y_rejection = wire_valid
+        ? ball_y_filter.rejection(latest_sample.position.y(), command.position.y())
+        : nullptr;
+    if (ball_y_rejection != nullptr) {
+      wire_valid = false;
+      ++ball_y_filter_rejections_;
+      RCLCPP_WARN(get_logger(),
+          "Planner command rejected: %s observed_y=%.6f contact_y=%.6f bounds=[%.6f,%.6f] m",
+          ball_y_rejection, latest_sample.position.y(), command.position.y(),
+          ball_y_filter_.min_y, ball_y_filter_.max_y);
+    }
     // Use one consistent pose for admission and audit. Reject the entire new
     // command; never clamp/rotate the target or alter an in-progress swing.
     const BaseSnapshot base = base_snapshot();
     TargetTurnDecision target_turn;
     const bool target_turn_evaluated = wire_valid;
     if (target_turn_evaluated) {
+      ++target_turn_evaluations_;
       target_turn = check_target_turn(
           command.position, base.position, base.orientation,
           base.valid && base.orientation_valid, max_target_turn_deg_);
       const double pose_age_s = (steady_now_ns() - base.receipt_steady_ns) * 1.0e-9;
-      if (target_turn_reject_stale_pose_ && target_turn.allowed && (base.receipt_steady_ns <= 0 ||
-          pose_age_s < 0.0 || pose_age_s > target_turn_max_pose_age_s_)) {
-        target_turn.allowed = false;
-        target_turn.reason = "target_turn_base_stale";
-      }
-      // A packet can be newly received after spending hundreds of ms in
-      // Wi-Fi queues. Receipt age alone cannot establish current heading.
       const double source_pose_age_s = base.source_stamp_ns > 0
           ? (producer_wall_ns - base.source_stamp_ns) * 1.0e-9 : 0.0;
-      if (target_turn_reject_stale_pose_ && target_turn.allowed && source_pose_age_s > target_turn_max_pose_age_s_) {
-        target_turn.allowed = false;
-        target_turn.reason = "target_turn_base_source_stale";
-      }
-      if (!target_turn_reject_stale_pose_ && target_turn.allowed &&
-          (base.receipt_steady_ns <= 0 || pose_age_s < 0.0 ||
-           pose_age_s > target_turn_max_pose_age_s_ || source_pose_age_s > target_turn_max_pose_age_s_)) {
-        RCLCPP_WARN(get_logger(),
-            "Planner body timing audit: reject_stale_pose=0 receipt_age_ms=%.3f "
-            "source_age_ms=%.3f limit_ms=%.3f; pose age does not veto this command",
-            pose_age_s * 1.0e3, source_pose_age_s * 1.0e3, target_turn_max_pose_age_s_ * 1.0e3);
+      const bool receipt_stale = base.receipt_steady_ns <= 0 || pose_age_s < 0.0 ||
+          pose_age_s > target_turn_max_pose_age_s_;
+      const bool source_stale = source_pose_age_s > target_turn_max_pose_age_s_;
+      if (target_turn.allowed && (receipt_stale || source_stale)) {
+        ++base_pose_age_exceeded_commands_;
+        if (target_turn_reject_stale_pose_) {
+          target_turn.allowed = false;
+          if (receipt_stale) {
+            target_turn.reason = "target_turn_base_stale";
+            ++base_receipt_stale_rejections_;
+          } else {
+            target_turn.reason = "target_turn_base_source_stale";
+            ++base_source_stale_rejections_;
+          }
+        } else {
+          // Operator-selected audit mode: retain measured age, not a fabricated fresh stamp.
+          RCLCPP_WARN(get_logger(),
+              "Planner body timing audit: age_exceeded=1 reject_stale_pose=0 "
+              "receipt_age_ms=%.3f source_age_ms=%.3f source_age_at_receipt_ms=%.3f "
+              "receive_gap_ms=%.3f source_gap_ms=%.3f pose_age_limit_ms=%.3f",
+              pose_age_s * 1.0e3, source_pose_age_s * 1.0e3,
+              base.source_stamp_ns > 0 ? (base.receipt_wall_ns - base.source_stamp_ns) * 1.0e-6 : NAN,
+              base.receive_gap_ms, base.source_gap_ms, target_turn_max_pose_age_s_ * 1.0e3);
+        }
       }
       if (!target_turn.allowed) {
         wire_valid = false;
         RCLCPP_WARN(get_logger(),
-            "Planner command rejected: %s turn=%.3f deg limit=%.3f deg",
-            target_turn.reason, target_turn.turn_deg, max_target_turn_deg_);
+            "Planner command rejected: %s turn=%.3f deg limit=%.3f deg "
+            "base_receipt_age_ms=%.3f base_source_age_ms=%.3f "
+            "base_source_age_at_receipt_ms=%.3f base_receive_gap_ms=%.3f "
+            "base_source_gap_ms=%.3f pose_age_limit_ms=%.3f "
+            "base_valid=%d base_orientation_valid=%d base_received=%llu "
+            "base_source_ns=%lld base_receipt_wall_ns=%lld check_wall_ns=%lld",
+            target_turn.reason, target_turn.turn_deg, max_target_turn_deg_,
+            base.receipt_steady_ns > 0 ? pose_age_s * 1.0e3 : NAN,
+            base.source_stamp_ns > 0 ? source_pose_age_s * 1.0e3 : NAN,
+            base.source_stamp_ns > 0 ? (base.receipt_wall_ns - base.source_stamp_ns) * 1.0e-6 : NAN,
+            base.receive_gap_ms, base.source_gap_ms, target_turn_max_pose_age_s_ * 1.0e3,
+            base.valid, base.orientation_valid, static_cast<unsigned long long>(base.received),
+            static_cast<long long>(base.source_stamp_ns),
+            static_cast<long long>(base.receipt_wall_ns), static_cast<long long>(producer_wall_ns));
       }
     }
     ReachPermission candidate_permission;
@@ -1798,8 +1908,9 @@ void PlannerNode::publish_solve(
           << latest_sample.receipt_steady_ns << ','
           << solve_finished_steady_ns << ',' << (packet_valid ? 1 : 0) << ','
           << (command.valid && !timing_valid ? timing_reject_reason :
-              (target_turn_evaluated && !target_turn.allowed
-                  ? target_turn.reason : (unscaled_command.valid && !command.valid ? command.reason : audit.reason))) << ','
+              (ball_y_rejection != nullptr ? ball_y_rejection :
+               (target_turn_evaluated && !target_turn.allowed
+                  ? target_turn.reason : (unscaled_command.valid && !command.valid ? command.reason : audit.reason)))) << ','
           << latest_sample.position.x() << ',' << latest_sample.position.y() << ','
           << latest_sample.position.z() << ',' << state.sample_count << ','
           << state.sample_span_s << ','
@@ -1929,7 +2040,19 @@ void PlannerNode::publish_solve(
           << future_contact_config_.omega_scale << ',' << future_contact_config_.min_coherence << ','
           << future_contact_config_.magnus_enabled << ',' << physics_.drag_k << ','
           << physics_.magnus_k << ',' << physics_.table_tangential_gain << ','
-          << physics_.table_friction_cap_mu << ',' << state.physics_spin.reason << ',' << (racket_flat_schema_ == 4 ? solve_home_.epoch : 0)
+          << physics_.table_friction_cap_mu << ',' << state.physics_spin.reason << ','
+          << (ball_y_filter.enabled ? 1 : 0) << ',' << ball_y_filter_.min_y << ','
+          << ball_y_filter_.max_y << ','
+          << (ball_y_rejection != nullptr ? ball_y_rejection :
+              (timing_valid ? (ball_y_filter.enabled ? "ball_y_filter_allowed" :
+               "ball_y_filter_disabled") : "not_evaluated")) << ','
+          << (base.source_stamp_ns > 0 ? (base.receipt_wall_ns - base.source_stamp_ns) * 1.0e-6 : NAN) << ','
+          << base.receive_gap_ms << ',' << base.source_gap_ms << ','
+          << base.received << ',' << base.invalid << ',' << base.max_receive_gap_ms << ','
+          << target_turn_max_pose_age_s_ * 1.0e3 << ',' << target_turn_evaluations_.load() << ','
+          << base_receipt_stale_rejections_.load() << ',' << base_source_stale_rejections_.load() << ','
+          << target_turn_reject_stale_pose_ << ',' << base_pose_age_exceeded_commands_.load()
+          << ',' << (racket_flat_schema_ == 4 ? solve_home_.epoch : 0)
           << ',' << plane_mode_name(solve_plane_.mode) << ',' << solve_plane_.reference_x
           << ',' << solve_plane_.plane_x << ',' << solve_plane_.reason
           << ',' << hit_speed_scale;
@@ -1942,6 +2065,14 @@ void PlannerNode::publish_solve(
 
 void PlannerNode::publish_diagnostics() noexcept {
   try {
+    BallYFilter ball_y_filter;
+    {
+      std::lock_guard<std::mutex> lock(ball_y_filter_publish_mutex_);
+      ball_y_filter = ball_y_filter_;
+    }
+    ball_y_filter_markers_publisher_->publish(ball_y_filter_markers(
+        ball_y_filter, get_clock()->now(), table_.length,
+        table_.y_max - table_.width, table_.y_max));
     // Scheduling reference only; final contact selection and the 40 degree
     // guard remain in the solver. Send both-side front bound after calibration.
     std_msgs::msg::Float64MultiArray hit_plane;
@@ -1976,6 +2107,33 @@ void PlannerNode::publish_diagnostics() noexcept {
     health_previous_received_ = received;
     health_previous_solves_ = solves;
     health_previous_steady_ns_ = now;
+
+    const BaseSnapshot body = base_snapshot();
+    const double body_receipt_age_ms = body.receipt_steady_ns > 0
+        ? (steady_now_ns() - body.receipt_steady_ns) * 1.0e-6 : NAN;
+    const double body_source_age_ms = body.source_stamp_ns > 0
+        ? (wall_now_ns() - body.source_stamp_ns) * 1.0e-6 : NAN;
+    const double body_source_at_receipt_ms = body.source_stamp_ns > 0
+        ? (body.receipt_wall_ns - body.source_stamp_ns) * 1.0e-6 : NAN;
+    const double body_rate = (body.received - health_previous_base_received_) / elapsed;
+    health_previous_base_received_ = body.received;
+    // Always-on health log, including when recording is OFF or no balls arrive.
+    RCLCPP_INFO(get_logger(),
+        "planner body health received=%llu invalid=%llu receive_hz=%.2f "
+        "base_valid=%d orientation_valid=%d receipt_age_ms=%.3f source_age_ms=%.3f "
+        "source_age_at_receipt_ms=%.3f receive_gap_ms=%.3f source_gap_ms=%.3f "
+        "max_receive_gap_ms=%.3f pose_age_limit_ms=%.3f turn_evaluations=%llu "
+        "receipt_stale_rejections=%llu source_stale_rejections=%llu "
+        "reject_stale_pose=%d age_exceeded_commands=%llu",
+        static_cast<unsigned long long>(body.received), static_cast<unsigned long long>(body.invalid),
+        body_rate, body.valid, body.orientation_valid, body_receipt_age_ms, body_source_age_ms,
+        body_source_at_receipt_ms, body.receive_gap_ms, body.source_gap_ms,
+        body.max_receive_gap_ms, target_turn_max_pose_age_s_ * 1.0e3,
+        static_cast<unsigned long long>(target_turn_evaluations_.load()),
+        static_cast<unsigned long long>(base_receipt_stale_rejections_.load()),
+        static_cast<unsigned long long>(base_source_stale_rejections_.load()),
+        target_turn_reject_stale_pose_,
+        static_cast<unsigned long long>(base_pose_age_exceeded_commands_.load()));
 
     diagnostic_msgs::msg::DiagnosticArray array;
     array.header.stamp = get_clock()->now();
@@ -2034,6 +2192,16 @@ void PlannerNode::publish_diagnostics() noexcept {
         "input_qos_depth", std::to_string(input_qos_depth_)));
     status.values.push_back(diagnostic_value(
         "input_mode", flight_packet_input_enabled_ ? "flight_packet" : "poses"));
+    status.values.push_back(diagnostic_value(
+        "ball_y_filter_enabled", ball_y_filter.enabled ? "true" : "false"));
+    status.values.push_back(diagnostic_value("ball_y_filter_runtime_config", "true"));
+    status.values.push_back(diagnostic_value("ball_y_filter_persistent", ball_y_filter_state_file_.empty() ? "false" : "true"));
+    status.values.push_back(diagnostic_value(
+        "ball_y_filter_min_m", number_string(ball_y_filter.min_y, 17)));
+    status.values.push_back(diagnostic_value(
+        "ball_y_filter_max_m", number_string(ball_y_filter.max_y, 17)));
+    status.values.push_back(diagnostic_value(
+        "ball_y_filter_rejections", std::to_string(ball_y_filter_rejections_.load())));
     status.values.push_back(diagnostic_value(
         "swing_side_reference_mode", swing_side_reference_mode_));
     status.values.push_back(diagnostic_value(
@@ -2109,6 +2277,23 @@ void PlannerNode::publish_diagnostics() noexcept {
             : future_contact_config_.spin_enabled
             ? "post_net_one_shot_spin_conditioned_with_zero_spin_fallback"
             : "post_net_one_shot_effective_bounce_zero_spin"));
+    status.values.push_back(diagnostic_value("base_receipt_age_ms", number_string(body_receipt_age_ms, 3)));
+    status.values.push_back(diagnostic_value("base_source_age_ms", number_string(body_source_age_ms, 3)));
+    status.values.push_back(diagnostic_value("base_source_age_at_receipt_ms", number_string(body_source_at_receipt_ms, 3)));
+    status.values.push_back(diagnostic_value("base_receive_gap_ms", number_string(body.receive_gap_ms, 3)));
+    status.values.push_back(diagnostic_value("base_source_gap_ms", number_string(body.source_gap_ms, 3)));
+    status.values.push_back(diagnostic_value("base_max_receive_gap_ms", number_string(body.max_receive_gap_ms, 3)));
+    status.values.push_back(diagnostic_value("base_receive_hz", number_string(body_rate, 3)));
+    status.values.push_back(diagnostic_value("base_received_total", number_string(body.received, 3)));
+    status.values.push_back(diagnostic_value("base_invalid_total", number_string(body.invalid, 3)));
+    status.values.push_back(diagnostic_value("base_valid", number_string(body.valid, 3)));
+    status.values.push_back(diagnostic_value("base_orientation_valid", number_string(body.orientation_valid, 3)));
+    status.values.push_back(diagnostic_value("pose_age_limit_ms", number_string(target_turn_max_pose_age_s_ * 1.0e3, 3)));
+    status.values.push_back(diagnostic_value("target_turn_evaluations_total", number_string(target_turn_evaluations_.load(), 3)));
+    status.values.push_back(diagnostic_value("base_receipt_stale_rejections_total", number_string(base_receipt_stale_rejections_.load(), 3)));
+    status.values.push_back(diagnostic_value("base_source_stale_rejections_total", number_string(base_source_stale_rejections_.load(), 3)));
+    status.values.push_back(diagnostic_value("target_turn_reject_stale_pose", target_turn_reject_stale_pose_ ? "1" : "0"));
+    status.values.push_back(diagnostic_value("base_pose_age_exceeded_commands_total", std::to_string(base_pose_age_exceeded_commands_.load())));
     array.status.push_back(std::move(status));
     diagnostics_publisher_->publish(array);
 

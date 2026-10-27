@@ -1,6 +1,6 @@
 [Unit]
 Description=On-demand HOPE ping-pong ROS 2 telemetry recorder
-After=network-online.target hope-lifecycle-supervisor.service hope-time-calibration.service
+After=network-online.target hope-observer.service hope-time-calibration.service
 Wants=network-online.target
 
 [Service]

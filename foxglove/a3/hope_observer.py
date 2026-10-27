@@ -13,13 +13,11 @@ from collections import deque
 import math
 from pathlib import Path
 import time
-import threading
 
 import rclpy
 from geometry_msgs.msg import PoseArray
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
-from hope_operations_core import CachedCall, OperationsState, RosComponent, telemetry_callback
+from hope_display_publishers import display_publisher
 from rclpy.qos import (
     DurabilityPolicy,
     HistoryPolicy,
@@ -30,10 +28,12 @@ from std_msgs.msg import Bool, Float64, Float64MultiArray, String, UInt64
 from visualization_msgs.msg import Marker
 
 from hope_observer_core import (
+    BasePacket,
     DecodeError,
     RacketPacket,
     StatusPublisher,
     XHitStatus,
+    decode_base_packet,
     decode_racket_packet,
     parse_planner_attempt,
     parse_positive_pid,
@@ -58,22 +58,19 @@ def _sensor_qos(depth: int = 4) -> QoSProfile:
     )
 
 
-class ObserverModule(RosComponent):
-    def __init__(self, node, *, shared_state=None) -> None:
-        RosComponent.__init__(self, node)
-        self._shared_state = shared_state or OperationsState()
-        self._closed = False
-        self._declare_parameter(
+class HopeObserver(Node):
+    def __init__(self) -> None:
+        super().__init__("hope_observer", start_parameter_services=False)
+        self.declare_parameter(
             "session_id_path", "/tmp/hope_model21800_session_id"
         )
-        self._declare_parameter("runtime_root", "/tmp/hope_real")
-        self._declare_parameter("base_stale_after_s", 0.5)
-        self._declare_parameter("ball_stale_after_s", 0.1)
-        self._declare_parameter("publish_period_s", 0.2)
-        self._declare_parameter("runtime_snapshot_max_age_s", 2.0)
-        self._declare_parameter("ball_marker_rate_hz", 30.0)
-        self._declare_parameter("runner_stale_after_s", 1.0)
-        self._declare_parameter("planner_process_fragment", "hope_planner_cpp_node")
+        self.declare_parameter("runtime_root", "/tmp/hope_real")
+        self.declare_parameter("base_stale_after_s", 0.5)
+        self.declare_parameter("ball_stale_after_s", 0.1)
+        self.declare_parameter("publish_period_s", 0.2)
+        self.declare_parameter("ball_marker_rate_hz", 30.0)
+        self.declare_parameter("runner_stale_after_s", 1.0)
+        self.declare_parameter("planner_process_fragment", "hope_planner_cpp_node")
 
         self._session_id_path = Path(
             str(self.get_parameter("session_id_path").value)
@@ -86,9 +83,6 @@ class ObserverModule(RosComponent):
             self.get_parameter("ball_stale_after_s").value
         )
         publish_period_s = float(self.get_parameter("publish_period_s").value)
-        runtime_snapshot_max_age_s = float(
-            self.get_parameter("runtime_snapshot_max_age_s").value
-        )
         ball_marker_rate_hz = float(
             self.get_parameter("ball_marker_rate_hz").value
         )
@@ -104,21 +98,21 @@ class ObserverModule(RosComponent):
             raise ValueError("ball_stale_after_s must be positive")
         if publish_period_s <= 0.0:
             raise ValueError("publish_period_s must be positive")
-        if not math.isfinite(runtime_snapshot_max_age_s) or runtime_snapshot_max_age_s <= 0.0:
-            raise ValueError("runtime_snapshot_max_age_s must be positive and finite")
         if ball_marker_rate_hz <= 0.0:
             raise ValueError("ball_marker_rate_hz must be positive")
         if self._runner_stale_after_s <= 0.0:
             raise ValueError("runner_stale_after_s must be positive")
 
-        self._input_lock = threading.Lock()
+        self._base_packet: BasePacket | None = None
+        self._base_error = "NO BASE PACKET"
+        self._base_receipt_ns = 0
         self._command_packet: RacketPacket | None = None
         self._command_error = "NO RACKET PACKET"
         self._command_receipt_ns = 0
         self._ball_receipts_ns: deque[int] = deque(maxlen=512)
         self._ball_marker_period_ns = int(round(1.0e9 / ball_marker_rate_hz))
         self._last_ball_marker_publish_ns = 0
-        self._ball_marker_publisher = self.create_publisher(
+        self._ball_marker_publisher = display_publisher(self,
             Marker, "/hope/ball/marker", 10
         )
         self._runner_state: RunnerState | None = None
@@ -126,188 +120,182 @@ class ObserverModule(RosComponent):
         self._runner_state_receipt_ns = 0
 
         self._topic_publishers = {
-            "observer_alive": self.create_publisher(
+            "observer_alive": display_publisher(self,
                 Bool, "/hope/observer_alive", 10
             ),
-            "mdu_active": self.create_publisher(
+            "mdu_active": display_publisher(self,
                 Bool, "/hope/system/mdu_active", 10
             ),
-            "mdu_text": self.create_publisher(
+            "mdu_text": display_publisher(self,
                 String, "/hope/system/mdu_text", 10
             ),
-            "session_active": self.create_publisher(
+            "session_active": display_publisher(self,
                 Bool, "/hope/session/active", 10
             ),
-            "session_id": self.create_publisher(
+            "session_id": display_publisher(self,
                 String, "/hope/session/id", 10
             ),
-            "session_text": self.create_publisher(
+            "session_text": display_publisher(self,
                 String, "/hope/session/text", 10
             ),
-            "runtime_known": self.create_publisher(
-                Bool, "/hope/session/runtime_known", 10
-            ),
-            "planner_alive": self.create_publisher(
+            "planner_alive": display_publisher(self,
                 Bool, "/hope/planner/process_alive", 10
             ),
-            "planner_status": self.create_publisher(
-                String, "/hope/planner/process_status", 10
-            ),
-            "planner_attempt": self.create_publisher(
+            "planner_attempt": display_publisher(self,
                 String, "/hope/planner/attempt", 10
             ),
-            "base_seen": self.create_publisher(Bool, "/hope/base/seen", 10),
-            "base_valid": self.create_publisher(Bool, "/hope/base/valid", 10),
-            "base_fresh": self.create_publisher(Bool, "/hope/base/fresh", 10),
-            "base_receipt_age_ms": self.create_publisher(
+            "base_seen": display_publisher(self, Bool, "/hope/base/seen", 10),
+            "base_valid": display_publisher(self, Bool, "/hope/base/valid", 10),
+            "base_fresh": display_publisher(self, Bool, "/hope/base/fresh", 10),
+            "base_receipt_age_ms": display_publisher(self,
                 Float64, "/hope/base/receipt_age_ms", 10
             ),
-            "base_source_age_ms": self.create_publisher(
+            "base_source_age_ms": display_publisher(self,
                 Float64, "/hope/base/source_age_ms", 10
             ),
-            "base_x": self.create_publisher(
+            "base_x": display_publisher(self,
                 Float64, "/hope/base/position_x_m", 10
             ),
-            "base_y": self.create_publisher(
+            "base_y": display_publisher(self,
                 Float64, "/hope/base/position_y_m", 10
             ),
-            "base_z": self.create_publisher(
+            "base_z": display_publisher(self,
                 Float64, "/hope/base/position_z_m", 10
             ),
-            "base_summary": self.create_publisher(
+            "base_summary": display_publisher(self,
                 String, "/hope/base/summary", 10
             ),
-            "ball_live": self.create_publisher(Bool, "/hope/ball/live", 10),
-            "ball_receipt_age_ms": self.create_publisher(
+            "ball_live": display_publisher(self, Bool, "/hope/ball/live", 10),
+            "ball_receipt_age_ms": display_publisher(self,
                 Float64, "/hope/ball/receipt_age_ms", 10
             ),
-            "ball_rate_hz": self.create_publisher(
+            "ball_rate_hz": display_publisher(self,
                 Float64, "/hope/ball/rate_hz", 10
             ),
-            "command_seen": self.create_publisher(
+            "command_seen": display_publisher(self,
                 Bool, "/hope/command/seen", 10
             ),
-            "command_valid": self.create_publisher(
+            "command_valid": display_publisher(self,
                 Bool, "/hope/command/valid", 10
             ),
-            "command_receipt_age_ms": self.create_publisher(
+            "command_receipt_age_ms": display_publisher(self,
                 Float64, "/hope/command/receipt_age_ms", 10
             ),
-            "command_countdown_s": self.create_publisher(
+            "command_countdown_s": display_publisher(self,
                 Float64, "/hope/command/hdu_wall_countdown_s", 10
             ),
-            "command_sequence": self.create_publisher(
+            "command_sequence": display_publisher(self,
                 UInt64, "/hope/command/sequence", 10
             ),
-            "command_flight": self.create_publisher(
+            "command_flight": display_publisher(self,
                 UInt64, "/hope/command/flight_id", 10
             ),
-            "command_revision": self.create_publisher(
+            "command_revision": display_publisher(self,
                 UInt64, "/hope/command/revision_id", 10
             ),
-            "command_summary": self.create_publisher(
+            "command_summary": display_publisher(self,
                 String, "/hope/command/summary", 10
             ),
-            "x_hit_available": self.create_publisher(
+            "x_hit_available": display_publisher(self,
                 Bool, "/hope/x_hit/status_available", 10
             ),
-            "x_hit_success": self.create_publisher(
+            "x_hit_success": display_publisher(self,
                 Bool, "/hope/x_hit/success", 10
             ),
-            "x_hit_value": self.create_publisher(
+            "x_hit_value": display_publisher(self,
                 Float64, "/hope/x_hit/value_m", 10
             ),
-            "x_hit_status": self.create_publisher(
+            "x_hit_status": display_publisher(self,
                 String, "/hope/x_hit/status", 10
             ),
-            "runner_alive": self.create_publisher(
+            "runner_alive": display_publisher(self,
                 Bool, "/hope/runner/alive", 10
             ),
-            "runner_boot_id": self.create_publisher(
+            "runner_boot_id": display_publisher(self,
                 UInt64, "/hope/runner/boot_id", 10
             ),
-            "runner_session_id": self.create_publisher(
+            "runner_session_id": display_publisher(self,
                 String, "/hope/runner/session_id", 10
             ),
-            "runner_session_matches": self.create_publisher(
+            "runner_session_matches": display_publisher(self,
                 Bool, "/hope/runner/session_matches", 10
             ),
-            "runner_state_sequence": self.create_publisher(
+            "runner_state_sequence": display_publisher(self,
                 UInt64, "/hope/runner/state_sequence", 10
             ),
-            "runner_mode": self.create_publisher(
+            "runner_mode": display_publisher(self,
                 String, "/hope/runner/mode", 10
             ),
-            "runner_command_publishing": self.create_publisher(
+            "runner_command_publishing": display_publisher(self,
                 Bool, "/hope/runner/command_publishing", 10
             ),
-            "runner_policy_native": self.create_publisher(
+            "runner_policy_native": display_publisher(self,
                 Bool, "/hope/runner/policy_native", 10
             ),
-            "runner_command_fault": self.create_publisher(
+            "runner_command_fault": display_publisher(self,
                 Bool, "/hope/runner/command_fault_latched", 10
             ),
-            "runner_local_role": self.create_publisher(
+            "runner_local_role": display_publisher(self,
                 String, "/hope/runner/local_role", 10
             ),
-            "runner_role_epoch": self.create_publisher(
+            "runner_role_epoch": display_publisher(self,
                 UInt64, "/hope/runner/role_epoch", 10
             ),
-            "runner_role_change_allowed": self.create_publisher(
+            "runner_role_change_allowed": display_publisher(self,
                 Bool, "/hope/runner/role_change_allowed", 10
             ),
-            "runner_role_last_result": self.create_publisher(
+            "runner_role_last_result": display_publisher(self,
                 String, "/hope/runner/role_last_result", 10
             ),
-            "runner_serve_capability": self.create_publisher(
+            "runner_serve_capability": display_publisher(self,
                 String, "/hope/runner/serve_capability", 10
             ),
-            "runner_serve_state": self.create_publisher(
+            "runner_serve_state": display_publisher(self,
                 String, "/hope/runner/serve_state", 10
             ),
-            "runner_gripper_state": self.create_publisher(
+            "runner_gripper_state": display_publisher(self,
                 String, "/hope/runner/gripper_state", 10
             ),
-            "runner_serve_cleanup_required": self.create_publisher(
+            "runner_serve_cleanup_required": display_publisher(self,
                 Bool, "/hope/runner/serve_cleanup_required", 10
             ),
-            "runner_standing": self.create_publisher(
+            "runner_standing": display_publisher(self,
                 Bool, "/hope/runner/standing", 10
             ),
-            "runner_ready": self.create_publisher(
+            "runner_ready": display_publisher(self,
                 Bool, "/hope/runner/ready", 10
             ),
-            "runner_ready_to_serve": self.create_publisher(
+            "runner_ready_to_serve": display_publisher(self,
                 Bool, "/hope/runner/is_ready_to_serve", 10
             ),
-            "runner_serving": self.create_publisher(
+            "runner_serving": display_publisher(self,
                 Bool, "/hope/runner/serving", 10
             ),
-            "runner_last_action_id": self.create_publisher(
+            "runner_last_action_id": display_publisher(self,
                 UInt64, "/hope/runner/last_action_id", 10
             ),
-            "runner_last_action": self.create_publisher(
+            "runner_last_action": display_publisher(self,
                 String, "/hope/runner/last_action", 10
             ),
-            "runner_last_action_result": self.create_publisher(
+            "runner_last_action_result": display_publisher(self,
                 String, "/hope/runner/last_action_result", 10
             ),
-            "runner_last_action_reason": self.create_publisher(
+            "runner_last_action_reason": display_publisher(self,
                 String, "/hope/runner/last_action_reason", 10
             ),
-            "runner_summary": self.create_publisher(
+            "runner_summary": display_publisher(self,
                 String, "/hope/runner/summary", 10
             ),
-            "opponent_expected_role": self.create_publisher(
+            "opponent_expected_role": display_publisher(self,
                 String, "/hope/opponent/expected_role", 10
             ),
-            "opponent_role_source": self.create_publisher(
+            "opponent_role_source": display_publisher(self,
                 String, "/hope/opponent/role_source", 10
             ),
-            "opponent_role_confirmed": self.create_publisher(
+            "opponent_role_confirmed": display_publisher(self,
                 Bool, "/hope/opponent/role_confirmed", 10
             ),
-            "opponent_summary": self.create_publisher(
+            "opponent_summary": display_publisher(self,
                 String, "/hope/opponent/summary", 10
             ),
         }
@@ -328,13 +316,12 @@ class ObserverModule(RosComponent):
             for key, publisher in self._topic_publishers.items()
         }
 
-        if shared_state is None:
-            self.create_subscription(
-                Float64MultiArray,
-                "/a3/base_pose_flat",
-                self._base_callback,
-                _sensor_qos(),
-            )
+        self.create_subscription(
+            Float64MultiArray,
+            "/a3/base_pose_flat",
+            self._base_callback,
+            _sensor_qos(),
+        )
         self.create_subscription(
             Float64MultiArray,
             "/racket/command_flat",
@@ -342,21 +329,13 @@ class ObserverModule(RosComponent):
             _sensor_qos(),
         )
         self.create_subscription(PoseArray, "/poses", self._ball_callback, _sensor_qos())
-        if shared_state is None:
-            self.create_subscription(
-                Float64MultiArray,
-                "/hope/runner/state_hdu_flat",
-                self._runner_state_callback,
-                _sensor_qos(),
-            )
-        self._runtime_cache = CachedCall(
-            "hope-observer-files", self._read_runtime_snapshot,
-            ("", "", False, None, "RUNTIME SNAPSHOT PENDING"),
-            max_age_s=runtime_snapshot_max_age_s,
-            refresh_min_interval_s=runtime_snapshot_max_age_s / 2.0)
-        self._snapshot_group = MutuallyExclusiveCallbackGroup()
-        self._snapshot_timer = self.create_timer(
-            publish_period_s, self._publish_snapshot, callback_group=self._snapshot_group)
+        self.create_subscription(
+            Float64MultiArray,
+            "/hope/runner/state_hdu_flat",
+            self._runner_state_callback,
+            _sensor_qos(),
+        )
+        self.create_timer(publish_period_s, self._publish_snapshot)
         self.get_logger().info(
             "read-only model_21800 observer started; Runner state is decoded, "
             "and no process or control APIs are exposed"
@@ -387,21 +366,23 @@ class ObserverModule(RosComponent):
         return message
 
     def _base_callback(self, message: Float64MultiArray) -> None:
-        self._shared_state.base.update(message.data)
-
-    @telemetry_callback
-    def _command_callback(self, message: Float64MultiArray) -> None:
-        received = time.monotonic_ns()
+        self._base_receipt_ns = time.monotonic_ns()
         try:
-            packet = decode_racket_packet(message.data)
-            error = packet.reason
+            self._base_packet = decode_base_packet(message.data)
+            self._base_error = self._base_packet.reason
         except DecodeError as exc:
-            packet = None
-            error = f"MALFORMED RACKET PACKET: {exc}"
-        with self._input_lock:
-            self._command_packet, self._command_error, self._command_receipt_ns = packet, error, received
+            self._base_packet = None
+            self._base_error = f"MALFORMED BASE PACKET: {exc}"
 
-    @telemetry_callback
+    def _command_callback(self, message: Float64MultiArray) -> None:
+        self._command_receipt_ns = time.monotonic_ns()
+        try:
+            self._command_packet = decode_racket_packet(message.data)
+            self._command_error = self._command_packet.reason
+        except DecodeError as exc:
+            self._command_packet = None
+            self._command_error = f"MALFORMED RACKET PACKET: {exc}"
+
     def _ball_callback(self, message: PoseArray) -> None:
         if not message.header.frame_id or not message.poses:
             return
@@ -413,8 +394,7 @@ class ObserverModule(RosComponent):
             return
 
         receipt_ns = time.monotonic_ns()
-        with self._input_lock:
-            self._ball_receipts_ns.append(receipt_ns)
+        self._ball_receipts_ns.append(receipt_ns)
         if (
             self._last_ball_marker_publish_ns > 0
             and receipt_ns - self._last_ball_marker_publish_ns
@@ -444,7 +424,13 @@ class ObserverModule(RosComponent):
         self._ball_marker_publisher.publish(marker)
 
     def _runner_state_callback(self, message: Float64MultiArray) -> None:
-        self._shared_state.runner.update(message.data)
+        self._runner_state_receipt_ns = time.monotonic_ns()
+        try:
+            self._runner_state = decode_runner_state(message.data)
+            self._runner_state_error = ""
+        except DecodeError as exc:
+            self._runner_state = None
+            self._runner_state_error = f"MALFORMED RUNNER STATE: {exc}"
 
     @staticmethod
     def _receipt_age_ms(now_ns: int, receipt_ns: int) -> float:
@@ -452,15 +438,12 @@ class ObserverModule(RosComponent):
             return math.nan
         return (now_ns - receipt_ns) * 1.0e-6
 
-    def _runtime_snapshot(self):
-        return self._runtime_cache.poll_snapshot()
-
-    def _read_runtime_snapshot(self) -> tuple[str, str, bool, XHitStatus | None, str]:
+    def _runtime_snapshot(self) -> tuple[str, str, bool, XHitStatus | None, str]:
         try:
             session_id = parse_session_id(
                 self._session_id_path.read_text(encoding="utf-8")
             )
-        except (FileNotFoundError, DecodeError) as exc:
+        except (OSError, DecodeError) as exc:
             return "", "", False, None, f"NO VALID SESSION: {exc}"
 
         hdu_dir = self._runtime_root / session_id / "hdu"
@@ -477,7 +460,7 @@ class ObserverModule(RosComponent):
             planner_alive = process_cmdline_matches(
                 cmdline, self._planner_process_fragment
             )
-        except (FileNotFoundError, DecodeError):
+        except (OSError, DecodeError):
             planner_alive = False
 
         x_hit_status: XHitStatus | None = None
@@ -490,73 +473,30 @@ class ObserverModule(RosComponent):
                 f"request={x_hit_status.request_id} success={int(x_hit_status.success)} "
                 f"{x_hit_status.message}"
             )
-        except (FileNotFoundError, DecodeError) as exc:
+        except (OSError, DecodeError) as exc:
             x_hit_text = f"NO VALID X_HIT STATUS: {exc}"
         return session_id, attempt, planner_alive, x_hit_status, x_hit_text
 
-    def _telemetry_failure(self, callback, exc):
-        if callback == "_command_callback":
-            with self._input_lock:
-                self._command_packet = None
-                self._command_error = f"TELEMETRY FAULT: {type(exc).__name__}"
-                self._command_receipt_ns = 0
-        elif callback == "_ball_callback":
-            with self._input_lock:
-                self._ball_receipts_ns.clear()
-        elif callback == "_publish_snapshot":
-            for key in ("observer_alive", "runtime_known", "planner_alive", "base_fresh",
-                        "ball_live", "command_valid", "runner_alive"):
-                try:
-                    self._topic_publishers[key].publish(self._bool_message(False))
-                except Exception:
-                    pass
-
-    @telemetry_callback
     def _publish_snapshot(self) -> None:
-        base = self._shared_state.base.snapshot()
-        self._base_packet = None if base.decode_error else base.value
-        self._base_receipt_ns, self._base_error = base.received_ns, base.error
-        runner = self._shared_state.runner.snapshot()
-        self._runner_state = None if runner.decode_error else runner.value
-        self._runner_state_receipt_ns, self._runner_state_error = runner.received_ns, runner.error
-        # Source callbacks continue while this snapshot formats/publishes.
-        # Copy compound inputs under a short lock, never hold it through DDS.
-        with self._input_lock:
-            now_monotonic_ns = time.monotonic_ns()
-            command_packet = self._command_packet
-            command_error = self._command_error
-            command_receipt_ns = self._command_receipt_ns
-            one_second_ago = now_monotonic_ns - 1_000_000_000
-            while len(self._ball_receipts_ns) > 1 and self._ball_receipts_ns[0] < one_second_ago:
-                self._ball_receipts_ns.popleft()
-            ball_receipts = tuple(self._ball_receipts_ns)
+        now_monotonic_ns = time.monotonic_ns()
         now_ros_ns = self.get_clock().now().nanoseconds
+        self._topic_publishers["observer_alive"].publish(self._bool_message(True))
 
-        runtime = self._runtime_snapshot()
-        session_id, attempt, planner_alive, x_hit, x_hit_text = runtime.value
-        runtime_status = "READY" if runtime.fresh else f"UNKNOWN: {runtime.error}"
-        # Identity remains useful during an IO failure, but stale process and
-        # request receipts cannot establish live health or session membership.
-        if not runtime.fresh:
-            planner_alive = False
-            x_hit = None
-            x_hit_text = runtime_status
-        self._topic_publishers["runtime_known"].publish(self._bool_message(runtime.fresh))
+        session_id, attempt, planner_alive, x_hit, x_hit_text = (
+            self._runtime_snapshot()
+        )
         self._topic_publishers["session_active"].publish(
-            self._bool_message(runtime.fresh and bool(session_id))
+            self._bool_message(bool(session_id))
         )
         self._topic_publishers["session_id"].publish(self._string_message(session_id))
         self._topic_publishers["session_text"].publish(
             self._string_message(
-                f"session={session_id or ('NONE' if runtime.fresh else 'UNKNOWN')} "
-                f"planner_attempt={attempt or 'NONE'} runtime={runtime_status}"
+                f"session={session_id or 'NONE'} planner_attempt={attempt or 'NONE'}"
             )
         )
         self._topic_publishers["planner_alive"].publish(
             self._bool_message(planner_alive)
         )
-        self._topic_publishers["planner_status"].publish(self._string_message(
-            ("ALIVE" if planner_alive else "NOT_RUNNING") if runtime.fresh else runtime_status))
         self._topic_publishers["planner_attempt"].publish(self._string_message(attempt))
 
         base_seen = self._base_receipt_ns > 0
@@ -602,19 +542,25 @@ class ObserverModule(RosComponent):
             self._string_message(base_summary)
         )
 
-        ball_last_ns = ball_receipts[-1] if ball_receipts else 0
+        one_second_ago = now_monotonic_ns - 1_000_000_000
+        while (
+            len(self._ball_receipts_ns) > 1
+            and self._ball_receipts_ns[0] < one_second_ago
+        ):
+            self._ball_receipts_ns.popleft()
+        ball_last_ns = self._ball_receipts_ns[-1] if self._ball_receipts_ns else 0
         ball_age_ms = self._receipt_age_ms(now_monotonic_ns, ball_last_ns)
         ball_live = (
             math.isfinite(ball_age_ms)
             and ball_age_ms <= self._ball_stale_after_s * 1000.0
         )
         ball_rate_hz = math.nan
-        if len(ball_receipts) >= 2:
+        if len(self._ball_receipts_ns) >= 2:
             span_s = (
-                ball_receipts[-1] - ball_receipts[0]
+                self._ball_receipts_ns[-1] - self._ball_receipts_ns[0]
             ) * 1.0e-9
             if span_s > 0.0:
-                ball_rate_hz = (len(ball_receipts) - 1) / span_s
+                ball_rate_hz = (len(self._ball_receipts_ns) - 1) / span_s
         self._topic_publishers["ball_live"].publish(self._bool_message(ball_live))
         self._topic_publishers["ball_receipt_age_ms"].publish(
             self._float_message(ball_age_ms)
@@ -623,34 +569,34 @@ class ObserverModule(RosComponent):
             self._float_message(ball_rate_hz)
         )
 
-        command_seen = command_receipt_ns > 0
+        command_seen = self._command_receipt_ns > 0
         command_age_ms = self._receipt_age_ms(
-            now_monotonic_ns, command_receipt_ns
+            now_monotonic_ns, self._command_receipt_ns
         )
         command_valid = (
-            command_packet is not None and command_packet.valid
+            self._command_packet is not None and self._command_packet.valid
         )
         command_countdown_s = math.nan
         command_sequence = 0
         command_flight = 0
         command_revision = 0
-        command_summary = command_error
-        if command_packet is not None:
-            command_sequence = command_packet.command_sequence
-            command_flight = command_packet.flight_id
-            command_revision = command_packet.revision_id
-            if command_packet.strike_deadline_wall_s > 0.0:
+        command_summary = self._command_error
+        if self._command_packet is not None:
+            command_sequence = self._command_packet.command_sequence
+            command_flight = self._command_packet.flight_id
+            command_revision = self._command_packet.revision_id
+            if self._command_packet.strike_deadline_wall_s > 0.0:
                 command_countdown_s = (
-                    command_packet.strike_deadline_wall_s
+                    self._command_packet.strike_deadline_wall_s
                     - now_ros_ns * 1.0e-9
                 )
             command_summary = (
-                f"valid={int(command_packet.valid)} "
+                f"valid={int(self._command_packet.valid)} "
                 f"seq={command_sequence} flight={command_flight} "
                 f"revision={command_revision} "
                 f"receipt_age_ms={command_age_ms:.3f} "
                 f"hdu_wall_countdown_s={command_countdown_s:.4f} "
-                f"reason={command_packet.reason}"
+                f"reason={self._command_packet.reason}"
             )
         self._topic_publishers["command_seen"].publish(
             self._bool_message(command_seen)
@@ -704,8 +650,7 @@ class ObserverModule(RosComponent):
         )
         runner = self._runner_state
         session_matches = bool(
-            runtime.fresh
-            and runner is not None
+            runner is not None
             and session_id
             and runner.session_fingerprint
             == runner_session_fingerprint(session_id)
@@ -878,29 +823,8 @@ class ObserverModule(RosComponent):
             )
         )
 
-        self._topic_publishers["observer_alive"].publish(self._bool_message(True))
-
-    def close(self):
-        if not self._closed:
-            self._closed = True
-            self._runtime_cache.close()
-
-
-class HopeObserver(Node, ObserverModule):
-    """Legacy standalone observer, preserving its import/ROS-node contract."""
-    def __init__(self):
-        Node.__init__(self, "hope_observer", start_parameter_services=False)
-        ObserverModule.__init__(self, self)
-
-    def destroy_node(self):
-        self.close()
-        return Node.destroy_node(self)
-
 
 def main() -> None:
-    # Deliberately keep this read-only compatibility entry on rclpy.spin:
-    # it accepts no RPCs to drain. destroy_node() closes and joins its file
-    # cache; the combined operations node uses run_node() for service draining.
     rclpy.init()
     node = HopeObserver()
     try:
