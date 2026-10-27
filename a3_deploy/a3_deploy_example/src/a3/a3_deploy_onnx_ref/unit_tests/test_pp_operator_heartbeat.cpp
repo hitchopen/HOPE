@@ -12,7 +12,7 @@ TEST(PpOperatorHeartbeat, IndependentRolesAndNoReplayOrDelayedRenewal) {
   EXPECT_EQ(heartbeat.Fresh(10.002), (std::array<bool,2>{true,false}));
   EXPECT_TRUE(heartbeat.Echo(computer, 10.090));
   EXPECT_FALSE(heartbeat.Echo(ui, 10.099));
-  EXPECT_EQ(heartbeat.Fresh(10.101), (std::array<bool,2>{true,false}));
+  EXPECT_EQ(heartbeat.Fresh(10.101), (std::array<bool,2>{true,true}));
   EXPECT_EQ(heartbeat.Fresh(11.001), (std::array<bool,2>{false,false}));
   for (int field : {1,2,3}) {
     auto wrong = ui; wrong[field] += 1;
@@ -21,29 +21,32 @@ TEST(PpOperatorHeartbeat, IndependentRolesAndNoReplayOrDelayedRenewal) {
   auto wrong = ui; wrong[3] = NAN;
   EXPECT_FALSE(heartbeat.Echo(wrong, 10.099));
 }
-TEST(PpOperatorHeartbeat, UiGetsOneSecondButComputerStillExpiresAt100Ms) {
+TEST(PpOperatorHeartbeat, BothRolesExpireOnlyAfterOneSecond) {
   PpOperatorHeartbeat heartbeat(42, "test");
   auto ui = heartbeat.Issue(0.); auto computer = ui;
   ui.push_back(1.); computer.push_back(2.);
   ASSERT_TRUE(heartbeat.Echo(ui, .080));
   ASSERT_TRUE(heartbeat.Echo(computer, .080));
   EXPECT_EQ(heartbeat.Fresh(.100), (std::array<bool,2>{true,true}));
-  EXPECT_EQ(heartbeat.Fresh(.101), (std::array<bool,2>{true,false}));
-  EXPECT_EQ(heartbeat.Fresh(1.), (std::array<bool,2>{true,false}));
+  EXPECT_EQ(heartbeat.Fresh(.101), (std::array<bool,2>{true,true}));
+  EXPECT_EQ(heartbeat.Fresh(1.), (std::array<bool,2>{true,true}));
   EXPECT_EQ(heartbeat.Fresh(1.001), (std::array<bool,2>{false,false}));
 }
-TEST(PpOperatorHeartbeat, DelayedUiCanUseFullDeadlineButCannotRenewPastIssueTime) {
+TEST(PpOperatorHeartbeat, DelayedEchoesUseFullDeadlineButCannotRenewPastIssueTime) {
   PpOperatorHeartbeat heartbeat(42, "test");
   auto ui = heartbeat.Issue(10.); auto computer = ui;
   ui.push_back(1.); computer.push_back(2.);
-  // At 50 Hz the challenge history must cover the UI's whole one-second window.
+  // At 50 Hz the challenge history must cover the roles' whole one-second window.
   for (int i = 1; i <= 45; ++i) heartbeat.Issue(10. + i*.020);
   EXPECT_TRUE(heartbeat.Echo(ui, 10.950));
-  EXPECT_FALSE(heartbeat.Echo(computer, 10.950));
+  EXPECT_TRUE(heartbeat.Echo(computer, 10.950));
   EXPECT_FALSE(heartbeat.Echo(ui, 10.960));
-  EXPECT_EQ(heartbeat.Fresh(10.999), (std::array<bool,2>{true,false}));
+  EXPECT_FALSE(heartbeat.Echo(computer, 10.960));
+  EXPECT_EQ(heartbeat.Fresh(10.999), (std::array<bool,2>{true,true}));
   EXPECT_EQ(heartbeat.Fresh(11.001), (std::array<bool,2>{false,false}));
   auto expired = heartbeat.Issue(12.); expired.push_back(1.);
+  EXPECT_FALSE(heartbeat.Echo(expired, 13.001));
+  expired.back() = 2.;
   EXPECT_FALSE(heartbeat.Echo(expired, 13.001));
 }
 TEST(PpOperatorHeartbeat, LiveComputerCannotHideFrozenUiAfterItsOwnDeadline) {
@@ -51,7 +54,7 @@ TEST(PpOperatorHeartbeat, LiveComputerCannotHideFrozenUiAfterItsOwnDeadline) {
   PpRunnerControl control(RunnerMode::kMotion, 42, "test");
   control.RequireOperatorHeartbeat(true);
   int stops = 0;
-  for (int i = 0; i < 100; ++i) {
+  for (int i = 0; i < 150; ++i) {
     const double now = 10. + i*.020;
     auto ui = heartbeat.Issue(now); auto computer = ui;
     ui.push_back(1.); computer.push_back(2.);
@@ -67,7 +70,7 @@ TEST(PpOperatorHeartbeat, LiveComputerCannotHideFrozenUiAfterItsOwnDeadline) {
 }
 TEST(PpOperatorHeartbeat, FiftyHzRoundTripsAndFrozenComputerCannotBeHiddenByLiveUi) {
   PpOperatorHeartbeat heartbeat(42, "test");
-  for (int i = 0; i < 100; ++i) {
+  for (int i = 0; i < 150; ++i) {
     const double now = 10. + i*.02;
     auto ui = heartbeat.Issue(now); auto computer = ui;
     ui.push_back(1.); computer.push_back(2.);
@@ -75,8 +78,8 @@ TEST(PpOperatorHeartbeat, FiftyHzRoundTripsAndFrozenComputerCannotBeHiddenByLive
     if (i < 50) EXPECT_TRUE(heartbeat.Echo(computer, now+.005));
     const auto live = heartbeat.Fresh(now+.010);
     EXPECT_TRUE(live[0]);
-    if (i < 50) EXPECT_TRUE(live[1]);
-    if (i > 55) EXPECT_FALSE(live[1]);
+    if (i < 99) EXPECT_TRUE(live[1]);
+    if (i >= 99) EXPECT_FALSE(live[1]);
   }
 }
 TEST(PpOperatorHeartbeat, EitherLinkLossStopsNormalPlayAndRequiresExplicitReentry) {

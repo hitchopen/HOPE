@@ -71,7 +71,7 @@ explains an HDU discovery mismatch while side selection still uses raw mocap.
 Side changes remain locked through STARTING/RUNNING/FAILED/KILLING until STOPPED.
 Player positions are not used to reassign sides during play.
 
-Normal mocap-based SERVE/RALLY requires a fresh MDU base-pose mailbox. A 100 ms
+Normal mocap-based SERVE/RALLY requires a fresh MDU base-pose mailbox. A 1 s
 signal gap or an explicit invalid pose stops RALLY into the existing PD_STAND
 blend; SERVE requests its authored abort and validated recovery first. Fresh
 mocap does not automatically restart play. Stand, emergency PASSIVE, cleanup
@@ -79,7 +79,7 @@ and offline Kernel/Pure Serve remain available. Ball occlusion alone does not
 trigger this watchdog.
 
 At 20 ms without a real pelvis update, the model uses a marked last-pose hold,
-not a new measurement. Its timestamps/sequence and the 100 ms rescue timer are
+not a new measurement. Its timestamps/sequence and the 1 s rescue timer are
 never renewed. The footer shows the real-sample age and HELD state.
 HELD does not shorten mode admission or serve completion to 20 ms: these use
 the actual observation/rescue deadline. New-flight commits still wait for a
@@ -88,12 +88,12 @@ real pose; replay/field validation must qualify the effect on strike timing.
 Normal managed mocap play also requires independent Console and operator-relay
 challenge echoes. The panel replies only to the current boot/session challenges;
 closing/freezing/disconnecting it triggers controlled recovery after **1 s**.
-The managed operator-computer relay retains its separate **100 ms** timeout.
+The managed operator-computer relay retains its separate **1 s** timeout.
 Delayed/replayed echoes cannot extend either deadline. No timer publishes
 cached heartbeats. Recovery motion can take longer; Kernel/Pure Serve and Teleop
 are exempt. Echoes depend on panel rendering: switching away from the Console,
 minimizing/backgrounding or overloading it for more than 1 s may still stop play.
-The longer UI deadline tolerates short delays, not an absent Console. Qualify
+The one-second UI window tolerates short delays, not an absent Console. Qualify
 actual foreground/background Foxglove/Wi-Fi timing before operation.
 
 The control bridge enables client publishing **only** on

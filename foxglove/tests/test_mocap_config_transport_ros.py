@@ -20,7 +20,11 @@ class MocapConfigDeploymentTests(unittest.TestCase):
         if not unit.exists():
             self.skipTest('repository unit not present in isolated test staging')
         text = unit.read_text()
-        self.assertIn('exec /usr/local/libexec/hope-mocap-config-transport', text)
+        self.assertIn('ExecStart=:/bin/bash', text)
+        self.assertIn('exec /home/agi/hope_ws/src/hope_bringup/scripts/with_fastdds_unicast.sh', text)
+        self.assertIn('-- /usr/local/libexec/hope-mocap-config-transport', text)
+        self.assertIn('EnvironmentFile=-/etc/hope-foxglove/network.env', text)
+        self.assertIn('${ROS_STATIC_PEERS:-}', text)
         self.assertNotIn('hope_mocap_config_transport.py', text)
         self.assertFalse((root / 'a3/hope_mocap_config_transport.py').exists())
 

@@ -41,7 +41,7 @@ from `/hope/field/status`, so a Laptop/HDU discovery mismatch is visible rather
 than a deceptively enabled START. Side selection stays locked until STOPPED;
 crossing a boundary during play does not change the assignment.
 
-The native Runner monitors its base-pose mailbox with a 100 ms monotonic timeout
+The native Runner monitors its base-pose mailbox with a 1 s monotonic timeout
 in normal SERVE/RALLY, independent of sampling rate (150 Hz or higher). On loss,
 RALLY enters the existing PD_STAND blend. SERVE first aborts through its existing
 validated controller recovery. Late serve completion cannot restart receive
@@ -54,20 +54,21 @@ applied pelvis position and orientation as an explicitly **HELD** input. It
 does not continue gyro propagation, create a sensor packet, change sequence or
 timestamps, advance differentiated-velocity history, confirm HOME/posture, or
 authorize a new shot. Live joint/IMU inputs remain live. The original real-sample
-age continues increasing; reuse cannot postpone the 100 ms rescue deadline or
-override a stricter exported observation-age bound. Explicit invalid packets
+age continues increasing; reuse cannot postpone the 1 s rescue deadline.
+This runtime held-pose rescue window is independent of exported observation-age
+normalization; the policy metadata and real-sample timestamp remain unchanged. Explicit invalid packets
 still trigger recovery immediately. This continuity measure is not proof of
 physical stability and cannot repair loss of local feedback or motor transport.
 HELD telemetry is not a separate 20 ms mode-admission gate: entering play and
 normal serve completion use the real observation/rescue deadline. An expired
 completion records the safety reason even if the monitor has not yet recorded
-it; a 20–99 ms held sample alone creates no stop event. L3 recovery-envelope
+it; a 20–999 ms held sample alone creates no stop event. L3 recovery-envelope
 expiry clears a pending flight before the new-flight held-pose check.
 
 Holding attitude without gyro propagation and retaining the prior velocity
 estimate changes actor inputs during jitter. The new-flight guard defers a
 commit for retry, not a flight drop, but this does not establish correct strike
-timing. Replay real 150/300 Hz sessions with 5/25/60/99 ms gaps and compare target
+timing. Replay real 150/300 Hz sessions with 5/25/60/99/250/999 ms gaps and compare target
 commit time, retained velocity, strike time/contact error and recovery commands
 with the prior policy-input path. Then qualify on supported hardware with an
 attending E-stop operator; software regressions are not policy/hardware approval.
@@ -76,11 +77,17 @@ Normal managed play also enables `--operator-watchdog`. The Runner issues a
 challenge every 20 ms. The current Console echoes role 1, and the operator
 computer's Motive/VRPN relay echoes role 2, bound to its managed launch session
 (`debug_session_id`). Both must be live before normal play entry. Loss of either
-echo requests controlled PD_STAND recovery: **1 s for the Console**, **100 ms for
+echo requests controlled PD_STAND recovery: **1 s for the Console**, **1 s for
 the operator-computer relay**. A normal
 serve uses its existing abort/recovery path. Held pelvis data cannot refresh
 either heartbeat. Stand/PASSIVE, Teleop and offline Kernel/Pure Serve are exempt;
 standalone tools do not opt into the UI watchdog unless explicitly requested.
+
+Managed START reconnects the Laptop receiver with the new session ID before
+starting HAL/Runner. This replaces any independently started debug session so
+role-2 echoes match the Runner; a failed reconnect stops START before HAL.
+Offline Kernel startup does not reconnect the receiver. These external-link
+windows do not change the internal HAL/joint-state safe-halt deadline.
 
 Challenge `[1, boot, session_fingerprint, nonce]` travels on
 `/hope/runner/operator_challenge_flat` → `operator_challenge_hdu_flat`.
@@ -96,7 +103,7 @@ pose. Detection runs on the command callback and is subject to its scheduling;
 the existing stand blend/validated serve recovery determines motion duration.
 A slow/frozen/minimized Console or a switch to another layout/tab can miss its
 1 s deadline just like a disconnected one. Echoes come only from `onRender`;
-this is not a background app-liveness service. The longer UI deadline tolerates
+this is not a background app-liveness service. The one-second UI window tolerates
 short rendering/network delays, not a Console absent for more than 1 s.
 Qualify actual foreground/background rendering, Wi-Fi jitter and CPU load
 on the deployed system before competition; do not claim hard real-time timing
@@ -137,7 +144,7 @@ operator-watchdog protocol, rather than silently running without this protection
 
 Before deployment approval, verify both ends and failed-start cleanup, then:
 
-1. Bench-check 150/300 Hz input and 20–99 ms gaps: HELD pose is constant, real
+1. Bench-check 150/300 Hz input and 20–999 ms gaps: HELD pose is constant, real
    timestamps/sequence age normally, no synthetic velocity samples or new shots;
    mode entry and serve completion remain allowed until the actual deadline.
    Validate the actor-input/strike-timing replay described above before hardware.
@@ -146,7 +153,7 @@ Before deployment approval, verify both ends and failed-start cleanup, then:
    time, actual joint-command continuity and the full PD_STAND recovery.
 3. Independently close/disconnect/freeze the Console and stop/disconnect the
    managed operator relay/computer. Verify the Console's 1 s and computer's
-   100 ms triggers despite the other channel remaining live. Exercise tab/layout
+   1 s triggers despite the other channel remaining live. Exercise tab/layout
    switches and minimize/background behavior, including brief interruptions that
    should not stop play. Delayed/replayed challenges must not postpone expiry.
 4. Restore each link: no automatic play resumption. Check explicit re-entry,

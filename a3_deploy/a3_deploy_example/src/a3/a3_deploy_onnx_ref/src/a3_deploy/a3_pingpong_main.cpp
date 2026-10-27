@@ -2268,7 +2268,7 @@ int main(int argc, char** argv) {
                                                                       robot_io::RobotCommand& command) mutable -> bool {
     if (mocap_loss_protection) {
       a3_pingpong::PpBaseSample sample;
-      // At least 15 missing exposures at 150 Hz (30 at 300 Hz). Mailbox age
+      // One second without real pelvis progress. Mailbox age
       // uses the MDU monotonic clock, independently of wall-clock corrections.
       const bool usable = base_in && base_in->LatestForPolicy(
           sample, ppp->mocap_rescue_deadline_s(), ppp->authoritative_mocap_required());

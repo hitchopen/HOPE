@@ -25,7 +25,7 @@ test('restored stream retains stop reason; offline modes and startup are explici
 });
 test('held pelvis is not displayed as fresh and operator losses have independent reasons', () => {
   const packet=[1,42,7,8,1,0,0,0,1,25.5,1,1,1,0,0];
-  assert.match(api.mocapSafetyText(api.decodeMocapSafety(packet)), /Holding last pelvis pose/);
+  assert.match(api.mocapSafetyText(api.decodeMocapSafety(packet)), /Holding last pelvis pose.*PD_STAND at 1 s/);
   packet[13]=36;
   assert.match(api.mocapSafetyText(api.decodeMocapSafety(packet)), /Stopped: Foxglove UI lost/);
   packet[13]=37;

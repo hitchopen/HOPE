@@ -49,7 +49,7 @@ export function mocapSafetyText(state: MocapSafety | undefined): string {
     return `Normal-play entry blocked: ${state.uiFresh !== true ? "Foxglove UI" : "operator computer"} heartbeat missing`;
   }
   if (state.held === true) {
-    return `Holding last pelvis pose · real-sample age ${Math.round(state.ageMs ?? 0)} ms · PD_STAND at 100 ms`;
+    return `Holding last pelvis pose · real-sample age ${Math.round(state.ageMs ?? 0)} ms · PD_STAND at 1 s`;
   }
   return state.fresh ? "Mocap fresh" : "Mocap unavailable · play entry blocked";
 }

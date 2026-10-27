@@ -1885,7 +1885,7 @@ class PpPolicy {
         PpBaseSample s;
         if (base_in_ &&
             base_in_->LatestForPolicy(
-                s, cfg_.external_base_max_age_s,
+                s, mocap_rescue_deadline_s(),
                 /*require_authoritative=*/mocap_authoritative)) {
           st.base_pos_w = s.pos;
           localized_calibration_id = s.calibration_id;
@@ -2773,7 +2773,9 @@ class PpPolicy {
     return onnx_.uses_authoritative_mocap_pose() && !cfg_.kernel_mode;
   }
   double mocap_rescue_deadline_s() const {
-    return std::min(cfg_.external_base_max_age_s, kBasePoseRescueAfterS);
+    // The runtime held-pose rescue window is independent of the exported
+    // real-observation age bound. Held inputs never authorize a new flight.
+    return kBasePoseRescueAfterS;
   }
   bool authoritative_mocap_fresh() const {
     return !authoritative_mocap_required() || base_fresh_;
@@ -6111,7 +6113,7 @@ class PpPolicy {
   bool NewFlightNeedsRealBase_() const {
     if (cfg_.loc_mode != LocMode::kExternalBase) return false;
     PpBaseSample sample;
-    return !base_in_ || !base_in_->LatestForPolicy(sample, cfg_.external_base_max_age_s,
+    return !base_in_ || !base_in_->LatestForPolicy(sample, mocap_rescue_deadline_s(),
                onnx_.uses_authoritative_mocap_pose()) || sample.held_for_policy;
   }
   bool base_fresh_ = false;             // a fresh external-base sample was used this tick

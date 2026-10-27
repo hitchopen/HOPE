@@ -676,7 +676,7 @@ class PpBallStateInput {
 
 // -------------------------------- base pose ---------------------------------
 inline constexpr double kBasePoseHoldAfterS = 0.020;
-inline constexpr double kBasePoseRescueAfterS = 0.100;
+inline constexpr double kBasePoseRescueAfterS = 1.0;
 
 struct PpBaseSample {
   Vec3 pos = Vec3::Zero();

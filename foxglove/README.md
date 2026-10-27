@@ -12,10 +12,10 @@ Node.js is needed
 only to rebuild the extension, not to install this package.
 
 Normal play verifies P1/P2 from raw mocap positions at START and locks the side
-until STOP. A 100 ms loss of the live base stream requests controlled PD_STAND
+until STOP. A 1 s loss of the live base stream requests controlled PD_STAND
 recovery in native Runner. A marked 20 ms last-pose hold cannot renew real input
 freshness or shorten mode admission to 20 ms. Separate challenge echoes expire
-after 1 s for the Console and 100 ms for the operator relay in normal play.
+after 1 s for the Console and 1 s for the operator relay in normal play.
 Offline Kernel/Pure Serve and Teleop remain exempt. Install
 the matching Laptop relays, HDU modules and rebuilt MDU Runner with the panel;
 see [deployment safety](../docs/operations/foxglove_lifecycle.md#player-assignment-and-mocap-loss).

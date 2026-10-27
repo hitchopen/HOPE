@@ -13,12 +13,12 @@ TEST(PpBasePoseHold, ShortGapNeverInventsSensorProgressOrExtendsDeadline) {
   std::vector<double> wire{2,1,7,sec,std::floor((now-sec)*1e9),
       -.5,.2,1,1,0,0,0,1,double(kV17RequiredBaseFlags),1,2};
   input.SetFromFlat(wire);
-  ASSERT_TRUE(input.LatestForPolicy(real, .100, true));
+  ASSERT_TRUE(input.LatestForPolicy(real, kBasePoseRescueAfterS, true));
   PpBasePoseHold hold;
   const Vec4 corrected(std::cos(.01), 0, 0, std::sin(.01));
   const auto initial = hold.Apply(real, corrected);
   std::this_thread::sleep_for(std::chrono::milliseconds(25));
-  ASSERT_TRUE(input.LatestForPolicy(held, .100, true));
+  ASSERT_TRUE(input.LatestForPolicy(held, kBasePoseRescueAfterS, true));
   ASSERT_TRUE(held.held_for_policy);
   for (int i = 0; i < 50; ++i) {
     const auto used = hold.Apply(held, Vec4(0,1,0,0));
@@ -31,15 +31,21 @@ TEST(PpBasePoseHold, ShortGapNeverInventsSensorProgressOrExtendsDeadline) {
   }
   input.SetFromFlat(wire);
   std::this_thread::sleep_for(std::chrono::milliseconds(85));
+  ASSERT_TRUE(input.LatestForPolicy(held, 10., true));
+  EXPECT_TRUE(held.held_for_policy);
+  EXPECT_EQ(held.seq, real.seq);
+  EXPECT_EQ(held.receipt_steady_s, real.receipt_steady_s);
+  // Replayed packets and repeated policy reads cannot extend the 1 s window.
+  std::this_thread::sleep_for(std::chrono::milliseconds(920));
   EXPECT_FALSE(input.LatestForPolicy(held, 10., true));
   wire[2] = 8; wire[5] = -.4;
   input.SetFromFlat(wire);
-  ASSERT_TRUE(input.LatestForPolicy(real, .100, true));
+  ASSERT_TRUE(input.LatestForPolicy(real, kBasePoseRescueAfterS, true));
   EXPECT_FALSE(real.held_for_policy);
   EXPECT_EQ(hold.Apply(real, real.quat).pos, real.pos);
   wire[1] = 0;
   input.SetFromFlat(wire);
-  EXPECT_FALSE(input.LatestForPolicy(held, .100, true));
+  EXPECT_FALSE(input.LatestForPolicy(held, kBasePoseRescueAfterS, true));
 }
 TEST(PpBasePoseHold, HeldInputDoesNotShortenPlayAdmissionOrServeCompletionDeadline) {
   PpRunnerControl control(RunnerMode::kMotion, 1, "test");
@@ -73,9 +79,9 @@ TEST(PpBasePoseHold, CacheDoesNotCrossRealReceiptOrCoordinateFrameEpoch) {
 TEST(PpBasePoseHold, MissingInitialOrInvalidSamplesCannotSeedPolicyHold) {
   PpBasePoseInput input;
   PpBaseSample out;
-  EXPECT_FALSE(input.LatestForPolicy(out, .100, true));
+  EXPECT_FALSE(input.LatestForPolicy(out, kBasePoseRescueAfterS, true));
   input.SetFromFlat({2,0});
-  EXPECT_FALSE(input.LatestForPolicy(out, .100, true));
+  EXPECT_FALSE(input.LatestForPolicy(out, kBasePoseRescueAfterS, true));
   EXPECT_FALSE(input.LatestForPolicy(out, NAN, true));
 }
 }  // namespace

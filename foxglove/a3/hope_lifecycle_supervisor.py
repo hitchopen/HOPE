@@ -191,12 +191,15 @@ class LifecycleBackend:
             # read-only preflight. Track it so failures retain cleanup context.
             ("BACKGROUND", [LIFECYCLE_HELPER, "prepare-background-hdu", *common], 180.0),
             ("SESSION", self._ssh(laptop, laptop_helper, "prepare-laptop", *common), 45.0),
+            # Bind the independent receiver to this START's heartbeat session
+            # before starting HAL/Runner; never infer the session from DDS.
+            ("MOCAP", self._ssh(laptop, laptop_helper, "reconnect-laptop", *common,
+                               config.mocap_source, config.vrpn_ip or "NONE",
+                               config.vrpn_port, config.vrpn_units, config.pants_profile), 25.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
             ("SESSION", self._ssh(mdu, LIFECYCLE_HELPER, "prepare-mdu", *common), 15.0),
-            # OptiTrack is deliberately outside Runner lifecycle admission.
-            # The operator may run the Laptop bridge separately when ball/base
-            # telemetry is needed, but an absent Motive stream must not block
-            # starting HAL and the authoritative Runner in PASSIVE.
+            # START verified raw end occupancy; the receiver now shares the
+            # Runner session used by the independent operator heartbeat.
             ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 20.0),
             ("PLANNER", [LIFECYCLE_HELPER, "start-planner", *common], 20.0),
             # agibot_pm has a 90 s systemd stop timeout on the MDU. Field

@@ -11,8 +11,8 @@ or change robot motions or scheduling.
 
 Normal play now verifies the P1/P2 table end from raw mocap at START and returns
 to PD_STAND on base-stream or operator-link loss. A gap over 20 ms uses a marked
-last-pose hold without shortening mode admission or resetting the 100 ms rescue
-deadline. Separate Console (1 s) and operator-computer (100 ms) heartbeats
+last-pose hold without shortening mode admission or resetting the 1 s rescue
+deadline. Separate Console (1 s) and operator-computer (1 s) heartbeats
 protect normal mocap play only.
 Offline Kernel/Pure Serve and Teleop retain their existing behavior;
 see [deployment safety](docs/operations/foxglove_lifecycle.md#player-assignment-and-mocap-loss).
@@ -113,7 +113,7 @@ enter receive play. P1/P2 occupancy is verified from unrotated mocap at START;
 the side is then locked until STOP. During play, loss of the base-pose stream
 requests controlled PD_STAND recovery and does not automatically resume play.
 Foxglove and the managed operator relay must each return genuine challenge
-echoes; loss triggers recovery after 1 s for the Console or 100 ms for the
+echoes; loss triggers recovery after 1 s for the Console or 1 s for the
 operator-computer relay. Switching away from the Console for over 1 s can
 therefore stop play; qualify deployed UI timing before operation.
 See the [lifecycle installation and operation guide](docs/operations/foxglove_lifecycle.md),

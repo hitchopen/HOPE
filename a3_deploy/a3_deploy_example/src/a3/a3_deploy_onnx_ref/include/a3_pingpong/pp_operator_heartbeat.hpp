@@ -56,9 +56,9 @@ class PpOperatorHeartbeat {
   }
  private:
   struct Receipt { std::uint64_t sequence = 0; double when = -1.; };
-  // The rendered UI has a human-scale deadline; the acquisition relay retains
-  // the 100 ms transport watchdog. Both age from issue time, never receipt.
-  static constexpr std::array<double, 2> kDeadlineS{1.0, .100};
+  // Both links have a one-second deadline measured from challenge issue time,
+  // never echo receipt time. A late echo cannot renew the original deadline.
+  static constexpr std::array<double, 2> kDeadlineS{1.0, 1.0};
   const std::uint64_t boot_, session_;
   mutable std::mutex mu_;
   std::uint64_t sequence_ = 0;
