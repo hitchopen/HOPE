@@ -11,7 +11,7 @@ Environment=ROS_LOCALHOST_ONLY=0
 Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/etc/hope-foxglove/fastdds_bridge_profile.xml
 EnvironmentFile=-/etc/hope-foxglove/network.env
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/libexec/hope_mocap_config_transport.py'
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec /usr/local/libexec/hope-mocap-config-transport'
 Restart=on-failure
 RestartSec=2
 

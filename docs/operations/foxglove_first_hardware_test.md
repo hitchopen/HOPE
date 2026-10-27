@@ -626,9 +626,10 @@ sudo install -D -o root -g root -m 0644 \
   /tmp/hope-foxglove-network.env \
   /etc/hope-foxglove/network.env
 
+# 先按 foxglove/README.md 使用真实厂商 SDK 构建并通过 native monitor 测试。
 sudo install -D -o root -g root -m 0755 \
-  $HOME/foxglove_a3/hope_monitor.py \
-  /usr/local/bin/hope_monitor.py
+  $HOME/hope_field_native_build/hope-monitor \
+  /usr/local/libexec/hope-monitor
 sudo install -D -o root -g root -m 0644 \
   $HOME/foxglove_a3/hope_monitor_core.py \
   /usr/local/lib/hope-foxglove/hope_monitor_core.py

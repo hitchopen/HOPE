@@ -91,6 +91,12 @@ host-only contract tests, isolated racket-contact A/B test, process-free Gate
 3 preflight, the default repeated-good-ball cherry-pick run, and the explicit
 `--qualification` 12-serve lateral sweep.
 
+The HDU Foxglove health/safety monitor (`hope-monitor`) and optional read-only
+mocap configuration relay (`hope-mocap-config-transport`) run in C++.
+Build, stopped-state migration, rollback and qualification requirements are in
+the [monitor deployment guide](foxglove/README.md#native-monitor-migration-and-verification)
+and [configuration relay guide](foxglove/README.md#native-mocap-configuration-transport).
+
 ## Train and export your own
 
 ```bash

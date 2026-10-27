@@ -89,7 +89,15 @@ case "$operation" in
       /work/hope_ws/src/hope_bringup/test/test_vrpn_pants_contract.py \
       /work/hope_ws/src/hope_bringup/test/test_vrpn_pants_relay.py \
       /work/a3_deploy/a3_deploy_example/tests/test_a3p_gripper_bridge.py
+    # Only the read-only config relay is needed here. This development image has
+    # no A3 vendor SDK; never deploy its SDK-disabled monitor target to a robot.
+    cmake -S /work/foxglove/a3/native -B /opt/hope/ros/native-config-transport \
+      -DCMAKE_BUILD_TYPE=Release -DHOPE_MONITOR_REQUIRE_VENDOR_RPC=OFF -DBUILD_TESTING=ON
+    cmake --build /opt/hope/ros/native-config-transport \
+      --target hope-mocap-config-transport hope-mocap-config-transport-test-driver \
+      --parallel "${HOPE_JOBS:-2}"
     ROS_DOMAIN_ID=229 ROS_LOCALHOST_ONLY=1 \
+      HOPE_NATIVE_BIN_DIR=/opt/hope/ros/native-config-transport \
       /usr/bin/python3 -m pytest -q /work/foxglove/tests/test_mocap_config_transport_ros.py
     ;;
   build-runner)
