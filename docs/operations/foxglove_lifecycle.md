@@ -622,7 +622,8 @@ sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_fault.py /usr/l
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_telemetry.py /usr/local/lib/hope-foxglove/hope_elink_telemetry.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_telemetry_ros.py /usr/local/lib/hope-foxglove/hope_elink_telemetry_ros.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_clock.py /usr/local/lib/hope-foxglove/hope_elink_clock.py
-sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_monitor.py /usr/local/bin/hope_monitor.py
+# Build/qualify the native monitor as described in foxglove/README.md first.
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-monitor /usr/local/libexec/hope-monitor
 sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_time_calibration.py /usr/local/bin/hope_time_calibration.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_time_calibration_core.py /usr/local/lib/hope-foxglove/hope_time_calibration_core.py
 sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-time-calibration.service /etc/systemd/system/hope-time-calibration.service

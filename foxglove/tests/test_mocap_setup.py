@@ -98,7 +98,10 @@ def test_real_runtime_selects_only_vrpn_without_natnet_assets(tmp_path, units, s
         script.chmod(0o755)
     wrap = ws / "install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh"
     wrap.parent.mkdir(parents=True)
-    wrap.write_text('#!/bin/bash\nshift 5\nexec "$@"\n')
+    # Runtime may add multiple --peer entries (including localhost). Model the
+    # real wrapper's `-- command` boundary, not an obsolete fixed argument count.
+    wrap.write_text('#!/bin/bash\nwhile [[ "$#" -gt 0 && "$1" != -- ]]; do shift; done\n'
+                    '[[ "$#" -gt 0 ]] || exit 2\nshift\nexec "$@"\n')
     wrap.chmod(0o755)
     env_file = tmp_path / "runtime.env"
     env_file.write_text(f'''HOPE_LIFECYCLE_ROOT='{root}'
