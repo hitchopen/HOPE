@@ -198,9 +198,9 @@ pelvis（所申报的 URDF 根坐标系）
    - **方式 1（推荐）：** 将 HOPE 规划器作为 ROS 2 节点运行；把 `RacketCommand` 话题桥接到 AimRT，由 A3 的原生 WBC 消费。由 `world → P1 → pelvis_link` 得到的 `pelvis_link` 位姿经 ROS 2 → AimRT 流动。
    - **方式 2：** 直接在 AimRT 内运行规划器，通过 AimRT 的 ROS 2 协议支持订阅动捕数据。
 
-4. **A3 P1 配准与当前标记点状态。** 使用 [17 站位 v3 标记壳](../agibot/mocap_sticker_shell_v3/README.md)：前方七点，后方两排各五点，保留原始编号 **S04-S08 和 S11-S22**。[贴纸光学中心表](../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv) 直接使用 `pelvis_link` 米制坐标，**X 向前、Y 向左、Z 向上**，已计入 0.20 mm 贴纸及胶层厚度。随附 [A3_v3_17_stickers.motive](../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive) 使用 `UCB_P1`，另一球台侧使用 `UCB_P2`。其名义枢轴对齐骨盆，固定局部修正目标为零平移和单位旋转。Motive Streaming Up Axis 设为 **Z Up**，保留桥接程序的 MODELDEF 轴向转换；不得叠加第二次旋转或旧质心偏移。默认 `motive_live` 定位使用所选刚体的当前定义，无需标定 JSON。
+4. **A3 P1/P2 配准与贴纸布局。** 不变的 [17 站位 v3 壳体](../agibot/mocap_sticker_shell_v3/README.md) 现在采用 **P1/P2 各 12 点、两种不同安装**，配套 [OptiTrack P1/P2 资产](../agibot/mocap_sticker_shell_v3/motive_asset/README.md) 和 [ChingMu P1/P2 资产](../agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)。两者使用[贴纸坐标表](../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv)中的同一组 CAD 名义光学中心，已计入 0.20 mm 贴纸及胶层厚度，内部名称为 `UCB_P1` / `UCB_P2`。目标原点为 `pelvis_link`，ROS **X 向前、Y 向左、Z 向上**，固定局部修正为零平移和单位旋转。Motive 采用原生 Y-up 米制存储：Streaming Up Axis 设为 **Z Up**，MODELDEF 转换仅应用一次。ChingMu 直接使用 ROS 轴向、毫米单位。不得重新居中或单独旋转 P2。仍须核验原生导入再导出、实际骨盆对齐及双机遮挡跟踪；七个公共站位在遮挡时仍可能混淆。
 
-   可选实测标定应选择 `stickers_v3`，并遵循 [v3 安装与标定流程](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)。17 个站位均须定义，采样期间每点均须取得足够观测，不要求同帧全部可见。恢复的五个后方站位采用 CAD 名义坐标，原始导出没有这些点的实测观测。须核验 Motive 导入和实际安装布局；历史十点、24 站位及 12 点标定记录不适用于当前壳体。
+   默认 `motive_live` 使用所选刚体的实时定义，无需标定 JSON 或固定布局。可选 `motive_asset` 现在核验对应一侧的 12 点参考。旧 `stickers_v3` [实测标定流程](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration) 仍要求 17 点，**不支持这两个子集**，不得复用其 receipt。原始实测导出仅保留为历史证据，不是当前导入文件。
 
    独立的旧版位姿对审计由 `p1_pelvis_calibrator` 使用外部独立产生、按采集时刻同步的完整六自由度 `world → pelvis_link` 参考位姿执行。A3 桥接的骨盆 IMU 本身不能提供该绝对位姿。当前流程及独立审计的限制见 [OptiTrack 标定指南](../docs/OPTITRACK.md#optional-marker-cad-calibration-p1-to-an-a3-pelvis_link)。
 

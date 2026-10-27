@@ -141,12 +141,16 @@ receipt lifecycle are maintained in
 [agibot/README.md](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration).
 This optional measured procedure uses Motive/NatNet ModelDef; the ChingMu
 pose-only route uses the separately checked import assets described below.
-The current profile is the **17-station v3 sticker shell** (front seven unchanged,
+The legacy measured profile is the **17-station v3 sticker shell** (front seven unchanged,
 two rear rows of five), using its optical-centre
 TF table in ROS `pelvis_link` and the supplied pelvis-aligned native **P1** asset.
 The intended fixed local correction is identity, subject to a fresh installed
 live verification; all earlier 12-point, old 24-station and ten-marker receipts
 cannot be reused. See [receipt lifecycle](../calibration/README.md).
+The current [OptiTrack P1/P2 assets](../agibot/mocap_sticker_shell_v3/motive_asset/README.md)
+instead use 12 markers each, matching ChingMu. Default `motive_live` accepts
+their live definitions; optional `motive_asset` checks the selected subset.
+The all-17 measured procedure does not support these new subsets.
 Whether capture is automated depends on the selected operator integration;
 do not assume every PREPARE/Ready action runs it. The independent pose-pair
 method below is an audit route, not a runtime receipt generator.
@@ -198,17 +202,20 @@ CMTracker/MCServer VRPN → /vrpn_mocap/<sender>/pose_id_<sensor_id> (PoseStampe
                          → pose_to_posearray → /poses (PoseArray, Ball at index 0)
 ```
 
-For A3's current 17-sticker shell, the
+For A3's current 17-station shell, the
 [shell-v3 VRPN asset package](../agibot/mocap_sticker_shell_v3/vrpn_asset/README.md)
-contains one CMTracker import file,
-[A3_v3_17_stickers.json](../agibot/mocap_sticker_shell_v3/vrpn_asset/A3_v3_17_stickers.json),
-with the same filename stem and internal `UCB_P1` body name as the Motive asset.
-It matches the existing **V4 P1** runtime file byte-for-byte; P1/P2 runtime
-profiles remain unchanged for compatibility and share its geometry.
+contains [P1.json](../agibot/mocap_sticker_shell_v3/vrpn_asset/P1.json) and
+[P2.json](../agibot/mocap_sticker_shell_v3/vrpn_asset/P2.json), internally named
+`UCB_P1` and `UCB_P2`. Each selects 12 stations and matches its updated V4
+runtime file byte-for-byte. Seven stations are necessarily shared, so identity
+is not guaranteed under arbitrary occlusion. See the installation PDF and
+partial-pattern analysis in that package.
 `mocap_sticker_shell_v3` is the CAD folder name, while **V4** is the
-runtime/dropdown selection for that same hardware. Configure site body names
-(`UCB_P1`/`UCB_P2`) and unique IDs in CMTracker as needed, preserving the
-pelvis-local geometry. The JSON defines the rigid body in the server; VRPN
+runtime/dropdown selection for that same hardware. Preserve the selected
+points and pelvis-local frame. The matching
+[OptiTrack pair](../agibot/mocap_sticker_shell_v3/motive_asset/README.md) now uses
+the same 12-point subsets with native Y-up encoding; do not import the old
+all-17 file. The JSON defines the rigid body in the server; VRPN
 transports its pose, not the definition.
 
 The asset's millimetre-valued marker coordinates target nominal `pelvis_link`

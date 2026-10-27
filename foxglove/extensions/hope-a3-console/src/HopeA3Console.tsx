@@ -1487,7 +1487,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             }}>
             <option value="" disabled>请选择裤子</option>
             <option value="v2">V2 · 旧裤子 · 10 点</option>
-            <option value="v4">V4 · 新裤子 · 17 点贴纸</option>
+            <option value="v4">V4 · 17 孔裤子 · P1/P2 各 12 点</option>
           </select>
         </label>}
         <div className="table-side-selector">

@@ -202,7 +202,13 @@ The measured procedure below requires explicit `localization_source:=calibration
 and `start_calibration:=true`; it is separate from the default console workflow.
 
 
-The current sticker profile is the **17-station v3 sticker shell**:
+The current [P1/P2 asset pair](../agibot/mocap_sticker_shell_v3/motive_asset/README.md)
+uses two distinct **12-marker subsets** on the 17-station shell, matching
+ChingMu. Optional `motive_asset` pins the correct player's subset. The legacy
+measured `stickers_v3` workflow below **requires all 17 stations and does not
+support these subsets**; do not reuse its receipts for the new installations.
+
+That legacy measured sticker profile is the **17-station v3 sticker shell**:
 **S04-S08 and S11-S22**. Front seven are unchanged; rear upper and middle
 rows each have five stations. It is not the previous 12-station, 24-station or ten-ball shell. Use the
 [v3 setup and calibration procedure](../agibot/README.md#v3-sticker-p1-to-pelvis-calibration)

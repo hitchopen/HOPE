@@ -11,36 +11,31 @@ explicitly selecting `localization_source:=calibration start_calibration:=true`.
 geometry, timestamps, sample counts and audit evidence, so it is intentionally
 Git-ignored. The robot receives `/a3/base_pose_flat`, not this JSON.
 
-## Current shell and OptiTrack asset
+## Current P1/P2 patterns: measured-subset calibration not supported
 
-Test-import [A3_v3_17_stickers.motive](../agibot/mocap_sticker_shell_v3/motive_asset/A3_v3_17_stickers.motive),
-internally named **UCB_P1**, for stations **S04-S08 and S11-S22**. The seven front
-markers are unchanged; rear rows S04-S08 and S14-S18 now have five each.
-Do not renumber the physical station IDs.
-The [sticker optical-centre table](../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv)
-is already in ROS `pelvis_link` metres: X forward, Y left, Z up, including
-0.20 mm sticker-plus-adhesive thickness. Ball mode and mount-seat coordinates
-are not substitutes for these sticker centres.
+The current [OptiTrack P1/P2 pair](../agibot/mocap_sticker_shell_v3/motive_asset/README.md)
+has **12 stickers per player** on the unchanged 17-station shell, matching the
+ChingMu pair. Default `motive_live` remains available; optional `motive_asset`
+now checks the correct side's nominal 12-point reference. Neither proves
+physical pelvis alignment. Import/re-export and installed checks are required.
+The measured `stickers_v3` procedure below still requires all 17 stations and
+**cannot generate a receipt for either new pattern**. Do not reuse or edit a
+legacy receipt to bypass this limitation.
 
-The supplied body already uses `UCB_P1`; use `UCB_P2` for table side P2.
-For optional measured calibration, select `stickers_v3`.
-The legacy `v2` and `v3` ball profiles remain separate supported layouts;
-the sticker receipt restrictions below apply to `stickers_v3`.
+## Legacy all-17 measured mode
 
-The native asset is rigidly aligned to the nominal CAD pelvis origin and axes.
-With Motive Streaming **Up Axis = Z Up** and the bridge's existing
-`topics.rigid_body_markers.modeldef_y_up_to_z_up: true`, the expected fixed
-`UCB_P1 → pelvis_link` correction is translation `[0,0,0]` m and quaternion
-`[0,0,0,1]` in xyzw order. Do not add another pose rotation or old pivot offset.
-The supplied [identity-default JSON](../agibot/mocap_sticker_shell_v3/motive_asset/P1_to_pelvis_link_default.json)
-is **unapproved reference data**, not a runtime receipt: never copy it here
-or manually set `approved=true`. Offline asset checks have passed; Motive
-import/re-export and installed live verification remain required.
-The original 12 measured positions are retained. Restored S06/S07/S08/S15/S17
-are CAD-nominal additions with no observations in the source export. The learned
-graph cache is omitted; native acceptance is unverified. Follow the
-[asset validation/fallback procedure](../agibot/mocap_sticker_shell_v3/README.md#supplied-optitrack-asset-and-station-evidence)
-before using it. Do not interpret nominal coordinates as physical samples.
+The unchanged [sticker optical-centre table](../agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv)
+has 17 station rows in ROS `pelvis_link` metres, including 0.20 mm film/adhesive.
+The `stickers_v3` measured solver still requires all those stations. It is not
+a profile for either current 12-marker player installation. Legacy `v2` and
+`v3` ball profiles remain separate.
+
+The following procedure applies only to a separately validated all-17 physical
+installation and matching native body. Historical exports/identity defaults
+are source evidence and regression fixtures, **not deployment assets or approved
+receipts**. The release import folders contain only the current P1/P2 pairs.
+Do not add points, alter marker lists or approve a saved JSON merely to satisfy
+the legacy solver.
 
 ## Generate and use a fresh receipt in calibration mode
 

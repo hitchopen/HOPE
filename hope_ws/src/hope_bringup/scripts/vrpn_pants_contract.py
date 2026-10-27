@@ -24,14 +24,19 @@ def load_profiles(directory=None):
     for profile, spec in profiles.items():
         if spec["body_frame"] != "pelvis_link" or spec["centroid_subtracted"]:
             raise ValueError("pants definition must preserve pelvis_link origin")
-        if spec["marker_count"] != {"v2": 10, "v4": 17}[profile]:
+        if spec["marker_count"] != {"v2": 10, "v4": 12}[profile]:
             raise ValueError("unexpected marker count")
         for side, asset in spec["assets"].items():
             encoded = (root / asset["file"]).read_bytes()
             if hashlib.sha256(encoded).hexdigest() != asset["sha256"]:
                 raise ValueError("pants asset hash mismatch")
             points = json.loads(encoded)["UCB_" + side]["markerPose"]
-            expected = [v * 1000 for xyz in spec["marker_positions_m"] for v in xyz]
+            # V4 uses two distinct 12-sticker subsets of one 17-station shell.
+            # V2 retains its original shared geometry and calibration contract.
+            geometry = asset if profile == "v4" else spec
+            if len(geometry["marker_positions_m"]) != spec["marker_count"]:
+                raise ValueError("pants geometry count mismatch")
+            expected = [v * 1000 for xyz in geometry["marker_positions_m"] for v in xyz]
             if len(points) != len(expected) or any(abs(a-b) > 1e-6 for a,b in zip(points, expected)):
                 raise ValueError("pants asset differs from ground truth")
     return profiles
