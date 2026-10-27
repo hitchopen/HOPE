@@ -14,6 +14,17 @@ detect startup process/IPC and log failures without adding telemetry, battery or
 clock-based motion gates. Normal Stand, Serve and Rally retain the existing
 Runner/vendor protections. Clock correction uses the explicit, stopped
 [Time Calibration workflow](docs/operations/foxglove_lifecycle.md#pre-operation-clock-correction).
+The START background-cleanup step stops only the selected HDU camera app,
+preserving vendor startup/audio, handheld-related services and the status/IP
+display. Earlier HOPE shutdown of those dependencies was application-side
+policy, not a vendor crash. See [handheld preservation and existing-robot
+recovery](docs/operations/robot_runtime_policy.md#vendor-handheld-and-status-display)
+for deployment checks and the remaining E-stop-continuity limitations during
+HAL handover and clock maintenance.
+The [required live qualification](docs/operations/robot_runtime_policy.md#required-live-validation-before-deployment)
+includes a supported START → STOP cycle and clock-service restore, checking for
+automatic vendor `Manual`/joint-control activation. Until handheld E-stop is
+qualified during HOPE play, credit only a verified wired E-stop in HOPE sessions.
 Follow the matched-component installation and hardware validation requirements
 in those guides before deployment.
 

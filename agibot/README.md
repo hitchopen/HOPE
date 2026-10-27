@@ -9,6 +9,18 @@ For the supported HOPE policy runner, use [a3_deploy/](../a3_deploy/) and
 [RUN_ON_AGIBOT](../docs/RUN_ON_AGIBOT.md). Training and generated Isaac assets
 are documented in [A3_ASSETS.md](../A3_ASSETS.md), not built in this folder.
 
+## Critical vendor services
+
+HOPE's background cleanup deliberately stops the selected HDU camera app, not
+vendor startup/audio (`agent`, `hal_audio` and their watchdogs), the configured
+remote bridge (`hal_remote`) or status/IP display (`agibot_ui.service`). Earlier
+HOPE shutdowns of these dependencies were application-side policy, not vendor
+crashes. Preserve the vendor control/emergency chain and automatic-mode policy;
+do not disable them to save CPU. See the [service preservation and existing-robot
+recovery guide](../docs/operations/robot_runtime_policy.md#vendor-handheld-and-status-display),
+including the unverified E-stop continuity through HAL handover/maintenance.
+Process presence is not a substitute for physical safety verification.
+
 ## Folder map
 
 | Path | Contents and entry point |

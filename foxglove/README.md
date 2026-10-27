@@ -219,17 +219,19 @@ live captures and scratch build outputs are not deployment assets.
 
 Every managed START (including KERNEL mode) completes read-only preflight, then
 runs the mutating HDU `BACKGROUND` step before launching Planner, HAL or Runner.
-It stops only vendor `agent`, `hal_audio`,
-`hal_hdu_camera`, their explicitly matched voice/audio watchdogs, and
-`agibot_ui.service`. These camera, voice and UI processes consumed substantial
-CPU during field operation and detached watchdogs could restart them after a
-vendor StopApp call.
+HOPE deliberately stops only `hal_hdu_camera` and exact matched camera-process
+leftovers. These are application-side shutdowns, not proof of vendor crashes.
+`agent`, `hal_audio`, their watchdogs, `hal_remote` and `agibot_ui.service` are
+not cleanup targets, and their presence does not reject START. Earlier cleanup
+stopped startup/audio/UI dependencies; a missing `agent` was reproduced as a
+vendor startup rollback. Preserve the control/emergency dependencies and vendor
+automatic-mode policy rather than disabling them as a CPU optimization.
 
-The guard first terminates the matched watchdogs, then calls the local vendor
-process manager's StopApp API. It sends SIGTERM to exact command/config matches
+The guard calls the local vendor process manager's StopApp API for the camera
+only. It sends SIGTERM to exact camera command/config matches
 left outside the manager, checking process identity with pidfds. It requires a
-continuous two-second quiet window; RPC errors, failed stops, respawning
-processes or insufficient UI-stop privileges reject START with
+continuous two-second quiet window; RPC errors, failed stops or respawning
+allowlisted processes reject START with
 `UNRELATED_BACKGROUND_NOT_STOPPED`. The HDU background-step timeout is 180 seconds to
 cover the bounded vendor calls. Drive HAL, process manager, emergency-stop,
 local networking, clock and recording processes are outside the cleanup allowlist.
@@ -241,9 +243,22 @@ Deploy `helpers/hope_catch_background.py` beside the HDU's installed
 `a3/hope_lifecycle_supervisor.py`. Preserve each robot's existing hardware,
 path and network configuration when updating the helper. The guard requires
 Linux/Python pidfd support and access to the existing localhost vendor process
-manager on port 50081. If the UI service is active, the lifecycle account must
-already be allowed to run `sudo -n systemctl stop agibot_ui.service`; otherwise
-START fails rather than continuing with the UI running. The base cleanup does not install sudo rules or change vendor launch defaults.
+manager on port 50081. An active vendor UI does not reject START, and normal
+cleanup neither probes nor stops it. The base cleanup does not install sudo
+rules or change vendor launch defaults. Existing disabled UI units, HOPE
+boot-blocking conditions and missing vendor app registrations require a
+separate, backed-up repair; installing this helper does not repair them.
+See [handheld preservation and upgrade checks](../docs/operations/robot_runtime_policy.md#vendor-handheld-and-status-display).
+The former UI-stop-only `70-upstream-startup-sudo.conf` override is no longer
+needed; follow [supervisor hardening recovery](../docs/operations/robot_runtime_policy.md#restoring-supervisor-hardening)
+to remove only that backed-up override and verify effective/running
+`NoNewPrivileges` protection. The optional cellular stop already supports it.
+Physical E-stop continuity during managed HAL handover and clock maintenance
+is not established by this fix. Until qualified during HOPE play, credit only
+the verified wired E-stop. The [required live START/STOP and clock-restore test](../docs/operations/robot_runtime_policy.md#required-live-validation-before-deployment)
+must also check whether restoring vendor services automatically activates
+`Manual`/native `mc` or joint control after STOP; HOPE `STOPPED` is not proof
+that the drives are disabled.
 The optional Wi-Fi-only installer permanently disables cellular and adds a narrow
 polkit stop rule. HDU preflight also requires the installed Wi-Fi policy helper;
 install its service/configuration together with the updated lifecycle helper.
