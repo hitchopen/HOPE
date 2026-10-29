@@ -358,6 +358,35 @@ TEST(PpServeController, EntryPreservesMovingCommandAndReplacesSeedOnReentry) {
   }
 }
 
+TEST(PpServeController, PolicyToPrepareDoesNotAmplifyGravitySupportOffsets) {
+  auto timeline = LoadTimeline();
+  const auto stand = timeline.complete().q_sdk;
+  const auto kp = PositiveGains(1500), kd = PositiveGains(8);
+  PpServeController controller(std::move(timeline), stand, kp, kd, nullptr);
+  auto state = StateAt(stand);
+  state.dq = PositiveGains(.04);
+  robot_io::RobotCommand source, command;
+  source.q_des = stand.array() + .20;
+  source.dq_des = PositiveGains(.1);
+  source.kp = PositiveGains(80);
+  source.kd = PositiveGains(3);
+  source.tau_ff = PositiveGains(2);
+  controller.SetEntryCommand(source);
+  controller.Start();
+  const double source_torque = 80 * .20 + 3 * (.1 - .04) + 2;
+  const double stand_torque = -8 * .04;
+  for (unsigned tick = 0; tick <= 100; ++tick) {
+    ASSERT_TRUE(controller.ComputeCommand(tick, state, command));
+    const auto torque = (command.kp.array() * (command.q_des-state.q).array() +
+        command.kd.array() * (command.dq_des-state.dq).array() + command.tau_ff.array()).eval();
+    EXPECT_LE(torque.maxCoeff(), source_torque + 1e-9);
+    EXPECT_GE(torque.minCoeff(), stand_torque - 1e-9);
+    if (tick == 50)
+      EXPECT_NEAR(torque[19], .5 * (source_torque + stand_torque), 1e-9);
+  }
+  EXPECT_EQ(controller.state(), ServeControllerState::kTransitionToLoad);
+}
+
 TEST(PpServeController, PreservesForwardHitRightArmVelocityExactly) {
   auto timeline = LoadTimeline();
   const auto expected = timeline;
