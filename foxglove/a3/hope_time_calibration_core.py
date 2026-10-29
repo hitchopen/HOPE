@@ -632,11 +632,8 @@ class TimeCalibrationBackend:
         result = self._ntp_probe(max_offset_ms=10.0, max_skew_ppm=0.0)
         if result.error:
             raise CalibrationRejected(f"NTP_PROBE_UNAVAILABLE: {result.error[:240]}")
-        if result.gate_pass:
-            raise CalibrationRejected(
-                f"CLOCK_ALREADY_QUALIFIED: offset={result.offset_ms:+.3f}ms "
-                f"skew_audit={result.skew_ppm:.3f}ppm"
-            )
+        # A healthy clock is still eligible for an explicit attended resync.
+        # Probe availability, stopped consumers and post-step qualification stay required.
         self._remote_mdu(
             config, "time-calibration-recover-mdu", timeout_s=180.0
         )

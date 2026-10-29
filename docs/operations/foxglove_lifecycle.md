@@ -171,8 +171,11 @@ unconditional `makestep` on a chrony service restart.
 1. Physically support the robot, keep the E-stop reachable, stop all Runner
    sessions and external motion publishers, and verify lifecycle **STOPPED**
    and idle. PASSIVE is still a running Runner, not a stopped system.
-2. With a fresh failing NTP gate and confirmed network configuration, select
+2. With a fresh NTP observation and confirmed network configuration, select
    **Time Calibration** and accept the support/stopped-system confirmation.
+   An operator may explicitly resynchronize even when the NTP gate is healthy.
+   A completed calibration permits another manual request; an unfinished step
+   retains its recovery interlock and cannot be repeated.
    The coordinator rechecks fresh STOPPED/idle evidence after acquiring the
    shared hardware-operation lock. It never automatically steps from START,
    PD_STAND, SERVE or RALLY/MOTION.

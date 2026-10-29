@@ -883,13 +883,16 @@ class TimeCalibrationOrderingTests(unittest.TestCase):
             self.backend(run, failing_ntp()).calibrate(self.config(), lambda _p: None, handoff_delay_s=0)
         self.assert_no_step(machine)
 
-    def test_already_qualified_clock_is_not_stepped(self):
+    def test_explicit_resync_of_healthy_clock_steps_once_and_restores_services(self):
         machine = FakeMachine()
-        with self.assertRaisesRegex(CalibrationRejected, "CLOCK_ALREADY_QUALIFIED"):
-            self.backend(machine, passing_ntp()).calibrate(self.config(), lambda _p: None, handoff_delay_s=0)
-        self.assert_no_step(machine)
-        self.assertFalse(any(c[0] == SYSTEMCTL and c[1] in {"stop", "start", "restart"}
-                             for c in machine.calls))
+        progress = []
+        self.backend(machine, passing_ntp(), passing_ntp(), passing_ntp()).calibrate(
+            self.config(), progress.append, handoff_delay_s=0)
+        self.assertEqual(progress[-1].step, "COMPLETE")
+        self.assertTrue(progress[-1].hard_step_attempted)
+        self.assertEqual(machine.calls.count(
+            (SYSTEMCTL, "restart", "agibot-clock-bootstrap.service")), 1)
+
 
     def test_bootstrap_failure_does_not_retry_or_restart_robot_services(self):
         machine = FakeMachine()

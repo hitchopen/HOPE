@@ -20,6 +20,7 @@ import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { robotConnectionUrl, switchRobot } from "./robotConnection";
 import { mergeConfirmedConfig } from "./lifecycleConfig";
+import { timeCalibrationControls } from "./timeCalibration";
 import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
 import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
@@ -1044,7 +1045,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
   const runTimeCalibration = useCallback(async () => {
     const accepted = window.confirm(
-      "Run the controlled 10.4 HDU time calibration now? Continue only when the robot is physically supported, no Policy/Runner session is active, and the physical E-stop is reachable. If an earlier managed MDU stop left a valid same-boot receipt, its exact recorded baseline will be restored automatically before preflight; arbitrary stopped services are never started. MDU and HDU time consumers will then stop, HDU UTC will hard-step once, and services will recover in dependency order. Foxglove :8766 will disconnect temporarily.",
+      "Run the controlled 10.4 HDU time calibration now? Continue only when the robot is physically supported, no Policy/Runner session is active, and the physical E-stop is reachable. If an earlier managed MDU stop left a valid same-boot receipt, its exact recorded baseline will be restored automatically before preflight; arbitrary stopped services are never started. MDU and HDU time consumers will then stop, HDU UTC will hard-step once for this request (even if NTP is already healthy), and services will recover in dependency order. Foxglove :8766 will disconnect temporarily.",
     );
     if (accepted) {
       await invoke("timeCalibration");
@@ -1129,38 +1130,17 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     ? (snapshot.timeCalibrationState ?? "UNKNOWN")
     : "NO DATA";
   const timeCalibrationBusy = snapshot.timeCalibrationBusy === true;
-  const timeCalibrationLocked = ["RUNNING", "INTERRUPTED", "FAILED_SAFE_STOP", "COMPLETE"].includes(
-    timeCalibrationState,
-  );
-  const timeCalibrationBlocksStart =
-    timeCalibrationBusy ||
-    ["RUNNING", "INTERRUPTED", "FAILED_SAFE_STOP"].includes(timeCalibrationState);
-  const timeCalibrationReady =
-    ntpFresh &&
-    ntpGateFresh &&
-    snapshot.ntpPass === false &&
-    timeCalibrationFresh &&
-    lifecycleStopped &&
-    !lifecycleBusy &&
-    (snapshot.lifecycleConfigRevision ?? 0) >= 1 &&
-    !configTouched &&
-    !timeCalibrationBusy &&
-    !timeCalibrationLocked;
-  const timeCalibrationTitle = !timeCalibrationFresh
-    ? "Waiting for the time-calibration coordinator"
-    : !ntpFresh || !ntpGateFresh
-      ? "Waiting for a fresh NTP gate"
-      : snapshot.ntpPass !== false
-        ? "Available only when the fresh NTP gate is failing"
-        : !lifecycleStopped || lifecycleBusy
-          ? "Stop the managed lifecycle before calibrating time"
-          : configTouched || (snapshot.lifecycleConfigRevision ?? 0) < 1
-            ? "Confirm the three Runner addresses and table side before calibrating time"
-            : timeCalibrationState === "FAILED_SAFE_STOP"
-              ? "Manual recovery is required; do not repeat the hard-step this boot"
-              : timeCalibrationState === "COMPLETE"
-                ? "One hard-step has already completed in this maintenance cycle"
-                : "Run receipt-safe MDU baseline recovery, then the fixed 10.4 sequence";
+  const { ready: timeCalibrationReady, title: timeCalibrationTitle, blocksStart: timeCalibrationBlocksStart } =
+    timeCalibrationControls({
+      state: timeCalibrationState,
+      fresh: timeCalibrationFresh,
+      busy: timeCalibrationBusy,
+      ntpFresh: ntpFresh && ntpGateFresh,
+      ntpPass: snapshot.ntpPass,
+      lifecycleStopped: lifecycleState === "STOPPED",
+      lifecycleBusy: lifecycleBusy || !isFresh(snapshot, TOPICS.lifecycleBusy, now, 1_500),
+      configConfirmed: (snapshot.lifecycleConfigRevision ?? 0) >= 1 && !configTouched,
+    });
 
   const serveState = snapshot.serveState ?? "UNAVAILABLE";
   const commandFresh = isFresh(snapshot, TOPICS.commandSummary, now, 1_500);

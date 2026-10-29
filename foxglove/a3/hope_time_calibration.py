@@ -256,7 +256,6 @@ class HopeTimeCalibration(Node):
             self._lifecycle_busy_received > 0.0
             and 0.0 <= now - self._lifecycle_busy_received <= LIFECYCLE_FRESHNESS_S
         )
-        ntp_gate = self._ntp_gate
         ntp_gate_fresh = (
             self._ntp_gate_received > 0.0
             and 0.0 <= now - self._ntp_gate_received <= NTP_FRESHNESS_S
@@ -269,9 +268,10 @@ class HopeTimeCalibration(Node):
                 "previous calibration failed this boot; keep robot services stopped "
                 "and follow the documented manual recovery"
             )
-        if status.hard_step_attempted and status.boot_id == self._boot_id:
+        if (status.hard_step_attempted and status.boot_id == self._boot_id
+                and status.state != "COMPLETE"):
             return (
-                "one hard-step was already attempted in this maintenance cycle"
+                "an unfinished hard-step was already attempted; manual recovery is required"
             )
         if not lifecycle_state_fresh or not lifecycle_busy_fresh:
             return "fresh lifecycle STOPPED state is unavailable"
@@ -280,8 +280,8 @@ class HopeTimeCalibration(Node):
                 "time calibration requires idle STOPPED lifecycle; "
                 f"current state={lifecycle_state}"
             )
-        if not ntp_gate_fresh or ntp_gate:
-            return "time calibration requires a fresh failing NTP gate"
+        if not ntp_gate_fresh:
+            return "time calibration requires a fresh NTP gate"
         return None
 
     def _request_calibration(
