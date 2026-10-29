@@ -42,6 +42,7 @@
 #include "a3_deploy/async_csv_file.hpp"
 #include "a3_pingpong/pp_command_safety.hpp"
 #include "a3_pingpong/pp_sha256.hpp"
+#include "a3_pingpong/pp_stand_pose.hpp"
 #include "a3_pingpong/pp_hybrid_lower_policy.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
 #include "a3_pingpong/pp_teleop_entry.hpp"
@@ -495,7 +496,7 @@ int main(int argc, char** argv) {
         if (!a3_pingpong::build_src_to_sdk(policy.joint_names(), mapping))
           throw std::runtime_error("serve Stand joint mapping invalid");
         const double offset = a3_pingpong::ServeStandLateralOffset(
-            a3_pingpong::to_sdk_order(policy.default_q(), mapping), timeline.complete().q_sdk);
+            a3_pingpong::official_stand_q_sdk(), timeline.complete().q_sdk);
         if (timeline.segments().present && !Has(argc, argv, "--kernel-mode") && !Has(argc, argv, "--serve-only")) timeline.segments().RequirePolicy(
             policy.deploy_policy_sha256(), a3_pingpong::PpSha256::File((directory / "params/deploy.yaml").string()));
         std::cout << "SERVE_STAND_VALID lateral_offset_rad=" << offset << '\n';
