@@ -105,6 +105,34 @@ def valid_racket_packet():
 
 
 class SchemaDecodeTests(unittest.TestCase):
+    def test_dynamic_plane_commands_are_visible_to_observer(self):
+        values = valid_racket_packet()
+        values[0] = 5.0
+        values.extend([1234567890123456.0, 0.12, 1.0])
+        for mode in (1.0, 2.0):
+            values[21] = mode
+            packet = decode_racket_packet(values)
+            self.assertTrue(packet.valid)
+            self.assertEqual(packet.home_epoch, 1234567890123456)
+            self.assertEqual(packet.position_xyz, tuple(values[3:6]))
+        for index, invalid in ((19, 0.0), (20, float("nan")), (21, 0.0), (11, 1.0)):
+            malformed = values.copy()
+            malformed[index] = invalid
+            with self.assertRaises(DecodeError):
+                decode_racket_packet(malformed)
+
+    def test_shared_home_command_keeps_epoch_and_geometry(self):
+        values = valid_racket_packet()
+        values[0] = 4.0
+        values.append(1234567890123456.0)
+        packet = decode_racket_packet(values)
+        self.assertTrue(packet.valid)
+        self.assertEqual(packet.home_epoch, 1234567890123456)
+        self.assertEqual(packet.position_xyz, tuple(values[3:6]))
+        values[19] = 0.0
+        with self.assertRaises(DecodeError):
+            decode_racket_packet(values)
+
     def test_valid_base_decodes_clock_and_identity_fields(self):
         packet = decode_base_packet(valid_base_packet())
         self.assertTrue(packet.valid)

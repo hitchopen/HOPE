@@ -71,6 +71,8 @@ HDU_RUNTIME_PATTERNS = (
     ("RUNNER", "[a]3_deploy_onnx_ref_pingpong"),
     ("PLANNER", "(^|/)hope_planner_cpp_node([[:space:]]|$)"),
     ("BASE_RELAY", "[h]ope_base_pose_transport_relay"),
+    ("BASE_RELAY", "(^|/)hope-base-pose-transport-relay([[:space:]]|$)"),
+    ("TRANSPORT_GATEWAY", "(^|/)hope-transport-gateway([[:space:]]|$)"),
 )
 HDU_VENDOR_PATTERNS = (
     ("HAL", "[a]imrt_main_hal"),

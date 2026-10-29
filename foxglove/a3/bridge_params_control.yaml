@@ -10,6 +10,8 @@
     topic_whitelist:
       - "^/planner/diagnostics$"
       - "^/hope/field/status$"
+      - "^/hope/operations/status$"
+      - "^/hope/operations/telemetry_fault(_count)?$"
       - "^/hope/(observer_alive|session/.*|planner/.*|base/.*|ball/.*|command/.*|x_hit/.*|runner/.*|opponent/.*|lifecycle/.*|mocap/.*|system/(hdu_active|hdu_text|mdu_active|mdu_text))$"
       - "^/hope/safety/(estop_ready|estop_full_ready|estop_latched|estop_text)$"
       - "^/hope/ntp/(offset_ms|root_dispersion_ms|gate_pass|text)$"

@@ -12,14 +12,14 @@ import threading
 import json
 import time
 
-import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray, String
 from std_srvs.srv import Trigger
 from hope_monitor_core import read_ipv4_interface_signature
+from hope_operations_core import BoundedWorker, OperationsState, RosComponent, telemetry_callback
+from hope_operations_runtime import run_node
 
 from hope_command_core import (
     calibration_receipt_id,
@@ -29,7 +29,6 @@ from hope_command_core import (
 )
 from hope_observer_core import (
     DecodeError,
-    decode_base_packet,
     parse_planner_attempt,
     parse_positive_pid,
     parse_session_id,
@@ -37,16 +36,16 @@ from hope_observer_core import (
 )
 from hope_runner_control_core import (
     MAX_EXACT_FLOAT_INTEGER,
-    RunnerState,
     action_succeeded,
-    decode_runner_state,
     encode_runner_request,
     runner_session_fingerprint,
 )
 
 
-class HopeCommandProxy(Node):
+class CommandProxyModule(RosComponent):
     def _poll_dds_interfaces(self):
+        if getattr(self, "_shared_state", None) is not None and self._shared_state.admission.closed:
+            return
         current = read_ipv4_interface_signature()
         if current is None:
             return
@@ -57,21 +56,26 @@ class HopeCommandProxy(Node):
             # Existing Runner ownership and modes are unaffected.
             raise RuntimeError("Network interfaces changed; reconnecting command proxy DDS")
 
-    def __init__(self) -> None:
-        super().__init__("hope_command_proxy", start_parameter_services=False)
-        self._dds_interfaces = read_ipv4_interface_signature()
-        self.create_timer(1.0, self._poll_dds_interfaces)
-        self.declare_parameter(
+    def __init__(self, node, *, shared_state=None, watch_interfaces=True) -> None:
+        RosComponent.__init__(self, node)
+        self._shared_state = shared_state or OperationsState()
+        self._command_workers = BoundedWorker("hope-command", admission=self._shared_state.admission)
+        self._urgent_workers = BoundedWorker("hope-emergency", admission=self._shared_state.admission)
+        self._closed = False
+        if watch_interfaces:
+            self._dds_interfaces = read_ipv4_interface_signature()
+            self.create_timer(1.0, self._poll_dds_interfaces)
+        self._declare_parameter(
             "session_id_path", "/tmp/hope_model21800_session_id"
         )
-        self.declare_parameter("runtime_root", "/tmp/hope_real")
-        self.declare_parameter("planner_process_fragment", "hope_planner_cpp_node")
-        self.declare_parameter("x_hit_timeout_s", 5.0)
-        self.declare_parameter("runner_action_timeout_s", 2.0)
-        self.declare_parameter(
+        self._declare_parameter("runtime_root", "/tmp/hope_real")
+        self._declare_parameter("planner_process_fragment", "hope_planner_cpp_node")
+        self._declare_parameter("x_hit_timeout_s", 5.0)
+        self._declare_parameter("runner_action_timeout_s", 2.0)
+        self._declare_parameter(
             "calibration_service_v2", "/a3/calibration/recompute_ucb_robot_v2"
         )
-        self.declare_parameter(
+        self._declare_parameter(
             "calibration_service_v3", "/a3/calibration/recompute_ucb_robot_v3"
         )
         # Cross-host DDS discovery is fast on the original venue LAN but can
@@ -79,10 +83,10 @@ class HopeCommandProxy(Node):
         # Wi-Fi. Keep one transport-independent contract for both venues. The
         # calibration server itself may spend up to 30 s waiting for all ten
         # physical markers, so the proxy must not cancel it at 25 s.
-        self.declare_parameter("calibration_service_discovery_timeout_s", 20.0)
-        self.declare_parameter("calibration_timeout_s", 45.0)
-        self.declare_parameter("base_pose_timeout_s", 10.0)
-        self.declare_parameter("runner_state_stale_after_s", 1.5)
+        self._declare_parameter("calibration_service_discovery_timeout_s", 20.0)
+        self._declare_parameter("calibration_timeout_s", 45.0)
+        self._declare_parameter("base_pose_timeout_s", 10.0)
+        self._declare_parameter("runner_state_stale_after_s", 1.5)
 
         self._session_id_path = Path(
             str(self.get_parameter("session_id_path").value)
@@ -124,19 +128,13 @@ class HopeCommandProxy(Node):
 
         self._action_lock = threading.Lock()
         self._runner_request_lock = threading.Lock()
-        self._runner_state_condition = threading.Condition()
-        self._runner_state: RunnerState | None = None
-        self._runner_state_received_monotonic = 0.0
-        self._runner_state_error = "NO RUNNER STATE"
-        self._base_packet_condition = threading.Condition()
-        self._base_packet = None
-        self._base_packet_received_monotonic = 0.0
-        self._base_packet_error = "NO BASE POSE"
+        self._runner_state_condition = self._shared_state.runner.condition
+        self._base_packet_condition = self._shared_state.base.condition
         self._runner_request_id = time.time_ns() & (MAX_EXACT_FLOAT_INTEGER - 1)
         if self._runner_request_id == 0:
             self._runner_request_id = 1
         self._callback_group = ReentrantCallbackGroup()
-        self.declare_parameter("calibration_service_stickers_v3", "/a3/calibration/recompute_p1")
+        self._declare_parameter("calibration_service_stickers_v3", "/a3/calibration/recompute_p1")
         self._calibration_clients = {
             profile: self.create_client(
                 Trigger,
@@ -166,32 +164,36 @@ class HopeCommandProxy(Node):
         self._publish_calibration_status(
             False, "WAITING FOR SAVED CALIBRATION AND LIVE BASE RECEIPT"
         )
-        self.create_subscription(String, "/hope/field/status", self._field_status_callback,
-                                 10, callback_group=self._callback_group)
+        if shared_state is None:
+            self.create_subscription(String, "/hope/field/status", self._field_status_callback,
+                                     10, callback_group=self._callback_group)
+        else:
+            self.create_timer(0.5, self._poll_field_status)
         self._runner_request_publisher = self.create_publisher(
             Float64MultiArray,
             "/hope/runner/control_request_hdu_flat",
             10,
         )
-        self._runner_state_subscription = self.create_subscription(
-            Float64MultiArray,
-            "/hope/runner/state_hdu_flat",
-            self._runner_state_callback,
-            10,
-            callback_group=self._callback_group,
-        )
-        self._base_pose_subscription = self.create_subscription(
-            Float64MultiArray,
-            "/a3/base_pose_flat",
-            self._base_pose_callback,
-            10,
-            callback_group=self._callback_group,
-        )
+        if shared_state is None:
+            self._runner_state_subscription = self.create_subscription(
+                Float64MultiArray,
+                "/hope/runner/state_hdu_flat",
+                self._runner_state_callback,
+                10,
+                callback_group=self._callback_group,
+            )
+            self._base_pose_subscription = self.create_subscription(
+                Float64MultiArray,
+                "/a3/base_pose_flat",
+                self._base_pose_callback,
+                10,
+                callback_group=self._callback_group,
+            )
         self._calibration_services = {
             profile: self.create_service(
                 Trigger,
                 f"/hope/calibrate_{profile.lower()}",
-                self._calibration_callback(profile),
+                self._worker_callback(self._calibration_callback(profile), self._command_workers),
                 callback_group=self._callback_group,
             )
             for profile in ("STICKERS_V3", "V2", "V3")
@@ -199,14 +201,16 @@ class HopeCommandProxy(Node):
         self._refresh_service = self.create_service(
             Trigger,
             "/hope/refresh_x_hit",
-            self._refresh_x_hit,
+            self._worker_callback(self._refresh_x_hit, self._command_workers),
             callback_group=self._callback_group,
         )
         self._runner_services = {
             service_name: self.create_service(
                 Trigger,
                 f"/hope/runner/{service_name}",
-                self._runner_action_callback(action_name),
+                self._worker_callback(self._runner_action_callback(action_name),
+                                      self._urgent_workers if action_name == "EMERGENCY_PASSIVE"
+                                      else self._command_workers),
                 callback_group=self._callback_group,
             )
             for service_name, action_name in (
@@ -229,35 +233,43 @@ class HopeCommandProxy(Node):
         )
 
     def _runner_state_callback(self, message: Float64MultiArray) -> None:
-        try:
-            state = decode_runner_state(message.data)
-        except DecodeError as exc:
-            with self._runner_state_condition:
-                self._runner_state_error = f"MALFORMED RUNNER STATE: {exc}"
-                self._runner_state_condition.notify_all()
-            return
-        with self._runner_state_condition:
-            self._runner_state = state
-            self._runner_state_received_monotonic = time.monotonic()
-            self._runner_state_error = ""
-            self._runner_state_condition.notify_all()
+        self._shared_state.runner.update(message.data)
+
+    @telemetry_callback
+    def _poll_field_status(self):
+        status = self._shared_state.field_status()
+        if status is not None:
+            self._apply_field_status(status.parsed)
 
     def _field_status_callback(self, message: String) -> None:
-        # The saved receipt survives Runner sessions. Success here means that
-        # the current live base actually uses that saved receipt, not a new fit.
+        # The standalone entry point still receives the external JSON wire.
         if self._action_lock.locked():
             return
         try:
-            metadata = json.loads(message.data).get("calibration")
+            parsed = json.loads(message.data)
+        except (ValueError, TypeError, AttributeError):
+            self._publish_calibration_status(False, "INVALID SAVED CALIBRATION STATUS")
+            return
+        self._apply_field_status(parsed)
+
+    def _apply_field_status(self, status) -> None:
+        # The saved receipt survives Runner sessions. Success here means that
+        # the current live base actually uses that saved receipt, not a new fit.
+        # Retain every poll: unchanged metadata can acquire/lose a live receipt.
+        if self._action_lock.locked():
+            return
+        try:
+            metadata = status.get("calibration")
             if not metadata:
                 self._publish_calibration_status(False, "NO SAVED CALIBRATION")
                 return
             expected = calibration_receipt_id(metadata["sha256"])
             with self._base_packet_condition:
-                packet = self._base_packet
+                snapshot = self._shared_state.base.snapshot()
+                packet = snapshot.value
                 valid = (packet is not None and packet.valid
                          and packet.calibration_id == expected
-                         and time.monotonic() - self._base_packet_received_monotonic <= 1.0)
+                         and time.monotonic() - snapshot.received_ns * 1e-9 <= 1.0)
             self._publish_calibration_status(
                 valid, f"SAVED {metadata['name']} · " +
                 ("LIVE RECEIPT VALID" if valid else "WAITING FOR MATCHING LIVE BASE"),
@@ -266,18 +278,7 @@ class HopeCommandProxy(Node):
             self._publish_calibration_status(False, "INVALID SAVED CALIBRATION STATUS")
 
     def _base_pose_callback(self, message: Float64MultiArray) -> None:
-        try:
-            packet = decode_base_packet(message.data)
-        except DecodeError as exc:
-            with self._base_packet_condition:
-                self._base_packet_error = f"MALFORMED BASE POSE: {exc}"
-                self._base_packet_condition.notify_all()
-            return
-        with self._base_packet_condition:
-            self._base_packet = packet
-            self._base_packet_received_monotonic = time.monotonic()
-            self._base_packet_error = "" if packet.valid else packet.reason
-            self._base_packet_condition.notify_all()
+        self._shared_state.base.update(message.data)
 
     def _next_runner_request_id(self) -> int:
         with self._runner_request_lock:
@@ -324,7 +325,8 @@ class HopeCommandProxy(Node):
             deadline = time.monotonic() + self._runner_action_timeout_s
             with self._runner_state_condition:
                 while True:
-                    state = self._runner_state
+                    snapshot = self._shared_state.runner.snapshot()
+                    state = snapshot.value
                     if state is not None and state.last_action_id == request_id:
                         response.success = action_succeeded(
                             state.last_action_result
@@ -343,7 +345,7 @@ class HopeCommandProxy(Node):
                         response.message = (
                             f"request={request_id} action={action_name} not confirmed "
                             f"within {self._runner_action_timeout_s:.1f}s; "
-                            f"{self._runner_state_error or 'latest Runner state did not acknowledge it'}"
+                            f"{snapshot.error or 'latest Runner state did not acknowledge it'}"
                         )
                         return response
                     self._runner_state_condition.wait(timeout=remaining)
@@ -381,9 +383,10 @@ class HopeCommandProxy(Node):
 
     def _runner_pd_stand_error(self, session_id: str) -> str:
         with self._runner_state_condition:
-            state = self._runner_state
-            received = self._runner_state_received_monotonic
-            state_error = self._runner_state_error
+            snapshot = self._shared_state.runner.snapshot()
+            state = snapshot.value
+            received = snapshot.received_ns * 1e-9
+            state_error = snapshot.error
         if (
             state is None
             or received <= 0.0
@@ -425,8 +428,9 @@ class HopeCommandProxy(Node):
         deadline = time.monotonic() + self._base_pose_timeout_s
         with self._base_packet_condition:
             while True:
-                packet = self._base_packet
-                received = self._base_packet_received_monotonic
+                snapshot = self._shared_state.base.snapshot()
+                packet = snapshot.value
+                received = snapshot.received_ns * 1e-9
                 if (
                     packet is not None
                     and packet.valid
@@ -439,7 +443,7 @@ class HopeCommandProxy(Node):
                 if remaining <= 0.0:
                     raise TimeoutError(
                         "new calibration receipt was not observed in fresh "
-                        f"/a3/base_pose_flat: {self._base_packet_error or 'receipt mismatch'}"
+                        f"/a3/base_pose_flat: {snapshot.error or 'receipt mismatch'}"
                     )
                 self._base_packet_condition.wait(timeout=remaining)
 
@@ -586,20 +590,41 @@ class HopeCommandProxy(Node):
         finally:
             self._action_lock.release()
 
+    def stop_accepting(self):
+        self._shared_state.admission.seal()
+        self._command_workers.stop_accepting()
+        self._urgent_workers.stop_accepting()
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        self.stop_accepting()
+        self._command_workers.close()
+        self._urgent_workers.close()
+
+    def quiescent(self):
+        return not (self._command_workers.busy or self._urgent_workers.busy
+                    or self._action_lock.locked())
+
+
+class HopeCommandProxy(Node, CommandProxyModule):
+    """Compatibility entry point; composition injects its Node into the module."""
+    def __init__(self):
+        Node.__init__(self, "hope_command_proxy", start_parameter_services=False)
+        CommandProxyModule.__init__(self, self)
+
+    def destroy_node(self):
+        try:
+            self.close()
+        finally:
+            self._shared_state.admission.close()
+            result = Node.destroy_node(self)
+        return result
+
 
 def main() -> None:
-    rclpy.init()
-    node = HopeCommandProxy()
-    executor = MultiThreadedExecutor(num_threads=4)
-    executor.add_node(node)
-    try:
-        executor.spin()
-    except (KeyboardInterrupt, ExternalShutdownException):
-        pass
-    finally:
-        executor.shutdown()
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(HopeCommandProxy)
 
 
 if __name__ == "__main__":

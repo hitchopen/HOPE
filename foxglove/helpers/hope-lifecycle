@@ -29,7 +29,8 @@ readonly HDU_WS="${HOPE_HDU_WS:-$HOME/hope_ws}"
 readonly LAPTOP_SESSION=hope-optitrack
 readonly HDU_BASE_SESSION=hope-base
 readonly HDU_PLANNER_SESSION=hope-planner
-readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport
+readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport # legacy cleanup only
+readonly HDU_TRANSPORT_GATEWAY_SESSION=hope-transport-gateway
 readonly MDU_ELINK_SESSION=hope-elink
 readonly MDU_HAL_SESSION=hope-hal
 readonly MDU_RUNNER_SESSION=hope-runner
@@ -651,10 +652,14 @@ preflight_hdu() {
   require_user "$ROBOT_USER" PREFLIGHT
   python3 "$(dirname "$SELF")/hope_wifi_policy.py" check || \
     die PREFLIGHT WIFI_POLICY_NOT_READY
+  tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" && \
+    die PREFLIGHT MANAGED_TRANSPORT_GATEWAY_PRESENT
   tmux_exists "$HDU_BASE_SESSION" && die PREFLIGHT MANAGED_BASE_PRESENT
   tmux_exists "$HDU_PLANNER_SESSION" && die PREFLIGHT MANAGED_PLANNER_PRESENT
   tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
     die PREFLIGHT MANAGED_RUNNER_TRANSPORT_PRESENT
+  pgrep -u "$ROBOT_USER" -f '[h]ope-transport-gateway' >/dev/null && \
+    die PREFLIGHT UNMANAGED_TRANSPORT_GATEWAY_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope_world.launch.py' >/dev/null && die PREFLIGHT UNMANAGED_BASE_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope-base-pose-transport-relay' >/dev/null && \
     die PREFLIGHT UNMANAGED_BASE_RELAY_PRESENT
@@ -663,8 +668,8 @@ preflight_hdu() {
   pgrep -u "$ROBOT_USER" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)' >/dev/null && \
     die PREFLIGHT UNMANAGED_PLANNER_PRESENT
   if [[ "$FIELD_MODE" == KERNEL ]]; then
-    [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
-      die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+    [[ -x /usr/local/libexec/hope-transport-gateway ]] || \
+      die PREFLIGHT TRANSPORT_GATEWAY_MISSING
     [[ -r /opt/ros/jazzy/setup.bash ]] || die PREFLIGHT ROS_MISSING
     [[ -x "$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh" ]] || \
       die PREFLIGHT DDS_WRAPPER_MISSING
@@ -681,8 +686,8 @@ preflight_hdu() {
     die PREFLIGHT HDU_OVERLAY_MISSING
   [[ -x /usr/local/libexec/hope-base-pose-transport-relay ]] || \
     die PREFLIGHT BASE_TRANSPORT_RELAY_MISSING
-  [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
-    die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+  [[ -x /usr/local/libexec/hope-transport-gateway ]] || \
+    die PREFLIGHT TRANSPORT_GATEWAY_MISSING
   static_peers="$(network_static_peers)" || \
     die PREFLIGHT HDU_DDS_PEERS_INVALID
   static_peer_list_contains "$static_peers" "$LAPTOP_WIFI_IP" || \
@@ -1070,7 +1075,7 @@ run_base() {
   } > "$hdu_dir/artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
-    python3 /usr/local/libexec/hope-base-pose-transport-relay \
+    /usr/local/libexec/hope-base-pose-transport-relay \
     > >(tee -a "$hdu_dir/base_relay.log") 2>&1
 }
 
@@ -1088,7 +1093,7 @@ start_base() {
   for attempt in {1..20}; do
     if tmux_exists "$HDU_BASE_SESSION" && \
        pgrep -u "$ROBOT_USER" -f \
-         '^python3 /usr/local/libexec/hope-base-pose-transport-relay([[:space:]]|$)' \
+         '^/usr/local/libexec/hope-base-pose-transport-relay([[:space:]]|$)' \
          >/dev/null; then
       emit BASE_RELAY COMPLETE HDU_TRANSPORT_RELAY_RUNNING
       return 0
@@ -1100,8 +1105,8 @@ start_base() {
   die BASE_RELAY HDU_TRANSPORT_RELAY_START_FAILED
 }
 
-run_runner_transport() {
-  require_user "$ROBOT_USER" RUNNER_TRANSPORT
+run_transport_gateway() {
+  require_user "$ROBOT_USER" TRANSPORT_GATEWAY
   set +u
   source /opt/ros/jazzy/setup.bash
   if [[ "$FIELD_MODE" != KERNEL ]]; then
@@ -1113,41 +1118,44 @@ run_runner_transport() {
   {
     date -u --iso-8601=seconds
     uname -a
-    sha256sum /usr/local/libexec/hope-runner-transport-relay
-  } > "$hdu_dir/runner_transport_artifact_sha256.txt"
+    sha256sum /usr/local/libexec/hope-transport-gateway
+  } > "$hdu_dir/transport_gateway_artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+  # One dual-homed participant retains the existing Fast DDS peer/interface
+  # selection. Lifecycle starts it only after the field Runner exists.
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
-    /usr/local/libexec/hope-runner-transport-relay \
-    > >(tee -a "$hdu_dir/runner_transport_relay.log") 2>&1
+    /usr/local/libexec/hope-transport-gateway \
+    > >(tee -a "$hdu_dir/transport_gateway.log") 2>&1
 }
 
-start_runner_transport() {
-  require_user "$ROBOT_USER" RUNNER_TRANSPORT
-  tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
-    die RUNNER_TRANSPORT ALREADY_RUNNING
+start_transport_gateway() {
+  require_user "$ROBOT_USER" TRANSPORT_GATEWAY
+  tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" && \
+    die TRANSPORT_GATEWAY ALREADY_RUNNING
   local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
-  local relay_log="$hdu_dir/runner_transport_relay.log"
+  local relay_log="$hdu_dir/transport_gateway.log"
   local attempt log_start=1
-  # The log is append-only across relay restarts in the same Runner session.
+  # Base packets are not an admission requirement. Health is fresh Runner
+  # transport plus endpoints. The log is append-only across gateway restarts.
   # Only this attempt's output can establish readiness.
   if [[ -f "$relay_log" ]]; then
     log_start=$(( $(stat -c %s -- "$relay_log") + 1 ))
   fi
-  start_tmux "$HDU_RUNNER_TRANSPORT_SESSION" "$SELF" _run-runner-transport \
+  start_tmux "$HDU_TRANSPORT_GATEWAY_SESSION" "$SELF" _run-transport-gateway \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" || \
-    die RUNNER_TRANSPORT ALREADY_RUNNING
+    die TRANSPORT_GATEWAY ALREADY_RUNNING
   for ((attempt = 0; attempt < 60; attempt++)); do
     if [[ -r "$relay_log" ]] && \
-       tail -c "+$log_start" -- "$relay_log" | grep -F -- "RUNNER TRANSPORT HEALTHY" >/dev/null; then
-      emit RUNNER_TRANSPORT COMPLETE BIDIRECTIONAL_DDS_HEALTHY
+       tail -c "+$log_start" -- "$relay_log" | grep -F -- "TRANSPORT GATEWAY HEALTHY" >/dev/null; then
+      emit TRANSPORT_GATEWAY COMPLETE BIDIRECTIONAL_DDS_HEALTHY
       return 0
     fi
-    tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" || break
+    tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" || break
     sleep 0.25
   done
-  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
-  die RUNNER_TRANSPORT BIDIRECTIONAL_DDS_NOT_HEALTHY
+  stop_tmux "$HDU_TRANSPORT_GATEWAY_SESSION"
+  die TRANSPORT_GATEWAY BIDIRECTIONAL_DDS_NOT_HEALTHY
 }
 
 run_planner() {
@@ -1516,8 +1524,13 @@ stop_mdu() {
 
 stop_hdu() {
   require_user "$ROBOT_USER" PLANNER_BASE
-  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
-  emit RUNNER_TRANSPORT COMPLETE RUNNER_TRANSPORT_STOPPED
+  stop_tmux "$HDU_TRANSPORT_GATEWAY_SESSION"
+  emit TRANSPORT_GATEWAY COMPLETE TRANSPORT_GATEWAY_STOPPED
+  # Clean up sessions left by an older installation too.
+  if tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION"; then
+    stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
+    emit RUNNER_TRANSPORT COMPLETE RUNNER_TRANSPORT_STOPPED
+  fi
   stop_tmux "$HDU_PLANNER_SESSION"
   emit PLANNER COMPLETE PLANNER_STOPPED
   stop_tmux "$HDU_BASE_SESSION"
@@ -1700,7 +1713,7 @@ main() {
     start-laptop) start_laptop ;;
     reconnect-laptop) reconnect_laptop ;;
     start-base) start_base ;;
-    start-runner-transport) start_runner_transport ;;
+    start-transport-gateway) start_transport_gateway ;;
     start-planner) start_planner ;;
     start-hal) start_hal ;;
     start-runner) start_runner ;;
@@ -1711,7 +1724,7 @@ main() {
     collect) collect_logs ;;
     _run-laptop) run_laptop ;;
     _run-base) run_base ;;
-    _run-runner-transport) run_runner_transport ;;
+    _run-transport-gateway) run_transport_gateway ;;
     _run-planner) run_planner ;;
     _run-elink) run_elink ;;
     _run-hal) run_hal ;;
