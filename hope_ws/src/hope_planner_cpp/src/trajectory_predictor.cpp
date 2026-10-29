@@ -170,9 +170,9 @@ StrikeTarget TrajectoryPredictor::predict(
       output.ball_velocity = Vec3(vx_cross, vy_cross, vz_cross);
       output.strike_source_time_s = t_cross;
       output.predicted_bounces = bounces - (crossing_before_bounce ? 1 : 0);
-      const bool dead_ball = pz_cross < 0.05 && vz_cross < 0.0;
-      output.valid = !dead_ball;
-      output.reason = dead_ball ? "dead_ball" : "prediction_valid";
+      // Reach admission is separate from the geometric crossing prediction.
+      output.valid = true;
+      output.reason = "prediction_valid";
       return output;
     }
 
@@ -410,10 +410,9 @@ StrikeTarget TrajectoryPredictor::predict_with_spin(
       output.ball_velocity = crossing_velocity;
       output.strike_source_time_s = crossing_time;
       output.predicted_bounces = bounces - (crossing_before_bounce ? 1 : 0);
-      const bool dead_ball =
-          crossing_position.z() < 0.05 && crossing_velocity.z() < 0.0;
-      output.valid = !dead_ball;
-      output.reason = dead_ball ? "dead_ball" : "prediction_valid";
+      // A low descending crossing can still precede physical table contact.
+      output.valid = true;
+      output.reason = "prediction_valid";
       return output;
     }
 
