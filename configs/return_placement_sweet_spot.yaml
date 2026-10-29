@@ -1,0 +1,13 @@
+# Table landing region from the supplied placement map, page 2.
+# Coordinates: x from the robot-side table edge, y from its left sideline.
+# This selects a placement objective; it does not claim an optimal region.
+# Reward enablement and weights are deliberately separate from this bank identity.
+schema_version: 1
+id: table_return_sweet_spot_v1
+frame: table_near_left
+units: m
+x_range: [2.24, 2.44]
+y_range: [-0.575, -0.425]
+surface_z: 0.0
+target_policy: fixed_center
+boundary: inclusive

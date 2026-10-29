@@ -7,7 +7,7 @@ from types import SimpleNamespace as NS
 import pytest
 import torch
 
-from stationary_test_support import PKG, recipe, load
+from test_complete_hold_robustness import PKG, recipe, load
 
 
 tracking = load('strike_position_kernel', PKG/'utils/task_tracking.py')
@@ -118,16 +118,14 @@ def test_legacy_strike_window_logs_real_debt_and_blended_position_returns(monkey
     update()
     raw = debt(env, **terms.racket_exact_position_debt.params)
     torch.testing.assert_close(cmd.metrics['exact_position_debt_raw'], raw)
-    torch.testing.assert_close(cmd.metrics['exact_position_debt_weighted'], terms.racket_exact_position_debt.weight*raw)
+    torch.testing.assert_close(cmd.metrics['exact_position_debt_weighted'], -2.*raw)
     assert cmd.metrics['exact_position_debt_active_forehand'].eq(1).all()
     assert cmd.metrics['exact_position_debt_active_backhand'].eq(1).all()
-    expected_pos = terms.racket_position.weight*.02*tracking.tracking_kernel(
-        torch.full((2,), .115**2), terms.racket_position.params['std'],
-        terms.racket_position.params['tail_blend'])
+    expected_pos = 14.*.02*tracking.tracking_kernel(torch.full((2,), .115**2), .15, .2)
     torch.testing.assert_close(cmd._position_guidance_event_acc, expected_pos)
     cmd.time_to_strike.fill_(-.02)
     update()
-    torch.testing.assert_close(cmd.metrics['exact_position_debt_event_return'], .02*terms.racket_exact_position_debt.weight*raw)
+    torch.testing.assert_close(cmd.metrics['exact_position_debt_event_return'], -.04*raw)
 
 
 def test_inactive_legacy_recipe_does_not_emit_new_reward_telemetry():
@@ -140,9 +138,9 @@ def test_inactive_legacy_recipe_does_not_emit_new_reward_telemetry():
 
 def test_new_reward_identity_keeps_balanced_algorithm_guard_and_same_question_bank():
     cfg = recipe()['task']
-    assert cfg['build_contract']['reward_revision'] == 'actual_complete_hold_v11_stationary_reach_v4'
+    assert cfg['build_contract']['reward_revision'] == 'actual_complete_hold_v11_strike_position_v2'
     assert cfg['racket']['strike_success_pos_thresh'] == .075
-    assert cfg['racket']['venue_tuple_bank_sha256'] == '02619e747333980a6f1d48aa3a9c7896e15727cf95cd3f51eb387d7687c4b419'
+    assert cfg['racket']['venue_tuple_bank_sha256'] == 'a662f64b9cf6e46ff30ab58278f0c0b14679beb955780d0462e891fd26278e16'
     guard = load('strike_position_balanced', PKG/'utils/balanced_hold_contract.py')
     with pytest.raises(ValueError, match='direct temporal actor refinement'):
         guard.validate_balanced_hold_algorithm(cfg['build_contract']['reward_revision'], {'settled_aux_enabled':True})

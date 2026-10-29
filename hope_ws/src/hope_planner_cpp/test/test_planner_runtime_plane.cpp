@@ -19,6 +19,8 @@ class PlannerRuntimePlane : public ::testing::Test {
     state_dir = std::filesystem::temp_directory_path() / ("hope-scale-test-" + std::to_string(getpid()));
     std::filesystem::remove_all(state_dir);
     std::filesystem::create_directory(state_dir);
+    opts.arguments({"--ros-args", "--params-file",
+                    std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml"});
     opts.append_parameter_override("hit_speed_scale_state_file", (state_dir / "scale.state").string());
     opts.append_parameter_override("racket_flat_schema", 4);
     opts.append_parameter_override("session_home_input_topic", "/test/runtime_home");

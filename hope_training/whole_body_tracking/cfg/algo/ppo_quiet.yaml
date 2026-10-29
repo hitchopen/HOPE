@@ -1,0 +1,13 @@
+defaults:
+  - ppo
+  - _self_
+
+algorithm:
+  settled_aux_enabled: true
+  # 64 control steps/update: start at 7000, full strength at 9000.
+  settled_aux_start_steps: 448000
+  settled_aux_ramp_steps: 128000
+  settled_aux_smooth_coef: 0.01
+  # q_des-q is diagnostic only; actual posture is optimized through PPO return.
+  settled_aux_tracking_coef: 0.0
+  settled_aux_gradient_ratio_max: 0.05

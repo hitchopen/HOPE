@@ -1,0 +1,43 @@
+# v7: physically finish in the selected ready pose at the commanded station.
+defaults:
+  - HOPEPingPongTaskReference
+  - _self_
+
+motion:
+  # No mandatory wait: next-command arrivals can interrupt recovery immediately.
+  post_wrap_min_hold: 0
+  post_wrap_hold_jitter_steps: 0
+  interruptible_recovery_enabled: true
+  recovery_window_steps_range: [40, 60]  # settling horizon, NOT a release gate
+  next_ball_delay_steps_range: [0, 80]   # independent exogenous availability
+  next_ball_immediate_prob: 0.25        # retain uninterrupted rapid-rally samples
+
+rewards:
+  # Waist deadband and PD support offset semantics stay as in v6.1.
+  actual_task_pose_torso_margin: 0.0174532925  # 1 degree
+  actual_task_pose_torso_std: 0.06
+  actual_ready_legs_weight: -0.4
+  actual_ready_legs_knee_margin: 0.0872664626  # 5 degrees around selected 20 degrees
+  actual_ready_legs_knee_std: 0.1745329252
+  actual_ready_legs_height_margin: 0.02       # selected pelvis height 1.06558 m
+  actual_ready_legs_height_std: 0.04
+  actual_ready_legs_start_steps: 448000
+  actual_ready_legs_ramp_steps: 128000
+  station_recovery_weight: -0.5
+  station_recovery_position_margin: 0.03
+  station_recovery_position_std: 0.10
+  station_recovery_velocity_margin: 0.05
+  station_recovery_velocity_std: 0.20
+  station_recovery_start_steps: 448000
+  station_recovery_ramp_steps: 128000
+  # Actual ankle velocity at a loaded, near-station HOLD. No PD/contact change.
+  loaded_ankle_quiet_weight: -0.03
+  loaded_ankle_quiet_margin: 0.08
+  loaded_ankle_quiet_std: 0.30
+  loaded_ankle_quiet_start_steps: 448000
+  loaded_ankle_quiet_ramp_steps: 128000
+
+build_contract:
+  reward_revision: actual_ready_recovery_v7
+  recovery_target_contract: current_command_station_v1
+  inter_ball_hold_contract: interruptible_recovery_next_ball_v1

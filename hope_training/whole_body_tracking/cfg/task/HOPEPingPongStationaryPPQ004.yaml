@@ -1,0 +1,30 @@
+# Default recipe 23: full PPQ004 returns aimed at the configured sweet spot.
+# Turning reward_enabled off preserves this same bank for a clean reward A/B.
+defaults:
+  - HOPEPingPongStationaryPPQ004General
+  - _self_
+
+ppq004_refit_manifest: outputs/stationary_ppq004_sweet_spot/training_overrides.yaml
+landing_objective: null  # Filled from the validated refit manifest.
+
+sweet_spot:
+  reward_enabled: true
+  distance_scale_m: 2.5
+  inside_bonus: 1.0
+  reward_weight: 30.0
+
+racket:
+  venue_tuple_bank_recipe_revision: 23
+  # Derived by prelaunch from the canonical reward controls and objective YAML.
+  sweet_spot_reward_enabled: null
+  sweet_spot_x_range: null
+  sweet_spot_y_range: null
+  sweet_spot_distance_scale_m: null
+  sweet_spot_inside_bonus: null
+
+rewards:
+  sweet_spot_landing_weight: null
+
+build_contract:
+  training_distribution_revision: stationary_reach_ppq004_sweet_spot_v1
+  reward_revision: actual_complete_hold_v11_stationary_sweet_spot_v1

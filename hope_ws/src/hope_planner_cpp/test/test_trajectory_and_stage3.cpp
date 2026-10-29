@@ -1,12 +1,13 @@
 #include "hope_planner_cpp/racket_target_planner.hpp"
 #include "hope_planner_cpp/trajectory_predictor.hpp"
+#include "hope_planner_cpp/return_physics_yaml.hpp"
 
 #include <gtest/gtest.h>
 
 namespace hope_planner_cpp {
 namespace {
 
-TEST(TrajectoryAndStage3, MatchesThePythonScalarReference) {
+TEST(TrajectoryAndStage3, PreservesIncomingReferenceAndSolvesFullReturn) {
   // Golden values use the 2026-08-23/24 engineering physics candidate.
   BallPhysics physics;
   physics.drag_k = 0.1317;
@@ -18,6 +19,8 @@ TEST(TrajectoryAndStage3, MatchesThePythonScalarReference) {
   config.delta_t_flight = 0.5;
   config.adaptive_predict_horizon = true;
   config.max_predict_time_cap_s = 3.0;
+  load_return_physics_yaml(std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml",
+                           physics, config);
   TableParams table;
   TrajectoryPredictor predictor(physics, config, table);
   RacketTargetPlanner stage3(physics, config, table);
@@ -43,15 +46,14 @@ TEST(TrajectoryAndStage3, MatchesThePythonScalarReference) {
   ASSERT_TRUE(command.valid) << command.reason;
   EXPECT_TRUE(command.clears_net);
   EXPECT_FALSE(command.bypasses_net_posts);
-  EXPECT_NEAR(command.velocity.x(), 2.0019087745012918, 1e-8);
-  EXPECT_NEAR(command.velocity.y(), -0.27676397921076445, 1e-8);
-  EXPECT_NEAR(command.velocity.z(), 0.50034781141521933, 1e-8);
-  EXPECT_NEAR(command.normal.x(), 0.96154701177380075, 1e-8);
-  EXPECT_NEAR(command.normal.y(), -0.13293391815170605, 1e-8);
-  EXPECT_NEAR(command.normal.z(), 0.24032460871435926, 1e-8);
-  EXPECT_NEAR(command.outgoing_ball_velocity.x(), 4.3617531685177013, 1e-8);
-  EXPECT_NEAR(command.outgoing_ball_velocity.y(), -0.72505081770656621, 1e-8);
-  EXPECT_NEAR(command.outgoing_ball_velocity.z(), 1.8303172614475833, 1e-8);
+  const auto forward = stage3.evaluate_return(strike, command.velocity);
+  ASSERT_TRUE(forward.valid);
+  EXPECT_LE((forward.bounce_position - Vec3(config.target_land.x(), config.target_land.y(),
+                                           physics.radius)).norm(), config.return_position_tolerance_m);
+  EXPECT_NEAR(forward.flight_time_s, config.delta_t_flight, config.return_time_tolerance_s);
+  EXPECT_EQ(command.outgoing_ball_velocity, forward.outgoing_velocity);
+  EXPECT_EQ(command.outgoing_ball_spin_rad_s, forward.outgoing_spin_rad_s);
+  EXPECT_GT(command.outgoing_ball_spin_rad_s.norm(), 0.0);
 }
 
 TEST(TrajectoryAndStage3, KeepsMathematicalNoCrossingInvalid) {
@@ -145,6 +147,8 @@ TEST(TrajectoryAndStage3, VenueGripSpinPathProducesFiniteCrossing) {
   EXPECT_TRUE(result.ball_position.allFinite());
   EXPECT_TRUE(result.ball_velocity.allFinite());
   EXPECT_EQ(result.predicted_bounces, 1);
+  EXPECT_TRUE(result.ball_spin_rad_s.allFinite());
+  EXPECT_GT((result.ball_spin_rad_s - Vec3(5.0, -35.0, 8.0)).norm(), 0.1);
   // Independent scalar Python port of contact_model.predict_contact plus the
   // 1 ms Stage-2 integrator. This anchors the full flight/contact/crossing
   // path, not merely finiteness of the C++ result.
@@ -155,6 +159,52 @@ TEST(TrajectoryAndStage3, VenueGripSpinPathProducesFiniteCrossing) {
   EXPECT_NEAR(result.ball_velocity.y(), 0.13378372389668103, 1.0e-9);
   EXPECT_NEAR(result.ball_velocity.z(), 0.049669376072277609, 1.0e-9);
   EXPECT_NEAR(result.strike_source_time_s, 123.39237824750332, 1.0e-10);
+}
+
+TEST(TrajectoryAndStage3, FullReturnRejectsMissingCoefficientsAndNonconvergence) {
+  BallPhysics physics;
+  PlannerConfig config;
+  StrikeTarget strike;
+  strike.valid = true;
+  strike.ball_position = Vec3(.1, -.7, .3);
+  strike.ball_velocity = Vec3(-2.0, .2, -1.0);
+  strike.ball_spin_rad_s = Vec3(20., -30., 10.);
+  const Vec3 target(2.2, -.7, 0.0);
+  const auto missing = RacketTargetPlanner(physics, config, {}).plan(strike, target, .5);
+  EXPECT_FALSE(missing.valid);
+  EXPECT_EQ(missing.reason, "full_return_parameters_invalid");
+  load_return_physics_yaml(std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml",
+                           physics, config);
+  config.return_newton_iterations = 1;
+  config.return_alternative_flight_times.clear();
+  const auto unfinished = RacketTargetPlanner(physics, config, {}).plan(strike, target, .5);
+  EXPECT_FALSE(unfinished.valid);
+  EXPECT_EQ(unfinished.reason, "full_return_solve_failed");
+}
+
+TEST(TrajectoryAndStage3, DisabledIncomingMagnusRetainsSpinForFullReturn) {
+  BallPhysics physics;
+  PlannerConfig config;
+  load_return_physics_yaml(std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml",
+                           physics, config);
+  BallState state;
+  state.valid = true;
+  state.position = Vec3(.8, -.7, .5);
+  state.velocity = Vec3(-3., .1, -.2);
+  const Vec3 spin(12., -24., 8.);
+  const auto strike = TrajectoryPredictor(physics, config, {}).predict_with_spin(
+      state, .7, spin, SpinPhysicsMode::kVenueGripBounce);
+  ASSERT_TRUE(strike.valid);
+  ASSERT_EQ(strike.predicted_bounces, 0);
+  EXPECT_EQ(strike.ball_spin_rad_s, spin);
+  const RacketTargetPlanner planner(physics, config, {});
+  const auto with_spin = planner.evaluate_return(strike, Vec3(2., .2, .8));
+  auto no_spin = strike;
+  no_spin.ball_spin_rad_s.setZero();
+  const auto zero = planner.evaluate_return(no_spin, Vec3(2., .2, .8));
+  ASSERT_TRUE(with_spin.valid);
+  ASSERT_TRUE(zero.valid);
+  EXPECT_GT((with_spin.bounce_position - zero.bounce_position).norm(), 1e-3);
 }
 
 TEST(TrajectoryAndStage3, ZeroEffectiveFutureBounceGainArrivesEarlier) {

@@ -53,3 +53,12 @@ def test_cuda_replay_parameter_changes_and_output_ownership():
             changed = predictor(p, v, w, prm, .76, 1.37, n_steps=steps)
             same(changed, vb.coarse_landing(p, v, w, prm, .76, 1.37, n_steps=steps))
             same(original, expected)
+
+
+def test_full_return_cannot_start_under_table_or_from_nonfinite_state():
+    prm = vb.load_venue_params()
+    p = torch.tensor([[.1, 0., .76], [.1, 0., float('nan')]], dtype=torch.float64)
+    v = torch.tensor([[3., 0., 3.], [3., 0., 3.]], dtype=torch.float64)
+    out = vb.coarse_landing(p, v, torch.zeros_like(v), prm, .76, 1.87, h=.01, n_steps=200)
+    assert not out['land_valid'].any()
+    assert not out['net_valid'].any()

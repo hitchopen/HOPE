@@ -1,24 +1,7 @@
-"""Tier-1 virtual-ball physics for the at-strike landing reward (rewardDesign.md).
+"""Vectorized YAML-selected paddle contact and RK4 flight to first table bounce.
 
-Vectorized torch port of the VENUE-FITTED ball model (``configs/ball_physics_venue.yaml``,
-2026-07-03 Avatar Pro fit on the 3.4 g coated MATCH ball):
-
-* flight:  a = g - k_d |v| v + k_m (omega x v)          (k_d = 0.1261, k_m = 0.00444)
-* paddle:  fitted spin-impulse contact (spin_contact.py form) with the F4-adopted
-  VELOCITY-DEPENDENT restitution e(u_n) = g1 * exp(g2 * |u_n|) instead of constant e
-  (report §4 F4: constant-e KILLED; exponential preferred for extrapolation).
-
-The landing predictor here is the COARSE, fixed-length, branch-free rollout mandated by
-verify_tier1-reward-soundness.md (b): RK4 at h = 10 ms with linear-interpolation crossing
-extraction — NOT the shipped ``predict_landing`` (h = 1 ms + 24-iter bisection), which is
-~15x too slow for the training step loop (+300 %/iter). Interp error at h = 10 ms is
-~0.5 mm, far below the sigma = 0.3 m landing kernel.
-
-Everything is per-env ``(N, 3)`` tensors and runs on the full batch every strike step
-(the cost is kernel-launch-bound, batch-size independent).
-
-Validity envelope of the constants (do not extrapolate silently): ball speed 1-7 m/s,
-spin 0-15 rev/s, paddle u_n 1.4-7.2 m/s. The samplers in hope_commands stay inside it.
+PPQ004 includes drag, gravity, Magnus and capped tangential impulse/spin transfer.
+Landing is the first descending ball-center crossing of surface + radius.
 """
 
 from __future__ import annotations
@@ -27,7 +10,13 @@ import os
 from dataclasses import dataclass
 
 import torch
-import yaml
+import importlib.util
+from pathlib import Path
+
+_profile_spec = importlib.util.spec_from_file_location(
+    "hope_virtual_ball_profile", Path(__file__).resolve().parents[6] / "scripts/ball_physics_profile.py")
+_profile = importlib.util.module_from_spec(_profile_spec)
+_profile_spec.loader.exec_module(_profile)
 
 _EPS = 1e-9
 
@@ -47,32 +36,30 @@ class VirtualBallParams:
     paddle_e_g1: float  # e(u_n) = g1 * exp(g2 * |u_n|)
     paddle_e_g2: float
     source_path: str
+    return_model: str = "legacy_venue"
+    restitution_min: float | None = None
+    restitution_max: float | None = None
+    integrate_dt_s: float = 0.01
+    max_predict_time_s: float = 1.0
+    net_clearance_margin: float = 0.0
+    numeric_epsilon: float = _EPS
+
+    def __post_init__(self):
+        if self.restitution_min is None or self.restitution_max is None:
+            model = _profile.load_profile(Path(__file__).resolve().parents[8] / _profile.DEFAULT_PROFILE)["return_model"]
+            object.__setattr__(self, "restitution_min", float(model["restitution_min"]))
+            object.__setattr__(self, "restitution_max", float(model["restitution_max"]))
 
 
 def default_venue_yaml_path() -> str:
-    """Resolve ``configs/ball_physics_venue.yaml`` (env override, then upward search)."""
-    env = os.environ.get("HOPE_BALL_PHYSICS_YAML")
-    if env:
-        return env
-    d = os.path.dirname(os.path.abspath(__file__))
-    while True:
-        cand = os.path.join(d, "configs", "ball_physics_venue.yaml")
-        if os.path.exists(cand):
-            return cand
-        parent = os.path.dirname(d)
-        if parent == d:
-            break
-        d = parent
-    raise FileNotFoundError(
-        "ball_physics_venue.yaml not found; set $HOPE_BALL_PHYSICS_YAML or place it at "
-        "<repo>/configs/ball_physics_venue.yaml"
-    )
+    """Resolve the default PPQ004 profile or an explicit environment override."""
+    return str(_profile.default_profile_path())
 
 
 def load_venue_params(path: str | None = None) -> VirtualBallParams:
     path = path or default_venue_yaml_path()
-    with open(path, "r") as fh:
-        raw = yaml.safe_load(fh)
+    raw = _profile.load_profile(path)
+    model = raw.get("return_model", {})
     pad = raw["contact"]["paddle"]
     return VirtualBallParams(
         k_d=float(raw["flight"]["k_d"]),
@@ -86,6 +73,13 @@ def load_venue_params(path: str | None = None) -> VirtualBallParams:
         paddle_e_g1=float(pad["e_exp_g1"]),
         paddle_e_g2=float(pad["e_exp_g2"]),
         source_path=os.path.abspath(path),
+        return_model=model.get("id", "legacy_venue"),
+        restitution_min=model.get("restitution_min"),
+        restitution_max=model.get("restitution_max"),
+        integrate_dt_s=float(model.get("integrate_dt_s", 0.01)),
+        max_predict_time_s=float(model.get("max_predict_time_s", 1.0)),
+        net_clearance_margin=float(model.get("net_clearance_margin", 0.0)),
+        numeric_epsilon=float(model.get("numeric_epsilon", _EPS)),
     )
 
 
@@ -93,13 +87,13 @@ def _normalize(v: torch.Tensor, eps: float = _EPS) -> torch.Tensor:
     return v / (torch.linalg.norm(v, dim=-1, keepdim=True) + eps)
 
 
-def orient_normal(n: torch.Tensor, v_minus: torch.Tensor, v_r: torch.Tensor) -> torch.Tensor:
+def orient_normal(n: torch.Tensor, v_minus: torch.Tensor, v_r: torch.Tensor, eps: float = _EPS) -> torch.Tensor:
     """Orient ``n`` per env so the incoming relative velocity approaches the face.
 
     Same as the v0 branch ``spin_contact.orient_normal``: flip where ``(v_minus - v_r) . n > 0``.
     The returned normal points from the face toward the incoming-ball side.
     """
-    n = _normalize(n)
+    n = _normalize(n, eps)
     approaching = torch.sum((v_minus - v_r) * n, dim=-1, keepdim=True) > 0.0
     return torch.where(approaching, -n, n)
 
@@ -120,7 +114,8 @@ def predict_paddle_contact(
     R = prm.ball_radius
     c = prm.inertia_coeff
 
-    n = orient_normal(n, v_minus, v_r)
+    eps = prm.numeric_epsilon
+    n = orient_normal(n, v_minus, v_r, eps)
     r = -R * n
 
     u = v_minus + torch.cross(omega_minus, r, dim=-1) - v_r
@@ -130,15 +125,15 @@ def predict_paddle_contact(
     u_n_abs = torch.abs(u_n_signed)                               # (N,1)
 
     # F4: velocity-dependent normal restitution (venue fit, valid u_n 1.4-7.2 m/s).
-    e_eff = (prm.paddle_e_g1 * torch.exp(prm.paddle_e_g2 * u_n_abs)).clamp(0.05, 0.95)
+    e_eff = (prm.paddle_e_g1 * torch.exp(prm.paddle_e_g2 * u_n_abs)).clamp(prm.restitution_min, prm.restitution_max)
 
-    cos_theta = u_n_abs / (torch.hypot(u_t_mag, u_n_signed) + _EPS)
+    cos_theta = u_n_abs / (torch.hypot(u_t_mag, u_n_signed) + eps)
     raw = (prm.paddle_a_t + prm.paddle_b_t * cos_theta) * u_t_mag
     cap = prm.paddle_mu * (1.0 + e_eff) * u_n_abs
     s = torch.clamp(raw, min=0.0).minimum(cap)
 
-    safe_dir = u_t_vec / (u_t_mag + _EPS)
-    delta_v_t = torch.where(u_t_mag > _EPS, -s * safe_dir, torch.zeros_like(u_t_vec))
+    safe_dir = u_t_vec / (u_t_mag + eps)
+    delta_v_t = torch.where(u_t_mag > eps, -s * safe_dir, torch.zeros_like(u_t_vec))
 
     delta_v_n = -(1.0 + e_eff) * u_n_signed * n
     delta_omega = -(1.0 / (c * R)) * torch.cross(n, delta_v_t, dim=-1)
@@ -176,8 +171,8 @@ def coarse_landing(
     prm: VirtualBallParams,
     surface_z: float,
     net_x: float,
-    h: float = 0.01,
-    n_steps: int = 100,
+    h: float | None = None,
+    n_steps: int | None = None,
 ) -> dict[str, torch.Tensor]:
     """Fixed-length branch-free rollout: first descending table-plane crossing + net-plane crossing.
 
@@ -190,24 +185,45 @@ def coarse_landing(
     The net collider itself is NOT simulated (v0 parity); the reward gates on the
     predicted clearance instead, so net-hitting shots score zero rather than bounce.
     """
+    import math
+    h = prm.integrate_dt_s if h is None else h
+    reverse_legacy = h < 0 and n_steps is not None and prm.return_model == "legacy_venue"
+    if h == 0 or (h < 0 and not reverse_legacy):
+        raise ValueError("Full return flight requires a positive step")
+    n_steps = math.ceil(prm.max_predict_time_s / h) if n_steps is None else n_steps
+    if n_steps < 1:
+        raise ValueError("Flight horizon must be positive")
+    if prm.return_model == "full_ppq004_first_bounce_v1":
+        surface_z += prm.ball_radius
     p, v = p0, v0
+    eligible = (torch.isfinite(p0).all(dim=-1) & torch.isfinite(v0).all(dim=-1)
+                & torch.isfinite(omega0).all(dim=-1))
+    if prm.return_model == "full_ppq004_first_bounce_v1":
+        eligible &= p0[:, 2] > surface_z
     landed = torch.zeros(p0.shape[0], dtype=torch.bool, device=p0.device)
     net_crossed = torch.zeros_like(landed)
-    land_xy = torch.zeros(p0.shape[0], 2, device=p0.device)
-    net_z = torch.zeros(p0.shape[0], device=p0.device)
+    land_xy = torch.zeros(p0.shape[0], 2, device=p0.device, dtype=p0.dtype)
+    net_z = torch.zeros(p0.shape[0], device=p0.device, dtype=p0.dtype)
+
+    net_y = torch.zeros_like(net_z)
 
     for _ in range(n_steps):
         p_new, v_new = rk4_step(p, v, omega0, h, prm)
 
-        # net-plane crossing (+x through net_x), only counts before landing
-        ncross = (~net_crossed) & (~landed) & (p[:, 0] < net_x) & (p_new[:, 0] >= net_x)
+        cross = eligible & (~landed) & (p[:, 2] > surface_z) & (p_new[:, 2] <= surface_z)
+        fz = ((p[:, 2] - surface_z) / (p[:, 2] - p_new[:, 2]).clamp(min=_EPS)).clamp(0.0, 1.0)
+        # Net events after the first table crossing, even within this step, do not count.
+        ncross = eligible & (~net_crossed) & (~landed) & (p[:, 0] < net_x) & (p_new[:, 0] >= net_x)
         fn = ((net_x - p[:, 0]) / (p_new[:, 0] - p[:, 0]).clamp(min=_EPS)).clamp(0.0, 1.0)
+        ncross &= (~cross) | (fn <= fz)
         z_at = p[:, 2] + (p_new[:, 2] - p[:, 2]) * fn
         net_z = torch.where(ncross, z_at, net_z)
+        y_at = p[:, 1] + (p_new[:, 1] - p[:, 1]) * fn
+        net_y = torch.where(ncross, y_at, net_y)
         net_crossed = net_crossed | ncross
 
         # first downward table-plane crossing
-        cross = (~landed) & (p[:, 2] > surface_z) & (p_new[:, 2] <= surface_z)
+        cross = eligible & (~landed) & (p[:, 2] > surface_z) & (p_new[:, 2] <= surface_z)
         fz = ((p[:, 2] - surface_z) / (p[:, 2] - p_new[:, 2]).clamp(min=_EPS)).clamp(0.0, 1.0)
         xy = p[:, :2] + (p_new[:, :2] - p[:, :2]) * fz.unsqueeze(-1)
         land_xy = torch.where(cross.unsqueeze(-1), xy, land_xy)
@@ -215,7 +231,7 @@ def coarse_landing(
 
         p, v = p_new, v_new
 
-    return {"land_xy": land_xy, "land_valid": landed, "net_z": net_z, "net_valid": net_crossed}
+    return {"land_xy": land_xy, "land_valid": landed, "net_z": net_z, "net_y": net_y, "net_valid": net_crossed}
 
 
 class CoarseLandingPredictor:
@@ -231,7 +247,7 @@ class CoarseLandingPredictor:
         self._key = None
         self._graph = None
 
-    def __call__(self, p0, v0, omega0, prm, surface_z, net_x, h=0.01, n_steps=100):
+    def __call__(self, p0, v0, omega0, prm, surface_z, net_x, h=None, n_steps=None):
         inputs = (p0, v0, omega0)
         if (p0.device.type != "cuda" or os.environ.get("HOPE_DISABLE_BALL_CUDA_GRAPH") == "1"
                 or (torch.is_grad_enabled() and any(t.requires_grad for t in inputs))):

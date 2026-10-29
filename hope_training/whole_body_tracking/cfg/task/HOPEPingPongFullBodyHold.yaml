@@ -1,0 +1,23 @@
+# v8: one actual full-body reference for HOLD; next ball always preempts recovery.
+defaults:
+  - HOPEPingPongReadyRecovery
+  - _self_
+
+rewards:
+  # Replaced together, not stacked on top of the old pose objectives.
+  hold_upper_pose_imitation_weight: 0.0
+  actual_task_pose_weight: 0.0
+  actual_ready_legs_weight: 0.0
+  # Avoid asking hip yaw/roll and ankles to match a different default pose.
+  ready_foot_alignment_weight: 0.0
+  full_body_hold_weight: 1.0
+  full_body_hold_start_steps: 448000
+  full_body_hold_ramp_steps: 128000
+  loaded_ankle_quiet_weight: 0.0
+  full_body_quiet_weight: -0.03
+  full_body_quiet_start_steps: 448000
+  full_body_quiet_ramp_steps: 128000
+
+build_contract:
+  reward_revision: actual_full_body_hold_v8
+  hold_pose_contract: actual_full_body_B32_5_K20_v1

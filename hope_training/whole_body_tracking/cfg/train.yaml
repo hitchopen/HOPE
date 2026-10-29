@@ -2,18 +2,19 @@
 # Main Hydra config for HOPE Agibot A3 training.
 #
 # Usage:
-#   python scripts/train.py task=HOPEPingPong algo=ppo headless=true
+#   python scripts/train.py headless=true
 #
 # Override any field on the CLI, e.g.:
-#   python scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1
+#   python scripts/train.py num_envs=2048 max_iterations=20000 seed=1
 #
-# Defaults retain HOPEPingPong + ppo. For the PPQ004 stationary recipe select
-# task=HOPEPingPongStationaryRally algo=ppo_balanced_hold.
+# The default selects PPQ004 stationary training with a validated recipe-23 sweet-spot bank.
+# Missing or mismatched refit bundles fail before Isaac starts. Explicit legacy task/algo
+# selections remain available; the published baseline checkpoint is still used by play.yaml.
 # =============================================================================
 
 defaults:
-  - task: HOPEPingPong
-  - algo: ppo
+  - task: HOPEPingPongStationaryPPQ004
+  - algo: ppo_balanced_hold
   - _self_
 
 headless: true
@@ -21,8 +22,8 @@ device: cuda:0
 seed: 0
 
 # When set, these override the task/algo defaults (null -> use the task/algo YAML value).
-num_envs: null
-max_iterations: null
+num_envs: 6144
+max_iterations: 30000
 
 # Reference motion clips. null -> use the complete Build clips configured in cfg/task/HOPEPingPong.yaml
 # (hope_forehand.npz + hope_backhand.npz). Pass local .npz paths to use your own clips:

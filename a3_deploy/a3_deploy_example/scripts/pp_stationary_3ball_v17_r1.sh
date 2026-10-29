@@ -251,6 +251,8 @@ setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null
   source '$WS/install/local_setup.bash' 2>/dev/null
   exec '$WS/install/hope_planner_cpp/lib/hope_planner_cpp/hope_planner_cpp_node' --ros-args \
     --params-file '$WS/src/hope_planner_cpp/config/model21800_hardware.yaml' \
+    --params-file '$WS/src/hope_planner_cpp/config/return_physics.yaml' \
+    --params-file '$PP_SELECTED_BALL_PROFILE' \
     -p base_pose_flat_input_topic:='' -p robot_pose_topic:=/UCB_P1/pose \
     -p publish_base_flat:=true \
     -p policy_z_offset:=0.760 -p fit_window:=26 \

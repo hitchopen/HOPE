@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "audited_at_utc": "2026-10-25T02:10:08.902154+00:00",
+  "status": "PASS",
+  "scope": "Offline recipe-23 first-bounce bank integrity, original physical constraints, and CPU launch/production-loader validation. No policy or hardware qualification.",
+  "bundle_directory": "/private/tmp/hope-ppq004-sweet-spot23-validated",
+  "source_directory": "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking/assets/stationary_reach_v4_ppq004_generalization_20261022",
+  "source_fork_revision": "9c4d6366ab7bd58b73baf98c06159e1ac51688d2",
+  "recipe_revision": 23,
+  "qualification": "full_ppq004_first_bounce_v1",
+  "training_distribution_revision": "stationary_reach_ppq004_sweet_spot_v1",
+  "reward_revision": "actual_complete_hold_v11_stationary_sweet_spot_v1",
+  "objective": {
+    "descriptor": {
+      "schema_version": 1,
+      "id": "table_return_sweet_spot_v1",
+      "frame": "table_near_left",
+      "units": "m",
+      "x_range": [
+        2.24,
+        2.44
+      ],
+      "y_range": [
+        -0.575,
+        -0.425
+      ],
+      "surface_z": 0.0,
+      "target_policy": "fixed_center",
+      "boundary": "inclusive",
+      "target_xy": [
+        2.34,
+        -0.5
+      ]
+    },
+    "training_frame": {
+      "frame": "training_env_local",
+      "x_range": [
+        2.74,
+        2.94
+      ],
+      "y_range": [
+        0.1875,
+        0.33749999999999997
+      ],
+      "target_xy": [
+        2.84,
+        0.26249999999999996
+      ],
+      "surface_z": 0.76
+    },
+    "yaml_sha256": "936cad0e9e723805b52a382a303ffe247623b32a5dff86636504329eb9fd25ff"
+  },
+  "dependencies": {
+    "physics_yaml_sha256": "534812e79464e4f5242d938880bc63f802f9d27c801be0a9816f7f0ba6457a3b",
+    "physics_source_hashes": {
+      "configs/ball_physics.yaml": "415c17116b73c2985a3be78be06cedce4788def1ccc388c7979235b3a3cae5e7",
+      "configs/ball_physics_ppq004_training.yaml": "534812e79464e4f5242d938880bc63f802f9d27c801be0a9816f7f0ba6457a3b",
+      "configs/ball_physics_venue.yaml": "69ae86353308aacfc009172cd26d2fee62ecc78f542a747bc46a93b9b6c2dfca",
+      "hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml": "6aaf01c98b91395bbf33faa966ea473ba001f5e0d136e5fd4b6638e2cba162a2",
+      "hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml": "6b508c036ba884bf4faa92fd2348de1823af3c3d076b54ca1c18f792c5e21898",
+      "hope_ws/src/hope_planner_cpp/config/return_physics.yaml": "2978e624d798eb982b4c04af775678c8c78d17bcc08b7ecd0b453f18b5d85e30"
+    },
+    "refitter_sha256": "079d46f63464660b94d158aa71551e7514ec4daab57872f2a0bfc1cfb8acd5f8",
+    "profile_loader_sha256": "5fea80d98fe81d0a9f0fe0c6797ab0383121720aba61a8e8456ff2a47c83c9e0",
+    "full_ball_model_sha256": "f5a3f02f19aeafd391a2d3112fc4743ee98958afc7af07000a401a9460cb456b",
+    "sweet_spot_profile_sha256": "af646979cd1857daf6badc4373f6ada2ee13dbd975a05e1cb821725134245f49"
+  },
+  "splits": {
+    "train": {
+      "source_rows": 502053,
+      "rows": 393930,
+      "sides": {
+        "forehand": 152409,
+        "backhand": 241521
+      },
+      "retained_fraction": 0.7846382752418569,
+      "bank_sha256": "44677ab0a988f5d62821bbf45bdb05c70be4de94866fe5dd93e21ba6e3abaa4d",
+      "receipt_sha256": "575adc82d9f06f65975c0b28b29aa8425b0c6a54dbeefc314616f48580067155",
+      "audit_sha256": "fe474a71adc5c96bcfbe7f0afa548221344fd5389fa72ad46b1ed0702ab0f7c1",
+      "source_bank_sha256": "02619e747333980a6f1d48aa3a9c7896e15727cf95cd3f51eb387d7687c4b419",
+      "source_receipt_sha256": "89c8e04874b0b9eff2b26192159d6f5988ff9e233f867ce3f6d12a70e047fd24",
+      "unique_parent_ids": 293224,
+      "generation_kind_counts": {
+        "0": 175520,
+        "1": 218410
+      },
+      "preserved_source_fields": [
+        "target_position_offset",
+        "incoming_velocity",
+        "incoming_spin",
+        "parent_id",
+        "clip",
+        "station_xy",
+        "source_kind",
+        "generation_kind"
+      ],
+      "preserved_old_intended_landing_xy": true,
+      "preserved_input_source_row_index": true,
+      "source_row_index_matches_full_audit_mask": true,
+      "all_targets_equal_float32_canonical_center": true,
+      "all_stored_landings_inside_region": true,
+      "all_stations_zero": true,
+      "all_arrays_finite": true,
+      "original_physical_bounds_unchanged_and_all_retained_pass": true,
+      "audit_forward_error_m_p50_p95_max": [
+        5.589731202286354e-07,
+        4.217773764827817e-05,
+        0.00010002569021688394
+      ],
+      "stored_float32_error_m_p50_p95_max": [
+        5.59934801699398e-07,
+        4.2167687024723534e-05,
+        0.00010005702669491204
+      ],
+      "generation_failure_counts_overlapping": {
+        "landing": 0,
+        "net": 0,
+        "incoming_bounce": 0,
+        "speed": 73,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 108123,
+        "planner": 0,
+        "landing_objective": 0
+      }
+    },
+    "dev": {
+      "source_rows": 61815,
+      "rows": 48318,
+      "sides": {
+        "forehand": 18380,
+        "backhand": 29938
+      },
+      "retained_fraction": 0.7816549381218151,
+      "bank_sha256": "c11d73120a3c979d5a1a9433b6a8a5079a7bdc1b25f9abfee576f0e32fca4c58",
+      "receipt_sha256": "fc183297496c76a479190bae51e1c5a673a9294d8cb18606289fe718aa83d1ca",
+      "audit_sha256": "27b5bde5095b66faf120922e7b09a331cab24e27aead96c8393ca7ab2086fdad",
+      "source_bank_sha256": "83d760d5e137af61af955eb63cd55c9aeb0934727e0cf89199089da6981088ab",
+      "source_receipt_sha256": "805790fc142f0a13fcec9c90e3daf0505b37fb316e2cef50e9fe79c1c8d6d543",
+      "unique_parent_ids": 36756,
+      "generation_kind_counts": {
+        "0": 20943,
+        "1": 27375
+      },
+      "preserved_source_fields": [
+        "target_position_offset",
+        "incoming_velocity",
+        "incoming_spin",
+        "parent_id",
+        "clip",
+        "station_xy",
+        "source_kind",
+        "generation_kind"
+      ],
+      "preserved_old_intended_landing_xy": true,
+      "preserved_input_source_row_index": true,
+      "source_row_index_matches_full_audit_mask": true,
+      "all_targets_equal_float32_canonical_center": true,
+      "all_stored_landings_inside_region": true,
+      "all_stations_zero": true,
+      "all_arrays_finite": true,
+      "original_physical_bounds_unchanged_and_all_retained_pass": true,
+      "audit_forward_error_m_p50_p95_max": [
+        6.148346112257836e-07,
+        4.3292039757553144e-05,
+        9.979488962805154e-05
+      ],
+      "stored_float32_error_m_p50_p95_max": [
+        6.143906154658885e-07,
+        4.323884289435149e-05,
+        9.980779524934851e-05
+      ],
+      "generation_failure_counts_overlapping": {
+        "landing": 0,
+        "net": 0,
+        "incoming_bounce": 0,
+        "speed": 4,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 13497,
+        "planner": 0,
+        "landing_objective": 0
+      }
+    },
+    "test": {
+      "source_rows": 62103,
+      "rows": 48555,
+      "sides": {
+        "forehand": 18746,
+        "backhand": 29809
+      },
+      "retained_fraction": 0.7818462876189556,
+      "bank_sha256": "1aeab0e4ab7ff314d533e802357432e3814281eca26094d62a7ac703d62b2c4e",
+      "receipt_sha256": "b45e7f338102e69a3b78bca1a311d1d0dd73c664ef3fc786d12b87ab70ab9806",
+      "audit_sha256": "8758e07fedfa6020ee150cbd8f4ad3235ddcc0046f60e6baf83285ddafd5e77a",
+      "source_bank_sha256": "ad035861193139f5e3dd2dfcdce2e59c081620899e29957b4359da683985d165",
+      "source_receipt_sha256": "c967c72642ab7a6c223b5ad7750f53d06cc1f2f8bb7e7dc5eb8a01d655f6163f",
+      "unique_parent_ids": 36364,
+      "generation_kind_counts": {
+        "0": 21476,
+        "1": 27079
+      },
+      "preserved_source_fields": [
+        "target_position_offset",
+        "incoming_velocity",
+        "incoming_spin",
+        "parent_id",
+        "clip",
+        "station_xy",
+        "source_kind",
+        "generation_kind"
+      ],
+      "preserved_old_intended_landing_xy": true,
+      "preserved_input_source_row_index": true,
+      "source_row_index_matches_full_audit_mask": true,
+      "all_targets_equal_float32_canonical_center": true,
+      "all_stored_landings_inside_region": true,
+      "all_stations_zero": true,
+      "all_arrays_finite": true,
+      "original_physical_bounds_unchanged_and_all_retained_pass": true,
+      "audit_forward_error_m_p50_p95_max": [
+        5.916576865921388e-07,
+        4.241750203453578e-05,
+        9.998532556510668e-05
+      ],
+      "stored_float32_error_m_p50_p95_max": [
+        5.870376707193913e-07,
+        4.240695851782365e-05,
+        0.0001000766245780089
+      ],
+      "generation_failure_counts_overlapping": {
+        "landing": 0,
+        "net": 0,
+        "incoming_bounce": 0,
+        "speed": 8,
+        "spin": 0,
+        "paddle_approach": 0,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 13548,
+        "planner": 0,
+        "landing_objective": 0
+      }
+    }
+  },
+  "parent_splits_disjoint": true,
+  "minimum_train_rows_per_side": 50000,
+  "launch_checks": {
+    "true": {
+      "configure_refitted_task": true,
+      "robust_training_contract": true,
+      "balanced_algorithm_contract": true,
+      "production_bank_loader": true,
+      "production_loader_rows": {
+        "forehand": 152409,
+        "backhand": 241521
+      },
+      "effective_reward_weight": 30.0,
+      "standalone_dry_run_exit_code": 0,
+      "standalone_dry_run_command": [
+        "/private/tmp/hope-isaac-review-venv/bin/python",
+        "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking/scripts/train_refitted_stationary.py",
+        "--overrides",
+        "/private/tmp/hope-ppq004-sweet-spot23-validated/training_overrides.yaml",
+        "--dry-run",
+        "task.sweet_spot.reward_enabled=true"
+      ],
+      "standalone_dry_run_stdout": "env HOPE_BALL_PHYSICS_YAML=/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/configs/ball_physics_ppq004_training.yaml /private/tmp/hope-isaac-review-venv/bin/python /Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking/scripts/train.py task=HOPEPingPongStationaryPPQ004 algo=ppo_balanced_hold 'task.ppq004_refit_manifest=\"/private/tmp/hope-ppq004-sweet-spot23-validated/training_overrides.yaml\"' task.sweet_spot.reward_enabled=true"
+    },
+    "false": {
+      "configure_refitted_task": true,
+      "robust_training_contract": true,
+      "balanced_algorithm_contract": true,
+      "production_bank_loader": true,
+      "production_loader_rows": {
+        "forehand": 152409,
+        "backhand": 241521
+      },
+      "effective_reward_weight": 0.0,
+      "standalone_dry_run_exit_code": 0,
+      "standalone_dry_run_command": [
+        "/private/tmp/hope-isaac-review-venv/bin/python",
+        "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking/scripts/train_refitted_stationary.py",
+        "--overrides",
+        "/private/tmp/hope-ppq004-sweet-spot23-validated/training_overrides.yaml",
+        "--dry-run",
+        "task.sweet_spot.reward_enabled=false"
+      ],
+      "standalone_dry_run_stdout": "env HOPE_BALL_PHYSICS_YAML=/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/configs/ball_physics_ppq004_training.yaml /private/tmp/hope-isaac-review-venv/bin/python /Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking/scripts/train.py task=HOPEPingPongStationaryPPQ004 algo=ppo_balanced_hold 'task.ppq004_refit_manifest=\"/private/tmp/hope-ppq004-sweet-spot23-validated/training_overrides.yaml\"' task.sweet_spot.reward_enabled=false"
+    }
+  },
+  "on_off_same_bank_objective_motion_action_algorithm_and_other_reward_weights": true,
+  "default_run": {
+    "num_envs": 6144,
+    "max_iterations": 30000,
+    "seed": 0,
+    "checkpoint_path": null,
+    "warm_start_actor_checkpoint": null
+  },
+  "reproduction": {
+    "audit_script_path": "/private/tmp/audit_sweet_spot23_bundle.py",
+    "audit_script_sha256": "21b104b29478b42a28c637ff17b62f68f452c00083c7c0079296372ca3537d36",
+    "audit_command": [
+      "/private/tmp/hope-isaac-review-venv/bin/python",
+      "/private/tmp/audit_sweet_spot23_bundle.py",
+      "--repo",
+      "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE",
+      "--bundle",
+      "/private/tmp/hope-ppq004-sweet-spot23-validated",
+      "--result",
+      "/private/tmp/sweet_spot_reward_validation.json"
+    ],
+    "generation_command": [
+      "/private/tmp/hope-isaac-review-venv/bin/python",
+      "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking/scripts/refit_stationary_reach_bank.py",
+      "--source",
+      "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking/assets/stationary_reach_v4_ppq004_generalization_20261022",
+      "--output",
+      "/private/tmp/hope-ppq004-sweet-spot23-validated",
+      "--physics",
+      "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/configs/ball_physics_ppq004_training.yaml",
+      "--landing-objective",
+      "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/configs/return_placement_sweet_spot.yaml",
+      "--threads",
+      "8"
+    ],
+    "generation_note": "Choose a fresh output directory; the refitter refuses to overwrite an existing bundle.",
+    "method": "All rows/splits checked against immutable source and audit mask. Production _load_venue_tuple_bank is executed through the AST harness in tests/test_complete_hold_robustness.py, with its pure robust module injected into sys.modules; no Isaac package is imported."
+  },
+  "cpu_training_suite": {
+    "passed": 546,
+    "skipped": 11,
+    "duration_s": 50.91,
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 NUMBA_NUM_THREADS=4 /private/tmp/hope-isaac-review-venv/bin/python -m pytest -q -rs -p no:cacheprovider tests --tb=short",
+    "working_directory": "/Users/yang/.codex/worktrees/nohope-isaac-training/HOPE/hope_training/whole_body_tracking",
+    "log": "/private/tmp/hope-sweet-spot-training-tests-final.log",
+    "log_sha256": "a47f7425e29bc4499537b59e1166f6adc5ab3e659d36507fb5013e74ea241353",
+    "skip_reasons": "Isaac Lab unavailable (1); CUDA unavailable (8); second GPU unavailable (2)."
+  },
+  "limitations": [
+    "This audit checks stored generated data and prior full-model qualification results; it does not rerun the full inverse on every retained row.",
+    "Generated recipe-23 NPZ files and checkpoints remain local and are not committed.",
+    "No new policy training, matched reward ON/OFF policy evaluation, Isaac/GPU training execution, or hardware test was performed.",
+    "The earlier firm-standing result is user-reported MuJoCo behavior, not a formal policy evaluation or proof of improvement from this reward."
+  ]
+}

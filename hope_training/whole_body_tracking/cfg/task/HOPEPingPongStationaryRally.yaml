@@ -1,689 +1,141 @@
-# Resolved PPQ004 stationary recipe from main_improve_2@9c4d6366a.
-# Standalone: preserve main default recipe and reproduce the training command.
-env:
-  num_envs: 6144
-  env_spacing: 2.5
-  episode_length_s: 12.0
-sim:
-  dt: 0.005
-  decimation: 4
+# v12 stationary rally: one immutable station, wide forehand/backhand reach,
+# B_32_5_K20 ready pose, slippery-floor priors. Same 110-D / 31-D ABI and both
+# original clips, so the CompleteHold actor can be warm-started.
+#
+# Why: the 2026-10-18 Gate3 stress run (model_11100) fell at ball 39 while being
+# commanded to walk 0.30-0.45 m sideways between balls; training itself ended
+# 17% of episodes in a fall because half of all questions demanded a station
+# step. The deployed robot does not need to move, so no question here moves the
+# station. Ball variety is answered by arm/torso reach inside the boxes below.
+defaults:
+  - HOPEPingPongCompleteHold
+  - _self_
+
+motion:
+  # v3: B_32_5_K20 is the stand/reset pose AND the affine action zero. "Do
+  # nothing" now means "hold the reference"; the hold-phase smoothing costs pull
+  # toward it instead of toward whatever pose the follow-through ended in.
+  hold_reference_path: cfg/references/hold_pose_B_32_5_K20.json
+  hold_reference_sha256: c17d7ef1371fc2bbf3e922946b5254d17c7ed0bd5ead053d472edfc1c2580e5f
+  hold_reference_sets_action_default: true
+  # Deploy announces balls 0.42-0.68 s ahead; keep the hard 0.35 s floor but
+  # spend more samples on the realistic range.
+  rally_pre_strike_s_range: [0.35, 0.95]
+
+racket:
+  # Immutable station: every question is answered from the session anchor.
+  base_target_x_range: [0.0, 0.0]
+  base_target_y_range: [0.0, 0.0]
+  station_y_step_range: null
+  station_y_same_prob: 1.0
+  station_y_small_step_prob: 0.0
+  # Station-relative contact boxes. FH ends before BH starts so the planner's
+  # side split (-0.28 m) is unambiguous. x is depth, z is height above ground.
+  # v3: contiguous bands (no dead zone between FH and BH; the v2 Gate3 run
+  # refused 13/26 balls that fell in the [-0.32,-0.24] gap or above +0.12).
+  # Once the swing imitation released the racket arm, the v2 probe hit 0.82/0.91
+  # of wide rows uniformly across its box, so the box is now the whole span the
+  # deploy scenes use. Planner split = -0.24.
+  # v4: z up to 1.45 (deploy commanded 1.43); the bank adds flat strokes,
+  # centre-aimed lateral racket velocity, faster incoming balls and planner-trace parents.
+  pos_range_per_clip:
+    forehand: {x: [0.44, 0.70], y: [-0.68, -0.24], z: [0.80, 1.45]}
+    backhand: {x: [0.44, 0.70], y: [-0.24, 0.28], z: [0.80, 1.45]}
+  # Export envelope; contains every v3 bank row and the inherited start/planner boxes.
+  vel_range_per_clip:
+    forehand: {x: [1.00, 2.90], y: [-0.80, 1.20], z: [0.30, 2.00]}
+    backhand: {x: [1.10, 2.90], y: [-1.00, 0.90], z: [0.00, 1.80]}
+  venue_tuple_fixed_station: true
+  venue_tuple_limit_reset_travel: false
+  venue_tuple_robust_sampling: true
+  venue_tuple_bank_path: assets/stationary_reach_v4/train.npz
+  venue_tuple_bank_receipt_path: assets/stationary_reach_v4/train.receipt.json
+  venue_tuple_bank_recipe_revision: 19
+  venue_tuple_bank_sha256: 489a4d809a5948f582c820e2658c91e2a04d7c59a93e9cb068799b9710b81e3a
+  venue_tuple_bank_receipt_sha256: 3115b827db8864f1bab5ecf5fe1b12fe6e22527859f6f3d387ab2d37d81a1ece
+  venue_tuple_bank_min_rows_per_side: 50000
+  # Wide-reach questions: 500 -> 3500 updates (64 steps/update) up to 70%.
+  # The other 30% keep the original reach centers the warm-started actor knows.
+  venue_tuple_wide_start_steps: 32000
+  venue_tuple_wide_ramp_steps: 192000
+  venue_tuple_wide_final_probability: 0.85
+  # Wi-Fi stall pressure (still an assumption, not measured): 3000 -> 5000.
+  base_mocap_stress_start_steps: 192000
+  base_mocap_stress_ramp_steps: 128000
+
+rewards:
+  # v2: the swing imitation no longer tracks the racket arm. With targets up to
+  # 25 cm from the clip's reach the four motion_* terms (+1 each) pulled the wrist
+  # back to the reference and the policy settled ~30% of the way to the target
+  # (probe of model_3900: 0% hits at the band edges, error proportional to the
+  # offset). Torso and left-arm style are still imitated; the strike rewards own
+  # the contact point.
+  swing_imitation_body_names: [torso_Link, left_shoulder_roll_Link, left_elbow_Link, left_wrist_yaw_Link]
+  # Stronger pull at 10-25 cm errors: wider Gaussian, heavier rational tail, and a
+  # debt that keeps growing outside the 7.5 cm acceptance sphere.
+  racket_position_std: 0.22
+  racket_position_tail_blend: 0.5
+  racket_exact_position_debt_weight: -4.0
+  racket_exact_position_debt_huber_scale: 0.05
+  # B_32_5_K20 pressure. The 11k CompleteHold run never reached the complete
+  # ready pose at the old +1 budget (complete_hold_ready stayed 0; right-arm RMS
+  # error ~0.34 rad in the v1 scratch run before its curriculum even started).
+  # Double the pose budget, add the bounded linear tail for 30-60 deg errors, and
+  # halve the coarse station/stillness bonus that competed for the same window.
+  full_body_hold_weight: 1.7
+  full_body_hold_pose_tail_weight: 0.15
+  hold_ready_weight: 0.5
+  # Ready pose / station recovery / quieting start at 1000, full by 3000 updates:
+  # the warm-started actor already rallies, so the posture goal need not wait.
+  full_body_hold_start_steps: 64000
+  full_body_hold_ramp_steps: 128000
+  station_recovery_start_steps: 64000
+  station_recovery_ramp_steps: 128000
+  full_body_quiet_start_steps: 64000
+  full_body_quiet_ramp_steps: 128000
+  settled_leg_command_start_steps: 192000
+  settled_leg_command_ramp_steps: 128000
+  # Post-swing lean: the old 0.10 deadband (~5.7 deg) let the policy settle at
+  # ~7 deg after contact. Align the deadband with the 3 deg hold tolerance and
+  # weight it harder; the first 0.1 s of follow-through stays free.
+  post_swing_tilt_debt_weight: -1.0
+  post_swing_tilt_debt_margin: 0.05
+  # Balance. The v2 probe (model_9700) fell on 4% of questions, 77% of them in
+  # the first 0.3 s after a new ball was announced while still recovering from
+  # the previous swing. Charge capture-point excursion and body lean harder in
+  # every phase; add a bounded pre-strike lean debt so the lunge toward a far
+  # target is paid for before it tips the robot.
+  dynamic_support_weight: -2.5
+  upright_weight: -1.5
+  pre_strike_tilt_weight: -0.5
+  # v4: absorb the swing momentum. Base velocity after contact (margin 0.08 m/s)
+  # and base roll/pitch rate outside the +-0.12 s strike window.
+  post_swing_base_quiet_weight: -0.5
+  base_ang_vel_xy_rally_weight: -0.3
+  base_ang_vel_xy_rally_strike_exclusion_s: 0.12
+  # Slippery-floor prior: tangential/normal ground force above 0.30 on a loaded
+  # foot is charged in every phase. Weight is small; swings still need shear.
+  foot_friction_cone_weight: -0.15
+  foot_friction_cone_std: 0.15
+  foot_friction_cone_ratio_margin: 0.30
+  foot_friction_cone_force_threshold: 10.0
+
+friction_contract:
+  # Extend the sole friction floor toward smooth tile; ground stays 1.0 (multiply).
+  robot_static_friction_range: [0.25, 1.6]
+  robot_dynamic_friction_range: [0.25, 1.2]
+
 domain_rand:
-  link_mass_range:
-  - 0.85
-  - 1.15
-  pd_gain_range: null
-  base_com_range:
-    x:
-    - -0.025
-    - 0.025
-    'y':
-    - -0.05
-    - 0.05
-    z:
-    - -0.05
-    - 0.05
   push:
-    interval_s:
-    - 5.0
-    - 8.0
+    interval_s: [5.0, 8.0]
     max_delta_v_xy: 0.15
     cohort_fraction: 0.5
     ramp_steps: 96000
     strike_exclusion_s: 0.15
-  pd_mode: a3_message_passive_nominal_cohort_v1
-  pd_alpha_range:
-  - 0.85
-  - 1.15
-  pd_beta_range:
-  - 0.85
-  - 1.15
-  pd_nominal_fraction: 0.25
-name: HitterPingPong
-gym_task: HOPE-HitterPingPong-AgibotA3-v0
-experiment_name: agibot_a3_hitter_pingpong
-actor_obs_contract: hitter_pure
-motion:
-  wrap_teleport: false
-  stand_start_prob: 0.25
-  stand_start_min_hold: 200
-  stand_start_yaw_range:
-  - -0.6
-  - 0.6
-  stand_start_yaw_ramp_steps: 96000
-  hold_steps_range:
-  - 0
-  - 0
-  hold_long_on_wrap: false
-  rally_timing_enabled: true
-  rally_timing_probability: 1.0
-  rally_pre_strike_s_range:
-  - 0.35
-  - 0.95
-  rally_post_strike_s_range:
-  - 0.5
-  - 0.5
-  rally_timing_ramp_steps: 0
-  rally_station_speed_mps: 0.6
-  rally_station_brake_s: 0.2
-  hold_long_prob: 0.15
-  hold_long_steps_range:
-  - 150
-  - 300
-  post_swing_start_prob: 0.35
-  clip_switch_prob: 0.0
-  fixed_clip_env_fraction_per_clip: 0.125
-  stand_start_x_range:
-  - 0.03
-  - 0.1
-  post_swing_replay_contract: markov_side_phase_severity_v3
-  post_swing_buffer_size: 10752
-  post_swing_min_fill: 256
-  post_swing_capture_phase_bins: 4
-  post_swing_capture_severity_bins: 3
-  post_swing_risk_edge_capture: true
-  post_swing_failure_adaptive: true
-  post_swing_min_fill_per_bucket: 8
-  post_swing_curriculum_scaled: false
-  post_swing_ability_gate_enabled: false
-  post_swing_replay_ramp_probabilities: []
-  post_swing_min_hold: 10
-  post_swing_fallback_to_stand: true
-  post_wrap_min_hold: 0
-  post_wrap_hold_jitter_steps: 0
-  interruptible_recovery_enabled: true
-  recovery_window_steps_range:
-  - 40
-  - 60
-  next_ball_delay_steps_range:
-  - 0
-  - 80
-  next_ball_immediate_prob: 0.25
-  hold_reference_path: cfg/references/hold_pose_B_32_5_K20.json
-  hold_reference_sha256: c17d7ef1371fc2bbf3e922946b5254d17c7ed0bd5ead053d472edfc1c2580e5f
-  hold_reference_sets_action_default: true
-action:
-  contract: v11_affine_safe_qdes_v1
-  actual_q_hard_tolerance_rad: 0.002
-  actual_q_hard_audit_mode: telemetry
-  qdes_delay_min_steps: 0
-  qdes_delay_max_steps: 1
-  qdes_delay_nominal_fraction: 0.5
-rewards:
-  dynamic_support_weight: -2.5
-  dynamic_support_std: 0.1
-  dynamic_support_margin: 0.02
-  dynamic_support_foot_radius: 0.06
-  racket_position_weight: 14.0
-  racket_position_std: 0.22
-  racket_velocity_weight: 14.0
-  racket_velocity_std: 0.6
-  racket_normal_weight: 5.0
-  racket_normal_std: 0.3
-  base_position_weight: 2.0
-  base_position_std: 0.2
-  post_strike_brake_weight: 0.0
-  post_strike_brake_std: 0.5
-  hold_heading_weight: 1.0
-  hold_heading_std: 0.6
-  foot_orientation_weight: 0.0
-  foot_orientation_hold_gate: true
-  foot_placement_weight: -1.0
-  foot_placement_width_min: 0.24
-  foot_placement_width_max: 0.34
-  foot_placement_std: 0.05
-  foot_placement_yaw_margin: 0.15
-  foot_placement_yaw_std: 0.25
-  foot_placement_yaw_weight: 0.5
-  lower_body_plant_imitation_weight: 0.0
-  lower_body_plant_imitation_std: 0.5
-  hold_ready_weight: 0.5
-  hold_ready_std: 1.5
-  hold_ready_reach: 0.3
-  hold_ready_reach_mode: station
-  hold_ready_include_ang_vel: true
-  hold_ready_heading_gate_rad: 0.25
-  rally_ankle_qdes_saturation_weight: -0.3
-  rally_ankle_qdes_safe_abs: 0.2
-  rally_ankle_qdes_std: 0.1
-  rally_ankle_qdes_t_pre: 1.4
-  rally_ankle_qdes_t_post: 1.8
-  hold_upper_pose_imitation_weight: 0.0
-  hold_upper_pose_imitation_std: 0.5
-  stance_width_weight: 0.0
-  stance_width_lo: 0.25
-  stance_width_hi: 0.35
-  stance_width_std: 0.05
-  racket_normal_alignment_debt_weight: -2.0
-  racket_normal_alignment_debt_margin: 0.1
-  racket_normal_alignment_debt_std: 0.35
-  post_strike_x_settle_weight: 2.0
-  post_strike_x_settle_std: 0.08
-  post_strike_x_settle_t_hi: 1.2
-  post_strike_vx_quiet_weight: 0.3
-  post_strike_vx_quiet_std: 0.15
-  post_strike_vx_quiet_t_hi: 1.0
-  post_strike_leg_quiet_weight: 0.0
-  post_strike_leg_quiet_t_hi: 1.2
-  joint_torques_weight: -3.0e-05
-  action_rate_weight: 0.0
-  executed_qdes_rate_weight: -0.1
-  executed_qdes_rate_hold_multiplier: 4.0
-  waist_command_quiet_weight: -0.15
-  waist_command_quiet_std: 0.005
-  waist_command_quiet_margin: 0.001
-  settled_leg_command_weight: 0.0
-  settled_leg_command_std: 0.01
-  settled_leg_command_margin: 0.002
-  settled_leg_command_start_steps: 192000
-  settled_leg_command_ramp_steps: 128000
-  settled_waist_pitch_tracking_weight: 0.0
-  settled_waist_pitch_tracking_std: 0.1
-  settled_waist_pitch_tracking_margin: 0.15
-  settled_waist_pitch_tracking_start_steps: 448000
-  settled_waist_pitch_tracking_ramp_steps: 128000
-  hip_tracking_weight: 0.0
-  hip_tracking_std: 0.1
-  hip_tracking_margin: 0.12
-  joint_acc_weight: -2.5e-07
-  joint_limit_weight: -10.0
-  undesired_contacts_weight: -0.1
-  windup_x_recovery_weight: -0.4
-  windup_x_recovery_x_margin: 0.02
-  windup_x_recovery_x_std: 0.05
-  windup_x_recovery_vx_margin: 0.05
-  windup_x_recovery_vx_std: 0.2
-  windup_x_recovery_position_blend: 0.6
-  windup_x_recovery_t_hi: 1.1
-  pre_strike_station_settle_weight: -0.35
-  pre_strike_station_settle_std: 0.3
-  pre_strike_station_settle_v_gain: 2.0
-  pre_strike_station_settle_v_max: 0.8
-  pre_strike_station_settle_t_min: 0.12
-  pre_strike_station_settle_t_max: 1.1
-  pre_strike_station_settle_velocity_margin: 0.05
-  pre_strike_station_settle_debt_huber: true
-  rally_heading_debt_weight: -0.3
-  rally_heading_debt_yaw_margin: 0.1
-  rally_heading_debt_yaw_std: 0.25
-  rally_heading_debt_rate_margin: 0.05
-  rally_heading_debt_rate_std: 0.25
-  rally_heading_debt_heading_blend: 0.5
-  rally_heading_debt_ready_t_lo: 0.45
-  rally_heading_debt_ready_t_hi: 1.0
-  rally_heading_debt_post_t_lo: 0.2
-  rally_heading_debt_post_t_hi: 1.55
-  rally_heading_debt_huber_tail: true
-  passive_head_raw_action_weight: -0.05
-  passive_head_raw_action_std: 1.0
-  passive_head_raw_action_huber_delta: 1.0
-  rally_joint_qdes_saturation_weight: null
-  rally_joint_qdes_saturation_std: null
-  rally_joint_qdes_saturation_max_blend: null
-  strike_x_drift_margin: 0.02
-  strike_x_drift_std: 0.05
-  strike_x_drift_t_pre: 1.1
-  strike_x_drift_t_post: 1.55
-  strike_x_drift_huber_tail: true
-  rally_heading_debt_yaw_rate_gain: 2.0
-  rally_heading_debt_yaw_rate_max: 0.6
-  left_wrist_reference_debt_weight: -0.4
-  left_wrist_reference_debt_margin: 0.08
-  left_wrist_reference_debt_std: 0.25
-  left_wrist_reference_debt_max_blend: 0.75
-  right_elbow_extension_debt_weight: -0.5
-  right_elbow_extension_debt_extension_start: 1.25
-  right_elbow_extension_debt_std: 0.12
-  right_elbow_extension_debt_t_pre: 0.3
-  right_elbow_extension_debt_t_post: 0.2
-  ready_deadline_weight: -0.35
-  ready_deadline_x_margin: 0.1
-  ready_deadline_y_margin: 0.1
-  ready_deadline_position_std: 0.1
-  ready_deadline_speed_margin: 0.2
-  ready_deadline_speed_std: 0.2
-  ready_deadline_speed_blend: 0.6
-  ready_deadline_final_window_s: 0.12
-  ready_deadline_target_step_class: 3
-  ready_stance_station_reach: 0.1
-  ready_stance_heading_gate_rad: 0.15
-  ready_stance_speed_gate: 0.2
-  ready_stance_width_weight: -0.3
-  ready_stance_width_lo: 0.25
-  ready_stance_width_hi: 0.35
-  ready_stance_width_std: 0.05
-  ready_foot_alignment_weight: 0.0
-  ready_foot_alignment_margin: 0.12
-  ready_foot_alignment_std: 0.25
-  ready_foot_alignment_max_blend: 0.5
-  ready_leg_settle_weight: -0.05
-  ready_leg_settle_margin: 0.3
-  ready_leg_settle_std: 0.8
-  strike_x_gate_margin_weight: -1.0
-  strike_x_gate_margin_margin: 0.015
-  strike_x_gate_margin_std: 0.02
-  strike_x_gate_margin_half_window_s: 0.04
-  idle_left_wrist_debt_weight: -0.4
-  idle_left_wrist_debt_position_margin: 0.02
-  idle_left_wrist_debt_position_std: 0.12
-  idle_left_wrist_debt_velocity_margin: 0.05
-  idle_left_wrist_debt_velocity_std: 0.25
-  idle_left_wrist_debt_velocity_blend: 0.25
-  idle_left_wrist_debt_max_blend: 0.75
-  waist_qdes_saturation_weight: null
-  waist_qdes_saturation_std: null
-  waist_qdes_saturation_max_blend: null
-  all_joint_qdes_barrier_weight: -0.65
-  all_joint_qdes_barrier_safe_margin_fraction: 0.08
-  all_joint_qdes_barrier_std_fraction: 0.03
-  all_joint_qdes_barrier_topk: 4
-  all_joint_qdes_barrier_topk_blend: 0.9
-  right_elbow_extension_debt_forehand_only: true
-  strike_x_gate_margin_forehand_scale: 0.75
-  strike_x_gate_margin_backhand_scale: 1.25
-  post_swing_xlock_weight: -0.45
-  post_swing_xlock_margin: 0.03
-  post_swing_xlock_std: 0.04
-  post_swing_xlock_t_lo: 0.1
-  post_swing_xlock_t_hi: 1.55
-  post_swing_xlock_forehand_scale: 1.0
-  post_swing_xlock_backhand_scale: 1.25
-  rally_heading_debt_forehand_scale: 1.25
-  rally_heading_debt_backhand_scale: 1.5
-  ready_deadline_target_step_classes:
-  - 1
-  - 2
-  - 3
-  post_swing_base_quiet_weight: -0.5
-  post_swing_base_quiet_std: 0.25
-  post_swing_base_quiet_margin: 0.08
-  post_swing_base_quiet_t_lo: 0.2
-  post_swing_base_quiet_t_hi: 1.55
-  post_swing_base_quiet_huber_tail: true
-  post_swing_leg_quiet_weight: -0.02
-  post_swing_leg_quiet_std: 0.8
-  post_swing_leg_quiet_margin: 0.3
-  post_swing_leg_quiet_t_lo: 0.2
-  post_swing_leg_quiet_t_hi: 1.55
-  post_swing_leg_quiet_huber_tail: true
-  settle_foot_slip_weight: -0.1
-  settle_foot_slip_std: 0.12
-  settle_foot_slip_margin: 0.03
-  settle_foot_slip_station_reach: 0.15
-  settle_foot_slip_pre_t_max: 1.1
-  settle_foot_slip_strike_t_post: 0.1
-  settle_foot_slip_post_t_lo: 0.2
-  settle_foot_slip_post_t_hi: 1.55
-  settle_foot_slip_huber_tail: true
-  rally_ready_root_height_debt_weight: -0.35
-  rally_ready_root_height_debt_min_height: 0.98
-  rally_ready_root_height_debt_std: 0.05
-  rally_ready_root_height_debt_ready_t_lo: -0.1
-  rally_ready_root_height_debt_ready_t_hi: 1.1
-  rally_ready_root_height_debt_post_t_lo: 0.2
-  rally_ready_root_height_debt_post_t_hi: 1.55
-  post_swing_tilt_debt_weight: -1.0
-  post_swing_tilt_debt_margin: 0.05
-  post_swing_tilt_debt_std: 0.2
-  post_swing_tilt_debt_t_lo: 0.1
-  post_swing_tilt_debt_t_hi: 1.55
-  ready_torso_posture_weight: 0.0
-  ready_torso_posture_margin: 0.05
-  ready_torso_posture_std: 0.12
-  ready_torso_posture_waist_margin: 0.06
-  ready_torso_posture_waist_std: 0.15
-  ready_torso_posture_ready_free_s: 0.45
-  ready_torso_posture_ready_full_s: 0.85
-  ready_torso_posture_followthrough_free_s: 0.5
-  ready_torso_posture_recovery_full_s: 0.8
-  ready_torso_posture_start_steps: 448000
-  ready_torso_posture_ramp_steps: 128000
-  actual_joint_limit_weight: -1.0
-  actual_joint_limit_margin_rad: 0.0872664626
-  actual_joint_limit_waist_margin_rad: 0.1396263402
-  actual_joint_limit_hold_recover_multiplier: 3.0
-  hold_upper_pose_imitation_fixed_task_reference: true
-  actual_task_pose_weight: 0.0
-  actual_task_pose_margin: 0.0523598776
-  actual_task_pose_std: 0.15
-  actual_task_pose_ready_free_s: 0.45
-  actual_task_pose_ready_full_s: 0.85
-  actual_task_pose_followthrough_free_s: 0.5
-  actual_task_pose_recovery_full_s: 0.8
-  actual_task_pose_start_steps: 448000
-  actual_task_pose_ramp_steps: 128000
-  actual_task_pose_torso_margin: 0.0174532925
-  actual_task_pose_torso_std: 0.06
-  actual_ready_legs_weight: 0.0
-  actual_ready_legs_knee_margin: 0.0872664626
-  actual_ready_legs_knee_std: 0.1745329252
-  actual_ready_legs_height_margin: 0.02
-  actual_ready_legs_height_std: 0.04
-  actual_ready_legs_start_steps: 448000
-  actual_ready_legs_ramp_steps: 128000
-  station_recovery_weight: -0.5
-  station_recovery_position_margin: 0.03
-  station_recovery_position_std: 0.1
-  station_recovery_velocity_margin: 0.05
-  station_recovery_velocity_std: 0.2
-  station_recovery_start_steps: 64000
-  station_recovery_ramp_steps: 128000
-  loaded_ankle_quiet_weight: 0.0
-  loaded_ankle_quiet_margin: 0.08
-  loaded_ankle_quiet_std: 0.3
-  loaded_ankle_quiet_start_steps: 448000
-  loaded_ankle_quiet_ramp_steps: 128000
-  full_body_hold_weight: 1.7
-  full_body_hold_start_steps: 64000
-  full_body_hold_ramp_steps: 128000
-  full_body_quiet_weight: -0.03
-  full_body_quiet_start_steps: 64000
-  full_body_quiet_ramp_steps: 128000
-  full_body_hold_cost_scale: 1.8
-  full_body_hold_positive_kernel: true
-  full_body_quiet_state_independent: false
-  full_body_quiet_pose_independent: true
-  motion_anchor_exclude_recovery: true
-  racket_position_tail_blend: 0.5
-  racket_exact_position_debt_weight: -4.0
-  racket_exact_position_debt_margin: 0.075
-  racket_exact_position_debt_huber_scale: 0.05
-  racket_exact_position_debt_window_s: 0.01
-  settle_foot_slip_all_phases: true
-  settle_foot_slip_twist_weight: 0.25
-  settle_foot_slip_twist_std: 0.5
-  settle_foot_slip_twist_margin: 0.15
-  full_body_hold_completion_blend: 0.5
-  full_body_hold_completion_dwell_s: 0.3
-  swing_imitation_body_names:
-  - torso_Link
-  - left_shoulder_roll_Link
-  - left_elbow_Link
-  - left_wrist_yaw_Link
-  full_body_hold_pose_tail_weight: 0.15
-  upright_weight: -1.5
-  pre_strike_tilt_weight: -0.5
-  base_ang_vel_xy_rally_weight: -0.3
-  base_ang_vel_xy_rally_strike_exclusion_s: 0.12
-  foot_friction_cone_weight: -0.15
-  foot_friction_cone_std: 0.15
-  foot_friction_cone_ratio_margin: 0.3
-  foot_friction_cone_force_threshold: 10.0
-racket:
-  target_mode: hitter_pure
-  normal_mode: velocity
-  base_target_x_range:
-  - 0.0
-  - 0.0
-  base_target_y_range:
-  - 0.0
-  - 0.0
-  station_y_step_range: null
-  station_y_same_prob: 1.0
-  station_y_small_step_prob: 0.0
-  station_y_small_step_range:
-  - 0.03
-  - 0.12
-  station_side_explicit: true
-  ready_monitor_step_range:
-  - 0.0
-  - 0.35
-  pos_range_per_clip:
-    forehand:
-      x:
-      - 0.44
-      - 0.7
-      'y':
-      - -0.68
-      - -0.24
-      z:
-      - 0.8
-      - 1.45
-    backhand:
-      x:
-      - 0.44
-      - 0.7
-      'y':
-      - -0.24
-      - 0.28
-      z:
-      - 0.8
-      - 1.45
-  vel_range_per_clip:
-    forehand:
-      x:
-      - 1.0
-      - 2.9
-      'y':
-      - -0.8
-      - 1.2
-      z:
-      - 0.3
-      - 2.0
-    backhand:
-      x:
-      - 1.1
-      - 2.9
-      'y':
-      - -1.0
-      - 0.9
-      z:
-      - 0.0
-      - 1.8
-  strike_phase: 0.38679245
-  strike_phase_per_clip:
-  - 0.38679245
-  - 0.44444444
-  strike_window_s: 0.12
-  strike_success_pos_thresh: 0.075
-  clean_reference_strike_velocity: true
-  clean_strike_vel_window: 2
-  forehand_on_negative_y: true
-  mount_normal_axis: 1
-  mount_normal_sign: 1.0
-  mount_normal_sign_per_clip:
-  - 1.0
-  - -1.0
-  achieved_target_mix_prob: 0.0
-  adaptive_sigma: false
-  hold_until_settled: false
-  midswing_resample_prob: 0.0
-  midswing_resample_tts_floor: 0.3
-  target_delay_steps: 1
-  post_strike_capture_delays_s:
-  - 0.08
-  - 0.2
-  - 0.35
-  target_jitter_pos_per_s: 0.0
-  target_jitter_vel_per_s: 0.0
-  target_noise_white: 0.003
-  target_noise_ar1_sigma: 0.002
-  target_noise_ar1_rho: 0.717
-  target_dropout_prob: 0.0
-  target_post_strike_dropout_s: 0.0
-  target_bias_per_swing: 0.003
-  vel_start_range_per_clip:
-    forehand:
-      x:
-      - 1.24
-      - 2.24
-      'y':
-      - -0.31
-      - 0.69
-      z:
-      - 0.66
-      - 1.66
-    backhand:
-      x:
-      - 1.6
-      - 2.6
-      'y':
-      - -0.66
-      - 0.34
-      z:
-      - 0.0
-      - 0.54
-  vel_planner_range_per_clip:
-    forehand:
-      x:
-      - 1.57
-      - 2.55
-      'y':
-      - 0.1
-      - 0.52
-      z:
-      - 0.41
-      - 1.35
-    backhand:
-      x:
-      - 1.55
-      - 2.52
-      'y':
-      - -0.18
-      - 0.29
-      z:
-      - 0.4
-      - 1.32
-  vel_planner_mix_prob: 0.75
-  vel_range_ramp_steps: 96000
-  station_y_positive_main_prob: 0.8
-  station_y_positive_main_step_range:
-  - 0.19
-  - 0.24
-  venue_tuple_enabled: true
-  venue_tuple_final_mix_prob: 1.0
-  venue_tuple_mix_mode: per_swing_bank_v2
-  venue_tuple_bank_path: assets/stationary_reach_v4_ppq004_generalization_20261022/train.npz
-  venue_tuple_bank_receipt_path: assets/stationary_reach_v4_ppq004_generalization_20261022/train.receipt.json
-  venue_tuple_bank_schema_version: 2
-  venue_tuple_bank_min_rows_per_side: 50000
-  venue_tuple_unconditional_outcomes: true
-  venue_tuple_speed_limit_mps: 3.5
-  virtual_ball: true
-  physical_ball: false
-  physical_ball_impulse: false
-  physical_ball_substep: 1
-  base_mocap_enabled: true
-  base_mocap_orientation_enabled: true
-  base_mocap_delay_steps: 1
-  base_mocap_delay_min_steps: 0
-  base_mocap_position_bias_std:
-  - 0.005
-  - 0.005
-  - 0.003
-  base_mocap_update_interval_steps: 1
-  base_mocap_position_noise_std:
-  - 0.003
-  - 0.003
-  - 0.005
-  base_mocap_orientation_noise_std_rad:
-  - 0.003491
-  - 0.003491
-  - 0.005236
-  base_mocap_extrinsic_residual_rpy_std_rad:
-  - 0.005236
-  - 0.005236
-  - 0.008727
-  base_mocap_dropout_prob: 0.01
-  base_mocap_burst_start_prob: 0.002
-  base_mocap_burst_duration_s:
-  - 0.02
-  - 0.04
-  base_mocap_burst_long_prob: 0.2
-  base_mocap_burst_long_duration_s:
-  - 0.1
-  - 0.3
-  base_mocap_velocity_ema_alpha: 0.25
-  base_mocap_max_age_s: 0.05
-  base_mocap_max_propagation_s: 0.05
-  ability_curriculum_mode: one_way_strike_gate_v1
-  ability_min_exact_samples_per_side: 50.0
-  ability_min_completion_per_side: 0.55
-  ability_min_position_pass_per_side: 0.15
-  ability_min_composite: 0.03
-  ability_max_post_fall: 0.1
-  ability_gate_dwell_steps: 250
-  base_mocap_robustness_ramp_steps: 8000
-  venue_tuple_bank_recipe_revision: 21
-  venue_tuple_bank_sha256: 02619e747333980a6f1d48aa3a9c7896e15727cf95cd3f51eb387d7687c4b419
-  venue_tuple_bank_receipt_sha256: 89c8e04874b0b9eff2b26192159d6f5988ff9e233f867ce3f6d12a70e047fd24
-  venue_tuple_limit_reset_travel: false
-  venue_tuple_robust_sampling: true
-  venue_tuple_wide_start_steps: 32000
-  venue_tuple_wide_ramp_steps: 192000
-  venue_tuple_wide_final_probability: 0.85
-  base_mocap_stress_enabled: true
-  base_mocap_stress_active_fraction: 0.07
-  base_mocap_stress_duration_s:
-  - 0.2
-  - 0.2
-  base_mocap_stress_long_prob: 0.01
-  base_mocap_stress_long_duration_s:
-  - 1.0
-  - 1.0
-  base_mocap_stress_start_steps: 192000
-  base_mocap_stress_ramp_steps: 128000
-  base_mocap_episode_timeout_s: 1.2
-  venue_tuple_fixed_station: true
-observation_noise:
-  enabled: true
-  base_ang_vel:
-  - -0.2
-  - 0.2
-  joint_pos:
-  - -0.01
-  - 0.01
-  joint_vel:
-  - -0.5
-  - 0.5
-  projected_gravity:
-  - 0.0
-  - 0.0
-  base_forward_xy:
-  - 0.0
-  - 0.0
-  base_target_delta_xy:
-  - 0.0
-  - 0.0
-  racket_target_rel_base:
-  - 0.0
-  - 0.0
-motion_file: ../motions/preprocessed/hope_forehand.npz
-motion_file_2: ../motions/preprocessed/hope_backhand.npz
-checkpoint_export_onnx: false
+
 build_contract:
-  training_recipe_revision: continuous_rally_sim2real_v3
   reward_revision: actual_complete_hold_v11_stationary_reach_v4
-  actor_observation_dim: 110
-  action_dim: 31
-  forbidden_features:
-  - runtime_handoff
-  - qdes_projector
-  - qdes_rate_limiter
-  - executed_qdes_feedback
-  - ready_recovery_curriculum
-  recovery_target_contract: fixed_session_anchor_v1
-  inter_ball_hold_contract: interruptible_recovery_next_ball_v1
   hold_pose_contract: actual_full_body_B32_5_K20_complete_v2
   training_distribution_revision: stationary_reach_v1
   station_command_contract: fixed_session_anchor_v1
-friction_contract:
-  robot_contact_bodies:
-  - left_ankle_roll_Link
-  - right_ankle_roll_Link
-  ground_combine_mode: multiply
-  ground_static_friction: 1.0
-  ground_dynamic_friction: 1.0
-  robot_static_friction_range:
-  - 0.25
-  - 1.6
-  robot_dynamic_friction_range:
-  - 0.25
-  - 1.2
-  restitution_range:
-  - 0.0
-  - 0.1
-  make_consistent: true
-  joint_friction: legacy_v14_unidentified
-ball_physics:
-  path: configs/ball_physics_ppq004_training.yaml
-  sha256: df55e82102e0d5624732ea7ea03f6d98053f45d7f036367e3df3551a1c88a6f9
+  recovery_target_contract: fixed_session_anchor_v1

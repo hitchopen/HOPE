@@ -75,7 +75,10 @@ def validate_mocap_interface(context):
 def generate_launch_description():
     # Written by the stopped-only Foxglove ball selector; late override wins.
     ball_profile = Path.home() / ".config/hope-foxglove/ball_physics.json"
-    ball_overrides = [str(ball_profile)] if ball_profile.exists() else []
+    ball_overrides = [str(ball_profile)] if ball_profile.exists() else [
+        PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
+                              "ball_physics_ppq004_20261020.yaml"])
+    ]
     launch_dir = Path(__file__).resolve().parent
     mct_config_path = launch_dir.parent / "config" / "optitrack_mct.yaml"
     relay_config_path = launch_dir.parent / "config" / "optitrack_relay.yaml"

@@ -1,0 +1,27 @@
+# Full return-flight contract. Fitted paddle parameters retain the venue fit;
+# PPQ004 drag/Magnus/table coefficients come from the selected ball profile.
+# Both C++ Stage 3 and Python training read this YAML, including solver settings.
+hope_planner:
+  ros__parameters:
+    gravity_mps2: 9.81
+    ball_radius: 0.02
+    ball_inertia_coeff: 0.6666666666666666
+    restitution_racket: 0.654
+    restitution_exp_g1: 0.759
+    restitution_exp_g2: -0.0441
+    paddle_tangential_gain: 0.52
+    paddle_angle_gain: 0.0
+    paddle_friction_cap_mu: 0.5
+    return_restitution_min: 0.05
+    return_restitution_max: 0.95
+    return_dt_integrate: 0.0005
+    return_newton_iterations: 12
+    return_fd_relative_step: 0.0001
+    return_position_tolerance_m: 0.0001
+    return_time_tolerance_s: 0.00001
+    return_max_step_mps: 0.5
+    return_line_search_iterations: 6
+    return_seed_iterations: 3
+    return_numeric_epsilon: 0.000000001
+    return_net_clearance_margin: 0.01
+    return_alternative_flight_times: [0.4, 0.6, 0.35, 0.7, 0.3]

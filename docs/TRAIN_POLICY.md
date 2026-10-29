@@ -85,7 +85,7 @@ The evaluation story has three layers, cheap to expensive:
 
 1. **Isaac evaluation** — `scripts/evaluate.py` rolls the checkpoint out across many parallel
    environments and reports the in-Isaac `success_rate` estimate (racket contact, net crossing,
-   opponent-half first bounce, judged with the shared no-spin ball model).
+   opponent-half first bounce, judged with YAML-selected PPQ004 paddle impulse/spin transfer and drag/gravity/Magnus flight to the first descending ball-center crossing at table height plus radius).
 
    ```bash
    hope_isaac_py scripts/evaluate.py --checkpoint <run>/model_<N>.pt \

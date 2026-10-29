@@ -1,4 +1,4 @@
-"""Keep train, play and the direct Gym runner on the baseline and stationary recipes."""
+"""Keep PPQ004 training, baseline playback and one A3 Gym registration explicit."""
 
 import ast
 import os
@@ -11,17 +11,19 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "source/whole_body_tracking/whole_body_tracking"
 
 
-def test_train_and_play_preserve_the_baseline_task_and_algorithm():
+def test_train_defaults_to_ppq004_and_play_preserves_baseline():
     hydra = pytest.importorskip("hydra")
     from omegaconf import OmegaConf
 
-    assert {p.stem for p in (ROOT / "cfg/task").glob("*.yaml")} == {"HOPEPingPong", "HOPEPingPongStationaryRally"}
-    assert {p.stem for p in (ROOT / "cfg/algo").glob("*.yaml")} == {"ppo", "ppo_balanced_hold"}
     with hydra.initialize_config_dir(config_dir=str(ROOT / "cfg"), version_base=None):
         train = hydra.compose(config_name="train")
         play = hydra.compose(config_name="play")
-    assert OmegaConf.to_container(train.task) == OmegaConf.to_container(play.task)
-    assert OmegaConf.to_container(train.algo) == OmegaConf.to_container(play.algo)
+        legacy = hydra.compose(config_name="train", overrides=["task=HOPEPingPong", "algo=ppo"])
+    assert train.task.build_contract.training_distribution_revision == "stationary_reach_ppq004_sweet_spot_v1"
+    assert train.task.sweet_spot.reward_enabled is True
+    assert train.algo.algorithm.settled_aux_enabled is False
+    assert OmegaConf.to_container(legacy.task) == OmegaConf.to_container(play.task)
+    assert OmegaConf.to_container(legacy.algo) == OmegaConf.to_container(play.algo)
     assert train.task.gym_task == "HOPE-HitterPingPong-AgibotA3-v0"
 
 
@@ -48,3 +50,20 @@ def test_only_selected_gym_task_is_registered():
                     and node.func.value.id == "gym" and node.func.attr == "register"):
                 task_ids.extend(ast.literal_eval(kw.value) for kw in node.keywords if kw.arg == "id")
     assert task_ids == ["HOPE-HitterPingPong-AgibotA3-v0"]
+
+
+def test_improved_recipes_compose_with_balanced_ppo():
+    hydra = pytest.importorskip("hydra")
+    from omegaconf import OmegaConf
+
+    with hydra.initialize_config_dir(config_dir=str(ROOT / "cfg"), version_base=None):
+        for task in ("HOPEPingPongCompleteHold", "HOPEPingPongStationaryRally"):
+            cfg = hydra.compose(config_name="train", overrides=[f"task={task}", "algo=ppo_balanced_hold"])
+            assert cfg.task.gym_task == "HOPE-HitterPingPong-AgibotA3-v0"
+            assert cfg.task.build_contract.actor_observation_dim == 110
+            assert cfg.task.build_contract.action_dim == 31
+            assert cfg.algo.algorithm.settled_aux_enabled is False
+            assert cfg.algo.runner.num_steps_per_env == 64
+            assert cfg.task.build_contract.training_distribution_revision in {
+                "complete_hold_robust_v1", "stationary_reach_v1"}
+            assert OmegaConf.to_container(cfg.task, resolve=True)

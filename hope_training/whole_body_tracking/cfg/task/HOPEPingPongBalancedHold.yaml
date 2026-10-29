@@ -1,0 +1,23 @@
+# v10: learn actual posture through PPO without suppressing balance feedback.
+defaults:
+  - HOPEPingPongFullBodyHold
+  - _self_
+
+rewards:
+  # Same actual-q/geometry cost and reference. Positive, monotone score with
+  # slope <= 1.8 replaces v9's 1 - 3.6 * cost. Never clip away posture pressure.
+  full_body_hold_cost_scale: 1.8
+  full_body_hold_positive_kernel: true
+  # Weak physical quieting only once near the station and moving slowly on
+  # both feet. A bad wrist cannot switch this off; actual pose stays ungated.
+  full_body_quiet_state_independent: false
+  full_body_quiet_pose_independent: true
+  full_body_quiet_weight: -0.03
+  # Introduce weak quieting earlier: 6000-8000 updates at 64 steps/update.
+  # Actual pose/recovery keeps its independent 7000-9000 curriculum.
+  full_body_quiet_start_steps: 384000
+  full_body_quiet_ramp_steps: 128000
+  station_recovery_weight: -0.5
+
+build_contract:
+  reward_revision: actual_balanced_hold_v10

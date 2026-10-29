@@ -136,3 +136,54 @@ def test_gaussian_auxiliary_excludes_passive_channels(policy_modules):
     loss.backward()
     assert means.grad[0, 2] == 0.0
     assert sigma.grad[0, 2] == 0.0
+
+
+@pytest.mark.parametrize("update_diagnostics", [False, True])
+def test_settled_update_keeps_ppo_and_refinement_diagnostics_separate(policy_modules, update_diagnostics):
+    """Run both actual update/loss paths with an already captured HOLD rollout."""
+    from qdes_policy_test.settled_policy_refinement import SettledPolicyRefinement
+
+    torch.manual_seed(121)
+    obs, policy, algorithm = make_policy(policy_modules)
+    algorithm.init_storage("rl", 4, 4, obs, [3])
+    lower, upper = -torch.ones(4, 3), torch.ones(4, 3)
+    algorithm.bind_executable_action_projection(lower, upper, torch.tensor([True, True, False]))
+    with torch.no_grad():
+        for _ in range(4):
+            obs = obs.clone()
+            obs["policy"] = torch.randn(4, 6)
+            action = algorithm.act(obs)
+            algorithm.process_env_step(obs, -action[:, :2].square().sum(-1), torch.zeros(4, dtype=torch.bool), {})
+        algorithm.compute_returns(obs)
+
+    # Supply the tensor context normally captured from Isaac's sensors; retain
+    # SettledPolicyRefinement.losses and its actor/decoder gradients unchanged.
+    refinement = object.__new__(SettledPolicyRefinement)
+    refinement.rollout_has_curriculum = True
+    refinement.gate = torch.ones(4, 4)
+    refinement.actual_waist = torch.zeros(4, 4)
+    refinement.curriculum = torch.ones(4)
+    refinement.offset, refinement.scale = torch.zeros(4, 3), torch.ones(4, 3)
+    refinement.lower, refinement.upper = lower, upper
+    refinement.local_columns, refinement.waist_column = [0, 1], 1
+    refinement.step_margin, refinement.step_scale = .002, .01
+    refinement.worst_joint_blend, refinement.bounded_smooth = .5, True
+    algorithm._settled_refinement = refinement
+    algorithm.settled_aux_enabled = True
+    algorithm.update_diagnostics = update_diagnostics
+
+    stats = algorithm.update()
+    assert all(isinstance(value, float) and math.isfinite(value) for value in stats.values())
+    assert stats["settled_mean_qdes_step_rad"] > 0
+    assert stats["settled_mean_curriculum_scale"] == 1.0
+    assert "qdes_step_rad" not in stats
+    assert "curriculum_scale" not in stats
+    assert not any("waist_qdes_offset" in key for key in stats)
+    critic_keys = {"critic_target_std", "critic_mse", "critic_mse_normalized",
+                   "critic_explained_variance", "critic_variance_valid"}
+    if update_diagnostics:
+        assert critic_keys <= stats.keys()
+        assert stats["critic_variance_valid"] == 1.0
+        assert "actor_grad_norm" in stats and "policy_kl" in stats
+    else:
+        assert critic_keys.isdisjoint(stats)

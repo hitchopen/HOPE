@@ -10,7 +10,7 @@ import torch
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
-from stationary_test_support import PKG, ROOT, load, loader, robust
+from test_complete_hold_robustness import PKG, ROOT, load, loader, robust
 from test_sim2real_export import fixture as export_fixture, module as exporter
 
 TASK = 'HOPEPingPongStationaryRally'
@@ -94,7 +94,7 @@ def test_bank_commands_the_anchor_and_covers_both_reach_boxes():
     vbox = np.array(commands._clip_ranges(r['vel_range_per_clip']))
     sets = []
     for split in ('train', 'dev', 'test'):
-        path = (ROOT/r['venue_tuple_bank_path']).with_name(f'{split}.npz')
+        path = ROOT/f'assets/stationary_reach_v4/{split}.npz'
         receipt = json.loads(path.with_suffix('.receipt.json').read_text())
         assert hashlib.sha256(path.read_bytes()).hexdigest() == receipt['bank_sha256']
         assert receipt['contract']['distribution'] == 'stationary_reach_v1'
@@ -301,7 +301,7 @@ def test_balance_weights_reach_registered_terms():
 
 
 def test_v4_bank_covers_flat_strokes_centre_aiming_and_planner_traces():
-    with np.load(ROOT/recipe()['task']['racket']['venue_tuple_bank_path']) as a:
+    with np.load(ROOT/'assets/stationary_reach_v4/train.npz') as a:
         tv, off = a['target_velocity'], a['target_position_offset']
         assert (a['parent_id'] < 0).sum() >= 10000  # planner-trace parents on both sides
         for side in (0, 1):
@@ -311,8 +311,8 @@ def test_v4_bank_covers_flat_strokes_centre_aiming_and_planner_traces():
             assert np.corrcoef(off[wide, 1], tv[wide, 1])[0, 1] < -0.3  # lateral velocity leans back to centre
             assert off[m, 2].max() > 1.40                          # high contacts
             assert ((a['parent_id'] < 0) & m).sum() >= 8000         # planner-trace parents on this side
-    receipt = json.loads((ROOT/recipe()['task']['racket']['venue_tuple_bank_receipt_path']).read_text())
-    assert receipt['contract']['mutation']['vz_scale'][0] == 0.0
+    receipt = json.loads((ROOT/'assets/stationary_reach_v4/train.receipt.json').read_text())
+    assert receipt['contract']['mutation']['vz_scale'][0] == 0.0 and receipt['trace_parents']['unique_targets'] > 100
 
 
 def test_momentum_terms_reach_registered_terms():

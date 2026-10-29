@@ -1213,11 +1213,15 @@ run_planner() {
     sha256sum "$attempt_dir/policy_profile.json" >> "$attempt_dir/artifact_sha256.txt"
   fi
   local -a ball_physics_args=()
+  cp "$HDU_WS/src/hope_planner_cpp/config/return_physics.yaml" "$attempt_dir/return_physics.yaml"
+  sha256sum "$attempt_dir/return_physics.yaml" >> "$attempt_dir/artifact_sha256.txt"
   if [[ -f /var/lib/hope-lifecycle/ball_physics.json ]]; then
     cp /var/lib/hope-lifecycle/ball_physics.json "$attempt_dir/ball_physics.json"
-    ball_physics_args=(--params-file "$attempt_dir/ball_physics.json")
-    sha256sum "$attempt_dir/ball_physics.json" >> "$attempt_dir/artifact_sha256.txt"
+  else
+    cp "$HDU_WS/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml" "$attempt_dir/ball_physics.json"
   fi
+  ball_physics_args=(--params-file "$attempt_dir/return_physics.yaml" --params-file "$attempt_dir/ball_physics.json")
+  sha256sum "$attempt_dir/ball_physics.json" >> "$attempt_dir/artifact_sha256.txt"
   dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   set +e
   # Ctrl-C reaches tee too. Keep its pipe open until the Planner has finished

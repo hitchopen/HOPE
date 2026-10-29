@@ -8,6 +8,8 @@
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>ament_index_cpp</depend>
+  <depend>yaml-cpp</depend>
 
   <depend>diagnostic_msgs</depend>
   <depend>eigen3_cmake_module</depend>

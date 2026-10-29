@@ -1,0 +1,28 @@
+# Independent candidate: baseline task remains selectable as HOPEPingPong.
+defaults:
+  - HOPEPingPong
+  - _self_
+
+motion:
+  # Only reset-time standing coverage; no extra wait between rally balls.
+  stand_start_min_hold: 200
+
+rewards:
+  # Replaced by deterministic mean-policy objectives in algo=ppo_quiet.
+  settled_leg_command_weight: 0.0
+  settled_waist_pitch_tracking_weight: 0.0
+  # Actual lateral torso posture; pelvis-only tilt misses a bent waist.
+  ready_torso_posture_weight: -0.4
+  ready_torso_posture_margin: 0.05
+  ready_torso_posture_std: 0.12
+  ready_torso_posture_waist_margin: 0.06
+  ready_torso_posture_waist_std: 0.15
+  ready_torso_posture_ready_free_s: 0.45
+  ready_torso_posture_ready_full_s: 0.85
+  ready_torso_posture_followthrough_free_s: 0.50
+  ready_torso_posture_recovery_full_s: 0.80
+  ready_torso_posture_start_steps: 448000
+  ready_torso_posture_ramp_steps: 128000
+
+build_contract:
+  reward_revision: deterministic_settled_posture_v5

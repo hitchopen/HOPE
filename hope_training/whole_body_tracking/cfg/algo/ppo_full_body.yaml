@@ -1,0 +1,9 @@
+defaults:
+  - ppo_ready
+  - _self_
+
+algorithm:
+  # Do not average a locally oscillating joint away among 29 channels.
+  settled_aux_worst_joint_blend: 0.5
+  # Temporal quieting only near the station/reference; recovery may still move.
+  settled_aux_ready_only: true

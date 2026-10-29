@@ -1,52 +1,12 @@
-# Resolved PPQ004 stationary recipe from main_improve_2@9c4d6366a.
-# Standalone: preserve main default recipe and reproduce the training command.
-name: HitterPingPongPPO
-runner:
-  logger: wandb
-  wandb_project: hope_wbc
-  num_steps_per_env: 64
-  max_iterations: 300000000000
-  save_interval: 100
-  empirical_normalization: true
-policy:
-  actor_hidden_dims:
-  - 512
-  - 256
-  - 128
-  critic_hidden_dims:
-  - 512
-  - 256
-  - 128
-  activation: elu
-  init_noise_std: 0.35
-  min_noise_std: 0.05
-  max_noise_std: 0.6
+defaults:
+  - ppo_full_body
+  - _self_
+
 algorithm:
-  learning_rate: 0.001
-  schedule: adaptive
-  desired_kl: 0.01
-  entropy_coef: 0.003
-  projection_aux_enabled: true
-  projection_aux_lambda: 0.1
-  projection_aux_lambda_max: 0.1
-  projection_aux_gradient_ratio_max: 0.25
-  projection_aux_gaussian_tails: true
-  num_learning_epochs: 5
-  num_mini_batches: 16
-  gamma: 0.99
-  lam: 0.99
-  clip_param: 0.2
-  value_loss_coef: 1.0
-  use_clipped_value_loss: true
-  max_grad_norm: 1.0
+  # Adjacent states require different commands to correct tilt/velocity.
+  # Keep physical smoothness costs in PPO returns, with no direct temporal
+  # mean-policy gradient (including upper-body/shared-network gradients).
   settled_aux_enabled: false
-  settled_aux_start_steps: 448000
-  settled_aux_ramp_steps: 128000
   settled_aux_smooth_coef: 0.0
   settled_aux_tracking_coef: 0.0
   settled_aux_gradient_ratio_max: 0.0
-  settled_aux_include_upper: true
-  settled_aux_step_margin: 0.0005
-  settled_aux_step_scale: 0.005
-  settled_aux_worst_joint_blend: 0.5
-  settled_aux_ready_only: true

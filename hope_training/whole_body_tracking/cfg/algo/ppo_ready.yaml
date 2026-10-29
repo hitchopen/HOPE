@@ -1,0 +1,9 @@
+defaults:
+  - ppo_quiet
+  - _self_
+
+algorithm:
+  settled_aux_include_upper: true
+  settled_aux_step_margin: 0.0005
+  settled_aux_step_scale: 0.005
+  settled_aux_smooth_coef: 0.02

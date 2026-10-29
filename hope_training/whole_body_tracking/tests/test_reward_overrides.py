@@ -45,6 +45,9 @@ def _fake_rewards():
     ):
         for term, param in specs.values():
             add(term, param)
+    for targets in reward_overrides.STRING_LIST_PARAM_SPECS.values():
+        for term, param in targets:
+            add(term, param)
     for targets in reward_overrides.MULTI_FLOAT_PARAM_SPECS.values():
         for term, param in targets:
             add(term, param)
@@ -67,7 +70,64 @@ def _fake_rewards():
 
 
 def test_every_yaml_reward_key_has_an_explicit_mapping() -> None:
-    assert set(_recipe()) <= set(reward_overrides.SUPPORTED_REWARD_KEYS)
+    for path in (_ROOT / "cfg/task").glob("*.yaml"):
+        keys = set(yaml.safe_load(path.read_text()).get("rewards", {}))
+        assert keys <= set(reward_overrides.SUPPORTED_REWARD_KEYS), (path.name, keys - set(reward_overrides.SUPPORTED_REWARD_KEYS))
+
+
+def test_v11_recipe_reaches_registered_parameters():
+    rewards = _fake_rewards()
+    for name in ("HOPEPingPongHoldReference", "HOPEPingPongCompleteHold"):
+        config = yaml.safe_load((_ROOT / f"cfg/task/{name}.yaml").read_text())["rewards"]
+        reward_overrides.apply_reward_overrides(rewards, config, [])
+    assert rewards.motion_global_anchor_ori.params['exclude_recovery'] is True
+    assert rewards.full_body_hold.params['completion_blend'] == .5
+    assert rewards.full_body_hold.params['completion_dwell_s'] == .3
+
+
+def test_v10_recipe_reaches_registered_parameters():
+    config = yaml.safe_load((_ROOT / "cfg/task/HOPEPingPongBalancedHold.yaml").read_text())["rewards"]
+    rewards = _fake_rewards()
+    reward_overrides.apply_reward_overrides(rewards, config, [])
+    assert rewards.full_body_hold.params['positive_kernel'] is True
+    assert rewards.full_body_hold.params['cost_scale'] == 1.8
+    assert rewards.full_body_quiet.params['state_independent'] is False
+    assert rewards.full_body_quiet.params['pose_independent'] is True
+    assert rewards.full_body_quiet.params['start_steps'] == 384000
+    assert rewards.full_body_quiet.weight == -.03
+
+
+def test_stationary_recipe_reaches_registered_parameters():
+    config = yaml.safe_load((_ROOT / "cfg/task/HOPEPingPongStationaryRally.yaml").read_text())["rewards"]
+    rewards = _fake_rewards()
+    reward_overrides.apply_reward_overrides(rewards, config, [])
+    assert rewards.full_body_hold.weight == 1.7
+    assert rewards.full_body_hold.params['pose_tail_weight'] == .15
+    assert rewards.pre_strike_tilt.weight == -.5
+    assert rewards.base_ang_vel_xy_rally.weight == -.3
+    assert rewards.base_ang_vel_xy_rally.params['strike_exclusion_s'] == .12
+    assert rewards.dynamic_support.weight == -2.5
+    assert rewards.foot_friction_cone.weight == -.15
+
+
+def test_v7_ready_recipe_reaches_registered_terms():
+    config = yaml.safe_load((_ROOT / "cfg/task/HOPEPingPongReadyRecovery.yaml").read_text())["rewards"]
+    rewards = _fake_rewards()
+    reward_overrides.apply_reward_overrides(rewards, config, [])
+    assert rewards.actual_ready_legs.weight == -.4
+    assert rewards.station_recovery.params["position_margin"] == .03
+    assert rewards.loaded_ankle_quiet.params["start_steps"] == 448000
+    assert rewards.actual_task_pose.params["torso_std"] == .06
+
+
+def test_quiet_posture_recipe_is_wired_to_reward_parameters() -> None:
+    quiet = yaml.safe_load((_ROOT / "cfg/task/HOPEPingPongQuiet.yaml").read_text())["rewards"]
+    rewards = _fake_rewards()
+    reward_overrides.apply_reward_overrides(rewards, quiet, [])
+    assert rewards.ready_torso_posture.weight == -0.4
+    for key, value in quiet.items():
+        if key.startswith("ready_torso_posture_") and not key.endswith("_weight"):
+            assert rewards.ready_torso_posture.params[key.removeprefix("ready_torso_posture_")] == value
 
 
 def test_complete_recipe_applies_to_registered_reward_terms() -> None:
@@ -99,6 +159,8 @@ def test_complete_recipe_applies_to_registered_reward_terms() -> None:
 
 def test_task_reference_recipe_replaces_bias_penalties_and_clip_specific_hold():
     recipe = _recipe()
+    for name in ("HOPEPingPongQuiet", "HOPEPingPongTaskReference"):
+        recipe.update(yaml.safe_load((_ROOT / f"cfg/task/{name}.yaml").read_text())["rewards"])
     rewards = _fake_rewards()
     reward_overrides.apply_reward_overrides(rewards, recipe, [])
     assert rewards.hip_tracking.weight == rewards.settled_waist_pitch_tracking.weight == 0

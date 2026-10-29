@@ -33,7 +33,10 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # Written by the stopped-only Foxglove ball selector; late override wins.
     ball_profile = Path.home() / ".config/hope-foxglove/ball_physics.json"
-    ball_overrides = [str(ball_profile)] if ball_profile.exists() else []
+    ball_overrides = [str(ball_profile)] if ball_profile.exists() else [
+        PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
+                              "ball_physics_ppq004_20261020.yaml"])
+    ]
     mocap_backend = LaunchConfiguration("mocap_backend")
     use_fake_ball = LaunchConfiguration("use_fake_ball")
     ball_pose_topic = LaunchConfiguration("ball_pose_topic")
@@ -120,7 +123,8 @@ def generate_launch_description():
         executable="hope_planner_cpp_node",
         name="hope_planner",
         output="screen",
-        parameters=[str(planner_config), *ball_overrides],
+        parameters=[str(planner_config), str(planner_config.parent / "return_physics.yaml"),
+                    *ball_overrides],
     )
 
     return LaunchDescription(

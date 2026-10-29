@@ -117,6 +117,8 @@ def _run(cfg, simulation_app):
 
 @hydra.main(version_base=None, config_path="../cfg", config_name="play")
 def main(cfg):
+    from ppq004_training import configure_refitted_task
+    configure_refitted_task(cfg)
     OmegaConf.resolve(cfg)
     OmegaConf.set_struct(cfg, False)
 

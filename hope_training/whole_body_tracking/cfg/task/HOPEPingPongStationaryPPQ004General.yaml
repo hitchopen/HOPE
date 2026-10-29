@@ -1,0 +1,19 @@
+# Explicit recipe-22 baseline: general returns under the full PPQ004 model.
+defaults:
+  - HOPEPingPongStationaryRally
+  - _self_
+
+ppq004_refit_manifest: outputs/stationary_ppq004_full/training_overrides.yaml
+ppq004_physics_yaml: null
+ppq004_physics_sha256: null
+ppq004_physics_source_hashes: null
+
+racket:
+  venue_tuple_bank_path: null
+  venue_tuple_bank_receipt_path: null
+  venue_tuple_bank_sha256: null
+  venue_tuple_bank_receipt_sha256: null
+  venue_tuple_bank_recipe_revision: 22
+
+build_contract:
+  training_distribution_revision: stationary_reach_ppq004_full_v1

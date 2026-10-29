@@ -1,14 +1,8 @@
-"""Fast, reproducible correlated venue tuples for RallyV17 recipe revision 2.
+"""Correlated venue tuples qualified by the shared full PPQ004 first-bounce solve.
 
-The offline :class:`StrikeSpecPlanner` is the high-accuracy qualification oracle but is too slow
-to run while thousands of Isaac environments resample together.  This module vectorizes the
-planner's documented mirror-law initial guess.  It jointly samples incoming velocity, contact
-height and spin magnitude with a Gaussian copula, samples a legal intended landing, then derives
-one mutually consistent racket velocity and face normal.
-
-The tuple is training data, not a ball observation: the actor still receives the unchanged 110-D
-HITTER contract.  Exact virtual contact/flight later evaluates whether the tracked tuple clears
-the net and lands legally.
+The online path transfers sampled tuples to the CPU only when targets resample;
+Numba accelerates the shared full-contact solver when available. Normal training
+uses its prequalified bank instead. Actor observations retain the 110-D ABI.
 """
 
 from __future__ import annotations
@@ -16,11 +10,60 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import importlib.util
+from pathlib import Path
+import sys
+
+import numpy as np
 
 import torch
 
 
-SCHEMA_VERSION = 1
+def _support_module(name):
+    key = f'hope_venue_{name}'
+    if key not in sys.modules:
+        for parent in Path(__file__).resolve().parents:
+            path = parent / 'scripts' / f'{name}.py'
+            if path.is_file():
+                spec = importlib.util.spec_from_file_location(key, path)
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[key] = module
+                spec.loader.exec_module(module)
+                break
+        else:
+            raise FileNotFoundError(f'Cannot find training helper {name}')
+    return sys.modules[key]
+
+
+_profile = _support_module('ball_physics_profile')
+_full = _support_module('full_ball_model')
+
+
+def _solve_batch(position, incoming, spin, target, parameters):
+    result = np.zeros((len(position), 18))
+    for index in range(len(position)):
+        vr, normal, out, omega, bounce, time, valid, clear, bypass = _full.plan(
+            position[index], incoming[index], spin[index], target[index],
+            parameters[_full.FLIGHT_TIME], parameters)
+        result[index, :3] = vr
+        result[index, 3:6] = normal
+        result[index, 6:9] = out
+        result[index, 9:12] = omega
+        result[index, 12:15] = bounce
+        result[index, 15] = time
+        result[index, 16] = valid
+        result[index, 17] = clear and not bypass
+    return result
+
+
+try:
+    from numba import njit
+    _solve_batch = njit(_solve_batch)
+except ImportError:
+    pass  # Correct, slower NumPy fallback for installations without the offline accelerator.
+
+
+SCHEMA_VERSION = 2
 CORRELATION_LABELS = ("vx", "vy", "vz", "contact_z", "spin_magnitude")
 CORRELATION_MATRIX = (
     (1.0, 0.0, -0.44, 0.0, -0.36),
@@ -56,14 +99,8 @@ def sampler_receipt_payload() -> dict:
         "contact_y_bh": VENUE_CONTACT_Y_BH,
         "landing_x_range": DEFAULT_LANDING_X_RANGE,
         "landing_y_range": DEFAULT_LANDING_Y_RANGE,
-        "inverse": {
-            "kind": "strike_spec_mirror_law_seed_v1",
-            "flight_time_s": 0.5,
-            "gravity_mps2": 9.81,
-            "e_g1": 0.759,
-            "e_g2": -0.0441,
-            "fixed_point_iterations": 3,
-        },
+        "inverse": {"kind": "full_ppq004_first_bounce_v1",
+                    "profile_source_sha256": _profile.profile_source_hashes()},
         # A paddle plane is invariant under n -> -n, but the task's normal
         # reward is signed. The caller must choose the hemisphere containing
         # the current clip's demonstrated racket-face normal.
@@ -142,75 +179,53 @@ def _gaussian_copula_uniforms(
     )
 
 
-def mirror_law_racket_target(
+def full_model_racket_target(
     contact_pos_w: torch.Tensor,
     incoming_velocity_w: torch.Tensor,
+    incoming_spin_w: torch.Tensor,
     intended_landing_xy_w: torch.Tensor,
     *,
-    table_surface_z: float = 0.76,
-    flight_time_s: float = 0.5,
-    gravity_mps2: float = 9.81,
-    e_g1: float = 0.759,
-    e_g2: float = -0.0441,
-    fixed_point_iterations: int = 3,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Vectorized StrikeSpec mirror-law seed ``(v_racket, normal, v_out)``."""
+    table_surface_z: float | None = None,
+    table_near_x: float | None = None,
+    profile: dict | None = None,
+) -> dict[str, torch.Tensor]:
+    """Solve env-local contact/landing inputs, including the sampled incoming spin."""
 
     if contact_pos_w.ndim != 2 or contact_pos_w.shape[-1] != 3:
         raise ValueError("contact_pos_w must have shape [N,3]")
     if incoming_velocity_w.shape != contact_pos_w.shape:
         raise ValueError("incoming velocity shape must match contact position")
+    if incoming_spin_w.shape != contact_pos_w.shape:
+        raise ValueError("incoming spin shape must match contact position")
     if intended_landing_xy_w.shape != (contact_pos_w.shape[0], 2):
         raise ValueError("intended_landing_xy_w must have shape [N,2]")
-    if flight_time_s <= 0.0 or fixed_point_iterations < 1:
-        raise ValueError("flight time and fixed-point iteration count must be positive")
-
-    landing = torch.cat(
-        (
-            intended_landing_xy_w,
-            torch.full(
-                (contact_pos_w.shape[0], 1),
-                float(table_surface_z),
-                device=contact_pos_w.device,
-                dtype=contact_pos_w.dtype,
-            ),
-        ),
-        dim=-1,
-    )
-    gravity = torch.tensor(
-        (0.0, 0.0, -float(gravity_mps2)),
-        device=contact_pos_w.device,
-        dtype=contact_pos_w.dtype,
-    )
-    v_out = (
-        (landing - contact_pos_w) / float(flight_time_s)
-        - 0.5 * gravity * float(flight_time_s)
-    )
-    delta_v = v_out - incoming_velocity_w
-    normal = delta_v / torch.linalg.norm(delta_v, dim=-1, keepdim=True).clamp_min(
-        1.0e-9
-    )
-    normal = torch.where((normal[:, :1] < 0.0), -normal, normal)
-    v_out_n = torch.sum(v_out * normal, dim=-1, keepdim=True)
-    v_in_n = torch.sum(incoming_velocity_w * normal, dim=-1, keepdim=True)
-    restitution = torch.full_like(v_out_n, 0.654)
-    v_racket_n = (v_out_n + restitution * v_in_n) / (1.0 + restitution)
-    for _ in range(int(fixed_point_iterations)):
-        relative_n = torch.abs(v_in_n - v_racket_n)
-        restitution = (
-            float(e_g1) * torch.exp(float(e_g2) * relative_n)
-        ).clamp(0.05, 0.95)
-        v_racket_n = (v_out_n + restitution * v_in_n) / (
-            1.0 + restitution
-        )
-    return v_racket_n * normal, normal, v_out
+    raw = _profile.load_profile() if profile is None else profile
+    if raw.get('return_model', {}).get('id') != 'full_ppq004_first_bounce_v1':
+        raise ValueError('Online target solving requires the full PPQ004 profile; use the '
+                         'published bank mode when selecting an explicit legacy venue recipe')
+    parameters = _full.params_from_profile(raw)
+    frame = raw['training_frame']
+    offset = np.array([frame['near_x'] if table_near_x is None else table_near_x,
+                       frame['y_center'] + raw['table']['width'] / 2,
+                       frame['surface_z'] if table_surface_z is None else table_surface_z])
+    def cpu(tensor):
+        return tensor.detach().to(device='cpu', dtype=torch.float64).numpy()
+    solved = _solve_batch(cpu(contact_pos_w) - offset, cpu(incoming_velocity_w),
+                          cpu(incoming_spin_w), cpu(intended_landing_xy_w) - offset[:2], parameters)
+    result = torch.as_tensor(solved, device=contact_pos_w.device, dtype=contact_pos_w.dtype)
+    landing = result[:, 12:14] + torch.as_tensor(offset[:2], device=result.device, dtype=result.dtype)
+    return {'racket_velocity_w': result[:, :3], 'racket_normal_w': result[:, 3:6],
+            'outgoing_velocity_seed_w': result[:, 6:9], 'outgoing_spin_w': result[:, 9:12],
+            'predicted_landing_xy_w': landing, 'return_flight_time_s': result[:, 15],
+            'model_valid': result[:, 16].bool(), 'model_net_clear': result[:, 17].bool()}
 
 
 def sample_correlated_venue_tuple(
     clip: torch.Tensor,
     contact_x_w: torch.Tensor,
     *,
-    table_surface_z: float = 0.76,
+    table_surface_z: float | None = None,
+    table_near_x: float | None = None,
     landing_x_range: tuple[float, float] = DEFAULT_LANDING_X_RANGE,
     landing_y_range: tuple[float, float] = DEFAULT_LANDING_Y_RANGE,
 ) -> dict[str, torch.Tensor]:
@@ -279,18 +294,18 @@ def sample_correlated_venue_tuple(
         dim=-1,
     )
     incoming_spin = spin_direction * spin_magnitude.unsqueeze(-1)
-    racket_velocity, racket_normal, outgoing_seed = mirror_law_racket_target(
+    solved = full_model_racket_target(
         contact_pos,
         incoming_velocity,
+        incoming_spin,
         intended_landing,
         table_surface_z=table_surface_z,
+        table_near_x=table_near_x,
     )
     return {
         "contact_pos_w": contact_pos,
         "incoming_velocity_w": incoming_velocity,
         "incoming_spin_w": incoming_spin,
         "intended_landing_xy_w": intended_landing,
-        "racket_velocity_w": racket_velocity,
-        "racket_normal_w": racket_normal,
-        "outgoing_velocity_seed_w": outgoing_seed,
+        **solved,
     }

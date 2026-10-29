@@ -1,0 +1,388 @@
+{
+  "source_repository": "dongc1/nohope",
+  "source_branch": "main_improve_2",
+  "source_commit": "9c4d6366ab7bd58b73baf98c06159e1ac51688d2",
+  "integration_base": "hitchopen/HOPE:nightly_built",
+  "base_commit": "91aecabfd44cb258ac998158e724be9017d883a7",
+  "recipe_parity": "Explicit legacy CompleteHold/ppo_balanced_hold and StationaryRally/ppo_balanced_hold preserve resolved source-fork strategy at 54952d0; latest 9c4d6366a source-bank/default changes are adapted through the separate full-model PPQ004 task.",
+  "training_strategy_commit": "54952d0f11252cbef7b156c1d46d49389b75dc95",
+  "validation_scope": "CPU regression, native Python/C++ full-model numerical parity, full-bank first-bounce qualification and simulator plumbing; not learned-policy evaluation",
+  "policy_evidence": "User reports MuJoCo firm-standing test; no matching checkpoint/run report supplied; no independent learned-policy evaluation or real-world evaluation.",
+  "regression": {
+    "passed": 479,
+    "skipped": 11,
+    "elapsed_seconds": 64.76,
+    "skip_reason": "Isaac Lab, CUDA or second GPU unavailable",
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 NUMBA_NUM_THREADS=4 python -m pytest -q -rs -p no:cacheprovider tests --tb=short",
+    "runtime": {
+      "python": "3.11",
+      "torch": "2.14.1",
+      "rsl-rl-lib": "3.1.2",
+      "numpy": "2.4.6",
+      "numba": "0.68.0",
+      "hydra-core": "1.3.7"
+    },
+    "isaac_training_run": false,
+    "learned_policy_evaluation": false,
+    "native_cpp_suite": {
+      "passed": 84
+    },
+    "focused_default_launcher_entrypoints": {
+      "passed": 57
+    },
+    "full_model_parity_refitter_online": {
+      "passed": 20
+    },
+    "foxglove_defaults": {
+      "passed": 23,
+      "skipped": 6,
+      "subtests_passed": 2
+    },
+    "adjacent_config_launch_operator": {
+      "passed": 18,
+      "skipped": 1,
+      "subtests_passed": 17,
+      "existing_failure": "test_experimental_profiles_are_consistent_without_changing_hardware_defaults: model14600_contact_observation_candidate.yaml lacks adaptive_post_bounce_span_s, also absent at pre-change commit d6a8faac."
+    }
+  },
+  "physics_profile": "configs/ball_physics_ppq004_training.yaml",
+  "physics_sha256": "534812e79464e4f5242d938880bc63f802f9d27c801be0a9816f7f0ba6457a3b",
+  "physics_source_sha256": {
+    "configs/ball_physics.yaml": "415c17116b73c2985a3be78be06cedce4788def1ccc388c7979235b3a3cae5e7",
+    "configs/ball_physics_ppq004_training.yaml": "534812e79464e4f5242d938880bc63f802f9d27c801be0a9816f7f0ba6457a3b",
+    "configs/ball_physics_venue.yaml": "69ae86353308aacfc009172cd26d2fee62ecc78f542a747bc46a93b9b6c2dfca",
+    "hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml": "6aaf01c98b91395bbf33faa966ea473ba001f5e0d136e5fd4b6638e2cba162a2",
+    "hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml": "6b508c036ba884bf4faa92fd2348de1823af3c3d076b54ca1c18f792c5e21898",
+    "hope_ws/src/hope_planner_cpp/config/return_physics.yaml": "2978e624d798eb982b4c04af775678c8c78d17bcc08b7ecd0b453f18b5d85e30"
+  },
+  "refitter_sha256": "3cb4c6e6ef0c38586896447acc166a9a49c81c697c5f689526d1bc0d26a0f959",
+  "full_model_sha256": "f5a3f02f19aeafd391a2d3112fc4743ee98958afc7af07000a401a9460cb456b",
+  "profile_loader_sha256": "5fea80d98fe81d0a9f0fe0c6797ab0383121720aba61a8e8456ff2a47c83c9e0",
+  "full_model": {
+    "id": "full_ppq004_first_bounce_v1",
+    "paddle": "Exponential normal restitution, capped tangential impulse and spin transfer; coefficients from shared YAML.",
+    "free_flight": "RK4 quadratic drag, gravity and Magnus; spin constant during flight.",
+    "integration_s": 0.0005,
+    "vectorized_reward_integration": {
+      "step_s": 0.01,
+      "steps": 200,
+      "fine_comparison_cases": 9,
+      "landing_and_net_error_bound_m": 0.001,
+      "gpu_throughput_measured": false
+    },
+    "first_bounce": "First descending ball-center crossing at table surface plus ball radius; no subsequent bounce used.",
+    "first_bounce_center_height_above_surface_m": 0.02,
+    "training_frame": {
+      "near_x": 0.5,
+      "y_center": 0.0,
+      "surface_z": 0.76
+    },
+    "inverse": "Jointly solve racket velocity for full-contact first-bounce position/time, rejecting nonconvergence; configured alternative timing for net clearance.",
+    "coefficient_selection": "PPQ004 runtime fit, geometry and shared return-physics YAML selected through referenced profile; no duplicated fitted Python/C++ coefficients."
+  },
+  "bank_refit": {
+    "recipe_revision": 22,
+    "qualification": "full_ppq004_first_bounce_v1",
+    "source_recipe_revision": 21,
+    "training_distribution_revision": "stationary_reach_ppq004_full_v1",
+    "command": "python scripts/refit_stationary_reach_bank.py --source assets/stationary_reach_v4_ppq004_generalization_20261022 --output /private/tmp/hope-ppq004-full22-generalization-validated --physics ../../configs/ball_physics_ppq004_training.yaml --threads 8",
+    "generated_banks_committed": false,
+    "preserved_fields": [
+      "target_position_offset",
+      "incoming_velocity",
+      "incoming_spin",
+      "intended_landing_xy",
+      "parent_id",
+      "clip",
+      "station_xy",
+      "source_kind",
+      "generation_kind"
+    ],
+    "source_fields_preserved_exactly": true,
+    "source_row_index_preservation": "Output source_row_index maps into the revision-21 bank; input_source_row_index preserves its original source_row_index exactly.",
+    "parent_splits_disjoint": true,
+    "production_training_loader_rows_by_side": {
+      "0": 151591,
+      "1": 233176
+    },
+    "qualification_bounds": "Original reach/velocity boxes, incoming/outgoing/racket speed limits, incoming spin/approach limits, incoming-bounce/landing areas and net clearance retained; no command clipping or relaxed bounds."
+  },
+  "splits": {
+    "train": {
+      "source_rows": 502053,
+      "retained_rows": 384767,
+      "rejected_rows": 117286,
+      "failure_counts_overlapping": {
+        "landing": 2,
+        "net": 19,
+        "incoming_bounce": 0,
+        "speed": 1784,
+        "spin": 0,
+        "paddle_approach": 96,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 117215,
+        "planner": 0
+      },
+      "landing_error_m_p50_p95_max": [
+        7.366569523249213e-07,
+        4.818822529332072e-05,
+        0.00010003137682277774
+      ],
+      "racket_velocity_change_mps_p50_p95_max": [
+        0.47257894136543604,
+        1.059449013022029,
+        1.6256419955463046
+      ],
+      "forward_vs_planned_velocity_mps_p50_p95_max": [
+        8.069492741842027e-08,
+        1.6655103571555198e-07,
+        2.975288687481715e-07
+      ],
+      "sides": {
+        "0": {
+          "rows": 151591,
+          "core_rows": 32576,
+          "wide_rows": 119015,
+          "wide_lateral_histogram": [
+            28872,
+            27144,
+            28424,
+            34575
+          ]
+        },
+        "1": {
+          "rows": 233176,
+          "core_rows": 36538,
+          "wide_rows": 196638,
+          "wide_lateral_histogram": [
+            49882,
+            59967,
+            55990,
+            30799
+          ]
+        }
+      },
+      "source_bank_sha256": "02619e747333980a6f1d48aa3a9c7896e15727cf95cd3f51eb387d7687c4b419",
+      "source_receipt_sha256": "89c8e04874b0b9eff2b26192159d6f5988ff9e233f867ce3f6d12a70e047fd24",
+      "refitted_bank_sha256": "b0840a56e0033f79d383b73ad7ba2018a032148b980c1985c6e87f091e87efff",
+      "refitted_receipt_sha256": "71024a0f3093b8f00fb3a9f41193635cc5e938eea3ab9d5e442e0ce8a7971596"
+    },
+    "dev": {
+      "source_rows": 61815,
+      "retained_rows": 47174,
+      "rejected_rows": 14641,
+      "failure_counts_overlapping": {
+        "landing": 0,
+        "net": 5,
+        "incoming_bounce": 0,
+        "speed": 241,
+        "spin": 0,
+        "paddle_approach": 13,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 14630,
+        "planner": 0
+      },
+      "landing_error_m_p50_p95_max": [
+        6.745469742384836e-07,
+        4.653711695255727e-05,
+        9.994260056457272e-05
+      ],
+      "racket_velocity_change_mps_p50_p95_max": [
+        0.4778693545171011,
+        1.0648792746218303,
+        1.5516721944538059
+      ],
+      "forward_vs_planned_velocity_mps_p50_p95_max": [
+        8.064109093982763e-08,
+        1.6614428257856922e-07,
+        2.776022717769535e-07
+      ],
+      "sides": {
+        "0": {
+          "rows": 18254,
+          "core_rows": 4013,
+          "wide_rows": 14241,
+          "wide_lateral_histogram": [
+            3558,
+            3503,
+            3146,
+            4034
+          ]
+        },
+        "1": {
+          "rows": 28920,
+          "core_rows": 4690,
+          "wide_rows": 24230,
+          "wide_lateral_histogram": [
+            6126,
+            7398,
+            6758,
+            3948
+          ]
+        }
+      },
+      "source_bank_sha256": "83d760d5e137af61af955eb63cd55c9aeb0934727e0cf89199089da6981088ab",
+      "source_receipt_sha256": "805790fc142f0a13fcec9c90e3daf0505b37fb316e2cef50e9fe79c1c8d6d543",
+      "refitted_bank_sha256": "82951b9c026700ca7ab48e584c057baff61cf59bbebe0fcce47d4a66c1361f60",
+      "refitted_receipt_sha256": "d2d306c6c72d74cd6c434ac52c37e9fcc55b326a9bec34e1f34cdc95c66439c0"
+    },
+    "test": {
+      "source_rows": 62103,
+      "retained_rows": 47443,
+      "rejected_rows": 14660,
+      "failure_counts_overlapping": {
+        "landing": 0,
+        "net": 2,
+        "incoming_bounce": 0,
+        "speed": 226,
+        "spin": 0,
+        "paddle_approach": 18,
+        "landing_fit": 0,
+        "finite": 0,
+        "reach": 14649,
+        "planner": 0
+      },
+      "landing_error_m_p50_p95_max": [
+        6.941644469454351e-07,
+        4.777955256240733e-05,
+        9.976503471036597e-05
+      ],
+      "racket_velocity_change_mps_p50_p95_max": [
+        0.4745567570211834,
+        1.0631990193846261,
+        1.576164211375211
+      ],
+      "forward_vs_planned_velocity_mps_p50_p95_max": [
+        8.074751882818044e-08,
+        1.663239117490511e-07,
+        2.9653228403701407e-07
+      ],
+      "sides": {
+        "0": {
+          "rows": 18663,
+          "core_rows": 4111,
+          "wide_rows": 14552,
+          "wide_lateral_histogram": [
+            3645,
+            3276,
+            3270,
+            4361
+          ]
+        },
+        "1": {
+          "rows": 28780,
+          "core_rows": 4494,
+          "wide_rows": 24286,
+          "wide_lateral_histogram": [
+            6124,
+            7462,
+            6922,
+            3778
+          ]
+        }
+      },
+      "source_bank_sha256": "ad035861193139f5e3dd2dfcdce2e59c081620899e29957b4359da683985d165",
+      "source_receipt_sha256": "c967c72642ab7a6c223b5ad7750f53d06cc1f2f8bb7e7dc5eb8a01d655f6163f",
+      "refitted_bank_sha256": "77c99d95ab63e9a931c1807a71b14f10397973624eaf8697a642ff5b77326d27",
+      "refitted_receipt_sha256": "4d0525390bf2facfd889c4a2b32db55ccc41902086b186d318e09a4236389de0"
+    }
+  },
+  "runtime_solver_benchmark": {
+    "cases": 500,
+    "warmups": 20,
+    "sample_seed": 7097,
+    "source_bank": "assets/stationary_reach_v4/train.npz",
+    "machine": "arm64",
+    "compiler": "Apple clang, -O3 -DNDEBUG",
+    "p50_ms": 0.9689375,
+    "p95_ms": 1.3567163500000001,
+    "p99_ms": 1.4004239200000002,
+    "max_ms": 1.883667,
+    "min_ms": 0.656708,
+    "converged": 500,
+    "solve_failures": 0,
+    "converged_clears_net": 500,
+    "yaml_hashes": {
+      "configs/ball_physics.yaml": "415c17116b73c2985a3be78be06cedce4788def1ccc388c7979235b3a3cae5e7",
+      "configs/ball_physics_ppq004_training.yaml": "534812e79464e4f5242d938880bc63f802f9d27c801be0a9816f7f0ba6457a3b",
+      "configs/ball_physics_venue.yaml": "69ae86353308aacfc009172cd26d2fee62ecc78f542a747bc46a93b9b6c2dfca",
+      "hope_ws/src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml": "6aaf01c98b91395bbf33faa966ea473ba001f5e0d136e5fd4b6638e2cba162a2",
+      "hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml": "6b508c036ba884bf4faa92fd2348de1823af3c3d076b54ca1c18f792c5e21898",
+      "hope_ws/src/hope_planner_cpp/config/return_physics.yaml": "2978e624d798eb982b4c04af775678c8c78d17bcc08b7ecd0b453f18b5d85e30"
+    },
+    "limitation": "Local arm64 host solver microbenchmark; not robot hardware timing or a policy evaluation."
+  },
+  "checks": [
+    "Generated full recipe-22 bundle accepted by standalone dry-run, default prelaunch, robust task contract and production train-bank loader.",
+    "Default scratch settings verified: PPQ004 stationary task, balanced PPO, HOLD 1.7, 6144 environments, 30000 iterations, seed 0, no checkpoint or actor warm-start.",
+    "All retained source input fields match their source rows exactly; parents remain disjoint across splits and all stations remain zero.",
+    "Stored float32 racket velocity/normal requalified through full paddle spin transfer and first physical bounce.",
+    "Bank/receipt, six YAML dependencies and shared model/profile-loader implementation hashes are validated before Isaac import.",
+    "Relocated identical YAML bundles are accepted by unique source identity and hash; changed source hashes or ambiguous source names are rejected.",
+    "Old recipe 20, unrefitted 21 and superseded simplified-return identities cannot satisfy this full-model default.",
+    "Missing default preparation fails before Isaac with a full-model recipe-22 generation command.",
+    "Explicit legacy recipes retain venue physics when no user physics override is supplied.",
+    "Eight training README/review shell examples pass bash syntax validation.",
+    "Real MuJoCo scene smoke verified YAML shell inertia, drag and Magnus force, and three physical ticks without running a policy.",
+    "Explicit legacy venue clamp loading and reverse builder rollout smoke checks passed."
+  ],
+  "default_training": {
+    "task": "HOPEPingPongStationaryPPQ004",
+    "algo": "ppo_balanced_hold",
+    "bank_recipe_revision": 22,
+    "training_distribution_revision": "stationary_reach_ppq004_full_v1",
+    "full_body_hold_weight": 1.7,
+    "num_envs": 6144,
+    "max_iterations": 30000,
+    "seed": 0,
+    "checkpoint_path": null,
+    "warm_start_actor_checkpoint": null,
+    "manifest": "outputs/stationary_ppq004_full/training_overrides.yaml",
+    "preparation_required": true,
+    "playback_default": "Legacy HOPEPingPong/ppo retained; PPQ004 task and algo selected explicitly for new checkpoints.",
+    "revision_21_status": "Published at fork 9c4d6366a; immutable source bank is included and refitted into full-model recipe 22 before training."
+  },
+  "limitations": [
+    "No Isaac training run or independently measured learned-policy evaluation on this macOS host.",
+    "At-strike incoming states are preserved; the source bank does not provide an observed pre-bounce state to reconstruct.",
+    "Full-bank geometry qualification and simulator smoke checks do not establish balance, long-horizon success or hardware stability.",
+    "The published revision-21 bank remains immutable source input; its old surface-plane labels are recomputed and requalified in recipe 22."
+  ],
+  "pr87_comparison": {
+    "pull_request": "https://github.com/hitchopen/HOPE/pull/87",
+    "head_commit": "3a19636a0dadc79cd985a45d0890007c8d0d2222",
+    "base_branch": "main",
+    "integration_head_before_sync": "deccdb12f8b5f0272ff51e51b0c75c6c6031ce41",
+    "strategy_result": "No new reward, curriculum or PPO dynamics; resolved inherited strategy matches the standalone recipe.",
+    "published_bank_files_byte_identical": 9,
+    "canonical_strategy_sha256": "d38c18391cc859e1a41203f8a6f6f85b30b92b804393956792e8221db5d0e50b",
+    "canonical_algorithm_sha256": "1fa13da751dfafa2d00be10776d0e0733a1e254db8778a48a6f4a6b16e15d9a7",
+    "strategy_hash_exclusions": [
+      "task.ball_physics",
+      "task.racket.venue_tuple_bank_path",
+      "task.racket.venue_tuple_bank_receipt_path",
+      "task.racket.venue_tuple_bank_sha256",
+      "task.racket.venue_tuple_bank_receipt_sha256",
+      "task.racket.venue_tuple_bank_recipe_revision"
+    ],
+    "adopted": [
+      "Explicit -filter Git attribute for the three published bank NPZ files; verified against an injected global LFS rule.",
+      "Adapted upstream recipe fingerprint checks to preserve shared strategy while retaining separate full-model bank binding."
+    ],
+    "preserved": [
+      "Full PPQ004 Python/C++ first-bounce physics and YAML coefficient selection.",
+      "Default full-model recipe-22 manifest, six YAML dependency hashes and model/loader hashes.",
+      "Checkpoint/distribution guards, environment-local sampler frame, model convergence and net-clearance checks.",
+      "PPO diagnostics collision fix, explicit legacy task selections and existing playback defaults."
+    ],
+    "focused_parity_default_entrypoint_tests_passed": 24,
+    "physics_and_bank_outputs_changed": false,
+    "full_cpu_suite": {
+      "passed": 479,
+      "skipped": 11,
+      "elapsed_seconds": 64.76
+    }
+  }
+}

@@ -2905,6 +2905,17 @@ def virtual_pass_net(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     return raw * cmd.vb_fired.float()
 
 
+def sweet_spot_landing(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Legal first-bounce rectangle reward, evaluated on fresh achieved state.
+
+    RewardManager multiplies this raw event reward by weight and control dt.
+    The matching diagnostic records that actual per-event return, not weight
+    alone. Other reward terms keep their existing FK/target buffers unchanged.
+    """
+    weight = env.reward_manager.get_term_cfg("sweet_spot_landing").weight
+    return _cmd(env, command_name).sweet_spot_landing_reward(float(weight))
+
+
 def virtual_landing(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     """Landing-accuracy kernel + fully-gated in-bounds bonus (v0 ``landing_in_opponent_half``).
 

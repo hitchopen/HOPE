@@ -1,7 +1,7 @@
 """Fixed-station acceleration must preserve cohorts and the random stream."""
 import pytest
 import torch
-from stationary_test_support import robust
+from test_complete_hold_robustness import robust
 
 
 @pytest.mark.parametrize('device', ['cpu', 'cuda'])

@@ -277,6 +277,7 @@ StrikeTarget TrajectoryPredictor::predict_with_spin(
   StrikeTarget output;
   output.ball_position = state.position;
   output.ball_velocity = state.velocity;
+  output.ball_spin_rad_s = omega_rad_s;
   output.strike_source_time_s = state.source_time_s;
   output.reason = "prediction_running";
   if (!state.valid || !state.position.allFinite() || !state.velocity.allFinite() ||
@@ -314,6 +315,7 @@ StrikeTarget TrajectoryPredictor::predict_with_spin(
   for (int step = 0; step < max_steps; ++step) {
     const Vec3 previous_position = position;
     const Vec3 previous_velocity = velocity;
+    const Vec3 previous_omega = omega;
     const Vec3 acceleration = flight_acceleration(velocity, omega, use_magnus);
     Vec3 velocity_new = velocity + acceleration * dt;
     Vec3 position_new = position + velocity * dt + 0.5 * acceleration * dt * dt;
@@ -408,6 +410,7 @@ StrikeTarget TrajectoryPredictor::predict_with_spin(
       crossing_position.x() = x_hit;
       output.ball_position = crossing_position;
       output.ball_velocity = crossing_velocity;
+      output.ball_spin_rad_s = crossing_before_bounce ? previous_omega : omega;
       output.strike_source_time_s = crossing_time;
       output.predicted_bounces = bounces - (crossing_before_bounce ? 1 : 0);
       // A low descending crossing can still precede physical table contact.
@@ -422,6 +425,7 @@ StrikeTarget TrajectoryPredictor::predict_with_spin(
 
   output.ball_position = position;
   output.ball_velocity = velocity;
+  output.ball_spin_rad_s = omega;
   output.strike_source_time_s = time_s;
   output.predicted_bounces = bounces;
   if (state.position.x() <= x_hit) {

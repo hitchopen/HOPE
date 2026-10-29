@@ -458,12 +458,12 @@ class ProjectionPPO(PPO):
                 settled_loss = None
                 settled_stats = {}
                 if run_settled:
-                    smooth, tracking, diagnostics = self._settled_refinement.losses(
+                    smooth, tracking, settled_diagnostics = self._settled_refinement.losses(
                         self.policy, observations, mu_batch, batch_idx, storage.dones,
                     )
                     settled_loss = self.settled_aux_smooth_coef * smooth
                     settled_stats = {"smooth": smooth.item(),
-                                     **{k: v.item() for k, v in diagnostics.items()
+                                     **{k: v.item() for k, v in settled_diagnostics.items()
                                         if not k.startswith("waist_qdes_offset_")}}
                     # Physical PD offsets are logged by the state/command/torque
                     # chain, not under rsl_rl's misleading Loss/* namespace.

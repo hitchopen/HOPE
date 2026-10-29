@@ -4,6 +4,7 @@
 #include "hope_planner_cpp/hit_speed_scale_state.hpp"
 #include "hope_planner_cpp/ball_y_filter_state.hpp"
 #include "hope_planner_cpp/ball_y_filter_markers.hpp"
+#include "hope_planner_cpp/return_physics_parameters.hpp"
 
 #include <Eigen/Geometry>
 
@@ -154,12 +155,14 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       declare_parameter<double>("table_tangential_gain", BallPhysics{}.table_tangential_gain);
   physics_.table_friction_cap_mu =
       declare_parameter<double>("table_friction_cap_mu", BallPhysics{}.table_friction_cap_mu);
-  planner_config_.restitution_racket =
-      declare_parameter<double>("restitution_racket", 0.654);
-  planner_config_.restitution_exp_g1 =
-      declare_parameter<double>("restitution_exp_g1", 0.759);
-  planner_config_.restitution_exp_g2 =
-      declare_parameter<double>("restitution_exp_g2", -0.0441);
+  read_return_physics(physics_, planner_config_,
+      [this](const char* key) {
+        return declare_parameter<double>(key, std::numeric_limits<double>::quiet_NaN());
+      },
+      [this](const char* key) { return declare_parameter<int>(key, 0); },
+      [this](const char* key) {
+        return declare_parameter<std::vector<double>>(key, std::vector<double>{});
+      });
   planner_config_.x_hit = x_hit_fh_.load();
   planner_config_.target_land = Vec3(
       declare_parameter<double>("target_land_x", 2.055),
