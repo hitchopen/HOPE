@@ -1,7 +1,8 @@
 # Region: China (default)
 # Authority: Alibaba Cloud public NTP service, official ECS documentation.
 # Public service is IPv4-only. Do not add sources from another region.
-server ntp1.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.30
-server ntp2.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.30
-server ntp3.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.30
-
+# Venue Wi-Fi measured 0.37-0.41 s RTT; 0.50 s admits those samples while
+# retaining two-source agreement and the separate 10 ms offset qualification.
+server ntp1.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.50
+server ntp2.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.50
+server ntp3.aliyun.com iburst minpoll 6 maxpoll 9 maxdelay 0.50

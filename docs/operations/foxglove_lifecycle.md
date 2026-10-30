@@ -161,6 +161,14 @@ Before deployment approval, verify both ends and failed-start cleanup, then:
 
 ## Pre-operation clock correction
 
+Guarded new BSPs whose vendor launcher invokes `system/timesync_guard.py` cannot
+restore vendor-owned PTP with a normal hot PM restart. Their coordinator rejects
+`GUARDED_BSP_REQUIRES_PAIRED_REBOOT` before stopping/recovering MDU services.
+Use the [guarded-BSP commissioning procedure](new_robot_commissioning.md#新-bsp-的-timesync_guardpy必须先分支)
+for attended paired-board maintenance. Keep the factory guard intact. The hot
+calibration sequence below applies only to a supported restoration topology.
+
+
 For a large HDU clock offset, use the attended **Time Calibration** action
 **before START**, not a long wait for runtime slewing. At `maxslewrate 100`,
 reducing 168 ms to the 10 ms gate takes at least about 26 minutes. Chrony
@@ -477,6 +485,12 @@ reconnect to `ws://<new-hdu-ip>:8766`; the panel cannot move its own existing
 WebSocket connection.
 
 ## One-time prerequisites
+
+For a new robot, replaced board or fresh BSP, use the mandatory
+[new-robot commissioning checklist](new_robot_commissioning.md) before treating
+an application upload or PASSIVE start as deployment completion. Verify HDU
+chrony/bootstrap, Laptop NTP, MDU PTP and the selected mocap computer separately.
+Time Calibration maintains an installed baseline; it does not install one.
 
 The copy/paste deployment and first attended test procedure is
 [`foxglove_first_hardware_test.md`](foxglove_first_hardware_test.md).
@@ -907,6 +921,14 @@ See the [Planner site-option documentation](../../hope_ws/src/hope_planner_cpp/R
 Historical deployment evidence and its limitations are preserved in [the 2026-10-18 runtime field notes](runtime_field_notes_20261018.md).
 
 ## ELink transport scheduling
+
+Choose the scheduler profile before installation: the default installer below
+is pinned to T3. For the P1 BSP with the `61a3581e…` executable and `cff7ec66…`
+ELink library, use the separate
+[new robot P1 procedure](new_robot_commissioning.md#43-elink-scheduler-必须匹配-helper-与厂商-bsp).
+The older `install_mdu_elink_scheduler_p1_field.sh` does not provide the current
+hardware/privilege preflight and must not be mixed with the current helper.
+
 
 The audited A3_T3D0 vendor ELink library creates three transport threads (main
 loop, UDP send, UDP receive) outside the named AimRT executors. Changing only
