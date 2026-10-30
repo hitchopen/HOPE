@@ -109,6 +109,10 @@ class FieldOperations:
         self._data = {"mode": "OPTITRACK", "csv": None, "calibration": None, "ball_model": None, "policy_model": None}
         self.ball_model_status = {"state": "CHECKING", "configured_model": None, "endpoints": {}}
         self._ball_checked_at = None
+        self._policy_checked_at = None
+        self._policy_config_revision = None
+        self.policy_models = {name: {"available": False, "reason": "Waiting for installed model verification"}
+                              for name in sorted(MODELS)}
         self.calibration_sync = "NOT_CHECKED"
         self.error = ""
         try:
@@ -135,7 +139,37 @@ class FieldOperations:
             ball_status = {**self.ball_model_status, "age_s":
                            None if self._ball_checked_at is None else time.monotonic() - self._ball_checked_at}
             return {**self._data, "ball_model_status": ball_status, "calibration_sync": self.calibration_sync,
+                    "policy_models": self.policy_models,
+                    "policy_models_config_revision": self._policy_config_revision,
+                    "policy_models_age_s": None if self._policy_checked_at is None else time.monotonic() - self._policy_checked_at,
                     "error": self.error, "recording": self.recorder.status()}
+
+    def refresh_policy_models(self, config) -> dict:
+        """Verify both installed catalogs off the ROS publication path."""
+        endpoints = {}
+        for host in ("hdu", "mdu"):
+            try:
+                endpoints[host] = self.exchange(host, config, {"op": "list_policy_models"})["models"]
+            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+                endpoints[host] = {name: {"available": False, "reason": str(exc)[-400:]} for name in MODELS}
+        models = {}
+        for name in sorted(MODELS):
+            pair = [endpoints[host].get(name, {}) for host in ("hdu", "mdu")]
+            errors = [f"{host}: {entry.get('reason') or 'model not installed'}"
+                      for host, entry in zip(("hdu", "mdu"), pair) if entry.get("available") is not True]
+            if not errors:
+                keys = ("policy_sha256", "deploy_sha256", "receive_only", "required_ball_model")
+                csvs = [({k: e["serve_csv"].get(k) for k in ("name", "sha256")}
+                         if isinstance(e.get("serve_csv"), dict) else None) for e in pair]
+                if any(pair[0].get(key) != pair[1].get(key) for key in keys) or csvs[0] != csvs[1]:
+                    errors.append("HDU and MDU model/CSV identities differ")
+            models[name] = {"available": not errors, "reason": "; ".join(errors),
+                            "receive_only": pair[0].get("receive_only"), "serve_csv": pair[0].get("serve_csv")}
+        with self._lock:
+            self.policy_models = models
+            self._policy_checked_at = time.monotonic()
+            self._policy_config_revision = config.revision
+        return self.status()
 
     def refresh_ball_models(self, config) -> dict:
         endpoints = {}
@@ -195,6 +229,9 @@ class FieldOperations:
                 raise ValueError("choose an installed policy model")
             if model in MOCAP_MODELS and self._data["mode"] == "KERNEL":
                 raise ValueError("this policy requires OptiTrack receive mode")
+            availability = self.refresh_policy_models(config)["policy_models"][model]
+            if not availability["available"]:
+                raise ValueError(availability["reason"])
             previous = {host: self.exchange(host, config, {"op":"read_policy_model"})["model"]
                         for host in ("hdu", "mdu")}
             attempted = []
@@ -345,12 +382,17 @@ class FieldOperations:
                     raise ValueError("policy bundle capabilities differ across endpoints")
             receive_only = verified[0].get("receive_only") is True
             required_ball_model = verified[0].get("required_ball_model")
-            if model == "model17400" and (not receive_only or required_ball_model != "ppq004"):
-                raise ValueError("model17400 requires PPQ004 and receive-only bundle capabilities")
+            if model in {"model17400", "model12000"} and required_ball_model != "ppq004":
+                raise ValueError("selected model requires PPQ004 bundle capabilities")
             if required_ball_model is not None and required_ball_model not in PROFILES:
                 raise ValueError("policy bundle requires an unsupported ball model")
             if mode == "KERNEL" and (model in MOCAP_MODELS or receive_only):
                 raise ValueError("this policy requires OptiTrack receive mode")
+            if verified[0].get("serve_csv") != verified[1].get("serve_csv"):
+                raise ValueError(f"{model} serve CSV differs across endpoints")
+            matched_csv = verified[0].get("serve_csv")
+            if matched_csv and (not isinstance(csv, dict) or csv.get("sha256") != matched_csv.get("sha256")):
+                raise ValueError(f"{model} requires its matched {matched_csv['name']} serve CSV; use the policy default")
             if receive_only:
                 csv = None  # the installed receive-only bundle never consumes a serve CSV
         if mode != "KERNEL":
