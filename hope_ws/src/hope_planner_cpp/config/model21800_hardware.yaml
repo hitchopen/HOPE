@@ -7,6 +7,8 @@ hope_planner:
     future_contact_spin_tangential_gain: 0.38744443855065164
     future_contact_spin_omega_scale: 1.0
     future_contact_spin_min_coherence: 0.4
+    # Uncertain spin uses the physical prior without delaying a shot.
+    future_contact_require_spin: false
     use_kalman: false
     flight_packet_input_enabled: true
     flight_packet_topic: "/ball/flight_packet"
