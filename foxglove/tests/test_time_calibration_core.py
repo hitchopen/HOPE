@@ -16,6 +16,7 @@ from hope_time_calibration_core import (  # noqa: E402
     CHRONY_BURST_UNIT,
     HDU_CONSOLIDATED_CONTROL_GROUP,
     HDU_CONSOLIDATED_CONTROL_SCRIPT,
+    HDU_NATIVE_CONTROL_EXECUTABLE,
     HDU_CONSOLIDATED_CONTROL_UNIT,
     HDU_CONTROL_PROCESS_PATTERNS,
     HDU_FOXGLOVE_UNITS,
@@ -272,6 +273,30 @@ class TimeCalibrationStatusTests(unittest.TestCase):
 
 
 class TimeCalibrationOrderingTests(unittest.TestCase):
+    def test_masked_optional_legacy_units_allow_calibration_and_stay_masked(self):
+        machine = FakeMachine(consolidated=True)
+        def run(argv, **kwargs):
+            if argv[:2] == [SYSTEMCTL, "show"] and argv[-1] in HDU_SPLIT_CONTROL_UNITS:
+                return subprocess.CompletedProcess(argv, 0, "LoadState=masked\nActiveState=inactive\n", "")
+            return machine(argv, **kwargs)
+        backend = self.backend(machine, failing_ntp(), passing_ntp(), passing_ntp())
+        backend._run = run
+        backend.calibrate(self.config(), lambda *_: None, handoff_delay_s=0.)
+        for call in machine.calls:
+            if call[:2] == (SYSTEMCTL, "start"):
+                self.assertFalse(set(HDU_SPLIT_CONTROL_UNITS).intersection(call))
+
+    def test_masked_required_owner_still_rejects_before_clock_mutation(self):
+        machine = FakeMachine(consolidated=True)
+        def run(argv, **kwargs):
+            if argv[:2] == [SYSTEMCTL, "show"] and argv[-1] == HDU_CONSOLIDATED_CONTROL_UNIT:
+                return subprocess.CompletedProcess(argv, 0, "LoadState=masked\nActiveState=inactive\n", "")
+            return machine(argv, **kwargs)
+        backend = self.backend(machine, failing_ntp());backend._run = run
+        with self.assertRaisesRegex(CalibrationRejected, "HDU_CONTROL_UNIT_MASKED"):
+            backend.calibrate(self.config(), lambda *_: None, handoff_delay_s=0.)
+        self.assertFalse(any(call[:2] == (SYSTEMCTL, "stop") for call in machine.calls))
+
     def test_consolidated_receipt_restores_only_prior_active_operations_services(self):
         old_units = HDU_REQUIRED_CONTROL_UNITS
         saved = CalibrationStatus(boot_id="same-boot", active_hdu_foxglove=old_units)
@@ -656,6 +681,18 @@ class TimeCalibrationOrderingTests(unittest.TestCase):
                 with self.assertRaisesRegex(CalibrationRejected, "HDU_CONSOLIDATED_OWNER_PROCESS_MISSING"):
                     self.backend(machine, failing_ntp()).calibrate(self.config(), lambda _p: None, handoff_delay_s=0)
                 self.assert_no_step(machine)
+
+    def test_native_consolidated_owner_requires_exact_path_and_owned_cgroup(self):
+        for valid in (True, False):
+            machine = FakeMachine(consolidated=True, split_units_loaded=False)
+            machine.owner_properties["ExecStart"] = "{ path=" + HDU_NATIVE_CONTROL_EXECUTABLE + " ; }"
+            machine.file_overrides["/proc/3566/cmdline"] = HDU_NATIVE_CONTROL_EXECUTABLE + ("\0--ros-args\0" if valid else ".old\0")
+            backend = self.backend(machine, failing_ntp(), read_text=machine.read_text)
+            if valid:
+                self.assertEqual(backend._verified_consolidated_group(), HDU_CONSOLIDATED_CONTROL_GROUP)
+            else:
+                with self.assertRaisesRegex(CalibrationRejected, "OWNER_PROCESS_MISSING"):
+                    backend._verified_consolidated_group()
 
     def test_consolidated_owner_process_identity_change_is_not_accepted(self):
         machine = FakeMachine(consolidated=True)

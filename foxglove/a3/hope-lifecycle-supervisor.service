@@ -24,8 +24,8 @@ ExecStartPre=/usr/bin/chmod 0600 /var/lib/hope-lifecycle/hardware-operation.lock
 # Retain this unit name and state directory so venue-specific drop-ins and the
 # privileged time-calibration interlock keep their existing ownership boundary.
 # Bash, not systemd, must expand the semicolon-separated static peer list.
-# Jazzy callback-exception propagation is part of the reconnect contract;
-# verify test_operations_reconnect_ros.py against the deployed rclpy package.
+# Native DDS remains alive until the orchestration worker drains accepted work.
+# Reconnect is deferred while lifecycle, commands or responses remain active.
 ExecStart=:/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
   IFS=";" read -r -a hope_static_peers <<< "${ROS_STATIC_PEERS:-}" && \
   hope_peer_args=() && \
@@ -40,7 +40,7 @@ ExecStart=:/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && \
     echo "HOPE operations: ROS_STATIC_PEERS is empty; using the address-agnostic DDS profile for configuration and diagnostics. Configure network.env before START." >&2; \
   fi && \
   exec "${hope_dds_prefix[@]}" \
-  python3 /usr/local/bin/hope_operations.py \
+  /usr/local/libexec/hope-operations \
     --ros-args \
     -p session_id_path:=/tmp/hope_model21800_session_id \
     -p runtime_root:=/tmp/hope_real \

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 import os
@@ -20,11 +21,11 @@ from rcl_interfaces.msg import ParameterType, SetParametersResult
 from rcl_interfaces.srv import SetParameters
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
-from hope_operations_core import BoundedWorker, CachedCall, RosComponent, WorkerAdmission, telemetry_callback
+from hope_operations_core import BoundedWorker, CachedCall, RosComponent, SharedWire, WorkerAdmission, telemetry_callback
 from hope_operations_runtime import run_node
-from hope_runner_control_core import runner_session_fingerprint
+from hope_runner_control_core import decode_runner_state, runner_session_fingerprint
 from rclpy.qos import qos_profile_sensor_data
-from std_msgs.msg import Bool, String, UInt32
+from std_msgs.msg import Bool, Float64MultiArray, String, UInt32
 from std_srvs.srv import Trigger
 
 from hope_field_operations import FieldOperations
@@ -35,6 +36,7 @@ from hope_elink_clock import ClockQualificationGuard
 from hope_elink_telemetry import ElinkTelemetryTracker, load_telemetry_contract
 from hope_elink_telemetry_ros import ElinkTelemetrySubscriptions
 from hope_player_positions import PlayerPositions
+from hope_operations_recovery import SessionReceipt
 
 from hope_lifecycle_core import (
     CONFIG_FIELDS,
@@ -95,6 +97,15 @@ def _suspend_elink_telemetry(node):
     tracker = getattr(node, "_elink_telemetry", None)
     if tracker is not None:
         tracker.unbind_generation()
+
+
+def _retire_session_receipt(node):
+    receipt = getattr(node, "_session_receipt", None)
+    if receipt is not None:
+        try:
+            receipt.clear()
+        except OSError as exc:
+            node.get_logger().warning(f"Could not retire session receipt after confirmed cleanup: {exc}")
 
 
 class LifecycleBackend:
@@ -352,6 +363,10 @@ class LifecycleModule(RosComponent):
     def __init__(self, node, *, shared_state=None):
         RosComponent.__init__(self, node)
         self._shared_state = shared_state
+        # Split deployments need the same authoritative identity evidence as
+        # composed/native owners; observer scalar topics cannot prove boot ID.
+        self._recovery_runner = (shared_state.runner if shared_state is not None
+                                 else SharedWire(decode_runner_state, "RUNNER STATE"))
         self._admission = shared_state.admission if shared_state is not None else WorkerAdmission()
         self._rpc_workers = BoundedWorker("hope-lifecycle-rpc", capacity=2, admission=self._admission)
         self._record_workers = BoundedWorker("hope-record-rpc", capacity=2, admission=self._admission)
@@ -384,13 +399,14 @@ class LifecycleModule(RosComponent):
         self._runner_session_matches = False
         self._runner_session_matches_received = 0.0
         self._hardware_operation_lock = None
-        self._player_positions = PlayerPositions()
+        self._player_positions = getattr(node, "native_player_positions", None) or PlayerPositions()
         self._player_position_subscriptions = [
             self.create_subscription(
                 PoseStamped, f"/hope/mocap/players/{player}",
                 lambda msg, name=player: self._on_player_position(name, msg),
                 qos_profile_sensor_data, callback_group=self._callback_group)
-            for player in ("UCB_P1", "UCB_P2")
+            for player in (() if getattr(node, "native_player_positions", None) is not None
+                           else ("UCB_P1", "UCB_P2"))
         ]
         # Read legacy candidate records for operator evidence only. Never arm,
         # latch, clear or delete them: they have no lifecycle authority.
@@ -463,6 +479,11 @@ class LifecycleModule(RosComponent):
         )
         if shared_state is None:
             self.create_subscription(
+                Float64MultiArray, "/hope/runner/state_hdu_flat",
+                lambda message: self._recovery_runner.update(message.data),
+                10, callback_group=self._callback_group,
+            )
+            self.create_subscription(
                 String,
                 "/hope/runner/mode",
                 self._on_runner_mode,
@@ -488,6 +509,18 @@ class LifecycleModule(RosComponent):
         self._publish_timer = self.create_timer(0.5, self._publish)
         self._refresh_timer = self.create_timer(15.0, self._refresh_ball_models)
         self._elink_timer = self.create_timer(1.0, self._observe_elink)
+        self._recovery_receipt = None
+        self._session_receipt = SessionReceipt(CONFIG_PATH.parent / "operations_session.json", self._elink_clock_boot_id)
+        try:
+            receipt = self._session_receipt.load(self._config)
+            if receipt is not None:
+                self._state, self._step = "FAILED", "RECOVERY_IDENTITY_PENDING"
+                self._session_id, self._session_mode = receipt["session"], receipt["mode"]
+                self._recovery_receipt = receipt
+                self._last_result = "MANAGED_RECOVERY_REQUIRED: explicit cleanup needs fresh matching Runner identity"
+                self._hardware_operation_lock = try_acquire_hardware_operation_lock()
+        except (OSError, ValueError) as exc:
+            self.get_logger().warning(f"Session recovery receipt unavailable; no automatic adoption: {exc}")
         if self._config.revision > 0:
             self._field.recorder.stop(wait=False)  # default OFF after supervisor restart
 
@@ -516,7 +549,9 @@ class LifecycleModule(RosComponent):
         field_status["auto_record_on_start"] = os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1"
         field_status["busy"] = self._field_busy
         field_status["draining"] = draining
-        with self._lock:
+        # Native reads are IPC round trips, never lifecycle-lock critical
+        # sections. The Python cache still shares its lock with pose updates.
+        with (nullcontext() if getattr(self._player_positions, "status_threadsafe", False) is True else self._lock):
             field_status["player_positions"] = self._player_positions.status(time.monotonic())
         field_status["elink_observation"] = elink
         field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
@@ -878,6 +913,12 @@ class LifecycleModule(RosComponent):
         )
 
     def _start(self, _request, response):
+        if getattr(self, "_recovery_receipt", None) is not None:
+            # Recovery after a process loss must not turn START into an implicit
+            # STOP of a live robot. Explicit cleanup is required first.
+            response.success = False
+            response.message = "MANAGED_RECOVERY_REQUIRED: use explicit cleanup; START was not replayed"
+            return response
         with self._lock:
             if self._busy or self._field_busy or self._state not in {"STOPPED", "FAILED"}:
                 response.success = False
@@ -946,6 +987,13 @@ class LifecycleModule(RosComponent):
 
         def before_mutation():
             nonlocal mutation_started
+            receipt = getattr(self, "_session_receipt", None)
+            if receipt is not None:
+                try:
+                    receipt.record(cleanup_session if recovering else session_id,
+                                   cleanup_mode if recovering else self._session_mode, config)
+                except (OSError, ValueError) as exc:
+                    self.get_logger().warning(f"Session receipt unavailable; operation unchanged: {exc}")
             with self._lock:
                 _suspend_elink_telemetry(self)
                 mutation_started = True
@@ -956,6 +1004,7 @@ class LifecycleModule(RosComponent):
                 self._field.recorder.stop(wait=False)
                 self._backend.kill_all_and_collect(
                     config, cleanup_session, self._on_event, cleanup_mode)
+                _retire_session_receipt(self)
                 # Never release the operation lock between cleanup and retry.
                 recovering = False
                 # Cleanup has confirmed the old hardware session is stopped.
@@ -969,7 +1018,7 @@ class LifecycleModule(RosComponent):
             # Check only during START; moving players during a rally cannot
             # change the session's side. Recovery cleanup above stays available.
             if self._field.status().get("mode") != "KERNEL":
-                with self._lock:
+                with (nullcontext() if getattr(self._player_positions, "status_threadsafe", False) is True else self._lock):
                     self._player_positions.require(config.table_side, time.monotonic())
             mode, csv_sha = self._field.runner_selection(config)
             self._session_mode = mode
@@ -977,6 +1026,23 @@ class LifecycleModule(RosComponent):
                                 ball_model=self._field.status().get("ball_model"),
                                 before_mutation=before_mutation)
             self._wait_for_authoritative_runner()
+            receipt = getattr(self, "_session_receipt", None)
+            if receipt is not None:
+                try:
+                    snapshot = self._recovery_runner.snapshot()
+                    runner_boot = None
+                    try:
+                        SessionReceipt.verify({"session": session_id, "runner_boot": None},
+                                              snapshot, time.monotonic_ns())
+                        runner_boot = snapshot.value.boot_id
+                    except ValueError:
+                        # In a split layout scalar readiness may precede the
+                        # raw packet. Never pin an old/unrelated boot, or make
+                        # receipt enrichment a new START admission condition.
+                        pass
+                    receipt.record(session_id, mode, config, runner_boot)
+                except (OSError, ValueError, RuntimeError) as exc:
+                    self.get_logger().warning(f"Runner receipt unavailable; operation unchanged: {exc}")
             if hasattr(self, "_elink_health"):
                 # Every probe has its own 2 s deadline; three attempts plus
                 # two 250 ms gaps bound initial UNKNOWN settling to <=6.5 s.
@@ -1068,6 +1134,15 @@ class LifecycleModule(RosComponent):
             self._busy = False
 
     def _kill_all_and_collect(self, _request, response):
+        recovered = getattr(self, "_recovery_receipt", None)
+        if recovered is not None:
+            try:
+                # IPC remains outside lifecycle locks. Read-only validation;
+                # normal STOP's semantics are unchanged for an owned session.
+                SessionReceipt.verify(recovered, self._recovery_runner.snapshot(), time.monotonic_ns())
+            except (OSError, ValueError, RuntimeError) as exc:
+                response.success, response.message = False, str(exc)
+                return response
         with self._lock:
             if self._busy or self._state not in {"RUNNING", "FAILED"}:
                 response.success = False
@@ -1077,6 +1152,15 @@ class LifecycleModule(RosComponent):
                 response.success = False
                 response.message = "no managed session is available"
                 return response
+            if recovered is not None and self._hardware_operation_lock is None:
+                try:
+                    self._hardware_operation_lock = try_acquire_hardware_operation_lock()
+                except OSError as exc:
+                    response.success, response.message = False, f"recovery interlock unavailable: {exc}"
+                    return response
+                if self._hardware_operation_lock is None:
+                    response.success, response.message = False, "another operation owns the hardware interlock"
+                    return response
             config = self._config
             session_id = self._session_id
             self._busy = True
@@ -1128,9 +1212,13 @@ class LifecycleModule(RosComponent):
                 )
                 self._busy = False
             return
+        # Retire before publishing STOPPED/releasing admission; a new START
+        # must not have its new receipt deleted by the previous STOP worker.
+        _retire_session_receipt(self)
         with self._lock:
             self._state = "STOPPED"
             self._step = "IDLE"
+            self._recovery_receipt = None
             self._last_result = (
                 "KILL_COMPLETE_AGIBOT_PM_RESTORED_" + collection_reason
             )
@@ -1203,7 +1291,30 @@ class HopeLifecycleSupervisor(Node, LifecycleModule):
 
 
 def main() -> None:
-    run_node(HopeLifecycleSupervisor)
+    import sys
+    maintenance_flags = {"--recover-session", "--confirm-supported-stopped-wired-estop", "--confirm-vendor-restore"}
+    if not any(arg.split("=", 1)[0] in maintenance_flags for arg in sys.argv[1:]):
+        run_node(HopeLifecycleSupervisor)
+        return
+    # Local attended maintenance only. No ROS node/service and no START path.
+    import argparse
+    import pwd
+    from hope_operations_recovery import recover_stopped_session
+    parser = argparse.ArgumentParser(description="Explicit stopped-owner cleanup; never sends HOPE START or motion commands")
+    parser.add_argument("--recover-session", required=True)
+    parser.add_argument("--confirm-supported-stopped-wired-estop", action="store_true")
+    parser.add_argument("--confirm-vendor-restore", action="store_true")
+    args = parser.parse_args()
+    try:
+        if os.geteuid() != pwd.getpwnam(ROBOT_USER).pw_uid:
+            raise ValueError(f"run as {ROBOT_USER}, not root, so helpers use the correct tmux/SSH identity")
+        archived = recover_stopped_session(
+            CONFIG_PATH, args.recover_session, LifecycleBackend().kill_all_and_collect,
+            confirmed=args.confirm_supported_stopped_wired_estop and args.confirm_vendor_restore,
+            event_callback=lambda event: print(f"{event.step} {event.state} {event.reason}", flush=True))
+        print(f"Cleanup confirmed; receipt archived at {archived}. No HOPE START, motion command or E-stop reset was sent.")
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        parser.exit(1, f"Recovery not completed; do not delete the receipt: {exc}\n")
 
 
 if __name__ == "__main__":

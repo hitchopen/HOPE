@@ -353,6 +353,24 @@ class RosComponent:
 
     def _worker_callback(self, callback, worker):
         source = callback.__qualname__
+        if getattr(self._node, "_native_operations_transport", False):
+            # Native ROS defers the response; this runs on a bounded IPC lane,
+            # never on a DDS or socket-reader thread. Keep the same module
+            # admission, per-action lanes, exception replies and drain rules.
+            def native_invoke(request, response):
+                count = len(request.parameters) if hasattr(request, "parameters") else 1
+                try:
+                    lane = worker(request) if callable(worker) else worker
+                    submission = lane.try_submit(callback, request, response)
+                except Exception as exc:
+                    return self._failed_response(response, f"operation rejected: {type(exc).__name__}: {exc}", count)
+                if submission.future is None:
+                    return self._failed_response(response, submission.rejection, count)
+                try:
+                    return submission.future.result()
+                except Exception as exc:
+                    return self._failed_response(response, f"operation failed: {type(exc).__name__}: {exc}", count)
+            return native_invoke
         async def invoke(request, response):
             tracker = self._node._hope_rpc_tracker
             tracker.enter(source)

@@ -291,12 +291,32 @@ bash -n foxglove/helpers/hope-lifecycle
 
 ## Per-robot installation (operator action; changes that robot)
 
-**Preserve the installed control-plane layout.** These service/module examples
-are not a migration recipe for an existing consolidated field installation.
+The current operations unit launches the native `hope-operations` service.
+Stage its matching worker/modules with
+[`install_native_operations.sh`](a3/install_native_operations.sh), following the
+[native operations build, parity tests and stopped migration](a3/native/README.md).
+The reference `hope_operations.py` is retained for comparison and rollback;
+do not launch it alongside the native owner. Staging changes no active files or
+systemd state. Activation requires an explicit supported/stopped maintenance
+step and backs up the matched previous deployment for rollback. The existing
+monitor/gateway/base-relay targets are unchanged.
+
+Native operations separates diagnostic IPC from control and serves Runner
+emergency-passive without the Python worker. Fixed Runner ACK tracking is native;
+ordinary-action/calibration admission and hardware workflows remain in Python.
+The read-only `/hope/operations/metrics` topic reports queue/delay and ACK health.
+After an owner restart, a same-boot session receipt can enable **explicit cleanup**
+of a fresh identity-matched Runner, never automatic START or motion resumption.
+If Runner is gone after partial startup or interrupted cleanup, use the native
+guide's [attended offline cleanup](a3/native/README.md#attended-recovery-when-runner-identity-is-unavailable),
+not receipt deletion. Split supervisors read Runner identity directly as well.
+
+**Inspect the installed control-plane layout.** Use the native migration guide
+for an existing consolidated field installation.
 Inspect the supervisor, observer and command-proxy units and their actual
-processes first. If `hope-lifecycle-supervisor.service` owns the Python
-`/usr/local/bin/hope_operations.py` process, update its matching field bundle;
-do not replace it with split sample units/modules. Loaded-inactive
+processes first. Replace a Python `hope_operations.py` owner only with the
+complete matching native/worker bundle; retain its configuration and drop-ins.
+Loaded-inactive
 observer/proxy compatibility stubs may be intentional and must not be enabled
 just to satisfy a split-layout checklist. See the
 [deployment-layout boundary](../docs/operations/foxglove_lifecycle.md#install-the-hdu-supervisor)
@@ -407,6 +427,7 @@ robot.
 ssh "agi@$A3_HOST"
 # Build native telemetry, transport and monitor (or use a target-matched build).
 # This step does not start a process or issue a robot command.
+sudo apt-get install nlohmann-json3-dev libfmt-dev
 source /opt/ros/jazzy/setup.bash
 # Use the real installed vendor SDK, never the isolated-test mock package.
 export CMAKE_PREFIX_PATH="/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package:${CMAKE_PREFIX_PATH}"
@@ -419,8 +440,10 @@ sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-monitor \
   /usr/local/libexec/hope-monitor
 sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-imu-telemetry \
   /usr/local/libexec/hope-imu-telemetry
-sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-runner-transport-relay-native \
-  /usr/local/libexec/hope-runner-transport-relay
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-transport-gateway \
+  /usr/local/libexec/hope-transport-gateway
+sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-base-pose-transport-relay \
+  /usr/local/libexec/hope-base-pose-transport-relay
 sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-mocap-config-transport \
   /usr/local/libexec/hope-mocap-config-transport
 # The matching lifecycle helper executes the relay directly (without python3).
@@ -453,6 +476,11 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now hope-imu-telemetry.service hope-monitor.service hope-foxglove-bridge.service
 systemctl status hope-monitor hope-foxglove-bridge --no-pager
 ```
+
+For the separate control bridge, its parameter file, and the time-calibration/
+chrony units, continue with the [HDU supervisor prerequisite installation](../docs/operations/foxglove_lifecycle.md#bridge-monitor-and-clock-coordinator-prerequisites).
+Its enable/start commands follow attended operations activation; they are not
+performed by the stage-only native installer.
 
 High-rate IMU reception, clock display publication, and Runner/teleop transport
 run in C++. A fixed native wait set receives IMU data independently of the 20 Hz

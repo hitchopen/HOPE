@@ -60,11 +60,14 @@ HDU_REQUIRED_CONTROL_UNITS = tuple(
 )
 HDU_CONSOLIDATED_CONTROL_UNIT = "hope-lifecycle-supervisor.service"
 HDU_CONSOLIDATED_CONTROL_SCRIPT = "/usr/local/bin/hope_operations.py"
+HDU_NATIVE_CONTROL_EXECUTABLE = "/usr/local/libexec/hope-operations"
 HDU_CONSOLIDATED_CONTROL_GROUP = "/system.slice/hope-lifecycle-supervisor.service"
 HDU_CONTROL_PROCESS_PATTERNS = (
     ("OBSERVER", "(^|/)[h]ope_observer[.]py([[:space:]]|$)"),
     ("COMMAND_PROXY", "(^|/)[h]ope_command_proxy[.]py([[:space:]]|$)"),
     ("OPERATIONS", "(^|/)[h]ope_operations[.]py([[:space:]]|$)"),
+    ("OPERATIONS_NATIVE", "(^|/)[h]ope-operations([[:space:]]|$)"),
+    ("OPERATIONS_WORKER", "(^|/)[h]ope_operations_worker[.]py([[:space:]]|$)"),
 )
 PTP_PROCESSES = ("ptp4l", "phc2sys")
 HDU_RUNTIME_PATTERNS = (
@@ -349,7 +352,7 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"HDU_UNIT_STATE_UNKNOWN: {unit}")
             fields[key] = value
         if (set(fields) != {"LoadState", "ActiveState"}
-                or fields["LoadState"] not in {"loaded", "not-found"}
+                or fields["LoadState"] not in {"loaded", "not-found", "masked"}
                 or fields["ActiveState"] not in {
                     "active", "inactive", "failed", "activating", "deactivating", "reloading"}):
             raise CalibrationFailure(f"HDU_UNIT_STATE_UNKNOWN: {unit}")
@@ -385,14 +388,15 @@ class TimeCalibrationBackend:
                 or not fields["MainPID"].isdigit() or int(fields["MainPID"]) <= 0
                 or fields["ControlGroup"] != HDU_CONSOLIDATED_CONTROL_GROUP
                 or fields["KillMode"] != "control-group"
-                or re.search(r"(?<![\w./-])" + re.escape(HDU_CONSOLIDATED_CONTROL_SCRIPT)
-                             + r"(?=$|[\s;'\"])", fields["ExecStart"]) is None):
+                or not any(re.search(r"(?<![\w./-])" + re.escape(owner)
+                                     + r"(?=$|[\s;'\"])", fields["ExecStart"])
+                           for owner in (HDU_CONSOLIDATED_CONTROL_SCRIPT, HDU_NATIVE_CONTROL_EXECUTABLE))):
             raise CalibrationRejected("HDU_CONSOLIDATED_OWNER_UNVERIFIED")
         return fields
 
     def _verified_consolidated_group(self) -> str:
         # On consolidated HDUs the systemd MainPID is the DDS shell wrapper.
-        # Prove the real Python child, not just a description/ExecStart token,
+        # Prove the real operations child, not just a description/ExecStart token,
         # belongs to the one service that will be stopped and restored.
         before = self._consolidated_owner_properties()
         group = before["ControlGroup"]
@@ -405,8 +409,10 @@ class TimeCalibrationBackend:
                 process = Path("/proc") / pid
                 try:
                     argv = self._read_text(process / "cmdline").rstrip("\0").split("\0")
-                    if (len(argv) < 2 or argv[1] != HDU_CONSOLIDATED_CONTROL_SCRIPT
-                            or re.fullmatch(r"python(?:3(?:\.\d+)?)?", Path(argv[0]).name) is None):
+                    python_owner = (len(argv) >= 2 and argv[1] == HDU_CONSOLIDATED_CONTROL_SCRIPT
+                                    and re.fullmatch(r"python(?:3(?:\.\d+)?)?", Path(argv[0]).name) is not None)
+                    native_owner = bool(argv and argv[0] == HDU_NATIVE_CONTROL_EXECUTABLE)
+                    if not (python_owner or native_owner):
                         continue
                     first_stat = self._read_text(process / "stat")
                     first_start = first_stat.rsplit(")", 1)[1].split()[19]
@@ -432,6 +438,8 @@ class TimeCalibrationBackend:
     def _snapshot_control_plane(self) -> ControlPlaneSnapshot:
         states = {unit: self._unit_state(unit) for unit in HDU_FOXGLOVE_UNITS}
         for unit, (loaded, state) in states.items():
+            if loaded == "masked" and (unit not in HDU_SPLIT_CONTROL_UNITS or state not in {"inactive", "failed"}):
+                raise CalibrationRejected(f"HDU_CONTROL_UNIT_MASKED: {unit}")
             if state in {"activating", "deactivating", "reloading"}:
                 raise CalibrationRejected(f"HDU_CONTROL_UNIT_TRANSITIONING: {unit}")
             if loaded == "not-found" and state != "inactive":
@@ -587,6 +595,8 @@ class TimeCalibrationBackend:
                     raise CalibrationFailure(f"HDU_PTP_TOPOLOGY_CHANGED: {unit}")
                 continue
             optional_control = unit in HDU_SPLIT_CONTROL_UNITS and unit not in control.active_units
+            if loaded == "masked" and not (optional_control and state in {"inactive", "failed"}):
+                raise CalibrationFailure(f"HDU_CLOCK_CONSUMER_MASKED: {unit}")
             if ((loaded != "loaded" and unit not in HDU_VENDOR_UNITS and not optional_control)
                     or state not in {"inactive", "failed"}):
                 raise CalibrationFailure(f"HDU_CLOCK_CONSUMER_NOT_STOPPED: {unit}")

@@ -169,11 +169,12 @@ class CommandProxyModule(RosComponent):
                                      10, callback_group=self._callback_group)
         else:
             self.create_timer(0.5, self._poll_field_status)
-        self._runner_request_publisher = self.create_publisher(
-            Float64MultiArray,
-            "/hope/runner/control_request_hdu_flat",
-            10,
-        )
+        if getattr(self._node, "_native_operations_transport", False):
+            self._node.configure_native_runner(self._runner_action_timeout_s, self._runner_request_id)
+            self._runner_request_publisher = None
+        else:
+            self._runner_request_publisher = self.create_publisher(
+                Float64MultiArray, "/hope/runner/control_request_hdu_flat", 10)
         if shared_state is None:
             self._runner_state_subscription = self.create_subscription(
                 Float64MultiArray,
@@ -295,6 +296,8 @@ class CommandProxyModule(RosComponent):
                 action_name,
                 response,
                 urgent=action_name == "EMERGENCY_PASSIVE",
+                native_epoch=getattr(_request, "_native_runner_epoch", None),
+                native_received=getattr(_request, "_native_runner_received", None),
             )
 
         return callback
@@ -305,6 +308,8 @@ class CommandProxyModule(RosComponent):
         response: Trigger.Response,
         *,
         urgent: bool = False,
+        native_epoch=None,
+        native_received=None,
     ) -> Trigger.Response:
         lock_acquired = False
         if not urgent and not self._action_lock.acquire(blocking=False):
@@ -314,6 +319,14 @@ class CommandProxyModule(RosComponent):
         if not urgent:
             lock_acquired = True
         try:
+            if getattr(getattr(self, "_node", None), "_native_operations_transport", False):
+                # Preserve the audited ordinary action/calibration lock; native
+                # code owns the fixed wire, IDs and ACK timing. Emergency is
+                # served directly in C++ and does not depend on this IPC lane.
+                result = self._node.native_runner_action(action_name, self._runner_action_timeout_s,
+                                                        native_epoch, native_received)
+                response.success, response.message = result["success"], result["message"]
+                return response
             request_id = self._next_runner_request_id()
             message = Float64MultiArray()
             message.data = encode_runner_request(request_id, action_name)

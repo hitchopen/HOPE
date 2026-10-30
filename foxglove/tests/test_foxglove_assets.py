@@ -43,7 +43,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             result = subprocess.run(['bash', '-c', script], text=True, capture_output=True,
                                     env={'ROS_STATIC_PEERS': peers, 'ROS_DOMAIN_ID': '218'})
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('</usr/local/bin/hope_operations.py>', result.stdout)
+            self.assertIn('</usr/local/libexec/hope-operations>', result.stdout)
             if peers:
                 for expected in ('<--domain-id>', '<218>', '<192.0.2.10>', '<192.0.2.20>'):
                     self.assertIn(expected, result.stdout)
@@ -1114,7 +1114,7 @@ cgroup_path_in_systemd_unit \
                 self.assertIn("ExecStart=/usr/bin/true", unit)
                 self.assertNotIn("python3", unit)
         canonical = (FOXGLOVE_DIR / "a3/hope-lifecycle-supervisor.service").read_text()
-        self.assertIn("python3 /usr/local/bin/hope_operations.py", canonical)
+        self.assertIn("/usr/local/libexec/hope-operations", canonical)
         self.assertIn("User=agi", canonical)
         self.assertIn("hardware-operation.lock", canonical)
         self.assertIn("StateDirectory=hope-lifecycle", canonical)
