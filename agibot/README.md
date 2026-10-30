@@ -32,6 +32,7 @@ Process presence is not a substitute for physical safety verification.
 | [ntp_sync/](ntp_sync/README.md) | A3 HDU Chrony and supervised HDU-to-MDU PTP clock synchronization; includes installation, verification and recovery procedures. |
 | [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables, geometry validation, and OptiTrack/ChingMu asset definitions. |
 | [right_wrist_paddle_flange/](right_wrist_paddle_flange/README.md) | Current 45-degree right wrist paddle flange: hollow connector cavity, smooth exterior reinforcement, printable STL and printing/fit notes. |
+| [right_wrist_hand_unified/](right_wrist_hand_unified/README.md) | V3.2 hollow wrist/palm/H3002 cradle with a four-screw A3 collar mount, right-facing −Y flat, enclosed wiring pocket and removable lid; final STLs, pose calculation and release notes. |
 | [agibot_left_gripper_serve_addon.STL](agibot_left_gripper_serve_addon.STL) | Developer-supplied left-gripper serving fixture. **Metre-scale coordinates; see the printing scale warning below.** |
 
 ## Robot models and software boundaries
@@ -97,6 +98,29 @@ The hollow connector space, mounting interfaces and screw passages are retained,
 with smooth outward reinforcement across the external wall. Import the STL in
 **millimetres at 100% scale**. The component README and linked print notes give
 the dimensions, geometry checks and assembly guidance.
+
+## Unified right wrist hand
+
+The [V3.2 H3002 integrated hand](right_wrist_hand_unified/README.md) uses A3's
+existing metal collar and exactly four radial M4 screws. No fifth mounting
+screw, hole or insert is required in the printed plug. Its keyed Ø34 mount, circular
+shoulder, curved wrist, palm, thumb contour and paddle cradle form one printed
+body; a removable cover with four finger contours closes the grip.
+The release folder contains only the final body STL, lid STL and release README.
+Four short M4 metal inserts provide the collar threads. Separately, five grip
+screws run along the handle-thickness direction: three M4x20 lid screws outside
+the wooden handle and two M4x35 locking bolts through the wood.
+Digital paddle geometry and the URDF red-face
+datum are unchanged. The shoulder is nominally placed at X=48 mm in
+`right_wrist_yaw_Link`. The plug's sole flat faces right (−Y), opposite the
+unchanged +Y red-face normal; the user visually confirmed the connector orientation.
+A Ø22 opening leads into a curved, enclosed wiring pocket, with a nominal 3 mm
+housing wall. The release notes include the final pose calculation from the
+exported STL's seating surfaces and the H3002/URDF outline differences.
+Physical seating depth, connector envelope and H3002 dimensions remain unmeasured.
+See the release notes for insert specifications, screw-length
+selection, print finishing and assembly limits. The separate
+`right_wrist_paddle_flange/` release remains unchanged.
 
 ## Pelvis marker hardware
 
