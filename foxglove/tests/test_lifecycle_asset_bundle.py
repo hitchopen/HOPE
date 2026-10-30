@@ -79,12 +79,10 @@ class LifecycleAssetBundleTest(unittest.TestCase):
                                  'echo SERVE_TIMELINE_VALID\n')
             validator.chmod(0o755)
             entry = {'deployment': str(bundle), 'files': {
-                str(validator): hashlib.sha256(validator.read_bytes()).hexdigest()},
-                'receive_only': False, 'required_ball_model': 'ppq004',
-                'serve_csv': {'name': 'v23-12000.csv', 'sha256': digest}}
+                str(validator): hashlib.sha256(validator.read_bytes()).hexdigest()}}
             (catalog / 'catalog.json').write_text(json.dumps({
-                'version': 1, 'models': {'model12000': entry}}))
-            (catalog / 'selected.json').write_text('{"model":"model12000"}')
+                'version': 1, 'models': {name: entry for name in ('model14600', 'model11999', 'model12600')}}))
+            (catalog / 'selected.json').write_text('{"model":"model14600"}')
             source = (foxglove / 'helpers/hope-lifecycle').read_text()
             for original, replacement in {
                 '/agibot/hope-policy-models': str(catalog),

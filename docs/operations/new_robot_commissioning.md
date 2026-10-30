@@ -29,8 +29,8 @@ PR #102 的 `install_native_operations.sh` 和 `hope_operations_deploy.py stage`
 | --- | --- | --- |
 | 身份、网络、SSH | Laptop↔HDU、HDU↔MDU、HDU→Laptop 的实际路由和免交互 SSH；现场 `network.env`、DDS peers/interface、Console 地址一致 | 首次手册 §0、§3；有线场景使用 `foxglove/laptop/check_wired_connection.py`。四向 SSH/WebSocket 成功仅证明连接 |
 | Laptop 环境 | HOST 工具、ROS `hope` 环境、匹配消息/球包器/动捕桥、lifecycle helper、布局/Console、资产服务；使用 Xbox 时安装并验证输入服务 | [环境安装](../DISTROBOX_SETUP.md)、首次手册 §2、§8–9；核对实际安装路径和版本 |
-| HDU 时钟基线 | chrony、bootstrap、区域上游源、vendor/PTP 所有权、启动顺序、当前 Laptop 地址的 NTP ACL | [时钟安装](clock_baseline_installation.md) §6.2.1（缺失时 §6.2.1.1）；`HDU_CLOCK_BASELINE_OK` 之外仍需下文在线同步证据 |
-| Laptop 时间同步 | chrony 实际加载当前 HDU source，旧 HDU source 已审查 | [时钟安装](clock_baseline_installation.md) §6.6；`LAPTOP_CURRENT_HDU_NTP_OK`，当前 HDU 是选中的源 |
+| HDU 时钟基线 | chrony、bootstrap、区域上游源、vendor/PTP 所有权、启动顺序、当前 Laptop 地址的 NTP ACL | [时钟安装](clock_baseline_installation.md) §2–4；`HDU_CLOCK_BASELINE_OK` 之外仍需下文在线同步证据 |
+| Laptop 时间同步 | chrony 实际加载当前 HDU source，旧 HDU source 已审查 | [时钟安装](clock_baseline_installation.md) §5；`LAPTOP_CURRENT_HDU_NTP_OK`，当前 HDU 是选中的源 |
 | MDU 系统与 PTP | 匹配 BSP/HAL、硬件 timestamp、PTP units/worker 所有权、CPU/affinity、helper 和最小 sudoers | 首次手册 §7.2；`MDU_CLOCK_BASELINE_OK`、`MDU_FRESH_IMAGE_PREFLIGHT_OK`；核对 PTP `SLAVE`、`gmPresent=true` 和持续更新的同步观测 |
 | HDU 控制面 | 匹配的 Planner、native base relay/gateway/IMU、monitor、operations、8765/8766 bridge、校时 coordinator/core、ELink 模块 | 首次手册 §6 与[当前 prerequisites](foxglove_lifecycle.md#one-time-prerequisites)；检查有效 unit/drop-in、实际 PID/可执行文件与参数，而非仅 `enabled` |
 | MDU 应用 | 完整 ARM Runner 包及依赖、ONNX/deploy、runtime/CPU 配置、policy catalog/selection、所需 Serve/teleop/夹爪资产 | 首次手册 §7 与[部署](deploy_and_gate3.md)；活动槽位、实际文件 SHA、启动参数相符；receive-only 不要求不存在的 Serve 能力 |
