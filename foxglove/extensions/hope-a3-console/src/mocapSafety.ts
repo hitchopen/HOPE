@@ -1,3 +1,4 @@
+import { Translator, defaultTranslator } from "./i18n";
 // Read-only Runner telemetry; the schema-2 action/state contract is unchanged.
 export type MocapSafety = {
   boot: number;
@@ -32,24 +33,24 @@ export function decodeMocapSafety(value: unknown): MocapSafety | undefined {
     operatorInterrupted: v[13] };
 }
 
-export function mocapSafetyText(state: MocapSafety | undefined): string {
-  if (state == undefined) { return "Mocap safety status unavailable"; }
+export function mocapSafetyText(state: MocapSafety | undefined, t: Translator = defaultTranslator): string {
+  if (state == undefined) { return t("mocapSafety.mocapSafetyStatusUnavailable"); }
   if (state.operatorInterrupted === 36 || state.operatorInterrupted === 37) {
-    const link = state.operatorInterrupted === 36 ? "Foxglove UI" : "operator computer";
+    const link = state.operatorInterrupted === 36 ? t("mocapSafety.foxgloveUi") : t("mocapSafety.operatorComputer");
     return state.uiFresh === true && state.computerFresh === true && state.fresh
-      ? `Stopped: ${link} lost · links restored; explicitly re-enter play`
-      : `Stopped: ${link} lost · controlled PD_STAND recovery`;
+      ? t("mocapSafety.stoppedLostLinksRestoredExplicitlyReEnterPlay", {source: link})
+      : t("mocapSafety.stoppedLostControlledPdStandRecovery", {source: link});
   }
-  if (!state.required) { return "Offline mode · mocap protection not required"; }
+  if (!state.required) { return t("mocapSafety.offlineModeMocapProtectionNotRequired"); }
   if (state.interrupted) {
-    return state.fresh ? "Stopped: mocap lost · stream restored; explicitly re-enter play"
-      : "Stopped: mocap lost · controlled PD_STAND recovery";
+    return state.fresh ? t("mocapSafety.stoppedMocapLostStreamRestoredExplicitlyReEnter")
+      : t("mocapSafety.stoppedMocapLostControlledPdStandRecovery");
   }
   if (state.operatorRequired === true && (state.uiFresh !== true || state.computerFresh !== true)) {
-    return `Normal-play entry blocked: ${state.uiFresh !== true ? "Foxglove UI" : "operator computer"} heartbeat missing`;
+    return t("mocapSafety.normalPlayEntryBlockedHeartbeatMissing", {source: state.uiFresh !== true ? t("mocapSafety.foxgloveUi") : t("mocapSafety.operatorComputer")});
   }
   if (state.held === true) {
-    return `Holding last pelvis pose · real-sample age ${Math.round(state.ageMs ?? 0)} ms · PD_STAND at 1 s`;
+    return t("mocapSafety.holdingLastPelvisPoseRealSampleAgeMs", {age: Math.round(state.ageMs ?? 0)});
   }
-  return state.fresh ? "Mocap fresh" : "Mocap unavailable · play entry blocked";
+  return state.fresh ? t("mocapSafety.mocapFresh") : t("mocapSafety.mocapUnavailablePlayEntryBlocked");
 }

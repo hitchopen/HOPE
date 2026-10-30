@@ -10,21 +10,24 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
-import { BallModelStatus, ballModelDisplay } from "./ballModelStatus";
-
-import { HitSpeedScaleControls } from "./HitSpeedScaleControls";
-import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
 import { BallYFilterControls } from "./BallYFilterControls";
+import { HitSpeedScaleControls } from "./HitSpeedScaleControls";
+import { LanguageContext, useI18n } from "./LanguageContext";
+import { PlaneModeControls } from "./PlaneModeControls";
+import { BallModelStatus, ballModelDisplay } from "./ballModelStatus";
 import { BALL_Y_FILTER_SERVICE, BallYFilterState, ballYFilterRequest, decodeBallYFilter } from "./ballYFilter";
 import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
-import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
-import { robotConnectionUrl, switchRobot } from "./robotConnection";
+import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
+import { message as msg, LocalizedError, errorText, LocalText, Translator, Locale, readLocale, createTranslator } from "./i18n";
 import { mergeConfirmedConfig } from "./lifecycleConfig";
-import { timeCalibrationControls } from "./timeCalibration";
-import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
+import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
+import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
+import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
+import { reconcileRobotTarget, robotConnectionUrl, switchRobot } from "./robotConnection";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
+import { timeCalibrationControls } from "./timeCalibration";
 
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
@@ -33,9 +36,6 @@ import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
-import { PlaneModeControls } from "./PlaneModeControls";
-import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
-
 import "./styles.css";
 
 const TOPICS = {
@@ -107,13 +107,13 @@ const TOPICS = {
   mduInternalIp: "/hope/lifecycle/config/mdu_internal_ip",
   motiveIp: "/hope/lifecycle/config/motive_ip",
   tableSide: "/hope/lifecycle/config/table_side",
+  gripperProfile: "/hope/lifecycle/config/gripper_profile",
   pantsProfile: "/hope/lifecycle/config/pants_profile",
   mocapSource: "/hope/lifecycle/config/mocap_source",
   vrpnIp: "/hope/lifecycle/config/vrpn_ip",
   vrpnPort: "/hope/lifecycle/config/vrpn_port",
   vrpnUnits: "/hope/lifecycle/config/vrpn_units",
   operatorProfile: "/hope/lifecycle/config/operator_profile",
-  gripperProfile: "/hope/lifecycle/config/gripper_profile",
 } as const;
 
 const SERVICES = {
@@ -138,10 +138,14 @@ const SERVICES = {
 type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
+type PolicyModel = "model14600" | "model11999" | "model12600" | "model17400" | "model12000";
 type FieldStatus = {
   player_positions?: { P1: boolean; P2: boolean };
   ball_model_status?: BallModelStatus;
-  policy_model?: "model14600" | "model11999" | "model12600" | "model17400" | null;
+  policy_model?: PolicyModel | null;
+  policy_models?: Partial<Record<PolicyModel, { available: boolean; reason: string; receive_only?: boolean }>>;
+  policy_models_age_s?: number | null;
+  policy_models_config_revision?: number | null;
   ball_model?: "berkeley" | "ppq002" | "ppq004" | null;
   ball_model_verification?: { model: string; planner: string; packetizer: string };
   mode: "OPTITRACK" | "KERNEL";
@@ -158,18 +162,18 @@ type FieldStatus = {
 type CpuSample = { at: number; value: number };
 
 const CONFIG_FIELDS = {
-  laptop_wifi_ip: { label: "Laptop IP", topic: TOPICS.laptopWifiIp },
-  hdu_wifi_ip: { label: "HDU IP", topic: TOPICS.hduWifiIp },
-  mdu_internal_ip: { label: "MDU Internal", topic: TOPICS.mduInternalIp },
-  motive_ip: { label: "Motive (optional telemetry)", topic: TOPICS.motiveIp },
-  vrpn_ip: { label: "青瞳 server IP · VRPN", topic: TOPICS.vrpnIp },
-  mocap_source: { label: "动捕系统", topic: TOPICS.mocapSource },
-  vrpn_port: { label: "VRPN port", topic: TOPICS.vrpnPort },
-  vrpn_units: { label: "VRPN units", topic: TOPICS.vrpnUnits },
-  pants_profile: { label: "Marker pants", topic: TOPICS.pantsProfile },
-  table_side: { label: "Our table side", topic: TOPICS.tableSide },
-  operator_profile: { label: "Operator computer", topic: TOPICS.operatorProfile },
-  gripper_profile: { label: "Gripper", topic: TOPICS.gripperProfile },
+  laptop_wifi_ip: { label: msg("hopeA3Console.laptopIp"), topic: TOPICS.laptopWifiIp },
+  hdu_wifi_ip: { label: msg("hopeA3Console.hduIp"), topic: TOPICS.hduWifiIp },
+  mdu_internal_ip: { label: msg("hopeA3Console.mduInternal"), topic: TOPICS.mduInternalIp },
+  motive_ip: { label: msg("hopeA3Console.motiveServerIpNatnet"), topic: TOPICS.motiveIp },
+  vrpn_ip: { label: msg("hopeA3Console.chingmuServerIpVrpn"), topic: TOPICS.vrpnIp },
+  mocap_source: { label: msg("hopeA3Console.mocapSystem"), topic: TOPICS.mocapSource },
+  vrpn_port: { label: msg("hopeA3Console.vrpnPort"), topic: TOPICS.vrpnPort },
+  vrpn_units: { label: msg("hopeA3Console.vrpnUnits"), topic: TOPICS.vrpnUnits },
+  table_side: { label: msg("hopeA3Console.ourTableSide"), topic: TOPICS.tableSide },
+  gripper_profile: { label: msg("hopeA3Console.gripper"), topic: TOPICS.gripperProfile },
+  pants_profile: { label: msg("hopeA3Console.markerPants"), topic: TOPICS.pantsProfile },
+  operator_profile: { label: msg("hopeA3Console.operatorComputer"), topic: TOPICS.operatorProfile },
 } as const;
 
 type ConfigField = keyof typeof CONFIG_FIELDS;
@@ -193,13 +197,13 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   mdu_internal_ip: "",
   motive_ip: "",
   table_side: "",
+  gripper_profile: "",
   pants_profile: "",
   mocap_source: "",
   vrpn_ip: "",
   vrpn_port: "",
   vrpn_units: "",
   operator_profile: "",
-  gripper_profile: "",
 };
 
 type XboxPreview = {
@@ -242,6 +246,7 @@ type Snapshot = {
   playerP2?: PlayerPosition;
   hitSpeedScale?: HitSpeedScaleState;
   ballYFilter?: BallYFilterState;
+  planeMode?: PlaneModeState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
   ntpOffsetMs?: number;
@@ -288,7 +293,6 @@ type Snapshot = {
   lastAction?: string;
   lastResult?: string;
   lastReason?: string;
-  planeMode?: PlaneModeState;
   field?: FieldStatus;
   lifecycleState?: string;
   lifecycleStep?: string;
@@ -369,9 +373,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       next.playerP2 = decodePlayerPosition(event.message, receivedAt, next.playerP2);
       break;
     case TOPICS.plannerDiagnostics:
+      next.ballYFilter = decodeBallYFilter(event.message);
       next.planeMode = decodePlaneMode(event.message);
       next.hitSpeedScale = decodeHitSpeedScale(event.message);
-      next.ballYFilter = decodeBallYFilter(event.message);
       break;
     case TOPICS.fieldStatus:
       try {
@@ -569,12 +573,6 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
     case TOPICS.motiveIp:
       next.lifecycleConfig.motive_ip = stringValue(event.message);
       break;
-    case TOPICS.tableSide:
-      next.lifecycleConfig.table_side = stringValue(event.message);
-      break;
-    case TOPICS.gripperProfile:
-      next.lifecycleConfig.gripper_profile = stringValue(event.message);
-      break;
     case TOPICS.mocapSource:
       next.lifecycleConfig.mocap_source = stringValue(event.message);
       break;
@@ -590,28 +588,34 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
     case TOPICS.pantsProfile:
       next.lifecycleConfig.pants_profile = stringValue(event.message);
       break;
+    case TOPICS.gripperProfile:
+      next.lifecycleConfig.gripper_profile = stringValue(event.message);
+      break;
+    case TOPICS.tableSide:
+      next.lifecycleConfig.table_side = stringValue(event.message);
+      break;
     case TOPICS.operatorProfile:
       next.lifecycleConfig.operator_profile = stringValue(event.message);
       break;
   }
 }
 
-function triggerResponse(value: unknown): { success: boolean; message: string } {
+function triggerResponse(value: unknown): { success: boolean; message: LocalText } {
   if (typeof value !== "object" || value == undefined) {
-    return { success: false, message: "service returned no structured response" };
+    return { success: false, message: msg("hopeA3Console.serviceReturnedNoStructuredResponse") };
   }
   const response = value as TriggerResponse;
   return {
     success: response.success === true,
     message:
-      typeof response.message === "string" ? response.message : "service returned no message",
+      typeof response.message === "string" ? response.message : msg("hopeA3Console.serviceReturnedNoMessage"),
   };
 }
 
 async function timeoutAfter(milliseconds: number): Promise<never> {
   return await new Promise((_, reject) => {
     window.setTimeout(() => {
-      reject(new Error(`service timeout after ${milliseconds / 1000} s`));
+      reject(new LocalizedError(msg("hopeA3Console.serviceTimeoutAfterS", {seconds: milliseconds / 1000})));
     }, milliseconds);
   });
 }
@@ -619,6 +623,47 @@ async function timeoutAfter(milliseconds: number): Promise<never> {
 function isFresh(snapshot: Snapshot, topic: TopicName, now: number, maxAgeMs: number): boolean {
   const received = snapshot.lastReceived[topic];
   return received != undefined && now - received <= maxAgeMs;
+}
+
+type Confirmation = {
+  key: ServiceKey;
+  prompt: LocalText;
+  host?: string;
+  session?: string;
+  boot?: number;
+};
+
+function confirmationBlocked(pending: Confirmation, current: Snapshot, now: number): LocalText | undefined {
+  if (pending.host !== current.lifecycleConfig.hdu_wifi_ip ||
+      pending.session !== current.lifecycleSession || pending.boot !== current.runnerBoot) {
+    return msg("hopeA3Console.confirmationIdentityChanged");
+  }
+  const key = pending.key;
+  if (key !== "prepareServe" && key !== "readyToServe" && key !== "openGripper") { return; }
+  const required = [TOPICS.runnerAlive, TOPICS.runnerBoot, TOPICS.runnerFault,
+    TOPICS.runnerMode, TOPICS.localRole, TOPICS.serveCapability, TOPICS.serveState];
+  if (!current.lifecycleSession || current.runnerBoot == undefined || current.runnerAlive !== true ||
+      required.some(topic => !isFresh(current, topic, now, 1_000))) {
+    return msg("hopeA3Console.confirmationStateUnavailable");
+  }
+  if (current.runnerFault !== false || current.localRole !== "SERVER" ||
+      (key === "openGripper" ? current.runnerMode !== "PD_STAND" :
+        current.serveCapability !== "AVAILABLE" ||
+        (key === "prepareServe"
+          ? !["PD_STAND", "MOTION"].includes(current.runnerMode ?? "") ||
+            !["IDLE", "COMPLETE", "ABORTED"].includes(current.serveState ?? "")
+          : current.serveState !== "WAIT_READY_TO_SERVE"))) {
+    return msg("hopeA3Console.confirmationStateChanged");
+  }
+  if (key === "openGripper") { return; }
+  const safety = current.mocapSafety;
+  if (!isFresh(current, TOPICS.mocapSafety, now, 1_000) || safety?.boot !== current.runnerBoot) {
+    return msg("hopeA3Console.confirmationStateUnavailable");
+  }
+  if (safety.operatorRequired !== false && (safety.uiFresh !== true || safety.computerFresh !== true)) {
+    return msg("hopeA3Console.confirmationHeartbeatUnavailable");
+  }
+  return undefined;
 }
 
 function GateChip({
@@ -630,12 +675,13 @@ function GateChip({
   value?: boolean;
   detail?: string;
 }): ReactElement {
+  const t = useI18n();
   const state = value == undefined ? "unknown" : value ? "ok" : "attention";
   return (
     <div className={`gate gate-${state}`} title={detail}>
       <span className="gate-dot" />
       {label}
-      {value === false ? " · CHECK" : ""}
+      {value === false ? t("hopeA3Console.check") : ""}
     </div>
   );
 }
@@ -649,12 +695,13 @@ function ProcessTile({
   topic: string;
   value?: boolean;
 }): ReactElement {
+  const t = useI18n();
   const state = value == undefined ? "unknown" : value ? "running" : "stopped";
   return (
     <div className={`process-tile process-${state}`}>
       <div className="process-state">
         <span className="process-dot" />
-        {state === "unknown" ? "NO DATA" : state.toUpperCase()}
+        {state === "unknown" ? t("hopeA3Console.noData") : state.toUpperCase()}
       </div>
       <div className="process-name">{name}</div>
       <div className="topic-path">{topic}</div>
@@ -662,7 +709,7 @@ function ProcessTile({
   );
 }
 
-function selectedMarkerAsset(snapshot: Snapshot): string {
+function selectedMarkerAsset(snapshot: Snapshot, t: Translator): string {
   const configuredSide = snapshot.lifecycleConfig.table_side?.trim();
   if (configuredSide === "P1" || configuredSide === "P2") {
     return `UCB_${configuredSide}`;
@@ -670,7 +717,7 @@ function selectedMarkerAsset(snapshot: Snapshot): string {
   const reportedAsset = snapshot.markerAsset?.trim();
   return reportedAsset === "UCB_P1" || reportedAsset === "UCB_P2"
     ? reportedAsset
-    : "SIDE UNSET";
+    : t("hopeA3Console.sideUnset");
 }
 
 type ActionButtonProps = {
@@ -686,6 +733,7 @@ type ActionButtonProps = {
 };
 
 function ActionButton(props: ActionButtonProps): ReactElement {
+  const t = useI18n();
   const classes = [
     "action-button",
     props.completed === true ? "action-completed" : "",
@@ -702,13 +750,15 @@ function ActionButton(props: ActionButtonProps): ReactElement {
       disabled={props.disabled || props.busy}
       onClick={props.onClick}
     >
-      <span>{props.busy ? "Working…" : props.label}</span>
+      <span>{props.busy ? t("hopeA3Console.working") : props.label}</span>
       <small>{props.detail}</small>
     </button>
   );
 }
 
 function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactElement {
+  const [locale, setLocale] = useState<Locale>(readLocale(context.initialState));
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const latest = useRef<Snapshot>(INITIAL_SNAPSHOT);
   const [snapshot, setSnapshot] = useState<Snapshot>(INITIAL_SNAPSHOT);
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
@@ -717,34 +767,46 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   // render, otherwise a new packet appears up to 250 ms in the future.
   const now = Date.now();
   const [busy, setBusy] = useState<Partial<Record<ServiceKey, boolean>>>({});
-  const [notice, setNotice] = useState("Waiting for authoritative Runner state");
+  const [notice, setNotice] = useState<LocalText>(msg("hopeA3Console.waitingForAuthoritativeRunnerState"));
+  const [confirmation, setConfirmation] = useState<Confirmation | undefined>();
+  const confirmationRef = useRef<Confirmation>();
+  const confirmationCancel = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmation != undefined) { confirmationCancel.current?.focus(); }
+  }, [confirmation]);
   const [configDraft, setConfigDraft] = useState<LifecycleConfigDraft>(EMPTY_CONFIG);
   const [configTouched, setConfigTouched] = useState(false);
   const savedPanel = useRef((context.initialState ?? {}) as Record<string, unknown>);
   const [robotTarget, setRobotTarget] = useState(typeof savedPanel.current.robotTarget === "string" ? savedPanel.current.robotTarget : "");
   const [targetEdited, setTargetEdited] = useState(false);
-  const [pendingTarget, setPendingTarget] = useState<string>(typeof savedPanel.current.robotTarget === "string" ? savedPanel.current.robotTarget : "");
+  // A layout can outlive its connection. Never restore an in-flight switch.
+  const [pendingTarget, setPendingTarget] = useState<string>("");
   const configHost = snapshot.lifecycleConfig.hdu_wifi_ip;
+  const configHostFresh = isFresh(snapshot, TOPICS.hduWifiIp, now, 1_500);
   const previousHost = useRef<string>();
   useEffect(() => {
-    if (!configHost) { return; }
+    if (!configHostFresh || !configHost) { return; }
     if (previousHost.current && previousHost.current !== configHost) {
       setConfigTouched(false);
       setConfigDraft({ ...EMPTY_CONFIG, ...snapshot.lifecycleConfig });
     }
     previousHost.current = configHost;
-    if (!targetEdited && !pendingTarget) { setRobotTarget(configHost); }
-    if (pendingTarget === configHost) { setPendingTarget(""); setTargetEdited(false); }
-  }, [configHost, pendingTarget, targetEdited, snapshot.lifecycleConfig]);
+    const resolved = reconcileRobotTarget(robotTarget, targetEdited, pendingTarget, configHost);
+    setRobotTarget(resolved.target);
+    setPendingTarget(resolved.pending);
+    setTargetEdited(resolved.edited);
+    if (!resolved.pending && savedPanel.current.robotTarget !== configHost) {
+      savedPanel.current = { ...savedPanel.current, robotTarget: configHost };
+      context.saveState(savedPanel.current);
+    }
+  }, [configHost, configHostFresh, pendingTarget, robotTarget, targetEdited, snapshot.lifecycleConfig, context]);
   const connectRobot = () => {
     try {
       switchRobot(robotTarget.trim(), (ip) => {
         setPendingTarget(ip);
-        savedPanel.current = { ...savedPanel.current, robotTarget: ip };
-        context.saveState(savedPanel.current);
-        setNotice(`正在打开 ${ip}:8766；等待新机器人回读，旧面板已锁定。`);
+        setNotice(msg("hopeA3Console.opening8766WaitingForTheNewRobotControls", {ip}));
       }, (url) => { window.open(url, "_blank", "noopener,noreferrer"); });
-    } catch (error) { setNotice(String(error)); }
+    } catch (error) { setNotice(errorText(error)); }
   };
   let validRobotTarget = false;
   try { robotConnectionUrl(robotTarget.trim()); validRobotTarget = true; } catch { /* incomplete input */ }
@@ -752,15 +814,14 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [fieldBusy, setFieldBusy] = useState(false);
   const [recordBusy, setRecordBusy] = useState(false);
   const csvInput = useRef<HTMLInputElement>(null);
-
   const previewBallYFilter = useCallback((draft: BallYFilterDraft, options: { kernelMode: boolean; edited: boolean }) => {
     context.layout.addPanel({ position: "sibling", type: "3D", updateIfExists: true,
-      getState: (existing) => withBallYPreview(existing, draft, options) });
+      getState: (existing) => withBallYPreview(existing, draft, options, t) });
     savedPanel.current = { ...savedPanel.current,
       ballYFilterDraft: draft, ballYFilterDraftEdited: options.edited,
       ballYFilterRobot: latest.current.lifecycleConfig.hdu_wifi_ip };
     context.saveState(savedPanel.current);
-  }, [context]);
+  }, [context, t]);
 
   useLayoutEffect(() => {
     const heartbeat = new OperatorHeartbeat(context);
@@ -768,8 +829,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       const receivedAt = Date.now();
       const hostMessage = renderState.currentFrame?.find((event) => event.topic === TOPICS.hduWifiIp);
       const incomingHost = hostMessage ? stringValue(hostMessage.message) : undefined;
-      if (renderState.didSeek || (incomingHost && latest.current.lifecycleConfig.hdu_wifi_ip &&
+      if (renderState.didSeek || (incomingHost !== undefined && latest.current.lifecycleConfig.hdu_wifi_ip !== undefined &&
           incomingHost !== latest.current.lifecycleConfig.hdu_wifi_ip)) {
+        confirmationRef.current = undefined;
+        setConfirmation(undefined);
         latest.current = INITIAL_SNAPSHOT;
         setConfigTouched(false);
         setConfigDraft(EMPTY_CONFIG);
@@ -827,11 +890,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const invoke = useCallback(
     async (key: ServiceKey) => {
       if (context.callService == undefined || busy[key] === true) {
-        setNotice("Current data source does not expose service calls");
+        setNotice(msg("hopeA3Console.currentDataSourceDoesNotExposeServiceCalls"));
         return;
       }
       setBusy((current) => ({ ...current, [key]: true }));
-      setNotice(`${SERVICES[key]} requested…`);
+      setNotice(msg("hopeA3Console.requested", {service: SERVICES[key]}));
       try {
         const timeoutMs =
           key === "estop"
@@ -844,9 +907,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           timeoutAfter(timeoutMs),
         ]);
         const response = triggerResponse(raw);
-        setNotice(`${response.success ? "ACCEPTED" : "REJECTED"} · ${response.message}`);
+        setNotice(msg("hopeA3Console.requestResult", {status: response.success ? "ACCEPTED" : "REJECTED", detail: response.message}));
       } catch (error) {
-        setNotice(`FAILED · ${error instanceof Error ? error.message : String(error)}`);
+        setNotice(msg("hopeA3Console.failed", {error: errorText(error)}));
       } finally {
         setBusy((current) => ({ ...current, [key]: false }));
       }
@@ -854,52 +917,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     [busy, context],
   );
 
-  const applyHitSpeedScale = useCallback(async (scale: number) => {
-    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
-    const requestedAt = Date.now();
-    const raw = await Promise.race([
-      context.callService(HIT_SPEED_SCALE_SERVICE, hitSpeedScaleRequest(scale)), timeoutAfter(3_000),
-    ]) as { result?: { successful?: boolean; reason?: string } };
-    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
-    const deadline = Date.now() + 2_500;
-    while (Date.now() < deadline) {
-      const current = latest.current;
-      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
-          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.hitSpeedScale?.scale === scale) {
-        setNotice(`击球力度已确认：${scale}；从后续新目标生效。`);
-        return;
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 100));
-    }
-    throw new Error("请求已接受，状态回读超时；请核对当前击球力度。");
-  }, [context]);
-
-  const applyPlaneMode = useCallback(async (mode: PlaneMode) => {
-    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
-    const requestedAt = Date.now();
-    const raw = await Promise.race([
-      context.callService(PLANE_MODE_SERVICE, planeModeRequest(mode)), timeoutAfter(3_000),
-    ]) as { result?: { successful?: boolean; reason?: string } };
-    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
-    const deadline = Date.now() + 2_500;
-    while (Date.now() < deadline) {
-      const current = latest.current;
-      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
-          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.planeMode?.requested === mode) {
-        setNotice("已确认下一球平面模式；本球目标保持不变。");
-        return;
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 100));
-    }
-    throw new Error("请求已接受，状态回读超时；请核对下一球模式。");
-  }, [context]);
-
   const fieldCommand = useCallback(async (payload: Record<string, unknown>) => {
     const recording = payload.op === "record_on" || payload.op === "record_off";
     const setPending = recording ? setRecordBusy : setFieldBusy;
     setPending(true);
     try {
-      if (context.callService == undefined) {throw new Error("Connect to the control bridge :8766");}
+      if (context.callService == undefined) {throw new LocalizedError(msg("hopeA3Console.connectToTheControlBridge8766"));}
       const raw = (await context.callService("/hope/field/command", {
         parameters: [{ name: "request", value: {
           type: 4, string_value: JSON.stringify(payload), bool_value: false,
@@ -908,24 +931,64 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         } }],
       })) as SetParametersResponse;
       const result = raw.results?.[0];
-      if (result?.successful !== true) {throw new Error(typeof result?.reason === "string" ? result.reason : "invalid response");}
-      setNotice(`ACCEPTED · ${String(payload.op)} · follow the status shown below`);
+      if (result?.successful !== true) {throw new LocalizedError(typeof result?.reason === "string" ? result.reason : msg("hopeA3Console.invalidResponse"));}
+      setNotice(msg("hopeA3Console.acceptedFollowTheStatusShownBelow", {operation: String(payload.op)}));
     } catch (error) {
-      setNotice(`REJECTED · ${error instanceof Error ? error.message : String(error)}`);
+      setNotice(msg("hopeA3Console.rejected", {error: errorText(error)}));
     } finally {
       setPending(false);
     }
   }, [context]);
 
+  const applyHitSpeedScale = useCallback(async (scale: number) => {
+    if (context.callService == undefined) { throw new LocalizedError(msg("hopeA3Console.connectToControlPort8766")); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(HIT_SPEED_SCALE_SERVICE, hitSpeedScaleRequest(scale)), timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new LocalizedError(raw.result?.reason ?? msg("hopeA3Console.plannerDidNotConfirmTheChange")); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.hitSpeedScale?.scale === scale) {
+        setNotice(msg("hopeA3Console.hitSpeedScaleConfirmedAppliesToSubsequentNew", {scale}));
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new LocalizedError(msg("hopeA3Console.scaleFeedbackTimeout"));
+  }, [context]);
+
+  const applyPlaneMode = useCallback(async (mode: PlaneMode) => {
+    if (context.callService == undefined) { throw new LocalizedError(msg("hopeA3Console.connectToControlPort8766")); }
+    const requestedAt = Date.now();
+    const raw = await Promise.race([
+      context.callService(PLANE_MODE_SERVICE, planeModeRequest(mode)), timeoutAfter(3_000),
+    ]) as { result?: { successful?: boolean; reason?: string } };
+    if (raw.result?.successful !== true) { throw new LocalizedError(raw.result?.reason ?? msg("hopeA3Console.plannerDidNotConfirmTheChange")); }
+    const deadline = Date.now() + 2_500;
+    while (Date.now() < deadline) {
+      const current = latest.current;
+      if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
+          isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) && current.planeMode?.requested === mode) {
+        setNotice(msg("hopeA3Console.planeModeConfirmedForTheNextBallThe"));
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    throw new LocalizedError(msg("hopeA3Console.planeFeedbackTimeout"));
+  }, [context]);
+
   const applyBallYFilter = useCallback(async (config: { enabled: boolean; min: number; max: number }) => {
     const { enabled, min, max } = config;
-    if (context.callService == undefined) { throw new Error("请连接控制端口 :8766"); }
+    if (context.callService == undefined) { throw new LocalizedError(msg("hopeA3Console.connectToControlPort8766")); }
     const requestedAt = Date.now();
     const raw = await Promise.race([
       context.callService(BALL_Y_FILTER_SERVICE, ballYFilterRequest(config)),
       timeoutAfter(3_000),
     ]) as { result?: { successful?: boolean; reason?: string } };
-    if (raw.result?.successful !== true) { throw new Error(raw.result?.reason ?? "Planner 未确认修改"); }
+    if (raw.result?.successful !== true) { throw new LocalizedError(raw.result?.reason ?? msg("hopeA3Console.plannerDidNotConfirmTheChange")); }
     const deadline = Date.now() + 2_500;
     while (Date.now() < deadline) {
       const current = latest.current;
@@ -933,51 +996,68 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       if ((current.lastReceived[TOPICS.plannerDiagnostics] ?? 0) >= requestedAt &&
           isFresh(current, TOPICS.plannerDiagnostics, Date.now(), 2_500) &&
           state?.enabled === enabled && state.min === min && state.max === max) {
-        setNotice("APPLIED · y filter and table markers updated");
+        setNotice(msg("hopeA3Console.appliedYFilterAndTableMarkersUpdated"));
         return;
       }
       await new Promise((resolve) => window.setTimeout(resolve, 100));
     }
-    throw new Error("已收到确认，但状态回读超时；请查看当前生效范围。");
+    throw new LocalizedError(msg("hopeA3Console.requestConfirmedButFeedbackTimedOutCheckThe"));
   }, [context]);
 
   const uploadAsset = useCallback(async (file: File | undefined) => {
     if (file == undefined) {return;}
     const maximum = 8 * 1024 * 1024;
     if (file.size > maximum) {
-      setNotice(`REJECTED · CSV exceeds ${maximum / 1024 / 1024} MiB`);
+      setNotice(msg("hopeA3Console.rejectedCsvExceedsMib", {limit: maximum / 1024 / 1024}));
       return;
     }
     try {
       await fieldCommand({ op: "upload_csv",
         name: file.name, content: await file.text() });
     } catch (error) {
-      setNotice(`File read failed · ${String(error)}`);
+      setNotice(msg("hopeA3Console.fileReadFailed", {error: errorText(error)}));
     }
   }, [fieldCommand]);
 
   const invokeConfirmed = useCallback(
-    async (key: ServiceKey, prompt: string) => {
-      if (window.confirm(prompt)) {
-        await invoke(key);
-      }
+    (key: ServiceKey, prompt: LocalText) => {
+      const current = latest.current;
+      const pending = { key, prompt, host: current.lifecycleConfig.hdu_wifi_ip,
+        session: current.lifecycleSession, boot: current.runnerBoot };
+      confirmationRef.current = pending;
+      setConfirmation(pending);
     },
-    [invoke],
+    [],
   );
+
+  const cancelConfirmation = () => {
+    confirmationRef.current = undefined;
+    setConfirmation(undefined);
+  };
+  const submitConfirmation = () => {
+    // Re-read at the click, not the last React render. Consume synchronously so
+    // double clicks or callbacks retained across a connection change cannot send twice.
+    if (confirmation == undefined || confirmationRef.current !== confirmation || pendingTarget) { return; }
+    const blocked = confirmationBlocked(confirmation, latest.current, Date.now());
+    if (blocked != undefined) { setNotice(blocked); return; }
+    const key = confirmation.key;
+    cancelConfirmation();
+    void invoke(key);
+  };
 
   const confirmLifecycleConfig = useCallback(async () => {
     // A robot address is a connection target, never an edit to the old robot.
     if (configDraft.hdu_wifi_ip !== latest.current.lifecycleConfig.hdu_wifi_ip) {
-      setNotice("机器人 IP 已变化，请使用顶部机器人连接 CONFIRM；未写入当前机器人。");
+      setNotice(msg("hopeA3Console.robotIpChangedUseConfirmAtTheTop"));
       return;
     }
     const key: ServiceKey = "applyLifecycleConfig";
     if (context.callService == undefined || busy[key] === true) {
-      setNotice("Current data source does not expose lifecycle configuration");
+      setNotice(msg("hopeA3Console.currentDataSourceDoesNotExposeLifecycleConfiguration"));
       return;
     }
     setBusy((current) => ({ ...current, [key]: true }));
-    setNotice("Validating and confirming lifecycle configuration…");
+    setNotice(msg("hopeA3Console.validatingAndConfirmingLifecycleConfiguration"));
     const parameters = (Object.keys(CONFIG_FIELDS) as ConfigField[])
       .filter((name) => name !== "operator_profile" || snapshot.lifecycleConfig.operator_profile != undefined)
       .map((name) => ({
@@ -1004,53 +1084,44 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       const rejected = results.find((result) => result.successful !== true);
       if (results.length !== parameters.length || rejected != undefined) {
         const reason =
-          typeof rejected?.reason === "string" ? rejected.reason : "invalid service response";
-        setNotice(`CONFIG REJECTED · ${reason}`);
+          typeof rejected?.reason === "string" ? rejected.reason : msg("hopeA3Console.invalidServiceResponse");
+        setNotice(msg("hopeA3Console.configRejected", {reason}));
       } else {
         setConfigTouched(false);
         setNotice(
-          `CONFIG CONFIRMED · ${configDraft.operator_profile ? `${configDraft.operator_profile.toUpperCase()} operator · ` : ""}${MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN"} · ${configDraft.table_side} · ${configDraft.gripper_profile} · ${configDraft.pants_profile.toUpperCase()}`,
+          msg("hopeA3Console.configConfirmed", {operator: configDraft.operator_profile ? msg("hopeA3Console.operator", {platform: configDraft.operator_profile.toUpperCase()}) : "", mocap: MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN", side: configDraft.table_side, gripper: configDraft.gripper_profile, pants: configDraft.pants_profile.toUpperCase()}),
         );
       }
     } catch (error) {
-      setNotice(`CONFIG FAILED · ${error instanceof Error ? error.message : String(error)}`);
+      setNotice(msg("hopeA3Console.configFailed", {error: errorText(error)}));
     } finally {
       setBusy((current) => ({ ...current, [key]: false }));
     }
   }, [busy, configDraft, context, snapshot.lifecycleConfig.operator_profile]);
 
-  const startSystem = useCallback(async () => {
-    const accepted = window.confirm(
+  const startSystem = useCallback(() => {
+    invokeConfirmed("startLifecycle",
       snapshot.lifecycleState === "FAILED"
-        ? "清理上次失败会话并重新 START？系统会先停止残留进程、恢复厂商服务并收集日志，再启动到 PASSIVE。请确认机器人有物理支撑，硬件急停可触及。"
+        ? msg("hopeA3Console.cleanUpTheFailedSessionAndRetryStart")
         : snapshot.field?.mode === "KERNEL"
-        ? "Start Kernel Mode with the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE; X/Ready runs the receive policy with local stance-foot odometry. Serve completion returns to Stand. No mocap or Planner will be started."
-        : "Start STEP 0/1/2A/2B/4/5 now? Confirm the robot is physically supported and the hardware E-stop is reachable. The Runner will start in PASSIVE.",
+        ? msg("hopeA3Console.startKernelModeWithTheSelectedCsvConfirm")
+        : msg("hopeA3Console.startStep012A2B45"),
     );
-    if (accepted) {
-      await invoke("startLifecycle");
-    }
-  }, [invoke, snapshot.field?.mode, snapshot.lifecycleState]);
+  }, [invokeConfirmed, snapshot.field?.mode, snapshot.lifecycleState]);
 
-  const killAllAndCollect = useCallback(async () => {
-    const accepted = window.confirm(
+  const killAllAndCollect = useCallback(() => {
+    invokeConfirmed("killAllAndCollect",
       snapshot.field?.mode === "KERNEL"
-        ? "Stop the Kernel Mode Runner and HAL and restore agibot_pm? The robot may lose active support immediately; physically support it and keep the physical E-stop reachable. Recorded data remains on the robot. Active recording will close."
-        : "Immediately terminate all lifecycle-managed Runner, HAL, Planner and base-relay sessions, restore agibot_pm, then collect logs? The robot may lose active support immediately; physically support it and keep the physical E-stop reachable. Any separately managed OptiTrack session is left untouched.",
+        ? msg("hopeA3Console.stopTheKernelModeRunnerAndHalAnd")
+        : msg("hopeA3Console.immediatelyTerminateAllLifecycleManagedRunnerHalPlanner"),
     );
-    if (accepted) {
-      await invoke("killAllAndCollect");
-    }
-  }, [invoke, snapshot.field?.mode]);
+  }, [invokeConfirmed, snapshot.field?.mode]);
 
-  const runTimeCalibration = useCallback(async () => {
-    const accepted = window.confirm(
-      "Run the controlled 10.4 HDU time calibration now? Continue only when the robot is physically supported, no Policy/Runner session is active, and the physical E-stop is reachable. If an earlier managed MDU stop left a valid same-boot receipt, its exact recorded baseline will be restored automatically before preflight; arbitrary stopped services are never started. MDU and HDU time consumers will then stop, HDU UTC will hard-step once for this request (even if NTP is already healthy), and services will recover in dependency order. Foxglove :8766 will disconnect temporarily.",
+  const runTimeCalibration = useCallback(() => {
+    invokeConfirmed("timeCalibration",
+      msg("hopeA3Console.runTheControlled104HduTimeCalibration"),
     );
-    if (accepted) {
-      await invoke("timeCalibration");
-    }
-  }, [invoke]);
+  }, [invokeConfirmed]);
 
   const ntpFresh = isFresh(snapshot, TOPICS.ntpOffset, now, 1_500);
   const ntpGateFresh = isFresh(snapshot, TOPICS.ntpGate, now, 1_500);
@@ -1062,11 +1133,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const pmFresh = isFresh(snapshot, TOPICS.agibotPm, now, 1_500);
   const runnerFresh =
     isFresh(snapshot, TOPICS.runnerAlive, now, 1_500) && snapshot.runnerAlive === true;
-  const markerFresh = snapshot.lifecycleConfig.mocap_source !== "vrpn" &&
+  const markerFresh =
     isFresh(snapshot, TOPICS.markers, now, 1_000) &&
     isFresh(snapshot, TOPICS.markerExpectedCount, now, 1_000) &&
     snapshot.markersFresh === true;
-  const markerAsset = selectedMarkerAsset(snapshot);
+  const markerAsset = selectedMarkerAsset(snapshot, t);
   const baseFresh = isFresh(snapshot, TOPICS.baseFresh, now, 1_000) && snapshot.baseFresh === true;
   const estopUsable =
     isFresh(snapshot, TOPICS.estopReady, now, 1_000) && snapshot.estopReady === true;
@@ -1091,27 +1162,38 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     isFresh(snapshot, TOPICS.runnerMode, now, 1_000) &&
     isFresh(snapshot, TOPICS.runnerFault, now, 1_000), runnerFault: snapshot.runnerFault !== false,
     mode: snapshot.runnerMode, telemetryFresh: teleopFresh, state: teleop, pending: busy.teleop === true,
-    xboxFresh, xbox: snapshot.xboxPreview, estop: estopAsserted });
+    xboxFresh, xbox: snapshot.xboxPreview, estop: estopAsserted }, t);
   const xboxVelocity = xboxFresh ? snapshot.xboxPreview?.velocity : undefined;
   const velocityText = (values: number[] | undefined) => values == undefined
     ? "vx — · vy — · yaw —"
-    : `vx ${(values[0] ?? 0).toFixed(2)} m/s · vy ${(values[1] ?? 0).toFixed(2)} m/s · yaw ${(values[2] ?? 0).toFixed(2)} rad/s`;
+    : t("hopeA3Console.vxMSVyMSYawRad", {vx: (values[0] ?? 0).toFixed(2), vy: (values[1] ?? 0).toFixed(2), yaw: (values[2] ?? 0).toFixed(2)});
 
   const serveAvailable = snapshot.serveCapability === "AVAILABLE";
   const lifecycleFresh = isFresh(snapshot, TOPICS.lifecycleState, now, 1_500);
-  const lifecycleState = lifecycleFresh ? (snapshot.lifecycleState ?? "UNKNOWN") : "NO DATA";
+  const lifecycleState = lifecycleFresh ? (snapshot.lifecycleState ?? "UNKNOWN") : t("hopeA3Console.noData");
   const lifecycleStopped = lifecycleState === "STOPPED" || lifecycleState === "CONFIG_ERROR";
   const lifecycleRunning = lifecycleState === "RUNNING" || lifecycleState === "FAILED";
   const lifecycleBusy = snapshot.lifecycleBusy === true;
   const fieldFresh = isFresh(snapshot, TOPICS.fieldStatus, now, 2_000);
   const field = snapshot.field;
   const kernelMode = field?.mode === "KERNEL";
-  const ballDisplay = ballModelDisplay(field?.ball_model_status, fieldFresh);
+  const ballDisplay = ballModelDisplay(field?.ball_model_status, fieldFresh, t);
   const assetEditable = fieldFresh && lifecycleState === "STOPPED" && !lifecycleBusy &&
     !fieldBusy && field?.busy !== true && !configTouched && (snapshot.lifecycleConfigRevision ?? 0) > 0;
+  const policyModelsFresh = fieldFresh && typeof field?.policy_models_age_s === "number" &&
+    field.policy_models_age_s >= 0 && field.policy_models_age_s <= 30 &&
+    field.policy_models_config_revision === snapshot.lifecycleConfigRevision;
+  const policyUnavailableReason = (model: PolicyModel): string => {
+    if (!assetEditable) return t("hopeA3Console.confirmConfigurationAndStopTheLifecycleBeforeSelecting");
+    if (kernelMode && model !== "model14600") return t("hopeA3Console.selectOptitrackModeToUseThisPolicy");
+    if (!policyModelsFresh) return t("hopeA3Console.waitingForInstalledModelVerification");
+    const availability = field?.policy_models?.[model];
+    return availability?.available === true ? "" : availability?.reason || t("hopeA3Console.modelIsNotInstalledOnBothBoards");
+  };
   const recordingState = fieldFresh ? (field?.recording.state ?? "UNKNOWN") : "UNKNOWN";
   const recordingActive = ["ON", "STARTING", "STOPPING", "ERROR"].includes(recordingState);
   const assetFresh = isFresh(snapshot, TOPICS.assetMatched, now, 1_000);
+  const confirmedSource = snapshot.lifecycleConfig.mocap_source ?? "";
   const vrpnSelected = configDraft.mocap_source === "vrpn";
   const setupCommand = mocapSetupCommand(snapshot.lifecycleConfig, snapshot.lifecycleSession);
   const configComplete =
@@ -1128,7 +1210,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const timeCalibrationFresh = isFresh(snapshot, TOPICS.timeCalibrationState, now, 1_500);
   const timeCalibrationState = timeCalibrationFresh
     ? (snapshot.timeCalibrationState ?? "UNKNOWN")
-    : "NO DATA";
+    : t("hopeA3Console.noData");
   const timeCalibrationBusy = snapshot.timeCalibrationBusy === true;
   const { ready: timeCalibrationReady, title: timeCalibrationTitle, blocksStart: timeCalibrationBlocksStart } =
     timeCalibrationControls({
@@ -1140,7 +1222,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       lifecycleStopped: lifecycleState === "STOPPED",
       lifecycleBusy: lifecycleBusy || !isFresh(snapshot, TOPICS.lifecycleBusy, now, 1_500),
       configConfirmed: (snapshot.lifecycleConfigRevision ?? 0) >= 1 && !configTouched,
-    });
+    }, t);
 
   const serveState = snapshot.serveState ?? "UNAVAILABLE";
   const commandFresh = isFresh(snapshot, TOPICS.commandSummary, now, 1_500);
@@ -1194,49 +1276,75 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const lastAction =
     snapshot.lastAction != undefined && snapshot.lastAction !== "NONE"
       ? `${snapshot.lastAction} → ${snapshot.lastResult ?? "?"} / ${snapshot.lastReason ?? "?"}`
-      : notice;
+      : t.text(notice);
+  const confirmationReason = confirmation == undefined ? undefined :
+    confirmationBlocked(confirmation, snapshot, now);
 
   return (
+    <LanguageContext.Provider value={t}>
     <div className="hope-console">
+      {confirmation != undefined && (
+        <section className="action-confirmation" role="dialog" aria-label={t("hopeA3Console.confirmationTitle")}
+          onKeyDown={event => { if (event.key === "Escape") { cancelConfirmation(); } }}>
+          <strong>{t("hopeA3Console.confirmationTitle")}</strong>
+          <p>{t.text(confirmation.prompt)}</p>
+          {confirmationReason != undefined && <p role="status">{t.text(confirmationReason)}</p>}
+          <div className="role-controls">
+            <button ref={confirmationCancel} type="button" onClick={cancelConfirmation}>{t("hopeA3Console.cancelAction")}</button>
+            <button type="button" disabled={confirmationReason != undefined || Boolean(pendingTarget) || busy[confirmation.key] === true}
+              onClick={submitConfirmation}>{t("hopeA3Console.confirmAction")}</button>
+          </div>
+        </section>
+      )}
+      <div className="language-switch" role="group" aria-label={t("language.label")}>
+        {(["zh", "en"] as const).map((language) => <button key={language} type="button"
+          aria-pressed={locale === language} onClick={() => {
+            setLocale(language);
+            savedPanel.current = { ...savedPanel.current, language };
+            context.saveState(savedPanel.current);
+          }}>{t(language === "zh" ? "language.chinese" : "language.english")}</button>)}
+      </div>
       <div className="robot-connection">
-        <label>机器人 IP <input aria-label="Robot connection IP" value={robotTarget}
+        <label>{t("hopeA3Console.connectionTargetIp")} <input aria-label={t("hopeA3Console.robotConnectionIp")} value={robotTarget}
           onChange={(event) => { setRobotTarget(event.target.value); setTargetEdited(true); }} /></label>
         <button type="button" disabled={!validRobotTarget || Object.values(busy).some(Boolean) || fieldBusy || recordBusy}
-          onClick={connectRobot}>CONFIRM 连接</button>
-        <div role="status">{pendingTarget ? `正在切换到 ${pendingTarget}:8766；此旧面板的操作已锁定，请查看新连接。` :
-          lifecycleFresh && configHost ? `当前机器人回读：${configHost} · ${snapshot.lifecycleState}` : "未收到机器人实时状态"}</div>
-        {pendingTarget && <button type="button" onClick={() => { setPendingTarget(""); setRobotTarget(configHost ?? ""); setTargetEdited(false); savedPanel.current = { ...savedPanel.current, robotTarget: configHost }; context.saveState(savedPanel.current); }}>
-          取消切换，继续操作当前机器人 {configHost}
+          onClick={connectRobot}>{t("hopeA3Console.confirmConnection")}</button>
+        <div role="status">{pendingTarget ? t("hopeA3Console.switchingTo8766ControlsInThisPanelAre", {ip: pendingTarget}) :
+          lifecycleFresh && configHostFresh && configHost ? t("hopeA3Console.addressReportedByTheCurrentRobot", {ip: configHost, state: snapshot.lifecycleState}) :
+          lifecycleFresh ? t("hopeA3Console.liveStatusReceivedFromRobotAddressIsUnset", {state: snapshot.lifecycleState}) :
+          t("hopeA3Console.noLiveRobotStatusTheTargetDoesNot")}</div>
+        {pendingTarget && <button type="button" disabled={!configHostFresh || !configHost} onClick={() => { setPendingTarget(""); setRobotTarget(configHost ?? ""); setTargetEdited(false); savedPanel.current = { ...savedPanel.current, robotTarget: configHost }; context.saveState(savedPanel.current); }}>
+          {t("hopeA3Console.cancelSwitchAndContinueWithTheCurrentRobot")} {configHost}
         </button>}
       </div>
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">A3 SOURCE · 1.8.18</div>
+          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.1" })}</div>
           <div className="source-value">
-            <span>{context.dataSourceProfile?.toUpperCase() ?? "ROS 2"} · CONTROL :8766</span>
+            <span>{context.dataSourceProfile?.toUpperCase() ?? t("hopeA3Console.ros2")} {t("hopeA3Console.control8766")}</span>
             <span
               className={`source-dot ${hduFresh && snapshot.hduActive === true ? "source-live" : ""}`}
             />
           </div>
-          <div className="helper">使用顶部机器人 IP 和 CONFIRM 连接；连接后读取该机器人的已保存配置</div>
+          <div className="helper">{t("hopeA3Console.useTheRobotIpAndConfirmAboveTo")}</div>
         </div>
         <button
           className={`estop-button ${estopAsserted ? "estop-asserted" : ""}`}
           type="button"
           disabled={busy.estop === true}
-          title={notice}
+          title={t.text(notice)}
           onClick={() => void invoke("estop")}
         >
-          {busy.estop === true ? "ASSERTING…" : estopAsserted ? "E-STOP ASSERTED" : "E-STOP"}
+          {busy.estop === true ? t("hopeA3Console.asserting") : estopAsserted ? t("hopeA3Console.eStopAsserted") : t("hopeA3Console.eStop")}
           <small>
             {estopAsserted
-              ? "CLICK TO REASSERT · RESET SOFTWARE E-STOP BELOW"
+              ? t("hopeA3Console.clickToReassertResetSoftwareEStopBelow")
               : estopFullReady
-                ? "DUAL PATH · STOPS RUNNER AND REQUESTS VENDOR STOP"
+                ? t("hopeA3Console.dualPathStopsRunnerAndRequestsVendorStop")
                 : estopUsable
-                  ? "PARTIAL SOFTWARE STOP · USE PHYSICAL E-STOP"
-                  : "BACKEND UNKNOWN · CLICK STILL ASSERTS"}
+                  ? t("hopeA3Console.partialSoftwareStopUsePhysicalEStop")
+                  : t("hopeA3Console.backendUnknownClickStillAsserts")}
           </small>
         </button>
       </div>
@@ -1245,68 +1353,66 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         type="button"
         disabled={busy.estop === true || busy.resetSoftwareEstop === true}
         onClick={() => void invoke("resetSoftwareEstop")}
-        title="Clears the software latch only. Does not release hardware/vendor emergency stop or start motion."
+        title={t("hopeA3Console.clearsTheSoftwareLatchOnlyDoesNotRelease")}
       >
-        {busy.resetSoftwareEstop === true ? "RESETTING…" : "Reset Software E-stop"}
+        {busy.resetSoftwareEstop === true ? t("hopeA3Console.resetting") : t("hopeA3Console.resetSoftwareEStop")}
       </button>
 
       <div className="gate-row">
         <GateChip
-          label="NTP · AUDIT"
+          label={t("hopeA3Console.ntpAudit")}
           value={ntpFresh && ntpGateFresh ? snapshot.ntpPass : undefined}
         />
-        <GateChip label="TIMESTAMP · AUDIT" value={latencyFresh ? true : undefined} />
+        <GateChip label={t("hopeA3Console.timestampAudit")} value={latencyFresh ? true : undefined} />
         <GateChip
-          label="TF · AUDIT"
+          label={t("hopeA3Console.tfAudit")}
           value={isFresh(snapshot, TOPICS.tfReady, now, 1_000) ? snapshot.tfReady : undefined}
         />
         <GateChip
-          label="E-STOP BACKEND · AUDIT"
+          label={t("hopeA3Console.eStopBackendAudit")}
           value={estopAsserted ? false : estopUsable ? estopFullReady : undefined}
           detail={snapshot.estopText}
         />
         <GateChip
-          label={snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${markerAsset} MARKERS · N/A (VRPN)` : `${markerAsset} MARKERS · AUDIT ${markerFresh ? Math.round(snapshot.markerCount ?? 0) : "—"}/${markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? Math.round(snapshot.markerExpectedCount ?? 0) : "—"}`}
-          value={markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? snapshot.markerCount === snapshot.markerExpectedCount : undefined}
-          detail={`selected marker asset: ${markerAsset}`}
+          label={confirmedSource === "vrpn" ? t("hopeA3Console.vrpnLiveMarkerCountNA") : t("hopeA3Console.markersAudit", {asset: markerAsset, actual: markerFresh ? Math.round(snapshot.markerCount ?? 0) : "\u2014", expected: markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? Math.round(snapshot.markerExpectedCount ?? 0) : "\u2014"})}
+          value={confirmedSource === "motive" && markerFresh && (snapshot.markerExpectedCount ?? 0) > 0 ? snapshot.markerCount === snapshot.markerExpectedCount : undefined}
+          detail={confirmedSource === "vrpn" ? t("hopeA3Console.vrpnStreamsPosesOnlyLiveMarkerCountsAre") : t("hopeA3Console.selectedMarkerAsset", {asset: markerAsset})}
         />
         <GateChip
-          label={`SWING INPUT · AUDIT ${snapshot.runnerMode === "MOTION" ? `F${snapshot.commandFlight ?? "—"} · ${snapshot.commandCountdownS != undefined ? `${snapshot.commandCountdownS.toFixed(2)}s` : "NO COMMAND"}` : "WAIT FOR MOTION"}`}
+          label={t("hopeA3Console.swingInputAudit", {status: snapshot.runnerMode === "MOTION" ? `F${snapshot.commandFlight ?? "\u2014"} · ${snapshot.commandCountdownS != undefined ? `${snapshot.commandCountdownS.toFixed(2)}s` : t("hopeA3Console.noCommand")}` : t("hopeA3Console.waitForMotion")})}
           value={swingInputReady}
-          detail={snapshot.commandSummary ?? "Ball visibility alone is not a swing command"}
+          detail={snapshot.commandSummary ?? t("hopeA3Console.ballVisibilityAloneIsNotASwingCommand")}
         />
       </div>
 
       <div className={`operator-notice ${estopAsserted ? "operator-notice-danger" : ""}`}>
-        <span className="eyebrow">LAST UI REQUEST</span>
-        <span>{notice}</span>
+        <span className="eyebrow">{t("hopeA3Console.lastUiRequest")}</span>
+        <span>{t.text(notice)}</span>
       </div>
 
       <div className="field-toolbar">
         <div>
-          <span className="eyebrow">OPERATING MODE · SELECT WHILE STOPPED</span>
-          <div className="field-buttons" role="group" aria-label="Operating mode">
+          <span className="eyebrow">{t("hopeA3Console.operatingModeSelectWhileStopped")}</span>
+          <div className="field-buttons" role="group" aria-label={t("hopeA3Console.operatingMode")}>
             <button type="button" aria-pressed={field?.mode === "OPTITRACK"}
               disabled={!assetEditable} onClick={() => void fieldCommand({ op: "set_mode", mode: "OPTITRACK" })}>
-              OptiTrack · Normal play
-            </button>
+              {t("hopeA3Console.normalPlay")} </button>
             <button type="button" aria-pressed={kernelMode}
               disabled={!assetEditable} onClick={() => void fieldCommand({ op: "set_mode", mode: "KERNEL" })}>
-              Kernel Mode
-            </button>
+              {t("hopeA3Console.kernelMode")} </button>
           </div>
-          <p className="helper">{!fieldFresh ? "Waiting for field controls · update the HDU backend if unavailable" :
-            kernelMode ? "No OptiTrack · IMU + stance-foot odometry · estimated local position/velocity. Serve hands off after contact; X enters receive policy." :
-            "Normal play · start OptiTrack separately when needed. Mode selection starts no processes."}</p>
+          <p className="helper">{!fieldFresh ? t("hopeA3Console.waitingForFieldControlsUpdateTheHduBackend") :
+            kernelMode ? t("hopeA3Console.noMocapImuStanceFootOdometryEstimatedLocal") :
+            t("hopeA3Console.normalPlayStartsTheLaptopDataPipelineFor")}</p>
         </div>
         <div className={`record-control ${recordingActive ? "record-active" : ""}`}>
-          <span className="eyebrow">RECORDING · {recordingState}</span>
+          <span className="eyebrow">{t("hopeA3Console.recording")} {recordingState}</span>
           <button type="button" role="switch" aria-checked={recordingActive}
             disabled={!fieldFresh || recordBusy || recordingState === "STOPPING"}
             onClick={() => void fieldCommand({ op: recordingActive ? "record_off" : "record_on" })}>
-            {recordBusy ? "Updating…" : recordingActive ? "Record OFF · Stop" : "Record ON · Start"}
+            {recordBusy ? t("hopeA3Console.updating") : recordingActive ? t("hopeA3Console.recordOffStop") : t("hopeA3Console.recordOnStart")}
           </button>
-          <span className="helper">{field?.mode === "KERNEL" ? "Default OFF · robot data (Kernel has no Planner/mocap)" : "Default OFF · robot, policy, Planner and mocap data"}</span>
+          <span className="helper">{field?.mode === "KERNEL" ? t("hopeA3Console.defaultOffRobotDataKernelHasNoPlanner") : t("hopeA3Console.defaultOffRobotPolicyPlannerAndMocapData")}</span>
           <span className="asset-path">{field?.recording.output}</span>
           <span className="helper">{field?.recording.error}</span>
         </div>
@@ -1314,51 +1420,52 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
       <div className="field-assets">
         <section className="field-card">
-          <span className="eyebrow">RECEIVE POLICY</span>
-          <strong>{field?.policy_model === "model17400" ? "17400 · PPQ004 · Receive only" : field?.policy_model === "model12600" ? "12600 · v23-12600 serve + receive" : field?.policy_model === "model11999" ? "11999 · v23 fixed Home" : field?.policy_model === "model14600" ? "14600 · serve + receive" : "No policy selected"}</strong>
+          <span className="eyebrow">{t("hopeA3Console.receivePolicy")}</span>
+          <strong>{field?.policy_model === "model12000" ? t("hopeA3Console.12000V2312000ServeReceive") : field?.policy_model === "model17400" ? (field.policy_models?.model17400?.receive_only === true ? t("hopeA3Console.17400ReceiveOnly") : t("hopeA3Console.17400V2317400ServeReceive")) : field?.policy_model === "model12600" ? t("hopeA3Console.12600V2312600ServeReceive") : field?.policy_model === "model11999" ? t("hopeA3Console.11999ReceiveOnly") : field?.policy_model === "model14600" ? t("hopeA3Console.14600ServeReceive") : t("hopeA3Console.noPolicySelected")}</strong>
           <div className="field-buttons">
-            <button type="button" disabled={!assetEditable}
+            <button type="button" disabled={!!policyUnavailableReason("model14600")} title={policyUnavailableReason("model14600")}
               aria-pressed={field?.policy_model === "model14600"}
               onClick={() => void fieldCommand({op: "set_policy_model", model: "model14600"})}>14600</button>
-            <button type="button" disabled={!assetEditable || kernelMode}
+            <button type="button" disabled={!!policyUnavailableReason("model11999")} title={policyUnavailableReason("model11999")}
               aria-pressed={field?.policy_model === "model11999"}
-              onClick={() => void fieldCommand({op: "set_policy_model", model: "model11999"})}>11999 · Receive only</button>
-            <button type="button" disabled={!assetEditable || kernelMode}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model11999"})}>{t("hopeA3Console.11999ReceiveOnly")}</button>
+            <button type="button" disabled={!!policyUnavailableReason("model12600")} title={policyUnavailableReason("model12600")}
               aria-pressed={field?.policy_model === "model12600"}
-              onClick={() => void fieldCommand({op: "set_policy_model", model: "model12600"})}>12600 · Serve + receive</button>
-            <button type="button" disabled={!assetEditable || kernelMode}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model12600"})}>{t("hopeA3Console.12600ServeReceive")}</button>
+            <button type="button" disabled={!!policyUnavailableReason("model17400")} title={policyUnavailableReason("model17400")}
               aria-pressed={field?.policy_model === "model17400"}
-              onClick={() => void fieldCommand({op: "set_policy_model", model: "model17400"})}>17400 · Receive only</button>
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model17400"})}>{t("hopeA3Console.17400ServeReceive")}</button>
+            <button type="button" disabled={!!policyUnavailableReason("model12000")} title={policyUnavailableReason("model12000")}
+              aria-pressed={field?.policy_model === "model12000"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model12000"})}>{t("hopeA3Console.12000ServeReceive")}</button>
           </div>
-          <p className="helper">Selected bundle · switch while STOPPED, then START to load. 17400 requires PPQ004 and calibrated mocap; receive only, no serve CSV. 11999 remains receive only. 12600 uses v23-12600 for serve + receive; its matched CSV is selected with the policy. 11999 / 12600: Home 0.20 m left of the centre line.</p>
+          <p className="helper">{t("hopeA3Console.switchWhileStoppedThenStartToLoadEach")}</p>
         </section>
-
         <section className="field-card">
-          <span className="eyebrow">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "VRPN · POSE ONLY" : "MOTIVE · LIVE ASSET"}</span>
-          <strong>{snapshot.lifecycleConfig.mocap_source === "vrpn" ? "GEOMETRY NOT VERIFIED" : assetFresh ? snapshot.assetMatched === true ? "ASSET ACCEPTED" : "CHECK MOTIVE ASSET" : "WAITING FOR MOTIVE"}</strong>
+          <span className="eyebrow">{t("hopeA3Console.mocapPelvisAsset")}</span>
+          <strong>{confirmedSource === "none" ? t("hopeA3Console.noMocapSelected") : confirmedSource === "vrpn" ? t("hopeA3Console.vrpnPoseOnly") : assetFresh ? snapshot.assetMatched === true ? t("hopeA3Console.assetAccepted") : t("hopeA3Console.checkMocapAsset") : t("hopeA3Console.waitingForMocap")}</strong>
+          <span className="helper">{t("hopeA3Console.confirmed")}{t.text(MOCAP_LABELS[confirmedSource] ?? msg("hopeA3Console.waitingForConfiguration"))}</span>
           <span className="asset-path">{markerAsset}</span>
-          <span className="helper">{snapshot.lifecycleConfig.mocap_source === "vrpn" ? `${snapshot.lifecycleConfig.pants_profile?.toUpperCase()} · CMTracker · verify setup below` : assetFresh ? snapshot.assetText : `Import the pelvis-aligned ${markerAsset} asset in Motive and enable streaming.`}</span>
-          <span className="helper">Live pelvis: {baseFresh ? "AVAILABLE" : "WAITING"} · selected robot: {markerAsset}</span>
-          {snapshot.lifecycleConfig.mocap_source === "vrpn" ? <p className="helper">VRPN provides poses only; marker counts and live geometry are unavailable. Confirm the selected pants asset origin, axes and table frame in CMTracker.</p> : <><p className="helper">Set Motive Up Axis to Z. Keep the imported pelvis origin and axes unchanged, and align the Motive world with the table. No venue JSON or Cali V2/V3 capture is needed.</p>
-          <p className="helper">Default mode accepts the current named asset without a fixed file or marker layout. Pelvis alignment is assumed from the imported asset; physical mounting is not measured.</p></>}
+          <span className="helper">{confirmedSource === "none" ? t("hopeA3Console.runnerOnlyNoMocapPipeline") : assetFresh ? snapshot.assetText : t("hopeA3Console.importTheSelectedPelvisAlignedAssetAndEnable", {asset: markerAsset})}</span>
+          <span className="helper">{t("hopeA3Console.livePelvis")} {baseFresh ? t("hopeA3Console.available") : t("hopeA3Console.waiting")} {t("hopeA3Console.selectedRobot")} {markerAsset}</span>
+          {confirmedSource === "vrpn" && <p className="helper">{t("hopeA3Console.vrpnStreamsPosesOnlyMarkerCountsAndImported")}</p>}
+          {confirmedSource === "motive" && <p className="helper">{t("hopeA3Console.motiveNatnetUsesLiveAssetsVisibleMarkerCounts")}</p>}
         </section>
         <section className="field-card">
-          <span className="eyebrow">SERVE CSV</span>
-          <strong>{field?.csv?.name ?? "a3p_op3_serve025_v23_branch110_model14600.csv (default)"}</strong>
-          <span className="helper">{field?.csv ? `Validated · ${field.csv.frames} frames · ${field.csv.hz} Hz · SHA ${field.csv.sha256.slice(0, 12)}` : "468 frames · 100 Hz · SDK 31-joint format"}</span>
+          <span className="eyebrow">{t("hopeA3Console.serveCsv")}</span>
+          <strong>{field?.csv?.name ?? t("hopeA3Console.a3pOp3Serve025V23Branch110Model14600CsvDefault")}</strong>
+          <span className="helper">{field?.csv ? t("hopeA3Console.validatedFramesHzSha", {frames: field.csv.frames, hz: field.csv.hz, hash: field.csv.sha256.slice(0, 12)}) : t("hopeA3Console.468Frames100HzSdk31JointFormat")}</span>
           {field?.csv?.segments && <span className="helper">
-            3 segments · branch {(field.csv.segments.branch_frame / field.csv.hz).toFixed(2)} s ·
-            Normal: Serve → Policy ready ({field.csv.segments.clips.SERVE_TO_POLICY?.duration_s.toFixed(2)} s) · Kernel: Serve → Stand
-          </span>}
+            {t("hopeA3Console.csvTimeline", { branch: (field.csv.segments.branch_frame / field.csv.hz).toFixed(2), handoff: field.csv.segments.clips.SERVE_TO_POLICY?.duration_s.toFixed(2) })} </span>}
           <div className="field-buttons">
-            <button type="button" disabled={!assetEditable} onClick={() => csvInput.current?.click()}>Upload CSV</button>
+            <button type="button" disabled={!assetEditable} onClick={() => csvInput.current?.click()}>{t("hopeA3Console.uploadCsv")}</button>
             <button type="button" disabled={!assetEditable || field?.csv == undefined}
-              onClick={() => void fieldCommand({ op: "use_default_csv" })}>Use built-in CSV</button>
+              onClick={() => void fieldCommand({ op: "use_default_csv" })}>{t("hopeA3Console.useBuiltInCsv")}</button>
           </div>
           <input ref={csvInput} type="file" accept=".csv,text/csv" hidden
             onChange={(event) => { void uploadAsset(event.target.files?.[0]); event.target.value = ""; }} />
-          <p className="helper">Select Kernel Mode, upload while stopped, then Run → SERVER → Stand → Start to Serve → load ball and clear hands → Serve → slowly lower arms → Stand → Start to Serve again.</p>
-          <span className="helper">Uploads use the Runner CSV validator and never start motion. Normal Play and Kernel use the same selected CSV version. Annotated CSV: both modes use Stand → Serve; Kernel returns to Stand, Normal goes directly to the bound policy’s ready pose. Legacy CSV keeps its original handoff behavior.</span>
+          <p className="helper">{t("hopeA3Console.selectKernelModeUploadWhileStoppedThenRun")}</p>
+          <span className="helper">{t("hopeA3Console.uploadsUseTheRunnerCsvValidatorAndNever")}</span>
         </section>
       </div>
       {field?.error && <div className="operator-notice">{field.error}</div>}
@@ -1366,40 +1473,40 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <div className="lifecycle-card">
         <div className="lifecycle-header">
           <div>
-            <div className="eyebrow">SYSTEM LIFECYCLE · STEP 0/1/2A/2B/4/5</div>
+            <div className="eyebrow">{t("hopeA3Console.systemLifecycleStep012A2B4")}</div>
             <div className="lifecycle-state">
-              {lifecycleState} · {snapshot.lifecycleStep ?? "IDLE"}
+              {lifecycleState} · {snapshot.lifecycleStep ?? t("hopeA3Console.idle")}
             </div>
             <div className="topic-path">
               {snapshot.lifecycleSession != undefined && snapshot.lifecycleSession.length > 0
                 ? snapshot.lifecycleSession
-                : "no active session"}{" "}
-              · config revision {snapshot.lifecycleConfigRevision ?? 0}
+                : t("hopeA3Console.noActiveSession")}{" "}
+              {t("hopeA3Console.configRevision")} {snapshot.lifecycleConfigRevision ?? 0}
             </div>
           </div>
           <div className="lifecycle-result" title={snapshot.lifecycleResult}>
-            {snapshot.lifecycleResult ?? "waiting for supervisor"}
+            {snapshot.lifecycleResult ?? t("hopeA3Console.waitingForSupervisor")}
           </div>
         </div>
-        <label className="config-field">
-          <span>Gripper</span>
-          <select
-            value={configDraft.gripper_profile}
+        <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">{t("hopeA3Console.mocapHeading")}</div>
+            <div className="topic-path">{t("hopeA3Console.selectWhileStoppedThenConfirmConfigOnlyThe")}</div>
+          </div>
+          <select aria-label={t("hopeA3Console.mocapInput")} value={configDraft.mocap_source}
             disabled={!lifecycleStopped || lifecycleBusy}
             onChange={(event) => {
-              setConfigDraft((current) => ({ ...current, gripper_profile: event.target.value }));
               setConfigTouched(true);
-            }}
-          >
-            <option value="">Select gripper</option>
-            <option value="legacy">Legacy · close 800 / open 2000</option>
-            <option value="new_20261015">New · close 850 / open 1500 · force 1 / speed 100</option>
+              setConfigDraft((current) => ({ ...current, mocap_source: event.target.value }));
+            }}>
+            <option value="" disabled>{t("hopeA3Console.selectAMocapSystem")}</option>
+            {Object.entries(MOCAP_LABELS).map(([value, label]) => <option key={value} value={value}>{t.text(label)}</option>)}
           </select>
         </label>
-        {snapshot.lifecycleConfig.operator_profile != undefined && <div className="table-side-selector" role="group" aria-label="Operator computer">
+        {snapshot.lifecycleConfig.operator_profile != undefined && <div className="table-side-selector" role="group" aria-label={t("hopeA3Console.operatorComputer")}>
           <div>
-            <div className="eyebrow">OPERATOR COMPUTER</div>
-            <div className="helper">Choose the computer for this session, then confirm its current Laptop IP below.</div>
+            <div className="eyebrow">{t("hopeA3Console.operatorComputer2")}</div>
+            <div className="helper">{t("hopeA3Console.chooseTheComputerForThisSessionThenConfirm")}</div>
           </div>
           {(["linux", "mac"] as const).map((profile) => (
             <button key={profile} type="button"
@@ -1410,38 +1517,23 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
                 setConfigTouched(true);
                 setConfigDraft((current) => ({ ...current, operator_profile: profile }));
               }}>
-              {profile === "mac" ? "Mac" : "Linux"}
+              {profile === "mac" ? t("hopeA3Console.mac") : t("hopeA3Console.linux")}
             </button>
           ))}
         </div>}
-        <label className="table-side-selector">
-          <div>
-            <div className="eyebrow">MOCAP SYSTEM · 动捕系统</div>
-            <div className="topic-path">停止时选择并 CONFIRM CONFIG；每次只启动所选的一套动捕</div>
-          </div>
-          <select aria-label="Mocap system" value={configDraft.mocap_source}
-            disabled={!lifecycleStopped || lifecycleBusy}
-            onChange={(event) => {
-              setConfigTouched(true);
-              setConfigDraft((current) => ({ ...current, mocap_source: event.target.value }));
-            }}>
-            <option value="" disabled>请选择动捕系统</option>
-            {Object.entries(MOCAP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </label>
         <div className="config-grid">
           {NETWORK_CONFIG_FIELDS.filter((name) => name !== "hdu_wifi_ip").filter((name) =>
             name === "motive_ip" ? configDraft.mocap_source === "motive" :
             name === "vrpn_ip" ? vrpnSelected : true).map((name) => (
             <label className="config-field" key={name}>
-              <span>{CONFIG_FIELDS[name].label}</span>
+              <span>{t.text(CONFIG_FIELDS[name].label)}</span>
               <input
                 type="text"
                 inputMode="decimal"
                 spellCheck={false}
                 disabled={!lifecycleStopped || lifecycleBusy}
                 value={configDraft[name]}
-                placeholder="IPv4 address"
+                placeholder={t("hopeA3Console.ipv4Address")}
                 onChange={(event) => {
                   setConfigTouched(true);
                   setConfigDraft((current) => ({ ...current, [name]: event.target.value }));
@@ -1450,74 +1542,56 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </label>
           ))}
           {vrpnSelected && <>
-            <label className="config-field"><span>VRPN port</span>
-              <input aria-label="VRPN port" inputMode="numeric" value={configDraft.vrpn_port}
+            <label className="config-field"><span>{t("hopeA3Console.vrpnPort")}</span>
+              <input aria-label={t("hopeA3Console.vrpnPort")} inputMode="numeric" value={configDraft.vrpn_port}
                 disabled={!lifecycleStopped || lifecycleBusy}
                 onChange={(event) => { setConfigTouched(true); setConfigDraft((current) => ({ ...current, vrpn_port: event.target.value })); }} />
             </label>
-            <label className="config-field"><span>VRPN 输出单位</span>
-              <select aria-label="VRPN units" value={configDraft.vrpn_units}
+            <label className="config-field"><span>{t("hopeA3Console.vrpnOutputUnits")}</span>
+              <select aria-label={t("hopeA3Console.vrpnUnits")} value={configDraft.vrpn_units}
                 disabled={!lifecycleStopped || lifecycleBusy}
                 onChange={(event) => { setConfigTouched(true); setConfigDraft((current) => ({ ...current, vrpn_units: event.target.value })); }}>
-                <option value="mm">毫米 mm · ×0.001 → m</option>
-                <option value="m">米 m · ×1.0</option>
+                <option value="mm">{t("hopeA3Console.millimetersMm0001M")}</option>
+                <option value="m">{t("hopeA3Console.metersM10")}</option>
               </select>
             </label>
           </>}
         </div>
         <label className="table-side-selector">
           <div>
-            <div className="eyebrow">BALL PHYSICS · 球物理模型</div>
-            <div className="topic-path">停止后选择；保存到 Planner 和球包器，下次启动生效</div>
+            <div className="eyebrow">{t("hopeA3Console.ballPhysics")}</div>
+            <div className="topic-path">{t("hopeA3Console.selectWhileStoppedSavedToPlannerAndBall")}</div>
           </div>
-          <select aria-label="Ball physics model" value={ballDisplay.value}
+          <select aria-label={t("hopeA3Console.ballPhysicsModel")} value={ballDisplay.value}
             disabled={!assetEditable || fieldBusy || kernelMode || field?.ball_model_status == undefined}
             onChange={(event) => void fieldCommand({ op: "set_ball_model", model: event.target.value })}>
-            <option value="" disabled>两端未确认同一模型</option>
-            <option value="berkeley">伯克利球 · 原模型 2026-10-10</option>
-            <option value="ppq002">我们的一星球 · PPQ002</option>
-            <option value="ppq004">我们的三星球 · PPQ004 · 统一模型 2026-10-20</option>
+            <option value="" disabled>{t("hopeA3Console.bothEndpointsHaveNotConfirmedTheSameModel")}</option>
+            <option value="berkeley">{t("hopeA3Console.berkeleyBallOriginalModel20261010")}</option>
+            <option value="ppq002">{t("hopeA3Console.ourOneStarBallPpq002")}</option>
+            <option value="ppq004">{t("hopeA3Console.ourThreeStarBallPpq004UnifiedModel2026")}</option>
           </select>
         </label>
         <p className="helper" role="status">{ballDisplay.text}</p>
-        <p className="helper">切换后请重启 Laptop 动捕／球包器，再 START SYSTEM；启动会检查实际物理参数，混用旧模型时拒绝启动。已保存的选择不代表当前进程已切换。</p>
+        <p className="helper">{t("hopeA3Console.afterSwitchingRestartLaptopMocapBallBridgeThen")}</p>
         <div className="mocap-setup">
-          {configDraft.mocap_source === "motive" && <p className="helper">Motive setup：导入 pelvis 对齐的 .motive 资产，刚体名 UCB_P1 / UCB_P2，球名 Ball；设置 Streaming Up Axis = Z，开启 NatNet Rigid Bodies 和 Labeled Markers。</p>}
+          {configDraft.mocap_source === "motive" && <p className="helper">{t("hopeA3Console.motiveSetupImportThePelvisAlignedMotiveAsset")}</p>}
           {vrpnSelected && <>
-            <p className="helper">青瞳 setup：在 CMTracker 导入 a3_{configDraft.pants_profile}_{configDraft.table_side}_ground_truth.json；刚体名 UCB_P1 / UCB_P2，球名 Ball。开启 VRPN，并核对端口和输出单位。保留 pelvis_link 原点与 X前 / Y左 / Z上坐标轴，世界原点与球桌对齐。</p>
-            <p className="helper">默认启动只验收位姿；发布有效 base 还需在 Laptop 确认资产原点和场地坐标。选择不会修改 CMTracker；操作说明：docs/operations/foxglove_mocap_setup.md。</p>
+            <p className="helper">{t("hopeA3Console.chingmuSetup", { pants: configDraft.pants_profile, side: configDraft.table_side })}</p>
+            <p className="helper">{t("hopeA3Console.defaultStartupAcceptsPosesOnlyPublishingAValid")}</p>
           </>}
-          {configDraft.mocap_source === "none" && <p className="helper">无动捕：用于 Runner-only 测试，不提供实时球和 pelvis 数据。</p>}
-          <p className="helper">CONFIRM CONFIG 保存设置并重新连接所选动捕；当前机器人须处于 STOPPED。若电脑上的接收器属于另一台机器人，会拒绝抢占。</p>
-          <p className="helper">连接是否成功以实时数据为准：收到数据后显示“动捕数据已连接”；没有数据时不会显示已连接。</p>
-          <p className="helper" role="status">{busy.applyLifecycleConfig ? "正在保存并连接动捕…" : snapshot.lifecycleResult?.includes("MOCAP_FAILED") ? "动捕连接失败 · 配置已保存，请检查地址或接收器归属" : configTouched ? "配置已修改，尚未应用。" : snapshot.lifecycleConfig.mocap_source === "none" ? "动捕已禁用" :
-            baseFresh && (snapshot.lifecycleConfig.mocap_source === "vrpn" || markerFresh) ? "动捕数据已连接 · 已收到实时数据" : "动捕未确认连接 · 等待实时数据"}</p>
-          {lifecycleFresh && setupCommand && <details><summary>手动启动命令（备用）</summary><textarea aria-label="Confirmed mocap startup command" readOnly rows={5} value={setupCommand} /></details>}
+          {configDraft.mocap_source === "none" && <p className="helper">{t("hopeA3Console.noMocapRunnerOnlyTestingWithoutLiveBall")}</p>}
+          <p className="helper">{t("hopeA3Console.confirmConfigSavesSettingsAndReconnectsTheSelected")}</p>
+          <p className="helper">{t("hopeA3Console.connectionStatusIsBasedOnLiveDataConnected")}</p>
+          <p className="helper" role="status">{busy.applyLifecycleConfig ? t("hopeA3Console.savingAndConnectingMocap") : snapshot.lifecycleResult?.includes("MOCAP_FAILED") ? t("hopeA3Console.mocapConnectionFailedConfigurationSavedCheckTheAddress") : configTouched ? t("hopeA3Console.configurationChangedNotAppliedYet") : confirmedSource === "none" ? t("hopeA3Console.mocapDisabled") :
+            baseFresh && (confirmedSource === "vrpn" || markerFresh) ? t("hopeA3Console.mocapDataConnectedLiveDataReceived") : t("hopeA3Console.mocapConnectionUnconfirmedWaitingForLiveData")}</p>
+          {lifecycleFresh && setupCommand && <details><summary>{t("hopeA3Console.manualStartupCommandFallback")}</summary><textarea aria-label={t("hopeA3Console.confirmedMocapStartupCommand")} readOnly rows={5} value={setupCommand} /></details>}
         </div>
-        {vrpnSelected && <label className="table-side-selector">
-          <div>
-            <div className="eyebrow">MARKER PANTS · 动捕裤子</div>
-            <div className="topic-path">停止时选择并 CONFIRM CONFIG；VRPN 同步切换标准坐标，CMTracker 需导入同版本文件</div>
-          </div>
-          <select aria-label="Marker pants profile" value={configDraft.pants_profile}
-            disabled={!lifecycleStopped || lifecycleBusy}
-            onChange={(event) => {
-              setConfigTouched(true);
-              setConfigDraft((current) => ({ ...current, pants_profile: event.target.value }));
-            }}>
-            <option value="" disabled>请选择裤子</option>
-            <option value="v2">V2 · 旧裤子 · 10 点</option>
-            <option value="v4">V4 · 17 孔裤子 · P1/P2 各 12 点</option>
-          </select>
-        </label>}
         <div className="table-side-selector">
           <div>
-            <div className="eyebrow">OUR TABLE SIDE · LOCKED INTO NEXT START</div>
+            <div className="eyebrow">{t("hopeA3Console.ourTableSideLockedIntoNextStart")}</div>
             <div className="topic-path">
-              Fresh player position required at START: P1 x &lt; 0 m; P2 x &gt; 2.74 m.
-              Side stays locked until STOP. Offline Kernel serving is exempt.
-              {!kernelMode && fieldFresh && field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true &&
-                " HDU has not verified this end; check explicit-peer DDS discovery."}
+              {t("hopeA3Console.bothMocapSystemsUseUcbP1UcbP2")} {!kernelMode && fieldFresh && field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true &&
+                t("hopeA3Console.peerNotVerified")}
             </div>
           </div>
           {(["P1", "P2"] as const).map((side) => (
@@ -1532,10 +1606,45 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
                 setConfigDraft((current) => ({ ...current, table_side: side }));
               }}
             >
-              {side === "P1" ? "UCB_P1 · DIRECT" : "UCB_P2 · ROTATE 180°"}
+              {side === "P1" ? t("hopeA3Console.ucbP1Direct") : t("hopeA3Console.ucbP2Rotate180")}
             </button>
           ))}
         </div>
+        <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">{t("hopeA3Console.gripper2")}</div>
+            <div className="topic-path">{t("hopeA3Console.manualOpenCloseAndServeReleaseChangesTake")}</div>
+          </div>
+          <select
+            aria-label={t("hopeA3Console.gripperProfile")}
+            value={configDraft.gripper_profile}
+            disabled={!lifecycleStopped || lifecycleBusy}
+            onChange={(event) => {
+              setConfigTouched(true);
+              setConfigDraft((current) => ({ ...current, gripper_profile: event.target.value }));
+            }}
+          >
+            <option value="" disabled>{t("hopeA3Console.selectAGripper")}</option>
+            <option value="legacy">{t("hopeA3Console.oldGripperClose800Open2000")}</option>
+            <option value="new_20261015">{t("hopeA3Console.newGripperClose850Open1500")}</option>
+          </select>
+        </label>
+        {vrpnSelected && <label className="table-side-selector">
+          <div>
+            <div className="eyebrow">{t("hopeA3Console.markerPants2")}</div>
+            <div className="topic-path">{t("hopeA3Console.selectWhileStoppedThenConfirmConfigVrpnSwitches")}</div>
+          </div>
+          <select aria-label={t("hopeA3Console.markerPantsProfile")} value={configDraft.pants_profile}
+            disabled={!lifecycleStopped || lifecycleBusy}
+            onChange={(event) => {
+              setConfigTouched(true);
+              setConfigDraft((current) => ({ ...current, pants_profile: event.target.value }));
+            }}>
+            <option value="" disabled>{t("hopeA3Console.selectPants")}</option>
+            <option value="v2">{t("hopeA3Console.v2OldPants10Markers")}</option>
+            <option value="v4">{t("hopeA3Console.v412MarkersEachForP1P2")}</option>
+          </select>
+        </label>}
         <div className="lifecycle-actions">
           <button
             className="config-confirm"
@@ -1549,7 +1658,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             }
             onClick={() => void confirmLifecycleConfig()}
           >
-            {busy.applyLifecycleConfig === true ? "CONFIRMING…" : "CONFIRM CONFIG"}
+            {busy.applyLifecycleConfig === true ? t("hopeA3Console.confirming") : t("hopeA3Console.confirmConfig")}
           </button>
           <button
             className="system-start"
@@ -1568,42 +1677,40 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
                   field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true)) ||
               busy.startLifecycle === true
             }
-            onClick={() => void startSystem()}
+            onClick={startSystem}
           >
             {busy.startLifecycle === true || (lifecycleBusy && lifecycleState === "STARTING")
-              ? "STARTING…"
-              : lifecycleBusy && lifecycleState === "KILLING" ? "CLEANING…"
-              : lifecycleState === "FAILED" ? "RETRY START · 自动清理后重试" : "START SYSTEM"}
+              ? t("hopeA3Console.starting")
+              : lifecycleBusy && lifecycleState === "KILLING" ? t("hopeA3Console.cleaning")
+              : lifecycleState === "FAILED" ? t("hopeA3Console.retryStartCleanUpAutomatically") : t("hopeA3Console.startSystem")}
           </button>
           <button
             className="system-stop"
             type="button"
             disabled={!lifecycleRunning || lifecycleBusy || busy.killAllAndCollect === true}
-            onClick={() => void killAllAndCollect()}
+            onClick={killAllAndCollect}
           >
             {busy.killAllAndCollect === true || (lifecycleBusy && lifecycleState === "KILLING")
-              ? "KILLING…"
-              : "KILL ALL & COLLECT"}
+              ? t("hopeA3Console.killing")
+              : t("hopeA3Console.killAllCollect")}
           </button>
           <span className="config-helper">
-            Inputs stay editable. Confirm is accepted only while stopped; changing the HDU IP also
-            requires reconnecting Foxglove to the new :8766 address.
-          </span>
+            {t("hopeA3Console.editAndConfirmConfigurationWhileStoppedChangingThe")} </span>
         </div>
         <div
           className={`time-calibration-row time-calibration-${timeCalibrationState.toLowerCase().replace(/[_ ]/g, "-")}`}
         >
           <div className="time-calibration-copy">
-            <div className="eyebrow">TIME CALIBRATION · RUNBOOK 10.4 · RECEIPT-SAFE</div>
+            <div className="eyebrow">{t("hopeA3Console.timeCalibrationRunbook104ReceiptSafe")}</div>
             <div className="time-calibration-state">
-              {timeCalibrationState} · {snapshot.timeCalibrationStep ?? "IDLE"}
+              {timeCalibrationState} · {snapshot.timeCalibrationStep ?? t("hopeA3Console.idle")}
             </div>
             <div className="topic-path" title={snapshot.timeCalibrationResult}>
               {snapshot.timeCalibrationOperation != undefined &&
               snapshot.timeCalibrationOperation.length > 0
                 ? `${snapshot.timeCalibrationOperation} · `
                 : ""}
-              {snapshot.timeCalibrationResult ?? "waiting for calibration coordinator"}
+              {snapshot.timeCalibrationResult ?? t("hopeA3Console.waitingForCalibrationCoordinator")}
             </div>
           </div>
           <button
@@ -1611,52 +1718,52 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             type="button"
             disabled={!timeCalibrationReady || busy.timeCalibration === true}
             title={timeCalibrationTitle}
-            onClick={() => void runTimeCalibration()}
+            onClick={runTimeCalibration}
           >
             {busy.timeCalibration === true || timeCalibrationBusy
-              ? "CALIBRATING…"
-              : "TIME CALIBRATION"}
+              ? t("hopeA3Console.calibrating")
+              : t("hopeA3Console.timeCalibration")}
           </button>
         </div>
       </div>
 
-      <section className="diagnostics-section" aria-label="Diagnostics">
+      <section className="diagnostics-section" aria-label={t("hopeA3Console.diagnostics")}>
         <div className="diagnostics-content">
       <div className="metric-grid">
         <div className="metric-card">
-          <div className="eyebrow">NTP WORLD-CLOCK OFFSET</div>
+          <div className="eyebrow">{t("hopeA3Console.ntpWorldClockOffset")}</div>
           <div className={`metric-value ${ntpFresh ? "" : "stale"}`}>
             <span>
               {ntpFresh && snapshot.ntpOffsetMs != undefined
                 ? snapshot.ntpOffsetMs.toFixed(2)
                 : "—"}
             </span>
-            <small>ms</small>
+            <small>{t("hopeA3Console.ms")}</small>
           </div>
           <div className="topic-path">
             {TOPICS.ntpOffset}
             {snapshot.ntpDispersionMs != undefined
-              ? ` · disp ${snapshot.ntpDispersionMs.toFixed(2)}`
+              ? t("hopeA3Console.disp", {dispersion: snapshot.ntpDispersionMs.toFixed(2)})
               : ""}
             {snapshot.ntpSkewPpm != undefined
-              ? ` · skew ${snapshot.ntpSkewPpm.toFixed(2)} ppm audit-only`
+              ? t("hopeA3Console.skewPpmAuditOnly", {skew: snapshot.ntpSkewPpm.toFixed(2)})
               : ""}
-            {ntpFresh ? "" : " · stale"}
+            {ntpFresh ? "" : t("hopeA3Console.stale")}
           </div>
         </div>
         <div className="metric-card">
-          <div className="eyebrow">ROS 2 MESSAGE LATENCY</div>
+          <div className="eyebrow">{t("hopeA3Console.ros2MessageLatency")}</div>
           <div className={`metric-value ${latencyFresh ? "" : "stale"}`}>
             <span>
               {latencyFresh && snapshot.latencyMs != undefined
                 ? snapshot.latencyMs.toFixed(1)
                 : "—"}
             </span>
-            <small>ms</small>
+            <small>{t("hopeA3Console.ms")}</small>
           </div>
           <div className="topic-path">
             {TOPICS.latency}
-            {latencyFresh ? "" : " · stale"}
+            {latencyFresh ? "" : t("hopeA3Console.stale")}
           </div>
         </div>
       </div>
@@ -1673,7 +1780,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           value={hduFresh ? snapshot.hduActive : undefined}
         />
         <ProcessTile
-          name="MDU Runner"
+          name={t("hopeA3Console.runnerProcess")}
           topic={TOPICS.mduActive}
           value={mduFresh ? snapshot.mduActive : undefined}
         />
@@ -1681,15 +1788,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
       <div className="cpu-card">
         <div className="cpu-header">
-          <span className="eyebrow">A3 CPU LOAD</span>
+          <span className="eyebrow">{t("hopeA3Console.a3CpuLoad")}</span>
           <span className={`cpu-value ${cpuFresh ? "" : "stale"}`}>
             {cpuFresh && snapshot.cpuPercent != undefined ? snapshot.cpuPercent.toFixed(0) : "—"}
             <small>%</small>
           </span>
           <div className="cpu-diagnostics">
-            <span className="topic-path">{TOPICS.cpu} · 0–100 %, 120 s</span>
+            <span className="topic-path">{TOPICS.cpu} {t("hopeA3Console.0100120S")}</span>
             <span className="topic-path" title={snapshot.cpuTopProcess}>
-              {snapshot.cpuTopProcess ?? "top process warming up"}
+              {snapshot.cpuTopProcess ?? t("hopeA3Console.topProcessWarmingUp")}
             </span>
           </div>
         </div>
@@ -1697,7 +1804,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           className="cpu-plot"
           viewBox="0 0 600 160"
           preserveAspectRatio="none"
-          aria-label="CPU load over 120 seconds"
+          aria-label={t("hopeA3Console.cpuLoadOver120Seconds")}
         >
           <line x1="0" y1="40" x2="600" y2="40" />
           <line x1="0" y1="80" x2="600" y2="80" />
@@ -1710,77 +1817,69 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       </section>
 
       <div className="sequence-card teleop-card">
-        <span className="eyebrow">XBOX · BODY-FRAME LOCOMOTION</span>
+        <span className="eyebrow">{t("hopeA3Console.xboxBodyFrameLocomotion")}</span>
         <div className="teleop-details">
-          <span>Controller</span><span title={snapshot.xboxPreview?.device}>{snapshot.xboxPreview?.device === "" ? "No controller detected" : (snapshot.xboxPreview?.device ?? "No controller detected")}</span>
-          <span>Input</span><span>{!xboxFresh ? "NO FRESH XBOX INPUT" : snapshot.xboxPreview?.connected !== true
-            ? "DISCONNECTED" : `LIVE · LT ${snapshot.xboxPreview.lt ? "HELD" : "RELEASED"} · ${snapshot.xboxPreview.state}`}</span>
-          <span>Sticks</span><span>{velocityText(xboxVelocity)}</span>
-          <span>Runner</span><span>{!runnerFresh ? "NO FRESH RUNNER STATUS" : teleop == undefined
-            ? "WAITING FOR TELEOP TELEMETRY" : teleop[2] !== 1 ? "TELEOP POLICY NOT LOADED"
-              : `${snapshot.runnerMode ?? "UNKNOWN"} · ${["OFF", "ENTERING", "ACTIVE", "STOPPING"][teleop[3] ?? 0] ?? "UNKNOWN"} · enable ${teleop[9] === 1 ? "ON" : "OFF"} · transition ${((teleop[5] ?? 0) * 100).toFixed(0)}%`}</span>
-          <span>Command</span><span>{velocityText(teleop?.slice(6, 9))}</span>
-          <span>Mode keys</span><span title={snapshot.xboxPreview?.action_status}>{xboxFresh ? (snapshot.xboxPreview?.action_status ?? "A prepare · B serve · X receive · Y Teleop") : "Waiting for Xbox input"}</span>
-          <span>Input age</span><span>{teleop == undefined || (teleop[4] ?? 1e9) >= 1e9
-            ? "No input received by Runner" : `${Math.min(9999, (teleop[4] ?? 9999) * 1000).toFixed(0)} ms`}</span>
+          <span>{t("hopeA3Console.controller")}</span><span title={snapshot.xboxPreview?.device}>{snapshot.xboxPreview?.device === "" ? t("hopeA3Console.noControllerDetected") : (snapshot.xboxPreview?.device ?? t("hopeA3Console.noControllerDetected"))}</span>
+          <span>{t("hopeA3Console.input")}</span><span>{!xboxFresh ? t("hopeA3Console.noFreshXboxInput") : snapshot.xboxPreview?.connected !== true
+            ? t("hopeA3Console.disconnected") : t("hopeA3Console.liveLt", {lt: snapshot.xboxPreview.lt ? t("hopeA3Console.held") : t("hopeA3Console.released"), source: snapshot.xboxPreview.state})}</span>
+          <span>{t("hopeA3Console.sticks")}</span><span>{velocityText(xboxVelocity)}</span>
+          <span>{t("hopeA3Console.runner")}</span><span>{!runnerFresh ? t("hopeA3Console.noFreshRunnerStatus") : teleop == undefined
+            ? t("hopeA3Console.waitingForTeleopTelemetry") : teleop[2] !== 1 ? t("hopeA3Console.teleopPolicyNotLoaded")
+              : t("hopeA3Console.enableTransition", {mode: snapshot.runnerMode ?? t("hopeA3Console.unknown"), phase: [t("hopeA3Console.off"), t("hopeA3Console.entering"), t("hopeA3Console.active"), t("hopeA3Console.stopping")][teleop[3] ?? 0] ?? t("hopeA3Console.unknown"), enabled: teleop[9] === 1 ? t("hopeA3Console.on") : t("hopeA3Console.off"), progress: ((teleop[5] ?? 0) * 100).toFixed(0)})}</span>
+          <span>{t("hopeA3Console.command")}</span><span>{velocityText(teleop?.slice(6, 9))}</span>
+          <span>{t("hopeA3Console.modeKeys")}</span><span title={snapshot.xboxPreview?.action_status}>{xboxFresh ? (snapshot.xboxPreview?.action_status ?? t("hopeA3Console.aPrepareBServeXReceiveYTeleop")) : t("hopeA3Console.waitingForXboxInput")}</span>
+          <span>{t("hopeA3Console.inputAge")}</span><span>{teleop == undefined || (teleop[4] ?? 1e9) >= 1e9
+            ? t("hopeA3Console.noInputReceivedByRunner") : `${Math.min(9999, (teleop[4] ?? 9999) * 1000).toFixed(0)} ms`}</span>
         </div>
         <div className="role-controls">
           <button type="button" disabled={teleopBlocked != undefined} title={teleopBlocked}
-            onClick={() => void invoke("teleop")}>Enter Teleop</button>
+            onClick={() => void invoke("teleop")}>{t("hopeA3Console.enterTeleop")}</button>
           <button type="button" disabled={!runnerFresh || snapshot.runnerMode !== "TELEOP" || busy.stand === true}
-            onClick={() => void invoke("stand")}>Stop and Return to Stand</button>
+            onClick={() => void invoke("stand")}>{t("hopeA3Console.stopAndReturnToStand")}</button>
         </div>
-        <div className="teleop-entry-status" title={teleopBlocked ?? "Ready to request Teleop; Runner validates current input."}>
-          {teleopBlocked ?? "Ready to request Teleop; Runner validates current input."}
+        <div className="teleop-entry-status" title={teleopBlocked ?? t("hopeA3Console.readyToRequestTeleopRunnerValidatesCurrentInput")}>
+          {teleopBlocked ?? t("hopeA3Console.readyToRequestTeleopRunnerValidatesCurrentInput")}
         </div>
-        <div className="sequence-status">Wait for ACTIVE, center the sticks, then release and hold LT again. Use the left stick to move forward, backward, or sideways, and the right stick to turn. Releasing LT or losing input slows the robot to a stop. Returning to Stand waits for the feet to settle. A: SERVER + Start to Serve. B: Serve, then automatic Stand in Kernel Mode or Ready in normal play. X: RECEIVER + Ready. Y: Teleop from Stand only; presses in other modes are ignored. Press face buttons once, without LT. LB + RB together: E-STOP.</div>
+        <div className="sequence-status">{t("hopeA3Console.waitForActiveCenterTheSticksThenRelease")}</div>
       </div>
 
       <div className="sequence-card">
         <div className="sequence-header">
           <div className="sequence-summary">
-            <span className="eyebrow">{kernelMode ? "KERNEL MODE · TWO-STEP SERVE" : "OPTITRACK · NORMAL RUNNER SEQUENCE"}</span>
+            <span className="eyebrow">{kernelMode ? t("hopeA3Console.kernelModeTwoStepServe") : t("hopeA3Console.optitrackNormalRunnerSequence")}</span>
             <span className="sequence-status">
               {runnerFresh
-                ? `${snapshot.runnerMode ?? "UNKNOWN"} · ${serveState} · gripper ${snapshot.gripperState ?? "UNAVAILABLE"}${snapshot.serveCleanupRequired === true ? " · CLEANUP REQUIRED" : ""}`
-                : "NO FRESH RUNNER STATE"}
+                ? t("hopeA3Console.runnerSummary", {mode: snapshot.runnerMode ?? t("hopeA3Console.unknown"), serve: serveState, gripper: snapshot.gripperState ?? t("hopeA3Console.unavailable"), cleanup: snapshot.serveCleanupRequired === true ? t("hopeA3Console.cleanupRequired") : ""})
+                : t("hopeA3Console.noFreshRunnerState")}
             </span>
           </div>
           <div className="role-controls">
-            <span className="role-label">OUR ROLE: {snapshot.localRole ?? "UNASSIGNED"}</span>
+            <span className="role-label">{t("hopeA3Console.ourRole")} {snapshot.localRole ?? t("hopeA3Console.unassigned")}</span>
             <button
               type="button"
               disabled={snapshot.roleChangeAllowed !== true || busy.setServer === true}
               onClick={() => void invoke("setServer")}
             >
-              SERVER
-            </button>
+              {t("hopeA3Console.server")} </button>
             <button
               type="button"
               disabled={snapshot.roleChangeAllowed !== true || busy.setReceiver === true}
               onClick={() => void invoke("setReceiver")}
             >
-              RECEIVER
-            </button>
+              {t("hopeA3Console.receiver")} </button>
           </div>
         </div>
-          <PlaneModeControls
-            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.planeMode : undefined}
-            available={!kernelMode && context.callService != undefined &&
-              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.planeMode?.configurable === true}
-            onApply={applyPlaneMode}
-          />
         <div className="action-grid">
           <ActionButton
-            label="Stand"
+            label={t("hopeA3Console.stand")}
             detail={
               snapshot.runnerMode === "TELEOP"
-                ? "STOP AND SETTLE · waits for the feet, then enters Stand"
+                ? t("hopeA3Console.stopAndSettleWaitsForTheFeetThen")
                 : serveWorkflowActive
-                ? "PHASE-AWARE ABORT · recovery stays in this Runner"
+                ? t("hopeA3Console.phaseAwareAbortRecoveryStaysInThisRunner")
                 : runnerStanding
-                  ? "DONE · PD_STAND"
-                  : "same as keyboard s"
+                  ? t("hopeA3Console.donePdStand")
+                  : t("hopeA3Console.sameAsKeyboardS")
             }
             disabled={!runnerUsable}
             busy={busy.stand === true}
@@ -1790,19 +1889,19 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           />
           <div className="ready-controls">
           <ActionButton
-            label="Ready"
+            label={t("hopeA3Console.ready")}
             detail={
               runnerReady
-                ? kernelMode ? "READY · receive policy test · Start to Serve begins the next cycle" : "READY · receiving · Start to Serve begins the next cycle"
+                ? kernelMode ? t("hopeA3Console.readyReceivePolicyTestStartToServeBegins") : t("hopeA3Console.readyReceivingStartToServeBeginsTheNext")
                 : snapshot.localRole !== "RECEIVER"
-                ? kernelMode ? "SERVER lowers arms and returns to Stand after Serve" : "SERVER enters Ready automatically after Serve completes"
+                ? kernelMode ? t("hopeA3Console.serverLowersArmsAndReturnsToStandAfter") : t("hopeA3Console.serverEntersReadyAutomaticallyAfterServeCompletes")
                 : !runnerStanding
-                  ? "LOCKED · stand first"
+                  ? t("hopeA3Console.lockedStandFirst")
                   : kernelMode
-                    ? "ENTER RECEIVE POLICY · no OptiTrack required · IMU-local test"
+                    ? t("hopeA3Console.enterReceivePolicyNoMocapRequiredImuLocal")
                     : baseFresh
-                    ? "ENTER MOTION · fresh OptiTrack base is available"
-                    : "Normal Play uses OptiTrack; Kernel Mode permits an IMU-local policy test without mocap"
+                    ? t("hopeA3Console.enterMotionFreshMocapBaseIsAvailable")
+                    : t("hopeA3Console.normalPlayUsesTheSelectedMocapSetupKernel")
             }
             disabled={
               !runnerUsable ||
@@ -1814,11 +1913,17 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "ready"}
             onClick={() => void invoke("ready")}
           />
-          <HitSpeedScaleControls key={snapshot.lifecycleConfig.hdu_wifi_ip}
+          <HitSpeedScaleControls key={configHost}
             state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.hitSpeedScale : undefined}
             available={!kernelMode && context.callService != undefined &&
               isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.hitSpeedScale?.configurable === true}
             kernelMode={kernelMode} onApply={applyHitSpeedScale}
+          />
+          <PlaneModeControls key={configHost}
+            state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.planeMode : undefined}
+            available={!kernelMode && context.callService != undefined &&
+              isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.planeMode?.configurable === true}
+            onApply={applyPlaneMode}
           />
           <BallYFilterControls
             state={isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) ? snapshot.ballYFilter : undefined}
@@ -1826,19 +1931,19 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.ballYFilter?.configurable === true}
             kernelMode={kernelMode} onApply={applyBallYFilter}
             key={configHost}
-            initialState={configHost && savedPanel.current.ballYFilterRobot === configHost ? savedPanel.current : undefined} onPreview={previewBallYFilter}
+            initialState={savedPanel.current.ballYFilterRobot === configHost ? savedPanel.current : undefined} onPreview={previewBallYFilter}
           />
           </div>
           <ActionButton
-            label="Start to Serve · Raise hand"
+            label={t("hopeA3Console.startToServeRaiseHand")}
             detail={
               !serveAvailable
-                ? "UNAVAILABLE · launch Runner with --serve"
+                ? t("hopeA3Console.unavailableLaunchRunnerWithServe")
                 : snapshot.localRole !== "SERVER"
-                  ? "SERVER ONLY"
+                  ? t("hopeA3Console.serverOnly")
                   : serveWorkflowActive
-                    ? `${serveState} · same Runner owns q_des`
-                    : "smooth Stand / Ready → loading pose; gripper closes automatically"
+                    ? t("hopeA3Console.sameRunnerOwnsQDes", {state: serveState})
+                    : t("hopeA3Console.smoothStandReadyLoadingPoseGripperClosesAutomatically")
             }
             disabled={
               !runnerUsable ||
@@ -1850,25 +1955,25 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             busy={busy.prepareServe === true}
             completed={serveWorkflowActive}
             next={nextStep === "prepareServe"}
-            onClick={() =>
-              void invokeConfirmed(
+            onClick={() => {
+              invokeConfirmed(
                 "prepareServe",
-                "Prepare serve025 now? Confirm our role is SERVER, the robot is supported and clear, and the physical E-stop is reachable. The same Runner transitions all 31 joints from its last delivered Stand / Ready command to CSV frame 0 and immediately commands GRAB. Place the ball only after the transition has stopped.",
-              )
-            }
+                msg("hopeA3Console.prepareServeConfirm"),
+              );
+            }}
           />
           <ActionButton
-            label="Serve · Play"
+            label={t("hopeA3Console.servePlay")}
             detail={
               serveState === "WAIT_READY_TO_SERVE"
-                ? `LOAD BALL, CLEAR HANDS · starts selected full31 timeline at 100 Hz · gripper ${snapshot.gripperState ?? "UNAVAILABLE"} is non-gating`
+                ? t("hopeA3Console.loadBallClearHandsStartsSelectedFull31Timeline", {gripper: snapshot.gripperState ?? t("hopeA3Console.unavailable")})
                 : snapshot.serving === true
-                  ? `PLAYING · ${serveState}`
+                  ? t("hopeA3Console.playing", { state: serveState })
                   : kernelMode && serveState === "COMPLETE" && snapshot.runnerMode === "PD_STAND"
-                    ? "STAND · arms lowered · Start to Serve begins the next cycle"
+                    ? t("hopeA3Console.standArmsLoweredStartToServeBeginsThe")
                   : serveState === "COMPLETE" && snapshot.runnerMode === "MOTION"
-                    ? "READY · receiving · Start to Serve begins the next cycle"
-                  : "LOCKED UNTIL WAIT_READY_TO_SERVE"
+                    ? t("hopeA3Console.readyReceivingStartToServeBeginsTheNext")
+                  : t("hopeA3Console.lockedUntilWaitReadyToServe")
             }
             disabled={
               !runnerUsable ||
@@ -1878,21 +1983,21 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             busy={busy.readyToServe === true}
             completed={snapshot.serving === true || serveState === "COMPLETE"}
             next={nextStep === "readyToServe"}
-            onClick={() =>
-              void invokeConfirmed(
+            onClick={() => {
+              invokeConfirmed(
                 "readyToServe",
-                kernelMode ? "Test the selected CSV now? Confirm the ball is loaded, hands are clear and the physical E-stop is reachable. After the stroke, Runner slowly lowers the arms over 2.5 seconds and returns to Stand." : "Start the serve motion now? Confirm all people are outside the loading and swing zones, the opponent is ready, and the physical E-stop is reachable. Gripper state is not checked; this action starts frame 0 immediately. A return ball can engage the receive policy after the post-contact handoff finishes and Runner reports MOTION.",
-              )
-            }
+                kernelMode ? msg("hopeA3Console.testCsvConfirm") : msg("hopeA3Console.serveConfirm"),
+              );
+            }}
           />
           <ActionButton
-            label="Open gripper"
+            label={t("hopeA3Console.openGripper")}
             detail={
               serveState === "CLEANUP_OPENING"
-                ? "REQUESTED · OPEN publish in progress"
+                ? t("hopeA3Console.requestedOpenPublishInProgress")
                 : snapshot.serveCleanupRequired === true
-                  ? "RETAINED-BALL TELEMETRY · does not gate any action"
-                  : `MANUAL COMMAND · gripper ${snapshot.gripperState ?? "UNAVAILABLE"}`
+                  ? t("hopeA3Console.retainedBallTelemetryDoesNotGateAnyAction")
+                  : t("hopeA3Console.manualCommandGripper", {gripper: snapshot.gripperState ?? t("hopeA3Console.unavailable")})
             }
             disabled={
               !runnerUsable ||
@@ -1902,12 +2007,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             busy={busy.openGripper === true}
             completed={snapshot.gripperState === "OPEN"}
             next={false}
-            onClick={() =>
-              void invokeConfirmed(
+            onClick={() => {
+              invokeConfirmed(
                 "openGripper",
-                "Open the gripper for cleanup? Catch or remove the retained ball first: it may drop. Confirm the robot is in PD_STAND, the area is attended, and hands are clear of the claw.",
-              )
-            }
+                msg("hopeA3Console.openGripperConfirm"),
+              );
+            }}
           />
         </div>
         <div className="sequence-footer">
@@ -1917,10 +2022,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             isFresh(snapshot, TOPICS.runnerBoot, now, 1_000) &&
             isFresh(snapshot, TOPICS.mocapSafety, now, 1_000) &&
             snapshot.mocapSafety?.boot === snapshot.runnerBoot
-              ? snapshot.mocapSafety : undefined)}</span>
+              ? snapshot.mocapSafety : undefined, t)}</span>
           <ActionButton
-            label="Runner Passive"
-            detail="ZERO GAINS · robot loses support"
+            label={t("hopeA3Console.runnerPassive")}
+            detail={t("hopeA3Console.zeroGainsRobotLosesSupport")}
             disabled={!runnerFresh}
             busy={busy.passive === true}
             danger
@@ -1930,6 +2035,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       </div>
       </fieldset>
     </div>
+    </LanguageContext.Provider>
   );
 }
 

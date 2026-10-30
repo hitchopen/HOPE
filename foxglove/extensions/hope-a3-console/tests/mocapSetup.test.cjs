@@ -7,9 +7,7 @@ const test = require('node:test');
 const ts = require('typescript');
 const source = fs.readFileSync(path.join(__dirname, '../src/mocapSetup.ts'), 'utf8');
 const exportsObject = {};
-vm.runInNewContext(ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS },
-}).outputText, { exports: exportsObject });
+Object.assign(exportsObject, require('./loadSource.cjs')('mocapSetup'));
 const { mocapSetupCommand } = exportsObject;
 const config = {
   laptop_wifi_ip: '10.42.20.1', hdu_wifi_ip: '10.42.20.10', mdu_internal_ip: '10.42.10.12',
