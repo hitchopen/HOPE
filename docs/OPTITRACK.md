@@ -14,6 +14,18 @@ This document covers the `optitrack` backend. The VRPN path is independent and
 documented in [interfaces/ros_topics.md](interfaces/ros_topics.md) and
 [mocap/README.md](../mocap/README.md).
 
+For ball samples with valid position but missing/invalid orientation, both
+`optitrack_mct_relay` and the ChingMu `avatar_pro_vrpn_relay` publish quaternion
+`(qx,qy,qz,qw) = (0,0,0,0)` on `/poses` and `/poses/planner_full`. This sentinel
+means **orientation unobserved**, not measured zero spin. Finite ball quaternions
+with norm in `[0.5,1.5]` are normalized; other ball quaternions use the sentinel.
+P2 rotates valid orientations by 180 degrees about Z and leaves the sentinel
+zero. Position and acquisition timestamps remain available, but invalid ball
+orientations are not broadcast as TF. The C++ packetizer sets
+`orientation_valid=false`, allowing the existing spin estimator to break the
+quaternion delta across loss/reacquisition without knowing the mocap source.
+The OptiTrack `/ball/pose` topic continues to publish valid orientations only.
+
 ## How the OptiTrack path works
 
 ```text

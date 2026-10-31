@@ -72,5 +72,42 @@ TEST(SpinEstimator, MissingOrientationDoesNotInventSpin) {
   EXPECT_EQ(result.reason, "spin_not_ready");
 }
 
+TEST(SpinEstimator, InvalidOrientationBreaksDeltaAcrossReacquisition) {
+  for (const int hz : {150, 300}) {
+    for (const bool p2 : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << "hz=" << hz << " p2=" << p2);
+      SpinEstimator estimator;
+      const Eigen::Quaterniond side = p2
+          ? Eigen::Quaterniond(Eigen::AngleAxisd(kTwoPi / 2, Vec3::UnitZ()))
+          : Eigen::Quaterniond::Identity();
+      const Vec3 expected = side * Vec3(10., 20., 30.);
+      for (int i = 0; i <= hz / 5; ++i) {
+        const double time = static_cast<double>(i) / hz;
+        estimator.push(sample(time, side * orientation_at(Vec3(10., 20., 30.), time)));
+      }
+      ASSERT_TRUE(estimator.estimate().valid);
+      BallSample missing;
+      missing.source_time_s = 0.2 + 1.0 / hz;
+      missing.orientation = Eigen::Quaterniond(0., 0., 0., 0.);
+      missing.orientation_valid = false;
+      estimator.push(missing);
+      EXPECT_FALSE(estimator.estimate().valid);
+
+      const double resumed = missing.source_time_s + 1.0 / hz;
+      const Eigen::Quaterniond new_offset(Eigen::AngleAxisd(.15, Vec3::UnitX()));
+      estimator.push(sample(resumed, side * new_offset));
+      EXPECT_FALSE(estimator.estimate().valid);  // no delta from the sentinel
+      for (int i = 1; i <= hz / 5; ++i) {
+        const double elapsed = static_cast<double>(i) / hz;
+        estimator.push(sample(resumed + elapsed,
+            side * orientation_at(Vec3(10., 20., 30.), elapsed, new_offset)));
+      }
+      const auto recovered = estimator.estimate();
+      ASSERT_TRUE(recovered.valid) << recovered.reason;
+      EXPECT_LT((recovered.omega_rad_s - expected).norm(), 1e-8);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace hope_planner_cpp
