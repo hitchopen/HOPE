@@ -5,14 +5,14 @@ const vm = require('node:vm');
 const test = require('node:test');
 const ts = require('typescript');
 const output = {};
-vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/timeCalibration.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:output});
+Object.assign(output, require('./loadSource.cjs')('timeCalibration'));
 const {timeCalibrationControls} = output;
 const ready = {state:'IDLE',fresh:true,busy:false,ntpFresh:true,ntpPass:true,lifecycleStopped:true,lifecycleBusy:false,configConfirmed:true};
 test('manual resync accepts passing and failing NTP, including a completed request', () => {
   for (const state of ['IDLE','COMPLETE','REJECTED']) for (const ntpPass of [true,false]) {
     const result=timeCalibrationControls({...ready,state,ntpPass});
     assert.equal(result.ready,true); assert.equal(result.blocksStart,false);
-    if(ntpPass) assert.match(result.title,/NTP is healthy/);
+    if(ntpPass) assert.match(result.title,/NTP 正常/);
   }
 });
 test('missing or stale evidence and active lifecycle keep resync disabled', () => {

@@ -1,3 +1,5 @@
+import { Translator, defaultTranslator } from "./i18n";
+
 export type BallModelStatus = {
   state: string;
   configured_model: string | null;
@@ -6,22 +8,22 @@ export type BallModelStatus = {
     runtime: string; mismatches?: string[]; error?: string }>;
 };
 
-export function ballModelDisplay(status: BallModelStatus | undefined, fieldFresh: boolean) {
+export function ballModelDisplay(status: BallModelStatus | undefined, fieldFresh: boolean, t: Translator = defaultTranslator) {
   if (!fieldFresh || status == undefined || status.age_s == null || !Number.isFinite(status.age_s) || status.age_s > 45) {
-    return { value: "", text: "等待两端最新参数核验", ready: false };
+    return { value: "", text: t("ballModelStatus.waitingForFreshParameterVerificationFromBothEndpoints"), ready: false };
   }
-  const labels: Record<string, string> = { LOADED: "两端已加载且一致", CONFIGURED: "两端配置一致（未全部运行）",
-    MISMATCH: "参数不一致 · 禁止正常启动", UNAVAILABLE: "核验不可用", CHECKING: "正在核验" };
-  const parts = [["hdu", "Planner"], ["laptop", "球包器"]].map(([key, label]) => {
+  const labels: Record<string, string> = { LOADED: t("ballModelStatus.bothEndpointsLoadedAndMatching"), CONFIGURED: t("ballModelStatus.bothEndpointsConfiguredConsistentlyNotAllRunning"),
+    MISMATCH: t("ballModelStatus.parameterMismatchNormalStartupBlocked"), UNAVAILABLE: t("ballModelStatus.verificationUnavailable"), CHECKING: t("ballModelStatus.verifying") };
+  const parts = [["hdu", "Planner"], ["laptop", t("ballModelStatus.ballBridge")]].map(([key, label]) => {
     const e = status.endpoints[key!];
-    if (e == undefined) { return `${label}：无回执`; }
-    const model = e.configured_model?.toUpperCase() ?? "未知";
-    const runtime = e.runtime === "VERIFIED" ? `已加载 ${e.runtime_model?.toUpperCase() ?? model}`
-      : e.runtime === "NOT_RUNNING" ? "未运行" : e.runtime === "MISMATCH"
-        ? `运行参数不匹配（${e.runtime_model?.toUpperCase() ?? "未知模型"}）` : "无法读取";
-    return `${label}：配置 ${model}，${runtime}${e.error ? ` · ${e.error}` : ""}`;
+    if (e == undefined) { return t("ballModelStatus.noReceipt", {endpoint: label}); }
+    const model = e.configured_model?.toUpperCase() ?? t("ballModelStatus.unknown");
+    const runtime = e.runtime === "VERIFIED" ? t("ballModelStatus.loaded", {model: e.runtime_model?.toUpperCase() ?? model})
+      : e.runtime === "NOT_RUNNING" ? t("ballModelStatus.notRunning") : e.runtime === "MISMATCH"
+        ? t("ballModelStatus.runtimeParameterMismatch", {model: e.runtime_model?.toUpperCase() ?? t("ballModelStatus.unknownModel")}) : t("ballModelStatus.cannotRead");
+    return t("ballModelStatus.configured", {endpoint: label, model, runtime, error: e.error ? ` · ${e.error}` : ""});
   });
   const ready = ["LOADED", "CONFIGURED"].includes(status.state);
   return { value: status.configured_model ?? "", ready,
-    text: `${labels[status.state] ?? "未知核验状态"} · ${parts.join("；")}` };
+    text: `${labels[status.state] ?? t("ballModelStatus.unknownVerificationState")} · ${parts.join("; ")}` };
 }

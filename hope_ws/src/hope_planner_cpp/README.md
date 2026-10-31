@@ -56,23 +56,20 @@ Audit CSV creation is exclusive and refuses to truncate an existing attempt.
 There is no Planner process-lock gate; operations should still start one
 publisher per field attempt so its evidence has unambiguous ownership.
 
-The Ball quaternion supplies a causal angular-velocity estimate. The
-`model14600_spin_contact.yaml` overlay enables a shared future-contact
-predictor on both Laptop and HDU: valid spin with coherence >= 0.4 uses
-`tangential_gain=0.348260`, effective `omega_scale=2/3`, and the existing
-vertical restitution 0.96. Missing or incoherent spin retains the original
-0.20/0.96 effective zero-spin model. Magnus remains shadow-only. This changes
-only the single pre-engagement prediction, never an active swing's target or
-clock. Audit columns record whether the spin model was selected and its
-parameters; the original spin measurement remains unscaled in the log.
-
-Selected on three older packet datasets, this contact model improved the
-held-out 2026-10-10 21:21 PDT recording's 20 measurable crossings from
-33.70 to 27.21 ms median time error, 2.34 to 1.82 cm lateral error, and
-4.02 to 3.85 cm height error. The latest continuous callback replay retained
-all 48 flight commits exactly once. These are prediction measurements, not
-a physical hit-rate certification. Evidence, original packet inputs, and the
-shared-core replay source are in `artifacts/planner_repair_20261010_212143/`.
+The Ball quaternion supplies a causal angular-velocity estimate. The shared
+hardware Planner and Laptop packetizer profiles enable spin-aware prediction
+and Magnus, with coherence >= 0.4, `omega_scale=1.0`,
+`tangential_gain=0.38744443855065164` and vertical restitution
+`0.9313775047019153`. The `model14600_spin_contact.yaml` overlay now contains
+the same fitted coefficients; its historical name does not select the earlier
+0.20/0.96 contact model. Magnus participates in incoming estimation/prediction,
+not only the shadow audit. See [unknown spin before a future table contact](#unknown-spin-before-a-future-table-contact)
+for the explicit best-effort setting when orientation is unavailable.
+Audit columns retain spin coherence, model selection and configured parameters.
+These settings affect the pre-engagement prediction; an emitted immutable
+target is not revised by a later spin estimate. Earlier replay comparisons
+using different coefficients do not validate the current defaults or establish
+a physical hit rate.
 
 ## Local build and tests
 
@@ -93,14 +90,15 @@ colcon test --packages-select hope_planner_cpp
 colcon test-result --verbose
 ```
 
-The shared hardware configuration is `config/model21800_hardware.yaml`; it
-deliberately remains Schema 2 with optional reach disabled so legacy
-model21800/V17 consumers are not silently upgraded. A Schema27 112-D artifact
-must explicitly layer `config/schema28_optional_reach.yaml` after the shared
-profile. The overlay enables deterministic training-screened labels; it is not
-trajectory, deployment, HDU ARM, or field qualification evidence. The current
-profile values alone do not establish which parameters a deployed process uses
-or qualify its prediction accuracy.
+The shared hardware configuration is `config/model21800_hardware.yaml`.
+Despite its historical filename, the current profile sets `racket_flat_schema: 4`
+and uses the Runner's shared HOME reference. It emits Schema 4 for the fixed
+HOME plane and Schema 5 for the supported runtime plane modes. Deploy it with
+the matching `--shared-session-home` Runner; it is not an implicit Schema 2
+compatibility profile. Optional reach remains disabled. Enabling reach requires
+an explicitly matched Schema 3 configuration and policy contract. Profile
+values alone do not establish a deployed process's effective parameters or
+qualify prediction accuracy.
 
 The shared deployment profiles now contain the 2026-10-10 multi-batch real-ball
 fit: `drag_k=0.12861635416914574`, `magnus_k=0.00379260504480258`,
@@ -293,28 +291,48 @@ Loading this file does not overwrite an existing operator selection.
 
 ### Unknown spin before a future table contact
 
-The hardware Planner and Laptop packetizer explicitly set
-`future_contact_require_spin=false`: uncertain spin must not suppress a shot or
-consume extra preparation time waiting for a more coherent orientation estimate.
-The library default remains strict for callers that explicitly need that mode.
+`config/model21800_hardware.yaml` and
+`config/model21800_flight_packetizer.yaml` explicitly set
+`future_contact_require_spin: false`. Missing or incoherent spin alone no longer
+rejects an otherwise usable future table-contact prediction or waits for a
+new orientation fit. This selects the existing physical-prior fallback; it
+does not change friction, restitution, spin impulse, Magnus or racket-contact
+equations.
 
-Position and velocity still come from the latest continuous 180 ms window with
-three Huber-weighted physical-fit iterations. This combines many observations
-while reducing outlier influence; it does not average across a bounce or outage.
-Reliable spin is used as measured. With missing or incoherent spin, prediction
-uses the estimator's physical prior (zero incoming spin when none is observed,
-retaining spin generated by an observed contact). This is an assumption for
-best-effort execution, not evidence that the ball has no spin. Coherence and
-`future_contact_spin_used` remain in the audit so the approximation is visible.
-Table friction, restitution, spin impulse, Magnus and racket-contact physics
-remain unchanged. No extra candidate search or waiting is introduced, and the
-405 ms preparation reserve is unchanged.
+With finite, valid spin and sufficient coherence, the shared predictor uses the
+effective estimate and configured scale. Otherwise it uses the estimator's
+physical prior: zero incoming spin when no usable orientation is available, or
+the modeled spin propagated through an observed contact when that state is
+available. Such a prior is an assumption, not a measured zero-spin reading or
+a newly reconstructed spin observation. Coherence and `future_contact_spin_used`
+remain in the Planner audit.
 
-Setting `future_contact_require_spin=true` restores strict rejection of an
-unobserved future contact as `future_contact_spin_unobserved`. In strict mode the
-adaptive packetizer waits for usable spin or a clean measured post-bounce arc,
-and invalidates an unresolved saved deadline. Free flight remains available.
-Both producer and receiver must use the intended setting; this parameter is
-read at startup, so changing its ROS parameter value alone does not update the
-constructed predictor. The normal finite-data, deadline, frame and policy
-reachability checks still apply. Neither mode establishes physical hit accuracy.
+The shipped profiles still fit position/velocity over a continuous window of
+up to 180 ms, using at least 24 samples, at least 80 ms of span and three
+Huber-weighted iterations. Clean-segment handling around observed bounces and
+sample gaps remains in place. Finite-data, freshness, frame, strike-deadline
+and policy-reachability checks still apply. No new search or preparation wait
+is added; the packetizer's 405 ms scheduling reserve remains
+350 ms policy lead + 30 ms transport + 5 ms solve + 20 ms policy tick.
+
+The library default remains `future_contact_require_spin=true`. When spin-aware
+or Magnus prediction is enabled, strict mode rejects an otherwise valid
+prediction requiring an unobserved future bounce with
+`future_contact_spin_unobserved`. The adaptive packetizer invalidates a saved
+candidate while that spin/contact assumption is unresolved; usable spin or a
+clean measured post-bounce arc can resolve it. A prediction with no future
+bounce can still proceed without spin. Configure both Laptop and HDU for the
+intended policy and restart the affected nodes: this setting is consumed when
+constructing their predictors, not reapplied by changing the parameter alone.
+Neither policy establishes physical hit accuracy.
+
+### Planner restart and wire identity
+
+Hardware sets `wire_identity_state_file` to a persistent local file. Before
+publishing, each Planner process reserves a disjoint range of command and flight
+IDs under an exclusive lock and atomically persists its upper bound. Restarting
+only the Planner therefore does not reset the IDs observed by the live Runner.
+The reservation also survives wall-clock rollback; no disk work is added to the
+per-ball solve. Keep this file when updating or restarting the Planner. A missing
+or corrupt reservation cannot be repaired by resetting the live Runner's replay
+protection. Duplicate/reordered commands and mismatched HOME frames remain invalid.

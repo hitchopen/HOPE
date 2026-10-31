@@ -1,5 +1,12 @@
 # Foxglove Runner 首次部署与现场测试手册
 
+> New robot, replaced HDU/MDU, or fresh BSP: complete the
+> [new robot commissioning checklist](new_robot_commissioning.md), including
+> NTP/PTP, installed bundle identity, gripper assets and reboot verification.
+> The [clock baseline installation procedure](clock_baseline_installation.md)
+> includes the pinned installer and current-address Laptop NTP ACL.
+
+
 > Current build, policy staging and Gate 3 commands: [deployment guide](deploy_and_gate3.md).
 > For the shared real-ball coefficients, see [ball physics](ball_physics_calibration.md).
 > Staging a package does not activate the robot.

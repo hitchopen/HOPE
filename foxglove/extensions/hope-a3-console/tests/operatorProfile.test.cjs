@@ -7,9 +7,16 @@ const ts = require('typescript');
 
 // Exercise the actual panel and callbacks without a browser, ROS connection,
 // robot, or exported test-only production API. JSX remains a React element tree.
-function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBusy = false, field, fieldAgeMs = 0, players = [], extraSnapshot = {}) {
+function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBusy = false, field, fieldAgeMs = 0, players = [], extraSnapshot = {}, initialState = {}) {
+  let now = Date.now();
   const state = [];
   let cursor = 0;
+  let refCursor = 0;
+  const refs = [];
+  const savedStates = [];
+  const published = [];
+  let layoutMounted = false;
+  const modules = new Map();
   let api;
   const calls = [];
   const subscribed = [];
@@ -39,27 +46,31 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
         state[index] = typeof value === 'function' ? value(state[index]) : value;
       }];
     },
-    useRef: (current) => ({ current: current === api.INITIAL_SNAPSHOT ? { ...current, lifecycleConfig: { ...config } } : current }),
+    useRef: (current) => refs[refCursor++] ?? (refs[refCursor - 1] = { current: current === api.INITIAL_SNAPSHOT ? { ...current, lifecycleState, lifecycleBusy, lifecycleConfig: { ...config }, ...extraSnapshot } : current }),
     useMemo: (callback) => callback(),
     useCallback: (callback) => callback,
     useEffect: () => {},
-    useLayoutEffect: (callback) => callback(),
+    useLayoutEffect: (callback) => { if (!layoutMounted) { layoutMounted = true; callback(); } },
   };
   function load(source, extra = '') {
     const exports = {};
     const code = ts.transpileModule(source + extra, {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
     }).outputText;
     vm.runInNewContext(code, {
-      exports, ArrayBuffer, DataView,
-      window: { setTimeout: () => 0 },
+      exports, ArrayBuffer, DataView, TextEncoder,
+      Date: class extends Date { static now() { return now; } },
+      window: { setTimeout: () => 0, confirm: () => { throw new Error('blocking confirmation interrupts heartbeat'); } },
       require(name) {
         if (name.endsWith('.css')) return {};
         if (name === 'react') return react;
         if (name.startsWith('./')) {
           const sourcePath = ['.ts', '.tsx'].map((extension) =>
             path.join(__dirname, '../src', name + extension)).find(fs.existsSync);
-          if (sourcePath) return load(fs.readFileSync(sourcePath, 'utf8'));
+          if (sourcePath) {
+            if (!modules.has(sourcePath)) modules.set(sourcePath, load(fs.readFileSync(sourcePath, 'utf8')));
+            return modules.get(sourcePath);
+          }
         }
         return require(name);
       },
@@ -67,18 +78,24 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
     return exports;
   }
   api = load(fs.readFileSync(path.join(__dirname, '../src/HopeA3Console.tsx'), 'utf8'),
-    '\nexport { HopeA3Console, TOPICS, CONFIG_FIELDS, EMPTY_CONFIG, INITIAL_SNAPSHOT, applyMessage };');
+    '\nexport { HopeA3Console, TOPICS, CONFIG_FIELDS, EMPTY_CONFIG, INITIAL_SNAPSHOT, applyMessage, confirmationBlocked };');
   const context = {
+    initialState,
+    saveState(value) { savedStates.push(value); },
     watch() {},
     subscribe(topics) { subscribed.push(...topics); },
+    advertise() {},
+    publish(topic, message) { published.push({ topic, message }); },
     async callService(service, payload) {
       calls.push({ service, payload });
-      return { results: payload.parameters.map(() => ({ successful: true })) };
+      return payload.parameters ? { results: payload.parameters.map(() => ({ successful: true })) } : { success: true, message: 'ok' };
     },
   };
   return {
-    api, calls, subscribed,
-    render() { cursor = 0; return api.HopeA3Console({ context }); },
+    api, calls, subscribed, savedStates, published,
+    advance(ms) { now += ms; },
+    frame(events, didSeek = false) { context.onRender({ currentFrame: events, didSeek }, () => {}); },
+    render() { cursor = 0; refCursor = 0; return api.HopeA3Console({ context }); },
   };
 }
 
@@ -177,8 +194,8 @@ test('panel subscribes to raw unrotated player topics and decodes them directly'
 });
 
 test('START requires the HDU verdict as well as raw UI evidence; side buttons stay raw-driven', () => {
-  const players = [{x:-.5, receivedAt:Date.now(), sec:1, nanosec:0}];
   for (const verified of [true, false, undefined]) {
+    const players = [{x:-.5, receivedAt:Date.now(), sec:1, nanosec:0}];
     const field = {mode:'OPTITRACK', player_positions: verified == null ? undefined : {P1:verified, P2:false},
       ball_model_status:{state:'CONFIGURED', configured_model:'ppq004', age_s:0, endpoints:{}}};
     const tree = panelHarness('linux','STOPPED',false,field,0,players,{lifecycleConfigRevision:1}).render();
@@ -217,7 +234,7 @@ test('automatic stop reason is displayed independently and expires with its Runn
         '/hope/runner/mocap_safety_hdu_flat':now-age},
     }).render();
     const text=elements(tree).flatMap(e=>typeof e.props?.children==='string' ? [e.props.children] : []);
-    assert.equal(text.some(t=>t.startsWith('Stopped: mocap lost')), expected);
+    assert.equal(text.some(t=>t.startsWith('已停止：动捕中断')), expected);
     assert.ok(text.includes('ENTER_MOTION → APPLIED / MODE_CHANGED'));
   }
 });
@@ -248,8 +265,8 @@ test('decoded UInt64 boot matches the safety packet in the rendered panel', () =
     }
     const tree=panelHarness('linux','RUNNING',false,undefined,0,[],snapshot).render();
     const text=elements(tree).flatMap(e=>typeof e.props?.children==='string' ? [e.props.children] : []);
-    assert.ok(text.includes('Stopped: mocap lost · controlled PD_STAND recovery'));
-    assert.ok(!text.includes('Mocap safety status unavailable'));
+    assert.ok(text.includes('已停止：动捕中断 · 正在受控恢复到 PD_STAND'));
+    assert.ok(!text.includes('动捕安全状态不可用'));
   }
 });
 
@@ -287,4 +304,185 @@ test('shared scalar decoder preserves finite signed floats and rejects invalid v
     harness.api.applyMessage(snapshot,{topic:harness.api.TOPICS.ntpOffset,message:{data:wire}},100);
     assert.equal(snapshot.ntpOffsetMs,expected,`offset ${wire}`);
   }
+});
+
+ test('model12000 selection preserves existing policies and respects stopped/mocap gates', async () => {
+  const harness=panelHarness('linux','STOPPED',false,{mode:'OPTITRACK', policy_model:'model12000', policy_models_age_s:0, policy_models_config_revision:1, policy_models:{model12000:{available:true,reason:''}}},0,[],{lifecycleConfigRevision:1});
+  const tree=harness.render();
+  const selected=button(tree,'12000 · Serve + receive');
+  assert.equal(selected.props.disabled,false);
+  assert.equal(selected.props['aria-pressed'],true);
+  for (const name of ['14600','11999 · Receive only','12600 · Serve + receive','17400 · Serve + receive']) assert.ok(button(tree,name));
+  selected.props.onClick();
+  await Promise.resolve();
+  assert.equal(harness.calls.length,1);
+  assert.match(JSON.stringify(harness.calls[0].payload),/set_policy_model/);
+  assert.match(JSON.stringify(harness.calls[0].payload),/model12000/);
+  for (const [state,mode] of [['RUNNING','OPTITRACK'],['STOPPED','KERNEL']]) {
+    const locked=panelHarness('linux',state,false,{mode},0,[],{lifecycleConfigRevision:1}).render();
+    assert.equal(button(locked,'12000 · Serve + receive').props.disabled,true);
+  }
+});
+
+test('only verified installed models are selectable and disabled models explain why', () => {
+  const names={model14600:'14600',model12600:'12600 · Serve + receive',model17400:'17400 · Serve + receive',model12000:'12000 · Serve + receive'};
+  const installed=Object.fromEntries(Object.keys(names).map(name=>[name,{available:true,reason:''}]));
+  const render=(field)=>panelHarness('linux','STOPPED',false,{mode:'OPTITRACK',policy_models_age_s:1,policy_models_config_revision:1,policy_models:installed,...field},0,[],{lifecycleConfigRevision:1}).render();
+  const tree=render({});
+  for(const name of Object.values(names)) assert.equal(button(tree,name).props.disabled,false);
+  assert.equal(button(tree,'11999 · Receive only').props.disabled,true);
+  for(const field of [{policy_models:undefined},{policy_models_age_s:31},{policy_models_age_s:null},{policy_models_config_revision:2}]) {
+    const stale=render(field);
+    for(const name of Object.values(names)) assert.equal(button(stale,name).props.disabled,true);
+  }
+  const broken=render({policy_models:{...installed,model17400:{available:false,reason:'MDU model failed verification'}}});
+  assert.equal(button(broken,names.model17400).props.disabled,true);
+  assert.equal(button(broken,names.model17400).props.title,'MDU model failed verification');
+  const kernel=render({mode:'KERNEL'});
+  assert.equal(button(kernel,names.model14600).props.disabled,false);
+  for(const model of ['model12600','model17400','model12000']) assert.equal(button(kernel,names[model]).props.disabled,true);
+});
+
+test('old saved robot target does not restore a pending switch or masquerade as live identity', () => {
+ const live='192.168.200.202';
+ const h=panelHarness('linux','STOPPED',false,undefined,0,[],{
+  lifecycleConfig:{hdu_wifi_ip:live},
+  lastReceived:{'/hope/lifecycle/state':Date.now(),'/hope/lifecycle/config/hdu_wifi_ip':Date.now()},
+ },{robotTarget:'192.168.8.182'});
+ const tree=h.render();const all=elements(tree);
+ assert.equal(all.find(n=>n.type==='fieldset' && n.props.className==='robot-controls').props.disabled,false);
+ const status=all.find(n=>n.props?.role==='status').props.children;
+ assert.ok(status.includes(live));assert.ok(!status.includes('192.168.8.182'));assert.ok(!status.includes('正在切换'));
+});
+
+test('fresh status with an empty robot address says address unknown rather than no data', () => {
+ const h=panelHarness('linux','STOPPED',false,undefined,0,[],{
+  lifecycleConfig:{hdu_wifi_ip:''},
+  lastReceived:{'/hope/lifecycle/state':Date.now(),'/hope/lifecycle/config/hdu_wifi_ip':Date.now()},
+ },{robotTarget:'192.168.8.182'});
+ const status=elements(h.render()).find(n=>n.props?.role==='status').props.children;
+ assert.ok(status.includes('STOPPED'));assert.ok(status.includes('地址尚未配置'));assert.ok(!status.includes('192.168.8.182'));
+});
+
+test('language switch persists independently and preserves unsaved controls without service calls', () => {
+ const initial = {robotTarget:'192.168.200.202',ballYFilterDraft:{enabled:false,min:'-1.3',max:'-0.55'},ballYFilterDraftEdited:true,other:'keep'};
+ const h=panelHarness('linux','STOPPED',false,undefined,0,[],{},initial);
+ let tree=h.render();
+ const target=elements(tree).find(n=>n.props?.['aria-label']==='Robot connection IP');
+ target.props.onChange({target:{value:'192.168.200.203'}});
+ button(tree,'Mac').props.onClick();
+ button(h.render(),'English').props.onClick();
+ tree=h.render();
+ assert.equal(button(tree,'English').props['aria-pressed'],true);
+ assert.equal(button(tree,'Mac').props['aria-pressed'],true);
+ assert.equal(elements(tree).find(n=>n.props?.['aria-label']==='Robot connection IP').props.value,'192.168.200.203');
+ assert.equal(button(tree,'CONFIRM connection').props.disabled,false);
+ assert.deepEqual(JSON.parse(JSON.stringify(h.savedStates.at(-1))),{...initial,language:'en'});
+ assert.equal(h.calls.length,0);
+ button(tree,'Chinese').props.onClick();
+ assert.equal(button(h.render(),'中文').props['aria-pressed'],true);
+ assert.equal(h.calls.length,0);
+ const reopened=panelHarness('linux','STOPPED',false,undefined,0,[],{}, {...initial,language:'en'});
+ assert.equal(button(reopened.render(),'English').props['aria-pressed'],true);
+});
+
+test('pending notice and confirmation prompts follow language changes', async () => {
+ const h=panelHarness('linux','FAILED');
+ let tree=h.render();
+ elements(tree).find(n=>n.props?.['aria-label']==='Robot connection IP').props.onChange({target:{value:'192.168.200.203'}});
+ // A mismatched draft is rejected locally; its notice must not freeze in Chinese.
+ const configInput=elements(tree).find(n=>n.type==='input' && n.props.value==='192.0.2.10');
+ configInput.props.onChange({target:{value:'192.0.2.11'}});
+ // Generate a local IPv4 validation error using the actual connection callback.
+ elements(h.render()).find(n=>n.props?.['aria-label']==='Robot connection IP').props.onChange({target:{value:'bad'}});
+ button(h.render(),'CONFIRM 连接').props.onClick();
+ button(h.render(),'English').props.onClick();
+ tree=h.render();
+ const notice=elements(tree).find(n=>n.props?.className==='operator-notice ');
+ assert.match(JSON.stringify(notice),/Enter a valid local IPv4/);
+ assert.doesNotMatch(JSON.stringify(notice),/请输入/);
+ await button(tree,'RETRY START · clean up automatically').props.onClick();
+ assert.match(JSON.stringify(elements(h.render()).find(n=>n.props?.role==='dialog')),/Clean up the failed session/);
+ assert.doesNotMatch(JSON.stringify(elements(h.render()).find(n=>n.props?.role==='dialog')),/[\u3400-\u9fff]/);
+ assert.equal(h.calls.length,0);
+ button(h.render(),'Chinese').props.onClick();
+ await button(h.render(),'RETRY START · 自动清理后重试').props.onClick();
+ assert.match(JSON.stringify(elements(h.render()).find(n=>n.props?.role==='dialog')),/清理上次失败会话/);
+});
+
+function serveHarness() {
+  return panelHarness('linux', 'RUNNING', false, undefined, 0, [], {}, {language:'en'});
+}
+function serveFrame(h, {ui = 1, computer = 1, boot = 42, session = 'test', role = 'SERVER',
+  mode = 'PD_STAND', serve = 'IDLE', required = 1, seq = 1} = {}) {
+  const values = {
+    runnerAlive: true, runnerBoot: boot, runnerFault: false, runnerMode: mode,
+    localRole: role, serveCapability: 'AVAILABLE', serveState: serve, lifecycleSession: session,
+    mocapSafety: [1, boot, 2279734720943415, seq, 1, 1, 0, 0, 0, 0, required, ui, computer, 0, 0],
+    operatorChallenge: [1, boot, 2279734720943415, seq],
+  };
+  h.frame(Object.entries(values).map(([key, data]) => ({topic:h.api.TOPICS[key], message:{data}})));
+}
+function action(tree, label) {
+  return elements(tree).find(n => n.props?.label === label);
+}
+
+test('confirmation stays open beyond watchdog deadline while real onRender continues echoing; one explicit submit', async () => {
+  const h = serveHarness(); h.render(); serveFrame(h);
+  action(h.render(), 'Start to Serve · Raise hand').props.onClick();
+  for(let seq=2;seq<=26;seq++) {
+    h.advance(200); serveFrame(h, {seq});
+    assert.ok(elements(h.render()).some(n=>n.props?.role==='dialog'));
+  }
+  assert.equal(h.published.length,26); // five seconds of live challenges, no timer replay
+  assert.equal(h.calls.length,0);
+  const confirm=button(h.render(),'Confirm and send');
+  assert.equal(confirm.props.disabled,false);
+  confirm.props.onClick(); confirm.props.onClick();
+  await Promise.resolve();
+  assert.equal(h.calls.length,1);
+  assert.equal(h.calls[0].service,'/hope/runner/prepare_serve');
+  assert.ok(!elements(h.render()).some(n=>n.props?.role==='dialog'));
+});
+
+test('heartbeat loss blocks submission, recovery never sends automatically, and cancel sends nothing', () => {
+  const h=serveHarness(); h.render(); serveFrame(h);
+  action(h.render(),'Start to Serve · Raise hand').props.onClick();
+  const oldConfirm=button(h.render(),'Confirm and send');
+  serveFrame(h,{ui:0,seq:2});
+  oldConfirm.props.onClick(); // race: fresh telemetry arrived after the last render
+  assert.equal(h.calls.length,0);
+  assert.equal(button(h.render(),'Confirm and send').props.disabled,true);
+  serveFrame(h,{ui:1,computer:0,seq:3});
+  assert.equal(button(h.render(),'Confirm and send').props.disabled,true);
+  serveFrame(h,{seq:4});
+  assert.equal(button(h.render(),'Confirm and send').props.disabled,false);
+  assert.equal(h.calls.length,0);
+  button(h.render(),'Cancel').props.onClick();
+  oldConfirm.props.onClick();
+  assert.equal(h.calls.length,0);
+  assert.ok(!elements(h.render()).some(n=>n.props?.role==='dialog'));
+});
+
+test('stale status, role changes, new boot/session and seek invalidate pending serve consent', () => {
+  for(const change of [h=>h.advance(1001), h=>serveFrame(h,{role:'RECEIVER',seq:2}),
+    h=>serveFrame(h,{boot:43,seq:2}), h=>serveFrame(h,{session:'other',seq:2}),
+    h=>h.frame([],true)]) {
+    const h=serveHarness(); h.render(); serveFrame(h);
+    action(h.render(),'Start to Serve · Raise hand').props.onClick();
+    const confirm=button(h.render(),'Confirm and send');
+    change(h); confirm.props.onClick();
+    assert.equal(h.calls.length,0);
+  }
+});
+
+test('Serve also uses live confirmation; explicit offline watchdog setting remains supported', () => {
+  const h=serveHarness(); h.render(); serveFrame(h,{mode:'SERVE',serve:'WAIT_READY_TO_SERVE',required:0,ui:0,computer:0});
+  const serve=elements(h.render()).find(n=>n.props?.next && n.props?.onClick && n.props?.label?.includes('Serve'));
+  assert.ok(serve); serve.props.onClick();
+  const confirm=button(h.render(),'Confirm and send');
+  assert.equal(confirm.props.disabled,false);
+  confirm.props.onClick();
+  assert.equal(h.calls.length,1);
+  assert.equal(h.calls[0].service,'/hope/runner/ready_to_serve');
 });

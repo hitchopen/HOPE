@@ -4,7 +4,7 @@
   "description": "Single-robot attended operator console for the HOPE Runner",
   "publisher": "hope-open",
   "homepage": "https://github.com/hitchopen/HOPE",
-  "version": "1.8.18",
+  "version": "1.9.2",
   "license": "Apache-2.0",
   "main": "./dist/extension.js",
   "keywords": [
@@ -21,7 +21,8 @@
     "lint:fix": "eslint --fix .",
     "local-install": "foxglove-extension install",
     "package": "foxglove-extension package",
-    "pretest": "foxglove-extension pretest"
+    "test": "node --test tests/*.test.cjs",
+    "typecheck": "tsc --noEmit"
   },
   "overrides": {
     "tar": "7.5.22",

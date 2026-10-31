@@ -22,6 +22,70 @@ V17_REQUIRED_FLAGS = (
 )
 
 
+class BasePoseJumpGuard:
+    """Bound pose changes with an absolute noise budget plus allowed motion.
+
+    VRPN callbacks can drain queued frames microseconds apart. Rate alone
+    mistakes tiny measured changes for impossible motion. Compare displacement
+    directly to tolerance + speed * elapsed time, without inventing a dt.
+    A retained 20 ms anchor prevents spending a fresh tolerance on every frame
+    of a burst to admit a cumulatively large jump. Rejections never move it.
+    Freshness, calibration and tracking validity remain the relay's checks.
+    """
+
+    def __init__(self, max_linear_speed=3.0, max_angular_speed=8.0,
+                 linear_tolerance_m=0.01, angular_tolerance_rad=math.radians(3.0),
+                 window_s=0.020):
+        values = (max_linear_speed, max_angular_speed, linear_tolerance_m,
+                  angular_tolerance_rad, window_s)
+        if not all(math.isfinite(v) and v >= 0.0 for v in values) or window_s <= 0.0:
+            raise ValueError("base jump limits must be finite/nonnegative and window positive")
+        self.max_linear_speed = max_linear_speed
+        self.max_angular_speed = max_angular_speed
+        self.linear_tolerance_m = linear_tolerance_m
+        self.angular_tolerance_rad = angular_tolerance_rad
+        self.window_ns = round(window_s * 1e9)
+        if self.window_ns < 1:
+            raise ValueError("base jump window must be at least one nanosecond")
+        self.reset()
+
+    def reset(self):
+        self._last = self._anchor = None
+
+    def observe(self, stamp_ns, position, quaternion):
+        position = tuple(float(v) for v in position)
+        if len(position) != 3 or not all(math.isfinite(v) for v in position):
+            raise ValueError("base position must contain three finite values")
+        quaternion = _normalize_quaternion(quaternion, "base")
+        if not isinstance(stamp_ns, int) or stamp_ns <= 0:
+            raise ValueError("base jump timestamp must be a positive integer")
+        for reference in (self._last, self._anchor):
+            if reference is None:
+                continue
+            ns, old_position, old_quaternion = reference
+            dt = (stamp_ns - ns) * 1e-9
+            if dt <= 0.0:
+                raise ValueError("non-positive source timestep")
+            distance = math.dist(position, old_position)
+            linear_limit = self.linear_tolerance_m + self.max_linear_speed * dt
+            if distance > linear_limit:
+                raise ValueError(
+                    f"base linear jump {distance:.4f}m exceeds {linear_limit:.4f}m "
+                    f"over {dt:.6f}s (including noise tolerance)")
+            dot = min(1.0, abs(sum(a * b for a, b in zip(quaternion, old_quaternion))))
+            angle = 2.0 * math.acos(dot)
+            angular_limit = self.angular_tolerance_rad + self.max_angular_speed * dt
+            if angle > angular_limit:
+                raise ValueError(
+                    f"base angular jump {math.degrees(angle):.3f}deg exceeds "
+                    f"{math.degrees(angular_limit):.3f}deg over {dt:.6f}s "
+                    "(including noise tolerance)")
+        sample = (stamp_ns, position, quaternion)
+        self._last = sample
+        if self._anchor is None or stamp_ns - self._anchor[0] >= self.window_ns:
+            self._anchor = sample
+
+
 def resolve_wire_source_stamp_ns(
     input_sec: int,
     input_nsec: int,

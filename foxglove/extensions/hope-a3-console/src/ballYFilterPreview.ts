@@ -1,4 +1,5 @@
 import { DEFAULT_BALL_Y_FILTER, parseBallYBounds } from "./ballYFilter";
+import { Translator, defaultTranslator } from "./i18n";
 
 export type BallYFilterDraft = { enabled: boolean; min: string; max: string };
 export const PREVIEW_LAYER = "hope-local-y-filter";
@@ -20,8 +21,12 @@ export function ballYFilterDraftEdited(value: unknown): boolean {
 export function readBallYFilterDraft(value: unknown): BallYFilterDraft {
   const draft = (value as { ballYFilterDraft?: BallYFilterDraft } | undefined)?.ballYFilterDraft;
   if (!isLegacyDefault(value) && draft != undefined && typeof draft.enabled === "boolean" &&
-      typeof draft.min === "string" && typeof draft.max === "string") { return draft; }
-  return { enabled: DEFAULT_BALL_Y_FILTER.enabled,
+      typeof draft.min === "string" && typeof draft.max === "string") {
+    // An automatic preview or previously applied value is not a live receipt.
+    // Only restore an explicit, unapplied user edit before Planner connects.
+    return ballYFilterDraftEdited(value) ? draft : { ...draft, enabled: false };
+  }
+  return { enabled: false,
     min: String(Number(DEFAULT_BALL_Y_FILTER.min.toFixed(6))),
     max: String(Number(DEFAULT_BALL_Y_FILTER.max.toFixed(6))) };
 }
@@ -42,15 +47,15 @@ export function ballYPreviewUrdf(min: number, max: number): string {
 }
 
 /** Merge into the existing built-in 3D panel; preserve camera, table, ball and pelvis. */
-export function withBallYPreview(existing: unknown, draft: BallYFilterDraft, options: { kernelMode: boolean }): Record<string, unknown> {
+export function withBallYPreview(existing: unknown, draft: BallYFilterDraft, options: { kernelMode: boolean }, t: Translator = defaultTranslator): Record<string, unknown> {
   const config = (existing ?? {}) as Record<string, unknown>;
   const layers = { ...(config.layers as Record<string, unknown> | undefined) };
   const bounds = parseBallYBounds(draft.min, draft.max);
   const visible = draft.enabled && bounds != undefined && !options.kernelMode;
   layers[PREVIEW_LAYER] = {
     instanceId: PREVIEW_LAYER, layerId: "foxglove.Urdf", visible,
-    label: bounds == undefined ? "本地范围预览 · 数值无效" :
-      `本地预览 · 左 ${bounds.max} / 右 ${bounds.min} m · 非生效回执`,
+    label: bounds == undefined ? t("ballYFilterPreview.localRangePreviewInvalidNumbers") :
+      t("ballYFilterPreview.localPreviewLeftRightMNotAnActive", {left: bounds.max, right: bounds.min}),
     sourceType: "url", framePrefix: "", displayMode: "visual", order: 3,
     url: "data:text/xml;charset=utf-8," + encodeURIComponent(ballYPreviewUrdf(bounds?.min ?? DEFAULT_BALL_Y_FILTER.min, bounds?.max ?? DEFAULT_BALL_Y_FILTER.max)),
   };
