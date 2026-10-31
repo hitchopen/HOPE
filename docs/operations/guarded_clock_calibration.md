@@ -76,6 +76,42 @@ sudo systemctl restart hope-time-calibration.service
 
 ## 验证状态
 
-2026-10-31 已实测开机自动校时、ROS NTP gate=true、MDU PTP 恢复和 STOPPED 状态。
-本次 demo 开始后暂停了新的机器人修改。按钮适配当前通过离线回归，实机安装、两次
-按钮校时与恢复验收仍待 demo 停止后完成；此项未完成前 PR 保持 draft。
+2026-10-31 在 guarded BSP 与原生 operations 现场版本完成两轮实机事务：
+
+| 操作 ID（UTC） | 完成时间（北京时间） | 最终 HDU correction | 结果 |
+| --- | --- | --- | --- |
+| `timecal_20261031T101334Z` | 18:16:27 | -0.131 ms | COMPLETE / CLOCK_QUALIFIED / SERVICES_RESTORED |
+| `timecal_20261031T101725Z` | 18:18:49 | +0.000 ms（输出精度） | COMPLETE / CLOCK_QUALIFIED / SERVICES_RESTORED |
+
+两轮均通过 Console 使用的 `/hope/lifecycle/time_calibration` Trigger 接口发起，
+均产生独立 BSP 恢复回执、完成 coordinator DDS 回收，且两板 boot ID 均不变。
+实际连接 8766 的 `foxglove.sdk.v1` 客户端读取到持续刷新的 STOPPED、busy=false、
+NTP gate=true 和对应本轮的 COMPLETE/operation_id；第二轮还记录了断线与自动重连。
+这是按钮后端和控制通道实测，不是人工点击 UI 的录像，也不代表运动功能验收。
+
+一次性校时包含完整停止与恢复，不能承诺瞬间完成。首轮 Foxglove 桥等待了 90 秒
+停止超时，整个事务约 173 秒；第二轮约 84 秒。期间不要 START 或重复点击。
+首轮恢复后 HDU PTP 出现一次 `send sync failed` 并进入 FAULTY，随后自动恢复；
+MDU 从 LISTENING/UNCALIBRATED 回到 SLAVE。第二轮恢复采样为 SLAVE、gmPresent=true、
+master_offset=40 ns，phc2sys offset 持续更新。因此验收必须包含恢复后的实际 PTP
+收敛与日志，不能仅凭 COMPLETE 或进程存在宣称长期同步稳定。
+
+现场 core 保留原生 operations 支持，SHA-256 为
+`7ff1b55ecb5232bae27e67c54bda2075ebeb97ac39092f05fd37c3dd18122092`；适配器为
+`005611310f176da10e49f0313d4245f445715e42c9527fea7230b10afbadd4ff`。
+core/单位/原厂 guard 备份为 `/var/backups/hope-clock-button-20261031T101323Z`，
+适配器安装备份为 `/var/backups/hope-guarded-clock-1793441603628723802`。
+
+安装适配器后的普通双板重启也已执行：HDU boot ID
+`7e21526d-996b-4b50-95a8-38ed02ab61f4`，MDU boot ID
+`cbec0fc2-3f74-4508-bde7-51121199e603`。bootstrap 校正 -431.739 ms 并更新 RTC，
+完成于 HDU monotonic 9.551 s，早于 lifecycle 9.936 s 与 PM 10.039 s。
+无维护凭据时确实执行原厂 guard；它读取真实 MDU uptime=10.7 s 后放行。
+8766 自动连接后收到新 boot 的 STOPPED、NTP gate=true、校时 IDLE 和可见的 Trigger
+服务。双板重启后无需再按校时按钮。
+
+这次普通启动也出现一次 HDU PTP `send sync failed`，MDU 在启动早期仍为 LISTENING，
+随后自动收敛为 SLAVE。这说明 **HDU NTP 绿灯先于双板 PTP 就绪**，不能把绿灯或
+Foxglove 连接恢复当成整机即刻可运行。开机验收要继续等待并核对 MDU 的真实 PTP
+状态和 offset；本改动保留原厂 PTP 基线，不宣称已经修复该启动瞬态或完成长期稳定性
+验收，也未执行 Stand/Serve/击球等运动验证。
