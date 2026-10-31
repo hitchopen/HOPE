@@ -102,8 +102,8 @@ These timeout values are watchdog triggers, not the time to finish the standing
 pose. Detection runs on the command callback and is subject to its scheduling;
 the existing stand blend/validated serve recovery determines motion duration.
 A slow/frozen/minimized Console or a switch to another layout/tab can miss its
-1 s deadline just like a disconnected one. Echoes come only from `onRender`;
-this is not a background app-liveness service. The one-second UI window tolerates
+2 s deadline just like a disconnected one. Echoes come only from `onRender`;
+this is not a background app-liveness service. The two-second UI window tolerates
 short rendering/network delays, not a Console absent for more than 2 s.
 Qualify actual foreground/background rendering, Wi-Fi jitter and CPU load
 on the deployed system before competition; do not claim hard real-time timing
