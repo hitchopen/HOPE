@@ -263,6 +263,9 @@ class LifecycleBackend:
         commands = (
             ("RUNNER_HAL", self._ssh(mdu, LIFECYCLE_HELPER, "stop-mdu", *common), 45.0),
             ("PLANNER_BASE", [LIFECYCLE_HELPER, "stop-hdu", *common], 40.0),
+            # Run after both STOP helpers; failure must still allow collection.
+            # The helper polls live vendor FSM/app state for at most 120 s.
+            ("VENDOR_RESTORE", self._ssh(mdu, LIFECYCLE_HELPER, "verify-vendor-mdu", *common), 135.0),
             ("COLLECT", self._ssh(laptop, laptop_helper, "stop-capture-laptop", *common), 30.0),
             ("COLLECT", self._ssh(laptop, laptop_helper, "collect", *common), 1800.0),
         )

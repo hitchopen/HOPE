@@ -1548,7 +1548,81 @@ stop_mdu() {
   # systemd active alone does not mean its ELink child/listener has appeared.
   # This is a bounded passive proc check, not a vendor IPC connection/reset.
   check_elink_process_presence RUNNER_HAL 8
-  emit RUNNER_HAL COMPLETE AGIBOT_PM_RESTORED
+  emit RUNNER_HAL COMPLETE AGIBOT_PM_STARTED_ELINK_PRESENT
+}
+
+verify_vendor_mdu() {
+  require_user "$ROBOT_USER" VENDOR_RESTORE
+  # Read-only, after STOP on both robot boards. Never infer vendor readiness
+  # from systemd/ELink presence, restart a controller, or synthesize PASSIVE.
+  python3 - <<'PY'
+import json
+import sys
+import time
+import urllib.request
+
+
+def rpc(port, service, method):
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/rpc/aimdk.protocol.{service}/{method}",
+        data=b"{}", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=2) as response:
+        value = json.load(response)
+    if str(value.get("header", {}).get("code")) != "0":
+        raise ValueError(f"{method}: unsuccessful response")
+    return value
+
+
+def vendor_restore_status():
+    state = rpc(51011, "SystemService", "GetSystemState")
+    mode = state.get("cur_state")
+    if mode == "Failed":
+        return "VENDOR_SM_FAILED"
+    # IN_READY is an FSM transition status: Failed can have it too.
+    if mode not in {"Ready", "Manual", "EStop"} or state.get("cur_status") != "SystemStatus_IN_READY":
+        return "VENDOR_SM_NOT_READY"
+    infos = rpc(50081, "EmAppService", "GetAllAppInfos")["infos"]
+    for app in ("sm", "mc", "skillpilot", "hal_ethercat", "hal_elink"):
+        matches = [info for info in infos if info.get("app") == app]
+        if len(matches) != 1 or matches[0].get("state") != "State_RUNNING" or int(matches[0].get("pid", -1)) <= 0:
+            return "VENDOR_REQUIRED_APP_NOT_RUNNING"
+    states = rpc(51011, "SystemService", "GetSmModuleStatus")["states"]
+    nodes = {item["node_name"] for item in states if item.get("module_states")}
+    if not {"health_monitor0", "health_monitor1"}.issubset(nodes):
+        return "VENDOR_HEALTH_MONITOR_UNAVAILABLE"
+    info = rpc(56322, "MotionControlActionService", "GetAction").get("info", {})
+    if (info.get("current_action") != "MotionControlAction_PASSIVE"
+            or info.get("status") != "MotionControlActionStatus_RUNNING"):
+        return "VENDOR_MC_NOT_PASSIVE"
+    # This verifies the restored vendor control stack, not physical support
+    # or authorization to power off. The vendor shutdown interlock stays on.
+    return "AGIBOT_PM_RESTORED"
+
+
+def verify_vendor_restore(timeout_s=120):
+    deadline = time.monotonic() + timeout_s
+    consecutive = 0
+    reason = "VENDOR_RESTORE_UNAVAILABLE"
+    while time.monotonic() < deadline:
+        try:
+            reason = vendor_restore_status()
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"vendor restore probe: {exc}", file=sys.stderr)
+            reason = "VENDOR_RESTORE_UNAVAILABLE"
+        consecutive = consecutive + 1 if reason == "AGIBOT_PM_RESTORED" else 0
+        if consecutive >= 2:
+            return True, reason
+        if reason == "VENDOR_SM_FAILED":
+            return False, reason
+        time.sleep(1)
+    return False, reason if reason != "AGIBOT_PM_RESTORED" else "VENDOR_RESTORE_UNSTABLE"
+
+
+if __name__ == "__main__":
+    success, reason = verify_vendor_restore()
+    print(f"HOPE_LIFECYCLE_V1 step=VENDOR_RESTORE state={'COMPLETE' if success else 'FAILED'} reason={reason}")
+    sys.exit(0 if success else 1)
+PY
 }
 
 stop_hdu() {
@@ -1748,6 +1822,7 @@ main() {
     start-hal) start_hal ;;
     start-runner) start_runner ;;
     stop-mdu) stop_mdu; audit_stopped_policy ;;
+    verify-vendor-mdu) verify_vendor_mdu ;;
     stop-hdu) stop_hdu ;;
     stop-laptop) stop_laptop ;;
     stop-capture-laptop) stop_laptop_capture ;;
