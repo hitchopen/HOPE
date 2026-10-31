@@ -1,5 +1,10 @@
 # ONNX → deploy → robot: the full runbook
 
+For a new A3 robot, replaced HDU/MDU or fresh BSP, first complete
+[system commissioning and time-sync acceptance](new_robot_commissioning.md).
+This application runbook does not install that baseline. PASSIVE alone does not
+prove NTP/PTP, persistent services or the mocap computer are ready.
+
 Everything between an exported `policy.onnx` and a robot returning a ball. Run the sections in
 order; each one is cheap compared to the next, which is the whole reason for the order.
 

@@ -26,6 +26,7 @@ readonly LAPTOP_SHARE="${HOPE_LAPTOP_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}
 readonly LAPTOP_USER="${HOPE_LAPTOP_USER:-$(id -un)}"
 readonly ROBOT_USER="${HOPE_ROBOT_USER:-agi}"
 readonly HDU_WS="${HOPE_HDU_WS:-$HOME/hope_ws}"
+readonly HDU_OVERLAY="${HOPE_HDU_OVERLAY:-$HDU_WS/install_model21800_fix}"
 readonly LAPTOP_SESSION=hope-optitrack
 readonly HDU_BASE_SESSION=hope-base
 readonly HDU_PLANNER_SESSION=hope-planner
@@ -682,7 +683,7 @@ preflight_hdu() {
   fi
   [[ -r "$HDU_WS/install/local_setup.bash" ]] || \
     die PREFLIGHT HDU_BASE_OVERLAY_MISSING
-  [[ -r "$HDU_WS/install_model21800_fix/local_setup.bash" ]] || \
+  [[ -r "$HDU_OVERLAY/local_setup.bash" ]] || \
     die PREFLIGHT HDU_OVERLAY_MISSING
   [[ -x /usr/local/libexec/hope-base-pose-transport-relay ]] || \
     die PREFLIGHT BASE_TRANSPORT_RELAY_MISSING
@@ -697,17 +698,17 @@ preflight_hdu() {
   set +u
   source /opt/ros/jazzy/setup.bash
   source "$HDU_WS/install/local_setup.bash"
-  source "$HDU_WS/install_model21800_fix/local_setup.bash"
+  source "$HDU_OVERLAY/local_setup.bash"
   set -u
   messages_prefix="$(ros2 pkg prefix hope_msgs 2>/dev/null)" || \
     die PREFLIGHT HOPE_MSGS_MISSING
-  [[ "$messages_prefix" == "$HDU_WS/install_model21800_fix/hope_msgs" ]] || \
+  [[ "$messages_prefix" == "$HDU_OVERLAY/hope_msgs" ]] || \
     die PREFLIGHT HOPE_MSGS_STALE
   ros2 interface show hope_msgs/msg/BallFlightPacket >/dev/null 2>&1 || \
     die PREFLIGHT BALL_FLIGHT_PACKET_MISSING
   planner_prefix="$(ros2 pkg prefix hope_planner_cpp 2>/dev/null)" || \
     die PREFLIGHT PLANNER_PACKAGE_MISSING
-  [[ "$planner_prefix" == "$HDU_WS/install_model21800_fix/hope_planner_cpp" ]] || \
+  [[ "$planner_prefix" == "$HDU_OVERLAY/hope_planner_cpp" ]] || \
     die PREFLIGHT PLANNER_OVERLAY_STALE
   [[ -x "$planner_prefix/lib/hope_planner_cpp/hope_planner_cpp_node" ]] || \
     die PREFLIGHT PLANNER_EXECUTABLE_MISSING
@@ -892,6 +893,32 @@ check_serve_hal_clock_package() {
     die "$1" SERVE_HAL_CLOCK_ABI_OR_PACKAGE_CHANGED
 }
 
+check_runner_log_directory() {
+  # The wrapper creates logs before launching the process. Catch a root-owned
+  # fresh deployment without its writable runtime directory before HAL stops.
+  if [[ -e "$MDU_DEPLOY/logs" || -L "$MDU_DEPLOY/logs" ]]; then
+    [[ -d "$MDU_DEPLOY/logs" && -w "$MDU_DEPLOY/logs" && -x "$MDU_DEPLOY/logs" ]] || return 1
+  else
+    [[ -w "$MDU_DEPLOY" && -x "$MDU_DEPLOY" ]] || return 1
+  fi
+}
+
+check_gripper_wire_contract() (
+  # Same read-only check as the Runner wrapper, before HAL is changed.
+  set +u
+  source /opt/ros/jazzy/setup.bash
+  set -u
+  export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  local bridge_wire native_wire
+  bridge_wire="$(python3 "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" \
+    --grip-source "$MDU_DEPLOY/tools/grip.py" --gripper-profile "$GRIPPER_PROFILE" \
+    --print-release-wire)" || return 1
+  native_wire="$(timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" \
+    --inspect-serve-release-wire --gripper-profile "$GRIPPER_PROFILE" \
+    --gripper-profiles "$MDU_DEPLOY/tools/gripper_profiles.json")" || return 1
+  [[ -n "$bridge_wire" && "$native_wire" == "$bridge_wire" ]]
+)
+
 preflight_mdu() {
   require_user "$ROBOT_USER" PREFLIGHT
   tmux_exists "$MDU_ELINK_SESSION" && die PREFLIGHT MANAGED_ELINK_PRESENT
@@ -904,6 +931,7 @@ preflight_mdu() {
   check_t3_hardware_config PREFLIGHT
   check_elink_process_presence PREFLIGHT
   check_serve_hal_clock_package PREFLIGHT
+  check_runner_log_directory || die PREFLIGHT RUNNER_LOG_DIRECTORY_NOT_WRITABLE
   command -v python3 >/dev/null || die PREFLIGHT PYTHON3_MISSING
   [[ -x "$MDU_DEPLOY/run_a3_pingpong.sh" ]] || die PREFLIGHT RUNNER_PACKAGE_MISSING
   [[ -x "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" ]] || \
@@ -970,6 +998,7 @@ preflight_mdu() {
   fi
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
+  check_gripper_wire_contract || die PREFLIGHT GRIPPER_WIRE_CONTRACT_INVALID
   command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
   emit PREFLIGHT COMPLETE MDU_READY
 }
@@ -1163,7 +1192,7 @@ run_planner() {
   set +u
   source /opt/ros/jazzy/setup.bash
   source "$HDU_WS/install/local_setup.bash"
-  source "$HDU_WS/install_model21800_fix/local_setup.bash"
+  source "$HDU_OVERLAY/local_setup.bash"
   set -u
   local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
   mkdir -p "$hdu_dir"
@@ -1662,6 +1691,7 @@ main() {
       ;;
     field-assets-mdu)
       require_user "$ROBOT_USER" FIELD_ASSETS
+      resolve_mdu_deployment || die FIELD_ASSETS POLICY_BUNDLE_INVALID
       # Match the packaged Runner's dynamic-library environment. Sourcing
       # these files starts no HAL, gripper or ROS node.
       set +u
