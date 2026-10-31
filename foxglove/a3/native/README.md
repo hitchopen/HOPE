@@ -236,6 +236,15 @@ client results, START/STOP, held hardware locks, telemetry-fault containment,
 worker loss, SIGTERM draining and idle-only reconnect. These tests do not
 qualify physical E-stop behavior or robot motion.
 
+Tests and the CPU benchmark share `operations_processes.child_pids`: kernels
+without `/proc/<pid>/task/<pid>/children` use direct PPIDs from `/proc/*/stat`.
+Worker-count and fault-injection assertions still apply. Reconnect tests allow
+three seconds for the cached OS probe, one-second network watcher and status
+delivery, with a six-second **fixture-only** ACK deadline. They continuously
+assert that the owner and unacknowledged request remain live during that wait,
+then verify ACK/supersession, shutdown ordering and no replay. Production
+Runner timeouts are unchanged.
+
 To measure CPU in the same isolated environment after the tests finish:
 
 ```bash
@@ -267,34 +276,37 @@ under this load; native delivered approximately 27–28 markers/s with the same
 same saving for a lightly loaded field session. ROS used rclcpp 28.1.22 and
 rclpy 7.1.12 in the isolated `hope-dev:jazzy-arm64` image.
 
-Verification record (2026-10-30; isolated local tests, no robot access):
+Verification record (2026-10-31; integrated with main `04cd1e32`, #108):
 
 - Native ARM64/Jazzy build succeeded with the test-only SDK fixture; **2 CTests
   passed**. The fixture must never be installed on A3.
-- After the final receipt-identity refinement, **93 affected-path tests passed**
-  (82.73 s): all native operations integration tests plus lifecycle retry/CLI,
-  receipt recovery, reconnect, deployment and command-proxy regressions. Coverage
-  includes standalone split recovery, missing Runner/partial startup, failed
-  cleanup retention/retry, native emergency-only reconnect deferral, ACK/timeout
-  replies through worker crash and failed drain, and the first-install shell.
-- The last broad run, before that final refinement, reported **1,160 passed,
-  27 skipped, 1 deselected, 1 failed**. The unchanged monitor test
-  `test_native_latency_keeps_source_receipt_time_and_invalid_stays_invalid`
-  missed its fresh-sample observation; it then **passed in isolation** (3.12 s).
-  Neither monitor source nor that test was changed. This is **not** a clean
-  full-suite result; the intermittent failure remains to be investigated.
-- The deliberately deselected root README current-model assertion also fails
-  against unchanged HEAD because of its historical Gate3 link. That unrelated
-  content is retained; the exclusion is not a port test passing.
-- macOS ROS-free recovery/network/transport/deployment/command-proxy checks:
-  **69 passed, 1 skipped, 67 subtests passed**. The original
-  `test_elink_command_proxy.py` remains unchanged and passes **9 tests and 21 subtests**.
+- The complete `foxglove/tests` run passed **1,194 tests, with 28 skipped**
+  (198.73 s), with no deselections or failures. This includes the previously
+  intermittent monitor fresh-sample case and all corrected asset assertions.
+- On A3 HDU kernel 6.1.118 / Jazzy rclcpp 28.1.13, the corrected maintained
+  suite passed **29 tests** (103.27 s): 24 ROS integration cases against the
+  installed native binary plus five process-discovery regressions. All hardware
+  backends were inert and DDS was localhost-only domain 219. Coverage includes
+  mock START/STOP, 300 Hz inputs, missing-Runner and split recovery, paused/lost
+  workers, pending emergency replies, shutdown draining and idle-only reconnect.
+- macOS ROS-free recovery/network/transport/deployment/command-proxy/calibration
+  and process-discovery checks: **126 passed, 1 skipped, 155 subtests passed**.
+  Updated asset checks also pass against main's bilingual Console, verifying
+  translation-key wiring and both catalogs. The deployment-model assertion now
+  checks the actual deployment section, preserving unrelated training history.
 
 Earlier differential verification covered **868 replay scenarios** on Linux
 ARM64 and a macOS ARM64 driver using real fmt; exact integer and formatted-text
-assertions remain. The CPU figures above predate the latest corrections and
-were not remeasured on A3. No A3 service was restarted, physical E-stop tested,
-or hardware deployment qualification performed.
+assertions remain. The historical CPU comparison above is not an A3 saving
+measurement. Two stopped-system HDU observations measured native parent plus
+worker at 30.47% and 34.06% of one CPU core, without a matched Python baseline.
+The live owner remained READY/STOPPED, with one operations node and fresh P2
+eligibility. Production processes/restart counts and the historical Runner
+request count were unchanged; temporary test files were removed afterward.
+Installed orchestration/model helpers differ from current main, so a future
+activation must use a reviewed matched bundle rather than individual old files.
+No production service was restarted or physical motion/E-stop qualification
+performed. Merge/test success is not a full live-hardware qualification.
 
 ## Installation and qualification
 

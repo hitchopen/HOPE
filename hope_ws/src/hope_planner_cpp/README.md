@@ -290,3 +290,14 @@ Public defaults remain disabled with the full-table editable range. Existing
 `ball_y_filter_state_file` content takes precedence over startup YAML; on a
 configured robot use the Console's atomic Apply and verify fresh diagnostics.
 Loading this file does not overwrite an existing operator selection.
+
+### Planner restart and wire identity
+
+Hardware sets `wire_identity_state_file` to a persistent local file. Before
+publishing, each Planner process reserves a disjoint range of command and flight
+IDs under an exclusive lock and atomically persists its upper bound. Restarting
+only the Planner therefore does not reset the IDs observed by the live Runner.
+The reservation also survives wall-clock rollback; no disk work is added to the
+per-ball solve. Keep this file when updating or restarting the Planner. A missing
+or corrupt reservation cannot be repaired by resetting the live Runner's replay
+protection. Duplicate/reordered commands and mismatched HOME frames remain invalid.

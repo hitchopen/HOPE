@@ -632,6 +632,17 @@ class TimeCalibrationBackend:
             if self._process_present("-f", pattern):
                 raise CalibrationRejected(f"HDU_{label}_IS_RUNNING")
         ptp_units = self._preflight_ptp_units()
+        if not ptp_units:
+            try:
+                launcher = self._read_text(Path("/opt/agibot/entry/run_agibot.sh"))
+            except FileNotFoundError:
+                launcher = ""  # Older layouts need not use this launcher.
+            except OSError as exc:
+                raise CalibrationRejected("HDU_VENDOR_LAUNCHER_UNREADABLE") from exc
+            if "system/timesync_guard.py" in launcher:
+                # This BSP restores vendor PTP only after a paired cold boot.
+                # Reject before even receipt-based MDU recovery can mutate it.
+                raise CalibrationRejected("GUARDED_BSP_REQUIRES_PAIRED_REBOOT")
         missing_ptp = [
             process
             for process in PTP_PROCESSES

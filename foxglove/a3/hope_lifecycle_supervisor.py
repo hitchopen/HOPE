@@ -339,7 +339,7 @@ class LifecycleBackend:
             raise ValueError("confirm network configuration first")
         target, helper = (self._laptop(config) if host == "laptop"
                           else (f"{ROBOT_USER}@{config.mdu_internal_ip}", LIFECYCLE_HELPER))
-        if request.get("op") in {"read_policy_model", "select_policy_model", "verify_policy_model"}:
+        if request.get("op") in {"read_policy_model", "select_policy_model", "verify_policy_model", "list_policy_models"}:
             if host not in {"hdu", "mdu"}: raise ValueError("policy selection belongs to HDU and MDU")
             command = ([LIFECYCLE_HELPER, "policy-model-hdu"] if host == "hdu" else
                        self._ssh(target, helper, "policy-model-mdu"))
@@ -695,8 +695,13 @@ class LifecycleModule(RosComponent):
                 return
             self._field_refresh_running = True
             config = self._config
+            verify_policy_inventory = self._state == "STOPPED"
         def refresh():
             try:
+                # Hashing all installed Runner bundles belongs to the stopped
+                # selection window; do not add MDU CPU/I/O load during play.
+                if verify_policy_inventory:
+                    self._field.refresh_policy_models(config)
                 self._field.refresh_ball_models(config)
             finally:
                 with self._lock:

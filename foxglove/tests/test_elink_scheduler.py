@@ -139,7 +139,7 @@ def test_unknown_model_or_build_fails_before_process_selection(monkeypatch, tmp_
     monkeypatch.setattr(policy, 'find_process', lambda _: pytest.fail('process selection must not run'))
     with pytest.raises(RuntimeError, match='Unsupported robot model'):
         policy.inspect(Config())
-    model.write_text('A3_T3D0')
+    model.write_text(policy.ROBOT_MODEL)
     fake_configs(monkeypatch, tmp_path)
     binary = tmp_path / 'vendor.so'
     binary.write_bytes(b'unknown build')

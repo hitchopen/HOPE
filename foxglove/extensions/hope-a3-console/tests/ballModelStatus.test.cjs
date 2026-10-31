@@ -5,9 +5,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 const ts = require('typescript');
 const exportsObject = {};
-vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/ballModelStatus.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS },
-}).outputText, { exports: exportsObject });
+Object.assign(exportsObject, require('./loadSource.cjs')('ballModelStatus'));
 const { ballModelDisplay } = exportsObject;
 const status = {state:'CONFIGURED', configured_model:'ppq004', age_s:1, endpoints:{
   hdu:{configured_model:'ppq004', runtime:'NOT_RUNNING'},

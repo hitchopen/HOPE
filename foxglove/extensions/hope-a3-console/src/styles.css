@@ -39,6 +39,37 @@ button {
   min-width: 0;
 }
 
+.language-switch {
+  align-self: flex-end;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #426078;
+  border-radius: 8px;
+  background: #112237;
+}
+
+.language-switch button {
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 12px;
+  min-height: 34px;
+  color: #cad6e2;
+  background: transparent;
+  cursor: pointer;
+}
+
+.language-switch button[aria-pressed="true"] {
+  color: #071823;
+  background: #57d6ce;
+  font-weight: 600;
+}
+
+.language-switch button:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
 .eyebrow,
 .topic-path,
 .helper,
@@ -991,3 +1022,25 @@ button:disabled {
 .ball-y-filter-actions button { border: 1px solid #f1b44d88; border-radius: 5px; padding: 6px 10px; color: #f5d395; background: #efad391a; cursor: pointer; }
 .ball-y-filter button:disabled, .ball-y-filter input:disabled { opacity: 0.45; cursor: not-allowed; }
 .ball-y-filter small { color: #aebbca; line-height: 1.5; overflow-wrap: anywhere; }
+/* In-panel confirmation keeps rendering and challenge echoes running. It does
+   not make the remaining controls (including emergency actions) inert. */
+.action-confirmation {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 16px;
+  border: 2px solid #57d6ce;
+  border-radius: 10px;
+  background: #112237;
+  box-shadow: 0 8px 24px #0008;
+}
+
+.action-confirmation p {
+  margin: 10px 0;
+}
+
+.action-confirmation [role="status"] {
+  color: #ffd28c;
+}

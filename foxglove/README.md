@@ -39,6 +39,12 @@ and image builds do not overwrite or restart the live HDU backend.
 
 # HOPE A3 Foxglove Operator Interface
 
+New robot / replaced board / fresh BSP: begin with
+[system installation and deployment acceptance](../docs/operations/new_robot_commissioning.md).
+NTP/PTP, network, dependencies and service persistence are required installation
+evidence. Console connectivity, AUDIT indicators and a PASSIVE Runner each prove
+only their own layer; Time Calibration is not a first-install tool.
+
 > **Model17400 + PPQ004 operator stack.** This directory combines monitoring,
 > OptiTrack/marker, pelvis TF and E-stop support with the native Runner contract.
 > The obsolete 8-double TTY adapter and

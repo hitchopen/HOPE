@@ -1,36 +1,38 @@
 import { ReactElement, useState } from "react";
 
+import { useI18n } from "./LanguageContext";
+import { errorText, LocalText } from "./i18n";
 import { PlaneMode, PlaneModeState, PLANE_MODES, PLANE_MODE_LABELS } from "./planeMode";
 
 export function PlaneModeControls({ state, available, onApply }: {
   state?: PlaneModeState; available: boolean; onApply: (mode: PlaneMode) => Promise<void>;
 }): ReactElement {
+  const t = useI18n();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<LocalText>("");
   const change = async (mode: PlaneMode) => {
     setPending(true); setError("");
     try { await onApply(mode); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    catch (reason) { setError(errorText(reason)); }
     finally { setPending(false); }
   };
   const metres = (value?: number) => value == undefined ? "—" : `${value.toFixed(3)} m`;
   return <div className="plane-mode-controls">
-    <label>击球平面 · 下一球
-      <select aria-label="击球平面模式" disabled={!available || pending || state == undefined}
+    <label>{t("planeModeControls.hitPlaneNextBall")} <select aria-label={t("planeModeControls.hitPlaneMode")} disabled={!available || pending || state == undefined}
         value={state?.requested ?? ""} onChange={(event) => void change(event.target.value as PlaneMode)}>
-        {state == undefined && <option value="">等待 Planner 状态</option>}
-        {PLANE_MODES.map((mode) => <option key={mode} value={mode}>{PLANE_MODE_LABELS[mode]}</option>)}
+        {state == undefined && <option value="">{t("hitSpeedScaleControls.waitingForPlannerStatus")}</option>}
+        {PLANE_MODES.map((mode) => <option key={mode} value={mode}>{t.text(PLANE_MODE_LABELS[mode])}</option>)}
       </select>
     </label>
-    <div>START 后可切换；本球已发目标保持不变。重启 Planner 后恢复启动配置。</div>
-    {pending && <div role="status">等待 Planner 确认…</div>}
+    <div>{t("planeModeControls.switchAfterStartTheCurrentTargetIsUnchanged")}</div>
+    {pending && <div role="status">{t("hitSpeedScaleControls.waitingForPlannerConfirmation")}</div>}
     {state != undefined && <>
-      <div>最近已发球 #{state.flight > 0 ? state.flight : "—"}：{state.lastCommand == undefined ? "尚未发球" : PLANE_MODE_LABELS[state.lastCommand]}</div>
-      <div>参考 X {metres(state.referenceX)} · 平面 X {metres(state.planeX)} · policy 偏移 {metres(state.offset)}</div>
-      {state.requested !== state.lastCommand && <div>所选模式将在后续新球采用。</div>}
-      {state.requested !== "fixed" && !state.supported && <div>等待支持动态平面的 Runner 会话；尚不能确认动态模式可用。</div>}
-      {state.requested === "stable_per_ball" && <div>连续 200 ms：等待中、水平速度 ≤3 cm/s、角速度 ≤0.2 rad/s、倾斜 ≤5°。不含足底承重判定。{state.stable ? "当前满足姿态判据。" : "未满足时沿用上一平面。"}</div>}
+      <div>{t("planeModeControls.lastSentBall")}{state.flight > 0 ? state.flight : "—"}：{state.lastCommand == undefined ? t("planeModeControls.noBallSentYet") : t.text(PLANE_MODE_LABELS[state.lastCommand])}</div>
+      <div>{t("planeModeControls.referenceX")} {metres(state.referenceX)} {t("planeModeControls.planeX")} {metres(state.planeX)} {t("planeModeControls.policyOffset")} {metres(state.offset)}</div>
+      {state.requested !== state.lastCommand && <div>{t("planeModeControls.theSelectedModeAppliesToSubsequentNewBalls")}</div>}
+      {state.requested !== "fixed" && !state.supported && <div>{t("planeModeControls.waitingForARunnerSessionSupportingDynamicPlanes")}</div>}
+      {state.requested === "stable_per_ball" && <div>{t("planeModeControls.for200MsContinuouslyWaitingHorizontalSpeed3")}{state.stable ? t("planeModeControls.postureCriteriaCurrentlyMet") : t("planeModeControls.otherwiseThePreviousPlaneIsRetained")}</div>}
     </>}
-    {error && <div role="alert">{error}</div>}
+    {t.text(error) !== "" && <div role="alert">{t.text(error)}</div>}
   </div>;
 }

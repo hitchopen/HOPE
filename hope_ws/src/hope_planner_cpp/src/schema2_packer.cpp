@@ -6,6 +6,7 @@ namespace hope_planner_cpp {
 
 WireIdentity Schema2Packer::next_identity(
     bool valid, std::int64_t steady_now_ns, bool new_physical_flight) noexcept {
+  if (command_sequence_ + 1 >= identity_end_) return {};
   ++command_sequence_;
   if (valid) {
     if (new_physical_flight || last_valid_steady_ns_ <= 0 || steady_now_ns <= last_valid_steady_ns_ ||
@@ -36,7 +37,11 @@ Schema2Packet Schema2Packer::pack(
   const double time_to_strike_s = command != nullptr
       ? strike_deadline_wall_s - producer_wall_s
       : 0.0;
-  const bool valid = command != nullptr && command->valid &&
+  const bool valid = identity.command_sequence > 0 &&
+                     identity.command_sequence < (1ULL << 52) &&
+                     identity.flight_id > 0 && identity.flight_id < (1ULL << 52) &&
+                     identity.revision_id > 0 && identity.revision_id < (1ULL << 52) &&
+                     command != nullptr && command->valid &&
                      command->position.allFinite() && command->velocity.allFinite() &&
                      std::isfinite(swing_sign) &&
                      std::isfinite(strike_deadline_wall_s) &&

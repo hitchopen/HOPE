@@ -13,6 +13,8 @@ import threading
 import time
 import unittest
 
+from operations_processes import child_pids
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "a3"))
 
@@ -92,12 +94,21 @@ class NativeOperationsTests(unittest.TestCase):
         ])
         self.runner_pub = self.node.create_publisher(Float64MultiArray, "/hope/runner/state_hdu_flat", 10)
         self.timer = self.node.create_timer(.02, self.runner)
+        # The reconnect watcher samples a cached OS probe at 1 Hz. Allow that
+        # observation and DDS delivery without racing a two-second fake ACK
+        # timeout. This changes only these fixtures, not production deadlines.
+        reconnect_test = self._testMethodName in {
+            "test_idle_network_change_waits_for_unacknowledged_command_and_urgent_rpc",
+            "test_idle_reconnect_waits_for_native_emergency_alone",
+        }
+        action_timeout = "6.0" if reconnect_test else (
+            "4.0" if "emergency_drain" in self._testMethodName else "2.0")
         args = [str(Path(os.environ["HOPE_NATIVE_BIN_DIR"]) / "hope-operations"), "--ros-args",
                 "-p", "worker_path:=" + str(ROOT / "tests/fixtures/operations_worker.py"),
                 "-p", "session_id_path:=" + str(self.root / "session"),
                 "-p", "runtime_root:=" + str(self.root / "runtime"),
                 "-p", "worker_rpc_timeout_s:=8.0",
-                "-p", "runner_action_timeout_s:=" + ("4.0" if "emergency_drain" in self._testMethodName else "2.0")]
+                "-p", "runner_action_timeout_s:=" + action_timeout]
         env = dict(os.environ, HOPE_OPERATIONS_TEST_ROOT=str(self.root))
         if getattr(self, "reference", False):
             args = [sys.executable, str(ROOT / "tests/fixtures/operations_worker.py")] + args[1:]
@@ -150,6 +161,15 @@ class NativeOperationsTests(unittest.TestCase):
         values = [2, 42, self.sequence, self.mode, 0, 1, 0, 1, 0, 1, 0, 0,
                   1, 0, 0, 0, req, action, result, reason, runner_session_fingerprint(session)]
         self.runner_pub.publish(Float64MultiArray(data=[float(x) for x in values]))
+
+    def wait_reconnect_deferred(self, pending):
+        def observed():
+            self.assertIsNone(self.process.poll(), "reconnect dropped an unacknowledged command")
+            self.assertFalse(pending.done(), "command ended before the test supplied ACK/supersession")
+            return any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status)
+        # One cached probe and one watcher cycle, plus IPC/DDS scheduling.
+        # Check retention throughout the wait, not only the displayed status.
+        self.wait(observed, 3.0)
 
     def publish_player(self, name, x):
         from geometry_msgs.msg import PoseStamped
@@ -221,7 +241,7 @@ class NativeOperationsTests(unittest.TestCase):
     def test_native_emergency_survives_paused_worker_without_replaying_prior_motion(self):
         if getattr(self, "reference", False):
             self.skipTest("native-only failure isolation")
-        children = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children").read_text().split()
+        children = child_pids(self.process.pid)
         self.assertEqual(len(children), 1)
         worker = int(children[0])
         os.kill(worker, signal.SIGSTOP)
@@ -441,8 +461,7 @@ class NativeOperationsTests(unittest.TestCase):
         self.wait(lambda: self.lifecycle and self.lifecycle[-1] == "RUNNING", 10)
         self.wait(lambda: self.player_stats().get("owner", {}).get("hardware_lock"))
         owner = self.player_stats()["owner"]
-        children_file = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children")
-        original_children = children_file.read_text().split()
+        original_children = child_pids(self.process.pid)
         self.assertEqual(len(original_children), 1)
         with (self.root / "hardware.lock").open("r+") as hardware:
             with self.assertRaises(BlockingIOError):
@@ -451,7 +470,7 @@ class NativeOperationsTests(unittest.TestCase):
             self.wait(lambda: any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status))
             time.sleep(1.2)  # More than one network poll; deferred status must persist.
             self.assertEqual(self.status[-1].split(":")[0], "DDS_RECONNECT_DEFERRED")
-            self.assertEqual(children_file.read_text().split(), original_children)
+            self.assertEqual(child_pids(self.process.pid), original_children)
             self.assertEqual(self.player_stats()["owner"], owner)
             self.assertEqual(self.lifecycle[-1], "RUNNING")
             with self.assertRaises(BlockingIOError):
@@ -472,7 +491,7 @@ class NativeOperationsTests(unittest.TestCase):
         pending = self.trigger("/hope/runner/enter_motion", wait=False)
         self.wait(lambda: any(int(r[2]) == 4 for r in self.requests))
         (self.root / "network_signature").write_text("CHANGED_WHILE_COMMAND_IN_FLIGHT")
-        self.wait(lambda: any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status), 1.8)
+        self.wait_reconnect_deferred(pending)
         emergency = self.trigger("/hope/runner/emergency_passive")
         self.assertTrue(emergency.success, emergency.message)
         self.wait(pending.done)
@@ -486,7 +505,7 @@ class NativeOperationsTests(unittest.TestCase):
         pending = self.trigger("/hope/runner/emergency_passive", wait=False)
         self.wait(lambda: bool(self.requests))
         (self.root / "network_signature").write_text("CHANGED_WITH_NATIVE_EMERGENCY_ONLY")
-        self.wait(lambda: any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status), 1.8)
+        self.wait_reconnect_deferred(pending)
         self.assertIsNone(self.process.poll())
         req, action = int(self.requests[-1][1]), int(self.requests[-1][2])
         self.ack = req, action, 1, 3
@@ -500,7 +519,7 @@ class NativeOperationsTests(unittest.TestCase):
         self.accept_emergency = False
         pending = self.trigger("/hope/runner/emergency_passive", wait=False)
         self.wait(lambda: bool(self.requests))
-        children = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children").read_text().split()
+        children = child_pids(self.process.pid)
         self.assertEqual(len(children), 1)
         os.kill(int(children[0]), signal.SIGKILL)
         time.sleep(2.2)  # Longer than failed-worker grace, shorter than action timeout.
@@ -634,7 +653,7 @@ class NativeOperationsTests(unittest.TestCase):
         self.accept = False
         future = self.trigger("/hope/runner/enter_motion", wait=False)
         self.wait(lambda: bool(self.requests))
-        children = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children").read_text().split()
+        children = child_pids(self.process.pid)
         self.assertEqual(len(children), 1)
         os.kill(int(children[0]), signal.SIGKILL)
         self.wait(future.done)

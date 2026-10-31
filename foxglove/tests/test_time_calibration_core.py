@@ -297,6 +297,23 @@ class TimeCalibrationOrderingTests(unittest.TestCase):
             backend.calibrate(self.config(), lambda *_: None, handoff_delay_s=0.)
         self.assertFalse(any(call[:2] == (SYSTEMCTL, "stop") for call in machine.calls))
 
+    def test_guarded_vendor_bsp_rejects_before_stopping_or_recovering_mdu(self):
+        machine = FakeMachine(legacy_ptp=True)
+        machine.file_overrides["/opt/agibot/entry/run_agibot.sh"] = (
+            'python3 "${DIR}/system/timesync_guard.py" &\n'
+        )
+        backend = TimeCalibrationBackend(
+            "agi", robot_home="/home/agi", run=machine,
+            read_text=machine.read_text, sleep=lambda _seconds: None,
+        )
+        active_before = machine.active.copy()
+        with self.assertRaisesRegex(CalibrationRejected, "GUARDED_BSP_REQUIRES_PAIRED_REBOOT"):
+            backend.calibrate(self.config(), lambda _progress: None, handoff_delay_s=0.0)
+        self.assertEqual(machine.active, active_before)
+        self.assertFalse(any(c[:2] in ((SYSTEMCTL, "stop"), (SYSTEMCTL, "start"),
+                                      (SYSTEMCTL, "restart")) for c in machine.calls))
+        self.assertFalse(any(c[-1].startswith("time-calibration-") for c in machine.calls))
+
     def test_consolidated_receipt_restores_only_prior_active_operations_services(self):
         old_units = HDU_REQUIRED_CONTROL_UNITS
         saved = CalibrationStatus(boot_id="same-boot", active_hdu_foxglove=old_units)

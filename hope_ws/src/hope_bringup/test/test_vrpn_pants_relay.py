@@ -97,6 +97,30 @@ def test_unconfirmed_import_bad_timestamp_and_jump_do_not_produce_valid_base(ros
     base.destroy_node()
 
 
+def test_burst_pose_noise_stays_valid_but_large_jump_still_invalidates(ros):
+    import math
+    base = load('hope_base_pose_flat_relay').BasePoseFlatRelay()
+    output = []
+    base._pub.publish = output.append
+    base._pelvis_pub.publish = lambda msg: None
+    stamp = base.get_clock().now().nanoseconds
+    def send(delta_ns, x, degrees):
+        half_angle = math.radians(degrees) / 2
+        doc = observation(Selection('v4', 'P1', 2), load_profiles(),
+                          divmod(stamp + delta_ns, 10**9), (x, 0., 0.),
+                          (0., 0., math.sin(half_angle), math.cos(half_angle)))
+        base._vrpn_pose_cb(String(data=json.dumps(doc)))
+        return output[-1].data[1]
+    try:
+        assert send(0, 0., 0.) == 1
+        assert send(25_000, .0000357, .0137) == 1
+        assert send(50_000, .009, 2.9) == 1
+        assert send(75_000, .2, 2.9) == 0
+        assert send(3_333_333, .001, .2) == 1
+    finally:
+        base.destroy_node()
+
+
 @pytest.mark.parametrize('hz', [150, 300])
 def test_player_start_evidence_is_30hz_while_base_observations_remain_full_rate(ros, hz):
     relay = load('avatar_pro_vrpn_relay').AvatarProVrpnRelay()
