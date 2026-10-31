@@ -161,13 +161,19 @@ Before deployment approval, verify both ends and failed-start cleanup, then:
 
 ## Pre-operation clock correction
 
-Guarded new BSPs whose vendor launcher invokes `system/timesync_guard.py` cannot
-restore vendor-owned PTP with a normal hot PM restart. Their coordinator rejects
-`GUARDED_BSP_REQUIRES_PAIRED_REBOOT` before stopping/recovering MDU services.
-Use the [guarded-BSP commissioning procedure](new_robot_commissioning.md#新-bsp-的-timesync_guardpy必须先分支)
-for attended paired-board maintenance. Keep the factory guard intact. The hot
-calibration sequence below applies only to a supported restoration topology.
+Guarded BSPs whose vendor launcher invokes `system/timesync_guard.py` need the
+[receipt-bound adapter](guarded_clock_calibration.md) for the Time Calibration
+button. Without its matching installation, the coordinator rejects
+`GUARDED_BSP_REQUIRES_PAIRED_REBOOT` before changing either board. With it, only a
+current, stopped-system, qualified maintenance operation can restore vendor PTP;
+ordinary startup still runs the original guard. Keep the guard and runtime PTP.
 
+For automatic power-on readiness, also apply the
+[boot-clock setup](new_robot_commissioning.md#hope-开机一次性校时-setup).
+The generic clock installer leaves bootstrap disabled; HOPE enables the pinned
+one-shot before vendor and HOPE consumers, then verifies an attended paired boot.
+Continuous chrony remains slew-only. Boot success does not substitute for button
+acceptance, MDU/Laptop/mocap clock checks or physical function qualification.
 
 For a large HDU clock offset, use the attended **Time Calibration** action
 **before START**, not a long wait for runtime slewing. At `maxslewrate 100`,
