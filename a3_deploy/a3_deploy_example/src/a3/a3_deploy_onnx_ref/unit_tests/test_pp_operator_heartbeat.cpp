@@ -13,7 +13,8 @@ TEST(PpOperatorHeartbeat, IndependentRolesAndNoReplayOrDelayedRenewal) {
   EXPECT_TRUE(heartbeat.Echo(computer, 10.090));
   EXPECT_FALSE(heartbeat.Echo(ui, 10.099));
   EXPECT_EQ(heartbeat.Fresh(10.101), (std::array<bool,2>{true,true}));
-  EXPECT_EQ(heartbeat.Fresh(11.001), (std::array<bool,2>{false,false}));
+  EXPECT_EQ(heartbeat.Fresh(11.001), (std::array<bool,2>{true,false}));
+  EXPECT_EQ(heartbeat.Fresh(12.001), (std::array<bool,2>{false,false}));
   for (int field : {1,2,3}) {
     auto wrong = ui; wrong[field] += 1;
     EXPECT_FALSE(heartbeat.Echo(wrong, 10.099));
@@ -21,7 +22,7 @@ TEST(PpOperatorHeartbeat, IndependentRolesAndNoReplayOrDelayedRenewal) {
   auto wrong = ui; wrong[3] = NAN;
   EXPECT_FALSE(heartbeat.Echo(wrong, 10.099));
 }
-TEST(PpOperatorHeartbeat, BothRolesExpireOnlyAfterOneSecond) {
+TEST(PpOperatorHeartbeat, UiExpiresAfterTwoSecondsAndComputerAfterOneSecond) {
   PpOperatorHeartbeat heartbeat(42, "test");
   auto ui = heartbeat.Issue(0.); auto computer = ui;
   ui.push_back(1.); computer.push_back(2.);
@@ -30,24 +31,33 @@ TEST(PpOperatorHeartbeat, BothRolesExpireOnlyAfterOneSecond) {
   EXPECT_EQ(heartbeat.Fresh(.100), (std::array<bool,2>{true,true}));
   EXPECT_EQ(heartbeat.Fresh(.101), (std::array<bool,2>{true,true}));
   EXPECT_EQ(heartbeat.Fresh(1.), (std::array<bool,2>{true,true}));
-  EXPECT_EQ(heartbeat.Fresh(1.001), (std::array<bool,2>{false,false}));
+  EXPECT_EQ(heartbeat.Fresh(1.001), (std::array<bool,2>{true,false}));
+  EXPECT_EQ(heartbeat.Fresh(2.), (std::array<bool,2>{true,false}));
+  EXPECT_EQ(heartbeat.Fresh(2.001), (std::array<bool,2>{false,false}));
 }
 TEST(PpOperatorHeartbeat, DelayedEchoesUseFullDeadlineButCannotRenewPastIssueTime) {
   PpOperatorHeartbeat heartbeat(42, "test");
   auto ui = heartbeat.Issue(10.); auto computer = ui;
   ui.push_back(1.); computer.push_back(2.);
-  // At 50 Hz the challenge history must cover the roles' whole one-second window.
+  // The computer role still accepts only the original one-second window.
   for (int i = 1; i <= 45; ++i) heartbeat.Issue(10. + i*.020);
   EXPECT_TRUE(heartbeat.Echo(ui, 10.950));
   EXPECT_TRUE(heartbeat.Echo(computer, 10.950));
   EXPECT_FALSE(heartbeat.Echo(ui, 10.960));
   EXPECT_FALSE(heartbeat.Echo(computer, 10.960));
   EXPECT_EQ(heartbeat.Fresh(10.999), (std::array<bool,2>{true,true}));
-  EXPECT_EQ(heartbeat.Fresh(11.001), (std::array<bool,2>{false,false}));
-  auto expired = heartbeat.Issue(12.); expired.push_back(1.);
-  EXPECT_FALSE(heartbeat.Echo(expired, 13.001));
+  EXPECT_EQ(heartbeat.Fresh(11.001), (std::array<bool,2>{true,false}));
+  // At 50 Hz the history must also retain a UI challenge for nearly two seconds.
+  auto delayed_ui = heartbeat.Issue(12.); delayed_ui.push_back(1.);
+  for (int i = 1; i <= 95; ++i) heartbeat.Issue(12. + i*.020);
+  EXPECT_TRUE(heartbeat.Echo(delayed_ui, 13.950));
+  EXPECT_EQ(heartbeat.Fresh(14.), (std::array<bool,2>{true,false}));
+  EXPECT_EQ(heartbeat.Fresh(14.001), (std::array<bool,2>{false,false}));
+  EXPECT_FALSE(heartbeat.Echo(delayed_ui, 13.960));
+  auto expired = heartbeat.Issue(15.); expired.push_back(1.);
+  EXPECT_FALSE(heartbeat.Echo(expired, 17.001));
   expired.back() = 2.;
-  EXPECT_FALSE(heartbeat.Echo(expired, 13.001));
+  EXPECT_FALSE(heartbeat.Echo(expired, 16.001));
 }
 TEST(PpOperatorHeartbeat, LiveComputerCannotHideFrozenUiAfterItsOwnDeadline) {
   PpOperatorHeartbeat heartbeat(42, "test");
@@ -62,8 +72,8 @@ TEST(PpOperatorHeartbeat, LiveComputerCannotHideFrozenUiAfterItsOwnDeadline) {
     ASSERT_TRUE(heartbeat.Echo(computer, now+.005));
     const auto fresh = heartbeat.Fresh(now+.010);
     if (control.ObserveOperatorHeartbeat(fresh[0], fresh[1])) ++stops;
-    if (i < 74) EXPECT_EQ(control.mode(), RunnerMode::kMotion);
-    if (i > 75) EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+    if (i < 124) EXPECT_EQ(control.mode(), RunnerMode::kMotion);
+    if (i >= 124) EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
   }
   EXPECT_EQ(stops, 1);
   EXPECT_EQ(control.EncodeMocapSafety()[13], 36.);

@@ -77,7 +77,7 @@ Normal managed play also enables `--operator-watchdog`. The Runner issues a
 challenge every 20 ms. The current Console echoes role 1, and the operator
 computer's Motive/VRPN relay echoes role 2, bound to its managed launch session
 (`debug_session_id`). Both must be live before normal play entry. Loss of either
-echo requests controlled PD_STAND recovery: **1 s for the Console**, **1 s for
+echo requests controlled PD_STAND recovery: **2 s for the Console**, **1 s for
 the operator-computer relay**. A normal
 serve uses its existing abort/recovery path. Held pelvis data cannot refresh
 either heartbeat. Stand/PASSIVE, Teleop and offline Kernel/Pure Serve are exempt;
@@ -104,7 +104,7 @@ the existing stand blend/validated serve recovery determines motion duration.
 A slow/frozen/minimized Console or a switch to another layout/tab can miss its
 1 s deadline just like a disconnected one. Echoes come only from `onRender`;
 this is not a background app-liveness service. The one-second UI window tolerates
-short rendering/network delays, not a Console absent for more than 1 s.
+short rendering/network delays, not a Console absent for more than 2 s.
 Qualify actual foreground/background rendering, Wi-Fi jitter and CPU load
 on the deployed system before competition; do not claim hard real-time timing
 or hardware stability from unit tests.
@@ -152,7 +152,7 @@ Before deployment approval, verify both ends and failed-start cleanup, then:
    stream and the Laptop–HDU/HDU–MDU transport separately. Record watchdog trigger
    time, actual joint-command continuity and the full PD_STAND recovery.
 3. Independently close/disconnect/freeze the Console and stop/disconnect the
-   managed operator relay/computer. Verify the Console's 1 s and computer's
+   managed operator relay/computer. Verify the Console's 2 s and computer's
    1 s triggers despite the other channel remaining live. Exercise tab/layout
    switches and minimize/background behavior, including brief interruptions that
    should not stop play. Delayed/replayed challenges must not postpone expiry.
