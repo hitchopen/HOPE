@@ -68,5 +68,34 @@ TEST(SwingSideSupport, EmptySupportPreservesLegacyIncludingExactBoundaries) {
             select_swing_sign_with_support(y, 0., -.25, hysteresis, previous, {}, {}),
             select_swing_sign_with_hysteresis(y, 0., -.25, hysteresis, previous));
 }
+TEST(SwingSideSupport, UsesRunnerHomeInsteadOfDriftedFirstSolve) {
+  const std::vector<double> fh{-.9002, -.275}, bh{-.275, .4598};
+  const double home = runner_home_y_from_flat({1., 1., -.494, -.562});
+  for (double previous : {-1., 0., 1.}) {
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-1.4558, home, -.275, 0., previous, fh, bh), 1.);
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.8077, home, -.275, 0., previous, fh, bh), -1.);
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.1192, home, -.275, 0., previous, fh, bh), -1.);
+    EXPECT_DOUBLE_EQ(select_swing_sign_with_support(-.275, 0., -.275, 0., previous, fh, bh), -1.);
+  }
+  EXPECT_TRUE(std::isnan(select_swing_sign_with_support(-1.4558, -.5515, -.275, 0., 1., fh, bh)));
+  EXPECT_TRUE(std::isnan(runner_home_y_from_flat({1., 0., -.494, -.562})));
+  EXPECT_TRUE(std::isnan(runner_home_y_from_flat({2., 1., -.494, -.562})));
+  EXPECT_TRUE(std::isnan(runner_home_y_from_flat({1., 1., -.494})));
+}
+TEST(SwingSideSupport, KeepsFixedInterceptInsideImmutableHomeXSupport) {
+  const std::vector<double> support{.36, .58};
+  // Measured Home is 2 mm behind the nominal reset; the old world-fixed
+  // x=0.08 generated relative x=0.582 and every swing was rejected.
+  const double home = -.502;
+  const double x = supported_home_x_hit(.08, home, support);
+  EXPECT_LT(x - home, .58);
+  EXPECT_GT(x - home, .57999);
+  EXPECT_NEAR(supported_home_x_hit(.08, -.494, support), .08, 1e-15);
+  EXPECT_GT(supported_home_x_hit(-1., home, support) - home, .36);
+  EXPECT_DOUBLE_EQ(supported_home_x_hit(.08, home, {}), .08);
+  EXPECT_TRUE(std::isnan(supported_home_x_hit(.08,
+      std::numeric_limits<double>::quiet_NaN(), support)));
+  EXPECT_TRUE(std::isnan(supported_home_x_hit(.08, home, {.58, .36})));
+}
 }  // namespace
 }  // namespace hope_planner_cpp

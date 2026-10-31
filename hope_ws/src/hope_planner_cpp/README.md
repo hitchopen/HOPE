@@ -74,6 +74,41 @@ all 48 flight commits exactly once. These are prediction measurements, not
 a physical hit-rate certification. Evidence, original packet inputs, and the
 shared-core replay source are in `artifacts/planner_repair_20261010_212143/`.
 
+## Policy support and swing-side hysteresis
+
+Set `swing_side_fh_y_range` and `swing_side_bh_y_range` to the selected
+policy's `[min, max]` lateral support bounds in the configured reference frame.
+If only one side supports an intercept, that side overrides the previous swing;
+hysteresis applies only inside overlapping support. Targets outside both bands
+produce an invalid command. Both bands default to empty for legacy selection.
+With zero hysteresis, the split itself always selects backhand.
+
+For schema 4, retain the native Runner-owned session HOME protocol and
+`swing_side_reference_mode=session_home_v1`. The support bands use that HOME.
+This change does not enable the optional bands automatically or modify policy
+metadata, Runner reach checks, or the hardware profile.
+
+For legacy schema-2/3 integrations, `swing_side_reference_mode=runner_home_v1`
+accepts `std_msgs/Float64MultiArray` on `/hope/runner/home_anchor_flat` with
+`[version=1, valid=1, home_x, home_y]`. The integration must supply this publisher
+from the Runner's immutable MOTION-entry anchor and publish `valid=0` outside
+that session. Missing or invalid HOME prevents a valid strike. This optional
+adapter avoids using a drifted first-solve base as the policy's HOME; it is not
+a replacement for the schema-4 session protocol, and combining them is rejected.
+
+The legacy adapter also accepts `x_hit_home_support_range=[min, max]` for a
+shared policy X interval. The requested fixed interception plane is projected
+inside the interval about Runner HOME with a 1 micrometre margin; interior
+planes are unchanged. The same supported plane is published to the adaptive
+packetizer. This requires `x_hit_follow_robot=false` and zero `x_hit_bh_delta`.
+It changes the interception plane, not the policy's support bounds. HOME and
+the resulting plane are logged. No default plane or wire schema is changed.
+
+Gate3 accepts fixed-delay and adaptive Stage-2 timing without requiring a
+50 ms commit delay or a single calibrated bounce gain. It still checks commit
+ordering, finite values, gain bounds, flight identities, packet integrity,
+freshness, logger/input loss, and resolved physical-spin parameters.
+
 ## Local build and tests
 
 The commands below use the Ubuntu 24.04/ROS 2 Jazzy `hope` container. On a new

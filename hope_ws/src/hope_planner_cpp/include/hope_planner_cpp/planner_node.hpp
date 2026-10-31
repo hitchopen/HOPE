@@ -169,6 +169,7 @@ class PlannerNode final : public rclcpp::Node {
   rclcpp::Subscription<hope_msgs::msg::BallFlightPacket>::SharedPtr
       flight_packet_subscription_;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr base_subscription_;
+  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr runner_home_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr robot_pose_subscription_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr flat_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr base_publisher_;
@@ -225,6 +226,9 @@ class PlannerNode final : public rclcpp::Node {
   std::vector<double> swing_side_fh_y_range_, swing_side_bh_y_range_;
   double swing_side_split_y_ = -0.25;
   double swing_side_hysteresis_y_ = 0.04;
+  std::atomic<double> runner_home_y_{std::numeric_limits<double>::quiet_NaN()};
+  std::atomic<double> runner_home_x_{std::numeric_limits<double>::quiet_NaN()};
+  std::vector<double> x_hit_home_support_range_;
   std::string swing_side_reference_mode_ = "live_base_v1";
   // An explicit pre-flight session-boundary freeze owns HOME when requested;
   // otherwise the first valid solve does. Process-start base packets can

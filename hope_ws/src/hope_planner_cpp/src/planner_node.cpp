@@ -130,14 +130,22 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       std::max(0.0, declare_parameter<double>("swing_side_hysteresis_y", 0.04));
   swing_side_fh_y_range_ = declare_parameter<std::vector<double>>("swing_side_fh_y_range", std::vector<double>{});
   swing_side_bh_y_range_ = declare_parameter<std::vector<double>>("swing_side_bh_y_range", std::vector<double>{});
-  if (!valid_swing_side_support_ranges(swing_side_fh_y_range_, swing_side_bh_y_range_))
-    throw std::invalid_argument("swing side support requires two ordered finite ranges or both empty");
-  swing_side_reference_mode_ = declare_parameter<std::string>(
-      "swing_side_reference_mode", "live_base_v1");
-  if (swing_side_reference_mode_ != "live_base_v1" &&
-      swing_side_reference_mode_ != "session_home_v1") {
+  if (!valid_swing_side_support_ranges(swing_side_fh_y_range_, swing_side_bh_y_range_)) {
+    throw std::invalid_argument("swing side support requires two finite ordered [min,max] bands or both empty");
+  }
+  swing_side_reference_mode_ = declare_parameter<std::string>("swing_side_reference_mode", "live_base_v1");
+  if (swing_side_reference_mode_ != "live_base_v1" && swing_side_reference_mode_ != "session_home_v1" &&
+      swing_side_reference_mode_ != "runner_home_v1") {
+    throw std::invalid_argument("unsupported swing_side_reference_mode");
+  }
+  x_hit_home_support_range_ = declare_parameter<std::vector<double>>(
+      "x_hit_home_support_range", std::vector<double>{});
+  if (!x_hit_home_support_range_.empty() &&
+      (swing_side_reference_mode_ != "runner_home_v1" || x_hit_follow_robot_ ||
+       x_hit_bh_delta_ != 0.0 ||
+       !std::isfinite(supported_home_x_hit(0., 0., x_hit_home_support_range_)))) {
     throw std::invalid_argument(
-        "swing_side_reference_mode must be live_base_v1 or session_home_v1");
+        "Home X support requires finite shared bounds, runner_home_v1, a fixed plane and zero BH delta");
   }
   if (x_hit_freeze_session_home_ &&
       swing_side_reference_mode_ != "session_home_v1") {
@@ -371,6 +379,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       declare_parameter<int>("racket_flat_schema", 2));
   if (racket_flat_schema_ != 2 && racket_flat_schema_ != 3 && racket_flat_schema_ != 4) {
     throw std::invalid_argument("racket_flat_schema must be 2, 3, or 4");
+  }
+  if (racket_flat_schema_ == 4 &&
+      (swing_side_reference_mode_ == "runner_home_v1" || !x_hit_home_support_range_.empty())) {
+    throw std::invalid_argument("runner_home_v1 support uses the schema-2/3 Home protocol; schema4 requires its native session Home");
   }
   const auto home_topic = declare_parameter<std::string>("session_home_input_topic", "");
   session_home_max_age_s_ = declare_parameter<double>("session_home_max_age_s", 0.5);
@@ -726,6 +738,26 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
 
   const std::string robot_pose_topic =
       declare_parameter<std::string>("robot_pose_topic", "");
+  if (swing_side_reference_mode_ == "runner_home_v1") {
+    rclcpp::SubscriptionOptions options;
+    options.callback_group = base_callback_group_;
+    runner_home_subscription_ = create_subscription<std_msgs::msg::Float64MultiArray>(
+        "/hope/runner/home_anchor_flat", command_qos,
+        [this](const std_msgs::msg::Float64MultiArray::SharedPtr message) {
+          const double y = runner_home_y_from_flat(message->data);
+          const double x = std::isfinite(y) ? message->data[2]
+              : std::numeric_limits<double>::quiet_NaN();
+          const double previous_x = runner_home_x_.exchange(x);
+          const double previous = runner_home_y_.exchange(y);
+          if (std::isfinite(y) && (!std::isfinite(previous) || y != previous))
+            RCLCPP_INFO(get_logger(), "Runner immutable Home y=%.9f", y);
+          if (std::isfinite(x) && (!std::isfinite(previous_x) || x != previous_x) &&
+              !x_hit_home_support_range_.empty())
+            RCLCPP_INFO(get_logger(),
+                "Runner immutable Home x=%.9f; requested interception x=%.9f, supported x=%.9f",
+                x, x_hit_fh_.load(), active_x_hit());
+        }, options);
+  }
   if (!robot_pose_topic.empty()) {
     rclcpp::SubscriptionOptions base_options;
     base_options.callback_group = base_callback_group_;
@@ -1273,13 +1305,16 @@ double PlannerNode::active_x_hit() const noexcept {
       return std::clamp(snapshot.position.x() + x_hit_offset_, x_hit_min_, x_hit_max_);
     }
   }
-  return x_hit_fh_.load(std::memory_order_acquire);
+  return supported_home_x_hit(x_hit_fh_.load(std::memory_order_acquire),
+                              runner_home_x_.load(), x_hit_home_support_range_);
 }
 
 double PlannerNode::select_swing_sign(
     double intercept_y, double base_x, double base_y) noexcept {
   double reference_y = base_y;
-  if (swing_side_reference_mode_ == "session_home_v1" && racket_flat_schema_ == 4) {
+  if (swing_side_reference_mode_ == "runner_home_v1") {
+    reference_y = runner_home_y_.load();
+  } else if (swing_side_reference_mode_ == "session_home_v1" && racket_flat_schema_ == 4) {
     reference_y = solve_home_valid_ ? solve_home_.y : std::numeric_limits<double>::quiet_NaN();
   } else if (swing_side_reference_mode_ == "session_home_v1") {
     std::lock_guard<std::mutex> lock(base_mutex_);
@@ -1289,7 +1324,8 @@ double PlannerNode::select_swing_sign(
   last_swing_side_reference_y_.store(reference_y, std::memory_order_relaxed);
   const double selected = select_swing_sign_with_support(
       intercept_y, reference_y, swing_side_split_y_,
-      swing_side_hysteresis_y_, last_swing_sign_, swing_side_fh_y_range_, swing_side_bh_y_range_);
+      swing_side_hysteresis_y_, last_swing_sign_,
+      swing_side_fh_y_range_, swing_side_bh_y_range_);
   if (selected == -1.0 || selected == 1.0) {
     last_swing_sign_ = selected;
   }
@@ -1456,7 +1492,7 @@ void PlannerNode::solver_loop() noexcept {
               base.valid ? base.position.x()
                          : std::numeric_limits<double>::quiet_NaN(),
               base.valid ? base.position.y()
-                         : (swing_side_reference_mode_ == "session_home_v1"
+                         : (swing_side_reference_mode_ != "live_base_v1" || !swing_side_fh_y_range_.empty()
                                 ? std::numeric_limits<double>::quiet_NaN()
                                 : 0.0));
           if (!std::isfinite(swing_sign)) {
@@ -2104,7 +2140,10 @@ void PlannerNode::publish_diagnostics() noexcept {
         if (base_.valid) hit_plane.data[2] = std::max(hit_plane.data[2], base_.position.x() + home.value.plane_x);
       }
     }
-    if (racket_flat_schema_ != 4 || home_fresh) hit_plane_publisher_->publish(hit_plane);
+    if (swing_side_reference_mode_ == "runner_home_v1" &&
+        !x_hit_home_support_range_.empty()) hit_plane.data[2] = active_x_hit();
+    if ((racket_flat_schema_ != 4 || home_fresh) && std::isfinite(hit_plane.data[2]))
+      hit_plane_publisher_->publish(hit_plane);
     const auto now = steady_now_ns();
     const double elapsed = std::max(
         1.0e-6, (now - health_previous_steady_ns_) * 1.0e-9);
