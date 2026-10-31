@@ -190,6 +190,7 @@ struct PpPolicyConfig {
   // yaw would rotate the target obs ~84 deg OOD mid-motion. Revert with --no-imu-yaw (only
   // sensible for a non-turning model, e.g. p4).
   bool use_imu_yaw_for_targets = true;  // see build_obs_180(use_base_yaw_for_targets)
+  PpTargetFrame target_frame = PpTargetFrame::kTraining;
   double oracle_max_age_s = 0.1;    // reject oracle samples older than this (stale bridge/sim).
   double dt = 0.02;              // 50 Hz
   double strike_period = 3.0;    // seconds between strikes (level 1)
@@ -597,6 +598,21 @@ class PpPolicy {
         throw std::runtime_error(
             "pingpong: fixed-y homing thresholds/gain must be finite, "
             "0 < exit < enter, gain > 1, and max delta in [enter,0.35] m");
+    }
+    if (cfg_.target_frame != PpTargetFrame::kTraining) {
+      if (onnx_.obs_dim() != kObsDim110 || onnx_.uses_compact_execution_obs())
+        throw std::runtime_error("body target override requires the 110-D hitter actor");
+      if (cfg_.target_frame == PpTargetFrame::kBodyOnce && !cfg_.planner_mode)
+        throw std::runtime_error("body_once target requires planner shot commits");
+      std::fprintf(stderr,
+          "[pp WARN] policy_target_frame=%s: obs[103:106] = "
+          "R_world_base^T * (target_world - base_world); obs[106:109] = "
+          "R_world_base^T * velocity_world; %s; "
+          "explicit override of the training observation contract\n",
+          cfg_.target_frame == PpTargetFrame::kBodyOnce ? "body_once" : "body",
+          cfg_.target_frame == PpTargetFrame::kBodyOnce
+              ? "capture once at shot commit; WAIT target unchanged; actor heading obs[99:101]=[1,0] in all phases"
+              : "full current pose every tick");
     }
     if (!build_src_to_sdk(onnx_.joint_names(), isaac_to_sdk_))
       throw std::runtime_error("pingpong: ONNX joint_names do not map onto the backend layout");
@@ -1281,6 +1297,7 @@ class PpPolicy {
   // move would command a walk back to the old position), and restarts the arm-hold
   // sustained-quiet clock (--arm-hold-nominal) for the fresh MOTION entry.
   void rearm_yaw_align() {
+    committed_body_target_.Reset();
     yaw_align_pending_.store(true);
     kernel_odometry_.Reset();
     hold_station_set_ = false;
@@ -2434,7 +2451,7 @@ class PpPolicy {
           "Schema27 actor received reach permissions incompatible with its "
           "enabled/disabled artifact contract");
     }
-    const Eigen::VectorXd obs = onnx_.uses_compact_execution_obs()
+    Eigen::VectorXd obs = onnx_.uses_compact_execution_obs()
         ? BuildCompactObservation_(st, tg, tick_idx)
         : (onnx_.obs_dim() == kObsDim118)
         ? build_obs_118(st, tg, last_action_, onnx_.default_q())
@@ -2462,6 +2479,29 @@ class PpPolicy {
         : (onnx_.obs_dim() == kObsDim177)
         ? build_obs_177(refs, st, tg, last_action_, onnx_.default_q(), cfg_.use_imu_yaw_for_targets)
         : build_obs_180(refs, st, tg, last_action_, onnx_.default_q(), cfg_.use_imu_yaw_for_targets);
+    if (cfg_.target_frame == PpTargetFrame::kBodyOnce) {
+      const bool captured = committed_body_target_.Apply(
+          obs, st, tg,
+          hitter_optional_reach_active_flight(planner_engaged_, level_.load()),
+          planner_shot_seq_);
+      apply_forward_heading_110(obs);
+      if (captured) {
+        std::fprintf(stderr,
+            "[pp target-latch] tick=%llu shot=%llu command=%llu "
+            "base_w=[%.9f,%.9f,%.9f] quat_wxyz=[%.9f,%.9f,%.9f,%.9f] "
+            "pos_w=[%.9f,%.9f,%.9f] vel_w=[%.9f,%.9f,%.9f] "
+            "pos_b=[%.9f,%.9f,%.9f] vel_b=[%.9f,%.9f,%.9f] actor_heading=[1,0]\n",
+            static_cast<unsigned long long>(tick_idx),
+            static_cast<unsigned long long>(planner_shot_seq_),
+            static_cast<unsigned long long>(planner_frozen_command_seq_),
+            st.base_pos_w[0], st.base_pos_w[1], st.base_pos_w[2],
+            st.base_quat_w[0], st.base_quat_w[1], st.base_quat_w[2], st.base_quat_w[3],
+            tg.pos_w[0], tg.pos_w[1], tg.pos_w[2], tg.vel_w[0], tg.vel_w[1], tg.vel_w[2],
+            obs[103], obs[104], obs[105], obs[106], obs[107], obs[108]);
+      }
+    } else {
+      apply_target_frame(obs, st, tg, cfg_.target_frame);
+    }
     if (!PpAllFinite(obs)) {
       throw std::runtime_error("ping-pong observation contains NaN/Inf");
     }
@@ -5593,7 +5633,8 @@ class PpPolicy {
   void StreamTargetStep_(std::uint64_t tick_idx) {
     // Shared-reference Planner sends one immutable target per ball. A newer
     // flight or UI mode must never move the in-progress swing's target.
-    if (cfg_.shared_session_home || !racket_in_) return;
+    if (cfg_.shared_session_home || cfg_.target_frame == PpTargetFrame::kBodyOnce ||
+        !racket_in_) return;
     const auto snap = racket_in_->Latest();
     if (cfg_.shared_session_home && !SharedHomeCommandMatches_(snap.cmd)) return;
     planner_current_msg_seq_ = snap.seq;
@@ -5861,9 +5902,21 @@ class PpPolicy {
                    : obs110_vxy ? (int)(sizeof(blks110_vxy) / sizeof(Blk))
                    : (obs.size() == kObsDim110) ? (int)(sizeof(blks110) / sizeof(Blk))
                                                 : (int)(sizeof(blks180) / sizeof(Blk));
-    for (int i = 0; i < nblk; ++i)
-      std::fprintf(stderr, "   %-24s [%3d:%3d] %s\n", blks[i].n, blks[i].lo, blks[i].lo + blks[i].len,
+    for (int i = 0; i < nblk; ++i) {
+      const char* name = (obs.size() == kObsDim110 && blks[i].lo == 99 &&
+                         cfg_.target_frame == PpTargetFrame::kBodyOnce)
+          ? "base_forward_xy(fixed)"
+          : (obs.size() == kObsDim110 && blks[i].lo == 103 &&
+                         cfg_.target_frame != PpTargetFrame::kTraining)
+          ? (cfg_.target_frame == PpTargetFrame::kBodyOnce
+                 ? "racket_target(commit/WAIT)" : "racket_target_rel_base(body)")
+          : (obs.size() == kObsDim110 && blks[i].lo == 106 &&
+             cfg_.target_frame != PpTargetFrame::kTraining)
+          ? (cfg_.target_frame == PpTargetFrame::kBodyOnce
+                 ? "racket_vel(commit/WAIT)" : "racket_target_vel(body)") : blks[i].n;
+      std::fprintf(stderr, "   %-24s [%3d:%3d] %s\n", name, blks[i].lo, blks[i].lo + blks[i].len,
                    S(obs.segment(blks[i].lo, blks[i].len)).c_str());
+    }
     std::fprintf(stderr, " ACTION(raw,Isaac)[31]: %s\n", S(action).c_str());
     if (onnx_.has_bounded_qdes_contract()) {
       std::fprintf(stderr, " Q_DES(nominal,Isaac) : %s\n", S(qdes_nominal_isaac_).c_str());
@@ -6164,6 +6217,7 @@ class PpPolicy {
   std::string planner_lifecycle_reason_ = "init";
   std::uint64_t planner_lifecycle_seq_ = 0;
   std::uint64_t planner_shot_seq_ = 0;
+  PpCommittedBodyTarget committed_body_target_;
   std::uint64_t planner_current_msg_seq_ = 0;
   std::uint64_t planner_schema22_producer_epoch_ = 0;
   std::uint64_t planner_current_producer_epoch_ = 0;
