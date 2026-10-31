@@ -280,6 +280,20 @@ class AdapterTests(unittest.TestCase):
         self.receive(2,200_000_000)
         self.assertTrue(self.tracker.status(*self.clock,True)["channels"]["bms"]["message_fresh"])
 
+    def test_native_delayed_cdr_keeps_original_receipt_age(self):
+        callback = self.callbacks[configuration()["channels"]["bms"]["topic"]]
+        # Graph cache can be refreshed after ingress but before dispatch.
+        self.clock[:] = [10.5, WALL+500_000_000]
+        self.adapter._refresh_endpoints()
+        for seq, delta in ((1,100_000_000),(2,200_000_000)):
+            message = types.SimpleNamespace(serialization_type="pb",
+                data=self.message("bms",seq,delta).SerializeToString())
+            callback(message, types.SimpleNamespace(publisher_gid=bytes([1])*24,
+                received_monotonic_s=10+delta/1e9, received_wall_ns=WALL+delta))
+        channel = self.tracker.status(*self.clock,True)["channels"]["bms"]
+        self.assertAlmostEqual(channel["receipt_age_s"], .3)
+        self.assertEqual(channel["sequence"], 2)
+
     def test_adapter_accepts_unset_bms_sequence_with_source_progress(self):
         self.receive(0,100_000_000)
         self.receive(0,200_000_000)

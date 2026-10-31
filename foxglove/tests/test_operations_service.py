@@ -13,7 +13,8 @@ def test_canonical_unit_keeps_jazzy_failure_restart_contract():
     unit.read(Path(__file__).resolve().parents[1] / "a3/hope-lifecycle-supervisor.service")
     service = unit["Service"]
     assert "source /opt/ros/jazzy/setup.bash" in service["ExecStart"]
-    assert "python3 /usr/local/bin/hope_operations.py" in service["ExecStart"]
+    assert "/usr/local/libexec/hope-operations" in service["ExecStart"]
+    assert service["TimeoutStopSec"] == "45min"
     assert service["Restart"] == "on-failure"
     # Exit 1 must retain systemd's default failure/restart classification.
     assert not service.get("SuccessExitStatus", "").strip()
@@ -44,21 +45,22 @@ def test_operations_starts_without_peers_and_preserves_explicit_peers(tmp_path, 
     setup = tmp_path / "setup.bash"
     setup.write_text(f'export PATH={shlex.quote(str(tmp_path))}:"$PATH"\n')
     python = tmp_path / "python3"
-    python.write_text('#!/bin/bash\nprintf "PYTHON %s\\n" "$@"\n')
+    python.write_text('#!/bin/bash\nprintf "NATIVE %s\\n" "$@"\n')
     wrapper = tmp_path / "dds-wrapper"
     wrapper.write_text('#!/bin/bash\nprintf "DDS %s\\n" "$@"\n'
                        'while [[ "$1" != -- ]]; do shift; done\nshift\nexec "$@"\n')
     for program in (python, wrapper):
         program.chmod(0o755)
     command = command.replace("/opt/ros/jazzy/setup.bash", shlex.quote(str(setup)))
+    command = command.replace("/usr/local/libexec/hope-operations", shlex.quote(str(python)))
     command = command.replace("/home/agi/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh",
                               shlex.quote(str(wrapper)))
     result = subprocess.run(["bash", "-c", command], capture_output=True, text=True,
                             env={**os.environ, "ROS_STATIC_PEERS": peers, "ROS_DOMAIN_ID": "219"})
     assert result.returncode == 0, result.stderr
-    assert "PYTHON /usr/local/bin/hope_operations.py" in result.stdout
-    assert "PYTHON calibration_service_v2:=/a3/calibration/recompute_ucb_robot_v2\n" in result.stdout
-    assert "PYTHON calibration_service_v3:=/a3/calibration/recompute_ucb_robot_v3\n" in result.stdout
+    assert "NATIVE --ros-args" in result.stdout
+    assert "NATIVE calibration_service_v2:=/a3/calibration/recompute_ucb_robot_v2\n" in result.stdout
+    assert "NATIVE calibration_service_v3:=/a3/calibration/recompute_ucb_robot_v3\n" in result.stdout
     if peers:
         assert result.stdout.count("DDS --peer\n") == 2
         assert "DDS 10.42.20.1\n" in result.stdout and "DDS 10.42.10.12\n" in result.stdout

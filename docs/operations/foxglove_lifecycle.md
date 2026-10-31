@@ -202,12 +202,12 @@ unconditional `makestep` on a chrony service restart.
    or motion restart. Clock qualification remains diagnostic during ordinary
    operation; the existing startup checks still apply.
 
-The HDU control plane may use either the split services or a consolidated
-`hope_operations.py` process. Both require the monitor, data bridge, control
+The HDU control plane may use split services, a consolidated Python reference,
+or the native `hope-operations` owner. All require the monitor, data bridge, control
 bridge and lifecycle-supervisor units to be active. Split deployments also
 require active `hope-observer.service` and `hope-command-proxy.service`.
-Consolidated deployments instead require the actual Python
-`/usr/local/bin/hope_operations.py` process owned by the lifecycle-supervisor
+Consolidated deployments require the actual `/usr/local/libexec/hope-operations`
+process (or legacy Python `/usr/local/bin/hope_operations.py`) owned by the lifecycle-supervisor
 service; its process ownership is checked, not just its unit name or wrapper
 command. The observer/proxy units may be absent or loaded but inactive
 compatibility stubs (for example, `ExecStart=/usr/bin/true`). Those stubs are not
@@ -221,7 +221,7 @@ loaded-inactive status is harmless only with a verified deployment layout;
 it is not permission to ignore an unowned process.
 
 Normal and fail-safe restoration wait up to 30 seconds for the actual owned
-`hope_operations.py` Python child to return in a consolidated layout; an active
+native or Python operations process to return in a consolidated layout; an active
 shell wrapper and listening port alone do not prove recovery. If a previously
 active unit has disappeared or cannot be verified, restoration still attempts
 the remaining captured units, but reports failure rather than `COMPLETE`.
@@ -745,71 +745,162 @@ constitute a live hard-step recovery test.
 
 ## Install the HDU supervisor
 
-**Deployment-layout boundary:** the commands below are installation examples
-for the **split** control plane, not an in-place migration recipe for every
-field robot. First inspect `systemctl cat`/`systemctl status` for the supervisor,
-observer and command-proxy units, including their actual processes. An existing
-`hope-lifecycle-supervisor.service` running `/usr/local/bin/hope_operations.py`
-owns the combined lifecycle, observer and proxy implementation. Preserve its
-unit, field bundle, module versions and venue configuration; do not overwrite
-them with the split sample units/modules or enable its inactive compatibility
-stubs. Update that bundle through its matching deployment procedure. Changing
-between layouts requires a separately reviewed stopped migration, not a clock
-calibration prerequisite.
+### Bridge, monitor and clock-coordinator prerequisites
 
-Stage `foxglove/a3/` as described in `foxglove/README.md` and refresh
-`~/foxglove_a3/fastdds_bridge_profile.xml` from this branch, then run on the
-HDU:
+These are explicit installation steps, separate from staging the operations
+candidate. First follow [bridge source staging/build](../../foxglove/README.md#1-stage-and-build-foxglove_bridge-once-per-robot)
+and [native monitor, bridge and transport installation](../../foxglove/README.md#2-install-the-bridge-and-monitor-services).
+Those sections install the native monitor binary/unit, data bridge, DDS profile
+and venue `network.env`. Install the matching `hope_bringup` workspace and
+[lifecycle helpers/sudo rules](foxglove_first_hardware_test.md#72-进入-mdu-并配置最小-sudo-权限)
+before proceeding. Preserve existing venue configuration and inspect unit
+drop-ins; perform file replacements only in the approved stopped window.
+
+With the complete matching `foxglove/a3/` staged at `~/foxglove_a3`, install the
+remaining control bridge and clock components on the HDU:
 
 ```bash
-sudo install -D -o root -g root -m 0755 \
-  ~/foxglove_a3/hope_lifecycle_supervisor.py \
-  /usr/local/bin/hope_lifecycle_supervisor.py
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/hope_lifecycle_core.py \
-  /usr/local/lib/hope-foxglove/hope_lifecycle_core.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_player_positions.py /usr/local/lib/hope-foxglove/hope_player_positions.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_health.py /usr/local/lib/hope-foxglove/hope_elink_health.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_fault.py /usr/local/lib/hope-foxglove/hope_elink_fault.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_telemetry.py /usr/local/lib/hope-foxglove/hope_elink_telemetry.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_telemetry_ros.py /usr/local/lib/hope-foxglove/hope_elink_telemetry_ros.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_elink_clock.py /usr/local/lib/hope-foxglove/hope_elink_clock.py
-# Build/qualify the native monitor as described in foxglove/README.md first.
-sudo install -D -o root -g root -m 0755 ~/hope_field_native_build/hope-monitor /usr/local/libexec/hope-monitor
-sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_time_calibration.py /usr/local/bin/hope_time_calibration.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_time_calibration_core.py /usr/local/lib/hope-foxglove/hope_time_calibration_core.py
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-time-calibration.service /etc/systemd/system/hope-time-calibration.service
-sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-chrony-burst.service /etc/systemd/system/hope-chrony-burst.service
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/hope-lifecycle-supervisor.service \
-  /etc/systemd/system/hope-lifecycle-supervisor.service
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/bridge_params_control.yaml \
+sudo install -D -o root -g root -m 0755 ~/foxglove_a3/hope_time_calibration.py \
+  /usr/local/bin/hope_time_calibration.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope_time_calibration_core.py \
+  /usr/local/lib/hope-foxglove/hope_time_calibration_core.py
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-time-calibration.service \
+  /etc/systemd/system/hope-time-calibration.service
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-chrony-burst.service \
+  /etc/systemd/system/hope-chrony-burst.service
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/bridge_params_control.yaml \
   /etc/hope-foxglove/control_bridge_params.yaml
-sudo install -D -o root -g root -m 0644 \
-  ~/foxglove_a3/fastdds_bridge_profile.xml \
-  /etc/hope-foxglove/fastdds_bridge_profile.xml
-
+sudo install -D -o root -g root -m 0644 ~/foxglove_a3/hope-foxglove-control-bridge.service \
+  /etc/systemd/system/hope-foxglove-control-bridge.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now \
-  hope-observer.service \
-  hope-command-proxy.service \
-  hope-foxglove-control-bridge.service \
-  hope-lifecycle-supervisor.service \
-  hope-time-calibration.service
 ```
 
-In the split layout, these units form the always-available, fixed-action control plane needed
-to start a stopped robot from Foxglove. They do not start HAL, Planner or
-Runner, and they do not stop `agibot_pm`. In lifecycle mode, leave them running
-after `KILL ALL & COLLECT` so the next session can be started without a terminal.
+Do not start/enable these dependencies yet: starting the control bridge pulls
+in time calibration, which pulls in the supervisor. Complete the stopped
+activation below first. The native installer is an **existing-deployment
+migration**, not a fresh-HDU bootstrap. A genuinely uninitialized HDU first
+needs the [reference-owner initialization below](#first-install-only-initialize-the-reference-owner).
+Do not use that first-install procedure on an existing deployment, or create a
+substitute lock to bypass an initialization error.
+
+### First install only: initialize the reference owner
+
+Skip this section on an existing robot. In an attended supported/stopped
+maintenance window, inspect all three operations units and their processes.
+This procedure is **only** for a fresh HDU with no installed supervisor,
+observer or command-proxy unit, no previous lifecycle state/interlock, and no
+running HOPE session. An existing deployment with missing state needs recovery,
+not reinitialization. Complete the bridge/helper prerequisites above first.
+
+The matched Python reference can initialize the canonical unit's state
+directory/interlock before native migration. Install its complete matched
+module set, rather than reviving the old split-service install list. The
+example uses the repository's `agi` user/group and home; adapt all matching
+unit paths together if the robot account differs. Paste the complete subshell
+block: a failure stops this setup sequence without exiting the SSH shell or
+continuing to install/start a partial owner.
+
+```bash
+(
+set -e
+cd ~/foxglove_a3
+# Review the exact dependency list; these are the same modules staged natively.
+python3 -c 'from hope_operations_deploy import MODULES; print("\n".join(MODULES))'
+hope_bootstrap_modules=$(python3 -c 'from hope_operations_deploy import MODULES; print(" ".join(MODULES))')
+for module in $hope_bootstrap_modules; do
+  sudo install -D -o root -g root -m 0644 "$module" "/usr/local/lib/hope-foxglove/$module"
+done
+sudo install -D -o root -g root -m 0755 hope_operations.py /usr/local/bin/hope_operations.py
+hope_bootstrap_dir=$(mktemp -d /tmp/hope-operations-bootstrap.XXXXXX)
+sed 's|/usr/local/libexec/hope-operations|/usr/bin/python3 /usr/local/bin/hope_operations.py|g' \
+  hope-lifecycle-supervisor.service > "$hope_bootstrap_dir/hope-lifecycle-supervisor.service"
+sudo install -D -o root -g root -m 0644 "$hope_bootstrap_dir/hope-lifecycle-supervisor.service" \
+  /etc/systemd/system/hope-lifecycle-supervisor.service
+sudo systemctl daemon-reload
+systemctl cat hope-lifecycle-supervisor.service
+# Start only the ROS control-plane owner, never lifecycle START or robot motion.
+sudo systemctl start hope-lifecycle-supervisor.service
+systemctl status hope-lifecycle-supervisor.service --no-pager
+)
+```
+
+Verify one Python `hope_operations` owner, `/hope/lifecycle/state` = `STOPPED`,
+no managed HAL/Runner session, and the unit-created
+`/var/lib/hope-lifecycle/hardware-operation.lock`. Then run
+`sudo systemctl stop hope-lifecycle-supervisor.service` and wait for it to exit.
+If initialization fails, diagnose it before proceeding; do not fabricate the
+lock. The native activation below backs up this initialized reference bundle
+for rollback. This initialization does not enable the unit or start the control
+bridge/time-calibration dependencies; native activation remains attended.
+
+The native candidate's matching lifecycle modules also retain a same-boot
+session receipt. After a supervisor restart, a known session is presented as
+requiring explicit cleanup, not silently STOPPED; no START or motion is replayed.
+Cleanup requires fresh matching Runner identity and the hardware interlock.
+Split-layout supervisors obtain that identity directly from Runner state. If
+Runner is already gone or partial startup/cleanup was interrupted, use the
+[attended offline recovery procedure](../../foxglove/a3/native/README.md#attended-recovery-when-runner-identity-is-unavailable).
+It repeats the existing STOP/collection sequence under the hardware interlock,
+without a DDS/Runner prerequisite, and archives the receipt only on success.
+It can restore vendor Manual/joint control, so the documented physical support
+and wired E-stop precautions are mandatory. Do not delete the receipt. This does
+not alter normal START/STOP or add telemetry/battery/clock motion gates. See
+[restart identity and metrics](../../foxglove/a3/native/README.md#restart-identity-and-operational-diagnostics).
+When migrating legacy units, time calibration accepts inactive masked optional
+observer/proxy units but never restores/unmasks them or relaxes required-unit and
+remaining-process checks. Install the matching clock module with this candidate.
+
+### Stage and activate the native operations candidate
+
+The canonical unit now runs the C++ `hope-operations` parent and a non-ROS
+Python orchestration worker. Preserve its state/configuration and venue drop-ins;
+inspect effective `ExecStart` before switching. Stage the complete matching
+`foxglove/a3/` folder and stage the native bundle using the
+[native build and qualification guide](../../foxglove/a3/native/README.md):
+
+```bash
+# On the HDU with ROS Jazzy and the vendor SDK prefix sourced:
+bash ~/foxglove_a3/install_native_operations.sh --robot-user agi --robot-group agi
+```
+
+Staging changes no active unit, binary, shared Python modules, systemd loaded
+state or boot behavior. Explicit activation in the native guide requires a
+supported/stopped, attended window, verifies stopped owners and a free hardware
+lock, and backs up the matched previous bundle. It does not start services.
+Real legacy observer/proxy units must also be disabled or persistently masked
+(not just stopped), absent, or verified `/usr/bin/true` compatibility stubs, to avoid duplicate
+ROS owners on reboot. Activation does not disable them automatically. A missing
+existing hardware-operation lock requires baseline supervisor initialization;
+the migration tool does not manufacture a replacement interlock.
+The documented service start and qualification remain separate steps. The
+prerequisite commands above are not part of stage-only installation. The
+matching time-calibration core recognizes native and legacy Python consolidated owners.
+
+After explicit activation and inspection of the effective units, in the same
+supported/stopped attended window:
+
+```bash
+sudo systemctl enable --now hope-lifecycle-supervisor.service
+sudo systemctl enable --now hope-time-calibration.service hope-foxglove-control-bridge.service
+systemctl status hope-lifecycle-supervisor.service hope-time-calibration.service \
+  hope-foxglove-control-bridge.service hope-monitor.service --no-pager
+```
+
+Do not enable the legacy observer/proxy units or the chrony-burst oneshot.
+For already-enabled upgrades, only restart the updated owners in the attended
+window; do not turn migration into an unattended boot-time switch.
+
+The legacy observer/proxy units are compatibility shims, not independent ROS
+owners. Do not enable a second Python operations process alongside the native
+service. These control-plane services remain available after KILL ALL & COLLECT
+and do not themselves start HAL, Planner or Runner.
 The time-calibration coordinator is idle until an explicit attended request;
 enabling it does not step a clock. `hope-chrony-burst.service` is a fixed oneshot
 dependency, not an enabled boot task. Clock calibration also requires the
 approved bootstrap/PTP installation and the MDU helper's exact sudo rules in
 the [hardware runbook](foxglove_first_hardware_test.md#72-进入-mdu-并配置最小-sudo-权限).
 
-For an upgrade, `enable --now` does not reload an already-running Python
+For an upgrade, `enable --now` does not reload an already-running operations
 process. During the approved, supported/stopped maintenance window, restart the
 updated monitor and the control-plane services that actually own the installed
 layout after staging the entire matching

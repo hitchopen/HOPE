@@ -102,7 +102,8 @@ def test_action_lock_suppresses_both_paths_and_next_poll_rechecks(proxy):
     proxy._publish_calibration_status.assert_called_once_with(False, "NO SAVED CALIBRATION")
 
 
-def test_lifecycle_external_field_wire_is_unchanged_by_parsed_fanout(monkeypatch):
+@pytest.mark.parametrize("native", [False, True])
+def test_lifecycle_external_field_wire_is_unchanged_by_parsed_fanout(monkeypatch, native):
     monkeypatch.delenv("HOPE_AUTO_RECORD_ON_START", raising=False)
     pytest.importorskip("rclpy")
     from hope_lifecycle_supervisor import LifecycleConfig, LifecycleModule
@@ -115,6 +116,13 @@ def test_lifecycle_external_field_wire_is_unchanged_by_parsed_fanout(monkeypatch
     module._last_result = "fixture"
     from hope_player_positions import PlayerPositions
     module._player_positions = PlayerPositions()
+    if native:
+        from hope_operations_native_state import NativePlayerPositions
+        def status(*args, **kwargs):
+            assert module._lock.acquire(blocking=False), "native player IPC held lifecycle lock"
+            module._lock.release()
+            return PlayerPositions().status(0)
+        module._player_positions = NativePlayerPositions(SimpleNamespace(query=status))
     module._elink_sequence = 0
     module._elink_status_locked = Mock(return_value={"state": "UNKNOWN"})
     module._elink_publisher = Mock()

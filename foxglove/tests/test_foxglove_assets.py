@@ -13,6 +13,19 @@ REPO_DIR = FOXGLOVE_DIR.parent
 
 
 class FoxgloveAssetInvariantTests(unittest.TestCase):
+    def assert_console_message(self, source, key, english_text):
+        """Check UI wiring and both catalogs after Console localization."""
+        self.assertIn(f'"{key}"', source)
+        catalogs = FOXGLOVE_DIR / "extensions/hope-a3-console/src"
+        for locale in ("en", "zh"):
+            text = (catalogs / f"messages.{locale}.ts").read_text()
+            body = text.split(f"export const {locale} =", 1)[1]
+            messages = json.loads(body[body.index("{"):body.rindex("}") + 1])
+            self.assertIsInstance(messages[key], str)
+            self.assertTrue(messages[key])
+            if locale == "en":
+                self.assertIn(english_text, messages[key])
+
     def test_browser_publish_permission_is_liveness_only(self):
         params = yaml.safe_load((FOXGLOVE_DIR / 'a3/bridge_params_control.yaml').read_text())['/**']['ros__parameters']
         rules = params['client_topic_whitelist']
@@ -24,10 +37,14 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
 
     def test_root_deployment_summary_describes_only_current_model(self):
         readme = (REPO_DIR / 'README.md').read_text()
-        self.assertIn('## A3 deployment: model17400 + PPQ004', readme)
-        self.assertIn('**receive-only**', readme)
+        heading = '## A3 deployment: model17400 + PPQ004'
+        self.assertIn(heading, readme)
+        deployment = readme.split(heading, 1)[1].split('\n## ', 1)[0]
+        self.assertIn('**receive-only**', deployment)
+        # Historical training/Gate3 references elsewhere are not deployment
+        # selections; this contract checks the current deployment section.
         for name in ('model_21800', 'model21800', 'model14600', 'model11999', 'model12600'):
-            self.assertNotIn(name, readme)
+            self.assertNotIn(name, deployment)
 
     def test_supervisor_explicit_peers_match_bridge_without_breaking_empty_setup(self):
         unit = (FOXGLOVE_DIR / 'a3/hope-lifecycle-supervisor.service').read_text()
@@ -43,7 +60,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             result = subprocess.run(['bash', '-c', script], text=True, capture_output=True,
                                     env={'ROS_STATIC_PEERS': peers, 'ROS_DOMAIN_ID': '218'})
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('</usr/local/bin/hope_operations.py>', result.stdout)
+            self.assertIn('</usr/local/libexec/hope-operations>', result.stdout)
             if peers:
                 for expected in ('<--domain-id>', '<218>', '<192.0.2.10>', '<192.0.2.20>'):
                     self.assertIn(expected, result.stdout)
@@ -499,8 +516,10 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertIn(service, extension)
         self.assertNotIn("/hope/runner/confirm_loading_zone_clear", extension)
         self.assertNotIn("Loading zone clear", extension)
-        self.assertIn('label="Start to Serve · Raise hand"', extension)
-        self.assertIn('label="Ready"', extension)
+        self.assertIn('label={t("hopeA3Console.startToServeRaiseHand")}', extension)
+        self.assert_console_message(extension, "hopeA3Console.startToServeRaiseHand", "Start to Serve · Raise hand")
+        self.assertIn('label={t("hopeA3Console.ready")}', extension)
+        self.assert_console_message(extension, "hopeA3Console.ready", "Ready")
         self.assertNotIn("serveContinuation", extension)
         self.assertNotIn("Continue receive", extension)
         self.assertNotIn("/hope/lifecycle/stop_and_collect", extension)
@@ -509,14 +528,14 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertNotIn('refreshXHit', extension)
         self.assertNotIn("/hope/calibrate_v2", extension)
         self.assertNotIn("/hope/calibrate_v3", extension)
-        self.assertIn('"UCB_P2 · ROTATE 180°"', extension)
+        self.assert_console_message(extension, "hopeA3Console.ucbP2Rotate180", "UCB_P2 · ROTATE 180°")
         self.assertIn('tableSide: "/hope/lifecycle/config/table_side"', extension)
         self.assertIn('markerAsset: "/hope/mocap/marker_asset"', extension)
         self.assertIn('markers: "/hope/mocap/marker_count"', extension)
         self.assertNotIn('markersLegacy:', extension)
-        self.assertIn("E-STOP ASSERTED", extension)
-        self.assertIn("CLICK TO REASSERT", extension)
-        self.assertIn("BACKEND UNKNOWN · CLICK STILL ASSERTS", extension)
+        self.assert_console_message(extension, "hopeA3Console.eStopAsserted", "E-STOP ASSERTED")
+        self.assert_console_message(extension, "hopeA3Console.clickToReassertResetSoftwareEStopBelow", "CLICK TO REASSERT")
+        self.assert_console_message(extension, "hopeA3Console.backendUnknownClickStillAsserts", "BACKEND UNKNOWN · CLICK STILL ASSERTS")
         self.assertIn("disabled={busy.estop === true}", extension)
         self.assertNotIn(
             "disabled={!estopUsable || busy.estop === true || estopAsserted}",
@@ -527,15 +546,15 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             extension,
         )
         self.assertIn("runnerStanding", extension)
-        self.assertIn("post-contact handoff", extension)
-        self.assertIn("Reset Software E-stop", extension)
+        self.assert_console_message(extension, "hopeA3Console.serveConfirm", "post-contact handoff")
+        self.assert_console_message(extension, "hopeA3Console.resetSoftwareEStop", "Reset Software E-stop")
         self.assertNotIn("SERVER returns to PD_STAND after serve", extension)
         self.assertIn('snapshot.localRole !== "RECEIVER"', extension)
         self.assertIn('snapshot.localRole !== "SERVER"', extension)
         self.assertIn("stale telemetry must never make the panel look reset", extension)
         self.assertIn('"/hope/safety/estop_latched"', extension)
         self.assertIn('"/hope/system/cpu_top_process"', extension)
-        self.assertIn("LAST UI REQUEST", extension)
+        self.assert_console_message(extension, "hopeA3Console.lastUiRequest", "LAST UI REQUEST")
         self.assertIn(
             "hope-a3-console.HOPE A3 Console!operator", layout["configById"]
         )
@@ -581,7 +600,9 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn(">= requestedAt", apply)
         self.assertIn("isFresh(current, TOPICS.plannerDiagnostics", apply)
         self.assertIn("current.planeMode?.requested === mode", apply)
-        self.assertIn("throw new Error", apply.split("while (Date.now() < deadline)", 1)[1])
+        self.assertIn('throw new LocalizedError(msg("hopeA3Console.planeFeedbackTimeout"))',
+                      apply.split("while (Date.now() < deadline)", 1)[1])
+        self.assert_console_message(apply, "hopeA3Console.planeFeedbackTimeout", "feedback timed out")
         self.assertIn("onApply={applyPlaneMode}", extension)
         self.assertIn("snapshot.planeMode?.configurable === true", extension)
 
@@ -672,13 +693,13 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("try_acquire_hardware_operation_lock", lifecycle_supervisor)
         self.assertIn("release_hardware_operation_lock", lifecycle_supervisor)
         self.assertIn('"^/hope/lifecycle/time_calibration$"', bridge)
-        self.assertIn("TIME CALIBRATION", extension)
+        self.assert_console_message(extension, "hopeA3Console.timeCalibration", "TIME CALIBRATION")
         self.assertIn("timeCalibrationControls({", extension)
         self.assertIn("lifecycleStopped", extension)
         controls = (FOXGLOVE_DIR / "extensions/hope-a3-console/src/timeCalibration.ts").read_text()
         self.assertIn("FAILED_SAFE_STOP", controls)
-        self.assertIn("valid same-boot receipt", extension)
-        self.assertIn("RECEIPT-SAFE", extension)
+        self.assert_console_message(extension, "hopeA3Console.runTheControlled104HduTimeCalibration", "valid same-boot receipt")
+        self.assert_console_message(extension, "hopeA3Console.timeCalibrationRunbook104ReceiptSafe", "RECEIPT-SAFE")
 
     def test_lifecycle_surface_is_fixed_and_has_no_browser_shell(self):
         supervisor = (
@@ -810,7 +831,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
         self.assertIn("START_INTERNAL_ERROR", supervisor)
         self.assertIn("KILL_INTERNAL_ERROR", supervisor)
         self.assertIn("never leave hardware lifecycle busy", supervisor)
-        self.assertIn("KILL ALL & COLLECT", extension)
+        self.assert_console_message(extension, "hopeA3Console.killAllCollect", "KILL ALL & COLLECT")
         self.assertIn('lifecycleState === "KILLING"', extension)
         self.assertIn("</dev/null >/dev/null 2>&1", helper)
         self.assertIn("hope-laptop-container-runtime", helper)
@@ -1114,7 +1135,7 @@ cgroup_path_in_systemd_unit \
                 self.assertIn("ExecStart=/usr/bin/true", unit)
                 self.assertNotIn("python3", unit)
         canonical = (FOXGLOVE_DIR / "a3/hope-lifecycle-supervisor.service").read_text()
-        self.assertIn("python3 /usr/local/bin/hope_operations.py", canonical)
+        self.assertIn("/usr/local/libexec/hope-operations", canonical)
         self.assertIn("User=agi", canonical)
         self.assertIn("hardware-operation.lock", canonical)
         self.assertIn("StateDirectory=hope-lifecycle", canonical)

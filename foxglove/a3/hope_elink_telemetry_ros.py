@@ -95,7 +95,12 @@ class ElinkTelemetrySubscriptions:
 
     def _callback(self, topic, channels):
         def consume(message, info):
-            now, wall_ns = self._monotonic(), self._wall_ns()
+            # Native IPC supplies paired host receipt clocks, not dispatch time.
+            # Generated ROS messages have slots; keep metadata on MessageInfo.
+            now = getattr(info, "received_monotonic_s", None)
+            wall_ns = getattr(info, "received_wall_ns", None)
+            if now is None or wall_ns is None:
+                now, wall_ns = self._monotonic(), self._wall_ns()
             with self._lock:
                 if self._closed:
                     return
@@ -103,7 +108,7 @@ class ElinkTelemetrySubscriptions:
                 endpoint = self._endpoints.get(topic)
                 try:
                     gid = bytes(info.publisher_gid).hex()
-                    if (endpoint is None or not 0 <= now - endpoint[2] < 2.5 or gid != endpoint[1]):
+                    if (endpoint is None or not 0 <= self._monotonic() - endpoint[2] < 2.5 or gid != endpoint[1]):
                         raise ValueError("ELINK_TELEMETRY_PUBLISHER_IDENTITY_UNAVAILABLE")
                     if message.serialization_type != "pb" or len(message.data) > 65536:
                         raise ValueError("ELINK_TELEMETRY_WRAPPER_INVALID")
