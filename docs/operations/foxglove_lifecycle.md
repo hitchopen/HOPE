@@ -420,6 +420,18 @@ capture cannot be assumed complete. The switch changes capture only, never
 Runner mode, gains, targets or HAL state. Routine operational logs remain active.
 After the trial, press **Record OFF**, then **KILL + COLLECT** and wait for
 collection to finish before powering off. KILL also requests recording OFF.
+
+KILL verifies vendor restoration after stopping both robot boards. An active
+`agibot_pm` and an ELink process alone do not establish restoration. The
+read-only `verify-vendor-mdu` step waits up to 120 seconds for the vendor FSM
+to settle in Ready/Manual/EStop, required managed applications to run, both
+health-monitor nodes to be visible to the FSM, and MC's GetAction to report
+running PASSIVE. It requires two successful snapshots. A vendor `Failed`
+state is rejected even when its transition status says `IN_READY`.
+Verification failure still allows log collection, but retains lifecycle FAILED
+and the session recovery context instead of reporting restoration/STOPPED.
+This check neither restarts vendor processes nor sends motion/power commands;
+it does not replace physical support or the vendor power-button interlock.
 The operator does not need to start another recorder. Robot data persists under
 `/agibot/data/bag/hope_pingpong_telemetry/sim2real_sessions/<session>/<role>`;
 the collected copy is under `real_logs/<session>/` on the Laptop. Existing
