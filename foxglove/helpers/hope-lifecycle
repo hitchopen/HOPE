@@ -1481,7 +1481,7 @@ import sys
 text = Path(sys.argv[1]).read_text(errors="replace")
 clean = re.sub(r"\x1b\[[0-9;]*m.*?\x1b\[0m", "", text, flags=re.S)
 required = ("waist", "leg", "arm", "neck", "pelvis_imu", "torso_imu")
-ready = all(re.search(r"(?:^|\s)" + name + r"\s+ready=yes(?![A-Za-z_])", clean)
+ready = all(re.search(r"(?:^|\s)" + name + r"\s+ready=\s*yes(?![A-Za-z_])", clean)
             for name in required)
 bridge = "serve025 bridge ready; startup sent no gripper command" in text
 sys.exit(0 if ready and (bridge or sys.argv[2] == "receive_only") else 1)
