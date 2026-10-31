@@ -2,6 +2,7 @@
 #include "hope_planner_cpp/schema3_packer.hpp"
 #include "hope_planner_cpp/session_home_reference.hpp"
 #include "hope_planner_cpp/spsc_ring.hpp"
+#include "hope_planner_cpp/wire_identity_state.hpp"
 
 #include <gtest/gtest.h>
 
@@ -12,6 +13,47 @@
 
 namespace hope_planner_cpp {
 namespace {
+
+TEST(Schema2, RestartReservationSurvivesClockRollbackWithoutReusingFlights) {
+  char directory[] = "/tmp/hope-wire-identity-test-XXXXXX";
+  ASSERT_NE(::mkdtemp(directory), nullptr);
+  const std::string path = std::string(directory) + "/identity";
+  const auto first = reserve_wire_identity_range(path, 1793387000000000ULL);
+  Schema2Packer before(first.begin, first.end);
+  const auto a = before.next_identity(true, 1000000000, true);
+  const auto b = before.next_identity(false, 1000000001, false);
+  const auto second = reserve_wire_identity_range(path, 1); // clock rollback
+  Schema2Packer after(second.begin, second.end);
+  const auto c = after.next_identity(true, 1000000002, true);
+  EXPECT_GT(c.command_sequence, b.command_sequence);
+  EXPECT_GT(c.flight_id, a.flight_id);
+  EXPECT_EQ(c.revision_id, 1U);
+  EXPECT_EQ(static_cast<std::uint64_t>(static_cast<double>(c.command_sequence)), c.command_sequence);
+  EXPECT_EQ(second.begin, first.end);
+  std::filesystem::remove_all(directory);
+}
+
+TEST(Schema2, InvalidPersistentCounterCannotResetIdentity) {
+  char directory[] = "/tmp/hope-wire-invalid-test-XXXXXX";
+  ASSERT_NE(::mkdtemp(directory), nullptr);
+  const std::string path = std::string(directory) + "/identity";
+  for (const auto* value : {"", "garbage\n", "123\n456\n", "0\n", "4503599627370496\n"}) {
+    { std::ofstream output(path); output << value; }
+    EXPECT_THROW(reserve_wire_identity_range(path, 1000), std::runtime_error);
+  }
+  std::filesystem::remove_all(directory);
+}
+
+TEST(Schema2, ReservedRangeCannotOverflowIntoAnotherProcessRange) {
+  Schema2Packer packer(100, 102);
+  EXPECT_EQ(packer.next_identity(true, 1, true).command_sequence, 101U);
+  const auto exhausted = packer.next_identity(true, 2, true);
+  EXPECT_EQ(exhausted.command_sequence, 0U);
+  RacketCommand command;
+  command.valid = true;
+  EXPECT_FALSE(Schema2Packer::pack(&command, 1, 101, .76, 100000000000LL,
+                                 exhausted, 54, .18).valid);
+}
 
 TEST(SessionHomeReference, IgnoresProcessStartupPoseAndFreezesFirstSolvePose) {
   SessionHomeReference home;

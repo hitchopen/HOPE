@@ -2,6 +2,7 @@
 # Both nodes use the same Magnus and capped slip/contact model.
 hope_planner:
   ros__parameters:
+    wire_identity_state_file: "/var/lib/hope-lifecycle/planner_wire_identity.state"
     future_contact_magnus_enabled: true
     future_contact_spin_enabled: true
     future_contact_spin_tangential_gain: 0.38744443855065164
