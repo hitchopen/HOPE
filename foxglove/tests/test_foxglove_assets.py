@@ -981,7 +981,11 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
                          ("waist", "leg", "arm", "neck", "pelvis_imu", "torso_imu"))
         bridge = "serve025 bridge ready; startup sent no gripper command\n"
         split = normal.replace("pelvis_imu ready=yes", "pelvis_imu" + injected + " ready=yes")
+        split_value = normal.replace("torso_imu ready=yes", "torso_imu ready=" + injected + "yes")
         cases = [(split + bridge, 0),
+                 (split_value + bridge, 0),
+                 (split_value.replace(injected + "yes", injected + "no") + bridge, 1),
+                 (split_value.replace("torso_imu", "missing_imu") + bridge, 1),
                  (split.replace("pelvis_imu", "missing_imu") + bridge, 1),
                  (split.replace(" ready=yes", " ready=no", 1) + bridge, 1),
                  (split.replace("pelvis_imu" + injected + " ready=yes", "pelvis_imu" + injected + " ready=no") + bridge, 1),
