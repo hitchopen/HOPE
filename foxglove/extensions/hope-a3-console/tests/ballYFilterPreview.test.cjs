@@ -56,6 +56,8 @@ test('migrates the accidentally persisted original default to the disabled publi
 test('applied/restored values can sync with fresh Planner receipts; user edits remain protected', () => {
   const applied = {ballYFilterDraft:{enabled:true,min:'-1.25',max:'-0.554359'},ballYFilterDraftEdited:false};
   assert.equal(readBallYFilterDraft(applied).min, '-1.25');
+  assert.equal(readBallYFilterDraft(applied).enabled, false);
+  assert.equal(readBallYFilterDraft({...applied,ballYFilterDraftEdited:true}).enabled, true);
   assert.equal(ballYFilterDraftEdited(applied), false);
   assert.equal(ballYFilterDraftEdited({...applied,ballYFilterDraftEdited:true}), true);
   const explicitOldValue = {ballYFilterDraft:{enabled:true,min:'-1.38959',max:'-0.554359'},ballYFilterDraftEdited:true};

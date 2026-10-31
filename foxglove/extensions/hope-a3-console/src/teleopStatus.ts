@@ -1,3 +1,4 @@
+import { Translator, defaultTranslator } from "./i18n";
 // Foxglove's CDR decoder delivers Float64MultiArray.data as a typed array.
 // JSON data sources deliver an ordinary array; support both representations.
 export function decodeTeleopState(value: unknown): number[] | undefined {
@@ -40,28 +41,28 @@ export function teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFre
   xboxFresh: boolean;
   xbox: TeleopXboxInput | undefined;
   estop: boolean;
-}): string | undefined {
-  if (!runnerFresh) { return "Start the system and wait for Runner status."; }
-  if (runnerFault) { return "Runner reports a command fault."; }
-  if (estop || xbox?.estop_requested === true) { return "Reset the software E-stop before entering Teleop."; }
+}, t: Translator = defaultTranslator): string | undefined {
+  if (!runnerFresh) { return t("teleopStatus.startTheSystemAndWaitForRunnerStatus"); }
+  if (runnerFault) { return t("teleopStatus.runnerReportsACommandFault"); }
+  if (estop || xbox?.estop_requested === true) { return t("teleopStatus.resetTheSoftwareEStopBeforeEnteringTeleop"); }
   if (mode === "TELEOP") {
-    if (!telemetryFresh || state == undefined) { return "Teleop selected; waiting for its current phase."; }
-    if (state[3] === 3) { return "Stopping and settling the feet; Stand will become available automatically."; }
-    if (state[3] === 1) { return "Entering Teleop; wait for ACTIVE, then release and hold LT."; }
-    if (state[3] === 2) { return "Teleop is ACTIVE. Center the sticks, release LT, then hold LT to move."; }
-    return "Teleop selected; waiting for its current phase.";
+    if (!telemetryFresh || state == undefined) { return t("teleopStatus.teleopSelectedWaitingForItsCurrentPhase"); }
+    if (state[3] === 3) { return t("teleopStatus.stoppingAndSettlingTheFeetStandWillBecome"); }
+    if (state[3] === 1) { return t("teleopStatus.enteringTeleopWaitForActiveThenReleaseAnd"); }
+    if (state[3] === 2) { return t("teleopStatus.teleopIsActiveCenterTheSticksReleaseLt"); }
+    return t("teleopStatus.teleopSelectedWaitingForItsCurrentPhase");
   }
-  if (mode !== "PD_STAND") { return "Select Stand before entering Teleop."; }
+  if (mode !== "PD_STAND") { return t("teleopStatus.selectStandBeforeEnteringTeleop"); }
   if (!xboxFresh || xbox?.connected !== true) {
-    return "Connect Xbox and wait for fresh controller input.";
+    return t("teleopStatus.connectXboxAndWaitForFreshControllerInput");
   }
   if (xbox.lt || xbox.enabled || xbox.axes.length !== 3 ||
       !xbox.axes.every((x) => Number.isFinite(x) && Math.abs(x) < 1e-6)) {
-    return "Center the sticks and release LT before entering Teleop.";
+    return t("teleopStatus.centerTheSticksAndReleaseLtBeforeEntering");
   }
-  if (pending || xbox.action_pending === true) { return "Mode request pending."; }
+  if (pending || xbox.action_pending === true) { return t("teleopStatus.modeRequestPending"); }
   if (telemetryFresh && state != undefined && state[2] !== 1) {
-    return "Runner has no teleop policy loaded.";
+    return t("teleopStatus.runnerHasNoTeleopPolicyLoaded");
   }
   // This button submits a discrete request, just like Xbox Y. Teleop telemetry
   // is a separate display stream and may lag/reconnect independently. Runner

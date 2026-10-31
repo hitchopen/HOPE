@@ -1,10 +1,12 @@
+import { message as msg, LocalizedError, LocalText } from "./i18n";
+
 export const PLANE_MODE_SERVICE = "/hope/planner/set_plane_mode";
 export const PLANE_MODES = ["fixed", "per_ball", "stable_per_ball"] as const;
 export type PlaneMode = typeof PLANE_MODES[number];
-export const PLANE_MODE_LABELS: Record<PlaneMode, string> = {
-  fixed: "固定平面（会话初始位置）",
-  per_ball: "每球按当前位置定平面",
-  stable_per_ball: "姿态稳定后更新（实验）",
+export const PLANE_MODE_LABELS: Record<PlaneMode, LocalText> = {
+  fixed: msg("planeMode.fixedPlaneSessionStartPosition"),
+  per_ball: msg("planeMode.setPlaneAtCurrentPositionForEachBall"),
+  stable_per_ball: msg("planeMode.updateAfterPostureSettlesExperimental"),
 };
 export type PlaneModeState = {
   requested: PlaneMode; lastCommand?: PlaneMode; configurable: boolean;
@@ -47,7 +49,7 @@ type ModeRequest = { parameters: Array<{ name: string; value: {
   double_array_value: number[]; string_array_value: string[];
 } }> };
 export function planeModeRequest(mode: PlaneMode): ModeRequest {
-  if (!isMode(mode)) { throw new Error("未知平面模式"); }
+  if (!isMode(mode)) { throw new LocalizedError(msg("planeMode.unknownPlaneMode")); }
   return { parameters: [{ name: "mode", value: {
     type: 4, string_value: mode, bool_value: false, integer_value: 0, double_value: 0,
     byte_array_value: [], bool_array_value: [], integer_array_value: [], double_array_value: [], string_array_value: [],
