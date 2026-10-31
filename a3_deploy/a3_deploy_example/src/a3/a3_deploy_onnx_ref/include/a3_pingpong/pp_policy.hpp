@@ -1982,7 +1982,11 @@ class PpPolicy {
         shared_home_epoch_counter_ = std::max(shared_home_epoch_counter_ + 1, wall_us);
         shared_home_receipt_ = {shared_home_epoch_counter_, st.base_pos_w[0],
             st.base_pos_w[1], reach_offset_clip_[0][0],
-            localized_calibration_id, localized_world_id, !onnx_.is_fixed_home_contract()};
+            localized_calibration_id, localized_world_id, true};
+        // Schema-5 capability describes per-flight racket-plane references,
+        // not permission to move the station. Fixed-HOME policies keep their
+        // immutable station and target-support checks below while accepting
+        // a world-space strike plane selected from the current measured X.
       }
 
       std::fprintf(stderr,
