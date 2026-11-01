@@ -1,0 +1,818 @@
+{
+  "revision": "v3_engraved_20261101",
+  "date": "2026-11-01",
+  "units": "mm",
+  "depth_definition": "parallel to local engraving N, inward from existing outer skin",
+  "baseline_revision": "c3ddf258",
+  "baseline_sha256": {
+    "a3_marker_shell_v3_half_a.stl": "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935",
+    "a3_marker_shell_v3_half_b.stl": "5bf8bf09862e22431e35d023a467c17fb298eaa71dec8f7f31ac97fe169cb9f4"
+  },
+  "groups": {
+    "P1_only": [
+      "S13",
+      "S14",
+      "S16",
+      "S19",
+      "S21"
+    ],
+    "P2_only": [
+      "S06",
+      "S07",
+      "S08",
+      "S15",
+      "S17"
+    ],
+    "shared": [
+      "S04",
+      "S05",
+      "S11",
+      "S12",
+      "S18",
+      "S20",
+      "S22"
+    ]
+  },
+  "marks": [
+    {
+      "station": "S04",
+      "half": "b",
+      "symbol": "circled_X",
+      "origin_cad_mm": [
+        72.21300256106382,
+        70.16908830047227,
+        -23.708114440687176
+      ],
+      "U": [
+        -0.1672289050816657,
+        -8.673617379884035e-19,
+        -0.9859180966516374
+      ],
+      "V": [
+        -0.025502111504557726,
+        0.9996654097588387,
+        0.0043256029062266185
+      ],
+      "N": [
+        0.9855882180779133,
+        0.025866359072997724,
+        -0.16717295192198528
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S04",
+      "cutter_volume_mm3": 11.420495968896017,
+      "finished_floor_probe_count": 1140,
+      "min_sampled_remaining_wall_along_N_mm": 2.06222546992028
+    },
+    {
+      "station": "S05",
+      "half": "b",
+      "symbol": "circled_X",
+      "origin_cad_mm": [
+        47.447996912394714,
+        77.22029538861793,
+        -67.40928301545885
+      ],
+      "U": [
+        -0.8004981404934057,
+        0.0,
+        -0.5993352376313276
+      ],
+      "V": [
+        -0.021545636599622258,
+        0.9993536177484341,
+        0.028777286818489515
+      ],
+      "N": [
+        0.5989478379709846,
+        0.03594922381799908,
+        -0.7999807127029793
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S05",
+      "cutter_volume_mm3": 11.420555604543466,
+      "finished_floor_probe_count": 1140,
+      "min_sampled_remaining_wall_along_N_mm": 1.9743420124990783
+    },
+    {
+      "station": "S06",
+      "half": "b",
+      "symbol": "X",
+      "origin_cad_mm": [
+        -1.3224436498772738,
+        74.19689591225057,
+        -79.24383308286126
+      ],
+      "U": [
+        -0.9999677293832756,
+        0.0,
+        0.008033691060542768
+      ],
+      "V": [
+        0.00025383213409098555,
+        0.9995007232032473,
+        0.03159493449009044
+      ],
+      "N": [
+        -0.008029680025003962,
+        0.031595954111015595,
+        -0.9994684686984932
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S06",
+      "cutter_volume_mm3": 4.595365936370743,
+      "finished_floor_probe_count": 252,
+      "min_sampled_remaining_wall_along_N_mm": 2.0926043825479588
+    },
+    {
+      "station": "S07",
+      "half": "b",
+      "symbol": "X",
+      "origin_cad_mm": [
+        -52.515845736120156,
+        71.30811858496571,
+        -64.14235052649008
+      ],
+      "U": [
+        -0.7346786770979387,
+        0.0,
+        0.6784152426188722
+      ],
+      "V": [
+        0.0318721240085821,
+        0.9988958180093068,
+        0.03451539474929122
+      ],
+      "N": [
+        -0.6776661487257606,
+        0.0469802592959834,
+        -0.7338674581337408
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S07",
+      "cutter_volume_mm3": 4.595811772731287,
+      "finished_floor_probe_count": 252,
+      "min_sampled_remaining_wall_along_N_mm": 2.0372282534380513
+    },
+    {
+      "station": "S08",
+      "half": "b",
+      "symbol": "X",
+      "origin_cad_mm": [
+        -72.14003195432461,
+        77.13000222797517,
+        -19.890737411592767
+      ],
+      "U": [
+        -0.15312718760542862,
+        0.0,
+        0.9882064887542743
+      ],
+      "V": [
+        0.02157885388032987,
+        0.9997615577943468,
+        0.0033437436851976054
+      ],
+      "N": [
+        -0.987970858619455,
+        0.021836381491010054,
+        -0.1530906756210705
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S08",
+      "cutter_volume_mm3": 4.5955797674423176,
+      "finished_floor_probe_count": 252,
+      "min_sampled_remaining_wall_along_N_mm": 2.0499359652581015
+    },
+    {
+      "station": "S11",
+      "half": "a",
+      "symbol": "circled_X",
+      "origin_cad_mm": [
+        13.811696176625524,
+        38.44517112370393,
+        69.38914758880678
+      ],
+      "U": [
+        0.9965321392263629,
+        8.673617379884035e-19,
+        -0.08320874646892183
+      ],
+      "V": [
+        -0.005409369758966092,
+        0.9978846366708627,
+        -0.06478418491477031
+      ],
+      "N": [
+        0.083032729737978,
+        0.06500962925798277,
+        0.9944241116827366
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S11",
+      "cutter_volume_mm3": 11.420166276055532,
+      "finished_floor_probe_count": 1140,
+      "min_sampled_remaining_wall_along_N_mm": 2.173183977252896
+    },
+    {
+      "station": "S12",
+      "half": "a",
+      "symbol": "circled_X",
+      "origin_cad_mm": [
+        73.06666429531963,
+        30.90615042690031,
+        61.2719161895116
+      ],
+      "U": [
+        0.8059782429034835,
+        -2.7755575615628914e-17,
+        -0.5919451595935331
+      ],
+      "V": [
+        -0.2986616639514014,
+        0.8633866864425499,
+        -0.40665051353654313
+      ],
+      "N": [
+        0.5110775698971669,
+        0.5045427927081647,
+        0.6958708844852273
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S12",
+      "cutter_volume_mm3": 11.420376348917396,
+      "finished_floor_probe_count": 1140,
+      "min_sampled_remaining_wall_along_N_mm": 2.044460732967768
+    },
+    {
+      "station": "S13",
+      "half": "a",
+      "symbol": "circle",
+      "origin_cad_mm": [
+        73.17322555747964,
+        65.29901071430427,
+        20.366540432547023
+      ],
+      "U": [
+        0.3742966298598905,
+        -2.7755575615628914e-17,
+        -0.9273090277116514
+      ],
+      "V": [
+        -0.66885567446574,
+        0.6926366198005898,
+        -0.2699751833894984
+      ],
+      "N": [
+        0.6422881904647696,
+        0.7212867064567413,
+        0.259251552508907
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S13",
+      "cutter_volume_mm3": 7.570549032354513,
+      "finished_floor_probe_count": 960,
+      "min_sampled_remaining_wall_along_N_mm": 2.1083444154591255
+    },
+    {
+      "station": "S14",
+      "half": "b",
+      "symbol": "circle",
+      "origin_cad_mm": [
+        74.31206102244572,
+        61.76056036611283,
+        -31.089260756364332
+      ],
+      "U": [
+        -0.47836689397480886,
+        0.0,
+        -0.8781600735338029
+      ],
+      "V": [
+        -0.5722104269681629,
+        0.758561452072629,
+        0.3117045888311191
+      ],
+      "N": [
+        0.6661383805320082,
+        0.651601506620008,
+        -0.3628706857170045
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S14",
+      "cutter_volume_mm3": 7.570491257352968,
+      "finished_floor_probe_count": 960,
+      "min_sampled_remaining_wall_along_N_mm": 2.116210574705447
+    },
+    {
+      "station": "S15",
+      "half": "b",
+      "symbol": "X",
+      "origin_cad_mm": [
+        45.515519337235,
+        35.33304861081033,
+        -81.50983367454705
+      ],
+      "U": [
+        -0.9266410618092561,
+        -1.3877787807814457e-17,
+        -0.3759472603557778
+      ],
+      "V": [
+        -0.11017416694535703,
+        0.9560948161632636,
+        0.2715591196105038
+      ],
+      "N": [
+        0.3594412267769399,
+        0.293057507164951,
+        -0.8859567156398519
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S15",
+      "cutter_volume_mm3": 4.59565022143173,
+      "finished_floor_probe_count": 252,
+      "min_sampled_remaining_wall_along_N_mm": 2.1109618470346896
+    },
+    {
+      "station": "S16",
+      "half": "b",
+      "symbol": "circle",
+      "origin_cad_mm": [
+        -19.084254395107653,
+        18.023467244300782,
+        -88.50570487629331
+      ],
+      "U": [
+        -0.9983074330716801,
+        0.0,
+        0.058157278769152415
+      ],
+      "V": [
+        0.008684956793403744,
+        0.9887865566282309,
+        0.14908291973523685
+      ],
+      "N": [
+        -0.057505135417018335,
+        0.14933568036904762,
+        -0.9871129692033147
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S16",
+      "cutter_volume_mm3": 7.570478988447614,
+      "finished_floor_probe_count": 960,
+      "min_sampled_remaining_wall_along_N_mm": 1.9907947229386398
+    },
+    {
+      "station": "S17",
+      "half": "b",
+      "symbol": "X",
+      "origin_cad_mm": [
+        -69.06814851751973,
+        33.570768643368524,
+        -68.86619377679352
+      ],
+      "U": [
+        -0.69787726756651,
+        -2.7755575615628914e-17,
+        0.7162173688300931
+      ],
+      "V": [
+        0.2905906798228385,
+        0.9139930995519633,
+        0.2831495554852512
+      ],
+      "N": [
+        -0.6546177328899686,
+        0.4057297302039805,
+        -0.6378550068899693
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S17",
+      "cutter_volume_mm3": 4.595400396706131,
+      "finished_floor_probe_count": 252,
+      "min_sampled_remaining_wall_along_N_mm": 2.114914352362646
+    },
+    {
+      "station": "S18",
+      "half": "b",
+      "symbol": "circled_X",
+      "origin_cad_mm": [
+        -73.84173865598338,
+        65.40538668491982,
+        -19.406621367788453
+      ],
+      "U": [
+        -0.32121855237472646,
+        0.0,
+        0.9470050905936489
+      ],
+      "V": [
+        0.6862386674297588,
+        0.6891266177016995,
+        0.2327681165865391
+      ],
+      "N": [
+        -0.6526064150270929,
+        0.7246409488671032,
+        -0.2213602545410315
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S18",
+      "cutter_volume_mm3": 11.420154260853545,
+      "finished_floor_probe_count": 1140,
+      "min_sampled_remaining_wall_along_N_mm": 2.2147078118942836
+    },
+    {
+      "station": "S19",
+      "half": "a",
+      "symbol": "circle",
+      "origin_cad_mm": [
+        -71.85619860185493,
+        63.6643447373448,
+        29.731404062750457
+      ],
+      "U": [
+        0.5349354364435321,
+        0.0,
+        0.8448929392751295
+      ],
+      "V": [
+        0.5473019570103624,
+        0.7618302643034853,
+        -0.3465187098035387
+      ],
+      "N": [
+        -0.6436650112361205,
+        0.6477766963941214,
+        0.40753000493107633
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S19",
+      "cutter_volume_mm3": 7.570438116149956,
+      "finished_floor_probe_count": 960,
+      "min_sampled_remaining_wall_along_N_mm": 2.082286726006748
+    },
+    {
+      "station": "S20",
+      "half": "a",
+      "symbol": "circled_X",
+      "origin_cad_mm": [
+        -30.909136146694955,
+        38.82743488217682,
+        67.81896542265288
+      ],
+      "U": [
+        0.9774879242493726,
+        0.0,
+        0.21099136936532012
+      ],
+      "V": [
+        0.023520153335353945,
+        0.9937672967799416,
+        -0.10896495876091969
+      ],
+      "N": [
+        -0.20967632277807238,
+        0.11147448071503849,
+        0.9713955321163353
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S20",
+      "cutter_volume_mm3": 11.420785068130112,
+      "finished_floor_probe_count": 1140,
+      "min_sampled_remaining_wall_along_N_mm": 2.1782943538075945
+    },
+    {
+      "station": "S21",
+      "half": "a",
+      "symbol": "circle",
+      "origin_cad_mm": [
+        34.67452398149841,
+        -24.52227587722626,
+        77.52230054793333
+      ],
+      "U": [
+        0.9918915075054424,
+        0.0,
+        -0.1270875184216792
+      ],
+      "V": [
+        0.01292192989297065,
+        0.9948174224515913,
+        0.10085296086190544
+      ],
+      "N": [
+        0.12642887750202406,
+        -0.10167741138901934,
+        0.9867509528481877
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S21",
+      "cutter_volume_mm3": 7.570556516603678,
+      "finished_floor_probe_count": 960,
+      "min_sampled_remaining_wall_along_N_mm": 2.093297524378811
+    },
+    {
+      "station": "S22",
+      "half": "a",
+      "symbol": "circled_X",
+      "origin_cad_mm": [
+        -34.66945842801929,
+        -24.512873637608998,
+        77.52891837810206
+      ],
+      "U": [
+        0.9919843042377744,
+        0.0,
+        0.1263611496699009
+      ],
+      "V": [
+        -0.012616112284336168,
+        0.9950033339075002,
+        0.09904140156413843
+      ],
+      "N": [
+        -0.12572976519793597,
+        -0.09984170227394913,
+        0.9870276899004973
+      ],
+      "kind": "station",
+      "depth_mm": 0.4,
+      "identity": "S22",
+      "cutter_volume_mm3": 11.420388904385307,
+      "finished_floor_probe_count": 1140,
+      "min_sampled_remaining_wall_along_N_mm": 2.0594152245197392
+    },
+    {
+      "kind": "brand",
+      "half": "b",
+      "text": "HITCH OPEN",
+      "height_mm": 7.5,
+      "depth_mm": 0.6,
+      "origin_cad_mm": [
+        0.0,
+        -12.0,
+        -80.0
+      ],
+      "U": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "V": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "N": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "identity": "HITCH OPEN",
+      "cutter_volume_mm3": 168.50276002807337,
+      "finished_floor_probe_count": 5561,
+      "min_sampled_remaining_wall_along_N_mm": 1.8359401573866063
+    },
+    {
+      "kind": "legend",
+      "half": "b",
+      "text": "\u25cb P1 \u00b7 X P2",
+      "height_mm": 2.5,
+      "depth_mm": 0.4,
+      "stroke_mm": 0.35,
+      "origin_cad_mm": [
+        0.0,
+        -24.0,
+        -80.0
+      ],
+      "U": [
+        -1.0,
+        0,
+        0
+      ],
+      "V": [
+        0,
+        1.0,
+        0
+      ],
+      "N": [
+        0,
+        0,
+        -1.0
+      ],
+      "planar_scale": 0.5,
+      "identity": "\u25cb P1 \u00b7 X P2",
+      "cutter_volume_mm3": 8.60795955494813,
+      "finished_floor_probe_count": 1266,
+      "min_sampled_remaining_wall_along_N_mm": 2.1120620596427426
+    }
+  ],
+  "halves": {
+    "a": {
+      "file": "a3_marker_shell_v3_half_a.stl",
+      "sha256": "85ba1cdb78296b7468b9b1f86590d686d28564815b1b2870535189314abfbd6b",
+      "triangles": 92456,
+      "vertices": 46186,
+      "volume_mm3": 127300.8996001602,
+      "bounds_mm": [
+        [
+          -87.7899398803711,
+          -84.87408447265625,
+          -9.796319961547852
+        ],
+        [
+          87.79000854492188,
+          109.20001220703125,
+          79.90754699707031
+        ]
+      ],
+      "watertight": true,
+      "winding_consistent": true,
+      "components": 1,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "removed_volume_mm3": 42.08035578969997,
+      "added_volume_mm3": 0.00013179726426403208,
+      "change_outside_engravings_mm3": 0.000201606291819468,
+      "seam_region_change_mm3": 0.0,
+      "cooling_vent_region_change_mm3": 0.0,
+      "self_intersection_check": "Not separately rerun in MeshLab; regular Boolean cuts of the checked source meshes."
+    },
+    "b": {
+      "file": "a3_marker_shell_v3_half_b.stl",
+      "sha256": "dcae8661bc90aed06b269518c260fed948106a959d7198efc5aeb522510a4aa1",
+      "triangles": 131182,
+      "vertices": 65515,
+      "volume_mm3": 142656.42032464567,
+      "bounds_mm": [
+        [
+          -87.99522399902344,
+          -84.8742446899414,
+          -87.3783187866211
+        ],
+        [
+          87.79019927978516,
+          109.20001220703125,
+          3.5000007152557373
+        ]
+      ],
+      "watertight": true,
+      "winding_consistent": true,
+      "components": 1,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "removed_volume_mm3": 168.79380755246646,
+      "added_volume_mm3": 0.0007798396451559323,
+      "change_outside_engravings_mm3": 0.0008414461118183476,
+      "seam_region_change_mm3": 0.0,
+      "cooling_vent_region_change_mm3": 0.0,
+      "self_intersection_check": "Not separately rerun in MeshLab; regular Boolean cuts of the checked source meshes."
+    }
+  },
+  "brand_width_mm": 60.93552089930335,
+  "legend_width_mm": 16.568903943488536,
+  "station_checks": [
+    {
+      "station": "S04",
+      "protected_mount_delta_mm3": 2.2674185792282485e-06,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.619429945477904e-06,
+      "blind_bore_depth_mm": 4.600003581870622
+    },
+    {
+      "station": "S05",
+      "protected_mount_delta_mm3": 2.9953364538828924e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 2.9064923504507397e-06,
+      "blind_bore_depth_mm": 4.599999063477642
+    },
+    {
+      "station": "S06",
+      "protected_mount_delta_mm3": 4.393129395421246e-08,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.1640679874734227e-06,
+      "blind_bore_depth_mm": 4.600000952869577
+    },
+    {
+      "station": "S07",
+      "protected_mount_delta_mm3": 1.7220973493622885e-09,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 2.495175233912177e-06,
+      "blind_bore_depth_mm": 4.600000616968483
+    },
+    {
+      "station": "S08",
+      "protected_mount_delta_mm3": 0.0,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.678947117563808e-06,
+      "blind_bore_depth_mm": 4.599999647230648
+    },
+    {
+      "station": "S11",
+      "protected_mount_delta_mm3": 4.349438476755118e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 2.7834529481301865e-06,
+      "blind_bore_depth_mm": 4.599999493938919
+    },
+    {
+      "station": "S12",
+      "protected_mount_delta_mm3": 1.2390811654949113e-06,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 2.435120591673843e-06,
+      "blind_bore_depth_mm": 4.600001877593523
+    },
+    {
+      "station": "S13",
+      "protected_mount_delta_mm3": 6.290460514426462e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.4584361466745934e-06,
+      "blind_bore_depth_mm": 4.599998659859859
+    },
+    {
+      "station": "S14",
+      "protected_mount_delta_mm3": 0.0,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.1232901392569438e-06,
+      "blind_bore_depth_mm": 4.599999578952005
+    },
+    {
+      "station": "S15",
+      "protected_mount_delta_mm3": 0.0,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 2.8850212324382174e-06,
+      "blind_bore_depth_mm": 4.599998134728899
+    },
+    {
+      "station": "S16",
+      "protected_mount_delta_mm3": 4.154444426321474e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.0223388807173406e-06,
+      "blind_bore_depth_mm": 4.599999666908393
+    },
+    {
+      "station": "S17",
+      "protected_mount_delta_mm3": 5.05657046491824e-08,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 2.6069077526277943e-06,
+      "blind_bore_depth_mm": 4.599999713655203
+    },
+    {
+      "station": "S18",
+      "protected_mount_delta_mm3": 0.0,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 2.63121309894932e-06,
+      "blind_bore_depth_mm": 4.600000767950762
+    },
+    {
+      "station": "S19",
+      "protected_mount_delta_mm3": 1.5426469010774563e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.7145272526914304e-06,
+      "blind_bore_depth_mm": 4.600001568593758
+    },
+    {
+      "station": "S20",
+      "protected_mount_delta_mm3": 8.799912662367228e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.822694742654817e-06,
+      "blind_bore_depth_mm": 4.599998377781854
+    },
+    {
+      "station": "S21",
+      "protected_mount_delta_mm3": 3.932646647276494e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.820855196581873e-06,
+      "blind_bore_depth_mm": 4.5999994713758054
+    },
+    {
+      "station": "S22",
+      "protected_mount_delta_mm3": 3.6255637931626456e-07,
+      "flat_top_probe_count": 48,
+      "flat_top_max_error_mm": 3.1573287045608398e-06,
+      "blind_bore_depth_mm": 4.599999315190403
+    }
+  ],
+  "assembled_intersection_mm3": 0.0,
+  "min_sampled_remaining_wall_along_N_mm": 1.8359401573866063
+}

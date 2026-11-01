@@ -2,7 +2,9 @@
 
 Use **[P1.motive](P1.motive)** and **[P2.motive](P2.motive)** with the same
 12-sticker installations as the [ChingMu pair](../vrpn_asset/README.md).
-The 17-station shell, STL files and CAD transform tables are unchanged.
+The 17 station coordinates and CAD transform tables are unchanged. The current
+STLs add shallow exterior HITCH OPEN and circle/X/circled-X engravings; current
+printable hashes are recorded separately from the unchanged optical asset hashes.
 
 | File | Body name | Streaming ID | Reflective stations, member IDs 1–12 in this order |
 |---|---|---|---|

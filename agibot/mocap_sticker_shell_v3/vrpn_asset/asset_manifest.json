@@ -44,11 +44,6 @@
     "sha256": "60bfe6fd97fb8dd3656315de06b01cfcb7d255cb37d043576dfa6a0f3c408c47",
     "use": "Retain existing native fields and minMarker=6. Replace only geometry, body identity, ID and display color."
   },
-  "unchanged_printable_sha256": {
-    "a3_marker_shell_v3_flush_pin.stl": "f57259bcf324e2b41aae8441b94ff6d50de911d98a023801ff1b90d9d5b35792",
-    "a3_marker_shell_v3_half_a.stl": "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935",
-    "a3_marker_shell_v3_half_b.stl": "5bf8bf09862e22431e35d023a467c17fb298eaa71dec8f7f31ac97fe169cb9f4"
-  },
   "assets": {
     "P1": {
       "file": "P1.json",
@@ -115,5 +110,13 @@
     "Keep unused stations nonreflective. No centroid subtraction, Motive Y-up conversion or P2-local rotation.",
     "The matching motive_asset/P1.motive and P2.motive use the same CAD points in native Y-up metres; old all-17 imports do not match these installations.",
     "Verify native import/re-export, physical pivot, axes, world frame, units and two-body occlusion behavior before play."
-  ]
+  ],
+  "printable_revision": "v3_engraved_20261101",
+  "printable_revision_date": "2026-11-01",
+  "marker_geometry_unchanged": true,
+  "printable_sha256": {
+    "a3_marker_shell_v3_flush_pin.stl": "f57259bcf324e2b41aae8441b94ff6d50de911d98a023801ff1b90d9d5b35792",
+    "a3_marker_shell_v3_half_a.stl": "85ba1cdb78296b7468b9b1f86590d686d28564815b1b2870535189314abfbd6b",
+    "a3_marker_shell_v3_half_b.stl": "dcae8661bc90aed06b269518c260fed948106a959d7198efc5aeb522510a4aa1"
+  }
 }

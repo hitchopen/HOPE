@@ -207,16 +207,23 @@ def test_unfiltered_16_point_source_is_rejected_for_new_shell():
         load_asset_points(SOURCE / "A3.motive")
 
 
-def test_only_rear_stations_were_restored_and_front_mesh_is_unchanged():
+def test_engraved_shell_preserves_station_layout_and_baseline_provenance():
     report = json.loads((PROJECT / "documents/printability_validation.json").read_text())
     assert report["front_station_ids"] == ["S11", "S12", "S13", "S19", "S20", "S21", "S22"]
     assert report["rear_upper_row"] == ["S04", "S05", "S06", "S07", "S08"]
     assert report["rear_middle_row"] == ["S14", "S15", "S16", "S17", "S18"]
-    assert report["restored_station_ids"] == list(RESTORED)
+    baseline = report["baseline_restoration_20261011"]
+    assert baseline["restored_station_ids"] == list(RESTORED)
     for suffix, key in (("a", "front"), ("b", "rear")):
         path = PROJECT / f"printable/a3_marker_shell_v3_half_{suffix}.stl"
-        assert hashlib.sha256(path.read_bytes()).hexdigest() == report[f"{key}_stl_sha256_after"]
-    assert report["front_stl_sha256_after"] == report["front_stl_sha256_before"] == "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935"
+        current = report[f"{key}_mesh"]
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == current["sha256"]
+        assert current["watertight"] and current["winding_consistent"]
+    assert baseline["front_stl_sha256_after"] == baseline["front_stl_sha256_before"] == "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935"
+    engraving = json.loads((PROJECT / "documents/engraving_validation.json").read_text())
+    assert len(engraving["station_checks"]) == 17
+    assert max(s["protected_mount_delta_mm3"] for s in engraving["station_checks"]) < .003
+    assert report["station_geometry_unchanged"] is True
 
 
 PLAYER_ORDERS = {
@@ -270,7 +277,7 @@ def test_player_native_asset_matches_cad_chingmu_and_runtime_pin(side):
     assert manifest["motive_import_reexport"] == manifest["live_tracking"] == "NOT_PERFORMED"
     for filename, digest in manifest["historical_reference_sha256"].items():
         assert hashlib.sha256((ASSETS / filename).read_bytes()).hexdigest() == digest
-    for filename, digest in manifest["unchanged_printable_sha256"].items():
+    for filename, digest in manifest["printable_sha256"].items():
         assert hashlib.sha256((PROJECT / "printable" / filename).read_bytes()).hexdigest() == digest
 
 

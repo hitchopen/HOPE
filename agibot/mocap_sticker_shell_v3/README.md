@@ -1,16 +1,19 @@
 # A3 dual-mode marker shell v3
 
-**2026-10-27: one unchanged 17-station v3 shell, two distinct 12-sticker
-installations for ChingMu and OptiTrack P1/P2. Seven front + ten rear mounting stations remain.**
-Printable mesh geometry is checked; physical fit, retention, tracking and crash
-testing remain required.
-The v3 model name and printable filenames are unchanged.
+**2026-11-01: engraved v3 shell with the same 17 stations and P1/P2 marker coordinates.**
+The rear half carries HITCH OPEN and a second line, **○ P1 · X P2**, above the cooling vent and below the marker stations.
+Every station has a nearby recessed installation symbol: circle for P1 only,
+X for P2 only, and circled X for shared P1/P2 stations. The flat optical seats
+are untouched. Both halves are revised; the flush pin is unchanged.
 
-Imported from [HOPE commit 10b1bd710c074cf9851a3ca2f63494dc23a39e06](https://github.com/hitchopen/HOPE/commit/10b1bd710c074cf9851a3ca2f63494dc23a39e06).
-Meshes, coordinate tables and workbook retain that commit's bytes. The PDF now
-documents the two player installations and both vendors' import steps.
-The new all-nominal asset pair has distinct identities; original measured
-exports remain unchanged as historical evidence, not current imports.
+Printable mesh geometry is checked; physical fit, retention, tracking and crash
+testing remain required. The v3 name and printable filenames are unchanged.
+The unengraved masters came from
+[HOPE commit 10b1bd710c074cf9851a3ca2f63494dc23a39e06](https://github.com/hitchopen/HOPE/commit/10b1bd710c074cf9851a3ca2f63494dc23a39e06).
+The revised manufacturing masters use the unengraved baseline at commit
+c3ddf258; baseline identities and final checks are recorded in the validation files.
+Coordinate tables, workbook, optical import files and runtime profiles retain
+their previous bytes; the STL hashes and manufacturing provenance are updated.
 
 The default localization mode remains **`motive_live`**: it uses the selected
 body's current NatNet ModelDef without binding to a file SHA-256, marker count
@@ -26,7 +29,36 @@ the CAD folder remains v3. VRPN has no live ModelDef. Matching
 [OptiTrack P1/P2 assets](motive_asset/README.md) now use the same selected points
 with Motive's native unit/axis encoding.
 
-## What changed
+## Engraved installation symbols
+
+| Engraving | Use | Stations |
+|---|---|---|
+| Circle (○) | P1 only | S13, S14, S16, S19, S21 |
+| X | P2 only | S06, S07, S08, S15, S17 |
+| Circled X (⊗) | P1 and P2 | S04, S05, S11, S12, S18, S20, S22 |
+
+Symbols are engraved in the exterior skin beside the 20 mm mount feet, not in
+the 12 mm sticker faces. Most sit below a mount; S13/S14/S18/S19 sit above
+their mounts to avoid thin side-edge regions. Symbols are 6 mm across with
+0.7 mm strokes, recessed 0.4 mm along the local engraving axis.
+The rear wordmark uses Arial Bold, approximately 60.94 × 7.50 mm and 0.60 mm
+deep; its top points toward the upper shell edge. It lies at CAD Y=-15.75 to
+-8.25 mm, above the cooling vent and below the rear stations.
+A second engraved line, **○ P1 · X P2**, is centred below the wordmark at
+CAD Y=-24 mm. It is approximately **16.57 × 2.50 mm** and **0.40 mm** deep;
+Its circle, separator dot and X are explicit geometric shapes, with 0.35 mm
+legend-symbol grooves. The 7.50 mm trademark remains visually dominant.
+The legend's top is 7.00 mm below the wordmark's bottom edge; the cooling vent remains clear.
+The smallest sampled remaining wall under this line is **2.112 mm**.
+
+![Engraved front and rear shell](documents/engraving_preview.png)
+
+The marks identify where to apply each player's 12 reflective stickers; they
+do not change the optical pattern or make shared-only observations unique.
+Keep all unused stations and engraving nonreflective. See the
+[engraving checks](documents/engraving_validation.json).
+
+## Preserved layout and previous restoration
 
 - All ten obsolete external marker bosses **and their screw bores** are removed,
   including f1 and b1-b5. Their locations are restored to smooth local shell skin.
@@ -34,7 +66,7 @@ with Motive's native unit/axis encoding.
   including their mounting holes; these locations retain the smooth
   base-shell skin. No holes were cut through the pelvis-fitting interior.
 - The **front seven are unchanged: S11, S12, S13, S19, S20, S21, S22**.
-  Half A is byte-for-byte identical to the preceding release.
+  The engraving changes adjacent exterior skin; all seven front mounts are protected.
 - Restored **S06, S07, S08, S15, S17**, completing rear upper row
   **S04-S08** and rear middle row **S14-S18** (five each). These are the
   original asymmetric station locations, not newly regularized rings.
@@ -53,8 +85,8 @@ with Motive's native unit/axis encoding.
 
 | File | Use |
 |---|---|
-| [Half A](printable/a3_marker_shell_v3_half_a.stl) | Front half, one fused solid; 74,536 triangles |
-| [Half B](printable/a3_marker_shell_v3_half_b.stl) | Rear half, one fused solid; 99,132 triangles |
+| [Half A](printable/a3_marker_shell_v3_half_a.stl) | Front half, one fused solid; 92,456 triangles |
+| [Half B](printable/a3_marker_shell_v3_half_b.stl) | Rear half, one fused solid; 131,182 triangles |
 | [Flush pin](printable/a3_marker_shell_v3_flush_pin.stl) | Unchanged central-hole pin; print up to 17 for sticker mode |
 | [OpenSCAD model](a3_marker_shell_v3.scad) | Assembly preview and individual-part print placement |
 | [Instructions](output/pdf/A3_marker_shell_v3_instructions.pdf) | Installation, printing checks, station drawings and translation table |
@@ -83,7 +115,8 @@ assembly or partial previews. A repaired analytic STEP is not supplied.
 | P2, calculated selection | S04, S05, S06, S07, S08, S11, S12, S15, S17, S18, S20, S22 | S13, S14, S16, S19, S21 |
 
 P1 has seven front and five rear stickers; P2 has four front and eight rear.
-No mounting station, bore, STL, OpenSCAD geometry or CAD transform changed.
+The exterior engravings change the STL bytes. Mounting stations, bores, fitting
+surfaces, OpenSCAD placement and CAD transforms are preserved.
 Use the [updated illustrated instructions](output/pdf/A3_marker_shell_v3_instructions.pdf)
 for front/rear views, a 360-degree installation map and per-asset point indices.
 Keep unused sites nonreflective under the actual cameras' IR illumination.
@@ -129,19 +162,26 @@ improves local visibility but does not guarantee tracking at grazing angles.
 
 ## Verification and limits
 
-Both serialized halves pass current Trimesh/MeshLab checks: closed, manifold,
-consistently oriented, one connected part, no duplicate or degenerate triangles,
-and **zero detected self-intersections**. Their assembled mesh intersection
-volume is zero. All ten rear stations pass 49 probes each for flat 12 mm tops,
-3.4 mm bores and 4.6 mm blind depth, within 0.001 mm. The previously checked
-front geometry is unchanged. FreeCAD was not rerun on the new rear mesh.
+Both engraved STL halves are closed, manifold, consistently oriented, one connected
+part each, with no degenerate faces. Their assembled intersection volume is zero.
+All 17 mount volumes (20.7 mm protected diameter, including foot, blind bore and
+nut pocket) differ from baseline by less than 0.003 mm³. Across all stations,
+816 annular top probes remain on the original 12 mm faces within 0.001 mm,
+and 17 bore-axis probes retain the 4.6 mm blind depth. Vent and seam regions
+are unchanged. Coordinates, workbook, reflective-sticker assets, runtime profiles
+and the flush pin are byte-identical to baseline.
 
-A comparison of **84,425 rear surface points outside the five restored
-footprints** found maximum distance to the new mesh of **0.00000296 mm**;
-none exceeded 0.001 mm. This includes the unchanged interior and structural
-features within the sampled surface, not a certified global distance bound.
-Earlier base repairs and original CAD tessellation errors remain documented.
-These are geometric checks, not a physical fit certificate.
+The finished engraving floors were sampled along each local engraving axis.
+The smallest sampled remaining material path is **1.836 mm** under the rear
+wordmark; station symbols retain at least **1.974 mm** in the sampled paths.
+These are dense local ray checks, not a certified global wall minimum or a
+strength test. Material removal outside the engraving cutters is below
+0.003 mm³ per half. See the per-mark probes in engraving_validation.json.
+
+The prior unengraved masters had independent MeshLab self-intersection checks;
+MeshLab and FreeCAD were not rerun on this shallow exterior-marking revision.
+Historical restoration/repair checks remain under the baseline entry in
+printability_validation.json and in geometry_repair_status.md.
 
 Most restored sites sample near 2.5 mm wall thickness. The f1 restoration has
 an approximately **1.50 mm local edge gap** in a vertical-ray audit; configure
@@ -249,16 +289,17 @@ Use `pants_profile:=v4` for these installations; the legacy ten-ball `v3`
 calibration layout is different. V2 remains unchanged.
 Do not use the 17-marker Motive definition with a 12-sticker installation.
 
-## Source records and engineering archive
+## Release contents and source records
+
+The release contains the final fused STLs, OpenSCAD print-placement entry point,
+installation guide and preview, coordinate tables, optical import assets and
+validation/provenance records. Temporary CAD builders, layout-planning files,
+trial meshes and scratch documents are not included.
+
+The existing [player-pattern authoring tool](tools/generate_player_patterns.py)
+is retained for maintaining the released P1/P2 optical definitions and guide.
+Maintained regression tests live under `hope_ws/src/hope_bringup/test/`.
 
 The repository [license](../../LICENSE) and original source records are
-unchanged. Neutral product naming does not remove provenance or applicable
-attribution requirements.
-
-Testing scripts, failed conversions, rejected repairs and superseded models
-remain recoverably in the local Git-ignored `.engineering_archive/`; they are
-not distributed release files. The release folder contains the checked parts,
-OpenSCAD entry point, instructions/TF tables, asset and provenance files, and
-geometry-validation reports. The unchanged original A3 exports are source
-evidence, not disposable test output. Maintained regression tests live under
-`hope_ws/src/hope_bringup/test/` and are not installed as robot runtime programs.
+unchanged. The original A3 exports remain source evidence. Historical material
+in the pre-existing ignored `.engineering_archive/` is separate from this release.
