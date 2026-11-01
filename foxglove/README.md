@@ -7,9 +7,27 @@ Runner protections remain in force. See the
 [operational scope and validation limits](../docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics).
 
 For direct installation, use the committed
-[Console 1.8.18 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.18.foxe).
+[Console 1.9.3 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.9.3.foxe).
 Node.js is needed
 only to rebuild the extension, not to install this package.
+
+The Ubuntu/macOS operator computer runs the C++ ball-state classifier after
+P1/P2 conversion and forwards only opponent flights to A3. Console 1.9.3 reads
+its state and forecast advisories from the local HTTP endpoint at
+`127.0.0.1:8768`; state labels stay off A3's DDS graph. Explicit local Ready and
+Serve buttons initialize their respective states; Stand/Stop holds both ball
+channels closed until another local Ready/Serve. Runner/serve/lifecycle feedback
+and robot acknowledgements do not change the local classifier or gate. The
+existing robot button requests remain independent. Pelvis/base publishing retains
+its immediate, independent path. Desktop uses a one-time private pairing file;
+only the exact Foxglove web origin or a paired Desktop client can send local
+button intents. A held ego serve cannot automatically become a new opponent
+serve; explicit local Ready may initialize it directly.
+
+Install the matching laptop packetizer and Console together. The
+[state deployment guide](../docs/operations/laptop_ball_states.md) defines
+observed-event rules, advisory forecasts, the measured low-speed exception,
+clock recovery and Ubuntu/Mac verification. No A3-side update is required.
 
 Normal play verifies P1/P2 from raw mocap positions at START and locks the side
 until STOP. A 1 s loss of the live base stream requests controlled PD_STAND
@@ -32,7 +50,7 @@ The V2/V3 capture descriptions below apply only to legacy calibration mode.
 
 Current Runner/serve behavior, v12 assets, PR status and validation limits:
 [Runner, Xbox and serving](../docs/operations/runtime_xbox.md).
-The public [Console 1.8.18 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.8.18.foxe)
+The public [Console 1.9.3 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.9.3.foxe)
 includes Mac/Linux, gripper and NatNet/VRPN selectors and matches the checked-in source.
 Combined lifecycle schema 6 preserves existing field schema-5 settings; source
 and image builds do not overwrite or restart the live HDU backend.

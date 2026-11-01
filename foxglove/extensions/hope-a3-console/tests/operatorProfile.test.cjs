@@ -19,6 +19,20 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
   const modules = new Map();
   let api;
   const calls = [];
+  const localRequests = [];
+  let localRevision = 0;
+  let localOffline = false, robotAccepted = true;
+  const localFetch = async (url, options) => {
+    if(localOffline) throw new Error('local offline');
+    if(options.method === 'POST') {
+      localRequests.push(url.split('/').pop()); ++localRevision;
+      return { status:202, json:async()=>({intent_revision:String(localRevision)}) };
+    }
+    return {ok:true,text:async()=>JSON.stringify({schema:2,session_id:'unrelated-local-session',
+      producer_instance_id:'local-process',intent_revision:String(localRevision),local_stopped:false,
+      state:'INVALID',reason:'test',generation:'0',forwarding:false,history_known:false,
+      serve_armed:false,striker_bounces:0,receiver_bounces:0})};
+  };
   const subscribed = [];
   const config = {
     laptop_wifi_ip: '192.0.2.10', hdu_wifi_ip: '192.0.2.20',
@@ -58,9 +72,9 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
     }).outputText;
     vm.runInNewContext(code, {
-      exports, ArrayBuffer, DataView, TextEncoder,
+      exports, ArrayBuffer, DataView, TextEncoder, AbortController, setTimeout, clearTimeout,
       Date: class extends Date { static now() { return now; } },
-      window: { setTimeout: () => 0, confirm: () => { throw new Error('blocking confirmation interrupts heartbeat'); } },
+      window: { fetch:localFetch, setTimeout: () => 0, clearTimeout:()=>{}, confirm: () => { throw new Error('blocking confirmation interrupts heartbeat'); } },
       require(name) {
         if (name.endsWith('.css')) return {};
         if (name === 'react') return react;
@@ -88,11 +102,13 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
     publish(topic, message) { published.push({ topic, message }); },
     async callService(service, payload) {
       calls.push({ service, payload });
-      return payload.parameters ? { results: payload.parameters.map(() => ({ successful: true })) } : { success: true, message: 'ok' };
+      return payload.parameters ? { results: payload.parameters.map(() => ({ successful: true })) } : { success: robotAccepted, message: robotAccepted ? 'ok' : 'rejected' };
     },
   };
   return {
-    api, calls, subscribed, savedStates, published,
+    api, calls, subscribed, savedStates, published, localRequests,
+    setLocalOffline(value) { localOffline=value; },
+    setRobotAccepted(value) { robotAccepted=value; },
     advance(ms) { now += ms; },
     frame(events, didSeek = false) { context.onRender({ currentFrame: events, didSeek }, () => {}); },
     render() { cursor = 0; refCursor = 0; return api.HopeA3Console({ context }); },
@@ -485,4 +501,28 @@ test('Serve also uses live confirmation; explicit offline watchdog setting remai
   confirm.props.onClick();
   assert.equal(h.calls.length,1);
   assert.equal(h.calls[0].service,'/hope/runner/ready_to_serve');
+});
+
+
+test('local Serve intent survives rejected robot request; remote feedback never sends local intents', async () => {
+  const h=serveHarness();h.setRobotAccepted(false);h.render();serveFrame(h);
+  action(h.render(),'Start to Serve · Raise hand').props.onClick();
+  button(h.render(),'Confirm and send').props.onClick();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(h.localRequests,['SERVE']);
+  assert.equal(h.calls.length,1);
+  for(const mode of ['PD_STAND','MOTION','SERVE','PASSIVE']) {
+    serveFrame(h,{mode,serve:'FAULT'});h.render();
+  }
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(h.localRequests,['SERVE']);
+});
+
+test('local endpoint failure never blocks the existing robot request', async () => {
+  const h=serveHarness();h.setLocalOffline(true);h.render();serveFrame(h);
+  action(h.render(),'Start to Serve · Raise hand').props.onClick();
+  button(h.render(),'Confirm and send').props.onClick();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.calls.length,1);assert.deepEqual(h.localRequests,[]);
+  assert.ok(elements(h.render()).some(n=>n.props?.role==='alert'));
 });

@@ -181,3 +181,16 @@ For PR #54, the operator confirmed that live **ChingMu -> Mac -> HDU** network
 testing is complete. See the [release verification record](pr54_deployment_verification.md)
 for the distinction between that field acceptance, automated local checks, and
 the separately controlled HDU backend upgrade.
+
+### Local ball-state display and intent (operator container contract 4)
+
+The laptop C++ classifier and its Console display stay on the operator computer.
+Container contract 4 adds `127.0.0.1:8768:8768` for local ball-state HTTP
+status and button intents; the startup helper binds it inside Docker via `HOPE_BALL_STATUS_BIND`.
+Desktop imports the operator runtime's private pairing key once; see the
+[local access and pairing procedure](laptop_ball_states.md#local-buttons-and-display).
+Foreign web origins and unauthenticated opaque-origin requests are refused.
+No ball-state ROS topic, HDU bridge allowlist or A3 software change is required.
+Existing contract-3 containers must be recreated while stopped, preserving their
+volumes; `operator.py` rejects reuse with a missing or non-loopback status port.
+See [state deployment and tests](laptop_ball_states.md#build-and-install-on-the-operator-computer).

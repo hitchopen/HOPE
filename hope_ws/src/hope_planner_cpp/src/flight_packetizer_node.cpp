@@ -1,4 +1,5 @@
 #include "hope_planner_cpp/flight_packetizer_node.hpp"
+#include "hope_planner_cpp/local_control_key.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
 
 #include "hope_planner_cpp/flight_packet.hpp"
@@ -9,8 +10,10 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <limits>
+#include <optional>
 #include <sstream>
 
 #include <unistd.h>
@@ -102,6 +105,25 @@ CommitPredictionConfig declare_prediction_config(rclcpp::Node& node) {
   return config;
 }
 
+PlayStateConfig declare_play_state_config(rclcpp::Node& node) {
+  PlayStateConfig c;
+  c.input_timeout_s = node.declare_parameter<double>("play_state_input_timeout_s", c.input_timeout_s);
+  c.rally_min_speed_mps = node.declare_parameter<double>("play_state_rally_min_speed_mps", c.rally_min_speed_mps);
+  c.rally_slow_confirm_s = node.declare_parameter<double>("play_state_rally_slow_confirm_s", c.rally_slow_confirm_s);
+  c.direction_speed_mps = node.declare_parameter<double>("play_state_direction_speed_mps", c.direction_speed_mps);
+  c.direction_confirm_s = node.declare_parameter<double>("play_state_direction_confirm_s", c.direction_confirm_s);
+  c.launch_span_s = node.declare_parameter<double>("play_state_launch_span_s", c.launch_span_s);
+  c.held_span_s = node.declare_parameter<double>("play_state_held_span_s", c.held_span_s);
+  c.contact_height_m = node.declare_parameter<double>("play_state_contact_height_m", c.contact_height_m);
+  if (!(c.input_timeout_s > 0 && c.input_timeout_s <= 1 && c.direction_speed_mps > 0 &&
+        c.rally_min_speed_mps > 0 && c.rally_min_speed_mps <= 0.10 &&
+        c.rally_slow_confirm_s >= 0.100 && c.rally_slow_confirm_s <= 1 &&
+        c.direction_confirm_s > 0 && c.launch_span_s >= 0.03 && c.launch_span_s <= 0.2 &&
+        c.held_span_s >= c.launch_span_s && c.held_span_s <= 0.24 && c.contact_height_m > 0 &&
+        c.contact_height_m < 0.10)) throw std::invalid_argument("invalid play state thresholds");
+  return c;
+}
+
 }  // namespace
 
 std::int64_t FlightPacketizerNode::steady_now_ns() noexcept {
@@ -118,7 +140,17 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
     : rclcpp::Node("hope_ball_flight_packetizer", options),
       trajectory_config_(declare_trajectory_config(*this)),
       prediction_config_(declare_prediction_config(*this)),
-      trajectory_(trajectory_config_, prediction_config_) {
+      trajectory_(trajectory_config_, prediction_config_),
+      play_state_(declare_play_state_config(*this)),
+      state_spin_(prediction_config_.spin_estimator) {
+  auto estimator = prediction_config_.estimator;
+  estimator.window_s = 0.10;
+  estimator.min_span_s = 0.060;
+  estimator.min_samples = 8;
+  // Contacts are split by the persistent classifier ledger before this fit.
+  estimator.single_flight_only = true;
+  state_estimator_ = std::make_unique<BatchPhysicsEstimator>(
+      prediction_config_.observed_physics, estimator, prediction_config_.spin_estimator);
   last_hit_plane_x_ = prediction_config_.planner.x_hit;
   const auto startup_wall_ns = wall_now_ns();
   session_id_ = declare_parameter<std::string>("session_id", "");
@@ -134,6 +166,8 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
       "flight_packet_topic", "/ball/flight_packet");
   const std::string pose_topic =
       declare_parameter<std::string>("input_pose_topic", "/poses");
+  const auto gated_pose_topic = declare_parameter<std::string>("gated_pose_topic", "");
+  if (gated_pose_topic == pose_topic) throw std::invalid_argument("gated pose output must differ from classifier input");
   ball_pose_index_ = static_cast<int>(
       declare_parameter<int>("ball_pose_index", 0));
   const int input_depth = std::clamp(
@@ -178,13 +212,29 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
                               .best_effort().durability_volatile();
   packet_publisher_ = create_publisher<hope_msgs::msg::BallFlightPacket>(
       packet_topic_, packet_qos);
+  if (!gated_pose_topic.empty()) gated_pose_publisher_ = create_publisher<geometry_msgs::msg::PoseArray>(
+      gated_pose_topic, rclcpp::QoS(1).best_effort().durability_volatile());
+  // Local display/button intent only, with no robot state subscriptions. Network I/O
+  // stays on a separate bounded worker and cannot stall the packetizer.
+  const auto status_bind = declare_parameter<std::string>("play_state_status_bind", "127.0.0.1");
+  const auto status_port = declare_parameter<int>("play_state_status_port", 8768);
+  const auto key_path=declare_parameter<std::string>("play_state_control_key_path", default_local_control_key_path());
+  std::string desktop_key;
+  try { desktop_key=load_local_control_key(key_path); }
+  catch(const std::exception& e) {
+    RCLCPP_ERROR(get_logger(), "Desktop ball controls unavailable: %s", e.what());
+  }
+  try { local_status_ = std::make_unique<LocalPlayStateStatus>(status_bind, status_port, producer_instance_id_, desktop_key); }
+  catch (const std::exception& e) {
+    RCLCPP_ERROR(get_logger(), "Local ball status/intent unavailable: %s; ball gate remains active", e.what());
+  }
   pose_subscription_ = create_subscription<geometry_msgs::msg::PoseArray>(
       pose_topic, input_qos,
       std::bind(&FlightPacketizerNode::pose_callback, this,
                 std::placeholders::_1));
   const std::string hit_plane_topic = declare_parameter<std::string>(
       "adaptive_hit_plane_topic", "/hope/planner/hit_plane");
-  if (trajectory_config_.adaptive.enabled && !hit_plane_topic.empty()) {
+  if (!hit_plane_topic.empty()) {
     hit_plane_subscription_ = create_subscription<std_msgs::msg::Float64MultiArray>(
         hit_plane_topic, rclcpp::QoS(1).reliable().transient_local(),
         [this](const std_msgs::msg::Float64MultiArray::SharedPtr message) {
@@ -198,17 +248,31 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
               now - message->data[1] > 3.0 || message->data[1] - now > 0.5) return;
           hit_plane_stamp_s_ = message->data[1];
           last_hit_plane_x_ = message->data[2];
+          play_state_.set_hit_plane(last_hit_plane_x_);
           trajectory_.set_prediction_x_hit(last_hit_plane_x_);
         });
   }
+  publish_play_state();
   retransmit_timer_ = create_wall_timer(1ms, [this] {
+    if (local_status_) for (const auto& intent : local_status_->take_intents()) {
+      play_state_.local_intent(intent.action);
+      local_intent_revision_ = intent.revision;
+      sync_play_state();
+    }
+    play_state_.poll(steady_now_ns());
+    sync_play_state();
+    publish_play_state();
     const double now = static_cast<double>(wall_now_ns()) * 1e-9;
-    if (now - hit_plane_stamp_s_ > 3.0)
+    if (now - hit_plane_stamp_s_ > 3.0 || hit_plane_stamp_s_ - now > 0.5) {
+      hit_plane_stamp_s_ = 0;
+      play_state_.clear_hit_plane();
       trajectory_.set_prediction_x_hit(std::max(prediction_config_.planner.x_hit,
                                                last_hit_plane_x_));
+    }
+    if (!play_state_.incoming_flight()) return;
     const auto update = trajectory_.poll(now);
-    if (update.snapshot_ready) publish_snapshot(update.snapshot, last_frame_id_);
-    retransmit_due();
+    if (update.snapshot_ready) prepare_snapshot(update.snapshot, last_frame_id_);
+    if (play_state_.may_forward()) retransmit_due();
   });
 
   RCLCPP_INFO(
@@ -225,18 +289,28 @@ void FlightPacketizerNode::pose_callback(
     const geometry_msgs::msg::PoseArray::SharedPtr message) {
   if (ball_pose_index_ < 0 ||
       static_cast<std::size_t>(ball_pose_index_) >= message->poses.size()) {
+    play_state_.input_unavailable("ball_pose_missing", steady_now_ns());
+    sync_play_state(); publish_play_state();
     return;
   }
   const std::int64_t source_ns =
       static_cast<std::int64_t>(message->header.stamp.sec) * 1'000'000'000LL +
       static_cast<std::int64_t>(message->header.stamp.nanosec);
-  if (source_ns <= 0 || source_ns <= last_source_stamp_ns_.load()) return;
+  const auto receipt_wall_ns = wall_now_ns();
+  if (source_ns <= 0 || message->header.stamp.nanosec >= 1'000'000'000U ||
+      receipt_wall_ns - source_ns > 100'000'000LL || source_ns - receipt_wall_ns > 50'000'000LL) {
+    play_state_.input_unavailable("source_timestamp_invalid_or_stale", steady_now_ns());
+    sync_play_state(); publish_play_state(); return;
+  }
   const auto& pose = message->poses[static_cast<std::size_t>(ball_pose_index_)];
   BallSample sample;
   sample.source_time_ns = source_ns;
   sample.source_time_s = static_cast<double>(source_ns) * 1.0e-9;
   sample.position = Vec3(pose.position.x, pose.position.y, pose.position.z);
-  if (!sample.position.allFinite()) return;
+  if (!sample.position.allFinite()) {
+    play_state_.input_unavailable("nonfinite_position", steady_now_ns());
+    sync_play_state(); publish_play_state(); return;
+  }
   Eigen::Quaterniond orientation(
       pose.orientation.w, pose.orientation.x,
       pose.orientation.y, pose.orientation.z);
@@ -245,10 +319,59 @@ void FlightPacketizerNode::pose_callback(
       std::isfinite(norm) && norm >= 0.5 && norm <= 1.5;
   if (sample.orientation_valid) sample.orientation = orientation.normalized();
   sample.receipt_steady_ns = steady_now_ns();
-  sample.receipt_wall_ns = wall_now_ns();
+  sample.receipt_wall_ns = receipt_wall_ns;
   sample.sequence = ++sample_sequence_;
-  last_source_stamp_ns_.store(source_ns);
-  last_frame_id_ = message->header.frame_id.empty() ? "world" : message->header.frame_id;
+  const auto frame = message->header.frame_id.empty() ? "world" : message->header.frame_id;
+  if (sample.sequence > 1 && frame != last_frame_id_ &&
+      sample.source_time_s > play_state_.latest_time()) play_state_.reset("frame_changed");
+
+  const bool accepted = play_state_.observe(sample);
+  const bool new_generation = sync_play_state();
+  if (!accepted) { publish_play_state(); return; }
+  last_frame_id_ = frame;
+  if (play_state_.receive_armed()) {
+    // Ready already establishes opponent-serve intent. Pass the first usable
+    // exposure now; a flight packet still requires a qualified trajectory fit.
+    if (play_state_.sample_usable()) publish_gated_pose(*message, source_ns);
+    publish_play_state(); return;
+  }
+  if (play_state_.state() == PlayState::INVALID || play_state_.serve_armed()) {
+    publish_play_state(); return;
+  }
+  std::optional<TrajectorySnapshot> seeded_snapshot;
+  if (new_generation) {
+    // Replay only this admitted shot's candidate samples, preserving the net
+    // crossing even when direction/launch confirmation finishes after it.
+    for (const auto& seed : play_state_.samples()) {
+      state_estimator_->push(seed); state_spin_.push(seed);
+      const auto update = trajectory_.observe(seed);
+      if (update.snapshot_ready) seeded_snapshot = update.snapshot;
+    }
+  } else {
+    if (play_state_.last_bounce_time() != fit_bounce_time_) {
+      state_estimator_->reset(); state_spin_.reset();
+      fit_bounce_time_ = play_state_.last_bounce_time();
+    }
+    state_estimator_->push(sample); state_spin_.push(sample);
+  }
+  if (sample.source_time_s - forecast_time_ >= 0.020) {
+    forecast_time_ = sample.source_time_s;
+    auto physics = prediction_config_.future_physics;
+    const auto fit = state_estimator_->estimate();
+    auto spin = fit.spin_model_enabled ? fit.physics_spin : state_spin_.estimate();
+    const auto& contact = prediction_config_.future_contact;
+    physics.table_tangential_gain = contact.tangential_gain;
+    if (!contact.magnus_enabled) physics.magnus_k = 0.0;
+    spin.valid = spin.valid && contact.spin_enabled && spin.coherence >= contact.min_coherence;
+    spin.omega_rad_s *= contact.omega_scale;
+    play_state_.forecast(fit, physics, spin);
+    sync_play_state();
+  }
+  publish_play_state();
+  if (!play_state_.incoming_flight()) return;
+  publish_gated_pose(*message, source_ns);
+  if (seeded_snapshot) prepare_snapshot(*seeded_snapshot, last_frame_id_);
+  if (new_generation) return;
 
   IncomingTrajectoryUpdate update = trajectory_.observe(sample);
   if (update.incoming_cancelled) {
@@ -260,15 +383,28 @@ void FlightPacketizerNode::pose_callback(
         sample.source_time_s, sample.position.x());
   }
   if (update.snapshot_ready) {
-    publish_snapshot(
+    prepare_snapshot(
         update.snapshot,
         message->header.frame_id.empty() ? "world" : message->header.frame_id);
   }
 }
 
-void FlightPacketizerNode::publish_snapshot(
+void FlightPacketizerNode::publish_gated_pose(
+    const geometry_msgs::msg::PoseArray& message, std::int64_t source_ns) {
+  if (!play_state_.may_forward() || !gated_pose_publisher_ ||
+      source_ns - last_forwarded_pose_ns_ < 6'600'000LL) return;
+  // Base poses/heartbeats retain their independent, unchanged path.
+  geometry_msgs::msg::PoseArray output;
+  output.header = message.header;
+  output.poses.push_back(message.poses[static_cast<std::size_t>(ball_pose_index_)]);
+  gated_pose_publisher_->publish(output); last_forwarded_pose_ns_ = source_ns;
+}
+
+void FlightPacketizerNode::prepare_snapshot(
     const TrajectorySnapshot& snapshot,
     const std::string& frame_id) {
+  if (!play_state_.incoming_flight() || snapshot.sample_count == 0 ||
+      snapshot.samples[0].source_time_s < play_state_.boundary_time()) return;
   if (trajectory_config_.adaptive.enabled) {
     RCLCPP_INFO(get_logger(), "adaptive commit epoch=%llu reason=%s net_delay=%.6f sample_age=%.6f",
         static_cast<unsigned long long>(snapshot.trajectory_epoch), snapshot.commit_reason.c_str(),
@@ -333,6 +469,10 @@ void FlightPacketizerNode::publish_snapshot(
   }
   packet.payload_hash = flight_packet_message_payload_hash(packet);
 
+  transmit_packet(packet);
+}
+
+void FlightPacketizerNode::transmit_packet(const hope_msgs::msg::BallFlightPacket& packet) {
   const auto now = steady_now_ns();
   bool immediate_sent = false;
   std::lock_guard<std::mutex> lock(pending_mutex_);
@@ -346,6 +486,7 @@ void FlightPacketizerNode::publish_snapshot(
       pending.message.transmit_index = static_cast<std::uint8_t>(i);
       pending.due_steady_ns =
           now + retransmit_delays_ms_[i] * 1'000'000LL;
+      pending.generation = play_state_.generation();
       pending_transmits_.push_back(std::move(pending));
     }
   }
@@ -354,6 +495,7 @@ void FlightPacketizerNode::publish_snapshot(
 void FlightPacketizerNode::publish_copy(
     const hope_msgs::msg::BallFlightPacket& base,
     std::uint8_t transmit_index) {
+  if (!play_state_.may_forward()) return;
   auto output = base;
   output.transmit_index = transmit_index;
   // Transport metadata is per attempt and deliberately excluded from the
@@ -380,8 +522,61 @@ void FlightPacketizerNode::retransmit_due() {
     }
   }
   for (const auto& pending : ready) {
-    publish_copy(pending.message, pending.message.transmit_index);
+    if (pending.generation == play_state_.generation())
+      publish_copy(pending.message, pending.message.transmit_index);
   }
+}
+
+bool FlightPacketizerNode::sync_play_state() {
+  if (state_generation_ == play_state_.generation()) return false;
+  state_generation_ = play_state_.generation();
+  trajectory_.reset_phase();
+  state_estimator_->reset(); state_spin_.reset();
+  fit_bounce_time_ = -1e9;
+  forecast_time_ = 0;
+  last_forwarded_pose_ns_ = 0;
+  { std::lock_guard<std::mutex> lock(pending_mutex_); pending_transmits_.clear(); }
+  return true;
+}
+
+void FlightPacketizerNode::publish_play_state() {
+  // Compare lightweight scalar/string-reference fields before serialization.
+  // An unchanged timer tick does no JSON construction or string allocation;
+  // the 10 Hz heartbeat reuses the cached text. Changes still publish at once.
+  const auto key = std::make_tuple(std::cref(session_id_), play_state_.state(),
+      std::cref(play_state_.reason()), std::cref(play_state_.forecast_advisory()),
+      play_state_.generation(), play_state_.may_forward(), play_state_.history_known(),
+      play_state_.return_confirmed(), play_state_.serve_armed(), play_state_.receive_armed(),
+      play_state_.striker_bounces(), play_state_.receiver_bounces(),
+      play_state_.local_stopped(), local_intent_revision_);
+  const auto now = steady_now_ns();
+  const bool changed = !last_state_key_ || key != *last_state_key_;
+  if (!changed && now - state_publish_ns_ < 100'000'000LL) return;
+  if (changed) {
+    // Strings are bounded local enum/reason/launch identifiers. std::quoted
+    // escapes session identity supplied by launch; no raw mocap text is used.
+    std::ostringstream out;
+    out << "{\"schema\":2,\"session_id\":" << std::quoted(session_id_)
+        << ",\"producer_instance_id\":" << std::quoted(producer_instance_id_)
+        << ",\"intent_revision\":" << std::quoted(std::to_string(local_intent_revision_))
+        << ",\"local_stopped\":" << (play_state_.local_stopped() ? "true" : "false")
+        << ",\"state\":" << std::quoted(play_state_name(play_state_.state()))
+        << ",\"reason\":" << std::quoted(play_state_.reason())
+        << ",\"forecast_advisory\":" << std::quoted(play_state_.forecast_advisory())
+        << ",\"generation\":" << std::quoted(std::to_string(play_state_.generation()))
+        << ",\"forwarding\":" << (play_state_.may_forward() ? "true" : "false")
+        << ",\"history_known\":" << (play_state_.history_known() ? "true" : "false")
+        << ",\"return_confirmed\":" << (play_state_.return_confirmed() ? "true" : "false")
+        << ",\"serve_armed\":" << (play_state_.serve_armed() ? "true" : "false")
+        << ",\"receive_armed\":" << (play_state_.receive_armed() ? "true" : "false")
+        << ",\"striker_bounces\":" << play_state_.striker_bounces()
+        << ",\"receiver_bounces\":" << play_state_.receiver_bounces() << '}';
+    last_state_text_ = out.str();
+    last_state_key_ = key;
+    RCLCPP_INFO(get_logger(), "ball state %s", last_state_text_.c_str());
+  }
+  if (local_status_) local_status_->update(last_state_text_);
+  state_publish_ns_ = now;
 }
 
 void FlightPacketizerNode::write_audit(

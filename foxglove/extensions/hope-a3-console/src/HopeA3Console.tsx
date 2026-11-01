@@ -15,6 +15,7 @@ import { HitSpeedScaleControls } from "./HitSpeedScaleControls";
 import { LanguageContext, useI18n } from "./LanguageContext";
 import { PlaneModeControls } from "./PlaneModeControls";
 import { BallModelStatus, ballModelDisplay } from "./ballModelStatus";
+import { BallPlayState, readLocalBallPlayState, currentBallPlayState, localIntentForAction, sendLocalBallIntent, readLocalControlKey, saveLocalControlKey } from "./ballPlayState";
 import { BALL_Y_FILTER_SERVICE, BallYFilterState, ballYFilterRequest, decodeBallYFilter } from "./ballYFilter";
 import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
@@ -761,6 +762,42 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const t = useMemo(() => createTranslator(locale), [locale]);
   const latest = useRef<Snapshot>(INITIAL_SNAPSHOT);
   const [snapshot, setSnapshot] = useState<Snapshot>(INITIAL_SNAPSHOT);
+  const [localBall, setLocalBall] = useState<{ state: BallPlayState; receivedAt: number }>();
+  const [localBallKey, setLocalBallKey] = useState(readLocalControlKey());
+  const [localBallPairFailed, setLocalBallPairFailed] = useState(false);
+  const [localBallIntentFailed, setLocalBallIntentFailed] = useState(false);
+  const localIntentQueue = useRef<Promise<void>>(Promise.resolve());
+  const applyLocalButton = useCallback((key: ServiceKey) => {
+    const action = localIntentForAction(key);
+    if (action == undefined) return;
+    localIntentQueue.current = localIntentQueue.current.then(async () => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 500);
+      try {
+        await sendLocalBallIntent(window.fetch.bind(window), action, controller.signal, localBallKey);
+        setLocalBallIntentFailed(false);
+      } catch { setLocalBallIntentFailed(true); }
+      finally { window.clearTimeout(timeout); }
+    });
+  }, [localBallKey]);
+  useEffect(() => {
+    let closed = false;
+    let pending: AbortController | undefined;
+    const poll = async () => {
+      if (pending != undefined) return;
+      const controller = new AbortController(); pending = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 300);
+      try {
+        const state = await readLocalBallPlayState(window.fetch.bind(window), controller.signal, localBallKey);
+        if (!closed) setLocalBall(state == undefined ? undefined : { state, receivedAt: Date.now() });
+      } catch { if (!closed) setLocalBall(undefined); }
+      finally { window.clearTimeout(timeout); pending = undefined; }
+    };
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 100);
+    return () => { closed = true; window.clearInterval(timer); pending?.abort(); };
+  }, [localBallKey]);
+
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
   const [, refreshClock] = useState(0);
   // Samples can arrive between timer ticks. Compare them with the time of THIS
@@ -889,7 +926,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
   const invoke = useCallback(
     async (key: ServiceKey) => {
-      if (context.callService == undefined || busy[key] === true) {
+      if (busy[key] === true) return;
+      // Local button intent and the existing robot request are independent.
+      // Neither rejection nor acknowledgement from A3 changes the classifier.
+      applyLocalButton(key);
+      if (context.callService == undefined) {
         setNotice(msg("hopeA3Console.currentDataSourceDoesNotExposeServiceCalls"));
         return;
       }
@@ -914,7 +955,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         setBusy((current) => ({ ...current, [key]: false }));
       }
     },
-    [busy, context],
+    [busy, context, applyLocalButton],
   );
 
   const fieldCommand = useCallback(async (payload: Record<string, unknown>) => {
@@ -1320,7 +1361,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.1" })}</div>
+          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.3" })}</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? t("hopeA3Console.ros2")} {t("hopeA3Console.control8766")}</span>
             <span
@@ -2017,6 +2058,33 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         </div>
         <div className="sequence-footer">
           <span>{lastAction}</span>
+          <span>{(() => {
+            const state = currentBallPlayState(localBall?.state, localBall?.receivedAt, now);
+            return state == undefined ? t("hopeA3Console.ballStateUnavailable") :
+              t("hopeA3Console.ballState", { state: state.state,
+                gate: state.forwarding ? t("hopeA3Console.ballForwarding") : t("hopeA3Console.ballSuppressed"),
+                reason: state.forecast_advisory ? t("hopeA3Console.ballForecastAdvisory", {
+                  reason: state.reason, forecast: state.forecast_advisory,
+                }) : state.reason });
+          })()}</span>
+          <details>
+            <summary>{t("hopeA3Console.ballPairing")}</summary>
+            <p>{t("hopeA3Console.ballPairingInstructions")}</p>
+            <label>{t("hopeA3Console.ballPairingFile")}
+              <input type="file" onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file == undefined) return;
+                if (file.size > 128) { setLocalBallPairFailed(true); return; }
+                void file.text().then((text) => {
+                  setLocalBallKey(saveLocalControlKey(text)); setLocalBallPairFailed(false);
+                }).catch(() => { setLocalBallPairFailed(true); });
+              }} />
+            </label>
+            <span>{t(localBallKey ? "hopeA3Console.ballPairingLoaded" : "hopeA3Console.ballPairingMissing")}</span>
+            {localBallPairFailed && <span role="alert">{t("hopeA3Console.ballPairingFailed")}</span>}
+          </details>
+          {localBallIntentFailed && <span role="alert">{t("hopeA3Console.ballIntentFailed")}</span>}
           <span>{mocapSafetyText(
             snapshot.runnerAlive === true && isFresh(snapshot, TOPICS.runnerAlive, now, 1_000) &&
             isFresh(snapshot, TOPICS.runnerBoot, now, 1_000) &&

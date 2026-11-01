@@ -13,6 +13,19 @@ hope_ball_flight_packetizer:
     # Uncertain spin uses the physical prior without delaying a shot.
     future_contact_require_spin: false
     input_pose_topic: "/poses/planner_full"
+    # The C++ classifier owns both A3-bound ball channels. Acquisition relays
+    # retain diagnostic output on /poses/operator_raw after P1/P2 conversion.
+    gated_pose_topic: "/poses"
+    play_state_input_timeout_s: 0.100
+    # Measured 3D near-stationary exception for RALLY/OPPONENT_RALLY only.
+    # Full 40 ms observation window, then 100 ms continuously below 0.10 m/s.
+    play_state_rally_min_speed_mps: 0.10
+    play_state_rally_slow_confirm_s: 0.100
+    play_state_direction_speed_mps: 0.25
+    play_state_direction_confirm_s: 0.020
+    play_state_launch_span_s: 0.060
+    play_state_held_span_s: 0.180
+    play_state_contact_height_m: 0.045
     flight_packet_topic: "/ball/flight_packet"
     ball_pose_index: 0
     input_qos_depth: 64

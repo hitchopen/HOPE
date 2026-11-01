@@ -1,6 +1,18 @@
 import type { MessageKey } from "./messages.en";
 
 export const zh = {
+  "hopeA3Console.ballPairing": "配对本地球状态控制",
+  "hopeA3Console.ballPairingInstructions": "Foxglove 桌面版需要操作电脑运行环境中的私密 hope-ball-controls.key。在本机导入一次即可，详见球状态部署文档；请勿分享密钥。",
+  "hopeA3Console.ballPairingFile": "私密配对密钥文件",
+  "hopeA3Console.ballPairingLoaded": "密钥已保存在本机；实时球状态显示正常即表示配对成功。",
+  "hopeA3Console.ballPairingMissing": "尚未导入桌面版密钥。网页版使用准确的 Foxglove 来源验证。",
+  "hopeA3Console.ballPairingFailed": "无法导入配对密钥，请选择含 64 个字符的私密密钥文件。",
+  "hopeA3Console.ballIntentFailed": "本地球状态初始化失败，请重试准备接球／发球／站立；机器人请求独立处理。",
+  "hopeA3Console.ballStateUnavailable": "操作电脑球状态不可用或已过期",
+  "hopeA3Console.ballForecastAdvisory": "{reason} · 预测提示（不改变球数据通行）：{forecast}",
+  "hopeA3Console.ballState": "球状态：{state} · {gate} · {reason}",
+  "hopeA3Console.ballForwarding": "允许发送来球数据包",
+  "hopeA3Console.ballSuppressed": "已阻止发送球飞行数据包",
   "hopeA3Console.confirmationTitle": "确认操作",
   "hopeA3Console.cancelAction": "取消",
   "hopeA3Console.confirmAction": "确认并发送",

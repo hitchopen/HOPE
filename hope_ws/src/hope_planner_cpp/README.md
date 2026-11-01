@@ -1,21 +1,44 @@
 # hope_planner_cpp
 
-Deterministic C++17 Planner for the `model_21800` hardware contract. This is
+Deterministic C++17 Planner for the current HOPE hardware deployment. This is
 the only supported ROS Planner runtime for production, Foxglove and Gate 3.
 The ROS production path contains a non-recursive, bounce-aware batch physics estimator, the
 Stage 2 trajectory predictor, the complete Stage 3 racket solve, and the exact
 19-double schema-2 publisher. It contains no EKF, covariance, Kalman gain, or
 chi-square admission logic.
 
-In production, the separate `hope_ball_flight_packetizer` executable owns the
-high-rate `/poses` callback and incoming-flight state machine. A small
+The operator-side `hope_ball_flight_packetizer` owns the high-rate
+`/poses/planner_full` callback after P1/P2 conversion. Its C++ five-state
+classifier gates both `/ball/flight_packet` and the legacy observer `/poses`
+output. Only eligible opponent flights pass; pelvis/base publishing bypasses
+this process. Explicit local Ready permits early usable poses before launch
+fitting, while packets still require a qualified trajectory. Local Serve arms
+without a ball; local Stand/Stop clears the shot and retries and holds the gate
+closed until local Ready/Serve. Runner mode, serve phase, boot and lifecycle
+feedback have no effect: this process has no subscriptions to them. Eligible
+incoming data passes even while Runner is standing or completing a serve; A3's
+existing controls decide how to use it. No robot state command is added.
+
+After a confirmed hold of an ego serve, automatic restart stays blocked.
+Explicit local Ready may directly initialize a new opponent serve; Stand is
+not required for this manual choice. Uninterrupted returns become OPPONENT_RALLY.
+The same classifier runs on Ubuntu and in the macOS operator container. Its
+local HTTP endpoint supplies Console 1.9.3 and accepts local button intents,
+with exact web-origin checks, private Desktop pairing and producer/revision
+checks preventing stale requests from reopening a newer Stop. Neither initialization nor display waits for robot acknowledgement.
+Forecast warnings remain advisory. Observed incoming violations, ball loss and
+sustained measured low rally speed determine invalidity. Source-clock recovery
+starts fresh history without releasing local Stop or inventing Ready intent.
+See [state semantics, thresholds, installation and verification](../../../docs/operations/laptop_ball_states.md).
+
+The existing incoming-flight packet scheduler remains separate. A small
 detector-only pre-roll fits X velocity,
 ignores the robot's outgoing flight, and backtracks a confirmed opponent return
 to its X turnaround. Only that epoch's incoming samples enter the 180 ms
-estimator history. The model14600 profile uses adaptive scheduling around the
+estimator history. The shared production profile uses adaptive scheduling around the
 `net crossing + 50 ms` baseline: short-lead balls commit earlier, while a ball
 with sufficient preparation time can use at least 80 ms of clean post-bounce
-observations. The scheduler reserves 350 ms for the policy and 100 ms for
+observations. The checked-in profile reserves 350 ms for the policy and 30 ms for
 transport; the latter is an allowance, not a bound on Wi-Fi latency. It uses
 the calibrated foremost hit plane published by the HDU, with a conservative
 fallback when that reference is unavailable. A wall timer closes the snapshot
@@ -26,8 +49,9 @@ snapshot, clears the active epoch, and publishes an immutable
 estimator/Stage-2/Stage-3 solve and publishes once. Direct `/poses` input remains
 an explicit legacy A/B mode and is disabled by the production config.
 
-`config/model21800_flight_packetizer.yaml` now enables the model14600 adaptive
-profile (also retained as `config/model14600_adaptive_flight_packetizer.yaml`).
+`config/model21800_flight_packetizer.yaml` enables adaptive scheduling. Its
+historical filename does not select the deployed policy; use the installed
+model17400/PPQ004 bundle and its matched Planner/packetizer configuration.
 Set `adaptive_commit_enabled: false` in an isolated comparison profile to
 restore fixed 50 ms scheduling. The immutable packet is retransmitted at
 0/5/15 ms and deduplicated on the HDU; the target is never revised mid-swing.

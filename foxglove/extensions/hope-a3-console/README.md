@@ -1,6 +1,31 @@
 # HOPE A3 Console
 
-Download `hopeopen.hope-a3-console-1.8.18.foxe` from this directory and open it in
+Console 1.9.3 displays the operator computer's five ball-flight states beside
+Runner status, including forwarding eligibility and separate forecast advisories.
+It reads the local C++ packetizer at `http://127.0.0.1:8768/ball-state`; state
+labels are not sent to A3. Install the matching packetizer with this Console.
+Desktop requires importing the runtime's private `hope-ball-controls.key` once
+through **Pair local ball controls**; see the deployment guide linked below.
+Web access is restricted to exactly `https://app.foxglove.dev`; arbitrary
+websites cannot read status or send local intents.
+
+Explicit local Ready arms `OPPONENT_SERVE` before ball data; Prepare Serve / Ready
+to Serve arms `SERVE`. Stand/Stop (also Passive/E-stop) holds `INVALID` until
+another local Ready/Serve. After an ego serve is held, automatic new opponent
+serves are blocked, but an explicit Ready may directly enter OPPONENT_SERVE.
+These local HTTP intents run independently of the
+same buttons' existing robot requests: A3 acknowledgement, rejection, mode,
+serve phase and lifecycle never alter the classifier. Automatic A3 Stand does
+not stop local observation or eligible forwarding. A local intent failure is
+shown separately without blocking a robot request. No classifier state or
+state-derived command is sent to A3.
+
+Only opponent states enable ball forwarding. Pelvis/base traffic is independent,
+and filtering runs in C++ regardless of panel rendering. Both Ubuntu and macOS
+use the same classifier after P1/P2 conversion; see
+[state rules, installation and verification](../../../docs/operations/laptop_ball_states.md).
+
+Download `hopeopen.hope-a3-console-1.9.3.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to
@@ -53,7 +78,7 @@ using this release. P2 tracks Motive rigid body UCB_P2 and rotates every ball
 and rigid-body pose about the table centre, so both end robots consume the same
 policy convention. The selection is locked while a lifecycle is active.
 
-Console 1.8.18 verifies the physical table end directly from raw player mocap
+The Console verifies the physical table end directly from raw player mocap
 poses before the P2 rotation. P1 is selectable only with a fresh tracked player
 at `x < 0 m`, and P2 only at `x > 2.74 m`. Either player body can establish
 presence; a ball or table pose cannot. The buttons subscribe to
@@ -245,7 +270,7 @@ ROS 2 message-latency card.
 ## Public release
 
 The current installer is
-[Console 1.8.18](hopeopen.hope-a3-console-1.8.18.foxe), built from this directory's
+[Console 1.9.3](hopeopen.hope-a3-console-1.9.3.foxe), built from this directory's
 source. Install its matching HDU/MDU services and relays, then confirm the
 operator profile and model17400/PPQ004 selections before START.
 
