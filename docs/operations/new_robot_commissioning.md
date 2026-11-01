@@ -114,9 +114,71 @@ uptime 服务不可达时，单独重启 HDU `agibot_pm` 不会恢复 PTP。检�
 - RTC 分辨率可能使重启后仍有几百毫秒 correction；重启前合格不能代替重启后验收。
   等 continuous chrony 收敛并再次确认 ≤10 ms。此次有人值守维护曾临时使用连续 slew，
   结束后恢复固定 `maxslewrate 100` 与配置 hash；此临时维护调整不属于日常运行配置。
-- 现有 Time Calibration 的热恢复流程不兼容这种 vendor guard。后端现在在任何 MDU
-  recovery/stop 之前返回 `GUARDED_BSP_REQUIRES_PAIRED_REBOOT`，保持当前服务运行。
-  NTP 正常时无需点击它。需要 hard-step 时使用上述受控双板维护；不能为按钮可用而删保护。
+- 未安装匹配适配器时，Time Calibration 在任何 MDU recovery/stop 之前返回
+  `GUARDED_BSP_REQUIRES_PAIRED_REBOOT`，保持当前服务运行。完成下述按钮兼容 setup 后，
+  受控校时可用一次性维护凭据恢复 PTP；正常开机仍执行原厂 guard。不能删除保护或伪造 uptime。
+
+### HOPE 开机一次性校时 setup
+
+HOPE 场景要求正常整机开机后自动完成校时。通用 `agibot/ntp_sync` 基线为了保留原厂
+离线行为，默认禁用 bootstrap；只安装该基线会把 RTC 的数百毫秒误差留给
+`maxslewrate 100` 慢慢消除。NTP 黄灯此时表示 correction 尚未达标，不能解释为
+“同步成功但没有显示”。Time Calibration 被 guard 拒绝时，按钮没有执行任何一次性校时。
+
+在已完成时钟基线安装的 HDU 上，额外执行以下 HOPE setup。脚本和同目录的
+`30-hope-clock-boot-ordering.conf` 必须一起同步；先检查实际区域上游源能访问。
+
+```bash
+cd ~/HOPE
+sudo bash foxglove/a3/configure_hdu_boot_clock.sh --enable-next-boot
+```
+
+该脚本验证固定 bootstrap/helper/config 身份、备份原状态，补上 bootstrap 先于 HOPE
+控制面/DDS 的顺序并 enable；它不会启动 bootstrap、改当前时钟、停止服务或重启机器人。
+输出 `HDU_BOOT_CLOCK_STAGED_NEXT_BOOT` 只表示下次开机配置完成。重新安装通用基线后
+必须重新执行此步，因为通用安装器会恢复 disabled。
+
+随后在已支撑、急停可触达、无 Runner/策略且持有硬件维护锁的条件下，协调两板重启。
+正常顺序是：网络 → 一次性 bootstrap → continuous chrony → 厂商 guard/PTP 与 HOPE。
+原厂 guard 继续检查真实 MDU uptime；不能伪造 uptime 或在热运行中强行调用 timesync.sh。
+单板重启、MDU 启动过慢或 uptime 服务未就绪时，仍可能拒绝分发，必须检查日志。
+初始 NTP 不可达时，bootstrap 有界失败后保留原厂离线启动与 continuous chrony；
+外部时间 gate 仍须通过，不能承诺断网也能立即开始跨机器动捕任务。
+
+重启后在 HDU 检查：
+
+```bash
+cat /proc/sys/kernel/random/boot_id
+systemctl is-enabled agibot-clock-bootstrap.service
+systemctl show agibot-clock-bootstrap.service -p Result -p ActiveEnterTimestampMonotonic
+journalctl -b -u agibot-clock-bootstrap.service --no-pager
+test -e /run/agibot-time/bootstrap-qualified
+chronyc tracking
+chronyc waitsync 1 0.010 0 1
+systemctl show agibot_pm.service hope-lifecycle-supervisor.service -p ActiveEnterTimestampMonotonic
+```
+
+bootstrap 应为 enabled、Result=success，完成时间早于厂商 PM 和 HOPE；当前 correction
+≤10 ms，Console `/hope/ntp/gate_pass` 为新鲜 true。另在 MDU 读回新 boot ID、PTP
+`SLAVE` / `gmPresent=true`、持续更新的 master offset 与 phc2sys system offset，
+按上文核对 Laptop/动捕电脑。一次性的 bootstrap 完成后不再调整时钟；continuous chrony、
+HDU/MDU 的 PTP workers 和机器人所需的 PM/HAL 保持运行。`timesync_guard.py` 自身检查完就退出。
+
+2026-10-31 本次新机验证：重启前 HDU correction 约 331 ms；启用上述顺序后，12:56:46
+bootstrap 自动修正 -477.378 ms（本次 RTC 重载后的误差），随后 `bootstrap-qualified`、
+`rtc_updated=yes`。ROS 实测 NTP gate=true、lifecycle=STOPPED；MDU 后续进入 SLAVE、
+gmPresent=true，单次 master offset=-65 ns，phc2sys offset=-110 ns。HDU/MDU boot ID 均变化。
+这些是该次启动的时钟验收，不代表策略/动作或整场 demo 已验证。按钮的 guarded-BSP
+适配已具备维护凭据路径，见下节；该次实机验证仅覆盖开机校时，
+按钮端到端验收须在停止 demo 后另行记录。
+
+### Guarded BSP 的时间同步按钮 setup
+
+开机校时和按钮热校时是两个独立验收项。按[按钮适配安装与验收](guarded_clock_calibration.md)
+安装匹配的 coordinator core 和固定 BSP adapter。它保留原厂 guard 的完整副本，普通启动
+仍执行该副本；只在 STOPPED 校时、HDU UTC 已合格、MDU 消费者仍停止且维护锁有效时，
+使用 60 秒有效、绑定本次 boot/operation/coordinator 的一次性凭据恢复原厂 PTP。
+恢复有确认回执之后才恢复 MDU。未完成真实按钮验收时不得报告“所有 Foxglove 功能均可用”。
 
 ## 4. 先让实际安装与 START 使用同一组组件
 

@@ -90,6 +90,7 @@ ENV = "/usr/bin/env"
 REMOTE_SUDO = "/usr/bin/sudo"
 LIFECYCLE_HELPER = "/usr/local/libexec/hope-lifecycle"
 CHRONYC = "/usr/bin/chronyc"
+GUARDED_CLOCK = "/usr/local/libexec/hope-guarded-clock"
 CHRONY_BURST_UNIT = "hope-chrony-burst.service"
 TEST = "/usr/bin/test"
 SS = "/usr/bin/ss"
@@ -293,6 +294,7 @@ class TimeCalibrationBackend:
             robot_home = pwd.getpwnam(robot_user).pw_dir
         if not robot_home.startswith("/") or any(character.isspace() for character in robot_home):
             raise ValueError("robot account home must be an absolute path without whitespace")
+        self._guarded_restore = False
         self._robot_user = robot_user
         self._robot_home = robot_home
         self._run = run
@@ -610,6 +612,7 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"HDU_CLOCK_PROCESS_REMAINS: {process}")
 
     def preflight(self, config: LifecycleConfig) -> tuple[str, ...]:
+        self._guarded_restore = False
         if config.revision < 1:
             raise CalibrationRejected("CONFIG_NOT_CONFIRMED")
         if not self._is_active("chrony.service"):
@@ -630,9 +633,18 @@ class TimeCalibrationBackend:
             except OSError as exc:
                 raise CalibrationRejected("HDU_VENDOR_LAUNCHER_UNREADABLE") from exc
             if "system/timesync_guard.py" in launcher:
-                # This BSP restores vendor PTP only after a paired cold boot.
-                # Reject before even receipt-based MDU recovery can mutate it.
-                raise CalibrationRejected("GUARDED_BSP_REQUIRES_PAIRED_REBOOT")
+                # Original BSPs still fail before any MDU mutation. The pinned
+                # adapter permits only a receipt-bound, post-step restoration.
+                try:
+                    adapter = self._checked([GUARDED_CLOCK, "--check"], timeout_s=5.0,
+                                            label="verify guarded BSP restoration adapter")
+                    if adapter.strip() != "GUARDED_CLOCK_ADAPTER_V1":
+                        raise CalibrationFailure("guarded BSP adapter protocol mismatch")
+                except CalibrationFailure as exc:
+                    raise CalibrationRejected(
+                        f"GUARDED_BSP_REQUIRES_PAIRED_REBOOT: {exc}"
+                    ) from exc
+                self._guarded_restore = True
         missing_ptp = [
             process
             for process in PTP_PROCESSES
@@ -721,6 +733,12 @@ class TimeCalibrationBackend:
         """Best-effort safe stop: keep robot services down, restore diagnostics."""
 
         errors: list[str] = []
+        if self._guarded_restore:
+            try:
+                self._checked([GUARDED_CLOCK, "--revoke"], timeout_s=5.0,
+                              label="revoke guarded BSP restoration receipt")
+            except Exception as exc:
+                errors.append(f"GUARDED_RECEIPT_REVOKE={exc}")
         try:
             self._remote_mdu(config, "time-calibration-stop-mdu", timeout_s=120.0)
         except Exception as exc:  # noqa: BLE001 - collect every recovery failure
@@ -886,6 +904,11 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"CLOCK_NOT_QUALIFIED_AFTER_HARD_STEP: {detail}")
 
             report("HDU_RESTORE", "RESTORING_HDU_VENDOR_PTP_CHAIN")
+            if self._guarded_restore:
+                self._checked(
+                    [GUARDED_CLOCK, "--arm", config.mdu_internal_ip, self._robot_user],
+                    timeout_s=30.0, label="arm one-use guarded BSP PTP restoration",
+                )
             if active_ptp:
                 self._start_units(active_ptp, label="restore HDU PTP services")
                 self._wait_units_active(active_ptp, timeout_s=30.0)
@@ -895,6 +918,11 @@ class TimeCalibrationBackend:
             if active_ptp:
                 self._start_units(active_vendor, label="restore HDU vendor services")
 
+            if self._guarded_restore:
+                self._checked([GUARDED_CLOCK, "--verify"], timeout_s=10.0,
+                              label="verify guarded BSP restoration acknowledgement")
+                self._checked([GUARDED_CLOCK, "--revoke"], timeout_s=5.0,
+                              label="clear guarded BSP restoration receipt")
             report("MDU_RESTORE", "RESTORING_MDU_PTP_AND_VENDOR_SERVICES")
             self._remote_mdu(config, "time-calibration-restore-mdu", timeout_s=180.0)
 

@@ -10,8 +10,9 @@ Record the current HDU/MDU identities, boot IDs, interfaces, routes and trusted 
 host keys. Read the actual `/opt/agibot/entry/run_agibot.sh` on the HDU. If it invokes
 `system/timesync_guard.py`, use the
 [guarded BSP paired-reboot procedure](new_robot_commissioning.md#新-bsp-的-timesync_guardpy必须先分支).
-Ordinary `--install` and hot Time Calibration reject that topology before mutation.
-Do not remove the vendor guard or fabricate MDU uptime.
+Ordinary `--install` rejects that topology before mutation. Hot Time Calibration
+also rejects it unless the matching [receipt-bound adapter](guarded_clock_calibration.md)
+is installed. Do not remove the vendor guard or fabricate MDU uptime.
 
 Installation requires an attended maintenance window: the robot is physically
 supported, external motion is disabled, Runner is stopped, and the physical E-stop
@@ -86,6 +87,26 @@ paired-board stop checks in the commissioning checklist. The installer asks for
 New dependency packages are retained after rollback. Never run the remote `/tmp`
 installer as a local Laptop command. The continuous clock remains slew-only;
 installation does not authorize an unattended hard step or motion restart.
+
+### 3.1 Complete the HOPE boot and button policy
+
+The generic baseline deliberately leaves `agibot-clock-bootstrap.service`
+disabled. For HOPE power-on readiness, stage both
+`foxglove/a3/configure_hdu_boot_clock.sh` and its adjacent
+`30-hope-clock-boot-ordering.conf`, then run on the HDU:
+
+```bash
+sudo bash ~/HOPE/foxglove/a3/configure_hdu_boot_clock.sh --enable-next-boot
+```
+
+This enables the fixed one-shot ahead of vendor and HOPE consumers for the next
+boot; it performs no current clock operation. Follow the
+[boot acceptance procedure](new_robot_commissioning.md#hope-开机一次性校时-setup).
+An enabled bootstrap is expected after this additional HOPE setup, while the
+generic baseline alone remains disabled. Reapply this policy after reinstalling
+the generic baseline. For guarded BSPs, also install and qualify the
+[Time Calibration button adapter](guarded_clock_calibration.md). Treat these as
+separate setup/acceptance steps; successful boot NTP does not prove the button.
 
 ## 4. Authorize the current Laptop as an NTP client
 

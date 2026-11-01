@@ -13,6 +13,7 @@ from hope_lifecycle_core import LifecycleConfig  # noqa: E402
 from hope_monitor_core import NtpProbeResult  # noqa: E402
 from hope_time_calibration_core import (  # noqa: E402
     CHRONYC,
+    GUARDED_CLOCK,
     CHRONY_BURST_UNIT,
     HDU_CONSOLIDATED_CONTROL_GROUP,
     HDU_CONSOLIDATED_CONTROL_SCRIPT,
@@ -52,6 +53,8 @@ class FakeMachine:
         consolidated=False,
         split_units_loaded=True,
     ):
+        self.adapter_available = False
+        self.adapter_fail = None
         self.calls: list[tuple[str, ...]] = []
         self.active = set(HDU_FOXGLOVE_UNITS) | set(HDU_VENDOR_UNITS) | set(HDU_PTP_UNITS) | {
             "chrony.service"
@@ -112,7 +115,11 @@ class FakeMachine:
         stdout = ""
         stderr = ""
 
-        if command[0] == SYSTEMCTL:
+        if command[0] == GUARDED_CLOCK:
+            returncode = 0 if self.adapter_available and command[1] != self.adapter_fail else 1
+            stderr = "adapter unavailable or refused" if returncode else ""
+            stdout = "GUARDED_CLOCK_ADAPTER_V1" if command[1] == "--check" and not returncode else ""
+        elif command[0] == SYSTEMCTL:
             verb = command[1]
             if verb == "cat":
                 returncode = 0 if command[2] in self.loaded else 1
@@ -288,6 +295,36 @@ class TimeCalibrationOrderingTests(unittest.TestCase):
         self.assertFalse(any(c[:2] in ((SYSTEMCTL, "stop"), (SYSTEMCTL, "start"),
                                       (SYSTEMCTL, "restart")) for c in machine.calls))
         self.assertFalse(any(c[-1].startswith("time-calibration-") for c in machine.calls))
+
+    def test_guarded_adapter_arms_only_after_step_and_acks_before_mdu_restore(self):
+        machine = FakeMachine(legacy_ptp=True)
+        machine.adapter_available = True
+        machine.file_overrides["/opt/agibot/entry/run_agibot.sh"] = 'python3 "${DIR}/system/timesync_guard.py" &'
+        backend = self.backend(machine, failing_ntp(), passing_ntp(), passing_ntp())
+        backend.calibrate(self.config(), lambda _progress: None, handoff_delay_s=0)
+        calls = machine.calls
+        arm = calls.index((GUARDED_CLOCK, "--arm", self.config().mdu_internal_ip, "agi"))
+        step = calls.index((SYSTEMCTL, "restart", "agibot-clock-bootstrap.service"))
+        ack = calls.index((GUARDED_CLOCK, "--verify"))
+        restore = next(i for i, c in enumerate(calls) if c[-1] == "time-calibration-restore-mdu")
+        self.assertLess(step, arm)
+        self.assertLess(arm, ack)
+        self.assertLess(ack, restore)
+        self.assertIn((GUARDED_CLOCK, "--revoke"), calls[ack:restore])
+
+    def test_guarded_adapter_failure_revokes_and_keeps_mdu_consumers_stopped(self):
+        for failure in ("--arm", "--verify"):
+            with self.subTest(failure=failure):
+                machine = FakeMachine(legacy_ptp=True)
+                machine.adapter_available = True
+                machine.adapter_fail = failure
+                machine.file_overrides["/opt/agibot/entry/run_agibot.sh"] = 'python3 "${DIR}/system/timesync_guard.py" &'
+                backend = self.backend(machine, failing_ntp(), passing_ntp(), passing_ntp())
+                with self.assertRaises(CalibrationFailure):
+                    backend.calibrate(self.config(), lambda _progress: None, handoff_delay_s=0)
+                self.assertIn((GUARDED_CLOCK, "--revoke"), machine.calls)
+                self.assertFalse(any(c[-1] == "time-calibration-restore-mdu" for c in machine.calls))
+                self.assertNotIn("agibot_pm.service", machine.active)
 
     def test_consolidated_receipt_restores_only_prior_active_operations_services(self):
         old_units = HDU_REQUIRED_CONTROL_UNITS
