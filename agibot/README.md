@@ -32,7 +32,7 @@ Process presence is not a substitute for physical safety verification.
 | [ntp_sync/](ntp_sync/README.md) | A3 HDU Chrony and supervised HDU-to-MDU PTP clock synchronization; includes installation, verification and recovery procedures. |
 | [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables, geometry validation, and OptiTrack/ChingMu asset definitions. |
 | [right_wrist_paddle_flange/](right_wrist_paddle_flange/README.md) | Current 45-degree right wrist paddle flange: hollow connector cavity, smooth exterior reinforcement, printable STL and printing/fit notes. |
-| [right_wrist_hand_unified/](right_wrist_hand_unified/README.md) | V4.2 throat-located hollow wrist/palm/H3002 cradle with a four-screw A3 collar mount, right-facing −Y flat, enclosed wiring pocket and removable lid; final STLs, pose calculation and release notes. |
+| [right_wrist_hand_unified/](right_wrist_hand_unified/README.md) | V4.3 throat-located hollow wrist/palm/H3002 cradle with a four-screw A3 collar mount, right-facing −Y flat, enclosed wiring pocket and removable lid; final STLs, pose calculation and release notes. |
 | [agibot_left_gripper_serve_addon.STL](agibot_left_gripper_serve_addon.STL) | Developer-supplied left-gripper serving fixture. **Metre-scale coordinates; see the printing scale warning below.** |
 
 ## Robot models and software boundaries
@@ -101,11 +101,13 @@ the dimensions, geometry checks and assembly guidance.
 
 ## Unified right wrist hand
 
-The [V4.2 H3002 integrated hand](right_wrist_hand_unified/README.md) uses A3's
+The [V4.3 H3002 integrated hand](right_wrist_hand_unified/README.md) uses A3's
 existing metal collar and exactly four radial M4 screws. No fifth mounting
 screw or hole is required in the printed plug. Its keyed Ø34 mount, circular
 shoulder, curved wrist, palm, thumb contour and paddle cradle form one printed
-body; the removable cover shares its curved fist surface. The cradle extends to
+body; the removable cover shares its curved fist surface. The back tapers into
+the grip with less bulk, and the exposed side-wing recess is filled with a rounded
+transition. The lid is byte-identical to V4.2 and can be reused. The cradle extends to
 two paddle-shoulder locating lands, while 22.5 mm of the handle butt is exposed.
 The release folder contains only the final body STL, lid STL and release README.
 Four open-ended M4x0.7 female threads are modeled directly in the printed plug;
