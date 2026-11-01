@@ -42,7 +42,7 @@ def body(side):
     return document["UCB_" + side]
 
 
-def test_release_has_exactly_two_player_assets_and_keeps_the_cad_unchanged():
+def test_release_has_two_player_assets_and_preserves_marker_geometry():
     manifest = release()
     assert manifest["schema_version"] == 2
     assert manifest["station_count"] == 17
@@ -51,10 +51,29 @@ def test_release_has_exactly_two_player_assets_and_keeps_the_cad_unchanged():
     assert manifest["source_table"]["sha256"] == hashlib.sha256(TABLE.read_bytes()).hexdigest()
     # These hashes predate the player-pattern change, not regenerated expectations.
     assert hashlib.sha256(TABLE.read_bytes()).hexdigest() == "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0"
-    assert manifest["unchanged_printable_sha256"]["a3_marker_shell_v3_half_a.stl"] == "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935"
-    assert manifest["unchanged_printable_sha256"]["a3_marker_shell_v3_half_b.stl"] == "5bf8bf09862e22431e35d023a467c17fb298eaa71dec8f7f31ac97fe169cb9f4"
-    for name, digest in manifest["unchanged_printable_sha256"].items():
+    engraving = json.loads((SHELL / "documents/engraving_validation.json").read_text())
+    assert manifest["printable_revision"] == engraving["revision"] == "v3_engraved_20261101"
+    assert manifest["marker_geometry_unchanged"] is True
+    assert engraving["baseline_sha256"]["a3_marker_shell_v3_half_a.stl"] == "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935"
+    assert engraving["baseline_sha256"]["a3_marker_shell_v3_half_b.stl"] == "5bf8bf09862e22431e35d023a467c17fb298eaa71dec8f7f31ac97fe169cb9f4"
+    for name, digest in manifest["printable_sha256"].items():
         assert hashlib.sha256((SHELL / "printable" / name).read_bytes()).hexdigest() == digest
+    p1, p2 = set(ORDERS["P1"]), set(ORDERS["P2"])
+    marks = [m for m in engraving["marks"] if m["kind"] == "station"]
+    assert len(marks) == 17 and {m["station"] for m in marks} == p1 | p2
+    for mark in marks:
+        name = mark["station"]
+        expected = "circled_X" if name in p1 & p2 else "circle" if name in p1 else "X"
+        assert mark["symbol"] == expected
+    brand = [m for m in engraving["marks"] if m["kind"] == "brand"]
+    assert len(brand) == 1 and brand[0]["half"] == "b" and brand[0]["text"] == "HITCH OPEN"
+    legend = [m for m in engraving["marks"] if m["kind"] == "legend"]
+    assert len(legend) == 1 and legend[0]["half"] == "b"
+    assert legend[0]["text"] == "○ P1 · X P2"
+    assert legend[0]["height_mm"] == 2.5 and legend[0]["planar_scale"] == .5
+    assert brand[0]["height_mm"] == 7.5
+    assert legend[0]["origin_cad_mm"][1] < brand[0]["origin_cad_mm"][1]
+    assert legend[0]["min_sampled_remaining_wall_along_N_mm"] > 1.5
     assert (SHELL / "motive_asset/P1.motive").is_file()
     assert (SHELL / "motive_asset/P2.motive").is_file()
 

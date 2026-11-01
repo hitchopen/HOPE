@@ -1,7 +1,13 @@
 # A3 v3 marker registration to pelvis_link
 
 Status: **nominal CAD calculation verified; physical calibration not performed**.
-Updated: 2026-10-27. This note accompanies the 17-station sticker and mount-seat
+
+The 2026-11-01 exterior engraving revision changes both STL byte identities.
+All station positions, normals, fitting surfaces and optical coordinates remain
+unchanged; protected-mount and face/bore checks are in engraving_validation.json.
+References below to an unchanged front STL concern the earlier restoration
+baseline, not the engraved release.
+Updated: 2026-11-01. This note accompanies the 17-station sticker and mount-seat
 tables. The fused STL geometry is now checked; this note does not certify
 physical fit or installed calibration.
 

@@ -37,11 +37,6 @@
     "path": "../documents/marker_transforms_pelvis_link_stickers.csv",
     "sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0"
   },
-  "unchanged_printable_sha256": {
-    "a3_marker_shell_v3_flush_pin.stl": "f57259bcf324e2b41aae8441b94ff6d50de911d98a023801ff1b90d9d5b35792",
-    "a3_marker_shell_v3_half_a.stl": "e8cd73bd04adb59edfde3f05ccf3fce47396bda512b51b44cf4963239eede935",
-    "a3_marker_shell_v3_half_b.stl": "5bf8bf09862e22431e35d023a467c17fb298eaa71dec8f7f31ac97fe169cb9f4"
-  },
   "historical_reference_sha256": {
     "../documents/source_evidence/optitrack/A3.motive": "7e5423ae1943761380eb834653011dfbf1a52cd6961bdac45504c0741ba7840a",
     "../documents/source_evidence/optitrack/A3.csv": "5c0f478c12f93e212fdda6478e3ee1413e7f6de5323d464a97e2816cbcc6c7ab"
@@ -479,5 +474,13 @@
     "Resolve existing UCB_P1/UCB_P2 names and streaming ID 9/10 collisions in a backed-up project.",
     "No centroid reset, extra P2 local rotation or second sticker-thickness offset.",
     "The legacy measured stickers_v3 calibration tool still requires all 17 sites; it cannot issue a receipt for this pair."
-  ]
+  ],
+  "printable_revision": "v3_engraved_20261101",
+  "printable_revision_date": "2026-11-01",
+  "marker_geometry_unchanged": true,
+  "printable_sha256": {
+    "a3_marker_shell_v3_flush_pin.stl": "f57259bcf324e2b41aae8441b94ff6d50de911d98a023801ff1b90d9d5b35792",
+    "a3_marker_shell_v3_half_a.stl": "85ba1cdb78296b7468b9b1f86590d686d28564815b1b2870535189314abfbd6b",
+    "a3_marker_shell_v3_half_b.stl": "dcae8661bc90aed06b269518c260fed948106a959d7198efc5aeb522510a4aa1"
+  }
 }

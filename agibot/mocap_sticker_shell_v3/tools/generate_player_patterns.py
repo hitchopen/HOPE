@@ -161,7 +161,9 @@ def write_assets(report):
         "pattern_analysis": "../documents/player_pattern_analysis.json",
         "supplied_format_reference": {"filename": "UCB_P1(1).json", "sha256": "60bfe6fd97fb8dd3656315de06b01cfcb7d255cb37d043576dfa6a0f3c408c47",
             "use": "Retain existing native fields and minMarker=6. Replace only geometry, body identity, ID and display color."},
-        "unchanged_printable_sha256": {p.name: sha(p) for p in sorted((SHELL / "printable").glob("*.stl"))},
+        "printable_revision": "v3_engraved_20261101",
+        "printable_revision_date": "2026-11-01", "marker_geometry_unchanged": True,
+        "printable_sha256": {p.name: sha(p) for p in sorted((SHELL / "printable").glob("*.stl"))},
         "assets": {},
         "warnings": ["Import P1.json and P2.json, not this manifest. Internal names UCB_P1/UCB_P2 preserve HOPE routing.",
             "Seven stations are shared; arbitrary occlusion can make the patterns indistinguishable.",
@@ -209,7 +211,9 @@ def write_motive_assets(report):
         "geometry_status": "ALL_CAD_NOMINAL_NOT_PHYSICAL_CALIBRATION",
         "motive_import_reexport": "NOT_PERFORMED", "live_tracking": "NOT_PERFORMED",
         "source_table": {"path": "../documents/marker_transforms_pelvis_link_stickers.csv", "sha256": sha(TABLE)},
-        "unchanged_printable_sha256": {p.name: sha(p) for p in sorted((SHELL / "printable").glob("*.stl"))},
+        "printable_revision": "v3_engraved_20261101",
+        "printable_revision_date": "2026-11-01", "marker_geometry_unchanged": True,
+        "printable_sha256": {p.name: sha(p) for p in sorted((SHELL / "printable").glob("*.stl"))},
         "historical_reference_sha256": {name: sha(directory / name) for name in
             ("../documents/source_evidence/optitrack/A3.motive", "../documents/source_evidence/optitrack/A3.csv")},
         "assets": {},
@@ -291,6 +295,7 @@ def pdf_instructions(report, manifest):
     body_style = ParagraphStyle("body", fontName="Helvetica", fontSize=9.5, leading=14, textColor=HexColor(ink))
     small_style = ParagraphStyle("small", parent=body_style, fontSize=8, leading=11)
     page = 0
+    release_date = "2026-11-01"
     def start(title, subtitle):
         nonlocal page
         if page: c.showPage()
@@ -302,7 +307,7 @@ def pdf_instructions(report, manifest):
         c.setFont("Helvetica",10); c.drawString(margin,h-86,subtitle)
         c.setStrokeColor(HexColor("#D5DDE5")); c.line(margin,37,w-margin,37)
         c.setFont("Helvetica",8); c.setFillColor(HexColor(muted))
-        c.drawString(margin,23, f"{DATE}  |  Nominal CAD geometry; import and physical verification pending")
+        c.drawString(margin,23, f"{release_date}  |  Nominal CAD geometry; import and physical verification pending")
         c.drawRightString(w-margin,23,str(page))
         return h-139
     def para(text, y, small=False):
@@ -351,8 +356,8 @@ def pdf_instructions(report, manifest):
             ax.set_ylabel("Z (mm)");ax.spines[["top","right"]].set_visible(False)
         fig.tight_layout();return fig
 
-    y=start("One shell. Two player patterns.","17 mounting stations / 12 reflective stickers per robot / unchanged printable model")
-    y=para("Use the existing v3 halves for both players. P1 and P2 differ only in which 12 stations receive reflective stickers. Keep the other five stations nonreflective. Both assets preserve the nominal <b>pelvis_link</b> origin and ROS axes: <b>X forward, Y left, Z up</b>.",y)
+    y=start("One shell. Two player patterns.","17 mounting stations / 12 reflective stickers per robot / engraved v3 shells")
+    y=para("Use the engraved v3 halves for both players. The circle / X / circled-X marks identify installation membership; see the final page. P1 and P2 differ only in which 12 stations receive reflective stickers. Keep the other five stations nonreflective. Both assets preserve the nominal <b>pelvis_link</b> origin and ROS axes: <b>X forward, Y left, Z up</b>.",y)
     y=table([["Install","Front / rear","CMTracker / Motive / body"],["Player 1","7 / 5","P1.json / P1.motive / UCB_P1"],["Player 2","4 / 8","P2.json / P2.motive / UCB_P2"]],y,[105,100,306])
     y=para("<b>P1, supplied selection:</b> "+", ".join(P1_ORDER)+".",y)
     y=para("<b>P2, calculated selection:</b> "+", ".join(report["p2_order"])+".",y)
@@ -376,7 +381,7 @@ def pdf_instructions(report, manifest):
         y=para("<b>Install these 12:</b> "+", ".join(selected)+".",y)
         y=para("<b>Leave these five nonreflective:</b> "+", ".join(unused)+". Do not add reflective balls, foil, tape or bright labels at these stations.",y)
         y=figure(pattern_views(side),y,245)
-        y=para("The grey surfaces are projections of the unchanged printable STL files. Original Sxx labels identify physical stations; array position in the JSON is only authoring order. Drawings identify locations and do not prove camera visibility.",y,True)
+        y=para("The grey surfaces are projections of the current engraved printable STL files. Original Sxx labels identify physical stations; array position in the JSON is only authoring order. Drawings identify locations and do not prove camera visibility.",y,True)
         y=table([["Region","Reflective stations"],["Front",", ".join(s for s in selected if s in FRONT)],
                  ["Rear upper",", ".join(s for s in selected if s in {"S04","S05","S06","S07","S08"})],
                  ["Rear middle",", ".join(s for s in selected if s in {"S14","S15","S16","S17","S18"})]],y,[105,406])
@@ -417,17 +422,17 @@ def pdf_instructions(report, manifest):
     y=para("A 12 mm ball diameter does not establish its thread or mounted centre. Measure each ball/stud/spacer offset before authoring ball assets; do not reuse these sticker coordinates or the old 6 mm registration stand-off. Neither mode has a qualified crash-survival rating.",y)
     para("Print the two existing halves separately at 100% scale in millimetres. Approximate footprints are 176 x 194 mm before brim/support margins. In OpenSCAD use F5 for assembly preview; select half_a or half_b for F6/export. With bed_oriented=true each opens toward the bed at Z=0. Print placement does not change the marker coordinates.",y)
 
-    y=start("Fit and installation checks","Same manufacturing masters / different optical populations")
+    y=start("Fit and installation checks","Engraved exterior / preserved stations, fasteners and datum")
     for text in [
         "<b>1. Inspect slicing.</b> Check thin ribs, bridges, seams, structural screws, blind bores and side nut slots. Keep support scars off the flat marker faces. No printer/material-specific qualification is supplied.",
-        "<b>2. Preserve the interior.</b> The shell geometry and fastener holes are unchanged. Fit on a secured robot and inspect pelvis clearance, cables, ventilation, seam closure and full joint travel. Do not create new through-holes.",
-        "<b>3. Populate the correct pattern.</b> Use pages 2-4 and check every Sxx station twice. Each robot has exactly 12 reflective stickers. Distinguish the shells with a nonreflective P1/P2 label outside the optical seats.",
+        "<b>2. Preserve the interior.</b> The fitting interior, station geometry and structural fastener holes are preserved; only exterior marking recesses were added. Fit on a secured robot and inspect pelvis clearance, cables, ventilation, seam closure and full joint travel. Do not create new through-holes.",
+        "<b>3. Populate the correct pattern.</b> Use pages 2-4 and check every Sxx station twice. Each robot has exactly 12 reflective stickers. Use the engraved circle / X / circled-X legend to identify the selected stations. Keep extra markings nonreflective.",
         "<b>4. Validate each imported body.</b> Confirm the 12 selected positions, pelvis origin and axes after a native export. Test the two bodies separately first, then together. Any all-17 ChingMu/Motive definition is incompatible with these 12-sticker installations.",
         "<b>5. Challenge occlusion.</b> Check front, rear and side camera coverage; arms, torso, low grazing views and reacquisition after complete loss. Intentionally expose only shared stations to demonstrate the ambiguity limit. Record wrong-name matches, pose jumps and dropouts.",
         "<b>6. Check the physical pose.</b> Compare the streamed pelvis pivot and local axes against physical datums and a measured displacement. Record residual error; nominal CAD coordinates are not measured calibration. Verify server world/table axes and units separately.",
         "<b>7. Keep the limitation visible.</b> Six-marker tracking does not prove player identity; absence of another marker is not reliable evidence of its pattern under occlusion. Accept a result only after the actual camera setup has been checked.",
     ]: y=para(text,y)
-    y=para("<b>Existing mesh evidence (2026-10-11, not rerun for this optical-only change):</b> front 74,536 triangles, rear 99,132; each is a closed, consistently wound component with no detected self-intersections. Rear-seat probes checked flat tops, diameters and blind depths. The STL hashes are unchanged and recorded in asset_manifest.json.",y,True)
+    y=para("<b>Engraved mesh checks (2026-11-01):</b> front 92,456 triangles, rear 131,182; each is one closed, consistently wound component. All 17 protected mounts, 816 top-face rays and 17 blind-bore rays pass. The smallest sampled remaining material path under engraving is 1.836 mm. Current hashes are in engraving_validation.json; MeshLab self-intersection checks were not rerun.",y,True)
     para("Historical local wall sampling found roughly 2.5 mm at most restored sites, but about 1.50 mm at an old front f1 edge. Preserve that region in slicing. Those checks are sampled evidence, not a certified global thickness bound or physical fit test. See geometry_repair_status.md and printability_validation.json.",y,True)
 
     y=start("Import P1 and P2 into ChingMu","Two files / distinct body names and IDs / identical pelvis frame convention")
@@ -462,7 +467,7 @@ def pdf_instructions(report, manifest):
     y=para("Facing grid: azimuth 0-355 degrees in 5-degree steps, elevation 0/15/30/45 degrees; outward-normal incidence at most 60 degrees. These are upper bounds on one-direction marker availability, not reconstructed marker counts. Cameras must supply multiple views. The analysis JSON also reports 45/70-degree sensitivity.",y)
     para("<b>Unavoidable ambiguity:</b> the shared seven contain 35 identical triples, 35 identical quadruples and seven identical six-point subsets. Eight genuinely observed matched stations would exclude a shared-only observation in the nominal geometry; this is not a vendor recognition guarantee, and no eight-point gate is imposed. No pattern satisfying this request can be certified unambiguous from every partial view.",y)
 
-    y=start("CAD datum and mount-seat reference","Geometry unchanged / optical-only revision / original station IDs retained")
+    y=start("CAD datum and mount-seat reference","Unchanged marker positions / original station IDs retained")
     y=para("The existing nominal registration is preserved: pelvis X = CAD Z / 1000, pelvis Y = CAD X / 1000, pelvis Z = (CAD Y - 145.800095037096) / 1000. The CAD source uses millimetres and CAD Y up. The marker datum is pelvis_link, not either subset's centroid.",y)
     with (SHELL/"documents/marker_transforms_pelvis_link_mount_seats.csv").open(newline="") as stream:seats=list(csv.DictReader(stream))
     data=[["Station","Seat X (m)","Seat Y (m)","Seat Z (m)"]]
@@ -470,6 +475,23 @@ def pdf_instructions(report, manifest):
     y=table(data,y,[70,147,147,147],8)
     y=para("Sticker centre = seat + 0.20 mm along the outward normal. The CSVs and workbook contain complete translation, quaternion (xyzw) and normal data. Each marker-local frame maps into pelvis_link; local +Z is outward. Round-sticker roll is an authoring convention, not an optical measurement.",y,True)
     para("The registration derives from nominal CAD references, with numerical consistency checks documented in CAD_registration.md. The old measured Motive subset has 1.395 mm RMS / 1.853 mm maximum fit residual; five restored rear sites were not observed in that export. Those records neither validate the new P2 installation nor establish physical pelvis accuracy. Keep the original source exports and geometry evidence for traceability.",y,True)
+    y=start("Engraved installation symbols", "Rear wordmark / circle, X and circled X / unchanged optical geometry")
+    y=para("The rear HITCH OPEN wordmark lies above the cooling vent and below the rear marker stations. A second line below it reads circle P1, separator dot, X P2. Small recessed symbols beside all 17 mounts identify membership without marking the flat 12 mm optical seats.",y)
+    groups=[("P1 only", "circle", report["p1_only"]),("P2 only", "X", report["p2_only"]),("P1 and P2", "circled X", report["shared"])]
+    for label,symbol,stations in groups:
+        cx,cy=margin+15,y-19
+        c.setStrokeColor(HexColor(ink));c.setLineWidth(1.5)
+        if symbol!="X":c.circle(cx,cy,10,stroke=1,fill=0)
+        if symbol!="circle":
+            c.line(cx-7,cy-7,cx+7,cy+7);c.line(cx-7,cy+7,cx+7,cy-7)
+        c.setFont("Helvetica-Bold",11);c.setFillColor(HexColor(ink));c.drawString(margin+40,y-13,label+" - "+symbol)
+        c.setFont("Helvetica",9);c.drawString(margin+40,y-30,", ".join(stations))
+        y-=55
+    y-=6
+    c.drawImage(ImageReader(str(SHELL/"documents/engraving_preview.png")),margin,y-300,width=w-2*margin,height=300,preserveAspectRatio=True,anchor="c")
+    y-=313
+    y=para("Symbols: 6 mm across, 0.7 mm strokes, 0.4 mm recessed. Wordmark: 60.94 x 7.50 mm, 0.60 mm recessed. The second-line legend is 16.57 x 2.50 mm, 0.40 mm recessed. Most symbols lie below their mounts; S13, S14, S18 and S19 lie above to avoid thin edge regions.",y,True)
+    para("These are shallow exterior cuts. Marker coordinates, sticker faces, blind bores, nut access, shell seams, cooling ventilation and the pelvis datum are preserved. The symbols do not resolve shared-only optical ambiguity. Physical fit and strength still need validation.",y,True)
     c.save()
 
 
