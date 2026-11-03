@@ -108,6 +108,11 @@ wiring. The hand body has a short solid keyed plug with four blind printed
 M4×0.7 threads aligned to the flange's hand-side ring. Use four M4×10 screws
 from outside the ring. The flange uses its original arm-side hardware.
 
+The separate-flange hand body and cap can be printed entirely in either PETG
+or PLA, including any removable supports. For the PR #117 integrated wrist
+and hand, use soluble support filament in the long internal wiring cavity so
+the support can be dissolved after printing.
+
 The hand keeps the PR #117 shoulder stops, seating pads, HITCH OPEN engraving
 and cap. Both hand parts are exported with their flat paddle-holding faces
 down. The five grip fasteners remain M4×20. Three close the cap from the back
